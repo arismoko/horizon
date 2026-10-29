@@ -68,8 +68,8 @@ from Horizon's registry and turned on, with their corner and options carried ove
 `horizon-mods.txt`, when it wasn't Z), and reads one line in the chat ("Zoom moved to the mod browser: installed for
 you"). The install is checked like the launcher's (size,
 SHA-256, signature, manifest); if it fails (offline), the next start tries again. `horizon-extras.txt` keeps the old
-keys and lists what was done in `movedToMods`. Code: `crates/horizon-client/src/moved_extras.rs`,
-`game/moved_extras.rs`.
+keys and lists what was done in `movedToMods`. Code: `crates/horizon-client-render/src/extras.rs`,
+`crates/horizon-client/src/game/extras.rs`.
 
 The game still draws the minimap, for the mod (`render.set-minimap`, [mods.md](mods.md)):
 - a corner map (top right by default), square or round, small/medium/large, zoom 0.5 to 4 blocks per pixel, rotating
