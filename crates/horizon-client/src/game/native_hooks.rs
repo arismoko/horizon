@@ -6,6 +6,9 @@
 //! Horizon's own HUD extras do, and keep a mod's settings where the
 //! WebAssembly mod of the same id kept them.
 //!
+//! API 5 adds native block entity client synchronization (`native_block_entity_types`,
+//! `native_block_entity_update_tag`, `native_block_entity_changed`).
+//!
 //! API 3 adds the world lifecycle hook (`native_world_lifecycle`).
 //!
 //! API 2 adds the item panel beside container screens and its recipe pages
@@ -45,7 +48,7 @@ use winit::{event::MouseButton, keyboard::KeyCode};
 /// The hook points' API version. The launcher reads this line from the
 /// source it builds; keep its form.
 #[allow(dead_code)]
-pub(crate) const NATIVE_HOOKS_API: u32 = 4;
+pub(crate) const NATIVE_HOOKS_API: u32 = 5;
 
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none),
 /// eased through the field of view like the spyglass when `smooth`, and the
@@ -341,6 +344,20 @@ impl Game<'_> {
     pub(super) fn native_panel_event(&mut self, mod_id: &str, event: &NativePanelEvent) {
         let _ = (mod_id, event);
     }
+    /// Register each native mod block-entity type id once, before networking.
+    /// All peers must register the same ids. API 5.
+    pub(super) fn native_block_entity_types(types: &mut Vec<String>) {
+        let _ = types;
+    }
+    /// Select the data clients may see for block entity `id`.
+    /// Leave `tag` as None to send nothing. API 5.
+    pub(super) fn native_block_entity_update_tag(
+        id: &str,
+        nbt: &Compound,
+        tag: &mut Option<Compound>,
+    ) {
+        let _ = (id, nbt, tag);
+    }
     /// Block `block` (`mymod:machine`) gets a block entity
     /// (`EntityBlock.newBlockEntity`): set `entity` to its id and saved
     /// compound when the block is yours and `entity` is none yet. The block's
@@ -363,8 +380,8 @@ impl Game<'_> {
     /// the others (`Level.tickBlockEntities`): read and change its saved
     /// compound `nbt`. It is out of the world during the call (the block
     /// entity at `pos` reads as a `Mod` with an empty id, and a save leaves
-    /// it out); if the call removes or replaces it, `nbt` is dropped. Clients,
-    /// the window's own in single player included, don't get it yet. API 4.
+    /// it out); if the call removes or replaces it, `nbt` is dropped. Call
+    /// `native_block_entity_changed` to send its update tag. API 4.
     pub(super) fn native_block_entity_tick(&mut self, pos: [i32; 3], id: &str, nbt: &mut Compound) {
         let _ = (pos, id, nbt);
     }
@@ -567,6 +584,11 @@ impl Game<'_> {
         let mut ticks = false;
         self.native_block_entity_ticks(name, &mut ticks);
         ticks
+    }
+    /// Mark a mod block entity changed and send its selected tag to clients.
+    #[allow(dead_code)]
+    pub(super) fn native_block_entity_changed(&mut self, pos: [i32; 3]) {
+        self.mark_block_entity_updated((pos[0], pos[1], pos[2]));
     }
     /// The tick of the mod block entity at `pos`.
     pub(super) fn tick_mod_block_entity(&mut self, pos: Pos) {

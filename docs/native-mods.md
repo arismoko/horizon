@@ -45,6 +45,9 @@ and final close. Bundles that use these events need `"hooks": 3`.
 API 4 adds block entities for a mod's blocks (`native_block_entity`, `native_block_entity_ticks`,
 `native_block_entity_tick`): made when the block is placed, ticked on the server and saved with the chunk.
 
+API 5 adds selected client block entity data (`native_block_entity_types`,
+`native_block_entity_update_tag`, `native_block_entity_changed`).
+
 ## What the launcher does
 
 In the window: install a native mod from the Mods page. The first one shows a notice once (the first build downloads
@@ -157,3 +160,17 @@ Keep an existing contract or add a new version when it changes incompatibly.
 The catalog does not cover helper methods or arbitrary private game code.
 Named injection resolution needs a matching horizon-mixins change; existing raw
 targets and the `hooks` metadata continue to work as before.
+
+## Block entity client data
+
+Native block entity types that send data to Horizon clients must register their
+namespaced IDs in `native_block_entity_types`. Every peer must register the same
+IDs. The content identity handshake rejects a mismatch. Vanilla clients receive
+no native block entity data.
+
+In `native_block_entity_update_tag`, copy only client-visible fields into `tag`.
+Leave it as `None` to send nothing. Horizon sends this tag with a newly loaded
+chunk and after `native_block_entity_changed(pos)`. Call that method when a tick
+or other server action changes data the client needs. It schedules an update;
+it does not save the chunk or expose the whole saved compound. The client keeps
+the last received tag until the block changes or its chunk unloads.

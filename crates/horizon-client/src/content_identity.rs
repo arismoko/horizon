@@ -16,12 +16,25 @@ pub fn identity(root: &Path) -> Result<[u8; 32], String> {
     static IDENTITIES: OnceLock<Mutex<HashMap<PathBuf, [u8; 32]>>> = OnceLock::new();
     let mut identities = IDENTITIES.get_or_init(Default::default).lock().unwrap();
     if let Some(hash) = identities.get(root) {
-        return Ok(*hash);
+        return Ok(with_mod_types(*hash, crate::mod_block_entity_sync::names()));
     }
     let bytes = std::fs::read(root.join("facts.json")).map_err(|e| e.to_string())?;
     let hash = hash_facts(&bytes)?;
     identities.insert(root.to_owned(), hash);
-    Ok(hash)
+    Ok(with_mod_types(hash, crate::mod_block_entity_sync::names()))
+}
+
+fn with_mod_types(blocks: [u8; 32], types: &[String]) -> [u8; 32] {
+    if types.is_empty() {
+        return blocks;
+    }
+    let mut hash = Sha256::new();
+    hash.update(blocks);
+    for name in types {
+        hash.update((name.len() as u64).to_le_bytes());
+        hash.update(name.as_bytes());
+    }
+    hash.finalize().into()
 }
 
 fn hash_facts(bytes: &[u8]) -> Result<[u8; 32], String> {
@@ -45,7 +58,18 @@ fn hash_facts(bytes: &[u8]) -> Result<[u8; 32], String> {
 
 #[cfg(test)]
 mod tests {
-    use super::hash_facts;
+    use super::{hash_facts, with_mod_types};
+
+    #[test]
+    fn type_identity_changes_when_a_type_changes() {
+        let blocks = [7; 32];
+        assert_eq!(with_mod_types(blocks, &[]), blocks);
+        assert_ne!(with_mod_types(blocks, &["a:machine".into()]), blocks);
+        assert_ne!(
+            with_mod_types(blocks, &["a:machine".into()]),
+            with_mod_types(blocks, &["a:other".into()])
+        );
+    }
 
     #[test]
     fn identity_tracks_order_and_properties_not_gameplay_data() {

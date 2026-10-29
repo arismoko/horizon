@@ -66,6 +66,16 @@
       "target": "horizon_client::game::native_hooks::Game<'_>::native_panel_event"
     },
     {
+      "name": "block_entity_types",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_types"
+    },
+    {
+      "name": "block_entity_update_tag",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_update_tag"
+    },
+    {
       "name": "block_entity",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity"

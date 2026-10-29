@@ -361,9 +361,14 @@ impl Game<'_> {
         self.reset_tutorial();
         self.perf.world_opening();
         let root = self.options.resources.clone();
-        let builtin = Builtin::find(&root)
+        let mut builtin = Builtin::find(&root)
             .and_then(|p| Builtin::load(&p).ok())
             .ok_or("Resources are incomplete: registries.json is missing or invalid. Click \"Prepare again\" in the launcher (or run horizon-prepare), then try again.")?;
+        if let Some(types) = builtin.registries.get_mut("minecraft:block_entity_type") {
+            let mut names = types.names.clone();
+            names.extend_from_slice(horizon_client::mod_block_entity_sync::names());
+            *types = horizon_protocol::registry::Ids::from_names(names);
+        }
         let lang = Arc::new(horizon_client::net::load_language(&root));
         let view = client_view_distance(self.settings.render_distance);
         if local.is_none() {
@@ -1332,6 +1337,18 @@ impl Game<'_> {
         else {
             return;
         };
+        if !name.starts_with("minecraft:") {
+            let block = self.world.block(pos[0], pos[1], pos[2]);
+            let block_name = &self.res.facts().get(block).name;
+            horizon_client::mod_block_entity_sync::apply_client_update(
+                &mut self.world,
+                pos,
+                block_name,
+                name,
+                tag,
+            );
+            return;
+        }
         // A decorated pot is no block entity here: its tag is kept with the chunk.
         if name == "minecraft:decorated_pot" {
             if let Tag::Compound(fields) = tag
@@ -1520,7 +1537,14 @@ impl Game<'_> {
         if self.world.loaded(pos[0], pos[2])
             && self.world.set(pos[0], pos[1], pos[2], state).is_ok()
         {
-            self.sync_block_entity((pos[0], pos[1], pos[2]), state);
+            let same_mod_block = horizon_client::mod_block_entity_sync::keep_client_entity(
+                &self.res.facts().get(previous).name,
+                &self.res.facts().get(state).name,
+                self.world.block_entities.get(&(pos[0], pos[1], pos[2])),
+            );
+            if !same_mod_block {
+                self.sync_block_entity((pos[0], pos[1], pos[2]), state);
+            }
             // LevelChunk.setBlockState removes the block entity of a block
             // that changes: the moving piston the client's moveBlocks made
             // stops when the server places what it moved (#3002).

@@ -96,6 +96,7 @@ pub struct ChunkEncoder {
     coder: Arc<SectionCoder>,
     /// Block entity type id per state (-1 for none).
     entity_types: Vec<i16>,
+    mod_type_offset: i32,
     /// The block registry id of each state's block, for BlockEvent.
     pub block_ids: Vec<i32>,
     /// The save's tables, for the heightmaps.
@@ -434,12 +435,23 @@ impl ChunkEncoder {
                 biome_bits: ceil_log2(biome_registry.len()),
             }),
             entity_types,
+            mod_type_offset: types.map_or(0, |ids| ids.names.len() as i32),
             block_ids,
             tables: None,
             cache: Default::default(),
             heights: Default::default(),
             sections: 0..SECTIONS,
             sky: true,
+        }
+    }
+
+    /// Add content states whose templates have block entities, before encoding.
+    pub fn set_mod_entity_states(&mut self, states: impl IntoIterator<Item = bool>) {
+        let coder = Arc::get_mut(&mut self.coder).expect("before encoding begins");
+        for (flags, candidate) in coder.flags.iter_mut().zip(states) {
+            if candidate {
+                *flags |= ENTITY;
+            }
         }
     }
 
@@ -538,6 +550,17 @@ impl ChunkEncoder {
             .filter(|t| **t >= 0)
             .map(|t| i32::from(*t))
     }
+    /// A mod block entity's registered type and selected client tag.
+    pub fn mod_entity_data(&self, entity: &BlockEntity) -> Option<(i32, Tag)> {
+        let BlockEntity::Mod(entity) = entity else {
+            return None;
+        };
+        let index = crate::mod_block_entity_sync::names()
+            .binary_search(&entity.id)
+            .ok()?;
+        let tag = crate::mod_block_entity_sync::update_tag(&entity.id, &entity.nbt)?;
+        Some((self.mod_type_offset + index as i32, tag))
+    }
     pub fn is_air(&self, state: u32) -> bool {
         self.coder
             .flags
@@ -580,6 +603,16 @@ impl ChunkEncoder {
     /// copied again first.
     pub fn body_in(&self, chunk: &Chunk, world: &crate::world::World) -> Vec<u8> {
         self.body(chunk, &world.block_entities, self.around(chunk, world))
+    }
+
+    /// Encode without native block entities for a vanilla client.
+    pub fn body_vanilla(&self, chunk: &Chunk, world: &crate::world::World) -> Vec<u8> {
+        self.body_for(
+            chunk,
+            &world.block_entities,
+            self.around(chunk, world),
+            false,
+        )
     }
 
     /// Make what these columns need and is not cached yet (their heightmaps
@@ -686,7 +719,17 @@ impl ChunkEncoder {
         block_entities: &HashMap<(i32, i32, i32), BlockEntity>,
         around: SectionMask,
     ) -> Vec<u8> {
-        let (wires, entities) = self.blocks(chunk, block_entities);
+        self.body_for(chunk, block_entities, around, true)
+    }
+
+    fn body_for(
+        &self,
+        chunk: &Chunk,
+        block_entities: &HashMap<(i32, i32, i32), BlockEntity>,
+        around: SectionMask,
+        include_mods: bool,
+    ) -> Vec<u8> {
+        let (wires, entities) = self.blocks_for(chunk, block_entities, include_mods);
         let heightmaps = self.heightmaps_of(chunk);
         let lights = self.light_sections(chunk, around);
         let buffer: usize = wires.iter().map(|w| w.len()).sum();
@@ -795,6 +838,15 @@ impl ChunkEncoder {
         chunk: &Chunk,
         block_entities: &HashMap<(i32, i32, i32), BlockEntity>,
     ) -> (Vec<Arc<[u8]>>, Vec<BlockEntityInfo>) {
+        self.blocks_for(chunk, block_entities, true)
+    }
+
+    fn blocks_for(
+        &self,
+        chunk: &Chunk,
+        block_entities: &HashMap<(i32, i32, i32), BlockEntity>,
+        include_mods: bool,
+    ) -> (Vec<Arc<[u8]>>, Vec<BlockEntityInfo>) {
         let mut wires = Vec::with_capacity(self.sections.len());
         let mut entity_infos = Vec::new();
         for (i, s) in chunk
@@ -808,9 +860,6 @@ impl ChunkEncoder {
             // The section's block entity blocks, kept with its bytes, in the
             // order a scan of every block would find them.
             for &(index, state) in entities.iter() {
-                let Some(kind) = self.entity_type(state) else {
-                    continue;
-                };
                 let (x, y, z) = (
                     i32::from(index & 15),
                     i32::from(index >> 8),
@@ -818,16 +867,29 @@ impl ChunkEncoder {
                 );
                 let wy = MIN_Y + (i as i32) * 16 + y;
                 let pos = (chunk.x * 16 + x, wy, chunk.z * 16 + z);
+                let (kind, tag) = if let Some(kind) = self.entity_type(state) {
+                    let tag = block_entities
+                        .get(&pos)
+                        .and_then(entity_tag)
+                        .or_else(|| pot_tag(chunk, pos))
+                        .unwrap_or(Tag::End);
+                    (kind, tag)
+                } else if include_mods {
+                    let Some(data) = block_entities
+                        .get(&pos)
+                        .and_then(|e| self.mod_entity_data(e))
+                    else {
+                        continue;
+                    };
+                    data
+                } else {
+                    continue;
+                };
                 entity_infos.push(BlockEntityInfo {
                     packed_xz: ((x << 4) | z) as i8,
                     y: wy as i16,
                     kind,
-                    // BlockEntityInfo.create: an empty update tag is not sent.
-                    tag: block_entities
-                        .get(&pos)
-                        .and_then(entity_tag)
-                        .or_else(|| pot_tag(chunk, pos))
-                        .unwrap_or(Tag::End),
+                    tag,
                 });
             }
             wires.push(encoded);
@@ -1152,6 +1214,76 @@ fn write_light(lights: &[(usize, SectionLight)], sky: bool, w: &mut Writer) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_tags_are_opt_in_ordered_and_absent_for_vanilla() {
+        const CHILD: &str = "HORIZON_TEST_NATIVE_TAG_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "lan::chunks::tests::native_tags_are_opt_in_ordered_and_absent_for_vanilla",
+                ])
+                .env(CHILD, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        use horizon_world::nbt::Compound;
+        fn update(id: &str, data: &Compound, out: &mut Option<Compound>) {
+            if id == "mod:z" {
+                *out = Some(data.clone());
+            }
+        }
+        crate::mod_block_entity_sync::initialize(vec!["mod:z".into(), "mod:a".into()], update)
+            .unwrap();
+        let builtin = Builtin::parse(
+            r#"{"minecraft:block_entity_type":{"entries":{"minecraft:chest":{"protocol_id":0}}}}"#,
+        )
+        .unwrap();
+        let states = ["minecraft:air", "mod:block"].map(|n| (Arc::<str>::from(n), false));
+        let mut encoder = ChunkEncoder::new(states, &builtin, &[], &[]);
+        encoder.set_mod_entity_states([false, true]);
+        let mut chunk = Chunk::empty(0, 0);
+        chunk.set(1, 5, 2, 1);
+        let mut data = Compound::new();
+        data.insert("speed".into(), Tag::Int(3));
+        let mut entities = HashMap::new();
+        entities.insert(
+            (1, 5, 2),
+            BlockEntity::Mod(Box::new(crate::containers::ModBlockEntity {
+                id: "mod:z".into(),
+                nbt: data.clone(),
+            })),
+        );
+        let (_, sent) = encoder.blocks_for(&chunk, &entities, true);
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].kind, 2); // vanilla chest, mod:a, mod:z
+        assert_eq!(sent[0].tag, Tag::Compound(data.clone()));
+        assert!(encoder.blocks_for(&chunk, &entities, false).1.is_empty());
+        data.insert("speed".into(), Tag::Int(4));
+        entities.insert(
+            (1, 5, 2),
+            BlockEntity::Mod(Box::new(crate::containers::ModBlockEntity {
+                id: "mod:z".into(),
+                nbt: data.clone(),
+            })),
+        );
+        assert_eq!(
+            encoder.mod_entity_data(&entities[&(1, 5, 2)]),
+            Some((2, Tag::Compound(data)))
+        );
+        entities.insert(
+            (1, 5, 2),
+            BlockEntity::Mod(Box::new(crate::containers::ModBlockEntity {
+                id: "mod:a".into(),
+                nbt: Compound::new(),
+            })),
+        );
+        assert!(encoder.blocks_for(&chunk, &entities, true).1.is_empty());
+        assert!(encoder.mod_entity_data(&entities[&(1, 5, 2)]).is_none());
+    }
 
     #[test]
     fn block_entity_blocks_are_recognised() {

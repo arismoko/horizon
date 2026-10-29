@@ -75,6 +75,7 @@ pub mod locator_bar;
 pub mod menu;
 pub mod merchant;
 pub mod mobs;
+pub mod mod_block_entity_sync;
 pub mod mod_content;
 pub mod motion;
 pub mod multiplayer;

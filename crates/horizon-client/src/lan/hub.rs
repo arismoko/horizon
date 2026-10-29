@@ -14,6 +14,7 @@ use super::{
 use crate::{
     chunk::Chunk,
     collisions::SceneCollisions,
+    containers::BlockEntity,
     effects::{EffectInstance, PlayerEffects},
     items::ItemStack,
     world::World,
@@ -1441,12 +1442,28 @@ impl Hub {
             .iter()
             .map(|c| self.encoder.body_in(c, world))
             .collect();
+        let vanilla_bodies: Vec<Vec<u8>> = if !crate::mod_block_entity_sync::names().is_empty()
+            && batches
+                .iter()
+                .any(|(i, _, _)| self.guests[*i].brand != "horizon")
+        {
+            columns
+                .iter()
+                .map(|c| self.encoder.body_vanilla(c, world))
+                .collect()
+        } else {
+            Vec::new()
+        };
         for (i, taken, batch) in batches {
             let g = &mut self.guests[i];
             let size = batch.len();
             g.batch_quota -= size as f32;
             g.send(&C::ChunkBatchStart(horizon_protocol::packets::Empty));
+            let vanilla = g.brand != "horizon";
             g.sender.send_many(batch.into_iter().map(|j| {
+                if vanilla && !vanilla_bodies.is_empty() {
+                    return vanilla_bodies[j].clone();
+                }
                 uses[j] -= 1;
                 if uses[j] == 0 {
                     std::mem::take(&mut bodies[j])
@@ -1611,6 +1628,22 @@ impl Hub {
             // Block entities with data the client shows.
             for &(x, y, z) in &positions {
                 // A decorated pot is no block entity: its tag is the chunk's saved one.
+                if let Some(entity @ BlockEntity::Mod(_)) = world.block_entities.get(&(x, y, z)) {
+                    if let Some((kind, tag)) = self.encoder.mod_entity_data(entity) {
+                        let body = C::BlockEntityData(play::BlockEntityData {
+                            pos: [x, y, z],
+                            kind,
+                            tag,
+                        })
+                        .encode();
+                        for &i in &viewers {
+                            if self.guests[i].brand == "horizon" {
+                                self.guests[i].sender.send(body.clone());
+                            }
+                        }
+                    }
+                    continue;
+                }
                 let tag = match world.block_entities.get(&(x, y, z)) {
                     Some(entity) => super::chunks::entity_tag(entity),
                     None => world

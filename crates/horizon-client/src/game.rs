@@ -16313,6 +16313,12 @@ fn run_loading(
 }
 
 pub fn run() -> Result<()> {
+    let mut block_entity_types = Vec::new();
+    Game::native_block_entity_types(&mut block_entity_types);
+    horizon_client::mod_block_entity_sync::initialize(
+        block_entity_types,
+        Game::native_block_entity_update_tag,
+    )?;
     let Some(mut options) = Options::read()? else {
         return Ok(());
     };

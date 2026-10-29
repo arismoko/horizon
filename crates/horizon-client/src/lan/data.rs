@@ -149,7 +149,9 @@ impl SyncData {
             registries.push(((*key).to_owned(), Entries { names, json }));
         }
         let tags = Self::load_tags(&root, &builtin, &dynamic);
-        let content_identity = if resources.join(crate::content_identity::MARKER).exists() {
+        let content_identity = if resources.join(crate::content_identity::MARKER).exists()
+            || !crate::mod_block_entity_sync::names().is_empty()
+        {
             Some(crate::content_identity::identity(resources)?)
         } else {
             None

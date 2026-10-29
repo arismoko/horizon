@@ -1189,6 +1189,15 @@ impl Game<'_> {
             &biome_names,
             &registry,
         );
+        if !horizon_client::mod_block_entity_sync::names().is_empty() {
+            encoder.set_mod_entity_states(
+                self.res
+                    .facts()
+                    .states
+                    .iter()
+                    .map(|s| s.block_entity && !s.name.starts_with("minecraft:")),
+            );
+        }
         encoder.tables = Some(
             self.save
                 .tables
