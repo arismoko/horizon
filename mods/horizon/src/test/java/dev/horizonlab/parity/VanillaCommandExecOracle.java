@@ -311,20 +311,19 @@ public final class VanillaCommandExecOracle {
             }
             // Entity sections become visible once their (asynchronous) load
             // finished and the chunk entity-ticks.
-            for (int i = 0; i < 400; i++) {
-                tick();
-                boolean ready = true;
-                for (int dz = -2; dz <= 2 && ready; dz++) {
-                    for (int dx = -2; dx <= 2 && ready; dx++) {
-                        ready = level.areEntitiesActuallyLoadedAndTicking(new net.minecraft.world.level.ChunkPos(cx + dx, cz + dz));
+            EntityLoadWait.untilReady(this::tick, () -> {
+                for (int dz = -2; dz <= 2; dz++) {
+                    for (int dx = -2; dx <= 2; dx++) {
+                        var pos = new net.minecraft.world.level.ChunkPos(cx + dx, cz + dz);
+                        if (!level.areEntitiesActuallyLoadedAndTicking(pos)) {
+                            return level.dimension().identifier() + " chunk " + pos;
+                        }
                     }
                 }
-                if (ready && i >= 5) {
-                    return;
-                }
+                return null;
+            }, () -> {
                 try { Thread.sleep(5); } catch (InterruptedException e) { throw new RuntimeException(e); }
-            }
-            throw new IllegalStateException("entities around the player did not load");
+            }, System::nanoTime, java.util.concurrent.TimeUnit.SECONDS.toNanos(60));
         }
 
         static JsonArray spans(Component message) {
