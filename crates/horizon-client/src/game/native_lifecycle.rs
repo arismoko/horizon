@@ -300,4 +300,155 @@ mod tests {
         let context = lifecycle.world_close_final().expect("the close fires");
         assert_eq!(context.session, SessionPhase::Closed);
     }
+    #[test]
+    fn ticks_count_non_paused_ready_ticks_only() {
+        let mut lifecycle = opening();
+        assert!(
+            lifecycle.server_tick_start(true, true).is_none(),
+            "a paused pass observes nothing"
+        );
+        assert!(
+            lifecycle.server_tick_start(false, true).is_none(),
+            "not ready yet"
+        );
+        lifecycle.world_open_ready();
+        let (context, phase) = lifecycle
+            .server_tick_start(false, true)
+            .expect("tick 1 starts");
+        assert_eq!(
+            phase,
+            ServerTickPhase::ServerTickStart {
+                world_running: true
+            }
+        );
+        assert_eq!(context.tick, NativeTickId(1));
+        let (context, _) = lifecycle.server_tick_end(false, true).expect("tick 1 ends");
+        assert_eq!(context.tick, NativeTickId(1), "the end of the same tick");
+        lifecycle.server_tick_start(false, true);
+        let (context, _) = lifecycle.server_tick_end(false, true).expect("tick 2 ends");
+        assert_eq!(context.tick, NativeTickId(2));
+        assert!(
+            lifecycle.server_tick_start(true, true).is_none(),
+            "paused again"
+        );
+        assert!(lifecycle.server_tick_end(true, true).is_none());
+        lifecycle.server_tick_start(false, true);
+        let (context, _) = lifecycle
+            .server_tick_start(false, true)
+            .expect("the next non-paused tick");
+        assert_eq!(
+            context.tick,
+            NativeTickId(4),
+            "the paused pass did not count"
+        );
+    }
+
+    #[test]
+    fn a_frozen_world_ticks_with_world_running_false() {
+        let mut lifecycle = opening();
+        lifecycle.world_open_ready();
+        let (_, phase) = lifecycle
+            .server_tick_start(false, false)
+            .expect("a frozen tick fires");
+        assert_eq!(
+            phase,
+            ServerTickPhase::ServerTickStart {
+                world_running: false
+            }
+        );
+        let (_, phase) = lifecycle
+            .server_tick_end(false, false)
+            .expect("its end fires");
+        assert_eq!(
+            phase,
+            ServerTickPhase::ServerTickEnd {
+                world_running: false
+            }
+        );
+    }
+
+    #[test]
+    fn an_end_needs_its_start() {
+        let mut lifecycle = opening();
+        lifecycle.world_open_ready();
+        assert!(
+            lifecycle.server_tick_end(false, true).is_none(),
+            "no tick is open"
+        );
+        lifecycle.server_tick_start(false, true);
+        assert!(lifecycle.server_tick_end(false, true).is_some());
+        assert!(
+            lifecycle.server_tick_end(false, true).is_none(),
+            "the pair closed"
+        );
+    }
+
+    #[test]
+    fn an_errored_tick_leaves_its_start_unpaired() {
+        // `tick_server` returns at `result?` before its end site when a
+        // level fails; the next tick still starts (the documented limit).
+        let mut lifecycle = opening();
+        lifecycle.world_open_ready();
+        assert!(lifecycle.server_tick_start(false, true).is_some());
+        assert!(
+            lifecycle.server_tick_start(false, true).is_some(),
+            "the next tick starts"
+        );
+    }
+
+    #[test]
+    fn ticks_stop_when_closing_starts() {
+        let mut lifecycle = opening();
+        lifecycle.world_open_ready();
+        lifecycle.server_tick_start(false, true);
+        lifecycle.begin_close();
+        assert!(lifecycle.server_tick_start(false, true).is_none());
+        assert!(
+            lifecycle.server_tick_end(false, true).is_none(),
+            "a closing tick observes no end"
+        );
+    }
+
+    #[test]
+    fn the_epoch_and_ticks_reset_on_reopen() {
+        let mut lifecycle = opening();
+        let first_epoch = lifecycle.world_open_ready().expect("ready").epoch;
+        lifecycle.server_tick_start(false, true);
+        lifecycle.server_tick_end(false, true);
+        lifecycle.begin_close();
+        lifecycle.world_close_final();
+        lifecycle.begin_open(NativeAuthority::LocalAuthoritative);
+        let context = lifecycle.world_open_ready().expect("the reopen is ready");
+        assert!(context.epoch.0 > first_epoch.0, "the reopen is a new epoch");
+        assert_eq!(context.tick, NativeTickId(0));
+        assert_eq!(context.authority, NativeAuthority::LocalAuthoritative);
+    }
+
+    /// The integrated server builds a fresh `Game` per launch; epochs must
+    /// not repeat across those instances (a stale epoch from the previous
+    /// session would be indistinguishable from the new one).
+    #[test]
+    fn epochs_do_not_repeat_across_game_instances() {
+        let mut first = NativeLifecycle::default();
+        first.begin_open(NativeAuthority::IntegratedServer);
+        let first_epoch = first.world_open_ready().expect("the first session").epoch;
+        let mut second = NativeLifecycle::default();
+        second.begin_open(NativeAuthority::IntegratedServer);
+        let second_epoch = second.world_open_ready().expect("the reopen").epoch;
+        assert!(
+            second_epoch.0 > first_epoch.0,
+            "a new server Game never reuses the last session's epoch"
+        );
+    }
+
+    #[test]
+    fn a_failed_open_consumes_its_epoch_for_every_later_instance() {
+        let mut first = NativeLifecycle::default();
+        first.begin_open(NativeAuthority::IntegratedServer);
+        let failed = first.world_open_failed().expect("the failure").epoch;
+        let mut second = NativeLifecycle::default();
+        second.begin_open(NativeAuthority::IntegratedServer);
+        let epoch = second.world_open_ready().expect("the next session").epoch;
+        assert!(epoch.0 > failed.0, "the failed epoch is never reused");
+    }
 }
