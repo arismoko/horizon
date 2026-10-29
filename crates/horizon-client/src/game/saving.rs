@@ -29,6 +29,10 @@ const SNAPSHOT_BUDGET: Duration = Duration::from_millis(2);
 
 impl Game<'_> {
     pub(super) fn begin_closing_save(&mut self, quit: bool) -> Result<()> {
+        if quit {
+            // A quit closes the session too; no event fires here.
+            self.native_lifecycle.begin_close();
+        }
         if let Some(save) = &mut self.pending_save {
             save.quit |= quit;
             return Ok(());
@@ -202,6 +206,9 @@ impl Game<'_> {
                 }
                 if save.quit {
                     self.saved_for_exit = true;
+                    // `WorldCloseFinal` at the successful quit boundary:
+                    // writes complete; a failed save took `other` (G6).
+                    self.native_lifecycle_world_closed();
                     Ok(true)
                 } else {
                     if save.close && self.title.is_none() {

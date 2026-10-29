@@ -122,6 +122,7 @@ mod moving_pistons;
 mod music;
 mod names;
 mod native_hooks;
+mod native_lifecycle;
 mod native_panel;
 mod native_panel_recipes;
 mod native_recipes;
@@ -1835,6 +1836,8 @@ struct Game<'a> {
     panel: native_panel::Panel,
     /// Horizon's own shader pack, while one is picked (`game/native_shaders.rs`).
     native_shaders: native_shaders::NativeShaders,
+    /// The native lifecycle bookkeeping.
+    native_lifecycle: native_lifecycle::NativeLifecycle,
     /// Meshed sections waiting for an upload budget (Horizon settings).
     pending_uploads: Vec<((i32, i32, i32), horizon_client::mesher::SectionMesh)>,
     /// This frame's view frustum, for culling entities and block entities.
@@ -9158,6 +9161,8 @@ impl Game<'_> {
     }
 
     fn finish_open_world(&mut self, prepared: world_loading::PreparedWorld) -> Result<()> {
+        // The open attempt starts; every open path completes here.
+        self.native_lifecycle_open_started();
         let world_loading::PreparedWorld {
             save_root,
             level,
@@ -9299,6 +9304,10 @@ impl Game<'_> {
         self.streaming.sky_light = dim != Dim::Nether;
         self.streaming.nether_shading = dim == Dim::Nether;
         self.load_world_state();
+        // The in-frame `WorldOpenReady` site.
+        if self.options.execution_role.is_client() && self.remote.is_none() {
+            self.native_lifecycle_world_ready();
+        }
         Ok(())
     }
     /// Streaming and region storage for one dimension of a world.
@@ -9567,6 +9576,8 @@ impl Game<'_> {
         Ok(())
     }
     fn close_world(&mut self) -> Result<()> {
+        // The close request: no event fires; new observation stops.
+        self.native_lifecycle.begin_close();
         self.clear_waypoints();
         self.begin_closing_save(false)
     }
@@ -9579,6 +9590,8 @@ impl Game<'_> {
         if self.remote.is_some() {
             return self.leave_server(None);
         }
+        // The in-frame `WorldCloseFinal` site, before storage is released.
+        self.native_lifecycle_world_closed();
         // The save screen has finished every write before releasing storage.
         self.session_lock = None;
         horizon_client::crash::clear_detail("World");
@@ -14224,6 +14237,7 @@ impl<'a> Game<'a> {
             recipe_tables: Default::default(),
             panel: Default::default(),
             native_shaders: Default::default(),
+            native_lifecycle: Default::default(),
             sky_darken_memo: Default::default(),
             persist: Default::default(),
             remote: None,

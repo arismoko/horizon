@@ -19,6 +19,7 @@
 //! that would break such a bundle is not made.
 //! Bodies have no `cfg` and no macros: horizon-mixins refuses a target with
 //! either (`tests::hook_points_stay_hookable`).
+use super::native_lifecycle::{NativeLifecycleContext, ServerTickPhase, WorldPhase};
 use super::{Game, Screen, execution_role::ExecutionRole, native_panel_recipes::RecipePage};
 use horizon_client::{
     chat::ChatSource,
@@ -35,7 +36,7 @@ use winit::{event::MouseButton, keyboard::KeyCode};
 /// The hook points' API version. The launcher reads this line from the
 /// source it builds; keep its form.
 #[allow(dead_code)]
-pub(crate) const NATIVE_HOOKS_API: u32 = 2;
+pub(crate) const NATIVE_HOOKS_API: u32 = 3;
 
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none),
 /// eased through the field of view like the spyglass when `smooth`, and the
@@ -269,6 +270,25 @@ impl Game<'_> {
     /// and on servers), and the server's own (`native_window` is false
     /// there: the single player server thread, a dedicated server).
     pub(super) fn native_tick(&mut self) {}
+    /// The world's phases, read-only; `error_text` carries the engine's
+    /// own open-failure text, empty otherwise. Server-side.
+    pub(super) fn native_world_lifecycle(
+        &mut self,
+        context: &NativeLifecycleContext,
+        phase: WorldPhase,
+        error_text: &str,
+    ) {
+        let _ = (context, phase, error_text);
+    }
+    /// The authoritative server tick's phases, read-only. A paused pass
+    /// fires nothing; a frozen world carries `world_running` false.
+    pub(super) fn native_server_tick(
+        &mut self,
+        context: &NativeLifecycleContext,
+        phase: ServerTickPhase,
+    ) {
+        let _ = (context, phase);
+    }
     /// The HUD (not drawn under F1), after the minimap: place a box with
     /// `corners.place` (boxes stack away from their edge) and draw it with
     /// `native_fill` and `native_text`. Skip a corner `native_corner_shown`
@@ -614,14 +634,29 @@ mod tests {
     /// reads the API line as it is.
     #[test]
     fn hook_points_stay_hookable() {
-        let source = include_str!("native_hooks.rs");
-        let code = source.split("#[cfg(test)]").next().unwrap_or_default();
-        assert!(code.contains("\npub(crate) const NATIVE_HOOKS_API: u32 = "));
-        let lines = code.lines().filter(|l| !l.trim_start().starts_with("//"));
-        for line in lines {
-            assert!(!line.contains("cfg"), "a cfg in the hook points: {line}");
-            for mac in ["!(", "![", "! {", "!{"] {
-                assert!(!line.contains(mac), "a macro in the hook points: {line}");
+        // The lifecycle slice also keeps its types and wrappers macro-free:
+        // a bundle hooks them the same way.
+        let sources = [
+            include_str!("native_lifecycle.rs"),
+            include_str!("native_hooks.rs"),
+        ];
+        let code = sources[1].split("#[cfg(test)]").next().unwrap_or_default();
+        // The lifecycle hook points raise the API after the v2 table hooks.
+        assert!(code.contains("\npub(crate) const NATIVE_HOOKS_API: u32 = 3;"));
+        for hook in ["fn native_world_lifecycle", "fn native_server_tick"] {
+            assert!(code.contains(hook), "a missing hook point: {hook}");
+        }
+        // HEAD hooks need bodies with no logic of their own.
+        assert!(code.contains("let _ = (context, phase, error_text);"));
+        assert!(code.contains("let _ = (context, phase);"));
+        for source in sources {
+            let code = source.split("#[cfg(test)]").next().unwrap_or_default();
+            let lines = code.lines().filter(|l| !l.trim_start().starts_with("//"));
+            for line in lines {
+                assert!(!line.contains("cfg"), "a cfg in the hook points: {line}");
+                for mac in ["!(", "![", "! {", "!{"] {
+                    assert!(!line.contains(mac), "a macro in the hook points: {line}");
+                }
             }
         }
     }

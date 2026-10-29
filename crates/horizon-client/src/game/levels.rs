@@ -346,6 +346,8 @@ impl Game<'_> {
     /// run.
     pub(super) fn tick_server(&mut self, paused: bool) -> Result<()> {
         let dims = self.levels_to_tick();
+        // `ServerTickStart`: a paused pass observes nothing; frozen reports false.
+        self.native_lifecycle_server_tick_start(paused);
         let n = dims.len();
         let mut result = Ok(());
         for (k, dim) in dims.into_iter().enumerate() {
@@ -379,7 +381,11 @@ impl Game<'_> {
         }
         self.level_pass = Pass::default();
         result?;
-        self.close_idle_levels()
+        self.close_idle_levels()?;
+        // `ServerTickEnd`: an errored tick or an idle-close failure (at
+        // the `?` above) never reaches this site.
+        self.native_lifecycle_server_tick_end(paused);
+        Ok(())
     }
 
     /// `tick_server` as a server thread runs it. With `HORIZON_SPIKES=MS`, a
