@@ -48,6 +48,8 @@ API 4 adds block entities for a mod's blocks (`native_block_entity`, `native_blo
 API 5 adds selected client block entity data (`native_block_entity_types`,
 `native_block_entity_update_tag`, `native_block_entity_changed`).
 
+API 6 adds a client block entity draw hook (`native_block_entity_render`).
+
 ## What the launcher does
 
 In the window: install a native mod from the Mods page. The first one shows a notice once (the first build downloads

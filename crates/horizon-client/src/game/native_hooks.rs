@@ -17,6 +17,8 @@
 //! `native_known_recipes`, `native_place_recipe`, `native_give`): what a
 //! recipe viewer needs.
 //!
+//! API 6 adds a client block-entity draw hook (`native_block_entity_render`).
+//!
 //! API 4 adds block entities for a mod's blocks (`native_block_entity`,
 //! `native_block_entity_ticks`, `native_block_entity_tick`): made when the
 //! block is placed, ticked on the server and saved with the chunk.
@@ -29,7 +31,10 @@
 //! Bodies have no `cfg` and no macros: horizon-mixins refuses a target with
 //! either (`tests::hook_points_stay_hookable`).
 use super::native_lifecycle::{NativeLifecycleContext, WorldPhase};
-use super::{Game, Screen, execution_role::ExecutionRole, native_panel_recipes::RecipePage};
+use super::{
+    Game, Screen, execution_role::ExecutionRole,
+    native_block_entity_render::NativeBlockEntityRender, native_panel_recipes::RecipePage,
+};
 use horizon_client::{
     block_entities::Pos,
     chat::ChatSource,
@@ -48,7 +53,7 @@ use winit::{event::MouseButton, keyboard::KeyCode};
 /// The hook points' API version. The launcher reads this line from the
 /// source it builds; keep its form.
 #[allow(dead_code)]
-pub(crate) const NATIVE_HOOKS_API: u32 = 5;
+pub(crate) const NATIVE_HOOKS_API: u32 = 6;
 
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none),
 /// eased through the field of view like the spyglass when `smooth`, and the
@@ -375,6 +380,16 @@ impl Game<'_> {
     /// when a world opens. API 4.
     pub(super) fn native_block_entity_ticks(&self, block: &str, ticks: &mut bool) {
         let _ = (block, ticks);
+    }
+    /// Draw a visible client mod block entity. Append complete four-vertex
+    /// quads to `out`; do not change vertices already in the batch. Positions
+    /// are camera-relative, and layer 0 uses the GUI/entity atlas. API 6.
+    pub(super) fn native_block_entity_render(
+        &self,
+        context: &NativeBlockEntityRender<'_>,
+        out: &mut Vec<horizon_client::mesher::Vertex>,
+    ) {
+        let _ = (context, out);
     }
     /// A server tick of block entity `id` at `pos`, in vanilla's order among
     /// the others (`Level.tickBlockEntities`): read and change its saved

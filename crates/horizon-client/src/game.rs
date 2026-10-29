@@ -156,6 +156,7 @@ mod mounts;
 mod moving_pistons;
 mod music;
 mod names;
+mod native_block_entity_render;
 mod native_hooks;
 mod native_lifecycle;
 mod native_panel;
@@ -8628,6 +8629,35 @@ impl Game<'_> {
                 self.res
                     .block_entity_render()
                     .render(&scene, visible, &mut out);
+            }
+            let frame = native_block_entity_render::Frame {
+                world: &self.world,
+                sprites: &self.gui.atlas.sprites,
+                camera,
+                partial: alpha as f32,
+                visible: &|pos| {
+                    view.is_none_or(|v| {
+                        let o = (glam::DVec3::new(
+                            f64::from(pos[0]),
+                            f64::from(pos[1]),
+                            f64::from(pos[2]),
+                        ) - camera)
+                            .as_vec3();
+                        v.intersects(o - glam::Vec3::ONE, o + glam::Vec3::splat(2.0))
+                    })
+                },
+            };
+            for &(pos, state) in r.block_entities() {
+                let start = out.len();
+                native_block_entity_render::draw(&frame, pos, state, &mut out, |context, out| {
+                    self.native_block_entity_render(context, out);
+                });
+                if out.len() > start {
+                    self.mark_block_entity(start, state);
+                    if self.entity_culler.is_some() {
+                        self.cull_entity_vertices(&mut out, start);
+                    }
+                }
             }
             self.mark_stage(out.len(), "DESTROY");
             for &(pos, stage) in &cracks {
