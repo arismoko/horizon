@@ -1,0 +1,22 @@
+[mod]
+id = "stop_probe"
+version = "0.1.0"
+
+[[injection]]
+id = "stop"
+target = "horizon_client::game::native_hooks::Game<'_>::native_server_stopping"
+kind = "HEAD"
+helper = "stop.rs"
+bindings = [
+  { name = "game", ty = "&mut Game<'_>", value = "&mut *self" },
+]
+
+[[injection]]
+id = "receive"
+target = "horizon_client::game::native_hooks::Game<'_>::native_net_from_server"
+kind = "HEAD"
+helper = "receive.rs"
+bindings = [
+  { name = "channel", ty = "&str", value = "channel" },
+  { name = "data", ty = "&[u8]", value = "data" },
+]
