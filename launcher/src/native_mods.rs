@@ -28,9 +28,11 @@ use std::process::{Command, Stdio};
 mod crates;
 
 const PREFIX: &str = "native-";
-/// horizon-mixins, for bundles that don't name the revision they were tested with.
-const MIXINS_GIT: &str = "https://github.com/horizon-rust/horizon-mixins";
-pub const MIXINS_REV: &str = "4342a0bfbe71d4d14185528d64e496d6022f16a1";
+/// horizon-mixins, for bundles that don't name the revision they were tested with. The mod-api
+/// branch builds on arismoko's fork until horizon-rust/horizon-mixins#17 (cfg(test) modules,
+/// needed by the library/executable split) is merged upstream.
+const MIXINS_GIT: &str = "https://github.com/arismoko/horizon-mixins";
+pub const MIXINS_REV: &str = "00a837175a79ab41c13cd0dbbf8d480a04c93ec4";
 /// The features of the release's own game (game-build.yml).
 const FEATURES: &str = "horizon-client/mods";
 
@@ -1277,7 +1279,7 @@ pub fn build(
         |b| b.mixins.as_ref(),
         || Ok(MIXINS_REV.into()),
         Some(MIXINS_REV),
-        |r| committed("horizon-rust/horizon-mixins", r),
+        |r| committed("arismoko/horizon-mixins", r),
     )?;
     let version = version_for(&revision, &mixins, profile, &mods)?;
     let now = Record {
