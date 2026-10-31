@@ -354,12 +354,21 @@ pub fn install(progress: impl Fn(f32)) -> Result<Toolchain, String> {
 /// `<top>/<component>/<files>` per component, and each component's files go under `prefix`. Its
 /// installer script, lists and `manifest.in` stay out.
 fn unpack(archive: &Path, prefix: &Path) -> Result<(), String> {
+    unpack_tar(archive, prefix, component_path)
+}
+
+/// Unpacks selected files from a gzip tar archive into a prefix.
+pub(crate) fn unpack_tar(
+    archive: &Path,
+    prefix: &Path,
+    path_for: impl Fn(&Path) -> Option<PathBuf>,
+) -> Result<(), String> {
     let file = fs::File::open(archive).map_err(|e| e.to_string())?;
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(file));
     for entry in tar.entries().map_err(|e| e.to_string())? {
         let mut entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path().map_err(|e| e.to_string())?.into_owned();
-        let Some(relative) = component_path(&path) else {
+        let Some(relative) = path_for(&path) else {
             continue;
         };
         let to = prefix.join(&relative);
