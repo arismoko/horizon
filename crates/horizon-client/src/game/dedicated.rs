@@ -1683,7 +1683,8 @@ impl Game<'_> {
         self.native_server_stopping(true);
         log("INFO", "Stopping server");
         log("INFO", "Saving players");
-        if let Some(host) = self.lan.take() {
+        if let Some(mut host) = self.lan.take() {
+            self.flush_native_net(&mut host);
             for g in &host.hub.guests {
                 // The vehicle the guest rides, for the file that names it.
                 let vehicle = self.root_vehicle_uuid(g.vehicle);
