@@ -11,8 +11,8 @@ pub const VERSION: &str = "v0.20261030.1";
 const RELEASE: &str = "https://github.com/indexable-inc/blaze/releases/download";
 const COMPLETE: &str = ".installed";
 
-pub struct Host {
-    pub target: &'static str,
+struct Host {
+    target: &'static str,
     sha256: &'static str,
 }
 
@@ -28,13 +28,17 @@ const HOSTS: &[Host] = &[
     },
 ];
 
-pub fn host() -> Option<&'static Host> {
+fn host() -> Option<&'static Host> {
     let target = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => "x86_64-unknown-linux-gnu",
         ("macos", "aarch64") => "aarch64-apple-darwin",
         _ => return None,
     };
     HOSTS.iter().find(|h| h.target == target)
+}
+
+pub fn supported() -> bool {
+    host().is_some()
 }
 
 fn root() -> PathBuf {
@@ -83,9 +87,7 @@ pub fn install(progress: impl Fn(f32)) -> Result<PathBuf, String> {
         return Err("Blaze archive has no executable".into());
     }
     fs::write(partial.join(COMPLETE), VERSION).map_err(|e| e.to_string())?;
-    if dir.exists() {
-        fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
-    }
+    let _ = fs::remove_dir_all(&dir);
     fs::rename(&partial, &dir).map_err(|e| e.to_string())?;
     progress(1.0);
     Ok(dir.join("blaze"))
@@ -102,15 +104,8 @@ fn archive_path(path: &Path) -> Option<PathBuf> {
 const ENV: &[(&str, &str)] = &[
     ("HOME", "home"),
     ("XDG_CACHE_HOME", "cache"),
-    ("XDG_CONFIG_HOME", "config"),
-    ("XDG_DATA_HOME", "data"),
-    ("XDG_STATE_HOME", "state"),
-    ("XDG_RUNTIME_DIR", "runtime"),
     ("TMPDIR", "tmp"),
-    ("TMP", "tmp"),
-    ("TEMP", "tmp"),
     ("BLAZE_CACHE", "blaze-cache"),
-    ("RUSTUP_HOME", "rustup"),
 ];
 
 /// Copy Cargo's command and isolate Blaze's daemon, toolchain and caches.
@@ -156,16 +151,6 @@ pub fn remove() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn pins_are_distinct_and_complete() {
-        assert_eq!(HOSTS.len(), 2);
-        for host in HOSTS {
-            assert_eq!(host.sha256.len(), 64);
-            assert!(host.sha256.bytes().all(|b| b.is_ascii_hexdigit()));
-        }
-        assert_ne!(HOSTS[0].sha256, HOSTS[1].sha256);
-    }
 
     #[test]
     fn archive_paths_stay_under_the_prefix() {

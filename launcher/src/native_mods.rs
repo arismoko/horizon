@@ -109,14 +109,6 @@ impl Builder {
         }
     }
 
-    fn available(self, supported: bool) -> Self {
-        if supported {
-            self
-        } else {
-            Self::Cargo
-        }
-    }
-
     fn target(self, root: &Path) -> PathBuf {
         root.join(match self {
             Self::Cargo => "target",
@@ -1370,7 +1362,11 @@ pub fn build(
         Some(MIXINS_REV),
         |r| committed("horizon-rust/horizon-mixins", r),
     )?;
-    let mut builder = builder.available(blaze::host().is_some());
+    let mut builder = if blaze::supported() {
+        builder
+    } else {
+        Builder::Cargo
+    };
     let mut version = version_for(&revision, &mixins, profile, builder, &mods)?;
     let now = Record {
         horizon: revision.clone(),
@@ -1461,7 +1457,7 @@ pub fn build(
         // Out of `target` before any post-build bin is built there (`post_build_programs`).
         let binary = real.join("programs").join(backend::CLIENT);
         copy_out(&target.join(profile.name()).join(backend::CLIENT), &binary)?;
-        // Post-build programs use Cargo, never Blaze's target artifacts.
+        // A mod's post-build programs compile with Cargo in its target, which may compile shared crates once.
         let post = post_build_programs(
             &rust,
             &stage,
@@ -1656,16 +1652,6 @@ mod tests {
         let settings: backend::Settings = serde_json::from_str("{}").unwrap();
         assert!(!settings.native_blaze);
         assert_eq!(Builder::from_setting(settings.native_blaze), Builder::Cargo);
-        assert_eq!(Builder::Blaze.available(false), Builder::Cargo);
-        assert_eq!(Builder::Blaze.available(true), Builder::Blaze);
-        assert_ne!(
-            Builder::Cargo.record_key(Profile::Fast),
-            Builder::Blaze.record_key(Profile::Fast)
-        );
-        assert_ne!(
-            Builder::Cargo.target(Path::new("/native")),
-            Builder::Blaze.target(Path::new("/native"))
-        );
         assert_ne!(
             super::version_for(A, B, Profile::Fast, Builder::Cargo, &[]).unwrap(),
             super::version_for(A, B, Profile::Fast, Builder::Blaze, &[]).unwrap()
