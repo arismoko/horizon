@@ -12701,10 +12701,17 @@ impl Game<'_> {
     fn creative_origin(batch: &HudBatch) -> (f32, f32) {
         batch.centered_origin(Creative::WIDTH, Creative::HEIGHT)
     }
-    /// A creative tab's title: `itemGroup.*`, else the export's English title.
+    /// A creative tab's title: `itemGroup.*` for vanilla's; a mod tab's
+    /// `itemGroup.<mod>.<name>`, else its `title` as a lang key (a mod's own
+    /// `itemGroup.<mod>`), else `title` as English text.
     fn creative_tab_title(&self, tab: &horizon_client::creative::Tab) -> String {
-        horizon_client::creative::item_group_key(&tab.id)
-            .map_or_else(|| tab.title.clone(), |key| self.translate(key, &tab.title))
+        match horizon_client::creative::item_group_key(&tab.id) {
+            Some(key) => self.translate(key, &tab.title),
+            None => {
+                let own = self.translate(&tab.title, &tab.title);
+                self.translate(&format!("itemGroup.{}", tab.id.replace(':', ".")), &own)
+            }
+        }
     }
     /// Vanilla tooltip: dark box with a purple gradient border, laid out and
     /// drawn like an item tooltip (4 px of padding on every side).
@@ -12772,7 +12779,7 @@ impl Game<'_> {
         );
         // Unselected tabs behind the panel, then the panel, then the selected tab.
         for (i, t) in tabs.iter().enumerate() {
-            if i != selected {
+            if i != selected && self.creative_screen.on_page(t) {
                 let (tx, ty) = Creative::tab_position(t);
                 batch.sprite(&self.gui.atlas, &tab_sprite(t, false), ox + tx, oy + ty);
                 let mouse = (self.cursor.0 - ox, self.cursor.1 - oy);
@@ -12797,7 +12804,7 @@ impl Game<'_> {
         }
         let (tx, ty) = Creative::tab_position(tab);
         batch.sprite(&self.gui.atlas, &tab_sprite(tab, true), ox + tx, oy + ty);
-        for t in &tabs {
+        for t in tabs.iter().filter(|t| self.creative_screen.on_page(t)) {
             let (tx, ty) = Creative::tab_position(t);
             let stack = ItemStack {
                 item: Arc::from(t.icon.as_str()),
@@ -12912,7 +12919,8 @@ impl Game<'_> {
             );
         }
         let effect_tip = self.draw_inventory_effects(batch, (ox, oy), Creative::WIDTH as i32);
-        for t in &tabs {
+        self.draw_creative_pages(batch, ox, oy);
+        for t in tabs.iter().filter(|t| self.creative_screen.on_page(t)) {
             let (tx, ty) = Creative::tab_position(t);
             if self.cursor.0 >= ox + tx
                 && self.cursor.0 < ox + tx + 26.0
@@ -12967,6 +12975,61 @@ impl Game<'_> {
             && cursor.1 >= oy + y
             && cursor.1 < oy + y + 16.0
     }
+    /// NeoForge's creative page buttons, 20 square, 50 above the screen at
+    /// its left and right edges: -1 or 1 for the one at `cursor`, when there
+    /// is more than one page.
+    fn creative_page_button(ox: f32, oy: f32, cursor: (f32, f32), pages: u32) -> Option<i64> {
+        if pages <= 1 {
+            return None;
+        }
+        let y = oy - 50.0;
+        let inside =
+            |x: f32| cursor.0 >= x && cursor.0 < x + 20.0 && cursor.1 >= y && cursor.1 < y + 20.0;
+        if inside(ox) {
+            Some(-1)
+        } else if inside(ox + Creative::WIDTH - 20.0) {
+            Some(1)
+        } else {
+            None
+        }
+    }
+    /// The page buttons and "page / pages" between them.
+    fn draw_creative_pages(&self, batch: &mut HudBatch, ox: f32, oy: f32) {
+        let pages = self.creative_screen.pages();
+        if pages <= 1 {
+            return;
+        }
+        let atlas = &self.gui.atlas;
+        let y = oy - 50.0;
+        for (x, label, step) in [(ox, "<", -1), (ox + Creative::WIDTH - 20.0, ">", 1)] {
+            let hover = Self::creative_page_button(ox, oy, self.cursor, pages) == Some(step);
+            let page = self.creative_screen.page as i64 + step;
+            let active = (0..pages as i64).contains(&page);
+            let sprite = match (active, hover) {
+                (false, _) => "gui/sprites/widget/button_disabled",
+                (true, true) => "gui/sprites/widget/button_highlighted",
+                (true, false) => "gui/sprites/widget/button",
+            };
+            horizon_client::ui::blit_sprite(batch, atlas, sprite, x, y, 20.0, 20.0, u32::MAX);
+            let color = if active {
+                u32::MAX
+            } else {
+                rgba(160, 160, 160, 255)
+            };
+            let w = HudBatch::text_width(atlas, label);
+            batch.text(atlas, label, x + (20.0 - w) / 2.0, y + 6.0, color, true);
+        }
+        let text = format!("{} / {}", self.creative_screen.page + 1, pages);
+        let w = HudBatch::text_width(atlas, &text);
+        batch.text(
+            atlas,
+            &text,
+            ox + (Creative::WIDTH - w) / 2.0,
+            oy - 44.0,
+            u32::MAX,
+            true,
+        );
+    }
     fn click_creative(&mut self, right: bool) {
         let Some(size) = self
             .renderer
@@ -12978,8 +13041,26 @@ impl Game<'_> {
         let batch = HudBatch::new(size);
         let (ox, oy) = Self::creative_origin(&batch);
         let (cx, cy) = self.cursor;
+        // NeoForge's page buttons, when mods add tabs.
+        if let Some(step) =
+            Self::creative_page_button(ox, oy, (cx, cy), self.creative_screen.pages())
+        {
+            // Page buttons are outside the inventory panel; their release must
+            // not throw a carried stack, including when the button is disabled.
+            self.inv_clicks.skip_release();
+            let page = self.creative_screen.page as i64 + step;
+            if (0..self.creative_screen.pages() as i64).contains(&page) {
+                self.audio.play_button_click();
+                self.creative_screen.set_page(page as u32);
+                self.refresh_saved_hotbars();
+            }
+            return;
+        }
         let tabs = self.creative_screen.tabs.clone();
         for (i, t) in tabs.iter().enumerate() {
+            if !self.creative_screen.on_page(t) {
+                continue;
+            }
             let (tx, ty) = Creative::tab_position(t);
             if cx >= ox + tx && cx < ox + tx + 26.0 && cy >= oy + ty && cy < oy + ty + 32.0 {
                 select_creative_tab(&mut self.creative_screen, &mut self.inv_clicks, i);
