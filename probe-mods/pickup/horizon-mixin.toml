@@ -1,0 +1,14 @@
+[mod]
+id = "pickup_probe"
+version = "0.1.0"
+
+[[injection]]
+id = "pickup"
+target = "horizon_client::game::native_hooks::Game<'_>::native_item_picked_up"
+kind = "HEAD"
+helper = "pickup.rs"
+bindings = [
+  { name = "game", ty = "&mut Game<'_>", value = "&mut *self" },
+  { name = "item", ty = "&str", value = "item" },
+  { name = "canceled", ty = "&mut bool", value = "canceled" },
+]
