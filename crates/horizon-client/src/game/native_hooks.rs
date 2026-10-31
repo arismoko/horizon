@@ -2182,6 +2182,12 @@ impl Game<'_> {
             .as_mut()
             .is_some_and(|s| s.set_data(window, id, value))
     }
+    /// Whether a mod's screen is open for the current menu: it places its own
+    /// container slots and the player's inventory, so the stock layout of the
+    /// vanilla menu underneath stands back (`slot_position`).
+    pub(super) fn native_screen_shown(&self) -> bool {
+        self.shown_native_screen().is_some()
+    }
     /// The open mod screen's height.
     pub(super) fn native_screen_height(&self) -> Option<f32> {
         self.shown_native_screen().map(|s| s.screen.height)

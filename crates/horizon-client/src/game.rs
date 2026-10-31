@@ -7578,7 +7578,9 @@ impl Game<'_> {
         }
         if let Some(p) = self
             .station_slot_position(i)
-            .or_else(|| self.machine_slot_position(i))
+            .or_else(|| {
+                Self::stock_machine_slot(self.machine_slot_position(i), self.native_screen_shown())
+            })
             .or_else(|| self.crafter_slot_position(i))
             .or_else(|| self.mount_slot_position(i))
         {
@@ -7631,6 +7633,17 @@ impl Game<'_> {
             }
         }
     }
+    /// The stock hopper/dispenser slot layout, unless a mod screen is shown for
+    /// that menu: a mod screen places its own container slots
+    /// (`native_screen_slot`) and the player's inventory (`native_screen_inventory_y`),
+    /// and this layout answers first in `slot_position`, which kept a mod's screen
+    /// on a hopper or a dispenser on the stock grid (#5141). The rest of those
+    /// menus is already the mod's: `draw_native_screen` owns the background and
+    /// `screen_height` its height.
+    fn stock_machine_slot(stock: Option<(f32, f32)>, mod_screen_shown: bool) -> Option<(f32, f32)> {
+        if mod_screen_shown { None } else { stock }
+    }
+
     fn slot_at(&self, batch: &HudBatch, x: f32, y: f32) -> Option<usize> {
         if self.book_covers_menu(batch.width) {
             return None;
@@ -18283,6 +18296,23 @@ mod tests {
         assert!(!equipment_modifier_applies("offhand", "mainhand"));
     }
     use horizon_client::keymapping::{KeyAction, SPRINT, ToggleKeys};
+
+    /// A mod screen on a hopper or dispenser menu owns its slots: the stock
+    /// grid stands back so `slot_position` reaches the mod's own slots
+    /// (`native_screen_slot`) and its `inventory_y` (#5141). Without a mod
+    /// screen the stock layout answers exactly as before, which is what keeps
+    /// this invisible to players who run no native mods.
+    #[test]
+    fn a_mod_screen_on_a_machine_menu_takes_the_stock_layout_out() {
+        let stock = Some((8.0, 109.0));
+        // A mod screen is open: the stock grid does not answer.
+        assert_eq!(Game::stock_machine_slot(stock, true), None);
+        // No mod screen: the hopper and dispenser layouts are untouched.
+        assert_eq!(Game::stock_machine_slot(stock, false), stock);
+        // Other menus have no stock layout to stand back from.
+        assert_eq!(Game::stock_machine_slot(None, true), None);
+        assert_eq!(Game::stock_machine_slot(None, false), None);
+    }
 
     /// A falling block is drawn moved by its column's model offset, as
     /// `ModelBlockRenderer.tesselateBlock` does with `BlockState.getOffset`
