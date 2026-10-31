@@ -2211,6 +2211,14 @@ pub struct MobWorld<'a> {
     pub items: Option<&'a crate::items::Items>,
     /// `ChestBlockEntity.getOpenCount`: the players with each chest open.
     pub lid_openers: &'a HashMap<(i32, i32, i32), i32>,
+    /// What a content mod's effects do, on a server (None on a client).
+    pub mod_effects: Option<&'a dyn ModEffectTicks>,
+}
+/// `MobEffectInstance.tickServer` for a content mod's effect: its
+/// `shouldApplyEffectTickThisTick` and `applyEffectTick`, which the game's
+/// native mods answer. False removes the effect.
+pub trait ModEffectTicks {
+    fn tick_mod_effect(&self, effect: &str, mob: u32, tick_count: i32, amplifier: i32) -> bool;
 }
 /// `Entity.getTeam` of the player and of the mobs on a team.
 #[derive(Clone, Debug, Default)]

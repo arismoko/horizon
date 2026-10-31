@@ -223,6 +223,16 @@ server for every player: `native_player_died`, `native_mob_spawned`, `native_mob
 `native_item_dropped` (a throw; not the items scattered when a player dies) and `native_item_picked_up` (`canceled` leaves the stack on the ground). They name a player by UUID. Bundles that use them
 need `"hooks": 40`.
 
+API 41 adds what the mob effects of a content mod ([mods.md](mods.md)) do, named after vanilla's `MobEffect` methods,
+or NeoForge's event where it has one. On the server, each tick a player or a mob has one,
+`native_should_apply_effect_tick_this_tick` says whether it acts (vanilla's base answer is no) and
+`native_apply_effect_tick` acts, and may end it, before it counts down, as in `MobEffectInstance.tickServer`. These
+two take `&self`: during a mob's tick the mob world borrows the game, so `&mut self` would alias that borrow, and the
+game doesn't hold the mobs being ticked, nor the player's effects. `native_on_effect_added` hears it given to an
+entity that didn't have it, and `native_mob_effect_added` (NeoForge's `MobEffectEvent.Added`) every time it is given.
+A mob is its `Entity.getId`; a player is None, with their state swapped in (`native_acting_player`). Vanilla's effects
+never reach them. Bundles that use them need `"hooks": 41`.
+
 ## What the launcher does
 
 In the window: install a native mod from the Mods page. The first one shows a notice once (the first build downloads

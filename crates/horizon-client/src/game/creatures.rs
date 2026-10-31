@@ -579,6 +579,11 @@ impl Game<'_> {
             teams: std::sync::Arc::new(self.mob_teams()),
             items: Some(self.items()),
             lid_openers: &self.lid_openers,
+            mod_effects: if self.remote.is_none() {
+                Some(self)
+            } else {
+                None
+            },
             // The first player in the level: a server has no player of its own.
             difficulty: self.local_difficulty(
                 self.level_players()
@@ -6043,6 +6048,7 @@ mod pearl_tests {
             sea_level: 63,
             items: Some(&items),
             lid_openers: &lid_openers,
+            mod_effects: None,
         };
         let pw = ProjWorld {
             w: &w,

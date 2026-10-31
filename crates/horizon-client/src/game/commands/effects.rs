@@ -73,11 +73,13 @@ impl Game<'_> {
                 Target::Mob(id) => match self.mobs.iter_mut().find(|m| m.id == id) {
                     Some(m) => {
                         let name = namespaced(effect.id);
+                        let new = !m.has_effect(name);
                         m.add_effect(name, duration, amplifier);
                         m.extra.hidden_effects.retain(|h| *h != name);
                         if !particles {
                             m.extra.hidden_effects.push(name);
                         }
+                        self.mod_effect_added(name, Some(id as i32), amplifier, new);
                         true
                     }
                     None => false,
