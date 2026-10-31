@@ -580,6 +580,7 @@ impl Game<'_> {
     pub(super) fn run_dedicated(&mut self) -> Result<()> {
         let result = self.run_dedicated_inner();
         if let Err(error) = &result {
+            self.native_players_leaving();
             self.native_lifecycle_world_failed(&error.to_string());
             self.native_lifecycle_close_failed(&error.to_string());
         }
@@ -1678,6 +1679,7 @@ impl Game<'_> {
         // The close request starts before player and world saves.
         self.native_lifecycle.begin_close();
         log("INFO", "Stopping server");
+        self.native_players_leaving();
         log("INFO", "Saving players");
         if let Some(host) = self.lan.take() {
             for g in &host.hub.guests {

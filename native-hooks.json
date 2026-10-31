@@ -241,6 +241,26 @@
       "target": "horizon_client::game::native_hooks::Game<'_>::native_net_from_server"
     },
     {
+      "name": "chunk_load",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_chunk_load"
+    },
+    {
+      "name": "chunk_unload",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_chunk_unload"
+    },
+    {
+      "name": "player_logged_in",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_player_logged_in"
+    },
+    {
+      "name": "player_logged_out",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_player_logged_out"
+    },
+    {
       "name": "player_died",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_player_died"

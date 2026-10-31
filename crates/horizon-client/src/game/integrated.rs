@@ -494,6 +494,7 @@ impl Game<'_> {
     ) -> Result<()> {
         let result = self.run_integrated_inner(launch, flags, tasks, ready, opening);
         if let Err(error) = &result {
+            self.native_players_leaving();
             self.native_lifecycle_close_failed(&error.to_string());
         }
         result
@@ -672,6 +673,7 @@ impl Game<'_> {
     fn stop_integrated(&mut self) -> Result<()> {
         // The close request: lifecycle observation stops.
         self.native_lifecycle.begin_close();
+        self.native_players_leaving();
         // IntegratedServer.stopServer: teardownPublishedState.
         if let Some(s) = self.serving.take() {
             s.flags.published.store(0, Ordering::Relaxed);

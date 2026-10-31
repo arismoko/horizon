@@ -13,6 +13,9 @@
 //! `native_extract_item`, `native_move_items`, and `native_dimension` for a
 //! machine's tick, in `machines/native_items.rs`).
 //!
+//! API 42 adds chunks and players coming and going (`native_chunk_load`,
+//! `native_chunk_unload`, `native_player_logged_in`, `native_player_logged_out`).
+//!
 //! API 40 adds mod messages between a mod's server and client halves
 //! (`native_net_from_client`, `native_net_from_server`, and
 //! `native_net_send_to_player`, `native_net_send_to_server` in
@@ -198,7 +201,7 @@ pub(super) use horizon_world::level::flags;
 /// The hook points' API version. The launcher reads this line from the
 /// source it builds; keep its form.
 #[allow(dead_code)]
-pub(crate) const NATIVE_HOOKS_API: u32 = 41;
+pub(crate) const NATIVE_HOOKS_API: u32 = 42;
 
 impl GameLevel<'_> {
     /// An authoritative server committed a changed state through `Level.setBlock`.
@@ -1074,6 +1077,45 @@ impl Game<'_> {
     pub(super) fn native_net_from_server(&mut self, channel: &str, data: &[u8]) {
         let _ = (channel, data);
     }
+    /// Chunk `chunk` (`[x, z]`, in chunks) of `dimension` came into the world
+    /// (NeoForge's `ChunkEvent.Load`): `new` when it was just generated, false
+    /// when read from the save. A flat world's chunk that leaves before it's
+    /// first lit isn't saved, so it's generated, and new, again; one generated
+    /// as the players left is new when it next comes, unless the server
+    /// restarts first, or the level closes for being empty, which drops its
+    /// memory of what never saved. Its blocks and block entities are there,
+    /// but its saved entities join afterwards and its light may not be ready:
+    /// change the world from a later tick. The chunks around the spawn come
+    /// before `WorldOpenReady`. Not told of a chunk a client receives.
+    /// Server-side. API 42.
+    pub(super) fn native_chunk_load(&mut self, dimension: &str, chunk: [i32; 2], new: bool) {
+        let _ = (dimension, chunk, new);
+    }
+    /// Chunk `chunk` of `dimension` left the world (NeoForge's
+    /// `ChunkEvent.Unload`), with a level that closes for being empty too. Don't
+    /// read its blocks. Its block entities are still there for this call, so
+    /// `native_with_mod_block_entity` can change one and it's saved with the
+    /// chunk. Not told when the world closes, which `native_world_lifecycle`
+    /// tells. Server-side. API 42.
+    pub(super) fn native_chunk_unload(&mut self, dimension: &str, chunk: [i32; 2]) {
+        let _ = (dimension, chunk);
+    }
+    /// `player` (`name`) joined the game (NeoForge's
+    /// `PlayerLoggedInEvent`): placed in the world and listed in
+    /// `native_server_players`, so `native_net_send_to_player` reaches them.
+    /// Once a join, with no player's state swapped in. Server-side. API 42.
+    pub(super) fn native_player_logged_in(&mut self, player: u128, name: &str) {
+        let _ = (player, name);
+    }
+    /// `player` (`name`) left the game (NeoForge's `PlayerLoggedOutEvent`), by
+    /// any path: a lost connection, a kick, the server stopping or failing.
+    /// Once for each player `native_player_logged_in` told of. They've already
+    /// left `native_server_players`, except when the server stops, which tells
+    /// before it saves, with them still listed and able to get a last message.
+    /// Server-side. API 42.
+    pub(super) fn native_player_logged_out(&mut self, player: u128, name: &str) {
+        let _ = (player, name);
+    }
     /// `player` died: where `ServerPlayer.die` starts, with the death
     /// message's key when the game knows it (`death.attack.lava`; none for a
     /// message it builds from the combat). It only hears. Server-side, for
@@ -1832,6 +1874,48 @@ impl Game<'_> {
         let mut canceled = false;
         self.native_item_picked_up(player, &stack.item, stack.count, &mut canceled);
         canceled
+    }
+    /// Tells the mods of the chunks that came and went in this level.
+    pub(super) fn native_chunks_changed(
+        &mut self,
+        unloaded: &[std::sync::Arc<horizon_client::chunk::Chunk>],
+    ) {
+        let loaded = std::mem::take(&mut self.world.loaded_chunks);
+        if self.remote.is_some() {
+            return;
+        }
+        let dimension = self.dim.id();
+        for (x, z, new) in loaded {
+            self.native_chunk_load(dimension, [x, z], new);
+        }
+        for chunk in unloaded {
+            self.native_chunk_unload(dimension, [chunk.x, chunk.z]);
+        }
+    }
+    /// The players still here leave with the server (`PlayerList.removeAll`):
+    /// the mods hear it once, whichever path closes it.
+    pub(super) fn native_players_leaving(&mut self) {
+        let Some(host) = self.lan.as_mut() else {
+            return;
+        };
+        if std::mem::replace(&mut host.players_told_left, true) {
+            return;
+        }
+        let players: Vec<(u128, String)> = host
+            .hub
+            .guests
+            .iter()
+            .filter(|g| g.placed)
+            .map(|g| (g.uuid, g.name.clone()))
+            .collect();
+        for (player, name) in players {
+            self.native_player_logged_out(player, &name);
+        }
+        // No tick follows to send what they said.
+        if let Some(mut host) = self.lan.take() {
+            self.flush_native_net(&mut host);
+            self.lan = Some(host);
+        }
     }
     /// The mobs from index `from` on are new in the world.
     pub(super) fn native_mobs_joined(&mut self, from: usize, natural: bool) {

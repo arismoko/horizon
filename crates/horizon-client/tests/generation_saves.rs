@@ -52,6 +52,7 @@ impl Recorder {
     fn save_chunk(&self, chunk: &Chunk) {
         let mut saved = chunk.clone();
         saved.fresh = false;
+        saved.generated = false;
         self.chunks
             .lock()
             .unwrap()
@@ -177,22 +178,50 @@ impl Session {
     }
 }
 
+fn worker_context(root: &Path) -> Arc<WorkerContext> {
+    let assets = Arc::new(Assets::load(root).unwrap());
+    let render = Arc::new(assets.reload(root).unwrap());
+    let facts = BlockFacts::load(root, assets.registry).unwrap();
+    let visibility = models::load_visibility(root, assets.registry).unwrap();
+    Arc::new(WorkerContext {
+        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility).unwrap()),
+        light: Arc::new(LightTables::load(root, assets.registry, &facts).unwrap()),
+        biomes: Arc::new(Biomes::load(root).unwrap()),
+        assets,
+        render: render.clone(),
+    })
+}
+
+/// What native mods hear (`native_chunk_load`): a column just generated is
+/// new, one read back from the save isn't, and each arrival is told once.
+#[test]
+fn a_new_column_is_told_apart_from_a_saved_one() {
+    let Some(root) = resources() else {
+        return;
+    };
+    let context = worker_context(&root);
+    let generator = Arc::new(Recorder::default());
+    let mut session = Session::new(generator.clone(), context.clone());
+    session.settle_at((0, 0));
+    let first = std::mem::take(&mut session.world.loaded_chunks);
+    assert!(first.contains(&(0, 0, true)), "{first:?}");
+    assert!(first.iter().all(|c| c.2), "{first:?}");
+    let residents = session.world.chunks.len();
+    assert_eq!(first.len(), residents, "one arrival for each column");
+    session.save();
+    drop(session);
+    let mut session = Session::new(generator, context);
+    session.settle_at((0, 0));
+    let again = std::mem::take(&mut session.world.loaded_chunks);
+    assert!(again.contains(&(0, 0, false)), "{again:?}");
+}
+
 #[test]
 fn chunks_left_behind_keep_their_decoration() {
     let Some(root) = resources() else {
         return;
     };
-    let assets = Arc::new(Assets::load(&root).unwrap());
-    let render = Arc::new(assets.reload(&root).unwrap());
-    let facts = BlockFacts::load(&root, assets.registry).unwrap();
-    let visibility = models::load_visibility(&root, assets.registry).unwrap();
-    let context = Arc::new(WorkerContext {
-        tables: Arc::new(MeshTables::new(&assets, &render, &facts, visibility).unwrap()),
-        light: Arc::new(LightTables::load(&root, assets.registry, &facts).unwrap()),
-        biomes: Arc::new(Biomes::load(&root).unwrap()),
-        assets,
-        render: render.clone(),
-    });
+    let context = worker_context(&root);
     let generator = Arc::new(Recorder::default());
     let mut session = Session::new(generator.clone(), context.clone());
     // Generate an area, walk away from it in steps (its edge unloads a ring

@@ -589,6 +589,9 @@ impl Game<'_> {
         let back = self.dim;
         for dim in closing {
             self.enter_level(None, dim)?;
+            // Its chunks leave with it: the mods hear before its last save.
+            let chunks: Vec<_> = self.world.chunks.values().cloned().collect();
+            self.native_chunks_changed(&chunks);
             self.save_level(true)?;
             self.enter_level(None, back)?;
             self.levels.parked.remove(&dim);

@@ -70,6 +70,9 @@ pub struct World {
     pub light_edits: Vec<((i32, i32, i32), u32, u32)>,
     /// Saved entities of chunks that just loaded, spawned by the game.
     pub loaded_entities: Vec<((i32, i32), Vec<horizon_world::nbt::Tag>)>,
+    /// Chunks that just came into this level from a worker, and whether each
+    /// was generated rather than read from the save: the game tells native mods.
+    pub loaded_chunks: Vec<(i32, i32, bool)>,
     /// Chunks changed since the last save.
     pub modified: FxHashSet<(i32, i32)>,
     /// Block entities, and the order they tick in.
@@ -188,6 +191,7 @@ impl World {
             dirty_light: Default::default(),
             light_edits: Vec::new(),
             loaded_entities: Vec::new(),
+            loaded_chunks: Vec::new(),
             modified: FxHashSet::default(),
             block_entities: Default::default(),
             chest_openers: FxHashMap::default(),

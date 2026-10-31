@@ -310,6 +310,9 @@ impl Mailbox {
 }
 pub struct Streaming {
     shared: Arc<Shared>,
+    /// Columns generated and saved as they were left behind: new when they
+    /// next arrive, though read from the save (`World::loaded_chunks`).
+    dropped_new: FxHashSet<(i32, i32)>,
     light_view: Arc<dyn Fn(&Proto) -> Option<Chunk> + Send + Sync>,
     non_air_sections: Arc<dyn Fn(&Proto) -> Option<SectionMask> + Send + Sync>,
     threads: Vec<thread::JoinHandle<()>>,
@@ -652,7 +655,11 @@ impl Streaming {
                                     generator.decorate(&mut worker, &mut region);
                                     Done::Decorated(x, z, region)
                                 }
-                                Job::Finish(proto) => Done::Generated(generator.finish(proto)),
+                                Job::Finish(proto) => {
+                                    let mut chunk = generator.finish(proto);
+                                    chunk.generated = true;
+                                    Done::Generated(chunk)
+                                }
                                 Job::Save(protos) => {
                                     let refs: Vec<&Proto> = protos.iter().map(|(_, p)| p).collect();
                                     generator.save_protos(&refs);
@@ -729,6 +736,7 @@ impl Streaming {
             protos: Default::default(),
             light_views: Default::default(),
             decorated: Default::default(),
+            dropped_new: Default::default(),
             decorating: 0,
             saving: 0,
             decoration_order: DecorationOrder::default(),
@@ -937,6 +945,7 @@ impl Streaming {
         // not give it back.
         if !self.ranges().chunk_kept(key.0, key.1, self.decorates) {
             if chunk.fresh {
+                self.dropped_new.insert(key);
                 self.saves.save_finished(chunk);
             }
             return;
@@ -960,6 +969,8 @@ impl Streaming {
         // A chunk saved with its light needs no light job; its unlit
         // neighbours still light themselves from it.
         let loaded = chunk.light_loaded;
+        let new = self.dropped_new.remove(&key) || chunk.generated;
+        world.loaded_chunks.push((key.0, key.1, new));
         world.chunks.insert(key, Arc::new(chunk));
         if loaded {
             self.lit.insert(key);

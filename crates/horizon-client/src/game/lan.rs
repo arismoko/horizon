@@ -93,6 +93,8 @@ pub struct LanSettings {
 
 pub(super) struct LanHost {
     pub hub: Hub,
+    /// The mods heard that everyone still here leaves with the server.
+    pub players_told_left: bool,
     pub settings: LanSettings,
     pub host_entity: i32,
     /// The host's swings the guests were told of (`Game::swings_started`).
@@ -1299,6 +1301,7 @@ impl Game<'_> {
         self.world.block_log = Some(Vec::new());
         self.world.light_log = Some(Default::default());
         self.lan = Some(LanHost {
+            players_told_left: false,
             hub,
             settings: LanSettings { port, ..settings },
             host_entity,
@@ -1344,6 +1347,7 @@ impl Game<'_> {
             return;
         }
         self.friends_lan_closed();
+        self.native_players_leaving();
         let Some(mut host) = self.lan.take() else {
             return;
         };
@@ -1864,6 +1868,20 @@ impl Game<'_> {
                                     .with_color(horizon_client::text::YELLOW),
                             );
                         }
+                        if let Some((uuid, name)) = host
+                            .hub
+                            .guest(conn)
+                            .filter(|g| g.placed)
+                            .map(|g| (g.uuid, g.name.clone()))
+                        {
+                            self.lan = Some(host);
+                            self.native_player_logged_in(uuid, &name);
+                            // A hook's command can close the hub.
+                            let Some(back) = self.lan.take() else {
+                                return;
+                            };
+                            host = back;
+                        }
                     }
                     HostEvent::Left(mut guest) => {
                         // The container they had open loses an opener.
@@ -1910,6 +1928,14 @@ impl Game<'_> {
                                 Text::translate("multiplayer.player.left", &[who])
                                     .with_color(horizon_client::text::YELLOW),
                             );
+                        }
+                        if guest.placed && !host.players_told_left {
+                            self.lan = Some(host);
+                            self.native_player_logged_out(guest.uuid, &guest.name);
+                            let Some(back) = self.lan.take() else {
+                                return;
+                            };
+                            host = back;
                         }
                     }
                     HostEvent::Packet(conn, packet) => {
