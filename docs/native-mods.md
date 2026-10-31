@@ -948,3 +948,8 @@ A linked trait mod implements `horizon_client::mod_api::Hooks`. Mixin injections
 An injection that returns early skips trait mods. A claimed cancellation also skips trait mods.
 Otherwise, trait mods run in their supplied order. The first `Cancel` stops dispatch.
 For replacement hooks, the first `Some` wins. Collection hooks call every mod.
+
+Hook methods take `&self` and require `Send + Sync`. One mod instance serves both
+the window's game and the server-thread game. A hook can also fire again inside
+the same mod: for example, `set_block` fires `block_changed`. Mods keep mutable
+state with interior mutability so these calls can share the instance safely.
