@@ -730,26 +730,38 @@ impl Game<'_> {
         }
         // The root of the stack is the first entity spawned.
         let id = before + 1;
-        if self.mobs.iter().any(|m| m.id == id) {
-            Some(Target::Mob(id))
-        } else if self.dropped.iter().any(|e| e.id == id) {
-            Some(Target::Item(id))
-        } else if self.armor_stands.iter().any(|a| a.id == id) {
-            Some(Target::Stand(id))
-        } else if self.item_frames.iter().any(|f| f.id == id) {
-            Some(Target::Frame(id))
-        } else if self.paintings.iter().any(|p| p.id == id) {
-            Some(Target::Painting(id))
-        } else if self.boats.iter().any(|b| b.id == id) {
-            Some(Target::Boat(id))
-        } else if self.carts.iter().any(|c| c.id == id) {
-            Some(Target::Cart(id))
-        } else if self.others.iter().any(|o| o.id == id) {
-            Some(Target::Other(id))
-        } else {
-            None
+        self.level_entity(i32::try_from(id).ok()?)
+    }
+    /// `EntityType.loadEntityRecursive` snaps every entity of the stack,
+    /// passengers included, to the summon position.
+    pub(in crate::game) fn place_summoned_entity(tag: &mut Tag, pos: [f64; 3]) {
+        let p = pos.map(|v| Tag::Double(v.to_bits()));
+        set_key(tag, "Pos", Tag::List(p.to_vec()));
+        // Entity.load: an absent Fire reads as 0 (until the entity moves).
+        if tag.get("Fire").is_none() {
+            set_key(tag, "Fire", Tag::Short(0));
+        }
+        if tag.get("Rotation").is_none() {
+            set_key(
+                tag,
+                "Rotation",
+                Tag::List(vec![
+                    Tag::Float(0.0f32.to_bits()),
+                    Tag::Float(0.0f32.to_bits()),
+                ]),
+            );
+        }
+        if let Tag::Compound(c) = tag
+            && let Some(Tag::List(riders)) = c.get_mut(&"Passengers".into())
+        {
+            for r in riders {
+                if matches!(r, Tag::Compound(_)) {
+                    Self::place_summoned_entity(r, pos);
+                }
+            }
         }
     }
+
     /// The `summon <entity> <pos> <nbt>` form.
     pub(super) fn summon_with_nbt(
         &mut self,
@@ -762,36 +774,7 @@ impl Game<'_> {
             return Err(err("argument.nbt.expected.compound", &[]));
         }
         set_key(&mut tag, "id", Tag::String(kind.into()));
-        // EntityType.loadEntityRecursive snaps every entity of the stack,
-        // passengers included, to the position.
-        fn place(tag: &mut Tag, pos: [f64; 3]) {
-            let p = pos.map(|v| Tag::Double(v.to_bits()));
-            set_key(tag, "Pos", Tag::List(p.to_vec()));
-            // Entity.load: an absent Fire reads as 0 (until the entity moves).
-            if tag.get("Fire").is_none() {
-                set_key(tag, "Fire", Tag::Short(0));
-            }
-            if tag.get("Rotation").is_none() {
-                set_key(
-                    tag,
-                    "Rotation",
-                    Tag::List(vec![
-                        Tag::Float(0.0f32.to_bits()),
-                        Tag::Float(0.0f32.to_bits()),
-                    ]),
-                );
-            }
-            if let Tag::Compound(c) = tag
-                && let Some(Tag::List(riders)) = c.get_mut(&"Passengers".into())
-            {
-                for r in riders {
-                    if matches!(r, Tag::Compound(_)) {
-                        place(r, pos);
-                    }
-                }
-            }
-        }
-        place(&mut tag, pos);
+        Self::place_summoned_entity(&mut tag, pos);
         let from = self.mobs.len();
         let canceled = self.persist.joins_canceled;
         let target = self.spawn_entity_from_nbt(tag);

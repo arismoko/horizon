@@ -134,12 +134,10 @@ impl Game<'_> {
         }
         let mut tag = nbt;
         tag.insert("id".into(), Tag::String(kind.into()));
-        tag.insert(
-            "Pos".into(),
-            Tag::List(pos.map(|v| Tag::Double(v.to_bits())).to_vec()),
-        );
+        let mut tag = Tag::Compound(tag);
+        Self::place_summoned_entity(&mut tag, pos);
         let from = self.mobs.len();
-        let target = self.spawn_entity_from_nbt(Tag::Compound(tag));
+        let target = self.spawn_entity_from_nbt(tag);
         self.native_mobs_joined(from, false);
         target.and_then(target_id)
     }
@@ -279,6 +277,30 @@ mod tests {
             }
             .valid()
         );
+    }
+
+    #[test]
+    fn summon_places_nested_passengers() {
+        let (mut tag, _) = horizon_world::nbt::parse_snbt(
+            r#"{id: "minecraft:pig", Passengers: [{id: "minecraft:pig", Passengers: [{id: "minecraft:pig"}]}]}"#,
+        )
+        .unwrap();
+        Game::place_summoned_entity(&mut tag, [1.0, 2.0, 3.0]);
+        let position = Tag::List(
+            [1.0f64, 2.0, 3.0]
+                .map(|v| Tag::Double(v.to_bits()))
+                .to_vec(),
+        );
+        for depth in 0..3 {
+            assert_eq!(tag.get("Pos"), Some(&position));
+            assert_eq!(tag.get("Fire"), Some(&Tag::Short(0)));
+            if depth < 2 {
+                let Some(Tag::List(passengers)) = tag.get("Passengers") else {
+                    panic!("missing passenger at depth {depth}");
+                };
+                tag = passengers[0].clone();
+            }
+        }
     }
 
     #[test]
