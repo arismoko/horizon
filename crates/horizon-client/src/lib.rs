@@ -14,7 +14,6 @@ pub mod arrows;
 pub mod entry;
 #[cfg(not(test))]
 pub mod game;
-#[cfg(not(test))]
 pub mod mod_api;
 pub use horizon_client_render::{
     assets, atlas_sources, audio, auth, ban_notice, bidi, biome, block_entities, block_entity_anim,

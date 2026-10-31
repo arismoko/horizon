@@ -221,6 +221,7 @@ use super::{
     native_panel_recipes::RecipePage,
     native_server::{NativeCommand, NativeServerPlayer},
 };
+use horizon_client::mod_api::NativeZoom;
 use horizon_client::{
     atlas_sources::qualified,
     block_entities::Pos,
@@ -490,16 +491,6 @@ pub(crate) struct NativeColoredLight {
     pub(crate) rgb: u32,
     pub(crate) radius: f32,
     pub(crate) intensity: f32,
-}
-
-/// The zoom a native mod asks for (`native_zoom`): the factor (1 is none),
-/// eased through the field of view like the spyglass when `smooth`, and the
-/// scale of mouse turning.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct NativeZoom {
-    pub factor: f32,
-    pub smooth: bool,
-    pub turn: f32,
 }
 
 /// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
@@ -836,11 +827,8 @@ impl Game<'_> {
     /// Before an authoritative server level's tick pass. `dimension` is its ID.
     pub(super) fn native_level_tick_pre(&mut self, dimension: &str) {
         let _ = dimension;
-        #[cfg(not(test))]
-        {
-            let mods = self.trait_mods.clone();
-            horizon_client::mod_api::dispatch_level_tick_pre(self, &mods, dimension);
-        }
+        let mods = self.trait_mods.clone();
+        horizon_client::mod_api::dispatch_level_tick_pre(self, &mods, dimension);
     }
     /// After a successful authoritative server level tick pass.
     pub(super) fn native_level_tick_post(&mut self, dimension: &str) {
@@ -934,8 +922,7 @@ impl Game<'_> {
     /// The zoom a native mod asks for, applied while playing (the spyglass's
     /// own view wins): set `zoom` when it is none yet.
     pub(super) fn native_zoom(&self, zoom: &mut Option<NativeZoom>) {
-        let _ = &mut *zoom;
-        #[cfg(not(test))]
+        let _ = zoom;
         horizon_client::mod_api::dispatch_zoom(self, &self.trait_mods, zoom);
     }
     /// The minimap a native mod shows: set `minimap` when it is none yet.
@@ -1162,7 +1149,6 @@ impl Game<'_> {
     /// hides. API 12.
     pub(super) fn native_tooltip(&self, stack: &ItemStack, lines: &mut Vec<(Text, u32)>) {
         let _ = (stack, &mut *lines);
-        #[cfg(not(test))]
         horizon_client::mod_api::dispatch_tooltip(self, &self.trait_mods, stack, lines);
     }
     /// The small bar `GuiGraphicsExtractor.itemDecorations` draws under an
@@ -1188,11 +1174,8 @@ impl Game<'_> {
         claimed: &mut bool,
     ) {
         let _ = (stack, pos, face, &mut *claimed);
-        #[cfg(not(test))]
-        {
-            let mods = self.trait_mods.clone();
-            horizon_client::mod_api::dispatch_use_item_on(self, &mods, stack, pos, face, claimed);
-        }
+        let mods = self.trait_mods.clone();
+        horizon_client::mod_api::dispatch_use_item_on(self, &mods, stack, pos, face, claimed);
     }
     /// A player uses `stack` (right click) with `self.hand`: in the air, or
     /// on a block once `native_use_item_on` let it through, where `Item.use`

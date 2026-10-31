@@ -178,6 +178,7 @@ mod mob_blocks;
 mod mob_gear;
 mod mob_looting;
 mod mob_sounds;
+mod mod_api_host;
 mod mods;
 mod mount_menu;
 mod mounts;
@@ -186,7 +187,7 @@ mod music;
 mod names;
 mod narrator;
 mod native_entities;
-pub(crate) mod native_hooks;
+mod native_hooks;
 mod native_lifecycle;
 mod native_menus;
 mod native_mobs;
@@ -18911,10 +18912,6 @@ fn run_loading(
 
 pub use launch_api::{UsageError, exit_code};
 
-pub fn run() -> Result<()> {
-    run_with(Default::default())
-}
-
 pub fn run_with(trait_mods: horizon_client::mod_api::Mods) -> Result<()> {
     let Some(mut options) = Options::read()? else {
         return Ok(());
@@ -19811,27 +19808,5 @@ fn write_level_for_role(
         level.write(dir)
     } else {
         level.write_without_player(dir)
-    }
-}
-
-#[cfg(not(test))]
-impl crate::mod_api::Host for Game<'_> {
-    fn block(&self, pos: [i32; 3]) -> String {
-        self.native_block(pos)
-    }
-    fn set_block(
-        &mut self,
-        dimension: &str,
-        pos: [i32; 3],
-        state: BlockStateId,
-        flags: i32,
-    ) -> bool {
-        self.native_set_block(dimension, pos, state, flags)
-    }
-    fn feedback(&mut self, text: horizon_client::text::Text) {
-        self.native_feedback(text);
-    }
-    fn chat(&mut self, text: &str) {
-        self.native_chat(text);
     }
 }
