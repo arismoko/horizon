@@ -4,6 +4,12 @@ The 40 areas changed most often in the 30 days to 2026-10-23 (commits on main to
 counted only for the game loop because nearly every gameplay change touches it). The crate map, how `Game` is
 organised and how to build and test are in [AGENTS.md](../AGENTS.md).
 
+The game lives in the client library in normal builds; `main.rs` is a thin executable calling
+`entry::main`. Gameplay fields remain private to the game module. Unit tests compile gameplay
+in the executable test target, separately from the library tests, to isolate process-wide state.
+Executable test builds therefore compile gameplay twice. Gameplay changes also invalidate library
+users, including `horizon-ctl` and client probes, beyond the harness selection below.
+
 Paths: `L/` = `crates/horizon-client/src/`, `G/` = `crates/horizon-client/src/game/`, `W/` =
 `crates/horizon-world/src/`, `K/` = `crates/horizon-client-core/src/`, `C/` = `crates/horizon-command/src/`,
 `I/` = `crates/horizon-items/src/`, `R/` = `crates/horizon-client-render/src/`, `N/` = `crates/horizon-client-input/src/`.
@@ -12,8 +18,12 @@ Checks: a bare name is a harness (`python3 tools/parity.py <name>`, script `tool
 
 For the full set of harnesses a file can affect, ask the runner:
 `printf '%s\n' <paths> > /tmp/p.txt && python3 tools/parity.py --changed-files /tmp/p.txt --list`.
-Any file of the game binary (`game.rs`, `game/`) selects the ~25 harnesses that run the binary; a client lib
-file selects ~103.
+The historical ~25 game-binary / ~103 client-lib counts predate the build split. Gameplay now
+appears in every rebuilt client probe's dep-info: conservative selection can grow to roughly 130
+harnesses with that old inventory. The default runner also narrows dependencies to code reachable
+from known probe entry points, so exact selection depends on current records and reachability.
+Use `--changed-files` on refreshed records to measure it; gameplay is not guaranteed to select ~25.
+Regardless of harness selection, gameplay edits also invalidate the library's other users.
 
 | # | Area (commits) | Files | Checks |
 |---|---|---|---|
