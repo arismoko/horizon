@@ -105,7 +105,7 @@
 //! API 29 adds right-clicking an entity (`native_interact_entity`).
 //!
 //! API 28 adds block and item tag reads for server tick hooks (`native_block_in_tag`,
-//! `native_item_in_tag`). API @API:server_tag_reads@ adds context-free tag reads for any server hook.
+//! `native_item_in_tag`).
 //!
 //! API 27 adds the player-health HUD rows (`native_health_hud`).
 //!
