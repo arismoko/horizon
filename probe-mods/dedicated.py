@@ -17,7 +17,7 @@ with socket.socket() as sock:
     port = sock.getsockname()[1]
 (server_dir / "eula.txt").write_text("eula=true\n")
 (server_dir / "server.properties").write_text(
-    f"server-port={port}\nonline-mode=false\nspawn-protection=0\nview-distance=4\n"
+    f"server-port={port}\nonline-mode=false\nwhite-list=false\nspawn-protection=0\nview-distance=4\n"
 )
 binary = cache / "target/fast/horizon-client"
 ctl = cache / "target/fast/horizon-ctl"
@@ -87,6 +87,7 @@ try:
         server.stdin.flush()
         server.wait(timeout=30)
 finally:
+    subprocess.run([str(ctl), "--socket", str(endpoint), "quit"], env=env, capture_output=True, timeout=10, check=False)
     if server.poll() is None:
         server.terminate()
         server.wait(timeout=20)
