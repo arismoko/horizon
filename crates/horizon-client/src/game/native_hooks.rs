@@ -826,7 +826,6 @@ impl Game<'_> {
     }
     /// Before an authoritative server level's tick pass. `dimension` is its ID.
     pub(super) fn native_level_tick_pre(&mut self, dimension: &str) {
-        let _ = dimension;
         let mods = self.trait_mods.clone();
         horizon_client::mod_api::dispatch_level_tick_pre(self, &mods, dimension);
     }
@@ -922,7 +921,6 @@ impl Game<'_> {
     /// The zoom a native mod asks for, applied while playing (the spyglass's
     /// own view wins): set `zoom` when it is none yet.
     pub(super) fn native_zoom(&self, zoom: &mut Option<NativeZoom>) {
-        let _ = zoom;
         horizon_client::mod_api::dispatch_zoom(self, &self.trait_mods, zoom);
     }
     /// The minimap a native mod shows: set `minimap` when it is none yet.
@@ -1148,7 +1146,6 @@ impl Game<'_> {
     /// codes. Asked each frame the tooltip shows, never for one the stack
     /// hides. API 12.
     pub(super) fn native_tooltip(&self, stack: &ItemStack, lines: &mut Vec<(Text, u32)>) {
-        let _ = (stack, &mut *lines);
         horizon_client::mod_api::dispatch_tooltip(self, &self.trait_mods, stack, lines);
     }
     /// The small bar `GuiGraphicsExtractor.itemDecorations` draws under an
@@ -1173,7 +1170,6 @@ impl Game<'_> {
         face: [i32; 3],
         claimed: &mut bool,
     ) {
-        let _ = (stack, pos, face, &mut *claimed);
         let mods = self.trait_mods.clone();
         horizon_client::mod_api::dispatch_use_item_on(self, &mods, stack, pos, face, claimed);
     }
