@@ -1777,7 +1777,7 @@ impl Game<'_> {
     /// single-player window included, sees only the content mods' recipes, not
     /// the world's data packs'. API 36.
     pub(super) fn native_recipes_of_type(&self, kind: &str) -> &[CustomRecipe] {
-        if self.player.is_none() {
+        if self.outside_world() {
             return &[];
         }
         self.recipes().custom.get(kind).map_or(&[], Vec::as_slice)
@@ -1788,7 +1788,9 @@ impl Game<'_> {
     /// when nothing is left (an unknown or empty tag, for one) and outside a
     /// world. API 36.
     pub(super) fn native_recipe_ingredient(&self, json: &serde_json::Value) -> Option<Ingredient> {
-        self.player.as_ref()?;
+        if self.outside_world() {
+            return None;
+        }
         let qualify = |s: &str| match s.strip_prefix('#') {
             Some(tag) => String::from("#") + &qualified(tag),
             None => qualified(s),
@@ -1816,12 +1818,20 @@ impl Game<'_> {
     /// without an `id`, for an item the game doesn't know or a count outside
     /// that, and outside a world. API 36.
     pub(super) fn native_recipe_result(&self, json: &serde_json::Value) -> Option<ItemStack> {
-        self.player.as_ref()?;
+        if self.outside_world() {
+            return None;
+        }
         let mut json = json.clone();
         if let Some(id) = json["id"].as_str() {
             json["id"] = qualified(id).into();
         }
         recipe_result(&json).filter(|s| self.items().get(&s.item).is_some())
+    }
+    /// No world is open: a client without a player (the title screen). A
+    /// server's `Game` (the server thread, a dedicated server, a LAN host)
+    /// has no player of its own, and is always in its world.
+    fn outside_world(&self) -> bool {
+        self.player.is_none() && self.options.execution_role.is_client()
     }
     /// Every item and recipe the game knows, made once (the same for every
     /// call); none outside a world. They are the window's own: the world's
