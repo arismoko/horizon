@@ -182,13 +182,18 @@ fn read_request(stream: &TcpStream) -> Result<Request, Response> {
 }
 
 fn write_response(mut stream: &TcpStream, mut response: Response) {
-    let mut head = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nCache-Control: no-store\r\nConnection: close\r\n",
-        response.status,
-        reason(response.status),
-        response.content_type,
-    );
-    if response.stream.is_none() {
+    // A WebSocket upgrade: only the headers the handshake needs, then the socket is the stream's.
+    let mut head = if response.status == 101 {
+        "HTTP/1.1 101 Switching Protocols\r\n".to_owned()
+    } else {
+        format!(
+            "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nCache-Control: no-store\r\nConnection: close\r\n",
+            response.status,
+            reason(response.status),
+            response.content_type,
+        )
+    };
+    if response.stream.is_none() && response.status != 101 {
         head.push_str(&format!("Content-Length: {}\r\n", response.body.len()));
     }
     for (name, value) in &response.headers {

@@ -345,6 +345,26 @@ The same rules as the panel's hold: a tailnet or loopback address, unless `allow
 all that guards the server, and it warns at every start). The API can't change `[engine]`, `[panel]` or `[api]`,
 nor turn on RCON or another remote console.
 
+### Tools written for vanilla's management protocol
+
+Vanilla 26.3 has its own management protocol, JSON-RPC over a WebSocket, and Horizon's server speaks it too, so a
+tool written for a vanilla server manages a Horizon one. It's off by default; turn it on in `server.toml`:
+
+```toml
+[properties]
+management-server-enabled = true
+management-server-port = 8132          # 0: a free port, logged at the start
+management-server-tls-enabled = false  # TLS isn't in Horizon yet
+# management-server-secret: 40 letters and digits; left out, the server makes one and writes it here
+```
+
+It listens on `localhost` (`management-server-host`). A client sends the secret as `Authorization: Bearer <secret>`,
+or, from a browser, in the WebSocket subprotocol (`minecraft-v1,<secret>`) from an origin listed in
+`management-server-allowed-origins`. `rpc.discover` lists the methods; Horizon answers more of them with each release
+([api/server.md](api/server.md#not-there-yet)). The protocol has no TLS here yet: keep it
+on `localhost` or your tailnet, never on a public address. As in vanilla, a wrong secret or TLS setting stops the
+server from starting.
+
 ## 7. Backups
 
 ```sh

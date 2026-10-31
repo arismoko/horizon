@@ -109,6 +109,10 @@ pub struct World {
     /// The moving-piston block entities of the level, by position, copied
     /// from the block ticks after each tick: collision and rendering read them.
     pub moving_pistons: Vec<([i32; 3], horizon_world::piston_shape::MovingPistonState)>,
+    /// The `ShulkerBoxBlockEntity` lid state of the level, by position, copied
+    /// from the block entities after each tick: the collision queries read it
+    /// (`ShulkerBoxBlockEntity.getBoundingBox`), as `moving_pistons` for pistons.
+    pub shulkers: FxHashMap<[i32; 3], crate::block_entity_anim::Shulker>,
 }
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Weather {
@@ -203,6 +207,7 @@ impl World {
             light_log: None,
             moving_piston_fallback: Vec::new(),
             moving_pistons: Vec::new(),
+            shulkers: FxHashMap::default(),
             pois: Default::default(),
         }
     }
@@ -428,6 +433,84 @@ impl World {
     }
     pub fn loaded(&self, x: i32, z: i32) -> bool {
         self.chunks.contains_key(&(x >> 4, z >> 4))
+    }
+    /// `LockCode`: the `lock` a container block entity refuses to open
+    /// without, as the tag it was loaded or set with carries it (Horizon's
+    /// model holds no field for it).
+    pub fn block_lock(&self, key: (i32, i32, i32)) -> Option<&horizon_world::nbt::Tag> {
+        self.chunks
+            .get(&(key.0 >> 4, key.2 >> 4))?
+            .saved
+            .as_ref()?
+            .block_entity_sources
+            .iter()
+            .find(|(p, _)| *p == key)?
+            .1
+            .get("lock")
+    }
+    /// `LockCode.addToTag` for a tag a command gives a container (`setblock`,
+    /// `data merge`): the tag it was set with keeps the lock, so `data get`
+    /// shows it, a player's open checks it and the save writes it.
+    pub fn set_block_lock(&mut self, key: (i32, i32, i32), tag: &horizon_world::nbt::Tag) {
+        use horizon_world::nbt::Tag;
+        let lock = tag.get("lock").and_then(|lock| match lock {
+            Tag::Compound(_) => Some(lock.clone()),
+            _ => None,
+        });
+        self.with_chunk_extras(key, |extras| {
+            let at = extras
+                .block_entity_sources
+                .iter()
+                .position(|(p, _)| *p == key);
+            match at {
+                Some(i) => {
+                    if let Tag::Compound(source) = &mut extras.block_entity_sources[i].1 {
+                        match lock {
+                            Some(lock) => {
+                                source.insert("lock".into(), lock);
+                            }
+                            None => {
+                                source.remove(&"lock".into());
+                            }
+                        }
+                    }
+                }
+                // A container set at runtime has no source yet: the tag the
+                // command gave is the one it was set with, `id` and position
+                // included (the save checks the id before merging).
+                None if lock.is_some() => extras.block_entity_sources.push((key, tag.clone())),
+                None => {}
+            }
+        });
+    }
+    /// `LevelChunk.removeBlockEntity`: the tag a block entity was loaded or set
+    /// with goes with it, so a container placed there later starts unlocked.
+    pub fn forget_block_entity_source(&mut self, key: (i32, i32, i32)) {
+        self.with_chunk_extras(key, |extras| {
+            extras.block_entity_sources.retain(|(p, _)| *p != key);
+        });
+    }
+    /// Run `f` on the keep-as-loaded data of the chunk holding `key`, put back
+    /// for the next save (`block_entity_sources` is where Horizon restores the
+    /// block entity fields its model does not hold).
+    fn with_chunk_extras(
+        &mut self,
+        key: (i32, i32, i32),
+        f: impl FnOnce(&mut crate::chunk::ChunkExtras),
+    ) {
+        let chunk_key = (key.0 >> 4, key.2 >> 4);
+        let Some(chunk) = self.chunks.get_mut(&chunk_key) else {
+            return;
+        };
+        let chunk = Arc::make_mut(chunk);
+        let mut extras = chunk
+            .saved
+            .take()
+            .map(Arc::unwrap_or_clone)
+            .unwrap_or_default();
+        f(&mut extras);
+        chunk.saved = Some(Arc::new(extras));
+        self.modified.insert(chunk_key);
     }
 }
 

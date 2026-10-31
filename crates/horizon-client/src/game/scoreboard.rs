@@ -199,22 +199,7 @@ impl Game<'_> {
             return Some(Target::Player);
         }
         let uuid = uuid_from_text(name).filter(|_| name.len() == 36)?;
-        if Some(uuid) == self.level.player_uuid {
-            return Some(Target::Player);
-        }
-        let id = self
-            .persist
-            .uuids
-            .iter()
-            .find(|(_, u)| **u == uuid)
-            .map(|(id, _)| *id)?;
-        if self.mobs.iter().any(|m| m.id == id) {
-            Some(Target::Mob(id))
-        } else if self.dropped.iter().any(|i| i.id == id) {
-            Some(Target::Item(id))
-        } else {
-            None
-        }
+        self.target_with_uuid(uuid)
     }
     /// `Entity.getTags` (the `Tags` list of the saved entity).
     pub(super) fn tags_of(&self, t: Target) -> Vec<String> {

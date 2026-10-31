@@ -960,6 +960,30 @@ impl Selectable {
             compatible: true,
         }
     }
+    /// A server's downloaded pack (`DownloadedPackSource.DOWNLOADED_PACK_SELECTION`):
+    /// required, fixed at the top, so the pack screen cannot remove or reorder it.
+    pub fn downloaded(id: &str, compatible: bool) -> Self {
+        Self {
+            id: id.to_owned(),
+            required: true,
+            position: Position::Top,
+            fixed: true,
+            compatible,
+        }
+    }
+}
+
+/// Ids from `DownloadedPackSource` (`server/…`); they must not go into
+/// `options.txt` `resourcePacks`.
+pub fn is_downloaded_pack_id(id: &str) -> bool {
+    id.starts_with("server/")
+}
+
+/// The player's own selection: drop every downloaded server/world pack id.
+pub fn player_pack_ids(ids: impl IntoIterator<Item = String>) -> Vec<String> {
+    ids.into_iter()
+        .filter(|id| !is_downloaded_pack_id(id))
+        .collect()
 }
 
 /// `Pack.Position.insert`: below or above the packs fixed at that end.
@@ -1093,16 +1117,47 @@ impl SelectionModel {
         ok
     }
     /// `commit`: the repository's selection, bottom first, as options.txt
-    /// stores it.
+    /// stores it (downloaded `server/…` packs stay out of that file).
     pub fn commit(&self) -> Vec<String> {
         let ids: Vec<String> = self.selected.iter().rev().map(|p| p.id.clone()).collect();
-        self.rebuild(&ids).into_iter().map(|p| p.id).collect()
+        player_pack_ids(self.rebuild(&ids).into_iter().map(|p| p.id))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `DownloadedPackSource.DOWNLOADED_PACK_SELECTION`: the pack is selected,
+    /// fixed at the top, cannot be removed, and stays out of options.txt.
+    #[test]
+    fn a_downloaded_server_pack_is_fixed_selected_and_not_committed() {
+        let server = "server/00000000000000000000000000000001/hash.zip";
+        let available = vec![
+            Selectable::optional("file/Mine", true),
+            Selectable::downloaded(server, true),
+            Selectable::vanilla(),
+        ];
+        let model = SelectionModel::new(available, &["file/Mine".into()]);
+        assert_eq!(
+            model
+                .selected
+                .iter()
+                .map(|p| p.id.as_str())
+                .collect::<Vec<_>>(),
+            [server, "file/Mine", "vanilla"]
+        );
+        assert!(!model.can_unselect(true, 0));
+        // A neighbour cannot move up past the fixed server pack.
+        assert!(!model.can_move_up(true, 1));
+        assert_eq!(
+            model.commit(),
+            vec!["vanilla".to_owned(), "file/Mine".to_owned()]
+        );
+        assert!(is_downloaded_pack_id(server));
+        assert!(!is_downloaded_pack_id("file/Mine"));
+    }
+
     #[test]
     fn mcmeta_with_utf8_bom_is_read() {
         let dir = std::env::temp_dir().join(format!("horizon-bom-{}", std::process::id()));

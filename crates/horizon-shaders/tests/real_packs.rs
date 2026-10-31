@@ -30,7 +30,7 @@ fn real_packs_read() {
         let macros = Macros::standard();
         let shaders = Properties::parse(
             &pack.read_text("shaders.properties").unwrap_or_default(),
-            &macros,
+            &horizon_shaders::with_options(&pack, &macros),
         );
         let ids: Vec<Properties> = ["block", "item", "entity", "dimension"]
             .iter()
@@ -178,7 +178,23 @@ fn real_packs_read() {
                 weather: Some(terrain.clone()),
                 hand: Some(terrain),
             };
-            let post = load_post(&pack, &folder, &shaders, &Macros::standard(), &inputs);
+            let mut macros = Macros::standard();
+            if std::env::var_os("SUBGROUPS").is_some() {
+                macros.define("MC_GL_KHR_shader_subgroup_arithmetic", "");
+            }
+            let post = load_post(&pack, &folder, &shaders, &macros, &inputs);
+            for p in &post.programs {
+                for (name, c) in &p.compute {
+                    println!(
+                        "    {name} before {}: {} images, groups {:?} / {:?}, local {:?}",
+                        p.name,
+                        c.interface.images.len(),
+                        c.work_groups,
+                        c.work_groups_render,
+                        c.module.entry_points[0].workgroup_size
+                    );
+                }
+            }
             println!(
                 "  dimension {id} (folder `{folder}`): {} post programs, shadow pass {} ({:?}, {:?}, {:?}, {:?}, {} shadowcomp), terrain {:?}, water {:?}, sky {:?} {:?}, entities {:?} {:?}, {} notes, {:.0} ms",
                 post.programs.len(),
@@ -204,7 +220,12 @@ fn real_packs_read() {
                 custom.uniforms().count(),
                 custom.notes.iter().take(4).collect::<Vec<_>>()
             );
-            for n in post.notes.iter().chain(&post.config.notes).take(12) {
+            let shown = if std::env::var_os("SHOW_ERRORS").is_some() {
+                usize::MAX
+            } else {
+                12
+            };
+            for n in post.notes.iter().chain(&post.config.notes).take(shown) {
                 println!("    {n}");
             }
         }

@@ -246,6 +246,31 @@ pub fn swallowable(m: &Mob, item: &str) -> bool {
 pub fn has_body(m: &Mob) -> bool {
     m.extra.head.is_some()
 }
+
+#[cfg(test)]
+mod knockback_sync_tests {
+    use super::*;
+    use crate::mobs::{Mob, Species};
+    use std::sync::Arc;
+
+    /// `SulfurCube.knockback` sets `needsSync`, as `LivingEntity.knockback`
+    /// does, so a guest sees a cube with a block knocked about at once.
+    #[test]
+    fn a_knocked_cube_with_a_block_syncs_at_once() {
+        load_archetype_items(&HashMap::from([(
+            "minecraft:sulfur_cube_archetype/explosive".to_owned(),
+            HashSet::from(["minecraft:tnt".to_owned()]),
+        )]));
+        let mut kind = (*crate::mobs::sensor_scan_tests::kind()).clone();
+        kind.species = Species::SulfurCube;
+        let mut m = Mob::new(1, Arc::new(kind), Vec3::ZERO, 0.0);
+        m.extra.head = Some("minecraft:tnt".into());
+        assert!(!m.needs_sync);
+        m.damage(5.0, Damage::player([2.0, 0.0, 0.0]));
+        assert!(m.velocity.x < 0.0, "velocity {:?}", m.velocity);
+        assert!(m.needs_sync);
+    }
+}
 pub fn archetype(m: &Mob) -> Option<&'static Archetype> {
     m.extra.head.as_deref().and_then(archetype_of)
 }
@@ -273,6 +298,54 @@ pub fn client_tick(m: &mut Mob) {
 }
 fn can_explode(m: &Mob) -> bool {
     archetype(m).is_some_and(|a| a.explosion.is_some()) && m.alive() && !primed(m)
+}
+
+#[cfg(test)]
+mod immune_tests {
+    use super::*;
+    use crate::mobs::{Mob, Species};
+    use std::sync::Arc;
+
+    fn cube(head: Option<&str>) -> Mob {
+        let mut kind = (*crate::mobs::sensor_scan_tests::kind()).clone();
+        kind.species = Species::SulfurCube;
+        let mut m = Mob::new(1, Arc::new(kind), Vec3::ZERO, 0.0);
+        m.extra.head = head.map(Into::into);
+        m
+    }
+
+    /// `#sulfur_cube_with_block_immune_to` has these too: a cube with a block
+    /// takes none of them, a cube without one does.
+    #[test]
+    fn a_cube_with_a_block_shrugs_off_the_whole_tag() {
+        for kind in [
+            DamageKind::FallingAnvil,
+            DamageKind::FallingBlock,
+            DamageKind::FallingStalactite,
+            DamageKind::DryOut,
+            DamageKind::Spit,
+            DamageKind::Stalagmite,
+            DamageKind::SulfurCubeHot,
+            DamageKind::WindCharge,
+        ] {
+            let mut m = cube(Some("minecraft:dirt"));
+            let health = m.health;
+            assert!(!m.damage(1.0, Damage::of(kind)), "{kind:?}");
+            assert_eq!(m.health, health, "{kind:?}");
+            let mut m = cube(None);
+            assert!(m.damage(1.0, Damage::of(kind)), "{kind:?}");
+            assert_eq!(m.health, health - 1.0, "{kind:?}");
+        }
+    }
+
+    /// outside the tag (`magic`) a cube with a block is hurt.
+    #[test]
+    fn a_cube_with_a_block_takes_magic() {
+        let mut m = cube(Some("minecraft:dirt"));
+        let health = m.health;
+        assert!(m.damage(1.0, Damage::of(DamageKind::Magic)));
+        assert_eq!(m.health, health - 1.0);
+    }
 }
 pub fn register(m: &mut Mob) {
     use super::cube;
@@ -390,6 +463,14 @@ pub fn accepts_damage(m: &mut Mob, source: &Damage, amount: f32) -> bool {
             | DamageKind::Freeze
             | DamageKind::SweetBerryBush
             | DamageKind::HotFloor
+            | DamageKind::FallingAnvil
+            | DamageKind::FallingBlock
+            | DamageKind::FallingStalactite
+            | DamageKind::DryOut
+            | DamageKind::Spit
+            | DamageKind::Stalagmite
+            | DamageKind::SulfurCubeHot
+            | DamageKind::WindCharge
     );
     if immune {
         // `dealDefaultKnockback`, unless the damage type is tagged no_knockback.
@@ -567,6 +648,8 @@ pub fn knockback(m: &mut Mob, direction: (f64, f64), from: Option<[f64; 3]>, dam
     );
     // The hit sound plays on the next tick (no event queue here).
     m.extra.scratch[1] = 2;
+    // needsSync: the push reaches the other players at once.
+    m.needs_sync = true;
     true
 }
 /// `SulfurCube.tick` and `customServerAiStep` additions after the cube's

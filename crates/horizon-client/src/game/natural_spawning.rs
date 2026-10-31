@@ -535,6 +535,7 @@ impl<'a> Game<'a> {
         let spawn_enemies = self.ui.rules.bool("spawn_monsters");
         let mut random = std::mem::replace(&mut self.world.random, LegacyRandom::new(0));
         let mut pending = Vec::new();
+        let last_state;
         {
             let level = self.natural_level();
             let counted: Vec<Counted> = self
@@ -563,6 +564,7 @@ impl<'a> Game<'a> {
             let mut state = SpawnState::new(&level, spawnable, players, &counted, |cx, cz| {
                 self.world.chunks.contains_key(&(cx, cz))
             });
+            last_state = state.counts();
             let categories = if spawn_mobs {
                 state.filtered_categories(spawn_enemies, self.world.game_time % 400 == 0)
             } else {
@@ -595,6 +597,8 @@ impl<'a> Game<'a> {
             }
         }
         self.world.random = random;
+        // ServerChunkCache.lastSpawnState, for the debug overlay.
+        self.spawn_counts.insert(self.dim, last_state);
         self.add_spawned(pending, false);
         self.spawn_scratch = scratch;
     }

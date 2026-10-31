@@ -76,6 +76,10 @@ LAUNCHER_PATHS = [
     "crates/horizon-release-sign/",
     "crates/horizon-telemetry/",
     "crates/horizon-theme/",
+    # Its icon, its menu entries and its AppImage are compiled or packaged into a release
+    # (launcher/build.rs, src/desktop.rs, packaging/linux/appimage.sh).
+    "packaging/icons/",
+    "packaging/linux/",
 ]
 LAUNCHER_IGNORED = ["launcher/links.json", "launcher/docs/", "launcher/tests/"]
 
@@ -89,8 +93,9 @@ PLAYERS_FOOTER = ('<h1>Want to play? Download the <a href="https://playhorizon.d
 PLAYERS = (PLAYERS_FOOTER + '<p>The launcher installs this version and keeps it up to date. You need your own copy of '
            'Minecraft: Java Edition. The files below are what the launcher installs, and the dedicated server for '
            'people who host one.</p>')
-LAUNCHER_FOOTER = ("Your launcher updates itself. New here? Download the archive for your system below, extract it, "
-                   "and run `horizon-launcher`. Website: https://playhorizon.dev")
+LAUNCHER_FOOTER = ("Your launcher updates itself. New here? On Linux take the .AppImage below, make it executable "
+                   "and run it; on Windows and macOS download the archive, extract it and run `horizon-launcher` "
+                   "(Horizon.app on macOS). Website: https://playhorizon.dev")
 DISCLAIMER = "Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft."
 # An open issue with this label holds every game release (docs/release-flow.md). Only people who can triage the
 # repository can add it, and the issue's text is never read: its author could edit it afterwards.

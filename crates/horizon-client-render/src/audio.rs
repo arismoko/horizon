@@ -1336,6 +1336,13 @@ impl Audio {
         self.stop_instance(id);
         self.release(id);
     }
+    /// `SoundBufferLibrary.enumerate`: the decoded buffers kept and their bytes.
+    pub fn cache_stats(&self) -> (usize, usize) {
+        self.backend
+            .cache
+            .lock()
+            .map_or((0, 0), |c| (c.entries.len(), c.bytes))
+    }
     /// Every sound event id (for command completion).
     /// The engine's table sizes and the mixer's channels (`status`).
     pub fn census(&self) -> serde_json::Value {

@@ -27,7 +27,7 @@ impl Launcher {
     fn toggle_shortcut(&mut self, id: String, name: String) {
         let has = self.has_shortcut(&id);
         let done = match has {
-            false => shortcut::make(backend::exe_path(), &id, &name).map(|made| {
+            false => shortcut::make(&backend::update_target(), &id, &name).map(|made| {
                 let file = made[0].file_name().unwrap_or_default().to_string_lossy();
                 format!("{file} is on your desktop: it plays {name}.")
             }),

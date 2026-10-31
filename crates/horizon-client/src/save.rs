@@ -788,6 +788,26 @@ fn merge_block_entity(original: &Tag, loaded: &Tag, current: &Tag) -> Tag {
     }
     merged
 }
+/// `BlockDataAccessor.getData` (`BlockEntity.saveWithFullMetadata`): the tag
+/// `data get block` shows and `data merge block` changes, without the
+/// chunk-only `keepPacked`, and with the fields Horizon keeps outside its
+/// model: a container's `lock` (`LockCode`), from the tag it was loaded or set
+/// with.
+pub fn block_entity_data(
+    p: (i32, i32, i32),
+    e: &crate::containers::BlockEntity,
+    block: &str,
+    lock: Option<&Tag>,
+) -> Tag {
+    let mut tag = encode_block_entity(p, e, block);
+    if let Tag::Compound(map) = &mut tag {
+        map.remove(&"keepPacked".into());
+        if let Some(lock) = lock {
+            map.insert("lock".into(), lock.clone());
+        }
+    }
+    tag
+}
 /// `BannerBlockEntity.loadAdditional` (and the `components` a block entity keeps).
 pub fn decode_banner(tag: &Tag) -> crate::containers::Banner {
     crate::containers::Banner {
@@ -5633,6 +5653,28 @@ mod tests {
             crate::lan::chunks::entity_tag(&crate::containers::BlockEntity::Campfire(Box::new(c)))
                 .expect("update tag");
         assert!(update.get("Items").is_some() && update.get("CookingTimes").is_none());
+    }
+    /// `LockCode`: a chest's `lock` is not in Horizon's model, so `data get`
+    /// takes it from the tag the block entity was loaded (or set) with.
+    #[test]
+    fn a_locked_chest_keeps_its_lock_through_decode_and_encode() {
+        let saved = horizon_world::nbt::parse_snbt(
+            r#"{id:"minecraft:chest",x:1,y:2,z:3,lock:{items:"minecraft:gold_ingot"}}"#,
+        )
+        .unwrap()
+        .0;
+        let (pos, chest) = decode_block_entity(&saved).expect("chest");
+        assert_eq!(chest.slots().len(), 27);
+        assert_eq!(pos, (1, 2, 3));
+        // The encoded entity has no field to carry the lock...
+        let plain = encode_block_entity(pos, &chest, "minecraft:chest");
+        assert!(plain.get("lock").is_none());
+        // ...so `data get` puts back the one it was loaded with.
+        let data = block_entity_data(pos, &chest, "minecraft:chest", saved.get("lock"));
+        let lock = horizon_world::nbt::parse_snbt(r#"{items:"minecraft:gold_ingot"}"#)
+            .unwrap()
+            .0;
+        assert_eq!(data.get("lock"), Some(&lock));
     }
     #[test]
     fn spawner_block_entity_round_trips() {

@@ -147,6 +147,36 @@ mod vertex_tests {
         assert_eq!(hdr_tier("vault", 12), INCANDESCENT);
         assert_eq!(hdr_tier("sculk_sensor", 1), LOW);
     }
+    #[test]
+    fn fluid_faces_keep_the_colour_and_the_emission() {
+        let lit = super::emitting(super::pack_rgb([0x12, 0x34, 0x56]), super::INCANDESCENT);
+        assert_eq!(super::fluid_face(lit, 0), 0x8D56_3412);
+        assert_eq!(super::fluid_face(lit, 5), 0xDD56_3412);
+        // Another face replaces the first.
+        assert_eq!(super::fluid_face(super::fluid_face(lit, 5), 1), 0x9D56_3412);
+    }
+    /// What `gfx/native_material.rs` reads back from the colour's alpha byte: the face of a
+    /// fluid quad, and the HDR tier.
+    fn decoded(color: u32) -> (Option<u32>, u32) {
+        let flags = color >> 24;
+        let high = flags >> 4;
+        let fluid = high >= 8 && (high & 7) < 6;
+        (fluid.then_some(high & 7), 15 - (flags & 15))
+    }
+    #[test]
+    fn the_material_stage_reads_back_what_the_mesher_encodes() {
+        let rgb = super::pack_rgb([0x12, 0x34, 0x56]);
+        for tier in 0..=super::VERY_BRIGHT {
+            let lit = super::emitting(rgb, tier);
+            assert_eq!(decoded(lit), (None, u32::from(tier)));
+            for face in 0..6 {
+                assert_eq!(
+                    decoded(super::fluid_face(lit, face)),
+                    (Some(face as u32), u32::from(tier))
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -794,7 +824,8 @@ mod reuse_tests;
 pub const OPAQUE_LAYER: u16 = 1 << 15;
 /// The bits of `TerrainVertex::color`'s alpha byte that hold how brightly its face shines
 /// in HDR output (`gfx/hdr.rs`): 15 minus the tier, so the usual 0xFF means none. The
-/// byte's other four bits stay set.
+/// byte's high nibble carries the fluid face flags (`fluid_face`); the shaders ignore the
+/// vertex alpha, so both travel to the material stage untouched.
 pub const EMISSION_BITS: u32 = 0x0F00_0000;
 /// HDR tiers, by the kind of light rather than its level: a candle's flame is as bright as
 /// a torch's, it only lights less around it. 0 stays as in SDR.
@@ -806,6 +837,17 @@ pub const VERY_BRIGHT: u8 = 4;
 /// `color` marked as shining at `tier` (0 to `VERY_BRIGHT`).
 pub fn emitting(color: u32, tier: u8) -> u32 {
     color & !EMISSION_BITS | u32::from(15 - tier.min(VERY_BRIGHT)) << 24
+}
+/// The high nibble of `TerrainVertex::color`'s alpha byte: 8 plus the face (`Direction`
+/// as usize) on a fluid quad, 0xF on every other. `terrain.wgsl` reads only the low nibble
+/// (the emission), so only the material stage of Horizon's own packs reads it
+/// (`gfx/native_material.rs`); whether the fluid is water or lava follows from the pass
+/// that draws it.
+pub const FLUID_FACE_BITS: u32 = 0xF000_0000;
+/// `color` marked as a fluid quad of face `face` (`Direction` as usize, 0 to 5).
+pub fn fluid_face(color: u32, face: usize) -> u32 {
+    debug_assert!(face < 6);
+    color & !FLUID_FACE_BITS | 0x8000_0000 | (face as u32) << 28
 }
 /// The HDR tier of block `name` (no namespace), which emits light `level`.
 pub fn hdr_tier(name: &str, level: u8) -> u8 {
@@ -953,6 +995,8 @@ fn pack_coords(coords: u32) -> u16 {
 pub struct Mesher<'a> {
     /// CardinalLighting.NETHER: brighter up/down faces.
     pub nether_shading: bool,
+    /// A shader pack lights the faces (its `oldLighting` off): no face shading in the colours.
+    pub shader_pack_lighting: bool,
     pub assets: &'a Assets,
     pub render: &'a RenderAssets,
     pub tables: &'a MeshTables,
@@ -1027,8 +1071,8 @@ impl Mesher<'_> {
                     }
                     if state.fluid.kind() != FluidKind::Empty {
                         let water = tints.get(Resolver::Water, x, y, z);
-                        let nether = self.nether_shading;
-                        fluid::tesselate(self.tables, nether, pad, water, &mut out, [x, y, z]);
+                        let shade = (self.nether_shading, self.shader_pack_lighting);
+                        fluid::tesselate(self.tables, shade, pad, water, &mut out, [x, y, z]);
                     }
                     if !state.model {
                         continue;
@@ -1127,7 +1171,11 @@ impl Mesher<'_> {
         let q = &face.quad;
         let tier = state.tier.max(hdr_tier("", q.light_emission));
         let shade_face = q.shade_direction_override.unwrap_or(q.facing);
-        let directional = lighting::cardinal(self.nether_shading, shade_face);
+        let directional = if self.shader_pack_lighting {
+            1.0
+        } else {
+            lighting::cardinal(self.nether_shading, shade_face)
+        };
         // Grey level per vertex before tinting, and vanilla light coords.
         let (gray, coords) = if ao {
             let info = &self.tables.info;

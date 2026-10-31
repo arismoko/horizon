@@ -82,6 +82,17 @@ pub fn double_chest_name(first: Option<&str>, second: Option<&str>) -> horizon_w
     display_name(first.or(second), "container.chestDouble")
 }
 
+/// `BaseContainerBlockEntity.sendChestLockedNotifications`: the action bar
+/// message of a container that refuses to open, `container.isLocked` naming it
+/// by its display name.
+pub fn locked_message(title: &horizon_world::nbt::Tag) -> horizon_world::nbt::Tag {
+    use horizon_world::nbt::Tag;
+    Tag::compound([
+        ("translate", Tag::String("container.isLocked".into())),
+        ("with", Tag::List(vec![title.clone()])),
+    ])
+}
+
 /// The menu a container vehicle's `createMenu` builds (`ContainerEntity`):
 /// `AbstractChestBoat.createMenu` and `MinecartChest.createMenu` are
 /// `ChestMenu.threeRows` (a 9x3 menu), `MinecartHopper.createMenu` is a

@@ -1066,7 +1066,7 @@ impl Game<'_> {
             return;
         }
         if self.remote.is_some() {
-            self.send_chat(&format!("/{command}"));
+            self.send_unattended_command(command);
         } else {
             self.run_command(command);
         }

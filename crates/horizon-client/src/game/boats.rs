@@ -14,6 +14,7 @@ use horizon_client::{
         leash::{Holder, Pending},
         riders,
     },
+    motion::RiddenBoat,
 };
 use horizon_core::{
     geometry::{Aabb, ShapeOp, Vec3, VoxelShape},
@@ -260,9 +261,72 @@ impl Game<'_> {
     fn fluid_height(&self, x: i32, y: i32, z: i32) -> Option<(f32, bool)> {
         self.fluid_height_of(x, y, z, Some(Fluid::Water))
     }
+    /// The horizontal water plane around the camera for the water mirror: the median
+    /// standing-water surface of a grid of columns 48 blocks around, each scanned down from
+    /// the camera to its ground. A lake or the sea has one plane; the mirror shows only the
+    /// water on it. With no water in reach the last plane found stays, so the mirror never
+    /// switches off as the camera moves.
+    pub(super) fn water_plane(&self, camera: glam::DVec3) -> Option<f32> {
+        const RADIUS: i32 = 48;
+        const STEP: usize = 4;
+        const DEPTH: i32 = 96;
+        let (cx, cz) = (camera.x.floor() as i32, camera.z.floor() as i32);
+        let top = camera.y.floor() as i32 + 2;
+        // Scanned again once the camera moves 8 blocks, or every 5 seconds: a scan reads up
+        // to 60 000 blocks on the game thread, and the plane rarely changes.
+        let scan = (
+            [cx >> 3, top >> 3, cz >> 3],
+            self.world.game_time.div_euclid(100),
+        );
+        if self.water_plane_scan.replace(Some(scan)) == Some(scan) {
+            return self.water_plane_memo.get();
+        }
+        let mut heights = Vec::with_capacity(625);
+        for x in (cx - RADIUS..=cx + RADIUS).step_by(STEP) {
+            for z in (cz - RADIUS..=cz + RADIUS).step_by(STEP) {
+                // The top of the column's water: the highest standing water under the
+                // camera (a full block's water continues above it).
+                for y in (top - DEPTH..=top).rev() {
+                    if let Some((h, source)) = self.fluid_height(x, y, z) {
+                        if source && h < 1.0 {
+                            heights.push(y as f32 + h);
+                        }
+                        break;
+                    }
+                    if self.res.facts().get(self.world.block(x, y, z)).solid_render {
+                        break;
+                    }
+                }
+            }
+        }
+        if heights.is_empty() {
+            return self.water_plane_memo.get();
+        }
+        heights.sort_by(f32::total_cmp);
+        let found = heights[heights.len() / 2];
+        // The plane in use stays while a quarter of the columns are still on it, so two
+        // lakes at different heights do not make the mirror flicker between them.
+        let plane = match self.water_plane_memo.get() {
+            Some(last)
+                if 4 * heights.iter().filter(|h| (*h - last).abs() < 0.05).count()
+                    >= heights.len() =>
+            {
+                last
+            }
+            _ => found,
+        };
+        self.water_plane_memo.set(Some(plane));
+        Some(plane)
+    }
     /// `FluidState.getHeight` and whether it is a source, for `fluid` or,
     /// with `None`, any fluid (`ClipContext.Fluid.ANY`).
-    fn fluid_height_of(&self, x: i32, y: i32, z: i32, fluid: Option<Fluid>) -> Option<(f32, bool)> {
+    pub(super) fn fluid_height_of(
+        &self,
+        x: i32,
+        y: i32,
+        z: i32,
+        fluid: Option<Fluid>,
+    ) -> Option<(f32, bool)> {
         let f = self.res.facts().get(self.world.block(x, y, z));
         if f.fluid == Fluid::None || fluid.is_some_and(|want| f.fluid != want) {
             return None;
@@ -664,6 +728,19 @@ impl Game<'_> {
             }
         }
         false
+    }
+    /// `AbstractBoat.modifyPassengerFluidInteractionBox`: the ridden boat's box
+    /// and whether it is underwater, for `Entity.getFluidInteractionBox`. A boat
+    /// keeps only the part of the passenger's box above its own top, so a boat
+    /// bobbing on water never sinks the passenger's eyes or body.
+    pub(super) fn riding_boat_fluid_box(&self) -> Option<RiddenBoat> {
+        self.boats
+            .iter()
+            .find(|b| Some(b.id) == self.riding)
+            .map(|b| RiddenBoat {
+                under_water: b.under_water(),
+                max_y: b.bounds().max_position().y,
+            })
     }
     /// The player's tick while riding: steer, tick the boat, sit in it.
     pub(super) fn tick_riding(&mut self, keys: Keys) -> horizon_client::Result<()> {

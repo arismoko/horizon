@@ -39,6 +39,19 @@ pub struct Manifest {
     /// Sprite tags the material stage reads, in bit order.
     pub tags: Vec<SpriteTag>,
     pub budget: Budget,
+    /// When the material stage's water mirror (`reflection`) is drawn.
+    pub reflection: Option<Reflection>,
+}
+
+/// `[reflection]`: when Horizon draws the water mirror the material stage reads as
+/// `reflection`. Without it, whenever the stage reads that texture.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Reflection {
+    /// The option the mirror is drawn while it is not 0 (a bool on, a number other than 0),
+    /// if any.
+    #[serde(default)]
+    pub option: Option<String>,
 }
 
 /// A set of block sprites the material stage can tell apart: its bit in
@@ -143,6 +156,7 @@ struct Raw {
     tags: Vec<SpriteTag>,
     #[serde(default)]
     budget: RawBudget,
+    reflection: Option<Reflection>,
 }
 
 #[derive(Deserialize)]
@@ -260,6 +274,16 @@ impl Manifest {
             }
             ms => ms.map(|ms| ms as f32),
         };
+        if let Some(r) = &raw.reflection {
+            if raw.material.is_none() {
+                return Err(err("[reflection] needs [material]".into()));
+            }
+            if let Some(id) = &r.option
+                && !options.iter().any(|o| o.id == *id)
+            {
+                return Err(err(format!("reflection.option: `{id}` is no option")));
+            }
+        }
         Ok(Manifest {
             id: raw.id,
             name: raw.name,
@@ -275,6 +299,7 @@ impl Manifest {
             options,
             tags: raw.tags,
             budget: Budget { gpu_ms },
+            reflection: raw.reflection,
         })
     }
 

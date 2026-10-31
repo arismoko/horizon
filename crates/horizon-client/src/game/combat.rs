@@ -187,6 +187,18 @@ impl Game<'_> {
             self.note_named_attacker(damage_type, mob, name);
         }
     }
+    /// How many attackers wait for the damage they caused, for
+    /// [`Game::drop_pending_since`].
+    pub(super) fn pending_marks(&self) -> (usize, usize) {
+        (self.combat.pending.len(), self.combat.pending_direct.len())
+    }
+    /// Forgets the attackers noted since `marks`: their hit didn't land (a
+    /// native mod canceled it), so no combat entry takes them, and the next
+    /// hit of the same damage type must not be credited to them.
+    pub(super) fn drop_pending_since(&mut self, marks: (usize, usize)) {
+        self.combat.pending.truncate(marks.0);
+        self.combat.pending_direct.truncate(marks.1);
+    }
     /// `note_attacker` for an entity that is not one of `self.mobs` (the
     /// ender dragon).
     pub(super) fn note_named_attacker(&mut self, damage_type: &str, id: u32, name: Text) {

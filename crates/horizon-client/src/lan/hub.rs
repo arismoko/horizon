@@ -2284,11 +2284,24 @@ impl Hub {
     /// starts the wake-up fade (100).
     pub fn wake(&mut self, i: usize) {
         let g = &mut self.guests[i];
-        if g.bed.take().is_none() && !g.sleeping {
+        let head = g.bed.take();
+        if head.is_none() && !g.sleeping {
             return;
+        }
+        if let Some(head) = head {
+            g.woke_from = Some(head);
         }
         g.sleeping = false;
         g.sleep_timer = 100;
+        if g.sent_bed.take().is_some() {
+            g.send(&C::SetEntityData(play::SetEntityData {
+                id: g.entity_id,
+                values: vec![
+                    (6, serializer::POSE, Value::Id(0)),
+                    (14, serializer::OPTIONAL_BLOCK_POS, Value::OptPos(None)),
+                ],
+            }));
+        }
         let (id, at) = (g.entity_id, g.position);
         // ClientboundAnimatePacket.WAKE_UP.
         self.broadcast_near(
@@ -2703,9 +2716,15 @@ impl Hub {
                     g.max_unacknowledged = 10;
                 }
                 S::Pong(p) => self.anticheat_pong(i, p.id),
+                // handleAttack is the game's too: a move queued behind an attack would move
+                // the player (or land them on the ground, losing a falling attack's critical
+                // hit) before the game checks their reach and state.
                 S::Attack(p) => {
                     if !self.anticheat_attack(i, p.id, events) {
                         events.push(HostEvent::Packet(conn, Box::new(S::Attack(p))));
+                        if self.move_queued(i) {
+                            break;
+                        }
                     }
                 }
                 S::Punch(p) => {
@@ -2803,16 +2822,8 @@ impl Hub {
                         break;
                     }
                 }
-                // handleAttack and handleInteract are the game's too: a move queued
-                // behind them would move the player (or land them on the ground,
-                // losing a falling attack's critical hit) before the game checks
-                // their reach and state.
-                S::Attack(p) => {
-                    events.push(HostEvent::Packet(conn, Box::new(S::Attack(p))));
-                    if self.move_queued(i) {
-                        break;
-                    }
-                }
+                // handleInteract is the game's too, like handleAttack above: a move queued
+                // behind it waits for the next tick.
                 S::Interact(p) => {
                     events.push(HostEvent::Packet(conn, Box::new(S::Interact(p))));
                     if self.move_queued(i) {

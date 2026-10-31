@@ -11,7 +11,7 @@
 //! is DEPRECATED: never use it, it gets no fixes and will be removed soon.
 //! LAN guests and dedicated servers use the same code either way.
 use super::{
-    Game, Options, PackResources, Resources, UiResources, WorldIcon,
+    Dim, Game, Options, PackResources, Resources, UiResources, WorldIcon,
     execution_role::ExecutionRole,
     lan::{LanSettings, Owner, SyncPreload, preload_sync_data},
     world_loading::{WorldLoader, WorldRequest},
@@ -60,9 +60,18 @@ struct Flags {
     entity_distance: AtomicU32,
     /// `MinecraftServer.isCurrentlySaving`: the server is autosaving.
     saving: AtomicBool,
+    /// The generators of the levels the server has run, by dimension: what
+    /// F3's chunk generation entry asks `ServerChunkCache.getGenerator`.
+    terrain: Mutex<
+        std::collections::HashMap<&'static str, Arc<horizon_client::vanillagen::VanillaTerrain>>,
+    >,
     /// What the server's `LevelLoadListener` reports, for the window's
     /// `LevelLoadingScreen` (`LevelLoadTracker.serverProgress/statusView`).
     load: Arc<horizon_client::level_loading::ServerLoadView>,
+    /// Where the window's debug entries want the server's lines for (its
+    /// dimension and feet), and the lines of the last tick there.
+    debug_at: Mutex<Option<(Dim, [i32; 3])>>,
+    debug: Mutex<super::debug_lines::ServerDebug>,
 }
 
 /// Work the window hands its server thread (`MinecraftServer.execute`).
@@ -77,12 +86,33 @@ pub(super) struct Integrated {
     pub world_name: String,
 }
 impl Integrated {
+    /// The generator of the server's level in `dimension`, once it has run.
+    pub fn terrain(
+        &self,
+        dimension: &str,
+    ) -> Option<Arc<horizon_client::vanillagen::VanillaTerrain>> {
+        self.flags.terrain.lock().ok()?.get(dimension).cloned()
+    }
     /// The server's load progress and chunk status map.
     pub fn load_view(&self) -> &Arc<horizon_client::level_loading::ServerLoadView> {
         &self.flags.load
     }
     pub fn smoothed_tick_ms(&self) -> f32 {
         f32::from_bits(self.flags.smoothed_tick_ms.load(Ordering::Relaxed))
+    }
+    /// Asks for the debug entries' server lines at `at`, or stops asking.
+    pub(super) fn request_debug(&self, at: Option<(Dim, [i32; 3])>) {
+        if let Ok(mut want) = self.flags.debug_at.lock() {
+            *want = at;
+        }
+    }
+    /// The debug entries' server lines of the last tick.
+    pub(super) fn debug(&self) -> super::debug_lines::ServerDebug {
+        self.flags
+            .debug
+            .lock()
+            .map(|d| d.clone())
+            .unwrap_or_default()
     }
     /// `MinecraftServer.isCurrentlySaving`.
     pub fn is_saving(&self) -> bool {
@@ -558,12 +588,34 @@ impl Game<'_> {
                     self.debug_charts.smoothed_tick_ms.to_bits(),
                     Ordering::Relaxed,
                 );
+                if let (Some(terrain), Ok(mut terrains)) =
+                    (self.end.locator(), flags.terrain.lock())
+                {
+                    terrains.insert(self.dim.id(), terrain);
+                }
             }
             self.apply_publish();
             self.publish_load_view();
             self.wait_for_next_server_tick(&mut next, paused);
         }
         self.stop_integrated()
+    }
+
+    /// After the level of `dim` ticked: the window's debug entries' server
+    /// lines, when they want them from this level.
+    pub(super) fn publish_server_debug(&self, dim: Dim) {
+        let Some(serving) = &self.serving else {
+            return;
+        };
+        let want = serving.flags.debug_at.lock().ok().and_then(|w| *w);
+        if let Some((at, feet)) = want
+            && at == dim
+        {
+            let lines = self.server_debug_lines(feet);
+            if let Ok(mut debug) = serving.flags.debug.lock() {
+                *debug = lines;
+            }
+        }
     }
 
     /// The integrated server's world open: `run_integrated`'s segment
@@ -681,6 +733,7 @@ impl Game<'_> {
             s.flags.published.store(0, Ordering::Relaxed);
         }
         if let Some(mut host) = self.lan.take() {
+            self.flush_native_net(&mut host);
             // PlayerList.removeAll: the owner and every guest leave the game.
             host.award_leave_game_to_all();
             for g in &host.hub.guests {

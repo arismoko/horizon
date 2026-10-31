@@ -28,6 +28,9 @@ struct HorizonMaterialOut {
     @location(5) position: vec3<f32>,
     @location(6) spherical: f32,
     @location(7) cylindrical: f32,
+    @location(8) @interpolate(flat) face: u32,
+    @location(9) @interpolate(flat) fluid_quad: u32,
+    @location(10) @interpolate(flat) emission: f32,
 }
 fn horizon_material_vertex(position: vec3<f32>, uv: vec2<f32>, layer: u32, color: vec4<f32>,
     light: vec2<u32>, origin: vec3<f32>) -> HorizonMaterialOut {
@@ -45,6 +48,19 @@ fn horizon_material_vertex(position: vec3<f32>, uv: vec2<f32>, layer: u32, color
     out.position = pos;
     out.spherical = length(pos);
     out.cylindrical = max(length(pos.xz), abs(pos.y));
+    // The colour's alpha byte (mesher.rs's `fluid_face` and `emitting`): a fluid quad's
+    // high nibble is 8 + its face (0..5), every other quad keeps 0xF there; the low nibble
+    // is 15 minus the face's HDR tier. Every corner of a quad carries the same byte, so the
+    // interpolated value rounds back exactly.
+    let flags = u32(round(color.a * 255.0));
+    let high = flags >> 4u;
+    let fluid = high >= 8u && (high & 7u) < 6u;
+    out.face = select(0u, high & 7u, fluid);
+    out.fluid_quad = u32(fluid);
+    // The tier (0 none, 1 low, 2 incandescent, 3 bright, 4 very bright) as how strongly the
+    // face shines: a redstone torch 7/15, a torch 14/15, glowstone 1.
+    let tier = 15u - (flags & 15u);
+    out.emission = select(min(f32(tier) * 7.0 / 15.0, 1.0), 0.0, tier == 0u);
     return out;
 }
 @vertex fn horizon_material_vs(
@@ -65,8 +81,13 @@ fn horizon_material_vertex(position: vec3<f32>, uv: vec2<f32>, layer: u32, color
 }
 fn horizon_material_color(in: HorizonMaterialOut, translucent: bool) -> vec4<f32> {
     let albedo = horizon_terrain_sprite(in.uv, in.layer & 0x7fffu);
+    // Water draws translucent and lava solid, so the pass resolves the fluid kind.
+    let fluid = select(0u, select(2u, 1u, translucent), in.fluid_quad != 0u);
+    let normal = horizon_material_normal(in.position);
+    let tangent = horizon_material_tangent(in.position, in.uv, normal);
     return material(MaterialInput(albedo, in.tint, in.light, in.lightmap, in.position, in.uv,
-        translucent, horizon_sprite_tags(in.layer & 0x7fffu))).color;
+        translucent, horizon_sprite_tags(in.layer & 0x7fffu), in.clip.xy / frame.resolution,
+        in.face, fluid, in.emission, normal, tangent)).color;
 }
 @fragment fn horizon_material_fs_solid(in: HorizonMaterialOut) -> @location(0) vec4<f32> {
     let color = horizon_material_color(in, false);
@@ -317,7 +338,12 @@ mod tests {
             fn apply_fog(c: vec4<f32>) -> vec4<f32> { return c * gain; }\n\
             fn material(input: MaterialInput) -> Surface {\n    \
                 let lit = input.albedo * input.tint * vec4(input.lightmap, 1.0);\n    \
-                return Surface(apply_fog(sprite(lit)));\n}\n";
+                let t = vec2<i32>(input.screen * frame.resolution);\n    \
+                let behind = textureLoad(opaque_color, t, 0) * textureLoad(opaque_depth, t, 0);\n    \
+                let mirrored = textureSampleLevel(reflection, reflection_sampler, input.screen, 0.0);\n    \
+                let kind = f32(input.face + input.fluid) * input.emission * mirrored.a;\n    \
+                let frame_of = vec4(cross(input.normal, input.tangent.xyz) * input.tangent.w, kind);\n    \
+                return Surface(apply_fog(sprite(lit)) + (behind + frame_of) * 0.0);\n}\n";
         let stage = stage(own);
         let tags = [(7, 1), (3, 1), (9, 2)];
         assert!(sprite_tags(&tags).contains("case 3u, 7u: { return 1u; }"));

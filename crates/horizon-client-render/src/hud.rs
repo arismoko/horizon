@@ -300,7 +300,18 @@ fn atlas_sprites(root: &Path, packed: &[PackedImage]) -> (Vec<PackedImage>, Vec<
         animated,
     )
 }
+/// `MissingTextureAtlasSprite`: what a sprite the atlas lacks draws as.
+pub const MISSING_SPRITE: &str = "horizon/missing";
+
 impl HudAtlas {
+    /// A sprite, or the missing one when the atlas has no such sprite (an
+    /// effect without its icon), as a stitched atlas answers.
+    pub fn sprite_or_missing(&self, name: &str) -> Option<Rect> {
+        self.sprites
+            .get(name)
+            .or_else(|| self.sprites.get(MISSING_SPRITE))
+            .copied()
+    }
     /// Keep a ready profile skin when another source only has its default.
     pub fn set_object_skin(&mut self, key: String, skin: String) {
         use std::collections::hash_map::Entry;
@@ -517,13 +528,17 @@ impl HudAtlas {
         for folder in folders {
             walk(&textures.join(folder), &mut files);
         }
-        // Content mods' equipment textures, which their equipment assets name as `<ns>:<path>`.
-        if folders.contains(&"entity") {
-            for namespace in horizon_items::content_namespaces::namespaces(root) {
-                walk(
-                    &root.join(format!("assets/{namespace}/textures/entity/equipment")),
-                    &mut files,
-                );
+        // Content mods' equipment textures, which their equipment assets name as
+        // `<ns>:<path>`, and their mob effects' icons, `<ns>:mob_effect/<path>`.
+        let namespaces = horizon_items::content_namespaces::namespaces(root);
+        for (folder, textures) in [("entity", "entity/equipment"), ("mob_effect", "mob_effect")] {
+            if folders.contains(&folder) {
+                for namespace in &namespaces {
+                    walk(
+                        &root.join(format!("assets/{namespace}/textures/{textures}")),
+                        &mut files,
+                    );
+                }
             }
         }
         let assets = root.join("assets");
@@ -628,6 +643,15 @@ impl HudAtlas {
         images.push(("horizon/white".into(), 4, 4, vec![255; 64]));
         if full {
             Self::slots(&mut images, crate::trims::slot_size(root));
+            // MissingTextureAtlasSprite.generateMissingImage: 16x16, magenta
+            // and black quarters.
+            let missing = (0..256)
+                .flat_map(|i| match (i / 16 < 8) ^ (i % 16 < 8) {
+                    true => [248, 0, 248, 255],
+                    false => [0, 0, 0, 255],
+                })
+                .collect();
+            images.push((MISSING_SPRITE.into(), 16, 16, missing));
         }
         // Blurred sprites are sampled linearly in the atlas (screen.wgsl): a
         // border wrapped from their own edges keeps the filter off their
@@ -2174,6 +2198,57 @@ mod tests {
         assert_eq!(texel_at(&atlas, rect, 0, 0), [200, 0, 0, 255]);
         // Only equipment: the mods' other textures reach the atlas through atlas definitions.
         assert!(!atlas.sprites.contains_key("gems:item/ruby"));
+        fs::remove_dir_all(&root).unwrap();
+    }
+    #[test]
+    fn content_mod_effect_icons_pack_under_their_namespace() {
+        let root =
+            std::env::temp_dir().join(format!("horizon-atlas-effect-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let icons = root.join("assets/gems/textures/mob_effect");
+        fs::create_dir_all(&icons).unwrap();
+        write_strip(&icons.join("glow.png"), 18, 18, &[[0, 0, 200, 255]], None);
+        fs::write(
+            root.join(horizon_items::content_namespaces::MARKER),
+            br#"["gems"]"#,
+        )
+        .unwrap();
+        let atlas = HudAtlas::build(&root).unwrap();
+        let rect = atlas.sprites[horizon_client_core::potions::sprite("gems:glow").as_str()];
+        assert_eq!(texel_at(&atlas, rect, 0, 0), [0, 0, 200, 255]);
+        // The HUD and the inventory draw it from the effect's id, as vanilla's.
+        let effect = crate::effects::EffectInstance::new("gems:glow", 600, 0);
+        let icon = crate::hud_overlays::EffectIcon::from(&effect);
+        let draws = crate::hud_overlays::effects(320, false, &[icon]);
+        let mut batch = HudBatch::new([320, 240]);
+        crate::hud_layout::paint(&mut batch, &atlas, &draws);
+        assert!(batch.vertices.iter().any(|v| v.uv == [rect.u0, rect.v0]));
+        let panels = crate::inventory_effects::panels(
+            320,
+            [72, 37],
+            176,
+            &[effect],
+            20.0,
+            &|_| None,
+            &|_| 60,
+        );
+        batch.vertices.clear();
+        crate::inventory_effects::paint(&mut batch, &atlas, &panels, [0, 0]);
+        assert!(batch.vertices.iter().any(|v| v.uv == [rect.u0, rect.v0]));
+        // An effect without an icon draws the missing sprite.
+        let missing = atlas.sprites[MISSING_SPRITE];
+        assert_eq!(texel_at(&atlas, missing, 0, 0), [0, 0, 0, 255]);
+        assert_eq!(texel_at(&atlas, missing, 8, 0), [248, 0, 248, 255]);
+        let effect = crate::effects::EffectInstance::new("gems:none", 600, 0);
+        let draws = crate::hud_overlays::effects(320, false, &[(&effect).into()]);
+        batch.vertices.clear();
+        crate::hud_layout::paint(&mut batch, &atlas, &draws);
+        assert!(
+            batch
+                .vertices
+                .iter()
+                .any(|v| v.uv == [missing.u0, missing.v0])
+        );
         fs::remove_dir_all(&root).unwrap();
     }
     #[test]

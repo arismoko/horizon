@@ -420,6 +420,7 @@ impl GameLevel<'_> {
         }
         let entity = self.world.block_entities.remove(&key);
         self.world.block_names.remove(&key);
+        self.world.forget_block_entity_source(key);
         let name = self.facts.get(old).name.clone();
         let kind = match &entity {
             // BaseContainerBlockEntity.preRemoveSideEffects: Containers.dropContents.

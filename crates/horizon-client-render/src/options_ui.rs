@@ -3405,6 +3405,9 @@ impl OptionsUi {
                     if data.is_some() {
                         events.push(Event::DataPacks(ids));
                     } else {
+                        // `PackSelectionModel.commit` already drops `server/…`
+                        // ids; keep the same filter if the screen is rebuilt.
+                        let ids = crate::packs::player_pack_ids(ids);
                         s.resource_packs = ids.clone();
                         self.pack_selection = ids.clone();
                         events.push(Event::Packs(ids));

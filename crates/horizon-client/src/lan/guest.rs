@@ -124,6 +124,7 @@ pub struct Guest {
     /// The bed (its head) the player sleeps in (`LivingEntity.getSleepingPos`),
     /// `Player.sleepCounter`, and the bed last told to the player itself.
     pub bed: Option<[i32; 3]>,
+    pub woke_from: Option<[i32; 3]>,
     pub sleep_timer: u32,
     pub sent_bed: Option<[i32; 3]>,
     /// Where the player respawns (a bed's spot; `ServerPlayer.respawnConfig`),
@@ -347,6 +348,7 @@ impl Guest {
             stuck: (0, 0),
             shoulders: [None; 2],
             bed: None,
+            woke_from: None,
             sleep_timer: 0,
             sent_bed: None,
             spawn: None,

@@ -66,6 +66,11 @@ pub(super) struct GuestPlay {
     digging: Option<([i32; 3], [i32; 3])>,
     /// The server tick the digging started (ServerPlayerGameMode.destroyProgressStart).
     dig_start: u64,
+    /// The block that clock is for (ServerPlayerGameMode.destroyPos). A START is the only writer
+    /// that names one (death, a new ServerPlayerGameMode, clears it), so an abort, or a STOP that
+    /// arrives out of reach, leaves it: the STOP of a dig resumed on the same block is still
+    /// measured from the first START's ticks (#4124).
+    destroy_pos: Option<[i32; 3]>,
     /// A block the client stopped digging before the server's time was up: it breaks once
     /// its progress since `dig_start` is complete (ServerPlayerGameMode.hasDelayedDestroy).
     delayed: Option<([i32; 3], u64)>,
@@ -213,6 +218,20 @@ impl GuestPlay {
     /// The item in use: its slot and for how many ticks.
     pub(super) fn using(&self) -> Option<(usize, u32)> {
         self.using
+    }
+    /// The `ServerPlayerGameMode.destroyProgressStart` a STOP on `pos` is measured from: the clock
+    /// belongs to the block the START named (`destroyPos`), and only a START writes either, so a
+    /// dig resumed after a fall still runs on the first START's ticks (#4124).
+    fn dig_start_for(&self, pos: [i32; 3]) -> Option<u64> {
+        (self.destroy_pos == Some(pos)).then_some(self.dig_start)
+    }
+    /// A dig that ends without a break, an abort or a STOP from out of reach: the guest holds
+    /// attack no more (`digging` is `as_guest`'s left button and `tick_mining`'s `forced_hit`),
+    /// while the clock `destroy_pos` names stays for the STOP that comes when the guest is back
+    /// in reach (#4124).
+    fn dig_ended(&mut self) {
+        self.digging = None;
+        self.mining = None;
     }
 }
 
@@ -381,6 +400,7 @@ impl Game<'_> {
         let host_combat = std::mem::replace(&mut self.combat, guest_combat);
         self.potions.swap_player(&mut g.effects, &mut play.potions);
         motion.position = Vec3::new(g.position[0], g.position[1], g.position[2]);
+        motion.entity_id = g.entity_id;
         motion.ground.on_ground = g.on_ground;
         motion.yaw = g.yaw;
         motion.pitch = g.pitch;
@@ -771,6 +791,9 @@ impl Game<'_> {
         (g.bed, g.sleep_timer, g.spawn) = (bed, guest_sleep_timer, guest_spawn);
         g.respawn_elsewhere = guest_respawn.map(|c| c.saved());
         g.sleeping = g.bed.is_some();
+        if fell_asleep {
+            g.woke_from = None;
+        }
         if let Some((text, _)) = guest_message {
             g.send(&C::SystemChat(play::SystemChat {
                 content: literal(&text),
@@ -873,6 +896,7 @@ impl Game<'_> {
                 f64::from(head[2]) + 0.5,
             ];
             g.position = at;
+            g.previous_position = at;
             if let Some(m) = g.motion.as_mut() {
                 m.position = Vec3::new(at[0], at[1], at[2]);
                 m.velocity = Vec3::ZERO;
@@ -1091,6 +1115,59 @@ impl Game<'_> {
             Slots::Block(_) => horizon_client::containers::block_menu_type(name).unwrap_or(menu),
             _ => menu,
         };
+        // BaseContainerBlockEntity.createMenu (and a double chest's own menu
+        // provider, which asks both halves) refuses a locked container with
+        // `sendChestLockedNotifications`: the action bar names it and everyone
+        // near hears the locked chest; no menu opens.
+        let (spectator, hand) = host.hub.guest(conn).map_or((false, None), |g| {
+            (
+                g.spectator(),
+                g.inventory.get(g.selected).cloned().flatten(),
+            )
+        });
+        let halves = match &slots {
+            Slots::Double(first, second) => [Some(*first), Some(*second)],
+            Slots::Block(k) => [Some(*k), None],
+            _ => [None, None],
+        };
+        let locked = halves
+            .iter()
+            .flatten()
+            .any(|&k| self.container_locked_for(k, spectator, hand.as_ref()));
+        if locked {
+            host.hub.send_to(
+                conn,
+                &C::SystemChat(play::SystemChat {
+                    content: horizon_client::containers::locked_message(&title),
+                    overlay: true,
+                }),
+            );
+            // `ChestBlock`: the double chest sounds between its halves, from
+            // the first one's centre plus half a block toward the other.
+            let at = match &slots {
+                Slots::Double(first, second) => [
+                    f64::from(first.0) + 0.5 + f64::from((second.0 - first.0).signum()) / 2.0,
+                    f64::from(first.1) + 0.5,
+                    f64::from(first.2) + 0.5 + f64::from((second.2 - first.2).signum()) / 2.0,
+                ],
+                Slots::Block(k) => [
+                    f64::from(k.0) + 0.5,
+                    f64::from(k.1) + 0.5,
+                    f64::from(k.2) + 0.5,
+                ],
+                _ => [0.0; 3],
+            };
+            let source = horizon_client::settings::sound_source("minecraft:block.chest.locked");
+            host.hub.sound(
+                "minecraft:block.chest.locked",
+                at,
+                1.0,
+                1.0,
+                source as i32,
+                None,
+            );
+            return false;
+        }
         // ServerPlayer.openMenu closes the menu that was open.
         self.guest_container_closed(host, conn);
         self.lan_station_closed(host, conn, None);
@@ -1419,26 +1496,36 @@ impl Game<'_> {
                     {
                         play.digging = None;
                     }
+                    // ServerPlayerGameMode.handleBlockBreakAction writes `destroyPos`
+                    // only for a dig that takes more than one hit: a creative START
+                    // and an instant one leave no block behind for a later STOP.
+                    if destroyed != Some(true) {
+                        let one_hit = self
+                            .as_guest(host, conn, |g| g.destroy_progress(pos))
+                            .is_some_and(|p| p >= 1.0);
+                        if !one_hit && let Some(play) = host.play.get_mut(&conn) {
+                            play.destroy_pos = Some(pos);
+                        }
+                    }
                 }
                 1 => {}
                 3 => {
                     host.hub.ack(conn, a.sequence);
                     if !host.hub.guests[gi].may_reach_block(a.pos) {
-                        // Too far (handleBlockBreakAction's "too far"): the
-                        // dig drops and the ack has the client undo its
-                        // prediction.
-                        let play = host.play.entry(conn).or_default();
-                        play.digging = None;
-                        play.mining = None;
+                        // Too far (handleBlockBreakAction's "too far"): the ack has the client
+                        // undo its prediction, and only the dig drops — `destroy_pos` and the
+                        // ticks since its START stay, so a STOP for the same block after the
+                        // guest comes back into reach counts them (#4124).
+                        host.play.entry(conn).or_default().dig_ended();
                         return;
                     }
                     self.guest_stop_digging(host, conn, a.pos);
                 }
                 2 => {
                     host.hub.ack(conn, a.sequence);
-                    let play = host.play.entry(conn).or_default();
-                    play.digging = None;
-                    play.mining = None;
+                    // ServerPlayerGameMode.abortDestroyBlock clears the dig and the crack; the
+                    // clock `destroy_pos` names is left to the next START (#4124).
+                    host.play.entry(conn).or_default().dig_ended();
                     let state = self.world.block(a.pos[0], a.pos[1], a.pos[2]).0 as i32;
                     host.hub.send_to(
                         conn,
@@ -3140,6 +3227,52 @@ impl Game<'_> {
         text
     }
 
+    /// `LivingEntity.stopSleeping` and `ServerPlayer.stopSleepInBed` for a
+    /// guest who woke up from `head`: stand beside the bed facing it, and
+    /// teleport the client there.
+    fn wake_guest_from(&mut self, host: &mut LanHost, gi: usize, head: [i32; 3]) {
+        let yaw = host.hub.guests[gi].yaw;
+        let Some((stand, yaw)) = self.bed_wake_pose(head, yaw) else {
+            return;
+        };
+        let at = [stand.x, stand.y, stand.z];
+        let g = &mut host.hub.guests[gi];
+        g.position = at;
+        g.previous_position = at;
+        g.yaw = yaw;
+        g.pitch = 0.0;
+        g.moves.clear();
+        if let Some(m) = g.motion.as_mut() {
+            m.position = stand;
+            m.velocity = Vec3::ZERO;
+            m.yaw = yaw;
+            m.pitch = 0.0;
+            let _ = m.set_sleeping(false);
+        }
+        if !g.dead {
+            host.hub.teleport(gi, Some(at));
+        }
+    }
+
+    pub(super) fn wake_woken_guests(&mut self, host: &mut LanHost) {
+        for gi in 0..host.hub.guests.len() {
+            if host.hub.here(&host.hub.guests[gi])
+                && let Some(head) = host.hub.guests[gi].woke_from.take()
+            {
+                self.wake_guest_from(host, gi, head);
+            }
+        }
+    }
+
+    pub(super) fn wake_guest(&mut self, host: &mut LanHost, gi: usize) {
+        host.hub.wake(gi);
+        if host.hub.here(&host.hub.guests[gi])
+            && let Some(head) = host.hub.guests[gi].woke_from.take()
+        {
+            self.wake_guest_from(host, gi, head);
+        }
+    }
+
     /// `Player.tick`'s sleep counter, and `LivingEntity.tick`'s wake-up of a
     /// sleeper who died or whose bed is gone.
     fn guest_sleep_tick(&mut self, host: &mut LanHost, gi: usize) {
@@ -3149,7 +3282,13 @@ impl Game<'_> {
             let block = self.world.block(head[0], head[1], head[2]);
             let bed = self.res.facts().get(block).name.ends_with("_bed");
             if g.dead || g.health <= 0.0 || !bed {
-                host.hub.wake(gi);
+                self.wake_guest(host, gi);
+            } else {
+                // LivingEntity.tick: a sleeper's xRot is 0.
+                g.pitch = 0.0;
+                if let Some(m) = g.motion.as_mut() {
+                    m.pitch = 0.0;
+                }
             }
         }
     }
@@ -3172,12 +3311,12 @@ impl Game<'_> {
             count(self.sleeping.is_some(), self.sleep_timer);
         }
         if let Some(host) = self.lan.as_ref() {
-            for g in host
-                .hub
-                .guests
-                .iter()
-                .filter(|g| g.placed && !g.spectator())
-            {
+            // A native mod's ignored players count only once in bed.
+            for g in host.hub.guests.iter().filter(|g| {
+                g.placed
+                    && !g.spectator()
+                    && (g.bed.is_some() || !host.sleep_ignored.contains(&g.uuid))
+            }) {
                 count(g.bed.is_some(), g.sleep_timer);
             }
         }
@@ -3241,11 +3380,13 @@ impl Game<'_> {
 
     /// `ServerLevel.wakeUpAllPlayers` for the guests.
     pub(super) fn wake_guests(&mut self) {
-        if let Some(host) = self.lan.as_mut() {
-            for i in 0..host.hub.guests.len() {
-                host.hub.wake(i);
-            }
+        let Some(mut host) = self.lan.take() else {
+            return;
+        };
+        for i in 0..host.hub.guests.len() {
+            self.wake_guest(&mut host, i);
         }
+        self.lan = Some(host);
     }
 
     /// `PlayerList.broadcastSystemMessage` of the advancements guests made
@@ -3308,9 +3449,11 @@ impl Game<'_> {
             let health = &motion.health;
             let freeze_immune = game.wears_freeze_immune();
             let burn_immune = game.wears_burn_from_stepping_immunity();
+            let boat = game.riding_boat_fluid_box();
             let Some(player) = game.player.as_mut() else {
                 return (Vec::new(), None);
             };
+            player.fluids.boat = boat;
             let mut w = MotionWorld {
                 entities: &[],
                 player,
@@ -3663,33 +3806,33 @@ impl Game<'_> {
 
     /// ServerPlayerGameMode.handleBlockBreakAction, STOP_DESTROY_BLOCK: the client finished
     /// digging `pos` (and predicted the break). The server breaks it if its own count of the
-    /// digging since START is at least 70 % done; otherwise it keeps digging alone and breaks
-    /// it when done (`guest_delayed_destroy`), so the client's broken block is never left
-    /// standing on the server.
+    /// digging since the START that named `pos` is at least 70 % done; otherwise it keeps digging
+    /// alone and breaks it when done (`guest_delayed_destroy`), so the client's broken block is
+    /// never left standing on the server.
     fn guest_stop_digging(&mut self, host: &mut LanHost, conn: u32, pos: [i32; 3]) {
         let ticks = host.hub.ticks;
-        let play = host.play.entry(conn).or_default();
-        let dug = play.digging.take().is_some_and(|(p, _)| p == pos);
-        play.mining = None;
-        let start = play.dig_start;
-        let state = self.world.block(pos[0], pos[1], pos[2]);
-        if !dug {
-            return;
-        }
-        if self.res.facts().is_air(state) {
-            // Already broken (the guest's own tick dug it out): only the crack goes.
-            self.guest_crack_gone(host, conn, pos);
-            return;
-        }
-        let progress = self
+        let air = self
+            .res
+            .facts()
+            .is_air(self.world.block(pos[0], pos[1], pos[2]));
+        let per_tick = self
             .as_guest(host, conn, |g| g.destroy_progress(pos))
-            .map_or(0.0, |p| p * (ticks - start + 1) as f32);
-        if progress >= 0.7 {
-            self.guest_destroy(host, conn, pos);
-        } else {
+            .unwrap_or(0.0);
+        let decision = {
             let play = host.play.entry(conn).or_default();
-            if play.delayed.is_none() {
-                play.delayed = Some((pos, start));
+            play.dig_ended();
+            stop_dig(play, pos, air, ticks, per_tick)
+        };
+        match decision {
+            StopDig::Other => {}
+            // Already broken (the guest's own tick dug it out): only the crack goes.
+            StopDig::Gone => self.guest_crack_gone(host, conn, pos),
+            StopDig::Break => self.guest_destroy(host, conn, pos),
+            StopDig::Delay(start) => {
+                let play = host.play.entry(conn).or_default();
+                if play.delayed.is_none() {
+                    play.delayed = Some((pos, start));
+                }
             }
         }
     }
@@ -3786,6 +3929,8 @@ impl Game<'_> {
         let cracked = play.digging.take().filter(|_| play.last_progress >= 0);
         play.mining = None;
         play.delayed = None;
+        // Respawning gives it a new ServerPlayerGameMode: the clock goes with the body.
+        play.destroy_pos = None;
         play.destroy_delay = 0;
         play.using = None;
         play.last_progress = -1;
@@ -3861,7 +4006,7 @@ impl Game<'_> {
             let rest = self.as_guest(host, conn, |g| g.give(stack)).flatten();
             match rest {
                 None => {
-                    let item = self.dropped.remove(i);
+                    let item = self.remove_dropped(i);
                     if let Some(thrower) = thrower {
                         self.as_guest(host, conn, |g| {
                             g.trigger_thrown_picked_up_by_player(&item.stack, thrower);
@@ -4006,7 +4151,7 @@ impl Game<'_> {
         // A merged orb gives its value once per count and goes at zero.
         let orb = self.orbs[touching[pick]].clone();
         if orb.count <= 1 {
-            self.orbs.remove(touching[pick]);
+            self.remove_orb(touching[pick]);
         } else {
             self.orbs[touching[pick]].count -= 1;
         }
@@ -4284,10 +4429,77 @@ fn eye_columns(at: [f64; 3], body: Dimensions) -> [std::ops::RangeInclusive<i32>
     [range(at[0]), range(at[2])]
 }
 
+/// What `ServerPlayerGameMode.handleBlockBreakAction`'s STOP_DESTROY_BLOCK branch does with a
+/// guest's STOP.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum StopDig {
+    /// A block the last START did not name: the STOP is not this dig's.
+    Other,
+    /// Already broken, by the guest's own tick: only the crack goes.
+    Gone,
+    /// The dig the START counts is at least 70 % done: the block breaks outright.
+    Break,
+    /// Less than that: the server finishes it alone from that same START.
+    Delay(u64),
+}
+
+/// The STOP branch's decision: a STOP is measured from the START that named its block
+/// (`destroyPos`, which an abort or a STOP from out of reach leaves alone), whose ticks times
+/// `getDestroyProgress` decide between the break and the delayed dig (#4124).
+fn stop_dig(play: &GuestPlay, pos: [i32; 3], air: bool, ticks: u64, per_tick: f32) -> StopDig {
+    match play.dig_start_for(pos) {
+        None => StopDig::Other,
+        Some(_) if air => StopDig::Gone,
+        Some(start) if per_tick * (ticks - start + 1) as f32 >= 0.7 => StopDig::Break,
+        Some(start) => StopDig::Delay(start),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::eye_columns;
     use horizon_client::pose::Pose;
+
+    /// #4124: a STOP is measured from the START that named its block (`destroyPos`) — an abort, or
+    /// a STOP from out of reach, ends the dig the guest's button held but leaves that clock — and
+    /// breaks the block at 70 % of the dig, or the server finishes it alone from the same START.
+    /// A guest that reaches a block only at a jump's apex keeps its dig this way, and no other
+    /// block or new body inherits the clock.
+    #[test]
+    fn a_stop_after_a_fall_is_measured_from_the_starts_clock() {
+        use super::{GuestPlay, Mining, StopDig, stop_dig};
+        let pos = [12, 70, -5];
+        let mut play = GuestPlay {
+            digging: Some((pos, [0, 1, 0])),
+            mining: Some(Mining {
+                pos,
+                progress: 0.5,
+                ticks: 8,
+            }),
+            destroy_pos: Some(pos),
+            dig_start: 1000,
+            ..GuestPlay::default()
+        };
+        // The landing: the dig the button held is gone, the clock the START set is not.
+        play.dig_ended();
+        assert!(play.digging.is_none() && play.mining.is_none());
+        // 13 ticks of 0.05: 65 % of the dig, so the server finishes it from tick 1000 itself.
+        assert_eq!(
+            stop_dig(&play, pos, false, 1012, 0.05),
+            StopDig::Delay(1000)
+        );
+        // 16 ticks: 80 %, the STOP breaks the block outright.
+        assert_eq!(stop_dig(&play, pos, false, 1015, 0.05), StopDig::Break);
+        // A block the START did not name never gets the clock, and a broken one only its crack.
+        assert_eq!(
+            stop_dig(&play, [12, 71, -5], false, 1015, 0.05),
+            StopDig::Other
+        );
+        assert_eq!(stop_dig(&play, pos, true, 1015, 0.05), StopDig::Gone);
+        // A respawn's new ServerPlayerGameMode starts from no clock at all.
+        play.destroy_pos = None;
+        assert_eq!(stop_dig(&play, pos, false, 1015, 0.05), StopDig::Other);
+    }
 
     /// #3684: a player shrunk to `minecraft:scale` 0.1 who stands 0.05 from a
     /// wall has eyes 0.048 wide, which don't reach into it: they don't

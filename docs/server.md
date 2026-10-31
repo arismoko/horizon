@@ -470,9 +470,18 @@ runtime or new dependency. Server-sent events can replace the polling later if a
   undone carry MCP's `destructiveHint`. It's the same idea as the game's `horizon-ctl`
   (docs/agent-control.md): an AI can run and diagnose a server, and every action it takes shows in the log.
 - **Vanilla's own management protocol.** Vanilla 26.3 has a server management protocol: JSON-RPC over a
-  WebSocket, set up by the `management-server-*` keys in server.properties. Horizon's engine already parses
-  those keys but doesn't serve the protocol. Serving it later, on the engine or the supervisor, would let tools
-  written for vanilla manage a Horizon server too. That is not part of the MVP.
+  WebSocket, set up by the `management-server-*` keys in server.properties, so tools written for vanilla can
+  manage a Horizon server too. The supervisor serves it (`management.rs`, the WebSocket in `websocket.rs`, std
+  only like `http.rs`), so it answers while the game restarts (`server/status` says `started: false` then);
+  calls that change the game will go through its console. Authentication, errors and replies follow vanilla's
+  `net.minecraft.server.jsonrpc` (`AuthenticationHandler`, `Connection`, `methods/*Service`), and
+  `rpc.discover` gives vanilla's OpenRPC document (`management_schema.rs`).
+  `tools/test_management_protocol_parity.py` sends vanilla's server and Horizon's the same messages and
+  compares the answers, and the document with the data generator's `json-rpc-api-schema.json`.
+  - built: the WebSocket and its authentication, the JSON-RPC errors and parameter checks, `rpc.discover`;
+  - planned: `players`, `players/kick`, `server/{status,save,stop,system_message}`, the lists' getters (next);
+    changing the lists (through the game, so the source, expiry and kicks are vanilla's),
+    `serversettings/*` and `gamerules`, the notifications and heartbeat (from the event stream), TLS.
 
 ## 9. Benchmark plan (bots against vanilla and Paper)
 
@@ -502,6 +511,9 @@ reproducible by anyone, and show the same gameplay on both sides.
   - `walk`: flies to random points within 48 blocks of spawn at sprint speed (5.6 blocks/s);
   - `explore`: flies straight outwards at creative flying speed (22 blocks/s), which forces chunk generation;
   - `mixed`: 60 % walk, 20 % explore, 20 % idle.
+  - `fight`: survival bots (`gamemode=survival`, `force-gamemode=true`, `allow-flight=true`) that track the entities the server
+    sends, walk to the nearest living one and attack it every 5 ticks, vanilla's bare-hand cooldown; with `--pvp true` (the
+    default) they attack each other too, which needs `pvp=true` on the server. The report counts `attacks`.
 
   A `build` behaviour (breaking and placing blocks) needs the bots to read terrain and comes later. Runs use
   1, 10, 25, 50 and 100 bots, joining 1 per second. Bots are needed because 100 real vanilla clients can't run

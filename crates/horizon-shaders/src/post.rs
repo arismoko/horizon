@@ -14,10 +14,11 @@ use std::collections::BTreeSet;
 
 use crate::config::{self, Config};
 use crate::custom::Custom;
-use crate::{GbuffersInputs, Macros, Pack, Preprocessed, Program, Properties, Target};
 use crate::{
-    eval_condition, preprocess, translate_composite, translate_gbuffers, translate_shadow,
+    ComputeProgram, eval_condition, preprocess, translate_composite, translate_compute,
+    translate_gbuffers, translate_shadow,
 };
+use crate::{GbuffersInputs, Macros, Pack, Preprocessed, Program, Properties, Target};
 
 /// Which group of 2.1 a program belongs to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -211,6 +212,45 @@ pub struct PostProgram {
     /// Bit n: `colortex<n>MipmapEnabled` in its fragment stage, so buffer n's mip chain is
     /// regenerated right before it (6.1.7; not for gbuffers programs).
     pub mipmaps: u16,
+    /// Compute programs that run before this one, in order: `<name>.csh`, then `_a` to `_z`.
+    pub compute: Vec<(String, ComputeProgram)>,
+}
+
+/// `size.buffer.<buffer>`: a size of its own, relative to the render size (floats) or in
+/// pixels (integers).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BufferSize {
+    Relative([f32; 2]),
+    Absolute([u32; 2]),
+}
+
+impl BufferSize {
+    fn parse(value: &str) -> Option<Self> {
+        let words: Vec<&str> = value.split_whitespace().collect();
+        let [w, h] = words[..] else {
+            return None;
+        };
+        if w.contains('.') || h.contains('.') {
+            let (w, h): (f32, f32) = (w.parse().ok()?, h.parse().ok()?);
+            let fine = |f: f32| f.is_finite() && f > 0.0;
+            (fine(w) && fine(h)).then_some(Self::Relative([w, h]))
+        } else {
+            Some(Self::Absolute([w.parse().ok()?, h.parse().ok()?]))
+        }
+    }
+
+    /// The size for a render size of `render`, at least one pixel and at most
+    /// [`BufferSize::MAX`].
+    pub fn resolve(self, render: [u32; 2]) -> [u32; 2] {
+        let size = match self {
+            Self::Relative(s) => [0, 1].map(|k| (render[k] as f32 * s[k]) as u32),
+            Self::Absolute(s) => s,
+        };
+        size.map(|n| n.clamp(1, Self::MAX))
+    }
+
+    /// The largest side a buffer may have, the size every device takes for a 2D texture.
+    pub const MAX: u32 = 8192;
 }
 
 pub struct Post {
@@ -265,6 +305,10 @@ pub struct Post {
     pub particles_late: bool,
     /// The custom uniforms of `shaders.properties` (3.4).
     pub custom: Custom,
+    /// `texture.*`: the textures the pack binds to sampler names.
+    pub textures: Vec<crate::CustomTexture>,
+    /// `size.buffer.*`, by buffer.
+    pub sizes: [Option<BufferSize>; crate::BUFFERS],
     pub config: Config,
     /// Programs skipped and why, as `program: message` or `file:line: message`.
     pub notes: Vec<String>,
@@ -334,15 +378,32 @@ pub fn load_post(
         translucent_late: false,
         particles_late: false,
         custom: Custom::parse(properties),
+        textures: Vec::new(),
+        sizes: [None; crate::BUFFERS],
         config: Config::default(),
         notes: Vec::new(),
     };
+    for e in &properties.entries {
+        let Some(name) = e.key.strip_prefix("size.buffer.") else {
+            continue;
+        };
+        match (crate::buffer_index(name), BufferSize::parse(&e.value)) {
+            (Some(b), Some(size)) => post.sizes[b] = Some(size),
+            _ => post
+                .notes
+                .push(format!("`{}`: not a buffer and a size", e.key)),
+        }
+    }
+    let (textures, notes) = crate::load_textures(pack, properties);
+    post.textures = textures;
+    post.notes.extend(notes);
     let mut loader = Loader {
         pack,
         folder,
         properties,
         macros,
         switches: crate::switches_on(pack),
+        options: crate::with_options(pack, macros),
         post: &mut post,
     };
     for (group, base) in GROUPS {
@@ -455,7 +516,14 @@ pub fn load_post(
             p
         });
     if let Some(inputs) = &inputs.terrain {
-        let terrain = gbuffers(&TERRAIN, Group::Gbuffers, inputs);
+        // Solid and cutout terrain draw together: the cutout test, unless `alphaTest.*` says
+        // otherwise (3.2).
+        let mut cutout = inputs.clone();
+        cutout.alpha_test = cutout.alpha_test.or(Some(crate::AlphaTest {
+            op: ">",
+            reference: 0.1,
+        }));
+        let terrain = gbuffers(&TERRAIN, Group::Gbuffers, &cutout);
         // gbuffers_water falls back to gbuffers_terrain's chain (2.3).
         let water = gbuffers(&WATER, Group::Translucent, inputs);
         loader.post.terrain = terrain;
@@ -591,6 +659,8 @@ struct Loader<'a> {
     properties: &'a Properties,
     macros: &'a Macros,
     switches: BTreeSet<String>,
+    /// `macros` with the pack's options, for the program switches.
+    options: Macros,
     post: &'a mut Post,
 }
 
@@ -610,13 +680,25 @@ impl Loader<'_> {
         let (vsh, fsh) = (path("vsh"), path("fsh"));
         let notes = &mut self.post.notes;
         if !self.pack.exists(&fsh) || !self.pack.exists(&vsh) {
+            let on = enabled(
+                self.properties,
+                self.folder,
+                &name,
+                &self.options,
+                &self.switches,
+            );
+            if on && self.pack.exists(&path("csh")) {
+                notes.push(format!(
+                    "{name}: compute-only programs are not supported yet"
+                ));
+            }
             return None;
         }
         if !enabled(
             self.properties,
             self.folder,
             &name,
-            self.macros,
+            &self.options,
             &self.switches,
         ) {
             return None;
@@ -638,6 +720,7 @@ impl Loader<'_> {
             notes.push(format!("{name}: skipped"));
             return None;
         }
+        notes.extend([&vertex, &fragment].iter().flat_map(|pp| warnings(pp)));
         let program = match translate(&vertex, &fragment) {
             Ok(p) => p,
             Err(errors) => {
@@ -671,6 +754,14 @@ impl Loader<'_> {
                     .fold(0, |m, (i, _)| m | 1 << i)
             }
         };
+        let compute = match group {
+            Group::Prepare
+            | Group::Deferred
+            | Group::Composite
+            | Group::Final
+            | Group::ShadowComp => self.compute(&name),
+            _ => Vec::new(),
+        };
         Some(PostProgram {
             flips: flips(self.properties, &name),
             name,
@@ -679,13 +770,66 @@ impl Loader<'_> {
             buffers,
             blend: None,
             mipmaps,
+            compute,
         })
+    }
+
+    /// The compute programs of composite-style program `name` that are on and translate.
+    fn compute(&mut self, name: &str) -> Vec<(String, ComputeProgram)> {
+        let mut out = Vec::new();
+        let names =
+            std::iter::once(name.to_owned()).chain(('a'..='z').map(|c| format!("{name}_{c}")));
+        for name in names {
+            let path = match self.folder {
+                "" => format!("{name}.csh"),
+                f => format!("{f}/{name}.csh"),
+            };
+            if !self.pack.exists(&path)
+                || !enabled(
+                    self.properties,
+                    self.folder,
+                    &name,
+                    &self.options,
+                    &self.switches,
+                )
+            {
+                continue;
+            }
+            let pp = preprocess(self.pack, &path, self.macros);
+            let problems = diagnostics(&pp);
+            let notes = &mut self.post.notes;
+            if !problems.is_empty() {
+                notes.extend(problems);
+                notes.push(format!("{name}: skipped"));
+                continue;
+            }
+            match translate_compute(&pp) {
+                Ok(program) => out.push((name, program)),
+                Err(errors) => {
+                    notes.extend(
+                        errors
+                            .iter()
+                            .map(|e| format!("{}:{}: {}", e.file, e.line, e.message)),
+                    );
+                    notes.push(format!("{name}: skipped"));
+                }
+            }
+        }
+        out
     }
 }
 
 fn diagnostics(pp: &Preprocessed) -> Vec<String> {
-    pp.diagnostics
-        .iter()
+    located(pp, &pp.diagnostics)
+}
+
+/// `pp`'s warnings (conditions read as false), located.
+fn warnings(pp: &Preprocessed) -> Vec<String> {
+    located(pp, &pp.warnings)
+}
+
+fn located(pp: &Preprocessed, list: &[crate::preprocess::Diagnostic]) -> Vec<String> {
+    list.iter()
         .map(|d| {
             let file = pp
                 .files
@@ -770,6 +914,22 @@ mod tests {
     const FSH: &str = "#version 120\nuniform sampler2D colortex0;\nvarying vec2 uv;\n\
                        void main() {\n/* DRAWBUFFERS:3 */\n\
                        gl_FragData[0] = texture2D(colortex0, uv);\n}\n";
+
+    #[test]
+    fn buffer_sizes_are_bounded() {
+        let relative = BufferSize::parse("0.5 0.25").unwrap();
+        assert_eq!(relative.resolve([1920, 1080]), [960, 270]);
+        assert_eq!(
+            BufferSize::parse("1e30 1.0").unwrap().resolve([1920, 1080])[0],
+            BufferSize::MAX
+        );
+        assert_eq!(BufferSize::parse("inf 1.0"), None);
+        assert_eq!(BufferSize::parse("-0.5 1.0"), None);
+        assert_eq!(
+            BufferSize::parse("100000 0").unwrap().resolve([1, 1]),
+            [BufferSize::MAX, 1]
+        );
+    }
 
     #[test]
     fn programs_load_in_order_with_their_settings() {

@@ -912,6 +912,10 @@ impl Game<'_> {
         if let Some(m) = self.mobs.iter_mut().find(|m| m.id == id) {
             horizon_client::entity_nbt::apply_item_components(m, &stack);
         }
+        // EntityType.updateCustomEntityTag: a configured egg
+        // (`/give @s pig_spawn_egg[minecraft:entity_data={…}]`) spawns the mob
+        // it describes from a dispenser too, not only from a player's hand.
+        self.apply_spawn_egg_entity_data(id, &stack);
         self.mob_ambient(id)?;
         // SpawnEggItemBehavior: the entity was placed by the dispenser.
         self.post_block_game_event("minecraft:entity_place", [pos.0, pos.1, pos.2], None, None);

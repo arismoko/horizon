@@ -284,6 +284,8 @@ address. The script then checks, from both sides, what a guest's game used to ge
 - merchant-close: the host and the guest each open a trade screen with the payment in its slot; the screen
              closes and the payment returns when they walk out of reach (7 blocks in survival, 9 in
              creative) or the villager dies, and stays open in range.
+- f3_density: F3 on the host (single player on its server thread) shows the Density line of the noise settings'
+             debug functions (N, T, V, C, E, D, W, PV, PS) at its feet; a LAN guest, which has no world generator, has none.
 - explorer_map: three shipwreck maps from a loot table point at three different buried treasures (an exploration
              map skips the structures a map already pointed at), and the host and the guest each see their map.
 - sulfur_cube_power: an explosive sulfur cube (TNT inside) stays calm on stone, lights its fuse when a redstone
@@ -305,6 +307,10 @@ address. The script then checks, from both sides, what a guest's game used to ge
              the server forgets the completed instant break (#1880).
 - dig_stop:  a block the client breaks at once (a creative break, a dead bush) leaves the
              server no dig to keep: the block put back stays and no mining sound plays on (#1340, #1908).
+- dig_clock: a guest in survival holds attack on a stone seven blocks above its feet: the standing
+             eye is 5.38 from its underside and only near a jump's apex (4.13) inside the 4.5 pick,
+             and the dig resumed after each fall is measured from the START that named the block, so
+             it breaks about one dig in rather than one dig per landing (#4124).
 
 Each check is reported on its own (a failing one doesn't stop the others) and the screenshots of
 both sides go to --out (host-*.png, guest-*.png).
@@ -7781,6 +7787,27 @@ CHECKS += ['riptide_rain']
 CHECK_FNS['riptide_rain'] = check_riptide_rain
 
 
+def check_f3_density(host, guest, out):
+    """NoiseBasedChunkGenerator.addDebugScreenInfo: DebugEntryChunkGeneration adds the `Density` line to F3 where
+    the game runs the level's generator (the host's own server), and not on a LAN guest."""
+    seen = {}
+    for label, player in (('host', host), ('guest', guest)):
+        player('command', command='gamemode creative')
+        player('command', command='tp @s 40.5 90 -30.5')
+        player.wait(80)
+        player.raw('key', 'f3', 'tap')
+        player.wait(10)
+        seen[label] = player('status')['debug']['overlay']
+        player.shot(out, f'{label}-f3')
+        player.raw('key', 'f3', 'tap')
+        player.wait(5)
+    assert seen == {'host': True, 'guest': True}, f'F3 did not open: {seen}'
+    return seen
+
+CHECKS += ['f3_density']
+CHECK_FNS['f3_density'] = check_f3_density
+
+
 def check_explorer_map(host, guest, out):
     """TreasureMapForEmeralds / ExplorationMapFunction with skip_existing_chunks (a trade's default):
     findNearestMapStructure with createReference adds a reference to the start it finds (StructureStart.addReference,
@@ -9808,6 +9835,86 @@ def check_dig_sounds(host, guest, out):
 
 CHECKS += ['dig_sounds']
 CHECK_FNS['dig_sounds'] = check_dig_sounds
+
+
+def check_dig_clock(host, guest, out):
+    """#4124: attack held on a block only the top of a jump can reach keeps one dig clock.
+
+    A diamond pickaxe on stone is 30 ticks of digging (Player.getDestroySpeed: correct tool,
+    speed 8 over hardness 1.5 and 30), five times slower airborne. The stone hangs seven blocks
+    above the guest's feet, so the standing eye, 1.62 up, is 5.38 from the block's lowest face,
+    past the 4.5 pick, while at the apex the eye is 2.87 up and 4.13 away, inside it: the client
+    digs the stone for the few ticks around each apex only, and its pick misses on the way down.
+    Vanilla's stopDestroyBlock returns at once for a break that is not running, so after the first
+    fall it is a no-op: the client's progress and dig identity survive, no START is re-sent, and
+    the server keeps the clock of the first START (ServerPlayerGameMode.destroyPos). The STOP that
+    arrives when the accumulated progress passes 1.0 is therefore measured from that first START.
+    The face met is the underside: the eye is below the block at the apex too.
+    """
+    x, y, z = (int(v // 1) for v in pos_of(guest))
+    cell = (x, y + 7, z)
+    # The eye's distance to the stone's lowest face: past the 4.5 pick standing, inside it at apex.
+    gap = lambda lift: round(cell[1] - (y + 1.62 + lift), 2)
+    seen = {'cell': list(cell), 'gap': {'standing': gap(0.0), 'apex': gap(1.2522)}}
+    assert gap(0.0) > 4.5 > gap(1.2522), f'the stone is not out of reach standing and in it at the apex: {seen}'
+    mode = guest('state').get('gamemode', 'survival')
+    try:
+        guest('command', command='gamemode survival')
+        guest('command', command='clear @s')
+        guest('command', command='item replace entity @s weapon.mainhand with minecraft:diamond_pickaxe')
+        host('command', command=f'fill {x - 2} {y - 1} {z - 2} {x + 2} {y + 8} {z + 2} minecraft:air')
+        host('command', command=f'fill {x - 2} {y - 1} {z - 2} {x + 2} {y - 1} {z + 2} minecraft:stone')
+        host('command', command=f'setblock {cell[0]} {cell[1]} {cell[2]} minecraft:stone')
+        # Straight up: the ray meets the stone's lowest face at every eye height.
+        guest('command', command=f'tp @s {x + 0.5} {y} {z + 0.5} 0 -90')
+        guest.wait(20)
+        standing = guest('state')
+        if 'looking_at' not in standing or standing.get('player') is None:
+            return 'skipped (the ctl state has no crosshair target or eyes)'
+        seen['standing'] = {'aim': standing['looking_at']['kind'],
+                            'eye': [round(v, 2) for v in standing['player']['eye']],
+                            'pitch': round(standing['player']['pitch'], 1)}
+        assert standing['looking_at']['kind'] != 'block' \
+            or standing['looking_at']['block']['pos'] != list(cell), f'the stone is in reach standing: {seen}'
+        assert host.raw('block', *cell).get('block') == 'minecraft:stone', f'the stone did not stay: {seen}'
+        # Hold attack and keep jumping: each fall stops the client's dig (its progress is zeroed)
+        # and airborne digs five times slower, so only the server's clock can finish the stone.
+        before = standing['ticks']
+        nearest, stretch, polls, broke = None, 0, 0, False
+        guest.raw('mouse', 'left', 'down')
+        guest.raw('key', 'space', 'down')
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            polls += 1
+            now = guest('state')
+            target = now['looking_at'].get('block')
+            if target and target['pos'] == list(cell):
+                nearest = target['distance'] if nearest is None else min(nearest, target['distance'])
+            if (now.get('mining') or {}).get('pos') == list(cell):
+                stretch = max(stretch, now['mining']['ticks'])
+            if polls % 3 == 0 and host.raw('block', *cell).get('block') == 'minecraft:air':
+                broke = True
+                break
+        guest.wait(2)
+        seen.update(ticks=guest('state')['ticks'] - before, polls=polls,
+                    nearest=None if nearest is None else round(nearest, 2), longest_dig=stretch,
+                    guest_view=guest.raw('block', *cell).get('block'))
+        guest.shot(out, 'dig_clock')
+        assert nearest is not None and nearest < 4.5, f'the guest never had the stone at an apex: {seen}'
+        assert broke and seen['guest_view'] == 'minecraft:air', \
+            f'attack held through 15 s of jumps did not break the stone: {seen}'
+        # One in-reach stretch is about five ticks; more than that survived a fall, which is the
+        # accumulation vanilla's stopDestroyBlock leaves behind and the fix restores.
+        assert stretch > 8, f'the dig restarted on every jump ({stretch} ticks): {seen}'
+        return seen
+    finally:
+        guest.raw('release')
+        host('command', command=f'setblock {cell[0]} {cell[1]} {cell[2]} minecraft:air')
+        guest('command', command=f'gamemode {mode}')
+
+
+CHECKS += ['dig_clock']
+CHECK_FNS['dig_clock'] = check_dig_clock
 
 
 def check_popped_break_effects(host, guest, out):

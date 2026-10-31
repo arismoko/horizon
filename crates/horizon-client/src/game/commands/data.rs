@@ -304,11 +304,9 @@ impl Game<'_> {
                     .block_entities
                     .get(&key)
                     .ok_or_else(|| err("commands.data.block.invalid", &[]))?;
-                // BlockEntity.saveWithFullMetadata: no chunk-only keepPacked.
-                let mut tag = save::encode_block_entity(key, e, &name);
-                if let Tag::Compound(c) = &mut tag {
-                    c.remove(&"keepPacked".into());
-                }
+                // BlockEntity.saveWithFullMetadata: no chunk-only keepPacked,
+                // and the lock the model does not hold.
+                let mut tag = save::block_entity_data(key, e, &name, self.world.block_lock(key));
                 self.restore_loot_table(key, &mut tag);
                 Ok(tag)
             }
@@ -323,6 +321,7 @@ impl Game<'_> {
                 if let Some((_, mut new)) = save::decode_block_entity(&tag) {
                     self.take_loot_table(key, &tag, &mut new);
                     self.world.block_entities.insert(key, new);
+                    self.world.set_block_lock(key, &tag);
                     self.update_spawner_display(key);
                     // BlockDataAccessor.setData: setChanged and sendBlockUpdated(3),
                     // even when the block state itself stays the same.

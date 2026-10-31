@@ -2,7 +2,7 @@
 use super::{Column, Span, TileKey};
 use crate::{
     fast_hash::{FxHashMap, FxHashSet},
-    mesher::{OPAQUE_LAYER, SectionMesh, TerrainVertex},
+    mesher::{OPAQUE_LAYER, SectionMesh, TerrainVertex, fluid_face},
     streaming::WorkerContext,
 };
 use horizon_assets::model::Direction;
@@ -253,6 +253,13 @@ type Faces = BTreeMap<FaceKey, Vec<Rect>>;
 fn add_face(faces: &mut Faces, direction: Direction, plane: f32, rect: Rect, material: Material) {
     for (overlay, paint) in material.faces.into_iter().enumerate() {
         let Some(paint) = paint else { continue };
+        // The same fluid flags the section mesher sets, so the material stage's water
+        // reaches the distant tiles too and the LOD boundary keeps one look.
+        let color = if material.fluid != 0 {
+            fluid_face(paint.color, direction as usize)
+        } else {
+            paint.color
+        };
         faces
             .entry(FaceKey {
                 direction,
@@ -260,7 +267,7 @@ fn add_face(faces: &mut Faces, direction: Direction, plane: f32, rect: Rect, mat
                 overlay: overlay as u8,
                 layer: paint.layer,
                 light: paint.light,
-                color: paint.color,
+                color,
                 translucent: paint.translucent,
             })
             .or_default()
@@ -1046,8 +1053,8 @@ fn emit_quad(mesh: &mut SectionMesh, key: FaceKey, rect: Rect, uv_scale: f32) {
     };
     // Tile origins are integer multiples of a block, so local coordinates
     // retain the world texture phase without distant-coordinate precision loss;
-    // a whole number of blocks off each UV keeps it (the sampler repeats) and
-    // counts it from the face's corner.
+    // a whole number of blocks off each UV keeps it (terrain.wgsl's `tile_uv`
+    // repeats the sprite per block) and counts it from the face's corner.
     let uvs = points.map(|pos| match key.direction {
         Direction::Up | Direction::Down => [pos[0], -pos[2]],
         Direction::North | Direction::South => [pos[0], -pos[1]],

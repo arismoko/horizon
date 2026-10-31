@@ -12,6 +12,8 @@ mod events;
 mod http;
 mod init;
 mod lists;
+mod management;
+mod management_schema;
 mod mcp;
 mod panel;
 mod process;
@@ -22,6 +24,7 @@ mod settings;
 mod signals;
 mod supervisor;
 mod update;
+mod websocket;
 
 use std::{path::PathBuf, process::ExitCode};
 

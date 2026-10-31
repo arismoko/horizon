@@ -79,6 +79,27 @@ template ([modpacks.md](modpacks.md#registries-02-data-driven-blocks-items-and-m
   "item": true }
 ```
 
+A block copies its template's states. It can also declare state properties of
+its own, which its template does not have — how a pipe says which sides it
+connects to, or a machine whether it is running. Its states then become its
+template's states times the combinations of the ones it declares, in a fixed
+order with every declared default first, so ids do not move between loads:
+
+```json
+{ "template": "minecraft:stone",
+  "state_properties": {
+    "facing": { "type": "enum", "values": ["north", "south", "east", "west"] },
+    "lit": { "type": "boolean" } },
+  "default_state": { "lit": "true" } }
+```
+
+A `boolean` is `false` and `true`, as vanilla spells them; an `enum` is a list
+of values, and a name or value is lower case letters, digits and underscores.
+A declared name may not be one the template already has, and `default_state`
+takes one value per declared property too, so a block's default is exactly one
+state of its own. Every combination has to fit in the states a world holds
+(2^20), so a declaration that would not is refused when the mods load.
+
 An item copies its template's data components, with `max_stack_size` and
 `rarity` changed, and any other 26.3 component set or removed in
 `components`, written as a data component patch is: `minecraft:<type>` sets
@@ -136,10 +157,10 @@ category (`beneficial`, `harmful` or `neutral`) and its RGB colour (0 to `0xFFFF
 
 It is the effect `<id>:<name>`: `/effect give @s ruby:glow 30` gives it, saves and mobs keep it, and it reaches LAN and
 dedicated server players who run the same mods (its network id follows vanilla's). Its name is the translation
-`effect.<id>.<name>` from the mod's `assets/<id>/lang/`. Its icon is not drawn yet: the HUD shows the effect's frame and
-the inventory its frame and name, without an icon. It does nothing on its own yet: no tick behaviour and no attribute
-modifiers. A world opened without the mod drops the effect from its players and mobs. Clients join a server only with
-the same mods' effects, as with its blocks.
+`effect.<id>.<name>` from the mod's `assets/<id>/lang/`, its icon `assets/<id>/textures/mob_effect/<name>.png` (18x18,
+as vanilla's; without one it draws as the missing texture). It does nothing on its own yet: no tick behaviour and no
+attribute modifiers. A world opened without the mod drops the effect from its players and mobs. Clients join a server
+only with the same mods' effects, as with its blocks.
 
 `crafting_remainder` names what the item leaves in the crafting grid when a
 recipe uses it, as a milk bucket leaves a bucket (vanilla's

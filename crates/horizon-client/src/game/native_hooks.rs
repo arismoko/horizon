@@ -168,9 +168,11 @@ use horizon_client::{
     extras::Corner,
     extras_hud::Corners,
     fast_hash::FxHashMap,
+    health::{HurtSource, Hurting},
     hud::{HudBatch, rgba},
     items::ItemStack,
     keybinds,
+    mobs::{Damage, Who},
     mod_list::{self, Installed, NativePage},
     particles::{ParticleOptions, ParticleType},
     text::Text,
@@ -946,6 +948,20 @@ impl Game<'_> {
     ) {
         let _ = (pos, entity, id);
     }
+    /// `AbstractContainerMenu.clickMenuButton(Player, int)`'s other half:
+    /// the acting player's cursor stack, `getCarried()`/`setCarried()`,
+    /// which `native_menu_button` cannot reach. Fires right after it, same
+    /// moment, same `pos`/`entity`/`id`; change `carried` when its id is
+    /// yours. On the server. API @API:menu_button_v2@.
+    pub(super) fn native_menu_button_v2(
+        &mut self,
+        pos: [i32; 3],
+        entity: &mut ModBlockEntity,
+        id: i32,
+        carried: &mut Option<ItemStack>,
+    ) {
+        let _ = (pos, entity, id, carried);
+    }
     /// The commands native mods add to the server's command tree: push
     /// yours. Asked once when a world opens to players (a dedicated
     /// server, a LAN host, single player's server thread); every player's
@@ -1140,6 +1156,18 @@ impl Game<'_> {
     ) {
         let _ = (dimension, kind, pos, natural);
     }
+    /// An entity leaves the server level `dimension` (NeoForge's
+    /// `EntityLeaveLevelEvent`): vanilla's `onTrackingEnd`, when it is removed
+    /// for any reason (picked up, merged, despawned, burnt, blown up, killed,
+    /// taken by a hopper or a mob, gone through a portal) or its chunk unloads,
+    /// a level closing with nobody in it included. Not for the entities still
+    /// loaded when the server stops, as in vanilla. `entity` is its ID and
+    /// `kind` its type (`minecraft:item`); it is no longer in the level's lists.
+    /// It only hears. @API:entity_leave_level@ tells item entities and experience orbs; later
+    /// APIs add other kinds, so check `kind`. Server-side.
+    pub(super) fn native_entity_leave_level(&mut self, dimension: &str, entity: u32, kind: &str) {
+        let _ = (dimension, entity, kind);
+    }
     /// An entity joins the server level `dimension` (NeoForge's
     /// `EntityJoinLevelEvent`): vanilla's `PersistentEntitySectionManager.addEntity`.
     /// `loaded_from_disk` is true for an entity coming back with its chunk,
@@ -1214,6 +1242,73 @@ impl Game<'_> {
     /// acting one). API 39.
     pub(super) fn native_on_equip(&mut self, slot: &str, new: Option<&ItemStack>) {
         let _ = (slot, new);
+    }
+    /// `LivingEntity.hurtServer`, past its guards (invulnerable, dead, fire
+    /// with fire resistance), is about to hurt entity `entity` of type `kind`
+    /// (`minecraft:zombie`, `minecraft:player`) by `amount` of `damage_type`
+    /// (`minecraft:fall`), from the source's `causing` entity
+    /// (`DamageSource.getEntity`: the shooter of an arrow) and `direct` one
+    /// (`getDirectEntity`: the arrow), 0 for none or not known yet
+    /// (docs/native-mods.md, API @API:living_incoming_damage@). Change `amount`, or set `canceled`,
+    /// and nothing of `hurtServer` itself happens (no damage, hurt sound,
+    /// knockback, invulnerable time, statistics or criteria); the caller acts
+    /// as on a refused hit. Players and mobs, not the ender dragon yet. It runs
+    /// on the thread that ticks the world (the server thread; the window's
+    /// in-frame): state shared with render thread hooks needs synchronising.
+    /// No `self`: the game is in the middle of the hit. API @API:living_incoming_damage@.
+    pub(super) fn native_living_incoming_damage(
+        entity: i32,
+        kind: &str,
+        damage_type: &str,
+        causing: i32,
+        direct: i32,
+        amount: &mut f32,
+        canceled: &mut bool,
+    ) {
+        let _ = (entity, kind, damage_type, causing, direct, amount, canceled);
+    }
+}
+
+/// `native_living_incoming_damage` for the damage code (`health::HURT_SERVER`): whether
+/// it canceled the hit. Its one caller.
+pub(super) fn hurt_server(hurting: Hurting<'_>, amount: &mut f32) -> bool {
+    let (entity, kind, source) = hurt_server_args(hurting);
+    let HurtSource {
+        damage_type,
+        causing,
+        direct,
+    } = source;
+    let mut canceled = false;
+    Game::native_living_incoming_damage(
+        entity,
+        kind,
+        damage_type,
+        causing,
+        direct,
+        amount,
+        &mut canceled,
+    );
+    canceled
+}
+/// `native_living_incoming_damage`'s entity, entity type and source for a hit.
+fn hurt_server_args(hurting: Hurting<'_>) -> (i32, &str, HurtSource<'_>) {
+    match hurting {
+        Hurting::Player(entity, source) => (entity, "minecraft:player", source),
+        Hurting::Mob(mob, damage) => (mob.id as i32, mob.kind.id.as_str(), mob_source(damage)),
+    }
+}
+/// A mob's damage as its `DamageSource`: the causing entity is known when it
+/// is a mob, and is the direct one too when it deals the damage itself.
+fn mob_source(damage: &Damage) -> HurtSource<'static> {
+    let causing = match damage.attacker {
+        Some(Who::Mob(id)) => id as i32,
+        _ => 0,
+    };
+    let melee = super::creatures::melee(damage.kind);
+    HurtSource {
+        damage_type: super::creatures::source_damage_type(*damage),
+        causing,
+        direct: if melee { causing } else { 0 },
     }
 }
 
@@ -1520,7 +1615,7 @@ impl Game<'_> {
             return false;
         };
         if stack.count == 0 {
-            self.dropped.remove(i);
+            self.remove_dropped(i);
         } else {
             self.dropped[i].stack = stack;
         }
@@ -1622,6 +1717,23 @@ impl Game<'_> {
             self.container_changed(key);
         }
         Some(out)
+    }
+    /// Sends clients the block at `pos` and its block entity's update tag
+    /// (`native_block_entity_update_tag`) again, as `Level.sendBlockUpdated`
+    /// does: with the level's other block changes, to the players who see its
+    /// chunk, once however often it is called before then. Changes made in a
+    /// block entity's tick go out at the start of the next tick, as vanilla's
+    /// do (`ServerLevel.tick` broadcasts chunks before it ticks block
+    /// entities). Call it when what clients show changed (a machine started),
+    /// not for every tick's progress: a menu's data slots carry that. Nothing
+    /// happens for an unloaded block. API @API:native-block-entity-sync@.
+    pub(super) fn native_block_entity_sync(&mut self, pos: [i32; 3]) {
+        if !self.world.loaded(pos[0], pos[2]) {
+            return;
+        }
+        if let Some(log) = self.world.block_log.as_mut() {
+            log.push((pos[0], pos[1], pos[2]));
+        }
     }
     /// Playing, with nothing over the world: keys and zoom apply.
     pub(super) fn native_playing(&self) -> bool {
@@ -1725,15 +1837,16 @@ impl Game<'_> {
             .cloned()
     }
     /// Puts `stack` into the container at `pos` (a chest, a furnace, a mod
-    /// container) through its side `face`, as a hopper would, and returns
-    /// what did not fit: a machine's auto-output. API 20.
+    /// container) through its side `face`, as a hopper would, one by one, and
+    /// returns what did not fit: a machine's auto-output. A composter takes
+    /// one a call, and a client's copy of the world none. API 20.
     pub(super) fn native_insert_item(
         &mut self,
         pos: [i32; 3],
         face: Direction,
         stack: ItemStack,
     ) -> Option<ItemStack> {
-        self.insert_into_container((pos[0], pos[1], pos[2]), stack, face)
+        self.insert_stack_through(pos, face, stack)
     }
     /// Where the mouse is, in GUI pixels. API 20.
     pub(super) fn native_cursor(&self) -> [f32; 2] {
@@ -1994,6 +2107,52 @@ impl Game<'_> {
             self.native_mob_spawned(self.dim.id(), &kind, pos, natural);
         }
     }
+    /// `native_entity_leave_level` for each of `entities`, of `kind`, gone
+    /// from the level in place. A client of a server tells nothing.
+    pub(super) fn native_entities_left(&mut self, kind: &str, entities: &[u32]) {
+        if self.remote.is_some() {
+            return;
+        }
+        let dimension = self.dim.id();
+        for &entity in entities {
+            self.native_entity_leave_level(dimension, entity, kind);
+        }
+    }
+    /// The IDs of the level's item entities, for `native_items_left_since`
+    /// (none on a client of a server, which tells nothing).
+    pub(super) fn dropped_ids(&self) -> Vec<u32> {
+        if self.remote.is_some() {
+            return Vec::new();
+        }
+        self.dropped.iter().map(|e| e.id).collect()
+    }
+    /// The IDs of the level's experience orbs, for `native_orbs_left_since`.
+    pub(super) fn orb_ids(&self) -> Vec<u32> {
+        if self.remote.is_some() {
+            return Vec::new();
+        }
+        self.orbs.iter().map(|o| o.id).collect()
+    }
+    /// The item entities of `before` gone since have left the level.
+    pub(super) fn native_items_left_since(&mut self, before: &[u32]) {
+        let now: std::collections::HashSet<u32> = self.dropped.iter().map(|e| e.id).collect();
+        let gone: Vec<u32> = before
+            .iter()
+            .copied()
+            .filter(|id| !now.contains(id))
+            .collect();
+        self.native_entities_left("minecraft:item", &gone);
+    }
+    /// The experience orbs of `before` gone since have left the level.
+    pub(super) fn native_orbs_left_since(&mut self, before: &[u32]) {
+        let now: std::collections::HashSet<u32> = self.orbs.iter().map(|o| o.id).collect();
+        let gone: Vec<u32> = before
+            .iter()
+            .copied()
+            .filter(|id| !now.contains(id))
+            .collect();
+        self.native_entities_left("minecraft:experience_orb", &gone);
+    }
     /// `native_entity_join_level` for `entity`, just put at the end of its
     /// list: false when a mod canceled, and the caller takes it back out.
     /// A client of a server tells nothing.
@@ -2238,6 +2397,12 @@ impl Game<'_> {
             .as_mut()
             .is_some_and(|s| s.set_data(window, id, value))
     }
+    /// Whether a mod's screen is open for the current menu: it places its own
+    /// container slots and the player's inventory, so the stock layout of the
+    /// vanilla menu underneath stands back (`slot_position`).
+    pub(super) fn native_screen_shown(&self) -> bool {
+        self.shown_native_screen().is_some()
+    }
     /// The open mod screen's height.
     pub(super) fn native_screen_height(&self) -> Option<f32> {
         self.shown_native_screen().map(|s| s.screen.height)
@@ -2386,8 +2551,9 @@ impl Game<'_> {
             self.world.modified.insert((pos.0 >> 4, pos.2 >> 4));
         }
     }
-    /// Menu button `id` on the mod container at `pos` (`clickMenuButton`).
-    pub(super) fn mod_menu_button(&mut self, pos: Pos, id: i32) {
+    /// Menu button `id` on the mod container at `pos` (`clickMenuButton`),
+    /// with the acting player's cursor stack (`carried`, read and written).
+    pub(super) fn mod_menu_button(&mut self, pos: Pos, id: i32, carried: &mut Option<ItemStack>) {
         if self.mod_menu_at(pos).is_none() {
             return;
         }
@@ -2400,6 +2566,7 @@ impl Game<'_> {
         let mut taken = std::mem::take(&mut **m);
         let items = taken.items.clone();
         self.native_menu_button([pos.0, pos.1, pos.2], &mut taken, id);
+        self.native_menu_button_v2([pos.0, pos.1, pos.2], &mut taken, id, carried);
         self.put_back_mod_block_entity(pos, taken, &items);
     }
     /// The cursor from the open mod screen's top left, with its block and
@@ -2827,6 +2994,39 @@ mod tests {
             );
         }
         assert_eq!(names, declared);
+    }
+
+    /// The damage hook gets a mob's source from its damage: the causing mob,
+    /// the direct one when it deals the damage itself.
+    #[test]
+    fn the_damage_hook_names_the_source() {
+        use super::{HurtSource, Hurting, hurt_server_args, mob_source};
+        use horizon_client::mobs::{Damage, DamageKind as K, Who};
+        let source = |kind, attacker| {
+            let s = mob_source(&Damage {
+                kind,
+                attacker,
+                from: None,
+            });
+            (s.damage_type, s.causing, s.direct)
+        };
+        let zombie = Some(Who::Mob(3));
+        assert_eq!(source(K::MobAttack, zombie), ("minecraft:mob_attack", 3, 3));
+        assert_eq!(source(K::Thorns, zombie), ("minecraft:thorns", 3, 3));
+        assert_eq!(source(K::Arrow, zombie), ("minecraft:arrow", 3, 0));
+        let blast = source(K::Explosion, zombie);
+        assert_eq!(blast, ("minecraft:player_explosion", 3, 0));
+        // A player behind a mob's hit isn't known yet, nor is a fall's source.
+        let hit = source(K::PlayerAttack, Some(Who::Player));
+        assert_eq!(hit, ("minecraft:player_attack", 0, 0));
+        assert_eq!(source(K::Fall, None), ("minecraft:fall", 0, 0));
+        let arrow = HurtSource {
+            damage_type: "minecraft:arrow",
+            causing: 4,
+            direct: 0,
+        };
+        let player = (2, "minecraft:player", arrow);
+        assert_eq!(hurt_server_args(Hurting::Player(2, arrow)), player);
     }
 
     /// A mod container opens a slot grid or a furnace's menu, by its slot

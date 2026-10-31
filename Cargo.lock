@@ -1183,6 +1183,7 @@ dependencies = [
  "cpal",
  "flate2",
  "glam",
+ "half",
  "horizon-assets",
  "horizon-bench",
  "horizon-client-core",
@@ -1353,14 +1354,17 @@ dependencies = [
 name = "horizon-server"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chrono",
  "horizon-anticheat",
  "horizon-bench",
+ "horizon-core",
  "horizon-release-sign",
  "horizon-server-files",
  "libc",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "toml",
  "toml_edit",
@@ -1398,8 +1402,10 @@ dependencies = [
 name = "horizon-shaders"
 version = "0.1.0"
 dependencies = [
+ "half",
  "horizon-core",
  "naga",
+ "png",
  "zip",
 ]
 
@@ -1945,8 +1951,6 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 [[package]]
 name = "naga"
 version = "30.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a616d2fb8c89516ac2723a581f69d6c18576046bed761bd6b305e5618e6ae130"
 dependencies = [
  "arrayvec",
  "bit-set",
