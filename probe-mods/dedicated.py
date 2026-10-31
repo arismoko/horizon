@@ -3,11 +3,13 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 
+mode, variant = sys.argv[1:]
 cache = Path.home() / ".cache/horizon-pickup-invalidation"
-home = Path(tempfile.mkdtemp(prefix="dedicated-", dir=cache))
+home = Path(tempfile.mkdtemp(prefix=f"dedicated-{mode}-{variant}-", dir=cache))
 server_dir = home / "server"
 server_dir.mkdir()
 with socket.socket() as sock:
@@ -29,14 +31,17 @@ for key, value in {
 }.items():
     env[key] = str(home / value)
 env.update(HORIZON_NO_AUDIO="1", HORIZON_LAUNCHER_NO_SELF_UPDATE="1", PICKUP_PROOF=str(home / "marker"))
-log = (home / "server.log").open("w")
+if variant == "cancel":
+    env["PICKUP_CANCEL"] = "1"
+log_path = home / "server.log"
+log = log_path.open("w")
 server = subprocess.Popen(
     [str(binary), "--resources", str(resources), "--dedicated", "--nogui"],
     cwd=server_dir, env=env, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, text=True,
 )
 endpoint = home / "ctl.sock"
 def control(*args):
-    return subprocess.run([str(ctl), "--socket", str(endpoint), *args], env=env, text=True, capture_output=True, check=True).stdout
+    return subprocess.run([str(ctl), "--socket", str(endpoint), *args], env=env, text=True, capture_output=True, check=True, timeout=45).stdout
 
 try:
     for _ in range(120):
@@ -62,21 +67,28 @@ try:
         time.sleep(1)
     else:
         raise RuntimeError("dedicated hook did not remove an item")
-    print("Dedicated marker:", (home / "marker").read_text())
-    time.sleep(2)
-    if server.poll() is not None:
-        raise RuntimeError("dedicated server exited after hook")
-    state = json.loads(control("state"))
-    print("Dedicated client state:", state)
-    print(control("screenshot", str(Path.cwd() / "pickup-dedicated.png")))
-    print(control("quit"))
-    server.stdin.write("stop\n")
-    server.stdin.flush()
-    server.wait(timeout=30)
-    print("Dedicated server completed:", server.returncode)
+    print("Dedicated marker:", (home / "marker").read_text(), mode, variant)
+    time.sleep(3)
+    output = log_path.read_text()
+    if mode == "before":
+        if "index out of bounds" not in output:
+            raise RuntimeError("dedicated baseline did not panic")
+        print("Expected dedicated index out of bounds:", variant)
+    else:
+        if server.poll() is not None or "panicked at" in output:
+            raise RuntimeError("dedicated server failed after the hook")
+        state = json.loads(control("state"))
+        print("Dedicated client state:", state)
+        print(control("screenshot", str(Path.cwd() / f"pickup-dedicated-{variant}.png")))
+        print("Dedicated server remained responsive:", variant)
+    control("quit")
+    if server.poll() is None:
+        server.stdin.write("stop\n")
+        server.stdin.flush()
+        server.wait(timeout=30)
 finally:
     if server.poll() is None:
         server.terminate()
         server.wait(timeout=20)
     log.close()
-    print("Dedicated log:", (home / "server.log").read_text()[-8000:])
+    print("Dedicated log:", log_path.read_text()[-8000:])
