@@ -3,6 +3,11 @@ use crate::{crash, game, logging};
 
 /// Start the game. The executable supplies the allocator and retains the mod API marker.
 pub fn main() {
+    main_with(Default::default());
+}
+
+/// Start the game with trait mods in dispatch order.
+pub fn main_with(mods: crate::mod_api::Mods) {
     horizon_threads::configure_allocator();
     horizon_client::telemetry::mark_start();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -33,7 +38,7 @@ pub fn main() {
         crash::install(home.clone(), side);
     }
     raise_open_file_limit();
-    if let Err(error) = game::run() {
+    if let Err(error) = game::run_with(mods) {
         // A bad command line is the caller's mistake, not a crash: no report.
         let usage = error.is::<game::UsageError>();
         log::error!("Horizon: {error}");

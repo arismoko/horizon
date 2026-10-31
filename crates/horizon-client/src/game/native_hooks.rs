@@ -496,10 +496,10 @@ pub(crate) struct NativeColoredLight {
 /// eased through the field of view like the spyglass when `smooth`, and the
 /// scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NativeZoom {
-    pub(crate) factor: f32,
-    pub(crate) smooth: bool,
-    pub(crate) turn: f32,
+pub struct NativeZoom {
+    pub factor: f32,
+    pub smooth: bool,
+    pub turn: f32,
 }
 
 /// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
@@ -836,6 +836,11 @@ impl Game<'_> {
     /// Before an authoritative server level's tick pass. `dimension` is its ID.
     pub(super) fn native_level_tick_pre(&mut self, dimension: &str) {
         let _ = dimension;
+        #[cfg(not(test))]
+        {
+            let mods = self.trait_mods.clone();
+            horizon_client::mod_api::dispatch_level_tick_pre(self, &mods, dimension);
+        }
     }
     /// After a successful authoritative server level tick pass.
     pub(super) fn native_level_tick_post(&mut self, dimension: &str) {
@@ -929,7 +934,9 @@ impl Game<'_> {
     /// The zoom a native mod asks for, applied while playing (the spyglass's
     /// own view wins): set `zoom` when it is none yet.
     pub(super) fn native_zoom(&self, zoom: &mut Option<NativeZoom>) {
-        let _ = zoom;
+        let _ = &mut *zoom;
+        #[cfg(not(test))]
+        horizon_client::mod_api::dispatch_zoom(self, &self.trait_mods, zoom);
     }
     /// The minimap a native mod shows: set `minimap` when it is none yet.
     pub(super) fn native_minimap(&self, minimap: &mut Option<NativeMinimap>) {
@@ -1154,7 +1161,9 @@ impl Game<'_> {
     /// codes. Asked each frame the tooltip shows, never for one the stack
     /// hides. API 12.
     pub(super) fn native_tooltip(&self, stack: &ItemStack, lines: &mut Vec<(Text, u32)>) {
-        let _ = (stack, lines);
+        let _ = (stack, &mut *lines);
+        #[cfg(not(test))]
+        horizon_client::mod_api::dispatch_tooltip(self, &self.trait_mods, stack, lines);
     }
     /// The small bar `GuiGraphicsExtractor.itemDecorations` draws under an
     /// item, wherever the game shows one: `bar` arrives holding vanilla's value
@@ -1178,7 +1187,12 @@ impl Game<'_> {
         face: [i32; 3],
         claimed: &mut bool,
     ) {
-        let _ = (stack, pos, face, claimed);
+        let _ = (stack, pos, face, &mut *claimed);
+        #[cfg(not(test))]
+        {
+            let mods = self.trait_mods.clone();
+            horizon_client::mod_api::dispatch_use_item_on(self, &mods, stack, pos, face, claimed);
+        }
     }
     /// A player uses `stack` (right click) with `self.hand`: in the air, or
     /// on a block once `native_use_item_on` let it through, where `Item.use`
