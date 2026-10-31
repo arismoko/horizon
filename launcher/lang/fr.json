@@ -83,6 +83,7 @@
   "Classic arms": "Bras classiques",
   "Versions": "Versions",
   "Release build: slower to build, slightly faster game": "Build release : plus long à compiler, jeu un peu plus rapide",
+  "Use Blaze for faster native mod rebuilds": "Utiliser Blaze pour reconstruire les mods natifs plus vite",
   "Horizon mods": "Mods Horizon",
   "Friends over the internet · Tailscale": "Amis par Internet · Tailscale",
   "Landscape": "Paysage",

@@ -587,6 +587,14 @@ trusting native code is the player's decision, never an agent's.
    nice 19 and the idle I/O class on Linux, nice 19 on macOS, below-normal priority on Windows), so the desktop and a
    game in play stay smooth; on an otherwise idle computer they still use every core. The log is `native/build.log`;
    a failure shows its last lines (a horizon-mixins diagnostic in one line).
+   **Optional Blaze builder.** Turn on "Use Blaze for faster native mod rebuilds" for frequent
+   hook edits, or use `settings native-builder blaze` / `native-build --builder blaze`. Cargo
+   remains the default. Blaze can speed up rebuilds, but its first build can take longer.
+   The launcher downloads pinned Blaze v0.20261030.1 and Blaze downloads its pinned
+   nightly-2026-10-27 compiler and standard-library data. Blaze uses a separate target and cache.
+   The launcher checks the lockfile with Cargo first, stops the Blaze daemon after each build,
+   and retries with Cargo if Blaze fails. Windows and unsupported hosts always use Cargo.
+
 6. **Post-build**: each mod's post-build program is built; it runs in the new version folder once that is copied
    (next step), before the version counts as installed ("Post-build steps").
 7. **Install**: a new version, `native-<commit>-<key>`, a copy of the starting version's folder (resources

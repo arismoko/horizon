@@ -1499,6 +1499,23 @@ impl Launcher {
                 )
                 .child(tr("Release build: slower to build, slightly faster game").to_string()),
         );
+        detail = detail.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .child(
+                    switch("native-blaze", self.settings.native_blaze, &t).on_click(cx.listener(
+                        |this, _: &ClickEvent, _, cx| {
+                            this.settings.native_blaze = !this.settings.native_blaze;
+                            this.native_done = None;
+                            this.settings.save();
+                            cx.notify();
+                        },
+                    )),
+                )
+                .child(tr("Use Blaze for faster native mod rebuilds").to_string()),
+        );
         if let Some(list) = mismatch {
             detail = detail.child(self.native_mismatch_panel(list, cx));
         }

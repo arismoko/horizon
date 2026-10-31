@@ -3319,6 +3319,9 @@ pub struct Settings {
     /// slower to build, slightly faster game.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub native_release: bool,
+    /// Use Blaze for native builds where supported, instead of Cargo.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub native_blaze: bool,
     /// Developer options (hidden: seven clicks on the sidebar's launcher version reveal them):
     /// offline names play without an account that owns the game, in the window only
     /// (`account::Accounts::play_as_with`, `account::launch_for_game`). Never a download: the game still

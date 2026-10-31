@@ -2,6 +2,7 @@
 pub mod account;
 pub mod agents;
 pub mod backend;
+pub mod blaze;
 pub mod browser;
 pub mod datapacks;
 pub mod desktop;

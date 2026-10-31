@@ -43,7 +43,7 @@ enum RustCmd {
     Status,
     /// Download the pinned toolchain from static.rust-lang.org (once), checked by SHA-256
     Install,
-    /// Delete the toolchain and the native builds' Cargo home
+    /// Delete Rust, Blaze, and the native builds' caches
     Remove,
 }
 
@@ -777,6 +777,9 @@ enum Cmd {
         /// (thin LTO: slower to build, slightly faster game). Default: the native-profile setting
         #[arg(long, value_parser = ["fast", "release"])]
         profile: Option<String>,
+        /// Builder for native mods (default: the native-builder setting)
+        #[arg(long, value_parser = ["cargo", "blaze"])]
+        builder: Option<String>,
     },
     /// Show a release's patch notes (default: the newest)
     Notes { tag: Option<String> },
@@ -796,7 +799,8 @@ enum Cmd {
     /// system|en|fr|ru|de|zh|es|uk|pl (the window's language; system follows the computer's), accent
     /// violet|blue|teal|green|amber|red|pink, background PATH (a picture behind Home; "default"
     /// shows Horizon's landscape), native-profile fast|release (the Cargo profile native mods
-    /// build with: fast is incremental, release is slower to build and slightly faster to play)
+    /// build with: fast is incremental, release is slower to build and slightly faster to play),
+    /// native-builder cargo|blaze (Cargo by default)
     Settings {
         #[arg(value_parser = SETTING_KEYS)]
         key: Option<String>,
@@ -958,6 +962,7 @@ const SETTING_KEYS: [&str; 13] = [
     "accent",
     "background",
     "native-profile",
+    "native-builder",
 ];
 
 fn on_off(value: &str) -> Result<bool, String> {
@@ -1020,6 +1025,13 @@ fn set_setting(s: &mut backend::Settings, key: &str, value: &str) -> Result<(), 
                 })?),
             }
         }
+        "native-builder" => {
+            s.native_blaze = match value {
+                "cargo" | "default" => false,
+                "blaze" => true,
+                _ => return Err(format!("{value}: say cargo or blaze")),
+            }
+        }
         "native-profile" => {
             s.native_release = match value {
                 "fast" | "default" => false,
@@ -1059,6 +1071,7 @@ fn settings_json(s: &backend::Settings) -> serde_json::Value {
         "accent": s.accent.name(),
         "background": horizon_launcher::themes::background(&backend::data_dir(), s.background.as_deref()),
         "native_profile": native_mods::Profile::from_setting(s.native_release).name(),
+        "native_builder": native_mods::Builder::from_setting(s.native_blaze).name(),
         "no_ai": backend::no_ai(),
     })
 }
@@ -1212,6 +1225,7 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
             trust_native_code,
             allow_version_mismatch,
             profile,
+            builder,
         } => {
             if !trust_native_code {
                 return Err("Native mods run with full access to this computer. Read their source, then pass --trust-native-code.".into());
@@ -1223,6 +1237,12 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
                     native_mods::Profile::from_setting(backend::Settings::load().native_release)
                 }
             };
+            let builder = builder
+                .as_deref()
+                .and_then(native_mods::Builder::parse)
+                .unwrap_or_else(|| {
+                    native_mods::Builder::from_setting(backend::Settings::load().native_blaze)
+                });
             let target = match &instance {
                 Some(name) => instances::find(name)?,
                 None => instances::selected(),
@@ -1245,6 +1265,7 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
                 &target,
                 allow_version_mismatch,
                 profile,
+                builder,
                 |step| {
                     let secs = started.elapsed().as_secs();
                     eprintln!("[{:>2}:{:02}] {}", secs / 60, secs % 60, step.label())
@@ -1665,6 +1686,7 @@ fn rust(action: RustCmd, as_json: bool) -> Result<(), String> {
         }
         RustCmd::Remove => {
             rust::remove()?;
+            horizon_launcher::blaze::remove()?;
             println!("Removed the launcher's Rust toolchain and Cargo home.");
         }
     }
