@@ -30,6 +30,21 @@ new = old + '''            #[cfg(feature = "audio")]
 '''
 assert section.count(old) == 1
 path.write_text(text[:start] + section.replace(old, new) + text[end:])
+# Test-only workaround for the stale particle call on upstream main.
+path = path.parents[2] / "horizon-client/src/game/creatures.rs"
+text = path.read_text()
+old = "self.lan_send_particles(&options, at, spread, 0.2, count);"
+new = """self.lan_send_particles(super::lan_particles::QueuedParticle {
+                dimension: self.dim.id(),
+                options,
+                state: None,
+                at,
+                spread,
+                speed: 0.2,
+                count: count as i32,
+            });"""
+assert text.count(old) == 1
+path.write_text(text.replace(old, new))
 PY
 export PATH="$HOME/.cargo/bin:$PATH" CARGO_TARGET_DIR="$target"
 (cd "$stage" && cargo build --offline --profile fast -p horizon-client --bin horizon-client --bin horizon-ctl)
