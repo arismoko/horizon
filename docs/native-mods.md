@@ -227,6 +227,16 @@ need `"hooks": 40`.
 API 41 adds bundles' data files (`native_data!`, `native_built_data`; "Data files" below). Bundles that use them need
 `"hooks": 41`.
 
+API 41 adds what the mob effects of a content mod ([mods.md](mods.md)) do, named after vanilla's `MobEffect` methods,
+or NeoForge's event where it has one. On the server, each tick a player or a mob has one,
+`native_should_apply_effect_tick_this_tick` says whether it acts (vanilla's base answer is no) and
+`native_apply_effect_tick` acts, and may end it, before it counts down, as in `MobEffectInstance.tickServer`. These
+two take `&self`: during a mob's tick the mob world borrows the game, so `&mut self` would alias that borrow, and the
+game doesn't hold the mobs being ticked, nor the player's effects. `native_on_effect_added` hears it given to an
+entity that didn't have it, and `native_mob_effect_added` (NeoForge's `MobEffectEvent.Added`) every time it is given.
+A mob is its `Entity.getId`; a player is None, with their state swapped in (`native_acting_player`). Vanilla's effects
+never reach them. Bundles that use them need `"hooks": 41`.
+
 API 41 adds `native_entity_join_level(dimension, entity, kind, pos, loaded_from_disk, canceled)`, an entity joining a
 server level (NeoForge's `EntityJoinLevelEvent`, vanilla's `PersistentEntitySectionManager.addEntity`):
 `loaded_from_disk` is true when it comes back with its chunk, false for a fresh add (a drop, an orb, `/summon`, an

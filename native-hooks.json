@@ -337,6 +337,26 @@
       "name": "player_tick",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_player_tick"
+    },
+    {
+      "name": "should_apply_effect_tick_this_tick",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_should_apply_effect_tick_this_tick"
+    },
+    {
+      "name": "apply_effect_tick",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_apply_effect_tick"
+    },
+    {
+      "name": "on_effect_added",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_on_effect_added"
+    },
+    {
+      "name": "mob_effect_added",
+      "version": 1,
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_mob_effect_added"
     }
   ]
 }
