@@ -1,9 +1,12 @@
-//! Pinned Blaze binaries for opt-in native mod builds.
+//! Blaze is an opt-in native mod builder (#5530). Its releases are pinned by version and SHA-256.
+//! Blaze downloads its own pinned nightly compiler and does not enforce `--locked`; the launcher
+//! checks the lockfile with Cargo. Windows has no Blaze release and uses Cargo instead.
 use crate::{backend, rust_toolchain};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
+/// The pinned Blaze release.
 pub const VERSION: &str = "v0.20261030.1";
 const RELEASE: &str = "https://github.com/indexable-inc/blaze/releases/download";
 const COMPLETE: &str = ".installed";
@@ -47,6 +50,7 @@ pub fn installed() -> Option<PathBuf> {
     (dir.join(COMPLETE).is_file() && dir.join("blaze").is_file()).then(|| dir.join("blaze"))
 }
 
+/// Download and verify Blaze once, then install it atomically.
 pub fn install(progress: impl Fn(f32)) -> Result<PathBuf, String> {
     if let Some(binary) = installed() {
         return Ok(binary);
@@ -95,26 +99,42 @@ fn archive_path(path: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Keep Blaze's daemon, toolchain and caches apart from the player's files.
-pub fn command(binary: &Path) -> Command {
-    command_in(binary, &root().join("state"))
+const ENV: &[(&str, &str)] = &[
+    ("HOME", "home"),
+    ("XDG_CACHE_HOME", "cache"),
+    ("XDG_CONFIG_HOME", "config"),
+    ("XDG_DATA_HOME", "data"),
+    ("XDG_STATE_HOME", "state"),
+    ("XDG_RUNTIME_DIR", "runtime"),
+    ("TMPDIR", "tmp"),
+    ("TMP", "tmp"),
+    ("TEMP", "tmp"),
+    ("BLAZE_CACHE", "blaze-cache"),
+    ("RUSTUP_HOME", "rustup"),
+];
+
+/// Copy Cargo's command and isolate Blaze's daemon, toolchain and caches.
+pub fn wrap(binary: &Path, cargo: &Command) -> Command {
+    wrap_in(binary, cargo, &root().join("state"))
 }
 
-fn command_in(binary: &Path, base: &Path) -> Command {
+fn wrap_in(binary: &Path, cargo: &Command, base: &Path) -> Command {
     let mut cmd = Command::new(binary);
-    for (name, folder) in [
-        ("HOME", "home"),
-        ("XDG_CACHE_HOME", "cache"),
-        ("XDG_CONFIG_HOME", "config"),
-        ("XDG_DATA_HOME", "data"),
-        ("XDG_STATE_HOME", "state"),
-        ("XDG_RUNTIME_DIR", "runtime"),
-        ("TMPDIR", "tmp"),
-        ("TMP", "tmp"),
-        ("TEMP", "tmp"),
-        ("BLAZE_CACHE", "blaze-cache"),
-        ("RUSTUP_HOME", "rustup"),
-    ] {
+    cmd.args(cargo.get_args());
+    for (key, value) in cargo.get_envs() {
+        match value {
+            Some(value) => {
+                cmd.env(key, value);
+            }
+            None => {
+                cmd.env_remove(key);
+            }
+        }
+    }
+    if let Some(dir) = cargo.get_current_dir() {
+        cmd.current_dir(dir);
+    }
+    for (name, folder) in ENV {
         let dir = base.join(folder);
         let _ = fs::create_dir_all(&dir);
         cmd.env(name, dir);
@@ -124,7 +144,7 @@ fn command_in(binary: &Path, base: &Path) -> Command {
 
 pub fn remove() -> Result<(), String> {
     if let Some(binary) = installed() {
-        let _ = command(&binary).arg("stop").status();
+        let _ = wrap(&binary, Command::new(&binary).arg("stop")).status();
     }
     let dir = root();
     if dir.exists() {
@@ -166,21 +186,18 @@ mod tests {
     #[test]
     fn command_isolates_blazes_state() {
         let temp = std::env::temp_dir().join(format!("horizon-blaze-test-{}", std::process::id()));
-        let cmd = command_in(Path::new("/blaze"), &temp);
-        for name in [
-            "HOME",
-            "XDG_CACHE_HOME",
-            "XDG_CONFIG_HOME",
-            "XDG_DATA_HOME",
-            "XDG_STATE_HOME",
-            "XDG_RUNTIME_DIR",
-            "TMPDIR",
-            "TMP",
-            "TEMP",
-            "BLAZE_CACHE",
-            "RUSTUP_HOME",
-        ] {
-            let value = cmd.get_envs().find(|(k, _)| *k == name).unwrap().1.unwrap();
+        let mut cargo = Command::new("/cargo");
+        for (name, _) in ENV {
+            cargo.env(name, "/player");
+        }
+        let cmd = wrap_in(Path::new("/blaze"), &cargo, &temp);
+        for (name, _) in ENV {
+            let value = cmd
+                .get_envs()
+                .find(|(k, _)| *k == *name)
+                .unwrap()
+                .1
+                .unwrap();
             assert!(Path::new(value).starts_with(&temp), "{name}");
         }
         fs::remove_dir_all(temp).unwrap();

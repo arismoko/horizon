@@ -1687,7 +1687,7 @@ fn rust(action: RustCmd, as_json: bool) -> Result<(), String> {
         RustCmd::Remove => {
             rust::remove()?;
             horizon_launcher::blaze::remove()?;
-            println!("Removed the launcher's Rust toolchain and Cargo home.");
+            println!("Removed the launcher's Rust toolchain, Blaze and Cargo home.");
         }
     }
     Ok(())

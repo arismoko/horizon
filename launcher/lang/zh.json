@@ -84,6 +84,7 @@
   "Versions": "版本",
   "Release build: slower to build, slightly faster game": "Release 构建：构建更慢，游戏略快",
   "Use Blaze for faster native mod rebuilds": "使用 Blaze 加快原生模组的重新构建",
+  "Downloading Blaze (once): {done}%": "正在下载 Blaze（仅一次）：{done}%",
   "Horizon mods": "Horizon 模组",
   "Friends over the internet · Tailscale": "通过互联网联机 · Tailscale",
   "Landscape": "风景",

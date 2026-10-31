@@ -84,6 +84,7 @@
   "Versions": "Versiones",
   "Release build: slower to build, slightly faster game": "Compilación release: tarda más, el juego va algo más rápido",
   "Use Blaze for faster native mod rebuilds": "Usar Blaze para recompilar mods nativos más rápido",
+  "Downloading Blaze (once): {done}%": "Descargando Blaze (una vez): {done} %",
   "Horizon mods": "Mods de Horizon",
   "Friends over the internet · Tailscale": "Amigos por internet · Tailscale",
   "Landscape": "Paisaje",
