@@ -3157,6 +3157,10 @@ impl Game<'_> {
             bob_offset: bob,
             ticks: 0,
         });
+        // ServerLevel.addFreshEntity.
+        if !self.native_entity_joins(self.next_entity, "minecraft:item", position, false) {
+            self.dropped.pop();
+        }
     }
     /// `Block.getDrops` for a block a player breaks: the block's loot table
     /// with the player as `this`, drawing from its server random sequence
@@ -11791,6 +11795,10 @@ impl Game<'_> {
             count: 1,
             ticks: 0,
         });
+        // ServerLevel.addFreshEntity.
+        if !self.native_entity_joins(self.next_entity, "minecraft:experience_orb", at, false) {
+            self.orbs.pop();
+        }
     }
     fn can_place_used_fire(&mut self, target: [i32; 3]) -> bool {
         let pos = BlockPos::new(target[0], target[1], target[2]);

@@ -2054,6 +2054,16 @@ impl Game<'_> {
                         count: 1,
                         ticks: 0,
                     });
+                    // tryAddFreshEntityWithPassengers refused: ERROR_DUPLICATE_UUID.
+                    if !self.native_entity_joins(
+                        self.next_entity,
+                        "minecraft:experience_orb",
+                        pos,
+                        false,
+                    ) {
+                        self.orbs.pop();
+                        return Err(err("commands.summon.failed.uuid", &[]));
+                    }
                     name = Text::translate("entity.minecraft.experience_orb", &[]);
                 }
                 "lightning_bolt" => {

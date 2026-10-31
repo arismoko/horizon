@@ -1682,6 +1682,8 @@ impl Game<'_> {
                     // setPortalCooldown before the teleport.
                     c.insert("PortalCooldown".into(), Tag::Int(ENTITY_DELAY));
                 }
+                // ServerLevel.addDuringTeleport: a fresh add, not loaded from disk.
+                super::persist::mark_fresh(&mut tag);
                 match self
                     .world
                     .loaded_entities

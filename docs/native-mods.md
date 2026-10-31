@@ -227,6 +227,13 @@ need `"hooks": 40`.
 API 41 adds bundles' data files (`native_data!`, `native_built_data`; "Data files" below). Bundles that use them need
 `"hooks": 41`.
 
+API 41 adds `native_entity_join_level(dimension, entity, kind, pos, loaded_from_disk, canceled)`, an entity joining a
+server level (NeoForge's `EntityJoinLevelEvent`, vanilla's `PersistentEntitySectionManager.addEntity`):
+`loaded_from_disk` is true when it comes back with its chunk, false for a fresh add (a drop, an orb, `/summon`, an
+arrival through a portal). The entity is already in the level's lists when the hook runs; `canceled` takes it back
+out, and a `/summon` of it fails with vanilla's "duplicate UUIDs" message. API 41 tells item entities and experience
+orbs; later APIs add other kinds, so check `kind`. Bundles that use it need `"hooks": 41`.
+
 API 41 adds `native_level_random(dimension)`, the server level's own random (vanilla's `Level.random`, NeoForge mods'
 `level.getRandom()`): a mod draws from the stream vanilla's explosions and block drops use, so its draws shift theirs
 as a Java mod's would. It is `None` on a client of a server and for a level that isn't open: the Nether and the End
