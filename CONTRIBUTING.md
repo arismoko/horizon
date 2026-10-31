@@ -1,5 +1,11 @@
 # Contributing to Horizon
 
+> **The `mod-api` branch of arismoko/horizon.** This branch builds the native mod API (a generated `Hooks`
+> trait, launcher linking, injections, dependencies between mods, attachments) before it is proposed upstream.
+> Open PRs for that API work against `mod-api`. New hooks, helpers and fixes still go to
+> [horizon-rust/horizon](https://github.com/horizon-rust/horizon) `main`. The branch merges upstream `main`
+> regularly and is never rebased, so your PRs against it stay valid.
+
 Thanks for helping. Horizon is Minecraft: Java Edition 26.3 rewritten in Rust, and the one rule that shapes
 everything is that **it plays exactly like vanilla**. This page is the short version of how we work; questions are
 welcome on [Discord](https://discord.gg/playhorizon).
