@@ -121,6 +121,11 @@ impl Levels {
         self.parked.get(&dim).map(|level| &level.world)
     }
 
+    /// The world of the level not in place, in `dim`, to change.
+    pub(super) fn parked_world_mut(&mut self, dim: Dim) -> Option<&mut World> {
+        self.parked.get_mut(&dim).map(|level| &mut level.world)
+    }
+
     /// The level not in place, in `dim`.
     pub(super) fn parked_mut(&mut self, dim: Dim) -> Option<&mut Parked> {
         self.parked.get_mut(&dim)
