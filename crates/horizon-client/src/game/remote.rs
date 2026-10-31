@@ -273,7 +273,7 @@ pub(super) struct Remote {
     pub(super) registries: Arc<Dynamic>,
     pub(super) joined: bool,
     /// `ServerReconfigScreen` is up since this tick.
-    reconfiguring: Option<u64>,
+    pub(super) reconfiguring: Option<u64>,
     /// `handleLogin` ran: vanilla's `Minecraft.player` exists from then on,
     /// while here the player is made at the first teleport.
     pub(super) logged_in: bool,
