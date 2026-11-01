@@ -2841,6 +2841,7 @@ mod tests {
             max_y: 320,
             world: &world,
             sprites: &sprites,
+            emissive: &Default::default(),
             nether: false,
             lid: &|_| 0.0,
             sign: &|_| None,
