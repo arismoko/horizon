@@ -60,9 +60,32 @@ pub fn properties_files(root: &Path, feature: &str) -> Vec<String> {
         let ns = ns.file_name().to_string_lossy().into_owned();
         for top in ["optifine", "mcpatcher"] {
             let base = format!("assets/{ns}/{top}/{feature}");
-            walk(&root.join(&base), &base, 0, &mut seen, &mut out);
+            walk(
+                &root.join(&base),
+                &base,
+                &[".properties"],
+                0,
+                &mut seen,
+                &mut out,
+            );
         }
     }
+    out.sort();
+    out
+}
+
+/// The files under `root/<dir>` (`assets/minecraft/optifine/random`) whose names end in one of
+/// `endings`, as paths from `root`, sorted. Links are followed as [`properties_files`] does.
+pub fn files_under(root: &Path, dir: &str, endings: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    walk(
+        &root.join(dir),
+        dir,
+        endings,
+        0,
+        &mut HashSet::new(),
+        &mut out,
+    );
     out.sort();
     out
 }
@@ -71,7 +94,14 @@ pub fn properties_files(root: &Path, feature: &str) -> Vec<String> {
 /// `PATH_MAX`.
 const MAX_DEPTH: usize = 16;
 
-fn walk(dir: &Path, rel: &str, depth: usize, seen: &mut HashSet<PathBuf>, out: &mut Vec<String>) {
+fn walk(
+    dir: &Path,
+    rel: &str,
+    endings: &[&str],
+    depth: usize,
+    seen: &mut HashSet<PathBuf>,
+    out: &mut Vec<String>,
+) {
     // Links are followed (overlay folders are links into the packs and vanilla), so a link back
     // to a parent would loop: each real folder is read once, and never deeper than MAX_DEPTH.
     if depth > MAX_DEPTH || !fs::canonicalize(dir).is_ok_and(|real| seen.insert(real)) {
@@ -85,8 +115,8 @@ fn walk(dir: &Path, rel: &str, depth: usize, seen: &mut HashSet<PathBuf>, out: &
         let rel = format!("{rel}/{name}");
         // `metadata` follows links: overlay folders are links into the packs and vanilla.
         match fs::metadata(e.path()) {
-            Ok(m) if m.is_dir() => walk(&e.path(), &rel, depth + 1, seen, out),
-            Ok(_) if name.ends_with(".properties") => out.push(rel),
+            Ok(m) if m.is_dir() => walk(&e.path(), &rel, endings, depth + 1, seen, out),
+            Ok(_) if endings.iter().any(|end| name.ends_with(end)) => out.push(rel),
             _ => {}
         }
     }
