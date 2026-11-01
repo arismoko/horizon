@@ -13,7 +13,9 @@ pub use crate::hud::HudBatch;
 pub use crate::hud_layout::{GuiDraw, HealthInputs};
 pub use crate::items::ItemStack;
 pub use crate::text::Text;
+pub use horizon_core::geometry::Direction;
 pub use horizon_world::{nbt::Compound, registry::BlockStateId};
+pub use serde_json;
 pub use std::time::Duration;
 
 /// A dispenser hook's answer: the slot's remainder (None empties it) and the

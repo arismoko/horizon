@@ -292,6 +292,11 @@ mod tests {
         #[derive(Clone, Copy)]
         pub(super) struct BlockStateId;
         pub(super) struct Compound;
+        #[derive(Clone, Copy)]
+        pub(super) struct Direction;
+        pub(super) type NativeDispensed = (Option<super::ItemStack>, i32);
+        pub(super) struct NativeLootDrops<'a>(pub &'a ());
+        pub(super) struct NativeScreenView<'a>(pub &'a ());
         pub(super) struct Corners;
         pub(super) struct HudBatch;
         pub(super) struct NativeBlockRim;

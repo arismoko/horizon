@@ -681,25 +681,40 @@
     {
       "name": "component_types",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_component_types"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_component_types",
+      "mod_api": {
+        "contract": "collect",
+        "out": "types"
+      }
     },
     {
       "name": "dispense_item",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_dispense_item",
-      "side": "server"
+      "side": "server",
+      "mod_api": {
+        "contract": "replace",
+        "out": "answer"
+      }
     },
     {
       "name": "tooltip_component",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_tooltip_component",
-      "side": "client"
+      "side": "client",
+      "mod_api": {
+        "contract": "replace",
+        "out": "size"
+      }
     },
     {
       "name": "tooltip_component_draw",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_tooltip_component_draw",
-      "side": "client"
+      "side": "client",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "can_survive",
@@ -719,7 +734,11 @@
     {
       "name": "block_entity_render_bounding_box",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_render_bounding_box"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_render_bounding_box",
+      "mod_api": {
+        "contract": "collect",
+        "out": "bounds"
+      }
     },
     {
       "name": "is_valid_bonemeal_target",
@@ -740,24 +759,37 @@
       "name": "block_step_on",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_block_step_on",
-      "side": "server"
+      "side": "server",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "block_entity_inside",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_inside",
-      "side": "server"
+      "side": "server",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "block_fall_on",
       "version": 1,
       "target": "horizon_client::game::native_hooks::Game<'_>::native_block_fall_on",
-      "side": "server"
+      "side": "server",
+      "mod_api": {
+        "contract": "collect",
+        "out": "damage"
+      }
     },
     {
       "name": "consume_effect",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_consume_effect"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_consume_effect",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "loot_table_load",
@@ -767,7 +799,11 @@
     {
       "name": "loot_drops",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_loot_drops"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_loot_drops",
+      "mod_api": {
+        "contract": "collect",
+        "out": "drops"
+      }
     },
     {
       "name": "state_for_placement",
@@ -777,12 +813,18 @@
     {
       "name": "enchant_effect",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_enchant_effect"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_enchant_effect",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "screen_render_post",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_render_post"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_render_post",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "modify_default_components",
@@ -792,12 +834,20 @@
     {
       "name": "screen_mouse_button_pressed_pre",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_mouse_button_pressed_pre"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_mouse_button_pressed_pre",
+      "mod_api": {
+        "contract": "cancel",
+        "out": "canceled"
+      }
     },
     {
       "name": "screen_mouse_button_released_pre",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_mouse_button_released_pre"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_mouse_button_released_pre",
+      "mod_api": {
+        "contract": "cancel",
+        "out": "canceled"
+      }
     }
   ]
 }
