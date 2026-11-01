@@ -1,0 +1,83 @@
+[mod]
+id = "machine_sample"
+version = "0.1.0"
+priority = 100
+
+[[injection]]
+id = "sync_test"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_datapack_sync"
+helper = "sync.rs"
+bindings = [{ name = "recipe_types", ty = "&mut Vec<String>", value = "recipe_types" }]
+
+[[injection]]
+id = "receive_test"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_recipes_received"
+helper = "receive.rs"
+bindings = [{ name = "game", ty = "&Game<'_>", value = "&*self" }, { name = "recipe_types", ty = "&[String]", value = "recipe_types" }]
+
+[compatibility]
+horizon_revision = "0a0d056239671142e6c0bb6a7a30c081ed3232d9"
+
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "machine_sample"
+source = "runtime.rs"
+
+[[injection]]
+id = "entity"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_block_entity"
+helper = "entity.rs"
+bindings = [{ name = "block", ty = "&str", value = "block" }, { name = "entity", ty = "&mut Option<(String, Compound)>", value = "entity" }]
+
+[[injection]]
+id = "ticks"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_block_entity_ticks"
+helper = "ticks.rs"
+bindings = [{ name = "block", ty = "&str", value = "block" }, { name = "ticks", ty = "&mut bool", value = "ticks" }]
+
+[[injection]]
+id = "container"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_block_entity_container"
+helper = "container.rs"
+bindings = [{ name = "block", ty = "&str", value = "block" }, { name = "container", ty = "&mut Option<ModContainer>", value = "container" }]
+
+[[injection]]
+id = "tick"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_block_entity_tick"
+helper = "tick.rs"
+bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }, { name = "pos", ty = "[i32; 3]", value = "pos" }, { name = "entity", ty = "&mut ModBlockEntity", value = "entity" }]
+
+[[injection]]
+id = "screen"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_screen"
+helper = "screen.rs"
+bindings = [{ name = "block", ty = "&str", value = "block" }, { name = "screen", ty = "&mut Option<NativeScreen>", value = "screen" }]
+
+[[injection]]
+id = "draw"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_screen_draw"
+helper = "draw.rs"
+bindings = [{ name = "game", ty = "&Game<'_>", value = "&*self" }, { name = "block", ty = "&str", value = "block" }, { name = "data", ty = "&[i32]", value = "data" }, { name = "batch", ty = "&mut HudBatch", value = "batch" }, { name = "origin", ty = "[f32; 2]", value = "origin" }]
+
+[[injection]]
+id = "click"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_screen_click"
+helper = "click.rs"
+bindings = [{ name = "block", ty = "&str", value = "block" }, { name = "at", ty = "[f32; 2]", value = "at" }, { name = "right", ty = "bool", value = "right" }, { name = "button", ty = "&mut Option<i32>", value = "button" }]
+
+[[injection]]
+id = "button"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_menu_button_v2"
+helper = "button.rs"
+bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }, { name = "entity", ty = "&mut ModBlockEntity", value = "entity" }, { name = "id", ty = "i32", value = "id" }, { name = "carried", ty = "&mut Option<ItemStack>", value = "carried" }]
