@@ -89,6 +89,12 @@ pub(super) struct ProjWorld<'a, 'w> {
     pub targets: Vec<(Who, Aabb)>,
 }
 impl ProjectileWorld for ProjWorld<'_, '_> {
+    fn block_contacts(&self, entity: i32, kind: &str, from: Vec3, to: Vec3, bounds: Aabb) {
+        horizon_client::block_contact::swept_inside(entity, kind, from, to, bounds, |p| {
+            let state = self.w.world.block(p.x, p.y, p.z);
+            (state, &self.w.facts.get(state).name)
+        });
+    }
     fn clip(&self, from: Vec3, to: Vec3) -> Option<(Vec3, [i32; 3], [i32; 3])> {
         let mut scene = SceneCollisions {
             world: self.w.world,
@@ -1201,7 +1207,13 @@ impl Game<'_> {
         self.villager_murdered(m, slain_by_player, killer.flatten());
         let pos = [m.position.x, m.position.y + 0.5, m.position.z];
         let killer_entity = self.killer_loot_entity(killer.flatten());
-        self.drop_death_loot(&mut dying, by_player, killer_entity, consumed, pos);
+        // LAST_DAMAGE_PLAYER only while the player-hurt memory lasts
+        // (LivingEntity.dropFromLootTable's playerKilled): a mob that dies to
+        // the environment long after a player's hit names no player.
+        let player = killer
+            .filter(|_| m.ai.last_hurt_by_player > 0)
+            .and_then(|conn| self.killer_uuid(conn));
+        self.drop_death_loot(&mut dying, player, by_player, killer_entity, consumed, pos);
         self.create_wither_rose(m);
         if m.species() == Species::CopperGolem {
             // CopperGolem.dropEquipment: the preserved equipment too.
@@ -1318,9 +1330,26 @@ impl Game<'_> {
         }
         own(self)
     }
+    /// The UUID of the player `last_hurt_by_player` keeps: the guest on
+    /// connection `conn` (None once they left), else the player in place
+    /// (None on a server, which has none of its own).
+    fn killer_uuid(&mut self, conn: Option<u32>) -> Option<u128> {
+        match conn {
+            // During that guest's own turn, the hub is out of `lan`.
+            Some(conn) if self.lan_acting != Some(conn) => {
+                Some(self.lan.as_ref()?.hub.guest(conn)?.uuid)
+            }
+            Some(_) => Some(self.native_acting_id()),
+            None if self.lan_acting.is_none() && self.player.is_some() => {
+                Some(self.native_acting_id())
+            }
+            None => None,
+        }
+    }
     fn drop_death_loot(
         &mut self,
         m: &mut Mob,
+        player_uuid: Option<u128>,
         by_player: bool,
         killer: horizon_world::loot::LootEntity,
         consumed: bool,
@@ -1403,22 +1432,48 @@ impl Game<'_> {
             }
         }
         let raider = horizon_client::mobs::raider::is_raider(m.species());
+        // The item drops come before the carried block and the orbs, so the
+        // mods get them all at once and they still spawn in that order.
+        let mut stacks = Vec::new();
+        let mut rest = Vec::new();
         for d in items {
             match d {
-                drops::Drop::Item(stack) => {
-                    let item = if raider && stack.item == horizon_client::mobs::raider::BANNER {
+                drops::Drop::Item(stack) => stacks.push(
+                    if raider && stack.item == horizon_client::mobs::raider::BANNER {
                         horizon_client::mobs::raider::ominous_banner()
                     } else {
                         from_loot(&stack)
-                    };
-                    // Every death drop is its own ItemEntity, and the drop
-                    // entity's own random (not the level's) gives it the
-                    // constructor's horizontal push (its motion otherwise
-                    // stays [0, 0.2, 0] and the drops land stacked at the
-                    // mob's centre, without disturbing the level random that
-                    // the orbs' merge ids and block ticks read next).
-                    self.spawn_item(item, pos, dispenser::new_item_motion(), 10);
-                }
+                    },
+                ),
+                drops::Drop::Stack(stack) => stacks.push(stack),
+                other => rest.push(other),
+            }
+        }
+        let kind = super::native_hooks::mob_kind(m);
+        let table = drops::death_loot_table(m, death.mob_drops).filter(|t| loot.has_table(t));
+        let context = super::native_hooks::NativeLootDrops {
+            table: table.as_deref().unwrap_or_default(),
+            dimension: self.dim.id(),
+            origin: [m.position.x, m.position.y, m.position.z],
+            block: None,
+            entity: Some((m.id, &kind)),
+            player: player_uuid,
+            tool: None,
+            explosion: None,
+        };
+        self.native_loot_drops(&context, &mut stacks);
+        stacks.retain(|stack| stack.count > 0 && &*stack.item != "minecraft:air");
+        for item in stacks {
+            // Every death drop is its own ItemEntity, and the drop entity's
+            // own random (not the level's) gives it the constructor's
+            // horizontal push (its motion otherwise stays [0, 0.2, 0] and
+            // the drops land stacked at the mob's centre, without disturbing
+            // the level random that the orbs' merge ids and block ticks read
+            // next).
+            self.spawn_item(item, pos, dispenser::new_item_motion(), 10);
+        }
+        for d in rest {
+            match d {
                 drops::Drop::CarriedBlock(state) => {
                     // Enderman.dropCustomDeathLoot: spawnAtLocation for each
                     // of the carried block's silk-touch drops.
@@ -1434,7 +1489,7 @@ impl Game<'_> {
                     }
                 }
                 drops::Drop::Orb(value) if !consumed => self.spawn_orbs(pos, value as u32),
-                drops::Drop::Orb(_) => {}
+                drops::Drop::Item(_) | drops::Drop::Stack(_) | drops::Drop::Orb(_) => {}
             }
         }
     }
@@ -1598,6 +1653,15 @@ impl Game<'_> {
         if p.id == 0 {
             self.next_entity += 1;
             p.id = self.next_entity;
+        }
+        // Projectile.setOwner: the acting player's or the mob's UUID, which
+        // its save keeps even once the owner is gone.
+        if p.owner_uuid.is_none() {
+            p.owner_uuid = match p.owner {
+                Some(Who::Player) => Some(self.acting_player_uuid()),
+                Some(Who::Mob(id)) => Some(self.uuid_for(id)),
+                None => None,
+            };
         }
         self.creatures.projectiles.push(p);
     }
@@ -2218,13 +2282,14 @@ impl Game<'_> {
                         self.destroy_particles(pos, old);
                     }
                     if drop {
-                        let drops = world_items!(self).block_drops_in(
+                        let mut drops = world_items!(self).block_drops_in(
                             self.pack.assets.registry,
                             old,
                             None,
                             &mut self.world.random,
                             Some((&mut self.rand_sequences, self.level.seed)),
                         );
+                        self.native_block_drops(pos, old, None, None, None, &mut drops);
                         for d in drops {
                             self.pop_resource(pos, d);
                         }
@@ -3411,9 +3476,10 @@ impl Game<'_> {
                 } = hit
                     && let Some(j) = wind_charge_hit(id)
                 {
-                    let (owner, guest) = (p.owner, p.guest);
+                    let (owner, owner_uuid, guest) = (p.owner, p.owner_uuid, p.guest);
                     let look = self.owner_look(owner, guest);
-                    super::deflect::aim_deflect(&mut projectiles[j], look, owner, guest);
+                    let wind = &mut projectiles[j];
+                    super::deflect::aim_deflect(wind, look, owner, owner_uuid, guest);
                 }
             }
             let mut idx = 0;

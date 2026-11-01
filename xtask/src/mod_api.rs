@@ -286,29 +286,23 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     struct ItemStack;
-    #[derive(Clone, Copy)]
     #[allow(dead_code)]
-    struct BlockStateId;
-    #[allow(dead_code)]
-    struct Compound;
-    #[allow(dead_code)]
-    struct ModBlockEntity;
-    #[allow(dead_code)]
-    struct ModContainer;
-    #[allow(dead_code)]
-    struct ModFluidTanks;
-    #[allow(dead_code)]
-    struct NativeCommand;
-    #[allow(dead_code)]
-    struct NativeLifecycleContext;
-    #[allow(dead_code)]
-    struct NativeServerPlayer;
-    #[derive(Clone, Copy)]
-    #[allow(dead_code)]
-    struct ServerTickPhase;
-    #[derive(Clone, Copy)]
-    #[allow(dead_code)]
-    struct WorldPhase;
+    mod stubs {
+        #[derive(Clone, Copy)]
+        pub(super) struct BlockStateId;
+        pub(super) struct Compound;
+        pub(super) struct ModBlockEntity;
+        pub(super) struct ModContainer;
+        pub(super) struct ModFluidTanks;
+        pub(super) struct NativeCommand;
+        pub(super) struct NativeLifecycleContext;
+        pub(super) struct NativeServerPlayer;
+        #[derive(Clone, Copy)]
+        pub(super) struct ServerTickPhase;
+        #[derive(Clone, Copy)]
+        pub(super) struct WorldPhase;
+    }
+    use stubs::*;
     struct Text;
     #[derive(Debug, PartialEq)]
     struct NativeZoom(u32);

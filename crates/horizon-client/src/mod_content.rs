@@ -1581,6 +1581,70 @@ impl Addition {
     }
 }
 
+/// The worldgen loader's bundles of biomes and of placed feature tags.
+const BIOMES: &str = "worldgen/biomes.json";
+const FEATURE_TAGS: &str = "worldgen/feature_tags.json";
+const PLACED_FEATURES: &str = "worldgen/placed_features.json";
+
+/// Rewrites the biome bundle with the mods' biome modifiers. `biome_tags`
+/// and `placed` are the bundles as the mods left them (`None`: the base's).
+fn place_in_biomes(
+    base: &Path,
+    overlay: &Overlay<'_>,
+    modifiers: &[biomes::Modifier],
+    biome_tags: Option<J>,
+    placed: Option<J>,
+    warnings: &mut Vec<String>,
+) -> Result<()> {
+    let bundle = |doc: Option<J>, name: &str| -> Result<BTreeMap<String, String>> {
+        let doc = match doc {
+            Some(doc) => doc,
+            None if base.join(name).exists() => read_json(&base.join(name))?,
+            None => return Ok(BTreeMap::new()),
+        };
+        let J::Obj(entries) = doc else {
+            return Err(format!("{name}: not an object").into());
+        };
+        Ok(entries
+            .into_iter()
+            .filter_map(|(k, v)| match v {
+                J::Str(text) => Some((k, text)),
+                _ => None,
+            })
+            .collect())
+    };
+    if !base.join(BIOMES).exists() {
+        return Err(format!("biome modifiers need {BIOMES}").into());
+    }
+    let mut doc = read_json(&base.join(BIOMES))?;
+    let biome_ids: BTreeSet<String> = match &doc {
+        J::Obj(o) => o.iter().map(|(k, _)| k.clone()).collect(),
+        _ => return Err(format!("{BIOMES}: not an object").into()),
+    };
+    let biome_tags = bundle(biome_tags, BIOME_TAGS)?;
+    let placed: BTreeSet<String> = bundle(placed, PLACED_FEATURES)?.into_keys().collect();
+    let feature_tags = bundle(None, FEATURE_TAGS)?;
+    biomes::apply(
+        &mut doc,
+        modifiers,
+        &biomes::Registry {
+            what: "biome",
+            ids: &biome_ids,
+            tags: &biome_tags,
+        },
+        &biomes::Registry {
+            what: "placed feature",
+            ids: &placed,
+            tags: &feature_tags,
+        },
+        warnings,
+    )?;
+    overlay.write(BIOMES, &serde_json::to_vec(&doc)?)
+}
+
+#[path = "mod_content_biomes.rs"]
+mod biomes;
+
 /// The overlay being written: `out` mirrors `base` through links, and a
 /// directory becomes real only when something inside it is written.
 struct Overlay<'a> {
@@ -1899,6 +1963,7 @@ pub fn build(base: &Path, mods: &[ContentMod], out: &Path) -> Result<Vec<String>
     let mut warnings = Vec::new();
     let mut worldgen: BTreeMap<&str, Vec<(String, String)>> = BTreeMap::new();
     let mut additions: BTreeMap<&str, Vec<Addition>> = BTreeMap::new();
+    let mut modifiers = Vec::new();
     for m in mods {
         let declarations = format!("data/{}/horizon/", m.id);
         let mut reader = m.content.reader()?;
@@ -1917,7 +1982,10 @@ pub fn build(base: &Path, mods: &[ContentMod], out: &Path) -> Result<Vec<String>
                 warnings.extend(merge.add(&m.id, file, replace, shared, values));
             } else if !file.starts_with(&declarations) {
                 overlay.write(file, &bytes)?;
-                if let Some((bundle, id)) = worldgen_entry(file) {
+                if biomes::is_modifier(file) {
+                    let text = String::from_utf8(bytes).map_err(|e| format!("{file}: {e}"))?;
+                    modifiers.extend(biomes::Modifier::read(&m.id, file, &text, &mut warnings)?);
+                } else if let Some((bundle, id)) = worldgen_entry(file) {
                     let text = String::from_utf8(bytes).map_err(|e| format!("{file}: {e}"))?;
                     let entries = worldgen.entry(bundle).or_default();
                     match Addition::read(bundle, &text).map_err(|e| format!("{file}: {e}"))? {
@@ -1988,6 +2056,7 @@ pub fn build(base: &Path, mods: &[ContentMod], out: &Path) -> Result<Vec<String>
             Some((format!("{ns}:{}", path.strip_suffix(".json")?), merge))
         })
         .collect();
+    let mut biome_tag_doc = None;
     if !biome_tags.is_empty() && base.join(BIOME_TAGS).exists() {
         let mut doc = read_json(&base.join(BIOME_TAGS))?;
         for (id, merge) in biome_tags {
@@ -1999,6 +2068,7 @@ pub fn build(base: &Path, mods: &[ContentMod], out: &Path) -> Result<Vec<String>
             doc.set(&id, J::Str(merged));
         }
         overlay.write(BIOME_TAGS, &serde_json::to_vec(&doc)?)?;
+        biome_tag_doc = Some(doc);
     }
     // Structures and the pools, sets, processors and features they use, then
     // what mods add to sets, pools and lists, by priority, then in mod and
@@ -2006,6 +2076,7 @@ pub fn build(base: &Path, mods: &[ContentMod], out: &Path) -> Result<Vec<String>
     for list in additions.values_mut() {
         list.sort_by_key(|a| a.priority);
     }
+    let mut placed_doc = None;
     for (bundle, entries) in &worldgen {
         if !base.join(bundle).exists() {
             continue;
@@ -2020,6 +2091,19 @@ pub fn build(base: &Path, mods: &[ContentMod], out: &Path) -> Result<Vec<String>
                 .map_err(|e| format!("{bundle}: {e}"))?;
         }
         overlay.write(bundle, &serde_json::to_vec(&doc)?)?;
+        if *bundle == PLACED_FEATURES {
+            placed_doc = Some(doc);
+        }
+    }
+    if !modifiers.is_empty() {
+        place_in_biomes(
+            base,
+            &overlay,
+            &modifiers,
+            biome_tag_doc,
+            placed_doc,
+            &mut warnings,
+        )?;
     }
     // The commands suggest ids from `command-registries.json`: add the
     // structures, pools, sets and features the mods bring.
