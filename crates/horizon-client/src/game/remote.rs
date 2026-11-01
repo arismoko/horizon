@@ -4346,6 +4346,15 @@ impl Game<'_> {
                     p.unsigned_content.as_ref(),
                     &line,
                 );
+                // ChatListener.showMessageToPlayer: `Minecraft.isBlocked` hides the
+                // message of a player hidden in the Social Interactions screen; it
+                // counts as processed, not shown.
+                if self.social_hides(p.sender) {
+                    if let Some(signature) = &signature {
+                        self.mark_message_processed(signature, false);
+                    }
+                    return Ok(());
+                }
                 self.handle_player_chat(line, signature, trust, narration);
             }
             C::DisguisedChat(p) => {
