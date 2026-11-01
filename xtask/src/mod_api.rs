@@ -29,6 +29,26 @@ fn game_methods(path: &Path, methods: &mut Vec<syn::ImplItemFn>) -> Result<(), S
     Ok(())
 }
 
+fn doc_comments(attrs: &[syn::Attribute], name: &str) -> Result<String, String> {
+    let mut docs = String::new();
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("doc")) {
+        let syn::Meta::NameValue(value) = &attr.meta else {
+            return Err(format!("unsupported doc attribute in {name}"));
+        };
+        let syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Str(doc),
+            ..
+        }) = &value.value
+        else {
+            return Err(format!("unsupported doc attribute in {name}"));
+        };
+        for line in doc.value().lines() {
+            docs.push_str(&format!("///{line}\n"));
+        }
+    }
+    Ok(docs)
+}
+
 fn host_method(method: &syn::ImplItemFn, name: &str) -> Result<(String, String), String> {
     struct Types(Option<String>);
     impl<'ast> Visit<'ast> for Types {
@@ -37,20 +57,60 @@ fn host_method(method: &syn::ImplItemFn, name: &str) -> Result<(String, String),
         }
         fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
             let name = ty.path.segments.last().unwrap().ident.to_string();
-            if !matches!(name.as_str(), "bool" | "u8" | "u32" | "u64" | "u128" | "usize" | "i32" | "i64" | "f32" | "f64" | "str" | "String" | "Option" | "Result" | "Vec" | "Arc" | "PathBuf" | "Text" | "ItemStack" | "BlockStateId" | "Direction" | "Compound" | "HudBatch" | "NativeServerPlayer" | "NativeStack" | "CustomRecipe" | "Ingredient" | "Value") {
+            if !matches!(
+                name.as_str(),
+                "bool"
+                    | "u8"
+                    | "u32"
+                    | "u64"
+                    | "u128"
+                    | "usize"
+                    | "i32"
+                    | "i64"
+                    | "f32"
+                    | "f64"
+                    | "str"
+                    | "String"
+                    | "Option"
+                    | "Result"
+                    | "Vec"
+                    | "Arc"
+                    | "PathBuf"
+                    | "Text"
+                    | "ItemStack"
+                    | "BlockStateId"
+                    | "Direction"
+                    | "Compound"
+                    | "HudBatch"
+                    | "NativeServerPlayer"
+                    | "NativeStack"
+                    | "CustomRecipe"
+                    | "Ingredient"
+                    | "Value"
+            ) {
                 self.0 = Some(format!("type {name} is not available in mod_api"));
             }
             syn::visit::visit_type_path(self, ty);
         }
     }
-    if method.sig.generics.params.iter().any(|param| !matches!(param, syn::GenericParam::Lifetime(_))) {
+    if method
+        .sig
+        .generics
+        .params
+        .iter()
+        .any(|param| !matches!(param, syn::GenericParam::Lifetime(_)))
+    {
         return Err(format!("{name}: generic methods are not object-safe"));
     }
     let mut types = Types(None);
     for arg in &method.sig.inputs {
-        if let FnArg::Typed(arg) = arg { types.visit_type(&arg.ty); }
+        if let FnArg::Typed(arg) = arg {
+            types.visit_type(&arg.ty);
+        }
     }
-    if let syn::ReturnType::Type(_, ty) = &method.sig.output { types.visit_type(ty); }
+    if let syn::ReturnType::Type(_, ty) = &method.sig.output {
+        types.visit_type(ty);
+    }
     if let Some(reason) = types.0 {
         return Err(format!("{name}: {reason}"));
     }
@@ -62,13 +122,24 @@ fn host_method(method: &syn::ImplItemFn, name: &str) -> Result<(String, String),
         return Err(format!("{name}: expected a borrowed Game receiver"));
     }
     for arg in sig.inputs.iter_mut().skip(1) {
-        let FnArg::Typed(arg) = arg else { return Err(format!("{name}: unexpected receiver")); };
-        let Pat::Ident(pat) = &mut *arg.pat else { return Err(format!("{name}: unsupported argument")); };
+        let FnArg::Typed(arg) = arg else {
+            return Err(format!("{name}: unexpected receiver"));
+        };
+        let Pat::Ident(pat) = &mut *arg.pat else {
+            return Err(format!("{name}: unsupported argument"));
+        };
         pat.mutability = None;
         args.push(pat.ident.to_string());
     }
-    let docs = method.attrs.iter().filter(|a| a.path().is_ident("doc")).map(ToTokens::to_token_stream).map(|a| a.to_string()).collect::<Vec<_>>().join("\n");
-    Ok((format!("{docs}\n{};\n", sig.to_token_stream()), format!("{} {{ self.{original}({}) }}\n", sig.to_token_stream(), args.join(", "))))
+    let docs = doc_comments(&method.attrs, name)?;
+    Ok((
+        format!("{docs}{};\n", sig.to_token_stream()),
+        format!(
+            "{} {{ self.{original}({}) }}\n",
+            sig.to_token_stream(),
+            args.join(", ")
+        ),
+    ))
 }
 
 fn has_call(block: &syn::Block, expected: &str) -> bool {
@@ -321,23 +392,7 @@ pub fn run(check: bool) -> Result<(), String> {
         let invoke = call_args.join(", ");
         let trait_params = trait_params.join(", ");
         let dispatch_params = dispatch_params.join(", ");
-        for attr in &method.attrs {
-            if attr.path().is_ident("doc") {
-                let syn::Meta::NameValue(value) = &attr.meta else {
-                    return Err(format!("unsupported doc attribute in {name}"));
-                };
-                let syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(doc),
-                    ..
-                }) = &value.value
-                else {
-                    return Err(format!("unsupported doc attribute in {name}"));
-                };
-                for line in doc.value().lines() {
-                    traits.push_str(&format!("///{line}\n"));
-                }
-            }
-        }
+        traits.push_str(&doc_comments(&method.attrs, name)?);
         match (contract, out) {
             ("cancel", Some(out)) => traits.push_str(&format!(
                 "///\n/// Return `Flow::Cancel` to take it: this sets `{out}`, and later mods are skipped.\n"
@@ -379,51 +434,73 @@ pub fn run(check: bool) -> Result<(), String> {
     let mut host_traits = String::new();
     let mut host_impl = String::new();
     let mut names = HashSet::new();
-    for helper in catalog["helpers"].as_array().ok_or("catalog helpers must be an array")? {
+    for helper in catalog["helpers"]
+        .as_array()
+        .ok_or("catalog helpers must be an array")?
+    {
         let name = helper["name"].as_str().ok_or("helper name missing")?;
-        if !names.insert(name) { return Err(format!("duplicate helper {name}")); }
+        if !names.insert(name) {
+            return Err(format!("duplicate helper {name}"));
+        }
         let native = format!("native_{name}");
         let target = format!("horizon_client::game::native_hooks::Game<'_>::{native}");
-        if helper["target"].as_str() != Some(&target) { return Err(format!("wrong target for helper {name}")); }
+        if helper["target"].as_str() != Some(&target) {
+            return Err(format!("wrong target for helper {name}"));
+        }
         let mut matches = game.iter().filter(|m| m.sig.ident == native);
-        let method = matches.next().ok_or_else(|| format!("missing helper {native}"))?;
-        if matches.next().is_some() { return Err(format!("duplicate helper {native}")); }
+        let method = matches
+            .next()
+            .ok_or_else(|| format!("missing helper {native}"))?;
+        if matches.next().is_some() {
+            return Err(format!("duplicate helper {native}"));
+        }
         let (declaration, implementation) = host_method(method, name)?;
         host_traits.push_str(&declaration);
         host_impl.push_str(&implementation);
     }
-    let host = format!("// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::*;\n/// Services supplied by the game to trait mods.\npub trait Host {{\n{host_traits}}}\n");
-    let implementation = format!("// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse horizon_client::mod_api::*;\nimpl Host for super::Game<'_> {{\n{host_impl}}}\n");
-    for (relative, code) in [("crates/horizon-client/src/mod_api/generated.rs", code), ("crates/horizon-client/src/mod_api/generated_host.rs", host), ("crates/horizon-client/src/game/mod_api_host_generated.rs", implementation)] {
-    // Parse before formatting, so invalid catalog names or types fail without writing output.
-    syn::parse_file(&code).map_err(|e| format!("generated Rust: {e}"))?;
-    let mut child = Command::new("rustfmt")
-        .args(["--emit", "stdout", "--edition", "2021"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    use std::io::Write;
-    child
-        .stdin
-        .take()
-        .ok_or("rustfmt stdin")?
-        .write_all(code.as_bytes())
-        .map_err(|e| e.to_string())?;
-    let formatted = child.wait_with_output().map_err(|e| e.to_string())?;
-    if !formatted.status.success() {
-        return Err("rustfmt failed".into());
-    }
-    let path = root.join(relative);
-    if check {
-        if fs::read(&path).map_err(|e| e.to_string())? != formatted.stdout {
-            return Err("mod API output is stale; run cargo run -p xtask -- mod-api".into());
-        }
-    } else {
-        fs::create_dir_all(path.parent().ok_or("output parent missing")?)
+    let host = format!(
+        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::*;\n/// Services supplied by the game to trait mods.\npub trait Host {{\n{host_traits}}}\n"
+    );
+    let implementation = format!(
+        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse horizon_client::mod_api::*;\nimpl Host for super::Game<'_> {{\n{host_impl}}}\n"
+    );
+    for (relative, code) in [
+        ("crates/horizon-client/src/mod_api/generated.rs", code),
+        ("crates/horizon-client/src/mod_api/generated_host.rs", host),
+        (
+            "crates/horizon-client/src/game/mod_api_host_generated.rs",
+            implementation,
+        ),
+    ] {
+        // Parse before formatting, so invalid catalog names or types fail without writing output.
+        syn::parse_file(&code).map_err(|e| format!("generated Rust: {e}"))?;
+        let mut child = Command::new("rustfmt")
+            .args(["--emit", "stdout", "--edition", "2021"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
             .map_err(|e| e.to_string())?;
-        fs::write(path, formatted.stdout).map_err(|e| e.to_string())?;
-    }
+        use std::io::Write;
+        child
+            .stdin
+            .take()
+            .ok_or("rustfmt stdin")?
+            .write_all(code.as_bytes())
+            .map_err(|e| e.to_string())?;
+        let formatted = child.wait_with_output().map_err(|e| e.to_string())?;
+        if !formatted.status.success() {
+            return Err("rustfmt failed".into());
+        }
+        let path = root.join(relative);
+        if check {
+            if fs::read(&path).map_err(|e| e.to_string())? != formatted.stdout {
+                return Err("mod API output is stale; run cargo run -p xtask -- mod-api".into());
+            }
+        } else {
+            fs::create_dir_all(path.parent().ok_or("output parent missing")?)
+                .map_err(|e| e.to_string())?;
+            fs::write(path, formatted.stdout).map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }
@@ -581,15 +658,27 @@ mod tests {
         let private: syn::ImplItemFn = syn::parse_quote! {
             fn native_private(&self, value: BinOnly) { }
         };
-        assert!(super::host_method(&private, "private").unwrap_err().contains("BinOnly"));
+        assert!(
+            super::host_method(&private, "private")
+                .unwrap_err()
+                .contains("BinOnly")
+        );
         let generic: syn::ImplItemFn = syn::parse_quote! {
             fn native_generic<T>(&self, value: T) { }
         };
-        assert!(super::host_method(&generic, "generic").unwrap_err().contains("object-safe"));
+        assert!(
+            super::host_method(&generic, "generic")
+                .unwrap_err()
+                .contains("object-safe")
+        );
         let callback: syn::ImplItemFn = syn::parse_quote! {
             fn native_callback(&self, callback: impl FnOnce()) { }
         };
-        assert!(super::host_method(&callback, "callback").unwrap_err().contains("object-safe"));
+        assert!(
+            super::host_method(&callback, "callback")
+                .unwrap_err()
+                .contains("object-safe")
+        );
     }
 
     #[test]
