@@ -2539,6 +2539,25 @@ impl Game<'_> {
     pub(super) fn native_player_respawned(&mut self, player: u128, name: &str) {
         let _ = (player, name);
     }
+    /// The number of players with the mod container at `pos` of `dimension`
+    /// open went from `previous` to `viewers` (vanilla's
+    /// `ContainerOpenersCounter`, as a barrel keeps it): 0 to more than 0 is
+    /// `onOpen`, back to 0 is `onClose`, any change `openerCountChanged`, so a
+    /// block can show itself open while `viewers` is not 0. Counted every
+    /// tick from the players' open menus, so a player who leaves without
+    /// closing (a lost connection, death, another dimension, out of reach, the
+    /// block gone) is heard too (`recheckOpeners`). Once for each change, with
+    /// no player's state swapped in. Server-side.
+    /// @API:mod_container_viewers@.
+    pub(super) fn native_mod_container_viewers(
+        &mut self,
+        dimension: &str,
+        pos: [i32; 3],
+        viewers: u32,
+        previous: u32,
+    ) {
+        let _ = (dimension, pos, viewers, previous);
+    }
     /// `player` died: where `ServerPlayer.die` starts, with the death
     /// message's key when the game knows it (`death.attack.lava`; none for a
     /// message it builds from the combat). It only hears. Server-side, for
