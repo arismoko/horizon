@@ -163,7 +163,7 @@ impl Game<'_> {
             return;
         };
         let mut drops = vec![ItemStack::new("minecraft:lead", 1)];
-        let context = super::native_hooks::NativeLootDrops {
+        let context = crate::mod_api::NativeLootDrops {
             table: "",
             dimension: self.dim.id(),
             origin: at,
