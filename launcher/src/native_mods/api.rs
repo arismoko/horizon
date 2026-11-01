@@ -151,6 +151,8 @@ pub(super) fn stage(stage: &Path, mods: &[Bundle]) -> Result<bool, String> {
                 t.insert("path".into(), "../../crates/horizon-client".into());
                 t.remove("git");
                 t.remove("version");
+                t.remove("workspace");
+                t.remove("registry");
                 t.remove("rev");
                 t.remove("branch");
                 t.remove("tag");
@@ -232,6 +234,19 @@ mod tests {
             assert_eq!(super::super::bundle(&dir, None).is_ok(), valid, "{path}");
             fs::remove_dir_all(dir).unwrap();
         }
+    }
+
+    #[test]
+    fn rejects_an_entry_override() {
+        let dir = fixture(
+            "[mod]\nid = 'example'\nversion = '1'\n[api]\npath = 'engine'\nentry = 'other'\n",
+        );
+        assert!(
+            super::super::bundle(&dir, None)
+                .unwrap_err()
+                .contains("accepts only path")
+        );
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

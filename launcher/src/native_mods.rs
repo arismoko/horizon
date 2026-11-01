@@ -424,15 +424,24 @@ fn bundle(dir: &Path, mixins: Option<String>) -> Result<Bundle, String> {
     let api = match value.get("api") {
         None => None,
         Some(table) => {
+            if !table
+                .as_table()
+                .is_some_and(|t| t.len() == 1 && t.contains_key("path"))
+            {
+                return Err(format!("{}: [api] accepts only path", path.display()));
+            }
             let folder = table
                 .get("path")
                 .and_then(toml::Value::as_str)
                 .ok_or_else(|| format!("{}: [api] needs a path", path.display()))?;
             let relative = Path::new(folder);
             if relative.as_os_str().is_empty()
-                || !relative
-                    .components()
-                    .all(|c| matches!(c, std::path::Component::Normal(_)))
+                || !relative.components().all(|c| {
+                    matches!(
+                        c,
+                        std::path::Component::Normal(_) | std::path::Component::CurDir
+                    )
+                })
             {
                 return Err(format!("{}: invalid [api] path {folder:?}", path.display()));
             }
@@ -449,7 +458,6 @@ fn bundle(dir: &Path, mixins: Option<String>) -> Result<Bundle, String> {
                     path.display()
                 ));
             }
-            files(&source)?;
             Some(folder.to_owned())
         }
     };
