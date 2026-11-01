@@ -1378,6 +1378,20 @@ impl Game<'_> {
     pub(super) fn native_wheel(&mut self, steps: f32, claimed: &mut bool) {
         let _ = (steps, claimed);
     }
+    /// Gameplay scrolling after whole steps accumulate, before hotbar/spectator handling.
+    /// `scroll` is scaled x/y, `accumulated` whole x/y steps, `buttons` left/middle/right,
+    /// and `cursor` the GUI position. Cancel skips gameplay scrolling; synthetic input skips it.
+    pub(super) fn native_mouse_scrolling(
+        &mut self,
+        scroll: [f64; 2],
+        accumulated: [i32; 2],
+        buttons: [bool; 3],
+        cursor: [f32; 2],
+        modifiers: u32,
+        canceled: &mut bool,
+    ) {
+        let _ = (scroll, accumulated, buttons, cursor, modifiers, canceled);
+    }
     /// A command typed or clicked in chat, without its slash, before the
     /// server and Horizon's commands see it: set `ran` when the mod ran it.
     pub(super) fn native_command(&mut self, command: &str, ran: &mut bool) {
