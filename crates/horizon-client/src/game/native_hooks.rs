@@ -2768,7 +2768,6 @@ impl Game<'_> {
     ) {
         let _ = (player, name, cancel, reason);
     }
-    }
     /// A server player a command teleported (NeoForge's
     /// `EntityTeleportEvent`, for a player): `/tp` and `/teleport`, inside
     /// their level or into another one. `from` and `to` are their feet before
