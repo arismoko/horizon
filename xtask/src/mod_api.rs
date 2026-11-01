@@ -441,6 +441,15 @@ mod tests {
         }
     }
     #[test]
+    fn lookup_rejects_missing_and_duplicate_functions() {
+        let first: syn::ItemFn = syn::parse_quote! { fn native_example() {} };
+        let other: syn::ItemFn = syn::parse_quote! { fn unrelated() {} };
+        assert!(super::one_function([other.clone()].into_iter(), "native_example").is_err());
+        assert!(super::one_function([first.clone(), other].into_iter(), "native_example").is_ok());
+        assert!(super::one_function([first.clone(), first].into_iter(), "native_example").is_err());
+    }
+
+    #[test]
     fn generated_locals_do_not_shadow_hook_arguments() {
         let mut used = ["mods", "mods_", "mod_hook", "replacement", "host"]
             .into_iter()
