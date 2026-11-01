@@ -1774,6 +1774,28 @@ impl Game<'_> {
                     self.mob_hits_player(amount, from, kind);
                 }
                 MobEvent::ElderCurse { at } => self.elder_curse(at),
+                MobEvent::SetVelocity { target, velocity } => {
+                    let v = Vec3::new(velocity[0], velocity[1], velocity[2]);
+                    match target {
+                        Who::Player => {
+                            if let Some(p) = self.player.as_mut() {
+                                p.velocity = v;
+                            }
+                        }
+                        Who::Mob(id) => {
+                            if let Some(m) = self.mobs.iter_mut().find(|m| m.id == id) {
+                                m.velocity = v;
+                            }
+                        }
+                    }
+                }
+                MobEvent::RemoveKilled { target } => {
+                    if let Some(m) = self.mobs.iter_mut().find(|m| m.id == target)
+                        && !m.alive()
+                    {
+                        m.removed = true;
+                    }
+                }
                 MobEvent::Push { target, velocity } => {
                     let v = Vec3::new(velocity[0], velocity[1], velocity[2]);
                     match target {
