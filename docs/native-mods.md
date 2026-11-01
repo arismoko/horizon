@@ -944,6 +944,19 @@ render thread with the frame's wgpu objects; what a mod draws there shows in tha
 
 ## Trait mods (draft)
 
+A bundle declares its trait mod package by its path inside the bundle:
+
+```toml
+[api]
+path = "engine"
+```
+
+The folder contains a Rust package with a `horizon-client` dependency. Its library exports
+`pub fn hooks() -> Box<dyn horizon_client::mod_api::Hooks>`. The launcher links this package
+into a generated game executable and calls `hooks()` in bundle order. The package is not a
+`[[crate]]`: it depends on the game instead of the game depending on it. A bundle with no
+injections, state, bridges, modules, mixin crates or post-build steps skips horizon-mixins.
+
 A linked trait mod implements `horizon_client::mod_api::Hooks`. Mixin injections run first.
 An injection that returns early skips trait mods. A claimed cancellation also skips trait mods.
 Otherwise, trait mods run in their supplied order. The first `Cancel` stops dispatch.
