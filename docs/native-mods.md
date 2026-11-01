@@ -1273,6 +1273,9 @@ methods with the hook's host and a `Holder`. `T` is `Clone + Send + Sync + 'stat
 codec before changing the value, returning an `AttachmentError` if it cannot encode.
 Keys are the pair `(namespace, name)`; a key already decoded as another Rust type is
 an error. A missing or non-server holder is an error, not a new phantom holder.
+`AttachmentError` distinguishes `MissingHolder`, `TypeMismatch`, `Decode`, `Encode`,
+`InvalidNamespace` (a malformed saved compound) and `InvalidCopyPolicy` (death-copy
+without a codec).
 
 ```rust
 use horizon_client::mod_api::{AttachmentCodec, AttachmentError, AttachmentType, Compound, Holder, Tag};
