@@ -241,11 +241,9 @@ mod tests {
         let dir = fixture(
             "[mod]\nid = 'example'\nversion = '1'\n[api]\npath = 'engine'\nentry = 'other'\n",
         );
-        assert!(
-            super::super::bundle(&dir, None)
-                .unwrap_err()
-                .contains("accepts only path")
-        );
+        assert!(super::super::bundle(&dir, None)
+            .unwrap_err()
+            .contains("accepts only path"));
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -287,11 +285,9 @@ mod tests {
         assert!(stage(&stage_dir, &[bundle]).unwrap());
         let root = read(&stage_dir.join("Cargo.toml")).unwrap();
         let members = root["workspace"]["members"].as_array().unwrap();
-        assert!(
-            members
-                .iter()
-                .any(|v| v.as_str() == Some("native-api/example"))
-        );
+        assert!(members
+            .iter()
+            .any(|v| v.as_str() == Some("native-api/example")));
         assert!(members.iter().any(|v| v.as_str() == Some("native-game")));
         let engine = read(&stage_dir.join("native-api/example/Cargo.toml")).unwrap();
         assert_eq!(

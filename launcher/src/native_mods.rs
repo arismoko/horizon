@@ -68,7 +68,11 @@ impl Profile {
 
     /// The profile `Settings::native_release` picks.
     pub fn from_setting(release: bool) -> Self {
-        if release { Self::Release } else { Self::Fast }
+        if release {
+            Self::Release
+        } else {
+            Self::Fast
+        }
     }
 }
 
@@ -1332,11 +1336,13 @@ pub fn build(
         repin(b, &revision)?;
     }
     // Said with a failure: a mod made for another revision may not apply or compile on this one.
-    let blame = |e: String| match &other {
+    let blame = |e: String| {
+        match &other {
         Some(list) => format!(
             "{e}\n\nSome mods were made for other Horizon versions ({list}), which may be why. Install versions made for the same Nightly."
         ),
         None => e,
+    }
     };
     let mixins = newest(
         &mods,
