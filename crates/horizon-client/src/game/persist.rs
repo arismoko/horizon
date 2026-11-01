@@ -134,6 +134,10 @@ impl Game<'_> {
         let pos = ChunkPos::new(chunk.x, chunk.z);
         let time = self.world.game_time;
         let mut extras: ChunkExtras = chunk.saved.as_deref().cloned().unwrap_or_default();
+        extras.block_entity_attachments = self
+            .world
+            .block_entities
+            .chunk_attachments(chunk.x, chunk.z);
         // A chunk the scheduler hasn't registered yet (one loaded and
         // unloaded again before the next tick) still holds its saved ticks:
         // `register_chunk_ticks` empties that list once it takes them.
