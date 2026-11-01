@@ -984,15 +984,11 @@ state with interior mutability so these calls can share the instance safely.
 
 The trait includes the hooks marked `mod_api` in `native-hooks.json`. These include
 `tick`, the server lifecycle, player action, menu, block entity, entity, mob, effect,
-chunk and player hooks, plus `level_tick_pre`, `use_item_on`, `zoom` and `tooltip`.
+chunk and player hooks, plus client input, HUD, screen, visual and network hooks.
 The following catalog hooks are not in the trait yet:
 
 - `block_changed`, `neighbor_changed`, `random_tick`, `tick_block`, `update_shape`,
   `block_spread`, `piston_move`, `block_signal` and `is_signal_source` need a level host.
-- `frame`, `visuals`, `emissive`, `hud`, `key`, `wheel`, `command`, `commands`, `minimap`,
-  `mods`, `settings`, `settings_click`, `panel_event`, `screen`, `screen_draw`,
-  `screen_click`, `screen_tooltip`, `net_from_server`, `health_hud` and `item_bar`
-  will follow in the client slice.
 - `world_drawn` and `render_needs` need a renderer trait.
 
 `native_dispense_item` and `native_component_types` are not yet in the catalog.

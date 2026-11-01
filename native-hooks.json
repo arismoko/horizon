@@ -3,7 +3,10 @@
     {
       "name": "frame",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_frame"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_frame",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "tick",
@@ -16,12 +19,19 @@
     {
       "name": "visuals",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_visuals"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_visuals",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "emissive",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_emissive"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_emissive",
+      "mod_api": {
+        "contract": "collect",
+        "out": "layers"
+      }
     },
     {
       "name": "world_lifecycle",
@@ -105,27 +115,45 @@
     {
       "name": "hud",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_hud"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_hud",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "key",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_key"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_key",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "wheel",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_wheel"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_wheel",
+      "mod_api": {
+        "contract": "cancel",
+        "out": "claimed"
+      }
     },
     {
       "name": "command",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_command"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_command",
+      "mod_api": {
+        "contract": "cancel",
+        "out": "ran"
+      }
     },
     {
       "name": "commands",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_commands"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_commands",
+      "mod_api": {
+        "contract": "collect",
+        "out": "commands"
+      }
     },
     {
       "name": "zoom",
@@ -139,27 +167,45 @@
     {
       "name": "minimap",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_minimap"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_minimap",
+      "mod_api": {
+        "contract": "replace",
+        "out": "minimap"
+      }
     },
     {
       "name": "mods",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_mods"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_mods",
+      "mod_api": {
+        "contract": "collect",
+        "out": "mods"
+      }
     },
     {
       "name": "settings",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_settings"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_settings",
+      "mod_api": {
+        "contract": "collect",
+        "out": "buttons"
+      }
     },
     {
       "name": "settings_click",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_settings_click"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_settings_click",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "panel_event",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_panel_event"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_panel_event",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "block_entity",
@@ -207,22 +253,37 @@
     {
       "name": "screen",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen",
+      "mod_api": {
+        "contract": "replace",
+        "out": "screen"
+      }
     },
     {
       "name": "screen_draw",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_draw"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_draw",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "screen_click",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_click"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_click",
+      "mod_api": {
+        "contract": "replace",
+        "out": "button"
+      }
     },
     {
       "name": "screen_tooltip",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_tooltip"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_tooltip",
+      "mod_api": {
+        "contract": "collect",
+        "out": "lines"
+      }
     },
     {
       "name": "menu_button",
@@ -367,7 +428,10 @@
     {
       "name": "net_from_server",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_net_from_server"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_net_from_server",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "player_died",
@@ -447,7 +511,11 @@
     {
       "name": "health_hud",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_health_hud"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_health_hud",
+      "mod_api": {
+        "contract": "replace",
+        "out": "draws"
+      }
     },
     {
       "name": "interact_entity",
@@ -595,7 +663,10 @@
     {
       "name": "item_bar",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_item_bar"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_item_bar",
+      "mod_api": {
+        "contract": "listen"
+      }
     }
   ]
 }

@@ -7,9 +7,14 @@
 use std::sync::{Arc, Once, OnceLock};
 
 pub use crate::containers::{ModBlockEntity, ModContainer, ModFluidTanks};
+pub use crate::extras::Corner;
+pub use crate::extras_hud::Corners;
+pub use crate::hud::HudBatch;
+pub use crate::hud_layout::{GuiDraw, HealthInputs};
 pub use crate::items::ItemStack;
 pub use crate::text::Text;
 pub use horizon_world::{nbt::Compound, registry::BlockStateId};
+pub use std::time::Duration;
 
 /// A depth-tested outline of the client's block selection shape.
 #[derive(Clone, Copy, Debug, PartialEq)]
