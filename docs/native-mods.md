@@ -1297,8 +1297,8 @@ Use `Holder::Level`, `Holder::Chunk([x, z])`, `Holder::BlockEntity([x, y, z])`,
 `Holder::Entity(id)`, or `Holder::Player(uuid)`. Entity IDs cover mobs, item
 entities, boats, minecarts, armor stands, cushions, item frames, paintings and the
 server's `OtherEntity` records; projectiles, orbs and other ID-less save paths are
-not covered. Player UUIDs cover online guests and the acting player. A level host
-can access its level, loaded chunks and block entities; a read-only tick wrapper
+not covered. Player UUIDs cover online guests and the acting player. Mutable level
+hosts can access their level, loaded chunks and block entities; read-only level hosts
 cannot access attachments. These maps live on the server only: there is **no client
 synchronization**. Unserialized values disappear on unload or restart. A saved value
 is stored under `horizon:attachments`, then the mod namespace and attachment name,

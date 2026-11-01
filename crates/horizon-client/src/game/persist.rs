@@ -15,6 +15,7 @@ use horizon_core::{
     random::RandomSource,
     ticks::ChunkTicks,
 };
+use horizon_world::attachments::{ATTACHMENTS_KEY, attachment_compound};
 use horizon_world::{level::MovingPiston, nbt::Tag, registry::BlockStateId};
 use std::{
     collections::{HashMap, HashSet},
@@ -117,7 +118,7 @@ fn read_attachments(
     uuid: [i32; 4],
     maps: &mut HashMap<[i32; 4], horizon_world::attachments::Attachments>,
 ) {
-    if let Some(Tag::Compound(data)) = tag.get("horizon:attachments") {
+    if let Ok(Some(data)) = attachment_compound(tag.get(ATTACHMENTS_KEY)) {
         maps.entry(uuid)
             .or_insert_with(|| horizon_world::attachments::Attachments::from_nbt(data.clone()));
     }
@@ -131,15 +132,13 @@ pub(super) fn write_attachments(
     let uuid = entity_nbt::uuid(tag);
     if let Tag::Compound(root) = tag {
         if let Some(map) = uuid.and_then(|id| maps.get(&id))
-            && !root
-                .get(&"horizon:attachments".into())
-                .is_some_and(|v| !matches!(v, Tag::Compound(_)))
+            && attachment_compound(root.get(&ATTACHMENTS_KEY.into())).is_ok()
         {
             let data = map.to_nbt();
             if data.is_empty() {
-                root.remove(&"horizon:attachments".into());
+                root.remove(&ATTACHMENTS_KEY.into());
             } else {
-                root.insert("horizon:attachments".into(), Tag::Compound(data));
+                root.insert(ATTACHMENTS_KEY.into(), Tag::Compound(data));
             }
         }
         if let Some(Tag::List(passengers)) = root.get_mut(&"Passengers".into()) {
