@@ -280,6 +280,10 @@ use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
 };
+pub(crate) use horizon_client::mod_api::{
+    NativeBlockRim, NativeColoredLight, NativeMinimap, NativeMod, NativePanelEvent, NativeScreen,
+    NativeStack,
+};
 use horizon_client::{
     atlas_sources::qualified,
     block_entities::Pos,
@@ -702,23 +706,6 @@ pub(crate) struct NativeLootDrops<'a> {
     pub(crate) used: bool,
 }
 
-/// A depth-tested outline of the client's block selection shape.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NativeBlockRim {
-    pub(crate) pos: [i32; 3],
-    pub(crate) argb: u32,
-    pub(crate) width: f32,
-}
-
-/// A camera-local visual light, with no gameplay light or shadow writes.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NativeColoredLight {
-    pub(crate) at: [f64; 3],
-    pub(crate) rgb: u32,
-    pub(crate) radius: f32,
-    pub(crate) intensity: f32,
-}
-
 /// The camera shake native mods ask for (`native_camera_shake`): turns in
 /// degrees, and an offset in blocks along the camera's right, up and back.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -772,38 +759,6 @@ fn shake_pose(shake: NativeShake) -> glam::Mat4 {
         * glam::Mat4::from_rotation_z(shake.roll.to_radians())
         * glam::Mat4::from_rotation_x(shake.pitch.to_radians())
         * glam::Mat4::from_rotation_y(shake.yaw.to_radians())
-}
-
-/// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
-/// minimap: its corner, its side in GUI pixels, blocks per map pixel,
-/// turning with the player or north up, round or square.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NativeMinimap {
-    pub(crate) corner: Corner,
-    pub(crate) size: f32,
-    pub(crate) blocks_per_pixel: f32,
-    pub(crate) rotate: bool,
-    pub(crate) round: bool,
-}
-
-/// A mod block's screen over its menu (`native_screen`): its size, where
-/// each of the container's slots is (`Slot.x`, `Slot.y`; none hides the
-/// slot, and so do slots past the list; the server's menu does not have a
-/// hidden slot either, so clicks and shift-clicks skip it), and the player inventory's first
-/// row (vanilla's is 84; the hotbar is 58 below it) and left column, from
-/// its top left.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct NativeScreen {
-    /// Vanilla's container screens are 176 wide.
-    pub width: f32,
-    pub height: f32,
-    pub slots: Vec<Option<[f32; 2]>>,
-    pub inventory_y: f32,
-    /// The inventory's left column (vanilla's is 8).
-    pub inventory_x: f32,
-    /// The mod draws the title and the "Inventory" label itself
-    /// (`native_screen_draw`); Horizon leaves them out.
-    pub own_labels: bool,
 }
 
 /// The open screen, for the screen hooks (`native_screen_render_post`, the
@@ -905,29 +860,6 @@ pub(crate) struct NativeClock {
     pub(crate) day_time: i64,
 }
 
-/// A native mod as Options > Mods lists it (`native_mods`).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct NativeMod {
-    /// Its id: its settings folder and its keys' lines.
-    pub(crate) id: String,
-    /// `Name 1.0`.
-    pub(crate) title: String,
-    pub(crate) description: String,
-    /// Its keys: name, label and default key (`key.keyboard.z`). The page
-    /// lists them first; `native_mod_key` reads the player's choice.
-    pub(crate) keys: Vec<[String; 3]>,
-}
-
-/// An item the panel shows (`native_panel_items`): its id
-/// (`minecraft:diamond`), a count (1 draws none) and its components beyond
-/// the item's own, in vanilla's item syntax, or "".
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct NativeStack {
-    pub(crate) item: String,
-    pub(crate) count: u32,
-    pub(crate) components: String,
-}
-
 /// How the panel lays out a recipe of `native_panel_recipes`.
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -960,39 +892,6 @@ pub(crate) struct NativeRecipeView {
     pub(crate) note: String,
     /// The action button beside it: none, enabled, or shown greyed.
     pub(crate) action: Option<bool>,
-}
-
-/// What the player did on a native mod's panel (`native_panel_event`).
-#[allow(dead_code)]
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum NativePanelEvent {
-    /// A click on an item of the panel, by its index in
-    /// `native_panel_items`' list.
-    Clicked { index: u32, right: bool },
-    /// The search box's text, each time the player changes it.
-    Search(String),
-    /// A key (`key.keyboard.r`; compare it with `native_mod_key`) went down
-    /// while the pointer was on an item: a slot of the screen's, or the
-    /// panel's.
-    Key { key: String, stack: NativeStack },
-    /// A click on a slot of a recipe the panel shows: the recipe's index in
-    /// `native_panel_recipes`' list and the slot's in it (the results come
-    /// after the slots), and the stack it showed then.
-    SlotClicked {
-        recipe: u32,
-        slot: u32,
-        stack: NativeStack,
-        right: bool,
-    },
-    /// The action button of the recipe at this index.
-    Action(u32),
-    /// The player turned the recipes' page: the index of the first recipe
-    /// now shown.
-    Page(u32),
-    /// The recipe page's back button.
-    Back,
-    /// The player picked the tab at this index.
-    Tab(u32),
 }
 
 /// An item of [`NativeRecipes::items`], by its index there, with a count
@@ -1125,7 +1024,7 @@ fn chars_to_type(text: &str, canceled: impl FnMut(char) -> bool) -> Option<Strin
 impl Game<'_> {
     /// Once a frame, in a world or not, after Horizon's extras.
     pub(super) fn native_frame(&mut self, elapsed: Duration) {
-        let _ = elapsed;
+        mod_api::dispatch_frame(self, mod_api::mods(), elapsed);
     }
     /// Render-thread notification after a resource-pack reload has applied successfully.
     /// Atlas, models, renderer and client caches already refer to the new resources.
@@ -1155,13 +1054,13 @@ impl Game<'_> {
         rims: &mut Vec<NativeBlockRim>,
         lights: &mut Vec<NativeColoredLight>,
     ) {
-        let _ = (rims, lights);
+        mod_api::dispatch_visuals(self, mod_api::mods(), rims, lights);
     }
     /// At most 32 pairs of already-loaded base and transparent overlay sprites.
     /// Per-pixel alpha in the overlay marks full-bright material, without
     /// illuminating the surrounding block or changing gameplay light.
     pub(super) fn native_emissive(&self, layers: &mut Vec<(&'static str, &'static str)>) {
-        let _ = layers;
+        mod_api::dispatch_emissive(self, mod_api::mods(), layers);
     }
     /// The world's phases, read-only; `error_text` carries the engine's
     /// own open-failure text, empty otherwise. Server-side; the deprecated
@@ -1221,7 +1120,7 @@ impl Game<'_> {
     /// `native_fill` and `native_text`. Skip a corner `native_corner_shown`
     /// says is taken.
     pub(super) fn native_hud(&mut self, batch: &mut HudBatch, corners: &mut Corners) {
-        let _ = (batch, corners);
+        mod_api::dispatch_hud(self, mod_api::mods(), batch, corners);
     }
     /// A player right-clicks the entity `entity` (`Entity.getId`) of type
     /// `kind` (`minecraft:cow`) with `self.hand`, holding `stack` (none in an
@@ -1278,22 +1177,22 @@ impl Game<'_> {
         hi: i32,
         draws: &mut Option<Vec<horizon_client::hud_layout::GuiDraw>>,
     ) {
-        let _ = (inputs, wi, hi, draws);
+        mod_api::dispatch_health_hud(self, mod_api::mods(), inputs, wi, hi, draws);
     }
     /// A key or mouse button went down or up, by its vanilla name
     /// (`key.keyboard.z`, `key.mouse.left`): keys on any screen (check
     /// `native_playing`), mouse buttons while playing. Repeats are left out.
     pub(super) fn native_key(&mut self, key: &str, pressed: bool) {
-        let _ = (key, pressed);
+        mod_api::dispatch_key(self, mod_api::mods(), key, pressed);
     }
     /// Wheel steps while playing: set `claimed` to keep them from the hotbar.
     pub(super) fn native_wheel(&mut self, steps: f32, claimed: &mut bool) {
-        let _ = (steps, claimed);
+        mod_api::dispatch_wheel(self, mod_api::mods(), steps, claimed);
     }
     /// A command typed or clicked in chat, without its slash, before the
     /// server and Horizon's commands see it: set `ran` when the mod ran it.
     pub(super) fn native_command(&mut self, command: &str, ran: &mut bool) {
-        let _ = (command, ran);
+        mod_api::dispatch_command(self, mod_api::mods(), command, ran);
     }
     /// The commands `native_command` runs, by name and without their slash:
     /// push the ones that are yours. Asked when a connection starts and
@@ -1301,7 +1200,7 @@ impl Game<'_> {
     /// completes and lists them as the game's own; a name the game already
     /// has keeps that command's behaviour. API 35.
     pub(super) fn native_commands(&mut self, commands: &mut Vec<&'static str>) {
-        let _ = commands;
+        mod_api::dispatch_commands(self, mod_api::mods(), commands);
     }
     /// The zoom a native mod asks for, applied while playing (the spyglass's
     /// own view wins): set `zoom` when it is none yet.
@@ -1345,7 +1244,7 @@ impl Game<'_> {
     }
     /// The minimap a native mod shows: set `minimap` when it is none yet.
     pub(super) fn native_minimap(&self, minimap: &mut Option<NativeMinimap>) {
-        let _ = minimap;
+        mod_api::dispatch_minimap(self, mod_api::mods(), minimap);
     }
     /// Register namespaced NBT component types before content loads.
     pub(super) fn native_component_types(types: &mut Vec<String>) {
@@ -1353,22 +1252,22 @@ impl Game<'_> {
     }
     /// Options > Mods lists the native mods: push yours.
     pub(super) fn native_mods(&mut self, mods: &mut Vec<NativeMod>) {
-        let _ = mods;
+        mod_api::dispatch_mods(self, mod_api::mods(), mods);
     }
     /// The buttons of mod `mod_id`'s settings page, under its keys: push
     /// their labels when it is yours. Asked again each time the page opens
     /// and after each click.
     pub(super) fn native_settings(&mut self, mod_id: &str, buttons: &mut Vec<String>) {
-        let _ = (mod_id, buttons);
+        mod_api::dispatch_settings(self, mod_api::mods(), mod_id, buttons);
     }
     /// Button `button` of mod `mod_id`'s settings page was clicked.
     pub(super) fn native_settings_click(&mut self, mod_id: &str, button: usize) {
-        let _ = (mod_id, button);
+        mod_api::dispatch_settings_click(self, mod_api::mods(), mod_id, button);
     }
     /// The player did `event` on mod `mod_id`'s panel (`native_panel_items`):
     /// act on it when it is yours. API 2.
     pub(super) fn native_panel_event(&mut self, mod_id: &str, event: &NativePanelEvent) {
-        let _ = (mod_id, event);
+        mod_api::dispatch_panel_event(self, mod_api::mods(), mod_id, event);
     }
     /// Block `block` (`mymod:machine`) gets a block entity
     /// (`EntityBlock.newBlockEntity`): set `entity` to its id and saved
@@ -1385,6 +1284,7 @@ impl Game<'_> {
     /// Whether block `block`'s block entity ticks (`EntityBlock.getTicker`):
     /// set `ticks` when it is yours. Asked for each of the block's states
     /// when a world opens. API 15.
+    /// Set `ticks` to true to make it tick, and never clear a value an earlier mod or mixin set.
     pub(super) fn native_block_entity_ticks(&self, block: &str, ticks: &mut bool) {
         mod_api::dispatch_block_entity_ticks(self, mod_api::mods(), block, ticks);
     }
@@ -1518,7 +1418,7 @@ impl Game<'_> {
     /// draws it). The server asks it too: a slot it hides is not in the menu
     /// there either, so shift-clicks never fill it. API 19.
     pub(super) fn native_screen(&self, block: &str, screen: &mut Option<NativeScreen>) {
-        let _ = (block, screen);
+        mod_api::dispatch_screen(self, mod_api::mods(), block, screen);
     }
     /// Draw block `block`'s screen at `origin` (its top left, GUI pixels),
     /// over a plain panel with its slots' frames and under the items and
@@ -1534,7 +1434,7 @@ impl Game<'_> {
         batch: &mut HudBatch,
         origin: [f32; 2],
     ) {
-        let _ = (block, data, batch, origin);
+        mod_api::dispatch_screen_draw(self, mod_api::mods(), block, data, batch, origin);
     }
     /// The open screen has drawn itself and its tooltips (`Screen.render`,
     /// the point of `ScreenEvent.Render.Post`): draw over it with
@@ -1846,7 +1746,7 @@ impl Game<'_> {
         right: bool,
         button: &mut Option<i32>,
     ) {
-        let _ = (block, data, at, right, button);
+        mod_api::dispatch_screen_click(self, mod_api::mods(), block, data, at, right, button);
     }
     /// The tooltip at `at` (as in `native_screen_click`) on block `block`'s
     /// screen, a mod's, over no item: push its lines when it is over
@@ -1858,7 +1758,7 @@ impl Game<'_> {
         at: [f32; 2],
         lines: &mut Vec<String>,
     ) {
-        let _ = (block, data, at, lines);
+        mod_api::dispatch_screen_tooltip(self, mod_api::mods(), block, data, at, lines);
     }
     /// A player pressed menu button `id` on the menu of the mod block entity
     /// at `pos` (`AbstractContainerMenu.clickMenuButton`), on the server:
@@ -1996,7 +1896,7 @@ impl Game<'_> {
     /// replaced (width `0..=13`, colour `rgb`) or set to `None` to hide it.
     /// Asked each frame a stack is drawn. Client-side. 60.
     pub(super) fn native_item_bar(&self, stack: &ItemStack, bar: &mut Option<(i32, u32)>) {
-        let _ = (stack, bar);
+        mod_api::dispatch_item_bar(self, mod_api::mods(), stack, bar);
     }
     /// Append an item's custom decorations after its default bar, cooldown and count.
     /// Coordinates are the icon's top-left in GUI units, as the batch takes them;
@@ -2220,7 +2120,7 @@ impl Game<'_> {
     /// A message from the server on `channel` (`mod_id:name`), whose `data`
     /// is the sender's own bytes. The window's game only. API 40.
     pub(super) fn native_net_from_server(&mut self, channel: &str, data: &[u8]) {
-        let _ = (channel, data);
+        mod_api::dispatch_net_from_server(self, mod_api::mods(), channel, data);
     }
     /// Chunk `chunk` (`[x, z]`, in chunks) of `dimension` came into the world
     /// (NeoForge's `ChunkEvent.Load`): `new` when it was just generated, false
