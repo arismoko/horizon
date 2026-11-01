@@ -2700,6 +2700,7 @@ dependencies = [
  "pulldown-cmark",
  "raw-window-handle",
  "security-framework 3.7.0",
+ "semver",
  "serde",
  "serde_json",
  "sha1",
