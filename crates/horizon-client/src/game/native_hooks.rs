@@ -224,6 +224,7 @@ pub(crate) use horizon_client::mod_api::NativeMinimap;
 pub(crate) use horizon_client::mod_api::NativeScreen;
 pub(crate) use horizon_client::mod_api::NativeMod;
 pub(crate) use horizon_client::mod_api::NativeStack;
+pub(crate) use horizon_client::mod_api::NativePanelEvent;
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
@@ -565,38 +566,6 @@ pub(crate) struct NativeRecipeView {
     pub(crate) action: Option<bool>,
 }
 
-/// What the player did on a native mod's panel (`native_panel_event`).
-#[allow(dead_code)]
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum NativePanelEvent {
-    /// A click on an item of the panel, by its index in
-    /// `native_panel_items`' list.
-    Clicked { index: u32, right: bool },
-    /// The search box's text, each time the player changes it.
-    Search(String),
-    /// A key (`key.keyboard.r`; compare it with `native_mod_key`) went down
-    /// while the pointer was on an item: a slot of the screen's, or the
-    /// panel's.
-    Key { key: String, stack: NativeStack },
-    /// A click on a slot of a recipe the panel shows: the recipe's index in
-    /// `native_panel_recipes`' list and the slot's in it (the results come
-    /// after the slots), and the stack it showed then.
-    SlotClicked {
-        recipe: u32,
-        slot: u32,
-        stack: NativeStack,
-        right: bool,
-    },
-    /// The action button of the recipe at this index.
-    Action(u32),
-    /// The player turned the recipes' page: the index of the first recipe
-    /// now shown.
-    Page(u32),
-    /// The recipe page's back button.
-    Back,
-    /// The player picked the tab at this index.
-    Tab(u32),
-}
 
 /// An item of [`NativeRecipes::items`], by its index there, with a count
 /// and the components it has beyond the item's own, in vanilla's item
