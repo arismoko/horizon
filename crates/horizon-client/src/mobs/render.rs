@@ -1673,6 +1673,7 @@ fn render_visible(
     } else {
         model_key.as_str()
     };
+    let body_animation = cem.layer(cem_key).and_then(|c| c.animation.as_ref());
     let (model, texture) = match cem.layer(cem_key) {
         Some(custom) => (
             custom.model.clone(),
@@ -1688,6 +1689,9 @@ fn render_visible(
     };
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
+    if let Some(animation) = body_animation {
+        animation.run(m, &s, &mut poses);
+    }
     let draw_body = |out: &mut Vec<Vertex>| {
         // A player or mannequin whose skin has no atlas sprite (an evicted or
         // never stored download) draws with its default skin, not invisibly.
@@ -1742,7 +1746,8 @@ fn render_visible(
     // its maps' capacity.
     let mut layer_poses = Poses::default();
     for mut layer in all_layers {
-        let part = match cem.layer(&layer.model) {
+        let custom = cem.layer(&layer.model);
+        let part = match custom {
             Some(custom) => {
                 if let Some(texture) = &custom.texture {
                     layer.texture.clone_from(texture);
@@ -1759,6 +1764,9 @@ fn render_visible(
         };
         layer_poses.reset(&part);
         anim::setup(m, &s, &mut layer_poses, &data.animations);
+        if let Some(animation) = custom.and_then(|c| c.animation.as_ref()) {
+            animation.run(m, &s, &mut layer_poses);
+        }
         if matches!(m.species(), Species::Villager | Species::ZombieVillager)
             && let Some((folder, variant)) = layer
                 .texture

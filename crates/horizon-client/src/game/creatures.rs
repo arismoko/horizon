@@ -5947,6 +5947,21 @@ impl Game<'_> {
         let lookup = |name: &str| atlas.sprites.get(name).map(|r| [r.u0, r.v0, r.u1, r.v1]);
         let scale = self.view_scale();
         self.rendered_mobs.set(0);
+        // What custom entity model animations read of the frame.
+        horizon_client::mobs::cem_anim::set_frame(horizon_client::mobs::cem_anim::Frame {
+            time: self.world.game_time as f64 + alpha,
+            day_time: self.world.day_time as f64 + alpha,
+            dimension: match self.dim {
+                Dim::Overworld => 0.0,
+                Dim::Nether => -1.0,
+                Dim::End => 1.0,
+            },
+            player: self.player.as_ref().map_or(camera.to_array(), |p| {
+                [p.position.x, p.position.y, p.position.z]
+            }),
+            player_rot: [self.pitch, self.yaw],
+            ..Default::default()
+        });
         for mob in &self.mobs {
             let entity_start = out.len();
             self.mark_motion(entity_start, (1 << 32) | u64::from(mob.id));
