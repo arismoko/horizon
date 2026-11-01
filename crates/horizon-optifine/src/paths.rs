@@ -18,11 +18,17 @@ use std::path::{Path, PathBuf};
 /// empty one (`a//b`, a leading `/`), as vanilla's resource paths refuse them, or a backslash.
 /// Callers join the result onto the overlay root, so a pack must never name a file outside it.
 pub fn resolve(props: &str, value: &str) -> Option<String> {
-    let path = resolve_unchecked(props, value);
-    // A backslash is a separator on Windows: `..\x` would leave the root there.
-    path.split('/')
-        .all(|segment| !matches!(segment, "" | "." | "..") && !segment.contains('\\'))
-        .then_some(path)
+    in_root(resolve_unchecked(props, value))
+}
+
+/// `path` when it stays inside the resource root ([`resolve`]'s test). A `\` is refused too:
+/// Windows would read it as a separator (vanilla's resource paths never hold one).
+pub(crate) fn in_root(path: String) -> Option<String> {
+    (!path.contains('\\')
+        && path
+            .split('/')
+            .all(|segment| !matches!(segment, "" | "." | "..")))
+    .then_some(path)
 }
 
 fn resolve_unchecked(props: &str, value: &str) -> String {
@@ -162,6 +168,7 @@ mod tests {
             "/etc/passwd",
             "a/./b",
             "..\\..\\x.jpm",
+            "~/..\\..\\x",
         ] {
             assert_eq!(resolve(props, bad), None, "{bad}");
         }

@@ -3,12 +3,13 @@
 //! colours): `.properties` files, the matchers their values hold, their texture paths, and the
 //! `optifine/` (or legacy `mcpatcher/`) folders that hold them. Each feature's own rules sit in
 //! a module of their own, free of the game's types (`random`: random entity textures' rules;
-//! `random_textures`: where a pack keeps their variants).
+//! `random_textures`: where a pack keeps their variants; [`ctm`]: connected textures).
 //!
 //! Written from OptiFine's public documentation of the file formats (and ETF's, for its additions
 //! to random entities); no mod's source was read.
 
 pub mod cem;
+pub mod ctm;
 pub mod matchers;
 pub mod paths;
 pub mod properties;
