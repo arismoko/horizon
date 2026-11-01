@@ -1186,6 +1186,35 @@ impl Game<'_> {
     ) {
         let _ = (context, phase, error_text);
     }
+    /// The server is about to send its data to the players (NeoForge's
+    /// `OnDatapackSyncEvent`, its `sendRecipes`): push the recipe types
+    /// (`minecraft:smelting`, `mymod:crusher`) whose recipes your client half
+    /// needs. Horizon sends their final recipes — the world's data packs
+    /// merged, load conditions held — to every Horizon client when it joins
+    /// and again after each `/reload`; a vanilla client is sent nothing new.
+    /// Asked once per load, when the server's data tables are built, and the
+    /// same types go to every player: unlike NeoForge, which asks again for
+    /// each joining player, it can't differ between players. Push nothing and
+    /// nothing is sent; push nothing after a load that pushed some and the
+    /// clients go back to their own recipes. Server-side (the single
+    /// player's integrated server included). API @API:recipe_sync@.
+    pub(super) fn native_datapack_sync(&mut self, recipe_types: &mut Vec<String>) {
+        let _ = recipe_types;
+    }
+    /// The server's recipes of `recipe_types` arrived (NeoForge's
+    /// `RecipesReceivedEvent`): from now on the recipe helpers
+    /// (`native_recipes`, `native_recipes_of_type`) give the server's recipes
+    /// of those types in place of the window's own, so rebuild what you made
+    /// of them. It comes after a join, once the window has its player, and
+    /// after every `/reload`, on a server whose mods asked for them
+    /// (`native_datapack_sync`), single player included; with no types when
+    /// the server stopped sending them and the window is back on its own
+    /// recipes. A recipe the
+    /// window's own recipe book doesn't know has `book_id` -1. Client-side.
+    /// API @API:recipe_sync@.
+    pub(super) fn native_recipes_received(&mut self, recipe_types: &[String]) {
+        let _ = recipe_types;
+    }
     /// The server's data tables are built (NeoForge's `TagsUpdatedEvent`
     /// with `SERVER_DATA_LOAD`): the recipes, tags, loot and advancements of
     /// the world's data packs, and the files mods added through
@@ -3747,7 +3776,8 @@ impl Game<'_> {
     /// nobody uses and outside a world. These are the server's table on the
     /// server thread, a dedicated server or a LAN host; a client, the
     /// single-player window included, sees only the content mods' recipes, not
-    /// the world's data packs'. API 36.
+    /// the world's data packs', unless a mod had the server send it the type
+    /// (`native_datapack_sync`). API 36.
     pub(super) fn native_recipes_of_type(&self, kind: &str) -> &[CustomRecipe] {
         if self.outside_world() {
             return &[];
@@ -3806,9 +3836,10 @@ impl Game<'_> {
         self.player.is_none() && self.options.execution_role.is_client()
     }
     /// Every item and recipe the game knows, made once (the same for every
-    /// call); none outside a world. They are the window's own: the world's
-    /// in single player, vanilla's on a server, which sends a client no
-    /// others.
+    /// call); none outside a world. They are the window's own (the content
+    /// mods' and vanilla's), with the server's recipes of the types a mod had
+    /// it send (`native_datapack_sync`) in their place; made again when those
+    /// arrive (`native_recipes_received`).
     pub(super) fn native_recipes(&mut self) -> Option<Arc<NativeRecipes>> {
         self.player.as_ref()?;
         self.made_recipes()

@@ -939,6 +939,11 @@ impl Hub {
         }));
         // PlayerList.placeNewPlayer: ClientboundUpdateRecipesPacket.
         g.send(&raw(ids::UPDATE_RECIPES, self.sync.recipes.clone()));
+        // OnDatapackSyncEvent.sendRecipes: the recipes the native mods asked
+        // for, to a Horizon client only.
+        if g.brand == "horizon" {
+            send_recipe_content(g);
+        }
         // PlayerList.sendPlayerPermissionLevel, then the recipe book.
         self.send_permission_level(i);
         self.send_initial_recipe_book(i);
@@ -2553,6 +2558,9 @@ impl Hub {
                 continue;
             }
             self.guests[i].send(&raw(ids::UPDATE_RECIPES, sync.recipes.clone()));
+            if self.guests[i].brand == "horizon" {
+                send_recipe_content(&self.guests[i]);
+            }
             self.send_initial_recipe_book(i);
         }
     }
@@ -3633,6 +3641,19 @@ fn maximum_flying_ticks(gravity: f64) -> i32 {
 
 fn invalid_movement() -> Tag {
     translatable("multiplayer.disconnect.invalid_player_movement", &[])
+}
+
+/// The recipe content the native mods asked for (`lan::recipes::content`),
+/// to one Horizon client: none when no mod asked.
+fn send_recipe_content(g: &Guest) {
+    for data in super::recipes::content().iter() {
+        g.send(&C::CustomPayload(
+            horizon_protocol::packets::configuration::CustomPayload {
+                channel: super::recipes::CONTENT_CHANNEL.into(),
+                data: data.clone(),
+            },
+        ));
+    }
 }
 
 fn raw(id: i32, payload: Vec<u8>) -> C {

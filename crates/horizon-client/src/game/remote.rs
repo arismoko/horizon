@@ -2874,6 +2874,10 @@ impl Game<'_> {
             C::CustomPayload(p) if p.channel == horizon_protocol::mod_net::CHANNEL => {
                 self.remote_native_net(&p.data);
             }
+            // The server's recipes its native mods asked to send.
+            C::CustomPayload(p) if p.channel == horizon_client::lan::recipes::CONTENT_CHANNEL => {
+                self.remote_recipe_content(&p.data);
+            }
             // PingDebugMonitor.onPongReceived.
             C::PongResponse(p) => {
                 let delay = self.debug_millis() - p.time;
@@ -2881,6 +2885,7 @@ impl Game<'_> {
             }
             C::Login(p) => {
                 self.test_highlights.clear();
+                self.forget_synced_recipes();
                 self.level.hardcore = p.hardcore;
                 // handleLogin: startWaitingForNewLevel with Reason.OTHER, which
                 // replaces ServerReconfigScreen.
