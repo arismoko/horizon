@@ -290,6 +290,16 @@ mod tests {
     mod stubs {
         #[derive(Clone, Copy)]
         pub(super) struct BlockStateId;
+        #[derive(Clone, Copy)]
+        pub(super) struct BlockPos;
+        #[derive(Clone, Copy)]
+        pub(super) struct BlockId;
+        #[derive(Clone, Copy)]
+        pub(super) struct Direction;
+        #[derive(Clone, Copy)]
+        pub(super) struct LevelDimension;
+        pub(super) struct Ticks;
+        pub(super) trait LevelHost {}
         pub(super) struct Compound;
         pub(super) struct ModBlockEntity;
         pub(super) struct ModContainer;

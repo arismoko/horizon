@@ -1,4 +1,5 @@
 use super::{BlockStateId, Game};
+use horizon_client::mod_api::{BlockPos, Ticks};
 impl horizon_client::mod_api::Host for Game<'_> {
     fn block(&self, pos: [i32; 3]) -> String {
         self.native_block(pos)
@@ -27,12 +28,12 @@ impl horizon_client::mod_api::Host for Game<'_> {
 }
 
 impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
-    fn block_state(&self, pos: horizon_core::position::BlockPos) -> BlockStateId {
+    fn block_state(&self, pos: BlockPos) -> BlockStateId {
         horizon_world::level::LevelAccess::block_state(self, pos)
     }
     fn set_block_property(
         &mut self,
-        ticks: &mut horizon_world::level::Ticks,
+        ticks: &mut Ticks,
         pos: [i32; 3],
         key: &str,
         value: &str,
@@ -42,7 +43,7 @@ impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
     }
     fn schedule_block_tick(
         &self,
-        ticks: &mut horizon_world::level::Ticks,
+        ticks: &mut Ticks,
         pos: [i32; 3],
         block: &str,
         delay: i32,
@@ -51,7 +52,7 @@ impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
     }
     fn schedule_fluid_tick(
         &self,
-        ticks: &mut horizon_world::level::Ticks,
+        ticks: &mut Ticks,
         pos: [i32; 3],
         fluid: &str,
         delay: i32,
