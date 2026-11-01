@@ -24,6 +24,7 @@ pub enum AttachmentError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Holder {
     Entity(u32),
+    Player(u128),
     BlockEntity([i32; 3]),
     Chunk([i32; 2]),
     Level,
