@@ -848,6 +848,7 @@ pub fn version_for(
         hash.update(part.as_bytes());
         hash.update([0]);
     }
+    // bundles() reads folders in path order; that is also trait dispatch order.
     for b in bundles {
         hash.update(b.id.as_bytes());
         hash.update([0]);
@@ -953,7 +954,7 @@ impl Step {
                 &[("revision", &revision[..7])],
             ),
             Self::Mixins => tr("Applying the mixins").into(),
-            Self::CachedMixins => "Reusing patched game source".into(),
+            Self::CachedMixins => tr("Reusing patched game source").into(),
             Self::Crates => tr("Checking the mods' crates against Horizon's Cargo.lock").into(),
             Self::Plan(plan, profile) => format!("{} ({})", plan.label(), profile.name()),
             Self::Compile {
@@ -1414,9 +1415,6 @@ pub fn build(
                 progress(Step::CachedMixins);
                 sync(&snapshot, &fresh)?;
             } else {
-                for bundle in &mods {
-                    api::strip(bundle)?;
-                }
                 let injections = inject::prepare(&mods)?;
                 let tool = tool(&rust, &mixins, &progress)?;
                 progress(Step::Mixins);
