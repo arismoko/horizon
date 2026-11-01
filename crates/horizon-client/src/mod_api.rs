@@ -3,8 +3,8 @@
 //! Trait mods are process-wide, like mixin module statics.
 //! Hooks use `&self + Send + Sync` for shared and reentrant calls; see `docs/native-mods.md`.
 //! Generate the trait and dispatch with `cargo run -p xtask -- mod-api`.
-pub use std::{path::PathBuf, sync::Arc};
 use std::sync::OnceLock;
+pub use std::{path::PathBuf, sync::Arc};
 
 pub use crate::containers::{ModBlockEntity, ModContainer, ModFluidTanks};
 pub use crate::crafting::{CustomRecipe, Ingredient};
