@@ -1486,6 +1486,18 @@ pub fn encode_with(
         put(&mut root, key, value);
     }
     if let Some(Tag::Compound(map)) = Some(&mut root) {
+        if let Some(extras) = extras
+            && !map
+                .get(&"horizon:attachments".into())
+                .is_some_and(|v| !matches!(v, Tag::Compound(_)))
+        {
+            let attachments = extras.attachments.to_nbt();
+            if attachments.is_empty() {
+                map.remove(&"horizon:attachments".into());
+            } else {
+                map.insert("horizon:attachments".into(), Tag::Compound(attachments));
+            }
+        }
         map.entry("InhabitedTime".into()).or_insert(Tag::Long(0));
         map.entry("structures".into()).or_insert_with(|| {
             Tag::compound([
@@ -1716,6 +1728,9 @@ fn decode_column(
         }
     }
     if let Tag::Compound(map) = tag {
+        if let Some(Tag::Compound(data)) = map.get(&"horizon:attachments".into()) {
+            extras.attachments = horizon_world::attachments::Attachments::from_nbt(data.clone());
+        }
         extras.root = map
             .iter()
             .filter(|(k, _)| !GENERATED_KEYS.contains(&k.to_string_lossy().as_str()))
@@ -4981,6 +4996,42 @@ mod tests {
             record([9, 71, 9], "minecraft:home", Some(1)),
         ]);
         assert_eq!(saved.tag, expected.tag);
+    }
+
+    #[test]
+    fn chunk_attachments_survive_save_and_load() {
+        use horizon_world::attachments::{AttachmentCodec, AttachmentError, AttachmentType};
+        let Some(root) = std::env::var_os("HORIZON_TEST_RESOURCES") else {
+            return;
+        };
+        let root = PathBuf::from(root);
+        let assets = crate::assets::Assets::load(&root).expect("assets");
+        let biomes = Biomes::load(&root).expect("biomes");
+        let key = AttachmentType {
+            namespace: "test",
+            name: "counter",
+            default: || 0,
+            codec: Some(AttachmentCodec {
+                encode: |n: &i32| Ok([("count".into(), Tag::Int(*n))].into()),
+                decode: |c: &Compound| match c.get(&"count".into()) {
+                    Some(Tag::Int(n)) => Ok(*n),
+                    _ => Err(AttachmentError::Decode),
+                },
+            }),
+            copy_on_death: false,
+        };
+        let mut chunk = Chunk::empty(2, 3);
+        let mut extras = ChunkExtras::default();
+        extras.attachments.set(&key, 42).unwrap();
+        chunk.saved = Some(Arc::new(extras));
+        let saved = encode(&chunk, assets.registry, &biomes);
+        let mut loaded = decode(&saved, assets.registry, &biomes).expect("chunk");
+        assert_eq!(
+            Arc::make_mut(loaded.saved.as_mut().unwrap())
+                .attachments
+                .get(&key),
+            Ok(42)
+        );
     }
 
     #[test]
