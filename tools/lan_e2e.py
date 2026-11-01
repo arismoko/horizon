@@ -372,7 +372,7 @@ CHECKS = ['tab', 'self', 'armour', 'nametags', 'walls', 'chest', 'menu-transfer'
           'commands', 'recipes', 'machines', 'brewing', 'loom', 'stonecutter', 'grindstone', 'anvil', 'smithing',
           'enchanting', 'beacon', 'crafter', 'lectern', 'cartography', 'trials', 'clicks', 'shift-double-click', 'recipe-shift', 'shift-drag', 'modifier-release', 'wheel', 'sleep', 'sleep-villager', 'bed-occupied', 'sleep-reload', 'predict', 'push',
           'piston-push', 'piston-slime', 'eat', 'eat-on-block', 'eating', 'xp', 'objects', 'projectiles', 'thrown', 'sparks', 'hud', 'sidebar', 'border', 'particles',
-          'worn', 'blast', 'blast-projectiles', 'barter', 'deflect', 'fireball', 'light', 'time', 'swings', 'cracks', 'plates', 'plate-projectiles', 'effects',
+          'worn', 'blast', 'blast-projectiles', 'barter', 'piglin_offspring', 'deflect', 'fireball', 'light', 'time', 'swings', 'cracks', 'plates', 'plate-projectiles', 'effects',
           'portals', 'distance', 'growth', 'doors', 'flight', 'ladder', 'boats', 'boat_shoved', 'minecarts', 'frames', 'hands',
           'lightning', 'riding', 'occupied_horse', 'mounts', 'worldspawn', 'beds', 'shield', 'deathmining', 'contacts', 'absorption',
           'breath', 'lava', 'levels', 'drops', 'underwater', 'fireworks', 'rocket-walls', 'rocket-ceilings', 'tag-query']
@@ -6379,6 +6379,41 @@ def check_deflect(host, guest, out):
     return {'struck_at': round(turned, 2)}
 
 
+def check_piglin_offspring(host, guest, out):
+    """SpawnEggItem.spawnOffspringFromSpawnEgg constructs a baby piglin without adult gear (#5867)."""
+    x, y, z = (int(v // 1) for v in pos_of(host))
+    for game in (host, guest):
+        game('command', command='gamemode creative')
+    host('command', command=f'tp @s {x - 4.5} {y} {z + 0.5}')
+    guest('command', command=f'tp @s {x + 0.5} {y} {z + 0.5} -90 0')
+    host('command', command=f'summon minecraft:piglin {x + 2.5} {y} {z + 0.5} '
+         '{NoAI:1b,IsImmuneToZombification:1b,Tags:["egg_parent"]}')
+    try:
+        guest('command', command='item replace entity @s weapon.mainhand with minecraft:piglin_spawn_egg')
+        guest.wait(20)
+        # The suite clears natural terrain on startup, which leaves items a
+        # newborn piglin can legitimately equip as soon as it is created.
+        host('command', command='kill @e[type=minecraft:item]')
+        guest.raw('look-at', x + 2.5, y + 1, z + 0.5)
+        guest.raw('use-item')
+        guest.wait(20)
+        seen = []
+        for game in (host, guest):
+            babies = [m for m in game.raw('mobs', 20)['near']
+                      if m['kind'] == 'minecraft:piglin' and m['baby']]
+            assert len(babies) == 1, f'expected one baby piglin on {game.player}: {babies}'
+            assert babies[0]['held'] is None, f"baby piglin has adult gear: {babies[0]}"
+            seen.append(babies[0]['id'])
+        assert seen[0] == seen[1], f'clients disagree about the baby piglin: {seen}'
+        guest.shot(out, 'piglin_offspring')
+        return {'baby': seen[0], 'held': None}
+    finally:
+        host('command', command=f'kill @e[type=minecraft:piglin,x={x - 5},y={y - 2},z={z - 5},dx=15,dy=8,dz=10]')
+        guest('command', command='clear @s')
+        for game in (host, guest):
+            game('command', command='gamemode survival')
+
+
 def check_barter(host, guest, out):
     """The guest, in gold boots, drops a gold ingot to a piglin: the piglin stays calm, takes it, and throws its
     barter toward the nearest player, the guest (PiglinAi.throwItemsTowardPlayer: NEAREST_VISIBLE_PLAYER), who
@@ -6517,7 +6552,8 @@ CHECK_FNS = {'tab': check_tab, 'self': check_self, 'armour': check_armour,
              'light': check_light, 'plates': check_plates, 'plate-projectiles': check_plate_projectiles, 'swings': check_swings,
              'cracks': check_cracks, 'time': check_time, 'growth': check_growth, 'doors': check_doors,
              'flight': check_flight, 'fireball': check_fireball, 'deflect': check_deflect,
-             'barter': check_barter, 'worn': check_worn, 'kills': check_kills, 'looting': check_looting, 'leave': check_leave,
+             'barter': check_barter, 'piglin_offspring': check_piglin_offspring,
+             'worn': check_worn, 'kills': check_kills, 'looting': check_looting, 'leave': check_leave,
              'arrows': check_arrows, 'predict': check_predict, 'ladder': check_ladder,
              'boats': check_boats, 'boat_shoved': check_boat_shoved, 'minecarts': check_minecarts, 'frames': check_frames, 'hands': check_hands,
              'lightning': check_lightning, 'riding': check_riding, 'occupied_horse': check_occupied_horse, 'mounts': check_mounts,
