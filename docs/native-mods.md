@@ -941,3 +941,15 @@ render thread with the frame's wgpu objects; what a mod draws there shows in tha
   shader pack (each run's id is stable from frame to frame: a hash of the entity type's name, a block entity's state),
   and `world_depth` to keep the world pass's depth when nothing else needs it. Set what you need and leave the rest:
   several mods can ask. It's asked as each frame is built, so keep it cheap.
+
+## Trait mods (draft)
+
+A linked trait mod implements `horizon_client::mod_api::Hooks`. Mixin injections run first.
+An injection that returns early skips trait mods. A claimed cancellation also skips trait mods.
+Otherwise, trait mods run in their supplied order. The first `Cancel` stops dispatch.
+For replacement hooks, the first `Some` wins. Collection hooks call every mod.
+
+Hook methods take `&self` and require `Send + Sync`. One mod instance serves both
+the window's game and the server-thread game. A hook can also fire again inside
+the same mod: for example, `set_block` fires `block_changed`. Mods keep mutable
+state with interior mutability so these calls can share the instance safely.

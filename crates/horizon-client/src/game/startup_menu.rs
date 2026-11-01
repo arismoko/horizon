@@ -1219,6 +1219,7 @@ mod tests {
 
     fn loading(receiver: Receiver<LoaderMsg>) -> Loading {
         Loading {
+            trait_mods: Default::default(),
             window: None,
             renderer: None,
             boot: horizon_client::hud::HudAtlas::boot(),

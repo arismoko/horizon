@@ -49,7 +49,10 @@
     {
       "name": "level_tick_pre",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_level_tick_pre"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_level_tick_pre",
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "level_tick_post",
@@ -109,7 +112,11 @@
     {
       "name": "zoom",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_zoom"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_zoom",
+      "mod_api": {
+        "contract": "replace",
+        "out": "zoom"
+      }
     },
     {
       "name": "minimap",
@@ -209,12 +216,20 @@
     {
       "name": "tooltip",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_tooltip"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_tooltip",
+      "mod_api": {
+        "contract": "collect",
+        "out": "lines"
+      }
     },
     {
       "name": "use_item_on",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_use_item_on"
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_use_item_on",
+      "mod_api": {
+        "contract": "cancel",
+        "out": "claimed"
+      }
     },
     {
       "name": "use_item",
