@@ -27,8 +27,9 @@ use std::process::{Command, Stdio};
 
 mod api;
 mod crates;
-#[cfg(test)]
 mod dependencies;
+mod inject;
+mod inject_cache;
 
 const PREFIX: &str = "native-";
 /// horizon-mixins, for bundles that don't name the revision they were tested with.
@@ -434,7 +435,7 @@ fn bundle(dir: &Path, mixins: Option<String>) -> Result<Bundle, String> {
         .transpose()?;
     let mixins_content = value
         .keys()
-        .any(|key| !["mod", "compatibility", "api"].contains(&key.as_str()));
+        .any(|key| !["mod", "compatibility", "api", "dependencies"].contains(&key.as_str()));
     // Reject links before copying the bundle into the incoming folder.
     files_with_api(dir, api.as_deref())?;
     let id = need("id")?;
@@ -848,9 +849,8 @@ pub fn version_for(
         hash.update(part.as_bytes());
         hash.update([0]);
     }
-    let mut sorted: Vec<&Bundle> = bundles.iter().collect();
-    sorted.sort_by(|a, b| a.id.cmp(&b.id));
-    for b in sorted {
+    // bundles() reads folders in path order; that is also trait dispatch order.
+    for b in bundles {
         hash.update(b.id.as_bytes());
         hash.update([0]);
         for (name, path) in bundle_files(b)? {
@@ -913,6 +913,8 @@ pub enum Step {
     Tool,
     Source(String),
     Mixins,
+    /// A previously patched source snapshot was reused.
+    CachedMixins,
     /// Which case the build is, before anything runs.
     Plan(Plan, Profile),
     /// Crates done, the total once cargo says it, and the one just started.
@@ -953,6 +955,7 @@ impl Step {
                 &[("revision", &revision[..7])],
             ),
             Self::Mixins => tr("Applying the mixins").into(),
+            Self::CachedMixins => tr("Reusing patched game source").into(),
             Self::Crates => tr("Checking the mods' crates against Horizon's Cargo.lock").into(),
             Self::Plan(plan, profile) => format!("{} ({})", plan.label(), profile.name()),
             Self::Compile {
@@ -1340,6 +1343,29 @@ pub fn build(
             ..b
         })
         .collect();
+    let declared: Vec<Vec<dependencies::Dependency>> = mods
+        .iter()
+        .map(|bundle| {
+            let path = bundle.dir.join(MANIFEST);
+            let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let table: toml::Table = text
+                .parse()
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+            dependencies::parse(&bundle.id, table.get("dependencies")).map_err(|e| e.to_string())
+        })
+        .collect::<Result<_, String>>()?;
+    let inputs: Vec<_> = mods
+        .iter()
+        .zip(&declared)
+        .map(|(bundle, deps)| dependencies::Mod {
+            id: &bundle.id,
+            version: &bundle.version,
+            has_api: bundle.api.is_some(),
+            dependencies: deps,
+        })
+        .collect();
+    let resolution = dependencies::resolve(&inputs).map_err(|e| e.to_string())?;
+    let ordered: Vec<Bundle> = resolution.order.iter().map(|&i| mods[i].clone()).collect();
     // A mod naming a hook points' version doesn't pin: it follows the others, else the game.
     let pins: Vec<Bundle> = mods.iter().filter(|b| b.hooks.is_none()).cloned().collect();
     let free = pins.iter().all(|b| b.horizon.is_none());
@@ -1407,17 +1433,30 @@ pub fn build(
         let fresh = real.join("stage.new");
         let _ = fs::remove_dir_all(&fresh);
         if needs_mixins {
-            for bundle in &mods {
-                api::strip(bundle)?;
+            let key = inject_cache::key(&revision, &mixins, profile, &ordered)?;
+            let snapshot = inject_cache::snapshot(&real, &key);
+            if snapshot.is_dir() {
+                progress(Step::CachedMixins);
+                sync(&snapshot, &fresh)?;
+            } else {
+                let injections = inject::prepare(&ordered, &source)?;
+                let tool = tool(&rust, &mixins, &progress)?;
+                progress(Step::Mixins);
+                run(
+                    apply(&rust, &tool, &source, &incoming, &fresh),
+                    "horizon-mixins",
+                    |_| {},
+                )
+                .map_err(blame)?;
+                inject::stage(&fresh, &injections)?;
+                let parent = snapshot.parent().ok_or("invalid cache path")?;
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                let partial = parent.join(format!(".{key}.partial"));
+                let _ = fs::remove_dir_all(&partial);
+                sync(&fresh, &partial)?;
+                fs::rename(&partial, &snapshot).map_err(|e| e.to_string())?;
             }
-            let tool = tool(&rust, &mixins, &progress)?;
-            progress(Step::Mixins);
-            run(
-                apply(&rust, &tool, &source, &incoming, &fresh),
-                "horizon-mixins",
-                |_| {},
-            )
-            .map_err(blame)?;
+            inject_cache::touch_and_prune(&real, &key)?;
         } else {
             sync(&source, &fresh)?;
         }
@@ -1427,7 +1466,7 @@ pub fn build(
             fetch.arg("--locked");
             run(fetch, "Downloading Horizon's crates", |_| {})?;
         }
-        let has_api = api::stage(&fresh, &mods)?;
+        let has_api = api::stage(&fresh, &mods, &declared, &resolution)?;
         if has_api {
             // Add path packages to Cargo.lock before the locked dependency check.
             let mut metadata = cargo(&rust, &fresh, "metadata");

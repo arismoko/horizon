@@ -101,9 +101,38 @@ fn main() {{
     )
 }
 
+/// API objects in the same order as the generated executable's mod list.
+pub(super) fn with_api(mods: &[Bundle]) -> impl Iterator<Item = &Bundle> {
+    mods.iter().filter(|m| m.api.is_some())
+}
+
 /// Add API packages and the generated executable to the fresh staged workspace.
-pub(super) fn stage(stage: &Path, mods: &[Bundle]) -> Result<bool, String> {
-    let mods: Vec<_> = mods.iter().filter(|m| m.api.is_some()).collect();
+pub(super) fn stage(
+    stage: &Path,
+    bundles: &[Bundle],
+    declared: &[Vec<super::dependencies::Dependency>],
+    resolution: &super::dependencies::Resolution,
+) -> Result<bool, String> {
+    let mods: Vec<_> = resolution
+        .order
+        .iter()
+        .map(|&i| (i, &bundles[i]))
+        .filter(|(_, b)| b.api.is_some())
+        .collect();
+    let mut packages = std::collections::HashMap::new();
+    for (_, bundle) in &mods {
+        let path = bundle
+            .dir
+            .join(bundle.api.as_ref().expect("filtered"))
+            .join("Cargo.toml");
+        let manifest = read(&path)?;
+        let name = manifest
+            .get("package")
+            .and_then(|p| p.get("name"))
+            .and_then(toml::Value::as_str)
+            .ok_or_else(|| format!("{}: missing package name", path.display()))?;
+        packages.insert(bundle.id.as_str(), name.to_owned());
+    }
     if mods.is_empty() {
         return Ok(false);
     }
@@ -112,7 +141,7 @@ pub(super) fn stage(stage: &Path, mods: &[Bundle]) -> Result<bool, String> {
         deps.insert(name.into(), path_dep(&format!("../crates/{name}")));
     }
     let mut members = Vec::new();
-    for (i, bundle) in mods.iter().enumerate() {
+    for (i, (index, bundle)) in mods.iter().enumerate() {
         let relative = format!("native-api/{}", bundle.id);
         let dest = stage.join(&relative);
         let source = bundle.dir.join(bundle.api.as_ref().expect("filtered"));
@@ -147,10 +176,25 @@ pub(super) fn stage(stage: &Path, mods: &[Bundle]) -> Result<bool, String> {
             }
         }
         *dependency = rewritten;
+        let targets: Vec<_> = declared[*index]
+            .iter()
+            .map(|dependency| super::dependencies::Package {
+                dependency,
+                package: packages.get(dependency.id.as_str()).map(String::as_str),
+            })
+            .collect();
+        let enabled = super::dependencies::rewrite(&bundle.id, &mut manifest, &targets)
+            .map_err(|e| e.to_string())?;
         write(&path, &manifest)?;
         let mut dep = toml::Table::new();
         dep.insert("path".into(), format!("../{relative}").into());
         dep.insert("package".into(), package.into());
+        if !enabled.is_empty() {
+            dep.insert(
+                "features".into(),
+                toml::Value::Array(enabled.into_iter().map(toml::Value::String).collect()),
+            );
+        }
         deps.insert(format!("mod_{i}"), toml::Value::Table(dep));
         members.push(relative);
     }
@@ -266,7 +310,8 @@ mod tests {
         let stage_dir = dir.join("workspace");
         fs::create_dir_all(&stage_dir).unwrap();
         fs::write(stage_dir.join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
-        assert!(stage(&stage_dir, &[bundle]).unwrap());
+        let resolution = super::super::dependencies::Resolution { order: vec![0] };
+        assert!(stage(&stage_dir, &[bundle], &[vec![]], &resolution).unwrap());
         let root = read(&stage_dir.join("Cargo.toml")).unwrap();
         let members = root["workspace"]["members"].as_array().unwrap();
         assert!(members
