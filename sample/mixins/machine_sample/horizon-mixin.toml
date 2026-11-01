@@ -1,0 +1,27 @@
+[mod]
+id = "machine_sample"
+version = "0.1.0"
+priority = 100
+
+[compatibility]
+horizon_revision = "8ce650539779a1d549ce69356a82c242ac848d3f"
+
+[[module]]
+id = "runtime"
+file = "crates/horizon-client/src/game.rs"
+name = "machine_sample"
+source = "runtime.rs"
+
+[[injection]]
+id = "entity"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_block_entity"
+helper = "entity.rs"
+bindings = [{ name = "block", ty = "&str", value = "block" }, { name = "entity", ty = "&mut Option<(String, Compound)>", value = "entity" }]
+
+[[injection]]
+id = "bulk_test"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_level_tick_post"
+helper = "bulk.rs"
+bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }, { name = "dimension", ty = "&str", value = "dimension" }]
