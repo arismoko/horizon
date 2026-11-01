@@ -291,7 +291,7 @@ pub trait Host {
     /// The player whose action or command the current hook hears, if any.
     fn acting_player(&self) -> Option<NativeServerPlayer>;
     /// Send a chat line to a player. This does not reach the acting player inside that player's hook.
-    fn tell(&self, uuid: u128, line: Text) -> bool;
+    fn tell(&mut self, uuid: u128, line: Text) -> bool;
     /// Send an action bar line to a player, including the acting player inside their hook.
     fn action_bar(&mut self, uuid: u128, line: Text) -> bool;
 }
