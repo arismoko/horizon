@@ -220,6 +220,7 @@ use super::{
 };
 pub(crate) use horizon_client::mod_api::NativeBlockRim;
 pub(crate) use horizon_client::mod_api::NativeColoredLight;
+pub(crate) use horizon_client::mod_api::NativeMinimap;
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
@@ -480,17 +481,6 @@ impl GameLevel<'_> {
 
 
 
-/// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
-/// minimap: its corner, its side in GUI pixels, blocks per map pixel,
-/// turning with the player or north up, round or square.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NativeMinimap {
-    pub(crate) corner: Corner,
-    pub(crate) size: f32,
-    pub(crate) blocks_per_pixel: f32,
-    pub(crate) rotate: bool,
-    pub(crate) round: bool,
-}
 
 /// A mod block's screen over its menu (`native_screen`): its size, where
 /// each of the container's slots is (`Slot.x`, `Slot.y`; none hides the

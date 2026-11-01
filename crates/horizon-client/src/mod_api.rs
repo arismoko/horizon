@@ -28,6 +28,18 @@ pub struct NativeColoredLight {
     pub intensity: f32,
 }
 
+/// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
+/// minimap: its corner, its side in GUI pixels, blocks per map pixel,
+/// turning with the player or north up, round or square.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NativeMinimap {
+    pub corner: Corner,
+    pub size: f32,
+    pub blocks_per_pixel: f32,
+    pub rotate: bool,
+    pub round: bool,
+}
+
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]
