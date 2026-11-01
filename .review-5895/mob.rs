@@ -3,7 +3,7 @@ fn sample_mob(game: &Game<'_>, mob: &NativeMobRender<'_>, draw: &mut BlockEntity
     if mob.hurt_time > 0 || mob.death_time > 0 || (mob.age as i32 % 40 == 0 && mob.partial < 0.1) {
         eprintln!("PIG_STATE id={} baby={} age={} yaw={} head={} pitch={} walk={} speed={} hurt={} death={}", mob.id, mob.baby, mob.age, mob.body_yaw, mob.head_yaw, mob.pitch, mob.walk_position, mob.walk_speed, mob.hurt_time, mob.death_time);
     }
-    let face = Some(super::native_block_entity_draw::CubeFace { sprite: "minecraft:block/white_wool", uv: Some([0.0, 0.0, 16.0, 16.0]) });
+    let face = Some(super::native_block_entity_draw::CubeFace { sprite: "block/white_wool", uv: Some([0.0, 0.0, 16.0, 16.0]) });
     let faces = [face; 6];
     game.native_draw_cube(draw, [-7.0, 5.0, -10.0], [7.0, 14.0, 6.0], faces, 0xff44dd);
     draw.push();
