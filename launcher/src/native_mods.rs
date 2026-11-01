@@ -27,6 +27,8 @@ use std::process::{Command, Stdio};
 
 mod api;
 mod crates;
+#[cfg(test)]
+mod dependencies;
 
 const PREFIX: &str = "native-";
 /// horizon-mixins, for bundles that don't name the revision they were tested with.
