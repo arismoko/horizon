@@ -1394,6 +1394,11 @@ mod draws come in vanilla's order. `LevelTicksHost` adds scheduling through
 `LevelWriteHost` adds random access and `native_set_block_property`. Whole-block writes wait for a
 later slice that creates block entities, as vanilla's `setBlock` does. The game owns
 the tick queue; mods do not pass it back to these helpers.
+For frame hooks, implement `RenderHooks` and return it from `Hooks::render`. The ordered
+renderer list is installed once alongside the mod list. `render_needs` collects requests;
+`world_drawn` observes the world pass and can encode drawing before the hand and HUD. Both
+run on the render thread while the frame is built, before any deferred GPU submission.
+The renderer module re-exports the game's wgpu types.
 ### Server attachments
 
 A mod can declare an `AttachmentType<T>` once and call its `get`, `set` and `remove`
@@ -1452,8 +1457,8 @@ receiver and documentation. Level services stay on the level hosts above.
 The following documented `Game` helpers are not in the trait yet:
 
 - `spawn_mob`, `mob`, `mobs`, `block_in_tag`, `item_in_tag`,
-  `server_block_in_tag`, `server_item_in_tag`, `server_block`, `draw_quad`,
-  `draw_cube`, `draw_block`, `set_display`, `sidebar`, `experience_orbs`,
+  `server_block_in_tag`, `server_item_in_tag`, `server_block`,
+  `set_display`, `sidebar`, `experience_orbs`,
   `item_entities`, `player`, `panel_recipes`, `recipes`, `component`,
   `set_component`, `remove_component`, `spawn_falling_block`, `explode`,
   `fluid_tanks` and `container_slots` use gameplay-private types.
@@ -1462,8 +1467,6 @@ The following documented `Game` helpers are not in the trait yet:
 
 The following catalog hooks are not in the trait yet:
 
-- `world_drawn` and `render_needs` need a renderer trait.
-- `block_entity_submit` needs a renderer trait.
 - Newly added upstream hooks `player_command`, `perform_console_command`, `item_decorations`,
   `client_resources_reloaded`, `camera_shake`, `screen_key_pressed_pre`, `screen_char_typed_pre`,
   `screen_mouse_scrolled_pre`, `use_duration`, `use_animation`, `can_eat`,
