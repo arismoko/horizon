@@ -1382,6 +1382,21 @@ renderer list is installed once alongside the mod list. `render_needs` collects 
 `world_drawn` observes the world pass and can encode drawing before the hand and HUD. Both
 run on the render thread while the frame is built, before any deferred GPU submission.
 The renderer module re-exports the game's wgpu types.
+`Host` exposes the documented `Game` helpers listed under `helpers` in
+`native-hooks.json`, without their `native_` prefix. Each keeps the helper's
+receiver and documentation. Level services stay on the level hosts above.
+The following documented `Game` helpers are not in the trait yet:
+
+- `spawn_mob`, `mob`, `mobs`, `block_in_tag`, `item_in_tag`,
+  `server_block_in_tag`, `server_item_in_tag`, `server_block`, `draw_quad`,
+  `draw_cube`, `draw_block`, `set_display`, `sidebar`, `experience_orbs`,
+  `item_entities`, `player`, `panel_recipes`, `recipes`, `component`,
+  `set_component`, `remove_component`, `spawn_falling_block`, `explode`,
+  `fluid_tanks` and `container_slots` use gameplay-private types.
+- `with_mod_block_entity` and `trigger_criterion` are generic or take
+  `impl Trait`, so their signatures cannot be called through `dyn Host`.
+
+The following catalog hooks are not in the trait yet:
 
 The following hooks are not in the trait yet:
 
