@@ -1,0 +1,13 @@
+[mod]
+id = "user_mod"
+version = "1.0.0"
+
+[api]
+path = "engine"
+
+[dependencies]
+base_mod = "^1"
+extra_mod = { version = "^1", optional = true }
+
+[compatibility]
+horizon_revision = "0000000000000000000000000000000000000000"

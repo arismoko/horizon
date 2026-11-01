@@ -1,0 +1,9 @@
+[mod]
+id = "extra_mod"
+version = "1.0.0"
+
+[api]
+path = "engine"
+
+[compatibility]
+horizon_revision = "0000000000000000000000000000000000000000"
