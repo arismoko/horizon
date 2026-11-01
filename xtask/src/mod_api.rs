@@ -600,8 +600,10 @@ pub fn run(check: bool) -> Result<(), String> {
             return Err(format!("duplicate helper {name}"));
         }
         let native = format!("native_{name}");
-        let target = format!("horizon_client::game::native_hooks::Game<'_>::{native}");
-        if helper["target"].as_str() != Some(&target) {
+        let target = helper["target"].as_str().ok_or("helper target missing")?;
+        let valid = ["native_hooks", "native_block_entity_draw"].iter().any(|module|
+            target == format!("horizon_client::game::{module}::Game<'_>::{native}"));
+        if !valid {
             return Err(format!("wrong target for helper {name}"));
         }
         let method = one_function(game.iter(), &native)?;
@@ -691,6 +693,7 @@ mod tests {
     use std::time::Duration;
 
     struct ItemStack;
+    struct BlockEntityDraw;
     #[allow(dead_code)]
     mod stubs {
         #[derive(Clone, Copy, Debug, PartialEq)]
