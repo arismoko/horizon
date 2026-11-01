@@ -80,27 +80,32 @@
     {
       "name": "block_changed",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_block_changed"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_block_changed",
+      "mod_api": {"contract": "listen"}
     },
     {
       "name": "neighbor_changed",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_neighbor_changed"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_neighbor_changed",
+      "mod_api": {"contract": "listen"}
     },
     {
       "name": "random_tick",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_random_tick"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_random_tick",
+      "mod_api": {"contract": "cancel", "out": "handled"}
     },
     {
       "name": "tick_block",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_tick_block"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_tick_block",
+      "mod_api": {"contract": "cancel", "out": "handled"}
     },
     {
       "name": "update_shape",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_update_shape"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_update_shape",
+      "mod_api": {"contract": "replace", "out": "new"}
     },
     {
       "name": "hud",
@@ -322,12 +327,14 @@
     {
       "name": "block_spread",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_block_spread"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_block_spread",
+      "mod_api": {"contract": "cancel", "out": "canceled"}
     },
     {
       "name": "piston_move",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_piston_move"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_piston_move",
+      "mod_api": {"contract": "cancel", "out": "canceled"}
     },
     {
       "name": "explosion_detonate",
@@ -437,12 +444,14 @@
     {
       "name": "block_signal",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_block_signal"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_block_signal",
+      "mod_api": {"contract": "listen"}
     },
     {
       "name": "is_signal_source",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_is_signal_source"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_is_signal_source",
+      "mod_api": {"contract": "listen"}
     },
     {
       "name": "health_hud",

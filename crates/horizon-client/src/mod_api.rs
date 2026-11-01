@@ -9,7 +9,12 @@ use std::sync::{Arc, Once, OnceLock};
 pub use crate::containers::{ModBlockEntity, ModContainer, ModFluidTanks};
 pub use crate::items::ItemStack;
 pub use crate::text::Text;
-pub use horizon_world::{nbt::Compound, registry::BlockStateId};
+pub use horizon_core::{geometry::Direction, position::BlockPos};
+pub use horizon_world::{
+    level::{BlockId, Dimension as LevelDimension, Ticks},
+    nbt::Compound,
+    registry::BlockStateId,
+};
 
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
@@ -174,6 +179,37 @@ pub trait Host {
     fn tell(&self, uuid: u128, line: Text) -> bool;
     /// Send an action bar line to a player, including the acting player inside their hook.
     fn action_bar(&mut self, uuid: u128, line: Text) -> bool;
+}
+
+/// Services available while a server level hook runs.
+pub trait LevelHost {
+    /// Read a block through `LevelAccess::block_state`; this is not a `native_*` helper.
+    fn block_state(&self, pos: BlockPos) -> BlockStateId;
+    /// Change a block property through `native_set_block_property`.
+    fn set_block_property(
+        &mut self,
+        ticks: &mut Ticks,
+        pos: [i32; 3],
+        key: &str,
+        value: &str,
+        flags: i32,
+    ) -> bool;
+    /// Schedule a block tick through `native_schedule_block_tick`.
+    fn schedule_block_tick(
+        &self,
+        ticks: &mut Ticks,
+        pos: [i32; 3],
+        block: &str,
+        delay: i32,
+    ) -> bool;
+    /// Schedule a fluid tick through `native_schedule_fluid_tick`.
+    fn schedule_fluid_tick(
+        &self,
+        ticks: &mut Ticks,
+        pos: [i32; 3],
+        fluid: &str,
+        delay: i32,
+    ) -> bool;
 }
 
 mod generated;

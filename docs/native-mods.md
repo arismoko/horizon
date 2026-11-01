@@ -985,10 +985,12 @@ state with interior mutability so these calls can share the instance safely.
 The trait includes the hooks marked `mod_api` in `native-hooks.json`. These include
 `tick`, the server lifecycle, player action, menu, block entity, entity, mob, effect,
 chunk and player hooks, plus `level_tick_pre`, `use_item_on`, `zoom` and `tooltip`.
+Level hooks use `LevelHost` rather than `Host`. It provides `block_state` through
+`LevelAccess::block_state`, and the `native_set_block_property`,
+`native_schedule_block_tick` and `native_schedule_fluid_tick` helpers. The latter
+three take the tick queue passed to the hook.
 The following catalog hooks are not in the trait yet:
 
-- `block_changed`, `neighbor_changed`, `random_tick`, `tick_block`, `update_shape`,
-  `block_spread`, `piston_move`, `block_signal` and `is_signal_source` need a level host.
 - `frame`, `visuals`, `emissive`, `hud`, `key`, `wheel`, `command`, `commands`, `minimap`,
   `mods`, `settings`, `settings_click`, `panel_event`, `screen`, `screen_draw`,
   `screen_click`, `screen_tooltip`, `net_from_server`, `health_hud` and `item_bar`
