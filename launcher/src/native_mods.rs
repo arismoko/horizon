@@ -1411,13 +1411,16 @@ mod tests {
         let d = dir("hooks");
         write_native(&d, "zoom", A, B);
         let json = fs::read_to_string(d.join(NATIVE_MANIFEST)).unwrap();
-        let json = json.replacen('}', ",\"hooks\":1}", 1);
+        let json = json.replacen('}', ",\"hooks\":41}", 1);
         fs::write(d.join(NATIVE_MANIFEST), json).unwrap();
         let found = bundles(&d).unwrap();
         assert_eq!(
             (found[0].hooks, found[0].horizon.as_deref()),
-            (Some(1), Some(A))
+            (Some(41), Some(A))
         );
+        let source = fs::read_to_string("/home/ari/.cache/horizon-hook-fragments/staged-game/crates/horizon-client/src/game/native_hooks.rs").unwrap();
+        assert_eq!(hooks_in(&source), Some(41));
+        assert_eq!(with_hooks(&found, B.into(), false, |_| hooks_in(&source)).unwrap(), B);
         repin(&found[0], B).unwrap();
         let again = bundle(&found[0].dir, None).unwrap();
         assert_eq!(

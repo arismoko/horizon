@@ -1,0 +1,9 @@
+[mod]
+id = "fragment-test"
+version = "0.1.0"
+
+[[injection]]
+id = "probe"
+target = "horizon_client::game::native_hooks::Game<'_>::native_fragment_probe"
+kind = "HEAD"
+helper = "probe.rs"
