@@ -1,0 +1,14 @@
+[mod]
+id = "machine_sample"
+version = "0.1.0"
+priority = 100
+
+[compatibility]
+horizon_revision = "202a24c55341c239ecce2596785abc5d553c167d"
+
+[[injection]]
+id = "release_test"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_screen_key_released_pre"
+helper = "key_release.rs"
+bindings = [{ name = "screen", ty = "&NativeScreenView<'_>", value = "screen" }, { name = "key", ty = "&str", value = "key" }, { name = "canceled", ty = "&mut bool", value = "canceled" }]
