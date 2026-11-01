@@ -1169,11 +1169,10 @@ The following catalog hooks are not in the trait yet:
   `screen_click`, `screen_tooltip`, `net_from_server`, `health_hud` and `item_bar`
   will follow in the client slice.
 - `world_drawn` and `render_needs` need a renderer trait.
-
 - `has_analog_output`, `analog_output`, `component_types`, `dispense_item`,
-`tooltip_component`, `tooltip_component_draw`, `can_survive`, `may_place_on`,
-`block_entity_submit`, `block_entity_render_bounding_box`, `is_valid_bonemeal_target`,
-`is_bonemeal_success`, `perform_bonemeal`, `block_step_on`, `block_entity_inside`,
-`block_fall_on`, `consume_effect`, `loot_table_load`, `loot_drops`, `state_for_placement`,
-`enchant_effect`, `screen_render_post`, `modify_default_components`,
-`screen_mouse_button_pressed_pre` and `screen_mouse_button_released_pre` will join a later slice.
+  `tooltip_component`, `tooltip_component_draw`, `can_survive`, `may_place_on`,
+  `block_entity_submit`, `block_entity_render_bounding_box`, `is_valid_bonemeal_target`,
+  `is_bonemeal_success`, `perform_bonemeal`, `block_step_on`, `block_entity_inside`,
+  `block_fall_on`, `consume_effect`, `loot_table_load`, `loot_drops`, `state_for_placement`,
+  `enchant_effect`, `screen_render_post`, `modify_default_components`,
+  `screen_mouse_button_pressed_pre` and `screen_mouse_button_released_pre` will join a later slice.
