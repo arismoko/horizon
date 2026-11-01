@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "mod_container_viewers",
+      "name": "mod_container_viewers", "mod_api": {"contract":"listen"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_mod_container_viewers",
       "side": "server"
     }

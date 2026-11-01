@@ -256,7 +256,6 @@ impl BlockEntities {
             .iter()
             .filter(move |((cx, cz), _)| !far(*cx, x) && !far(*cz, z))
             .flat_map(|(_, set)| set)
-
     }
     pub fn get_mut(&mut self, pos: &Pos) -> Option<&mut BlockEntity> {
         self.map.get_mut(pos)
@@ -341,9 +340,7 @@ impl BlockEntities {
             &mut self.freed,
             &mut self.attachments,
         );
-        let (live, pending, freed) = (&mut self.live, &mut self.pending, &mut self.freed);
         let mods = &mut self.mods;
-
         self.map.retain(|p, e| {
             let kept = keep(p, e);
             if !kept {
@@ -379,7 +376,6 @@ impl BlockEntities {
             let new_is_mod = matches!(e, BlockEntity::Mod(_));
             let old = self.map.insert(p, e);
             if old.is_some() {
-
                 self.replaced.insert(p);
             }
             if new_is_mod {

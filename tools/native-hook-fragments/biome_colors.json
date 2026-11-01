@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "biome_colors",
+      "name": "biome_colors", "mod_api": {"contract":"listen"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_biome_colors",
       "side": "client"
     }

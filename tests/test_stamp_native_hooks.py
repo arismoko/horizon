@@ -89,12 +89,14 @@ class StampTests(unittest.TestCase):
         self.git("commit", "-qm", "base")
         path = self.fragment("served")
         fragment = json.loads(path.read_text())
-        fragment["hooks"][0].update({"side": "server", "cancellable": True, "other": 1})
+        fragment["hooks"][0].update({"side": "server", "cancellable": True,
+                                     "mod_api": {"contract": "listen"}, "other": 1})
         path.write_text(json.dumps(fragment))
         self.assertFalse(stamp.stamp(False))
         hooks = json.loads((self.root / stamp.CATALOG).read_text())["hooks"]
         self.assertEqual(hooks, [{"name": "served", "version": 1, "target": "target::served",
-                                  "side": "server", "cancellable": True}])
+                                  "side": "server", "cancellable": True,
+                                  "mod_api": {"contract": "listen"}}])
 
     def test_duplicate_fails_before_writes(self):
         self.git("add", ".")
