@@ -29,7 +29,9 @@ mod api;
 mod crates;
 
 const PREFIX: &str = "native-";
-/// The fork adds cfg(test) module indexing on top of upstream's mixins pin.
+/// horizon-mixins, for bundles that don't name the revision they were tested with. The mod-api
+/// branch builds on arismoko's fork until horizon-rust/horizon-mixins#17 (cfg(test) modules,
+/// needed by the library/executable split) is merged upstream.
 const MIXINS_GIT: &str = "https://github.com/arismoko/horizon-mixins";
 pub const MIXINS_REV: &str = "00a837175a79ab41c13cd0dbbf8d480a04c93ec4";
 /// The features of the release's own game (game-build.yml).
