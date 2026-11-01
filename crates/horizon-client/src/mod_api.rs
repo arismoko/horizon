@@ -11,7 +11,7 @@ pub use crate::items::ItemStack;
 pub use crate::text::Text;
 pub use horizon_core::{geometry::Direction, position::BlockPos};
 pub use horizon_world::{
-    level::{BlockId, Dimension as LevelDimension, Ticks},
+    level::{BlockId, Dimension as LevelDimension},
     nbt::Compound,
     registry::BlockStateId,
 };

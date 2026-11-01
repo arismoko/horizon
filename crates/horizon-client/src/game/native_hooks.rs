@@ -523,7 +523,7 @@ impl GameLevel<'_> {
         handled: &mut bool,
     ) {
         horizon_client::mod_api::dispatch_random_tick(
-            &mut super::mod_api_host::LevelWrite { level: self, ticks },
+            &mut super::mod_api_host::LevelTicks { level: self, ticks },
             horizon_client::mod_api::mods(),
             dimension,
             pos,
@@ -626,7 +626,7 @@ impl GameLevel<'_> {
         handled: &mut bool,
     ) {
         horizon_client::mod_api::dispatch_tick_block(
-            &mut super::mod_api_host::LevelWrite { level: self, ticks },
+            &mut super::mod_api_host::LevelTicks { level: self, ticks },
             horizon_client::mod_api::mods(),
             dimension,
             pos,
