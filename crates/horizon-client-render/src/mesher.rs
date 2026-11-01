@@ -929,7 +929,7 @@ pub struct MeshScratch {
 /// Fills `rows` with the padded section's opacity, one bit per block (`MeshScratch::opaque`).
 fn opaque_rows(pad: &Padded, solid: &[bool], rows: &mut Vec<u32>) {
     rows.clear();
-    rows.extend(pad.blocks.chunks_exact(P).map(|row| {
+    rows.extend(pad.blocks.as_chunks::<P>().0.iter().map(|row| {
         row.iter().enumerate().fold(0u32, |bits, (x, &id)| {
             bits | u32::from(solid[id as usize]) << x
         })
