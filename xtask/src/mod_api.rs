@@ -3,7 +3,19 @@ use quote::ToTokens;
 use std::{collections::HashSet, fs, path::Path, process::Command};
 use syn::{FnArg, ImplItem, Item, Pat, Type, visit::Visit};
 
-fn game_methods(path: &Path, methods: &mut Vec<syn::ImplItemFn>) -> Result<(), String> {
+fn impl_functions(item: syn::ItemImpl) -> impl Iterator<Item = syn::ItemFn> {
+    item.items.into_iter().filter_map(|item| match item {
+        ImplItem::Fn(method) => Some(syn::ItemFn {
+            attrs: method.attrs,
+            vis: method.vis,
+            sig: method.sig,
+            block: Box::new(method.block),
+        }),
+        _ => None,
+    })
+}
+
+fn game_methods(path: &Path, methods: &mut Vec<syn::ItemFn>) -> Result<(), String> {
     for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
         let path = entry.map_err(|e| e.to_string())?.path();
         if path.is_dir() {
@@ -18,10 +30,7 @@ fn game_methods(path: &Path, methods: &mut Vec<syn::ImplItemFn>) -> Result<(), S
                     && ty.path.segments.len() == 1
                     && ty.path.segments[0].ident == "Game"
                 {
-                    methods.extend(item.items.into_iter().filter_map(|item| match item {
-                        ImplItem::Fn(method) => Some(method),
-                        _ => None,
-                    }));
+                    methods.extend(impl_functions(item));
                 }
             }
         }
@@ -56,7 +65,7 @@ fn doc_comments(
     Ok(docs)
 }
 
-fn host_method(method: &syn::ImplItemFn, name: &str) -> Result<(String, String), String> {
+fn host_method(method: &syn::ItemFn, name: &str) -> Result<(String, String), String> {
     struct Types(Option<String>);
     impl<'ast> Visit<'ast> for Types {
         fn visit_type_impl_trait(&mut self, _: &'ast syn::TypeImplTrait) {
@@ -179,10 +188,10 @@ fn has_call(block: &syn::Block, expected: &str) -> bool {
     calls.found
 }
 
-fn one_function(
-    items: impl Iterator<Item = syn::ItemFn>,
+fn one_function<'a>(
+    items: impl Iterator<Item = &'a syn::ItemFn>,
     name: &str,
-) -> Result<syn::ItemFn, String> {
+) -> Result<&'a syn::ItemFn, String> {
     let mut matches = items.filter(|item| item.sig.ident == name);
     let first = matches
         .next()
@@ -237,16 +246,7 @@ pub fn run(check: bool) -> Result<(), String> {
     let mut methods = Vec::new();
     for item in file.items {
         if let Item::Impl(item) = item {
-            for member in item.items {
-                if let ImplItem::Fn(method) = member {
-                    methods.push(syn::ItemFn {
-                        attrs: method.attrs,
-                        vis: method.vis,
-                        sig: method.sig,
-                        block: Box::new(method.block),
-                    });
-                }
-            }
+            methods.extend(impl_functions(item));
         }
     }
     let mut traits = String::new();
@@ -278,11 +278,18 @@ pub fn run(check: bool) -> Result<(), String> {
             let source =
                 fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             let file = syn::parse_file(&source).map_err(|e| e.to_string())?;
-            let functions = file.items.into_iter().filter_map(|item| match item {
-                Item::Fn(function) => Some(function),
-                _ => None,
-            });
-            (one_function(functions, &native)?, name.to_owned())
+            let functions: Vec<_> = file
+                .items
+                .into_iter()
+                .filter_map(|item| match item {
+                    Item::Fn(function) => Some(function),
+                    _ => None,
+                })
+                .collect();
+            (
+                one_function(functions.iter(), &native)?.clone(),
+                name.to_owned(),
+            )
         } else {
             if !target.starts_with("horizon_client::game::native_hooks::")
                 || !target.ends_with(&format!("::{native}"))
@@ -290,7 +297,7 @@ pub fn run(check: bool) -> Result<(), String> {
                 return Err(format!("wrong target for {name}"));
             }
             (
-                one_function(methods.iter().cloned(), &native)?,
+                one_function(methods.iter(), &native)?.clone(),
                 format!("dispatch_{name}"),
             )
         };
@@ -457,13 +464,7 @@ pub fn run(check: bool) -> Result<(), String> {
         if helper["target"].as_str() != Some(&target) {
             return Err(format!("wrong target for helper {name}"));
         }
-        let mut matches = game.iter().filter(|m| m.sig.ident == native);
-        let method = matches
-            .next()
-            .ok_or_else(|| format!("missing helper {native}"))?;
-        if matches.next().is_some() {
-            return Err(format!("duplicate helper {native}"));
-        }
+        let method = one_function(game.iter(), &native)?;
         let (declaration, implementation) = host_method(method, name)?;
         host_traits.push_str(&declaration);
         host_impl.push_str(&implementation);
@@ -652,7 +653,7 @@ mod tests {
     }
     #[test]
     fn host_mapping_preserves_access_and_docs_and_rejects_unavailable_types() {
-        let read: syn::ImplItemFn = syn::parse_quote! {
+        let read: syn::ItemFn = syn::parse_quote! {
             /// Read a value exactly.
             ///
             /// Keep the blank line too.
@@ -664,12 +665,12 @@ mod tests {
         );
         assert!(declaration.contains("& self"));
         assert!(implementation.contains("self.native_read(pos)"));
-        let write: syn::ImplItemFn = syn::parse_quote! {
+        let write: syn::ItemFn = syn::parse_quote! {
             fn native_write(&mut self, value: i32) { }
         };
         let (declaration, _) = super::host_method(&write, "write").unwrap();
         assert!(declaration.contains("& mut self"));
-        let private: syn::ImplItemFn = syn::parse_quote! {
+        let private: syn::ItemFn = syn::parse_quote! {
             fn native_private(&self, value: BinOnly) { }
         };
         assert!(
@@ -677,7 +678,7 @@ mod tests {
                 .unwrap_err()
                 .contains("BinOnly")
         );
-        let generic: syn::ImplItemFn = syn::parse_quote! {
+        let generic: syn::ItemFn = syn::parse_quote! {
             fn native_generic<T>(&self, value: T) { }
         };
         assert!(
@@ -685,7 +686,7 @@ mod tests {
                 .unwrap_err()
                 .contains("object-safe")
         );
-        let callback: syn::ImplItemFn = syn::parse_quote! {
+        let callback: syn::ItemFn = syn::parse_quote! {
             fn native_callback(&self, callback: impl FnOnce()) { }
         };
         assert!(
@@ -693,7 +694,7 @@ mod tests {
                 .unwrap_err()
                 .contains("object-safe")
         );
-        let asynchronous: syn::ImplItemFn = syn::parse_quote! {
+        let asynchronous: syn::ItemFn = syn::parse_quote! {
             async fn native_async(&self) { }
         };
         assert!(
@@ -707,9 +708,9 @@ mod tests {
     fn lookup_rejects_missing_and_duplicate_functions() {
         let first: syn::ItemFn = syn::parse_quote! { fn native_example() {} };
         let other: syn::ItemFn = syn::parse_quote! { fn unrelated() {} };
-        assert!(super::one_function([other.clone()].into_iter(), "native_example").is_err());
-        assert!(super::one_function([first.clone(), other].into_iter(), "native_example").is_ok());
-        assert!(super::one_function([first.clone(), first].into_iter(), "native_example").is_err());
+        assert!(super::one_function([&other].into_iter(), "native_example").is_err());
+        assert!(super::one_function([&first, &other].into_iter(), "native_example").is_ok());
+        assert!(super::one_function([&first, &first].into_iter(), "native_example").is_err());
     }
 
     #[test]
