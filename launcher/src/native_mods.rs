@@ -1374,9 +1374,6 @@ pub fn build(
             // Seed the offline resolver with Horizon's own locked dependencies.
             let mut fetch = cargo(&rust, &source, "fetch");
             fetch.arg("--locked");
-            if let Some(host) = rust_toolchain::host() {
-                fetch.args(["--target", host.target]);
-            }
             run(fetch, "Downloading Horizon's crates", |_| {})?;
         }
         let has_api = api::stage(&fresh, &mods)?;
