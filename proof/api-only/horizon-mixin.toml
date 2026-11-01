@@ -1,0 +1,9 @@
+[mod]
+id = "api_only_proof"
+version = "0.1.0"
+
+[api]
+path = "engine"
+
+[compatibility]
+horizon_revision = "45137b7894ee0f0b931e9c800aafe2d79a33f147"

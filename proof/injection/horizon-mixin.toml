@@ -1,0 +1,22 @@
+[mod]
+id = "inject_proof"
+version = "0.1.0"
+
+[api]
+path = "engine"
+
+[compatibility]
+horizon_revision = "45137b7894ee0f0b931e9c800aafe2d79a33f147"
+
+[[injection]]
+id = "ordinary"
+target = "horizon_client::game::native_hooks::Game<'_>::native_server_tick"
+kind = "HEAD"
+helper = "ordinary.rs"
+priority = 10
+
+[[injection]]
+id = "trait-head"
+target = "horizon_client::game::native_hooks::Game<'_>::native_server_tick"
+kind = "HEAD"
+trait_method = "server_head"
