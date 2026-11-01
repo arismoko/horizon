@@ -637,6 +637,8 @@ impl RolledLoot {
 pub struct ChunkExtras {
     /// Server-owned mod data attached to this chunk.
     pub attachments: horizon_world::attachments::Attachments,
+    /// Attachment maps of the chunk's block entities, on a save snapshot.
+    pub block_entity_attachments: Vec<((i32, i32, i32), horizon_world::attachments::Attachments)>,
     /// Chunk root keys written back as loaded (structures, PostProcessing,
     /// InhabitedTime, blending data, ...).
     pub root: Compound,

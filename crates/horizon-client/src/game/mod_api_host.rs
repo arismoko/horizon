@@ -1,35 +1,68 @@
 use super::{BlockStateId, Game};
 use horizon_client::mod_api::BlockPos;
 use horizon_world::level::Ticks;
+
+fn world_attachments(
+    world: &mut horizon_client::world::World,
+    holder: horizon_client::mod_api::Holder,
+) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError> {
+    use horizon_client::mod_api::{AttachmentError, Holder};
+    if holder == Holder::Level {
+        return Ok(&mut world.attachments);
+    }
+    if let Holder::BlockEntity([x, y, z]) = holder {
+        let pos = (x, y, z);
+        let chunk = world
+            .chunks
+            .get(&(x >> 4, z >> 4))
+            .ok_or(AttachmentError::MissingHolder)?;
+        if chunk
+            .saved
+            .as_ref()
+            .and_then(|e| e.block_entity_sources.iter().find(|(p, _)| *p == pos))
+            .and_then(|(_, tag)| tag.get("horizon:attachments"))
+            .is_some_and(|v| !matches!(v, horizon_world::nbt::Tag::Compound(_)))
+        {
+            return Err(AttachmentError::InvalidNamespace);
+        }
+        let map = world
+            .block_entities
+            .attachments_mut(pos)
+            .ok_or(AttachmentError::MissingHolder)?;
+        world.modified.insert((x >> 4, z >> 4));
+        return Ok(map);
+    }
+    let Holder::Chunk([x, z]) = holder else {
+        return Err(AttachmentError::MissingHolder);
+    };
+    let chunk = world
+        .chunks
+        .get_mut(&(x, z))
+        .ok_or(AttachmentError::MissingHolder)?;
+    let chunk = std::sync::Arc::make_mut(chunk);
+    let extras = std::sync::Arc::make_mut(chunk.saved.get_or_insert_with(Default::default));
+    if extras
+        .root
+        .get(&"horizon:attachments".into())
+        .is_some_and(|v| !matches!(v, horizon_world::nbt::Tag::Compound(_)))
+    {
+        return Err(AttachmentError::InvalidNamespace);
+    }
+    world.modified.insert((x, z));
+    Ok(&mut extras.attachments)
+}
+
 impl horizon_client::mod_api::Host for Game<'_> {
     fn attachments(
         &mut self,
         holder: horizon_client::mod_api::Holder,
     ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
     {
-        use horizon_client::mod_api::{AttachmentError, Holder};
+        use horizon_client::mod_api::AttachmentError;
         if self.serving.is_none() && self.options.dedicated.is_none() {
             return Err(AttachmentError::MissingHolder);
         }
-        let Holder::Chunk([x, z]) = holder else {
-            return Err(AttachmentError::MissingHolder);
-        };
-        let chunk = self
-            .world
-            .chunks
-            .get_mut(&(x, z))
-            .ok_or(AttachmentError::MissingHolder)?;
-        let chunk = std::sync::Arc::make_mut(chunk);
-        let extras = std::sync::Arc::make_mut(chunk.saved.get_or_insert_with(Default::default));
-        if extras
-            .root
-            .get(&"horizon:attachments".into())
-            .is_some_and(|v| !matches!(v, horizon_world::nbt::Tag::Compound(_)))
-        {
-            return Err(AttachmentError::InvalidNamespace);
-        }
-        self.world.modified.insert((x, z));
-        Ok(&mut extras.attachments)
+        world_attachments(&mut self.world, holder)
     }
     fn block(&self, pos: [i32; 3]) -> String {
         self.native_block(pos)
@@ -58,6 +91,16 @@ impl horizon_client::mod_api::Host for Game<'_> {
 }
 
 impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
+    fn attachments(
+        &mut self,
+        holder: horizon_client::mod_api::Holder,
+    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
+    {
+        if !self.native_authoritative {
+            return Err(horizon_client::mod_api::AttachmentError::MissingHolder);
+        }
+        world_attachments(self.world, holder)
+    }
     fn block_state(&self, pos: [i32; 3]) -> BlockStateId {
         horizon_world::level::LevelAccess::block_state(self, BlockPos::new(pos[0], pos[1], pos[2]))
     }
