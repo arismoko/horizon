@@ -2,6 +2,35 @@ use super::{BlockStateId, Game};
 use horizon_client::mod_api::BlockPos;
 use horizon_world::level::Ticks;
 impl horizon_client::mod_api::Host for Game<'_> {
+    fn attachments(
+        &mut self,
+        holder: horizon_client::mod_api::Holder,
+    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
+    {
+        use horizon_client::mod_api::{AttachmentError, Holder};
+        if self.serving.is_none() && self.options.dedicated.is_none() {
+            return Err(AttachmentError::MissingHolder);
+        }
+        let Holder::Chunk([x, z]) = holder else {
+            return Err(AttachmentError::MissingHolder);
+        };
+        let chunk = self
+            .world
+            .chunks
+            .get_mut(&(x, z))
+            .ok_or(AttachmentError::MissingHolder)?;
+        let chunk = std::sync::Arc::make_mut(chunk);
+        let extras = std::sync::Arc::make_mut(chunk.saved.get_or_insert_with(Default::default));
+        if extras
+            .root
+            .get(&"horizon:attachments".into())
+            .is_some_and(|v| !matches!(v, horizon_world::nbt::Tag::Compound(_)))
+        {
+            return Err(AttachmentError::InvalidNamespace);
+        }
+        self.world.modified.insert((x, z));
+        Ok(&mut extras.attachments)
+    }
     fn block(&self, pos: [i32; 3]) -> String {
         self.native_block(pos)
     }

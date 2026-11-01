@@ -155,7 +155,7 @@ impl Attachments {
         result
     }
     /// Encode changed values, preserving raw entries and unrecognized tags.
-    pub fn to_nbt(&self) -> Result<Compound, AttachmentError> {
+    pub fn to_nbt(&self) -> Compound {
         let mut raw = self.raw.clone();
         for ((namespace, name), entry) in &self.entries {
             let value = match entry {
@@ -174,12 +174,12 @@ impl Attachments {
                     .entry(namespace.clone())
                     .or_insert_with(|| Tag::Compound(Compound::new()));
                 let Tag::Compound(names) = tag else {
-                    return Err(AttachmentError::InvalidNamespace);
+                    unreachable!("attachment namespace checked before mutation");
                 };
                 names.insert(name.clone(), Tag::Compound(value));
             }
         }
-        Ok(raw)
+        raw
     }
     /// Copy opted-in values through their disk encoding for a player respawn.
     pub fn copy_on_death(&self) -> Result<Self, AttachmentError> {
@@ -219,6 +219,13 @@ impl Attachments {
     ) -> Result<T, AttachmentError> {
         if ty.copy_on_death && ty.codec.is_none() {
             return Err(AttachmentError::InvalidCopyPolicy);
+        }
+        if self
+            .raw
+            .get(&ty.namespace.into())
+            .is_some_and(|tag| !matches!(tag, Tag::Compound(_)))
+        {
+            return Err(AttachmentError::InvalidNamespace);
         }
         let key = (ty.namespace.into(), ty.name.into());
         let value = match self.entries.get(&key) {
@@ -260,6 +267,13 @@ impl Attachments {
     ) -> Result<(), AttachmentError> {
         if ty.copy_on_death && ty.codec.is_none() {
             return Err(AttachmentError::InvalidCopyPolicy);
+        }
+        if self
+            .raw
+            .get(&ty.namespace.into())
+            .is_some_and(|tag| !matches!(tag, Tag::Compound(_)))
+        {
+            return Err(AttachmentError::InvalidNamespace);
         }
         let key = (ty.namespace.into(), ty.name.into());
         if let Some(Entry::Decoded(old)) = self.entries.get(&key)
@@ -335,11 +349,11 @@ mod tests {
         let mut map = Attachments::default();
         map.set(&COUNTER, 42).unwrap();
         map.set(&MEMORY, 8).unwrap();
-        let mut loaded = Attachments::from_nbt(map.to_nbt().unwrap());
+        let mut loaded = Attachments::from_nbt(map.to_nbt());
         assert_eq!(loaded.get(&COUNTER), Ok(42));
         assert_eq!(loaded.get(&MEMORY), Ok(3));
         assert_eq!(loaded.remove(&COUNTER), Ok(Some(42)));
-        let mut reopened = Attachments::from_nbt(loaded.to_nbt().unwrap());
+        let mut reopened = Attachments::from_nbt(loaded.to_nbt());
         assert_eq!(reopened.get(&COUNTER), Ok(0));
     }
     #[test]
@@ -354,7 +368,7 @@ mod tests {
         let mut original = Attachments::default();
         original.set(&keep, 42).unwrap();
         original.set(&COUNTER, 5).unwrap();
-        let loaded = Attachments::from_nbt(original.to_nbt().unwrap());
+        let loaded = Attachments::from_nbt(original.to_nbt());
         let mut respawned = loaded.copy_on_death().unwrap();
         assert_eq!(respawned.get(&keep), Ok(42));
         assert_eq!(respawned.get(&COUNTER), Ok(0));
@@ -379,6 +393,6 @@ mod tests {
         .into();
         let mut map = Attachments::from_nbt(saved.clone());
         assert_eq!(map.get(&COUNTER), Err(AttachmentError::Decode));
-        assert_eq!(map.to_nbt(), Ok(saved));
+        assert_eq!(map.to_nbt(), saved);
     }
 }
