@@ -1,0 +1,57 @@
+diff --git a/compatibility.json b/compatibility.json
+index 85cf75f..9e3fd19 100644
+--- a/compatibility.json
++++ b/compatibility.json
+@@ -1,8 +1,8 @@
+ {
+-  "horizon_revision": "1b6e55d4f3bd14079551bcad173d0fac8f8225bb",
++  "horizon_revision": "1d34a593723984b69b203267d55bd4a6463a9915",
+   "source_sha256": {
+-    "crates/horizon-client/src/game.rs": "ef5190d12da7c351dc3c5e4e31b3ad923ec8656f5f95911af1bc9f1da1fb0d4a",
+-    "crates/horizon-client/src/game/native_hooks.rs": "b8dd37636d102b59d429a3160c1ced06899402e091520b79339dcbbdef90510e"
++    "crates/horizon-client/src/game.rs": "fd551dd6b6e37748e2a9563f6b97324ad3f919d1b3cd8ecf2d7b76fcf92a7190",
++    "crates/horizon-client/src/game/native_hooks.rs": "bd4e81ad22ff04c0dd4baf38d29cc675127e6161e16b3f6cec19f2d28d737eed"
+   },
+   "horizon_repository": "https://github.com/horizon-rust/horizon",
+   "horizon_mixins_repository": "https://github.com/horizon-rust/horizon-mixins",
+diff --git a/mixins/machine_sample/horizon-mixin.toml b/mixins/machine_sample/horizon-mixin.toml
+index e1fee90..e7ec81f 100644
+--- a/mixins/machine_sample/horizon-mixin.toml
++++ b/mixins/machine_sample/horizon-mixin.toml
+@@ -3,8 +3,15 @@ id = "machine_sample"
+ version = "0.1.0"
+ priority = 100
+ 
++[[injection]]
++id = "bulk_test"
++kind = "HEAD"
++target = "horizon_client::game::native_hooks::Game<'_>::native_player_command"
++helper = "bulk.rs"
++bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }, { name = "command", ty = "&str", value = "command" }, { name = "canceled", ty = "&mut bool", value = "canceled" }]
++
+ [compatibility]
+-horizon_revision = "1b6e55d4f3bd14079551bcad173d0fac8f8225bb"
++horizon_revision = "1d34a593723984b69b203267d55bd4a6463a9915"
+ 
+ [[module]]
+ id = "runtime"
+diff --git a/tools/horizon.py b/tools/horizon.py
+index b35e199..d8c8815 100644
+--- a/tools/horizon.py
++++ b/tools/horizon.py
+@@ -46,7 +46,14 @@ def stage(horizon, stages):
+         try:
+             with tarfile.open(fileobj=process.stdout, mode="r|") as archive:
+                 for member in archive:
+-                    archive.extract(member, temporary, filter="data")
++                    dest = temporary / member.name
++                    if not dest.resolve().is_relative_to(temporary.resolve()):
++                        raise ValueError(f"unsafe archive path: {member.name}")
++                    if member.issym() and not (dest.parent / member.linkname).resolve().is_relative_to(temporary.resolve()):
++                        raise ValueError(f"unsafe archive symlink: {member.name}")
++                    if not (member.isfile() or member.isdir() or member.issym()):
++                        raise ValueError(f"unsupported archive member: {member.name}")
++                    archive.extract(member, temporary)
+         finally:
+             process.stdout.close()
+             code = process.wait()

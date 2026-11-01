@@ -1,0 +1,8 @@
+fn sample_bulk(game: &mut Game<'_>, command: &str, canceled: &mut bool) {
+    if command != "say bulktest" { return; }
+    *canceled = true;
+    let chest = game.world.block(2, -10, 2).0;
+    let runs: Vec<_> = (0..64).flat_map(|x| (0..64).map(move |z| horizon_client::block_edit::Run { x, z, y0: -32, y1: -3, state: 0, only: None })).collect();
+    let result = game.world.edit_runs(&runs, |_, _| true, |s| s == chest && s != 0);
+    eprintln!("BULK_TEST changed={} chunks={} tracked={:?} thread={:?}", result.changed, result.chunks, result.tracked, std::thread::current().name());
+}
