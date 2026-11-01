@@ -33,7 +33,8 @@ pub(super) fn key(
 ) -> Result<String, String> {
     let mut hash = Sha256::new();
     for part in [
-        "trait-injection-v1",
+        // Bump when launcher generation or validation changes the snapshot's contents.
+        "trait-injection-v2",
         revision,
         mixins,
         profile.name(),

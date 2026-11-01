@@ -1264,7 +1264,8 @@ returned by that bundle's `hooks()`; it is called only for that bundle's object.
 public and available from both the target and `horizon_client::mod_api`. Only HEAD listen is
 supported, or HEAD with `cancellable = true` for a unit-returning target: that method returns
 `Flow`, and `Flow::Cancel` returns early from the target. Do not specify `helper` on these entries.
-Other injection kinds are rejected. The generated helper has the same priority and ordering as an
+Other injection kinds are rejected. Trait injections can target only functions in `horizon-client`;
+ordinary mixin helpers in other crates continue to work as before. The generated helper has the same priority and ordering as an
 ordinary helper of that mod: priority descending, mod id then injection id. It is not automatically
 ordered after other mixins. Catalog hooks retain the mixin-before-trait order below.
 
