@@ -1237,6 +1237,9 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
                     native_mods::Profile::from_setting(backend::Settings::load().native_release)
                 }
             };
+            if builder.as_deref() == Some("blaze") && !horizon_launcher::blaze::supported() {
+                eprintln!("Blaze is not supported on this host; using Cargo.");
+            }
             let builder = builder
                 .as_deref()
                 .and_then(native_mods::Builder::parse)

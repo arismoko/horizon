@@ -319,6 +319,15 @@ fn log_text(line: &str) -> Option<String> {
     (!kept.is_empty()).then(|| kept.join("\n"))
 }
 
+fn compile_error(line: &str) -> bool {
+    log_text(line).is_some_and(|text| {
+        text.lines().any(|line| {
+            let line = line.trim_start();
+            line.starts_with("error[E") || line.starts_with("error: could not compile")
+        })
+    })
+}
+
 /// "1 min 5 s" style time, for the build's status.
 pub fn duration_label(secs: u64) -> String {
     if secs >= 60 {
@@ -1409,8 +1418,17 @@ pub fn build(
         // A revision without `[profile.fast]` builds with `release`: the build says so.
         let profile = profile_of(&stage, profile);
         let (mut crates, mut total, mut name) = (0, None, String::new());
-        let mut compile_game = |cmd| {
+        let compiler_failed = std::cell::Cell::new(false);
+        let mut compile_game = |cmd, reset| {
+            if reset {
+                crates = 0;
+                total = None;
+                name.clear();
+            }
             run(cmd, "Compiling the game", |line| {
+                if compile_error(line) {
+                    compiler_failed.set(true);
+                }
                 for event in parse_cargo(line) {
                     match event {
                         Cargo::Compiling(n) => {
@@ -1439,7 +1457,11 @@ pub fn build(
             metadata.args(["--locked", "--format-version", "1"]);
             run(metadata, "Checking the lockfile", |_| {}).map_err(|e| blame(crates::locked(e)))?;
             let cmd = compile(&rust, &stage, &target, profile);
-            if let Err(error) = blaze_attempt(&cmd, &progress, &mut compile_game) {
+            if let Err(error) = blaze_attempt(&cmd, &progress, &mut |cmd| compile_game(cmd, false))
+            {
+                if compiler_failed.get() {
+                    return Err(blame(error));
+                }
                 note(&format!(
                     "Blaze failed; building with cargo instead: {error}"
                 ));
@@ -1450,7 +1472,7 @@ pub fn build(
             }
         }
         if builder == Builder::Cargo {
-            compile_game(compile(&rust, &stage, &target, profile))
+            compile_game(compile(&rust, &stage, &target, profile), true)
                 .map_err(|e| blame(crates::locked(e)))?;
         }
         save_record(builder, profile, &now);
@@ -1645,6 +1667,16 @@ mod tests {
         for kept in ["horizon-ctl", "resources", "LICENSE"] {
             assert!(carried_over(OsStr::new(kept)), "{kept}");
         }
+    }
+
+    #[test]
+    fn compiler_errors_do_not_look_like_blaze_failures() {
+        assert!(compile_error("error[E0425]: missing name"));
+        assert!(compile_error(
+            "\x1b[31merror: could not compile `mod`\x1b[0m"
+        ));
+        assert!(!compile_error("error: daemon unavailable"));
+        assert!(!compile_error("warning: unused"));
     }
 
     #[test]
