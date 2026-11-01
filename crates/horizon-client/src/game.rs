@@ -2512,6 +2512,8 @@ struct Game<'a> {
     /// CushionModel's baked layer.
     cushion_model: Option<horizon_client::mobs::Part>,
     carts: Vec<minecarts::Minecart>,
+    /// The boats and minecarts `native_vehicle_moved` follows (lan_vehicles.rs).
+    watched_vehicles: Vec<lan_vehicles::WatchedVehicle>,
     /// Songs playing from jukeboxes (tracked sound handles).
     jukebox_sounds: HashMap<(i32, i32, i32), u64>,
     bolts: Vec<lightning::Bolt>,
@@ -7117,6 +7119,7 @@ impl Game<'_> {
             horizon_client::spans::time("tick_cushions", || self.tick_cushions());
             horizon_client::spans::time("tick_boats", || self.tick_boats());
             horizon_client::spans::time("tick_carts", || self.tick_carts());
+            self.tick_vehicle_watch();
             horizon_client::spans::time("tick_thunder", || self.tick_thunder());
             horizon_client::spans::time("tick_lecterns", || self.tick_lecterns());
             horizon_client::spans::time("tick_maps", || self.tick_maps());
@@ -17310,6 +17313,7 @@ impl<'a> Game<'a> {
             crystal_model: prepared.crystal_model,
             cushion_model: prepared.cushion_model,
             carts: Vec::new(),
+            watched_vehicles: Vec::new(),
             jukebox_sounds: HashMap::new(),
             bolts: Vec::new(),
             maps: maps::Maps::default(),

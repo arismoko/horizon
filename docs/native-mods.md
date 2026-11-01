@@ -918,6 +918,11 @@ For mods that run where the world is simulated: a dedicated server, a LAN host, 
   `offhand`, `feet`, `legs`, `chest` or `head`. Set `cancel` and nothing changes (the click is spent). The player's
   state is swapped in; `player` is their UUID. Not told of a click that changes nothing; breaking or blasting a stand and
   a dispenser armouring one are other ways its equipment moves and are not covered.
+- **`native_vehicle_moved(player, kind, from, to)`**: a boat or minecart that carries a server player (`player`, its UUID)
+  moved since the last tick, heard once a tick after the move with its positions before and after. The rider's state is
+  swapped in, so `native_acting_player`, `native_tell` and the item helpers reach them. A vehicle a player rode and left is
+  still told of, with no `player` and nobody swapped in, until it has stood still for ten seconds. Mounts (horses...) and
+  vehicles nobody ever rode are not covered. It only hears and costs one position compare a tick for each watched vehicle.
 - **`native_perform_command(player, command, ran)`**: a player typed a registered command (without its slash) and
   their level allows it, whether the world allows commands or not. The mod parses the line and sets `ran`. The
   player's state is swapped in for the call, as for their other actions, so `native_player` reads them; a
