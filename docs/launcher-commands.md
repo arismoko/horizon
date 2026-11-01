@@ -93,6 +93,7 @@ Native mods (docs/native-mods.md): compile mixin bundles on the Horizon revision
 - `--trust-native-code`: You read the mods' source and trust it with full access to this computer
 - `--allow-version-mismatch`: Build mods made for different Horizon versions together anyway, on the newest of them
 - `--profile` (fast, release): The Cargo profile: fast (the default: incremental, quick to rebuild) or release (thin LTO: slower to build, slightly faster game). Default: the native-profile setting
+- `--builder` (cargo, blaze): Builder for native mods (default: the native-builder setting)
 
 MCP: none: the player's switch.
 
@@ -187,11 +188,11 @@ MCP: `account_skin`.
 
 ## `horizon-launcher settings`
 
-Show the launcher's settings, or set one (the Settings page): selected-version TAG, minecraft-dir PATH, server-dir PATH ("default" resets a folder), install-new-versions on|off, prune-old-versions on|off (delete old versions after an install, keeping the selected one, the ones instances use and the newest few), keep-versions N (how many of the newest to keep; "default" is 2), opening-animation on|off, proxy http://host:port ("default" removes it), while-playing stay|minimize|hide (what the window does while the game runs), language system|en|fr|ru|de|zh|es|uk|pl (the window's language; system follows the computer's), accent violet|blue|teal|green|amber|red|pink, background PATH (a picture behind Home; "default" shows Horizon's landscape), native-profile fast|release (the Cargo profile native mods build with: fast is incremental, release is slower to build and slightly faster to play).
+Show the launcher's settings, or set one (the Settings page): selected-version TAG, minecraft-dir PATH, server-dir PATH ("default" resets a folder), install-new-versions on|off, prune-old-versions on|off (delete old versions after an install, keeping the selected one, the ones instances use and the newest few), keep-versions N (how many of the newest to keep; "default" is 2), opening-animation on|off, proxy http://host:port ("default" removes it), while-playing stay|minimize|hide (what the window does while the game runs), language system|en|fr|ru|de|zh|es|uk|pl (the window's language; system follows the computer's), accent violet|blue|teal|green|amber|red|pink, background PATH (a picture behind Home; "default" shows Horizon's landscape), native-profile fast|release (the Cargo profile native mods build with: fast is incremental, release is slower to build and slightly faster to play), native-builder cargo|blaze (Cargo by default).
 
     horizon-launcher settings [KEY] [VALUE]
 
-- `KEY` (selected-version, minecraft-dir, server-dir, install-new-versions, prune-old-versions, keep-versions, opening-animation, proxy, while-playing, language, accent, background, native-profile)
+- `KEY` (selected-version, minecraft-dir, server-dir, install-new-versions, prune-old-versions, keep-versions, opening-animation, proxy, while-playing, language, accent, background, native-profile, native-builder)
 - `VALUE`: The new value (with KEY)
 
 MCP: `settings`.
@@ -927,7 +928,7 @@ MCP: `rust_install`.
 
 ## `horizon-launcher rust remove`
 
-Delete the toolchain and the native builds' Cargo home.
+Delete Rust, Blaze, and the native builds' caches.
 
     horizon-launcher rust remove
 
