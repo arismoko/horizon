@@ -1259,9 +1259,7 @@ impl Game<'_> {
         self.console_command(state, line);
         self.console_broadcast = None;
         if let Some(mut host) = self.lan.take() {
-            if host.hub.guests.iter().any(|g| g.placed) {
-                crash_fixture("hub");
-            }
+            crash_fixture("hub", || host.hub.guests.iter().any(|g| g.placed));
             self.run_level_teleports(&mut host);
             self.send_admin_feedback(&mut host, None);
             self.lan = Some(host);
@@ -1918,10 +1916,12 @@ impl Game<'_> {
 /// `tools/test_dedicated_crash_save.py`'s fixture: with `HORIZON_CRASH_FIXTURE` naming `point`
 /// (`guest`: during a placed guest's turn, `hub`: while a console line has the hub out and a
 /// player is in), the tick panics there, to see what `stop_after_crash` keeps.
-pub(super) fn crash_fixture(point: &str) {
+/// `armed` is asked only when the variable names `point`, so the tick pays one
+/// load of a `OnceLock` without it.
+pub(super) fn crash_fixture(point: &str, armed: impl FnOnce() -> bool) {
     static FIXTURE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     let fixture = FIXTURE.get_or_init(|| std::env::var("HORIZON_CRASH_FIXTURE").ok());
-    if fixture.as_deref() == Some(point) {
+    if fixture.as_deref() == Some(point) && armed() {
         panic!("crash fixture at {point}");
     }
 }
