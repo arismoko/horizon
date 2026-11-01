@@ -132,9 +132,11 @@ pub trait Hooks: Send + Sync {
     /// set `container` when the block is yours. Asked once for each mod
     /// block when the ticking table is built; at most 256 slots, and slot
     /// numbers past the count are left out. Its `menu`, one of
-    /// `containers::MOD_MENUS` with as many slots, opens when the block is
-    /// used (its template must open a menu, as a chest or a furnace does);
-    /// another is left out. API 17.
+    /// `containers::MOD_MENUS` or a content mod's menu type
+    /// (`data/<id>/horizon/menu/`, API @API:mod_menu_types@) with as many
+    /// slots, opens when the block is used (its template must open a menu, as
+    /// a chest or a furnace does); another is left out. A mod menu type shows
+    /// on Horizon clients through the mod's `native_screen` only. API 17.
     ///
     /// Return `Some` to set `container`; the first mod returning `Some` wins.
     fn block_entity_container(&self, host: &dyn Host, block: &str) -> Option<ModContainer> {
