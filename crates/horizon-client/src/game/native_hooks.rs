@@ -2746,6 +2746,28 @@ impl Game<'_> {
     pub(super) fn native_perform_console_command(&mut self, command: &str, ran: &mut bool) {
         let _ = (command, ran);
     }
+    /// A player whose login the server has accepted (NeoForge's
+    /// `PlayerNegotiationEvent` stage): the name, whitelist, ban and
+    /// server-full checks have passed and the player holds a place, but their
+    /// saved state is not loaded and they are not placed in a level yet. Set
+    /// `cancel` to refuse them: they are disconnected with `reason` (a plain
+    /// "Disconnected" if it is left unset) and nothing else of the join (the
+    /// join message, `native_player_logged_in`) happens. Once for each player
+    /// who joins, on a server. The player is not placed yet and their client
+    /// has no world to show a message in, so no player's state is swapped in
+    /// and `native_tell` reaches nobody: the refusal `reason` is the answer.
+    /// The checks that need no mod (name, whitelist, bans, a full server,
+    /// the proxy's forwarding) refuse earlier, on the connection, and this
+    /// hook does not hear those players. @API:native_player_login@.
+    pub(super) fn native_player_login(
+        &mut self,
+        player: u128,
+        name: &str,
+        cancel: &mut bool,
+        reason: &mut Option<Text>,
+    ) {
+        let _ = (player, name, cancel, reason);
+    }
     /// A click in a menu a mod opened (`native_open_menu`), which moved
     /// nothing: the menu's `slot` (its own first, then the player's
     /// inventory, `native_menu_inventory_slot`; -999 outside), the `button`
