@@ -1,14 +1,14 @@
 {
   "hooks": [
     {
-      "name": "mouse_button_pre",
+      "name": "mouse_button_pre", "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_mouse_button_pre",
       "neoforge": "InputEvent.MouseButton.Pre",
       "side": "client",
       "cancellable": true
     },
     {
-      "name": "mouse_button_post",
+      "name": "mouse_button_post", "mod_api": {"contract":"listen"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_mouse_button_post",
       "neoforge": "InputEvent.MouseButton.Post",
       "side": "client"

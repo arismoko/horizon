@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "mouse_scrolling",
+      "name": "mouse_scrolling", "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_mouse_scrolling",
       "neoforge": "InputEvent.MouseScrollingEvent",
       "side": "client",

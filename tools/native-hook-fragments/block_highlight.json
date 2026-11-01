@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "block_highlight",
+      "name": "block_highlight", "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_block_highlight",
       "side": "client",
       "cancellable": true

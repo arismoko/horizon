@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "screen_key_released_pre",
+      "name": "screen_key_released_pre", "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_screen_key_released_pre",
       "neoforge": "ScreenEvent.KeyReleased.Pre",
       "side": "client",
