@@ -27,6 +27,8 @@ use std::process::{Command, Stdio};
 
 mod api;
 mod crates;
+mod inject;
+mod inject_cache;
 
 const PREFIX: &str = "native-";
 /// horizon-mixins, for bundles that don't name the revision they were tested with.
@@ -846,9 +848,8 @@ pub fn version_for(
         hash.update(part.as_bytes());
         hash.update([0]);
     }
-    let mut sorted: Vec<&Bundle> = bundles.iter().collect();
-    sorted.sort_by(|a, b| a.id.cmp(&b.id));
-    for b in sorted {
+    // bundles() reads folders in path order; that is also trait dispatch order.
+    for b in bundles {
         hash.update(b.id.as_bytes());
         hash.update([0]);
         for (name, path) in bundle_files(b)? {
@@ -911,6 +912,8 @@ pub enum Step {
     Tool,
     Source(String),
     Mixins,
+    /// A previously patched source snapshot was reused.
+    CachedMixins,
     /// Which case the build is, before anything runs.
     Plan(Plan, Profile),
     /// Crates done, the total once cargo says it, and the one just started.
@@ -951,6 +954,7 @@ impl Step {
                 &[("revision", &revision[..7])],
             ),
             Self::Mixins => tr("Applying the mixins").into(),
+            Self::CachedMixins => tr("Reusing patched game source").into(),
             Self::Crates => tr("Checking the mods' crates against Horizon's Cargo.lock").into(),
             Self::Plan(plan, profile) => format!("{} ({})", plan.label(), profile.name()),
             Self::Compile {
@@ -1405,17 +1409,30 @@ pub fn build(
         let fresh = real.join("stage.new");
         let _ = fs::remove_dir_all(&fresh);
         if needs_mixins {
-            for bundle in &mods {
-                api::strip(bundle)?;
+            let key = inject_cache::key(&revision, &mixins, profile, &mods)?;
+            let snapshot = inject_cache::snapshot(&real, &key);
+            if snapshot.is_dir() {
+                progress(Step::CachedMixins);
+                sync(&snapshot, &fresh)?;
+            } else {
+                let injections = inject::prepare(&mods, &source)?;
+                let tool = tool(&rust, &mixins, &progress)?;
+                progress(Step::Mixins);
+                run(
+                    apply(&rust, &tool, &source, &incoming, &fresh),
+                    "horizon-mixins",
+                    |_| {},
+                )
+                .map_err(blame)?;
+                inject::stage(&fresh, &injections)?;
+                let parent = snapshot.parent().ok_or("invalid cache path")?;
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                let partial = parent.join(format!(".{key}.partial"));
+                let _ = fs::remove_dir_all(&partial);
+                sync(&fresh, &partial)?;
+                fs::rename(&partial, &snapshot).map_err(|e| e.to_string())?;
             }
-            let tool = tool(&rust, &mixins, &progress)?;
-            progress(Step::Mixins);
-            run(
-                apply(&rust, &tool, &source, &incoming, &fresh),
-                "horizon-mixins",
-                |_| {},
-            )
-            .map_err(blame)?;
+            inject_cache::touch_and_prune(&real, &key)?;
         } else {
             sync(&source, &fresh)?;
         }

@@ -431,6 +431,16 @@ text files a crate folder carries (`README*`, `LICENSE*`, `COPYING*`, `NOTICE*`,
 folder or a crate's), so a crate that compiles its README in builds the same from the registry as from a folder. At
 most 512 files and 64 MiB unpacked; anything else refuses the bundle. A local folder build has no such limits.
 
+**One `.hmod` for content and code.** A mod's content and its native code ship as one `.hmod`, and what is inside
+decides what happens: only `horizon-mod.toml` with `assets/` and `data/` is a content mod, nothing compiles; with
+`horizon-native.json` and `mixins/<id>/` (a bundle as above) it is a native mod, built into the game. Both may be in
+one file: `horizon-mod.toml`, `assets/` and `data/` are its content, checked as a content mod's
+(`horizon_mods::Content`) and left out of the build, and the two manifests name the same mod id. A `.hmod` with
+native code is never a WebAssembly mod: one carrying `mod.wasm` is refused with
+`horizon_mods::index::native::WASM_GONE`. An `.hnmod` (code only) keeps loading as before. The registry keeps
+publishing native mods as `.hnmod` until launchers and the game read native `.hmod`s. Every rule of the file is in
+[api/mod-files.md](api/mod-files.md).
+
 ### Post-build steps
 
 A `[[post_build]]` names a bin of one of the mod's crates. After the game compiles, the launcher builds it with the
@@ -808,7 +818,9 @@ every bundle. The same set on the same commit is never built twice. A change giv
 `native/target/` stays, so a rebuild compiles only `horizon-client` and what the mods touched.
 
 **Incremental rebuilds.** With `fast`, Cargo recompiles only the changed parts of `horizon-client`, not the whole
-crate with LTO. This holds because the stage (`native/stage/`) is one folder for every build and the launcher writes
+crate with LTO. Patched source is cached separately by its mixin inputs and pins (the three most
+recent snapshots are kept), so editing only a trait crate skips the mixins pass. This holds because
+the stage (`native/stage/`) is one folder for every build and the launcher writes
 only the files whose content changed (Cargo goes by file times), switching mods on the same commit reuses the same
 `native/target/`, and the launcher removes `CARGO_INCREMENTAL` and `CARGO_BUILD_INCREMENTAL` from the build's
 environment. `release` has no incremental compilation (the release profile's own).
@@ -891,7 +903,7 @@ each was built or last used): switching a mod off and on again plays the kept bu
   The file is pinned by SHA-256 like every registry file, and the version, game and pins are the bundle's own
   `horizon-native.json`. `revoked.toml` takes a bad release down.
   A content mod's entry may turn `native-mod` once (never back): its `.hmod` versions stay published and
-  are checked as `.hmod`s, the index lists only its `.hnmod` versions, and the launcher's update keeps the
+  are checked as `.hmod`s, the index lists only its versions with native code, and the launcher's update keeps the
   player's `.hmod` (the game runs it until a native build has the mod, then skips it); removing the mod removes both.
 - **Isolation of data.** Native mods run only in the instance they are installed in, with its worlds, options and
   logs (the default Horizon instance's, when they are installed there); other instances play their own versions.
@@ -1179,30 +1191,6 @@ it moves only what the player sees, not where they are or aim.
   moved-too-quickly check, which can send them back, as vanilla's does. It answers false for a player not on this server,
   on a client, and inside a player's hook (call it from a tick hook).
 
-### A client mod's view and items
-
-`crates/horizon-client/src/game/native_claimed_items.rs`: helpers for client mods, for the player's own view and hands.
-
-- `native_view_hit()` gives the first block along the view within 1024 blocks and how far it is, and
-  `native_raycast(distance)` the same within `distance` (cut to 0 to 1024). Past the loaded chunks the ray goes on over
-  the distant terrain, a block at a time, and meets its ground: a target far off can be aimed at before its chunks
-  load. `NativeHit` holds the block, where the ray met it and the block's id. Both answer `None` with no player, or
-  with nothing in reach.
-- `native_claim_items(mod_id, ids)` claims up to 64 item ids (`minecraft:stick`, a content mod's own item) for mod
-  `mod_id`; a later call replaces the list, an empty one gives them up. Two mods claiming one id: the first in id
-  order has it. A right-click with a claimed item in the main hand is the mod's alone: the server never hears of it,
-  and the block or entity under the crosshair isn't used. A claimed item in the off hand does nothing on a
-  right-click. The use slows the player as an item in use does, which the server doesn't know of: on a LAN or
-  dedicated server the anticheat's movement check may log it. A claim wins over `native_use_duration` for the same
-  item.
-- `native_poll(mod_id)` gives the mod's events since its last poll, oldest first, at most 256: `UseStart(item, 0)`
-  when the right-click begins the use, and `UseStop(item, ticks)` when it ends, with the ticks it was held. It ends
-  when the button comes up, when the hand's item changes or leaves the claim, when the player respawns, and
-  when the game joins a server, so every `UseStart` has its `UseStop`. `NativeHeldItem` holds the stack's id, count,
-  slot, and its `minecraft:custom_name` and `minecraft:custom_data` as SNBT: items told apart by custom data (a
-  stick named "Designator") are told apart here. Poll from a client tick hook.
-- The stack in the main hand at any time is `native_held()` (API 9), on a client the player's own.
-
 ### Values for a mod's shader pack
 
 `native_shader_params(partial, params)` (client) asks every frame, while a Horizon shader pack is on, for eight
@@ -1237,23 +1225,6 @@ farther, as vanilla's attenuation does. A client half that hears from its server
 something happened can time the sound to the distance, such as a blast heard when its shock wave reaches the player:
 `delay = distance / speed`. It answers false on a server and for a value out of range; an event the resources lack
 plays nothing.
-
-### Music
-
-The music a client mod chooses, for a soundtrack that follows the seasons or grows with the player's world.
-
-- `native_music(music, volume)` (client) is asked each client tick with what vanilla chose (`Minecraft.getSituationalMusic`
-  and `getMusicVolume`): the biome's track, the creative, underwater, boss or menu music, None for silence, and its volume.
-  Set `music` to a track of your own (`Music::new("mymod:music.spring", min_delay, max_delay, replace_current)`, the delays
-  in ticks between songs), None to stay quiet, or lower `volume` to fade what plays. The music manager plays it as it plays
-  vanilla's: the delays, the Music Frequency option and the Now Playing toast apply. A different track waits for the one
-  playing to end unless `replace_current` is set.
-- `native_music_layers(layers)` (client) is asked each client tick for tracks to loop over (or instead of) that music: push
-  a `MusicLayer { sound, volume }` for each. A layer eases to its volume by 0.025 a tick (two seconds from silent to full);
-  one left out fades out and stops, and starts from its beginning if asked for again. Layers that first appear in the same
-  tick start together: list every stem of a piece from the start, the quiet ones at 0, and raise them as the world fills
-  (a value such as a village's wellbeing, sent from the server half with mod messages). Layers play on the Music volume.
-- The sound events are a content mod's (`assets/<id>/sounds.json` with `"stream": true`, and its `.ogg` files).
 
 ### Falling blocks
 
@@ -1357,6 +1328,28 @@ into a generated game executable and calls `hooks()` in bundle order. The packag
 `[[crate]]`: it depends on the game instead of the game depending on it. A bundle with no
 injections, state, bridges, modules, mixin crates or post-build steps skips horizon-mixins.
 
+A bundle with an `[api]` package may declare its own HEAD injection in the trait:
+
+```toml
+[[injection]]
+id = "before-tick"
+target = "horizon_client::game::example"
+kind = "HEAD"
+trait_method = "before_tick"
+bindings = [{ name = "amount", ty = "&mut i32", value = "&mut *amount" }]
+```
+
+The generated trait method is `inject_<mod_id>_<trait_method>` (hyphens in the mod id become
+underscores), with the binding names and types as its parameters. Implement it on the object
+returned by that bundle's `hooks()`; it is called only for that bundle's object. Types must be
+public and available from both the target and `horizon_client::mod_api`. Only HEAD listen is
+supported, or HEAD with `cancellable = true` for a unit-returning target: that method returns
+`Flow`, and `Flow::Cancel` returns early from the target. Do not specify `helper` on these entries.
+Other injection kinds are rejected. Trait injections can target only functions in `horizon-client`;
+ordinary mixin helpers in other crates continue to work as before. The generated helper has the same priority and ordering as an
+ordinary helper of that mod: priority descending, mod id then injection id. It is not automatically
+ordered after other mixins. Catalog hooks retain the mixin-before-trait order below.
+
 A linked trait mod implements `horizon_client::mod_api::Hooks`. Mixin injections run first.
 An injection that returns early skips trait mods. A claimed cancellation also skips trait mods.
 Otherwise, trait mods run in their supplied order. The first `Cancel` stops dispatch.
@@ -1398,16 +1391,11 @@ The following documented `Game` helpers are not in the trait yet:
 
 The following catalog hooks are not in the trait yet:
 
-The following hooks are not in the trait yet:
-
-- `block_entity_submit` needs a drawing interface.
 - Newly added upstream hooks `player_command`, `perform_console_command`, `item_decorations`,
   `client_resources_reloaded`, `camera_shake`, `screen_key_pressed_pre`, `screen_char_typed_pre`,
   `screen_mouse_scrolled_pre`, `use_duration`, `use_animation`, `can_eat`,
   `living_entity_use_item_start`, `living_entity_use_item_finish`, `render_hand`, `shader_params`
   and `block_highlight` will join a later slice.
-- Hooks added by the upstream sync also await contracts: `datapack_sync`, `recipes_received`,
-  `server_data_loaded`, `data_pack_files`, `input_key`, `mouse_button_pre`, `mouse_button_post`,
-  `mouse_scrolling`, `compute_fov`, `compute_fog_color`, `render_fog`, `camera_distance`,
-  `biome_colors`, `music`, `music_layers`, `mob_submit`, `screen_mouse_dragged_pre`,
-  `screen_key_released_pre`, `player_respawned`, `mod_container_viewers` and `item_model`.
+- Newer upstream hooks `biome_colors`, `camera_distance`, `compute_fog_color`, `compute_fov`,
+  `data_pack_files`, `mob_submit`, `mouse_button_pre`, `mouse_button_post`, `player_respawned`
+  and `server_data_loaded` will join a later slice.
