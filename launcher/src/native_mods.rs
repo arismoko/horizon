@@ -1415,7 +1415,7 @@ pub fn build(
                 progress(Step::CachedMixins);
                 sync(&snapshot, &fresh)?;
             } else {
-                let injections = inject::prepare(&mods)?;
+                let injections = inject::prepare(&mods, &source)?;
                 let tool = tool(&rust, &mixins, &progress)?;
                 progress(Step::Mixins);
                 run(

@@ -15,7 +15,7 @@ pub(super) struct Injection {
 }
 
 /// Replace trait injections with ordinary mixin helpers, leaving ordinary injections unchanged.
-pub(super) fn prepare(mods: &[Bundle]) -> Result<Vec<Injection>, String> {
+pub(super) fn prepare(mods: &[Bundle], source: &Path) -> Result<Vec<Injection>, String> {
     let mut result = Vec::new();
     let mut names = HashSet::new();
     let owners: HashMap<_, _> = api::with_api(mods)
@@ -41,6 +41,29 @@ pub(super) fn prepare(mods: &[Bundle]) -> Result<Vec<Injection>, String> {
                 };
                 if bundle.api.is_none() {
                     return Err(format!("{}: trait_method requires [api]", path.display()));
+                }
+                let target = if let Some(hook) = table.get("hook").and_then(toml::Value::as_str) {
+                    let catalog = source.join("native-hooks.json");
+                    let text = fs::read_to_string(&catalog)
+                        .map_err(|e| format!("{}: {e}", catalog.display()))?;
+                    let catalog: serde_json::Value =
+                        serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                    catalog["hooks"]
+                        .as_array()
+                        .and_then(|hooks| hooks.iter().find(|h| h["name"].as_str() == Some(hook)))
+                        .and_then(|h| h["target"].as_str())
+                        .ok_or_else(|| format!("unknown catalog hook {hook}"))?
+                        .to_owned()
+                } else {
+                    table
+                        .get("target")
+                        .and_then(toml::Value::as_str)
+                        .ok_or("trait_method needs a target or catalog hook")?
+                        .to_owned()
+                };
+                let target_crate = target.split("::").next().unwrap_or_default();
+                if target_crate != "horizon_client" {
+                    return Err(format!("trait injection target {target:?} is in crate {target_crate:?}; only horizon-client targets are supported"));
                 }
                 if table.get("kind").and_then(toml::Value::as_str) != Some("HEAD") {
                     return Err(format!(
@@ -233,7 +256,7 @@ mod tests {
     #[test]
     fn owner_dispatch_and_cancel_are_generated_from_bindings() {
         let (root, bundle) = fixture("cancel", "[[injection]]\nid = 'hook'\ntarget = 'horizon_client::game::tick'\nkind = 'HEAD'\ntrait_method = 'tick'\ncancellable = true\nbindings = [{ name = 'amount', ty = '&mut i32', value = '&mut *amount' }]\n");
-        let injections = prepare(&[bundle]).unwrap();
+        let injections = prepare(&[bundle], &root).unwrap();
         let helper = fs::read_to_string(root.join("horizon-trait-injection-0.rs")).unwrap();
         let manifest = fs::read_to_string(root.join(MANIFEST)).unwrap();
         assert!(!manifest.contains("trait_method"));
@@ -381,9 +404,30 @@ mod tests {
     }
 
     #[test]
+    fn trait_injections_reject_targets_in_other_crates() {
+        let (root, bundle) = fixture("other-crate", "[[injection]]\nid = 'hook'\ntarget = 'horizon_world::loot::load'\nkind = 'HEAD'\ntrait_method = 'load'\n");
+        let error = prepare(&[bundle], &root).err().unwrap();
+        assert!(error.contains("horizon_world::loot::load") && error.contains("horizon_world"));
+        fs::remove_dir_all(root).unwrap();
+
+        let (root, bundle) = fixture("other-catalog", "[[injection]]\nid = 'hook'\nhook = 'loot_table_load'\nkind = 'HEAD'\ntrait_method = 'load'\n");
+        fs::write(
+            root.join("native-hooks.json"),
+            r#"{"hooks":[{"name":"loot_table_load","target":"horizon_world::loot::load"}]}"#,
+        )
+        .unwrap();
+        let error = prepare(&[bundle], &root).err().unwrap();
+        assert!(error.contains("horizon_world::loot::load") && error.contains("horizon_world"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn unsupported_injection_is_rejected() {
-        let (root, bundle) = fixture("return", "[[injection]]\nid = 'hook'\ntarget = 'example::tick'\nkind = 'RETURN'\ntrait_method = 'tick'\n");
-        assert!(prepare(&[bundle]).err().unwrap().contains("only HEAD"));
+        let (root, bundle) = fixture("return", "[[injection]]\nid = 'hook'\ntarget = 'horizon_client::game::tick'\nkind = 'RETURN'\ntrait_method = 'tick'\n");
+        assert!(prepare(&[bundle], &root)
+            .err()
+            .unwrap()
+            .contains("only HEAD"));
         fs::remove_dir_all(root).unwrap();
     }
 }
