@@ -8,7 +8,7 @@ pub mod animate_tick;
 pub mod arrows;
 pub mod block_contact;
 pub use horizon_client_render::{
-    assets, atlas_sources, audio, auth, ban_notice, bidi, biome, block_entities, block_entity_anim,
+    assets, atlas_sources, audio, auth, ban_notice, bidi, biome, block_edit, block_entities, block_entity_anim,
     block_entity_render, border_render, breaking, brewing, camera, chat, chunk, chunk_map, clouds,
     collisions, command_block, containers, crash, datapack, dynamic_light, effects, environment,
     extras, fast_hash, fog, font, gfx, graphics, graphics_style, graphics_ui, hdr_calibration, hud,
@@ -103,6 +103,7 @@ pub mod pose;
 pub mod pregen;
 pub mod projectiles;
 pub mod raid;
+pub mod ram_limit;
 pub mod random_tick_sections;
 pub mod recipe_book;
 pub mod recipe_book_screen;
