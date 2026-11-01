@@ -1238,6 +1238,23 @@ something happened can time the sound to the distance, such as a blast heard whe
 `delay = distance / speed`. It answers false on a server and for a value out of range; an event the resources lack
 plays nothing.
 
+### Music
+
+The music a client mod chooses, for a soundtrack that follows the seasons or grows with the player's world.
+
+- `native_music(music, volume)` (client) is asked each client tick with what vanilla chose (`Minecraft.getSituationalMusic`
+  and `getMusicVolume`): the biome's track, the creative, underwater, boss or menu music, None for silence, and its volume.
+  Set `music` to a track of your own (`Music::new("mymod:music.spring", min_delay, max_delay, replace_current)`, the delays
+  in ticks between songs), None to stay quiet, or lower `volume` to fade what plays. The music manager plays it as it plays
+  vanilla's: the delays, the Music Frequency option and the Now Playing toast apply. A different track waits for the one
+  playing to end unless `replace_current` is set.
+- `native_music_layers(layers)` (client) is asked each client tick for tracks to loop over (or instead of) that music: push
+  a `MusicLayer { sound, volume }` for each. A layer eases to its volume by 0.025 a tick (two seconds from silent to full);
+  one left out fades out and stops, and starts from its beginning if asked for again. Layers that first appear in the same
+  tick start together: list every stem of a piece from the start, the quiet ones at 0, and raise them as the world fills
+  (a value such as a village's wellbeing, sent from the server half with mod messages). Layers play on the Music volume.
+- The sound events are a content mod's (`assets/<id>/sounds.json` with `"stream": true`, and its `.ogg` files).
+
 ### Falling blocks
 
 `crates/horizon-client/src/game/native_falling.rs`: a helper for server mods, for the level in place, on a server only. It
