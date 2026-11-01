@@ -13859,6 +13859,8 @@ impl Game<'_> {
         }
         lines
     }
+    /// `CreativeModeInventoryScreen.extractRenderState`: item slots share the
+    /// container screen's hover target for their highlight and tooltip.
     fn draw_creative(&mut self, batch: &mut HudBatch) {
         // CreativeModeInventoryScreen: `CommonComponents.EMPTY` for a title.
         screen_info::begin_container("creative");
@@ -13954,6 +13956,9 @@ impl Game<'_> {
         }
         // The hovered stack, and whether it is a grid slot (`CustomCreativeSlot`).
         let mut hovered: Option<(ItemStack, bool)> = None;
+        // Use the same padded slot bounds as clicks and the other menus, so
+        // highlights and tooltips remain visible between adjacent items.
+        let hovered_slot = self.slot_at(batch, self.cursor.0, self.cursor.1);
         if tab.inventory {
             self.draw_player_preview(
                 batch,
@@ -13984,10 +13989,7 @@ impl Game<'_> {
                         continue;
                     };
                     let (x, y) = (ox + 9.0 + c as f32 * 18.0, oy + 18.0 + r as f32 * 18.0);
-                    let over = self.cursor.0 >= x
-                        && self.cursor.0 < x + 16.0
-                        && self.cursor.1 >= y
-                        && self.cursor.1 < y + 16.0;
+                    let over = hovered_slot == Some(Creative::DISPLAY + r * 9 + c);
                     if over {
                         self.draw_slot_highlight(batch, false, x, y);
                     }
@@ -14001,10 +14003,7 @@ impl Game<'_> {
             let drag = self.drag_view();
             for c in 0..9 {
                 let (x, y) = (ox + 9.0 + c as f32 * 18.0, oy + 112.0);
-                let over = self.cursor.0 >= x
-                    && self.cursor.0 < x + 16.0
-                    && self.cursor.1 >= y
-                    && self.cursor.1 < y + 16.0;
+                let over = hovered_slot == Some(c);
                 if over {
                     self.draw_slot_highlight(batch, false, x, y);
                 }
