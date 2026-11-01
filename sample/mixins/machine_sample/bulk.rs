@@ -33,5 +33,5 @@ fn sample_bulk(game: &mut Game<'_>, dimension: &str) {
     };
     let edit = NativeBlockEdit { palette: vec![name.into()], filters: filter.into_iter().map(str::to_owned).collect(), runs };
     let result = game.native_edit_blocks(dimension, &edit);
-    eprintln!("BULK_TEST action={action:?} result={result:?} entity={}", game.world.block_entities.get(&(8,140,8)).is_some());
+    eprintln!("BULK_TEST action={action:?} result={result:?} entities={:?}|{:?}", game.world.block_entities.get(&(8,140,8)), game.world.block_entities.get(&(9,140,8)));
 }
