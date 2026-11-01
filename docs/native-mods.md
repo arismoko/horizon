@@ -1257,7 +1257,7 @@ state with interior mutability so these calls can share the instance safely.
 
 The trait includes the hooks marked `mod_api` in `native-hooks.json`. These include
 `tick`, the server lifecycle, player action, menu, block entity, entity, mob, effect,
-chunk and player hooks, plus `level_tick_pre`, `use_item_on`, `zoom` and `tooltip`.
+chunk and player hooks, plus client frame, rendering, UI and input hooks.
 Level hooks use access-specific hosts rather than `Host`. `LevelHost` provides
 `block_state` through `LevelAccess::block_state`. `LevelTicksHost` adds scheduling
 through `native_schedule_block_tick` and `native_schedule_fluid_tick`, while
@@ -1266,10 +1266,6 @@ block behaviours (which does not create a block entity). The game owns the tick 
 mods do not pass it back to these helpers.
 The following catalog hooks are not in the trait yet:
 
-- `frame`, `visuals`, `emissive`, `hud`, `key`, `wheel`, `command`, `commands`, `minimap`,
-  `mods`, `settings`, `settings_click`, `panel_event`, `screen`, `screen_draw`,
-  `screen_click`, `screen_tooltip`, `net_from_server`, `health_hud` and `item_bar`
-  will follow in the client slice.
 - `world_drawn` and `render_needs` need a renderer trait.
 - `has_analog_output`, `analog_output`, `component_types`, `dispense_item`,
   `tooltip_component`, `tooltip_component_draw`, `can_survive`, `may_place_on`,

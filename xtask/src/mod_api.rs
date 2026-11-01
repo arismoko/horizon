@@ -302,6 +302,7 @@ pub fn run(check: bool) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     struct ItemStack;
     #[allow(dead_code)]
@@ -321,6 +322,14 @@ mod tests {
         pub(super) trait LevelTicksHost: LevelHost {}
         pub(super) trait LevelWriteHost: LevelTicksHost {}
         pub(super) struct Compound;
+        pub(super) struct Corners;
+        pub(super) struct HudBatch;
+        pub(super) struct NativeBlockRim;
+        pub(super) struct NativeColoredLight;
+        pub(super) struct NativeMinimap;
+        pub(super) struct NativeMod;
+        pub(super) struct NativePanelEvent;
+        pub(super) struct NativeScreen;
         pub(super) struct ModBlockEntity;
         pub(super) struct ModContainer;
         pub(super) struct ModFluidTanks;
@@ -345,6 +354,12 @@ mod tests {
     impl Host for TestHost {}
     #[allow(dead_code)]
     mod generated {
+        mod horizon_client {
+            pub mod hud_layout {
+                pub struct HealthInputs;
+                pub struct GuiDraw;
+            }
+        }
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../crates/horizon-client/src/mod_api/generated.rs"
