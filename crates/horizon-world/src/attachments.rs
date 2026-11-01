@@ -20,6 +20,18 @@ pub enum AttachmentError {
     InvalidCopyPolicy,
 }
 
+/// NBT key reserved for server-owned attachment maps.
+pub const ATTACHMENTS_KEY: &str = "horizon:attachments";
+
+/// Read the reserved compound without replacing an invalid saved value.
+pub fn attachment_compound(tag: Option<&Tag>) -> Result<Option<&Compound>, AttachmentError> {
+    match tag {
+        None => Ok(None),
+        Some(Tag::Compound(compound)) => Ok(Some(compound)),
+        Some(_) => Err(AttachmentError::InvalidNamespace),
+    }
+}
+
 /// A server holder in the host's current dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Holder {

@@ -3907,6 +3907,7 @@ impl Game<'_> {
             tnts: &self.tnts,
             falling: &self.falling,
         };
+        let native_authoritative = self.native_authoritative();
         let mut level = GameLevel {
             cart_boxes,
             item_frames: &self.item_frames,
@@ -3958,7 +3959,7 @@ impl Game<'_> {
             random_tick_sections: &mut self.random_tick_sections,
             lid_openers: &self.lid_openers,
             client_side: self.remote.is_some(),
-            native_authoritative: self.serving.is_some() || self.options.dedicated.is_some(),
+            native_authoritative,
             debug: self.world_debug,
             native_sounds: &mut self.creatures.lan_sounds,
             native_particles: &mut self.creatures.lan_particles,

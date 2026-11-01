@@ -409,10 +409,6 @@ impl AttachmentHost for dyn Host + '_ {
 
 /// Read-only level services, like vanilla's `LevelReader`.
 pub trait LevelHost {
-    /// Access a holder's server-owned attachment map.
-    fn attachments(&mut self, _holder: Holder) -> Result<&mut Attachments, AttachmentError> {
-        Err(AttachmentError::MissingHolder)
-    }
     /// Read a block through `LevelAccess::block_state`.
     fn block_state(&self, pos: [i32; 3]) -> BlockStateId;
     /// `Level.isClientSide`, through `LevelAccess::is_client_side`.
@@ -428,6 +424,8 @@ pub trait LevelHost {
 
 /// Access vanilla's `Level.random`, so draws come in vanilla's order.
 pub trait LevelRandomHost: LevelHost {
+    /// Access a holder's server-owned attachment map.
+    fn attachments(&mut self, holder: Holder) -> Result<&mut Attachments, AttachmentError>;
     /// The level's random stream through `native_level_random`, or None on a non-authoritative level.
     fn random(&mut self) -> Option<&mut LegacyRandom>;
 }
@@ -450,12 +448,12 @@ macro_rules! level_attachment_host {
     ($($host:ident),+) => { $(
         impl AttachmentHost for dyn $host + '_ {
             fn attachments(&mut self, holder: Holder) -> Result<&mut Attachments, AttachmentError> {
-                LevelHost::attachments(self, holder)
+                LevelRandomHost::attachments(self, holder)
             }
         }
     )+ };
 }
-level_attachment_host!(LevelHost, LevelRandomHost, LevelTicksHost, LevelWriteHost);
+level_attachment_host!(LevelRandomHost, LevelWriteHost);
 
 mod generated;
 pub use generated::Hooks;
