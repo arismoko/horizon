@@ -593,7 +593,8 @@ trusting native code is the player's decision, never an agent's.
    The launcher downloads pinned Blaze v0.20261030.1 and Blaze downloads its pinned
    nightly-2026-10-27 compiler and standard-library data. Blaze uses a separate target and cache.
    The launcher checks the lockfile with Cargo first, stops the Blaze daemon after each build,
-   and retries with Cargo if Blaze fails. Windows and unsupported hosts always use Cargo.
+   and retries with Cargo if Blaze fails. Unix socket paths have a length limit: a very long
+   launcher data path can force the Cargo fallback. Windows and unsupported hosts always use Cargo.
 
 6. **Post-build**: each mod's post-build program is built; it runs in the new version folder once that is copied
    (next step), before the version counts as installed ("Post-build steps").

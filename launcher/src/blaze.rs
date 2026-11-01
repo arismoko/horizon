@@ -107,14 +107,15 @@ const ENV: &[(&str, &str)] = &[
     ("XDG_CONFIG_HOME", "config"),
     ("XDG_DATA_HOME", "data"),
     ("XDG_STATE_HOME", "state"),
-    ("XDG_RUNTIME_DIR", "runtime"),
+    // Keep Unix socket paths short; Blaze appends its own worker directory.
+    ("XDG_RUNTIME_DIR", "r"),
     ("TMPDIR", "tmp"),
     ("BLAZE_CACHE", "blaze-cache"),
 ];
 
 /// Copy Cargo's command and isolate Blaze's daemon, toolchain and caches.
 pub fn wrap(binary: &Path, cargo: &Command) -> Command {
-    wrap_in(binary, cargo, &root().join("state"))
+    wrap_in(binary, cargo, &root())
 }
 
 fn wrap_in(binary: &Path, cargo: &Command, base: &Path) -> Command {
@@ -189,6 +190,14 @@ mod tests {
                 .unwrap();
             assert!(Path::new(value).starts_with(&temp), "{name}");
         }
+        assert_eq!(
+            cmd.get_envs()
+                .find(|(k, _)| *k == "XDG_RUNTIME_DIR")
+                .unwrap()
+                .1
+                .unwrap(),
+            temp.join("r")
+        );
         fs::remove_dir_all(temp).unwrap();
     }
 }
