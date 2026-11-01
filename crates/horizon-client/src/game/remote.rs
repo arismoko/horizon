@@ -1064,6 +1064,8 @@ impl Game<'_> {
         self.titles.overlay_time = 0;
         // GameRenderer.resetData and narrator.clear (Minecraft.disconnect).
         self.item_activation.reset();
+        // Kept mod block entity geometry belongs to the world leaving.
+        self.kept_block_entities.get_mut().clear();
         self.clear_narrator();
         // A world is leaving either way: its icon attempt goes with it.
         self.world_icon = None;
@@ -3585,9 +3587,15 @@ impl Game<'_> {
                     .projectiles
                     .iter()
                     .find(|s| s.id == p.item as u32);
+                let shot = shot.map(|s| s.position).or_else(|| {
+                    self.tridents
+                        .iter()
+                        .find(|t| t.id == p.item as u32)
+                        .map(|t| t.position)
+                });
                 let at = match (item, shot) {
                     (Some(d), _) => Some([d.position.x, d.position.y, d.position.z]),
-                    (None, Some(s)) => Some([s.position.x, s.position.y, s.position.z]),
+                    (None, Some(s)) => Some([s.x, s.y, s.z]),
                     (None, None)
                         if self
                             .remote
@@ -3628,8 +3636,12 @@ impl Game<'_> {
                     .find(|s| s.id == p.item as u32)
                     .cloned()
                 {
-                    // An arrow or trident flies to its collector too, then goes.
+                    // An arrow flies to its collector too, then goes.
                     self.add_pickup(super::pickups::Taken::Arrow(Box::new(shot)), collector);
+                } else if let Some(i) = self.tridents.iter().position(|t| t.id == p.item as u32) {
+                    // So does a trident: a server's client keeps them apart.
+                    let trident = self.tridents.remove(i);
+                    self.add_pickup(super::pickups::Taken::Trident(Box::new(trident)), collector);
                 }
                 // An orb stays: the server may still hold merged ones in it.
                 if !orb {
@@ -5524,6 +5536,10 @@ impl Game<'_> {
         } else {
             Keys::default()
         };
+        // The held lead's end eases from the look at the start of the tick
+        // (`yRotO`/`xRotO`), as the local tick does; `tick` returns before it
+        // reaches its own write when this window is a server client.
+        self.rope_rot_old = (self.yaw, self.pitch);
         // A passenger moves with its vehicle (Entity.rideTick), not by itself.
         let riding = self.screen != Screen::Dead && self.remote_ride(keys);
         // The server sends no passenger's position: they sit where their
