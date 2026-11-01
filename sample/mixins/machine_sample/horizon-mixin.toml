@@ -1,0 +1,14 @@
+[mod]
+id = "machine_sample"
+version = "0.1.0"
+priority = 100
+
+[compatibility]
+horizon_revision = "8dc3e7fbc5c5592a71adf3607f782bb77018f670"
+
+[[injection]]
+id = "camera_test"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_camera_distance"
+helper = "camera.rs"
+bindings = [{ name = "mirrored", ty = "bool", value = "mirrored" }, { name = "entity", ty = "&horizon_client::camera::CameraEntity", value = "entity" }, { name = "distance", ty = "&mut f32", value = "distance" }]
