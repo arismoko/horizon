@@ -89,7 +89,6 @@ pub struct NativeStack {
 }
 
 /// What the player did on a native mod's panel (`native_panel_event`).
-#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum NativePanelEvent {
     /// A click on an item of the panel, by its index in
