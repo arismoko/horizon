@@ -13373,14 +13373,25 @@ impl Game<'_> {
         let abilities = self.chat_abilities();
         self.ui.chat.set_abilities(&self.gui.atlas.font, abilities);
         self.streaming.radius = self.settings.render_distance;
-        // Options.biomeBlendRadius, ambientOcclusion and cutoutLeaves:
-        // LevelExtractor.allChanged when they change.
+        // Options.biomeBlendRadius, ambientOcclusion, cutoutLeaves and the
+        // leaf-culling mode: LevelExtractor.allChanged when they change.
+        let leaf_culling = self.effective_leaf_culling();
         let (s, st) = (&self.settings, &self.streaming);
-        let remesh = (s.biome_blend, s.smooth_lighting, s.cutout_leaves)
-            != (st.biome_blend, st.smooth_lighting, st.cutout_leaves);
+        let remesh = (
+            s.biome_blend,
+            s.smooth_lighting,
+            s.cutout_leaves,
+            leaf_culling,
+        ) != (
+            st.biome_blend,
+            st.smooth_lighting,
+            st.cutout_leaves,
+            st.leaf_culling,
+        );
         self.streaming.biome_blend = self.settings.biome_blend;
         self.streaming.smooth_lighting = self.settings.smooth_lighting;
         self.streaming.cutout_leaves = self.settings.cutout_leaves;
+        self.streaming.leaf_culling = leaf_culling;
         if remesh {
             self.all_sections_changed();
         }
