@@ -1,9 +1,8 @@
 use super::{BlockStateId, Game};
 use horizon_client::mod_api::BlockPos;
 use horizon_world::level::Ticks;
-mod generated {
-    include!("mod_api_host_generated.rs");
-}
+#[path = "mod_api_host_generated.rs"]
+mod generated;
 
 impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
     fn block_state(&self, pos: [i32; 3]) -> BlockStateId {
