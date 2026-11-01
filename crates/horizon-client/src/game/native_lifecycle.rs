@@ -37,8 +37,8 @@ impl OpenAttempt {
     fn context(&self) -> NativeLifecycleContext {
         NativeLifecycleContext {
             authority: self.authority,
-            epoch: NativeWorldEpoch(self.epoch),
-            tick: NativeTickId(self.ticks),
+            epoch: NativeWorldEpoch::new(self.epoch),
+            tick: NativeTickId::new(self.ticks),
         }
     }
 }
@@ -299,7 +299,7 @@ mod tests {
         let mut lifecycle = opening();
         let context = lifecycle.world_open_ready().expect("the first ready fires");
         assert_eq!(context.authority, NativeAuthority::IntegratedServer);
-        assert!(context.epoch.0 >= 1, "the epoch is globally allocated");
+        assert!(context.epoch.get() >= 1, "the epoch is globally allocated");
         assert!(lifecycle.world_open_ready().is_none(), "at most once");
     }
 
@@ -312,7 +312,7 @@ mod tests {
         assert!(lifecycle.server_tick_start(true).is_none());
         lifecycle.begin_open(NativeAuthority::IntegratedServer);
         let context = lifecycle.world_open_ready().expect("the retry opens fresh");
-        assert!(context.epoch.0 > failed_epoch.0, "a fresh epoch");
+        assert!(context.epoch.get() > failed_epoch.get(), "a fresh epoch");
     }
 
     #[test]
@@ -321,7 +321,7 @@ mod tests {
         lifecycle.world_open_ready();
         lifecycle.begin_close();
         let context = lifecycle.world_close_final().expect("the close fires");
-        assert!(context.epoch.0 >= 1);
+        assert!(context.epoch.get() >= 1);
         assert!(
             lifecycle.world_close_final().is_none(),
             "a repeated close request is a no-op"
