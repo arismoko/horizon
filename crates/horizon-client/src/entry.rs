@@ -37,7 +37,9 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         log::info!("Horizon {}", crash::version());
         crash::install(home.clone(), side);
     }
-    crate::mod_api::install_mods(mods);
+    if crate::mod_api::MODS.set(mods).is_err() {
+        log::warn!("Trait mods already installed; ignoring the second list");
+    }
     raise_open_file_limit();
     if let Err(error) = game::run_with() {
         // A bad command line is the caller's mistake, not a crash: no report.
