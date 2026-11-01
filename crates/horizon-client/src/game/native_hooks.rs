@@ -296,6 +296,7 @@ use horizon_client::{
     keybinds,
     mobs::{Damage, Who},
     mod_list::{self, Installed, NativePage},
+    music::{Music, MusicLayer},
     particles::{ParticleOptions, ParticleType},
     text::Text,
 };
@@ -1303,6 +1304,29 @@ impl Game<'_> {
     /// one that pack is for. Asked once a frame while a pack is on; a value
     /// that isn't finite reads as 0 (`native_shader_params_now`). API
     /// @API:native_shader_params@.
+    /// Choose this client's music, once a client tick: `music` and `volume`
+    /// hold what vanilla chose (`Minecraft.getSituationalMusic` and
+    /// `getMusicVolume`: the biome's track, the creative or underwater one, a
+    /// boss's, the menu's; None for silence). Set `music` to a track of your
+    /// own, a sound event of your content mod's `sounds.json` such as
+    /// `Music::new("mymod:music.spring", 1200, 6000, false)` (the delays in
+    /// ticks between songs, and whether it cuts off a different song playing),
+    /// None to keep vanilla's quiet, or change `volume` (0 to 1) to fade it. API
+    /// @API:music@.
+    pub(super) fn native_music(&self, music: &mut Option<Music>, volume: &mut f32) {
+        let _ = (music, volume);
+    }
+    /// The tracks to play over (or instead of) the music on this client,
+    /// asked once a client tick: push a `MusicLayer` (a sound event, looped,
+    /// and its volume, 0 to 1) for each. A layer eases to a new volume over up
+    /// to two seconds, and one left out fades out and stops; layers that
+    /// first appear in the same tick start together, so list every stem of a
+    /// piece from the start, the silent ones at volume 0, and raise them (a
+    /// fuller arrangement as a village grows). Their sound events should be
+    /// `stream: true` in `sounds.json`. API @API:music@.
+    pub(super) fn native_music_layers(&self, layers: &mut Vec<MusicLayer>) {
+        let _ = layers;
+    }
     pub(super) fn native_shader_params(&self, partial: f32, params: &mut [[f32; 4]; 8]) {
         let _ = (partial, params);
     }
