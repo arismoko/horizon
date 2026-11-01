@@ -346,7 +346,14 @@ impl GameLevel<'_> {
         old: BlockStateId,
         new: BlockStateId,
     ) {
-        let _ = (dimension, pos, old, new);
+        horizon_client::mod_api::dispatch_block_changed(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            old,
+            new,
+        );
     }
 
     /// An authoritative server is about to deliver `neighborChanged`.
@@ -360,7 +367,15 @@ impl GameLevel<'_> {
         changed: BlockId,
         moved: bool,
     ) {
-        let _ = (dimension, pos, state, changed, moved);
+        horizon_client::mod_api::dispatch_neighbor_changed(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            changed,
+            moved,
+        );
     }
 
     /// On an authoritative server, a fluid flows or fire spreads from `from`
@@ -377,7 +392,15 @@ impl GameLevel<'_> {
         to: BlockPos,
         canceled: &mut bool,
     ) {
-        let _ = (dimension, kind, from, to, canceled);
+        horizon_client::mod_api::dispatch_block_spread(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            kind,
+            from,
+            to,
+            canceled,
+        );
     }
 
     /// On an authoritative server, the piston at `piston` is about to push
@@ -397,7 +420,16 @@ impl GameLevel<'_> {
         destroy: &[BlockPos],
         canceled: &mut bool,
     ) {
-        let _ = (dimension, piston, direction, push, destroy, canceled);
+        horizon_client::mod_api::dispatch_piston_move(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            piston,
+            direction,
+            push,
+            destroy,
+            canceled,
+        );
     }
     /// The redstone signal the block `state` at `pos` gives on its `face`, the
     /// side that touches the block reading it: `BlockState.getDirectSignal`
@@ -418,7 +450,16 @@ impl GameLevel<'_> {
         direct: bool,
         signal: &mut i32,
     ) {
-        let _ = (dimension, pos, state, face, direct, signal);
+        horizon_client::mod_api::dispatch_block_signal(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            face,
+            direct,
+            signal,
+        );
     }
 
     /// `BlockState.isSignalSource`: set `source` for a block of yours that
@@ -426,7 +467,12 @@ impl GameLevel<'_> {
     /// servers only. API 38.
     #[inline(always)]
     pub(super) fn native_is_signal_source(&self, state: BlockStateId, source: &mut bool) {
-        let _ = (state, source);
+        horizon_client::mod_api::dispatch_is_signal_source(
+            self,
+            horizon_client::mod_api::mods(),
+            state,
+            source,
+        );
     }
 
     /// `BlockState.hasAnalogOutputSignal`: set `output` for a block of yours
@@ -480,7 +526,14 @@ impl GameLevel<'_> {
         state: BlockStateId,
         handled: &mut bool,
     ) {
-        let _ = (ticks, dimension, pos, state, handled);
+        horizon_client::mod_api::dispatch_random_tick(
+            &mut super::mod_api_host::LevelTicks { level: self, ticks },
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            handled,
+        );
     }
 
     /// An authoritative server is about to compute the state the block
@@ -509,8 +562,9 @@ impl GameLevel<'_> {
         neighbour: BlockStateId,
         new: &mut Option<BlockStateId>,
     ) {
-        let _ = (
-            ticks,
+        horizon_client::mod_api::dispatch_update_shape(
+            &mut super::mod_api_host::LevelTicks { level: self, ticks },
+            horizon_client::mod_api::mods(),
             dimension,
             pos,
             state,
@@ -575,7 +629,14 @@ impl GameLevel<'_> {
         state: BlockStateId,
         handled: &mut bool,
     ) {
-        let _ = (ticks, dimension, pos, state, handled);
+        horizon_client::mod_api::dispatch_tick_block(
+            &mut super::mod_api_host::LevelTicks { level: self, ticks },
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            handled,
+        );
     }
 
     /// A block is about to take the state it is placed in

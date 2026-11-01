@@ -97,6 +97,119 @@ pub trait Hooks: Send + Sync {
         let _ = host;
         let _ = dimension;
     }
+    /// An authoritative server committed a changed state through `Level.setBlock`.
+    /// The world contains `new`; block side effects and neighbour updates follow.
+    fn block_changed(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        old: BlockStateId,
+        new: BlockStateId,
+    ) {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = old;
+        let _ = new;
+    }
+    /// An authoritative server is about to deliver `neighborChanged`.
+    /// State and block IDs are valid in this level's registries for this call.
+    fn neighbor_changed(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+        changed: BlockId,
+        moved: bool,
+    ) {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        let _ = changed;
+        let _ = moved;
+    }
+    /// An authoritative server's `ServerLevel.tickChunk` is about to
+    /// random-tick the block `state` at `pos` (`BlockState.randomTick`):
+    /// only blocks that tick randomly, a mod's as its vanilla template block
+    /// does. Bone meal's random ticks (`StemBlock.performBonemeal`) don't
+    /// fire it. Change the block with `native_set_block_property` and set
+    /// `handled` to skip the block's own random tick (a mod crop growing its
+    /// own way); a block changed without `handled` takes its own random tick
+    /// as it is now, if it still ticks randomly. Lava's fluid random tick
+    /// runs either way.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `handled`, and later mods are skipped.
+    fn random_tick(
+        &self,
+        level: &mut dyn LevelWriteHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) -> Flow {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        Flow::Continue
+    }
+    /// An authoritative server's `ServerLevel.tickBlock` is about to run a
+    /// due scheduled tick of the block `state` at `pos` (`BlockState.tick`):
+    /// the block is still the one the tick was scheduled for. Change the
+    /// block with `native_set_block_property` and set `handled` to skip the
+    /// block's own tick; a block changed without `handled` takes its own
+    /// tick as it is now, if it is still the tick's block.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `handled`, and later mods are skipped.
+    fn tick_block(
+        &self,
+        level: &mut dyn LevelWriteHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) -> Flow {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        Flow::Continue
+    }
+    /// An authoritative server is about to compute the state the block
+    /// `state` at `pos` takes now that its neighbour in `direction` is
+    /// `neighbour` (`BlockBehaviour.updateShape`). `state` may not be in the
+    /// world yet (a piston landing it): decide from `state`, not from the
+    /// block at `pos`. Answer only for your own blocks: put the new state in
+    /// `new` (`state` keeps the block as it is; air breaks it, with its drops,
+    /// on a neighbour update) and the block's own `updateShape` doesn't run,
+    /// nor the ticks it would schedule. The level is read-only, as vanilla's
+    /// `LevelReader`; ticks go through `native_schedule_block_tick` and
+    /// `native_schedule_fluid_tick` with `ticks` (`ScheduledTickAccess`). It
+    /// runs often, at least six times per `setBlock` that updates shapes
+    /// (more for redstone wire's diagonals and knock-on updates): keep it
+    /// short.
+    ///
+    /// Return `Some` to set `new`; the first mod returning `Some` wins.
+    fn update_shape(
+        &self,
+        level: &mut dyn LevelTicksHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+        direction: Direction,
+        neighbour_pos: BlockPos,
+        neighbour: BlockStateId,
+    ) -> Option<BlockStateId> {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        let _ = direction;
+        let _ = neighbour_pos;
+        let _ = neighbour;
+        None
+    }
     /// The HUD (not drawn under F1), after the minimap: place a box with
     /// `corners.place` (boxes stack away from their edge) and draw it with
     /// `native_fill` and `native_text`. Skip a corner `native_corner_shown`
@@ -493,6 +606,54 @@ pub trait Hooks: Send + Sync {
         let _ = face;
         Flow::Continue
     }
+    /// On an authoritative server, a fluid flows or fire spreads from `from`
+    /// into `to` (`kind` is `fluid` or `fire`): `FlowingFluid.spreadTo`, and
+    /// `FireBlock.tick` setting fire to `to` or burning it (`checkBurnOut`).
+    /// Set `canceled` to leave the block at `to` as it is. Fluids ask on
+    /// every flow: answer fast. API 22.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn block_spread(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        kind: &str,
+        from: BlockPos,
+        to: BlockPos,
+    ) -> Flow {
+        let _ = level;
+        let _ = dimension;
+        let _ = kind;
+        let _ = from;
+        let _ = to;
+        Flow::Continue
+    }
+    /// On an authoritative server, the piston at `piston` is about to push
+    /// the blocks at `push` one step `direction` (`[0, 1, 0]` is up; pulling
+    /// when it retracts) and destroy those at `destroy`:
+    /// `PistonBaseBlock.moveBlocks`, once its structure resolved. Set
+    /// `canceled` and nothing moves, as when the structure can't; a sticky
+    /// piston then retracts without its block, and clients are sent the
+    /// blocks rather than the retraction to replay. API 22.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn piston_move(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        piston: BlockPos,
+        direction: [i32; 3],
+        push: &[BlockPos],
+        destroy: &[BlockPos],
+    ) -> Flow {
+        let _ = level;
+        let _ = dimension;
+        let _ = piston;
+        let _ = direction;
+        let _ = push;
+        let _ = destroy;
+        Flow::Continue
+    }
     /// An explosion at `center` in `dimension` (`minecraft:overworld`) is
     /// about to break `blocks`: `ServerExplosion.explode` with its `toBlow`,
     /// before any block is hit. Take out the positions to spare; they keep
@@ -654,6 +815,41 @@ pub trait Hooks: Send + Sync {
         let _ = host;
         let _ = slot;
         let _ = new;
+    }
+    /// The redstone signal the block `state` at `pos` gives on its `face`, the
+    /// side that touches the block reading it: `BlockState.getDirectSignal`
+    /// when `direct` (what passes through a block it touches, as a lever's
+    /// does), else `getSignal`. `signal` holds vanilla's answer: change it when
+    /// the block is yours (0 to 15; anything else is clamped). Asked very often,
+    /// from inside the level's update, so answer from your own state: check the
+    /// block first, and don't read or change the world here. When the answer
+    /// changes, and once the block is placed, call
+    /// `native_update_signal_neighbors`. Authoritative servers only. API 38.
+    fn block_signal(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+        face: Direction,
+        direct: bool,
+        signal: &mut i32,
+    ) {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        let _ = face;
+        let _ = direct;
+        let _ = signal;
+    }
+    /// `BlockState.isSignalSource`: set `source` for a block of yours that
+    /// gives a signal, so redstone wire beside it connects to it. Authoritative
+    /// servers only. API 38.
+    fn is_signal_source(&self, level: &dyn LevelHost, state: BlockStateId, source: &mut bool) {
+        let _ = level;
+        let _ = state;
+        let _ = source;
     }
     /// The player-health HUD rows, once a frame the HUD draws them
     /// (`HealthHud::layout`, not under F1): `inputs` carries the health,
@@ -1048,6 +1244,102 @@ pub fn dispatch_level_tick_post(host: &mut dyn Host, mods: &[Box<dyn Hooks>], di
         mod_hook.level_tick_post(host, dimension);
     }
 }
+pub fn dispatch_block_changed(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    old: BlockStateId,
+    new: BlockStateId,
+) {
+    for mod_hook in mods {
+        mod_hook.block_changed(level, dimension, pos, old, new);
+    }
+}
+pub fn dispatch_neighbor_changed(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    changed: BlockId,
+    moved: bool,
+) {
+    for mod_hook in mods {
+        mod_hook.neighbor_changed(level, dimension, pos, state, changed, moved);
+    }
+}
+pub fn dispatch_random_tick(
+    level: &mut dyn LevelWriteHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    handled: &mut bool,
+) {
+    if *handled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.random_tick(level, dimension, pos, state),
+            Flow::Cancel
+        ) {
+            *handled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_tick_block(
+    level: &mut dyn LevelWriteHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    handled: &mut bool,
+) {
+    if *handled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.tick_block(level, dimension, pos, state),
+            Flow::Cancel
+        ) {
+            *handled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_update_shape(
+    level: &mut dyn LevelTicksHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    direction: Direction,
+    neighbour_pos: BlockPos,
+    neighbour: BlockStateId,
+    new: &mut Option<BlockStateId>,
+) {
+    if new.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.update_shape(
+            level,
+            dimension,
+            pos,
+            state,
+            direction,
+            neighbour_pos,
+            neighbour,
+        ) {
+            *new = Some(replacement);
+            break;
+        }
+    }
+}
 pub fn dispatch_hud(
     host: &mut dyn Host,
     mods: &[Box<dyn Hooks>],
@@ -1439,6 +1731,51 @@ pub fn dispatch_right_click_block(
         }
     }
 }
+pub fn dispatch_block_spread(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    kind: &str,
+    from: BlockPos,
+    to: BlockPos,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.block_spread(level, dimension, kind, from, to),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_piston_move(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    piston: BlockPos,
+    direction: [i32; 3],
+    push: &[BlockPos],
+    destroy: &[BlockPos],
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.piston_move(level, dimension, piston, direction, push, destroy),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
 pub fn dispatch_explosion_detonate(
     host: &mut dyn Host,
     mods: &[Box<dyn Hooks>],
@@ -1603,6 +1940,30 @@ pub fn dispatch_on_equip(
 ) {
     for mod_hook in mods {
         mod_hook.on_equip(host, slot, new);
+    }
+}
+pub fn dispatch_block_signal(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    face: Direction,
+    direct: bool,
+    signal: &mut i32,
+) {
+    for mod_hook in mods {
+        mod_hook.block_signal(level, dimension, pos, state, face, direct, &mut *signal);
+    }
+}
+pub fn dispatch_is_signal_source(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    state: BlockStateId,
+    source: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.is_signal_source(level, state, &mut *source);
     }
 }
 pub fn dispatch_health_hud(
