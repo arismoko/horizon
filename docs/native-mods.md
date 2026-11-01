@@ -1257,7 +1257,11 @@ state with interior mutability so these calls can share the instance safely.
 
 The trait includes the hooks marked `mod_api` in `native-hooks.json`. These include
 `tick`, the server lifecycle, player action, menu, block entity, entity, mob, effect,
-chunk and player hooks, plus client frame, rendering, UI and input hooks.
+chunk and player hooks, plus `frame`, `visuals`, `emissive`, `hud`, `key`, `wheel`,
+`command`, `commands`, `minimap`, `mods`, `settings`, `settings_click`, `panel_event`,
+`screen`, `screen_draw`, `screen_click`, `screen_tooltip`, `health_hud`, `item_bar` and
+`net_from_server`, component registration, dispenser, tooltip component, block entity bounds,
+block contact, consumption, loot drops, enchantment effects and screen render and mouse hooks.
 Level hooks use access-specific hosts rather than `Host`. `LevelHost` provides
 `block_state` through `LevelAccess::block_state`, client-side detection and
 `state_with_property`. `LevelRandomHost` provides vanilla's `Level.random` so
@@ -1269,11 +1273,8 @@ the tick queue; mods do not pass it back to these helpers.
 The following catalog hooks are not in the trait yet:
 
 - `world_drawn` and `render_needs` need a renderer trait.
-- `component_types`, `dispense_item`, `tooltip_component`, `tooltip_component_draw`,
-  `block_entity_submit`, `block_entity_render_bounding_box`, `block_step_on`,
-  `block_entity_inside`, `block_fall_on`, `consume_effect`, `loot_table_load`, `loot_drops`,
-  `enchant_effect`, `screen_render_post`, `modify_default_components`,
-  `screen_mouse_button_pressed_pre` and `screen_mouse_button_released_pre` will join a later slice.
+- `block_entity_submit` needs a renderer trait.
+- `loot_table_load` and `modify_default_components` need a world-owned callback boundary.
 - Newly added upstream hooks `player_command`, `perform_console_command`, `item_decorations`,
   `client_resources_reloaded`, `camera_shake`, `screen_key_pressed_pre`, `screen_char_typed_pre`,
   `screen_mouse_scrolled_pre`, `use_duration`, `use_animation`, `can_eat`,

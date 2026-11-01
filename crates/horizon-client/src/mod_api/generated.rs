@@ -1210,6 +1210,65 @@ pub trait Hooks: Send + Sync {
         let _ = face;
         let _ = output;
     }
+    /// Register namespaced NBT component types before content loads.
+    ///
+    /// Every mod gets `types` in order and may add, change or remove types.
+    fn component_types(&self, types: &mut Vec<String>) {
+        let _ = types;
+    }
+    /// `DispenserBlock.getDispenseMethod`: choose a behaviour for any item,
+    /// including vanilla items, on the authoritative server (not droppers).
+    /// Leave answer None for vanilla. Otherwise answer `(remainder, event)`:
+    /// a remainder of None empties the slot, `Some(stack)` replaces it (the hook
+    /// owns consumption: no extra item is removed afterwards). `event` is the
+    /// level event the dispenser plays with its smoke: 1000 the click, 1001 the
+    /// fail sound (`OptionalDispenseItemBehavior` without success), or 0 for
+    /// nothing at all (`DispenseItemBehavior.NOOP`). To drop one normally,
+    /// answer `(native_dispense_default(..), 1000)`. API 67.
+    ///
+    /// Return `Some` to set `answer`; the first mod returning `Some` wins.
+    fn dispense_item(
+        &self,
+        host: &mut dyn Host,
+        dimension: &str,
+        pos: [i32; 3],
+        facing: Direction,
+        stack: &ItemStack,
+    ) -> Option<NativeDispensed> {
+        let _ = host;
+        let _ = dimension;
+        let _ = pos;
+        let _ = facing;
+        let _ = stack;
+        None
+    }
+    /// Client-side image component for this stack's tooltip. Answer its width/height
+    /// in GUI pixels; finite positive dimensions reserve space after text and any
+    /// vanilla bundle component. None keeps the vanilla tooltip unchanged.
+    ///
+    /// Return `Some` to set `size`; the first mod returning `Some` wins.
+    fn tooltip_component(&self, host: &dyn Host, stack: &ItemStack) -> Option<[f32; 2]> {
+        let _ = host;
+        let _ = stack;
+        None
+    }
+    /// Render the measured component at origin, inside the tooltip background.
+    /// Stack is the component's data. Use native_sprite/native_fill/native_text;
+    /// size is the measurement returned by native_tooltip_component this frame.
+    fn tooltip_component_draw(
+        &self,
+        host: &dyn Host,
+        stack: &ItemStack,
+        batch: &mut HudBatch,
+        origin: [f32; 2],
+        size: [f32; 2],
+    ) {
+        let _ = host;
+        let _ = stack;
+        let _ = batch;
+        let _ = origin;
+        let _ = size;
+    }
     /// On an authoritative server, `BlockState.canSurvive` for `state` at
     /// `pos` (`BlockBehaviour.canSurvive`), before the block answers it: as
     /// it is placed (`BlockItem.canPlace`), from a shape update of a block
@@ -1257,6 +1316,31 @@ pub trait Hooks: Send + Sync {
         let _ = ground;
         let _ = ground_pos;
         None
+    }
+    /// Where the mod block entity at `pos` draws, for culling
+    /// (NeoForge's `getRenderBoundingBox`): `bounds` is min x, y, z then max
+    /// x, y, z, in blocks from the block's lower north-west corner. It starts
+    /// as the block with a block of margin around it; widen it when your
+    /// `native_block_entity_submit` draws further (a tall shaft, a beam), or
+    /// set an infinite value for one never culled. Asked once a frame for each
+    /// within 64 blocks whose chunk is drawn. API 71.
+    ///
+    /// Every mod gets `bounds` in order and may add, change or remove bounds.
+    fn block_entity_render_bounding_box(
+        &self,
+        host: &dyn Host,
+        pos: [i32; 3],
+        block: &str,
+        state: BlockStateId,
+        entity: &ModBlockEntity,
+        bounds: &mut [f32; 6],
+    ) {
+        let _ = host;
+        let _ = pos;
+        let _ = block;
+        let _ = state;
+        let _ = entity;
+        let _ = bounds;
     }
     /// A block nothing in Horizon knows a `BonemealableBlock` for is about to
     /// take bone meal: vanilla's `BonemealableBlock.isValidBonemealTarget`,
@@ -1327,6 +1411,102 @@ pub trait Hooks: Send + Sync {
         let _ = pos;
         let _ = state;
     }
+    /// `Block.stepOn` for a mod block, on its authoritative server level.
+    /// No self: the simulation owns the entity during this callback.
+    fn block_step_on(
+        &self,
+        dimension: &str,
+        entity: i32,
+        kind: &str,
+        state: BlockStateId,
+        position: [i32; 3],
+    ) {
+        let _ = dimension;
+        let _ = entity;
+        let _ = kind;
+        let _ = state;
+        let _ = position;
+    }
+    /// `Block.entityInside` for each mod block touched along the entity's movement.
+    /// Repeated sweep hits in one contact pass are suppressed; idle overlap still fires.
+    fn block_entity_inside(
+        &self,
+        dimension: &str,
+        entity: i32,
+        kind: &str,
+        state: BlockStateId,
+        position: [i32; 3],
+    ) {
+        let _ = dimension;
+        let _ = entity;
+        let _ = kind;
+        let _ = state;
+        let _ = position;
+    }
+    /// `Block.fallOn` for a mod block. Change calculated damage before generic fall sounds
+    /// and hurt handling; zero prevents both. Creative and fall-immune entities
+    /// notify with zero damage and retain their immunity. Server-side only.
+    ///
+    /// Every mod gets `damage` in order and may add, change or remove damage.
+    fn block_fall_on(
+        &self,
+        dimension: &str,
+        entity: i32,
+        kind: &str,
+        state: BlockStateId,
+        position: [i32; 3],
+        distance: f64,
+        damage: &mut f32,
+    ) {
+        let _ = dimension;
+        let _ = entity;
+        let _ = kind;
+        let _ = state;
+        let _ = position;
+        let _ = distance;
+        let _ = damage;
+    }
+    /// A consumable's effect of a mod's own kind: the item's `on_consume_effects`
+    /// entry is of a type in a namespace of its own, and the loader kept it
+    /// for this call. The kind and the JSON the file wrote are here; the acting
+    /// player is the one consuming, and the game's own effects,
+    /// sounds, teleports and drops are open. An unclaimed kind does
+    /// nothing. API 74.
+    fn consume_effect(&self, host: &mut dyn Host, kind: &str, data: &serde_json::Value) {
+        let _ = host;
+        let _ = kind;
+        let _ = data;
+    }
+    /// A block broke or a mob died, and `drops` are the items about to drop, in
+    /// the order they drop: what the loot tables rolled (after
+    /// `native_loot_table_load`'s changes), and for a mob what it wore, held or
+    /// carried (a fox's mouth item, an allay's, piglin's or horse's inventory),
+    /// but not an enderman's carried block or a copper golem's preserved
+    /// equipment, which drop after. A charged creeper's head and a fox's mouth
+    /// item come before the mob's own table. A block's stacks get its block
+    /// entity's data (a shulker box's items) after this. Add, change or take out
+    /// stacks; empty ones don't drop (NeoForge's global loot modifiers, Fabric's
+    /// `LootTableEvents.MODIFY_DROPS`); `context` says what dropped them and
+    /// how, and it is called even when `drops` is empty. A player's use drops
+    /// through it too (`NativeLootDrops::used`: shears, a brush, an item
+    /// frame), with that player named. It hears blocks that a
+    /// player, an explosion or a mob breaks, not other breaks (leaves decaying,
+    /// a torch losing its wall, a piston, `/setblock ... destroy`), nor a
+    /// creative break or a tool that can't harvest the block, nor experience.
+    /// Server-side, for every player. API
+    /// 75.
+    ///
+    /// Every mod gets `drops` in order and may add, change or remove drops.
+    fn loot_drops(
+        &self,
+        host: &mut dyn Host,
+        context: &NativeLootDrops<'_>,
+        drops: &mut Vec<ItemStack>,
+    ) {
+        let _ = host;
+        let _ = context;
+        let _ = drops;
+    }
     /// A block is about to take the state it is placed in
     /// (`Block.getStateForPlacement(BlockPlaceContext)`), `state` the block's
     /// own default state. Answer only for your blocks: put the state you want
@@ -1362,6 +1542,115 @@ pub trait Hooks: Send + Sync {
         let _ = context;
         let _ = fluid;
         None
+    }
+    /// A `minecraft:post_attack` effect of a mod's own kind, on a mob a
+    /// player's weapon hit: the entry says `enchanted` attacker and `affected`
+    /// victim, its `requirements` passed, and its `effect` names a `type` in a
+    /// namespace outside `minecraft:`. Told the enchantment id, the kind, the
+    /// `effect` JSON, the level and the mob's id (it may have just died). The
+    /// acting player is the one whose weapon carries the enchantment. Each
+    /// such entry is told once a hit, and once for each mob a sweep lands on.
+    /// A hit on a player, and an entry inside `minecraft:all_of`, aren't told
+    /// yet. An unclaimed kind does nothing. API 77.
+    fn enchant_effect(
+        &self,
+        host: &mut dyn Host,
+        enchantment: &str,
+        kind: &str,
+        data: &serde_json::Value,
+        level: u32,
+        victim: u32,
+    ) {
+        let _ = host;
+        let _ = enchantment;
+        let _ = kind;
+        let _ = data;
+        let _ = level;
+        let _ = victim;
+    }
+    /// The open screen has drawn itself and its tooltips (`Screen.render`,
+    /// the point of `ScreenEvent.Render.Post`): draw over it with
+    /// `native_fill`, `native_sprite` and `native_text`, `screen.rect` being
+    /// its container panel (or the whole window) and `screen.id` the screen
+    /// it is. Once a frame on the window, never while playing with no screen;
+    /// `&self`, so it reads and draws only. The Win and Options screens call
+    /// it on their own path, after their drawing.
+    /// It does not fire on the title screen, which returns before its point,
+    /// nor for the screens drawn over gameplay after it (a server dialog, the
+    /// server pack, link and code-of-conduct prompts, a book, a sign editor):
+    /// those keep `Screen::Playing`, which it skips, and draw over what it
+    /// drew, while vanilla's `ScreenEvent.Render.Post` fires for them.
+    /// API 78.
+    fn screen_render_post(
+        &self,
+        host: &dyn Host,
+        batch: &mut HudBatch,
+        screen: &NativeScreenView<'_>,
+    ) {
+        let _ = host;
+        let _ = batch;
+        let _ = screen;
+    }
+    /// A mouse button went down over the open screen
+    /// (`ScreenEvent.MouseButtonPressed.Pre`, vanilla's
+    /// `Screen.mouseClicked`): `screen` is the screen it is, `screen.mouse`
+    /// where the pointer is (so there is no position of its own), `button` the
+    /// button's GLFW index (0 left, 1 right, 2 middle, 3 back, 4 forward; a
+    /// button past those is the platform's own number, which differs between
+    /// systems) and `modifiers` GLFW's bits (shift 1, control 2,
+    /// alt 4, super 8). Set `canceled` and the press goes no further: no slot,
+    /// no screen button, no drag, no hotbar key, no sort or header button.
+    /// It fires before anything the screen does with the press, on the window
+    /// only, and only while a screen of the game's is open (Options and the
+    /// pack list opened from the title screen count, with no player and no
+    /// `menu`). It does not fire on the title screen itself, the connect and
+    /// loading screens, nor for a server
+    /// dialog, the server pack, link and code-of-conduct prompts, a book or a
+    /// sign editor drawn over gameplay, nor while a world loads or saves: the
+    /// click there stays the game's own. A gamepad click or a click the
+    /// keyboard's focus sends is not the mouse and fires nothing.
+    /// API 80.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn screen_mouse_button_pressed_pre(
+        &self,
+        host: &dyn Host,
+        screen: &NativeScreenView<'_>,
+        button: i32,
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = screen;
+        let _ = button;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// A mouse button went up over the open screen
+    /// (`ScreenEvent.MouseButtonReleased.Pre`, vanilla's
+    /// `Screen.mouseReleased`), with the same `screen`, `button` and
+    /// `modifiers` as `native_screen_mouse_button_pressed_pre` and fired at
+    /// the same point. Set `canceled` and the release goes no further: a
+    /// pressed slot keeps what it took and no drag, slider or scrollbar lets
+    /// go.
+    /// Cancel a release only when the press it ends was cancelled too: a
+    /// release the screen took ends the drag or the scroll it began, as it
+    /// does in vanilla, and no guard here un-cancels it. Same screens as the
+    /// press; a press that opened another screen ends on that one.
+    /// API 80.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn screen_mouse_button_released_pre(
+        &self,
+        host: &dyn Host,
+        screen: &NativeScreenView<'_>,
+        button: i32,
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = screen;
+        let _ = button;
+        let _ = modifiers;
+        Flow::Continue
     }
 }
 pub fn dispatch_frame(host: &mut dyn Host, mods: &[Box<dyn Hooks>], elapsed: Duration) {
@@ -2444,6 +2733,58 @@ pub fn dispatch_analog_output(
         mod_hook.analog_output(level, dimension, pos, state, face, &mut *output);
     }
 }
+pub fn dispatch_component_types(mods: &[Box<dyn Hooks>], types: &mut Vec<String>) {
+    for mod_hook in mods {
+        mod_hook.component_types(&mut *types);
+    }
+}
+pub fn dispatch_dispense_item(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    pos: [i32; 3],
+    facing: Direction,
+    stack: &ItemStack,
+    answer: &mut Option<NativeDispensed>,
+) {
+    if answer.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.dispense_item(host, dimension, pos, facing, stack) {
+            *answer = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_tooltip_component(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    size: &mut Option<[f32; 2]>,
+) {
+    if size.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.tooltip_component(host, stack) {
+            *size = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_tooltip_component_draw(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    batch: &mut HudBatch,
+    origin: [f32; 2],
+    size: [f32; 2],
+) {
+    for mod_hook in mods {
+        mod_hook.tooltip_component_draw(host, stack, &mut *batch, origin, size);
+    }
+}
 pub fn dispatch_can_survive(
     level: &dyn LevelHost,
     mods: &[Box<dyn Hooks>],
@@ -2481,6 +2822,19 @@ pub fn dispatch_may_place_on(
             *may = Some(replacement);
             break;
         }
+    }
+}
+pub fn dispatch_block_entity_render_bounding_box(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    pos: [i32; 3],
+    block: &str,
+    state: BlockStateId,
+    entity: &ModBlockEntity,
+    bounds: &mut [f32; 6],
+) {
+    for mod_hook in mods {
+        mod_hook.block_entity_render_bounding_box(host, pos, block, state, entity, &mut *bounds);
     }
 }
 pub fn dispatch_is_valid_bonemeal_target(
@@ -2524,6 +2878,72 @@ pub fn dispatch_perform_bonemeal(
         mod_hook.perform_bonemeal(level, dimension, pos, state);
     }
 }
+pub fn dispatch_block_step_on(
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    entity: i32,
+    kind: &str,
+    state: BlockStateId,
+    position: [i32; 3],
+) {
+    for mod_hook in mods {
+        mod_hook.block_step_on(dimension, entity, kind, state, position);
+    }
+}
+pub fn dispatch_block_entity_inside(
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    entity: i32,
+    kind: &str,
+    state: BlockStateId,
+    position: [i32; 3],
+) {
+    for mod_hook in mods {
+        mod_hook.block_entity_inside(dimension, entity, kind, state, position);
+    }
+}
+pub fn dispatch_block_fall_on(
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    entity: i32,
+    kind: &str,
+    state: BlockStateId,
+    position: [i32; 3],
+    distance: f64,
+    damage: &mut f32,
+) {
+    for mod_hook in mods {
+        mod_hook.block_fall_on(
+            dimension,
+            entity,
+            kind,
+            state,
+            position,
+            distance,
+            &mut *damage,
+        );
+    }
+}
+pub fn dispatch_consume_effect(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    kind: &str,
+    data: &serde_json::Value,
+) {
+    for mod_hook in mods {
+        mod_hook.consume_effect(host, kind, data);
+    }
+}
+pub fn dispatch_loot_drops(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    context: &NativeLootDrops<'_>,
+    drops: &mut Vec<ItemStack>,
+) {
+    for mod_hook in mods {
+        mod_hook.loot_drops(host, context, &mut *drops);
+    }
+}
 pub fn dispatch_state_for_placement(
     level: &dyn LevelHost,
     mods: &[Box<dyn Hooks>],
@@ -2541,6 +2961,71 @@ pub fn dispatch_state_for_placement(
             mod_hook.state_for_placement(level, dimension, state, context, fluid)
         {
             *answer = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_enchant_effect(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    enchantment: &str,
+    kind: &str,
+    data: &serde_json::Value,
+    level: u32,
+    victim: u32,
+) {
+    for mod_hook in mods {
+        mod_hook.enchant_effect(host, enchantment, kind, data, level, victim);
+    }
+}
+pub fn dispatch_screen_render_post(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    batch: &mut HudBatch,
+    screen: &NativeScreenView<'_>,
+) {
+    for mod_hook in mods {
+        mod_hook.screen_render_post(host, &mut *batch, screen);
+    }
+}
+pub fn dispatch_screen_mouse_button_pressed_pre(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    screen: &NativeScreenView<'_>,
+    button: i32,
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.screen_mouse_button_pressed_pre(host, screen, button, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_screen_mouse_button_released_pre(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    screen: &NativeScreenView<'_>,
+    button: i32,
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.screen_mouse_button_released_pre(host, screen, button, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
             break;
         }
     }
