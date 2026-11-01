@@ -216,61 +216,45 @@
 //! either (`tests::hook_points_stay_hookable`).
 use super::native_lifecycle::{NativeLifecycleContext, ServerTickPhase, WorldPhase};
 use super::{
-    Game, GameLevel, LevelDimension, Screen,
-    execution_role::ExecutionRole,
-    native_block_entity_draw::BlockEntityDraw,
-    native_panel_recipes::RecipePage,
+    Game, GameLevel, LevelDimension, Screen, execution_role::ExecutionRole,
+    native_block_entity_draw::BlockEntityDraw, native_panel_recipes::RecipePage,
     native_server::{NativeCommand, NativeServerPlayer},
 };
 use horizon_client::{
-    atlas_sources::qualified,
-    block_entities::Pos,
-    chat::ChatSource,
+    atlas_sources::qualified, block_entities::Pos, chat::ChatSource,
     containers::{BlockEntity, MOD_MENUS, ModBlockEntity, ModContainer, ModFluidTanks},
     crafting::{CustomRecipe, Ingredient, recipe_result},
-    extras::Corner,
-    extras_hud::Corners,
-    fast_hash::FxHashMap,
+    extras::Corner, extras_hud::Corners, fast_hash::FxHashMap,
     health::{HurtSource, Hurting},
     hud::{HudBatch, rgba},
-    items::ItemStack,
-    keybinds,
-    mobs::{Damage, Who},
+    items::ItemStack, keybinds, mobs::{Damage, Who},
     mod_list::{self, Installed, NativePage},
     particles::{ParticleOptions, ParticleType},
     text::Text,
 };
 use horizon_core::{
-    geometry::Direction,
-    position::BlockPos,
-    ticks::{ScheduleResult, TickPriority},
+    geometry::Direction, position::BlockPos, ticks::{ScheduleResult, TickPriority},
 };
 use horizon_world::{
     fluid::{FluidKind, FluidState},
     level::{BlockId, LevelAccess, PlacementContext, Ticks},
-    nbt::Compound,
-    registry::{BlockRegistry, BlockStateId},
+    nbt::Compound, registry::{BlockRegistry, BlockStateId},
 };
 use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
+    fs, path::{Path, PathBuf},
+    sync::Arc, time::Duration,
 };
 use winit::{event::MouseButton, keyboard::KeyCode};
-
 /// `Level.setBlock`'s flags, for the `native_set_block_property` helpers:
 /// `flags::UPDATE_CLIENTS` as a vanilla crop grows, `flags::UPDATE_ALL` as a
 /// furnace sets its `lit`. Horizon sends every write to players, so
 /// `UPDATE_CLIENTS`, `UPDATE_INVISIBLE` and `UPDATE_IMMEDIATE` change nothing
 /// yet.
 pub(super) use horizon_world::level::flags;
-
 /// The hook points' API version. The launcher reads this line from the
 /// source it builds; keep its form.
 #[allow(dead_code)]
 pub(crate) const NATIVE_HOOKS_API: u32 = 62;
-
 impl GameLevel<'_> {
     /// An authoritative server committed a changed state through `Level.setBlock`.
     /// The world contains `new`; block side effects and neighbour updates follow.
@@ -284,7 +268,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, pos, old, new);
     }
-
     /// An authoritative server is about to deliver `neighborChanged`.
     /// State and block IDs are valid in this level's registries for this call.
     #[inline(always)]
@@ -298,7 +281,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, pos, state, changed, moved);
     }
-
     /// On an authoritative server, a fluid flows or fire spreads from `from`
     /// into `to` (`kind` is `fluid` or `fire`): `FlowingFluid.spreadTo`, and
     /// `FireBlock.tick` setting fire to `to` or burning it (`checkBurnOut`).
@@ -315,7 +297,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, kind, from, to, canceled);
     }
-
     /// On an authoritative server, the piston at `piston` is about to push
     /// the blocks at `push` one step `direction` (`[0, 1, 0]` is up; pulling
     /// when it retracts) and destroy those at `destroy`:
@@ -356,25 +337,30 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, pos, state, face, direct, signal);
     }
-
     /// `BlockState.isSignalSource`: set `source` for a block of yours that
     /// gives a signal, so redstone wire beside it connects to it. Authoritative
     /// servers only. API 38.
     #[inline(always)]
-    pub(super) fn native_is_signal_source(&self, state: BlockStateId, source: &mut bool) {
+    pub(super) fn native_is_signal_source(
+        &self,
+        state: BlockStateId,
+        source: &mut bool,
+    ) {
         let _ = (state, source);
     }
-
     /// `BlockState.hasAnalogOutputSignal`: set `output` for a block of yours
     /// that comparators read (how full or far along it is, as a composter's
     /// level), so they ask `native_analog_output`. Asked from inside the
     /// level's update: answer from `state` alone. Authoritative servers only.
     /// API @API:analog_output@.
     #[inline(always)]
-    pub(super) fn native_has_analog_output(&self, state: BlockStateId, output: &mut bool) {
+    pub(super) fn native_has_analog_output(
+        &self,
+        state: BlockStateId,
+        output: &mut bool,
+    ) {
         let _ = (state, output);
     }
-
     /// `BlockState.getAnalogOutputSignal`: the signal a comparator reads from
     /// the block `state` at `pos`, `face` the side that touches the comparator
     /// (or the conductor in front of it). `output` holds vanilla's answer:
@@ -397,7 +383,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, pos, state, face, output);
     }
-
     /// An authoritative server's `ServerLevel.tickChunk` is about to
     /// random-tick the block `state` at `pos` (`BlockState.randomTick`):
     /// only blocks that tick randomly, a mod's as its vanilla template block
@@ -418,7 +403,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (ticks, dimension, pos, state, handled);
     }
-
     /// An authoritative server is about to compute the state the block
     /// `state` at `pos` takes now that its neighbour in `direction` is
     /// `neighbour` (`BlockBehaviour.updateShape`). `state` may not be in the
@@ -445,18 +429,8 @@ impl GameLevel<'_> {
         neighbour: BlockStateId,
         new: &mut Option<BlockStateId>,
     ) {
-        let _ = (
-            ticks,
-            dimension,
-            pos,
-            state,
-            direction,
-            neighbour_pos,
-            neighbour,
-            new,
-        );
+        let _ = (ticks, dimension, pos, state, direction, neighbour_pos, neighbour, new);
     }
-
     /// On an authoritative server, `BlockState.canSurvive` for `state` at
     /// `pos` (`BlockBehaviour.canSurvive`), before the block answers it: as
     /// it is placed (`BlockItem.canPlace`), from a shape update of a block
@@ -476,7 +450,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, pos, state, survives);
     }
-
     /// On an authoritative server, `VegetationBlock.mayPlaceOn` for the
     /// plant `state` on `ground` at `ground_pos`, before the plant answers
     /// it: the blocks a mod plant (one whose template is a vanilla plant,
@@ -495,7 +468,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, state, ground, ground_pos, may);
     }
-
     /// An authoritative server's `ServerLevel.tickBlock` is about to run a
     /// due scheduled tick of the block `state` at `pos` (`BlockState.tick`):
     /// the block is still the one the tick was scheduled for. Change the
@@ -513,7 +485,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (ticks, dimension, pos, state, handled);
     }
-
     /// A block is about to take the state it is placed in
     /// (`Block.getStateForPlacement(BlockPlaceContext)`), `state` the block's
     /// own default state. Answer only for your blocks: put the state you want
@@ -543,7 +514,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, state, context, fluid, answer);
     }
-
     /// A block nothing in Horizon knows a `BonemealableBlock` for is about to
     /// take bone meal: vanilla's `BonemealableBlock.isValidBonemealTarget`,
     /// `state` the block's own state at `pos`. Answer `valid` for your own
@@ -568,7 +538,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, pos, state, valid);
     }
-
     /// `BonemealableBlock.isBonemealSuccess` for a block that answered
     /// `native_is_valid_bonemeal_target`, after it did: set `success` to grow
     /// it this time. Vanilla draws the level's random here
@@ -585,7 +554,6 @@ impl GameLevel<'_> {
     ) {
         let _ = (dimension, pos, state, success);
     }
-
     /// `BonemealableBlock.performBonemeal` for a block that answered
     /// `native_is_valid_bonemeal_target` and whose `native_is_bonemeal_success`
     /// said yes: grow it here, `state` its state at `pos`. The meal is used up
@@ -603,7 +571,6 @@ impl GameLevel<'_> {
         let _ = (ticks, dimension, pos, state);
     }
 }
-
 /// What dropped the items [`Game::native_loot_drops`] hears.
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
@@ -629,7 +596,6 @@ pub(crate) struct NativeLootDrops<'a> {
     /// The radius of the explosion that broke the block.
     pub(crate) explosion: Option<f32>,
 }
-
 /// A depth-tested outline of the client's block selection shape.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct NativeBlockRim {
@@ -637,7 +603,6 @@ pub(crate) struct NativeBlockRim {
     pub(crate) argb: u32,
     pub(crate) width: f32,
 }
-
 /// A camera-local visual light, with no gameplay light or shadow writes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct NativeColoredLight {
@@ -646,7 +611,6 @@ pub(crate) struct NativeColoredLight {
     pub(crate) radius: f32,
     pub(crate) intensity: f32,
 }
-
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none),
 /// eased through the field of view like the spyglass when `smooth`, and the
 /// scale of mouse turning.
@@ -656,7 +620,6 @@ pub(crate) struct NativeZoom {
     pub(crate) smooth: bool,
     pub(crate) turn: f32,
 }
-
 /// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
 /// minimap: its corner, its side in GUI pixels, blocks per map pixel,
 /// turning with the player or north up, round or square.
@@ -668,7 +631,6 @@ pub(crate) struct NativeMinimap {
     pub(crate) rotate: bool,
     pub(crate) round: bool,
 }
-
 /// A mod block's screen over its menu (`native_screen`): its size, where
 /// each of the container's slots is (`Slot.x`, `Slot.y`; none hides the
 /// slot, and so do slots past the list; the server's menu does not have a
@@ -688,7 +650,6 @@ pub struct NativeScreen {
     /// (`native_screen_draw`); Horizon leaves them out.
     pub own_labels: bool,
 }
-
 /// The open screen, for `native_screen_render_post` (`ScreenEvent.Render.Post`):
 /// what it is, its menu and title, where its container panel is, how many
 /// slots its menu has, and where the mouse and the frame's partial tick are.
@@ -730,7 +691,6 @@ pub struct NativeScreenView<'a> {
     /// 1): what the screen draws animation against.
     pub partial_tick: f32,
 }
-
 /// The mod screen open on this client: the block it is for, the key its
 /// slots are under, the window id of its menu, and the menu's data slots as
 /// the server sent them.
@@ -741,7 +701,6 @@ pub(super) struct OpenNativeScreen {
     screen: NativeScreen,
     data: Vec<i32>,
 }
-
 impl OpenNativeScreen {
     /// Data slot `id` of window `window`'s menu: false for another window's
     /// (an old or replaced one), which this screen leaves alone.
@@ -749,7 +708,6 @@ impl OpenNativeScreen {
         if window != self.window {
             return false;
         }
-        // A menu's data slot ids are small; a bad one is dropped.
         if let Ok(i @ 0..256) = usize::try_from(id) {
             if self.data.len() <= i {
                 self.data.resize(i + 1, 0);
@@ -759,7 +717,6 @@ impl OpenNativeScreen {
         true
     }
 }
-
 /// The player as a native mod reads it.
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
@@ -773,7 +730,6 @@ pub(crate) struct NativePlayer {
     /// `minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`.
     pub(crate) dimension: &'static str,
 }
-
 /// A native mod as Options > Mods lists it (`native_mods`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct NativeMod {
@@ -786,7 +742,6 @@ pub(crate) struct NativeMod {
     /// lists them first; `native_mod_key` reads the player's choice.
     pub(crate) keys: Vec<[String; 3]>,
 }
-
 /// An item the panel shows (`native_panel_items`): its id
 /// (`minecraft:diamond`), a count (1 draws none) and its components beyond
 /// the item's own, in vanilla's item syntax, or "".
@@ -796,7 +751,6 @@ pub(crate) struct NativeStack {
     pub(crate) count: u32,
     pub(crate) components: String,
 }
-
 /// How the panel lays out a recipe of `native_panel_recipes`.
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -813,7 +767,6 @@ pub(crate) enum NativeRecipeLayout {
     /// A potion and an ingredient, an arrow and the result.
     Brewing,
 }
-
 /// A recipe the panel shows (`native_panel_recipes`). Each slot, and the
 /// result, cycles through its stacks, one a second; an empty slot shows
 /// nothing.
@@ -830,7 +783,6 @@ pub(crate) struct NativeRecipeView {
     /// The action button beside it: none, enabled, or shown greyed.
     pub(crate) action: Option<bool>,
 }
-
 /// What the player did on a native mod's panel (`native_panel_event`).
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
@@ -847,12 +799,7 @@ pub(crate) enum NativePanelEvent {
     /// A click on a slot of a recipe the panel shows: the recipe's index in
     /// `native_panel_recipes`' list and the slot's in it (the results come
     /// after the slots), and the stack it showed then.
-    SlotClicked {
-        recipe: u32,
-        slot: u32,
-        stack: NativeStack,
-        right: bool,
-    },
+    SlotClicked { recipe: u32, slot: u32, stack: NativeStack, right: bool },
     /// The action button of the recipe at this index.
     Action(u32),
     /// The player turned the recipes' page: the index of the first recipe
@@ -863,7 +810,6 @@ pub(crate) enum NativePanelEvent {
     /// The player picked the tab at this index.
     Tab(u32),
 }
-
 /// An item of [`NativeRecipes::items`], by its index there, with a count
 /// and the components it has beyond the item's own, in vanilla's item
 /// syntax (`[minecraft:potion_contents={potion:"minecraft:swiftness"}]`),
@@ -875,7 +821,6 @@ pub(crate) struct NativeRecipeStack {
     pub(crate) count: u32,
     pub(crate) components: String,
 }
-
 /// The station a recipe is made at.
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -890,7 +835,6 @@ pub(crate) enum NativeRecipeKind {
     Smithing,
     Brewing,
 }
-
 /// A recipe of [`NativeRecipes`].
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
@@ -921,7 +865,6 @@ pub(crate) struct NativeRecipe {
     /// show (campfire, stonecutting, smithing, brewing).
     pub(crate) book_id: i32,
 }
-
 /// An item of [`NativeRecipes::items`].
 #[allow(dead_code)]
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -933,7 +876,6 @@ pub(crate) struct NativeItem {
     /// Its item tags, without the `#`.
     pub(crate) tags: Vec<String>,
 }
-
 /// Every item and recipe the game knows (`native_recipes`): `items` in the
 /// registry's order, which each [`NativeRecipeStack::item`] indexes; the
 /// recipes are the book's in its order, then campfire, stonecutting,
@@ -944,7 +886,6 @@ pub(crate) struct NativeRecipes {
     pub(crate) items: Vec<NativeItem>,
     pub(crate) recipes: Vec<NativeRecipe>,
 }
-
 /// The mappings `native_mapping` answers for, with the key their default
 /// binding is (none: a mouse button, attack or use).
 #[allow(dead_code)]
@@ -959,7 +900,6 @@ const MAPPINGS: [(&str, Option<KeyCode>); 9] = [
     ("key.attack", None),
     ("key.use", None),
 ];
-
 /// The hook points. Each does nothing in Horizon.
 impl Game<'_> {
     /// Once a frame, in a world or not, after Horizon's extras.
@@ -982,7 +922,10 @@ impl Game<'_> {
     /// At most 32 pairs of already-loaded base and transparent overlay sprites.
     /// Per-pixel alpha in the overlay marks full-bright material, without
     /// illuminating the surrounding block or changing gameplay light.
-    pub(super) fn native_emissive(&self, layers: &mut Vec<(&'static str, &'static str)>) {
+    pub(super) fn native_emissive(
+        &self,
+        layers: &mut Vec<(&'static str, &'static str)>,
+    ) {
         let _ = layers;
     }
     /// The world's phases, read-only; `error_text` carries the engine's
@@ -1165,12 +1108,28 @@ impl Game<'_> {
         block: &str,
         entity: &mut Option<(String, Compound)>,
     ) {
+        {
+            fn sample_entity(block: &str, entity: &mut Option<(String, Compound)>) {
+                if entity.is_none() && (block == super::machine_sample::MACHINE) {
+                    *entity = Some((block.to_owned(), Compound::new()));
+                }
+            }
+            sample_entity(block, entity)
+        };
         let _ = (block, entity);
     }
     /// Whether block `block`'s block entity ticks (`EntityBlock.getTicker`):
     /// set `ticks` when it is yours. Asked for each of the block's states
     /// when a world opens. API 15.
     pub(super) fn native_block_entity_ticks(&self, block: &str, ticks: &mut bool) {
+        {
+            fn sample_ticks(block: &str, ticks: &mut bool) {
+                if block == super::machine_sample::MACHINE {
+                    *ticks = true;
+                }
+            }
+            sample_ticks(block, ticks)
+        };
         let _ = (block, ticks);
     }
     /// A `minecraft:post_attack` effect of a mod's own kind, on a mob a
@@ -1204,6 +1163,20 @@ impl Game<'_> {
         block: &str,
         container: &mut Option<ModContainer>,
     ) {
+        {
+            fn sample_container(block: &str, container: &mut Option<ModContainer>) {
+                if block == super::machine_sample::MACHINE && container.is_none() {
+                    *container = Some(ModContainer {
+                        slots: 5,
+                        faces: std::array::from_fn(|_| vec![0, 1]),
+                        inputs: vec![0],
+                        outputs: vec![1],
+                        menu: Some("minecraft:hopper".into()),
+                    });
+                }
+            }
+            sample_container(block, container)
+        };
         let _ = (block, container);
     }
     /// Block `block`'s block entity has fluid tanks: set `fluids` when the
@@ -1231,7 +1204,112 @@ impl Game<'_> {
     /// dropped. Clients, the window's own in single player included, get
     /// what `native_block_entity_update_tag` gives when its chunk is sent or
     /// its block changes. API 17.
-    pub(super) fn native_block_entity_tick(&mut self, pos: [i32; 3], entity: &mut ModBlockEntity) {
+    pub(super) fn native_block_entity_tick(
+        &mut self,
+        pos: [i32; 3],
+        entity: &mut ModBlockEntity,
+    ) {
+        {
+            fn sample_tick(
+                game: &mut Game<'_>,
+                pos: [i32; 3],
+                entity: &mut ModBlockEntity,
+            ) {
+                use horizon_world::nbt::Tag;
+                if entity.id == super::machine_sample::MACHINE {
+                    super::machine_sample::fill_empty(
+                        &mut entity.items[0],
+                        || {
+                            game.native_extract_item(
+                                game.native_dimension(),
+                                [pos[0] - 1, pos[1], pos[2]],
+                                Direction::East,
+                                0,
+                                1,
+                            )
+                        },
+                    );
+                    let result = entity
+                        .items
+                        .first()
+                        .and_then(Option::as_ref)
+                        .and_then(|input| {
+                            game.native_recipes_of_type("machine_sample:processing")
+                                .iter()
+                                .find_map(|recipe| {
+                                    let ingredient = game
+                                        .native_recipe_ingredient(&recipe.json["ingredient"])?;
+                                    if !ingredient.test(input) {
+                                        return None;
+                                    }
+                                    game.native_recipe_result(&recipe.json["result"])
+                                })
+                        });
+                    let result = result
+                        .filter(|result| {
+                            let limit = game
+                                .items()
+                                .get(&result.item)
+                                .map_or(0, |item| item.max_stack);
+                            match entity.items.get(1).and_then(Option::as_ref) {
+                                None => result.count <= limit,
+                                Some(output) => {
+                                    output.item == result.item && output.damage == result.damage
+                                        && output.extra == result.extra
+                                        && output.count + result.count <= limit
+                                }
+                            }
+                        });
+                    let progress = match entity.nbt.get(&"progress".into()) {
+                        Some(Tag::Int(n)) => *n,
+                        _ => 0,
+                    };
+                    let (progress, done) = super::machine_sample::advance(
+                        progress,
+                        result.is_some(),
+                    );
+                    entity.nbt.insert("progress".into(), Tag::Int(progress));
+                    entity.data = vec![progress];
+                    if done {
+                        let input = entity.items[0].as_mut().unwrap();
+                        input.count -= 1;
+                        if input.count == 0 {
+                            entity.items[0] = None;
+                        }
+                        let result = result.unwrap();
+                        if let Some(output) = &mut entity.items[1] {
+                            output.count += result.count;
+                        } else {
+                            entity.items[1] = Some(result);
+                        }
+                    }
+                    if game.native_block([pos[0] + 1, pos[1], pos[2]])
+                        == super::machine_sample::PIPE
+                    {
+                        if let Some(output) = &mut entity.items[1] {
+                            let one = ItemStack {
+                                count: 1,
+                                ..output.clone()
+                            };
+                            if game
+                                .native_insert_item(
+                                    [pos[0] + 2, pos[1], pos[2]],
+                                    Direction::West,
+                                    one,
+                                )
+                                .is_none()
+                            {
+                                output.count -= 1;
+                                if output.count == 0 {
+                                    entity.items[1] = None;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            sample_tick(&mut *self, pos, entity)
+        };
         let _ = (pos, entity);
     }
     /// A consumable's effect of a mod's own kind: the item's `on_consume_effects`
@@ -1240,7 +1318,11 @@ impl Game<'_> {
     /// player is the one consuming, and the game's own effects,
     /// sounds, teleports and drops are open. An unclaimed kind does
     /// nothing. API @API:consume_effect@.
-    pub(super) fn native_consume_effect(&mut self, kind: &str, data: &serde_json::Value) {
+    pub(super) fn native_consume_effect(
+        &mut self,
+        kind: &str,
+        data: &serde_json::Value,
+    ) {
         let _ = (kind, data);
     }
     /// What clients get of the block entity at `pos` when its `id` is
@@ -1276,6 +1358,21 @@ impl Game<'_> {
         entity: &ModBlockEntity,
         draw: &mut BlockEntityDraw,
     ) {
+        {
+            fn sample_render_entity(
+                game: &Game<'_>,
+                block: &str,
+                draw: &mut BlockEntityDraw,
+            ) {
+                if block == super::machine_sample::MACHINE {
+                    eprintln!("TEST_5707_SUBMIT");
+                    draw.translate([0.0, 1.0, 0.0]);
+                    game.native_draw_block(draw, "minecraft:gold_block", &[]);
+                    draw.keep();
+                }
+            }
+            sample_render_entity(&*self, block, draw)
+        };
         let _ = (pos, block, state, entity, draw);
     }
     /// Where the mod block entity at `pos` draws, for culling
@@ -1300,6 +1397,21 @@ impl Game<'_> {
     /// draws it). The server asks it too: a slot it hides is not in the menu
     /// there either, so shift-clicks never fill it. API 19.
     pub(super) fn native_screen(&self, block: &str, screen: &mut Option<NativeScreen>) {
+        {
+            fn sample_screen(block: &str, screen: &mut Option<NativeScreen>) {
+                if block == super::machine_sample::MACHINE && screen.is_none() {
+                    *screen = Some(NativeScreen {
+                        width: 176.0,
+                        height: 166.0,
+                        slots: vec![Some([44.0, 35.0]), Some([116.0, 35.0])],
+                        inventory_x: 8.0,
+                        inventory_y: 84.0,
+                        own_labels: false,
+                    });
+                }
+            }
+            sample_screen(block, screen)
+        };
         let _ = (block, screen);
     }
     /// Draw block `block`'s screen at `origin` (its top left, GUI pixels),
@@ -1316,6 +1428,52 @@ impl Game<'_> {
         batch: &mut HudBatch,
         origin: [f32; 2],
     ) {
+        {
+            fn sample_draw(
+                game: &Game<'_>,
+                block: &str,
+                data: &[i32],
+                batch: &mut HudBatch,
+                origin: [f32; 2],
+            ) {
+                if block == super::machine_sample::MACHINE {
+                    game.native_fill(
+                        batch,
+                        [origin[0] + 66.0, origin[1] + 55.0, 44.0, 16.0],
+                        0xff555555,
+                    );
+                    game.native_text(
+                        batch,
+                        "Deposit",
+                        [origin[0] + 68.0, origin[1] + 59.0],
+                        0xffffff,
+                        false,
+                    );
+                    let progress = data
+                        .first()
+                        .copied()
+                        .unwrap_or_default()
+                        .clamp(0, super::machine_sample::DURATION);
+                    game.native_fill(
+                        batch,
+                        [origin[0] + 72.0, origin[1] + 40.0, 32.0, 6.0],
+                        0xff555555,
+                    );
+                    game.native_fill(
+                        batch,
+                        [
+                            origin[0] + 72.0,
+                            origin[1] + 40.0,
+                            32.0 * progress as f32
+                                / super::machine_sample::DURATION as f32,
+                            6.0,
+                        ],
+                        0xff55bb55,
+                    );
+                }
+            }
+            sample_draw(&*self, block, data, batch, origin)
+        };
         let _ = (block, data, batch, origin);
     }
     /// The open screen has drawn itself and its tooltips (`Screen.render`,
@@ -1344,7 +1502,11 @@ impl Game<'_> {
     /// rectangle, with the mouse and the partial tick. `screen` is the screen
     /// drawn this frame, which `NativeScreenView.id` comes from. Borrowed:
     /// nothing is copied per frame.
-    pub(super) fn screen_view(&self, batch: &HudBatch, screen: Screen) -> NativeScreenView<'_> {
+    pub(super) fn screen_view(
+        &self,
+        batch: &HudBatch,
+        screen: Screen,
+    ) -> NativeScreenView<'_> {
         NativeScreenView {
             id: screen.id(),
             menu: self.remote_menu_type().filter(|m| !m.is_empty()),
@@ -1362,15 +1524,8 @@ impl Game<'_> {
         if screen != Screen::Inventory && screen != Screen::Creative {
             return [0.0, 0.0, batch.width, batch.height];
         }
-        // The window the game itself draws (`container_image`): the merchant
-        // and the beacon are wider and shifted, creative is its own size.
         let image = self.container_image(batch);
-        [
-            image.left as f32,
-            image.top as f32,
-            image.width as f32,
-            image.height as f32,
-        ]
+        [image.left as f32, image.top as f32, image.width as f32, image.height as f32]
     }
     /// A left or right (`right`) press at `at` (GUI pixels from the screen's
     /// top left, so outside it too) on block `block`'s screen, a mod's, over
@@ -1385,6 +1540,21 @@ impl Game<'_> {
         right: bool,
         button: &mut Option<i32>,
     ) {
+        {
+            fn sample_click(
+                block: &str,
+                at: [f32; 2],
+                right: bool,
+                button: &mut Option<i32>,
+            ) {
+                if block == super::machine_sample::MACHINE && !right
+                    && (66.0..110.0).contains(&at[0]) && (55.0..71.0).contains(&at[1])
+                {
+                    *button = Some(super::machine_sample::DEPOSIT);
+                }
+            }
+            sample_click(block, at, right, button)
+        };
         let _ = (block, data, at, right, button);
     }
     /// The tooltip at `at` (as in `native_screen_click`) on block `block`'s
@@ -1423,6 +1593,58 @@ impl Game<'_> {
         id: i32,
         carried: &mut Option<ItemStack>,
     ) {
+        {
+            fn sample_button(
+                game: &mut Game<'_>,
+                entity: &mut ModBlockEntity,
+                id: i32,
+                carried: &mut Option<ItemStack>,
+            ) {
+                if entity.id != super::machine_sample::MACHINE
+                    || id != super::machine_sample::DEPOSIT
+                {
+                    return;
+                }
+                let (Some(input), Some(stack)) = (
+                    entity.items.first_mut(),
+                    carried.as_mut(),
+                ) else {
+                    return;
+                };
+                let limit = game
+                    .items()
+                    .get(&stack.item)
+                    .map_or(0, |item| item.max_stack);
+                let compatible = input
+                    .as_ref()
+                    .is_none_or(|item| {
+                        item.item == stack.item && item.damage == stack.damage
+                            && item.extra == stack.extra
+                    });
+                let count = super::machine_sample::deposit_count(
+                    stack.count,
+                    input.as_ref().map_or(0, |item| item.count),
+                    limit,
+                    compatible,
+                );
+                if count == 0 {
+                    return;
+                }
+                if let Some(input) = input {
+                    input.count += count;
+                } else {
+                    *input = Some(ItemStack {
+                        count,
+                        ..stack.clone()
+                    });
+                }
+                stack.count -= count;
+                if stack.count == 0 {
+                    *carried = None;
+                }
+            }
+            sample_button(&mut *self, entity, id, carried)
+        };
         let _ = (pos, entity, id, carried);
     }
     /// The commands native mods add to the server's command tree: push
@@ -1430,7 +1652,10 @@ impl Game<'_> {
     /// server, a LAN host, single player's server thread); every player's
     /// chat box then completes them as vanilla's, within their level. A
     /// name vanilla has is left out. API 8.
-    pub(super) fn native_register_commands(&mut self, commands: &mut Vec<NativeCommand>) {
+    pub(super) fn native_register_commands(
+        &mut self,
+        commands: &mut Vec<NativeCommand>,
+    ) {
         let _ = commands;
     }
     /// A player's command on the server (`Commands.performCommand`),
@@ -1474,13 +1699,21 @@ impl Game<'_> {
     /// text's own). Add, change or take out lines; `Text::legacy` reads `§`
     /// codes. Asked each frame the tooltip shows, never for one the stack
     /// hides. API 12.
-    pub(super) fn native_tooltip(&self, stack: &ItemStack, lines: &mut Vec<(Text, u32)>) {
+    pub(super) fn native_tooltip(
+        &self,
+        stack: &ItemStack,
+        lines: &mut Vec<(Text, u32)>,
+    ) {
         let _ = (stack, lines);
     }
     /// Client-side image component for this stack's tooltip. Answer its width/height
     /// in GUI pixels; finite positive dimensions reserve space after text and any
     /// vanilla bundle component. None keeps the vanilla tooltip unchanged.
-    pub(super) fn native_tooltip_component(&self, stack: &ItemStack, size: &mut Option<[f32; 2]>) {
+    pub(super) fn native_tooltip_component(
+        &self,
+        stack: &ItemStack,
+        size: &mut Option<[f32; 2]>,
+    ) {
         let _ = (stack, size);
     }
     /// Render the measured component at origin, inside the tooltip background.
@@ -1495,13 +1728,16 @@ impl Game<'_> {
     ) {
         let _ = (stack, batch, origin, size);
     }
-
     /// The small bar `GuiGraphicsExtractor.itemDecorations` draws under an
     /// item, wherever the game shows one: `bar` arrives holding vanilla's value
     /// (the damage bar, or a bundle's fullness already applied) and may be
     /// replaced (width `0..=13`, colour `rgb`) or set to `None` to hide it.
     /// Asked each frame a stack is drawn. Client-side. 60.
-    pub(super) fn native_item_bar(&self, stack: &ItemStack, bar: &mut Option<(i32, u32)>) {
+    pub(super) fn native_item_bar(
+        &self,
+        stack: &ItemStack,
+        bar: &mut Option<(i32, u32)>,
+    ) {
         let _ = (stack, bar);
     }
     /// A player uses `stack` (right click) with `self.hand` on the block at
@@ -1633,7 +1869,12 @@ impl Game<'_> {
     /// the caps (`native_net.rs`): check `channel`, and treat `data` as the
     /// player's own bytes, checked by nothing. Runs in the tick after it
     /// arrives, with no player's state swapped in. Server-side. API 40.
-    pub(super) fn native_net_from_client(&mut self, player: u128, channel: &str, data: &[u8]) {
+    pub(super) fn native_net_from_client(
+        &mut self,
+        player: u128,
+        channel: &str,
+        data: &[u8],
+    ) {
         let _ = (player, channel, data);
     }
     /// A message from the server on `channel` (`mod_id:name`), whose `data`
@@ -1652,7 +1893,12 @@ impl Game<'_> {
     /// change the world from a later tick. The chunks around the spawn come
     /// before `WorldOpenReady`. Not told of a chunk a client receives.
     /// Server-side. API 57.
-    pub(super) fn native_chunk_load(&mut self, dimension: &str, chunk: [i32; 2], new: bool) {
+    pub(super) fn native_chunk_load(
+        &mut self,
+        dimension: &str,
+        chunk: [i32; 2],
+        new: bool,
+    ) {
         let _ = (dimension, chunk, new);
     }
     /// Chunk `chunk` of `dimension` left the world (NeoForge's
@@ -1713,7 +1959,12 @@ impl Game<'_> {
     /// `kind` its type (`minecraft:item`); it is no longer in the level's lists.
     /// It only hears. 53 tells item entities and experience orbs; later
     /// APIs add other kinds, so check `kind`. Server-side.
-    pub(super) fn native_entity_leave_level(&mut self, dimension: &str, entity: u32, kind: &str) {
+    pub(super) fn native_entity_leave_level(
+        &mut self,
+        dimension: &str,
+        entity: u32,
+        kind: &str,
+    ) {
         let _ = (dimension, entity, kind);
     }
     /// An entity joins the server level `dimension` (NeoForge's
@@ -1789,7 +2040,12 @@ impl Game<'_> {
     /// before the post-attack enchantments and the weapon's wear. It only
     /// hears. Another player as the target isn't told yet. Server-side, for
     /// every player of the world (the helpers read the acting one). API 39.
-    pub(super) fn native_hurt_enemy(&mut self, stack: &ItemStack, entity: u32, kind: &str) {
+    pub(super) fn native_hurt_enemy(
+        &mut self,
+        stack: &ItemStack,
+        entity: u32,
+        kind: &str,
+    ) {
         let _ = (stack, entity, kind);
     }
     /// A server tick of the stack a player carries in `slot`: where
@@ -1894,7 +2150,6 @@ impl Game<'_> {
     ) {
         let _ = (entity, kind, damage_type, causing, direct, amount, canceled);
     }
-
     /// `Block.stepOn` for a mod block, on its authoritative server level.
     /// No self: the simulation owns the entity during this callback.
     pub(super) fn native_block_step_on(
@@ -1932,7 +2187,6 @@ impl Game<'_> {
         let _ = (dimension, entity, kind, state, position, distance, damage);
     }
 }
-
 pub(super) fn block_contact(
     dimension: &str,
     event: horizon_client::block_contact::Event<'_>,
@@ -1940,41 +2194,42 @@ pub(super) fn block_contact(
 ) {
     use horizon_client::block_contact::Event;
     match event {
-        Event::StepOn(c) => Game::native_block_step_on(
-            dimension,
-            c.entity,
-            c.kind,
-            c.state,
-            [c.position.x, c.position.y, c.position.z],
-        ),
-        Event::Inside(c) => Game::native_block_entity_inside(
-            dimension,
-            c.entity,
-            c.kind,
-            c.state,
-            [c.position.x, c.position.y, c.position.z],
-        ),
-        Event::FallOn(c, distance) => Game::native_block_fall_on(
-            dimension,
-            c.entity,
-            c.kind,
-            c.state,
-            [c.position.x, c.position.y, c.position.z],
-            distance,
-            damage,
-        ),
+        Event::StepOn(c) => {
+            Game::native_block_step_on(
+                dimension,
+                c.entity,
+                c.kind,
+                c.state,
+                [c.position.x, c.position.y, c.position.z],
+            )
+        }
+        Event::Inside(c) => {
+            Game::native_block_entity_inside(
+                dimension,
+                c.entity,
+                c.kind,
+                c.state,
+                [c.position.x, c.position.y, c.position.z],
+            )
+        }
+        Event::FallOn(c, distance) => {
+            Game::native_block_fall_on(
+                dimension,
+                c.entity,
+                c.kind,
+                c.state,
+                [c.position.x, c.position.y, c.position.z],
+                distance,
+                damage,
+            )
+        }
     }
 }
-
 /// `native_living_incoming_damage` for the damage code (`health::HURT_SERVER`): whether
 /// it canceled the hit. Its one caller.
 pub(super) fn hurt_server(hurting: Hurting<'_>, amount: &mut f32) -> bool {
     let (entity, kind, source) = hurt_server_args(hurting);
-    let HurtSource {
-        damage_type,
-        causing,
-        direct,
-    } = source;
+    let HurtSource { damage_type, causing, direct } = source;
     let mut canceled = false;
     Game::native_living_incoming_damage(
         entity,
@@ -1991,7 +2246,9 @@ pub(super) fn hurt_server(hurting: Hurting<'_>, amount: &mut f32) -> bool {
 fn hurt_server_args(hurting: Hurting<'_>) -> (i32, &str, HurtSource<'_>) {
     match hurting {
         Hurting::Player(entity, source) => (entity, "minecraft:player", source),
-        Hurting::Mob(mob, damage) => (mob.id as i32, mob.kind.id.as_str(), mob_source(damage)),
+        Hurting::Mob(mob, damage) => {
+            (mob.id as i32, mob.kind.id.as_str(), mob_source(damage))
+        }
         Hurting::Dragon(entity, source) => (entity, "minecraft:ender_dragon", source),
     }
 }
@@ -2009,7 +2266,6 @@ fn mob_source(damage: &Damage) -> HurtSource<'static> {
         direct: if melee { causing } else { 0 },
     }
 }
-
 /// Whether `id` is a sound event's id, `namespace:path` as `Identifier`
 /// allows: the namespace of `[a-z0-9_.-]`, the path also with `/`.
 fn sound_id(id: &str) -> bool {
@@ -2017,14 +2273,13 @@ fn sound_id(id: &str) -> bool {
         return false;
     };
     let allowed = |c: char, slash: bool| {
-        c.is_ascii_lowercase() || c.is_ascii_digit() || "_.-".contains(c) || (slash && c == '/')
+        c.is_ascii_lowercase() || c.is_ascii_digit() || "_.-".contains(c)
+            || (slash && c == '/')
     };
-    !namespace.is_empty()
-        && !path.is_empty()
+    !namespace.is_empty() && !path.is_empty()
         && namespace.chars().all(|c| allowed(c, false))
         && path.chars().all(|c| allowed(c, true))
 }
-
 fn dimension_id(dimension: LevelDimension) -> &'static str {
     match dimension {
         LevelDimension::Overworld => "minecraft:overworld",
@@ -2032,7 +2287,6 @@ fn dimension_id(dimension: LevelDimension) -> &'static str {
         LevelDimension::End => "minecraft:the_end",
     }
 }
-
 /// Server-level helpers for native mods.
 #[allow(dead_code)]
 impl GameLevel<'_> {
@@ -2060,21 +2314,22 @@ impl GameLevel<'_> {
         let position_ok = at
             .into_iter()
             .all(|v| v.is_finite() && v.abs() <= f64::from(i32::MAX) / 8.0);
-        let gain_ok = volume.is_finite() && volume >= 0.0 && pitch.is_finite() && pitch >= 0.0;
+        let gain_ok = volume.is_finite() && volume >= 0.0 && pitch.is_finite()
+            && pitch >= 0.0;
         if !position_ok || !gain_ok {
             return false;
         }
-        self.native_sounds.push(super::creatures::NativeSound {
-            dimension: dimension_id(self.dimension),
-            sound: sound.to_owned(),
-            at,
-            source: source as i32,
-            volume,
-            pitch,
-        });
+        self.native_sounds
+            .push(super::creatures::NativeSound {
+                dimension: dimension_id(self.dimension),
+                sound: sound.to_owned(),
+                at,
+                source: source as i32,
+                volume,
+                pitch,
+            });
         true
     }
-
     /// Queue particles in this authoritative level. A zero count sends one
     /// directional particle. The return value means accepted, not delivered.
     /// Block particle types require their block state; item, trail and
@@ -2090,23 +2345,23 @@ impl GameLevel<'_> {
     ) -> bool {
         use ParticleType as T;
         let supported = match options.ty {
-            T::Block | T::BlockMarker | T::FallingDust | T::DustPillar | T::BlockCrumble => {
+            T::Block
+            | T::BlockMarker
+            | T::FallingDust
+            | T::DustPillar
+            | T::BlockCrumble => {
                 state.is_some_and(|id| self.registry.state(id).is_some())
             }
             T::Item | T::Trail | T::Vibration => false,
-            T::Geyser | T::GeyserPlume | T::GeyserBase | T::GeyserPoof => options
-                .geyser
-                .is_some_and(|(_, impulse)| impulse.is_finite()),
+            T::Geyser | T::GeyserPlume | T::GeyserBase | T::GeyserPoof => {
+                options.geyser.is_some_and(|(_, impulse)| impulse.is_finite())
+            }
             _ => true,
         };
-        if !self.native_authoritative
-            || !supported
+        if !self.native_authoritative || !supported
             || !at.into_iter().all(f64::is_finite)
-            || !spread
-                .into_iter()
-                .all(|v| v.is_finite() && v.abs() <= f32::MAX as f64)
-            || !speed.is_finite()
-            || speed.abs() > f32::MAX as f64
+            || !spread.into_iter().all(|v| v.is_finite() && v.abs() <= f32::MAX as f64)
+            || !speed.is_finite() || speed.abs() > f32::MAX as f64
             || !options.color.into_iter().all(f32::is_finite)
             || !options.to_color.into_iter().all(f32::is_finite)
             || !options.scale.is_finite()
@@ -2226,9 +2481,7 @@ impl GameLevel<'_> {
         self.native_authoritative.then_some(&mut self.world.random)
     }
 }
-
 /// Helpers for native mods, kept as stable as the hook points.
-// Native mods use these; nothing in Horizon does.
 #[allow(dead_code)]
 impl Game<'_> {
     /// Read a loaded, light-emitting block. No implicit chunk loading.
@@ -2236,11 +2489,7 @@ impl Game<'_> {
         self.world
             .chunks
             .contains_key(&(pos[0].div_euclid(16), pos[2].div_euclid(16)))
-            .then(|| {
-                self.res
-                    .facts()
-                    .get(self.world.block(pos[0], pos[1], pos[2]))
-            })
+            .then(|| { self.res.facts().get(self.world.block(pos[0], pos[1], pos[2])) })
             .filter(|f| f.emission > 0)
             .map(|f| f.name.as_ref())
     }
@@ -2253,16 +2502,12 @@ impl Game<'_> {
         let Some(p) = self.native_player() else {
             return;
         };
-        if (at[0] - p.x).powi(2) + (at[1] - p.y).powi(2) + (at[2] - p.z).powi(2) > 1024.0 {
+        if (at[0] - p.x).powi(2) + (at[1] - p.y).powi(2) + (at[2] - p.z).powi(2) > 1024.0
+        {
             return;
         }
-        let kind = if soul {
-            ParticleType::SoulFireFlame
-        } else {
-            ParticleType::Flame
-        };
-        self.particles
-            .add(&ParticleOptions::simple(kind), at, [0.0, 0.01, 0.0]);
+        let kind = if soul { ParticleType::SoulFireFlame } else { ParticleType::Flame };
+        self.particles.add(&ParticleOptions::simple(kind), at, [0.0, 0.01, 0.0]);
     }
     /// The stack the acting player carries in `slot`, by
     /// `native_inventory_tick`'s numbers: none for an empty slot or another
@@ -2298,18 +2543,15 @@ impl Game<'_> {
         }
         let at = BlockPos::new(pos[0], pos[1], pos[2]);
         let previous = self.world.block(pos[0], pos[1], pos[2]);
-        let changed =
-            self.with_level(|b, level, ticks| b.set_block(level, ticks, at, state, flags));
+        let changed = self
+            .with_level(|b, level, ticks| b.set_block(level, ticks, at, state, flags));
         let new = self.res.facts().get(state).name.clone();
         let landed = self.world.block(pos[0], pos[1], pos[2]);
-        if changed
-            && self.res.facts().get(previous).name != new
+        if changed && self.res.facts().get(previous).name != new
             && self.res.facts().get(landed).name == new
             && let Some(entity) = self.new_block_entity(&new)
         {
-            self.world
-                .block_entities
-                .insert((pos[0], pos[1], pos[2]), entity);
+            self.world.block_entities.insert((pos[0], pos[1], pos[2]), entity);
         }
         let _ = self.process_level_events();
         changed
@@ -2337,9 +2579,7 @@ impl Game<'_> {
         if dim == self.dim {
             Some(&mut self.world.random)
         } else {
-            self.levels
-                .parked_world_mut(dim)
-                .map(|world| &mut world.random)
+            self.levels.parked_world_mut(dim).map(|world| &mut world.random)
         }
     }
     /// The item entities of the server level `dimension` whose box meets
@@ -2422,12 +2662,12 @@ impl Game<'_> {
         value: &str,
         flags: i32,
     ) -> bool {
-        // As `native_set_block`: a window that isn't a server holds a copy.
         if self.serving.is_none() && self.options.dedicated.is_none() {
             return false;
         }
         let state = self.world.block(pos[0], pos[1], pos[2]);
-        let Some(id) = property_change(self.pack.assets.registry, state, key, value) else {
+        let Some(id) = property_change(self.pack.assets.registry, state, key, value)
+        else {
             return false;
         };
         let at = BlockPos::new(pos[0], pos[1], pos[2]);
@@ -2450,7 +2690,9 @@ impl Game<'_> {
             return false;
         }
         let at = BlockPos::new(pos[0], pos[1], pos[2]);
-        self.with_level(|b, level, ticks| b.update_neighbour_for_output_signal(level, ticks, at));
+        self.with_level(|b, level, ticks| {
+            b.update_neighbour_for_output_signal(level, ticks, at)
+        });
         true
     }
     /// The block at `pos` changed the signal it gives: its neighbours, and
@@ -2532,10 +2774,8 @@ impl Game<'_> {
     }
     /// Playing, with nothing over the world: keys and zoom apply.
     pub(super) fn native_playing(&self) -> bool {
-        self.screen == Screen::Playing
-            && self.title.is_none()
-            && self.sign_edit.is_none()
-            && self.book.is_none()
+        self.screen == Screen::Playing && self.title.is_none()
+            && self.sign_edit.is_none() && self.book.is_none()
     }
     /// This `Game` is the window's, not a server's.
     pub(super) fn native_window(&self) -> bool {
@@ -2607,7 +2847,9 @@ impl Game<'_> {
     /// (`data/mymod/machines.json`), when there is one: what a mod's content
     /// says, read at runtime. Only relative paths of plain names. API 20.
     pub(super) fn native_data(&self, path: &str) -> Option<Vec<u8>> {
-        let plain = |p: &str| !p.is_empty() && p != "." && p != ".." && !p.contains('\\');
+        let plain = |p: &str| {
+            !p.is_empty() && p != "." && p != ".." && !p.contains('\\')
+        };
         if !path.starts_with("data/") || !path.split('/').all(plain) {
             return None;
         }
@@ -2621,15 +2863,13 @@ impl Game<'_> {
     }
     /// Property `key` of the block at `pos` (a machine's `facing`), if it
     /// has one. API 20.
-    pub(super) fn native_block_property(&self, pos: [i32; 3], key: &str) -> Option<String> {
+    pub(super) fn native_block_property(
+        &self,
+        pos: [i32; 3],
+        key: &str,
+    ) -> Option<String> {
         let state = self.world.block(pos[0], pos[1], pos[2]);
-        self.pack
-            .assets
-            .registry
-            .state(state)?
-            .properties
-            .get(key)
-            .cloned()
+        self.pack.assets.registry.state(state)?.properties.get(key).cloned()
     }
     /// Puts `stack` into the container at `pos` (a chest, a furnace, a mod
     /// container) through its side `face`, as a hopper would, one by one, and
@@ -2701,13 +2941,13 @@ impl Game<'_> {
     /// The key the player chose for a mod's key `name`, else `default`
     /// (`key.keyboard.z`), as the WebAssembly mods' keys were kept
     /// (`key.<mod id>.<name>` in `horizon-mods.txt`).
-    pub(super) fn native_mod_key(&self, mod_id: &str, name: &str, default: &str) -> String {
-        let chosen = self
-            .settings
-            .mods
-            .keys
-            .get(mod_id)
-            .and_then(|k| k.get(name));
+    pub(super) fn native_mod_key(
+        &self,
+        mod_id: &str,
+        name: &str,
+        default: &str,
+    ) -> String {
+        let chosen = self.settings.mods.keys.get(mod_id).and_then(|k| k.get(name));
         chosen.map_or(default, String::as_str).to_owned()
     }
     /// A line in chat from the client.
@@ -2715,9 +2955,7 @@ impl Game<'_> {
         let focused = self.screen == Screen::Chat;
         let line = Text::literal(text);
         let atlas = &self.gui.atlas;
-        self.ui
-            .chat
-            .add(atlas, line, None, ChatSource::Client, self.ticks, focused);
+        self.ui.chat.add(atlas, line, None, ChatSource::Client, self.ticks, focused);
     }
     /// A native mod's own folder: `horizon-mods/.horizon-mod-data/<id>/`,
     /// where the WebAssembly mod of the same id kept its storage, so a
@@ -2796,7 +3034,10 @@ impl Game<'_> {
     /// whether a stack fits. Items the game doesn't know are left out; None
     /// when nothing is left (an unknown or empty tag, for one) and outside a
     /// world. API 36.
-    pub(super) fn native_recipe_ingredient(&self, json: &serde_json::Value) -> Option<Ingredient> {
+    pub(super) fn native_recipe_ingredient(
+        &self,
+        json: &serde_json::Value,
+    ) -> Option<Ingredient> {
         if self.outside_world() {
             return None;
         }
@@ -2806,12 +3047,15 @@ impl Game<'_> {
         };
         let json = match json {
             serde_json::Value::String(s) => serde_json::Value::String(qualify(s)),
-            serde_json::Value::Array(a) => serde_json::Value::Array(
-                a.iter()
-                    .filter_map(serde_json::Value::as_str)
-                    .map(|s| serde_json::Value::String(qualify(s)))
-                    .collect(),
-            ),
+            serde_json::Value::Array(a) => {
+                serde_json::Value::Array(
+                    a
+                        .iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(|s| serde_json::Value::String(qualify(s)))
+                        .collect(),
+                )
+            }
             _ => return None,
         };
         let items = self.items();
@@ -2826,7 +3070,10 @@ impl Game<'_> {
     /// `minecraft:`), `count` (1 by default, up to 99) and `components`. None
     /// without an `id`, for an item the game doesn't know or a count outside
     /// that, and outside a world. API 36.
-    pub(super) fn native_recipe_result(&self, json: &serde_json::Value) -> Option<ItemStack> {
+    pub(super) fn native_recipe_result(
+        &self,
+        json: &serde_json::Value,
+    ) -> Option<ItemStack> {
         if self.outside_world() {
             return None;
         }
@@ -2863,7 +3110,11 @@ impl Game<'_> {
     /// crafting table's. `all` places as many as the items allow, as with
     /// Shift. Refused while no such screen is open and for a recipe the
     /// player's book doesn't hold; one missing items shows as a ghost.
-    pub(super) fn native_place_recipe(&mut self, book_id: i32, all: bool) -> Result<(), String> {
+    pub(super) fn native_place_recipe(
+        &mut self,
+        book_id: i32,
+        all: bool,
+    ) -> Result<(), String> {
         self.recipe_place(book_id, all)
     }
     /// Creative mode only: gives the player `count` of `item`
@@ -2874,12 +3125,10 @@ impl Game<'_> {
         self.recipe_give(item, count)
     }
 }
-
 /// A mob's kind as the hook points name it (`minecraft:zombie`).
 pub(super) fn mob_kind(mob: &horizon_client::mobs::Mob) -> String {
     ["minecraft:", mob.kind.id.trim_start_matches("minecraft:")].concat()
 }
-
 /// Where the game calls the hook points.
 impl Game<'_> {
     /// The acting player as the hook points name one: the guest whose turn
@@ -2958,7 +3207,6 @@ impl Game<'_> {
         for (player, name) in players {
             self.native_player_logged_out(player, &name);
         }
-        // No tick follows to send what they said.
         if let Some(mut host) = self.lan.take() {
             self.flush_native_net(&mut host);
             self.lan = Some(host);
@@ -3000,7 +3248,11 @@ impl Game<'_> {
     }
     /// The item entities of `before` gone since have left the level.
     pub(super) fn native_items_left_since(&mut self, before: &[u32]) {
-        let now: std::collections::HashSet<u32> = self.dropped.iter().map(|e| e.id).collect();
+        let now: std::collections::HashSet<u32> = self
+            .dropped
+            .iter()
+            .map(|e| e.id)
+            .collect();
         let gone: Vec<u32> = before
             .iter()
             .copied()
@@ -3010,7 +3262,11 @@ impl Game<'_> {
     }
     /// The experience orbs of `before` gone since have left the level.
     pub(super) fn native_orbs_left_since(&mut self, before: &[u32]) {
-        let now: std::collections::HashSet<u32> = self.orbs.iter().map(|o| o.id).collect();
+        let now: std::collections::HashSet<u32> = self
+            .orbs
+            .iter()
+            .map(|o| o.id)
+            .collect();
         let gone: Vec<u32> = before
             .iter()
             .copied()
@@ -3067,7 +3323,6 @@ impl Game<'_> {
         for i in 0..self.inventory.len() {
             self.native_slot_tick(i as i32, i == self.selected);
         }
-        // Head first here; `Inventory` saves feet as 100 and head as 103.
         for i in 0..self.armor.len() {
             self.native_slot_tick(103 - i as i32, false);
         }
@@ -3088,7 +3343,9 @@ impl Game<'_> {
     /// numbers: none for another number.
     fn native_carried_slot(&mut self, slot: i32) -> Option<&mut Option<ItemStack>> {
         match slot {
-            0.. if (slot as usize) < self.inventory.len() => self.inventory.get_mut(slot as usize),
+            0.. if (slot as usize) < self.inventory.len() => {
+                self.inventory.get_mut(slot as usize)
+            }
             100..=103 => self.armor.get_mut(103 - slot as usize),
             -106 => Some(&mut self.offhand),
             _ => None,
@@ -3103,17 +3360,20 @@ impl Game<'_> {
         let mut entity = None;
         self.native_block_entity(name, &mut entity);
         let (id, nbt) = entity?;
-        // A template with no block entity (stone) never removes one, so it would stay in the save.
         let state = self.pack.assets.registry.default_state(name)?;
         if !self.res.facts().get(state).block_entity {
             super::mods::warn_no_block_entity(name, &id);
             return None;
         }
-        Some(BlockEntity::Mod(Box::new(ModBlockEntity {
-            id,
-            nbt,
-            ..ModBlockEntity::default()
-        })))
+        Some(
+            BlockEntity::Mod(
+                Box::new(ModBlockEntity {
+                    id,
+                    nbt,
+                    ..ModBlockEntity::default()
+                }),
+            ),
+        )
     }
     /// The containers of the mod blocks' block entities, by block state
     /// (`native_block_entity_container`), checked.
@@ -3122,27 +3382,35 @@ impl Game<'_> {
         let mut by_block: FxHashMap<String, Option<Arc<ModContainer>>> = FxHashMap::default();
         let mut out = FxHashMap::default();
         for i in 0..registry.len() as u32 {
-            let Some(state) = registry.state(horizon_world::registry::BlockStateId(i)) else {
+            let Some(state) = registry.state(horizon_world::registry::BlockStateId(i))
+            else {
                 continue;
             };
             if state.name.starts_with("minecraft:") {
                 continue;
             }
-            let container = by_block.entry(state.name.clone()).or_insert_with(|| {
-                let mut container = None;
-                self.native_block_entity_container(&state.name, &mut container);
-                container.map(|mut c| {
-                    c.slots = c.slots.min(256);
-                    let n = c.slots;
-                    for list in c.faces.iter_mut().chain([&mut c.inputs, &mut c.outputs]) {
-                        list.retain(|&s| s < n);
-                    }
-                    c.menu = c
-                        .menu
-                        .filter(|m| mod_menu(m).is_some_and(|(_, size)| size == n));
-                    Arc::new(c)
-                })
-            });
+            let container = by_block
+                .entry(state.name.clone())
+                .or_insert_with(|| {
+                    let mut container = None;
+                    self.native_block_entity_container(&state.name, &mut container);
+                    container
+                        .map(|mut c| {
+                            c.slots = c.slots.min(256);
+                            let n = c.slots;
+                            for list in c
+                                .faces
+                                .iter_mut()
+                                .chain([&mut c.inputs, &mut c.outputs])
+                            {
+                                list.retain(|&s| s < n);
+                            }
+                            c.menu = c
+                                .menu
+                                .filter(|m| mod_menu(m).is_some_and(|(_, size)| size == n));
+                            Arc::new(c)
+                        })
+                });
             if let Some(c) = container {
                 out.insert(i, Arc::clone(c));
             }
@@ -3156,29 +3424,35 @@ impl Game<'_> {
         let mut by_block: FxHashMap<String, Option<Arc<ModFluidTanks>>> = FxHashMap::default();
         let mut out = FxHashMap::default();
         for i in 0..registry.len() as u32 {
-            let Some(state) = registry.state(horizon_world::registry::BlockStateId(i)) else {
+            let Some(state) = registry.state(horizon_world::registry::BlockStateId(i))
+            else {
                 continue;
             };
             if state.name.starts_with("minecraft:") {
                 continue;
             }
-            let tanks = by_block.entry(state.name.clone()).or_insert_with(|| {
-                let mut fluids = None;
-                self.native_block_entity_fluids(&state.name, &mut fluids);
-                fluids.map(|mut f| {
-                    f.tanks.truncate(16);
-                    // Clamped, not dropped: the face and fill lists name
-                    // tanks by number, which must not shift.
-                    for c in &mut f.tanks {
-                        *c = (*c).clamp(1, 1_000_000);
-                    }
-                    let n = f.tanks.len();
-                    for list in f.faces.iter_mut().chain([&mut f.inputs, &mut f.outputs]) {
-                        list.retain(|&t| t < n);
-                    }
-                    Arc::new(f)
-                })
-            });
+            let tanks = by_block
+                .entry(state.name.clone())
+                .or_insert_with(|| {
+                    let mut fluids = None;
+                    self.native_block_entity_fluids(&state.name, &mut fluids);
+                    fluids
+                        .map(|mut f| {
+                            f.tanks.truncate(16);
+                            for c in &mut f.tanks {
+                                *c = (*c).clamp(1, 1_000_000);
+                            }
+                            let n = f.tanks.len();
+                            for list in f
+                                .faces
+                                .iter_mut()
+                                .chain([&mut f.inputs, &mut f.outputs])
+                            {
+                                list.retain(|&t| t < n);
+                            }
+                            Arc::new(f)
+                        })
+                });
             if let Some(t) = tanks {
                 out.insert(i, Arc::clone(t));
             }
@@ -3234,9 +3508,7 @@ impl Game<'_> {
         let Some(screen) = screen else {
             return Vec::new();
         };
-        (0..size)
-            .filter(|&i| screen.slots.get(i).is_none_or(Option::is_none))
-            .collect()
+        (0..size).filter(|&i| screen.slots.get(i).is_none_or(Option::is_none)).collect()
     }
     /// A menu opened on this client with its slots under `key`, on block
     /// `target`: a mod block's is laid out by its mod (`native_screen`).
@@ -3260,10 +3532,6 @@ impl Game<'_> {
         if block.starts_with("minecraft:") {
             return;
         }
-        // Only when this is the menu the clicked block opens: `target` outlives the
-        // use that set it, so another menu opened later (a command's, another
-        // mod's) would otherwise get the last clicked machine's screen. Asked
-        // here, as the window's world has no mod containers.
         let mut container = None;
         self.native_block_entity_container(&block, &mut container);
         let opens = container.and_then(|c| mod_menu(c.menu.as_deref()?).map(|(m, _)| m));
@@ -3286,17 +3554,22 @@ impl Game<'_> {
     fn shown_native_screen(&self) -> Option<&OpenNativeScreen> {
         self.mod_screen
             .as_ref()
-            .filter(|s| self.screen == Screen::Inventory && self.container == Some(s.key))
+            .filter(|s| {
+                self.screen == Screen::Inventory && self.container == Some(s.key)
+            })
     }
     /// A data slot of window `window`'s menu (`ContainerSetData`); false
     /// when no mod screen is showing for that window.
-    pub(super) fn native_screen_data(&mut self, window: i32, id: i16, value: i16) -> bool {
+    pub(super) fn native_screen_data(
+        &mut self,
+        window: i32,
+        id: i16,
+        value: i16,
+    ) -> bool {
         if self.shown_native_screen().is_none() {
             return false;
         }
-        self.mod_screen
-            .as_mut()
-            .is_some_and(|s| s.set_data(window, id, value))
+        self.mod_screen.as_mut().is_some_and(|s| s.set_data(window, id, value))
     }
     /// Whether a mod's screen is open for the current menu: it places its own
     /// container slots and the player's inventory, so the stock layout of the
@@ -3311,23 +3584,13 @@ impl Game<'_> {
     /// Where the open mod screen puts container slot `slot`.
     pub(super) fn native_screen_slot(&self, slot: usize) -> Option<(f32, f32)> {
         let s = self.shown_native_screen()?;
-        s.screen
-            .slots
-            .get(slot)
-            .copied()
-            .flatten()
-            .map(|p| (p[0], p[1]))
+        s.screen.slots.get(slot).copied().flatten().map(|p| (p[0], p[1]))
     }
     /// The container slots the open mod screen shows (300.. ids).
     pub(super) fn native_screen_slots(&self) -> Option<Vec<usize>> {
         let s = self.shown_native_screen()?;
         let shown = s.screen.slots.iter().enumerate();
-        Some(
-            shown
-                .filter(|(_, p)| p.is_some())
-                .map(|(i, _)| 300 + i)
-                .collect(),
-        )
+        Some(shown.filter(|(_, p)| p.is_some()).map(|(i, _)| 300 + i).collect())
     }
     /// How many of those slots `native_screen_slots` lists, without building
     /// it (`Game::slot_count` asks every frame).
@@ -3350,42 +3613,27 @@ impl Game<'_> {
     /// The open mod screen: a plain panel with its slots' frames, the mod's
     /// drawing over it, then the title and the inventory's label. False when
     /// none is showing.
-    pub(super) fn draw_native_screen(&self, batch: &mut HudBatch, ox: f32, oy: f32) -> bool {
+    pub(super) fn draw_native_screen(
+        &self,
+        batch: &mut HudBatch,
+        ox: f32,
+        oy: f32,
+    ) -> bool {
         let Some(s) = self.shown_native_screen() else {
             return false;
         };
         let atlas = &self.gui.atlas;
         let (w, h) = (s.screen.width, s.screen.height);
         batch.fill(atlas, ox, oy, w, h, rgba(0, 0, 0, 255));
-        batch.fill(
-            atlas,
-            ox + 1.0,
-            oy + 1.0,
-            w - 2.0,
-            h - 2.0,
-            rgba(198, 198, 198, 255),
-        );
+        batch
+            .fill(atlas, ox + 1.0, oy + 1.0, w - 2.0, h - 2.0, rgba(198, 198, 198, 255));
         let container = self.native_screen_slots().unwrap_or_default();
         for i in (0..36).chain(container) {
             let (x, y) = self.slot_position(i);
             let (x, y) = (ox + x - 1.0, oy + y - 1.0);
             batch.fill(atlas, x, y, 18.0, 18.0, rgba(55, 55, 55, 255));
-            batch.fill(
-                atlas,
-                x + 1.0,
-                y + 1.0,
-                17.0,
-                17.0,
-                rgba(255, 255, 255, 255),
-            );
-            batch.fill(
-                atlas,
-                x + 1.0,
-                y + 1.0,
-                16.0,
-                16.0,
-                rgba(139, 139, 139, 255),
-            );
+            batch.fill(atlas, x + 1.0, y + 1.0, 17.0, 17.0, rgba(255, 255, 255, 255));
+            batch.fill(atlas, x + 1.0, y + 1.0, 16.0, 16.0, rgba(139, 139, 139, 255));
         }
         self.native_screen_draw(&s.block, &s.data, batch, [ox, oy]);
         if s.screen.own_labels {
@@ -3405,7 +3653,6 @@ impl Game<'_> {
         let Some(BlockEntity::Mod(m)) = self.world.block_entities.get_mut(&pos) else {
             return;
         };
-        // An empty id marks its place while the mod has it.
         let mut taken = std::mem::take(&mut **m);
         let items = taken.items.clone();
         let state = self.world.block(pos.0, pos.1, pos.2).0;
@@ -3414,13 +3661,13 @@ impl Game<'_> {
             .block_entities
             .mod_container(state)
             .map_or(0, |c| c.slots);
-        // Grown only: items a container no longer has room for stay saved.
         if taken.items.len() < slots {
             taken.items.resize(slots, None);
         }
-        // Without a container, an `Items` item list is the mod's own field.
         if slots == 0 && !taken.items.is_empty() {
-            let items = horizon_client::save::encode_items(&std::mem::take(&mut taken.items));
+            let items = horizon_client::save::encode_items(
+                &std::mem::take(&mut taken.items),
+            );
             taken.nbt.insert("Items".into(), items);
         }
         self.native_block_entity_tick([pos.0, pos.1, pos.2], &mut taken);
@@ -3439,15 +3686,11 @@ impl Game<'_> {
         {
             let moved = taken.items != items;
             **m = taken;
-            // BlockEntity.setChanged: the next save writes its chunk, and
-            // comparators read a container whose items changed.
             self.world.modified.insert((pos.0 >> 4, pos.2 >> 4));
             if moved {
                 self.container_changed(pos);
             }
         } else if taken.items.iter().any(Option::is_some) {
-            // The mod removed or replaced its own block during the call. Vanilla
-            // ticks it in the world and drops a container's contents on removal.
             let lost = std::mem::take(&mut taken.items);
             let at = BlockPos {
                 x: pos.0,
@@ -3460,7 +3703,12 @@ impl Game<'_> {
     }
     /// Menu button `id` on the mod container at `pos` (`clickMenuButton`),
     /// with the acting player's cursor stack (`carried`, read and written).
-    pub(super) fn mod_menu_button(&mut self, pos: Pos, id: i32, carried: &mut Option<ItemStack>) {
+    pub(super) fn mod_menu_button(
+        &mut self,
+        pos: Pos,
+        id: i32,
+        carried: &mut Option<ItemStack>,
+    ) {
         if self.mod_menu_at(pos).is_none() {
             return;
         }
@@ -3500,16 +3748,13 @@ impl Game<'_> {
         let Some(button) = button else {
             return false;
         };
-        let window = self
-            .remote
-            .as_ref()
-            .and_then(|r| r.menu.as_ref())
-            .map(|(w, _)| *w);
+        let window = self.remote.as_ref().and_then(|r| r.menu.as_ref()).map(|(w, _)| *w);
         if let Some(container) = window {
             self.send(
-                horizon_protocol::packets::play::Serverbound::ContainerButtonClick(
-                    horizon_protocol::packets::play::ContainerButtonClick { container, button },
-                ),
+                horizon_protocol::packets::play::Serverbound::ContainerButtonClick(horizon_protocol::packets::play::ContainerButtonClick {
+                    container,
+                    button,
+                }),
             );
         }
         self.audio.play_button_click();
@@ -3517,7 +3762,6 @@ impl Game<'_> {
     }
     /// The open mod screen's tooltip under the cursor (`native_screen_tooltip`).
     pub(super) fn draw_native_screen_tooltip(&mut self, batch: &mut HudBatch) {
-        // Over no item: an empty slot still gets the mod's hint (which fuel it takes).
         let slot = self.slot_at(batch, self.cursor.0, self.cursor.1);
         if self.carried.is_some() || slot.is_some_and(|i| self.slot_view(i).is_some()) {
             return;
@@ -3537,8 +3781,6 @@ impl Game<'_> {
     pub(super) fn list_native_mods(&mut self) {
         let mut mods = Vec::new();
         self.native_mods(&mut mods);
-        // A WebAssembly mod of the same id: the native row stands for it,
-        // and alone toggles its `mod.<id>` line.
         self.settings
             .mods
             .installed
@@ -3550,14 +3792,17 @@ impl Game<'_> {
                 keys: m.keys,
                 buttons,
             };
-            self.settings.mods.installed.push(Installed {
-                id: m.id,
-                title: m.title,
-                description: m.description,
-                problem: None,
-                dev: false,
-                native: Some(page),
-            });
+            self.settings
+                .mods
+                .installed
+                .push(Installed {
+                    id: m.id,
+                    title: m.title,
+                    description: m.description,
+                    problem: None,
+                    dev: false,
+                    native: Some(page),
+                });
         }
     }
     /// A click on button `button` of native mod `i`'s page (its index in
@@ -3583,7 +3828,12 @@ impl Game<'_> {
         }
     }
     /// A key event for `native_key`.
-    pub(super) fn native_key_event(&mut self, key: KeyCode, pressed: bool, repeat: bool) {
+    pub(super) fn native_key_event(
+        &mut self,
+        key: KeyCode,
+        pressed: bool,
+        repeat: bool,
+    ) {
         if repeat {
             return;
         }
@@ -3619,31 +3869,27 @@ impl Game<'_> {
         }
         let mut zoom = None;
         self.native_zoom(&mut zoom);
-        // As the WebAssembly runtime clamped a mod's zoom.
         let z = zoom?;
         let factor = finite(z.factor, 1.0, 10.0);
-        (factor > 1.0).then_some(NativeZoom {
-            factor,
-            smooth: z.smooth,
-            turn: if z.turn.is_finite() {
-                z.turn.clamp(0.05, 1.0)
-            } else {
-                1.0
-            },
-        })
+        (factor > 1.0)
+            .then_some(NativeZoom {
+                factor,
+                smooth: z.smooth,
+                turn: if z.turn.is_finite() { z.turn.clamp(0.05, 1.0) } else { 1.0 },
+            })
     }
     /// The minimap a native mod shows.
     pub(super) fn native_minimap_now(&self) -> Option<NativeMinimap> {
         let mut minimap = None;
         self.native_minimap(&mut minimap);
-        minimap.map(|m| NativeMinimap {
-            size: finite(m.size, 16.0, 256.0),
-            blocks_per_pixel: finite(m.blocks_per_pixel, 0.5, 4.0),
-            ..m
-        })
+        minimap
+            .map(|m| NativeMinimap {
+                size: finite(m.size, 16.0, 256.0),
+                blocks_per_pixel: finite(m.blocks_per_pixel, 0.5, 4.0),
+                ..m
+            })
     }
 }
-
 /// Whether F3's debug screen, open when `debug`, covers `corner`
 /// (`DebugScreenOverlay.extractRenderState`): its left and right columns
 /// the top corners, and its charts the bottom corners `charts` (bottom left,
@@ -3656,12 +3902,10 @@ fn debug_takes(corner: Corner, debug: bool, charts: [bool; 2]) -> bool {
             Corner::BottomRight => charts[1],
         }
 }
-
 /// A menu of `MOD_MENUS`, by its name.
 fn mod_menu(name: &str) -> Option<(&'static str, usize)> {
     MOD_MENUS.into_iter().find(|(menu, _)| *menu == name)
 }
-
 /// `state` with its property `key` set to `value`; none when the block has
 /// no such property or value.
 fn with_property(
@@ -3679,7 +3923,6 @@ fn with_property(
     s.properties.insert(key.into(), value.into());
     registry.resolve(&s).ok()
 }
-
 /// The state a mod's property write changes `state` to; none when the block
 /// has no such property or value, or already has it: `LevelChunk.setBlockState`
 /// returns null for the same state, so `Level.setBlock` returns false.
@@ -3691,19 +3934,17 @@ fn property_change(
 ) -> Option<BlockStateId> {
     with_property(registry, state, key, value).filter(|&id| id != state)
 }
-
 /// `config/` beside `options`, made when missing.
 fn config_dir(options: &Path) -> Result<PathBuf, String> {
     let dir = options.with_file_name("config");
-    fs::create_dir_all(&dir).map_err(|e| dir.display().to_string() + ": " + &e.to_string())?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| dir.display().to_string() + ": " + &e.to_string())?;
     Ok(dir)
 }
-
 /// `v` within `lo..=hi`; `lo` when it is not a number.
 fn finite(v: f32, lo: f32, hi: f32) -> f32 {
     if v.is_finite() { v.clamp(lo, hi) } else { lo }
 }
-
 /// An item entity as `native_item_entities` lists it. API 42.
 /// Read by mods only.
 #[allow(dead_code)]
@@ -3717,21 +3958,14 @@ pub(super) struct NativeItemEntity {
     /// hoppers take it whatever this is.
     pub pickup_delay: u32,
 }
-
 /// `AABB.intersects`: the boxes overlap, touching faces excluded.
 fn box_meets(b: &horizon_core::geometry::Aabb, min: [f64; 3], max: [f64; 3]) -> bool {
     let (lo, hi) = (b.min_position(), b.max_position());
-    lo.x < max[0]
-        && hi.x > min[0]
-        && lo.y < max[1]
-        && hi.y > min[1]
-        && lo.z < max[2]
+    lo.x < max[0] && hi.x > min[0] && lo.y < max[1] && hi.y > min[1] && lo.z < max[2]
         && hi.z > min[2]
 }
-
 #[cfg(test)]
 mod tests {
-
     /// `native_play_sound` takes vanilla's and mods' sound ids, nothing else.
     #[test]
     fn sound_ids_are_identifiers() {
@@ -3752,10 +3986,9 @@ mod tests {
             "my/mod:hum",
             "a:b c",
         ] {
-            assert!(!super::sound_id(id), "{id}");
+            assert!(! super::sound_id(id), "{id}");
         }
     }
-
     /// A mod's property write: none for a key or value the block lacks, the
     /// state itself when it already has the value, else the new state.
     #[test]
@@ -3765,30 +3998,21 @@ mod tests {
             ["crop0",false,false,"",{"id":"test:crop","properties":{"age":"0"}}],
             ["crop1",false,false,"",{"id":"test:crop","properties":{"age":"1"}}]
         ]}"#;
-        let registry = horizon_world::registry::BlockRegistry::from_facts_json(&facts[..]).unwrap();
+        let registry = horizon_world::registry::BlockRegistry::from_facts_json(
+                &facts[..],
+            )
+            .unwrap();
         use horizon_world::registry::BlockStateId;
         let (age0, age1) = (BlockStateId(1), BlockStateId(2));
-        assert_eq!(
-            super::with_property(&registry, age0, "age", "0"),
-            Some(age0)
-        );
-        assert_eq!(
-            super::with_property(&registry, age0, "age", "1"),
-            Some(age1)
-        );
-        assert_eq!(super::with_property(&registry, age0, "age", "9"), None);
-        assert_eq!(super::with_property(&registry, age0, "lit", "true"), None);
-        // What both property setters write: nothing (false) when the
-        // property already has the value, as `Level.setBlock`.
-        assert_eq!(super::property_change(&registry, age0, "age", "0"), None);
-        assert_eq!(
-            super::property_change(&registry, age0, "age", "1"),
-            Some(age1)
-        );
-        assert_eq!(super::property_change(&registry, age0, "age", "9"), None);
-        assert_eq!(super::property_change(&registry, age0, "lit", "true"), None);
+        assert_eq!(super::with_property(& registry, age0, "age", "0"), Some(age0));
+        assert_eq!(super::with_property(& registry, age0, "age", "1"), Some(age1));
+        assert_eq!(super::with_property(& registry, age0, "age", "9"), None);
+        assert_eq!(super::with_property(& registry, age0, "lit", "true"), None);
+        assert_eq!(super::property_change(& registry, age0, "age", "0"), None);
+        assert_eq!(super::property_change(& registry, age0, "age", "1"), Some(age1));
+        assert_eq!(super::property_change(& registry, age0, "age", "9"), None);
+        assert_eq!(super::property_change(& registry, age0, "lit", "true"), None);
     }
-
     /// The state a mod block is placed in is built from its own default state
     /// and one of its properties, its declared ones (`state_properties` in its
     /// block file) included, and keeps the properties it already had.
@@ -3801,29 +4025,29 @@ mod tests {
             ["north_items",false,false,"",{"id":"test:pipe","properties":{"carries":"items","facing":"north"}}],
             ["east_items",false,false,"",{"id":"test:pipe","properties":{"carries":"items","facing":"east"}}]
         ]}"#;
-        let registry = horizon_world::registry::BlockRegistry::from_facts_json(&facts[..]).unwrap();
+        let registry = horizon_world::registry::BlockRegistry::from_facts_json(
+                &facts[..],
+            )
+            .unwrap();
         use horizon_world::registry::BlockStateId;
-        let (north_gas, east_gas, east_items) = (BlockStateId(1), BlockStateId(2), BlockStateId(4));
-        // The declared property changes, and `carries` stays as it was.
-        assert_eq!(
-            super::with_property(&registry, north_gas, "facing", "east"),
-            Some(east_gas)
+        let (north_gas, east_gas, east_items) = (
+            BlockStateId(1),
+            BlockStateId(2),
+            BlockStateId(4),
         );
         assert_eq!(
-            super::with_property(&registry, east_gas, "carries", "items"),
+            super::with_property(& registry, north_gas, "facing", "east"), Some(east_gas)
+        );
+        assert_eq!(
+            super::with_property(& registry, east_gas, "carries", "items"),
             Some(east_items)
         );
-        // A value the property does not have builds nothing.
-        assert_eq!(
-            super::with_property(&registry, east_gas, "facing", "up"),
-            None
-        );
+        assert_eq!(super::with_property(& registry, east_gas, "facing", "up"), None);
     }
     /// Both property setters return false for a write that changes nothing:
     /// each goes through `property_change`, none returns true on its own.
     #[test]
     fn property_setters_refuse_no_change() {
-        // A Windows checkout has CRLF line ends: the searches below look for "\n".
         let source = include_str!("native_hooks.rs").replace("\r\n", "\n");
         let code = source.split("#[cfg(test)]").next().unwrap_or_default();
         for head in [
@@ -3833,7 +4057,7 @@ mod tests {
             let body = code.split(head).nth(1).expect(head);
             let body = &body[..body.find("\n    }\n").expect(head)];
             assert!(body.contains("property_change("), "{head}");
-            assert!(!body.contains("return true"), "{head}");
+            assert!(! body.contains("return true"), "{head}");
         }
     }
     /// horizon-mixins refuses targets whose body has a `cfg` or a macro:
@@ -3850,10 +4074,9 @@ mod tests {
             data: Vec::new(),
         };
         assert!(s.set_data(4, 1, 7));
-        assert!(!s.set_data(3, 1, 99));
+        assert!(! s.set_data(3, 1, 99));
         assert_eq!(s.data, [0, 7]);
     }
-
     #[test]
     fn hook_points_stay_hookable() {
         let source = include_str!("native_hooks.rs");
@@ -3861,66 +4084,65 @@ mod tests {
         assert!(code.contains("\npub(crate) const NATIVE_HOOKS_API: u32 = "));
         let lines = code.lines().filter(|l| !l.trim_start().starts_with("//"));
         for line in lines {
-            assert!(!line.contains("cfg"), "a cfg in the hook points: {line}");
+            assert!(! line.contains("cfg"), "a cfg in the hook points: {line}");
             for mac in ["!(", "![", "! {", "!{"] {
-                assert!(!line.contains(mac), "a macro in the hook points: {line}");
+                assert!(! line.contains(mac), "a macro in the hook points: {line}");
             }
         }
     }
-
     #[test]
     fn loot_table_load_stays_hookable() {
         let source = include_str!("../../../horizon-world/src/loot.rs");
-        // From its doc comment's last line, so an attribute above it counts.
         let hook = source.find("pub fn native_loot_table_load(").unwrap();
         let start = source[..hook].rfind("///").unwrap();
         let body = &source[start..start + source[start..].find("\n}\n").unwrap()];
         for line in body.lines() {
-            assert!(
-                !line.contains("cfg"),
-                "a cfg in the loot hook point: {line}"
-            );
+            assert!(! line.contains("cfg"), "a cfg in the loot hook point: {line}");
             for mac in ["!(", "![", "! {", "!{"] {
-                assert!(
-                    !line.contains(mac),
-                    "a macro in the loot hook point: {line}"
-                );
+                assert!(! line.contains(mac), "a macro in the loot hook point: {line}");
             }
         }
     }
-
     #[test]
     fn lifecycle_source_stays_hookable() {
         let source = include_str!("native_lifecycle.rs");
         let code = source.split("#[cfg(test)]").next().unwrap_or_default();
         for line in code.lines().filter(|l| !l.trim_start().starts_with("//")) {
-            assert!(!line.contains("cfg"), "a cfg in lifecycle source: {line}");
+            assert!(! line.contains("cfg"), "a cfg in lifecycle source: {line}");
             for mac in ["!(", "![", "! {", "!{"] {
-                assert!(!line.contains(mac), "a macro in lifecycle source: {line}");
+                assert!(! line.contains(mac), "a macro in lifecycle source: {line}");
             }
         }
     }
-
     #[test]
     fn catalog_matches_hook_points() {
         use std::collections::BTreeSet;
-
-        let catalog: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../native-hooks.json")).unwrap();
+        let catalog: serde_json::Value = serde_json::from_str(
+                include_str!("../../../../native-hooks.json"),
+            )
+            .unwrap();
         let mut hooks = catalog["hooks"].as_array().unwrap().clone();
         let fragments = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tools/native-hook-fragments");
         for entry in std::fs::read_dir(fragments).unwrap() {
             let path = entry.unwrap().path();
             if path.extension().is_some_and(|ext| ext == "json") {
-                let fragment: serde_json::Value =
-                    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-                hooks.extend(fragment["hooks"].as_array().unwrap().iter().cloned().map(
-                    |mut hook| {
-                        hook["version"] = 1.into();
-                        hook
-                    },
-                ));
+                let fragment: serde_json::Value = serde_json::from_slice(
+                        &std::fs::read(path).unwrap(),
+                    )
+                    .unwrap();
+                hooks
+                    .extend(
+                        fragment["hooks"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .cloned()
+                            .map(|mut hook| {
+                                hook["version"] = 1.into();
+                                hook
+                            }),
+                    );
             }
         }
         let source = include_str!("native_hooks.rs");
@@ -3941,35 +4163,29 @@ mod tests {
         let level_hooks: BTreeSet<_> = level_section
             .lines()
             .filter_map(|line| {
-                line.trim()
-                    .strip_prefix("pub(super) fn native_")?
-                    .split('(')
-                    .next()
+                line.trim().strip_prefix("pub(super) fn native_")?.split('(').next()
             })
             .collect();
-        // Hook points that are free functions in other crates.
         let free_hooks = |source: &'static str| -> BTreeSet<&'static str> {
             source
                 .lines()
-                .filter_map(|line| line.strip_prefix("pub fn native_")?.split('(').next())
+                .filter_map(|line| {
+                    line.strip_prefix("pub fn native_")?.split('(').next()
+                })
                 .collect()
         };
-        // The renderer's (`horizon_client_render::gfx::native_render`).
-        let render_hooks = free_hooks(include_str!(
-            "../../../horizon-client-render/src/gfx/native_render.rs"
-        ));
-        // Items' default components (`horizon_world::item_defaults`).
-        let item_hooks = free_hooks(include_str!("../../../horizon-world/src/item_defaults.rs"));
-        // The loot tables' hook point (`horizon_world::loot`).
+        let render_hooks = free_hooks(
+            include_str!("../../../horizon-client-render/src/gfx/native_render.rs"),
+        );
+        let item_hooks = free_hooks(
+            include_str!("../../../horizon-world/src/item_defaults.rs"),
+        );
         let loot_hooks = free_hooks(include_str!("../../../horizon-world/src/loot.rs"));
         let declared: BTreeSet<_> = section
             .lines()
             .chain(level_section.lines())
             .filter_map(|line| {
-                line.trim()
-                    .strip_prefix("pub(super) fn native_")?
-                    .split('(')
-                    .next()
+                line.trim().strip_prefix("pub(super) fn native_")?.split('(').next()
             })
             .chain(render_hooks.iter().copied())
             .chain(item_hooks.iter().copied())
@@ -3992,7 +4208,9 @@ mod tests {
             } else if loot_hooks.contains(name) {
                 format!("horizon_world::loot::native_{name}")
             } else if level_hooks.contains(name) {
-                format!("horizon_client::game::native_hooks::GameLevel<'_>::native_{name}")
+                format!(
+                    "horizon_client::game::native_hooks::GameLevel<'_>::native_{name}"
+                )
             } else {
                 format!("horizon_client::game::native_hooks::Game<'_>::native_{name}")
             };
@@ -4000,7 +4218,6 @@ mod tests {
         }
         assert_eq!(names, declared);
     }
-
     /// The damage hook gets a mob's source from its damage: the causing mob,
     /// the direct one when it deals the damage itself.
     #[test]
@@ -4008,11 +4225,13 @@ mod tests {
         use super::{HurtSource, Hurting, hurt_server_args, mob_source};
         use horizon_client::mobs::{Damage, DamageKind as K, Who};
         let source = |kind, attacker| {
-            let s = mob_source(&Damage {
-                kind,
-                attacker,
-                from: None,
-            });
+            let s = mob_source(
+                &Damage {
+                    kind,
+                    attacker,
+                    from: None,
+                },
+            );
             (s.damage_type, s.causing, s.direct)
         };
         let zombie = Some(Who::Mob(3));
@@ -4021,7 +4240,6 @@ mod tests {
         assert_eq!(source(K::Arrow, zombie), ("minecraft:arrow", 3, 0));
         let blast = source(K::Explosion, zombie);
         assert_eq!(blast, ("minecraft:player_explosion", 3, 0));
-        // A player behind a mob's hit isn't known yet, nor is a fall's source.
         let hit = source(K::PlayerAttack, Some(Who::Player));
         assert_eq!(hit, ("minecraft:player_attack", 0, 0));
         assert_eq!(source(K::Fall, None), ("minecraft:fall", 0, 0));
@@ -4035,51 +4253,48 @@ mod tests {
         let dragon = (5, "minecraft:ender_dragon", arrow);
         assert_eq!(hurt_server_args(Hurting::Dragon(5, arrow)), dragon);
     }
-
     /// A mod container opens a slot grid or a furnace's menu, by its slot
     /// count; no menu with rules of its own (a brewing stand's, a crafter's).
     #[test]
     fn mod_menus_are_slot_grids_and_furnaces() {
         use super::mod_menu;
         assert_eq!(mod_menu("minecraft:hopper"), Some(("minecraft:hopper", 5)));
-        assert_eq!(mod_menu("minecraft:generic_9x3").map(|m| m.1), Some(27));
-        assert_eq!(mod_menu("minecraft:furnace").map(|m| m.1), Some(3));
+        assert_eq!(mod_menu("minecraft:generic_9x3").map(| m | m.1), Some(27));
+        assert_eq!(mod_menu("minecraft:furnace").map(| m | m.1), Some(3));
         assert_eq!(mod_menu("minecraft:brewing_stand"), None);
         assert_eq!(mod_menu("hopper"), None);
     }
-
     /// The config folder is `config/` beside `options.txt`, made when
     /// missing.
     #[test]
     fn config_dir_is_config_beside_options() {
-        // Callable without a game, from any hook.
         let _: fn() -> Result<std::path::PathBuf, String> = super::Game::native_config_dir;
         use super::config_dir;
-        let root = std::env::temp_dir().join(format!("horizon-config-dir-{}", std::process::id()));
+        let root = std::env::temp_dir()
+            .join(format!("horizon-config-dir-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let options = root.join("options.txt");
-        assert!(!root.join("config").exists());
+        assert!(! root.join("config").exists());
         let dir = config_dir(&options).unwrap();
         assert_eq!(dir, root.join("config"));
         assert!(dir.is_dir());
-        assert_eq!(config_dir(&options).unwrap(), dir);
+        assert_eq!(config_dir(& options).unwrap(), dir);
         let _ = std::fs::remove_dir_all(&root);
     }
-
     /// Vanilla's F3 draws a column in each top corner (`extractLines`, left
     /// and right aligned), and its charts along the bottom.
     #[test]
     fn the_debug_screen_takes_both_top_corners_and_its_charts_corners() {
         use super::{Corner, debug_takes};
         for corner in Corner::ALL {
-            assert!(!debug_takes(corner, false, [true, true]), "{corner:?}");
+            assert!(! debug_takes(corner, false, [true, true]), "{corner:?}");
         }
         assert!(debug_takes(Corner::TopLeft, true, [false, false]));
         assert!(debug_takes(Corner::TopRight, true, [false, false]));
-        assert!(!debug_takes(Corner::BottomLeft, true, [false, false]));
-        assert!(!debug_takes(Corner::BottomRight, true, [false, false]));
+        assert!(! debug_takes(Corner::BottomLeft, true, [false, false]));
+        assert!(! debug_takes(Corner::BottomRight, true, [false, false]));
         assert!(debug_takes(Corner::BottomLeft, true, [true, false]));
-        assert!(!debug_takes(Corner::BottomRight, true, [true, false]));
+        assert!(! debug_takes(Corner::BottomRight, true, [true, false]));
         assert!(debug_takes(Corner::BottomRight, true, [false, true]));
     }
 }
