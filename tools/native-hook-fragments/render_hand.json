@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "render_hand",
+      "name": "render_hand", "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_render_hand",
       "neoforge": "RenderHandEvent",
       "side": "client",
