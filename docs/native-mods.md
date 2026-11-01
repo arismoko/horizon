@@ -1275,6 +1275,11 @@ For mods that run where the world is simulated: a dedicated server, a LAN host, 
   key, a double tap forward, letting go), once for each change, after the server's player took it. It only hears. It
   reports what the client asks, not what the server does: a sprint that ends by itself (a hit's knockback, hunger, a
   wall) is not heard. The player's state is swapped in, so `native_tell` and the acting-player helpers work.
+- **`native_resource_pack_status(player, name, status)`**: a server player's client answered a resource pack while
+  playing (`ServerboundResourcePackPacket`): `status` is `Action`'s number (0 loaded, 1 declined, 2 failed download,
+  3 accepted, 4 downloaded, 5 invalid URL, 6 failed reload, 7 discarded). It only hears. The pack a dedicated server
+  offers during the configuration is answered before the player has joined and is not heard. The player's state is
+  swapped in, so `native_tell` works.
 - **`native_perform_command(player, command, ran)`**: a player typed a registered command (without its slash) and
   their level allows it, whether the world allows commands or not. The mod parses the line and sets `ran`. The
   player's state is swapped in for the call, as for their other actions, so `native_player` reads them; a

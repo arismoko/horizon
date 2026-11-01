@@ -2068,6 +2068,14 @@ impl Game<'_> {
                 });
             }
             S::PlayerCommand(p) if p.action == 6 => self.lan_start_gliding(host, conn),
+            // ServerboundResourcePackPacket in play: the server has nothing to
+            // do with it (a declined required pack is handled on the connection).
+            S::ResourcePack(r) => {
+                let (uuid, name) = (host.hub.guests[gi].uuid, host.hub.guests[gi].name.clone());
+                self.as_guest(host, conn, |g| {
+                    g.native_resource_pack_status(uuid, &name, r.action);
+                });
+            }
             // START_SPRINTING and STOP_SPRINTING: the hub has set the sprint
             // and sends the packet on when it changed it.
             S::PlayerCommand(p) if matches!(p.action, 1 | 2) => {
