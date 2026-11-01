@@ -136,8 +136,6 @@ pub(super) struct Mod<'a> {
 pub(super) struct Resolution {
     /// Original bundle indices, in dispatch order.
     pub order: Vec<usize>,
-    /// Installed dependency indices for each original bundle index.
-    pub edges: Vec<Vec<usize>>,
 }
 
 pub(super) fn resolve(mods: &[Mod<'_>]) -> Result<Resolution, Error> {
@@ -211,7 +209,7 @@ pub(super) fn resolve(mods: &[Mod<'_>]) -> Result<Resolution, Error> {
         done[next] = true;
         order.push(next);
     }
-    Ok(Resolution { order, edges })
+    Ok(Resolution { order })
 }
 
 /// A target's staged Cargo package, or none for an absent optional mod.
@@ -321,7 +319,6 @@ mod tests {
         ];
         let result = resolve(&mods).unwrap();
         assert_eq!(result.order, [1, 2, 0, 3]);
-        assert_eq!(result.edges[0], [1, 2]);
         assert_eq!(
             resolve(&[item("user", "1.0.0", &user), item("base", "1.2.0", &[])])
                 .unwrap()
