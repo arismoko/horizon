@@ -752,8 +752,8 @@ pub trait Hooks: Send + Sync {
     }
 }
 pub fn dispatch_tick(host: &mut dyn Host, mods: &[Box<dyn Hooks>]) {
-    for m in mods {
-        m.tick(host);
+    for mod_hook in mods {
+        mod_hook.tick(host);
     }
 }
 pub fn dispatch_world_lifecycle(
@@ -763,8 +763,8 @@ pub fn dispatch_world_lifecycle(
     phase: WorldPhase,
     error_text: &str,
 ) {
-    for m in mods {
-        m.world_lifecycle(host, context, phase, error_text);
+    for mod_hook in mods {
+        mod_hook.world_lifecycle(host, context, phase, error_text);
     }
 }
 pub fn dispatch_server_about_to_start(
@@ -772,13 +772,13 @@ pub fn dispatch_server_about_to_start(
     mods: &[Box<dyn Hooks>],
     dedicated: bool,
 ) {
-    for m in mods {
-        m.server_about_to_start(host, dedicated);
+    for mod_hook in mods {
+        mod_hook.server_about_to_start(host, dedicated);
     }
 }
 pub fn dispatch_server_stopping(host: &mut dyn Host, mods: &[Box<dyn Hooks>], dedicated: bool) {
-    for m in mods {
-        m.server_stopping(host, dedicated);
+    for mod_hook in mods {
+        mod_hook.server_stopping(host, dedicated);
     }
 }
 pub fn dispatch_server_tick(
@@ -787,27 +787,27 @@ pub fn dispatch_server_tick(
     context: &NativeLifecycleContext,
     phase: ServerTickPhase,
 ) {
-    for m in mods {
-        m.server_tick(host, context, phase);
+    for mod_hook in mods {
+        mod_hook.server_tick(host, context, phase);
     }
 }
 pub fn dispatch_level_tick_pre(host: &mut dyn Host, mods: &[Box<dyn Hooks>], dimension: &str) {
-    for m in mods {
-        m.level_tick_pre(host, dimension);
+    for mod_hook in mods {
+        mod_hook.level_tick_pre(host, dimension);
     }
 }
 pub fn dispatch_level_tick_post(host: &mut dyn Host, mods: &[Box<dyn Hooks>], dimension: &str) {
-    for m in mods {
-        m.level_tick_post(host, dimension);
+    for mod_hook in mods {
+        mod_hook.level_tick_post(host, dimension);
     }
 }
 pub fn dispatch_zoom(host: &dyn Host, mods: &[Box<dyn Hooks>], zoom: &mut Option<NativeZoom>) {
     if zoom.is_some() {
         return;
     }
-    for m in mods {
-        if let Some(value) = m.zoom(host) {
-            *zoom = Some(value);
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.zoom(host) {
+            *zoom = Some(replacement);
             break;
         }
     }
@@ -821,9 +821,9 @@ pub fn dispatch_block_entity(
     if entity.is_some() {
         return;
     }
-    for m in mods {
-        if let Some(value) = m.block_entity(host, block) {
-            *entity = Some(value);
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.block_entity(host, block) {
+            *entity = Some(replacement);
             break;
         }
     }
@@ -834,8 +834,8 @@ pub fn dispatch_block_entity_ticks(
     block: &str,
     ticks: &mut bool,
 ) {
-    for m in mods {
-        m.block_entity_ticks(host, block, &mut *ticks);
+    for mod_hook in mods {
+        mod_hook.block_entity_ticks(host, block, &mut *ticks);
     }
 }
 pub fn dispatch_block_entity_tick(
@@ -844,8 +844,8 @@ pub fn dispatch_block_entity_tick(
     pos: [i32; 3],
     entity: &mut ModBlockEntity,
 ) {
-    for m in mods {
-        m.block_entity_tick(host, pos, &mut *entity);
+    for mod_hook in mods {
+        mod_hook.block_entity_tick(host, pos, &mut *entity);
     }
 }
 pub fn dispatch_block_entity_update_tag(
@@ -857,9 +857,9 @@ pub fn dispatch_block_entity_update_tag(
     if tag.is_some() {
         return;
     }
-    for m in mods {
-        if let Some(value) = m.block_entity_update_tag(pos, entity) {
-            *tag = Some(value);
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.block_entity_update_tag(pos, entity) {
+            *tag = Some(replacement);
             break;
         }
     }
@@ -873,9 +873,9 @@ pub fn dispatch_block_entity_container(
     if container.is_some() {
         return;
     }
-    for m in mods {
-        if let Some(value) = m.block_entity_container(host, block) {
-            *container = Some(value);
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.block_entity_container(host, block) {
+            *container = Some(replacement);
             break;
         }
     }
@@ -887,8 +887,8 @@ pub fn dispatch_menu_button(
     entity: &mut ModBlockEntity,
     id: i32,
 ) {
-    for m in mods {
-        m.menu_button(host, pos, &mut *entity, id);
+    for mod_hook in mods {
+        mod_hook.menu_button(host, pos, &mut *entity, id);
     }
 }
 pub fn dispatch_register_commands(
@@ -896,8 +896,8 @@ pub fn dispatch_register_commands(
     mods: &[Box<dyn Hooks>],
     commands: &mut Vec<NativeCommand>,
 ) {
-    for m in mods {
-        m.register_commands(host, &mut *commands);
+    for mod_hook in mods {
+        mod_hook.register_commands(host, &mut *commands);
     }
 }
 pub fn dispatch_perform_command(
@@ -910,8 +910,11 @@ pub fn dispatch_perform_command(
     if *ran {
         return;
     }
-    for m in mods {
-        if matches!(m.perform_command(host, player, command), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.perform_command(host, player, command),
+            Flow::Cancel
+        ) {
             *ran = true;
             break;
         }
@@ -926,13 +929,13 @@ pub fn dispatch_menu_clicked(
     button: i32,
     mode: i32,
 ) {
-    for m in mods {
-        m.menu_clicked(host, uuid, window, slot, button, mode);
+    for mod_hook in mods {
+        mod_hook.menu_clicked(host, uuid, window, slot, button, mode);
     }
 }
 pub fn dispatch_menu_closed(host: &mut dyn Host, mods: &[Box<dyn Hooks>], uuid: u128, window: i32) {
-    for m in mods {
-        m.menu_closed(host, uuid, window);
+    for mod_hook in mods {
+        mod_hook.menu_closed(host, uuid, window);
     }
 }
 pub fn dispatch_tooltip(
@@ -941,8 +944,8 @@ pub fn dispatch_tooltip(
     stack: &ItemStack,
     lines: &mut Vec<(Text, u32)>,
 ) {
-    for m in mods {
-        m.tooltip(host, stack, &mut *lines);
+    for mod_hook in mods {
+        mod_hook.tooltip(host, stack, &mut *lines);
     }
 }
 pub fn dispatch_use_item_on(
@@ -956,8 +959,8 @@ pub fn dispatch_use_item_on(
     if *claimed {
         return;
     }
-    for m in mods {
-        if matches!(m.use_item_on(host, stack, pos, face), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(mod_hook.use_item_on(host, stack, pos, face), Flow::Cancel) {
             *claimed = true;
             break;
         }
@@ -972,8 +975,8 @@ pub fn dispatch_use_item(
     if *claimed {
         return;
     }
-    for m in mods {
-        if matches!(m.use_item(host, stack), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(mod_hook.use_item(host, stack), Flow::Cancel) {
             *claimed = true;
             break;
         }
@@ -989,8 +992,8 @@ pub fn dispatch_destroy_block(
     if *canceled {
         return;
     }
-    for m in mods {
-        if matches!(m.destroy_block(host, pos, state), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(mod_hook.destroy_block(host, pos, state), Flow::Cancel) {
             *canceled = true;
             break;
         }
@@ -1003,8 +1006,8 @@ pub fn dispatch_place_block(
     pos: [i32; 3],
     state: BlockStateId,
 ) {
-    for m in mods {
-        m.place_block(host, stack, pos, state);
+    for mod_hook in mods {
+        mod_hook.place_block(host, stack, pos, state);
     }
 }
 pub fn dispatch_right_click_block(
@@ -1017,8 +1020,8 @@ pub fn dispatch_right_click_block(
     if *canceled {
         return;
     }
-    for m in mods {
-        if matches!(m.right_click_block(host, pos, face), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(mod_hook.right_click_block(host, pos, face), Flow::Cancel) {
             *canceled = true;
             break;
         }
@@ -1031,8 +1034,8 @@ pub fn dispatch_explosion_detonate(
     center: [f64; 3],
     blocks: &mut Vec<[i32; 3]>,
 ) {
-    for m in mods {
-        m.explosion_detonate(host, dimension, center, &mut *blocks);
+    for mod_hook in mods {
+        mod_hook.explosion_detonate(host, dimension, center, &mut *blocks);
     }
 }
 pub fn dispatch_fill_bucket(
@@ -1045,8 +1048,8 @@ pub fn dispatch_fill_bucket(
     if *canceled {
         return;
     }
-    for m in mods {
-        if matches!(m.fill_bucket(host, stack, pos), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(mod_hook.fill_bucket(host, stack, pos), Flow::Cancel) {
             *canceled = true;
             break;
         }
@@ -1063,8 +1066,11 @@ pub fn dispatch_attack_entity(
     if *canceled {
         return;
     }
-    for m in mods {
-        if matches!(m.attack_entity(host, entity, kind, pos), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.attack_entity(host, entity, kind, pos),
+            Flow::Cancel
+        ) {
             *canceled = true;
             break;
         }
@@ -1077,8 +1083,8 @@ pub fn dispatch_net_from_client(
     channel: &str,
     data: &[u8],
 ) {
-    for m in mods {
-        m.net_from_client(host, player, channel, data);
+    for mod_hook in mods {
+        mod_hook.net_from_client(host, player, channel, data);
     }
 }
 pub fn dispatch_player_died(
@@ -1087,8 +1093,8 @@ pub fn dispatch_player_died(
     player: u128,
     cause: Option<&str>,
 ) {
-    for m in mods {
-        m.player_died(host, player, cause);
+    for mod_hook in mods {
+        mod_hook.player_died(host, player, cause);
     }
 }
 pub fn dispatch_mob_spawned(
@@ -1099,8 +1105,8 @@ pub fn dispatch_mob_spawned(
     pos: [f64; 3],
     natural: bool,
 ) {
-    for m in mods {
-        m.mob_spawned(host, dimension, kind, pos, natural);
+    for mod_hook in mods {
+        mod_hook.mob_spawned(host, dimension, kind, pos, natural);
     }
 }
 pub fn dispatch_mob_killed(
@@ -1110,8 +1116,8 @@ pub fn dispatch_mob_killed(
     entity: u32,
     kind: &str,
 ) {
-    for m in mods {
-        m.mob_killed(host, player, entity, kind);
+    for mod_hook in mods {
+        mod_hook.mob_killed(host, player, entity, kind);
     }
 }
 pub fn dispatch_item_dropped(
@@ -1121,8 +1127,8 @@ pub fn dispatch_item_dropped(
     item: &str,
     count: u32,
 ) {
-    for m in mods {
-        m.item_dropped(host, player, item, count);
+    for mod_hook in mods {
+        mod_hook.item_dropped(host, player, item, count);
     }
 }
 pub fn dispatch_item_picked_up(
@@ -1136,8 +1142,11 @@ pub fn dispatch_item_picked_up(
     if *canceled {
         return;
     }
-    for m in mods {
-        if matches!(m.item_picked_up(host, player, item, count), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.item_picked_up(host, player, item, count),
+            Flow::Cancel
+        ) {
             *canceled = true;
             break;
         }
@@ -1150,8 +1159,8 @@ pub fn dispatch_hurt_enemy(
     entity: u32,
     kind: &str,
 ) {
-    for m in mods {
-        m.hurt_enemy(host, stack, entity, kind);
+    for mod_hook in mods {
+        mod_hook.hurt_enemy(host, stack, entity, kind);
     }
 }
 pub fn dispatch_inventory_tick(
@@ -1160,8 +1169,8 @@ pub fn dispatch_inventory_tick(
     slot: i32,
     selected: bool,
 ) {
-    for m in mods {
-        m.inventory_tick(host, slot, selected);
+    for mod_hook in mods {
+        mod_hook.inventory_tick(host, slot, selected);
     }
 }
 pub fn dispatch_on_equip(
@@ -1170,8 +1179,8 @@ pub fn dispatch_on_equip(
     slot: &str,
     new: Option<&ItemStack>,
 ) {
-    for m in mods {
-        m.on_equip(host, slot, new);
+    for mod_hook in mods {
+        mod_hook.on_equip(host, slot, new);
     }
 }
 pub fn dispatch_interact_entity(
@@ -1185,8 +1194,11 @@ pub fn dispatch_interact_entity(
     if *claimed {
         return;
     }
-    for m in mods {
-        if matches!(m.interact_entity(host, entity, kind, stack), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.interact_entity(host, entity, kind, stack),
+            Flow::Cancel
+        ) {
             *claimed = true;
             break;
         }
@@ -1203,16 +1215,19 @@ pub fn dispatch_left_click_block(
     if *canceled {
         return;
     }
-    for m in mods {
-        if matches!(m.left_click_block(host, pos, face, state), Flow::Cancel) {
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.left_click_block(host, pos, face, state),
+            Flow::Cancel
+        ) {
             *canceled = true;
             break;
         }
     }
 }
 pub fn dispatch_player_tick(host: &mut dyn Host, mods: &[Box<dyn Hooks>]) {
-    for m in mods {
-        m.player_tick(host);
+    for mod_hook in mods {
+        mod_hook.player_tick(host);
     }
 }
 pub fn dispatch_entity_join_level(
@@ -1228,9 +1243,9 @@ pub fn dispatch_entity_join_level(
     if *canceled {
         return;
     }
-    for m in mods {
+    for mod_hook in mods {
         if matches!(
-            m.entity_join_level(host, dimension, entity, kind, pos, loaded_from_disk),
+            mod_hook.entity_join_level(host, dimension, entity, kind, pos, loaded_from_disk),
             Flow::Cancel
         ) {
             *canceled = true;
@@ -1251,9 +1266,16 @@ pub fn dispatch_living_incoming_damage(
     if *canceled {
         return;
     }
-    for m in mods {
+    for mod_hook in mods {
         if matches!(
-            m.living_incoming_damage(entity, kind, damage_type, causing, direct, &mut *amount),
+            mod_hook.living_incoming_damage(
+                entity,
+                kind,
+                damage_type,
+                causing,
+                direct,
+                &mut *amount
+            ),
             Flow::Cancel
         ) {
             *canceled = true;
@@ -1269,8 +1291,8 @@ pub fn dispatch_menu_button_v2(
     id: i32,
     carried: &mut Option<ItemStack>,
 ) {
-    for m in mods {
-        m.menu_button_v2(host, pos, &mut *entity, id, &mut *carried);
+    for mod_hook in mods {
+        mod_hook.menu_button_v2(host, pos, &mut *entity, id, &mut *carried);
     }
 }
 pub fn dispatch_entity_leave_level(
@@ -1280,8 +1302,8 @@ pub fn dispatch_entity_leave_level(
     entity: u32,
     kind: &str,
 ) {
-    for m in mods {
-        m.entity_leave_level(host, dimension, entity, kind);
+    for mod_hook in mods {
+        mod_hook.entity_leave_level(host, dimension, entity, kind);
     }
 }
 pub fn dispatch_block_entity_fluids(
@@ -1293,9 +1315,9 @@ pub fn dispatch_block_entity_fluids(
     if fluids.is_some() {
         return;
     }
-    for m in mods {
-        if let Some(value) = m.block_entity_fluids(host, block) {
-            *fluids = Some(value);
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.block_entity_fluids(host, block) {
+            *fluids = Some(replacement);
             break;
         }
     }
@@ -1308,8 +1330,14 @@ pub fn dispatch_should_apply_effect_tick_this_tick(
     amplifier: i32,
     apply: &mut bool,
 ) {
-    for m in mods {
-        m.should_apply_effect_tick_this_tick(host, effect, tick_count, amplifier, &mut *apply);
+    for mod_hook in mods {
+        mod_hook.should_apply_effect_tick_this_tick(
+            host,
+            effect,
+            tick_count,
+            amplifier,
+            &mut *apply,
+        );
     }
 }
 pub fn dispatch_apply_effect_tick(
@@ -1321,8 +1349,8 @@ pub fn dispatch_apply_effect_tick(
     amplifier: i32,
     keep: &mut bool,
 ) {
-    for m in mods {
-        m.apply_effect_tick(host, effect, dimension, entity, amplifier, &mut *keep);
+    for mod_hook in mods {
+        mod_hook.apply_effect_tick(host, effect, dimension, entity, amplifier, &mut *keep);
     }
 }
 pub fn dispatch_on_effect_added(
@@ -1332,8 +1360,8 @@ pub fn dispatch_on_effect_added(
     entity: Option<i32>,
     amplifier: i32,
 ) {
-    for m in mods {
-        m.on_effect_added(host, effect, entity, amplifier);
+    for mod_hook in mods {
+        mod_hook.on_effect_added(host, effect, entity, amplifier);
     }
 }
 pub fn dispatch_mob_effect_added(
@@ -1343,8 +1371,8 @@ pub fn dispatch_mob_effect_added(
     entity: Option<i32>,
     amplifier: i32,
 ) {
-    for m in mods {
-        m.mob_effect_added(host, effect, entity, amplifier);
+    for mod_hook in mods {
+        mod_hook.mob_effect_added(host, effect, entity, amplifier);
     }
 }
 pub fn dispatch_chunk_load(
@@ -1354,8 +1382,8 @@ pub fn dispatch_chunk_load(
     chunk: [i32; 2],
     new: bool,
 ) {
-    for m in mods {
-        m.chunk_load(host, dimension, chunk, new);
+    for mod_hook in mods {
+        mod_hook.chunk_load(host, dimension, chunk, new);
     }
 }
 pub fn dispatch_chunk_unload(
@@ -1364,8 +1392,8 @@ pub fn dispatch_chunk_unload(
     dimension: &str,
     chunk: [i32; 2],
 ) {
-    for m in mods {
-        m.chunk_unload(host, dimension, chunk);
+    for mod_hook in mods {
+        mod_hook.chunk_unload(host, dimension, chunk);
     }
 }
 pub fn dispatch_player_logged_in(
@@ -1374,8 +1402,8 @@ pub fn dispatch_player_logged_in(
     player: u128,
     name: &str,
 ) {
-    for m in mods {
-        m.player_logged_in(host, player, name);
+    for mod_hook in mods {
+        mod_hook.player_logged_in(host, player, name);
     }
 }
 pub fn dispatch_player_logged_out(
@@ -1384,7 +1412,7 @@ pub fn dispatch_player_logged_out(
     player: u128,
     name: &str,
 ) {
-    for m in mods {
-        m.player_logged_out(host, player, name);
+    for mod_hook in mods {
+        mod_hook.player_logged_out(host, player, name);
     }
 }

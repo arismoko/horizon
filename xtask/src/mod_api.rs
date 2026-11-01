@@ -31,6 +31,14 @@ fn has_dispatch(method: &syn::ImplItemFn, name: &str) -> bool {
     calls.found
 }
 
+fn fresh_name(base: &str, used: &mut HashSet<String>) -> String {
+    let mut name = base.to_owned();
+    while !used.insert(name.clone()) {
+        name.push('_');
+    }
+    name
+}
+
 fn host_for(target: &str, mutable: Option<bool>) -> Option<(&str, String)> {
     mutable.map(|mutable| {
         let (name, kind) = if target.contains("::GameLevel<") {
@@ -106,6 +114,10 @@ pub fn run(check: bool) -> Result<(), String> {
                 }
             }
         }
+        let mut used: HashSet<_> = args.iter().map(|(name, _)| name.clone()).collect();
+        let mod_list = fresh_name("mods", &mut used);
+        let mod_item = fresh_name("mod_hook", &mut used);
+        let replacement = fresh_name("replacement", &mut used);
         let contract = api["contract"].as_str().ok_or("contract missing")?;
         let out = api.get("out").and_then(|v| v.as_str());
         if !matches!(
@@ -144,7 +156,8 @@ pub fn run(check: bool) -> Result<(), String> {
         let host = host_for(
             hook["target"].as_str().ok_or("target missing")?,
             receiver_mut,
-        );
+        )
+        .map(|(name, ty)| (fresh_name(name, &mut used), ty));
         let mut trait_params = vec!["&self".to_owned()];
         let mut dispatch_params = Vec::new();
         let mut call_args = Vec::new();
@@ -152,10 +165,10 @@ pub fn run(check: bool) -> Result<(), String> {
         if let Some((name, ty)) = &host {
             trait_params.push(format!("{name}: {ty}"));
             dispatch_params.push(format!("{name}: {ty}"));
-            call_args.push((*name).to_owned());
+            call_args.push(name.clone());
             unused.push_str(&format!("let _ = {name};"));
         }
-        dispatch_params.push("mods: &[Box<dyn Hooks>]".to_owned());
+        dispatch_params.push(format!("{mod_list}: &[Box<dyn Hooks>]"));
         for (name, ty) in &args {
             let param = format!("{name}: {}", ty.to_token_stream());
             trait_params.push(param.clone());
@@ -217,14 +230,14 @@ pub fn run(check: bool) -> Result<(), String> {
         ));
         let body = match contract {
             "cancel" => format!(
-                "if *{o} {{ return; }} for m in mods {{ if matches!(m.{name}({invoke}), Flow::Cancel) {{ *{o} = true; break; }} }}",
+                "if *{o} {{ return; }} for {mod_item} in {mod_list} {{ if matches!({mod_item}.{name}({invoke}), Flow::Cancel) {{ *{o} = true; break; }} }}",
                 o = out.unwrap()
             ),
             "replace" => format!(
-                "if {o}.is_some() {{ return; }} for m in mods {{ if let Some(value) = m.{name}({invoke}) {{ *{o} = Some(value); break; }} }}",
+                "if {o}.is_some() {{ return; }} for {mod_item} in {mod_list} {{ if let Some({replacement}) = {mod_item}.{name}({invoke}) {{ *{o} = Some({replacement}); break; }} }}",
                 o = out.unwrap()
             ),
-            _ => format!("for m in mods {{ m.{name}({invoke}); }}"),
+            _ => format!("for {mod_item} in {mod_list} {{ {mod_item}.{name}({invoke}); }}"),
         };
         dispatch.push_str(&format!(
             "pub fn dispatch_{name}({dispatch_params}) {{ {body} }}\n"
@@ -365,6 +378,18 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn generated_locals_do_not_shadow_hook_arguments() {
+        let mut used = ["mods", "mods_", "mod_hook", "replacement", "host"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(super::fresh_name("mods", &mut used), "mods__");
+        assert_eq!(super::fresh_name("mod_hook", &mut used), "mod_hook_");
+        assert_eq!(super::fresh_name("replacement", &mut used), "replacement_");
+        assert_eq!(super::fresh_name("host", &mut used), "host_");
+    }
+
     #[test]
     fn level_hosts_match_receiver_mutability() {
         let target = "horizon_client::game::native_hooks::GameLevel<'_>::native_block_changed";
