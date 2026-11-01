@@ -26,7 +26,7 @@ use std::time::Duration;
 /// level event to play, `CLICK` (1000), `FAIL` (1001) or 0 for none.
 pub type NativeDispensed = (Option<ItemStack>, i32);
 
-/// What dropped the items [`Game::native_loot_drops`] hears.
+/// What dropped the items heard by the `loot_drops` hook.
 #[derive(Clone, Copy, Debug)]
 pub struct NativeLootDrops<'a> {
     /// The block's or mob's own loot table (`minecraft:blocks/stone`, `minecraft:entities/zombie`);
