@@ -1253,21 +1253,12 @@ For replacement hooks, the first `Some` wins. Collection hooks call every mod. M
 Hook methods take `&self` and require `Send + Sync`. The process-wide mod list is installed once, like mixin module statics. One mod instance serves both
 the window's game and the server-thread game. A hook can also fire again inside
 the same mod: for example, `set_block` fires `block_changed`. Mods keep mutable
-state with interior mutability so these calls can share the instance safely.
+state with interior mutability so these calls can share the instance safely. Data-load
+hooks can run on any loading thread; item default changes must be identical on every side.
 
-The trait includes the hooks marked `mod_api` in `native-hooks.json`. These include
-`tick`, the server lifecycle, player action, menu, block entity, entity, mob, effect,
-chunk and player hooks, plus `frame`, `visuals`, `emissive`, `hud`, `key`, `wheel`,
-`command`, `commands`, `minimap`, `mods`, `settings`, `settings_click`, `panel_event`,
-`screen`, `screen_draw`, `screen_click`, `screen_tooltip`, `health_hud`, `item_bar` and
-`net_from_server`, component registration, dispenser, tooltip component, block entity bounds,
-block contact, consumption, loot drops, loot table loading, item default components,
-enchantment effects and screen render and mouse hooks. Data-load hooks can run on
-any loading thread; item default changes must be made identically on every side.
+The trait has every hook carrying a `mod_api` entry in `native-hooks.json`.
 The following catalog hooks are not in the trait yet:
 
-- `block_changed`, `neighbor_changed`, `random_tick`, `tick_block`, `update_shape`,
-  `block_spread`, `piston_move`, `block_signal` and `is_signal_source` need a level host.
 - `world_drawn` and `render_needs` need a renderer trait.
 - `has_analog_output`, `analog_output`, `can_survive`, `may_place_on`,
   `is_valid_bonemeal_target`, `is_bonemeal_success`, `perform_bonemeal` and

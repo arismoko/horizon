@@ -52,14 +52,25 @@ fn fresh_name(base: &str, used: &mut HashSet<String>) -> String {
     name
 }
 
-fn host_for(target: &str, mutable: Option<bool>) -> Option<(&str, String)> {
+fn host_for(is_level: bool, mutable: Option<bool>, ticks: bool) -> Option<(&'static str, String)> {
     mutable.map(|mutable| {
-        let (name, kind) = if target.contains("::GameLevel<") {
-            ("level", "LevelHost")
+        let (name, kind) = if is_level {
+            (
+                "level",
+                match (mutable, ticks) {
+                    (true, true) => "LevelWriteHost",
+                    (false, true) => "LevelTicksHost",
+                    _ => "LevelHost",
+                },
+            )
         } else {
             ("host", "Host")
         };
-        let mutable = if mutable { "mut " } else { "" };
+        let mutable = if mutable || (is_level && ticks) {
+            "mut "
+        } else {
+            ""
+        };
         (name, format!("&{mutable}dyn {kind}"))
     })
 }
@@ -152,6 +163,16 @@ pub fn run(check: bool) -> Result<(), String> {
                 }
             }
         }
+        let is_level = hook["target"]
+            .as_str()
+            .is_some_and(|target| target.contains("::GameLevel<"));
+        let ticks = is_level
+            && args.iter().any(|(name, ty)| {
+                name == "ticks" && ty.to_token_stream().to_string() == "& mut Ticks"
+            });
+        if ticks {
+            args.retain(|(name, _)| name != "ticks");
+        }
         let mut used: HashSet<_> = args.iter().map(|(name, _)| name.clone()).collect();
         let mod_list = fresh_name("mods", &mut used);
         let mod_item = fresh_name("mod_hook", &mut used);
@@ -191,11 +212,8 @@ pub fn run(check: bool) -> Result<(), String> {
         } else {
             String::new()
         };
-        let host = host_for(
-            hook["target"].as_str().ok_or("target missing")?,
-            receiver_mut,
-        )
-        .map(|(name, ty)| (fresh_name(name, &mut used), ty));
+        let host = host_for(is_level, receiver_mut, ticks)
+            .map(|(name, ty)| (fresh_name(name, &mut used), ty));
         let mut trait_params = vec!["&self".to_owned()];
         let mut dispatch_params = Vec::new();
         let mut call_args = Vec::new();
@@ -329,9 +347,19 @@ mod tests {
     mod stubs {
         #[derive(Clone, Copy)]
         pub(super) struct BlockStateId;
-        pub(super) struct Compound;
+        #[derive(Clone, Copy)]
+        pub(super) struct BlockPos;
+        #[derive(Clone, Copy)]
+        pub(super) struct BlockId;
         #[derive(Clone, Copy)]
         pub(super) struct Direction;
+        #[derive(Clone, Copy)]
+        pub(super) struct LevelDimension;
+        pub(super) struct Ticks;
+        pub(super) trait LevelHost {}
+        pub(super) trait LevelTicksHost: LevelHost {}
+        pub(super) trait LevelWriteHost: LevelTicksHost {}
+        pub(super) struct Compound;
         pub(super) type NativeDispensed = (Option<super::ItemStack>, i32);
         pub(super) struct NativeLootDrops<'a>(pub &'a ());
         pub(super) struct NativeScreenView<'a>(pub &'a ());
@@ -463,18 +491,25 @@ mod tests {
 
     #[test]
     fn level_hosts_match_receiver_mutability() {
-        let target = "horizon_client::game::native_hooks::GameLevel<'_>::native_block_changed";
         assert_eq!(
-            super::host_for(target, Some(false)),
+            super::host_for(true, Some(false), false),
             Some(("level", "&dyn LevelHost".into()))
         );
         assert_eq!(
-            super::host_for(target, Some(true)),
+            super::host_for(true, Some(true), false),
             Some(("level", "&mut dyn LevelHost".into()))
         );
-        assert_eq!(super::host_for(target, None), None);
         assert_eq!(
-            super::host_for("Game::native_tick", Some(true)),
+            super::host_for(true, Some(false), true),
+            Some(("level", "&mut dyn LevelTicksHost".into()))
+        );
+        assert_eq!(
+            super::host_for(true, Some(true), true),
+            Some(("level", "&mut dyn LevelWriteHost".into()))
+        );
+        assert_eq!(super::host_for(true, None, false), None);
+        assert_eq!(
+            super::host_for(false, Some(true), false),
             Some(("host", "&mut dyn Host".into()))
         );
     }

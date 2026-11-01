@@ -13,8 +13,12 @@ pub use crate::hud::HudBatch;
 pub use crate::hud_layout::{GuiDraw, HealthInputs};
 pub use crate::items::ItemStack;
 pub use crate::text::Text;
-pub use horizon_core::geometry::Direction;
-pub use horizon_world::{nbt::Compound, registry::BlockStateId};
+pub use horizon_core::{geometry::Direction, position::BlockPos};
+pub use horizon_world::{
+    level::{BlockId, Dimension as LevelDimension},
+    nbt::Compound,
+    registry::BlockStateId,
+};
 pub use serde_json;
 use serde_json::{Map, Value};
 use std::time::Duration;
@@ -23,7 +27,7 @@ use std::time::Duration;
 /// level event to play, `CLICK` (1000), `FAIL` (1001) or 0 for none.
 pub type NativeDispensed = (Option<ItemStack>, i32);
 
-/// What dropped the items [`Game::native_loot_drops`] hears.
+/// What dropped the items heard by the `loot_drops` hook.
 #[derive(Clone, Copy, Debug)]
 pub struct NativeLootDrops<'a> {
     /// The block's or mob's own loot table (`minecraft:blocks/stone`, `minecraft:entities/zombie`);
@@ -383,6 +387,26 @@ pub trait Host {
     fn tell(&mut self, uuid: u128, line: Text) -> bool;
     /// Send an action bar line to a player, including the acting player inside their hook.
     fn action_bar(&mut self, uuid: u128, line: Text) -> bool;
+}
+
+/// Read-only level services, like vanilla's `LevelReader`.
+pub trait LevelHost {
+    /// Read a block through `LevelAccess::block_state`.
+    fn block_state(&self, pos: [i32; 3]) -> BlockStateId;
+}
+
+/// A `LevelReader` with vanilla's `ScheduledTickAccess`. Shape updates cannot write blocks.
+pub trait LevelTicksHost: LevelHost {
+    /// Schedule a block tick through `native_schedule_block_tick`.
+    fn schedule_block_tick(&mut self, pos: [i32; 3], block: &str, delay: i32) -> bool;
+    /// Schedule a fluid tick through `native_schedule_fluid_tick`.
+    fn schedule_fluid_tick(&mut self, pos: [i32; 3], fluid: &str, delay: i32) -> bool;
+}
+
+/// Mutable level services, like vanilla's `ServerLevel`. Whole-block writes wait for block entity support.
+pub trait LevelWriteHost: LevelTicksHost {
+    /// Change a block property through `native_set_block_property`.
+    fn set_block_property(&mut self, pos: [i32; 3], key: &str, value: &str, flags: i32) -> bool;
 }
 
 mod generated;
