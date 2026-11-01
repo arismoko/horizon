@@ -1774,6 +1774,40 @@ impl Game<'_> {
                     self.mob_hits_player(amount, from, kind);
                 }
                 MobEvent::ElderCurse { at } => self.elder_curse(at),
+                MobEvent::SetVelocity { target, velocity } => {
+                    let v = Vec3::new(velocity[0], velocity[1], velocity[2]);
+                    match target {
+                        Who::Player => {
+                            if let Some(p) = self.player.as_mut() {
+                                p.velocity = v;
+                            }
+                        }
+                        Who::Mob(id) => {
+                            if let Some(m) = self.mobs.iter_mut().find(|m| m.id == id) {
+                                m.velocity = v;
+                            }
+                        }
+                    }
+                }
+                MobEvent::RemoveKilled { target } => {
+                    // The bite that killed it ran `LivingEntity.die` (loot, such
+                    // as a magma cube's froglight, and experience) before
+                    // `eatEntity` removes it: a removed mob never reaches the
+                    // next tick's deaths, so it dies here first.
+                    if let Some(m) = self
+                        .mobs
+                        .iter()
+                        .find(|m| m.id == target && !m.alive() && !m.removed)
+                        .cloned()
+                    {
+                        if self.died.insert(target) {
+                            self.mob_died(&m);
+                        }
+                        if let Some(m) = self.mobs.iter_mut().find(|m| m.id == target) {
+                            m.removed = true;
+                        }
+                    }
+                }
                 MobEvent::Push { target, velocity } => {
                     let v = Vec3::new(velocity[0], velocity[1], velocity[2]);
                     match target {
