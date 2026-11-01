@@ -1383,7 +1383,7 @@ renderer list is installed once alongside the mod list. `render_needs` collects 
 run on the render thread while the frame is built, before any deferred GPU submission.
 The renderer module re-exports the game's wgpu types.
 
-The following catalog hooks are not in the trait yet:
+The following hooks are not in the trait yet:
 
 - `block_entity_submit` needs a drawing interface.
 - Newly added upstream hooks `player_command`, `perform_console_command`, `item_decorations`,
@@ -1391,3 +1391,8 @@ The following catalog hooks are not in the trait yet:
   `screen_mouse_scrolled_pre`, `use_duration`, `use_animation`, `can_eat`,
   `living_entity_use_item_start`, `living_entity_use_item_finish`, `render_hand`, `shader_params`
   and `block_highlight` will join a later slice.
+- Hooks added by the upstream sync also await contracts: `datapack_sync`, `recipes_received`,
+  `server_data_loaded`, `data_pack_files`, `input_key`, `mouse_button_pre`, `mouse_button_post`,
+  `mouse_scrolling`, `compute_fov`, `compute_fog_color`, `render_fog`, `camera_distance`,
+  `biome_colors`, `music`, `music_layers`, `mob_submit`, `screen_mouse_dragged_pre`,
+  `screen_key_released_pre`, `player_respawned`, `mod_container_viewers` and `item_model`.
