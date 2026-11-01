@@ -60,7 +60,8 @@ fn host_for(is_level: bool, mutable: Option<bool>, ticks: bool) -> Option<(&'sta
                 match (mutable, ticks) {
                     (true, true) => "LevelWriteHost",
                     (false, true) => "LevelTicksHost",
-                    _ => "LevelHost",
+                    (true, false) => "LevelRandomHost",
+                    (false, false) => "LevelHost",
                 },
             )
         } else {
@@ -345,8 +346,11 @@ mod tests {
     struct ItemStack;
     #[allow(dead_code)]
     mod stubs {
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Debug, PartialEq)]
         pub(super) struct BlockStateId;
+        #[derive(Clone, Copy)]
+        pub(super) struct FluidState;
+        pub(super) struct PlacementContext;
         #[derive(Clone, Copy)]
         pub(super) struct BlockPos;
         #[derive(Clone, Copy)]
@@ -358,7 +362,8 @@ mod tests {
         pub(super) struct Ticks;
         pub(super) trait LevelHost {}
         pub(super) trait LevelTicksHost: LevelHost {}
-        pub(super) trait LevelWriteHost: LevelTicksHost {}
+        pub(super) trait LevelRandomHost: LevelHost {}
+        pub(super) trait LevelWriteHost: LevelTicksHost + LevelRandomHost {}
         pub(super) struct Compound;
         pub(super) type NativeDispensed = (Option<super::ItemStack>, i32);
         pub(super) struct NativeLootDrops<'a>(pub &'a ());
@@ -478,6 +483,53 @@ mod tests {
     }
 
     #[test]
+    fn placement_replacement_can_refuse_and_stops_later_mods() {
+        struct Level;
+        impl LevelHost for Level {}
+        struct Refuse(Arc<Mutex<Vec<u32>>>, u32);
+        impl Hooks for Refuse {
+            fn state_for_placement(
+                &self,
+                _: &dyn LevelHost,
+                _: LevelDimension,
+                _: BlockStateId,
+                _: &PlacementContext,
+                _: FluidState,
+            ) -> Option<Option<BlockStateId>> {
+                self.0.lock().unwrap().push(self.1);
+                Some(None)
+            }
+        }
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mods: Vec<Box<dyn Hooks>> = vec![
+            Box::new(Refuse(calls.clone(), 1)),
+            Box::new(Refuse(calls.clone(), 2)),
+        ];
+        let mut answer = None;
+        dispatch_state_for_placement(
+            &Level,
+            &mods,
+            LevelDimension,
+            BlockStateId,
+            &PlacementContext,
+            FluidState,
+            &mut answer,
+        );
+        assert_eq!(answer, Some(None));
+        assert_eq!(*calls.lock().unwrap(), vec![1]);
+        dispatch_state_for_placement(
+            &Level,
+            &mods,
+            LevelDimension,
+            BlockStateId,
+            &PlacementContext,
+            FluidState,
+            &mut answer,
+        );
+        assert_eq!(*calls.lock().unwrap(), vec![1]);
+    }
+
+    #[test]
     fn generated_locals_do_not_shadow_hook_arguments() {
         let mut used = ["mods", "mods_", "mod_hook", "replacement", "host"]
             .into_iter()
@@ -497,7 +549,7 @@ mod tests {
         );
         assert_eq!(
             super::host_for(true, Some(true), false),
-            Some(("level", "&mut dyn LevelHost".into()))
+            Some(("level", "&mut dyn LevelRandomHost".into()))
         );
         assert_eq!(
             super::host_for(true, Some(false), true),

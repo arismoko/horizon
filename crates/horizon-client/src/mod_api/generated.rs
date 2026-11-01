@@ -1169,6 +1169,47 @@ pub trait Hooks: Send + Sync {
         let _ = stack;
         let _ = bar;
     }
+    /// `BlockState.hasAnalogOutputSignal`: set `output` for a block of yours
+    /// that comparators read (how full or far along it is, as a composter's
+    /// level), so they ask `native_analog_output`. Asked from inside the
+    /// level's update: answer from `state` alone. Authoritative servers only.
+    /// API 64.
+    ///
+    /// Every mod gets `output` in order and may add, change or remove output.
+    fn has_analog_output(&self, level: &dyn LevelHost, state: BlockStateId, output: &mut bool) {
+        let _ = level;
+        let _ = state;
+        let _ = output;
+    }
+    /// `BlockState.getAnalogOutputSignal`: the signal a comparator reads from
+    /// the block `state` at `pos`, `face` the side that touches the comparator
+    /// (or the conductor in front of it). `output` holds vanilla's answer:
+    /// change it when the block is yours (0 to 15; anything else is clamped).
+    /// Asked only for blocks `native_has_analog_output` answered for, from
+    /// inside the level's update: don't change the world here. When the
+    /// answer changes without the block's state changing, call
+    /// `native_update_output_neighbors`; a change of state through
+    /// `native_set_block` or `native_set_block_property` (neighbour updates
+    /// on) tells the comparators itself, as vanilla's `Level.setBlock` does.
+    /// Authoritative servers only. API 64.
+    ///
+    /// Every mod gets `output` in order and may add, change or remove output.
+    fn analog_output(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+        face: Direction,
+        output: &mut i32,
+    ) {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        let _ = face;
+        let _ = output;
+    }
     /// Register namespaced NBT component types before content loads.
     ///
     /// Every mod gets `types` in order and may add, change or remove types.
@@ -1228,6 +1269,54 @@ pub trait Hooks: Send + Sync {
         let _ = origin;
         let _ = size;
     }
+    /// On an authoritative server, `BlockState.canSurvive` for `state` at
+    /// `pos` (`BlockBehaviour.canSurvive`), before the block answers it: as
+    /// it is placed (`BlockItem.canPlace`), from a shape update of a block
+    /// whose template checks it (a plant, a torch, a sign: false breaks the
+    /// block with its drops), and wherever else vanilla asks. `state` may not
+    /// be in the world yet, so decide from `state`. Answer only for your own
+    /// blocks: `Some(false)` refuses the spot, `Some(true)` allows it, and
+    /// the block's own rule doesn't run. The level is read-only. Asked on
+    /// every shape update of such a block: keep it short. API 70.
+    ///
+    /// Return `Some` to set `survives`; the first mod returning `Some` wins.
+    fn can_survive(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) -> Option<bool> {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        None
+    }
+    /// On an authoritative server, `VegetationBlock.mayPlaceOn` for the
+    /// plant `state` on `ground` at `ground_pos`, before the plant answers
+    /// it: the blocks a mod plant (one whose template is a vanilla plant,
+    /// such as a crop) can stand on. Its template's `canSurvive` asks it, so
+    /// the plant is refused there and pops off when its ground changes to
+    /// one it can't stand on. Answer only for your own blocks. The level is
+    /// read-only. API 70.
+    ///
+    /// Return `Some` to set `may`; the first mod returning `Some` wins.
+    fn may_place_on(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        state: BlockStateId,
+        ground: BlockStateId,
+        ground_pos: BlockPos,
+    ) -> Option<bool> {
+        let _ = level;
+        let _ = dimension;
+        let _ = state;
+        let _ = ground;
+        let _ = ground_pos;
+        None
+    }
     /// Where the mod block entity at `pos` draws, for culling
     /// (NeoForge's `getRenderBoundingBox`): `bounds` is min x, y, z then max
     /// x, y, z, in blocks from the block's lower north-west corner. It starts
@@ -1252,6 +1341,75 @@ pub trait Hooks: Send + Sync {
         let _ = state;
         let _ = entity;
         let _ = bounds;
+    }
+    /// A block nothing in Horizon knows a `BonemealableBlock` for is about to
+    /// take bone meal: vanilla's `BonemealableBlock.isValidBonemealTarget`,
+    /// `state` the block's own state at `pos`. Answer `valid` for your own
+    /// blocks: the meal is used up on one as vanilla uses it up (the growth
+    /// particles and the sound follow, whether or not the roll below grows
+    /// it), from a player's `BoneMealItem.useOn`, from a dispenser and, on a
+    /// crop (a villager bonemeals only a `CropBlock`), from a villager. Asked
+    /// on both sides, as vanilla asks it on both, so a client predicts the
+    /// use with your answer: say no where you can only grow on a server
+    /// (`is_client_side`). `Some(false)` refuses the meal, even on a block
+    /// whose template takes it (vanilla's `growCrop` then keeps the meal);
+    /// left `None`, the block keeps the `BonemealableBlock` its template gives
+    /// it, or takes no bone meal.
+    /// 72.
+    ///
+    /// Return `Some` to set `valid`; the first mod returning `Some` wins.
+    fn is_valid_bonemeal_target(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) -> Option<bool> {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        None
+    }
+    /// `BonemealableBlock.isBonemealSuccess` for a block that answered
+    /// `native_is_valid_bonemeal_target`, after it did: set `success` to grow
+    /// it this time. Vanilla draws the level's random here
+    /// (`isBonemealSuccess(Level, RandomSource, BlockPos, BlockState)`), so
+    /// draw from `native_level_random` to keep vanilla's order.
+    /// Authoritative servers only. 72.
+    ///
+    /// Every mod gets `success` in order and may add, change or remove success.
+    fn is_bonemeal_success(
+        &self,
+        level: &mut dyn LevelRandomHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+        success: &mut bool,
+    ) {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
+        let _ = success;
+    }
+    /// `BonemealableBlock.performBonemeal` for a block that answered
+    /// `native_is_valid_bonemeal_target` and whose `native_is_bonemeal_success`
+    /// said yes: grow it here, `state` its state at `pos`. The meal is used up
+    /// either way. Change the block with the level's
+    /// `native_set_block_property`, and schedule with `native_schedule_block_tick`
+    /// (`ticks` is the hook's). Authoritative servers only. 72.
+    fn perform_bonemeal(
+        &self,
+        level: &mut dyn LevelWriteHost,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) {
+        let _ = level;
+        let _ = dimension;
+        let _ = pos;
+        let _ = state;
     }
     /// `Block.stepOn` for a mod block, on its authoritative server level.
     /// No self: the simulation owns the entity during this callback.
@@ -1365,6 +1523,42 @@ pub trait Hooks: Send + Sync {
         let _ = host;
         let _ = context;
         let _ = drops;
+    }
+    /// A block is about to take the state it is placed in
+    /// (`Block.getStateForPlacement(BlockPlaceContext)`), `state` the block's
+    /// own default state. Answer only for your blocks: put the state you want
+    /// in `answer` as `Some(Some(state))` — a state of that block, as vanilla
+    /// sets properties on its own `defaultBlockState` (another block's is
+    /// ignored) — or refuse the placement with `Some(None)`: the block goes
+    /// nowhere and the stack is kept, as vanilla's `null`. Left empty, the
+    /// block's own placement runs. `context` is
+    /// vanilla's `BlockPlaceContext` (the clicked face, the placer's rotation,
+    /// the clicked position, whether the clicked block is being replaced, the
+    /// item in hand) and `fluid` the fluid in the position the block would go
+    /// in, which a waterlogged block reads. Build the state from `state` with
+    /// `native_state_with_property`. It is asked for every placer that goes
+    /// through vanilla's placement (a player's `BlockItem.place`, a
+    /// dispenser's `DirectionalPlaceContext`), and the answer still takes its
+    /// survival and entity obstruction checks. A trait mod returns
+    /// `Some(Some(state))` to choose a state, `Some(None)` to refuse, or
+    /// `None` to leave the answer to the next mod or vanilla.
+    /// Authoritative servers only. 76.
+    ///
+    /// Return `Some` to set `answer`; the first mod returning `Some` wins.
+    fn state_for_placement(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        state: BlockStateId,
+        context: &PlacementContext,
+        fluid: FluidState,
+    ) -> Option<Option<BlockStateId>> {
+        let _ = level;
+        let _ = dimension;
+        let _ = state;
+        let _ = context;
+        let _ = fluid;
+        None
     }
     /// A `minecraft:post_attack` effect of a mod's own kind, on a mob a
     /// player's weapon hit: the entry says `enchanted` attacker and `affected`
@@ -2549,6 +2743,29 @@ pub fn dispatch_item_bar(
         mod_hook.item_bar(host, stack, &mut *bar);
     }
 }
+pub fn dispatch_has_analog_output(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    state: BlockStateId,
+    output: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.has_analog_output(level, state, &mut *output);
+    }
+}
+pub fn dispatch_analog_output(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    face: Direction,
+    output: &mut i32,
+) {
+    for mod_hook in mods {
+        mod_hook.analog_output(level, dimension, pos, state, face, &mut *output);
+    }
+}
 pub fn dispatch_component_types(mods: &[Box<dyn Hooks>], types: &mut Vec<String>) {
     for mod_hook in mods {
         mod_hook.component_types(&mut *types);
@@ -2601,6 +2818,45 @@ pub fn dispatch_tooltip_component_draw(
         mod_hook.tooltip_component_draw(host, stack, &mut *batch, origin, size);
     }
 }
+pub fn dispatch_can_survive(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    survives: &mut Option<bool>,
+) {
+    if survives.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.can_survive(level, dimension, pos, state) {
+            *survives = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_may_place_on(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    state: BlockStateId,
+    ground: BlockStateId,
+    ground_pos: BlockPos,
+    may: &mut Option<bool>,
+) {
+    if may.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) =
+            mod_hook.may_place_on(level, dimension, state, ground, ground_pos)
+        {
+            *may = Some(replacement);
+            break;
+        }
+    }
+}
 pub fn dispatch_block_entity_render_bounding_box(
     host: &dyn Host,
     mods: &[Box<dyn Hooks>],
@@ -2612,6 +2868,47 @@ pub fn dispatch_block_entity_render_bounding_box(
 ) {
     for mod_hook in mods {
         mod_hook.block_entity_render_bounding_box(host, pos, block, state, entity, &mut *bounds);
+    }
+}
+pub fn dispatch_is_valid_bonemeal_target(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    valid: &mut Option<bool>,
+) {
+    if valid.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.is_valid_bonemeal_target(level, dimension, pos, state) {
+            *valid = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_is_bonemeal_success(
+    level: &mut dyn LevelRandomHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+    success: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.is_bonemeal_success(level, dimension, pos, state, &mut *success);
+    }
+}
+pub fn dispatch_perform_bonemeal(
+    level: &mut dyn LevelWriteHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    pos: BlockPos,
+    state: BlockStateId,
+) {
+    for mod_hook in mods {
+        mod_hook.perform_bonemeal(level, dimension, pos, state);
     }
 }
 pub fn dispatch_block_step_on(
@@ -2683,6 +2980,27 @@ pub fn dispatch_loot_drops(
 ) {
     for mod_hook in mods {
         mod_hook.loot_drops(host, context, &mut *drops);
+    }
+}
+pub fn dispatch_state_for_placement(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    state: BlockStateId,
+    context: &PlacementContext,
+    fluid: FluidState,
+    answer: &mut Option<Option<BlockStateId>>,
+) {
+    if answer.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) =
+            mod_hook.state_for_placement(level, dimension, state, context, fluid)
+        {
+            *answer = Some(replacement);
+            break;
+        }
     }
 }
 pub fn dispatch_enchant_effect(

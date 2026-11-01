@@ -1258,17 +1258,16 @@ hooks can run on any loading thread; item default changes must be identical on e
 
 The trait has every hook carrying a `mod_api` entry in `native-hooks.json`.
 Level hooks use access-specific hosts rather than `Host`. `LevelHost` provides
-`block_state` through `LevelAccess::block_state`. `LevelTicksHost` adds scheduling
-through `native_schedule_block_tick` and `native_schedule_fluid_tick`, while
-`LevelWriteHost` adds `native_set_block_property`. Whole-block writes wait for a
+`block_state` through `LevelAccess::block_state`, client-side detection and
+`state_with_property`. `LevelRandomHost` provides vanilla's `Level.random` so
+mod draws come in vanilla's order. `LevelTicksHost` adds scheduling through
+`native_schedule_block_tick` and `native_schedule_fluid_tick`, while
+`LevelWriteHost` adds random access and `native_set_block_property`. Whole-block writes wait for a
 later slice that creates block entities, as vanilla's `setBlock` does. The game owns
 the tick queue; mods do not pass it back to these helpers.
 The following catalog hooks are not in the trait yet:
 
 - `world_drawn` and `render_needs` need a renderer trait.
-- `has_analog_output`, `analog_output`, `can_survive`, `may_place_on`,
-  `is_valid_bonemeal_target`, `is_bonemeal_success`, `perform_bonemeal` and
-  `state_for_placement` need a level host.
 - `block_entity_submit` needs a renderer trait.
 - Newly added upstream hooks `player_command`, `perform_console_command`, `item_decorations`,
   `client_resources_reloaded`, `camera_shake`, `screen_key_pressed_pre`, `screen_char_typed_pre`,
