@@ -2768,6 +2768,46 @@ impl Game<'_> {
     ) {
         let _ = (player, name, kind, pos, cancel);
     }
+    }
+    /// A hanging entity is about to break: an item frame
+    /// (`minecraft:item_frame`, `minecraft:glow_item_frame`) or a painting
+    /// (`minecraft:painting`) at `pos` (the block it takes), hit by a player
+    /// (`player`, who is swapped in when a server's guest, so `native_tell`
+    /// answers them), blown up, or left without its wall (`player` is None).
+    /// Where `HangingEntity`'s `hurtServer` kills it, before it drops. A frame
+    /// holding an item loses the item first, which is not a break and not
+    /// heard. Set `cancel` and it stays. Not heard: `/kill`, a leash knot, and
+    /// what mobs or projectiles do to a frame. Server-side and in single
+    /// player. @API:native_hanging_break@.
+    pub(super) fn native_hanging_break(
+        &mut self,
+        player: Option<u128>,
+        kind: &str,
+        pos: [i32; 3],
+        cancel: &mut bool,
+    ) {
+        let _ = (player, kind, pos, cancel);
+    }
+    /// A server player empties a bucket at `pos` (`fluid`: `minecraft:water`,
+    /// `minecraft:lava`, `minecraft:powder_snow`; a fish or axolotl bucket
+    /// empties `minecraft:water`): where `BucketItem.use` has found the block
+    /// the fluid goes into and the player may build there, right before it is
+    /// placed. Set `cancel` and nothing is poured and the bucket stays full.
+    /// The player's state is swapped in, so `native_tell` answers them. Only
+    /// for guests of a server. `native_fill_bucket` hears this click too (and
+    /// the filling one) without the player and the fluid. Not heard: a
+    /// dispenser, a cauldron, and a fluid a block places itself.
+    /// @API:native_bucket_empty@.
+    pub(super) fn native_bucket_empty(
+        &mut self,
+        player: u128,
+        name: &str,
+        pos: [i32; 3],
+        fluid: &str,
+        cancel: &mut bool,
+    ) {
+        let _ = (player, name, pos, fluid, cancel);
+    }
     /// A click in a menu a mod opened (`native_open_menu`), which moved
     /// nothing: the menu's `slot` (its own first, then the player's
     /// inventory, `native_menu_inventory_slot`; -999 outside), the `button`
