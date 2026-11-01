@@ -322,8 +322,6 @@ mod tests {
         pub(super) trait LevelTicksHost: LevelHost {}
         pub(super) trait LevelWriteHost: LevelTicksHost {}
         pub(super) struct Compound;
-        #[derive(Clone, Copy)]
-        pub(super) struct Direction;
         pub(super) type NativeDispensed = (Option<super::ItemStack>, i32);
         pub(super) struct NativeLootDrops<'a>(pub &'a ());
         pub(super) struct NativeScreenView<'a>(pub &'a ());
