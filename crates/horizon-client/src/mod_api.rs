@@ -9,6 +9,7 @@ use std::sync::{Arc, OnceLock};
 pub use crate::containers::{ModBlockEntity, ModContainer, ModFluidTanks};
 pub use crate::extras::Corner;
 pub use crate::extras_hud::Corners;
+pub use crate::gfx::native_render::{RenderHooks, RenderNeeds, WorldDrawn, wgpu};
 pub use crate::hud::HudBatch;
 pub use crate::hud_layout::{GuiDraw, HealthInputs};
 pub use crate::items::ItemStack;
