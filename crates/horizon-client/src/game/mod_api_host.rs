@@ -61,6 +61,19 @@ impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>>> horizon_client::mod_
 }
 
 impl horizon_client::mod_api::LevelWriteHost for LevelTicks<'_, &mut super::GameLevel<'_>> {
+    fn set_block(&mut self, pos: [i32; 3], state: BlockStateId, flags: i32) -> bool {
+        if !self.level.native_authoritative || self.level.registry.state(state).is_none() {
+            return false;
+        }
+        let behaviours = self.level.behaviours;
+        behaviours.set_block(
+            self.level,
+            self.ticks,
+            BlockPos::new(pos[0], pos[1], pos[2]),
+            state,
+            flags,
+        )
+    }
     fn set_block_property(&mut self, pos: [i32; 3], key: &str, value: &str, flags: i32) -> bool {
         self.level
             .native_set_block_property(self.ticks, pos, key, value, flags)

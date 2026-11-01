@@ -1261,7 +1261,8 @@ chunk and player hooks, plus `level_tick_pre`, `use_item_on`, `zoom` and `toolti
 Level hooks use access-specific hosts rather than `Host`. `LevelHost` provides
 `block_state` through `LevelAccess::block_state`. `LevelTicksHost` adds scheduling
 through `native_schedule_block_tick` and `native_schedule_fluid_tick`, while
-`LevelWriteHost` adds `native_set_block_property`. The game owns the tick queue;
+`LevelWriteHost` adds `native_set_block_property` and a whole-block write through
+block behaviours (which does not create a block entity). The game owns the tick queue;
 mods do not pass it back to these helpers.
 The following catalog hooks are not in the trait yet:
 

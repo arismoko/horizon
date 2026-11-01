@@ -208,6 +208,8 @@ pub trait LevelTicksHost: LevelHost {
 
 /// Mutable level services, like vanilla's `ServerLevel`.
 pub trait LevelWriteHost: LevelTicksHost {
+    /// Set a block through the level's block behaviours. Unlike `native_set_block`, this does not create a block entity.
+    fn set_block(&mut self, pos: [i32; 3], state: BlockStateId, flags: i32) -> bool;
     /// Change a block property through `native_set_block_property`.
     fn set_block_property(&mut self, pos: [i32; 3], key: &str, value: &str, flags: i32) -> bool;
 }
