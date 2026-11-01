@@ -273,10 +273,8 @@
 //! Bodies have no `cfg` and no macros: horizon-mixins refuses a target with
 //! either (`tests::hook_points_stay_hookable`).
 use super::{
-    Game, GameLevel, LevelDimension, Screen,
-    execution_role::ExecutionRole,
-    native_block_entity_draw::BlockEntityDraw,
-    native_panel_recipes::RecipePage,
+    Game, GameLevel, LevelDimension, Screen, execution_role::ExecutionRole,
+    native_block_entity_draw::BlockEntityDraw, native_panel_recipes::RecipePage,
 };
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
