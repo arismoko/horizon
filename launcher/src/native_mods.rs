@@ -34,9 +34,9 @@ pub const MIXINS_REV: &str = "ddd9700b21997c95d95ac6ee5ecafe3830cf622a";
 /// The features of the release's own game (game-build.yml).
 const FEATURES: &str = "horizon-client/mods";
 
-/// The Cargo profile a native build compiles with. `Fast` (the workspace's `[profile.fast]`: no
-/// LTO, 16 codegen units, incremental) is the default, so changing a mod recompiles only
-/// `horizon-client`'s changed parts; `Release` is the release's own (thin LTO, one codegen unit):
+/// The Cargo profile a native build compiles with. `Fast` (the workspace's `[profile.fast]`: 16
+/// codegen units, incremental, and LTO off, [`compile`]) is the default, so changing a mod
+/// recompiles only `horizon-client`'s changed parts; `Release` is the release's own (thin LTO, one codegen unit):
 /// slower to build, slightly faster game. Each has its own folder under `native/target/` and its
 /// own key, so the two never mix.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1051,6 +1051,12 @@ fn compile(rust: &Toolchain, stage: &Path, target: &Path, profile: Profile) -> C
         .env("CARGO_TERM_PROGRESS_WHEN", "always")
         .env("CARGO_TERM_PROGRESS_WIDTH", "100");
     cmd.args(["--locked", "--profile", profile.name()]);
+    if profile == Profile::Fast {
+        // The profile's `lto = false` still runs thin LTO over each crate's codegen units (Cargo's
+        // "thin-local", whenever the crate is optimized), half of a mod edit's rebuild; "off"
+        // skips it. Here rather than in the profile, which the workspace's own builds share.
+        cmd.args(["--config", "profile.fast.lto=\"off\""]);
+    }
     if has_mods_feature(stage) {
         cmd.args(["--features", FEATURES]);
     }
@@ -2289,6 +2295,11 @@ mod tests {
         let cmd = compile(&rust, &d, Path::new("/native/target"), Profile::Fast);
         let args: Vec<_> = cmd.get_args().collect();
         assert!(args.windows(2).any(|w| w == ["--profile", "fast"]));
+        let lto_off = |w: &[&std::ffi::OsStr]| w == ["--config", "profile.fast.lto=\"off\""];
+        assert!(args.windows(2).any(lto_off));
+        let cmd = compile(&rust, &d, Path::new("/native/target"), Profile::Release);
+        let args: Vec<_> = cmd.get_args().collect();
+        assert!(!args.windows(2).any(lto_off), "the release's own LTO stays");
     }
 
     #[test]
