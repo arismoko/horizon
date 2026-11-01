@@ -30,6 +30,20 @@ fn has_call(block: &syn::Block, expected: &str) -> bool {
     calls.found
 }
 
+fn one_function(
+    items: impl Iterator<Item = syn::ItemFn>,
+    name: &str,
+) -> Result<syn::ItemFn, String> {
+    let mut matches = items.filter(|item| item.sig.ident == name);
+    let first = matches
+        .next()
+        .ok_or_else(|| format!("expected one {name} signature"))?;
+    if matches.next().is_some() {
+        return Err(format!("expected one {name} signature"));
+    }
+    Ok(first)
+}
+
 fn fresh_name(base: &str, used: &mut HashSet<String>) -> String {
     let mut name = base.to_owned();
     while !used.insert(name.clone()) {
@@ -74,11 +88,6 @@ pub fn run(check: bool) -> Result<(), String> {
             }
         }
     }
-    let adapters = syn::parse_file(
-        &fs::read_to_string(root.join("crates/horizon-client/src/mod_api.rs"))
-            .map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
     let mut traits = String::new();
     let mut dispatch = String::new();
     let mut seen = HashSet::new();
@@ -95,68 +104,38 @@ pub fn run(check: bool) -> Result<(), String> {
         }
         let native = format!("native_{name}");
         let target = hook["target"].as_str().ok_or("target missing")?;
-        let world_method;
-        let method = if let Some(path) = target.strip_prefix("horizon_world::") {
+        let (method, call) = if let Some(path) = target.strip_prefix("horizon_world::") {
             let Some((module, function)) = path.split_once("::") else {
                 return Err(format!("wrong target for {name}"));
             };
-            if function != native
-                || module.is_empty()
-                || !module
-                    .bytes()
-                    .all(|c| c.is_ascii_alphanumeric() || c == b'_')
-            {
+            if function != native {
                 return Err(format!("wrong target for {name}"));
             }
-            let source = fs::read_to_string(
-                root.join("crates/horizon-world/src")
-                    .join(format!("{module}.rs")),
-            )
-            .map_err(|e| e.to_string())?;
+            let path = root
+                .join("crates/horizon-world/src")
+                .join(format!("{module}.rs"));
+            let source =
+                fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             let file = syn::parse_file(&source).map_err(|e| e.to_string())?;
-            let mut matches = file.items.into_iter().filter_map(|item| match item {
-                Item::Fn(function) if function.sig.ident == native => Some(function),
+            let functions = file.items.into_iter().filter_map(|item| match item {
+                Item::Fn(function) => Some(function),
                 _ => None,
             });
-            world_method = matches
-                .next()
-                .ok_or_else(|| format!("expected one {native} signature"))?;
-            if matches.next().is_some() {
-                return Err(format!("expected one {native} signature"));
-            }
-            if !has_call(&world_method.block, name) {
-                return Err(format!("missing {name} callback in {native}"));
-            }
-            let adapters: Vec<_> = adapters
-                .items
-                .iter()
-                .filter_map(|item| match item {
-                    Item::Fn(function) if function.sig.ident == name => Some(function),
-                    _ => None,
-                })
-                .collect();
-            let [adapter] = adapters.as_slice() else {
-                return Err(format!("expected one {name} adapter"));
-            };
-            if !has_call(&adapter.block, &format!("dispatch_{name}")) {
-                return Err(format!("missing dispatch_{name} call in adapter"));
-            }
-            &world_method
+            (one_function(functions, &native)?, name.to_owned())
         } else {
             if !target.starts_with("horizon_client::game::native_hooks::")
                 || !target.ends_with(&format!("::{native}"))
             {
                 return Err(format!("wrong target for {name}"));
             }
-            let matches: Vec<_> = methods.iter().filter(|m| m.sig.ident == native).collect();
-            let [method] = matches.as_slice() else {
-                return Err(format!("expected one {native} signature"));
-            };
-            if !has_call(&method.block, &format!("dispatch_{name}")) {
-                return Err(format!("missing dispatch_{name} call in {native}"));
-            }
-            *method
+            (
+                one_function(methods.iter().cloned(), &native)?,
+                format!("dispatch_{name}"),
+            )
         };
+        if !has_call(&method.block, &call) {
+            return Err(format!("missing {call} call in {native}"));
+        }
         let sig = &method.sig;
         let mut args = Vec::new();
         let mut receiver_mut = None;

@@ -42,8 +42,16 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     }
     if horizon_world::native_load_hooks::install(
         horizon_world::native_load_hooks::NativeLoadHooks {
-            loot_table_load: crate::mod_api::loot_table_load,
-            modify_default_components: crate::mod_api::modify_default_components,
+            loot_table_load: |id, table| {
+                crate::mod_api::dispatch_loot_table_load(crate::mod_api::mods(), id, table);
+            },
+            modify_default_components: |item, components| {
+                crate::mod_api::dispatch_modify_default_components(
+                    crate::mod_api::mods(),
+                    item,
+                    components,
+                );
+            },
         },
     )
     .is_err()

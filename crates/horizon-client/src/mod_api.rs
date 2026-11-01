@@ -353,14 +353,6 @@ pub fn mods() -> &'static [Box<dyn Hooks>] {
     MODS.get().map_or(&[], |mods| mods.as_ref())
 }
 
-pub(crate) fn loot_table_load(id: &str, table: &mut Value) {
-    dispatch_loot_table_load(mods(), id, table);
-}
-
-pub(crate) fn modify_default_components(item: &str, components: &mut Map<String, Value>) {
-    dispatch_modify_default_components(mods(), item, components);
-}
-
 /// Whether a mod claims a cancellable hook.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Flow {
