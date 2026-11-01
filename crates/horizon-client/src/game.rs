@@ -202,6 +202,7 @@ mod native_explosions;
 mod native_falling;
 mod native_hooks;
 mod native_inventories;
+mod native_item_fluids;
 mod native_lifecycle;
 mod native_menus;
 mod native_mob_draw;
@@ -215,6 +216,7 @@ mod native_projectiles;
 mod native_recipes;
 mod native_server;
 mod native_shaders;
+mod native_ticks;
 mod native_visuals;
 mod native_world_columns;
 mod native_world_edit;
@@ -3768,6 +3770,29 @@ impl Game<'_> {
         }
     }
     fn tick_items(&mut self) {
+        // EntityTickEvent.Pre for the items about to tick, and the Post after them.
+        let mut round = self.native_tick_round();
+        if round.listening() {
+            let ticking = self.entity_ticking_area();
+            let merging = self.remote.is_none();
+            let mut i = 0;
+            while let Some(item) = self.dropped.get(i) {
+                let (id, x, z) = (
+                    item.id,
+                    item.position.x.floor() as i32,
+                    item.position.z.floor() as i32,
+                );
+                if !(merging && id > self.ticked_entities_through) && ticking(x, z) {
+                    let kind = native_ticks::TickKind::Fixed("minecraft:item");
+                    self.native_tick_pre_batch(&mut round, id, kind);
+                }
+                i += 1;
+            }
+        }
+        self.tick_dropped_items(&mut round);
+        self.native_tick_post_batch(round);
+    }
+    fn tick_dropped_items(&mut self, round: &mut native_ticks::TickRound) {
         let mut items = std::mem::take(&mut self.dropped);
         // ServerLevel.tick: only entities in entity-ticking chunks tick.
         let ticking = self.entity_ticking_area();
@@ -3782,6 +3807,8 @@ impl Game<'_> {
         let mut nearby = Vec::new();
         for i in 0..items.len() {
             if removed[i] {
+                // Merged into an earlier item before its own tick: it never ticked.
+                round.not_ticked(items[i].id);
                 continue;
             }
             let item = &mut items[i];
@@ -3794,7 +3821,8 @@ impl Game<'_> {
             if !ticking(
                 item.position.x.floor() as i32,
                 item.position.z.floor() as i32,
-            ) {
+            ) || round.canceled(item.id)
+            {
                 continue;
             }
             // ItemEntity.tick's noPhysics (servers only): out of a block
@@ -10618,6 +10646,7 @@ impl Game<'_> {
                 max_y: self.world.shape.max_y() - 1,
                 world: &self.world,
                 sprites: &self.gui.atlas.sprites,
+                emissive: &self.gui.atlas.emissive,
                 nether: self.dim == Dim::Nether,
                 lid: &lid,
                 sign: &|p| match self.world.block_entities.get(&(p[0], p[1], p[2])) {
@@ -11396,6 +11425,7 @@ impl Game<'_> {
     }
     fn tick_mobs(&mut self) -> Result<()> {
         self.tick_creatures()?;
+        self.native_mobs_equipment();
         self.position_rider();
         self.tick_stats();
         self.tick_scoreboard();
@@ -15336,7 +15366,7 @@ impl Game<'_> {
                         &self.world,
                         self.res.facts(),
                         [camera.x, camera.y, camera.z],
-                        self.forward(),
+                        &self.near_plane(),
                     ),
                     horizon_client::fog::FogType::Lava | horizon_client::fog::FogType::PowderSnow
                 ),
@@ -16167,7 +16197,7 @@ impl Game<'_> {
             if let (Some(lod), Some(player)) = (&mut self.lod, &self.player) {
                 let lod_distance =
                     horizon_client::graphics::lod_distance_capped(far_distance, &renderer.info);
-                lod.set_near_loading(self.streaming.busy());
+                lod.set_near_loading(self.streaming.terrain_loading());
                 lod.set_reduced_detail(far_reduced);
                 // The covered columns change only with the complete ones and
                 // the render area: rebuilt then, not every frame.
@@ -16397,6 +16427,23 @@ impl Game<'_> {
             && let Some(title) = &mut self.title
         {
             title.drop_file(path.clone());
+        }
+        // A character that comes with no key (Windows' Alt codes, `Alt` + digits on the numeric
+        // keypad: a `WM_CHAR` after the Alt is released) reaches winit as a key event with no
+        // physical key. GLFW's char callback types it in the focused text field (`charTyped`),
+        // and every screen's key handler here would drop it for want of a key code.
+        if let WindowEvent::KeyboardInput {
+            event: key_event, ..
+        } = &event
+            && key_event.state == ElementState::Pressed
+            && matches!(key_event.physical_key, PhysicalKey::Unidentified(_))
+            && let Some(text) = key_event.text.as_deref()
+        {
+            let text: String = text.chars().filter(|c| !c.is_control()).collect();
+            if !text.is_empty() && self.text_field_focused() && self.types_text() {
+                let _ = self.type_chars_into_screen(&text);
+            }
+            return;
         }
         // Fullscreen is a window shortcut, before screens consume keyboard input.
         if let WindowEvent::KeyboardInput { event, .. } = &event
@@ -20273,6 +20320,7 @@ pub fn run() -> Result<()> {
         }
     }
     mods::register_components(&vanilla_root)?;
+    mods::register_standalone_models();
     let early_settings = Settings::load(&Game::options_path());
     // Minecraft's constructor opens the narrator; a server has none.
     if options.execution_role.is_client() {
