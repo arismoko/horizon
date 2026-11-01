@@ -18,7 +18,7 @@ helper = "receive.rs"
 bindings = [{ name = "game", ty = "&Game<'_>", value = "&*self" }, { name = "recipe_types", ty = "&[String]", value = "recipe_types" }]
 
 [compatibility]
-horizon_revision = "0a0d056239671142e6c0bb6a7a30c081ed3232d9"
+horizon_revision = "1dd14c4cd21c7d17c09731288e9a8c4a28d9a213"
 
 [[module]]
 id = "runtime"
