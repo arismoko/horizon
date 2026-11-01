@@ -344,6 +344,10 @@ pub struct PlayerMotion {
     pub local_crouching: bool,
     pub pose: crate::pose::Pose,
     pub dimensions: crate::pose::Dimensions,
+    /// The `minecraft:scale` the dimensions were last built with
+    /// (`Entity.refreshDimensions`), for the poses the body takes before it
+    /// next refreshes.
+    pub scale: f32,
     pub speed: f32,
     /// `LocalPlayer.itemUseSpeedMultiplier` while using an item (not riding).
     pub item_use_speed: Option<f32>,
@@ -559,6 +563,7 @@ impl PlayerMotion {
             local_crouching: false,
             pose: crate::pose::Pose::Standing,
             dimensions: crate::pose::Pose::Standing.dimensions(1.0),
+            scale: 1.0,
             swimming: false,
             is_passenger: false,
             fire_ticks: -20,
@@ -717,6 +722,18 @@ impl PlayerMotion {
     /// player's `attributes` list (LivingEntity.addAdditionalSaveData), each
     /// instance's id, base and permanent modifiers.
     pub fn saved_attributes(&self) -> horizon_world::nbt::Tag {
+        self.packed_attributes(true)
+    }
+    /// `ServerPlayer.restoreFrom`: the attributes a player's new body takes
+    /// over from the old one. A body that comes back from a death takes the
+    /// base values only (`assignBaseValues`); the same player in another
+    /// level (`ServerPlayer.teleport`) is the same entity, with its permanent
+    /// modifiers too (`restoreAll`, `assignPermanentModifiers`). A scale of
+    /// 0.1 is still 0.1 after a respawn or a trip through a portal (#3684).
+    pub fn carried_attributes(&self, restore_all: bool) -> horizon_world::nbt::Tag {
+        self.packed_attributes(restore_all)
+    }
+    fn packed_attributes(&self, modifiers: bool) -> horizon_world::nbt::Tag {
         use horizon_client_core::nbt_value::string;
         use horizon_world::nbt::Tag;
         let list = self
@@ -729,7 +746,7 @@ impl PlayerMotion {
                     ("base", Tag::Double(packed.base.to_bits())),
                 ];
                 // `modifiers` is an optional field whose default is the empty list.
-                if !packed.modifiers.is_empty() {
+                if modifiers && !packed.modifiers.is_empty() {
                     let modifiers = packed
                         .modifiers
                         .iter()
