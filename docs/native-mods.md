@@ -1262,10 +1262,14 @@ chunk and player hooks, plus `frame`, `visuals`, `emissive`, `hud`, `key`, `whee
 `screen`, `screen_draw`, `screen_click`, `screen_tooltip`, `health_hud`, `item_bar` and
 `net_from_server`, component registration, dispenser, tooltip component, block entity bounds,
 block contact, consumption, loot drops, enchantment effects and screen render and mouse hooks.
+Level hooks use access-specific hosts rather than `Host`. `LevelHost` provides
+`block_state` through `LevelAccess::block_state`. `LevelTicksHost` adds scheduling
+through `native_schedule_block_tick` and `native_schedule_fluid_tick`, while
+`LevelWriteHost` adds `native_set_block_property`. Whole-block writes wait for a
+later slice that creates block entities, as vanilla's `setBlock` does. The game owns
+the tick queue; mods do not pass it back to these helpers.
 The following catalog hooks are not in the trait yet:
 
-- `block_changed`, `neighbor_changed`, `random_tick`, `tick_block`, `update_shape`,
-  `block_spread`, `piston_move`, `block_signal` and `is_signal_source` need a level host.
 - `world_drawn` and `render_needs` need a renderer trait.
 - `has_analog_output`, `analog_output`, `can_survive`, `may_place_on`,
   `is_valid_bonemeal_target`, `is_bonemeal_success`, `perform_bonemeal` and
