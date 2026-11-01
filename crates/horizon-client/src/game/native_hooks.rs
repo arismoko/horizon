@@ -6,6 +6,13 @@
 //! Horizon's own HUD extras do, and keep a mod's settings where the
 //! WebAssembly mod of the same id kept them.
 //!
+//! API 59 adds context-free tag lookups for server hooks (`native_server_block_in_tag`, `native_server_item_in_tag`).
+//!
+//! API 58 adds the renderer's hook points, in `horizon-client-render`'s
+//! `gfx/native_render.rs`: `native_world_drawn` (draw with the world's colour,
+//! depth, matrices and entity geometry before the hand and the HUD) and
+//! `native_render_needs` (entity runs and the world's depth without a pack).
+//!
 //! API 57 adds chunks and players coming and going (`native_chunk_load`,
 //! `native_chunk_unload`, `native_player_logged_in`, `native_player_logged_out`).
 //!
@@ -250,7 +257,7 @@ pub(super) use horizon_world::level::flags;
 /// The hook points' API version. The launcher reads this line from the
 /// source it builds; keep its form.
 #[allow(dead_code)]
-pub(crate) const NATIVE_HOOKS_API: u32 = 57;
+pub(crate) const NATIVE_HOOKS_API: u32 = 59;
 
 impl GameLevel<'_> {
     /// An authoritative server committed a changed state through `Level.setBlock`.
