@@ -313,6 +313,8 @@ pub fn reduced_far_detail_suggested() -> bool {
 
 /// The name the options screen waits on to bind `Graphics::hdr_key`.
 pub const HDR_KEY: &str = "horizon.hdrSettings";
+/// The Screenshot Quality choices, times the game's resolution.
+pub const SCREENSHOT_QUALITIES: [u32; 4] = [1, 2, 4, 8];
 static HDR_OFFERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// Whether the display path offers HDR output (HDR10 or scRGB): set when the renderer
 /// opens its surface; the settings open HDR's screen only then.
@@ -379,6 +381,8 @@ pub struct Graphics {
     pub taa: bool,
     /// TAA upscaling; anything but `Native` comes with `taa` on.
     pub upscaling: Upscaling,
+    /// F2 screenshots at this many times the game's resolution: 1, 2, 4 or 8.
+    pub screenshot_quality: u32,
     /// HDR output (HDR10, or scRGB), where the display path offers it.
     pub hdr: bool,
     /// HDR paper white (where SDR white sits), in nits; 0 is Auto: the desktop's SDR
@@ -432,6 +436,7 @@ impl Default for Graphics {
             fxaa: false,
             taa: false,
             upscaling: Upscaling::Native,
+            screenshot_quality: 1,
             hdr: false,
             hdr_paper_white: 0,
             hdr_peak: 0,
@@ -502,6 +507,11 @@ impl Graphics {
                 "fxaa" => g.fxaa = flag(g.fxaa),
                 "taa" => g.taa = flag(g.taa),
                 "upscaling" => g.upscaling = Upscaling::parse(value),
+                "screenshotQuality" => {
+                    g.screenshot_quality = Some(number(0))
+                        .filter(|q| SCREENSHOT_QUALITIES.contains(q))
+                        .unwrap_or(1)
+                }
                 "hdr" => g.hdr = flag(g.hdr),
                 "hdrPaperWhite" => {
                     g.hdr_paper_white = match number(g.hdr_paper_white) {
@@ -538,7 +548,7 @@ impl Graphics {
     }
     pub fn serialize(&self) -> String {
         format!(
-            "preset:{}\nlodDistance:{}\nfarDetail:{}\ncaveCulling:{}\nentityCulling:{}\nchunkUpdates:{}\nuploadBudgetKiB:{}\nsky:{}\nfog:{}\nweather:{}\nanimatedTextures:{}\npresentMode:{}\nframePacing:{}\nworkers:{}\noverlay:{}\nresolutionScale:{}\nfxaa:{}\ntaa:{}\nupscaling:{}\nhdr:{}\nhdrPaperWhite:{}\nhdrPeak:{}\nhdrBlackLevel:{}\nhdrUiBrightness:{}\nhdrKey:{}\nbatteryMode:{}\nshadowCache:{}\ngraphicsApi:{}\npickedShaderPack:{}\n",
+            "preset:{}\nlodDistance:{}\nfarDetail:{}\ncaveCulling:{}\nentityCulling:{}\nchunkUpdates:{}\nuploadBudgetKiB:{}\nsky:{}\nfog:{}\nweather:{}\nanimatedTextures:{}\npresentMode:{}\nframePacing:{}\nworkers:{}\noverlay:{}\nresolutionScale:{}\nfxaa:{}\ntaa:{}\nupscaling:{}\nscreenshotQuality:{}\nhdr:{}\nhdrPaperWhite:{}\nhdrPeak:{}\nhdrBlackLevel:{}\nhdrUiBrightness:{}\nhdrKey:{}\nbatteryMode:{}\nshadowCache:{}\ngraphicsApi:{}\npickedShaderPack:{}\n",
             self.preset.name(),
             self.lod_distance,
             self.far_detail.name(),
@@ -565,6 +575,7 @@ impl Graphics {
             bool_text(self.fxaa),
             bool_text(self.taa),
             self.upscaling.name(),
+            self.screenshot_quality,
             bool_text(self.hdr),
             self.hdr_paper_white,
             self.hdr_peak,
@@ -710,6 +721,7 @@ mod tests {
             fxaa: true,
             taa: true,
             upscaling: Upscaling::Balanced,
+            screenshot_quality: 4,
             hdr: true,
             hdr_paper_white: 240,
             hdr_peak: 1400,
@@ -728,6 +740,19 @@ mod tests {
         assert_eq!(Graphics::parse("hdrPeak:50\n").hdr_peak, 200);
         assert_eq!(Graphics::parse("hdrPaperWhite:0\n").hdr_paper_white, 0);
         assert_eq!(Graphics::parse("hdrPaperWhite:5\n").hdr_paper_white, 10);
+        // Only the button's choices.
+        assert_eq!(
+            Graphics::parse("screenshotQuality:8\n").screenshot_quality,
+            8
+        );
+        assert_eq!(
+            Graphics::parse("screenshotQuality:3\n").screenshot_quality,
+            1
+        );
+        assert_eq!(
+            Graphics::parse("screenshotQuality:16\n").screenshot_quality,
+            1
+        );
         // The old menus' Simple / Advanced choice is ignored, and so is the
         // shader pack older versions saved.
         assert_eq!(Graphics::parse("level:advanced\n"), Graphics::default());
