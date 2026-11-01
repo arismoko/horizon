@@ -80,12 +80,12 @@ impl<T: Clone + Send + Sync + 'static> AttachmentType<T> {
 trait Value: Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn clone_box(&self) -> Box<dyn Value>;
-    fn encode(&self) -> Result<Option<Compound>, AttachmentError>;
+    fn encoded(&self) -> Option<&Compound>;
     fn copy_on_death(&self) -> bool;
 }
 struct TypedValue<T> {
     value: T,
-    encode: Option<fn(&T) -> Result<Compound, AttachmentError>>,
+    encoded: Option<Compound>,
     copy_on_death: bool,
 }
 impl<T: Clone + Send + Sync + 'static> Value for TypedValue<T> {
@@ -95,12 +95,12 @@ impl<T: Clone + Send + Sync + 'static> Value for TypedValue<T> {
     fn clone_box(&self) -> Box<dyn Value> {
         Box::new(Self {
             value: self.value.clone(),
-            encode: self.encode,
+            encoded: self.encoded.clone(),
             copy_on_death: self.copy_on_death,
         })
     }
-    fn encode(&self) -> Result<Option<Compound>, AttachmentError> {
-        self.encode.map(|encode| encode(&self.value)).transpose()
+    fn encoded(&self) -> Option<&Compound> {
+        self.encoded.as_ref()
     }
     fn copy_on_death(&self) -> bool {
         self.copy_on_death
@@ -160,9 +160,9 @@ impl Attachments {
         for ((namespace, name), entry) in &self.entries {
             let value = match entry {
                 Entry::Raw(value) => Some(value.clone()),
-                Entry::Decoded(value) => value.encode()?.map(|encoded| {
+                Entry::Decoded(value) => value.encoded().map(|encoded| {
                     let mut envelope = Compound::new();
-                    envelope.insert("value".into(), Tag::Compound(encoded));
+                    envelope.insert("value".into(), Tag::Compound(encoded.clone()));
                     if value.copy_on_death() {
                         envelope.insert("copy_on_death".into(), Tag::Byte(1));
                     }
@@ -192,7 +192,10 @@ impl Attachments {
                     Some(raw.clone())
                 }
                 Entry::Decoded(value) if value.copy_on_death() => {
-                    let value = value.encode()?.ok_or(AttachmentError::InvalidCopyPolicy)?;
+                    let value = value
+                        .encoded()
+                        .ok_or(AttachmentError::InvalidCopyPolicy)?
+                        .clone();
                     Some(
                         [
                             ("value".into(), Tag::Compound(value)),
@@ -234,11 +237,16 @@ impl Attachments {
             }
             None => (ty.default)(),
         };
+        let encoded = ty
+            .codec
+            .as_ref()
+            .map(|codec| (codec.encode)(&value))
+            .transpose()?;
         self.entries.insert(
             key,
             Entry::Decoded(Box::new(TypedValue {
                 value: value.clone(),
-                encode: ty.codec.as_ref().map(|codec| codec.encode),
+                encoded,
                 copy_on_death: ty.copy_on_death,
             })),
         );
@@ -259,11 +267,16 @@ impl Attachments {
         {
             return Err(AttachmentError::TypeMismatch);
         }
+        let encoded = ty
+            .codec
+            .as_ref()
+            .map(|codec| (codec.encode)(&value))
+            .transpose()?;
         self.entries.insert(
             key,
             Entry::Decoded(Box::new(TypedValue {
                 value,
-                encode: ty.codec.as_ref().map(|codec| codec.encode),
+                encoded,
                 copy_on_death: ty.copy_on_death,
             })),
         );
