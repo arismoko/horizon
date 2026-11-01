@@ -6,4 +6,4 @@ version = "0.1.0"
 path = "engine"
 
 [compatibility]
-horizon_revision = "1d1470760fabaf50d1e541417adbaa9505f43dd5"
+horizon_revision = "edcd0337f03285eae2dcff9423c028888685b243"
