@@ -431,6 +431,8 @@ pub(super) struct Remote {
     pub quiet_commands: bool,
     /// The server announced it carries mod messages.
     pub mod_net: bool,
+    /// The server samples far terrain for us, this far at most (`lod_net`).
+    pub far_terrain: Option<horizon_client::lod_net::Offer>,
     pub(super) builtin: Arc<Builtin>,
     lang: Arc<Language>,
     pub(super) registries: Arc<Dynamic>,
@@ -934,6 +936,7 @@ impl Game<'_> {
             brand: "unknown".into(),
             quiet_commands: false,
             mod_net: false,
+            far_terrain: None,
             builtin: Arc::new(builtin),
             status: lang
                 .get("connect.connecting")
@@ -1768,12 +1771,26 @@ impl Game<'_> {
                         remote.mod_net = true;
                     }
                 }
+                Event::FarTerrain(offer) => {
+                    if let Some(remote) = &mut self.remote {
+                        remote.far_terrain = Some(offer);
+                    }
+                }
                 Event::Reconfiguring => {
                     // handleConfigurationStart: the held-back chat shows, then
                     // clearClientLevel opens ServerReconfigScreen over no level.
                     self.flush_chat_queue();
                     self.send_chat_acknowledgement();
                     self.close_dialogs();
+                    // The server configuring us now (a proxy's next one)
+                    // offers its own far terrain, or none.
+                    if let Some(remote) = &mut self.remote {
+                        remote.far_terrain = None;
+                    }
+                    self.clear_lod();
+                    if let Some(remote) = &self.remote {
+                        remote.session.reset_far_terrain();
+                    }
                     self.player = None;
                     self.screen = Screen::Playing;
                     self.capture(false);
@@ -3587,9 +3604,15 @@ impl Game<'_> {
                     .projectiles
                     .iter()
                     .find(|s| s.id == p.item as u32);
+                let shot = shot.map(|s| s.position).or_else(|| {
+                    self.tridents
+                        .iter()
+                        .find(|t| t.id == p.item as u32)
+                        .map(|t| t.position)
+                });
                 let at = match (item, shot) {
                     (Some(d), _) => Some([d.position.x, d.position.y, d.position.z]),
-                    (None, Some(s)) => Some([s.position.x, s.position.y, s.position.z]),
+                    (None, Some(s)) => Some([s.x, s.y, s.z]),
                     (None, None)
                         if self
                             .remote
@@ -3630,8 +3653,12 @@ impl Game<'_> {
                     .find(|s| s.id == p.item as u32)
                     .cloned()
                 {
-                    // An arrow or trident flies to its collector too, then goes.
+                    // An arrow flies to its collector too, then goes.
                     self.add_pickup(super::pickups::Taken::Arrow(Box::new(shot)), collector);
+                } else if let Some(i) = self.tridents.iter().position(|t| t.id == p.item as u32) {
+                    // So does a trident: a server's client keeps them apart.
+                    let trident = self.tridents.remove(i);
+                    self.add_pickup(super::pickups::Taken::Trident(Box::new(trident)), collector);
                 }
                 // An orb stays: the server may still hold merged ones in it.
                 if !orb {
@@ -5364,6 +5391,10 @@ impl Game<'_> {
         self.native_net.to_server = 0;
         self.native_tick();
         self.tell_native_now();
+        // Far tiles the samplers asked for (`lod_net`).
+        if let Some(r) = &self.remote {
+            r.session.send_far_terrain();
+        }
         self.tick_chat_session();
         // Minecraft.tick sends this even when the player cannot tick yet,
         // including while waiting for chunks. Keep it outside early returns.
@@ -5526,6 +5557,10 @@ impl Game<'_> {
         } else {
             Keys::default()
         };
+        // The held lead's end eases from the look at the start of the tick
+        // (`yRotO`/`xRotO`), as the local tick does; `tick` returns before it
+        // reaches its own write when this window is a server client.
+        self.rope_rot_old = (self.yaw, self.pitch);
         // A passenger moves with its vehicle (Entity.rideTick), not by itself.
         let riding = self.screen != Screen::Dead && self.remote_ride(keys);
         // The server sends no passenger's position: they sit where their
@@ -6076,13 +6111,17 @@ impl Game<'_> {
             // The particles these mobs' own ticks draw on the client side.
             {
                 use horizon_client::mobs::{
-                    Species as S, cube, illusioner, nautilus, tame, wither,
+                    Species as S, cube, illager, illusioner, nautilus, tame, wither,
                 };
                 match m.species() {
                     S::Wolf => tame::client_tick(m, rain, &mut mob_fx),
                     S::Slime | S::MagmaCube | S::SulfurCube => cube::client_tick(m, &mut mob_fx),
                     S::Nautilus | S::ZombieNautilus => nautilus::client_tick(m, &mut mob_fx),
-                    S::Illusioner => illusioner::client_tick(m, &mut mob_fx),
+                    S::Illusioner => {
+                        illusioner::client_tick(m, &mut mob_fx);
+                        illager::cast_particles(m, &mut mob_fx);
+                    }
+                    S::Evoker => illager::cast_particles(m, &mut mob_fx),
                     S::Wither => wither::client_smoke(m, &mut mob_fx),
                     _ => {}
                 }
@@ -7172,6 +7211,11 @@ impl Game<'_> {
             // CushionItem.useOn on a client level: SUCCESS once
             // `canBePlacedAt` holds, before the server's own checks.
             self.cushion_spawn(hit).is_some()
+        } else if &*stack.item == "minecraft:painting" {
+            // HangingEntityItem.useOn on a client level: SUCCESS once
+            // `Painting.create` finds a surviving variant, before the
+            // server spawns it.
+            self.painting_fits(hit, stack)
         } else {
             false
         }
