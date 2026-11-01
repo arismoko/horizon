@@ -1441,9 +1441,9 @@ impl BlockEntityRenderer {
                 // them; copper chests have no CEM name and draw vanilla's chest.
                 let shapes: &BlockEntityShapes =
                     if matches!(block.as_str(), "chest" | "trapped_chest" | "ender_chest") {
-                        &*shapes
+                        &shapes
                     } else {
-                        &*self.vanilla
+                        &self.vanilla
                     };
                 let (own, chest) = match (block.as_str(), part) {
                     ("trapped_chest", ChestPart::Single) => ("trapped_chest", "chest"),
