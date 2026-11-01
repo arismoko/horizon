@@ -29,7 +29,11 @@ fn game_methods(path: &Path, methods: &mut Vec<syn::ImplItemFn>) -> Result<(), S
     Ok(())
 }
 
-fn doc_comments(attrs: &[syn::Attribute], name: &str) -> Result<String, String> {
+fn doc_comments(
+    attrs: &[syn::Attribute],
+    name: &str,
+    preserve_empty: bool,
+) -> Result<String, String> {
     let mut docs = String::new();
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("doc")) {
         let syn::Meta::NameValue(value) = &attr.meta else {
@@ -42,8 +46,11 @@ fn doc_comments(attrs: &[syn::Attribute], name: &str) -> Result<String, String> 
         else {
             return Err(format!("unsupported doc attribute in {name}"));
         };
-        for line in doc.value().lines() {
-            docs.push_str(&format!("///{line}\n"));
+        let value = doc.value();
+        for line in value.split('\n') {
+            if preserve_empty || !line.is_empty() {
+                docs.push_str(&format!("///{line}\n"));
+            }
         }
     }
     Ok(docs)
@@ -131,7 +138,7 @@ fn host_method(method: &syn::ImplItemFn, name: &str) -> Result<(String, String),
         pat.mutability = None;
         args.push(pat.ident.to_string());
     }
-    let docs = doc_comments(&method.attrs, name)?;
+    let docs = doc_comments(&method.attrs, name, true)?;
     Ok((
         format!("{docs}{};\n", sig.to_token_stream()),
         format!(
@@ -392,7 +399,7 @@ pub fn run(check: bool) -> Result<(), String> {
         let invoke = call_args.join(", ");
         let trait_params = trait_params.join(", ");
         let dispatch_params = dispatch_params.join(", ");
-        traits.push_str(&doc_comments(&method.attrs, name)?);
+        traits.push_str(&doc_comments(&method.attrs, name, false)?);
         match (contract, out) {
             ("cancel", Some(out)) => traits.push_str(&format!(
                 "///\n/// Return `Flow::Cancel` to take it: this sets `{out}`, and later mods are skipped.\n"
@@ -644,10 +651,14 @@ mod tests {
     fn host_mapping_preserves_access_and_docs_and_rejects_unavailable_types() {
         let read: syn::ImplItemFn = syn::parse_quote! {
             /// Read a value exactly.
+            ///
+            /// Keep the blank line too.
             fn native_read(&self, pos: [i32; 3]) -> String { todo!() }
         };
         let (declaration, implementation) = super::host_method(&read, "read").unwrap();
-        assert!(declaration.contains("Read a value exactly."));
+        assert!(
+            declaration.contains("/// Read a value exactly.\n///\n/// Keep the blank line too.")
+        );
         assert!(declaration.contains("& self"));
         assert!(implementation.contains("self.native_read(pos)"));
         let write: syn::ImplItemFn = syn::parse_quote! {
