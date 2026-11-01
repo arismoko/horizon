@@ -50,7 +50,7 @@ pub(super) fn key(
                 toml::Value::String(s) => root
                     .join(s)
                     .canonicalize()
-                    .is_ok_and(|p| p.starts_with(api)),
+                    .is_ok_and(|p| p.starts_with(api) || (p.is_dir() && api.starts_with(&p))),
                 toml::Value::Array(a) => a.iter().any(|v| refers_to_api(v, root, api)),
                 toml::Value::Table(t) => t
                     .iter()
