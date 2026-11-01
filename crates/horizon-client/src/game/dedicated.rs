@@ -997,10 +997,18 @@ impl Game<'_> {
             if let Some(watchdog) = &watchdog {
                 watchdog.tick_due(next, self.clock.tick_duration());
             }
-            while let Ok(line) = state.console.try_recv() {
-                self.console_line(&mut state, &line);
+            // The console's lines and the control socket run in the tick too
+            // (`handleConsoleInputs`): a panic there is the same crash.
+            let prelude = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                while let Ok(line) = state.console.try_recv() {
+                    self.console_line(&mut state, &line);
+                }
+                self.poll_server_control(&mut state);
+            }));
+            if let Err(payload) = prelude {
+                crashed = Some(panic_message(payload.as_ref()));
+                break;
             }
-            self.poll_server_control(&mut state);
             let players = self.lan.as_ref().map_or(0, |h| h.hub.guests.len());
             if pause_after > 0 {
                 // A `/pregen` task keeps the server busy as a player would:
@@ -1251,6 +1259,9 @@ impl Game<'_> {
         self.console_command(state, line);
         self.console_broadcast = None;
         if let Some(mut host) = self.lan.take() {
+            if host.hub.guests.iter().any(|g| g.placed) {
+                crash_fixture("hub");
+            }
             self.run_level_teleports(&mut host);
             self.send_admin_feedback(&mut host, None);
             self.lan = Some(host);
@@ -1901,6 +1912,17 @@ impl Game<'_> {
         self.native_lifecycle_world_closed();
         self.lan_close(false);
         Ok(())
+    }
+}
+
+/// `tools/test_dedicated_crash_save.py`'s fixture: with `HORIZON_CRASH_FIXTURE` naming `point`
+/// (`guest`: during a placed guest's turn, `hub`: while a console line has the hub out and a
+/// player is in), the tick panics there, to see what `stop_after_crash` keeps.
+pub(super) fn crash_fixture(point: &str) {
+    static FIXTURE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    let fixture = FIXTURE.get_or_init(|| std::env::var("HORIZON_CRASH_FIXTURE").ok());
+    if fixture.as_deref() == Some(point) {
+        panic!("crash fixture at {point}");
     }
 }
 
