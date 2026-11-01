@@ -1804,6 +1804,17 @@ impl Game<'_> {
     ) {
         let _ = (screen, key, repeat, modifiers, canceled);
     }
+    /// Before an open screen handles a named key's release (same screen gate as key presses).
+    /// Cancel bypasses screen handling; physical keys and mapped keyboard hold/toggle state release.
+    pub(super) fn native_screen_key_released_pre(
+        &self,
+        screen: &NativeScreenView<'_>,
+        key: &str,
+        modifiers: u32,
+        canceled: &mut bool,
+    ) {
+        let _ = (screen, key, modifiers, canceled);
+    }
     /// A character was typed at the open screen
     /// (`ScreenEvent.CharacterTyped.Pre`, vanilla's `Screen.charTyped`):
     /// `screen` is the screen it is, `c` the character, and `modifiers` GLFW's
@@ -1911,6 +1922,22 @@ impl Game<'_> {
             &screen,
             name,
             repeat,
+            super::glfw_modifiers(self.modifiers),
+            &mut canceled,
+        );
+        canceled
+    }
+    pub(super) fn screen_key_released(&self, key: KeyCode) -> bool {
+        let Some(name) = keybinds::key_name(key) else {
+            return false;
+        };
+        let Some(screen) = self.screen_view_now() else {
+            return false;
+        };
+        let mut canceled = false;
+        self.native_screen_key_released_pre(
+            &screen,
+            name,
             super::glfw_modifiers(self.modifiers),
             &mut canceled,
         );
