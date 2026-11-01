@@ -104,6 +104,10 @@ fn archive_path(path: &Path) -> Option<PathBuf> {
 const ENV: &[(&str, &str)] = &[
     ("HOME", "home"),
     ("XDG_CACHE_HOME", "cache"),
+    ("XDG_CONFIG_HOME", "config"),
+    ("XDG_DATA_HOME", "data"),
+    ("XDG_STATE_HOME", "state"),
+    ("XDG_RUNTIME_DIR", "runtime"),
     ("TMPDIR", "tmp"),
     ("BLAZE_CACHE", "blaze-cache"),
 ];
