@@ -196,7 +196,7 @@ pub trait Host {
 /// Read-only level services, like vanilla's `LevelReader`.
 pub trait LevelHost {
     /// Read a block through `LevelAccess::block_state`.
-    fn block_state(&self, pos: BlockPos) -> BlockStateId;
+    fn block_state(&self, pos: [i32; 3]) -> BlockStateId;
 }
 
 /// A `LevelReader` with vanilla's `ScheduledTickAccess`. Shape updates cannot write blocks.

@@ -29,8 +29,8 @@ impl horizon_client::mod_api::Host for Game<'_> {
 }
 
 impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
-    fn block_state(&self, pos: BlockPos) -> BlockStateId {
-        horizon_world::level::LevelAccess::block_state(self, pos)
+    fn block_state(&self, pos: [i32; 3]) -> BlockStateId {
+        horizon_world::level::LevelAccess::block_state(self, BlockPos::new(pos[0], pos[1], pos[2]))
     }
 }
 
@@ -42,8 +42,11 @@ pub(super) struct LevelTicks<'a, L> {
 impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>>> horizon_client::mod_api::LevelHost
     for LevelTicks<'_, L>
 {
-    fn block_state(&self, pos: BlockPos) -> BlockStateId {
-        horizon_world::level::LevelAccess::block_state(&*self.level, pos)
+    fn block_state(&self, pos: [i32; 3]) -> BlockStateId {
+        horizon_world::level::LevelAccess::block_state(
+            &*self.level,
+            BlockPos::new(pos[0], pos[1], pos[2]),
+        )
     }
 }
 
@@ -62,7 +65,7 @@ impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>>> horizon_client::mod_
 
 impl horizon_client::mod_api::LevelWriteHost for LevelTicks<'_, &mut super::GameLevel<'_>> {
     fn set_block(&mut self, pos: [i32; 3], state: BlockStateId, flags: i32) -> bool {
-        if !self.level.native_authoritative || self.level.registry.state(state).is_none() {
+        if self.level.registry.state(state).is_none() {
             return false;
         }
         let behaviours = self.level.behaviours;

@@ -39,9 +39,9 @@ fn fresh_name(base: &str, used: &mut HashSet<String>) -> String {
     name
 }
 
-fn host_for(target: &str, mutable: Option<bool>, ticks: bool) -> Option<(&str, String)> {
+fn host_for(is_level: bool, mutable: Option<bool>, ticks: bool) -> Option<(&'static str, String)> {
     mutable.map(|mutable| {
-        let (name, kind) = if target.contains("::GameLevel<") {
+        let (name, kind) = if is_level {
             (
                 "level",
                 match (mutable, ticks) {
@@ -53,7 +53,7 @@ fn host_for(target: &str, mutable: Option<bool>, ticks: bool) -> Option<(&str, S
         } else {
             ("host", "Host")
         };
-        let mutable = if mutable || (target.contains("::GameLevel<") && ticks) {
+        let mutable = if mutable || (is_level && ticks) {
             "mut "
         } else {
             ""
@@ -174,12 +174,8 @@ pub fn run(check: bool) -> Result<(), String> {
         } else {
             String::new()
         };
-        let host = host_for(
-            hook["target"].as_str().ok_or("target missing")?,
-            receiver_mut,
-            ticks,
-        )
-        .map(|(name, ty)| (fresh_name(name, &mut used), ty));
+        let host = host_for(is_level, receiver_mut, ticks)
+            .map(|(name, ty)| (fresh_name(name, &mut used), ty));
         let mut trait_params = vec!["&self".to_owned()];
         let mut dispatch_params = Vec::new();
         let mut call_args = Vec::new();
@@ -420,26 +416,25 @@ mod tests {
 
     #[test]
     fn level_hosts_match_receiver_mutability() {
-        let target = "horizon_client::game::native_hooks::GameLevel<'_>::native_block_changed";
         assert_eq!(
-            super::host_for(target, Some(false), false),
+            super::host_for(true, Some(false), false),
             Some(("level", "&dyn LevelHost".into()))
         );
         assert_eq!(
-            super::host_for(target, Some(true), false),
+            super::host_for(true, Some(true), false),
             Some(("level", "&mut dyn LevelHost".into()))
         );
         assert_eq!(
-            super::host_for(target, Some(false), true),
+            super::host_for(true, Some(false), true),
             Some(("level", "&mut dyn LevelTicksHost".into()))
         );
         assert_eq!(
-            super::host_for(target, Some(true), true),
+            super::host_for(true, Some(true), true),
             Some(("level", "&mut dyn LevelWriteHost".into()))
         );
-        assert_eq!(super::host_for(target, None, false), None);
+        assert_eq!(super::host_for(true, None, false), None);
         assert_eq!(
-            super::host_for("Game::native_tick", Some(true), false),
+            super::host_for(false, Some(true), false),
             Some(("host", "&mut dyn Host".into()))
         );
     }
