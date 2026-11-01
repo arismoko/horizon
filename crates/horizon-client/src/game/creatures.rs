@@ -5750,17 +5750,49 @@ impl Game<'_> {
         self.consume_held();
         true
     }
+    /// `SpawnEggItem.use`: the SOURCE_ONLY ray must hit a liquid block.
+    pub(super) fn spawn_egg_fluid_hit(&self) -> Option<super::Hit> {
+        let hit = self.bucket_hit()?;
+        matches!(
+            &*self.block_name(hit.pos),
+            "minecraft:water" | "minecraft:lava"
+        )
+        .then_some(hit)
+    }
+    /// Shared peaceful-mode eligibility for spawn eggs.
+    pub(super) fn spawn_egg_allowed(&self, item: &str) -> bool {
+        let kind = item.trim_end_matches("_spawn_egg");
+        self.ui.difficulty != 0
+            || self
+                .res
+                .mob_types()
+                .get(kind)
+                .is_none_or(|t| horizon_client::mobs::spawn_rules::allowed_in_peaceful(t.species))
+    }
+    /// `SpawnEggItem.useOn` for a block, or `use` for a fluid source.
     fn use_spawn_egg(&mut self, stack: &ItemStack) -> Result<bool> {
-        let Some(hit) = self.pick() else {
+        let fluid = matches!(self.guest_use, Some(super::GuestUse::Item(_)));
+        let Some(hit) = (if fluid {
+            self.spawn_egg_fluid_hit()
+        } else {
+            self.pick()
+        }) else {
             return Ok(false);
         };
         let kind = stack.item.trim_end_matches("_spawn_egg").to_owned();
-        // EntityType.canSpawn: no monsters in peaceful (FAIL ends the click).
-        let id = format!("minecraft:{}", kind.trim_start_matches("minecraft:"));
-        if self.ui.difficulty == 0
-            && let Some(t) = self.res.mob_types().get(&id)
-            && !horizon_client::mobs::spawn_rules::allowed_in_peaceful(t.species)
+        if !self.spawn_egg_allowed(&stack.item) {
+            self.use_failed = true;
+            return Ok(true);
+        }
+        if fluid
+            && !self.may_build()
+            && !self.can_place_on_in_adventure([
+                hit.pos[0] - hit.face[0],
+                hit.pos[1] - hit.face[1],
+                hit.pos[2] - hit.face[2],
+            ])
         {
+            self.use_failed = true;
             return Ok(true);
         }
         // SpawnEggItem.useOn on a spawner sets its mob (and an op's egg data).
@@ -5776,11 +5808,15 @@ impl Game<'_> {
             }
             return Ok(true);
         }
-        let p = [
-            hit.pos[0] + hit.face[0],
-            hit.pos[1] + hit.face[1],
-            hit.pos[2] + hit.face[2],
-        ];
+        let p = if fluid {
+            hit.pos
+        } else {
+            [
+                hit.pos[0] + hit.face[0],
+                hit.pos[1] + hit.face[1],
+                hit.pos[2] + hit.face[2],
+            ]
+        };
         let at = [
             f64::from(p[0]) + 0.5,
             f64::from(p[1]),
@@ -5795,6 +5831,8 @@ impl Game<'_> {
             horizon_client::entity_nbt::apply_item_components(m, stack);
         }
         self.apply_spawn_egg_entity_data(id, stack);
+        self.post_block_game_event("minecraft:entity_place", p, Some(Who::Player), None);
+        self.stats.add("used", &stack.item, 1);
         self.swing_arm();
         if !self.creative
             && let Some(s) = self.held_mut().as_mut()

@@ -7533,6 +7533,11 @@ impl Game<'_> {
             }
             return succeeded;
         }
+        // SpawnEggItem.use on the client succeeds after a SOURCE_ONLY block
+        // hit; the server alone tests LiquidBlock and the placement permission.
+        if held.item.ends_with("_spawn_egg") {
+            return self.spawn_egg_allowed(&held.item) && self.bucket_hit().is_some();
+        }
         // Food starts being eaten (Consumable.startConsuming). A food that
         // can't be eaten (full and not always-edible) fails the use
         // (InteractionResult.FAIL): startUseItem tries the other hand, and
