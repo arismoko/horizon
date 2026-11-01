@@ -22,12 +22,13 @@ fn write(path: &Path, value: &toml::Table) -> Result<(), String> {
     fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Remove [api] from the incoming copy until horizon-mixins accepts the field.
+/// Remove launcher-only tables from the incoming copy before horizon-mixins reads it.
 pub(super) fn strip(bundle: &Bundle) -> Result<(), String> {
-    if bundle.api.is_some() {
-        let path = bundle.dir.join(MANIFEST);
-        let mut manifest = read(&path)?;
-        manifest.remove("api");
+    let path = bundle.dir.join(MANIFEST);
+    let mut manifest = read(&path)?;
+    let api = manifest.remove("api");
+    let dependencies = manifest.remove("dependencies");
+    if api.is_some() || dependencies.is_some() {
         write(&path, &manifest)?;
     }
     Ok(())
@@ -232,13 +233,14 @@ mod tests {
     #[test]
     fn removes_only_the_api_table_for_mixins() {
         let dir = fixture(
-            "[mod]\nid = 'example'\nversion = '1'\n[api]\npath = 'engine'\n[[injection]]\nid = 'test'\n",
+            "[mod]\nid = 'example'\nversion = '1'\n[api]\npath = 'engine'\n[dependencies]\nbase = '^1'\n[[injection]]\nid = 'test'\n",
         );
         let bundle = super::super::bundle(&dir, None).unwrap();
         assert!(bundle.mixins_content);
         strip(&bundle).unwrap();
         let value = read(&dir.join(MANIFEST)).unwrap();
         assert!(!value.contains_key("api"));
+        assert!(!value.contains_key("dependencies"));
         assert!(value.contains_key("injection"));
         fs::remove_dir_all(dir).unwrap();
     }

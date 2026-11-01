@@ -179,7 +179,7 @@ pub(super) fn resolve(mods: &[Mod<'_>]) -> Result<Resolution, Error> {
         let Some(next) = next else {
             // Follow remaining edges until a node repeats, reporting the actual cycle only.
             let mut seen = BTreeMap::new();
-            let mut path = Vec::new();
+            let mut path: Vec<usize> = Vec::new();
             let mut current = done.iter().position(|done| !done).expect("unfinished node");
             loop {
                 if let Some(&start) = seen.get(&current) {
@@ -204,11 +204,86 @@ pub(super) fn resolve(mods: &[Mod<'_>]) -> Result<Resolution, Error> {
     Ok(Resolution { order, edges })
 }
 
+/// A target's staged Cargo package, or none for an absent optional mod.
+pub(super) struct Package<'a> {
+    pub dependency: &'a Dependency,
+    pub package: Option<&'a str>,
+}
+
+/// Add bundle edges to the dependent package. Returns features to enable on the game edge.
+pub(super) fn rewrite(
+    owner: &str,
+    manifest: &mut toml::Table,
+    packages: &[Package<'_>],
+) -> Result<Vec<String>, String> {
+    let mut updated = manifest.clone();
+    let mut enabled = Vec::new();
+    for target in packages {
+        let id = &target.dependency.id;
+        let normalized = id.replace('-', "_");
+        let conflict = || format!("{owner}: dependency {id} conflicts with its Cargo manifest");
+        let dependencies = updated
+            .entry("dependencies")
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+            .as_table_mut()
+            .ok_or_else(conflict)?;
+        if dependencies
+            .keys()
+            .any(|key| key.replace('-', "_") == normalized)
+        {
+            return Err(conflict());
+        }
+        if let Some(package) = target.package {
+            let mut entry = toml::Table::new();
+            entry.insert("path".into(), format!("../{id}").into());
+            entry.insert("package".into(), package.into());
+            if target.dependency.optional {
+                entry.insert("optional".into(), true.into());
+            }
+            dependencies.insert(id.clone(), toml::Value::Table(entry));
+        } else if !target.dependency.optional {
+            return Err(format!("{owner}: required dependency {id} has no package"));
+        }
+        if target.dependency.optional {
+            let features = updated
+                .entry("features")
+                .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+                .as_table_mut()
+                .ok_or_else(conflict)?;
+            if features.contains_key(id)
+                || features.values().any(|value| {
+                    value.as_array().is_some_and(|entries| {
+                        entries.iter().any(|entry| {
+                            entry.as_str().is_some_and(|s| {
+                                s == id
+                                    || s == format!("dep:{id}")
+                                    || s.starts_with(&format!("{id}/"))
+                                    || s.starts_with(&format!("{id}?/"))
+                            })
+                        })
+                    })
+                })
+            {
+                return Err(conflict());
+            }
+            let entries = if target.package.is_some() {
+                enabled.push(id.clone());
+                vec![toml::Value::String(format!("dep:{id}"))]
+            } else {
+                Vec::new()
+            };
+            features.insert(id.clone(), toml::Value::Array(entries));
+        }
+    }
+    *manifest = updated;
+    Ok(enabled)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     fn deps(text: &str) -> Vec<Dependency> {
-        let value: toml::Value = text.parse().unwrap();
+        let value: toml::Table = text.parse().unwrap();
         parse("user", value.get("dependencies")).unwrap()
     }
     fn item<'a>(id: &'a str, version: &'a str, dependencies: &'a [Dependency]) -> Mod<'a> {
@@ -268,8 +343,76 @@ mod tests {
         assert!(err.contains("user") && err.contains("base"));
     }
     #[test]
+    fn rewrites_installed_and_absent_optional_dependencies() {
+        let deps = deps("[dependencies]\nbase = '^1'\nextra = { version = '^2', optional = true }");
+        let mut manifest: toml::Table = "[dependencies]\nhorizon-client = '1'".parse().unwrap();
+        let packages = [
+            Package {
+                dependency: &deps[0],
+                package: Some("base-package"),
+            },
+            Package {
+                dependency: &deps[1],
+                package: Some("extra-package"),
+            },
+        ];
+        assert_eq!(
+            rewrite("user", &mut manifest, &packages).unwrap(),
+            ["extra"]
+        );
+        assert_eq!(
+            manifest["dependencies"]["base"]["path"].as_str(),
+            Some("../base")
+        );
+        assert_eq!(
+            manifest["dependencies"]["base"]["package"].as_str(),
+            Some("base-package")
+        );
+        assert_eq!(
+            manifest["dependencies"]["extra"]["optional"].as_bool(),
+            Some(true)
+        );
+        assert_eq!(manifest["features"]["extra"][0].as_str(), Some("dep:extra"));
+        let mut absent = toml::Table::new();
+        assert!(rewrite(
+            "user",
+            &mut absent,
+            &[Package {
+                dependency: &deps[1],
+                package: None
+            }]
+        )
+        .unwrap()
+        .is_empty());
+        assert!(absent["features"]["extra"].as_array().unwrap().is_empty());
+        assert!(absent["dependencies"].get("extra").is_none());
+    }
+
+    #[test]
+    fn rejects_conflicting_features_and_dependency_names_atomically() {
+        let deps = deps("[dependencies]\nextra = { version = '^2', optional = true }");
+        for text in [
+            "[features]\ndefault = ['extra']",
+            "[dependencies]\nextra = '1'",
+        ] {
+            let mut manifest: toml::Table = text.parse().unwrap();
+            let original = manifest.clone();
+            assert!(rewrite(
+                "user",
+                &mut manifest,
+                &[Package {
+                    dependency: &deps[0],
+                    package: Some("extra-package")
+                }]
+            )
+            .is_err());
+            assert_eq!(manifest, original);
+        }
+    }
+
+    #[test]
     fn malformed_and_no_api() {
-        let value: toml::Value = "[dependencies]\nbase = { version = '^1', optional = 'yes' }"
+        let value: toml::Table = "[dependencies]\nbase = { version = '^1', optional = 'yes' }"
             .parse()
             .unwrap();
         assert!(parse("user", value.get("dependencies")).is_err());
