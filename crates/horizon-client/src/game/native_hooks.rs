@@ -219,8 +219,8 @@ use super::{
     native_panel_recipes::RecipePage,
 };
 use horizon_client::mod_api::{
-    self, GuiDraw, HealthInputs, NativeCommand, NativeLifecycleContext, NativeServerPlayer,
-    NativeZoom, ServerTickPhase, WorldPhase,
+    self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
+    WorldPhase,
 };
 pub(crate) use horizon_client::mod_api::{
     NativeBlockRim, NativeColoredLight, NativeMinimap, NativeMod, NativePanelEvent, NativeScreen,
@@ -790,10 +790,10 @@ impl Game<'_> {
     /// Nothing set draws Horizon's own.
     pub(super) fn native_health_hud(
         &mut self,
-        inputs: &HealthInputs,
+        inputs: &horizon_client::hud_layout::HealthInputs,
         wi: i32,
         hi: i32,
-        draws: &mut Option<Vec<GuiDraw>>,
+        draws: &mut Option<Vec<horizon_client::hud_layout::GuiDraw>>,
     ) {
         mod_api::dispatch_health_hud(self, mod_api::mods(), inputs, wi, hi, draws);
     }

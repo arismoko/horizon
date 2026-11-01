@@ -664,10 +664,10 @@ pub trait Hooks: Send + Sync {
     fn health_hud(
         &self,
         host: &mut dyn Host,
-        inputs: &HealthInputs,
+        inputs: &horizon_client::hud_layout::HealthInputs,
         wi: i32,
         hi: i32,
-    ) -> Option<Vec<GuiDraw>> {
+    ) -> Option<Vec<horizon_client::hud_layout::GuiDraw>> {
         let _ = host;
         let _ = inputs;
         let _ = wi;
@@ -1605,10 +1605,10 @@ pub fn dispatch_on_equip(
 pub fn dispatch_health_hud(
     host: &mut dyn Host,
     mods: &[Box<dyn Hooks>],
-    inputs: &HealthInputs,
+    inputs: &horizon_client::hud_layout::HealthInputs,
     wi: i32,
     hi: i32,
-    draws: &mut Option<Vec<GuiDraw>>,
+    draws: &mut Option<Vec<horizon_client::hud_layout::GuiDraw>>,
 ) {
     if draws.is_some() {
         return;
