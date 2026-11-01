@@ -1,0 +1,9 @@
+[mod]
+id = "render_proof"
+version = "0.1.0"
+
+[api]
+path = "engine"
+
+[compatibility]
+horizon_revision = "47db75a01a0d03f29b50348c7e9188902d331fcb"
