@@ -1,0 +1,14 @@
+[mod]
+id = "machine_sample"
+version = "0.1.0"
+priority = 100
+
+[compatibility]
+horizon_revision = "55d67aaa4db274a5abfceaba351a358545d125ac"
+
+[[injection]]
+id = "drag_test"
+kind = "HEAD"
+target = "horizon_client::game::native_hooks::Game<'_>::native_screen_mouse_dragged_pre"
+helper = "drag.rs"
+bindings = [{ name = "screen", ty = "&NativeScreenView<'_>", value = "screen" }, { name = "button", ty = "i32", value = "button" }, { name = "delta", ty = "[f32; 2]", value = "delta" }, { name = "canceled", ty = "&mut bool", value = "canceled" }]
