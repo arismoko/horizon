@@ -1,4 +1,15 @@
 fn sample_bulk(game: &mut Game<'_>, command: &str, canceled: &mut bool) {
+    if command == "say lightpacket" {
+        *canceled = true;
+        if let Some(c) = game.world.chunks.get_mut(&(2, 2)) {
+            let c = std::sync::Arc::make_mut(c);
+            let section = ((-16 - c.min_y()) / 16) as usize;
+            std::sync::Arc::make_mut(&mut c.sections[section]).light = horizon_client::chunk::Light::Uniform(0xf0);
+            game.world.bulk_log.insert((2, 2));
+            eprintln!("BULK_LIGHT resend column=2,2 sky=15");
+        }
+        return;
+    }
     if command == "say bulkinspect" {
         *canceled = true;
         eprintln!("BULK_INSPECT points={:?} surface={} block_log={:?}", [(2,-10,2),(15,-16,15),(16,-16,16),(63,-10,63)].map(|(x,y,z)| game.world.block(x,y,z).0), game.world.world_surface(32, 32, |s| s.0 == 0), game.world.block_log.as_ref().map(|l| l.len()));
