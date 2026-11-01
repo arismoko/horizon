@@ -9707,6 +9707,65 @@ def check_sculk_container(host, guest, out):
 CHECKS += ['sculk_container']
 CHECK_FNS['sculk_container'] = check_sculk_container
 
+
+def check_projectile_land(host, guest, out):
+    """Projectile.onHit raises PROJECTILE_LAND for every projectile, so a sculk sensor next to the
+    landing hears a thrown trident, a splash potion and a fishing hook. The sensor
+    stands 10 blocks from the thrower, past its 8-block range, so the throw's own PROJECTILE_SHOOT
+    cannot power it; only the landing, 1-5 blocks away, can."""
+    x, y, z = (int(v // 1) for v in pos_of(host))
+    sensor = (x + 10, y, z)
+    host('command', command=f'fill {x - 1} {y - 1} {z - 2} {x + 14} {y - 1} {z + 2} minecraft:stone')
+    host('command', command=f'fill {x - 1} {y} {z - 2} {x + 14} {y + 5} {z + 2} minecraft:air')
+    host('command', command=f'fill {x + 11} {y} {z - 2} {x + 11} {y + 4} {z + 2} minecraft:stone')
+    host('command', command=f'setblock {sensor[0]} {sensor[1]} {sensor[2]} minecraft:sculk_sensor')
+    host('command', command='difficulty peaceful')
+    host.wait(60)
+    # label: (item, gamemode, how it is thrown)
+    cases = {
+        'trident': ('minecraft:trident', 'survival', 'hold'),
+        'potion': ('minecraft:splash_potion[potion_contents={potion:"minecraft:water"}]', 'survival', 'use'),
+        'hook': ('minecraft:fishing_rod', 'survival', 'use'),
+    }
+    seen = {}
+    try:
+        for label, (item, mode, how) in cases.items():
+            assert wait_state(host, sensor, 'sculk_sensor_phase', 'inactive', 200) == 'inactive', seen
+            host('command', command=f'gamemode {mode}')
+            host('command', command='clear @s')
+            # Wandering mobs step, flap and get hurt next to the sensor and power it themselves.
+            host('command', command='kill @e[type=!minecraft:player,distance=..40]')
+            host('command', command=f'item replace entity @s weapon.mainhand with {item}')
+            host('command', command=f'tp @s {x + 0.5} {y} {z + 0.5} -90 0')
+            host.wait(10)
+            if label == 'hook':
+                host.raw('look-at', f'{x + 4.5:.2f}', f'{y:.2f}', f'{z + 0.5:.2f}')
+            elif label == 'potion':
+                host.raw('look-at', f'{x + 11.0:.2f}', f'{y + 2.5:.2f}', f'{z + 0.5:.2f}')
+            else:
+                host.raw('look-at', f'{x + 11.0:.2f}', f'{y + 1.6:.2f}', f'{z + 0.5:.2f}')
+            host.wait(20)
+            assert state_of(host, sensor, 'sculk_sensor_phase') == 'inactive', f'{label}: the setup powered the sensor: {seen}'
+            if how == 'hold':
+                host.raw('use-item', '--hold', 1.2)
+            else:
+                host.raw('use-item')
+            seen[label] = wait_state(host, sensor, 'sculk_sensor_phase', 'active', 80)
+            if label == 'hook':
+                host.raw('use-item')
+    finally:
+        host('command', command='clear @s')
+        host('command', command='kill @e[type=minecraft:trident]')
+        host('command', command='gamemode creative')
+        host('command', command=f'fill {x + 11} {y} {z - 2} {x + 11} {y + 4} {z + 2} minecraft:air')
+        host('command', command=f'setblock {sensor[0]} {sensor[1]} {sensor[2]} minecraft:air')
+    assert all(v == 'active' for v in seen.values()), f'a landing the sensor did not hear: {seen}'
+    return seen
+
+
+CHECKS += ['projectile_land']
+CHECK_FNS['projectile_land'] = check_projectile_land
+
 def check_replant(host, guest, out):
     """Instant breaks leave no server dig that can destroy a replacement (#1880).
 
