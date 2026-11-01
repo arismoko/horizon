@@ -281,6 +281,7 @@ use horizon_client::mod_api::{
     self, NativeCommand, NativeDispensed, NativeLifecycleContext, NativeLootDrops,
     NativeScreenView, NativeServerPlayer, NativeZoom, ServerTickPhase, WorldPhase,
 };
+use horizon_client::mod_api::{AttachmentResult, Attachments, Holder};
 pub(crate) use horizon_client::mod_api::{
     NativeBlockRim, NativeColoredLight, NativeMinimap, NativeMod, NativePanelEvent, NativeScreen,
     NativeStack,
@@ -1063,6 +1064,14 @@ fn chars_to_type(text: &str, canceled: impl FnMut(char) -> bool) -> Option<Strin
 
 /// The hook points. Each does nothing in Horizon.
 impl Game<'_> {
+    /// Access a server-owned holder's attachment map.
+    pub(super) fn native_attachments(
+        &mut self,
+        holder: Holder,
+    ) -> AttachmentResult<&mut Attachments> {
+        self.attachment_map(holder)
+    }
+
     /// Once a frame, in a world or not, after Horizon's extras.
     pub(super) fn native_frame(&mut self, elapsed: Duration) {
         mod_api::dispatch_frame(self, mod_api::mods(), elapsed);
