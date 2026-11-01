@@ -21,6 +21,10 @@ fn sample_bulk(game: &mut Game<'_>, dimension: &str) {
             let runs = (8..24).flat_map(|x| (8..24).map(move |z| NativeBlockRun { x, z, y: 140, height: 16, surface: None, block: 0, only: filter.map(|_| 0) })).collect();
             (block, filter, runs)
         }
+        "twomachine" => {
+            let runs = [8, 9].into_iter().map(|x| NativeBlockRun { x, z: 8, y: 140, height: 1, surface: None, block: 0, only: None }).collect();
+            ("machine_sample:machine", None, runs)
+        }
         "one" => {
             let x = p[2].parse().unwrap(); let y = p[3].parse().unwrap(); let z = p[4].parse().unwrap();
             (p[1], None, vec![NativeBlockRun { x, z, y, height: 1, surface: None, block: 0, only: None }])
