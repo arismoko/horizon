@@ -1721,6 +1721,892 @@ pub trait Hooks: Send + Sync {
         let _ = modifiers;
         Flow::Continue
     }
+    /// Change the colours of `biome` (`minecraft:plains`) on this client: the
+    /// grass, foliage (leaves, vines), dry foliage (leaf litter) and water
+    /// tints, 0xRRGGBB, as its biome file and the colormaps set them. Asked
+    /// for every biome when a mod calls `native_refresh_biome_colors`, which
+    /// rebuilds the terrain with them; a season mod answers from its season
+    /// and calls that when the season turns. The dark forest's modifier
+    /// still applies to the grass set here; the swamp's noise colours
+    /// replace it. API @API:biome_colors@.
+    fn biome_colors(&self, host: &dyn Host, biome: &str, colors: &mut BiomeColors) {
+        let _ = host;
+        let _ = biome;
+        let _ = colors;
+    }
+    /// Before an eligible targeted block's selection outline is built.
+    /// Cancel skips only the default block highlight, after normal HUD and game-mode gates.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn block_highlight(
+        &self,
+        host: &dyn Host,
+        pos: [i32; 3],
+        state: BlockStateId,
+        partial: f32,
+    ) -> Flow {
+        let _ = host;
+        let _ = pos;
+        let _ = state;
+        let _ = partial;
+        Flow::Continue
+    }
+    /// Final scaled third-person camera distance, before visual-shape collision clipping.
+    /// `entity` includes its living scale/distance and optional mount scale/distance.
+    /// Only finite requests in 0..=1024 blocks replace the vanilla distance.
+    fn camera_distance(
+        &self,
+        host: &dyn Host,
+        partial: f32,
+        mirrored: bool,
+        entity: &horizon_client::camera::CameraEntity,
+        distance: &mut f32,
+    ) {
+        let _ = host;
+        let _ = partial;
+        let _ = mirrored;
+        let _ = entity;
+        let _ = distance;
+    }
+    /// Render-thread notification after a resource-pack reload has applied successfully.
+    /// Atlas, models, renderer and client caches already refer to the new resources.
+    /// Selection/F3+T and server-pack reloads share this point; initial startup does not.
+    fn client_resources_reloaded(&self, host: &mut dyn Host) {
+        let _ = host;
+    }
+    /// Computed world fog RGB, after ordinary effects and before upload. Title panoramas skip it.
+    /// Only finite RGB components in 0..=1 are accepted; alpha and distances stay unchanged.
+    fn compute_fog_color(
+        &self,
+        host: &dyn Host,
+        partial: f32,
+        camera: [f64; 3],
+        fog_type: horizon_client::fog::FogType,
+        rgb: &mut [f32; 3],
+    ) {
+        let _ = host;
+        let _ = partial;
+        let _ = camera;
+        let _ = fog_type;
+        let _ = rgb;
+    }
+    /// World field of view, after normal calculation and zoom and before projection/Nausea.
+    /// Called for world rendering and near-plane overlays; hand/HUD FOV uses its own path.
+    /// Only finite values in 1..=179 degrees replace the computed FOV.
+    fn compute_fov(&self, host: &dyn Host, partial: f32, camera: [f64; 3], degrees: &mut f32) {
+        let _ = host;
+        let _ = partial;
+        let _ = camera;
+        let _ = degrees;
+    }
+    /// The server is assembling its data tables from the world's data packs
+    /// (`ReloadableServerResources`): a world is opening, or `/reload` was
+    /// run, and the recipes, tags, loot and advancements are built after
+    /// this. Push `(path, bytes)` pack files and they join this load. `path`
+    /// is the overlay's key, `<kind>/<namespace>:<path>` without `.json`, over
+    /// the kinds the tables read: `recipe/mymod:thing`,
+    /// `tags/mymod:block/thing`, `loot_table/…`, `advancement/…`,
+    /// `trade_set/…`, `villager_trade/…`, `dialog/…`. A file that isn't JSON
+    /// is skipped with a warning. Asked once per load on both paths, so this
+    /// is where a mod recomputes them.
+    /// Contributed files sit below the world's own data packs: a pack's file
+    /// for the same path still overrides a mod's. Server-side (the single
+    /// player's integrated server included). API @API:data_pack_files@.
+    ///
+    /// Every mod gets `files` in order and may add, change or remove files.
+    fn data_pack_files(&self, host: &dyn Host, files: &mut Vec<(String, Vec<u8>)>) {
+        let _ = host;
+        let _ = files;
+    }
+    /// Whether the experience orb `into` takes the orb `from` in (vanilla's
+    /// `ExperienceOrb.canMerge`): the same value, and ids a multiple of 40 apart. Asked
+    /// for each pair whose boxes meet, when an orb spawns (`tryMergeToExisting`: `from` is
+    /// 0, the new orb isn't an entity yet, and only `from_value` is known) and every 20
+    /// ticks as an orb scans for neighbours (`scanForMerges`). `can_merge` holds vanilla's
+    /// answer; change it either way. A merged orb counts as `count` orbs of `into`'s
+    /// value, so forcing orbs of different values together drops points unless the mod
+    /// raises `into`'s value with `native_set_experience_orb` in `native_experience_orb_merge`.
+    /// Server-side. API @API:experience_orb_merge@.
+    fn experience_orb_can_merge(
+        &self,
+        host: &mut dyn Host,
+        dimension: &str,
+        into: u32,
+        from: u32,
+        into_value: u32,
+        from_value: u32,
+        can_merge: &mut bool,
+    ) {
+        let _ = host;
+        let _ = dimension;
+        let _ = into;
+        let _ = from;
+        let _ = into_value;
+        let _ = from_value;
+        let _ = can_merge;
+    }
+    /// The experience orb `into` is about to take `from` in, after
+    /// `native_experience_orb_can_merge` said yes (`from` is 0 and `from_value` the
+    /// points of a new orb that is spawning). Set `canceled` to stop it: both orbs stay, and
+    /// a spawning orb tries the next orb in reach, then spawns on its own. Server-side.
+    /// API @API:experience_orb_merge@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn experience_orb_merge(
+        &self,
+        host: &mut dyn Host,
+        dimension: &str,
+        into: u32,
+        from: u32,
+        from_value: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = dimension;
+        let _ = into;
+        let _ = from;
+        let _ = from_value;
+        Flow::Continue
+    }
+    /// A real window key event after handling, including repeats and consumed shortcuts.
+    /// Receives the original physical/logical key, text, location, state and repeat flag.
+    /// Modifier bits use the screen hooks' GLFW encoding. Not cancellable.
+    fn input_key(&self, host: &mut dyn Host, event: &winit::event::KeyEvent, modifiers: u32) {
+        let _ = host;
+        let _ = event;
+        let _ = modifiers;
+    }
+    /// Append an item's custom decorations after its default bar, cooldown and count.
+    /// Coordinates are the icon's top-left in GUI units, as the batch takes them;
+    /// no item translation is active.
+    /// Runs wherever the shared item-decoration path is used (hotbar, menus, tooltips,
+    /// and the other screens that draw item icons: advancements, beacon, stats, trading).
+    fn item_decorations(
+        &self,
+        host: &dyn Host,
+        stack: &ItemStack,
+        x: f32,
+        y: f32,
+        batch: &mut HudBatch,
+    ) {
+        let _ = host;
+        let _ = stack;
+        let _ = x;
+        let _ = y;
+        let _ = batch;
+    }
+    /// `Item.getUseDuration` of `stack`, in ticks: `duration` arrives with
+    /// vanilla's (a consumable's time, 72000 for a shield, a spear, a bow,
+    /// 0 for an item with no use over time). A mod's own item (outside
+    /// `minecraft:`) with no `consumable`, `blocks_attacks` or kinetic
+    /// weapon that answers above 0 is used over time on a right click, as an
+    /// `Item.use` that calls `startUsingItem`, until it is let go or the time
+    /// runs out (`native_living_entity_use_item_finish`). A consumable's time
+    /// changes too, potions and the other vanilla items keep their own.
+    /// Asked when a use starts, each tick a mod's item is in use, and each
+    /// frame the hand draws one in use, on both sides. It has no user, as
+    /// it is asked so often: answer from the stack alone. API @API:item_use_over_time@.
+    fn use_duration(&self, host: &dyn Host, stack: &ItemStack, duration: &mut i32) {
+        let _ = host;
+        let _ = stack;
+        let _ = duration;
+    }
+    /// `Item.getUseAnimation` of `stack` in use, for the first person hand:
+    /// `animation` arrives with its consumable's (`eat`, `drink`), else
+    /// `None`. `Eat` and `Drink` bring the food to the mouth, `Bow` draws,
+    /// `Trident` raises, `Brush` sweeps; the rest hold the item still.
+    /// Asked each frame the hand draws an item in use, for an item with no
+    /// pose of its own (bows, crossbows, tridents, brushes and spears keep
+    /// theirs). Client-side. API @API:item_use_over_time@.
+    fn use_animation(&self, host: &dyn Host, stack: &ItemStack, animation: &mut UseAnimation) {
+        let _ = host;
+        let _ = stack;
+        let _ = animation;
+    }
+    /// `Player.canEat` for the food `stack`, from `Consumable.canConsume`
+    /// when eating starts: `can_eat` arrives with vanilla's (creative,
+    /// `can_always_eat`, or hungry). Clear it to refuse the food, set it to
+    /// let a full player eat. Both sides (the client starts eating as the
+    /// server does), so answer from the stack and the player alone. API @API:item_use_over_time@.
+    fn can_eat(&self, host: &dyn Host, stack: &ItemStack, can_eat: &mut bool) {
+        let _ = host;
+        let _ = stack;
+        let _ = can_eat;
+    }
+    /// NeoForge's `LivingEntityUseItemEvent.Start`: `entity` starts using
+    /// `stack` in `hand` (`LivingEntity.startUsingItem`), for `duration`
+    /// ticks (`native_use_duration`'s answer). `entity` is a mob's
+    /// `Entity.getId`, None for a player (`native_acting_player` says who);
+    /// only players fire it so far. Change `duration` (consumables, potions,
+    /// spyglasses and mods' items count to it; below 0 refuses the use, and
+    /// 0 runs it out on its first tick, as `native_living_entity_use_item_tick`
+    /// running it out, unless the item's own is 0 already), or set
+    /// `canceled` and the use doesn't start. Both sides, as
+    /// vanilla's: wherever the world runs (the server, single player
+    /// in-frame, a LAN host) for every player of the world, and on a
+    /// server's client for the uses it predicts. Answer the same on both,
+    /// and change the world only where this `Game` runs the world, not on a
+    /// server's client: no helper tells the two apart yet (`native_window`
+    /// is also true in-frame and on an in-frame LAN host). API @API:item_use_over_time@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn living_entity_use_item_start(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        hand: Hand,
+        duration: &mut i32,
+    ) -> Flow {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = hand;
+        let _ = duration;
+        Flow::Continue
+    }
+    /// NeoForge's `LivingEntityUseItemEvent.Finish`: `entity`'s use of
+    /// `stack` in `hand` ran its time (`LivingEntity.completeUsingItem`),
+    /// `duration` the ticks left, always 0. `entity` is as in
+    /// `native_living_entity_use_item_start`. `result` arrives with what
+    /// `finishUsingItem` left in the hand (the bowl of a stew, none for the
+    /// last apple; a mod's own item is kept) and may be replaced. Fired for
+    /// consumables, potions, spyglasses and mods' items. Server-side, for every player
+    /// of the world (the helpers read the acting one). API @API:item_use_over_time@.
+    fn living_entity_use_item_finish(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        hand: Hand,
+        duration: i32,
+        result: &mut Option<ItemStack>,
+    ) {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = hand;
+        let _ = duration;
+        let _ = result;
+    }
+    /// NeoForge's `LivingEntityUseItemEvent.Tick`: each tick `entity` uses
+    /// `stack` in `hand`, where `LivingEntity.updatingUsingItem` starts,
+    /// `duration` the ticks left. `entity` is as in
+    /// `native_living_entity_use_item_start`. Change `duration` to move the
+    /// end (consumables, potions, spyglasses and mods' items count to it,
+    /// and so do a client's eating crumbs and first person pose, as the
+    /// started duration of `native_living_entity_use_item_start` does). A
+    /// cancel sets it to -1. Once a mod set it, the use goes on
+    /// only while it is above 0: at 0 or less, by a cancel or set, the
+    /// item's tick is skipped and the server finishes the use
+    /// (`completeUsingItem`: `finishUsingItem`, the food eaten,
+    /// `native_living_entity_use_item_finish`), while an item used on
+    /// release (a crossbow) stays frozen until let go. NeoForge's javadoc
+    /// says a cancel stops the use, but its code finishes it; this follows
+    /// the code. On a server's client a run-out use stays in use, frozen,
+    /// so letting go still tells the server. Both sides, as vanilla's
+    /// `updatingUsingItem`: answer the same on both, and change the world
+    /// only where this `Game` runs the world, not on a server's client (no
+    /// helper tells the two apart yet; `native_window` is also true
+    /// in-frame and on an in-frame LAN host). Runs every tick of every use:
+    /// check the item first. API @API:item_use_tick_release@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn living_entity_use_item_tick(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        hand: Hand,
+        duration: &mut i32,
+    ) -> Flow {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = hand;
+        let _ = duration;
+        Flow::Continue
+    }
+    /// `Item.onUseTick` of `stack`, used by `entity` with `remaining` ticks
+    /// left, always above 0: what a mod's own item does each tick it is used
+    /// (cook, charge, drain). It comes where `ItemStack.onUseTick` calls the
+    /// item, once `native_living_entity_use_item_tick` let the use go on:
+    /// after a consumable's crumbs, for consumables, shields and mods' items
+    /// (vanilla's other items do their own, and a kinetic weapon has none on
+    /// the server). Both sides, as `native_living_entity_use_item_tick`:
+    /// change the world only where this `Game` runs the world, not on a
+    /// server's client. Runs every tick of every use: check the item first.
+    /// API @API:item_use_tick_release@.
+    fn on_use_tick(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        remaining: i32,
+    ) {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = remaining;
+    }
+    /// NeoForge's `LivingEntityUseItemEvent.Stop`: `entity` lets go of
+    /// `stack` in `hand` before its use ran its time
+    /// (`LivingEntity.releaseUsingItem`: the use button let go, a screen
+    /// opened), `duration` the ticks left. Set `canceled` to skip the item's
+    /// release (a bow doesn't shoot, a spyglass makes no sound,
+    /// `native_release_using` isn't called); the use stops anyway. Not when
+    /// the hand changed item, which stops the use without a release. Both
+    /// sides, as `native_living_entity_use_item_tick`. API @API:item_use_tick_release@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn living_entity_use_item_stop(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        hand: Hand,
+        duration: i32,
+    ) -> Flow {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = hand;
+        let _ = duration;
+        Flow::Continue
+    }
+    /// `Item.releaseUsing` of `stack`: `entity` let it go with `time_left`
+    /// ticks of its `native_use_duration` left, so it was held for
+    /// `duration - time_left` (a bow-like item shoots by that charge). Set
+    /// `used` as vanilla's return, and the stack's use cooldown starts
+    /// (`ItemStack.releaseUsing`). After the vanilla item's own release, once
+    /// `native_living_entity_use_item_stop` let it through. Both sides, as
+    /// vanilla's: change the world only where this `Game` runs the world,
+    /// not on a server's client. API @API:item_use_tick_release@.
+    fn release_using(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        time_left: i32,
+        used: &mut bool,
+    ) {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = time_left;
+        let _ = used;
+    }
+    /// `LivingEntity.knockback` is about to push entity `entity` of type `kind`
+    /// (`minecraft:zombie`, `minecraft:player`) `strength` away from the direction (`x`, `z`),
+    /// after the entity's knockback resistance took its share and before its motion changes
+    /// (docs/native-mods.md, API @API:living_knockback@). Vanilla's direction points at the
+    /// source of a hit (the attacker's side), and the entity is pushed the other way. Change
+    /// `strength`, `x` or `z`, or set `canceled`, and the push follows them: canceled, the
+    /// entity's motion is left alone. A `strength` of 0 or less after the hook is no push, and a
+    /// direction too short to tell draws a random one after it, as in vanilla. A value a mod
+    /// leaves that is not a finite number is put back as it was. `damage_type`
+    /// (`minecraft:player_attack`), `causing` (`DamageSource.getEntity`) and `direct`
+    /// (`getDirectEntity`) are the push's `DamageSource`, named as `native_living_incoming_damage`
+    /// names a hit's, with the same entity ids left at 0. It fires for the players and mobs the
+    /// game knocks back: a hit's own push, a sprinting or Knockback hit, a sweep, a spear, a
+    /// shield's push on its holder and a goat's ram. It does not fire for a sulfur cube with a
+    /// block that a hit with a causing entity knocks back (`SulfurCube.knockback` does not call
+    /// `super` there), for the pushes vanilla doesn't make with `LivingEntity.knockback` (the
+    /// ender dragon's wings, Punch arrows, explosions, wind charges, a mace smash's area, a
+    /// hoglin's throw), nor yet for the ones Horizon makes another way: a mob's melee push from
+    /// its attack knockback or a Knockback weapon, an armor stand's, the ender dragon's. It runs
+    /// on the thread that ticks the world (the server thread; the window's in-frame): state
+    /// shared with render thread hooks needs synchronising. No `self`: the game is in the middle
+    /// of the hit. API @API:living_knockback@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn living_knockback(
+        &self,
+        entity: i32,
+        kind: &str,
+        damage_type: &str,
+        causing: i32,
+        direct: i32,
+        strength: &mut f64,
+        x: &mut f64,
+        z: &mut f64,
+    ) -> Flow {
+        let _ = entity;
+        let _ = kind;
+        let _ = damage_type;
+        let _ = causing;
+        let _ = direct;
+        let _ = strength;
+        let _ = x;
+        let _ = z;
+        Flow::Continue
+    }
+    /// Hook point for native mods (docs/native-mods.md, listed in `native-hooks.json`
+    /// with the game's): container slot `slot` of the content mod menu type `menu`
+    /// (`data/<id>/horizon/menu/`) is asked whether it takes `stack`
+    /// (`Slot.mayPlace`) and how many of it it holds (`Slot.getMaxStackSize`).
+    /// `may_place` and `max_stack` hold the type's own answer (false on one of its
+    /// `results`, true elsewhere, and 99): change them for your own menu types.
+    /// `max_stack` is kept to 1 to 99,
+    /// and the item's own stack size still caps it. Asked on the server, for each
+    /// click, drag and shift-click that puts an item in a slot, several times for
+    /// one shift-click: answer from `stack` alone, and fast. API
+    /// @API:menu_slot_rules@.
+    fn menu_slot_rules(
+        &self,
+        menu: &str,
+        slot: usize,
+        stack: &ItemStack,
+        may_place: &mut bool,
+        max_stack: &mut u32,
+    ) {
+        let _ = menu;
+        let _ = slot;
+        let _ = stack;
+        let _ = may_place;
+        let _ = max_stack;
+    }
+    /// Draw the mob `mob` (its id, kind, custom name and the frame's body
+    /// and head turns and walk cycle, `LivingEntityRenderState`) on this
+    /// client with a model of your own, once a frame while it is in view
+    /// (vanilla's `EntityRenderer.submit`), and set `drawn` to leave out its
+    /// vanilla model, armour and held items (NeoForge's `RenderLivingEvent.Pre`,
+    /// cancelled). Add geometry with `native_draw_cube`, `native_draw_quad`,
+    /// `native_draw_block` and `native_draw_item` under `draw`'s pose stack,
+    /// which starts at the mob's feet turned with its body: +z is the way it
+    /// faces, +x its left, +y up, in blocks. `draw` also has the partial tick,
+    /// the game time and the mob's light. Its name tag, shadow, flames and
+    /// glowing outline draw as for any mob. Asked for every mob in view but
+    /// players; a mob your server half spawned (`native_spawn_mob`) is told
+    /// apart by its id, sent with mod messages, or by its custom name.
+    /// A mob is drawn afresh each frame: `draw.keep()` does nothing here.
+    /// API @API:mob_submit@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `drawn`, and later mods are skipped.
+    fn mob_submit(
+        &self,
+        host: &dyn Host,
+        mob: &NativeMobRender<'_>,
+        draw: &mut BlockEntityDraw,
+    ) -> Flow {
+        let _ = host;
+        let _ = mob;
+        let _ = draw;
+        Flow::Continue
+    }
+    /// The number of players with the mod container at `pos` of `dimension`
+    /// open went from `previous` to `viewers` (vanilla's
+    /// `ContainerOpenersCounter`, as a barrel keeps it): 0 to more than 0 is
+    /// `onOpen`, back to 0 is `onClose`, any change `openerCountChanged`, so a
+    /// block can show itself open while `viewers` is not 0. Counted every
+    /// tick from the players' open menus, so a player who leaves without
+    /// closing (a lost connection, death, another dimension, out of reach, the
+    /// block gone) is heard too (`recheckOpeners`). Once for each change, with
+    /// no player's state swapped in. Server-side.
+    /// @API:mod_container_viewers@.
+    fn mod_container_viewers(
+        &self,
+        host: &mut dyn Host,
+        dimension: &str,
+        pos: [i32; 3],
+        viewers: u32,
+        previous: u32,
+    ) {
+        let _ = host;
+        let _ = dimension;
+        let _ = pos;
+        let _ = viewers;
+        let _ = previous;
+    }
+    /// Raw mouse button input on any screen, before dispatch; cancel skips dispatch and Post.
+    /// Button/modifiers use the same GLFW encoding as screen hooks. Synthetic clicks skip it.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn mouse_button_pre(
+        &self,
+        host: &mut dyn Host,
+        button: i32,
+        pressed: bool,
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = button;
+        let _ = pressed;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// An accepted raw button event finished dispatch, including a screen handler's early return.
+    fn mouse_button_post(&self, host: &mut dyn Host, button: i32, pressed: bool, modifiers: u32) {
+        let _ = host;
+        let _ = button;
+        let _ = pressed;
+        let _ = modifiers;
+    }
+    /// Gameplay scrolling after whole steps accumulate, before hotbar/spectator handling.
+    /// `scroll` is scaled x/y, `accumulated` whole x/y steps, `buttons` left/middle/right,
+    /// and `cursor` the GUI position. Cancel skips gameplay scrolling; synthetic input skips it.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn mouse_scrolling(
+        &self,
+        host: &mut dyn Host,
+        scroll: [f64; 2],
+        accumulated: [i32; 2],
+        buttons: [bool; 3],
+        cursor: [f32; 2],
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = scroll;
+        let _ = accumulated;
+        let _ = buttons;
+        let _ = cursor;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// Choose this client's music, once a client tick: `music` and `volume`
+    /// hold what vanilla chose (`Minecraft.getSituationalMusic` and
+    /// `getMusicVolume`: the biome's track, the creative or underwater one, a
+    /// boss's, the menu's; None for silence). Set `music` to a track of your
+    /// own, a sound event of your content mod's `sounds.json` such as
+    /// `Music::new("mymod:music.spring", 1200, 6000, false)` (the delays in
+    /// ticks between songs, and whether it cuts off a different song playing),
+    /// None to keep vanilla's quiet, or change `volume` (0 to 1) to fade it. API
+    /// @API:music@.
+    fn music(&self, host: &dyn Host, music: &mut Option<Music>, volume: &mut f32) {
+        let _ = host;
+        let _ = music;
+        let _ = volume;
+    }
+    /// The tracks to play over (or instead of) the music on this client,
+    /// asked once a client tick: push a `MusicLayer` (a sound event, looped,
+    /// and its volume, 0 to 1) for each. A layer eases to a new volume over up
+    /// to two seconds, and one left out fades out and stops; layers that
+    /// first appear in the same tick start together, so list every stem of a
+    /// piece from the start, the silent ones at volume 0, and raise them (a
+    /// fuller arrangement as a village grows). Their sound events should be
+    /// `stream: true` in `sounds.json`. API @API:music@.
+    ///
+    /// Every mod gets `layers` in order and may add, change or remove layers.
+    fn music_layers(&self, host: &dyn Host, layers: &mut Vec<MusicLayer>) {
+        let _ = host;
+        let _ = layers;
+    }
+    /// The camera shake native mods ask for in this frame, `partial` ticks
+    /// past the last tick (0 to 1): add your pitch, yaw and roll in degrees
+    /// and your offset in blocks, along the camera's right, up and back, to
+    /// `shake`, so several mods' shakes add up. Read while playing only;
+    /// Horizon scales the sum by Distortion Effects and bounds it
+    /// (`native_shake_matrix`). API @API:native_camera_shake@.
+    fn camera_shake(&self, host: &dyn Host, partial: f32, shake: &mut NativeShake) {
+        let _ = host;
+        let _ = partial;
+        let _ = shake;
+    }
+    /// A command a mod registered, typed on the dedicated server's console
+    /// or sent through `horizon-server console`
+    /// (`DedicatedServer.handleConsoleInputs`), without its slash: set `ran`
+    /// when it is yours. There is no player: the source is the console, at
+    /// permission level 4, so `native_acting_player` is None and the
+    /// player-only helpers give nothing; `native_feedback` answers on the
+    /// console. A name no mod registered goes to vanilla's dispatcher as
+    /// before. @API:native_perform_console_command@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `ran`, and later mods are skipped.
+    fn perform_console_command(&self, host: &mut dyn Host, command: &str) -> Flow {
+        let _ = host;
+        let _ = command;
+        Flow::Continue
+    }
+    /// A command a player typed (NeoForge's `CommandEvent`, before
+    /// `Commands.performCommand` runs it), without its slash: any command,
+    /// vanilla's and the mods' own, also one the player may not run. Set
+    /// `canceled` to stop it: nothing runs and nothing is answered but the
+    /// lines pushed to `replies`, which go to the player as system chat.
+    /// No player's state is swapped in and the server's player list is busy
+    /// with this one, so `native_tell` and the other helpers that take a UUID
+    /// reach nobody here: answer through `replies`. Once for each command a
+    /// player sends, on a server, and for each line of a quiet command batch
+    /// (`horizon:quiet_commands`, whose replies are dropped). A command the
+    /// server refuses before reading it (unsigned chat arguments, the chat
+    /// rate limit) never reaches it. @API:native_player_command@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn player_command(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        command: &str,
+        replies: &mut Vec<Text>,
+    ) -> Flow {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = command;
+        let _ = replies;
+        Flow::Continue
+    }
+    /// `player` (`name`) respawned (NeoForge's `PlayerRespawnEvent`): at the
+    /// end of `PlayerList.respawn`, once they are placed and their health,
+    /// food and experience reset, with their state swapped in. Once for each
+    /// death that ends in a respawn, on a server; not for the End-exit one.
+    /// @API:native_player_respawned@.
+    fn player_respawned(&self, host: &mut dyn Host, player: u128, name: &str) {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+    }
+    /// The values native mods hand their shader packs in this frame,
+    /// `partial` ticks past the last tick (0 to 1): a pack's WGSL reads
+    /// them as `frame.mods` (eight `vec4<f32>`). Write the slots your own
+    /// pack reads; a mod that bundles its pack as `native-<mod id>` is the
+    /// one that pack is for. Asked once a frame while a pack is on; a value
+    /// that isn't finite reads as 0 (`native_shader_params_now`). API
+    /// @API:native_shader_params@.
+    fn shader_params(&self, host: &dyn Host, partial: f32, params: &mut [[f32; 4]; 8]) {
+        let _ = host;
+        let _ = partial;
+        let _ = params;
+    }
+    /// The server is about to send its data to the players (NeoForge's
+    /// `OnDatapackSyncEvent`, its `sendRecipes`): push the recipe types
+    /// (`minecraft:smelting`, `mymod:crusher`) whose recipes your client half
+    /// needs. Horizon sends their final recipes — the world's data packs
+    /// merged, load conditions held — to every Horizon client when it joins
+    /// and again after each `/reload`; a vanilla client is sent nothing new.
+    /// Asked once per load, when the server's data tables are built, and the
+    /// same types go to every player: unlike NeoForge, which asks again for
+    /// each joining player, it can't differ between players. Push nothing and
+    /// nothing is sent; push nothing after a load that pushed some and the
+    /// clients go back to their own recipes. Server-side (the single
+    /// player's integrated server included). API @API:recipe_sync@.
+    ///
+    /// Every mod gets `recipe_types` in order and may add, change or remove recipe_types.
+    fn datapack_sync(&self, host: &mut dyn Host, recipe_types: &mut Vec<String>) {
+        let _ = host;
+        let _ = recipe_types;
+    }
+    /// The server's recipes of `recipe_types` arrived (NeoForge's
+    /// `RecipesReceivedEvent`): from now on the recipe helpers
+    /// (`native_recipes`, `native_recipes_of_type`) give the server's recipes
+    /// of those types in place of the window's own, so rebuild what you made
+    /// of them. It comes after a join, once the window has its player, and
+    /// after every `/reload`, on a server whose mods asked for them
+    /// (`native_datapack_sync`), single player included; with no types when
+    /// the server stopped sending them and the window is back on its own
+    /// recipes. A recipe the
+    /// window's own recipe book doesn't know has `book_id` -1. Client-side.
+    /// API @API:recipe_sync@.
+    fn recipes_received(&self, host: &mut dyn Host, recipe_types: &[String]) {
+        let _ = host;
+        let _ = recipe_types;
+    }
+    /// Final world fog, after the computed color hook, ordinary calculations and Horizon's fog
+    /// option, before upload. Title panoramas skip it. Invalid color or distance values retain the
+    /// original whole fog.
+    fn render_fog(
+        &self,
+        host: &dyn Host,
+        partial: f32,
+        camera: [f64; 3],
+        fog_type: horizon_client::fog::FogType,
+        fog: &mut horizon_client::fog::FogData,
+    ) {
+        let _ = host;
+        let _ = partial;
+        let _ = camera;
+        let _ = fog_type;
+        let _ = fog;
+    }
+    /// Before one first-person hand and its displayed stack are drawn (RenderHandEvent).
+    /// Equip progress is the inverse arm height, including the item's swap animation scale.
+    /// Cancel skips that hand's default geometry, including its map and arm geometry.
+    /// It only hides: the hook has no way to draw a replacement.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn render_hand(
+        &self,
+        host: &dyn Host,
+        hand: horizon_client::first_person::Hand,
+        stack: Option<&ItemStack>,
+        partial: f32,
+        swing: f32,
+        equip: f32,
+    ) -> Flow {
+        let _ = host;
+        let _ = hand;
+        let _ = stack;
+        let _ = partial;
+        let _ = swing;
+        let _ = equip;
+        Flow::Continue
+    }
+    /// A key went down over the open screen (`ScreenEvent.KeyPressed.Pre`,
+    /// vanilla's `Screen.keyPressed`): `screen` is the screen it is, `key`
+    /// vanilla's name for the key (`key.keyboard.e`, the name `native_key`
+    /// hands over) — a key with no name fires nothing — `repeat` whether it is
+    /// the keyboard's auto-repeat of a held press (Horizon's extra; NeoForge
+    /// folds repeats into the event), and `modifiers` GLFW's bits (shift 1,
+    /// control 2, alt 4, super 8). Set `canceled` and the press goes no
+    /// further: no focus move, no Escape-close, no inventory or hotbar key, no
+    /// typing by the key itself, no `native_key`.
+    /// It fires for the window's presses and their repeats, and for the
+    /// control socket's `key` (a release fires nothing), after the window's
+    /// own shortcuts have run — the fullscreen and screenshot keys, the debug
+    /// keys and the narrator — and only while a screen of the game's is open
+    /// (Options and the pack list opened from the title screen count, with no
+    /// player and no `menu`). It does not fire on the title screen itself, the
+    /// connect and loading screens, nor for a server dialog, the server pack,
+    /// link and code-of-conduct prompts, a book or a sign editor drawn over
+    /// gameplay, nor while a world loads or saves: the key there stays the
+    /// game's own. A cancelled press's release still runs, so a `native_key`
+    /// listener sees that release without its press, and its characters are
+    /// GLFW's separate char callback and still come; see
+    /// `native_screen_char_typed_pre`.
+    /// API @API:screen_key_input@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn screen_key_pressed_pre(
+        &self,
+        host: &dyn Host,
+        screen: &NativeScreenView<'_>,
+        key: &str,
+        repeat: bool,
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = screen;
+        let _ = key;
+        let _ = repeat;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// A character was typed at the open screen
+    /// (`ScreenEvent.CharacterTyped.Pre`, vanilla's `Screen.charTyped`):
+    /// `screen` is the screen it is, `c` the character, and `modifiers` GLFW's
+    /// bits (shift 1, control 2, alt 4, super 8). Set `canceled` and that one
+    /// character never reaches a text box.
+    /// It fires once per printable character of a key press's text and once
+    /// per character of the input method's committed text, never for a control
+    /// character (Enter, Backspace, Tab, Delete, Escape, a Control letter):
+    /// those are keys, and the game reads them as keys, not as text. A key's
+    /// characters fire after the key has acted, as GLFW's char callback comes
+    /// after its key callback (`KeyboardHandler.charTyped`): `screen` is the
+    /// screen open then, so a key that closes the screen (the inventory key)
+    /// leaves none to hear its character, where vanilla's closed screen hears
+    /// nothing, and one that moves the focus types into the box it moved to.
+    /// They fire even when `native_screen_key_pressed_pre` cancelled the press
+    /// that carried the text, as NeoForge delivers `CharacterTyped.Pre` for a
+    /// cancelled `KeyPressed.Pre`: the characters left reach the text box
+    /// without the key's own effects. Cancelling one character drops only that
+    /// one. The control socket's `type` fires it too, but not for its `\b`
+    /// backspace. Same screens as the key press, and it fires with no text box
+    /// focused (there is nothing to take the character then).
+    /// API @API:screen_key_input@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn screen_char_typed_pre(
+        &self,
+        host: &dyn Host,
+        screen: &NativeScreenView<'_>,
+        c: char,
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = screen;
+        let _ = c;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// Before an open screen handles a named key's release (same screen gate as key presses).
+    /// Cancel bypasses screen handling; physical keys and mapped keyboard hold/toggle state release.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn screen_key_released_pre(
+        &self,
+        host: &dyn Host,
+        screen: &NativeScreenView<'_>,
+        key: &str,
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = screen;
+        let _ = key;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// Before a real held-button movement reaches screen drag handlers.
+    /// `screen.mouse` is the current GUI position; `delta` is its GUI-space movement.
+    /// Cancel keeps the new cursor position but skips all screen drag handlers.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn screen_mouse_dragged_pre(
+        &self,
+        host: &dyn Host,
+        screen: &NativeScreenView<'_>,
+        button: i32,
+        delta: [f32; 2],
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = screen;
+        let _ = button;
+        let _ = delta;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// The wheel turned over the open screen (`ScreenEvent.MouseScrolled.Pre`,
+    /// vanilla's `Screen.mouseScrolled`): `screen` is the screen it is,
+    /// `screen.mouse` where the pointer is (so there is no position of its
+    /// own), `scroll` the wheel's movement in x and y as the game's own scroll
+    /// handler scales it (a line times the wheel sensitivity: with Discrete
+    /// Scrolling on, a notch is ±1, its sign only; a touchpad's pixels are
+    /// divided by 30), and
+    /// `modifiers` GLFW's bits (shift 1, control 2, alt 4, super 8). Set
+    /// `canceled` and nothing the screen would scroll moves: not the bundle
+    /// under the pointer, nor a list, slider, scrollbar or map. Nothing else
+    /// reads the wheel while a screen of the game's is open, so no hotbar slot
+    /// changes either.
+    /// It fires before the screen scrolls anything, for the window's wheel
+    /// (horizon-ctl's `scroll-at` sends it through the window too), and
+    /// only while a screen of the game's is open (Options and the pack list
+    /// opened from the title screen count, with no player and no `menu`). It
+    /// does not fire on the title screen itself, the connect and loading
+    /// screens, nor for a server dialog, the server pack, link and
+    /// code-of-conduct prompts, a book or a sign editor drawn over gameplay,
+    /// nor while a world loads or saves: the scroll there stays the game's
+    /// own. A wheel a gamepad or the keyboard's focus sends is not the mouse
+    /// and fires nothing.
+    /// API @API:screen_mouse_scrolled@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn screen_mouse_scrolled_pre(
+        &self,
+        host: &dyn Host,
+        screen: &NativeScreenView<'_>,
+        scroll: [f64; 2],
+        modifiers: u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = screen;
+        let _ = scroll;
+        let _ = modifiers;
+        Flow::Continue
+    }
+    /// The server's data tables are built (NeoForge's `TagsUpdatedEvent`
+    /// with `SERVER_DATA_LOAD`): the recipes, tags, loot and advancements of
+    /// the world's data packs, and the files mods added through
+    /// `native_data_pack_files`, are what the helpers read from now on.
+    /// `reload` is false on a world's first open, before its chunks and
+    /// players are loaded, and true after `/reload` rebuilt them, once the
+    /// players were sent the new data. The place to
+    /// drop caches derived from the data and to rebind what depends on it.
+    /// Server-side (the single player's integrated server included); a client
+    /// connected to a server never fires it. API @API:server_data_loaded@.
+    fn server_data_loaded(&self, host: &mut dyn Host, reload: bool) {
+        let _ = host;
+        let _ = reload;
+    }
 }
 pub fn dispatch_frame(host: &mut dyn Host, mods: &[Box<dyn Hooks>], elapsed: Duration) {
     for mod_hook in mods {
@@ -3124,5 +4010,668 @@ pub fn dispatch_screen_mouse_button_released_pre(
             *canceled = true;
             break;
         }
+    }
+}
+pub fn dispatch_biome_colors(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    biome: &str,
+    colors: &mut BiomeColors,
+) {
+    for mod_hook in mods {
+        mod_hook.biome_colors(host, biome, &mut *colors);
+    }
+}
+pub fn dispatch_block_highlight(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    pos: [i32; 3],
+    state: BlockStateId,
+    partial: f32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.block_highlight(host, pos, state, partial),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_camera_distance(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    partial: f32,
+    mirrored: bool,
+    entity: &horizon_client::camera::CameraEntity,
+    distance: &mut f32,
+) {
+    for mod_hook in mods {
+        mod_hook.camera_distance(host, partial, mirrored, entity, &mut *distance);
+    }
+}
+pub fn dispatch_client_resources_reloaded(host: &mut dyn Host, mods: &[Box<dyn Hooks>]) {
+    for mod_hook in mods {
+        mod_hook.client_resources_reloaded(host);
+    }
+}
+pub fn dispatch_compute_fog_color(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    partial: f32,
+    camera: [f64; 3],
+    fog_type: horizon_client::fog::FogType,
+    rgb: &mut [f32; 3],
+) {
+    for mod_hook in mods {
+        mod_hook.compute_fog_color(host, partial, camera, fog_type, &mut *rgb);
+    }
+}
+pub fn dispatch_compute_fov(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    partial: f32,
+    camera: [f64; 3],
+    degrees: &mut f32,
+) {
+    for mod_hook in mods {
+        mod_hook.compute_fov(host, partial, camera, &mut *degrees);
+    }
+}
+pub fn dispatch_data_pack_files(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    files: &mut Vec<(String, Vec<u8>)>,
+) {
+    for mod_hook in mods {
+        mod_hook.data_pack_files(host, &mut *files);
+    }
+}
+pub fn dispatch_experience_orb_can_merge(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    into: u32,
+    from: u32,
+    into_value: u32,
+    from_value: u32,
+    can_merge: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.experience_orb_can_merge(
+            host,
+            dimension,
+            into,
+            from,
+            into_value,
+            from_value,
+            &mut *can_merge,
+        );
+    }
+}
+pub fn dispatch_experience_orb_merge(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    into: u32,
+    from: u32,
+    from_value: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.experience_orb_merge(host, dimension, into, from, from_value),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_input_key(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    event: &winit::event::KeyEvent,
+    modifiers: u32,
+) {
+    for mod_hook in mods {
+        mod_hook.input_key(host, event, modifiers);
+    }
+}
+pub fn dispatch_item_decorations(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    x: f32,
+    y: f32,
+    batch: &mut HudBatch,
+) {
+    for mod_hook in mods {
+        mod_hook.item_decorations(host, stack, x, y, &mut *batch);
+    }
+}
+pub fn dispatch_use_duration(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    duration: &mut i32,
+) {
+    for mod_hook in mods {
+        mod_hook.use_duration(host, stack, &mut *duration);
+    }
+}
+pub fn dispatch_use_animation(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    animation: &mut UseAnimation,
+) {
+    for mod_hook in mods {
+        mod_hook.use_animation(host, stack, &mut *animation);
+    }
+}
+pub fn dispatch_can_eat(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    can_eat: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.can_eat(host, stack, &mut *can_eat);
+    }
+}
+pub fn dispatch_living_entity_use_item_start(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    hand: Hand,
+    duration: &mut i32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.living_entity_use_item_start(host, stack, entity, hand, &mut *duration),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_living_entity_use_item_finish(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    hand: Hand,
+    duration: i32,
+    result: &mut Option<ItemStack>,
+) {
+    for mod_hook in mods {
+        mod_hook.living_entity_use_item_finish(host, stack, entity, hand, duration, &mut *result);
+    }
+}
+pub fn dispatch_living_entity_use_item_tick(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    hand: Hand,
+    duration: &mut i32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.living_entity_use_item_tick(host, stack, entity, hand, &mut *duration),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_on_use_tick(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    remaining: i32,
+) {
+    for mod_hook in mods {
+        mod_hook.on_use_tick(host, stack, entity, remaining);
+    }
+}
+pub fn dispatch_living_entity_use_item_stop(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    hand: Hand,
+    duration: i32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.living_entity_use_item_stop(host, stack, entity, hand, duration),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_release_using(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    time_left: i32,
+    used: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.release_using(host, stack, entity, time_left, &mut *used);
+    }
+}
+pub fn dispatch_living_knockback(
+    mods: &[Box<dyn Hooks>],
+    entity: i32,
+    kind: &str,
+    damage_type: &str,
+    causing: i32,
+    direct: i32,
+    strength: &mut f64,
+    x: &mut f64,
+    z: &mut f64,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.living_knockback(
+                entity,
+                kind,
+                damage_type,
+                causing,
+                direct,
+                &mut *strength,
+                &mut *x,
+                &mut *z
+            ),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_menu_slot_rules(
+    mods: &[Box<dyn Hooks>],
+    menu: &str,
+    slot: usize,
+    stack: &ItemStack,
+    may_place: &mut bool,
+    max_stack: &mut u32,
+) {
+    for mod_hook in mods {
+        mod_hook.menu_slot_rules(menu, slot, stack, &mut *may_place, &mut *max_stack);
+    }
+}
+pub fn dispatch_mob_submit(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    mob: &NativeMobRender<'_>,
+    draw: &mut BlockEntityDraw,
+    drawn: &mut bool,
+) {
+    if *drawn {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(mod_hook.mob_submit(host, mob, &mut *draw), Flow::Cancel) {
+            *drawn = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_mod_container_viewers(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    pos: [i32; 3],
+    viewers: u32,
+    previous: u32,
+) {
+    for mod_hook in mods {
+        mod_hook.mod_container_viewers(host, dimension, pos, viewers, previous);
+    }
+}
+pub fn dispatch_mouse_button_pre(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    button: i32,
+    pressed: bool,
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.mouse_button_pre(host, button, pressed, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_mouse_button_post(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    button: i32,
+    pressed: bool,
+    modifiers: u32,
+) {
+    for mod_hook in mods {
+        mod_hook.mouse_button_post(host, button, pressed, modifiers);
+    }
+}
+pub fn dispatch_mouse_scrolling(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    scroll: [f64; 2],
+    accumulated: [i32; 2],
+    buttons: [bool; 3],
+    cursor: [f32; 2],
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.mouse_scrolling(host, scroll, accumulated, buttons, cursor, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_music(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    music: &mut Option<Music>,
+    volume: &mut f32,
+) {
+    for mod_hook in mods {
+        mod_hook.music(host, &mut *music, &mut *volume);
+    }
+}
+pub fn dispatch_music_layers(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    layers: &mut Vec<MusicLayer>,
+) {
+    for mod_hook in mods {
+        mod_hook.music_layers(host, &mut *layers);
+    }
+}
+pub fn dispatch_camera_shake(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    partial: f32,
+    shake: &mut NativeShake,
+) {
+    for mod_hook in mods {
+        mod_hook.camera_shake(host, partial, &mut *shake);
+    }
+}
+pub fn dispatch_perform_console_command(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    command: &str,
+    ran: &mut bool,
+) {
+    if *ran {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.perform_console_command(host, command),
+            Flow::Cancel
+        ) {
+            *ran = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_player_command(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    command: &str,
+    replies: &mut Vec<Text>,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.player_command(host, player, name, command, &mut *replies),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_player_respawned(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+) {
+    for mod_hook in mods {
+        mod_hook.player_respawned(host, player, name);
+    }
+}
+pub fn dispatch_shader_params(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    partial: f32,
+    params: &mut [[f32; 4]; 8],
+) {
+    for mod_hook in mods {
+        mod_hook.shader_params(host, partial, &mut *params);
+    }
+}
+pub fn dispatch_datapack_sync(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    recipe_types: &mut Vec<String>,
+) {
+    for mod_hook in mods {
+        mod_hook.datapack_sync(host, &mut *recipe_types);
+    }
+}
+pub fn dispatch_recipes_received(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    recipe_types: &[String],
+) {
+    for mod_hook in mods {
+        mod_hook.recipes_received(host, recipe_types);
+    }
+}
+pub fn dispatch_render_fog(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    partial: f32,
+    camera: [f64; 3],
+    fog_type: horizon_client::fog::FogType,
+    fog: &mut horizon_client::fog::FogData,
+) {
+    for mod_hook in mods {
+        mod_hook.render_fog(host, partial, camera, fog_type, &mut *fog);
+    }
+}
+pub fn dispatch_render_hand(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    hand: horizon_client::first_person::Hand,
+    stack: Option<&ItemStack>,
+    partial: f32,
+    swing: f32,
+    equip: f32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.render_hand(host, hand, stack, partial, swing, equip),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_screen_key_pressed_pre(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    screen: &NativeScreenView<'_>,
+    key: &str,
+    repeat: bool,
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.screen_key_pressed_pre(host, screen, key, repeat, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_screen_char_typed_pre(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    screen: &NativeScreenView<'_>,
+    c: char,
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.screen_char_typed_pre(host, screen, c, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_screen_key_released_pre(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    screen: &NativeScreenView<'_>,
+    key: &str,
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.screen_key_released_pre(host, screen, key, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_screen_mouse_dragged_pre(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    screen: &NativeScreenView<'_>,
+    button: i32,
+    delta: [f32; 2],
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.screen_mouse_dragged_pre(host, screen, button, delta, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_screen_mouse_scrolled_pre(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    screen: &NativeScreenView<'_>,
+    scroll: [f64; 2],
+    modifiers: u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.screen_mouse_scrolled_pre(host, screen, scroll, modifiers),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_server_data_loaded(host: &mut dyn Host, mods: &[Box<dyn Hooks>], reload: bool) {
+    for mod_hook in mods {
+        mod_hook.server_data_loaded(host, reload);
     }
 }

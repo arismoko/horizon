@@ -344,6 +344,44 @@ fn host_for(is_level: bool, mutable: Option<bool>, ticks: bool) -> Option<(&'sta
     })
 }
 
+fn catalog_hooks(
+    root: &Path,
+    catalog: &serde_json::Value,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut hooks = catalog["hooks"]
+        .as_array()
+        .ok_or("catalog hooks must be an array")?
+        .clone();
+    let mut paths = fs::read_dir(root.join("tools/native-hook-fragments"))
+        .map_err(|e| e.to_string())?
+        .map(|entry| entry.map(|entry| entry.path()).map_err(|e| e.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    paths.sort();
+    for path in paths
+        .into_iter()
+        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+    {
+        let fragment: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).map_err(|e| e.to_string())?)
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+        hooks.extend(
+            fragment["hooks"]
+                .as_array()
+                .ok_or("fragment hooks must be an array")?
+                .iter()
+                .cloned(),
+        );
+    }
+    let mut seen = HashSet::new();
+    for hook in &hooks {
+        let name = hook["name"].as_str().ok_or("hook name missing")?;
+        if !seen.insert(name.to_owned()) {
+            return Err(format!("duplicate hook {name}"));
+        }
+    }
+    Ok(hooks)
+}
+
 pub fn run(check: bool) -> Result<(), String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let catalog: serde_json::Value = serde_json::from_str(
@@ -364,10 +402,7 @@ pub fn run(check: bool) -> Result<(), String> {
     let mut render_traits = String::new();
     let mut render_dispatch = String::new();
     let mut seen = HashSet::new();
-    for hook in catalog["hooks"]
-        .as_array()
-        .ok_or("catalog hooks must be an array")?
-    {
+    for hook in &catalog_hooks(&root, &catalog)? {
         let Some(api) = hook.get("mod_api") else {
             continue;
         };
@@ -380,11 +415,16 @@ pub fn run(check: bool) -> Result<(), String> {
         let is_render = target.starts_with("horizon_client_render::");
         let external = target
             .strip_prefix("horizon_world::")
-            .map(|p| ("horizon-world", p))
+            .map(|p| ("horizon-world", p.to_owned()))
             .or_else(|| {
                 target
                     .strip_prefix("horizon_client_render::")
-                    .map(|p| ("horizon-client-render", p))
+                    .map(|p| ("horizon-client-render", p.to_owned()))
+            })
+            .or_else(|| {
+                target
+                    .strip_prefix("horizon_client::menu::")
+                    .map(|p| ("horizon-client", format!("menu::{p}")))
             });
         let (method, call) = if let Some((krate, path)) = external {
             let Some((module, function)) = path.rsplit_once("::") else {
@@ -730,6 +770,14 @@ mod tests {
         pub(super) struct NativeScreenView<'a>(pub &'a ());
         pub(super) struct Corners;
         pub(super) struct HudBatch;
+        pub(super) struct BiomeColors;
+        pub(super) struct UseAnimation;
+        #[derive(Clone, Copy)]
+        pub(super) struct Hand;
+        pub(super) struct NativeMobRender<'a>(pub &'a ());
+        pub(super) struct NativeShake;
+        pub(super) struct Music;
+        pub(super) struct MusicLayer;
         pub(super) struct NativeBlockRim;
         pub(super) struct NativeColoredLight;
         pub(super) struct NativeMinimap;
@@ -760,9 +808,26 @@ mod tests {
     trait RenderHooks {}
     struct TestHost;
     impl Host for TestHost {}
+    mod winit {
+        pub mod event {
+            pub struct KeyEvent;
+        }
+    }
     #[allow(dead_code)]
     mod generated {
         mod horizon_client {
+            pub mod camera {
+                pub struct CameraEntity;
+            }
+            pub mod fog {
+                #[derive(Clone, Copy)]
+                pub struct FogType;
+                pub struct FogData;
+            }
+            pub mod first_person {
+                #[derive(Clone, Copy)]
+                pub struct Hand;
+            }
             pub mod hud_layout {
                 pub struct HealthInputs;
                 pub struct GuiDraw;
@@ -791,6 +856,51 @@ mod tests {
             assert_eq!(pos, [1, 2, 3]);
             assert_eq!(block, "example:machine");
             draw.0.push(self.id);
+        }
+        fn living_entity_use_item_finish(
+            &self,
+            _: &mut dyn Host,
+            _: &ItemStack,
+            _: Option<i32>,
+            _: Hand,
+            _: i32,
+            result: &mut Option<ItemStack>,
+        ) {
+            *result = None;
+        }
+        fn mouse_button_pre(&self, _: &mut dyn Host, _: i32, _: bool, _: u32) -> Flow {
+            self.calls.lock().unwrap().push(self.id);
+            if self.id == 1 {
+                Flow::Cancel
+            } else {
+                Flow::Continue
+            }
+        }
+        fn menu_slot_rules(
+            &self,
+            _: &str,
+            _: usize,
+            _: &ItemStack,
+            may_place: &mut bool,
+            max_stack: &mut u32,
+        ) {
+            *may_place = false;
+            *max_stack = self.id;
+        }
+        fn living_entity_use_item_tick(
+            &self,
+            _: &mut dyn Host,
+            _: &ItemStack,
+            _: Option<i32>,
+            _: Hand,
+            duration: &mut i32,
+        ) -> Flow {
+            *duration -= 1;
+            if self.id == 1 {
+                Flow::Cancel
+            } else {
+                Flow::Continue
+            }
         }
         fn loot_table_load(&self, _: &str, table: &mut Value) {
             table.as_array_mut().unwrap().push(self.id.into());
@@ -868,6 +978,111 @@ mod tests {
             &mut draw,
         );
         assert_eq!(draw.0, [1, 2]);
+    }
+
+    #[test]
+    fn slot_rules_mutate_and_item_tick_can_cancel() {
+        let mods: Vec<Box<dyn Hooks>> = vec![Box::new(Mod {
+            id: 1,
+            calls: Arc::new(Mutex::new(Vec::new())),
+        })];
+        let (mut may_place, mut max_stack) = (true, 64);
+        dispatch_menu_slot_rules(
+            &mods,
+            "test:menu",
+            0,
+            &ItemStack,
+            &mut may_place,
+            &mut max_stack,
+        );
+        assert_eq!((may_place, max_stack), (false, 1));
+        let (mut duration, mut canceled) = (10, false);
+        dispatch_living_entity_use_item_tick(
+            &mut TestHost,
+            &mods,
+            &ItemStack,
+            None,
+            Hand,
+            &mut duration,
+            &mut canceled,
+        );
+        assert_eq!((duration, canceled), (9, true));
+    }
+
+    #[test]
+    fn item_finish_can_clear_vanilla_result() {
+        let mods: Vec<Box<dyn Hooks>> = vec![Box::new(Mod {
+            id: 1,
+            calls: Arc::new(Mutex::new(Vec::new())),
+        })];
+        let mut result = Some(ItemStack);
+        dispatch_living_entity_use_item_finish(
+            &mut TestHost,
+            &mods,
+            &ItemStack,
+            None,
+            Hand,
+            0,
+            &mut result,
+        );
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn fragment_cancel_stops_later_mods() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mods: Vec<Box<dyn Hooks>> = vec![
+            Box::new(Mod {
+                id: 1,
+                calls: calls.clone(),
+            }),
+            Box::new(Mod {
+                id: 2,
+                calls: calls.clone(),
+            }),
+        ];
+        let mut canceled = false;
+        dispatch_mouse_button_pre(&mut TestHost, &mods, 0, true, 0, &mut canceled);
+        assert!(canceled);
+        assert_eq!(*calls.lock().unwrap(), [1]);
+    }
+
+    #[test]
+    fn fragment_hooks_generate_and_duplicates_fail() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let catalog: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(root.join("native-hooks.json")).unwrap())
+                .unwrap();
+        let hooks = super::catalog_hooks(&root, &catalog).unwrap();
+        let hook = hooks
+            .iter()
+            .find(|h| h["name"] == "recipes_received")
+            .unwrap();
+        assert_eq!(hook["mod_api"]["contract"], "listen");
+        let generated =
+            std::fs::read_to_string(root.join("crates/horizon-client/src/mod_api/generated.rs"))
+                .unwrap();
+        assert!(generated.contains("fn recipes_received("));
+
+        let dir = root
+            .join("target")
+            .join(format!("mod-api-fragments-{}", std::process::id()));
+        let fragments = dir.join("tools/native-hook-fragments");
+        std::fs::create_dir_all(&fragments).unwrap();
+        std::fs::write(fragments.join("empty.json"), r#"{"hooks":[]}"#).unwrap();
+        std::fs::write(
+            fragments.join("duplicate.json"),
+            r#"{"hooks":[{"name":"same"}]}"#,
+        )
+        .unwrap();
+        let catalog = serde_json::json!({"hooks":[{"name":"same"}]});
+        assert_eq!(
+            super::catalog_hooks(&dir, &catalog).unwrap_err(),
+            "duplicate hook same"
+        );
+        std::fs::remove_file(fragments.join("duplicate.json")).unwrap();
+        assert_eq!(super::catalog_hooks(&dir, &catalog).unwrap().len(), 1);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

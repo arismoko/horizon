@@ -78,6 +78,20 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     {
         log::warn!("Native data-load hooks already installed; keeping the first callbacks");
     }
+    if crate::menu::install_menu_slot_rules(|menu, slot, stack, may_place, max_stack| {
+        crate::mod_api::dispatch_menu_slot_rules(
+            crate::mod_api::mods(),
+            menu,
+            slot,
+            stack,
+            may_place,
+            max_stack,
+        );
+    })
+    .is_err()
+    {
+        log::warn!("Native menu slot hook already installed; keeping the first callback");
+    }
     raise_open_file_limit();
     if let Err(error) = game::run_with() {
         // A bad command line is the caller's mistake, not a crash: no report.

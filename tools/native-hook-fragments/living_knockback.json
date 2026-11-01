@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "living_knockback",
+      "name": "living_knockback", "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_living_knockback"
     }
   ],

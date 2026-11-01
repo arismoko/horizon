@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "compute_fov",
+      "name": "compute_fov", "mod_api": {"contract":"listen"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_compute_fov",
       "neoforge": "ViewportEvent.ComputeFov",
       "side": "client"

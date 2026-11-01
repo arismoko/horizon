@@ -1,12 +1,12 @@
 {
   "hooks": [
     {
-      "name": "experience_orb_can_merge",
+      "name": "experience_orb_can_merge", "mod_api": {"contract":"listen"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_experience_orb_can_merge",
       "side": "server"
     },
     {
-      "name": "experience_orb_merge",
+      "name": "experience_orb_merge", "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_experience_orb_merge",
       "side": "server",
       "cancellable": true

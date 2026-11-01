@@ -1,7 +1,7 @@
 {
   "hooks": [
     {
-      "name": "mob_submit",
+      "name": "mob_submit", "mod_api": {"contract":"cancel","out":"drawn"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_mob_submit",
       "side": "client",
       "neoforge": "RenderLivingEvent.Pre",
