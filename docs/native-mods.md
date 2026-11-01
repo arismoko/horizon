@@ -951,6 +951,7 @@ A bundle declares its trait mod package by its path inside the bundle:
 path = "engine"
 ```
 
+The package may use only crates and versions in Horizon's `Cargo.lock`, like mixin crates.
 The folder contains a Rust package with a `horizon-client` dependency. Its library exports
 `pub fn hooks() -> Box<dyn horizon_client::mod_api::Hooks>`. The launcher links this package
 into a generated game executable and calls `hooks()` in bundle order. The package is not a
