@@ -44,6 +44,7 @@ fn load_hooks_are_noops_before_install_and_use_first_callbacks_after() {
         luck: 0.0,
         biome: None,
         seed: 0,
+        place: None,
     };
     for (kind, expected) in [("mymod:held", true), ("mymod:other", false)] {
         let mut holds = !expected;
