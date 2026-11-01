@@ -73,6 +73,16 @@ pub struct NativeMod {
     pub keys: Vec<[String; 3]>,
 }
 
+/// An item the panel shows (`native_panel_items`): its id
+/// (`minecraft:diamond`), a count (1 draws none) and its components beyond
+/// the item's own, in vanilla's item syntax, or "".
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NativeStack {
+    pub item: String,
+    pub count: u32,
+    pub components: String,
+}
+
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]

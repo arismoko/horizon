@@ -223,6 +223,7 @@ pub(crate) use horizon_client::mod_api::NativeColoredLight;
 pub(crate) use horizon_client::mod_api::NativeMinimap;
 pub(crate) use horizon_client::mod_api::NativeScreen;
 pub(crate) use horizon_client::mod_api::NativeMod;
+pub(crate) use horizon_client::mod_api::NativeStack;
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
@@ -529,15 +530,6 @@ pub(crate) struct NativePlayer {
 }
 
 
-/// An item the panel shows (`native_panel_items`): its id
-/// (`minecraft:diamond`), a count (1 draws none) and its components beyond
-/// the item's own, in vanilla's item syntax, or "".
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct NativeStack {
-    pub(crate) item: String,
-    pub(crate) count: u32,
-    pub(crate) components: String,
-}
 
 /// How the panel lays out a recipe of `native_panel_recipes`.
 #[allow(dead_code)]
