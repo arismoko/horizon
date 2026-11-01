@@ -116,11 +116,32 @@ pub fn run(check: bool) -> Result<(), String> {
         };
         for attr in &method.attrs {
             if attr.path().is_ident("doc") {
-                traits.push_str(&format!("{}\n", attr.to_token_stream()));
+                let syn::Meta::NameValue(value) = &attr.meta else {
+                    return Err(format!("unsupported doc attribute in {name}"));
+                };
+                let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(doc),
+                    ..
+                }) = &value.value
+                else {
+                    return Err(format!("unsupported doc attribute in {name}"));
+                };
+                for line in doc.value().lines() {
+                    traits.push_str(&format!("///{line}\n"));
+                }
             }
         }
-        if contract == "replace" {
-            traits.push_str("/// The first mod returning `Some` wins.\n");
+        match (contract, out) {
+            ("cancel", Some(out)) => traits.push_str(&format!(
+                "///\n/// Return `Flow::Cancel` to take it: this sets `{out}`, and later mods are skipped.\n"
+            )),
+            ("replace", Some(out)) => traits.push_str(&format!(
+                "///\n/// Return `Some` to set `{out}`; the first mod returning `Some` wins.\n"
+            )),
+            ("collect", Some(out)) => traits.push_str(&format!(
+                "///\n/// Every mod gets `{out}` in order and may add, change or remove lines.\n"
+            )),
+            _ => {}
         }
         let unused = if call.is_empty() && call_extra.is_empty() {
             "host".to_owned()
