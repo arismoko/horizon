@@ -25,6 +25,7 @@ pub use horizon_world::{
     registry::BlockStateId,
 };
 pub use serde_json;
+use serde_json::{Map, Value};
 use std::time::Duration;
 
 /// A dispenser hook's answer: the slot's remainder (None empties it) and the

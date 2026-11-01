@@ -1477,6 +1477,23 @@ pub trait Hooks: Send + Sync {
         let _ = kind;
         let _ = data;
     }
+    /// A native mod's hook point (docs/native-mods.md), listed in `native-hooks.json` with the game's:
+    /// the loot table `id` (`minecraft:chests/simple_dungeon`, `minecraft:blocks/stone`,
+    /// `minecraft:entities/zombie`) as it loads, its JSON after the data packs', before anything
+    /// rolls it (NeoForge's `LootTableLoadEvent`, Fabric's `LootTableEvents.MODIFY`). Add pools to
+    /// `table["pools"]` or entries to a pool's `entries`, change or replace it (no pools: it drops
+    /// nothing; keep its `random_sequence` when replacing it, as a mob's table without one drops
+    /// nothing). Called once per table and load, in id order, wherever the tables load: the server,
+    /// and a client too, so make the same change each time, and don't load loot tables from here.
+    /// Two loads may run at once on two threads. A `/reload` or a world opened with other packs
+    /// may load them again, or keep the tables already loaded from the same files. API
+    /// 75.
+    ///
+    /// Every mod gets `table` in order and may add, change or remove table.
+    fn loot_table_load(&self, id: &str, table: &mut Value) {
+        let _ = id;
+        let _ = table;
+    }
     /// A block broke or a mob died, and `drops` are the items about to drop, in
     /// the order they drop: what the loot tables rolled (after
     /// `native_loot_table_load`'s changes), and for a mob what it wore, held or
@@ -1590,6 +1607,22 @@ pub trait Hooks: Send + Sync {
         let _ = host;
         let _ = batch;
         let _ = screen;
+    }
+    /// Hook point for native mods (docs/native-mods.md, listed in `native-hooks.json`
+    /// with those of `horizon-client/src/game/native_hooks.rs`): `components` holds
+    /// `item`'s default components in `items.json`'s form (`"minecraft:max_stack_size": 16`,
+    /// `"minecraft:food": {"nutrition": 4, "saturation": 2.4}`); insert or replace one to
+    /// set it, remove it to take it away (a stack size outside 1 to 99 is brought back
+    /// into it). Asked for every item each time the game reads
+    /// the defaults, from any thread, several times as resources load and again when a
+    /// world's data packs load: answer the same each time. Client and server each ask
+    /// their own mods, as NeoForge does, so both sides need the mod.
+    /// 79.
+    ///
+    /// Every mod gets `components` in order and may add, change or remove components.
+    fn modify_default_components(&self, item: &str, components: &mut Map<String, Value>) {
+        let _ = item;
+        let _ = components;
     }
     /// A mouse button went down over the open screen
     /// (`ScreenEvent.MouseButtonPressed.Pre`, vanilla's
@@ -2934,6 +2967,11 @@ pub fn dispatch_consume_effect(
         mod_hook.consume_effect(host, kind, data);
     }
 }
+pub fn dispatch_loot_table_load(mods: &[Box<dyn Hooks>], id: &str, table: &mut Value) {
+    for mod_hook in mods {
+        mod_hook.loot_table_load(id, &mut *table);
+    }
+}
 pub fn dispatch_loot_drops(
     host: &mut dyn Host,
     mods: &[Box<dyn Hooks>],
@@ -2986,6 +3024,15 @@ pub fn dispatch_screen_render_post(
 ) {
     for mod_hook in mods {
         mod_hook.screen_render_post(host, &mut *batch, screen);
+    }
+}
+pub fn dispatch_modify_default_components(
+    mods: &[Box<dyn Hooks>],
+    item: &str,
+    components: &mut Map<String, Value>,
+) {
+    for mod_hook in mods {
+        mod_hook.modify_default_components(item, &mut *components);
     }
 }
 pub fn dispatch_screen_mouse_button_pressed_pre(

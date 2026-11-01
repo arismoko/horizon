@@ -40,6 +40,24 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     if crate::mod_api::MODS.set(mods).is_err() {
         log::warn!("Trait mods already installed; ignoring the second list");
     }
+    if horizon_world::native_load_hooks::install(
+        horizon_world::native_load_hooks::NativeLoadHooks {
+            loot_table_load: |id, table| {
+                crate::mod_api::dispatch_loot_table_load(crate::mod_api::mods(), id, table);
+            },
+            modify_default_components: |item, components| {
+                crate::mod_api::dispatch_modify_default_components(
+                    crate::mod_api::mods(),
+                    item,
+                    components,
+                );
+            },
+        },
+    )
+    .is_err()
+    {
+        log::warn!("Native data-load hooks already installed; keeping the first callbacks");
+    }
     raise_open_file_limit();
     if let Err(error) = game::run_with() {
         // A bad command line is the caller's mistake, not a crash: no report.
