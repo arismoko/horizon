@@ -100,6 +100,9 @@ fn host_method(method: &syn::ImplItemFn, name: &str) -> Result<(String, String),
             syn::visit::visit_type_path(self, ty);
         }
     }
+    if method.sig.asyncness.is_some() {
+        return Err(format!("{name}: async methods are not object-safe"));
+    }
     if method
         .sig
         .generics
@@ -687,6 +690,14 @@ mod tests {
         };
         assert!(
             super::host_method(&callback, "callback")
+                .unwrap_err()
+                .contains("object-safe")
+        );
+        let asynchronous: syn::ImplItemFn = syn::parse_quote! {
+            async fn native_async(&self) { }
+        };
+        assert!(
+            super::host_method(&asynchronous, "async")
                 .unwrap_err()
                 .contains("object-safe")
         );
