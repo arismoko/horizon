@@ -298,6 +298,24 @@ mod tests {
     }
 
     #[test]
+    fn mixin_crate_containing_api_is_not_excluded_from_cache() {
+        let (root, bundle) = fixture("api-parent", "[[crate]]\nid = 'whole_bundle'\npath = '.'\n");
+        let key = || {
+            super::super::inject_cache::key(
+                "revision",
+                "mixins",
+                super::super::Profile::Fast,
+                std::slice::from_ref(&bundle),
+            )
+            .unwrap()
+        };
+        let before = key();
+        fs::write(root.join("engine/src/lib.rs"), "// changed\n").unwrap();
+        assert_ne!(before, key());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn installed_build_key_tracks_dispatch_order() {
         let (root, first) = fixture("order", "");
         let mut second = first.clone();
