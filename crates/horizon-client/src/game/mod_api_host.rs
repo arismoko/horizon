@@ -62,6 +62,22 @@ impl horizon_client::mod_api::Host for Game<'_> {
         if self.serving.is_none() && self.options.dedicated.is_none() {
             return Err(AttachmentError::MissingHolder);
         }
+        if let horizon_client::mod_api::Holder::Player(uuid) = holder {
+            if self.lan_acting_uuid == Some(uuid) {
+                return Ok(&mut self.player_attachments);
+            }
+            return self
+                .lan
+                .as_mut()
+                .and_then(|host| {
+                    host.hub
+                        .guests
+                        .iter_mut()
+                        .find(|guest| guest.uuid == uuid && guest.placed)
+                })
+                .map(|guest| &mut guest.attachments)
+                .ok_or(AttachmentError::MissingHolder);
+        }
         world_attachments(&mut self.world, holder)
     }
     fn block(&self, pos: [i32; 3]) -> String {

@@ -2756,6 +2756,7 @@ struct Game<'a> {
     /// have each chest open.
     lid_openers: HashMap<(i32, i32, i32), i32>,
     lan_acting: Option<u32>,
+    player_attachments: horizon_world::attachments::Attachments,
     /// The block the acting player is breaking (`break_block`): its destroy
     /// event, and the ones before it, are the player's own (`Level.levelEvent`
     /// with the player excluded); the events after it are not.
@@ -17576,6 +17577,7 @@ impl<'a> Game<'a> {
             lan_global_events: Vec::new(),
             lid_openers: HashMap::new(),
             lan_acting: None,
+            player_attachments: Default::default(),
             lan_break_pos: None,
             guest_packets: Vec::new(),
             guest_cooldowns: Vec::new(),
