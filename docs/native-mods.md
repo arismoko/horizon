@@ -1271,6 +1271,10 @@ For mods that run where the world is simulated: a dedicated server, a LAN host, 
   `native_player_command`). For a player already on, their state is swapped in and `native_tell` works; a joining
   player has no world yet, so nothing can be told them. The tree the hub re-sends by itself (after a respawn or a change
   of level) reuses the last answer.
+- **`native_player_sprint(player, name, sprinting)`**: a server player's client started or stopped sprinting (the sprint
+  key, a double tap forward, letting go), once for each change, after the server's player took it. It only hears. It
+  reports what the client asks, not what the server does: a sprint that ends by itself (a hit's knockback, hunger, a
+  wall) is not heard. The player's state is swapped in, so `native_tell` and the acting-player helpers work.
 - **`native_perform_command(player, command, ran)`**: a player typed a registered command (without its slash) and
   their level allows it, whether the world allows commands or not. The mod parses the line and sets `ran`. The
   player's state is swapped in for the call, as for their other actions, so `native_player` reads them; a

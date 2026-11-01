@@ -3020,7 +3020,15 @@ impl Hub {
                     events.push(HostEvent::Packet(conn, Box::new(S::PlayerCommand(p))));
                 }
                 S::PlayerCommand(p) => match p.action {
-                    1 | 2 => self.set_sprinting(i, p.action == 1),
+                    1 | 2 => {
+                        let sprinting = p.action == 1;
+                        let changed = self.guests[i].sprinting != sprinting;
+                        self.set_sprinting(i, sprinting);
+                        // The game tells the mods of a change.
+                        if changed {
+                            events.push(HostEvent::Packet(conn, Box::new(S::PlayerCommand(p))));
+                        }
+                    }
                     // STOP_SLEEPING.
                     0 => self.wake(i),
                     _ => {}

@@ -2845,6 +2845,18 @@ impl Game<'_> {
     ) {
         let _ = (player, name, names);
     }
+    /// A server player's sprint started or stopped: their client sent
+    /// `START_SPRINTING` or `STOP_SPRINTING` (the sprint key, a double tap
+    /// forward, or letting go) and the server's player is now `sprinting`
+    /// (vanilla's `setSprinting` in `handlePlayerCommand`). Heard only when it
+    /// changes. It cannot be stopped, and it hears what the client asks, not
+    /// what the server does: a sprint that ends by itself (a hit's knockback,
+    /// hunger, a wall) is not reported. The player's state is swapped in, so
+    /// the helpers and `native_tell` work. Once for each change, on a server.
+    /// @API:native_player_sprint@.
+    pub(super) fn native_player_sprint(&mut self, player: u128, name: &str, sprinting: bool) {
+        let _ = (player, name, sprinting);
+    }
     /// A click in a menu a mod opened (`native_open_menu`), which moved
     /// nothing: the menu's `slot` (its own first, then the player's
     /// inventory, `native_menu_inventory_slot`; -999 outside), the `button`

@@ -2068,6 +2068,14 @@ impl Game<'_> {
                 });
             }
             S::PlayerCommand(p) if p.action == 6 => self.lan_start_gliding(host, conn),
+            // START_SPRINTING and STOP_SPRINTING: the hub has set the sprint
+            // and sends the packet on when it changed it.
+            S::PlayerCommand(p) if matches!(p.action, 1 | 2) => {
+                let (uuid, name) = (host.hub.guests[gi].uuid, host.hub.guests[gi].name.clone());
+                self.as_guest(host, conn, |g| {
+                    g.native_player_sprint(uuid, &name, p.action == 1);
+                });
+            }
             S::ContainerButtonClick(p) => {
                 self.lan_station_button(host, conn, p.container, p.button);
             }
