@@ -353,7 +353,6 @@ impl Game<'_> {
         let (ready_tx, ready) = channel();
         let (tasks, server_tasks) = channel();
         let server_flags = flags.clone();
-        let trait_mods = self.trait_mods.clone();
         let thread = std::thread::Builder::new()
             .name("Server thread".into())
             .spawn(move || {
@@ -368,7 +367,6 @@ impl Game<'_> {
                     server_flags.clone(),
                     server_tasks,
                     &ready_tx,
-                    trait_mods,
                 );
                 if let Err(e) = result {
                     log::error!("Horizon: integrated server: {e}");
@@ -1060,7 +1058,6 @@ fn serve(
     flags: Arc<Flags>,
     tasks: Receiver<Task>,
     ready: &Sender<Ready>,
-    trait_mods: horizon_client::mod_api::Mods,
 ) -> Result<()> {
     // The world prepares, and the registries the server sends are read, on
     // helper threads while this one builds the server's own Game: none of
@@ -1095,7 +1092,6 @@ fn serve(
             return Err(e);
         }
     };
-    server.trait_mods = trait_mods;
     server.run_integrated(launch, flags, tasks, ready, opening)
 }
 

@@ -1288,6 +1288,13 @@ fn sync(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Copy a bundle without its API package's Cargo build output.
+fn copy_bundle(bundle: &Bundle, to: &Path) -> Result<(), String> {
+    let root = bundle.dir.canonicalize().map_err(|e| e.to_string())?;
+    let skip = api_target(&root, bundle.api.as_deref())?;
+    backend::copy_dir_except(&root, to, skip.as_deref()).map_err(|e| e.to_string())
+}
+
 /// Builds `folder`'s mods on the Horizon revision they pin (else `base`'s, the installed version
 /// whose game files the build reuses: a native build's own revision when it is one, [`base_for`])
 /// and points `instance` at the build, the default one included. Returns the build's version; a
@@ -1319,10 +1326,7 @@ pub fn build(
         if !ids.insert(&b.id) {
             return Err(format!("Duplicate native mod id {:?}.", b.id));
         }
-        let root = b.dir.canonicalize().map_err(|e| e.to_string())?;
-        let skip = api_target(&root, b.api.as_deref())?;
-        backend::copy_dir_except(&root, &incoming.join(&b.id), skip.as_deref())
-            .map_err(|e| e.to_string())?;
+        copy_bundle(b, &incoming.join(&b.id))?;
     }
     // Read before `repin` rewrites a copy's manifest.
     let digests: std::collections::HashMap<String, Option<String>> = found
@@ -2133,9 +2137,7 @@ mod tests {
         assert_eq!(hash, mod_hash(&bundle).unwrap());
         assert_eq!(digest, source_digest(&bundle));
         let dest = dir("api-target-copy");
-        let root = bundle.dir.canonicalize().unwrap();
-        let skip = api_target(&root, bundle.api.as_deref()).unwrap();
-        backend::copy_dir_except(&root, &dest, skip.as_deref()).unwrap();
+        copy_bundle(&bundle, &dest).unwrap();
         assert!(!dest.join("engine/target").exists());
         assert!(dest.join("engine/empty").is_dir());
         assert!(dest.join("other/target/keep").is_file());
