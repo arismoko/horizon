@@ -4,7 +4,7 @@
 //! Hooks use `&self + Send + Sync` for shared and reentrant calls; see `docs/native-mods.md`.
 //! Generate the trait and dispatch with `cargo run -p xtask -- mod-api`.
 //! `Host` is hand-written for this slice; a later change will generate it from native helpers.
-use std::sync::{Arc, Once, OnceLock};
+use std::sync::{Arc, OnceLock};
 
 pub use crate::containers::{ModBlockEntity, ModContainer, ModFluidTanks};
 pub use crate::items::ItemStack;
@@ -26,7 +26,6 @@ pub struct NativeZoom {
 }
 
 /// A player on the server, as a server hook sees them.
-#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct NativeServerPlayer {
     pub uuid: u128,
@@ -54,7 +53,6 @@ pub struct NativeServerPlayer {
 /// rest of the line, last), `integer`, `number`, `boolean`, `player`,
 /// `item`, `block_pos`. Usages of one command share their words; the
 /// server merges them into one tree.
-#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NativeCommand {
     pub usage: String,
@@ -62,7 +60,6 @@ pub struct NativeCommand {
     pub level: u8,
 }
 
-#[allow(dead_code)]
 impl NativeCommand {
     /// A usage every player may run.
     pub fn new(usage: &str) -> Self {
@@ -91,11 +88,35 @@ pub enum NativeAuthority {
 
 /// One open attempt of one world; it rejects a previous open's commands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NativeWorldEpoch(pub u64);
+pub struct NativeWorldEpoch(u64);
+
+impl NativeWorldEpoch {
+    /// Create an epoch for the game.
+    #[doc(hidden)]
+    pub fn new(n: u64) -> Self {
+        Self(n)
+    }
+    /// Read the epoch number.
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
 
 /// Non-paused authoritative server ticks since open (not game or frame time).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NativeTickId(pub u64);
+pub struct NativeTickId(u64);
+
+impl NativeTickId {
+    /// Create a tick ID for the game.
+    #[doc(hidden)]
+    pub fn new(n: u64) -> Self {
+        Self(n)
+    }
+    /// Read the tick number.
+    pub fn get(self) -> u64 {
+        self.0
+    }
+}
 
 /// The world phases (`native_world_lifecycle`'s `phase`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -133,17 +154,7 @@ pub struct NativeLifecycleContext {
 /// The ordered list of mods shared by the client and server.
 pub type Mods = Arc<[Box<dyn Hooks>]>;
 
-static MODS: OnceLock<Mods> = OnceLock::new();
-static DUPLICATE_MODS_WARNING: Once = Once::new();
-
-/// Install the process-wide mod list. A second installation is a bug and is ignored.
-#[cfg_attr(test, allow(dead_code))]
-pub(crate) fn install_mods(mods: Mods) {
-    if MODS.set(mods).is_err() {
-        DUPLICATE_MODS_WARNING
-            .call_once(|| log::warn!("Trait mods already installed; ignoring the second list"));
-    }
-}
+pub(crate) static MODS: OnceLock<Mods> = OnceLock::new();
 
 /// The process-wide list in dispatch order, or an empty list before installation.
 pub fn mods() -> &'static [Box<dyn Hooks>] {
