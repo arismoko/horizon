@@ -1,0 +1,6 @@
+[package]
+name = "sync3-hmod-proof"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+horizon-client = { path = "../../../../../../crates/horizon-client" }

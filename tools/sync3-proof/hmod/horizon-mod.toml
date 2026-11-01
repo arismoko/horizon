@@ -1,0 +1,8 @@
+id = "sync3_hmod"
+name = "Sync3 proof"
+version = "0.1.0"
+description = "Sync3 native API proof"
+authors = []
+api = "0.2"
+side = "both"
+capabilities = ["registries"]

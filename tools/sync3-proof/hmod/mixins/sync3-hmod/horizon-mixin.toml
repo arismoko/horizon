@@ -1,0 +1,7 @@
+[mod]
+id = "sync3-hmod"
+version = "0.1.0"
+[compatibility]
+horizon_revision = "54563515cb42a82249a01030a792b517ebff5b70"
+[api]
+path = "engine"
