@@ -16,7 +16,7 @@ pub use crate::text::Text;
 pub use horizon_core::geometry::Direction;
 pub use horizon_world::{nbt::Compound, registry::BlockStateId};
 pub use serde_json;
-pub use std::time::Duration;
+use std::time::Duration;
 
 /// A dispenser hook's answer: the slot's remainder (None empties it) and the
 /// level event to play, `CLICK` (1000), `FAIL` (1001) or 0 for none.
@@ -35,7 +35,9 @@ pub struct NativeLootDrops<'a> {
     pub origin: [f64; 3],
     /// The block broken: its position and state.
     pub block: Option<([i32; 3], BlockStateId)>,
-    /// The mob that died: its entity ID and type (`minecraft:zombie`).
+    /// The mob that died, or the entity a player's use dropped them from (the
+    /// sheep sheared, the item frame broken): its entity ID and type
+    /// (`minecraft:zombie`).
     pub entity: Option<(u32, &'a str)>,
     /// The player who broke the block or killed the mob, when known. A mob
     /// names one only while it remembers the player's hit (100 ticks), so one
@@ -45,12 +47,24 @@ pub struct NativeLootDrops<'a> {
     pub tool: Option<&'a ItemStack>,
     /// The radius of the explosion that broke the block.
     pub explosion: Option<f32>,
+    /// A player's use dropped them rather than a break or a death: shears on a
+    /// sheep, a mooshroom, a snow golem or a bogged, a brush on an armadillo or
+    /// a suspicious block, shears carving a pumpkin, picking sweet berries or
+    /// cave vines, a hit taking an item frame or its item, or untying a lead
+    /// or cutting it with shears. `player` names them; `block` or `entity` says
+    /// what dropped them. API @API:use_drops@. A mob that a player killed while
+    /// leashed drops its lead on its next tick as a call of its own (`entity`
+    /// the mob, `player` its killer, `table` empty, `used` false). API
+    /// @API:lead_drops@.
+    pub used: bool,
 }
 
-/// The open screen, for the screen hooks (`native_screen_render_post`,
-/// `native_screen_mouse_button_pressed_pre`, `..._released_pre`): what it is,
-/// its menu and title, where its container panel is, how many slots its menu
-/// has, and where the mouse and the frame's partial tick are.
+/// The open screen, for the screen hooks (`native_screen_render_post`, the
+/// mouse ones `native_screen_mouse_button_pressed_pre`, `..._released_pre` and
+/// `native_screen_mouse_scrolled_pre`, and the key ones
+/// `native_screen_key_pressed_pre` and `native_screen_char_typed_pre`): what
+/// it is, its menu and title, where its container panel is, how many slots its
+/// menu has, and where the mouse and the frame's partial tick are.
 #[derive(Clone, Copy, Debug)]
 pub struct NativeScreenView<'a> {
     /// One id per `Screen` (`Screen::id`): `inventory`, `creative`, `paused`,
@@ -162,7 +176,6 @@ pub struct NativeStack {
 }
 
 /// What the player did on a native mod's panel (`native_panel_event`).
-#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum NativePanelEvent {
     /// A click on an item of the panel, by its index in
@@ -364,8 +377,9 @@ pub trait Host {
     fn feedback(&mut self, text: Text);
     /// The player whose action or command the current hook hears, if any.
     fn acting_player(&self) -> Option<NativeServerPlayer>;
-    /// Send a chat line to a player. This does not reach the acting player inside that player's hook.
-    fn tell(&self, uuid: u128, line: Text) -> bool;
+    /// A system line in that player's chat, also inside a player's hook for
+    /// the acting player; false when they aren't on.
+    fn tell(&mut self, uuid: u128, line: Text) -> bool;
     /// Send an action bar line to a player, including the acting player inside their hook.
     fn action_bar(&mut self, uuid: u128, line: Text) -> bool;
 }
