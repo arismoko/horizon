@@ -4,7 +4,7 @@ version = "0.1.0"
 priority = 100
 
 [compatibility]
-horizon_revision = "fda6cf50cf9ef708f239c5d4a1e2864e02867bd5"
+horizon_revision = "b533cd7ef68260a91a7bb84899c9296d236bbfe1"
 
 [api]
 path = "engine"
