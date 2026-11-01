@@ -65,48 +65,155 @@ fn doc_comments(
     Ok(docs)
 }
 
-fn host_method(method: &syn::ItemFn, name: &str) -> Result<(String, String), String> {
-    struct Types(Option<String>);
-    impl<'ast> Visit<'ast> for Types {
+fn exported_types(source: &str, generated: &str) -> Result<HashSet<String>, String> {
+    fn use_names(tree: &syn::UseTree, names: &mut HashSet<String>) {
+        match tree {
+            syn::UseTree::Path(path) => use_names(&path.tree, names),
+            syn::UseTree::Name(name) => {
+                names.insert(name.ident.to_string());
+            }
+            syn::UseTree::Rename(rename) => {
+                names.insert(rename.rename.to_string());
+            }
+            syn::UseTree::Group(group) => {
+                for item in &group.items {
+                    use_names(item, names);
+                }
+            }
+            syn::UseTree::Glob(_) => {}
+        }
+    }
+    let mut names = HashSet::new();
+    for source in [source, generated] {
+        let file = syn::parse_file(source).map_err(|e| e.to_string())?;
+        for item in file.items {
+            let ident = match item {
+                Item::Use(item) if matches!(item.vis, syn::Visibility::Public(_)) => {
+                    use_names(&item.tree, &mut names);
+                    None
+                }
+                Item::Struct(item) if matches!(item.vis, syn::Visibility::Public(_)) => {
+                    Some(item.ident)
+                }
+                Item::Enum(item) if matches!(item.vis, syn::Visibility::Public(_)) => {
+                    Some(item.ident)
+                }
+                Item::Union(item) if matches!(item.vis, syn::Visibility::Public(_)) => {
+                    Some(item.ident)
+                }
+                Item::Type(item) if matches!(item.vis, syn::Visibility::Public(_)) => {
+                    Some(item.ident)
+                }
+                Item::Trait(item) if matches!(item.vis, syn::Visibility::Public(_)) => {
+                    Some(item.ident)
+                }
+                Item::Mod(item) if matches!(item.vis, syn::Visibility::Public(_)) => {
+                    Some(item.ident)
+                }
+                _ => None,
+            };
+            if let Some(ident) = ident {
+                names.insert(ident.to_string());
+            }
+        }
+    }
+    Ok(names)
+}
+
+fn host_method(
+    method: &syn::ItemFn,
+    name: &str,
+    exports: &HashSet<String>,
+) -> Result<(String, String), String> {
+    struct Types<'a> {
+        exports: &'a HashSet<String>,
+        error: Option<String>,
+    }
+    impl Types<'_> {
+        fn check_path(&mut self, path: &syn::Path) {
+            let first = path.segments.first().unwrap().ident.to_string();
+            let unqualified = path.leading_colon.is_none() && path.segments.len() == 1;
+            let prelude = unqualified
+                && matches!(
+                    first.as_str(),
+                    "bool"
+                        | "char"
+                        | "str"
+                        | "u8"
+                        | "u16"
+                        | "u32"
+                        | "u64"
+                        | "u128"
+                        | "usize"
+                        | "i8"
+                        | "i16"
+                        | "i32"
+                        | "i64"
+                        | "i128"
+                        | "isize"
+                        | "f32"
+                        | "f64"
+                        | "String"
+                        | "Option"
+                        | "Result"
+                        | "Vec"
+                        | "Box"
+                        | "Arc"
+                        | "PathBuf"
+                        | "AsRef"
+                        | "AsMut"
+                        | "From"
+                        | "Into"
+                        | "TryFrom"
+                        | "TryInto"
+                        | "Iterator"
+                        | "IntoIterator"
+                        | "DoubleEndedIterator"
+                        | "ExactSizeIterator"
+                        | "Extend"
+                        | "Fn"
+                        | "FnMut"
+                        | "FnOnce"
+                        | "Sized"
+                        | "Send"
+                        | "Sync"
+                        | "Unpin"
+                        | "Drop"
+                        | "Default"
+                        | "Clone"
+                        | "Copy"
+                        | "PartialEq"
+                        | "PartialOrd"
+                        | "Eq"
+                        | "Ord"
+                        | "ToOwned"
+                        | "ToString"
+                        | "Future"
+                        | "IntoFuture"
+                );
+            if path.leading_colon.is_some() || !(prelude || self.exports.contains(&first)) {
+                self.error = Some(format!(
+                    "type {} is not available in mod_api",
+                    path.to_token_stream()
+                ));
+            }
+        }
+    }
+    impl<'ast> Visit<'ast> for Types<'_> {
         fn visit_type_impl_trait(&mut self, _: &'ast syn::TypeImplTrait) {
-            self.0 = Some("impl Trait is not object-safe".into());
+            self.error = Some("impl Trait is not object-safe".into());
         }
         fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
-            let name = ty.path.segments.last().unwrap().ident.to_string();
-            if !matches!(
-                name.as_str(),
-                "bool"
-                    | "u8"
-                    | "u32"
-                    | "u64"
-                    | "u128"
-                    | "usize"
-                    | "i32"
-                    | "i64"
-                    | "f32"
-                    | "f64"
-                    | "str"
-                    | "String"
-                    | "Option"
-                    | "Result"
-                    | "Vec"
-                    | "Arc"
-                    | "PathBuf"
-                    | "Text"
-                    | "ItemStack"
-                    | "BlockStateId"
-                    | "Direction"
-                    | "Compound"
-                    | "HudBatch"
-                    | "NativeServerPlayer"
-                    | "NativeStack"
-                    | "CustomRecipe"
-                    | "Ingredient"
-                    | "Value"
-            ) {
-                self.0 = Some(format!("type {name} is not available in mod_api"));
+            if ty.qself.is_some() {
+                self.error = Some("qualified associated types are not supported".into());
+            } else {
+                self.check_path(&ty.path);
             }
             syn::visit::visit_type_path(self, ty);
+        }
+        fn visit_trait_bound(&mut self, bound: &'ast syn::TraitBound) {
+            self.check_path(&bound.path);
+            syn::visit::visit_trait_bound(self, bound);
         }
     }
     if method.sig.asyncness.is_some() {
@@ -121,7 +228,10 @@ fn host_method(method: &syn::ItemFn, name: &str) -> Result<(String, String), Str
     {
         return Err(format!("{name}: generic methods are not object-safe"));
     }
-    let mut types = Types(None);
+    let mut types = Types {
+        exports,
+        error: None,
+    };
     for arg in &method.sig.inputs {
         if let FnArg::Typed(arg) = arg {
             types.visit_type(&arg.ty);
@@ -130,7 +240,7 @@ fn host_method(method: &syn::ItemFn, name: &str) -> Result<(String, String), Str
     if let syn::ReturnType::Type(_, ty) = &method.sig.output {
         types.visit_type(ty);
     }
-    if let Some(reason) = types.0 {
+    if let Some(reason) = types.error {
         return Err(format!("{name}: {reason}"));
     }
     let mut sig = method.sig.clone();
@@ -446,6 +556,9 @@ pub fn run(check: bool) -> Result<(), String> {
     let code = format!(
         "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::*;\npub trait Hooks: Send + Sync {{\n{traits}}}\n{dispatch}"
     );
+    let api_source = fs::read_to_string(root.join("crates/horizon-client/src/mod_api.rs"))
+        .map_err(|e| e.to_string())?;
+    let exports = exported_types(&api_source, &code)?;
     let mut game = Vec::new();
     game_methods(&root.join("crates/horizon-client/src/game"), &mut game)?;
     let mut host_traits = String::new();
@@ -465,15 +578,42 @@ pub fn run(check: bool) -> Result<(), String> {
             return Err(format!("wrong target for helper {name}"));
         }
         let method = one_function(game.iter(), &native)?;
-        let (declaration, implementation) = host_method(method, name)?;
+        let (declaration, implementation) = host_method(method, name, &exports)?;
         host_traits.push_str(&declaration);
         host_impl.push_str(&implementation);
     }
+    struct StdTypes {
+        path_buf: bool,
+        arc: bool,
+    }
+    impl<'ast> Visit<'ast> for StdTypes {
+        fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
+            if ty.path.segments.len() == 1 {
+                self.path_buf |= ty.path.segments[0].ident == "PathBuf";
+                self.arc |= ty.path.segments[0].ident == "Arc";
+            }
+            syn::visit::visit_type_path(self, ty);
+        }
+    }
+    let host_trait: syn::ItemTrait = syn::parse_str(&format!("trait Host {{ {host_traits} }}"))
+        .map_err(|e| format!("generated Host: {e}"))?;
+    let mut std_types = StdTypes {
+        path_buf: false,
+        arc: false,
+    };
+    std_types.visit_item_trait(&host_trait);
+    let mut imports = String::new();
+    if std_types.path_buf {
+        imports.push_str("use std::path::PathBuf;\n");
+    }
+    if std_types.arc {
+        imports.push_str("use std::sync::Arc;\n");
+    }
     let host = format!(
-        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::*;\n/// Services supplied by the game to trait mods.\npub trait Host {{\n{host_traits}}}\n"
+        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::*;\n{imports}/// Services supplied by the game to trait mods.\npub trait Host {{\n{host_traits}}}\n"
     );
     let implementation = format!(
-        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse horizon_client::mod_api::*;\nimpl Host for super::Game<'_> {{\n{host_impl}}}\n"
+        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse horizon_client::mod_api::*;\n{imports}impl Host for super::Game<'_> {{\n{host_impl}}}\n"
     );
     for (relative, code) in [
         ("crates/horizon-client/src/mod_api/generated.rs", code),
@@ -653,13 +793,29 @@ mod tests {
     }
     #[test]
     fn host_mapping_preserves_access_and_docs_and_rejects_unavailable_types() {
+        let exports = super::exported_types(
+            "pub use external::{Visible, Original as Renamed}; pub struct Defined; struct Hidden;",
+            "pub struct Generated;",
+        )
+        .unwrap();
+        for ty in ["Visible", "Renamed", "Defined", "Generated"] {
+            let method: syn::ItemFn =
+                syn::parse_str(&format!("fn native_test(&self, value: {ty}) {{ }}")).unwrap();
+            assert!(super::host_method(&method, "test", &exports).is_ok());
+        }
+        let foreign: syn::ItemFn =
+            syn::parse_quote! { fn native_foreign(&self, value: elsewhere::Visible) {} };
+        assert!(super::host_method(&foreign, "foreign", &exports).is_err());
+        let hidden_trait: syn::ItemFn =
+            syn::parse_quote! { fn native_hidden(&self, value: &dyn Hidden) {} };
+        assert!(super::host_method(&hidden_trait, "hidden", &exports).is_err());
         let read: syn::ItemFn = syn::parse_quote! {
             /// Read a value exactly.
             ///
             /// Keep the blank line too.
             fn native_read(&self, pos: [i32; 3]) -> String { todo!() }
         };
-        let (declaration, implementation) = super::host_method(&read, "read").unwrap();
+        let (declaration, implementation) = super::host_method(&read, "read", &exports).unwrap();
         assert!(
             declaration.contains("/// Read a value exactly.\n///\n/// Keep the blank line too.")
         );
@@ -668,13 +824,13 @@ mod tests {
         let write: syn::ItemFn = syn::parse_quote! {
             fn native_write(&mut self, value: i32) { }
         };
-        let (declaration, _) = super::host_method(&write, "write").unwrap();
+        let (declaration, _) = super::host_method(&write, "write", &exports).unwrap();
         assert!(declaration.contains("& mut self"));
         let private: syn::ItemFn = syn::parse_quote! {
             fn native_private(&self, value: BinOnly) { }
         };
         assert!(
-            super::host_method(&private, "private")
+            super::host_method(&private, "private", &exports)
                 .unwrap_err()
                 .contains("BinOnly")
         );
@@ -682,7 +838,7 @@ mod tests {
             fn native_generic<T>(&self, value: T) { }
         };
         assert!(
-            super::host_method(&generic, "generic")
+            super::host_method(&generic, "generic", &exports)
                 .unwrap_err()
                 .contains("object-safe")
         );
@@ -690,7 +846,7 @@ mod tests {
             fn native_callback(&self, callback: impl FnOnce()) { }
         };
         assert!(
-            super::host_method(&callback, "callback")
+            super::host_method(&callback, "callback", &exports)
                 .unwrap_err()
                 .contains("object-safe")
         );
@@ -698,7 +854,7 @@ mod tests {
             async fn native_async(&self) { }
         };
         assert!(
-            super::host_method(&asynchronous, "async")
+            super::host_method(&asynchronous, "async", &exports)
                 .unwrap_err()
                 .contains("object-safe")
         );
