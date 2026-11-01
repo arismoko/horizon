@@ -201,6 +201,7 @@ impl ItemEntity {
         collision: &BlockCollisionRegistry<'_>,
         no_physics: bool,
         fluids: &crate::motion::FluidResources,
+        entity_boxes: &[Aabb],
     ) -> bool {
         self.ticks += 1;
         self.previous = self.position;
@@ -241,10 +242,20 @@ impl ItemEntity {
             // Entity.move with noPhysics: straight through, the ground as it was.
             let moved = if no_physics {
                 wanted
-            } else {
+            } else if entity_boxes.is_empty() {
                 scene
                     .resolve(self.bounds(), wanted, 0.0, self.on_ground)
                     .unwrap_or(Vec3::ZERO)
+            } else {
+                // `Entity.collide`: the entities that `canBeCollidedWith` the item stop it
+                // too (a boat, a minecart, a shulker, a happy ghast held still).
+                crate::collisions::EntityCollisions {
+                    blocks: scene,
+                    entities: entity_boxes,
+                    border: None,
+                }
+                .resolve(self.bounds(), wanted, 0.0, self.on_ground)
+                .unwrap_or(Vec3::ZERO)
             };
             self.position = Vec3::new(
                 self.position.x + moved.x,
@@ -1721,7 +1732,15 @@ mod honey_slide_tests {
         item.id = 1;
         let mut ys = Vec::new();
         for _ in 0..8 {
-            item.tick(&world, assets.registry, &facts, &collision, false, &fluids);
+            item.tick(
+                &world,
+                assets.registry,
+                &facts,
+                &collision,
+                false,
+                &fluids,
+                &[],
+            );
             ys.push(item.velocity.y);
         }
         // Idle ticks keep gravity; the 4th tick's move hits the floor and
@@ -1777,7 +1796,15 @@ mod honey_slide_tests {
         item.id = 1;
         let before = item.position.y;
         for _ in 0..16 {
-            item.tick(&world, assets.registry, &facts, &collision, false, &fluids);
+            item.tick(
+                &world,
+                assets.registry,
+                &facts,
+                &collision,
+                false,
+                &fluids,
+                &[],
+            );
         }
         assert!(
             item.position.y > before + 0.5,
@@ -1787,7 +1814,7 @@ mod honey_slide_tests {
         );
     }
 
-    fn falling_item(x: f64, y: f64, z: f64, vx: f64, vy: f64, vz: f64) -> ItemEntity {
+    pub(super) fn falling_item(x: f64, y: f64, z: f64, vx: f64, vy: f64, vz: f64) -> ItemEntity {
         let at = Vec3::new(x, y, z);
         ItemEntity {
             id: 1,
@@ -1995,7 +2022,15 @@ mod slime_bounce_tests {
         falling.on_ground = false;
         falling.age = 0;
         falling.id = 1;
-        falling.tick(&world, assets.registry, &facts, &collision, false, &fluids);
+        falling.tick(
+            &world,
+            assets.registry,
+            &facts,
+            &collision,
+            false,
+            &fluids,
+            &[],
+        );
         assert_eq!(falling.position.y, 4.0);
         assert!(falling.velocity.y > 0.0);
         assert!(falling.on_ground);
@@ -2005,7 +2040,15 @@ mod slime_bounce_tests {
         // does not set needs_sync.
         falling.velocity = Vec3::ZERO;
         falling.needs_sync = false;
-        falling.tick(&world, assets.registry, &facts, &collision, false, &fluids);
+        falling.tick(
+            &world,
+            assets.registry,
+            &facts,
+            &collision,
+            false,
+            &fluids,
+            &[],
+        );
         assert!(!falling.needs_sync);
     }
 }
@@ -2058,5 +2101,55 @@ mod unstuck_tests {
         assert!(free(&solid, ExperienceOrb::box_at(at)));
         // Nothing to move for: the spawn sites keep the position as given.
         assert_eq!(ExperienceOrb::unstuck(at, &BORDER, shapes(&solid)), None);
+    }
+}
+
+#[cfg(test)]
+mod entity_collision_tests {
+    use super::honey_slide_tests::falling_item;
+    use super::*;
+
+    /// `Entity.collide` stops an item at the entities that `canBeCollidedWith` it: dropped
+    /// above a boat's box (or a still happy ghast's) it lands on the box's top and rests,
+    /// where with no box it falls to the floor of the scene.
+    #[test]
+    fn an_item_lands_on_an_entity_box_under_it() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.local/horizon-client")
+            .join(horizon_core::VANILLA_VERSION);
+        if !root.join("movement-properties.nbt").exists() {
+            return;
+        }
+        let assets = crate::assets::Assets::load(&root).unwrap();
+        let render = assets.reload(&root).unwrap();
+        let facts = crate::blocks::BlockFacts::load(&root, assets.registry).unwrap();
+        let fluids = crate::motion::FluidResources::new(&assets, &facts).unwrap();
+        let collision = crate::collisions::load(&root, assets.registry).unwrap();
+        let mut world = World::test_scene(&assets, &render, 3).unwrap();
+        let stone = assets.registry.default_state("minecraft:stone").unwrap();
+        world.set(20, 3, 20, stone).unwrap();
+        let rest = |boxes: &[Aabb]| {
+            let mut item = falling_item(20.5, 12.0, 20.5, 0.0, 0.0, 0.0);
+            item.id = 1;
+            for _ in 0..80 {
+                item.tick(
+                    &world,
+                    assets.registry,
+                    &facts,
+                    &collision,
+                    false,
+                    &fluids,
+                    boxes,
+                );
+            }
+            item.position.y
+        };
+        // The stone's top is at 4.0; a box from 5.0 to 9.0 is in the way.
+        let platform = Aabb::new(Vec3::new(19.0, 5.0, 19.0), Vec3::new(22.0, 9.0, 22.0));
+        assert!((rest(&[]) - 4.0).abs() < 1.0e-6, "on the stone with no box");
+        assert!(
+            (rest(&[platform]) - 9.0).abs() < 1.0e-6,
+            "on top of the box, at its top"
+        );
     }
 }

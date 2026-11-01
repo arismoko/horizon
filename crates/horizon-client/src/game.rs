@@ -3652,6 +3652,7 @@ impl Game<'_> {
             |stack: &ItemStack| catalog.get(&stack.item).map_or(64, |i| i.max_stack).max(1);
         // A LAN or server guest only shows the host's items.
         let merging = self.remote.is_none();
+        let obstacles = self.item_entity_collisions();
         for i in 0..items.len() {
             if removed[i] {
                 continue;
@@ -3683,6 +3684,7 @@ impl Game<'_> {
                 self.collision,
                 no_physics,
                 &self.res.motion().fluids,
+                &obstacles,
             );
             cells.moved(i, item.previous, item.position);
             // ItemEntity.tick: merge every 2 ticks while moving between
