@@ -1,7 +1,7 @@
 //! Generate the typed mod interface from native hook signatures and catalog contracts.
 use quote::ToTokens;
 use std::{collections::HashSet, fs, path::Path, process::Command};
-use syn::{FnArg, ImplItem, Item, Pat, Type, visit::Visit};
+use syn::{FnArg, ImplItem, Item, Pat, Type, visit::Visit, visit_mut::VisitMut};
 
 fn impl_functions(item: syn::ItemImpl) -> impl Iterator<Item = syn::ItemFn> {
     item.items.into_iter().filter_map(|item| match item {
@@ -331,6 +331,41 @@ fn fresh_name(base: &str, used: &mut HashSet<String>) -> String {
     name
 }
 
+/// Gives every elided reference lifetime in a hook argument's type the event's `'a`, so the
+/// argument can be a field; `&mut` fields borrow the caller's value, so each mod sees the changes
+/// before it. Lifetimes elided inside a `&mut` get `'b`: a `&mut` can't shorten them. The launcher
+/// keeps a copy for trait injections (`launcher/src/native_mods/inject.rs`); both test the same types.
+#[derive(Default)]
+struct EventLifetimes {
+    a: bool,
+    b: bool,
+    in_mut: bool,
+}
+
+impl VisitMut for EventLifetimes {
+    fn visit_type_reference_mut(&mut self, reference: &mut syn::TypeReference) {
+        if reference.lifetime.is_none() {
+            reference.lifetime = Some(syn::parse_quote!('_));
+        }
+        let outer = self.in_mut;
+        self.visit_lifetime_mut(reference.lifetime.as_mut().unwrap());
+        self.in_mut |= reference.mutability.is_some();
+        self.visit_type_mut(&mut reference.elem);
+        self.in_mut = outer;
+    }
+    fn visit_lifetime_mut(&mut self, lifetime: &mut syn::Lifetime) {
+        if lifetime.ident == "_" {
+            *lifetime = if self.in_mut {
+                self.b = true;
+                syn::parse_quote!('b)
+            } else {
+                self.a = true;
+                syn::parse_quote!('a)
+            };
+        }
+    }
+}
+
 fn host_for(is_level: bool, mutable: Option<bool>, ticks: bool) -> Option<(&'static str, String)> {
     mutable.map(|mutable| {
         let (name, kind) = if is_level {
@@ -509,40 +544,51 @@ pub fn run(check: bool) -> Result<(), String> {
         };
         let host = host_for(is_level, receiver_mut, ticks)
             .map(|(name, ty)| (fresh_name(name, &mut used), ty));
+        let event = fresh_name("event", &mut used);
+        let event_type = format!(
+            "{}Event",
+            name.split('_')
+                .map(|word| word[..1].to_uppercase() + &word[1..])
+                .collect::<String>()
+        );
         let mut trait_params = vec!["&self".to_owned()];
         let mut dispatch_params = Vec::new();
         let mut call_args = Vec::new();
-        let mut unused = String::new();
         if let Some((name, ty)) = &host {
             trait_params.push(format!("{name}: {ty}"));
             dispatch_params.push(format!("{name}: {ty}"));
             call_args.push(name.clone());
-            unused.push_str(&format!("let _ = {name};"));
         }
         dispatch_params.push(if is_render {
             format!("{mod_list}: &[&dyn RenderHooks]")
         } else {
             format!("{mod_list}: &[Box<dyn Hooks>]")
         });
-        for (name, ty) in &args {
-            let param = format!("{name}: {}", ty.to_token_stream());
-            trait_params.push(param.clone());
-            dispatch_params.push(param);
-            call_args.push(match ty {
-                Type::Reference(r) if r.mutability.is_some() => format!("&mut *{name}"),
-                _ => name.clone(),
-            });
-            unused.push_str(&format!("let _ = {name};"));
+        let mut lifetimes = EventLifetimes::default();
+        let mut fields = String::new();
+        let mut field_names = Vec::new();
+        let collected = output.as_ref().filter(|_| contract == "collect");
+        for (name, ty) in args.iter().chain(collected) {
+            dispatch_params.push(format!("{name}: {}", ty.to_token_stream()));
+            let mut field = (*ty).clone();
+            lifetimes.visit_type_mut(&mut field);
+            fields.push_str(&format!("pub {name}: {},\n", field.to_token_stream()));
+            field_names.push(name.clone());
         }
-        if let Some((name, ty)) = &output {
-            let param = format!("{name}: {}", ty.to_token_stream());
-            dispatch_params.push(param.clone());
-            if contract == "collect" {
-                trait_params.push(param);
-                call_args.push(format!("&mut *{name}"));
-                unused.push_str(&format!("let _ = {name};"));
-            }
+        if let Some((name, ty)) = output.as_ref().filter(|_| contract != "collect") {
+            dispatch_params.push(format!("{name}: {}", ty.to_token_stream()));
         }
+        let (generics, elided) = match (lifetimes.a, lifetimes.b) {
+            (_, true) => ("<'a, 'b>", "<'_, '_>"),
+            (true, false) => ("<'a>", "<'_>"),
+            (false, false) => ("", ""),
+        };
+        trait_params.push(format!("{event}: &mut {event_type}{elided}"));
+        call_args.push(format!("&mut {event}"));
+        let unused = trait_params[1..]
+            .iter()
+            .map(|param| format!("let _ = {};", param.split(':').next().unwrap()))
+            .collect::<String>();
         let default = match contract {
             "cancel" => "Flow::Continue",
             "replace" => "None",
@@ -551,6 +597,7 @@ pub fn run(check: bool) -> Result<(), String> {
         let invoke = call_args.join(", ");
         let trait_params = trait_params.join(", ");
         let dispatch_params = dispatch_params.join(", ");
+        let trait_name = if is_render { "RenderHooks" } else { "Hooks" };
         let traits = if is_render {
             &mut render_traits
         } else {
@@ -570,23 +617,30 @@ pub fn run(check: bool) -> Result<(), String> {
                 "///\n/// Return `Some` to set `{out}`; the first mod returning `Some` wins.\n"
             )),
             ("collect", Some(out)) => traits.push_str(&format!(
-                "///\n/// Every mod gets `{out}` in order and may add, change or remove {out}.\n"
+                "///\n/// Every mod gets `{event}.{out}` in order and may add, change or remove {out}.\n"
             )),
             _ => {}
         }
         traits.push_str(&format!(
             "fn {name}({trait_params}){result} {{ {unused} {default} }}\n"
         ));
+        dispatch.push_str(&format!(
+            "/// What [`{trait_name}::{name}`] is told. Fields may be added: the struct is `#[non_exhaustive]`.\n#[non_exhaustive]\npub struct {event_type}{generics} {{\n{fields}}}\n"
+        ));
+        let build = format!(
+            "let mut {event} = {event_type} {{ {} }};",
+            field_names.join(", ")
+        );
         let body = match contract {
             "cancel" => format!(
-                "if *{o} {{ return; }} for {mod_item} in {mod_list} {{ if matches!({mod_item}.{name}({invoke}), Flow::Cancel) {{ *{o} = true; break; }} }}",
+                "if *{o} {{ return; }} {build} for {mod_item} in {mod_list} {{ if matches!({mod_item}.{name}({invoke}), Flow::Cancel) {{ *{o} = true; break; }} }}",
                 o = out.unwrap()
             ),
             "replace" => format!(
-                "if {o}.is_some() {{ return; }} for {mod_item} in {mod_list} {{ if let Some({replacement}) = {mod_item}.{name}({invoke}) {{ *{o} = Some({replacement}); break; }} }}",
+                "if {o}.is_some() {{ return; }} {build} for {mod_item} in {mod_list} {{ if let Some({replacement}) = {mod_item}.{name}({invoke}) {{ *{o} = Some({replacement}); break; }} }}",
                 o = out.unwrap()
             ),
-            _ => format!("for {mod_item} in {mod_list} {{ {mod_item}.{name}({invoke}); }}"),
+            _ => format!("{build} for {mod_item} in {mod_list} {{ {mod_item}.{name}({invoke}); }}"),
         };
         dispatch.push_str(&format!(
             "pub fn dispatch_{name}({dispatch_params}) {{ {body} }}\n"
@@ -718,6 +772,7 @@ pub fn run(check: bool) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use quote::ToTokens;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -798,66 +853,48 @@ mod tests {
         calls: Arc<Mutex<Vec<u32>>>,
     }
     impl Hooks for Mod {
-        fn block_entity_submit(
-            &self,
-            _: &dyn Host,
-            pos: [i32; 3],
-            block: &str,
-            _: BlockStateId,
-            _: &ModBlockEntity,
-            draw: &mut BlockEntityDraw,
-        ) {
-            assert_eq!(pos, [1, 2, 3]);
-            assert_eq!(block, "example:machine");
-            draw.0.push(self.id);
+        fn block_entity_submit(&self, _: &dyn Host, event: &mut BlockEntitySubmitEvent<'_>) {
+            assert_eq!(event.pos, [1, 2, 3]);
+            assert_eq!(event.block, "example:machine");
+            event.draw.0.push(self.id);
         }
-        fn loot_table_load(&self, _: &str, table: &mut Value) {
-            table.as_array_mut().unwrap().push(self.id.into());
+        fn loot_table_load(&self, event: &mut LootTableLoadEvent<'_>) {
+            event.table.as_array_mut().unwrap().push(self.id.into());
         }
-        fn modify_default_components(&self, _: &str, components: &mut Map<String, Value>) {
-            let value = components
+        fn modify_default_components(&self, event: &mut ModifyDefaultComponentsEvent<'_>) {
+            let value = event
+                .components
                 .entry("order")
                 .or_insert_with(|| serde_json::json!([]));
             value.as_array_mut().unwrap().push(self.id.into());
         }
-        fn level_tick_pre(&self, _: &mut dyn Host, _: &str) {
+        fn level_tick_pre(&self, _: &mut dyn Host, _: &mut LevelTickPreEvent<'_>) {
             self.calls.lock().unwrap().push(self.id);
         }
-        fn tooltip(&self, _: &dyn Host, _: &ItemStack, lines: &mut Vec<(Text, u32)>) {
-            lines.push((Text, self.id));
+        fn tooltip(&self, _: &dyn Host, event: &mut TooltipEvent<'_>) {
+            event.lines.push((Text, self.id));
         }
-        fn zoom(&self, _: &dyn Host) -> Option<NativeZoom> {
+        fn zoom(&self, _: &dyn Host, _: &mut ZoomEvent) -> Option<NativeZoom> {
             self.calls.lock().unwrap().push(self.id);
             Some(NativeZoom(self.id))
         }
         fn should_apply_effect_tick_this_tick(
             &self,
             _: &dyn Host,
-            _: &str,
-            _: i32,
-            _: i32,
-            apply: &mut bool,
+            event: &mut ShouldApplyEffectTickThisTickEvent<'_>,
         ) {
-            *apply = !*apply;
+            *event.apply = !*event.apply;
             self.calls.lock().unwrap().push(self.id);
         }
-        fn living_incoming_damage(
-            &self,
-            _: i32,
-            _: &str,
-            _: &str,
-            _: i32,
-            _: i32,
-            amount: &mut f32,
-        ) -> Flow {
-            *amount += self.id as f32;
+        fn living_incoming_damage(&self, event: &mut LivingIncomingDamageEvent<'_>) -> Flow {
+            *event.amount += self.id as f32;
             if self.id == 2 {
                 Flow::Cancel
             } else {
                 Flow::Continue
             }
         }
-        fn use_item_on(&self, _: &mut dyn Host, _: &ItemStack, _: [i32; 3], _: [i32; 3]) -> Flow {
+        fn use_item_on(&self, _: &mut dyn Host, _: &mut UseItemOnEvent<'_>) -> Flow {
             self.calls.lock().unwrap().push(self.id);
             if self.id == 1 {
                 Flow::Cancel
@@ -976,10 +1013,7 @@ mod tests {
             fn state_for_placement(
                 &self,
                 _: &dyn LevelHost,
-                _: LevelDimension,
-                _: BlockStateId,
-                _: &PlacementContext,
-                _: FluidState,
+                _: &mut StateForPlacementEvent<'_>,
             ) -> Option<Option<BlockStateId>> {
                 self.0.lock().unwrap().push(self.1);
                 Some(None)
@@ -1049,6 +1083,39 @@ mod tests {
             super::host_for(false, Some(true), false),
             Some(("host", "&mut dyn Host".into()))
         );
+    }
+
+    #[test]
+    fn event_fields_name_their_lifetimes() {
+        use super::VisitMut;
+        for (ty, field, a, b) in [
+            (
+                "& mut WorldDrawn < '_ >",
+                "& 'a mut WorldDrawn < 'b >",
+                true,
+                true,
+            ),
+            ("& str", "& 'a str", true, false),
+            (
+                "& mut Vec < (& 'static str , u32) >",
+                "& 'a mut Vec < (& 'static str , u32) >",
+                true,
+                false,
+            ),
+            (
+                "Option < & ItemStack >",
+                "Option < & 'a ItemStack >",
+                true,
+                false,
+            ),
+            ("u32", "u32", false, false),
+        ] {
+            let mut lifetimes = super::EventLifetimes::default();
+            let mut ty: syn::Type = syn::parse_str(ty).unwrap();
+            lifetimes.visit_type_mut(&mut ty);
+            assert_eq!(ty.to_token_stream().to_string(), field);
+            assert_eq!((lifetimes.a, lifetimes.b), (a, b));
+        }
     }
 
     #[test]

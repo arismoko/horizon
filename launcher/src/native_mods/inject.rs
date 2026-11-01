@@ -1,17 +1,54 @@
 //! Trait-backed HEAD injections, generated in the incoming copy and staged game.
 use super::{api, Bundle, MANIFEST};
-use quote::quote;
+use quote::{format_ident, quote};
 use std::{
     collections::{HashMap, HashSet},
     fs,
     path::Path,
 };
+use syn::visit_mut::VisitMut;
 
 /// A trait declaration to add to the staged game after horizon-mixins has run.
 pub(super) struct Injection {
     name: syn::Ident,
+    /// The bindings' struct, as each catalog hook's (`InjectExampleTickEvent`).
+    event: syn::Ident,
     parameters: Vec<(syn::Ident, syn::Type)>,
     cancellable: bool,
+}
+
+/// Gives every elided reference lifetime in a binding's type the event's `'a`, so the binding can
+/// be a field; lifetimes elided inside a `&mut` get `'b`, as a `&mut` can't shorten them. A copy of
+/// xtask's rule for catalog hooks (`xtask/src/mod_api.rs`, `EventLifetimes`); both test the same types.
+#[derive(Default)]
+struct EventLifetimes {
+    a: bool,
+    b: bool,
+    in_mut: bool,
+}
+
+impl VisitMut for EventLifetimes {
+    fn visit_type_reference_mut(&mut self, reference: &mut syn::TypeReference) {
+        if reference.lifetime.is_none() {
+            reference.lifetime = Some(syn::parse_quote!('_));
+        }
+        let outer = self.in_mut;
+        self.visit_lifetime_mut(reference.lifetime.as_mut().unwrap());
+        self.in_mut |= reference.mutability.is_some();
+        self.visit_type_mut(&mut reference.elem);
+        self.in_mut = outer;
+    }
+    fn visit_lifetime_mut(&mut self, lifetime: &mut syn::Lifetime) {
+        if lifetime.ident == "_" {
+            *lifetime = if self.in_mut {
+                self.b = true;
+                syn::parse_quote!('b)
+            } else {
+                self.a = true;
+                syn::parse_quote!('a)
+            };
+        }
+    }
 }
 
 /// Replace trait injections with ordinary mixin helpers, leaving ordinary injections unchanged.
@@ -115,8 +152,20 @@ pub(super) fn prepare(mods: &[Bundle], source: &Path) -> Result<Vec<Injection>, 
                         parameters.push((ident, ty));
                     }
                 }
+                let event = format_ident!(
+                    "{}Event",
+                    name.split('_')
+                        .map(|word| {
+                            let mut chars = word.chars();
+                            chars.next().map_or(String::new(), |first| {
+                                first.to_uppercase().chain(chars).collect()
+                            })
+                        })
+                        .collect::<String>()
+                );
                 let injection = Injection {
                     name: ident,
+                    event,
                     parameters,
                     cancellable,
                 };
@@ -146,15 +195,10 @@ pub(super) fn prepare(mods: &[Bundle], source: &Path) -> Result<Vec<Injection>, 
 impl Injection {
     fn helper(&self, owner: usize) -> String {
         let name = &self.name;
+        let event = &self.event;
         let params = self.parameters.iter().map(|(n, t)| quote!(#n: #t));
-        let args = self.parameters.iter().map(|(n, t)| {
-            if matches!(t, syn::Type::Reference(r) if r.mutability.is_some()) {
-                quote!(&mut *#n)
-            } else {
-                quote!(#n)
-            }
-        });
-        let call = quote!(owner.#name(#(#args),*));
+        let fields = self.parameters.iter().map(|(n, _)| n);
+        let call = quote!(owner.#name(&mut crate::mod_api::#event { #(#fields),* }));
         // Before the mods are installed (an injection into code `main_with` runs first), or
         // with fewer mods than the build had, the injection does nothing.
         let (output, result, absent) = if self.cancellable {
@@ -184,13 +228,54 @@ impl Injection {
 
     fn declaration(&self) -> String {
         let name = &self.name;
-        let types = self.parameters.iter().map(|(_, ty)| ty);
+        let event = &self.event;
         let (output, default) = if self.cancellable {
             (quote!(-> Flow), quote!(Flow::Continue))
         } else {
             (quote!(), quote!())
         };
-        quote!(fn #name(&self, #(_: #types),*) #output { #default }).to_string()
+        let elided = match self.lifetimes().0 {
+            (_, true) => quote!(<'_, '_>),
+            (true, false) => quote!(<'_>),
+            (false, false) => quote!(),
+        };
+        quote!(fn #name(&self, _: &mut #event #elided) #output { #default }).to_string()
+    }
+
+    /// Which lifetimes the event takes, and its fields' types with them named.
+    fn lifetimes(&self) -> ((bool, bool), Vec<syn::Type>) {
+        let mut lifetimes = EventLifetimes::default();
+        let types = self
+            .parameters
+            .iter()
+            .map(|(_, ty)| {
+                let mut ty = ty.clone();
+                lifetimes.visit_type_mut(&mut ty);
+                ty
+            })
+            .collect();
+        ((lifetimes.a, lifetimes.b), types)
+    }
+
+    fn event(&self) -> String {
+        let event = &self.event;
+        let name = self.name.to_string();
+        let (lifetimes, types) = self.lifetimes();
+        let generics = match lifetimes {
+            (_, true) => quote!(<'a, 'b>),
+            (true, false) => quote!(<'a>),
+            (false, false) => quote!(),
+        };
+        let names = self.parameters.iter().map(|(n, _)| n);
+        let doc = format!(
+            " What [`Hooks::{name}`] is told. Fields may be added: the struct is `#[non_exhaustive]`."
+        );
+        quote! {
+            #[doc = #doc]
+            #[non_exhaustive]
+            pub struct #event #generics { #(pub #names: #types),* }
+        }
+        .to_string()
     }
 }
 
@@ -218,6 +303,13 @@ pub(super) fn stage(stage: &Path, injections: &[Injection]) -> Result<(), String
         {
             return Err(format!("trait method {} already exists", injection.name));
         }
+        if file
+            .items
+            .iter()
+            .any(|i| matches!(i, syn::Item::Struct(s) if s.ident == injection.event))
+        {
+            return Err(format!("event {} already exists", injection.event));
+        }
     }
     let marker = "pub trait Hooks: Send + Sync {\n";
     if source.matches(marker).count() != 1 {
@@ -227,9 +319,10 @@ pub(super) fn stage(stage: &Path, injections: &[Injection]) -> Result<(), String
         .iter()
         .map(Injection::declaration)
         .collect::<String>();
+    let events = injections.iter().map(Injection::event).collect::<String>();
     fs::write(
         path,
-        source.replacen(marker, &format!("{marker}{declarations}"), 1),
+        source.replacen(marker, &format!("{marker}{declarations}"), 1) + &events,
     )
     .map_err(|e| e.to_string())
 }
@@ -284,14 +377,14 @@ mod tests {
                 {output}
                 struct Owner;
                 impl Hooks for Owner {{
-                    fn inject_example_tick(&self, amount: &mut i32) -> Flow {{
-                        *amount = 42;
+                    fn inject_example_tick(&self, event: &mut InjectExampleTickEvent<'_>) -> Flow {{
+                        *event.amount = 42;
                         Flow::Cancel
                     }}
                 }}
                 struct Other;
                 impl Hooks for Other {{
-                    fn inject_example_tick(&self, _: &mut i32) -> Flow {{ panic!("wrong owner") }}
+                    fn inject_example_tick(&self, _: &mut InjectExampleTickEvent<'_>) -> Flow {{ panic!("wrong owner") }}
                 }}
                 pub fn mods() -> &'static [Box<dyn Hooks>] {{
                     static MODS: OnceLock<Vec<Box<dyn Hooks>>> = OnceLock::new();
@@ -327,6 +420,39 @@ mod tests {
             .unwrap()
             .success());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn event_fields_name_their_lifetimes() {
+        use quote::ToTokens;
+        for (ty, field, a, b) in [
+            (
+                "& mut WorldDrawn < '_ >",
+                "& 'a mut WorldDrawn < 'b >",
+                true,
+                true,
+            ),
+            ("& str", "& 'a str", true, false),
+            (
+                "& mut Vec < (& 'static str , u32) >",
+                "& 'a mut Vec < (& 'static str , u32) >",
+                true,
+                false,
+            ),
+            (
+                "Option < & ItemStack >",
+                "Option < & 'a ItemStack >",
+                true,
+                false,
+            ),
+            ("u32", "u32", false, false),
+        ] {
+            let mut lifetimes = EventLifetimes::default();
+            let mut ty: syn::Type = syn::parse_str(ty).unwrap();
+            lifetimes.visit_type_mut(&mut ty);
+            assert_eq!(ty.to_token_stream().to_string(), field);
+            assert_eq!((lifetimes.a, lifetimes.b), (a, b));
+        }
     }
 
     #[test]
