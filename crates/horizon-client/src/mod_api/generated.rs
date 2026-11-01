@@ -3427,6 +3427,34 @@ pub trait Hooks: Send + Sync {
         let _ = from;
         let _ = to;
     }
+    /// A server player's game mode is about to change (NeoForge's
+    /// `PlayerChangeGameModeEvent`): from `from` to `to` (0 survival, 1
+    /// creative, 2 adventure, 3 spectator, as `NativeServerPlayer`'s
+    /// `game_mode`), `player` being the UUID and `name` the name. Heard for
+    /// the `/gamemode` command, the F3+F4 switcher's packet and a hardcore
+    /// world's respawn into spectator, once for each change to a different
+    /// mode; not for the world's default mode a player joins with. Set
+    /// `cancel` and the player keeps their mode (nothing is sent, the
+    /// command counts it as no change). For a change the game makes inside
+    /// a player's turn their state is swapped in; for the hardcore respawn
+    /// it is not. @API:native_player_game_mode_changed@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `cancel`, and later mods are skipped.
+    fn player_game_mode_changed(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        from: i32,
+        to: i32,
+    ) -> Flow {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = from;
+        let _ = to;
+        Flow::Continue
+    }
 }
 pub fn dispatch_frame(host: &mut dyn Host, mods: &[Box<dyn Hooks>], elapsed: Duration) {
     for mod_hook in mods {
@@ -6035,5 +6063,27 @@ pub fn dispatch_player_changed_dimension(
 ) {
     for mod_hook in mods {
         mod_hook.player_changed_dimension(host, player, name, from, to);
+    }
+}
+pub fn dispatch_player_game_mode_changed(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    from: i32,
+    to: i32,
+    cancel: &mut bool,
+) {
+    if *cancel {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.player_game_mode_changed(host, player, name, from, to),
+            Flow::Cancel
+        ) {
+            *cancel = true;
+            break;
+        }
     }
 }
