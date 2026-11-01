@@ -221,6 +221,7 @@ use super::{
 pub(crate) use horizon_client::mod_api::NativeBlockRim;
 pub(crate) use horizon_client::mod_api::NativeColoredLight;
 pub(crate) use horizon_client::mod_api::NativeMinimap;
+pub(crate) use horizon_client::mod_api::NativeScreen;
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
@@ -482,25 +483,6 @@ impl GameLevel<'_> {
 
 
 
-/// A mod block's screen over its menu (`native_screen`): its size, where
-/// each of the container's slots is (`Slot.x`, `Slot.y`; none hides the
-/// slot, and so do slots past the list; the server's menu does not have a
-/// hidden slot either, so clicks and shift-clicks skip it), and the player inventory's first
-/// row (vanilla's is 84; the hotbar is 58 below it) and left column, from
-/// its top left.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct NativeScreen {
-    /// Vanilla's container screens are 176 wide.
-    pub width: f32,
-    pub height: f32,
-    pub slots: Vec<Option<[f32; 2]>>,
-    pub inventory_y: f32,
-    /// The inventory's left column (vanilla's is 8).
-    pub inventory_x: f32,
-    /// The mod draws the title and the "Inventory" label itself
-    /// (`native_screen_draw`); Horizon leaves them out.
-    pub own_labels: bool,
-}
 
 /// The mod screen open on this client: the block it is for, the key its
 /// slots are under, the window id of its menu, and the menu's data slots as
