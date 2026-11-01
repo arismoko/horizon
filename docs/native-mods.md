@@ -592,8 +592,9 @@ trusting native code is the player's decision, never an agent's.
    remains the default. Blaze can speed up rebuilds, but its first build can take longer.
    The launcher downloads pinned Blaze v0.20261030.1 and Blaze downloads its pinned
    nightly-2026-10-27 compiler and standard-library data. Blaze uses a separate target and cache.
-   The launcher checks the lockfile with Cargo first, stops the Blaze daemon after each build,
-   and retries with Cargo if Blaze fails. Unix socket paths have a length limit: a very long
+   The launcher checks the lockfile with Cargo first and retries with Cargo if Blaze itself fails.
+   The Blaze daemon stays ready for rebuilds and stops after 30 minutes idle, when you switch to
+   Cargo, or when you remove Rust. Unix socket paths have a length limit: a very long
    launcher data path can force the Cargo fallback. Windows and unsupported hosts always use Cargo.
 
 6. **Post-build**: each mod's post-build program is built; it runs in the new version folder once that is copied

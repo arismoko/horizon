@@ -1026,11 +1026,15 @@ fn set_setting(s: &mut backend::Settings, key: &str, value: &str) -> Result<(), 
             }
         }
         "native-builder" => {
-            s.native_blaze = match value {
+            let blaze = match value {
                 "cargo" | "default" => false,
                 "blaze" => true,
                 _ => return Err(format!("{value}: say cargo or blaze")),
+            };
+            if s.native_blaze && !blaze {
+                horizon_launcher::blaze::stop();
             }
+            s.native_blaze = blaze;
         }
         "native-profile" => {
             s.native_release = match value {

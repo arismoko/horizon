@@ -1116,7 +1116,7 @@ fn compile(rust: &Toolchain, stage: &Path, target: &Path, profile: Profile) -> C
     cmd
 }
 
-/// Build with Blaze and stop its daemon, even when the build fails.
+/// Build with Blaze's pinned release.
 fn blaze_attempt(
     cargo: &Command,
     progress: &impl Fn(Step),
@@ -1125,12 +1125,7 @@ fn blaze_attempt(
     let bin = blaze::install(|f| progress(Step::Blaze(f)))?;
     let mut cmd = blaze::wrap(&bin, cargo);
     rust_toolchain::low_priority(&mut cmd);
-    let result = compile_game(cmd);
-    let stop = blaze::wrap(&bin, Command::new(&bin).arg("stop"));
-    if let Err(error) = run(stop, "Stopping Blaze", |_| {}) {
-        note(&error);
-    }
-    result
+    compile_game(cmd)
 }
 
 fn note(text: &str) {

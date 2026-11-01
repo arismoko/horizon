@@ -1509,6 +1509,9 @@ impl Launcher {
                         switch("native-blaze", self.settings.native_blaze, &t).on_click(
                             cx.listener(|this, _: &ClickEvent, _, cx| {
                                 this.settings.native_blaze = !this.settings.native_blaze;
+                                if !this.settings.native_blaze {
+                                    horizon_launcher::blaze::stop();
+                                }
                                 this.native_done = None;
                                 this.settings.save();
                                 cx.notify();

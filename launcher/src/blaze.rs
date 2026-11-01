@@ -142,10 +142,17 @@ fn wrap_in(binary: &Path, cargo: &Command, base: &Path) -> Command {
     cmd
 }
 
-pub fn remove() -> Result<(), String> {
+pub fn stop() {
     if let Some(binary) = installed() {
-        let _ = wrap(&binary, Command::new(&binary).arg("stop")).status();
+        let _ = wrap(&binary, Command::new(&binary).arg("stop"))
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
     }
+}
+
+pub fn remove() -> Result<(), String> {
+    stop();
     let dir = root();
     if dir.exists() {
         fs::remove_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
