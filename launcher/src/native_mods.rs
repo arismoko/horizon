@@ -777,6 +777,13 @@ fn bundle_files(bundle: &Bundle) -> Result<Vec<(String, PathBuf)>, String> {
     files_with_api(&bundle.dir, bundle.api.as_deref())
 }
 
+/// The API package's target folder in a canonical bundle root.
+fn api_target(root: &Path, api: Option<&str>) -> Result<Option<PathBuf>, String> {
+    api.map(|path| root.join(path).canonicalize().map(|p| p.join("target")))
+        .transpose()
+        .map_err(|e| e.to_string())
+}
+
 fn files_with_api(dir: &Path, api: Option<&str>) -> Result<Vec<(String, PathBuf)>, String> {
     fn walk(
         root: &Path,
@@ -805,10 +812,7 @@ fn files_with_api(dir: &Path, api: Option<&str>) -> Result<Vec<(String, PathBuf)
     let root = dir
         .canonicalize()
         .map_err(|e| format!("{}: {e}", dir.display()))?;
-    let skip = api
-        .map(|path| root.join(path).canonicalize().map(|p| p.join("target")))
-        .transpose()
-        .map_err(|e| e.to_string())?;
+    let skip = api_target(&root, api)?;
     let mut out = Vec::new();
     walk(&root, &root, skip.as_deref(), &mut out)?;
     out.sort();
@@ -834,12 +838,7 @@ fn copy_bundle(bundle: &Bundle, to: &Path) -> Result<(), String> {
         Ok(())
     }
     let root = bundle.dir.canonicalize().map_err(|e| e.to_string())?;
-    let skip = bundle
-        .api
-        .as_ref()
-        .map(|path| root.join(path).canonicalize().map(|p| p.join("target")))
-        .transpose()
-        .map_err(|e| e.to_string())?;
+    let skip = api_target(&root, bundle.api.as_deref())?;
     copy(&root, to, skip.as_deref()).map_err(|e| e.to_string())
 }
 
