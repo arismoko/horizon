@@ -112,6 +112,44 @@ fn with_raw(modelled: Tag, raw: Option<&Tag>) -> Tag {
     Tag::Compound(out)
 }
 
+fn read_attachments(
+    tag: &Tag,
+    uuid: [i32; 4],
+    maps: &mut HashMap<[i32; 4], horizon_world::attachments::Attachments>,
+) {
+    if let Some(Tag::Compound(data)) = tag.get("horizon:attachments") {
+        maps.entry(uuid)
+            .or_insert_with(|| horizon_world::attachments::Attachments::from_nbt(data.clone()));
+    }
+}
+
+/// Overlay live attachment maps on entity tags, including passenger trees.
+pub(super) fn write_attachments(
+    tag: &mut Tag,
+    maps: &HashMap<[i32; 4], horizon_world::attachments::Attachments>,
+) {
+    let uuid = entity_nbt::uuid(tag);
+    if let Tag::Compound(root) = tag {
+        if let Some(map) = uuid.and_then(|id| maps.get(&id))
+            && !root
+                .get(&"horizon:attachments".into())
+                .is_some_and(|v| !matches!(v, Tag::Compound(_)))
+        {
+            let data = map.to_nbt();
+            if data.is_empty() {
+                root.remove(&"horizon:attachments".into());
+            } else {
+                root.insert("horizon:attachments".into(), Tag::Compound(data));
+            }
+        }
+        if let Some(Tag::List(passengers)) = root.get_mut(&"Passengers".into()) {
+            for passenger in passengers {
+                write_attachments(passenger, maps);
+            }
+        }
+    }
+}
+
 fn painting_center(p: &horizon_client::entities::Painting) -> Vec3 {
     let (lo, hi) = p.bounds();
     Vec3::new(
@@ -793,7 +831,8 @@ impl Game<'_> {
     ) -> Option<(Tag, u32, [i32; 4])> {
         let vehicle = vehicle?;
         let root = parent_vehicle_root(vehicle, others, |id| self.vehicle_of(id))?;
-        let entity = self.vehicle_tree_nbt(root)?;
+        let mut entity = self.vehicle_tree_nbt(root)?;
+        write_attachments(&mut entity, &self.entity_attachments);
         let attach = self.uuid_for(vehicle);
         Some((root_vehicle_tag(attach, entity), root, attach))
     }
@@ -937,6 +976,13 @@ impl Game<'_> {
     }
     /// Forget an entity that left the world (its UUID and loaded compound).
     pub(super) fn forget_entity(&mut self, id: u32) {
+        if let Some(uuid) = self.persist.uuids.remove(&id) {
+            self.entity_attachments.remove(&uuid);
+        }
+        self.persist.raw.remove(&id);
+    }
+    /// Detach a travelling entity without discarding its in-memory attachments.
+    pub(super) fn detach_entity(&mut self, id: u32) {
         self.persist.uuids.remove(&id);
         self.persist.raw.remove(&id);
     }
@@ -983,6 +1029,7 @@ impl Game<'_> {
         self.restore_portal_cooldown(id, &tag);
         if let Some(u) = uuid {
             self.persist.uuids.insert(id, u);
+            read_attachments(&tag, u, &mut self.entity_attachments);
         }
         self.persist.raw.insert(id, tag);
     }
@@ -1251,6 +1298,11 @@ impl Game<'_> {
                 out.entry(*key).or_default().extend(list);
             }
         }
+        for tags in out.values_mut() {
+            for tag in tags {
+                write_attachments(tag, &self.entity_attachments);
+            }
+        }
         if remove {
             let gone = |p: Vec3| keys.contains(&chunk_of(p));
             let mut removed: Vec<u32> = Vec::new();
@@ -1356,8 +1408,7 @@ impl Game<'_> {
                 .anon
                 .retain(|_, (at, _, _)| !keys.contains(&chunk_of(*at)));
             for id in removed {
-                self.persist.uuids.remove(&id);
-                self.persist.raw.remove(&id);
+                self.forget_entity(id);
             }
         }
         out.into_iter().collect()
@@ -1392,6 +1443,11 @@ impl Game<'_> {
             .chain(self.paintings.iter().map(|e| e.id))
             .chain(self.others.iter().map(|e| e.id))
             .collect();
+        for (id, uuid) in &self.persist.uuids {
+            if !alive.contains(id) {
+                self.entity_attachments.remove(uuid);
+            }
+        }
         self.persist.uuids.retain(|id, _| alive.contains(id));
         self.persist.raw.retain(|id, _| alive.contains(id));
     }
@@ -1519,6 +1575,48 @@ mod tests {
             Some(Tag::List(l)) => l.iter().filter_map(entity_nbt::kind).collect(),
             _ => Vec::new(),
         }
+    }
+
+    #[test]
+    fn entity_attachment_boundary_includes_passengers() {
+        use horizon_world::attachments::{
+            AttachmentCodec, AttachmentError, AttachmentType, Attachments,
+        };
+        let key = AttachmentType {
+            namespace: "test",
+            name: "counter",
+            default: || 0,
+            codec: Some(AttachmentCodec {
+                encode: |n: &i32| Ok([("count".into(), Tag::Int(*n))].into()),
+                decode: |c| match c.get(&"count".into()) {
+                    Some(Tag::Int(n)) => Ok(*n),
+                    _ => Err(AttachmentError::Decode),
+                },
+            }),
+            copy_on_death: false,
+        };
+        let root_id = [1, 2, 3, 4];
+        let child_id = [5, 6, 7, 8];
+        let mut data = Attachments::default();
+        data.set(&key, 29).unwrap();
+        let maps = [(child_id, data)].into();
+        let mut root = Tag::compound([
+            ("UUID", Tag::IntArray(root_id.to_vec())),
+            (
+                "Passengers",
+                Tag::List(vec![Tag::compound([(
+                    "UUID",
+                    Tag::IntArray(child_id.to_vec()),
+                )])]),
+            ),
+        ]);
+        write_attachments(&mut root, &maps);
+        let Some(Tag::List(children)) = root.get("Passengers") else {
+            panic!("passenger missing");
+        };
+        let mut loaded = HashMap::new();
+        read_attachments(&children[0], child_id, &mut loaded);
+        assert_eq!(loaded.get_mut(&child_id).unwrap().get(&key), Ok(29));
     }
 
     #[test]

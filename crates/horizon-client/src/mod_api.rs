@@ -24,7 +24,7 @@ pub use horizon_world::{
     },
     fluid::FluidState,
     level::{BlockId, Dimension as LevelDimension, PlacementContext},
-    nbt::Compound,
+    nbt::{Compound, Tag},
     registry::BlockStateId,
 };
 pub use serde_json;

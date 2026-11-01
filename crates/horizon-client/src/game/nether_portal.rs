@@ -955,7 +955,7 @@ impl Game<'_> {
                 self.persist_raw(id),
             );
             self.remove_dropped(i);
-            self.forget_entity(id);
+            self.detach_entity(id);
             self.portals.arrivals.push(Arrival { plan, tag });
             self.portals.dirty = true;
         } else if let Some(i) = self.mobs.iter().position(|m| m.id == id) {
@@ -983,7 +983,7 @@ impl Game<'_> {
             }
             self.mobs.retain(|m| !gone.contains(&m.id));
             for g in gone {
-                self.forget_entity(g);
+                self.detach_entity(g);
             }
             self.portals.arrivals.push(Arrival { plan, tag });
             self.portals.dirty = true;
@@ -1007,7 +1007,7 @@ impl Game<'_> {
                 b.chest.then_some(&b.items[..]),
             );
             self.boats.remove(i);
-            self.forget_entity(id);
+            self.detach_entity(id);
             self.portals.arrivals.push(Arrival { plan, tag });
             self.portals.dirty = true;
         } else if let Some(i) = self.carts.iter().position(|c| c.id == id) {
@@ -1024,7 +1024,7 @@ impl Game<'_> {
             let uuid = self.uuid_for(id);
             let tag = self.carts[i].to_nbt(uuid, self.persist_raw(id));
             self.carts.remove(i);
-            self.forget_entity(id);
+            self.detach_entity(id);
             self.portals.arrivals.push(Arrival { plan, tag });
             self.portals.dirty = true;
         }
@@ -1131,7 +1131,20 @@ impl Game<'_> {
         if !self.portals.dirty || self.remote.is_some() {
             return;
         }
-        let list = self.portals.arrivals.iter().map(arrival_tag).collect();
+        let list = self
+            .portals
+            .arrivals
+            .iter()
+            .map(|arrival| {
+                let mut tag = arrival_tag(arrival);
+                if let Tag::Compound(root) = &mut tag
+                    && let Some(entity) = root.get_mut(&"entity".into())
+                {
+                    super::persist::write_attachments(entity, &self.entity_attachments);
+                }
+                tag
+            })
+            .collect();
         let root = Tag::compound([("arrivals", Tag::List(list))]);
         if horizon_client::save::write_dat(&self.arrivals_path(), root).is_ok() {
             self.portals.dirty = false;

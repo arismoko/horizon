@@ -1265,6 +1265,53 @@ mod draws come in vanilla's order. `LevelTicksHost` adds scheduling through
 `LevelWriteHost` adds random access and `native_set_block_property`. Whole-block writes wait for a
 later slice that creates block entities, as vanilla's `setBlock` does. The game owns
 the tick queue; mods do not pass it back to these helpers.
+### Server attachments
+
+A mod can declare an `AttachmentType<T>` once and call its `get`, `set` and `remove`
+methods with the hook's host and a `Holder`. `T` is `Clone + Send + Sync + 'static`;
+`get` returns a clone and inserts the default on first access. `set` runs the optional
+codec before changing the value, returning an `AttachmentError` if it cannot encode.
+Keys are the pair `(namespace, name)`; a key already decoded as another Rust type is
+an error. A missing or non-server holder is an error, not a new phantom holder.
+
+```rust
+use horizon_client::mod_api::{AttachmentCodec, AttachmentError, AttachmentType, Compound, Holder, Tag};
+
+static COUNTER: AttachmentType<i32> = AttachmentType {
+    namespace: "example", name: "counter", default: || 0,
+    codec: Some(AttachmentCodec {
+        encode: |n| Ok([("count".into(), Tag::Int(*n))].into()),
+        decode: |data: &Compound| match data.get(&"count".into()) {
+            Some(Tag::Int(n)) => Ok(*n), _ => Err(AttachmentError::Decode),
+        },
+    }),
+    copy_on_death: false,
+};
+// Inside a server hook with `host: &mut dyn Host`:
+let old = COUNTER.get(host, Holder::Chunk([0, 0]))?;
+COUNTER.set(host, Holder::Chunk([0, 0]), old + 1)?;
+Ok::<(), AttachmentError>(())
+```
+
+Use `Holder::Level`, `Holder::Chunk([x, z])`, `Holder::BlockEntity([x, y, z])`,
+`Holder::Entity(id)`, or `Holder::Player(uuid)`. Entity IDs cover mobs, item
+entities, boats, minecarts, armor stands, cushions, item frames, paintings and the
+server's `OtherEntity` records; projectiles, orbs and other ID-less save paths are
+not covered. Player UUIDs cover online guests and the acting player. A level host
+can access its level, loaded chunks and block entities; a read-only tick wrapper
+cannot access attachments. These maps live on the server only: there is **no client
+synchronization**. Unserialized values disappear on unload or restart. A saved value
+is stored under `horizon:attachments`, then the mod namespace and attachment name,
+as `{value: <compound>, copy_on_death: 1b}` (the flag is omitted when false).
+Unknown mods' saved entries survive load and save without being decoded.
+
+`copy_on_death` requires a codec. Player respawn copies opted-in entries via their
+encoded representation, including raw entries of an absent mod; other entries are
+removed. Living-entity conversion is not supported. This follows the default supplier,
+optional server-side persistence and player-respawn option of NeoForge 26.3's public
+`AttachmentType.Builder` contract, but not its holder-aware supplier, custom copy
+handler, conditional serialization or sync APIs.
+
 The following catalog hooks are not in the trait yet:
 
 - `world_drawn` and `render_needs` need a renderer trait.
