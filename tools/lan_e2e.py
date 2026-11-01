@@ -11120,6 +11120,56 @@ CHECKS += ['attack_over_slab']
 CHECK_FNS['attack_over_slab'] = check_attack_over_slab
 
 
+def check_boat_submerged(host, guest, out):
+    """AbstractBoat.tick ejects players after 60 consecutive underwater ticks on the server."""
+    hx, _, hz = pos_of(host)
+    x, y, z = int(hx // 16) * 16 + 8, 100, int(hz // 16) * 16 + 8
+    tag = 'submerged_boat'
+    seen = {}
+    try:
+        for player in (host, guest):
+            for kind in ('oak_boat', 'bamboo_raft'):
+                label = f'{player.name}-{kind}'
+                host('command', command=f'kill @e[tag={tag}]')
+                host('command', command=f'fill {x-4} {y} {z-4} {x+4} {y+6} {z+4} minecraft:air')
+                host('command', command=f'fill {x-4} {y-1} {z-4} {x+4} {y+5} {z+4} minecraft:stone hollow')
+                host('command', command=f'fill {x-4} {y+5} {z-4} {x+4} {y+5} {z+4} minecraft:air')
+                host('command', command=f'fill {x-3} {y} {z-3} {x+3} {y} {z+3} minecraft:water')
+                player('command', command='gamemode survival')
+                player('command', command=f'tp @s {x+0.5} {y+1} {z-0.5}')
+                player('command', command=f'summon minecraft:{kind} {x+0.5} {y+1} {z+2.5} {{Tags:["{tag}"]}}')
+                player.wait(30)
+                boat = board(player, kind, (x+0.5, y+1, z+2.5))
+                player.wait(80)
+                assert player('status').get('riding') == boat['id'], f'{label}: ejected at the surface'
+                water = f'fill {x-3} {y} {z-3} {x+3} {y+4} {z+3}'
+                # A short immersion followed by a dry hull must reset the 60-tick countdown.
+                host('command', command=water + ' minecraft:water')
+                player.wait(25)
+                host('command', command=water + ' minecraft:air')
+                player.wait(20)
+                assert player('status').get('riding') == boat['id'], f'{label}: ejected after a short immersion'
+                host('command', command=water + ' minecraft:water')
+                player.wait(40)
+                early = player('status').get('riding')
+                assert early == boat['id'], f'{label}: the immersion counter did not reset (riding {early}, boat {boat["id"]})'
+                player.shot(out, 'boat-submerged-' + label + '-before')
+                player.wait(40)
+                after = player('status').get('riding')
+                player.shot(out, 'boat-submerged-' + label + '-after')
+                seen[label] = dict(boat=boat['id'], early=early, after=after)
+                lab.write_json(out / 'boat-submerged.json', seen)
+                assert after is None, f'{label}: still riding a submerged boat: {seen[label]}'
+        return seen
+    finally:
+        host('command', command=f'kill @e[tag={tag}]')
+        host('command', command=f'fill {x-3} {y} {z-3} {x+3} {y+4} {z+3} minecraft:air')
+
+
+CHECKS += ['boat_submerged']
+CHECK_FNS['boat_submerged'] = check_boat_submerged
+
+
 def check_shulker_lift(host, guest, out):
     """ShulkerBoxBlockEntity.tick moves the local player on each client, even with its menu open."""
     hx, _, hz = pos_of(host)
