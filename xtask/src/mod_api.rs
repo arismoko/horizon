@@ -307,8 +307,11 @@ mod tests {
     struct ItemStack;
     #[allow(dead_code)]
     mod stubs {
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Debug, PartialEq)]
         pub(super) struct BlockStateId;
+        #[derive(Clone, Copy)]
+        pub(super) struct FluidState;
+        pub(super) struct PlacementContext;
         #[derive(Clone, Copy)]
         pub(super) struct BlockPos;
         #[derive(Clone, Copy)]
@@ -417,6 +420,53 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn placement_replacement_can_refuse_and_stops_later_mods() {
+        struct Level;
+        impl LevelHost for Level {}
+        struct Refuse(Arc<Mutex<Vec<u32>>>, u32);
+        impl Hooks for Refuse {
+            fn state_for_placement(
+                &self,
+                _: &dyn LevelHost,
+                _: LevelDimension,
+                _: BlockStateId,
+                _: &PlacementContext,
+                _: FluidState,
+            ) -> Option<Option<BlockStateId>> {
+                self.0.lock().unwrap().push(self.1);
+                Some(None)
+            }
+        }
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mods: Vec<Box<dyn Hooks>> = vec![
+            Box::new(Refuse(calls.clone(), 1)),
+            Box::new(Refuse(calls.clone(), 2)),
+        ];
+        let mut answer = None;
+        dispatch_state_for_placement(
+            &Level,
+            &mods,
+            LevelDimension,
+            BlockStateId,
+            &PlacementContext,
+            FluidState,
+            &mut answer,
+        );
+        assert_eq!(answer, Some(None));
+        assert_eq!(*calls.lock().unwrap(), vec![1]);
+        dispatch_state_for_placement(
+            &Level,
+            &mods,
+            LevelDimension,
+            BlockStateId,
+            &PlacementContext,
+            FluidState,
+            &mut answer,
+        );
+        assert_eq!(*calls.lock().unwrap(), vec![1]);
+    }
+
     #[test]
     fn generated_locals_do_not_shadow_hook_arguments() {
         let mut used = ["mods", "mods_", "mod_hook", "replacement", "host"]

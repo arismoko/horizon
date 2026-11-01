@@ -482,7 +482,12 @@ impl GameLevel<'_> {
     /// API 64.
     #[inline(always)]
     pub(super) fn native_has_analog_output(&self, state: BlockStateId, output: &mut bool) {
-        let _ = (state, output);
+        horizon_client::mod_api::dispatch_has_analog_output(
+            self,
+            horizon_client::mod_api::mods(),
+            state,
+            output,
+        );
     }
 
     /// `BlockState.getAnalogOutputSignal`: the signal a comparator reads from
@@ -505,7 +510,15 @@ impl GameLevel<'_> {
         face: Direction,
         output: &mut i32,
     ) {
-        let _ = (dimension, pos, state, face, output);
+        horizon_client::mod_api::dispatch_analog_output(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            face,
+            output,
+        );
     }
 
     /// An authoritative server's `ServerLevel.tickChunk` is about to
@@ -592,7 +605,14 @@ impl GameLevel<'_> {
         state: BlockStateId,
         survives: &mut Option<bool>,
     ) {
-        let _ = (dimension, pos, state, survives);
+        horizon_client::mod_api::dispatch_can_survive(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            survives,
+        );
     }
 
     /// On an authoritative server, `VegetationBlock.mayPlaceOn` for the
@@ -611,7 +631,15 @@ impl GameLevel<'_> {
         ground_pos: BlockPos,
         may: &mut Option<bool>,
     ) {
-        let _ = (dimension, state, ground, ground_pos, may);
+        horizon_client::mod_api::dispatch_may_place_on(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            state,
+            ground,
+            ground_pos,
+            may,
+        );
     }
 
     /// An authoritative server's `ServerLevel.tickBlock` is about to run a
@@ -654,8 +682,10 @@ impl GameLevel<'_> {
     /// `native_state_with_property`. It is asked for every placer that goes
     /// through vanilla's placement (a player's `BlockItem.place`, a
     /// dispenser's `DirectionalPlaceContext`), and the answer still takes its
-    /// survival and entity obstruction checks. Authoritative servers only.
-    /// 76.
+    /// survival and entity obstruction checks. A trait mod returns
+    /// `Some(Some(state))` to choose a state, `Some(None)` to refuse, or
+    /// `None` to leave the answer to the next mod or vanilla.
+    /// Authoritative servers only. 76.
     #[inline(always)]
     #[allow(clippy::option_option)]
     pub(super) fn native_state_for_placement(
@@ -666,7 +696,15 @@ impl GameLevel<'_> {
         fluid: FluidState,
         answer: &mut Option<Option<BlockStateId>>,
     ) {
-        let _ = (dimension, state, context, fluid, answer);
+        horizon_client::mod_api::dispatch_state_for_placement(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            state,
+            context,
+            fluid,
+            answer,
+        );
     }
 
     /// A block nothing in Horizon knows a `BonemealableBlock` for is about to
@@ -691,7 +729,14 @@ impl GameLevel<'_> {
         state: BlockStateId,
         valid: &mut Option<bool>,
     ) {
-        let _ = (dimension, pos, state, valid);
+        horizon_client::mod_api::dispatch_is_valid_bonemeal_target(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            valid,
+        );
     }
 
     /// `BonemealableBlock.isBonemealSuccess` for a block that answered
@@ -708,7 +753,14 @@ impl GameLevel<'_> {
         state: BlockStateId,
         success: &mut bool,
     ) {
-        let _ = (dimension, pos, state, success);
+        horizon_client::mod_api::dispatch_is_bonemeal_success(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+            success,
+        );
     }
 
     /// `BonemealableBlock.performBonemeal` for a block that answered
@@ -725,7 +777,13 @@ impl GameLevel<'_> {
         pos: BlockPos,
         state: BlockStateId,
     ) {
-        let _ = (ticks, dimension, pos, state);
+        horizon_client::mod_api::dispatch_perform_bonemeal(
+            &mut super::mod_api_host::LevelTicks { level: self, ticks },
+            horizon_client::mod_api::mods(),
+            dimension,
+            pos,
+            state,
+        );
     }
 }
 
