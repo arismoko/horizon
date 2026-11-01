@@ -36,7 +36,28 @@ pub fn native_living_breathe(
     consume: &mut i32,
     refill: &mut i32,
 ) {
-    let _ = (entity, kind, can_breathe, consume, refill);
+    living_breathe(entity, kind, can_breathe, consume, refill);
+}
+
+/// Callback for the trait mods' breathing, installed before any entity ticks.
+pub type LivingBreatheHook = fn(u32, &str, &mut bool, &mut i32, &mut i32);
+static LIVING_BREATHE: std::sync::OnceLock<LivingBreatheHook> = std::sync::OnceLock::new();
+
+/// Install the breathing callback once; a second installation keeps the first.
+pub fn install_living_breathe(hook: LivingBreatheHook) -> Result<(), LivingBreatheHook> {
+    LIVING_BREATHE.set(hook)
+}
+
+fn living_breathe(
+    entity: u32,
+    kind: &str,
+    can_breathe: &mut bool,
+    consume: &mut i32,
+    refill: &mut i32,
+) {
+    if let Some(hook) = LIVING_BREATHE.get() {
+        hook(entity, kind, can_breathe, consume, refill);
+    }
 }
 
 /// `vanilla`'s breathing after the mods have had their say.

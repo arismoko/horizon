@@ -7,7 +7,7 @@ use std::sync::{Arc, OnceLock};
 
 pub use crate::biome::BiomeColors;
 pub use crate::camera::CameraEntity;
-pub use crate::containers::{ModBlockEntity, ModContainer, ModFluidTanks};
+pub use crate::containers::{ModBlockEntity, ModContainer, ModEnergyBuffer, ModFluidTanks};
 pub use crate::crafting::{CustomRecipe, Ingredient};
 pub use crate::extras::Corner;
 pub use crate::extras_hud::Corners;
@@ -15,8 +15,9 @@ pub use crate::first_person::Hand;
 pub use crate::fog::{FogData, FogType};
 pub use crate::game::native_block_entity_draw::{BlockEntityDraw, CubeFace};
 pub use crate::game::{
-    NativeBlockEdit, NativeBlockRun, NativeClock, NativeColumnBlocks, NativeExperienceOrb,
-    NativeFalling, NativeHeightmap, NativeHeldItem, NativeHit, NativeMobRender, NativeModEvent,
+    NativeBlockEdit, NativeBlockRun, NativeClock, NativeColumnBlocks, NativeDataMapType,
+    NativeExperienceOrb, NativeFalling, NativeHeightmap, NativeHeldItem, NativeHit,
+    NativeMapDecoration, NativeMapInfo, NativeMobRender, NativeModEvent, NativePlayerRender,
     NativeShake,
 };
 pub use crate::gfx::native_render::{RenderHooks, RenderNeeds, WorldDrawn, wgpu};
@@ -38,6 +39,7 @@ pub use horizon_world::{
     },
     fluid::FluidState,
     level::{BlockId, Dimension as LevelDimension, PlacementContext},
+    loot::{LootStack, NativeLootContext},
     nbt::{Compound, Tag},
     registry::BlockStateId,
 };

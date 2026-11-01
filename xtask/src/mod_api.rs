@@ -393,6 +393,38 @@ fn catalog_hooks(
     Ok(hooks)
 }
 
+/// Catalog hooks that are no trait method, each with the reason. Every other
+/// hook, in the catalog or a pending fragment, needs a `mod_api` contract.
+const NO_TRAIT_METHOD: &[(&str, &str)] = &[];
+
+/// The first hook with neither a `mod_api` contract nor a `NO_TRAIT_METHOD`
+/// entry, and the first exclusion that names no hook or one that has a contract.
+fn uncovered(hooks: &[serde_json::Value], excluded: &[(&str, &str)]) -> Result<(), String> {
+    for hook in hooks {
+        let name = hook["name"].as_str().ok_or("hook name missing")?;
+        let is_excluded = excluded.iter().any(|(hook, _)| *hook == name);
+        match (hook.get("mod_api").is_some(), is_excluded) {
+            (false, false) => {
+                return Err(format!(
+                    "hook {name} has no mod_api contract: add one, or list it in NO_TRAIT_METHOD with the reason"
+                ));
+            }
+            (true, true) => {
+                return Err(format!(
+                    "hook {name} has a contract and is in NO_TRAIT_METHOD"
+                ));
+            }
+            _ => {}
+        }
+    }
+    for (name, _) in excluded {
+        if !hooks.iter().any(|hook| hook["name"] == *name) {
+            return Err(format!("NO_TRAIT_METHOD names {name}, which is no hook"));
+        }
+    }
+    Ok(())
+}
+
 pub fn run(check: bool) -> Result<(), String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let catalog: serde_json::Value = serde_json::from_str(
@@ -413,7 +445,9 @@ pub fn run(check: bool) -> Result<(), String> {
     let mut render_traits = String::new();
     let mut render_dispatch = String::new();
     let mut seen = HashSet::new();
-    for hook in &catalog_hooks(&root, &catalog)? {
+    let hooks = catalog_hooks(&root, &catalog)?;
+    uncovered(&hooks, NO_TRAIT_METHOD)?;
+    for hook in &hooks {
         let Some(api) = hook.get("mod_api") else {
             continue;
         };
@@ -433,9 +467,11 @@ pub fn run(check: bool) -> Result<(), String> {
                     .map(|p| ("horizon-client-render", p.to_owned()))
             })
             .or_else(|| {
-                target
-                    .strip_prefix("horizon_client::menu::")
-                    .map(|p| ("horizon-client", format!("menu::{p}")))
+                ["menu", "breathing"].into_iter().find_map(|module| {
+                    target
+                        .strip_prefix(&format!("horizon_client::{module}::"))
+                        .map(|p| ("horizon-client", format!("{module}::{p}")))
+                })
             });
         let (method, call) = if let Some((krate, path)) = external {
             let Some((module, function)) = path.rsplit_once("::") else {
@@ -806,6 +842,13 @@ mod tests {
         pub(super) struct ModBlockEntity;
         pub(super) struct ModContainer;
         pub(super) struct ModFluidTanks;
+        pub(super) struct ModEnergyBuffer;
+        pub(super) struct LootStack;
+        pub(super) struct NativeLootContext<'a>(pub &'a ());
+        pub(super) struct NativeDataMapType;
+        pub(super) struct NativeMapDecoration;
+        pub(super) struct NativeMapInfo<'a>(pub &'a ());
+        pub(super) struct NativePlayerRender<'a>(pub &'a ());
         pub(super) struct NativeCommand;
         pub(super) struct NativeLifecycleContext;
         pub(super) struct NativeServerPlayer;
@@ -834,6 +877,12 @@ mod tests {
     }
     #[allow(dead_code)]
     mod generated {
+        mod horizon_mods {
+            pub mod content {
+                pub struct Block;
+                pub struct Item;
+            }
+        }
         mod horizon_client {
             pub mod camera {
                 pub struct CameraEntity;
@@ -1263,6 +1312,27 @@ mod tests {
         assert_eq!(
             super::host_for(false, Some(true), false),
             Some(("host", "&mut dyn Host".into()))
+        );
+    }
+
+    #[test]
+    fn every_hook_needs_a_contract_or_a_reason() {
+        let hooks = [
+            serde_json::json!({"name": "told", "mod_api": {"contract": "listen"}}),
+            serde_json::json!({"name": "untold"}),
+        ];
+        assert_eq!(
+            super::uncovered(&hooks, &[]).unwrap_err(),
+            "hook untold has no mod_api contract: add one, or list it in NO_TRAIT_METHOD with the reason"
+        );
+        assert!(super::uncovered(&hooks, &[("untold", "a reason")]).is_ok());
+        assert_eq!(
+            super::uncovered(&hooks, &[("untold", "a reason"), ("told", "a reason")]).unwrap_err(),
+            "hook told has a contract and is in NO_TRAIT_METHOD"
+        );
+        assert_eq!(
+            super::uncovered(&hooks, &[("untold", "a reason"), ("gone", "a reason")]).unwrap_err(),
+            "NO_TRAIT_METHOD names gone, which is no hook"
         );
     }
 

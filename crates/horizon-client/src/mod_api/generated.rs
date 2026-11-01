@@ -2609,6 +2609,697 @@ pub trait Hooks: Send + Sync {
         let _ = time_left;
         let _ = used;
     }
+    /// A loot function of a mod's own kind: the entry named a `type` in a
+    /// namespace outside `minecraft:`, and the roll kept it for this call.
+    /// The kind, the JSON, the context and the stack to change are here.
+    /// API 133.
+    ///
+    /// Every mod gets `stack` in order and may add, change or remove stack.
+    fn loot_function(
+        &self,
+        kind: &str,
+        data: &Value,
+        ctx: &NativeLootContext<'_>,
+        stack: &mut LootStack,
+    ) {
+        let _ = kind;
+        let _ = data;
+        let _ = ctx;
+        let _ = stack;
+    }
+    /// A loot condition of a mod's own kind: the entry named a `type` in a
+    /// namespace outside `minecraft:`. The kind, the JSON, the context and
+    /// whether it holds are here (`holds` starts `false`; a mod that claims
+    /// the kind sets it). API 133.
+    ///
+    /// Every mod gets `holds` in order and may add, change or remove holds.
+    fn loot_condition(
+        &self,
+        kind: &str,
+        data: &Value,
+        ctx: &NativeLootContext<'_>,
+        holds: &mut bool,
+    ) {
+        let _ = kind;
+        let _ = data;
+        let _ = ctx;
+        let _ = holds;
+    }
+    /// `dimension`'s level opened on the server (NeoForge's `LevelEvent.Load`,
+    /// posted in `MinecraftServer.createLevels`): before any of its chunks
+    /// (`native_chunk_load`), so a mod sets up what it keeps for the level
+    /// here. The level the world opens in comes before `WorldOpenReady`; the
+    /// others open when someone first goes there (a player, a portal, an
+    /// `execute in` command), with the level in place. Once for each open:
+    /// `native_level_unload` follows. Server-side. API 134.
+    fn level_load(&self, host: &mut dyn Host, dimension: &str) {
+        let _ = host;
+        let _ = dimension;
+    }
+    /// `dimension`'s level closed (NeoForge's `LevelEvent.Unload`, posted after
+    /// `level.close()` in `MinecraftServer.stopServer`), after its last save:
+    /// drop what the mod kept for it. A level other than the Overworld closes
+    /// once nobody has been in it for 300 ticks, after its chunks' unloads;
+    /// every level still open closes when the server stops, before
+    /// `WorldCloseFinal`, and when its open or its loop fails, before
+    /// `WorldOpenFailed` or `WorldCloseFailed`. Once for each
+    /// `native_level_load`. Don't read its blocks. Server-side. API
+    /// 134.
+    fn level_unload(&self, host: &mut dyn Host, dimension: &str) {
+        let _ = host;
+        let _ = dimension;
+    }
+    /// The client made a new level for `dimension` (NeoForge's
+    /// `LevelEvent.Load` from the `ClientLevel` constructor): on joining a
+    /// server, single player's own included, and on changing dimension.
+    /// Its chunks come after. When the dimension changes, the old level's
+    /// `native_client_level_unload` follows this, as `Minecraft.setLevel`
+    /// tells it after the new level is made. Client-side, on the window; the
+    /// server's levels have `native_level_load`. API 135.
+    fn client_level_load(&self, host: &mut dyn Host, dimension: &str) {
+        let _ = host;
+        let _ = dimension;
+    }
+    /// The client dropped its level for `dimension` (`LevelEvent.Unload`
+    /// from `Minecraft.setLevel` and `disconnect`): replaced by another
+    /// dimension's, or on leaving the server. Once for each
+    /// `native_client_level_load`. Not told when the game itself quits.
+    /// Client-side. API 135.
+    fn client_level_unload(&self, host: &mut dyn Host, dimension: &str) {
+        let _ = host;
+        let _ = dimension;
+    }
+    /// Whether a mod hears projectiles' impacts (`native_projectile_impact`):
+    /// set `hears`. Asked once a server tick before the projectiles fly; only
+    /// then does the tick keep the copy of each flying projectile that a
+    /// canceled impact flies on from, so a game without such a mod pays
+    /// nothing. Server-side. API 136.
+    ///
+    /// Every mod gets `hears` in order and may add, change or remove hears.
+    fn hears_projectile_impacts(&self, host: &dyn Host, hears: &mut bool) {
+        let _ = host;
+        let _ = hears;
+    }
+    /// A projectile hit something (NeoForge's `ProjectileImpactEvent`, posted
+    /// where vanilla's projectile has found what it meets, before the hit
+    /// acts): `projectile` (its entity id) of type `kind` (`minecraft:arrow`),
+    /// shot by `owner` (a mob's or a player's entity id, 0 for none) in the level
+    /// `dimension`. It hit the entity `entity` of type `entity_kind` (a player is
+    /// `minecraft:player`; a dragon's part is `minecraft:ender_dragon`), or, with
+    /// `entity` None, the block at `block` on its `face` (the face's normal,
+    /// `[0, 1, 0]` for the top), at the point `at`. Set `canceled` and the impact
+    /// does not happen: no damage, no knockback, no sound, no block reaction, the
+    /// arrow does not stick, a pearl does not teleport, a potion or a fireball
+    /// does not burst. The projectile flies on and is not discarded, so a mod
+    /// that cancels also decides what becomes of it: it hits again the next tick
+    /// unless the mod moves, turns or removes it. An arrow stays where it would
+    /// have hit, and the other projectiles go on through the whole of their
+    /// motion. Covers what `tick_projectiles` flies: arrows, tridents, snowballs,
+    /// eggs, pearls, potions, fireballs, wither skulls, wind charges, llama spit and
+    /// shulker bullets, from players, mobs and dispensers. It does not fire for
+    /// a breeze's deflection, for a hit on a wind charge, for fireworks or for
+    /// fishing bobbers. A dragon part or End crystal is told by the id of the
+    /// dragon or crystal. Heard only when a mod also sets
+    /// `native_hears_projectile_impacts`. Server-side. API 136.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn projectile_impact(
+        &self,
+        host: &mut dyn Host,
+        dimension: &str,
+        projectile: u32,
+        kind: &str,
+        owner: u32,
+        entity: Option<u32>,
+        entity_kind: &str,
+        block: [i32; 3],
+        face: [i32; 3],
+        at: [f64; 3],
+    ) -> Flow {
+        let _ = host;
+        let _ = dimension;
+        let _ = projectile;
+        let _ = kind;
+        let _ = owner;
+        let _ = entity;
+        let _ = entity_kind;
+        let _ = block;
+        let _ = face;
+        let _ = at;
+        Flow::Continue
+    }
+    /// An entity mounts or dismounts a vehicle (NeoForge's `EntityMountEvent`, posted from
+    /// `Entity.startRiding` and `removeVehicle`): `entity` of type `kind` (`minecraft:player`,
+    /// `minecraft:zombie`) in the server level `dimension`, getting on (`mounting`) or off the
+    /// `vehicle` of type `vehicle_kind` (`minecraft:oak_boat`, `minecraft:minecart`,
+    /// `minecraft:horse`, `minecraft:cushion`). Set `canceled` and it does not: a player stays
+    /// where they were, a mob does not board, a `/ride` fails, and a rider whose dismount is
+    /// canceled keeps riding. Told for a player boarding a boat, minecart, cushion or a mount (pig,
+    /// strider, horse and its kin, llama, nautilus, happy ghast) and getting off one by their
+    /// own input, `/ride`, a stab, a buck, a teleport or spectator mode; and for the mobs
+    /// Horizon seats on a vehicle (jockeys, raiders on a ravager, `/ride`) and lets off one
+    /// (`/ride`, a stab). It is not told for a rider whose vehicle was removed from the
+    /// level (a boat or minecart destroyed, a broken cushion), nor for riders loaded with a
+    /// save. The acting player is the one whose action runs, a guest on a server. Server-side.
+    /// API 137.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn entity_mount(
+        &self,
+        host: &mut dyn Host,
+        dimension: &str,
+        entity: u32,
+        kind: &str,
+        vehicle: u32,
+        vehicle_kind: &str,
+        mounting: bool,
+    ) -> Flow {
+        let _ = host;
+        let _ = dimension;
+        let _ = entity;
+        let _ = kind;
+        let _ = vehicle;
+        let _ = vehicle_kind;
+        let _ = mounting;
+        Flow::Continue
+    }
+    /// An interaction key acts on what the crosshair points at
+    /// (`InputEvent.InteractionKeyMappingTriggered`), while playing: `button` 0 is
+    /// the attack key (`key_mapping` `key.attack`), 1 the use key (`key.use`, once
+    /// for each hand it tries, the main hand first), 2 pick block (`key.pickItem`,
+    /// only with something aimed at). The attack fires when an attack is allowed
+    /// and again each tick a held attack key keeps digging a block. Set `canceled`
+    /// to skip the action: a cancelled use also skips the other hand. A cancelled
+    /// attack or use still swings `hand` unless the mod clears `swing_hand` (it
+    /// starts true). A server's player and a single player's window only; a mod
+    /// that claims an item's use (`mod_use_start`) sees the event first. API
+    /// 138.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn interaction_key(
+        &self,
+        host: &mut dyn Host,
+        button: i32,
+        key_mapping: &str,
+        hand: horizon_client::first_person::Hand,
+        swing_hand: &mut bool,
+    ) -> Flow {
+        let _ = host;
+        let _ = button;
+        let _ = key_mapping;
+        let _ = hand;
+        let _ = swing_hand;
+        Flow::Continue
+    }
+    /// Before one of vanilla's HUD layers is drawn (`RenderGuiLayerEvent.Pre`):
+    /// draw here to put something below the layer, or set `canceled` to hide
+    /// it. `layer` is the layer's id, in the order Horizon draws them:
+    /// `minecraft:crosshair`, `hotbar`, `effects`, `boss_overlay`,
+    /// `vehicle_health` (only riding a mount), `contextual_info_bar` (the
+    /// mount's jump bar, the locator bar or the experience bar, with the level
+    /// number), `player_health` (the health, armor, food and air rows, drawn in
+    /// one pass), `selected_item_name`, `sleep_overlay`, `overlay_message`
+    /// (the action bar), `title`, `scoreboard_sidebar`, `subtitle_overlay`,
+    /// `chat` and `tab_list`. A layer F1 hides fires nothing, and the chat
+    /// screen draws the focused chat itself, so `chat` is only the unfocused
+    /// lines. The camera overlays and the debug screen are not layers here:
+    /// they are not drawn in this pass. Draw with `native_fill`, `native_text`
+    /// and the sprite helpers; `batch.width` and `batch.height` are the GUI
+    /// size. Together with `native_gui_layer_post` this is NeoForge's
+    /// `RegisterGuiLayersEvent`: a mod keeps its own list of what it draws
+    /// above or below which layer. API 139.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn gui_layer_pre(&self, host: &mut dyn Host, layer: &str, batch: &mut HudBatch) -> Flow {
+        let _ = host;
+        let _ = layer;
+        let _ = batch;
+        Flow::Continue
+    }
+    /// After one of vanilla's HUD layers (or after the layer a mod hid), with
+    /// the ids of `native_gui_layer_pre`: draw here to put something above
+    /// the layer (`RenderGuiLayerEvent.Post`). API 139.
+    fn gui_layer_post(&self, host: &mut dyn Host, layer: &str, batch: &mut HudBatch) {
+        let _ = host;
+        let _ = layer;
+        let _ = batch;
+    }
+    /// Icons a mod puts on map `map` each time it is drawn: held, in an
+    /// item frame or on the cartography table's screen (a map's pixels are
+    /// its own; nothing is saved in the map). Push `NativeMapDecoration`s
+    /// (an atlas sprite, a position in half map pixels, a rotation, and
+    /// whether it shows in a frame and on the screen like vanilla's markers
+    /// do); they are drawn after the vanilla ones with the same pose, and a
+    /// sprite the atlas lacks is left out. `map.center`, `map.scale` and
+    /// `map.dimension` say which blocks the map shows, and
+    /// `NativeMapDecoration::x` has the formula. Vanilla's decorations are
+    /// not passed in. Asked every frame a map is drawn, so keep it cheap.
+    /// The client half of `MapDecorationType` and `addDecoration`: a type
+    /// registered on the server and saved in the map's data is not here.
+    /// API 140.
+    ///
+    /// Every mod gets `decorations` in order and may add, change or remove decorations.
+    fn map_decorations(
+        &self,
+        host: &dyn Host,
+        map: &NativeMapInfo<'_>,
+        decorations: &mut Vec<NativeMapDecoration>,
+    ) {
+        let _ = host;
+        let _ = map;
+        let _ = decorations;
+    }
+    /// A client started tracking an entity (NeoForge's
+    /// `PlayerEvent.StartTracking`, posted at the end of
+    /// `ServerEntity.addPairing`): `player` (`name`) is now sent `entity`
+    /// (its ID, `uuid` its UUID, `kind` its type, `minecraft:zombie`) and its
+    /// changes. It comes into range, its client's chunks reach it, or it is
+    /// put in the level; another player is an entity too, and a player never
+    /// tracks their own. A mod sends the player what they need to show it
+    /// (`native_net_send_to_player`). The entity is as it was last tick: it
+    /// may be gone by now. Heard after the tick's players and entities have
+    /// moved, in order, with no player's state swapped in. Server-side.
+    /// API 141.
+    fn player_start_tracking(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        entity: u32,
+        uuid: u128,
+        kind: &str,
+    ) {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = entity;
+        let _ = uuid;
+        let _ = kind;
+    }
+    /// A client stopped tracking an entity (NeoForge's
+    /// `PlayerEvent.StopTracking`, posted at the end of
+    /// `ServerEntity.removePairing`): it went out of range, left the level or
+    /// died, or `player` (`name`) left, changed level or respawned, which
+    /// stops everything they tracked. `entity`, `uuid` and `kind` are as
+    /// `native_player_start_tracking` told. Once for each start, a leaving
+    /// player's after `native_player_logged_out`. The entity is not
+    /// necessarily still there, and a player who left is gone: no player's
+    /// state is swapped in. Server-side. API 141.
+    fn player_stop_tracking(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        entity: u32,
+        uuid: u128,
+        kind: &str,
+    ) {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = entity;
+        let _ = uuid;
+        let _ = kind;
+    }
+    /// Block `block`'s block entity has an energy buffer
+    /// (`Capabilities.Energy.BLOCK`): set `energy` when the block is yours,
+    /// as `SimpleEnergyHandler` is built: its capacity, the most one insert
+    /// and one extract moves, and the faces a fill may come through and a
+    /// drain may leave by. Asked once for each mod block when the ticking
+    /// table is built; a capacity under 1 leaves the buffer out, and the
+    /// limits are clamped to 0..=capacity. The amount is kept in the entity's
+    /// saved compound, as the int `energy`, and the energy helpers below read
+    /// and write it. API 142.
+    ///
+    /// Return `Some` to set `energy`; the first mod returning `Some` wins.
+    fn block_entity_energy(&self, host: &dyn Host, block: &str) -> Option<ModEnergyBuffer> {
+        let _ = host;
+        let _ = block;
+        None
+    }
+    /// The server is assembling its data tables, as for
+    /// `native_data_pack_files` (a world's first open and every `/reload`):
+    /// push the data map types your mod registers (NeoForge's
+    /// `RegisterDataMapTypesEvent`). A type is an `id` (`mod_id:name`, not in
+    /// `minecraft`) for a `registry`, `minecraft:item` or `minecraft:block`
+    /// so far. Its values come from the world's data packs'
+    /// `data/<mod_id>/data_maps/<registry path>/<name>.json`, and from files
+    /// you push through `native_data_pack_files` under the key
+    /// `data_maps/<mod_id>:<registry path>/<name>`: `replace`, `values`
+    /// (entry ids and `#tags` to JSON values) and `remove`, a newer value
+    /// overriding an older. Read them with `native_data_map` and
+    /// `native_data_map_entries`, in `native_data_maps.rs`. Server-side, not
+    /// synced to clients. API 143.
+    ///
+    /// Every mod gets `types` in order and may add, change or remove types.
+    fn data_map_types(&self, host: &dyn Host, types: &mut Vec<NativeDataMapType>) {
+        let _ = host;
+        let _ = types;
+    }
+    /// An entity's breathing this tick (`LivingBreatheEvent`, posted from
+    /// `LivingEntity.baseTick` every tick for a living entity with the generic
+    /// air logic): `entity` is its ID and `kind` its type (`minecraft:player`,
+    /// `minecraft:zombie`). `can_breathe`, `consume` and `refill` come in as
+    /// Horizon does it today (a mod-free game changes nothing); set them to
+    /// change this tick. With `can_breathe` the air rises by `refill`, up to its
+    /// maximum (300); without, it falls by `consume`, and at -20 it is set to 0
+    /// and the entity takes 2 drowning damage. Negative amounts count as 0.
+    /// Asked on servers for players and for mobs, except those with a
+    /// `WaterAnimal`'s or an axolotl's own air logic. API 144.
+    fn living_breathe(
+        &self,
+        entity: u32,
+        kind: &str,
+        can_breathe: &mut bool,
+        consume: &mut i32,
+        refill: &mut i32,
+    ) {
+        let _ = entity;
+        let _ = kind;
+        let _ = can_breathe;
+        let _ = consume;
+        let _ = refill;
+    }
+    /// Blocks this mod adds, declared in code rather than one file each
+    /// (NeoForge's `DeferredRegister.Blocks` drained by `RegisterEvent`):
+    /// push a `horizon_mods::content::Block` per block, the same declaration
+    /// a content mod's `data/<id>/horizon/block/<path>.json` holds (a
+    /// vanilla `template`, `properties`, `state_properties`, `shapes`...),
+    /// with its id in your mod's namespace. `item: true` gives it a block
+    /// item, as a file does unless told not to (`..Default::default()`
+    /// leaves it false). They join the content mods' blocks: the one whose
+    /// id is that namespace when it is on (your models, textures, loot and
+    /// recipes are its files), else one of their own, with the template's
+    /// look. Ids, saves and the check that a joining client has the same
+    /// blocks are the files' (docs/mods.md). Asked once at start, on every
+    /// side, before any resource loads: push the same ones every time, from
+    /// nothing but your code. Declarations that don't pass the files' checks
+    /// are logged and that namespace's are left out. API
+    /// 145.
+    ///
+    /// Every mod gets `blocks` in order and may add, change or remove blocks.
+    fn blocks(&self, blocks: &mut Vec<horizon_mods::content::Block>) {
+        let _ = blocks;
+    }
+    /// Items this mod adds, declared in code (NeoForge's
+    /// `DeferredRegister.Items`), as `native_blocks` declares blocks: a
+    /// `horizon_mods::content::Item` per item, a content mod's
+    /// `data/<id>/horizon/item/<path>.json` (a vanilla `template`,
+    /// `max_stack_size`, `rarity`, `components`, `crafting_remainder`). A
+    /// block's item comes with its block (`item: true`), not from here.
+    /// Asked once at start, on every side. API 145.
+    ///
+    /// Every mod gets `items` in order and may add, change or remove items.
+    fn items(&self, items: &mut Vec<horizon_mods::content::Item>) {
+        let _ = items;
+    }
+    /// An entity of type `kind` (`minecraft:zombie`, `minecraft:item`) with ID `entity` is
+    /// about to tick in the server level `dimension` (NeoForge's `EntityTickEvent.Pre`, posted
+    /// around `Entity.commonTick` and `tick` in `ServerLevel.tickNonPassenger`). Set `canceled`
+    /// and it does not tick this tick: a mob has no AI, physics or effects, an item no movement,
+    /// ageing or merging, a minecart or boat no motion, and `native_entity_tick_post` is not told.
+    /// Horizon ticks a family of entities together, so mobs and items hear every Pre before the
+    /// first of them ticks; minecarts and boats hear theirs one by one. Told for the mobs, item
+    /// entities, minecarts and boats that tick: those in an entity-ticking chunk, not a player's
+    /// boat or cart (it ticks with the player). Later APIs add other kinds, so check `kind`. It
+    /// runs for every ticking entity each tick, so keep it cheap. Server-side. API
+    /// 146.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn entity_tick_pre(
+        &self,
+        host: &mut dyn Host,
+        dimension: &str,
+        entity: u32,
+        kind: &str,
+    ) -> Flow {
+        let _ = host;
+        let _ = dimension;
+        let _ = entity;
+        let _ = kind;
+        Flow::Continue
+    }
+    /// The entity `entity` of type `kind` ticked in the server level `dimension` (NeoForge's
+    /// `EntityTickEvent.Post`): for each entity `native_entity_tick_pre` let through, after it
+    /// ticked, also one that died or was removed in its tick. Mobs and items hear their Posts
+    /// once the whole family has ticked; minecarts and boats right after their own tick. Server-side.
+    /// API 146.
+    fn entity_tick_post(&self, host: &mut dyn Host, dimension: &str, entity: u32, kind: &str) {
+        let _ = host;
+        let _ = dimension;
+        let _ = entity;
+        let _ = kind;
+    }
+    /// Whether a mod listens to `native_entity_tick_pre` and `native_entity_tick_post`: a mod
+    /// that hooks them hooks this one too and sets `listened` (HEAD, `*listened = true`).
+    /// Without it the game tells no entity's tick, and keeps no list of them. Asked once for
+    /// each family (mobs, items, minecarts, boats) each tick. Server-side. API 146.
+    ///
+    /// Every mod gets `listened` in order and may add, change or remove listened.
+    fn entity_tick_listened(&self, host: &mut dyn Host, listened: &mut bool) {
+        let _ = host;
+        let _ = listened;
+    }
+    /// Item `item` (`mod_id:name`) is a fluid container
+    /// (`Capabilities.FluidHandler.ITEM`): set `capacity`, in millibuckets,
+    /// when the item is yours (clamped to 1..=1 000 000; vanilla's buckets
+    /// are built in and cannot be changed). Asked at each call of the item
+    /// fluid helpers (`native_item_fluid`, `native_item_fluid_fill`,
+    /// `native_item_fluid_drain`, in `native_item_fluids.rs`). What the
+    /// container holds is kept in the stack's `minecraft:custom_data`, under
+    /// `horizon_fluid`. API 147.
+    ///
+    /// Return `Some` to set `capacity`; the first mod returning `Some` wins.
+    fn item_fluid_tank(&self, host: &dyn Host, item: &str) -> Option<i32> {
+        let _ = host;
+        let _ = item;
+        None
+    }
+    /// A mob's or an armor stand's equipment slot took a different stack
+    /// (NeoForge's `LivingEquipmentChangeEvent`, posted in
+    /// `LivingEntity.collectEquipmentChanges`): `entity` is its ID and `kind`
+    /// its type (`minecraft:zombie`), `slot` the `EquipmentSlot` (`mainhand`,
+    /// `offhand`, `feet`, `legs`, `chest`, `head`, `body`, `saddle`), `from`
+    /// what the slot held when this was last heard (none for empty) and `to`
+    /// what it holds now. Once for each slot that changed, in that order,
+    /// after the mobs' tick, so a mob that joins the level wearing something
+    /// counts from empty on its first tick. It only hears: change the mob with
+    /// its own helpers. Players are heard by `native_on_equip`. Server-side.
+    /// API 148.
+    fn living_equipment_change(
+        &self,
+        host: &mut dyn Host,
+        entity: u32,
+        kind: &str,
+        slot: &str,
+        from: Option<&ItemStack>,
+        to: Option<&ItemStack>,
+    ) {
+        let _ = host;
+        let _ = entity;
+        let _ = kind;
+        let _ = slot;
+        let _ = from;
+        let _ = to;
+    }
+    /// Whether a mod listens to the mobs' `native_living_equipment_change`: a
+    /// mod that hooks it hooks this one too and sets `listened` (HEAD,
+    /// `*listened = true`). Without it the game does not read every mob's
+    /// equipment each tick, and mobs are not told (armor stands still are). A
+    /// mob that ticks once it is set counts from empty. Asked once a tick, after
+    /// the mobs' tick. Server-side. API 148.
+    ///
+    /// Every mod gets `listened` in order and may add, change or remove listened.
+    fn living_equipment_listened(&self, host: &mut dyn Host, listened: &mut bool) {
+        let _ = host;
+        let _ = listened;
+    }
+    /// Draw the player `player` (`who`: its profile name, and whether it is
+    /// this window's own player) with a model of your own, once a frame while
+    /// it is in view (`RenderPlayerEvent.Pre`), and set `drawn` to leave out its
+    /// vanilla model, armour, held items, cape and the other layers. This
+    /// window's player is drawn only in third person (and F5 front view); an
+    /// invisible player is not asked. `draw` is the frame of `native_mob_submit`:
+    /// at the player's feet, turned with the body. The name tag, shadow,
+    /// flames and glowing outline draw as before. API 149.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `drawn`, and later mods are skipped.
+    fn player_submit(
+        &self,
+        host: &dyn Host,
+        player: &NativeMobRender<'_>,
+        who: &NativePlayerRender<'_>,
+        draw: &mut BlockEntityDraw,
+    ) -> Flow {
+        let _ = host;
+        let _ = player;
+        let _ = who;
+        let _ = draw;
+        Flow::Continue
+    }
+    /// A layer on every mob and player in view, once a frame after its
+    /// vanilla model and layers (`EntityRenderersEvent.AddLayers`, with
+    /// `RenderLivingEvent.Post` and `RenderPlayerEvent.Post`): add geometry
+    /// in the entity's frame, which starts at its feet turned with the body
+    /// (`mob.head_yaw`, `mob.pitch` and the walk cycle place a part, the eyes
+    /// being at the entity type's eye height). `who` is set for a player.
+    /// Not asked for what a mod drew itself (`native_mob_submit`,
+    /// `native_player_submit`) nor for a mob that isn't drawn at all.
+    /// API 149.
+    fn mob_layer(
+        &self,
+        host: &dyn Host,
+        mob: &NativeMobRender<'_>,
+        who: Option<&NativePlayerRender<'_>>,
+        draw: &mut BlockEntityDraw,
+    ) {
+        let _ = host;
+        let _ = mob;
+        let _ = who;
+        let _ = draw;
+    }
+    /// Whether a mod listens to `native_player_submit` or `native_mob_layer`: a
+    /// mod that hooks either hooks this one too and sets `listened` (HEAD,
+    /// `*listened = true`). Without it the game poses no player or mob for
+    /// them, each frame. Client-side. API 149.
+    ///
+    /// Every mod gets `listened` in order and may add, change or remove listened.
+    fn player_render_listened(&self, host: &dyn Host, listened: &mut bool) {
+        let _ = host;
+        let _ = listened;
+    }
+    /// A player finished editing a sign: `ServerGamePacketListenerImpl.updateSignText`
+    /// has taken their update packet and every check has passed (they were
+    /// editing that sign, within reach, the sign is not waxed, the chat filter
+    /// let the text through), right before the lines go on the sign. `pos` in
+    /// `dimension`, the `front` or back side, and the four `lines` as written,
+    /// plain text with the formatting codes still in (vanilla strips them
+    /// afterwards). Rewrite `lines` (made four lines again) and that is what
+    /// the sign gets, without a second look from the chat filter, or set
+    /// `cancel` and the sign keeps its old text. With the player's state
+    /// swapped in, so `native_tell` and the helpers that act on the player
+    /// reach them. Once for each update a player sends on a server. Not told:
+    /// the host's own editing of a sign on a LAN or single-player world
+    /// (the editor writes into their world directly), and the sign changes
+    /// that are no edit of the text (dyeing, glow ink, waxing, `/data`,
+    /// `/setblock`, mods' `native_with_mod_block_entity`).
+    /// 150.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `cancel`, and later mods are skipped.
+    fn sign_changed(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        dimension: &str,
+        pos: [i32; 3],
+        front: bool,
+        lines: &mut Vec<String>,
+    ) -> Flow {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = dimension;
+        let _ = pos;
+        let _ = front;
+        let _ = lines;
+        Flow::Continue
+    }
+    /// Models no blockstate names that this client bakes beside the block
+    /// models (NeoForge's `ModelEvent.RegisterStandalone`): push their ids
+    /// (`mymod:block/shaft_half`, the model at
+    /// `assets/mymod/models/block/shaft_half.json`). Parts a block entity or
+    /// a mob draws, with `native_draw_model`, so that no block is registered
+    /// only to bake its model. Asked once at start, before the resources
+    /// load; every resource load, a pack reload included, bakes them again
+    /// from that pack's files. A model that doesn't read is logged and left
+    /// out; an id without a namespace is dropped. Every side asks it, but
+    /// only a window bakes models. API 151.
+    ///
+    /// Every mod gets `models` in order and may add, change or remove models.
+    fn standalone_models(&self, models: &mut Vec<String>) {
+        let _ = models;
+    }
+    /// `player` (`name`) opened a menu (NeoForge's `PlayerContainerEvent.Open`,
+    /// posted when `ServerPlayer.openMenu` sets the new `containerMenu`): any
+    /// menu, vanilla or a mod's. `menu` is the menu type's name
+    /// (`minecraft:generic_9x3`, `minecraft:furnace`, `minecraft:merchant`,
+    /// `minecraft:crafting`, `minecraft:lectern`, a mod's own), `pos` the
+    /// block it is of in `dimension` (none for a trade, a vehicle's, a mod's
+    /// native menu or a mount's inventory, which has no menu type in vanilla
+    /// and is told as `horizon:mount_inventory`). The player's own inventory
+    /// is not one. Heard once a tick, so a menu opened and closed again
+    /// inside one tick is not; one that replaces another comes after that
+    /// one's close. The player's state is swapped in. `native_player_container_close`
+    /// follows. Server-side. API 152.
+    fn player_container_open(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        dimension: &str,
+        menu: &str,
+        pos: Option<[i32; 3]>,
+    ) {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = dimension;
+        let _ = menu;
+        let _ = pos;
+    }
+    /// `player` (`name`) closed the menu `native_player_container_open` told
+    /// of (NeoForge's `PlayerContainerEvent.Close`, posted in
+    /// `ServerPlayer.doCloseContainer` after the menu's `removed`): they
+    /// closed it, walked out of reach, died, changed level, or another menu
+    /// opened. A player who leaves closes it before `native_player_logged_out`
+    /// (vanilla posts nothing for a disconnect; Horizon does, so each open has
+    /// its close). Once for each open; not told when the server stops. The
+    /// menu's items are where it left them: the block's, and the cursor stack
+    /// back in the inventory. State swapped in, when the player has a body.
+    /// Server-side. API 152.
+    fn player_container_close(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        dimension: &str,
+        menu: &str,
+        pos: Option<[i32; 3]>,
+    ) {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = dimension;
+        let _ = menu;
+        let _ = pos;
+    }
+    /// A player's client started (`flying`) or stopped flying (vanilla's
+    /// `handlePlayerAbilities`, which honours it only for a player who may
+    /// fly: creative or spectator), heard once for each change, on a server,
+    /// with the player's state swapped in, so `native_tell` and the other
+    /// helpers reach them. The player is already flying or not as asked, as
+    /// vanilla leaves them; set `cancel` to refuse it: they keep the state
+    /// they had and the server sends their abilities back, as vanilla does
+    /// for what it refuses, so the client lands or flies again. Only what a
+    /// client asks for is heard: not the flight a game-mode change starts or
+    /// ends (`/gamemode`), and not a LAN host's own player.
+    /// 153.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `cancel`, and later mods are skipped.
+    fn player_toggle_flight(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        flying: bool,
+    ) -> Flow {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = flying;
+        Flow::Continue
+    }
 }
 pub fn dispatch_frame(host: &mut dyn Host, mods: &[Box<dyn Hooks>], elapsed: Duration) {
     for mod_hook in mods {
@@ -4675,5 +5366,457 @@ pub fn dispatch_release_using(
 ) {
     for mod_hook in mods {
         mod_hook.release_using(host, stack, entity, time_left, &mut *used);
+    }
+}
+pub fn dispatch_loot_function(
+    mods: &[Box<dyn Hooks>],
+    kind: &str,
+    data: &Value,
+    ctx: &NativeLootContext<'_>,
+    stack: &mut LootStack,
+) {
+    for mod_hook in mods {
+        mod_hook.loot_function(kind, data, ctx, &mut *stack);
+    }
+}
+pub fn dispatch_loot_condition(
+    mods: &[Box<dyn Hooks>],
+    kind: &str,
+    data: &Value,
+    ctx: &NativeLootContext<'_>,
+    holds: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.loot_condition(kind, data, ctx, &mut *holds);
+    }
+}
+pub fn dispatch_level_load(host: &mut dyn Host, mods: &[Box<dyn Hooks>], dimension: &str) {
+    for mod_hook in mods {
+        mod_hook.level_load(host, dimension);
+    }
+}
+pub fn dispatch_level_unload(host: &mut dyn Host, mods: &[Box<dyn Hooks>], dimension: &str) {
+    for mod_hook in mods {
+        mod_hook.level_unload(host, dimension);
+    }
+}
+pub fn dispatch_client_level_load(host: &mut dyn Host, mods: &[Box<dyn Hooks>], dimension: &str) {
+    for mod_hook in mods {
+        mod_hook.client_level_load(host, dimension);
+    }
+}
+pub fn dispatch_client_level_unload(host: &mut dyn Host, mods: &[Box<dyn Hooks>], dimension: &str) {
+    for mod_hook in mods {
+        mod_hook.client_level_unload(host, dimension);
+    }
+}
+pub fn dispatch_hears_projectile_impacts(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    hears: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.hears_projectile_impacts(host, &mut *hears);
+    }
+}
+pub fn dispatch_projectile_impact(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    projectile: u32,
+    kind: &str,
+    owner: u32,
+    entity: Option<u32>,
+    entity_kind: &str,
+    block: [i32; 3],
+    face: [i32; 3],
+    at: [f64; 3],
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.projectile_impact(
+                host,
+                dimension,
+                projectile,
+                kind,
+                owner,
+                entity,
+                entity_kind,
+                block,
+                face,
+                at
+            ),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_entity_mount(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    entity: u32,
+    kind: &str,
+    vehicle: u32,
+    vehicle_kind: &str,
+    mounting: bool,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.entity_mount(
+                host,
+                dimension,
+                entity,
+                kind,
+                vehicle,
+                vehicle_kind,
+                mounting
+            ),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_interaction_key(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    button: i32,
+    key_mapping: &str,
+    hand: horizon_client::first_person::Hand,
+    swing_hand: &mut bool,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.interaction_key(host, button, key_mapping, hand, &mut *swing_hand),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_gui_layer_pre(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    layer: &str,
+    batch: &mut HudBatch,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.gui_layer_pre(host, layer, &mut *batch),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_gui_layer_post(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    layer: &str,
+    batch: &mut HudBatch,
+) {
+    for mod_hook in mods {
+        mod_hook.gui_layer_post(host, layer, &mut *batch);
+    }
+}
+pub fn dispatch_map_decorations(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    map: &NativeMapInfo<'_>,
+    decorations: &mut Vec<NativeMapDecoration>,
+) {
+    for mod_hook in mods {
+        mod_hook.map_decorations(host, map, &mut *decorations);
+    }
+}
+pub fn dispatch_player_start_tracking(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    entity: u32,
+    uuid: u128,
+    kind: &str,
+) {
+    for mod_hook in mods {
+        mod_hook.player_start_tracking(host, player, name, entity, uuid, kind);
+    }
+}
+pub fn dispatch_player_stop_tracking(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    entity: u32,
+    uuid: u128,
+    kind: &str,
+) {
+    for mod_hook in mods {
+        mod_hook.player_stop_tracking(host, player, name, entity, uuid, kind);
+    }
+}
+pub fn dispatch_block_entity_energy(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    block: &str,
+    energy: &mut Option<ModEnergyBuffer>,
+) {
+    if energy.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.block_entity_energy(host, block) {
+            *energy = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_data_map_types(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    types: &mut Vec<NativeDataMapType>,
+) {
+    for mod_hook in mods {
+        mod_hook.data_map_types(host, &mut *types);
+    }
+}
+pub fn dispatch_living_breathe(
+    mods: &[Box<dyn Hooks>],
+    entity: u32,
+    kind: &str,
+    can_breathe: &mut bool,
+    consume: &mut i32,
+    refill: &mut i32,
+) {
+    for mod_hook in mods {
+        mod_hook.living_breathe(entity, kind, &mut *can_breathe, &mut *consume, &mut *refill);
+    }
+}
+pub fn dispatch_blocks(mods: &[Box<dyn Hooks>], blocks: &mut Vec<horizon_mods::content::Block>) {
+    for mod_hook in mods {
+        mod_hook.blocks(&mut *blocks);
+    }
+}
+pub fn dispatch_items(mods: &[Box<dyn Hooks>], items: &mut Vec<horizon_mods::content::Item>) {
+    for mod_hook in mods {
+        mod_hook.items(&mut *items);
+    }
+}
+pub fn dispatch_entity_tick_pre(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    entity: u32,
+    kind: &str,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.entity_tick_pre(host, dimension, entity, kind),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_entity_tick_post(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    dimension: &str,
+    entity: u32,
+    kind: &str,
+) {
+    for mod_hook in mods {
+        mod_hook.entity_tick_post(host, dimension, entity, kind);
+    }
+}
+pub fn dispatch_entity_tick_listened(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    listened: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.entity_tick_listened(host, &mut *listened);
+    }
+}
+pub fn dispatch_item_fluid_tank(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    item: &str,
+    capacity: &mut Option<i32>,
+) {
+    if capacity.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.item_fluid_tank(host, item) {
+            *capacity = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_living_equipment_change(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    entity: u32,
+    kind: &str,
+    slot: &str,
+    from: Option<&ItemStack>,
+    to: Option<&ItemStack>,
+) {
+    for mod_hook in mods {
+        mod_hook.living_equipment_change(host, entity, kind, slot, from, to);
+    }
+}
+pub fn dispatch_living_equipment_listened(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    listened: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.living_equipment_listened(host, &mut *listened);
+    }
+}
+pub fn dispatch_player_submit(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: &NativeMobRender<'_>,
+    who: &NativePlayerRender<'_>,
+    draw: &mut BlockEntityDraw,
+    drawn: &mut bool,
+) {
+    if *drawn {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.player_submit(host, player, who, &mut *draw),
+            Flow::Cancel
+        ) {
+            *drawn = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_mob_layer(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    mob: &NativeMobRender<'_>,
+    who: Option<&NativePlayerRender<'_>>,
+    draw: &mut BlockEntityDraw,
+) {
+    for mod_hook in mods {
+        mod_hook.mob_layer(host, mob, who, &mut *draw);
+    }
+}
+pub fn dispatch_player_render_listened(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    listened: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.player_render_listened(host, &mut *listened);
+    }
+}
+pub fn dispatch_sign_changed(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    dimension: &str,
+    pos: [i32; 3],
+    front: bool,
+    lines: &mut Vec<String>,
+    cancel: &mut bool,
+) {
+    if *cancel {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.sign_changed(host, player, name, dimension, pos, front, &mut *lines),
+            Flow::Cancel
+        ) {
+            *cancel = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_standalone_models(mods: &[Box<dyn Hooks>], models: &mut Vec<String>) {
+    for mod_hook in mods {
+        mod_hook.standalone_models(&mut *models);
+    }
+}
+pub fn dispatch_player_container_open(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    dimension: &str,
+    menu: &str,
+    pos: Option<[i32; 3]>,
+) {
+    for mod_hook in mods {
+        mod_hook.player_container_open(host, player, name, dimension, menu, pos);
+    }
+}
+pub fn dispatch_player_container_close(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    dimension: &str,
+    menu: &str,
+    pos: Option<[i32; 3]>,
+) {
+    for mod_hook in mods {
+        mod_hook.player_container_close(host, player, name, dimension, menu, pos);
+    }
+}
+pub fn dispatch_player_toggle_flight(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    flying: bool,
+    cancel: &mut bool,
+) {
+    if *cancel {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.player_toggle_flight(host, player, name, flying),
+            Flow::Cancel
+        ) {
+            *cancel = true;
+            break;
+        }
     }
 }

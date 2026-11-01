@@ -1266,7 +1266,7 @@ impl Game<'_> {
     /// tells it after the new level is made. Client-side, on the window; the
     /// server's levels have `native_level_load`. API 135.
     pub(super) fn native_client_level_load(&mut self, dimension: &str) {
-        let _ = dimension;
+        mod_api::dispatch_client_level_load(self, mod_api::mods(), dimension);
     }
     /// The client dropped its level for `dimension` (`LevelEvent.Unload`
     /// from `Minecraft.setLevel` and `disconnect`): replaced by another
@@ -1274,7 +1274,7 @@ impl Game<'_> {
     /// `native_client_level_load`. Not told when the game itself quits.
     /// Client-side. API 135.
     pub(super) fn native_client_level_unload(&mut self, dimension: &str) {
-        let _ = dimension;
+        mod_api::dispatch_client_level_unload(self, mod_api::mods(), dimension);
     }
     /// Once a tick, in every `Game`: the window's (in single player, on LAN
     /// and on servers), and the server's own (`native_window` is false
@@ -1392,7 +1392,7 @@ impl Game<'_> {
     /// `native_data_map_entries`, in `native_data_maps.rs`. Server-side, not
     /// synced to clients. API 143.
     pub(super) fn native_data_map_types(&self, types: &mut Vec<NativeDataMapType>) {
-        let _ = types;
+        mod_api::dispatch_data_map_types(self, mod_api::mods(), types);
     }
     /// The server is about to open its worlds: nothing of the world is
     /// loaded yet (NeoForge's `ServerAboutToStartEvent`, "called before the
@@ -1465,13 +1465,13 @@ impl Game<'_> {
         batch: &mut HudBatch,
         canceled: &mut bool,
     ) {
-        let _ = (layer, batch, canceled);
+        mod_api::dispatch_gui_layer_pre(self, mod_api::mods(), layer, batch, canceled);
     }
     /// After one of vanilla's HUD layers (or after the layer a mod hid), with
     /// the ids of `native_gui_layer_pre`: draw here to put something above
     /// the layer (`RenderGuiLayerEvent.Post`). API 139.
     pub(super) fn native_gui_layer_post(&mut self, layer: &str, batch: &mut HudBatch) {
-        let _ = (layer, batch);
+        mod_api::dispatch_gui_layer_post(self, mod_api::mods(), layer, batch);
     }
     /// A player right-clicks the entity `entity` (`Entity.getId`) of type
     /// `kind` (`minecraft:cow`) with `self.hand`, holding `stack` (none in an
@@ -1610,7 +1610,15 @@ impl Game<'_> {
         swing_hand: &mut bool,
         canceled: &mut bool,
     ) {
-        let _ = (button, key_mapping, hand, swing_hand, canceled);
+        mod_api::dispatch_interaction_key(
+            self,
+            mod_api::mods(),
+            button,
+            key_mapping,
+            hand,
+            swing_hand,
+            canceled,
+        );
     }
     /// A command typed or clicked in chat, without its slash, before the
     /// server and Horizon's commands see it: set `ran` when the mod ran it.
@@ -1781,7 +1789,7 @@ impl Game<'_> {
     /// are logged and that namespace's are left out. API
     /// 145.
     pub(super) fn native_blocks(blocks: &mut Vec<horizon_mods::content::Block>) {
-        let _ = blocks;
+        mod_api::dispatch_blocks(mod_api::mods(), blocks);
     }
     /// Items this mod adds, declared in code (NeoForge's
     /// `DeferredRegister.Items`), as `native_blocks` declares blocks: a
@@ -1791,7 +1799,7 @@ impl Game<'_> {
     /// block's item comes with its block (`item: true`), not from here.
     /// Asked once at start, on every side. API 145.
     pub(super) fn native_items(items: &mut Vec<horizon_mods::content::Item>) {
-        let _ = items;
+        mod_api::dispatch_items(mod_api::mods(), items);
     }
     /// Models no blockstate names that this client bakes beside the block
     /// models (NeoForge's `ModelEvent.RegisterStandalone`): push their ids
@@ -1804,7 +1812,7 @@ impl Game<'_> {
     /// out; an id without a namespace is dropped. Every side asks it, but
     /// only a window bakes models. API 151.
     pub(super) fn native_standalone_models(models: &mut Vec<String>) {
-        let _ = models;
+        mod_api::dispatch_standalone_models(mod_api::mods(), models);
     }
     /// Options > Mods lists the native mods: push yours.
     pub(super) fn native_mods(&mut self, mods: &mut Vec<NativeMod>) {
@@ -1919,7 +1927,7 @@ impl Game<'_> {
         block: &str,
         energy: &mut Option<ModEnergyBuffer>,
     ) {
-        let _ = (block, energy);
+        mod_api::dispatch_block_entity_energy(self, mod_api::mods(), block, energy);
     }
     /// Item `item` (`mod_id:name`) is a fluid container
     /// (`Capabilities.FluidHandler.ITEM`): set `capacity`, in millibuckets,
@@ -1930,7 +1938,7 @@ impl Game<'_> {
     /// container holds is kept in the stack's `minecraft:custom_data`, under
     /// `horizon_fluid`. API 147.
     pub(super) fn native_item_fluid_tank(&self, item: &str, capacity: &mut Option<i32>) {
-        let _ = (item, capacity);
+        mod_api::dispatch_item_fluid_tank(self, mod_api::mods(), item, capacity);
     }
     /// A server tick of the block entity at `pos`, in vanilla's order among
     /// the others (`Level.tickBlockEntities`), when its `id` is yours: read
@@ -2051,7 +2059,7 @@ impl Game<'_> {
     /// `*listened = true`). Without it the game poses no player or mob for
     /// them, each frame. Client-side. API 149.
     pub(super) fn native_player_render_listened(&self, listened: &mut bool) {
-        let _ = listened;
+        mod_api::dispatch_player_render_listened(self, mod_api::mods(), listened);
     }
     /// Draw the player `player` (`who`: its profile name, and whether it is
     /// this window's own player) with a model of your own, once a frame while
@@ -2068,7 +2076,7 @@ impl Game<'_> {
         draw: &mut BlockEntityDraw,
         drawn: &mut bool,
     ) {
-        let _ = (player, who, draw, drawn);
+        mod_api::dispatch_player_submit(self, mod_api::mods(), player, who, draw, drawn);
     }
     /// A layer on every mob and player in view, once a frame after its
     /// vanilla model and layers (`EntityRenderersEvent.AddLayers`, with
@@ -2085,7 +2093,7 @@ impl Game<'_> {
         who: Option<&NativePlayerRender<'_>>,
         draw: &mut BlockEntityDraw,
     ) {
-        let _ = (mob, who, draw);
+        mod_api::dispatch_mob_layer(self, mod_api::mods(), mob, who, draw);
     }
     /// Icons a mod puts on map `map` each time it is drawn: held, in an
     /// item frame or on the cartography table's screen (a map's pixels are
@@ -2105,7 +2113,7 @@ impl Game<'_> {
         map: &NativeMapInfo<'_>,
         decorations: &mut Vec<NativeMapDecoration>,
     ) {
-        let _ = (map, decorations);
+        mod_api::dispatch_map_decorations(self, mod_api::mods(), map, decorations);
     }
     /// A menu opens on this client for block `block`, a mod's: set `screen`
     /// when the block is yours, to lay its screen out (`native_screen_draw`
@@ -2642,7 +2650,7 @@ impl Game<'_> {
         flying: bool,
         cancel: &mut bool,
     ) {
-        let _ = (player, name, flying, cancel);
+        mod_api::dispatch_player_toggle_flight(self, mod_api::mods(), player, name, flying, cancel);
     }
     /// A player finished editing a sign: `ServerGamePacketListenerImpl.updateSignText`
     /// has taken their update packet and every check has passed (they were
@@ -2670,7 +2678,17 @@ impl Game<'_> {
         lines: &mut Vec<String>,
         cancel: &mut bool,
     ) {
-        let _ = (player, name, dimension, pos, front, lines, cancel);
+        mod_api::dispatch_sign_changed(
+            self,
+            mod_api::mods(),
+            player,
+            name,
+            dimension,
+            pos,
+            front,
+            lines,
+            cancel,
+        );
     }
     /// A command a player typed (NeoForge's `CommandEvent`, before
     /// `Commands.performCommand` runs it), without its slash: any command,
@@ -3129,7 +3147,7 @@ impl Game<'_> {
     /// `execute in` command), with the level in place. Once for each open:
     /// `native_level_unload` follows. Server-side. API 134.
     pub(super) fn native_level_load(&mut self, dimension: &str) {
-        let _ = dimension;
+        mod_api::dispatch_level_load(self, mod_api::mods(), dimension);
     }
     /// `dimension`'s level closed (NeoForge's `LevelEvent.Unload`, posted after
     /// `level.close()` in `MinecraftServer.stopServer`), after its last save:
@@ -3141,7 +3159,7 @@ impl Game<'_> {
     /// `native_level_load`. Don't read its blocks. Server-side. API
     /// 134.
     pub(super) fn native_level_unload(&mut self, dimension: &str) {
-        let _ = dimension;
+        mod_api::dispatch_level_unload(self, mod_api::mods(), dimension);
     }
     /// Chunk `chunk` (`[x, z]`, in chunks) of `dimension` came into the world
     /// (NeoForge's `ChunkEvent.Load`): `new` when it was just generated, false
@@ -3236,7 +3254,15 @@ impl Game<'_> {
         menu: &str,
         pos: Option<[i32; 3]>,
     ) {
-        let _ = (player, name, dimension, menu, pos);
+        mod_api::dispatch_player_container_open(
+            self,
+            mod_api::mods(),
+            player,
+            name,
+            dimension,
+            menu,
+            pos,
+        );
     }
     /// `player` (`name`) closed the menu `native_player_container_open` told
     /// of (NeoForge's `PlayerContainerEvent.Close`, posted in
@@ -3256,7 +3282,15 @@ impl Game<'_> {
         menu: &str,
         pos: Option<[i32; 3]>,
     ) {
-        let _ = (player, name, dimension, menu, pos);
+        mod_api::dispatch_player_container_close(
+            self,
+            mod_api::mods(),
+            player,
+            name,
+            dimension,
+            menu,
+            pos,
+        );
     }
     /// A client started tracking an entity (NeoForge's
     /// `PlayerEvent.StartTracking`, posted at the end of
@@ -3277,7 +3311,15 @@ impl Game<'_> {
         uuid: u128,
         kind: &str,
     ) {
-        let _ = (player, name, entity, uuid, kind);
+        mod_api::dispatch_player_start_tracking(
+            self,
+            mod_api::mods(),
+            player,
+            name,
+            entity,
+            uuid,
+            kind,
+        );
     }
     /// A client stopped tracking an entity (NeoForge's
     /// `PlayerEvent.StopTracking`, posted at the end of
@@ -3296,7 +3338,15 @@ impl Game<'_> {
         uuid: u128,
         kind: &str,
     ) {
-        let _ = (player, name, entity, uuid, kind);
+        mod_api::dispatch_player_stop_tracking(
+            self,
+            mod_api::mods(),
+            player,
+            name,
+            entity,
+            uuid,
+            kind,
+        );
     }
     /// Whether a mod listens to the mobs' `native_living_equipment_change`: a
     /// mod that hooks it hooks this one too and sets `listened` (HEAD,
@@ -3305,7 +3355,7 @@ impl Game<'_> {
     /// mob that ticks once it is set counts from empty. Asked once a tick, after
     /// the mobs' tick. Server-side. API 148.
     pub(super) fn native_living_equipment_listened(&mut self, listened: &mut bool) {
-        let _ = listened;
+        mod_api::dispatch_living_equipment_listened(self, mod_api::mods(), listened);
     }
     /// A mob's or an armor stand's equipment slot took a different stack
     /// (NeoForge's `LivingEquipmentChangeEvent`, posted in
@@ -3326,7 +3376,15 @@ impl Game<'_> {
         from: Option<&ItemStack>,
         to: Option<&ItemStack>,
     ) {
-        let _ = (entity, kind, slot, from, to);
+        mod_api::dispatch_living_equipment_change(
+            self,
+            mod_api::mods(),
+            entity,
+            kind,
+            slot,
+            from,
+            to,
+        );
     }
     /// `player` died: where `ServerPlayer.die` starts, with the death
     /// message's key when the game knows it (`death.attack.lava`; none for a
@@ -3418,7 +3476,9 @@ impl Game<'_> {
         mounting: bool,
         canceled: &mut bool,
     ) {
-        let _ = (
+        mod_api::dispatch_entity_mount(
+            self,
+            mod_api::mods(),
             dimension,
             entity,
             kind,
@@ -3433,7 +3493,7 @@ impl Game<'_> {
     /// Without it the game tells no entity's tick, and keeps no list of them. Asked once for
     /// each family (mobs, items, minecarts, boats) each tick. Server-side. API 146.
     pub(super) fn native_entity_tick_listened(&mut self, listened: &mut bool) {
-        let _ = listened;
+        mod_api::dispatch_entity_tick_listened(self, mod_api::mods(), listened);
     }
     /// An entity of type `kind` (`minecraft:zombie`, `minecraft:item`) with ID `entity` is
     /// about to tick in the server level `dimension` (NeoForge's `EntityTickEvent.Pre`, posted
@@ -3453,7 +3513,7 @@ impl Game<'_> {
         kind: &str,
         canceled: &mut bool,
     ) {
-        let _ = (dimension, entity, kind, canceled);
+        mod_api::dispatch_entity_tick_pre(self, mod_api::mods(), dimension, entity, kind, canceled);
     }
     /// The entity `entity` of type `kind` ticked in the server level `dimension` (NeoForge's
     /// `EntityTickEvent.Post`): for each entity `native_entity_tick_pre` let through, after it
@@ -3461,7 +3521,7 @@ impl Game<'_> {
     /// once the whole family has ticked; minecarts and boats right after their own tick. Server-side.
     /// API 146.
     pub(super) fn native_entity_tick_post(&mut self, dimension: &str, entity: u32, kind: &str) {
-        let _ = (dimension, entity, kind);
+        mod_api::dispatch_entity_tick_post(self, mod_api::mods(), dimension, entity, kind);
     }
     /// Whether the experience orb `into` takes the orb `from` in (vanilla's
     /// `ExperienceOrb.canMerge`): the same value, and ids a multiple of 40 apart. Asked
@@ -3750,7 +3810,7 @@ impl Game<'_> {
     /// canceled impact flies on from, so a game without such a mod pays
     /// nothing. Server-side. API 136.
     pub(super) fn native_hears_projectile_impacts(&self, hears: &mut bool) {
-        let _ = hears;
+        mod_api::dispatch_hears_projectile_impacts(self, mod_api::mods(), hears);
     }
     /// A projectile hit something (NeoForge's `ProjectileImpactEvent`, posted
     /// where vanilla's projectile has found what it meets, before the hit
@@ -3786,7 +3846,9 @@ impl Game<'_> {
         at: [f64; 3],
         canceled: &mut bool,
     ) {
-        let _ = (
+        mod_api::dispatch_projectile_impact(
+            self,
+            mod_api::mods(),
             dimension,
             projectile,
             kind,
