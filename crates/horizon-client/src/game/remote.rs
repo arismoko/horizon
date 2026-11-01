@@ -7092,7 +7092,7 @@ impl Game<'_> {
                 self.open_block_editor_if_editable((hit.pos[0], hit.pos[1], hit.pos[2]));
                 // MultiPlayerGameMode.useItemOn: SUCCESS SwingSource.CLIENT
                 // (a chest, barrel, furnace, …). CONSUME does not swing.
-                if result == InteractionResult::Success {
+                if result.should_swing() {
                     self.with_hand(hand, Game::swing_arm);
                 }
             } else if self.predict_campfire_douse(hit.pos, held.as_ref(), seq) {

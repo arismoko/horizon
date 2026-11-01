@@ -5876,7 +5876,9 @@ impl Game<'_> {
                             self.trigger_default_block_use(hit.pos);
                         }
                     }
-                    self.swing_arm();
+                    if result.should_swing() {
+                        self.swing_arm();
+                    }
                     return Ok(true);
                 }
             }
