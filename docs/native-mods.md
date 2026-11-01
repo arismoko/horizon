@@ -1306,7 +1306,9 @@ cannot access attachments. These maps live on the server only: there is **no cli
 synchronization**. Unserialized values disappear on unload or restart. A saved value
 is stored under `horizon:attachments`, then the mod namespace and attachment name,
 as `{value: <compound>, copy_on_death: 1b}` (the flag is omitted when false).
-Unknown mods' saved entries survive load and save without being decoded.
+Unknown mods' saved entries survive load and save without being decoded. Level
+attachments use the dimension's `data/minecraft/horizon_attachments.dat` SavedData
+file, not `level.dat`.
 
 `copy_on_death` requires a codec. Player respawn copies opted-in entries via their
 encoded representation, including raw entries of an absent mod; other entries are
