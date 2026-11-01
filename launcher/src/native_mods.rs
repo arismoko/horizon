@@ -192,7 +192,7 @@ fn save_record(profile: Profile, record: &Record) {
 /// The hash of a bundle's files.
 fn mod_hash(b: &Bundle) -> Result<String, String> {
     let mut hash = Sha256::new();
-    for (name, path) in files(&b.dir)? {
+    for (name, path) in bundle_files(b)? {
         let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         hash.update(name.as_bytes());
         hash.update((bytes.len() as u64).to_le_bytes());
@@ -436,7 +436,7 @@ fn bundle(dir: &Path, mixins: Option<String>) -> Result<Bundle, String> {
         .keys()
         .any(|key| !["mod", "compatibility", "api"].contains(&key.as_str()));
     // Reject links before copying the bundle into the incoming folder.
-    files(dir)?;
+    files_with_api(dir, api.as_deref())?;
     let id = need("id")?;
     if !api::valid_id(&id) {
         return Err(format!("{}: invalid mod id {id:?}", path.display()));
@@ -769,7 +769,21 @@ pub fn newer_than(base: &str, installed: &[String]) -> Option<String> {
 /// Every file under `dir`, by its path relative to `dir` (with `/`), sorted. A symlink is refused:
 /// horizon-mixins refuses them too.
 fn files(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
-    fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(), String> {
+    files_with_api(dir, None)
+}
+
+/// Bundle files omit only the API package's Cargo build output.
+fn bundle_files(bundle: &Bundle) -> Result<Vec<(String, PathBuf)>, String> {
+    files_with_api(&bundle.dir, bundle.api.as_deref())
+}
+
+fn files_with_api(dir: &Path, api: Option<&str>) -> Result<Vec<(String, PathBuf)>, String> {
+    fn walk(
+        root: &Path,
+        dir: &Path,
+        skip: Option<&Path>,
+        out: &mut Vec<(String, PathBuf)>,
+    ) -> Result<(), String> {
         for entry in fs::read_dir(dir).map_err(|e| e.to_string())?.flatten() {
             let (path, kind) = (entry.path(), entry.file_type().map_err(|e| e.to_string())?);
             if kind.is_symlink() {
@@ -778,7 +792,9 @@ fn files(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
                     path.display()
                 ));
             } else if kind.is_dir() {
-                walk(root, &path, out)?;
+                if Some(path.as_path()) != skip {
+                    walk(root, &path, skip, out)?;
+                }
             } else {
                 let relative = path.strip_prefix(root).unwrap_or(&path);
                 out.push((relative.to_string_lossy().replace('\\', "/"), path));
@@ -786,10 +802,45 @@ fn files(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
         }
         Ok(())
     }
+    let root = dir
+        .canonicalize()
+        .map_err(|e| format!("{}: {e}", dir.display()))?;
+    let skip = api
+        .map(|path| root.join(path).canonicalize().map(|p| p.join("target")))
+        .transpose()
+        .map_err(|e| e.to_string())?;
     let mut out = Vec::new();
-    walk(dir, dir, &mut out)?;
+    walk(&root, &root, skip.as_deref(), &mut out)?;
     out.sort();
     Ok(out)
+}
+
+/// Copy a bundle without its API package's Cargo build output.
+fn copy_bundle(bundle: &Bundle, to: &Path) -> Result<(), String> {
+    fn copy(from: &Path, to: &Path, skip: Option<&Path>) -> std::io::Result<()> {
+        fs::create_dir_all(to)?;
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            let path = entry.path();
+            let dest = to.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                if Some(path.as_path()) != skip {
+                    copy(&path, &dest, skip)?;
+                }
+            } else {
+                horizon_prepare::clone_or_copy(&path, &dest)?;
+            }
+        }
+        Ok(())
+    }
+    let root = bundle.dir.canonicalize().map_err(|e| e.to_string())?;
+    let skip = bundle
+        .api
+        .as_ref()
+        .map(|path| root.join(path).canonicalize().map(|p| p.join("target")))
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    copy(&root, to, skip.as_deref()).map_err(|e| e.to_string())
 }
 
 /// The installed version `bundles` built on Horizon `revision` with horizon-mixins `mixins`
@@ -816,7 +867,7 @@ pub fn version_for(
     for b in sorted {
         hash.update(b.id.as_bytes());
         hash.update([0]);
-        for (name, path) in files(&b.dir)? {
+        for (name, path) in bundle_files(b)? {
             let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             hash.update(name.as_bytes());
             hash.update((bytes.len() as u64).to_le_bytes());
@@ -1098,7 +1149,12 @@ fn cargo(rust: &Toolchain, dir: &Path, subcommand: &str) -> Command {
 /// `E_CRATE_DEPENDENCY`), leaving every other package as it was: this checks that again, a crate
 /// they name must be in Horizon's lock and every package downloaded exactly as there. Then the
 /// crates are fetched, so a feature turning on a dependency the lock lacks fails here, readably.
-fn lock_crates(rust: &Toolchain, source: &Path, stage: &Path) -> Result<(), String> {
+fn lock_crates(
+    rust: &Toolchain,
+    source: &Path,
+    stage: &Path,
+    mods: &[Bundle],
+) -> Result<(), String> {
     let read = |dir: &Path| {
         let path = dir.join("Cargo.lock");
         fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
@@ -1111,7 +1167,12 @@ fn lock_crates(rust: &Toolchain, source: &Path, stage: &Path) -> Result<(), Stri
     } else {
         Vec::new()
     };
-    if let Some(why) = crates::refused(&horizon, Some(&staged), &wanted) {
+    let api_ids: Vec<&str> = mods
+        .iter()
+        .filter(|m| m.api.is_some())
+        .map(|m| m.id.as_str())
+        .collect();
+    if let Some(why) = crates::refused(&horizon, Some(&staged), &wanted, &api_ids) {
         return Err(why);
     }
     // Only this computer's crates: the build needs no others.
@@ -1266,7 +1327,7 @@ pub fn build(
         if !ids.insert(&b.id) {
             return Err(format!("Duplicate native mod id {:?}.", b.id));
         }
-        backend::copy_dir(&b.dir, &incoming.join(&b.id)).map_err(|e| e.to_string())?;
+        copy_bundle(b, &incoming.join(&b.id))?;
     }
     // Read before `repin` rewrites a copy's manifest.
     let digests: std::collections::HashMap<String, Option<String>> = found
@@ -1379,7 +1440,7 @@ pub fn build(
         let _ = fs::remove_dir_all(&fresh);
         if crates::any(&stage) || has_api {
             progress(Step::Crates);
-            lock_crates(&rust, &source, &stage)?;
+            lock_crates(&rust, &source, &stage, &mods)?;
         }
         let target = real.join("target");
         // A revision without `[profile.fast]` builds with `release`: the build says so.
@@ -1994,6 +2055,40 @@ mod tests {
         );
         fs::write(d.join("hook.rs"), "fn hook() { let _ = 1; }").unwrap();
         assert_ne!(first, key(A));
+    }
+
+    #[test]
+    fn api_target_is_neither_copied_nor_hashed() {
+        let d = dir("api-target");
+        fs::create_dir_all(d.join("engine/target/debug")).unwrap();
+        fs::create_dir_all(d.join("other/target")).unwrap();
+        fs::create_dir_all(d.join("engine/empty")).unwrap();
+        fs::write(
+            d.join(MANIFEST),
+            "[mod]\nid = 'example'\nversion = '1'\n[api]\npath = 'engine'\n",
+        )
+        .unwrap();
+        fs::write(
+            d.join("engine/Cargo.toml"),
+            "[package]\nname = 'example'\nversion = '0.1.0'\n",
+        )
+        .unwrap();
+        fs::write(d.join("engine/target/debug/output"), "one").unwrap();
+        fs::write(d.join("other/target/keep"), "keep").unwrap();
+        let bundle = bundle(&d, None).unwrap();
+        let key = || version_for(A, B, Profile::Fast, std::slice::from_ref(&bundle)).unwrap();
+        let first = key();
+        let hash = mod_hash(&bundle).unwrap();
+        fs::write(d.join("engine/target/debug/output"), "two").unwrap();
+        assert_eq!(first, key());
+        assert_eq!(hash, mod_hash(&bundle).unwrap());
+        let dest = dir("api-target-copy");
+        copy_bundle(&bundle, &dest).unwrap();
+        assert!(!dest.join("engine/target").exists());
+        assert!(dest.join("engine/empty").is_dir());
+        assert!(dest.join("other/target/keep").is_file());
+        fs::write(d.join("engine/Cargo.toml"), "changed").unwrap();
+        assert_ne!(first, key());
     }
 
     /// The test bundle (`tests/fixtures/native-crate-demo`): its crate's sources and data, and its
