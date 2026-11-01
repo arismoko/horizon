@@ -198,6 +198,9 @@ fn reshape_all(
         };
         let mut out = model.clone();
         let hits = apply(&mut out, jem, t.parts);
+        // A file shared by several models (the conduit's, the pot's) paints only the models
+        // it reshapes: vanilla geometry keeps its own texture's layout.
+        let reshapes = hits.iter().any(|hit| *hit);
         let marks = used
             .entry(path)
             .or_insert_with(|| vec![false; jem.parts.len()]);
@@ -206,7 +209,7 @@ fn reshape_all(
         }
         models.insert(t.key, out);
         reshaped.insert(t.key);
-        if let Some(texture) = jem.texture.as_deref().and_then(atlas_name) {
+        if reshapes && let Some(texture) = jem.texture.as_deref().and_then(atlas_name) {
             textures.insert(t.key, texture);
         }
     }
@@ -328,6 +331,31 @@ pub(crate) mod tests {
             .collect();
         format!(r#"{{"models": [{}]}}"#, entries.join(", "))
     }
+    /// A `.jem` replacing each of `parts` with a box of its own: the `i`th is `i + 1` pixels
+    /// deep, so a part that took another entry's box shows.
+    fn jem_sized(parts: &[&str]) -> String {
+        let entries: Vec<_> = parts
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let depth = i + 1;
+                format!(
+                    r#"{{"part": "{p}", "boxes": [{{"coordinates": [0, 0, 0, 1, 1, {depth}], "textureOffset": [0, 0]}}]}}"#
+                )
+            })
+            .collect();
+        format!(r#"{{"models": [{}]}}"#, entries.join(", "))
+    }
+    /// How deep (z) the custom box under `model`'s part `name` is.
+    fn depth(model: &ModelPart, name: &str) -> f32 {
+        let part = model.child(name).unwrap();
+        let zs = part
+            .children
+            .iter()
+            .flat_map(|(_, c)| c.polygons.iter().flatten().map(|v| v[2]));
+        let (lo, hi) = zs.fold((f32::MAX, f32::MIN), |(lo, hi), z| (lo.min(z), hi.max(z)));
+        hi - lo
+    }
     /// Whether `model`'s part `name` was replaced by one custom box: its own face gone, and one
     /// child of a box's six faces.
     fn replaced(model: &ModelPart, name: &str) -> bool {
@@ -440,11 +468,12 @@ pub(crate) mod tests {
                 .or_default()
                 .extend(["bottom", "lid", "lock"]);
         }
+        let files_by_name = files.clone();
         let files: Vec<_> = files
             .iter()
             .map(|(file, parts)| {
                 let parts: Vec<_> = parts.iter().copied().collect();
-                (format!("optifine/cem/{file}.jem"), jem(&parts))
+                (format!("optifine/cem/{file}.jem"), jem_sized(&parts))
             })
             .collect();
         let files: Vec<_> = files.iter().map(|(p, t)| (p.as_str(), t.clone())).collect();
@@ -462,6 +491,13 @@ pub(crate) mod tests {
         for (file, part, key, vanilla) in cases {
             assert!(
                 replaced(&models[key], vanilla),
+                "{file}.jem {part}: {key} {vanilla}"
+            );
+            // The box is this entry's own: swapped names (left and right, body and base) show.
+            let own = files_by_name[file].iter().position(|p| *p == part).unwrap() + 1;
+            assert_eq!(
+                depth(&models[key], vanilla),
+                own as f32,
                 "{file}.jem {part}: {key} {vanilla}"
             );
         }
@@ -561,5 +597,33 @@ pub(crate) mod tests {
         let (models, _) = result.unwrap();
         assert!(replaced(&models["book"], "left_lid"));
         assert!(replaced(&models["lectern_book"], "left_lid"));
+    }
+
+    #[test]
+    fn a_shared_file_paints_only_the_models_it_reshapes() {
+        // The conduit's file reshapes its eye alone: the shell, cage and wind keep their
+        // vanilla geometry and so their own textures.
+        let file = format!(
+            r#"{{"texture": "textures/entity/conduit/custom.png", "models": [{{"part": "eye", {BOX}}}]}}"#
+        );
+        let root = pack("conduit", &[("optifine/cem/conduit.jem", file)]);
+        let vanilla: HashMap<_, _> = [
+            "conduit_shell",
+            "conduit_cage",
+            "conduit_wind",
+            "conduit_eye",
+        ]
+        .map(|key| {
+            let part = if key == "conduit_eye" { "eye" } else { "shell" };
+            (key, plane(vec![(part, plane(vec![]))]))
+        })
+        .into();
+        let result = reshape(&root, &vanilla);
+        fs::remove_dir_all(&root).unwrap();
+        let (models, textures) = result.unwrap();
+        assert!(replaced(&models["conduit_eye"], "eye"));
+        let painted: BTreeSet<_> = textures.keys().copied().collect();
+        assert_eq!(painted, BTreeSet::from(["conduit_eye"]));
+        assert_eq!(textures["conduit_eye"], "entity/conduit/custom");
     }
 }
