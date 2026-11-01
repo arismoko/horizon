@@ -680,12 +680,14 @@
     {
       "name": "has_analog_output",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_has_analog_output"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_has_analog_output",
+      "mod_api": {"contract": "collect", "out": "output"}
     },
     {
       "name": "analog_output",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_analog_output"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_analog_output",
+      "mod_api": {"contract": "collect", "out": "output"}
     },
     {
       "name": "component_types",
@@ -728,12 +730,14 @@
     {
       "name": "can_survive",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_can_survive"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_can_survive",
+      "mod_api": {"contract": "replace", "out": "survives"}
     },
     {
       "name": "may_place_on",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_may_place_on"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_may_place_on",
+      "mod_api": {"contract": "replace", "out": "may"}
     },
     {
       "name": "block_entity_submit",
@@ -752,17 +756,20 @@
     {
       "name": "is_valid_bonemeal_target",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_is_valid_bonemeal_target"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_is_valid_bonemeal_target",
+      "mod_api": {"contract": "replace", "out": "valid"}
     },
     {
       "name": "is_bonemeal_success",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_is_bonemeal_success"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_is_bonemeal_success",
+      "mod_api": {"contract": "collect", "out": "success"}
     },
     {
       "name": "perform_bonemeal",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_perform_bonemeal"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_perform_bonemeal",
+      "mod_api": {"contract": "listen"}
     },
     {
       "name": "block_step_on",
@@ -817,7 +824,8 @@
     {
       "name": "state_for_placement",
       "version": 1,
-      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_state_for_placement"
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_state_for_placement",
+      "mod_api": {"contract": "replace", "out": "answer"}
     },
     {
       "name": "enchant_effect",
