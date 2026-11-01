@@ -415,11 +415,16 @@ pub fn run(check: bool) -> Result<(), String> {
         let is_render = target.starts_with("horizon_client_render::");
         let external = target
             .strip_prefix("horizon_world::")
-            .map(|p| ("horizon-world", p))
+            .map(|p| ("horizon-world", p.to_owned()))
             .or_else(|| {
                 target
                     .strip_prefix("horizon_client_render::")
-                    .map(|p| ("horizon-client-render", p))
+                    .map(|p| ("horizon-client-render", p.to_owned()))
+            })
+            .or_else(|| {
+                target
+                    .strip_prefix("horizon_client::menu::")
+                    .map(|p| ("horizon-client", format!("menu::{p}")))
             });
         let (method, call) = if let Some((krate, path)) = external {
             let Some((module, function)) = path.rsplit_once("::") else {
@@ -871,6 +876,32 @@ mod tests {
                 Flow::Continue
             }
         }
+        fn menu_slot_rules(
+            &self,
+            _: &str,
+            _: usize,
+            _: &ItemStack,
+            may_place: &mut bool,
+            max_stack: &mut u32,
+        ) {
+            *may_place = false;
+            *max_stack = self.id;
+        }
+        fn living_entity_use_item_tick(
+            &self,
+            _: &mut dyn Host,
+            _: &ItemStack,
+            _: Option<i32>,
+            _: Hand,
+            duration: &mut i32,
+        ) -> Flow {
+            *duration -= 1;
+            if self.id == 1 {
+                Flow::Cancel
+            } else {
+                Flow::Continue
+            }
+        }
         fn loot_table_load(&self, _: &str, table: &mut Value) {
             table.as_array_mut().unwrap().push(self.id.into());
         }
@@ -947,6 +978,35 @@ mod tests {
             &mut draw,
         );
         assert_eq!(draw.0, [1, 2]);
+    }
+
+    #[test]
+    fn slot_rules_mutate_and_item_tick_can_cancel() {
+        let mods: Vec<Box<dyn Hooks>> = vec![Box::new(Mod {
+            id: 1,
+            calls: Arc::new(Mutex::new(Vec::new())),
+        })];
+        let (mut may_place, mut max_stack) = (true, 64);
+        dispatch_menu_slot_rules(
+            &mods,
+            "test:menu",
+            0,
+            &ItemStack,
+            &mut may_place,
+            &mut max_stack,
+        );
+        assert_eq!((may_place, max_stack), (false, 1));
+        let (mut duration, mut canceled) = (10, false);
+        dispatch_living_entity_use_item_tick(
+            &mut TestHost,
+            &mods,
+            &ItemStack,
+            None,
+            Hand,
+            &mut duration,
+            &mut canceled,
+        );
+        assert_eq!((duration, canceled), (9, true));
     }
 
     #[test]

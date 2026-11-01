@@ -1936,9 +1936,11 @@ pub trait Hooks: Send + Sync {
     /// `stack` in `hand` (`LivingEntity.startUsingItem`), for `duration`
     /// ticks (`native_use_duration`'s answer). `entity` is a mob's
     /// `Entity.getId`, None for a player (`native_acting_player` says who);
-    /// only players fire it so far. Change `duration` (consumables other
-    /// than potions, and mods' items, count to it; 0 or less lasts until let
-    /// go), or set `canceled` and the use doesn't start. Both sides, as
+    /// only players fire it so far. Change `duration` (consumables, potions,
+    /// spyglasses and mods' items count to it; below 0 refuses the use, and
+    /// 0 runs it out on its first tick, as `native_living_entity_use_item_tick`
+    /// running it out, unless the item's own is 0 already), or set
+    /// `canceled` and the use doesn't start. Both sides, as
     /// vanilla's: wherever the world runs (the server, single player
     /// in-frame, a LAN host) for every player of the world, and on a
     /// server's client for the uses it predicts. Answer the same on both,
@@ -1968,7 +1970,7 @@ pub trait Hooks: Send + Sync {
     /// `native_living_entity_use_item_start`. `result` arrives with what
     /// `finishUsingItem` left in the hand (the bowl of a stew, none for the
     /// last apple; a mod's own item is kept) and may be replaced. Fired for
-    /// consumables, potions and mods' items. Server-side, for every player
+    /// consumables, potions, spyglasses and mods' items. Server-side, for every player
     /// of the world (the helpers read the acting one). API @API:item_use_over_time@.
     fn living_entity_use_item_finish(
         &self,
@@ -1985,6 +1987,113 @@ pub trait Hooks: Send + Sync {
         let _ = hand;
         let _ = duration;
         let _ = result;
+    }
+    /// NeoForge's `LivingEntityUseItemEvent.Tick`: each tick `entity` uses
+    /// `stack` in `hand`, where `LivingEntity.updatingUsingItem` starts,
+    /// `duration` the ticks left. `entity` is as in
+    /// `native_living_entity_use_item_start`. Change `duration` to move the
+    /// end (consumables, potions, spyglasses and mods' items count to it,
+    /// and so do a client's eating crumbs and first person pose, as the
+    /// started duration of `native_living_entity_use_item_start` does). A
+    /// cancel sets it to -1. Once a mod set it, the use goes on
+    /// only while it is above 0: at 0 or less, by a cancel or set, the
+    /// item's tick is skipped and the server finishes the use
+    /// (`completeUsingItem`: `finishUsingItem`, the food eaten,
+    /// `native_living_entity_use_item_finish`), while an item used on
+    /// release (a crossbow) stays frozen until let go. NeoForge's javadoc
+    /// says a cancel stops the use, but its code finishes it; this follows
+    /// the code. On a server's client a run-out use stays in use, frozen,
+    /// so letting go still tells the server. Both sides, as vanilla's
+    /// `updatingUsingItem`: answer the same on both, and change the world
+    /// only where this `Game` runs the world, not on a server's client (no
+    /// helper tells the two apart yet; `native_window` is also true
+    /// in-frame and on an in-frame LAN host). Runs every tick of every use:
+    /// check the item first. API @API:item_use_tick_release@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn living_entity_use_item_tick(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        hand: Hand,
+        duration: &mut i32,
+    ) -> Flow {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = hand;
+        let _ = duration;
+        Flow::Continue
+    }
+    /// `Item.onUseTick` of `stack`, used by `entity` with `remaining` ticks
+    /// left, always above 0: what a mod's own item does each tick it is used
+    /// (cook, charge, drain). It comes where `ItemStack.onUseTick` calls the
+    /// item, once `native_living_entity_use_item_tick` let the use go on:
+    /// after a consumable's crumbs, for consumables, shields and mods' items
+    /// (vanilla's other items do their own, and a kinetic weapon has none on
+    /// the server). Both sides, as `native_living_entity_use_item_tick`:
+    /// change the world only where this `Game` runs the world, not on a
+    /// server's client. Runs every tick of every use: check the item first.
+    /// API @API:item_use_tick_release@.
+    fn on_use_tick(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        remaining: i32,
+    ) {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = remaining;
+    }
+    /// NeoForge's `LivingEntityUseItemEvent.Stop`: `entity` lets go of
+    /// `stack` in `hand` before its use ran its time
+    /// (`LivingEntity.releaseUsingItem`: the use button let go, a screen
+    /// opened), `duration` the ticks left. Set `canceled` to skip the item's
+    /// release (a bow doesn't shoot, a spyglass makes no sound,
+    /// `native_release_using` isn't called); the use stops anyway. Not when
+    /// the hand changed item, which stops the use without a release. Both
+    /// sides, as `native_living_entity_use_item_tick`. API @API:item_use_tick_release@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn living_entity_use_item_stop(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        hand: Hand,
+        duration: i32,
+    ) -> Flow {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = hand;
+        let _ = duration;
+        Flow::Continue
+    }
+    /// `Item.releaseUsing` of `stack`: `entity` let it go with `time_left`
+    /// ticks of its `native_use_duration` left, so it was held for
+    /// `duration - time_left` (a bow-like item shoots by that charge). Set
+    /// `used` as vanilla's return, and the stack's use cooldown starts
+    /// (`ItemStack.releaseUsing`). After the vanilla item's own release, once
+    /// `native_living_entity_use_item_stop` let it through. Both sides, as
+    /// vanilla's: change the world only where this `Game` runs the world,
+    /// not on a server's client. API @API:item_use_tick_release@.
+    fn release_using(
+        &self,
+        host: &mut dyn Host,
+        stack: &ItemStack,
+        entity: Option<i32>,
+        time_left: i32,
+        used: &mut bool,
+    ) {
+        let _ = host;
+        let _ = stack;
+        let _ = entity;
+        let _ = time_left;
+        let _ = used;
     }
     /// `LivingEntity.knockback` is about to push entity `entity` of type `kind`
     /// (`minecraft:zombie`, `minecraft:player`) `strength` away from the direction (`x`, `z`),
@@ -2030,6 +2139,31 @@ pub trait Hooks: Send + Sync {
         let _ = x;
         let _ = z;
         Flow::Continue
+    }
+    /// Hook point for native mods (docs/native-mods.md, listed in `native-hooks.json`
+    /// with the game's): container slot `slot` of the content mod menu type `menu`
+    /// (`data/<id>/horizon/menu/`) is asked whether it takes `stack`
+    /// (`Slot.mayPlace`) and how many of it it holds (`Slot.getMaxStackSize`).
+    /// `may_place` and `max_stack` hold the type's own answer (false on one of its
+    /// `results`, true elsewhere, and 99): change them for your own menu types.
+    /// `max_stack` is kept to 1 to 99,
+    /// and the item's own stack size still caps it. Asked on the server, for each
+    /// click, drag and shift-click that puts an item in a slot, several times for
+    /// one shift-click: answer from `stack` alone, and fast. API
+    /// @API:menu_slot_rules@.
+    fn menu_slot_rules(
+        &self,
+        menu: &str,
+        slot: usize,
+        stack: &ItemStack,
+        may_place: &mut bool,
+        max_stack: &mut u32,
+    ) {
+        let _ = menu;
+        let _ = slot;
+        let _ = stack;
+        let _ = may_place;
+        let _ = max_stack;
     }
     /// Draw the mob `mob` (its id, kind, custom name and the frame's body
     /// and head turns and walk cycle, `LivingEntityRenderState`) on this
@@ -4089,6 +4223,73 @@ pub fn dispatch_living_entity_use_item_finish(
         mod_hook.living_entity_use_item_finish(host, stack, entity, hand, duration, &mut *result);
     }
 }
+pub fn dispatch_living_entity_use_item_tick(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    hand: Hand,
+    duration: &mut i32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.living_entity_use_item_tick(host, stack, entity, hand, &mut *duration),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_on_use_tick(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    remaining: i32,
+) {
+    for mod_hook in mods {
+        mod_hook.on_use_tick(host, stack, entity, remaining);
+    }
+}
+pub fn dispatch_living_entity_use_item_stop(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    hand: Hand,
+    duration: i32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.living_entity_use_item_stop(host, stack, entity, hand, duration),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_release_using(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    stack: &ItemStack,
+    entity: Option<i32>,
+    time_left: i32,
+    used: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.release_using(host, stack, entity, time_left, &mut *used);
+    }
+}
 pub fn dispatch_living_knockback(
     mods: &[Box<dyn Hooks>],
     entity: i32,
@@ -4121,6 +4322,18 @@ pub fn dispatch_living_knockback(
             *canceled = true;
             break;
         }
+    }
+}
+pub fn dispatch_menu_slot_rules(
+    mods: &[Box<dyn Hooks>],
+    menu: &str,
+    slot: usize,
+    stack: &ItemStack,
+    may_place: &mut bool,
+    max_stack: &mut u32,
+) {
+    for mod_hook in mods {
+        mod_hook.menu_slot_rules(menu, slot, stack, &mut *may_place, &mut *max_stack);
     }
 }
 pub fn dispatch_mob_submit(
