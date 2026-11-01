@@ -6551,6 +6551,7 @@ impl Renderer {
             if outline_edges > 0 && frame.outline_after_terrain {
                 self.draw_outline(&mut pass, outline_edges as u32, frame.outline_high_contrast);
             }
+            pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
             if translucent_crumbling_quads > 0 && !oit_on {
                 pass.set_pipeline(&self.crumbling_pipeline);
                 pass.set_bind_group(0, &self.entity_group, &[]);
@@ -6570,7 +6571,6 @@ impl Renderer {
             }
             // LevelRenderer.executeClassicTransparency: weather after translucent
             // terrain and clouds, so the water behind the rain is drawn first.
-            pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
             if !pack_draws_weather && !oit_on {
                 self.weather.draw(&mut pass, &self.entity_group);
                 pass.set_bind_group(0, &self.group, &[]);
