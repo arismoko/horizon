@@ -311,9 +311,9 @@ pub trait Host {
 pub trait LevelHost {
     /// Read a block through `LevelAccess::block_state`.
     fn block_state(&self, pos: [i32; 3]) -> BlockStateId;
-    /// Whether this is the client-side level.
+    /// `Level.isClientSide`, through `LevelAccess::is_client_side`.
     fn is_client_side(&self) -> bool;
-    /// Return a state with the named property changed, if valid.
+    /// `BlockState.setValue`, through `native_state_with_property`; None if invalid.
     fn state_with_property(
         &self,
         state: BlockStateId,
@@ -324,7 +324,7 @@ pub trait LevelHost {
 
 /// Access vanilla's `Level.random`, so draws come in vanilla's order.
 pub trait LevelRandomHost: LevelHost {
-    /// The level's random stream, or None on a non-authoritative level.
+    /// The level's random stream through `native_level_random`, or None on a non-authoritative level.
     fn random(&mut self) -> Option<&mut LegacyRandom>;
 }
 
