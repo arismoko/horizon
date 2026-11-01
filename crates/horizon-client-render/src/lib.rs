@@ -21,6 +21,7 @@ pub mod chunk_map;
 pub mod clouds;
 pub mod collisions;
 pub mod command_block;
+pub mod connected;
 pub mod containers;
 pub mod crash;
 pub mod datapack;

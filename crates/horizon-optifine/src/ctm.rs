@@ -219,7 +219,8 @@ pub fn load(root: &Path) -> Vec<Rule> {
     rules
 }
 
-fn sort(rules: &mut [Rule]) {
+/// [`load`]'s order, for rules gathered elsewhere.
+pub fn sort(rules: &mut [Rule]) {
     rules.sort_by(|a, b| (b.prioritize, b.weight, &a.path).cmp(&(a.prioritize, a.weight, &b.path)));
 }
 
