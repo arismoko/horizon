@@ -3,7 +3,5 @@ name = "render-proof"
 version = "0.1.0"
 edition = "2024"
 
-[workspace]
-
 [dependencies]
-horizon-client = { path = "../../crates/horizon-client" }
+horizon-client = "0.1"
