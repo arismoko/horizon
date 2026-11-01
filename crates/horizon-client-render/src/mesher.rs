@@ -284,6 +284,7 @@ impl SectionMesh {
         self.solid.clear();
         self.translucent.clear();
         self.block_entities.clear();
+        self.lights.clear();
         self.sprite_layers.clear();
         self.sides = Sides::default();
         self.visibility = ALL_VISIBLE;
@@ -294,6 +295,7 @@ impl SectionMesh {
         self.solid.capacity() * std::mem::size_of::<TerrainVertex>()
             + self.translucent.capacity() * std::mem::size_of::<TerrainVertex>()
             + self.block_entities.capacity() * std::mem::size_of::<([i32; 3], u32)>()
+            + self.lights.capacity() * std::mem::size_of::<([i32; 3], u32)>()
             + self.sprite_layers.capacity() * std::mem::size_of::<u16>()
     }
     /// Sorts the solid quads by the side they face, for the renderer to

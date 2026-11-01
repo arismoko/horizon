@@ -150,6 +150,8 @@ pub trait LodSampler: Send {
     fn reduced_column(&mut self, x: i32, z: i32, _width: i32) -> crate::lod::Column {
         self.column(x, z)
     }
+    /// `side` x `side` columns from (`x`, `z`), `stride` blocks apart; none
+    /// when sampling failed and should be tried again later.
     fn grid(&mut self, x: i32, z: i32, stride: i32, side: usize) -> Vec<crate::lod::Column> {
         let mut columns = Vec::with_capacity(side * side);
         for dz in 0..side {
@@ -2378,6 +2380,7 @@ mod tests {
         mesh.solid.resize(64, bytemuck::Zeroable::zeroed());
         mesh.translucent.resize(16, bytemuck::Zeroable::zeroed());
         mesh.block_entities.push(([1, 2, 3], 7));
+        mesh.lights.push(([1, 2, 3], 7));
         mesh.visibility = 0;
         mesh.sides = crate::mesher::Sides::unsorted(16);
         let capacities = mesh.capacity_bytes();
@@ -2394,6 +2397,7 @@ mod tests {
         assert!(reused.solid.is_empty());
         assert!(reused.translucent.is_empty());
         assert!(reused.block_entities.is_empty());
+        assert!(reused.lights.is_empty());
         assert_eq!(reused.visibility, crate::mesher::ALL_VISIBLE);
         assert_eq!(reused.sides, crate::mesher::Sides::default());
         assert_eq!(pool.bytes, 0);

@@ -298,6 +298,7 @@ impl Game<'_> {
             gui,
             pack,
             textures,
+            cem,
         } = staged;
         // Keep the working GPU resources, and hand its window surface over.
         if let Some(renderer) = &mut self.renderer {
@@ -315,6 +316,8 @@ impl Game<'_> {
                     self.renderer.as_ref(),
                     Some(textures),
                     self.settings.horizon.api,
+                    self.settings.horizon.translucent_batching,
+                    super::shader_packs::picked_pack_draws_flat(&self.settings),
                 )
             })
             .transpose()
@@ -363,6 +366,12 @@ impl Game<'_> {
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) =
             horizon_client::mobs::villager_hats::VillagerHats::load(&root);
+        *self
+            .res
+            .mob_data()
+            .cem
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = cem;
         horizon_client::ui::load_metadata(&root);
         lang::set(lang::Language::load(&[&root], &lang::code()));
         self.refresh_remote_language();
@@ -443,12 +452,17 @@ pub(super) fn stage_pack(
         context.light.clone(),
     )?;
     let textures = prepare_renderer_textures(&pack);
+    let cem = Arc::new(horizon_client::mobs::cem::CemModels::load(
+        &root,
+        res.mob_types(),
+    ));
     progress.set(3);
     Ok(StagedPack {
         root,
         gui,
         pack,
         textures,
+        cem,
     })
 }
 
@@ -459,6 +473,8 @@ pub(super) struct StagedPack {
     pub gui: UiResources,
     pub pack: PackResources,
     pub textures: PreparedTextures,
+    /// The packs' custom entity models (OptiFine CEM).
+    pub cem: Arc<horizon_client::mobs::cem::CemModels>,
 }
 
 /// `LoadingOverlay`'s stage lines for a pack reload, indexed by `progress`.
