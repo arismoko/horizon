@@ -59,6 +59,9 @@ fn lifecycle_and_cancellation() {
         game.track_drag_button(0, true);
         game.track_drag_button(1, true);
         game.track_drag_button(0, false);
+        // Any release ends the drag (vanilla clears activeButton): right is still held, no drag.
+        assert_eq!(game.drag_button, None);
+        game.track_drag_button(1, true);
         game.pointer(Point { x: 50.0, y: 30.0 }).unwrap();
         game.pointer(Point { x: 54.0, y: 34.0 }).unwrap();
         assert_eq!(game.cursor, (27.0, 17.0));
