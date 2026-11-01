@@ -19,6 +19,10 @@ pub(super) enum Error {
         owner: String,
         target: String,
     },
+    CargoConflict {
+        owner: String,
+        target: String,
+    },
     Version {
         owner: String,
         target: String,
@@ -42,6 +46,12 @@ impl fmt::Display for Error {
             Self::Missing { owner, target } => write!(f, "{owner} requires missing mod {target}"),
             Self::NoApi { owner, target } => {
                 write!(f, "{owner} depends on {target}, which has no [api] package")
+            }
+            Self::CargoConflict { owner, target } => {
+                write!(
+                    f,
+                    "{owner}: dependency {target} conflicts with its Cargo manifest"
+                )
             }
             Self::Version {
                 owner,
@@ -215,13 +225,16 @@ pub(super) fn rewrite(
     owner: &str,
     manifest: &mut toml::Table,
     packages: &[Package<'_>],
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, Error> {
     let mut updated = manifest.clone();
     let mut enabled = Vec::new();
     for target in packages {
         let id = &target.dependency.id;
         let normalized = id.replace('-', "_");
-        let conflict = || format!("{owner}: dependency {id} conflicts with its Cargo manifest");
+        let conflict = || Error::CargoConflict {
+            owner: owner.into(),
+            target: id.clone(),
+        };
         let dependencies = updated
             .entry("dependencies")
             .or_insert_with(|| toml::Value::Table(toml::Table::new()))
@@ -242,7 +255,10 @@ pub(super) fn rewrite(
             }
             dependencies.insert(id.clone(), toml::Value::Table(entry));
         } else if !target.dependency.optional {
-            return Err(format!("{owner}: required dependency {id} has no package"));
+            return Err(Error::Missing {
+                owner: owner.into(),
+                target: id.clone(),
+            });
         }
         if target.dependency.optional {
             let features = updated
