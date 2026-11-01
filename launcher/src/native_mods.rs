@@ -29,9 +29,7 @@ mod api;
 mod crates;
 
 const PREFIX: &str = "native-";
-/// horizon-mixins, for bundles that don't name the revision they were tested with. The mod-api
-/// branch builds on arismoko's fork until horizon-rust/horizon-mixins#17 (cfg(test) modules,
-/// needed by the library/executable split) is merged upstream.
+/// The fork adds cfg(test) module indexing on top of upstream's mixins pin.
 const MIXINS_GIT: &str = "https://github.com/arismoko/horizon-mixins";
 pub const MIXINS_REV: &str = "00a837175a79ab41c13cd0dbbf8d480a04c93ec4";
 /// The features of the release's own game (game-build.yml).
@@ -616,11 +614,15 @@ fn hooks_at(revision: &str) -> Option<u32> {
 
 /// The revision to build `mods` on: `pinned` (the pins' agreement, else the installed version's)
 /// when every mod naming a hook points' version finds it or a later one there (`at` reads a
-/// revision's). Else, when nothing pins it, the revision those mods were tested on.
+/// revision's). Else, when nothing pins it, the revision those mods were tested on. Else the
+/// revision of the release or Nightly the build starts from (`game`), when they find theirs
+/// there: a rebuild that stayed on an older Horizon, or mods pinning one, then move to the game
+/// the player installed, and pinned mods wait for the player's Build anyway ([`mismatch`]).
 fn with_hooks(
     mods: &[Bundle],
     pinned: String,
     free: bool,
+    game: impl FnOnce() -> Option<String>,
     at: impl Fn(&str) -> Option<u32>,
 ) -> Result<String, String> {
     let hooked: Vec<&Bundle> = mods.iter().filter(|b| b.hooks.is_some()).collect();
@@ -643,8 +645,14 @@ fn with_hooks(
             return Ok(revision);
         }
     }
+    if let Some(revision) = game().filter(|r| *r != pinned && fits(r)) {
+        return Ok(revision);
+    }
+    // Only the mods that need more than `pinned` has: the others would build there.
+    let found = at(&pinned);
     let list: Vec<String> = hooked
         .iter()
+        .filter(|b| found.is_none() || b.hooks > found)
         .map(|b| format!("{} (hook points v{})", b.id, b.hooks.unwrap_or_default()))
         .collect();
     Err(format!(
@@ -817,13 +825,6 @@ fn files_with_api(dir: &Path, api: Option<&str>) -> Result<Vec<(String, PathBuf)
     walk(&root, &root, skip.as_deref(), &mut out)?;
     out.sort();
     Ok(out)
-}
-
-/// Copy a bundle without its API package's Cargo build output.
-fn copy_bundle(bundle: &Bundle, to: &Path) -> Result<(), String> {
-    let root = bundle.dir.canonicalize().map_err(|e| e.to_string())?;
-    let skip = api_target(&root, bundle.api.as_deref())?;
-    backend::copy_dir_except(&root, to, skip.as_deref()).map_err(|e| e.to_string())
 }
 
 /// The installed version `bundles` built on Horizon `revision` with horizon-mixins `mixins`
@@ -1316,7 +1317,10 @@ pub fn build(
         if !ids.insert(&b.id) {
             return Err(format!("Duplicate native mod id {:?}.", b.id));
         }
-        copy_bundle(b, &incoming.join(&b.id))?;
+        let root = b.dir.canonicalize().map_err(|e| e.to_string())?;
+        let skip = api_target(&root, b.api.as_deref())?;
+        backend::copy_dir_except(&root, &incoming.join(&b.id), skip.as_deref())
+            .map_err(|e| e.to_string())?;
     }
     // Read before `repin` rewrites a copy's manifest.
     let digests: std::collections::HashMap<String, Option<String>> = found
@@ -1344,7 +1348,8 @@ pub fn build(
         None,
         |r| committed(backend::REPO, r),
     )?;
-    let revision = with_hooks(&mods, pinned, free, hooks_at)?;
+    let game = || revision_of(origin).ok();
+    let revision = with_hooks(&mods, pinned, free, game, hooks_at)?;
     let other = mismatch(&mods, &revision);
     if let (Some(list), false) = (&other, anyway) {
         return Err(format!("{MISMATCH}{list}."));
@@ -1972,36 +1977,88 @@ mod tests {
             b'b' => Some(2),
             _ => None,
         };
+        let none = || None;
         let zoom = [mod_("zoom", B, Some(1)), mod_("minimap", &c, Some(1))];
         assert_eq!(
-            with_hooks(&zoom, A.into(), true, at).unwrap(),
+            with_hooks(&zoom, A.into(), true, none, at).unwrap(),
             A,
             "the game's own"
         );
         let tested = [mod_("zoom", A, Some(1))];
         assert_eq!(
-            with_hooks(&tested, c.clone(), true, at).unwrap(),
+            with_hooks(&tested, c.clone(), true, none, at).unwrap(),
             A,
             "an older game"
         );
         assert_eq!(
-            with_hooks(&tested, B.into(), false, at).unwrap(),
+            with_hooks(&tested, B.into(), false, none, at).unwrap(),
             B,
             "v1 mods on v2"
         );
         let newer = [mod_("recipes", B, Some(2))];
-        let err = with_hooks(&newer, A.into(), false, at).unwrap_err();
+        let err = with_hooks(&newer, A.into(), false, none, at).unwrap_err();
         assert!(
             err.contains("aaaaaaa") && err.contains("recipes (hook points v2)"),
             "{err}"
         );
         assert_eq!(
-            with_hooks(&newer, A.into(), true, at).unwrap(),
+            with_hooks(&newer, A.into(), true, none, at).unwrap(),
             B,
             "its tested commit"
         );
         let pinned_only = [mod_("veinminer", B, None)];
-        assert_eq!(with_hooks(&pinned_only, B.into(), false, at).unwrap(), B);
+        assert_eq!(
+            with_hooks(&pinned_only, B.into(), false, none, at).unwrap(),
+            B
+        );
+    }
+
+    /// Players on launcher 0.2.31 (#5352): a rebuild that stayed on an older Horizon (A, hook
+    /// points v1), or a mod pinning it, met mods needing newer hook points, tested on different
+    /// commits, and the build was refused although the installed game (B) has them all.
+    #[test]
+    fn mods_needing_newer_hook_points_move_the_build_to_the_installed_game() {
+        let mod_ = |id: &str, horizon: &str, hooks: Option<u32>| Bundle {
+            id: id.into(),
+            version: "1".into(),
+            dir: PathBuf::new(),
+            horizon: Some(horizon.into()),
+            mixins: None,
+            hooks,
+            api: None,
+            mixins_content: false,
+        };
+        let (c, d) = ("c".repeat(40), "d".repeat(40));
+        // A (the old build's revision) has hook points v1, B (the installed game) v7.
+        let at = |r: &str| match r.as_bytes()[0] {
+            b'a' => Some(1),
+            b'b' => Some(7),
+            _ => None,
+        };
+        let game = || Some(B.to_owned());
+        let hooked = [
+            mod_("zoom", &c, Some(1)),
+            mod_("recipes", &d, Some(2)),
+            mod_("xtoxray", B, Some(7)),
+        ];
+        assert_eq!(
+            with_hooks(&hooked, A.into(), true, game, at).unwrap(),
+            B,
+            "a rebuild that stayed on an older Horizon moves to the game"
+        );
+        let with_pin = [mod_("carryblock", A, None), mod_("recipes", &d, Some(2))];
+        let revision = with_hooks(&with_pin, A.into(), false, game, at).unwrap();
+        assert_eq!(revision, B, "a pinned mod no longer blocks the build");
+        let asked = mismatch(&with_pin, &revision).expect("the pinned mod waits for Build anyway");
+        assert!(
+            asked.contains("carryblock") && !asked.contains("recipes"),
+            "{asked}"
+        );
+        // A game without them still refuses, naming only the mods that don't fit.
+        let err = with_hooks(&hooked, A.into(), true, || Some(c.clone()), at).unwrap_err();
+        assert!(err.contains("recipes (hook points v2)"), "{err}");
+        assert!(err.contains("xtoxray (hook points v7)"), "{err}");
+        assert!(!err.contains("zoom"), "zoom builds on A: {err}");
     }
 
     #[test]
@@ -2074,7 +2131,9 @@ mod tests {
         assert_eq!(hash, mod_hash(&bundle).unwrap());
         assert_eq!(digest, source_digest(&bundle));
         let dest = dir("api-target-copy");
-        copy_bundle(&bundle, &dest).unwrap();
+        let root = bundle.dir.canonicalize().unwrap();
+        let skip = api_target(&root, bundle.api.as_deref()).unwrap();
+        backend::copy_dir_except(&root, &dest, skip.as_deref()).unwrap();
         assert!(!dest.join("engine/target").exists());
         assert!(dest.join("engine/empty").is_dir());
         assert!(dest.join("other/target/keep").is_file());

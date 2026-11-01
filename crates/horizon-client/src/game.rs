@@ -135,6 +135,7 @@ mod glowing;
 mod golems;
 mod growth;
 mod hand;
+mod headless;
 mod ime;
 mod initial_spawn;
 mod integrated;
@@ -186,7 +187,9 @@ mod moving_pistons;
 mod music;
 mod names;
 mod narrator;
+mod native_components;
 mod native_entities;
+mod native_explosions;
 mod native_hooks;
 mod native_lifecycle;
 mod native_menus;
@@ -411,6 +414,11 @@ struct Options {
     /// GPU the display cannot present from can still be benchmarked. The
     /// window stays hidden and never grabs the system pointer.
     offscreen: bool,
+    /// `--headless` (#4951): no display, no window and no renderer. The game runs its own
+    /// loop (`game/headless.rs`) instead of winit's, so it starts where no display server
+    /// is (an SSH session, a server). It counts as `offscreen` for everything else (an
+    /// automated run that never shows a window or grabs the pointer).
+    headless: bool,
     /// `--width` and `--height` (vanilla's own arguments): the window's
     /// starting size, 1280x720 by default.
     window_size: [u32; 2],
@@ -552,6 +560,7 @@ impl Options {
             no_pause: false,
             control: None,
             offscreen: false,
+            headless: false,
             window_size: [1280, 720],
             spikes: std::env::var("HORIZON_SPIKES")
                 .ok()
@@ -601,6 +610,10 @@ impl Options {
                 "--test-terrain" => o.test_terrain = true,
                 "--no-pause" => o.no_pause = true,
                 "--offscreen" => o.offscreen = true,
+                "--headless" => {
+                    o.headless = true;
+                    o.offscreen = true;
+                }
                 "--control" => o.control = Some(horizon_client::control::default_path()),
                 "--server-thread" => o.server_thread = true,
                 "--in-frame" | "--no-server-thread" => {
@@ -4120,25 +4133,34 @@ impl Game<'_> {
         self.process_level_events()?;
         self.tick_scheduled()?;
         self.with_level(|b, level, ticks| {
-            for (x, z) in ticking {
-                // The sections are read again only after a block changed.
-                let mut read = None;
-                let mut sections = Default::default();
-                let pos = horizon_core::position::ChunkPos::new(x, z);
-                b.tick_chunk_random(level, ticks, pos, |level, from| {
-                    if read != Some(level.world.revision) {
-                        read = Some(level.world.revision);
-                        sections = level
-                            .world
-                            .chunks
-                            .get(&(x, z))
-                            .map_or_else(Default::default, |chunk| {
-                                level.random_tick_sections.get((x, z), chunk, level.facts)
-                            });
-                    }
-                    sections.from(from)
-                });
-            }
+            // Each chunk's ticking sections and their masks, read again only
+            // after a block changed.
+            let mut sections = Vec::new();
+            horizon_client::spans::time("random_ticks", || {
+                for (x, z) in ticking {
+                    let mut read = None;
+                    let pos = horizon_core::position::ChunkPos::new(x, z);
+                    b.tick_chunk_random_masked(level, ticks, pos, |level, from| {
+                        if read != Some(level.world.revision) {
+                            read = Some(level.world.revision);
+                            sections.clear();
+                            if let Some(chunk) = level.world.chunks.get(&(x, z)) {
+                                level.random_tick_sections.masked(
+                                    (x, z),
+                                    chunk,
+                                    level.facts,
+                                    |id| b.random_tick_candidate(BlockStateId(id)),
+                                    &mut sections,
+                                );
+                            }
+                        }
+                        sections
+                            .iter()
+                            .find(|(y, _)| *y >= from)
+                            .map(|(y, mask)| (*y, Some(mask.clone())))
+                    });
+                }
+            });
             b.run_block_events(level, ticks);
             b.tick_block_entities(level, ticks);
         });
@@ -6008,7 +6030,7 @@ impl Game<'_> {
             self.using = None;
             return;
         };
-        if info.blocks_attacks.is_some() {
+        if self.blocks_attacks(&stack).is_some() {
             // ShieldItem: used for 72000 ticks, i.e. until released.
             self.using = Some((slot, ticks + 1));
             return;
@@ -8425,7 +8447,48 @@ impl Game<'_> {
             self.creative_display_click(slot, button, input);
             return true;
         }
+        if let Some(slot) = slot
+            && input == horizon_client::menu::Input::Throw
+            && self.carried.is_some()
+            && self.remote.is_some()
+            && ((slot < 9 && self.creative_tab_open()) || self.creative_inventory_open())
+        {
+            self.creative_throw_carrying(slot, button);
+            return true;
+        }
         self.menu_ops(&[(slot, button, input)])
+    }
+    /// `CreativeModeInventoryScreen.slotClicked`: THROW while a stack is carried, on an item
+    /// tab's hotbar slot or any slot of the Survival Inventory tab. The menu's own THROW needs an
+    /// empty hand, so the screen drops from the slot itself: one item, or with the control key
+    /// the whole stack (on the inventory tab `Slot.remove(getMaxStackSize())`), through
+    /// `handleCreativeModeItemDrop`, then sends the slot (`broadcastChanges`,
+    /// `handleCreativeModeItemAdd`); the carried stack stays. Only the server drops it: this is
+    /// the client of a server (`remote`).
+    fn creative_throw_carrying(&mut self, slot: usize, button: i32) {
+        let Some(old) = self.slot_mut(slot).clone() else {
+            return;
+        };
+        let count = if button == 0 {
+            1
+        } else if self.creative_inventory_open() {
+            let max = world_items!(self)
+                .get(&old.item)
+                .map_or(64, |i| i.max_stack);
+            old.count.min(max)
+        } else {
+            old.count
+        };
+        let before = self.player_equipment();
+        let left = old.count - count;
+        *self.slot_mut(slot) = (left > 0).then(|| ItemStack {
+            count: left,
+            ..old.clone()
+        });
+        self.player_equipment_changed(&before);
+        self.apply_equipment();
+        self.remote_creative_throw(ItemStack { count, ..old });
+        self.send_creative_slots();
     }
     /// A click on an item tab's display slot: the screen's own handling
     /// (`creative::click_display`), never the menu's.
@@ -8960,10 +9023,12 @@ impl Game<'_> {
                 let at = [p.position.x, p.position.y, p.position.z];
                 self.award_furnace_recipes(pos, at);
             }
-        } else if self.creative_inventory_open() {
-            // CreativeModeInventoryScreen.slotClicked's THROW on the Survival Inventory tab: the
-            // stack goes to the server (handleCreativeModeItemDrop), the slot follows with the
-            // others (SetCreativeModeSlot).
+        } else if self.screen == Screen::Creative {
+            // A THROW in the creative screen with an empty hand: on an item tab's hotbar
+            // `AbstractContainerMenu.doClick` calls `Player.handleCreativeModeItemDrop`, on the
+            // Survival Inventory tab the screen does. The stack goes to the server, the slot
+            // follows with the others (SetCreativeModeSlot). Only the server can drop it; the
+            // slot has already given it up.
             for stack in dropped {
                 self.remote_creative_throw(stack);
             }
@@ -11806,8 +11871,7 @@ impl Game<'_> {
         let shield = self
             .offhand
             .as_ref()
-            .and_then(|s| self.items().get(&s.item))
-            .is_some_and(|i| i.blocks_attacks.is_some());
+            .is_some_and(|s| self.blocks_attacks(s).is_some());
         if shield && !self.keys.contains(&KeyCode::ShiftLeft) {
             return None;
         }
@@ -12412,6 +12476,7 @@ impl Game<'_> {
                 self.res.facts(),
                 self.collision,
                 target,
+                self.remote.is_none(),
                 &mut next_float,
             )
         });
@@ -14180,7 +14245,12 @@ impl Game<'_> {
         let at = camera.to_array();
         // GameRenderer.render3dHud: the debug crosshair, first person with the HUD shown.
         let mut crosshair = horizon_client::gizmos::Gizmos::default();
-        if self.debug_crosshair() && self.camera_type.first_person() && !self.ui.hide_gui {
+        if debug_crosshair_drawn(
+            self.debug_crosshair(),
+            self.camera_type.first_person(),
+            self.ui.hide_gui,
+            self.shows_panorama(),
+        ) {
             let scale = HudBatch::new(size).scale;
             crosshair.debug_crosshair(at, view_pitch, view_yaw, scale);
         }
@@ -14247,10 +14317,7 @@ impl Game<'_> {
         };
         let mut hud = horizon_client::spans::time("hud", || self.hud(size));
         self.flush_ime(&mut hud);
-        // LevelLoadingScreen (Reason.OTHER) draws the title's panorama.
-        let title = self.title.is_some()
-            || self.loading_reason() == Some(horizon_client::level_loading::Reason::Other)
-            || self.remote_loading();
+        let title = self.shows_panorama();
         let (yaw, pitch) = if title {
             // PanoramaRenderer: the title cube spins at 0.1 degrees per tick, pitched 10 degrees.
             (
@@ -14388,6 +14455,8 @@ impl Game<'_> {
             bob,
             spin,
             sky,
+            shadow_scene_revision: (self.world.revision, self.world.chunks.membership_revision()),
+            shadow_cache: self.settings.horizon.shadow_cache,
             distance,
             detail_distance: (self.streaming.radius * 16) as f32,
             depth_far,
@@ -14533,6 +14602,13 @@ impl Game<'_> {
         *self.glowing_vertices.get_mut() = glowing;
         self.see_through_vertices = see_through;
         result
+    }
+    /// The frame shows the title's panorama, not a level: the title screen, or a
+    /// LevelLoadingScreen (Reason.OTHER), which draws it too.
+    fn shows_panorama(&self) -> bool {
+        self.title.is_some()
+            || self.loading_reason() == Some(horizon_client::level_loading::Reason::Other)
+            || self.remote_loading()
     }
     /// The LevelLoadingScreen shown while the player waits for its chunks:
     /// opening a world, or after a portal or a respawn into another dimension.
@@ -14751,7 +14827,12 @@ impl Game<'_> {
             KeyCode::KeyT if self.screen == Screen::Inventory => self.recipe_focus_search(),
             KeyCode::KeyT if self.screen == Screen::Playing => self.open_chat_method(""),
             // key.advancements.
-            KeyCode::KeyL if self.screen == Screen::Playing => self.open_advancements(false),
+            KeyCode::KeyL if self.screen == Screen::Playing => {
+                self.open_advancements(false);
+                // Opened from the keybinds, like the inventory: vanilla releases
+                // an active use in the same tick.
+                self.release_use_for_keybind_screen();
+            }
             KeyCode::KeyL if self.screen == Screen::Advancements => self.close_advancements(),
             // key.quickActions: only open if a datapack provides dialog actions.
             KeyCode::KeyG if self.screen == Screen::Playing => {
@@ -15022,6 +15103,11 @@ impl Game<'_> {
         self.streaming.loading =
             self.options.execution_role.is_client() && self.loading_reason().is_some();
         self.tick_pregen();
+        // A headless game has nothing to draw sections with: like a server's, they aren't
+        // meshed while it has no renderer.
+        if self.options.headless {
+            self.streaming.mesh = self.renderer.is_some();
+        }
         let areas = self.streaming.extra.len();
         let waiting = std::mem::take(&mut self.spawn_wait);
         self.streaming
@@ -15266,11 +15352,7 @@ impl ApplicationHandler for Game<'_> {
     /// applicationWillTerminate without a CloseRequested; vanilla's GLFW
     /// window turns it into a window close, so Minecraft.stop saves the world.
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        self.pad_close_output();
-        if let Err(e) = self.save_for_exit() {
-            log::warn!("Horizon: failed to save the world on exit: {e}");
-        }
-        self.finish_perf();
+        self.shut_down();
     }
 }
 
@@ -15285,7 +15367,13 @@ impl Game<'_> {
         id: WindowId,
         mut event: WindowEvent,
     ) {
-        if self.window.as_ref().is_none_or(|w| w.id() != id) {
+        // A headless game has no window: its events (the frame, the control socket's input)
+        // carry `WindowId::dummy()`.
+        let ours = match &self.window {
+            Some(w) => w.id() == id,
+            None => self.options.headless,
+        };
+        if !ours {
             return;
         }
         follow_keymap(&mut event);
@@ -16481,6 +16569,14 @@ impl Game<'_> {
             event_loop.exit();
         }
     }
+    /// The loop ended: close the pads' output, save the world, write the perf report.
+    pub(super) fn shut_down(&mut self) {
+        self.pad_close_output();
+        if let Err(e) = self.save_for_exit() {
+            log::warn!("Horizon: failed to save the world on exit: {e}");
+        }
+        self.finish_perf();
+    }
     /// winit's `about_to_wait`: what happens between frames (stop requests, the closing
     /// save, world entry, the control socket, pads), then the next frame.
     pub(super) fn idle(&mut self, event_loop: &dyn EventLoopCtl) {
@@ -16547,6 +16643,10 @@ impl Game<'_> {
             } else {
                 w.request_redraw();
             }
+        } else if self.options.headless {
+            // The headless loop paces the frames itself (`run_headless`).
+            self.handle_window_event(event_loop, WindowId::dummy(), WindowEvent::RedrawRequested);
+            return;
         }
         event_loop.set_control_flow(ControlFlow::Poll);
     }
@@ -17521,7 +17621,9 @@ impl Progress {
 /// Harness and dedicated runs keep the fully-synchronous startup so their
 /// output stays byte-identical; only an ordinary launch shows the window first.
 fn synchronous_startup(options: &Options) -> bool {
-    options.frames.is_some()
+    // A headless game has no window for the loading screen.
+    options.headless
+        || options.frames.is_some()
         || options.world_frames.is_some()
         || options.benchmark.is_some()
         || options.control.is_some()
@@ -18210,6 +18312,8 @@ fn loading_frame(hud: &HudBatch) -> Frame<'_> {
         bob: glam::Mat4::IDENTITY,
         spin: glam::Mat4::IDENTITY,
         sky: horizon_client::environment::Sky::default(),
+        shadow_scene_revision: (0, 0),
+        shadow_cache: false,
         distance: 12.0,
         detail_distance: 12.0,
         depth_far: 1000.0,
@@ -18450,6 +18554,14 @@ fn leave_fullscreen_after(
 }
 
 fn run_event_loop(mut game: Game<'_>) -> Result<()> {
+    if game.options.headless {
+        // No display to open winit's loop on: the game's own loop.
+        game.run_headless();
+        // narrator::start ran for it too (options.txt's narrator setting).
+        narrator::stop();
+        write_report(&game)?;
+        return game.error.take().map_or(Ok(()), Err);
+    }
     let result = EventLoop::new()?.run_app(&mut game);
     narrator::stop();
     leave_fullscreen_after(&result, &mut game.settings);
@@ -18961,6 +19073,7 @@ pub fn run_with(trait_mods: horizon_client::mod_api::Mods) -> Result<()> {
             log::warn!("could not add the official server to servers.dat: {e}");
         }
     }
+    mods::register_components(&vanilla_root)?;
     let early_settings = Settings::load(&std::env::current_dir()?.join("options.txt"));
     // Minecraft's constructor opens the narrator; a server has none.
     if options.execution_role.is_client() {
@@ -19012,7 +19125,7 @@ pub fn run_with(trait_mods: horizon_client::mod_api::Mods) -> Result<()> {
     )?;
     let gui = loaded.gui.ok_or("missing menu bundle")?;
     options.resources = loaded.root.clone();
-    let audio = if !options.execution_role.is_client() {
+    let audio = if !options.execution_role.is_client() || options.headless {
         Audio::silent(&options.resources)
     } else {
         Audio::with_device(&options.resources, &early_settings.sound_device)
@@ -19300,10 +19413,28 @@ pub(crate) fn closest_space_nudge(
     out
 }
 
+/// GameRenderer.render3dHud: the debug crosshair, first person with the HUD shown, and only over
+/// a level. The F3 overlay stays on when the world closes, so it must not reach the panorama.
+fn debug_crosshair_drawn(
+    enabled: bool,
+    first_person: bool,
+    hide_gui: bool,
+    panorama: bool,
+) -> bool {
+    enabled && first_person && !hide_gui && !panorama
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use horizon_client::container_screen::{Button, Clicks, Release, Target};
+
+    /// F3 left on when leaving a world kept the axes on the title screen.
+    #[test]
+    fn the_debug_crosshair_is_gone_once_the_world_is() {
+        assert!(debug_crosshair_drawn(true, true, false, false));
+        assert!(!debug_crosshair_drawn(true, true, false, true));
+    }
 
     /// Snuffing a candle or a candle cake draws one smoke per
     /// `getParticleOffsets`: by `candles` for a candle, a block up for a cake.
