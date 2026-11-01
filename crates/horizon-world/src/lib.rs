@@ -6,6 +6,7 @@ pub mod active_effects;
 pub mod attribute_health;
 pub mod attribute_map;
 pub mod attribute_updates;
+pub mod attachments;
 pub mod attributes;
 pub mod block_collision;
 pub mod block_collision_scan;
