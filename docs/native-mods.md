@@ -1264,6 +1264,13 @@ For mods that run where the world is simulated: a dedicated server, a LAN host, 
   client's configuration, so the client sees the refusal as an in-game disconnect screen. The player is not placed yet,
   so no player's state is swapped in and `native_tell` reaches nobody: the refusal text is the answer. Players the
   server refuses itself (name, whitelist, bans, a full server, the proxy's forwarding) are not heard.
+- **`native_player_commands_sent(player, name, names)`**: the command tree a player is sent, when they join and when
+  their level changes (`/op`, `/deop`, the LAN settings). `names` are the root commands their client would get, vanilla's
+  they may use and the mods'; remove a name and that client's tree lacks it, so its chat box neither completes nor
+  colours it. This hides the command from the client only, a typed one still runs (stop it with
+  `native_player_command`). For a player already on, their state is swapped in and `native_tell` works; a joining
+  player has no world yet, so nothing can be told them. The tree the hub re-sends by itself (after a respawn or a change
+  of level) reuses the last answer.
 - **`native_perform_command(player, command, ran)`**: a player typed a registered command (without its slash) and
   their level allows it, whether the world allows commands or not. The mod parses the line and sets `ran`. The
   player's state is swapped in for the call, as for their other actions, so `native_player` reads them; a
