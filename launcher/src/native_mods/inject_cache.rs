@@ -30,6 +30,7 @@ pub(super) fn key(
         field(&mut hash, part.as_bytes());
     }
     for bundle in mods {
+        field(&mut hash, b"bundle");
         field(&mut hash, bundle.id.as_bytes());
         let api = bundle
             .api
@@ -64,6 +65,7 @@ pub(super) fn key(
             if exclude.is_some_and(|a| path.starts_with(a)) {
                 continue;
             }
+            field(&mut hash, b"file");
             field(&mut hash, name.as_bytes());
             field(
                 &mut hash,

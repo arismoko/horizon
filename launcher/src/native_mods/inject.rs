@@ -298,6 +298,29 @@ mod tests {
     }
 
     #[test]
+    fn installed_build_key_tracks_dispatch_order() {
+        let (root, first) = fixture("order", "");
+        let mut second = first.clone();
+        second.id = "second".into();
+        let a = super::super::version_for(
+            "0123456789012345678901234567890123456789",
+            "mixins",
+            super::super::Profile::Fast,
+            &[first.clone(), second.clone()],
+        )
+        .unwrap();
+        let b = super::super::version_for(
+            "0123456789012345678901234567890123456789",
+            "mixins",
+            super::super::Profile::Fast,
+            &[second, first],
+        )
+        .unwrap();
+        assert_ne!(a, b);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn unsupported_injection_is_rejected() {
         let (root, bundle) = fixture("return", "[[injection]]\nid = 'hook'\ntarget = 'example::tick'\nkind = 'RETURN'\ntrait_method = 'tick'\n");
         assert!(prepare(&[bundle]).err().unwrap().contains("only HEAD"));
