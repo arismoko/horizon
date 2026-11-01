@@ -821,25 +821,9 @@ fn files_with_api(dir: &Path, api: Option<&str>) -> Result<Vec<(String, PathBuf)
 
 /// Copy a bundle without its API package's Cargo build output.
 fn copy_bundle(bundle: &Bundle, to: &Path) -> Result<(), String> {
-    fn copy(from: &Path, to: &Path, skip: Option<&Path>) -> std::io::Result<()> {
-        fs::create_dir_all(to)?;
-        for entry in fs::read_dir(from)? {
-            let entry = entry?;
-            let path = entry.path();
-            let dest = to.join(entry.file_name());
-            if entry.file_type()?.is_dir() {
-                if Some(path.as_path()) != skip {
-                    copy(&path, &dest, skip)?;
-                }
-            } else {
-                horizon_prepare::clone_or_copy(&path, &dest)?;
-            }
-        }
-        Ok(())
-    }
     let root = bundle.dir.canonicalize().map_err(|e| e.to_string())?;
     let skip = api_target(&root, bundle.api.as_deref())?;
-    copy(&root, to, skip.as_deref()).map_err(|e| e.to_string())
+    backend::copy_dir_except(&root, to, skip.as_deref()).map_err(|e| e.to_string())
 }
 
 /// The installed version `bundles` built on Horizon `revision` with horizon-mixins `mixins`
