@@ -299,6 +299,7 @@ impl Game<'_> {
             pack,
             textures,
             cem,
+            block_entity_shapes,
         } = staged;
         // Keep the working GPU resources, and hand its window surface over.
         if let Some(renderer) = &mut self.renderer {
@@ -372,6 +373,9 @@ impl Game<'_> {
             .cem
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = cem;
+        self.res
+            .block_entity_render()
+            .set_shapes(block_entity_shapes);
         // The random entity textures the new atlas packs: every mob chooses again.
         *self
             .res
@@ -467,6 +471,7 @@ pub(super) fn stage_pack(
         &root,
         res.mob_types(),
     ));
+    let block_entity_shapes = res.block_entity_render().shapes_for(&root);
     progress.set(3);
     Ok(StagedPack {
         root,
@@ -474,6 +479,7 @@ pub(super) fn stage_pack(
         pack,
         textures,
         cem,
+        block_entity_shapes,
     })
 }
 
@@ -486,6 +492,8 @@ pub(super) struct StagedPack {
     pub textures: PreparedTextures,
     /// The packs' custom entity models (OptiFine CEM).
     pub cem: Arc<horizon_client::mobs::cem::CemModels>,
+    /// The block entities' models, the packs' custom entity models over vanilla's.
+    pub block_entity_shapes: Arc<horizon_client::block_entity_render::BlockEntityShapes>,
 }
 
 /// `LoadingOverlay`'s stage lines for a pack reload, indexed by `progress`.
