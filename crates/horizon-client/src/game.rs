@@ -190,6 +190,7 @@ mod names;
 mod narrator;
 mod native_biome_colors;
 mod native_block_entity_draw;
+mod native_claimed_items;
 mod native_components;
 mod native_criteria;
 mod native_entities;
@@ -2644,6 +2645,8 @@ struct Game<'a> {
     panel: native_panel::Panel,
     /// Horizon's own shader pack, while one is picked (`game/native_shaders.rs`).
     native_shaders: native_shaders::NativeShaders,
+    /// The items native client mods claim and the events they haven't polled (game/native_claimed_items.rs).
+    native_input: native_claimed_items::ModInput,
     /// The native lifecycle bookkeeping.
     native_lifecycle: native_lifecycle::NativeLifecycle,
     /// Native mods' messages waiting (`game/native_net.rs`).
@@ -17697,6 +17700,7 @@ impl<'a> Game<'a> {
             recipe_tables: Default::default(),
             panel: Default::default(),
             native_shaders: Default::default(),
+            native_input: Default::default(),
             native_lifecycle: Default::default(),
             native_net: Default::default(),
             native_mod_screen: None,
