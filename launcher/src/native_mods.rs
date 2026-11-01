@@ -1124,7 +1124,12 @@ fn lock_crates(rust: &Toolchain, source: &Path, stage: &Path) -> Result<(), Stri
     };
     let horizon = crates::downloaded(&read(source)?)?;
     let staged = crates::downloaded(&read(stage)?)?;
-    if let Some(why) = crates::refused(&horizon, Some(&staged), &crates::wanted(stage)?) {
+    let wanted = if crates::any(stage) {
+        crates::wanted(stage)?
+    } else {
+        Vec::new()
+    };
+    if let Some(why) = crates::refused(&horizon, Some(&staged), &wanted) {
         return Err(why);
     }
     // Only this computer's crates: the build needs no others.
