@@ -60,6 +60,19 @@ pub struct NativeScreen {
     pub own_labels: bool,
 }
 
+/// A native mod as Options > Mods lists it (`native_mods`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NativeMod {
+    /// Its id: its settings folder and its keys' lines.
+    pub id: String,
+    /// `Name 1.0`.
+    pub title: String,
+    pub description: String,
+    /// Its keys: name, label and default key (`key.keyboard.z`). The page
+    /// lists them first; `native_mod_key` reads the player's choice.
+    pub keys: Vec<[String; 3]>,
+}
+
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]

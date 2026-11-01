@@ -222,6 +222,7 @@ pub(crate) use horizon_client::mod_api::NativeBlockRim;
 pub(crate) use horizon_client::mod_api::NativeColoredLight;
 pub(crate) use horizon_client::mod_api::NativeMinimap;
 pub(crate) use horizon_client::mod_api::NativeScreen;
+pub(crate) use horizon_client::mod_api::NativeMod;
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
@@ -527,18 +528,6 @@ pub(crate) struct NativePlayer {
     pub(crate) dimension: &'static str,
 }
 
-/// A native mod as Options > Mods lists it (`native_mods`).
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct NativeMod {
-    /// Its id: its settings folder and its keys' lines.
-    pub(crate) id: String,
-    /// `Name 1.0`.
-    pub(crate) title: String,
-    pub(crate) description: String,
-    /// Its keys: name, label and default key (`key.keyboard.z`). The page
-    /// lists them first; `native_mod_key` reads the player's choice.
-    pub(crate) keys: Vec<[String; 3]>,
-}
 
 /// An item the panel shows (`native_panel_items`): its id
 /// (`minecraft:diamond`), a count (1 draws none) and its components beyond
