@@ -66,6 +66,8 @@ pub trait Host {
         owner_yaw: Option<f32>,
         seed: i32,
     ) -> bool;
+    /// Access a server-owned holder's attachment map.
+    fn attachments(&mut self, holder: Holder) -> AttachmentResult<&mut Attachments>;
     /// Moves mob `id` to `pos` at once, as `/tp` does: it dismounts, drops its
     /// path and resets its fall. False for no such mob, another dimension or a
     /// position outside `/summon`'s bounds. API 37.

@@ -41,6 +41,9 @@ impl Host for super::Game<'_> {
     ) -> bool {
         self.native_draw_item(draw, stack, display, owner_yaw, seed)
     }
+    fn attachments(&mut self, holder: Holder) -> AttachmentResult<&mut Attachments> {
+        self.native_attachments(holder)
+    }
     fn teleport_mob(&mut self, dimension: &str, id: u32, pos: [f64; 3]) -> bool {
         self.native_teleport_mob(dimension, id, pos)
     }
