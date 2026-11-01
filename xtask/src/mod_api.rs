@@ -693,7 +693,7 @@ mod tests {
     use std::time::Duration;
 
     struct ItemStack;
-    struct BlockEntityDraw;
+    struct BlockEntityDraw(Vec<u32>);
     #[allow(dead_code)]
     mod stubs {
         #[derive(Clone, Copy, Debug, PartialEq)]
@@ -769,6 +769,19 @@ mod tests {
         calls: Arc<Mutex<Vec<u32>>>,
     }
     impl Hooks for Mod {
+        fn block_entity_submit(
+            &self,
+            _: &dyn Host,
+            pos: [i32; 3],
+            block: &str,
+            _: BlockStateId,
+            _: &ModBlockEntity,
+            draw: &mut BlockEntityDraw,
+        ) {
+            assert_eq!(pos, [1, 2, 3]);
+            assert_eq!(block, "example:machine");
+            draw.0.push(self.id);
+        }
         fn loot_table_load(&self, _: &str, table: &mut Value) {
             table.as_array_mut().unwrap().push(self.id.into());
         }
@@ -824,6 +837,29 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn block_entity_submit_dispatches_in_order_with_shared_draw() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mods: Vec<Box<dyn Hooks>> = vec![
+            Box::new(Mod {
+                id: 1,
+                calls: calls.clone(),
+            }),
+            Box::new(Mod { id: 2, calls }),
+        ];
+        let mut draw = BlockEntityDraw(Vec::new());
+        dispatch_block_entity_submit(
+            &TestHost,
+            &mods,
+            [1, 2, 3],
+            "example:machine",
+            BlockStateId,
+            &ModBlockEntity,
+            &mut draw,
+        );
+        assert_eq!(draw.0, [1, 2]);
+    }
+
     #[test]
     fn host_mapping_preserves_access_and_docs_and_rejects_unavailable_types() {
         let exports = super::exported_types(
