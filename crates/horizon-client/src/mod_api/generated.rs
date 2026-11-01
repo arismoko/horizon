@@ -118,14 +118,12 @@ pub trait Hooks: Send + Sync {
     /// Return `Flow::Cancel` to take it: this sets `handled`, and later mods are skipped.
     fn random_tick(
         &self,
-        level: &mut dyn LevelHost,
-        ticks: &mut Ticks,
+        level: &mut dyn LevelWriteHost,
         dimension: LevelDimension,
         pos: BlockPos,
         state: BlockStateId,
     ) -> Flow {
         let _ = level;
-        let _ = ticks;
         let _ = dimension;
         let _ = pos;
         let _ = state;
@@ -141,14 +139,12 @@ pub trait Hooks: Send + Sync {
     /// Return `Flow::Cancel` to take it: this sets `handled`, and later mods are skipped.
     fn tick_block(
         &self,
-        level: &mut dyn LevelHost,
-        ticks: &mut Ticks,
+        level: &mut dyn LevelWriteHost,
         dimension: LevelDimension,
         pos: BlockPos,
         state: BlockStateId,
     ) -> Flow {
         let _ = level;
-        let _ = ticks;
         let _ = dimension;
         let _ = pos;
         let _ = state;
@@ -171,8 +167,7 @@ pub trait Hooks: Send + Sync {
     /// Return `Some` to set `new`; the first mod returning `Some` wins.
     fn update_shape(
         &self,
-        level: &dyn LevelHost,
-        ticks: &mut Ticks,
+        level: &mut dyn LevelTicksHost,
         dimension: LevelDimension,
         pos: BlockPos,
         state: BlockStateId,
@@ -181,7 +176,6 @@ pub trait Hooks: Send + Sync {
         neighbour: BlockStateId,
     ) -> Option<BlockStateId> {
         let _ = level;
-        let _ = ticks;
         let _ = dimension;
         let _ = pos;
         let _ = state;
@@ -1031,9 +1025,8 @@ pub fn dispatch_neighbor_changed(
     }
 }
 pub fn dispatch_random_tick(
-    level: &mut dyn LevelHost,
+    level: &mut dyn LevelWriteHost,
     mods: &[Box<dyn Hooks>],
-    ticks: &mut Ticks,
     dimension: LevelDimension,
     pos: BlockPos,
     state: BlockStateId,
@@ -1044,7 +1037,7 @@ pub fn dispatch_random_tick(
     }
     for mod_hook in mods {
         if matches!(
-            mod_hook.random_tick(level, &mut *ticks, dimension, pos, state),
+            mod_hook.random_tick(level, dimension, pos, state),
             Flow::Cancel
         ) {
             *handled = true;
@@ -1053,9 +1046,8 @@ pub fn dispatch_random_tick(
     }
 }
 pub fn dispatch_tick_block(
-    level: &mut dyn LevelHost,
+    level: &mut dyn LevelWriteHost,
     mods: &[Box<dyn Hooks>],
-    ticks: &mut Ticks,
     dimension: LevelDimension,
     pos: BlockPos,
     state: BlockStateId,
@@ -1066,7 +1058,7 @@ pub fn dispatch_tick_block(
     }
     for mod_hook in mods {
         if matches!(
-            mod_hook.tick_block(level, &mut *ticks, dimension, pos, state),
+            mod_hook.tick_block(level, dimension, pos, state),
             Flow::Cancel
         ) {
             *handled = true;
@@ -1075,9 +1067,8 @@ pub fn dispatch_tick_block(
     }
 }
 pub fn dispatch_update_shape(
-    level: &dyn LevelHost,
+    level: &mut dyn LevelTicksHost,
     mods: &[Box<dyn Hooks>],
-    ticks: &mut Ticks,
     dimension: LevelDimension,
     pos: BlockPos,
     state: BlockStateId,
@@ -1092,7 +1083,6 @@ pub fn dispatch_update_shape(
     for mod_hook in mods {
         if let Some(replacement) = mod_hook.update_shape(
             level,
-            &mut *ticks,
             dimension,
             pos,
             state,
