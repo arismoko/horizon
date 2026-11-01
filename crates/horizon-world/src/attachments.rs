@@ -16,6 +16,22 @@ pub enum AttachmentError {
     Encode,
     /// A namespace in the saved compound is not a compound.
     InvalidNamespace,
+    /// Copy-on-death requires a serializer.
+    InvalidCopyPolicy,
+}
+
+/// A server holder in the host's current dimension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Holder {
+    Entity(u32),
+    BlockEntity([i32; 3]),
+    Chunk([i32; 2]),
+    Level,
+}
+
+/// Object-safe access to the current server's holders.
+pub trait AttachmentHost {
+    fn attachments(&mut self, holder: Holder) -> Result<&mut Attachments, AttachmentError>;
 }
 
 /// The optional on-disk representation of an attachment.
@@ -33,14 +49,44 @@ pub struct AttachmentType<T: 'static> {
     pub copy_on_death: bool,
 }
 
+impl<T: Clone + Send + Sync + 'static> AttachmentType<T> {
+    /// Read a value, inserting its default if absent.
+    pub fn get<H: AttachmentHost + ?Sized>(
+        &self,
+        host: &mut H,
+        holder: Holder,
+    ) -> Result<T, AttachmentError> {
+        host.attachments(holder)?.get(self)
+    }
+    /// Replace a value on an existing holder.
+    pub fn set<H: AttachmentHost + ?Sized>(
+        &self,
+        host: &mut H,
+        holder: Holder,
+        value: T,
+    ) -> Result<(), AttachmentError> {
+        host.attachments(holder)?.set(self, value)
+    }
+    /// Remove a value from an existing holder.
+    pub fn remove<H: AttachmentHost + ?Sized>(
+        &self,
+        host: &mut H,
+        holder: Holder,
+    ) -> Result<Option<T>, AttachmentError> {
+        host.attachments(holder)?.remove(self)
+    }
+}
+
 trait Value: Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn clone_box(&self) -> Box<dyn Value>;
     fn encode(&self) -> Result<Option<Compound>, AttachmentError>;
+    fn copy_on_death(&self) -> bool;
 }
 struct TypedValue<T> {
     value: T,
     encode: Option<fn(&T) -> Result<Compound, AttachmentError>>,
+    copy_on_death: bool,
 }
 impl<T: Clone + Send + Sync + 'static> Value for TypedValue<T> {
     fn as_any(&self) -> &dyn Any {
@@ -50,10 +96,14 @@ impl<T: Clone + Send + Sync + 'static> Value for TypedValue<T> {
         Box::new(Self {
             value: self.value.clone(),
             encode: self.encode,
+            copy_on_death: self.copy_on_death,
         })
     }
     fn encode(&self) -> Result<Option<Compound>, AttachmentError> {
         self.encode.map(|encode| encode(&self.value)).transpose()
+    }
+    fn copy_on_death(&self) -> bool {
+        self.copy_on_death
     }
 }
 enum Entry {
@@ -110,7 +160,14 @@ impl Attachments {
         for ((namespace, name), entry) in &self.entries {
             let value = match entry {
                 Entry::Raw(value) => Some(value.clone()),
-                Entry::Decoded(value) => value.encode()?,
+                Entry::Decoded(value) => value.encode()?.map(|encoded| {
+                    let mut envelope = Compound::new();
+                    envelope.insert("value".into(), Tag::Compound(encoded));
+                    if value.copy_on_death() {
+                        envelope.insert("copy_on_death".into(), Tag::Byte(1));
+                    }
+                    envelope
+                }),
             };
             if let Some(value) = value {
                 let tag = raw
@@ -124,15 +181,49 @@ impl Attachments {
         }
         Ok(raw)
     }
+    /// Copy opted-in values through their disk encoding for a player respawn.
+    pub fn copy_on_death(&self) -> Result<Self, AttachmentError> {
+        let mut copy = Self::default();
+        for (key, entry) in &self.entries {
+            let encoded = match entry {
+                Entry::Raw(raw)
+                    if matches!(raw.get(&"copy_on_death".into()), Some(Tag::Byte(1))) =>
+                {
+                    Some(raw.clone())
+                }
+                Entry::Decoded(value) if value.copy_on_death() => {
+                    let value = value.encode()?.ok_or(AttachmentError::InvalidCopyPolicy)?;
+                    Some(
+                        [
+                            ("value".into(), Tag::Compound(value)),
+                            ("copy_on_death".into(), Tag::Byte(1)),
+                        ]
+                        .into(),
+                    )
+                }
+                _ => None,
+            };
+            if let Some(encoded) = encoded {
+                copy.entries.insert(key.clone(), Entry::Raw(encoded));
+            }
+        }
+        Ok(copy)
+    }
     /// Get an existing value or insert its default; saved values decode lazily.
     pub fn get<T: Clone + Send + Sync + 'static>(
         &mut self,
         ty: &AttachmentType<T>,
     ) -> Result<T, AttachmentError> {
+        if ty.copy_on_death && ty.codec.is_none() {
+            return Err(AttachmentError::InvalidCopyPolicy);
+        }
         let key = (ty.namespace.into(), ty.name.into());
         let value = match self.entries.get(&key) {
             Some(Entry::Raw(raw)) => {
-                (ty.codec.as_ref().ok_or(AttachmentError::Decode)?.decode)(raw)?
+                let Some(Tag::Compound(value)) = raw.get(&"value".into()) else {
+                    return Err(AttachmentError::Decode);
+                };
+                (ty.codec.as_ref().ok_or(AttachmentError::Decode)?.decode)(value)?
             }
             Some(Entry::Decoded(value)) => {
                 return value
@@ -148,6 +239,7 @@ impl Attachments {
             Entry::Decoded(Box::new(TypedValue {
                 value: value.clone(),
                 encode: ty.codec.as_ref().map(|codec| codec.encode),
+                copy_on_death: ty.copy_on_death,
             })),
         );
         Ok(value)
@@ -158,6 +250,9 @@ impl Attachments {
         ty: &AttachmentType<T>,
         value: T,
     ) -> Result<(), AttachmentError> {
+        if ty.copy_on_death && ty.codec.is_none() {
+            return Err(AttachmentError::InvalidCopyPolicy);
+        }
         let key = (ty.namespace.into(), ty.name.into());
         if let Some(Entry::Decoded(old)) = self.entries.get(&key)
             && !old.as_any().is::<T>()
@@ -169,6 +264,7 @@ impl Attachments {
             Entry::Decoded(Box::new(TypedValue {
                 value,
                 encode: ty.codec.as_ref().map(|codec| codec.encode),
+                copy_on_death: ty.copy_on_death,
             })),
         );
         if let Some(Tag::Compound(names)) = self.raw.get_mut(&ty.namespace.into()) {
@@ -232,6 +328,23 @@ mod tests {
         assert_eq!(loaded.remove(&COUNTER), Ok(Some(42)));
         let mut reopened = Attachments::from_nbt(loaded.to_nbt().unwrap());
         assert_eq!(reopened.get(&COUNTER), Ok(0));
+    }
+    #[test]
+    fn untouched_saved_value_copies_on_respawn() {
+        let keep = AttachmentType {
+            namespace: "test",
+            name: "keep",
+            default: || 0,
+            codec: Some(AttachmentCodec { encode, decode }),
+            copy_on_death: true,
+        };
+        let mut original = Attachments::default();
+        original.set(&keep, 42).unwrap();
+        original.set(&COUNTER, 5).unwrap();
+        let loaded = Attachments::from_nbt(original.to_nbt().unwrap());
+        let mut respawned = loaded.copy_on_death().unwrap();
+        assert_eq!(respawned.get(&keep), Ok(42));
+        assert_eq!(respawned.get(&COUNTER), Ok(0));
     }
     #[test]
     fn unknown_and_invalid_values_survive_a_failed_decode() {

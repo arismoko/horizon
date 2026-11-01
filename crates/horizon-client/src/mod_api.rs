@@ -19,6 +19,9 @@ pub use horizon_core::{
     random::{LegacyRandom, RandomSource},
 };
 pub use horizon_world::{
+    attachments::{
+        AttachmentCodec, AttachmentError, AttachmentHost, AttachmentType, Attachments, Holder,
+    },
     fluid::FluidState,
     level::{BlockId, Dimension as LevelDimension, PlacementContext},
     nbt::Compound,
@@ -373,6 +376,10 @@ pub enum Flow {
 
 /// Services supplied by the game to trait mods.
 pub trait Host {
+    /// Access a holder's server-owned attachment map.
+    fn attachments(&mut self, _holder: Holder) -> Result<&mut Attachments, AttachmentError> {
+        Err(AttachmentError::MissingHolder)
+    }
     /// Read the block with `native_block`.
     fn block(&self, pos: [i32; 3]) -> String;
     /// Set the block with `native_set_block`.
@@ -392,6 +399,12 @@ pub trait Host {
     fn tell(&mut self, uuid: u128, line: Text) -> bool;
     /// Send an action bar line to a player, including the acting player inside their hook.
     fn action_bar(&mut self, uuid: u128, line: Text) -> bool;
+}
+
+impl AttachmentHost for dyn Host + '_ {
+    fn attachments(&mut self, holder: Holder) -> Result<&mut Attachments, AttachmentError> {
+        Host::attachments(self, holder)
+    }
 }
 
 /// Read-only level services, like vanilla's `LevelReader`.
