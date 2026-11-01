@@ -1595,8 +1595,10 @@ pub trait Hooks: Send + Sync {
     /// It does not fire on the title screen, which returns before its point,
     /// nor for the screens drawn over gameplay after it (a server dialog, the
     /// server pack, link and code-of-conduct prompts, a book, a sign editor):
-    /// those keep `Screen::Playing`, which it skips, and draw over what it
-    /// drew, while vanilla's `ScreenEvent.Render.Post` fires for them.
+    /// those keep `Screen::Playing`, which it skips (the server pack prompt
+    /// hides an open screen too, and that screen does not fire under it),
+    /// and draw over what it drew, while vanilla's `ScreenEvent.Render.Post`
+    /// fires for them.
     /// API 78.
     fn screen_render_post(
         &self,
