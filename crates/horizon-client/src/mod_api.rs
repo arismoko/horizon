@@ -13,7 +13,11 @@ pub use crate::hud::HudBatch;
 pub use crate::hud_layout::{GuiDraw, HealthInputs};
 pub use crate::items::ItemStack;
 pub use crate::text::Text;
-pub use horizon_core::{geometry::Direction, position::BlockPos};
+pub use horizon_core::{
+    geometry::Direction,
+    position::BlockPos,
+    random::{LegacyRandom, RandomSource},
+};
 pub use horizon_world::{
     fluid::FluidState,
     level::{BlockId, Dimension as LevelDimension, PlacementContext},
@@ -307,6 +311,21 @@ pub trait Host {
 pub trait LevelHost {
     /// Read a block through `LevelAccess::block_state`.
     fn block_state(&self, pos: [i32; 3]) -> BlockStateId;
+    /// Whether this is the client-side level.
+    fn is_client_side(&self) -> bool;
+    /// Return a state with the named property changed, if valid.
+    fn state_with_property(
+        &self,
+        state: BlockStateId,
+        key: &str,
+        value: &str,
+    ) -> Option<BlockStateId>;
+}
+
+/// Access vanilla's `Level.random`, so draws come in vanilla's order.
+pub trait LevelRandomHost: LevelHost {
+    /// The level's random stream, or None on a non-authoritative level.
+    fn random(&mut self) -> Option<&mut LegacyRandom>;
 }
 
 /// A `LevelReader` with vanilla's `ScheduledTickAccess`. Shape updates cannot write blocks.
@@ -318,7 +337,7 @@ pub trait LevelTicksHost: LevelHost {
 }
 
 /// Mutable level services, like vanilla's `ServerLevel`. Whole-block writes wait for block entity support.
-pub trait LevelWriteHost: LevelTicksHost {
+pub trait LevelWriteHost: LevelTicksHost + LevelRandomHost {
     /// Change a block property through `native_set_block_property`.
     fn set_block_property(&mut self, pos: [i32; 3], key: &str, value: &str, flags: i32) -> bool;
 }

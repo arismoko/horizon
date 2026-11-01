@@ -47,7 +47,8 @@ fn host_for(is_level: bool, mutable: Option<bool>, ticks: bool) -> Option<(&'sta
                 match (mutable, ticks) {
                     (true, true) => "LevelWriteHost",
                     (false, true) => "LevelTicksHost",
-                    _ => "LevelHost",
+                    (true, false) => "LevelRandomHost",
+                    (false, false) => "LevelHost",
                 },
             )
         } else {
@@ -323,7 +324,8 @@ mod tests {
         pub(super) struct Ticks;
         pub(super) trait LevelHost {}
         pub(super) trait LevelTicksHost: LevelHost {}
-        pub(super) trait LevelWriteHost: LevelTicksHost {}
+        pub(super) trait LevelRandomHost: LevelHost {}
+        pub(super) trait LevelWriteHost: LevelTicksHost + LevelRandomHost {}
         pub(super) struct Compound;
         pub(super) struct Corners;
         pub(super) struct HudBatch;
@@ -487,7 +489,7 @@ mod tests {
         );
         assert_eq!(
             super::host_for(true, Some(true), false),
-            Some(("level", "&mut dyn LevelHost".into()))
+            Some(("level", "&mut dyn LevelRandomHost".into()))
         );
         assert_eq!(
             super::host_for(true, Some(false), true),

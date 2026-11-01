@@ -1297,7 +1297,7 @@ pub trait Hooks: Send + Sync {
     /// Every mod gets `success` in order and may add, change or remove success.
     fn is_bonemeal_success(
         &self,
-        level: &mut dyn LevelHost,
+        level: &mut dyn LevelRandomHost,
         dimension: LevelDimension,
         pos: BlockPos,
         state: BlockStateId,
@@ -2502,7 +2502,7 @@ pub fn dispatch_is_valid_bonemeal_target(
     }
 }
 pub fn dispatch_is_bonemeal_success(
-    level: &mut dyn LevelHost,
+    level: &mut dyn LevelRandomHost,
     mods: &[Box<dyn Hooks>],
     dimension: LevelDimension,
     pos: BlockPos,
