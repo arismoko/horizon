@@ -1790,10 +1790,22 @@ impl Game<'_> {
                     }
                 }
                 MobEvent::RemoveKilled { target } => {
-                    if let Some(m) = self.mobs.iter_mut().find(|m| m.id == target)
-                        && !m.alive()
+                    // The bite that killed it ran `LivingEntity.die` (loot, such
+                    // as a magma cube's froglight, and experience) before
+                    // `eatEntity` removes it: a removed mob never reaches the
+                    // next tick's deaths, so it dies here first.
+                    if let Some(m) = self
+                        .mobs
+                        .iter()
+                        .find(|m| m.id == target && !m.alive() && !m.removed)
+                        .cloned()
                     {
-                        m.removed = true;
+                        if self.died.insert(target) {
+                            self.mob_died(&m);
+                        }
+                        if let Some(m) = self.mobs.iter_mut().find(|m| m.id == target) {
+                            m.removed = true;
+                        }
                     }
                 }
                 MobEvent::Push { target, velocity } => {
