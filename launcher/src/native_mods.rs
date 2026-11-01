@@ -889,7 +889,13 @@ fn source_digest(bundle: &Bundle) -> Option<String> {
                 && bundle.dir == root.join("mixins").join(&bundle.id)
         })
         .unwrap_or(&bundle.dir);
-    let read: Vec<_> = files(root)
+    // An installed .hnmod keeps its archive digest for the Mods page.
+    let paths = if root == bundle.dir {
+        bundle_files(bundle)
+    } else {
+        files(root)
+    };
+    let read: Vec<_> = paths
         .ok()?
         .into_iter()
         .map(|(name, path)| Some((name, fs::read(path).ok()?)))
@@ -2062,9 +2068,11 @@ mod tests {
         let key = || version_for(A, B, Profile::Fast, std::slice::from_ref(&bundle)).unwrap();
         let first = key();
         let hash = mod_hash(&bundle).unwrap();
+        let digest = source_digest(&bundle);
         fs::write(d.join("engine/target/debug/output"), "two").unwrap();
         assert_eq!(first, key());
         assert_eq!(hash, mod_hash(&bundle).unwrap());
+        assert_eq!(digest, source_digest(&bundle));
         let dest = dir("api-target-copy");
         copy_bundle(&bundle, &dest).unwrap();
         assert!(!dest.join("engine/target").exists());
