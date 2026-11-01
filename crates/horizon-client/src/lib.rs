@@ -7,6 +7,7 @@ pub mod advancements;
 pub mod ambience;
 pub mod animate_tick;
 pub mod arrows;
+pub mod block_contact;
 // The game's own unit tests stay in the executable's test build (main.rs), as before the game moved
 // here: they set process-wide state (`health::HURT_SERVER`, the sulfur cube archetypes) that the
 // library's tests must not share a process with.

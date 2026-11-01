@@ -963,6 +963,7 @@ impl Game<'_> {
         if let Some(i) = self.carts.iter().position(|x| x.id == c.id) {
             self.eject_cart_mobs(i);
         }
+        self.release_vehicle_container(c.id);
         self.carts.retain(|x| x.id != c.id);
         // ExplosionInteraction.TNT: the tnt_explosion_drop_decay rule.
         let interaction = self.destroy_type("tnt_explosion_drop_decay");
@@ -1226,6 +1227,7 @@ impl Game<'_> {
                 }
             } else {
                 self.eject_cart_mobs(i);
+                self.release_vehicle_container(id);
                 self.carts.remove(i);
             }
         }
@@ -1331,6 +1333,7 @@ impl Game<'_> {
             self.push_from_cart(i);
         } else {
             self.eject_cart_mobs(i);
+            self.release_vehicle_container(c.id);
             self.carts.remove(i);
             self.riding = None;
         }
@@ -1577,6 +1580,19 @@ impl Game<'_> {
         self.store_cart_items(key);
         self.world.block_entities.remove(&key);
     }
+    /// A chest or hopper minecart or a chest boat is about to be removed
+    /// (`Containers.dropContents` / `AbstractChestBoat.remove`): what an open
+    /// menu edited goes back to the vehicle, so it is what drops or travels
+    /// with it, and the menu's stand-in leaves the level. A menu that is
+    /// still open over it then has nothing left to take.
+    pub(super) fn release_vehicle_container(&mut self, id: u32) {
+        let key = (i32::MAX - 15, CART_KEY_Y, id as i32);
+        self.store_cart_items(key);
+        self.world.block_entities.remove(&key);
+        if self.container == Some(key) {
+            self.container = None;
+        }
+    }
     /// The menu of a chest or hopper minecart or a chest boat works on the
     /// vehicle's own items (`ContainerEntity`): the placeholder under `key`
     /// that the menu edits is copied back to the vehicle.
@@ -1644,6 +1660,8 @@ impl Game<'_> {
         }
         if burning && self.carts[i].kind == CartKind::Tnt {
             self.eject_cart_mobs(i);
+            let id = self.carts[i].id;
+            self.release_vehicle_container(id);
             let c = self.carts.remove(i);
             self.explode_cart(&c, arrow_velocity.length_squared());
             return;
@@ -1668,6 +1686,10 @@ impl Game<'_> {
                 self.carts[i].kind == CartKind::Tnt && (fire || speed >= f64::from(0.01f32));
             if !tnt_prime {
                 self.eject_cart_mobs(i);
+            }
+            let id = self.carts[i].id;
+            if !tnt_prime {
+                self.release_vehicle_container(id);
             }
             let mut c = self.carts.remove(i);
             if c.kind == CartKind::Tnt && (fire || speed >= f64::from(0.01f32)) {
