@@ -628,35 +628,6 @@ mod tests {
     }
 
     #[test]
-    fn emf_files_win_and_a_flat_file_beats_its_folder() {
-        let (replace, attach) = (jem("leg1", false), jem("leg1", true));
-        let files = [
-            // EMF's folder form over OptiFine's flat file.
-            ("optifine/cem/cow.jem", attach.as_str()),
-            ("emf/cem/cow/cow.jem", replace.as_str()),
-            // One folder: the flat file over the folder form.
-            ("optifine/cem/pig.jem", replace.as_str()),
-            ("optifine/cem/pig/pig.jem", attach.as_str()),
-            // A directory named `sheep.jem` is no file: the folder form stands.
-            ("optifine/cem/sheep.jem/readme.txt", ""),
-            ("optifine/cem/sheep/sheep.jem", attach.as_str()),
-        ];
-        let tree = plane("root", vec![plane("right_hind_leg", vec![])]);
-        let models = models(
-            "precedence",
-            &files,
-            &["cow#main", "pig#main", "sheep#main"],
-            &tree,
-        );
-        assert_eq!(attached(&models, "cow#main", "right_hind_leg"), Some(false));
-        assert_eq!(attached(&models, "pig#main", "right_hind_leg"), Some(false));
-        assert_eq!(
-            attached(&models, "sheep#main", "right_hind_leg"),
-            Some(true)
-        );
-    }
-
-    #[test]
     fn a_baby_with_its_own_file_takes_it_not_the_adults() {
         let (adult, baby) = (jem("head", false), jem("head", true));
         let files = [

@@ -72,7 +72,7 @@ pub fn load_jem(root: &Path, path: &str) -> Option<EntityModel> {
 
 /// A pack file's text, None when it's missing or larger than a model may read: its size is
 /// checked before anything is read.
-pub fn read_small(path: &Path) -> Option<String> {
+fn read_small(path: &Path) -> Option<String> {
     let len = fs::metadata(path).ok()?.len();
     if len > MAX_BYTES as u64 {
         return None;
@@ -85,4 +85,52 @@ pub fn read_small(path: &Path) -> Option<String> {
 pub fn atlas_name(path: &str) -> Option<String> {
     let rest = path.strip_prefix("assets/minecraft/textures/")?;
     Some(rest.strip_suffix(".png").unwrap_or(rest).to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn emf_files_win_and_a_flat_file_beats_its_folder() {
+        let root = std::env::temp_dir().join(format!("horizon-jem-files-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for path in [
+            // EMF's folder form over OptiFine's flat file.
+            "optifine/cem/cow.jem",
+            "emf/cem/cow/cow.jem",
+            // One folder: the flat file over the folder form.
+            "optifine/cem/pig.jem",
+            "optifine/cem/pig/pig.jem",
+            // A directory named `sheep.jem` is no file: the folder form stands.
+            "optifine/cem/sheep.jem/readme.txt",
+            "optifine/cem/sheep/sheep.jem",
+        ] {
+            let path = root.join("assets/minecraft").join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "{}").unwrap();
+        }
+        let files = jem_files(&root);
+        fs::remove_dir_all(&root).unwrap();
+        let paths = |paths: &[&str]| {
+            paths
+                .iter()
+                .map(|p| format!("assets/minecraft/{p}"))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            files,
+            BTreeMap::from([
+                (
+                    "cow".to_owned(),
+                    paths(&["emf/cem/cow/cow.jem", "optifine/cem/cow.jem"])
+                ),
+                (
+                    "pig".to_owned(),
+                    paths(&["optifine/cem/pig.jem", "optifine/cem/pig/pig.jem"])
+                ),
+                ("sheep".to_owned(), paths(&["optifine/cem/sheep/sheep.jem"])),
+            ])
+        );
+    }
 }

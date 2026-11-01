@@ -1438,7 +1438,13 @@ impl BlockEntityRenderer {
                     *texture
                 };
                 // Trapped and ender chests have models of their own when a `.jem` reshapes
-                // them; copper chests draw the chest's, but not its `.jem` texture.
+                // them; copper chests have no CEM name and draw vanilla's chest.
+                let shapes: &BlockEntityShapes =
+                    if matches!(block.as_str(), "chest" | "trapped_chest" | "ender_chest") {
+                        &*shapes
+                    } else {
+                        &*self.vanilla
+                    };
                 let (own, chest) = match (block.as_str(), part) {
                     ("trapped_chest", ChestPart::Single) => ("trapped_chest", "chest"),
                     ("trapped_chest", ChestPart::Left) => {
@@ -1457,12 +1463,7 @@ impl BlockEntityRenderer {
                 } else {
                     chest
                 };
-                let texture = if matches!(block.as_str(), "chest" | "trapped_chest" | "ender_chest")
-                {
-                    shapes.texture(key, texture, scene.sprites)
-                } else {
-                    texture
-                };
+                let texture = shapes.texture(key, texture, scene.sprites);
                 let Some(model) = shapes.models.get(key) else {
                     return;
                 };
@@ -2818,15 +2819,16 @@ mod tests {
         let rect = |u0: f32| Rect {
             u0,
             v0: 0.0,
-            u1: u0 + 0.25,
-            v1: 0.25,
+            u1: u0 + 0.2,
+            v1: 0.2,
             w: 16,
             h: 16,
         };
         let sprites: HashMap<String, Rect> = [
             ("entity/chest/normal", rect(0.0)),
-            ("entity/chest/fancy", rect(0.5)),
-            ("entity/chest/ender", rect(0.25)),
+            ("entity/chest/ender", rect(0.2)),
+            ("entity/chest/fancy", rect(0.4)),
+            ("entity/chest/copper", rect(0.6)),
         ]
         .map(|(name, r)| (name.to_owned(), r))
         .into();
@@ -2850,12 +2852,8 @@ mod tests {
             glyph: &|_| (None, 0.0),
             glyphs: 0,
         };
-        // Vanilla's three faces become the bottom's, the lock's and the custom lid's six; an
-        // ender chest takes the geometry but keeps its texture.
-        for (block, texture, u0) in [
-            ("chest", "entity/chest/normal", 0.5),
-            ("ender_chest", "entity/chest/ender", 0.25),
-        ] {
+        // A closed single chest of `block` drawn by `renderer`: positions and UVs.
+        let draw = |renderer: &BlockEntityRenderer, block: &str, texture: &'static str| {
             let kind = Kind::Chest {
                 block: block.into(),
                 texture,
@@ -2864,24 +2862,48 @@ mod tests {
                 double_with: None,
             };
             let mut out = Vec::new();
-            let lights = diffuse_lights(false);
             renderer.render_one(
                 &scene,
                 [0; 3],
                 &kind,
                 Mat4::IDENTITY,
                 0xF0,
-                lights,
+                diffuse_lights(false),
                 false,
                 true,
                 &mut out,
             );
-            assert_eq!(out.len(), 8 * 4, "{block}");
+            out.iter().map(|v| (v.pos, v.uv)).collect::<Vec<_>>()
+        };
+        // The chest's three faces become the bottom's, the lock's and the custom lid's six, in
+        // the `.jem`'s texture. Ender and copper chests have no file of their own: vanilla's
+        // three faces in their own textures. (Trapped chests: `block_entity_cem`'s tests; their
+        // texture turns festive in late December.)
+        for (block, texture, u0, faces) in [
+            ("chest", "entity/chest/normal", 0.4, 8),
+            ("ender_chest", "entity/chest/ender", 0.2, 3),
+            ("copper_chest", "entity/chest/copper", 0.6, 3),
+        ] {
+            let out = draw(&renderer, block, texture);
+            assert_eq!(out.len(), faces * 4, "{block}");
             assert!(
-                out.iter().all(|v| (u0..=u0 + 0.25).contains(&v.uv[0])),
+                out.iter().all(|(_, uv)| (u0..=u0 + 0.2).contains(&uv[0])),
                 "{block}"
             );
         }
+        // A copper chest draws exactly what it draws without any pack.
+        let plain = BlockEntityRenderer {
+            shapes: RwLock::new(renderer.vanilla.clone()),
+            vanilla: renderer.vanilla.clone(),
+            kinds: Vec::new(),
+            pot_patterns: HashMap::new(),
+            visibility: None,
+            sign_texts: Mutex::default(),
+        };
+        assert_eq!(
+            draw(&renderer, "copper_chest", "entity/chest/copper"),
+            draw(&plain, "copper_chest", "entity/chest/copper")
+        );
         // The atlas has no such texture: vanilla's.
         let shapes = renderer.shapes();
         assert_eq!(

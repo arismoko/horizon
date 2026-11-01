@@ -5,10 +5,10 @@
 //! replaces or joins the boxes of the vanilla part it names and takes its `scale`; animations
 //! don't run yet. A `.jem`'s texture paints its model instead of vanilla's when the atlas has it.
 //!
-//! Trapped and ender chests take their own file, else the chest's geometry (not its texture);
-//! copper chests take the chest's geometry. Lectern and enchanting-table books take theirs, else
-//! `book`. Signs, hanging signs and beds are block models here, so their files are not read;
-//! copper golem statues have no CEM name.
+//! An entry's part is OptiFine's name for it, else the vanilla part's own name. Trapped and
+//! ender chests take only their own file, and copper chests (no CEM name) keep vanilla's chest.
+//! Lectern and enchanting-table books take theirs, else `book`. Signs, hanging signs and beds are
+//! block models here, so their files are not read; copper golem statues have no CEM name.
 
 use crate::block_entity_render::ModelPart;
 use horizon_optifine::cem::{
@@ -16,7 +16,7 @@ use horizon_optifine::cem::{
     model::{Bone, EntityModel},
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
 };
 
@@ -28,8 +28,6 @@ struct Target {
     /// apart shares (a trapped chest's is the chest's).
     base: &'static str,
     names: &'static [&'static str],
-    /// A model whose geometry it takes last, without its texture.
-    borrow: Option<&'static str>,
     parts: &'static [(&'static str, &'static str)],
 }
 
@@ -82,7 +80,6 @@ const fn model(
         key,
         base: key,
         names,
-        borrow: None,
         parts,
     }
 }
@@ -90,14 +87,12 @@ const fn copy(
     key: &'static str,
     base: &'static str,
     names: &'static [&'static str],
-    borrow: Option<&'static str>,
     parts: &'static [(&'static str, &'static str)],
 ) -> Target {
     Target {
         key,
         base,
         names,
-        borrow,
         parts,
     }
 }
@@ -107,34 +102,20 @@ const TARGETS: &[Target] = &[
     model("chest", &["chest"], CHEST),
     model("double_chest_left", &["chest_left"], CHEST),
     model("double_chest_right", &["chest_right"], CHEST),
-    copy(
-        "trapped_chest",
-        "chest",
-        &["trapped_chest"],
-        Some("chest"),
-        CHEST,
-    ),
+    copy("trapped_chest", "chest", &["trapped_chest"], CHEST),
     copy(
         "trapped_chest_left",
         "double_chest_left",
         &["trapped_chest_left"],
-        Some("chest_left"),
         CHEST,
     ),
     copy(
         "trapped_chest_right",
         "double_chest_right",
         &["trapped_chest_right"],
-        Some("chest_right"),
         CHEST,
     ),
-    copy(
-        "ender_chest",
-        "chest",
-        &["ender_chest"],
-        Some("chest"),
-        CHEST,
-    ),
+    copy("ender_chest", "chest", &["ender_chest"], CHEST),
     model("shulker_box", &["shulker_box"], SHULKER),
     model("standing_banner", &["banner_base", "banner"], BANNER),
     model("wall_banner", &["banner_base", "banner"], BANNER),
@@ -149,13 +130,7 @@ const TARGETS: &[Target] = &[
     model("player_head", &["head_player"], HEAD),
     model("bell", &["bell"], BELL),
     model("book", &["enchanting_book", "book"], BOOK),
-    copy(
-        "lectern_book",
-        "book",
-        &["lectern_book", "book"],
-        None,
-        BOOK,
-    ),
+    copy("lectern_book", "book", &["lectern_book", "book"], BOOK),
     model("conduit_shell", &["conduit"], &[("base", "shell")]),
     model("conduit_cage", &["conduit"], &[("cage", "shell")]),
     model("conduit_wind", &["conduit"], &[("wind", "wind")]),
@@ -173,13 +148,20 @@ pub type Reshaped = (
 /// The models the packs under `root` reshape, over `vanilla`'s; None when no block entity has
 /// a `.jem` there.
 pub fn reshape(root: &Path, vanilla: &HashMap<&'static str, ModelPart>) -> Option<Reshaped> {
+    let (reshaped, unused) = reshape_all(root, vanilla)?;
+    for (path, part) in unused {
+        log::warn!("Horizon: custom entity model {path}: no part {part}");
+    }
+    Some(reshaped)
+}
+
+/// [`reshape`]'s models, and each file's entries whose part none of the models it reshapes has.
+fn reshape_all(
+    root: &Path,
+    vanilla: &HashMap<&'static str, ModelPart>,
+) -> Option<(Reshaped, Vec<(String, String)>)> {
     let files = jem_files(root);
-    let named = |t: &Target| {
-        t.names
-            .iter()
-            .chain(&t.borrow)
-            .any(|n| files.contains_key(*n))
-    };
+    let named = |t: &Target| t.names.iter().any(|n| files.contains_key(*n));
     if !TARGETS.iter().any(named) {
         return None;
     }
@@ -188,28 +170,23 @@ pub fn reshape(root: &Path, vanilla: &HashMap<&'static str, ModelPart>) -> Optio
     let mut reshaped = HashSet::new();
     // Each file parsed once; which of its entries found a part in some model.
     let mut parsed: HashMap<&str, Option<EntityModel>> = HashMap::new();
-    let mut used: HashMap<&str, Vec<bool>> = HashMap::new();
+    let mut used: BTreeMap<&str, Vec<bool>> = BTreeMap::new();
     for t in TARGETS {
         let Some(model) = vanilla.get(t.base) else {
             continue;
         };
-        let names = t.names.iter().map(|n| (*n, true));
-        let found = names
-            .chain(t.borrow.map(|n| (n, false)))
-            .flat_map(|(name, own)| {
-                files
-                    .get(name)
-                    .into_iter()
-                    .flatten()
-                    .map(move |path| (own, path.as_str()))
-            })
-            .find(|&(_, path)| {
+        let found = t
+            .names
+            .iter()
+            .flat_map(|name| files.get(*name).into_iter().flatten())
+            .map(String::as_str)
+            .find(|&path| {
                 parsed
                     .entry(path)
                     .or_insert_with(|| load_jem(root, path))
                     .is_some()
             });
-        let Some((own, path)) = found else {
+        let Some(path) = found else {
             // A copy of a reshaped base that has no file of its own stays vanilla.
             if t.key != t.base && reshaped.contains(t.base) {
                 models.insert(t.key, model.clone());
@@ -229,33 +206,35 @@ pub fn reshape(root: &Path, vanilla: &HashMap<&'static str, ModelPart>) -> Optio
         }
         models.insert(t.key, out);
         reshaped.insert(t.key);
-        if own && let Some(texture) = jem.texture.as_deref().and_then(atlas_name) {
+        if let Some(texture) = jem.texture.as_deref().and_then(atlas_name) {
             textures.insert(t.key, texture);
         }
     }
+    let mut unused = Vec::new();
     for (path, marks) in &used {
         let Some(Some(jem)) = parsed.get(path) else {
             continue;
         };
-        for (p, _) in jem.parts.iter().zip(marks).filter(|(_, used)| !**used) {
-            log::warn!("Horizon: custom entity model {path}: no part {}", p.part);
+        for (p, _) in jem.parts.iter().zip(marks).filter(|(_, hit)| !**hit) {
+            unused.push(((*path).to_owned(), p.part.clone()));
         }
     }
-    Some((models, textures))
+    Some(((models, textures), unused))
 }
 
-/// `jem`'s entries on `model`, OptiFine's part names read through `parts`: a replacing entry
-/// clears its part's boxes, and each joins the part as a child `cem#<n>`. Which entries found
-/// their part.
+/// `jem`'s entries on `model`, OptiFine's part names read through `parts`, else as the vanilla
+/// part's own name: a replacing entry clears its part's boxes, and each joins the part as a child
+/// `cem#<n>`. Which entries found their part.
 fn apply(model: &mut ModelPart, jem: &EntityModel, parts: &[(&str, &str)]) -> Vec<bool> {
     let mut count = 0;
     let mut hits = Vec::with_capacity(jem.parts.len());
     for p in &jem.parts {
-        let Some(&(_, vanilla)) = parts.iter().find(|(of, _)| *of == p.part) else {
-            hits.push(false);
-            continue;
+        let mapped = parts.iter().find(|(of, _)| *of == p.part).map(|&(_, v)| v);
+        let target = match mapped {
+            Some(vanilla) if find_mut(model, vanilla).is_some() => vanilla,
+            _ => p.part.as_str(),
         };
-        let Some(node) = find_mut(model, vanilla) else {
+        let Some(node) = find_mut(model, target) else {
             hits.push(false);
             continue;
         };
@@ -305,7 +284,7 @@ fn part(bone: &Bone, count: &mut usize) -> (String, ModelPart) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use std::fs;
+    use std::{collections::BTreeSet, fs};
 
     /// A part with one face and `children`.
     pub(crate) fn plane(children: Vec<(&str, ModelPart)>) -> ModelPart {
@@ -341,13 +320,156 @@ pub(crate) mod tests {
         }
         root
     }
-    /// A `.jem` of one entry on `part`.
-    fn jem(part: &str) -> String {
-        format!(r#"{{"models": [{{"part": "{part}", {BOX}}}]}}"#)
+    /// A `.jem` replacing each of `parts` with one box.
+    fn jem(parts: &[&str]) -> String {
+        let entries: Vec<_> = parts
+            .iter()
+            .map(|p| format!(r#"{{"part": "{p}", {BOX}}}"#))
+            .collect();
+        format!(r#"{{"models": [{}]}}"#, entries.join(", "))
+    }
+    /// Whether `model`'s part `name` was replaced by one custom box: its own face gone, and one
+    /// child of a box's six faces.
+    fn replaced(model: &ModelPart, name: &str) -> bool {
+        let part = model.child(name).unwrap();
+        match part.children.as_slice() {
+            [(_, only)] => part.polygons.is_empty() && only.polygons.len() == 6,
+            _ => false,
+        }
     }
 
     #[test]
-    fn a_chest_jem_replaces_and_joins_parts_and_trapped_chests_borrow_it() {
+    fn every_optifine_part_name_lands_on_its_vanilla_part() {
+        // File, OptiFine's part, the model it reshapes, vanilla's part there.
+        let cases = [
+            ("chest", "base", "chest", "bottom"),
+            ("chest", "lid", "chest", "lid"),
+            ("chest", "knob", "chest", "lock"),
+            ("chest_left", "base", "double_chest_left", "bottom"),
+            ("chest_left", "lid", "double_chest_left", "lid"),
+            ("chest_left", "knob", "double_chest_left", "lock"),
+            ("chest_right", "base", "double_chest_right", "bottom"),
+            ("chest_right", "lid", "double_chest_right", "lid"),
+            ("chest_right", "knob", "double_chest_right", "lock"),
+            ("trapped_chest", "base", "trapped_chest", "bottom"),
+            ("trapped_chest", "knob", "trapped_chest", "lock"),
+            ("trapped_chest_left", "base", "trapped_chest_left", "bottom"),
+            ("trapped_chest_left", "knob", "trapped_chest_left", "lock"),
+            (
+                "trapped_chest_right",
+                "base",
+                "trapped_chest_right",
+                "bottom",
+            ),
+            ("trapped_chest_right", "knob", "trapped_chest_right", "lock"),
+            ("ender_chest", "base", "ender_chest", "bottom"),
+            ("ender_chest", "knob", "ender_chest", "lock"),
+            ("shulker_box", "base", "shulker_box", "base"),
+            ("shulker_box", "lid", "shulker_box", "lid"),
+            ("banner", "stand", "standing_banner", "pole"),
+            ("banner", "top", "standing_banner", "bar"),
+            ("banner", "top", "wall_banner", "bar"),
+            ("banner", "slate", "standing_banner_flag", "flag"),
+            ("banner", "slate", "wall_banner_flag", "flag"),
+            ("head_skeleton", "head", "skeleton_skull", "head"),
+            (
+                "head_wither_skeleton",
+                "head",
+                "wither_skeleton_skull",
+                "head",
+            ),
+            ("head_zombie", "head", "zombie_head", "head"),
+            ("head_creeper", "head", "creeper_head", "head"),
+            ("head_dragon", "head", "dragon_skull", "head"),
+            ("head_dragon", "jaw", "dragon_skull", "jaw"),
+            ("head_piglin", "head", "piglin_head", "head"),
+            ("head_piglin", "left_ear", "piglin_head", "left_ear"),
+            ("head_piglin", "right_ear", "piglin_head", "right_ear"),
+            ("head_player", "head", "player_head", "head"),
+            ("bell", "body", "bell", "bell_body"),
+            ("bell", "base", "bell", "bell_base"),
+            ("enchanting_book", "cover_right", "book", "right_lid"),
+            ("enchanting_book", "cover_left", "book", "left_lid"),
+            ("enchanting_book", "pages_right", "book", "right_pages"),
+            ("enchanting_book", "pages_left", "book", "left_pages"),
+            (
+                "enchanting_book",
+                "flipping_page_right",
+                "book",
+                "flip_page1",
+            ),
+            (
+                "enchanting_book",
+                "flipping_page_left",
+                "book",
+                "flip_page2",
+            ),
+            ("enchanting_book", "book_spine", "book", "seam"),
+            ("lectern_book", "cover_right", "lectern_book", "right_lid"),
+            ("lectern_book", "pages_left", "lectern_book", "left_pages"),
+            (
+                "lectern_book",
+                "flipping_page_right",
+                "lectern_book",
+                "flip_page1",
+            ),
+            ("lectern_book", "book_spine", "lectern_book", "seam"),
+            ("conduit", "base", "conduit_shell", "shell"),
+            ("conduit", "cage", "conduit_cage", "shell"),
+            ("conduit", "wind", "conduit_wind", "wind"),
+            ("conduit", "eye", "conduit_eye", "eye"),
+            ("decorated_pot", "neck", "decorated_pot_base", "neck"),
+            ("decorated_pot", "top", "decorated_pot_base", "top"),
+            ("decorated_pot", "bottom", "decorated_pot_base", "bottom"),
+            ("decorated_pot", "front", "decorated_pot_sides", "front"),
+            ("decorated_pot", "back", "decorated_pot_sides", "back"),
+            ("decorated_pot", "left", "decorated_pot_sides", "left"),
+            ("decorated_pot", "right", "decorated_pot_sides", "right"),
+        ];
+        // One file per name with each of its parts, and a stub of each model holding its parts
+        // (chest models all of theirs, so a misplaced entry shows).
+        let mut files: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        let mut trees: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        for (file, part, key, vanilla) in cases {
+            files.entry(file).or_default().insert(part);
+            trees.entry(key).or_default().insert(vanilla);
+        }
+        for key in ["chest", "double_chest_left", "double_chest_right"] {
+            trees
+                .entry(key)
+                .or_default()
+                .extend(["bottom", "lid", "lock"]);
+        }
+        let files: Vec<_> = files
+            .iter()
+            .map(|(file, parts)| {
+                let parts: Vec<_> = parts.iter().copied().collect();
+                (format!("optifine/cem/{file}.jem"), jem(&parts))
+            })
+            .collect();
+        let files: Vec<_> = files.iter().map(|(p, t)| (p.as_str(), t.clone())).collect();
+        let root = pack("parts", &files);
+        let vanilla: HashMap<&'static str, ModelPart> = trees
+            .iter()
+            .map(|(key, parts)| {
+                let parts = parts.iter().map(|p| (*p, plane(vec![]))).collect();
+                (*key, plane(parts))
+            })
+            .collect();
+        let result = reshape_all(&root, &vanilla);
+        fs::remove_dir_all(&root).unwrap();
+        let ((models, _), unused) = result.unwrap();
+        for (file, part, key, vanilla) in cases {
+            assert!(
+                replaced(&models[key], vanilla),
+                "{file}.jem {part}: {key} {vanilla}"
+            );
+        }
+        assert_eq!(unused, Vec::new());
+    }
+
+    #[test]
+    fn a_chest_jem_reshapes_the_chest_alone_and_warns_of_entries_without_a_part() {
         let root = pack(
             "chest",
             &[(
@@ -356,36 +478,37 @@ pub(crate) mod tests {
                     r#"{{"texture": "textures/entity/chest/fancy.png", "models": [
                         {{"part": "lid", {BOX}}},
                         {{"part": "knob", "attach": true, "scale": 2, {BOX}}},
+                        {{"part": "bottom", {BOX}}},
                         {{"part": "tail", {BOX}}}]}}"#
                 ),
             )],
         );
         let vanilla: HashMap<_, _> = [("chest", chest()), ("double_chest_left", chest())].into();
-        let (models, textures) = reshape(&root, &vanilla).unwrap();
+        let result = reshape_all(&root, &vanilla);
         fs::remove_dir_all(&root).unwrap();
+        let ((models, textures), unused) = result.unwrap();
         let chest = &models["chest"];
         // Replaced: the lid's own face goes and the custom box (6 faces) joins it.
-        let lid = chest.child("lid").unwrap();
-        assert_eq!(lid.polygons.len(), 0);
-        assert_eq!(lid.child("cem#0").unwrap().polygons.len(), 6);
+        assert!(replaced(chest, "lid"));
+        // `bottom` is no OptiFine name but vanilla's own: it reaches the part as well.
+        assert!(replaced(chest, "bottom"));
         // Attached: the lock keeps its face beside the scaled box.
         let lock = chest.child("lock").unwrap();
-        assert_eq!(lock.polygons.len(), 1);
-        assert_eq!(lock.child("cem#1").unwrap().pose[6..], [2.0, 2.0, 2.0]);
-        // `tail` names no chest part: nothing else changed.
-        let bottom = chest.child("bottom").unwrap();
-        assert_eq!((bottom.polygons.len(), bottom.children.len()), (1, 0));
-        // The double chest has no file; trapped and ender chests take the geometry only.
+        assert_eq!((lock.polygons.len(), lock.children.len()), (1, 1));
+        assert_eq!(lock.children[0].1.pose[6..], [2.0, 2.0, 2.0]);
+        // `tail` names no chest part: the one warning.
         assert_eq!(
-            models["double_chest_left"]
-                .child("lid")
-                .unwrap()
-                .polygons
-                .len(),
-            1
+            unused,
+            [(
+                "assets/minecraft/optifine/cem/chest.jem".to_owned(),
+                "tail".to_owned()
+            )]
         );
-        for key in ["trapped_chest", "ender_chest"] {
-            assert_eq!(models[key].child("lid").unwrap().polygons.len(), 0, "{key}");
+        // The double chest has no file, nor do trapped and ender chests: vanilla's own, and
+        // only the chest takes the texture.
+        for key in ["double_chest_left", "trapped_chest", "ender_chest"] {
+            let lid = models[key].child("lid").unwrap();
+            assert_eq!((lid.polygons.len(), lid.children.len()), (1, 0), "{key}");
         }
         assert_eq!(
             textures,
@@ -398,14 +521,8 @@ pub(crate) mod tests {
         let root = pack(
             "banner",
             &[
-                (
-                    "optifine/cem/banner.jem",
-                    format!(
-                        r#"{{"models": [{{"part": "stand", {BOX}}}, {{"part": "top", {BOX}}},
-                            {{"part": "slate", {BOX}}}]}}"#
-                    ),
-                ),
-                ("emf/cem/enchanting_book.jem", jem("cover_left")),
+                ("optifine/cem/banner.jem", jem(&["stand", "top", "slate"])),
+                ("emf/cem/enchanting_book.jem", jem(&["cover_left"])),
             ],
         );
         let banner = plane(vec![("pole", plane(vec![])), ("bar", plane(vec![]))]);
@@ -419,26 +536,30 @@ pub(crate) mod tests {
             ("book", book),
         ]
         .into();
-        let (models, textures) = reshape(&root, &vanilla).unwrap();
+        let result = reshape_all(&root, &vanilla);
         fs::remove_dir_all(&root).unwrap();
-        let replaced = |key: &str, part: &str| {
-            let p = models[key].child(part).unwrap();
-            (p.polygons.len(), p.children.len())
-        };
-        assert_eq!(replaced("standing_banner", "pole"), (0, 1));
-        assert_eq!(replaced("standing_banner", "bar"), (0, 1));
-        assert_eq!(replaced("wall_banner", "bar"), (0, 1));
-        assert_eq!(replaced("wall_banner_flag", "flag"), (0, 1));
-        assert_eq!(replaced("book", "left_lid"), (0, 1));
+        let ((models, textures), unused) = result.unwrap();
+        assert!(replaced(&models["standing_banner"], "pole"));
+        assert!(replaced(&models["standing_banner"], "bar"));
+        assert!(replaced(&models["wall_banner"], "bar"));
+        assert!(replaced(&models["wall_banner_flag"], "flag"));
+        assert!(replaced(&models["book"], "left_lid"));
         // The lectern's book has no file of its own nor `book.jem`: vanilla's.
-        assert_eq!(
-            models["lectern_book"]
-                .child("left_lid")
-                .unwrap()
-                .polygons
-                .len(),
-            1
-        );
+        let lectern = models["lectern_book"].child("left_lid").unwrap();
+        assert_eq!((lectern.polygons.len(), lectern.children.len()), (1, 0));
         assert!(textures.is_empty());
+        // Each entry found its part in one of the models: no warning.
+        assert_eq!(unused, Vec::new());
+    }
+
+    #[test]
+    fn book_jem_reshapes_the_lectern_book_without_its_own_file() {
+        let root = pack("book", &[("optifine/cem/book.jem", jem(&["cover_left"]))]);
+        let vanilla: HashMap<_, _> = [("book", plane(vec![("left_lid", plane(vec![]))]))].into();
+        let result = reshape(&root, &vanilla);
+        fs::remove_dir_all(&root).unwrap();
+        let (models, _) = result.unwrap();
+        assert!(replaced(&models["book"], "left_lid"));
+        assert!(replaced(&models["lectern_book"], "left_lid"));
     }
 }
