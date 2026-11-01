@@ -3300,6 +3300,92 @@ pub trait Hooks: Send + Sync {
         let _ = flying;
         Flow::Continue
     }
+    /// Whether a mod hears `native_experience_orb_pickup`: set `listened`
+    /// (a HEAD injection), or the server skips swapping the player in for it,
+    /// and with this empty the pickup costs nothing more without mods.
+    /// Server-side. @API:experience_orb_pickup@.
+    ///
+    /// Every mod gets `listened` in order and may add, change or remove listened.
+    fn experience_orb_pickup_listened(&self, host: &dyn Host, listened: &mut bool) {
+        let _ = host;
+        let _ = listened;
+    }
+    /// Before `player` picks up orb `orb` in `dimension`. Mutations to `value`
+    /// and `count` take effect only when not canceled; value is clamped to
+    /// 1..=i32::MAX and count to at least one.
+    /// Canceling leaves the orb and pickup delay unchanged. Server-side.
+    /// @API:experience_orb_pickup@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `canceled`, and later mods are skipped.
+    fn experience_orb_pickup(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        dimension: &str,
+        orb: u32,
+        value: &mut u32,
+        count: &mut u32,
+    ) -> Flow {
+        let _ = host;
+        let _ = player;
+        let _ = dimension;
+        let _ = orb;
+        let _ = value;
+        let _ = count;
+        Flow::Continue
+    }
+    /// The selected damaged Mending `stack` and the proposed durability repair
+    /// for `experience` points. The amount is clamped to the stack's current damage. Zero leaves the
+    /// experience unspent when it overrides a positive proposal. If the selected
+    /// stack changes, the repair is skipped.
+    /// Server-side, including `native_give_experience`.
+    /// @API:experience_orb_pickup@.
+    fn mending_repair(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        stack: &ItemStack,
+        experience: u32,
+        repair: &mut u32,
+    ) {
+        let _ = host;
+        let _ = player;
+        let _ = stack;
+        let _ = experience;
+        let _ = repair;
+    }
+    /// `player` (`name`) changed dimension (NeoForge's
+    /// `PlayerChangedDimensionEvent`): `from` and `to` are dimension ids
+    /// (`minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`).
+    /// Heard once per move, when it has ended: the portal's exit is found
+    /// and the player stands there (after the destination has loaded), a
+    /// command's teleport has landed, or a respawn in another level than the
+    /// death's is placed for good (a bed or anchor, or the world spawn's
+    /// free column, after the fallback when a respawn block was gone). The
+    /// level of `to` is the one in place, and the player's state is swapped
+    /// in, as for `native_perform_command`: `native_acting_player`,
+    /// `native_tell`, the item helpers and the rest reach them. Heard for:
+    /// Nether and End portals (also riding a vehicle, and leaving the End as
+    /// its winner), `/execute in ... run tp` and any other command that
+    /// teleports a player into another level, and the death respawn. Not
+    /// heard: a move within a level (`/tp`, an End gateway), a player who
+    /// leaves before the move ends, a move that ends where it started (a
+    /// respawn in the dimension of the death), and anything outside a
+    /// dedicated server. @API:native_player_changed_dimension@.
+    fn player_changed_dimension(
+        &self,
+        host: &mut dyn Host,
+        player: u128,
+        name: &str,
+        from: &str,
+        to: &str,
+    ) {
+        let _ = host;
+        let _ = player;
+        let _ = name;
+        let _ = from;
+        let _ = to;
+    }
 }
 pub fn dispatch_frame(host: &mut dyn Host, mods: &[Box<dyn Hooks>], elapsed: Duration) {
     for mod_hook in mods {
@@ -5818,5 +5904,61 @@ pub fn dispatch_player_toggle_flight(
             *cancel = true;
             break;
         }
+    }
+}
+pub fn dispatch_experience_orb_pickup_listened(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    listened: &mut bool,
+) {
+    for mod_hook in mods {
+        mod_hook.experience_orb_pickup_listened(host, &mut *listened);
+    }
+}
+pub fn dispatch_experience_orb_pickup(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    dimension: &str,
+    orb: u32,
+    value: &mut u32,
+    count: &mut u32,
+    canceled: &mut bool,
+) {
+    if *canceled {
+        return;
+    }
+    for mod_hook in mods {
+        if matches!(
+            mod_hook.experience_orb_pickup(host, player, dimension, orb, &mut *value, &mut *count),
+            Flow::Cancel
+        ) {
+            *canceled = true;
+            break;
+        }
+    }
+}
+pub fn dispatch_mending_repair(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    stack: &ItemStack,
+    experience: u32,
+    repair: &mut u32,
+) {
+    for mod_hook in mods {
+        mod_hook.mending_repair(host, player, stack, experience, &mut *repair);
+    }
+}
+pub fn dispatch_player_changed_dimension(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    from: &str,
+    to: &str,
+) {
+    for mod_hook in mods {
+        mod_hook.player_changed_dimension(host, player, name, from, to);
     }
 }

@@ -2657,7 +2657,7 @@ impl Game<'_> {
         from: &str,
         to: &str,
     ) {
-        let _ = (player, name, from, to);
+        mod_api::dispatch_player_changed_dimension(self, mod_api::mods(), player, name, from, to);
     }
     /// A player's client started (`flying`) or stopped flying (vanilla's
     /// `handlePlayerAbilities`, which honours it only for a player who may
@@ -3656,7 +3656,7 @@ impl Game<'_> {
     /// and with this empty the pickup costs nothing more without mods.
     /// Server-side. @API:experience_orb_pickup@.
     pub(super) fn native_experience_orb_pickup_listened(&self, listened: &mut bool) {
-        let _ = listened;
+        mod_api::dispatch_experience_orb_pickup_listened(self, mod_api::mods(), listened);
     }
     /// Before `player` picks up orb `orb` in `dimension`. Mutations to `value`
     /// and `count` take effect only when not canceled; value is clamped to
@@ -3672,7 +3672,16 @@ impl Game<'_> {
         count: &mut u32,
         canceled: &mut bool,
     ) {
-        let _ = (player, dimension, orb, value, count, canceled);
+        mod_api::dispatch_experience_orb_pickup(
+            self,
+            mod_api::mods(),
+            player,
+            dimension,
+            orb,
+            value,
+            count,
+            canceled,
+        );
     }
     /// The selected damaged Mending `stack` and the proposed durability repair
     /// for `experience` points. The amount is clamped to the stack's current damage. Zero leaves the
@@ -3687,7 +3696,7 @@ impl Game<'_> {
         experience: u32,
         repair: &mut u32,
     ) {
-        let _ = (player, stack, experience, repair);
+        mod_api::dispatch_mending_repair(self, mod_api::mods(), player, stack, experience, repair);
     }
     /// A player's hit landed on the mob `entity` of type `kind`
     /// (`minecraft:zombie`), holding `stack`: where `Item.hurtEnemy` is called,
