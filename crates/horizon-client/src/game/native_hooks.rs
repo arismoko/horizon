@@ -214,13 +214,14 @@
 //! that would break such a bundle is not made.
 //! Bodies have no `cfg` and no macros: horizon-mixins refuses a target with
 //! either (`tests::hook_points_stay_hookable`).
-use horizon_client::mod_api::{NativeCommand, NativeLifecycleContext, NativeServerPlayer, ServerTickPhase, WorldPhase};
 use super::{
-    Game, GameLevel, LevelDimension, Screen,
-    execution_role::ExecutionRole,
+    Game, GameLevel, LevelDimension, Screen, execution_role::ExecutionRole,
     native_panel_recipes::RecipePage,
 };
-use horizon_client::mod_api::NativeZoom;
+use horizon_client::mod_api::{
+    self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
+    WorldPhase,
+};
 use horizon_client::{
     atlas_sources::qualified,
     block_entities::Pos,
@@ -762,7 +763,9 @@ impl Game<'_> {
     /// Once a tick, in every `Game`: the window's (in single player, on LAN
     /// and on servers), and the server's own (`native_window` is false
     /// there: the single player server thread, a dedicated server).
-    pub(super) fn native_tick(&mut self) {}
+    pub(super) fn native_tick(&mut self) {
+        mod_api::dispatch_tick(self, mod_api::mods());
+    }
     /// The world frame's local visual sources. Push requests; Horizon validates
     /// and limits them before rendering. Called only while a world is visible.
     pub(super) fn native_visuals(
@@ -788,7 +791,7 @@ impl Game<'_> {
         phase: WorldPhase,
         error_text: &str,
     ) {
-        let _ = (context, phase, error_text);
+        mod_api::dispatch_world_lifecycle(self, mod_api::mods(), context, phase, error_text);
     }
     /// The server is about to open its worlds: nothing of the world is
     /// loaded yet (NeoForge's `ServerAboutToStartEvent`, "called before the
@@ -799,7 +802,7 @@ impl Game<'_> {
     /// `WorldOpenFailed`. `dedicated` tells a dedicated server from the single
     /// player one. API 44.
     pub(super) fn native_server_about_to_start(&mut self, dedicated: bool) {
-        let _ = dedicated;
+        mod_api::dispatch_server_about_to_start(self, mod_api::mods(), dedicated);
     }
     /// The server begins an orderly stop (NeoForge's `ServerStoppingEvent`):
     /// the start of vanilla's `MinecraftServer.stopServer`, with the worlds
@@ -808,7 +811,7 @@ impl Game<'_> {
     /// `WorldCloseFinal` follows once the worlds are saved. A server whose loop
     /// fails stops without this (`WorldCloseFailed` reports it). API 44.
     pub(super) fn native_server_stopping(&mut self, dedicated: bool) {
-        let _ = dedicated;
+        mod_api::dispatch_server_stopping(self, mod_api::mods(), dedicated);
     }
     /// The authoritative server tick's phases: `ServerTickStart` before any
     /// level is ticked (NeoForge's `ServerTickEvent.Pre`), `ServerTickEnd`
@@ -821,16 +824,15 @@ impl Game<'_> {
         context: &NativeLifecycleContext,
         phase: ServerTickPhase,
     ) {
-        let _ = (context, phase);
+        mod_api::dispatch_server_tick(self, mod_api::mods(), context, phase);
     }
     /// Before an authoritative server level's tick pass. `dimension` is its ID.
     pub(super) fn native_level_tick_pre(&mut self, dimension: &str) {
-        let mods = self.trait_mods.clone();
-        horizon_client::mod_api::dispatch_level_tick_pre(self, &mods, dimension);
+        mod_api::dispatch_level_tick_pre(self, mod_api::mods(), dimension);
     }
     /// After a successful authoritative server level tick pass.
     pub(super) fn native_level_tick_post(&mut self, dimension: &str) {
-        let _ = dimension;
+        mod_api::dispatch_level_tick_post(self, mod_api::mods(), dimension);
     }
     /// The HUD (not drawn under F1), after the minimap: place a box with
     /// `corners.place` (boxes stack away from their edge) and draw it with
@@ -853,7 +855,7 @@ impl Game<'_> {
         stack: Option<&ItemStack>,
         claimed: &mut bool,
     ) {
-        let _ = (entity, kind, stack, claimed);
+        mod_api::dispatch_interact_entity(self, mod_api::mods(), entity, kind, stack, claimed);
     }
     /// A player left-clicks the block `state` at `pos`, `face` the face hit
     /// (`[0, 1, 0]` is the top): where `ServerPlayerGameMode.handleBlockBreakAction`
@@ -870,14 +872,16 @@ impl Game<'_> {
         state: BlockStateId,
         canceled: &mut bool,
     ) {
-        let _ = (pos, face, state, canceled);
+        mod_api::dispatch_left_click_block(self, mod_api::mods(), pos, face, state, canceled);
     }
     /// A living player's server tick ends (`ServerPlayer.tick`): once a tick
     /// for every player in the world, after their digging, item use,
     /// cooldowns, statistics and advancements. The helpers read that player.
     /// Players still tick under `/tick freeze`; a dead player doesn't, nor
     /// does one killed earlier in the same tick. API 31.
-    pub(super) fn native_player_tick(&mut self) {}
+    pub(super) fn native_player_tick(&mut self) {
+        mod_api::dispatch_player_tick(self, mod_api::mods());
+    }
     /// The player-health HUD rows, once a frame the HUD draws them
     /// (`HealthHud::layout`, not under F1): `inputs` carries the health,
     /// food, air and vehicle state the layout reads, `wi`/`hi` the screen's
@@ -920,7 +924,7 @@ impl Game<'_> {
     /// The zoom a native mod asks for, applied while playing (the spyglass's
     /// own view wins): set `zoom` when it is none yet.
     pub(super) fn native_zoom(&self, zoom: &mut Option<NativeZoom>) {
-        horizon_client::mod_api::dispatch_zoom(self, &self.trait_mods, zoom);
+        mod_api::dispatch_zoom(self, mod_api::mods(), zoom);
     }
     /// The minimap a native mod shows: set `minimap` when it is none yet.
     pub(super) fn native_minimap(&self, minimap: &mut Option<NativeMinimap>) {
@@ -959,13 +963,13 @@ impl Game<'_> {
         block: &str,
         entity: &mut Option<(String, Compound)>,
     ) {
-        let _ = (block, entity);
+        mod_api::dispatch_block_entity(self, mod_api::mods(), block, entity);
     }
     /// Whether block `block`'s block entity ticks (`EntityBlock.getTicker`):
     /// set `ticks` when it is yours. Asked for each of the block's states
     /// when a world opens. API 15.
     pub(super) fn native_block_entity_ticks(&self, block: &str, ticks: &mut bool) {
-        let _ = (block, ticks);
+        mod_api::dispatch_block_entity_ticks(self, mod_api::mods(), block, ticks);
     }
     /// Block `block`'s block entity has item slots (a `WorldlyContainer`):
     /// set `container` when the block is yours. Asked once for each mod
@@ -979,7 +983,7 @@ impl Game<'_> {
         block: &str,
         container: &mut Option<ModContainer>,
     ) {
-        let _ = (block, container);
+        mod_api::dispatch_block_entity_container(self, mod_api::mods(), block, container);
     }
     /// Block `block`'s block entity has fluid tanks: set `fluids` when the
     /// block is yours, in the container's shape — each tank's capacity in
@@ -994,7 +998,7 @@ impl Game<'_> {
         block: &str,
         fluids: &mut Option<ModFluidTanks>,
     ) {
-        let _ = (block, fluids);
+        mod_api::dispatch_block_entity_fluids(self, mod_api::mods(), block, fluids);
     }
     /// A server tick of the block entity at `pos`, in vanilla's order among
     /// the others (`Level.tickBlockEntities`), when its `id` is yours: read
@@ -1007,7 +1011,7 @@ impl Game<'_> {
     /// what `native_block_entity_update_tag` gives when its chunk is sent or
     /// its block changes. API 17.
     pub(super) fn native_block_entity_tick(&mut self, pos: [i32; 3], entity: &mut ModBlockEntity) {
-        let _ = (pos, entity);
+        mod_api::dispatch_block_entity_tick(self, mod_api::mods(), pos, entity);
     }
     /// What clients get of the block entity at `pos` when its `id` is
     /// yours (`BlockEntity.getUpdateTag`): set `tag` to it, read from
@@ -1021,7 +1025,7 @@ impl Game<'_> {
         entity: &ModBlockEntity,
         tag: &mut Option<Compound>,
     ) {
-        let _ = (pos, entity, tag);
+        mod_api::dispatch_block_entity_update_tag(mod_api::mods(), pos, entity, tag);
     }
     /// A menu opens on this client for block `block`, a mod's: set `screen`
     /// when the block is yours, to lay its screen out (`native_screen_draw`
@@ -1083,7 +1087,7 @@ impl Game<'_> {
         entity: &mut ModBlockEntity,
         id: i32,
     ) {
-        let _ = (pos, entity, id);
+        mod_api::dispatch_menu_button(self, mod_api::mods(), pos, entity, id);
     }
     /// `AbstractContainerMenu.clickMenuButton(Player, int)`'s other half:
     /// the acting player's cursor stack, `getCarried()`/`setCarried()`,
@@ -1097,7 +1101,7 @@ impl Game<'_> {
         id: i32,
         carried: &mut Option<ItemStack>,
     ) {
-        let _ = (pos, entity, id, carried);
+        mod_api::dispatch_menu_button_v2(self, mod_api::mods(), pos, entity, id, carried);
     }
     /// The commands native mods add to the server's command tree: push
     /// yours. Asked once when a world opens to players (a dedicated
@@ -1105,7 +1109,7 @@ impl Game<'_> {
     /// chat box then completes them as vanilla's, within their level. A
     /// name vanilla has is left out. API 8.
     pub(super) fn native_register_commands(&mut self, commands: &mut Vec<NativeCommand>) {
-        let _ = commands;
+        mod_api::dispatch_register_commands(self, mod_api::mods(), commands);
     }
     /// A player's command on the server (`Commands.performCommand`),
     /// without its slash, for a command a mod registered and the player's
@@ -1118,7 +1122,7 @@ impl Game<'_> {
         command: &str,
         ran: &mut bool,
     ) {
-        let _ = (player, command, ran);
+        mod_api::dispatch_perform_command(self, mod_api::mods(), player, command, ran);
     }
     /// A click in a menu a mod opened (`native_open_menu`), which moved
     /// nothing: the menu's `slot` (its own first, then the player's
@@ -1134,12 +1138,12 @@ impl Game<'_> {
         button: i32,
         mode: i32,
     ) {
-        let _ = (uuid, window, slot, button, mode);
+        mod_api::dispatch_menu_clicked(self, mod_api::mods(), uuid, window, slot, button, mode);
     }
     /// A menu a mod opened closed: the player closed it, the server or a mod
     /// opened another, or the player left. API 10.
     pub(super) fn native_menu_closed(&mut self, uuid: u128, window: i32) {
-        let _ = (uuid, window);
+        mod_api::dispatch_menu_closed(self, mod_api::mods(), uuid, window);
     }
     /// An item's tooltip, wherever the game shows one (slots, the creative
     /// tabs, the recipe book, chat's hover): the stack, with its components
@@ -1149,7 +1153,7 @@ impl Game<'_> {
     /// codes. Asked each frame the tooltip shows, never for one the stack
     /// hides. API 12.
     pub(super) fn native_tooltip(&self, stack: &ItemStack, lines: &mut Vec<(Text, u32)>) {
-        horizon_client::mod_api::dispatch_tooltip(self, &self.trait_mods, stack, lines);
+        mod_api::dispatch_tooltip(self, mod_api::mods(), stack, lines);
     }
     /// The small bar `GuiGraphicsExtractor.itemDecorations` draws under an
     /// item, wherever the game shows one: `bar` arrives holding vanilla's value
@@ -1173,8 +1177,7 @@ impl Game<'_> {
         face: [i32; 3],
         claimed: &mut bool,
     ) {
-        let mods = self.trait_mods.clone();
-        horizon_client::mod_api::dispatch_use_item_on(self, &mods, stack, pos, face, claimed);
+        mod_api::dispatch_use_item_on(self, mod_api::mods(), stack, pos, face, claimed);
     }
     /// `DispenserBlock.getDispenseMethod`: choose a behaviour for any item,
     /// including vanilla items, on the authoritative server (not droppers).
@@ -1201,7 +1204,7 @@ impl Game<'_> {
     /// hand swings and the item's own use doesn't run. Server-side, for every
     /// player of the world; an item on cooldown is never used. API 13.
     pub(super) fn native_use_item(&mut self, stack: &ItemStack, claimed: &mut bool) {
-        let _ = (stack, claimed);
+        mod_api::dispatch_use_item(self, mod_api::mods(), stack, claimed);
     }
     /// A player breaks the block `state` at `pos`, once the game allowed it
     /// (the held item can break blocks, the debug stick didn't take the
@@ -1215,7 +1218,7 @@ impl Game<'_> {
         state: BlockStateId,
         canceled: &mut bool,
     ) {
-        let _ = (pos, state, canceled);
+        mod_api::dispatch_destroy_block(self, mod_api::mods(), pos, state, canceled);
     }
     /// A player placed `stack` as the block `state` at `pos`: where
     /// `BlockItem.place` set it, before the stack shrinks. It only hears; a
@@ -1227,7 +1230,7 @@ impl Game<'_> {
         pos: [i32; 3],
         state: BlockStateId,
     ) {
-        let _ = (stack, pos, state);
+        mod_api::dispatch_place_block(self, mod_api::mods(), stack, pos, state);
     }
     /// A player right clicks the block at `pos` with `self.hand`, `face` the
     /// face clicked: where `ServerPlayerGameMode.useItemOn` starts, before
@@ -1242,7 +1245,7 @@ impl Game<'_> {
         face: [i32; 3],
         canceled: &mut bool,
     ) {
-        let _ = (pos, face, canceled);
+        mod_api::dispatch_right_click_block(self, mod_api::mods(), pos, face, canceled);
     }
     /// An explosion at `center` in `dimension` (`minecraft:overworld`) is
     /// about to break `blocks`: `ServerExplosion.explode` with its `toBlow`,
@@ -1255,7 +1258,7 @@ impl Game<'_> {
         center: [f64; 3],
         blocks: &mut Vec<[i32; 3]>,
     ) {
-        let _ = (dimension, center, blocks);
+        mod_api::dispatch_explosion_detonate(self, mod_api::mods(), dimension, center, blocks);
     }
     /// A player fills (`stack` an empty bucket) or empties a bucket at `pos`:
     /// `BucketItem.use`, where it asks `Level.mayInteract`. Set `canceled`
@@ -1267,7 +1270,7 @@ impl Game<'_> {
         pos: [i32; 3],
         canceled: &mut bool,
     ) {
-        let _ = (stack, pos, canceled);
+        mod_api::dispatch_fill_bucket(self, mod_api::mods(), stack, pos, canceled);
     }
     /// A player attacks the entity `entity` (`Entity.getId`) of type `kind`
     /// (`minecraft:item_frame`, `minecraft:cow`, `minecraft:player`) standing
@@ -1283,14 +1286,14 @@ impl Game<'_> {
         pos: [f64; 3],
         canceled: &mut bool,
     ) {
-        let _ = (entity, kind, pos, canceled);
+        mod_api::dispatch_attack_entity(self, mod_api::mods(), entity, kind, pos, canceled);
     }
     /// A message from `player`'s client on `channel` (`mod_id:name`), within
     /// the caps (`native_net.rs`): check `channel`, and treat `data` as the
     /// player's own bytes, checked by nothing. Runs in the tick after it
     /// arrives, with no player's state swapped in. Server-side. API 40.
     pub(super) fn native_net_from_client(&mut self, player: u128, channel: &str, data: &[u8]) {
-        let _ = (player, channel, data);
+        mod_api::dispatch_net_from_client(self, mod_api::mods(), player, channel, data);
     }
     /// A message from the server on `channel` (`mod_id:name`), whose `data`
     /// is the sender's own bytes. The window's game only. API 40.
@@ -1309,7 +1312,7 @@ impl Game<'_> {
     /// before `WorldOpenReady`. Not told of a chunk a client receives.
     /// Server-side. API 57.
     pub(super) fn native_chunk_load(&mut self, dimension: &str, chunk: [i32; 2], new: bool) {
-        let _ = (dimension, chunk, new);
+        mod_api::dispatch_chunk_load(self, mod_api::mods(), dimension, chunk, new);
     }
     /// Chunk `chunk` of `dimension` left the world (NeoForge's
     /// `ChunkEvent.Unload`), with a level that closes for being empty too. Don't
@@ -1318,14 +1321,14 @@ impl Game<'_> {
     /// chunk. Not told when the world closes, which `native_world_lifecycle`
     /// tells. Server-side. API 57.
     pub(super) fn native_chunk_unload(&mut self, dimension: &str, chunk: [i32; 2]) {
-        let _ = (dimension, chunk);
+        mod_api::dispatch_chunk_unload(self, mod_api::mods(), dimension, chunk);
     }
     /// `player` (`name`) joined the game (NeoForge's
     /// `PlayerLoggedInEvent`): placed in the world and listed in
     /// `native_server_players`, so `native_net_send_to_player` reaches them.
     /// Once a join, with no player's state swapped in. Server-side. API 57.
     pub(super) fn native_player_logged_in(&mut self, player: u128, name: &str) {
-        let _ = (player, name);
+        mod_api::dispatch_player_logged_in(self, mod_api::mods(), player, name);
     }
     /// `player` (`name`) left the game (NeoForge's `PlayerLoggedOutEvent`), by
     /// any path: a lost connection, a kick, the server stopping or failing.
@@ -1334,7 +1337,7 @@ impl Game<'_> {
     /// before it saves, with them still listed and able to get a last message.
     /// Server-side. API 57.
     pub(super) fn native_player_logged_out(&mut self, player: u128, name: &str) {
-        let _ = (player, name);
+        mod_api::dispatch_player_logged_out(self, mod_api::mods(), player, name);
     }
     /// `player` died: where `ServerPlayer.die` starts, with the death
     /// message's key when the game knows it (`death.attack.lava`; none for a
@@ -1342,7 +1345,7 @@ impl Game<'_> {
     /// every player of the world, whether death messages are shown or not.
     /// API 40.
     pub(super) fn native_player_died(&mut self, player: u128, cause: Option<&str>) {
-        let _ = (player, cause);
+        mod_api::dispatch_player_died(self, mod_api::mods(), player, cause);
     }
     /// A new mob of `kind` joined `dimension` at `pos`: `natural` when the
     /// world's spawning made it, false when something else did (a breed, a
@@ -1358,7 +1361,7 @@ impl Game<'_> {
         pos: [f64; 3],
         natural: bool,
     ) {
-        let _ = (dimension, kind, pos, natural);
+        mod_api::dispatch_mob_spawned(self, mod_api::mods(), dimension, kind, pos, natural);
     }
     /// An entity leaves the server level `dimension` (NeoForge's
     /// `EntityLeaveLevelEvent`): vanilla's `onTrackingEnd`, when it is removed
@@ -1370,7 +1373,7 @@ impl Game<'_> {
     /// It only hears. 53 tells item entities and experience orbs; later
     /// APIs add other kinds, so check `kind`. Server-side.
     pub(super) fn native_entity_leave_level(&mut self, dimension: &str, entity: u32, kind: &str) {
-        let _ = (dimension, entity, kind);
+        mod_api::dispatch_entity_leave_level(self, mod_api::mods(), dimension, entity, kind);
     }
     /// An entity joins the server level `dimension` (NeoForge's
     /// `EntityJoinLevelEvent`): vanilla's `PersistentEntitySectionManager.addEntity`.
@@ -1391,19 +1394,28 @@ impl Game<'_> {
         loaded_from_disk: bool,
         canceled: &mut bool,
     ) {
-        let _ = (dimension, entity, kind, pos, loaded_from_disk, canceled);
+        mod_api::dispatch_entity_join_level(
+            self,
+            mod_api::mods(),
+            dimension,
+            entity,
+            kind,
+            pos,
+            loaded_from_disk,
+            canceled,
+        );
     }
     /// `player`'s melee blow killed the mob `entity` of `kind` (other deaths
     /// aren't told yet). It only hears, after the blow landed. Server-side.
     /// API 40.
     pub(super) fn native_mob_killed(&mut self, player: u128, entity: u32, kind: &str) {
-        let _ = (player, entity, kind);
+        mod_api::dispatch_mob_killed(self, mod_api::mods(), player, entity, kind);
     }
     /// `player` threw `count` of `item` (`Player.drop`: the drop key, a
     /// menu's throw...), not what scatters when they die. It only hears.
     /// Server-side. API 40.
     pub(super) fn native_item_dropped(&mut self, player: u128, item: &str, count: u32) {
-        let _ = (player, item, count);
+        mod_api::dispatch_item_dropped(self, mod_api::mods(), player, item, count);
     }
     /// `player` is about to take `count` of `item` from the ground
     /// (`ItemEntity.playerTouch`). Set `canceled` to leave it there: the
@@ -1415,7 +1427,7 @@ impl Game<'_> {
         count: u32,
         canceled: &mut bool,
     ) {
-        let _ = (player, item, count, canceled);
+        mod_api::dispatch_item_picked_up(self, mod_api::mods(), player, item, count, canceled);
     }
     /// A player's hit landed on the mob `entity` of type `kind`
     /// (`minecraft:zombie`), holding `stack`: where `Item.hurtEnemy` is called,
@@ -1423,7 +1435,7 @@ impl Game<'_> {
     /// hears. Another player as the target isn't told yet. Server-side, for
     /// every player of the world (the helpers read the acting one). API 39.
     pub(super) fn native_hurt_enemy(&mut self, stack: &ItemStack, entity: u32, kind: &str) {
-        let _ = (stack, entity, kind);
+        mod_api::dispatch_hurt_enemy(self, mod_api::mods(), stack, entity, kind);
     }
     /// A server tick of the stack a player carries in `slot`: where
     /// `Inventory.tick` calls `Item.inventoryTick`, for every stack, each tick,
@@ -1436,7 +1448,7 @@ impl Game<'_> {
     /// first. Server-side, for every living player of the world (the helpers
     /// read the acting one). API 39.
     pub(super) fn native_inventory_tick(&mut self, slot: i32, selected: bool) {
-        let _ = (slot, selected);
+        mod_api::dispatch_inventory_tick(self, mod_api::mods(), slot, selected);
     }
     /// A player's equipment slot `slot` (`head`, `chest`, `legs`, `feet`,
     /// `offhand`, and `mainhand` on a swap of the hands or `/item`) took a different
@@ -1445,7 +1457,7 @@ impl Game<'_> {
     /// Server-side, for every player of the world (the helpers read the
     /// acting one). API 39.
     pub(super) fn native_on_equip(&mut self, slot: &str, new: Option<&ItemStack>) {
-        let _ = (slot, new);
+        mod_api::dispatch_on_equip(self, mod_api::mods(), slot, new);
     }
     /// `MobEffect.shouldApplyEffectTickThisTick` for a content mod's effect
     /// `effect` (`ruby:bleeding`), each tick a player or a mob has it, in
@@ -1459,7 +1471,14 @@ impl Game<'_> {
         amplifier: i32,
         apply: &mut bool,
     ) {
-        let _ = (effect, tick_count, amplifier, apply);
+        mod_api::dispatch_should_apply_effect_tick_this_tick(
+            self,
+            mod_api::mods(),
+            effect,
+            tick_count,
+            amplifier,
+            apply,
+        );
     }
     /// `MobEffect.applyEffectTick`: the content mod's effect `effect` acts on
     /// `entity` in `dimension` (`minecraft:overworld`). Clear `keep` and the
@@ -1476,7 +1495,15 @@ impl Game<'_> {
         amplifier: i32,
         keep: &mut bool,
     ) {
-        let _ = (effect, dimension, entity, amplifier, keep);
+        mod_api::dispatch_apply_effect_tick(
+            self,
+            mod_api::mods(),
+            effect,
+            dimension,
+            entity,
+            amplifier,
+            keep,
+        );
     }
     /// `MobEffect.onEffectAdded`: `LivingEntity.addEffect` gave `entity`
     /// (as in `native_apply_effect_tick`) the content mod's effect `effect`,
@@ -1487,7 +1514,7 @@ impl Game<'_> {
         entity: Option<i32>,
         amplifier: i32,
     ) {
-        let _ = (effect, entity, amplifier);
+        mod_api::dispatch_on_effect_added(self, mod_api::mods(), effect, entity, amplifier);
     }
     /// NeoForge's `MobEffectEvent.Added`, vanilla's `MobEffect.onEffectStarted`:
     /// every `LivingEntity.addEffect` of the content mod's effect `effect`,
@@ -1499,7 +1526,7 @@ impl Game<'_> {
         entity: Option<i32>,
         amplifier: i32,
     ) {
-        let _ = (effect, entity, amplifier);
+        mod_api::dispatch_mob_effect_added(self, mod_api::mods(), effect, entity, amplifier);
     }
     /// `LivingEntity.hurtServer`, past its guards (invulnerable, dead, fire
     /// with fire resistance), is about to hurt entity `entity` of type `kind`
@@ -1525,7 +1552,16 @@ impl Game<'_> {
         amount: &mut f32,
         canceled: &mut bool,
     ) {
-        let _ = (entity, kind, damage_type, causing, direct, amount, canceled);
+        mod_api::dispatch_living_incoming_damage(
+            mod_api::mods(),
+            entity,
+            kind,
+            damage_type,
+            causing,
+            direct,
+            amount,
+            canceled,
+        );
     }
 }
 

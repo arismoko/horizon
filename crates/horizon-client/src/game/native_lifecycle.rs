@@ -5,7 +5,10 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::{Game, execution_role::ExecutionRole};
-use horizon_client::mod_api::{NativeAuthority, NativeLifecycleContext, NativeTickId, NativeWorldEpoch, ServerTickPhase, WorldPhase};
+use horizon_client::mod_api::{
+    NativeAuthority, NativeLifecycleContext, NativeTickId, NativeWorldEpoch, ServerTickPhase,
+    WorldPhase,
+};
 
 /// Epoch allocation spans `Game` instances (a new server `Game` per
 /// launch), so the counter is process-wide.

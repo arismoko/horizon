@@ -975,9 +975,24 @@ injections, state, bridges, modules, mixin crates or post-build steps skips hori
 A linked trait mod implements `horizon_client::mod_api::Hooks`. Mixin injections run first.
 An injection that returns early skips trait mods. A claimed cancellation also skips trait mods.
 Otherwise, trait mods run in their supplied order. The first `Cancel` stops dispatch.
-For replacement hooks, the first `Some` wins. Collection hooks call every mod.
+For replacement hooks, the first `Some` wins. Collection hooks call every mod. Mutable inputs are reborrowed in order, so each mod sees earlier changes. Receiverless hooks have no `Host`.
 
-Hook methods take `&self` and require `Send + Sync`. One mod instance serves both
+Hook methods take `&self` and require `Send + Sync`. The process-wide mod list is installed once, like mixin module statics. One mod instance serves both
 the window's game and the server-thread game. A hook can also fire again inside
 the same mod: for example, `set_block` fires `block_changed`. Mods keep mutable
 state with interior mutability so these calls can share the instance safely.
+
+The trait includes the hooks marked `mod_api` in `native-hooks.json`. These include
+`tick`, the server lifecycle, player action, menu, block entity, entity, mob, effect,
+chunk and player hooks, plus `level_tick_pre`, `use_item_on`, `zoom` and `tooltip`.
+The following catalog hooks are not in the trait yet:
+
+- `block_changed`, `neighbor_changed`, `random_tick`, `tick_block`, `update_shape`,
+  `block_spread`, `piston_move`, `block_signal` and `is_signal_source` need a level host.
+- `frame`, `visuals`, `emissive`, `hud`, `key`, `wheel`, `command`, `commands`, `minimap`,
+  `mods`, `settings`, `settings_click`, `panel_event`, `screen`, `screen_draw`,
+  `screen_click`, `screen_tooltip`, `net_from_server`, `health_hud` and `item_bar`
+  will follow in the client slice.
+- `world_drawn` and `render_needs` need a renderer trait.
+
+`native_dispense_item` and `native_component_types` are not yet in the catalog.

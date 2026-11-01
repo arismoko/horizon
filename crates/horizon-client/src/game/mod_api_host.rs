@@ -15,4 +15,13 @@ impl horizon_client::mod_api::Host for Game<'_> {
     fn feedback(&mut self, text: horizon_client::text::Text) {
         self.native_feedback(text);
     }
+    fn acting_player(&self) -> Option<horizon_client::mod_api::NativeServerPlayer> {
+        self.native_acting_player()
+    }
+    fn tell(&self, uuid: u128, line: horizon_client::text::Text) -> bool {
+        self.native_tell(uuid, line)
+    }
+    fn action_bar(&mut self, uuid: u128, line: horizon_client::text::Text) -> bool {
+        self.native_action_bar(uuid, line)
+    }
 }

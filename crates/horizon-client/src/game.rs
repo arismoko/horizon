@@ -1934,7 +1934,6 @@ struct WorldIcon {
 }
 
 struct Game<'a> {
-    trait_mods: horizon_client::mod_api::Mods,
     /// Shared with an integrated server; `collision` and `motion` borrow from it.
     res: Arc<Resources>,
     rest_loader: Option<WorldRestLoader>,
@@ -16715,7 +16714,6 @@ impl<'a> Game<'a> {
             &gui.atlas.translucent,
         );
         Ok(Game {
-            trait_mods: Default::default(),
             world_biomes: None,
             res: res.clone(),
             rest_loader: None,
@@ -18388,7 +18386,6 @@ fn start_game<'a>(
     rest_loader: Option<WorldRestLoader>,
     settings: Option<Settings>,
     prepared: Option<GameCpuResources>,
-    trait_mods: horizon_client::mod_api::Mods,
 ) -> Result<Option<Game<'a>>> {
     let handoff = prepared.is_some();
     let mut settings = match settings {
@@ -18399,7 +18396,6 @@ fn start_game<'a>(
         settings.render_distance = d;
     }
     let mut game = Game::new(res, pack, gui, options, settings, audio, prepared)?;
-    game.trait_mods = trait_mods;
     game.rest_loader = rest_loader;
     game.ui.vanilla_root = vanilla_root;
     if let Some(error) = pack_error {
@@ -18576,7 +18572,6 @@ fn run_event_loop(mut game: Game<'_>) -> Result<()> {
 
 /// The loading screen's state while the worker loads the resources.
 struct Loading {
-    trait_mods: horizon_client::mod_api::Mods,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     /// The boot screen's atlas, until the pack's GUI atlas replaces it.
@@ -18842,7 +18837,6 @@ impl Loading {
             loaded.rest_loader,
             Some(self.settings.clone()),
             loaded.game_cpu,
-            self.trait_mods.clone(),
         )?
         else {
             return Ok(None);
@@ -18968,14 +18962,12 @@ fn run_loading(
     vanilla_root: PathBuf,
     pack_error: Option<String>,
     started: Instant,
-    trait_mods: horizon_client::mod_api::Mods,
 ) -> Result<()> {
     let progress = Progress::new();
     let (receiver, loader) =
         startup_menu::spawn_loader(&options, &settings, &vanilla_root, started, &progress)?;
     let menu = startup_menu::StartupMenu::new(&options, pack_error.as_deref())?;
     let loading = Loading {
-        trait_mods,
         window: None,
         renderer: None,
         boot: horizon_client::hud::HudAtlas::boot(),
@@ -19024,7 +19016,7 @@ fn run_loading(
 
 pub use launch_api::{UsageError, exit_code};
 
-pub fn run_with(trait_mods: horizon_client::mod_api::Mods) -> Result<()> {
+pub fn run_with() -> Result<()> {
     let Some(mut options) = Options::read()? else {
         return Ok(());
     };
@@ -19091,14 +19083,7 @@ pub fn run_with(trait_mods: horizon_client::mod_api::Mods) -> Result<()> {
     // shared resources.
     Behaviours::set_cache_dir(std::env::current_dir()?.join(".horizon-cache"));
     if !synchronous_startup(&options) {
-        return run_loading(
-            options,
-            early_settings,
-            vanilla_root,
-            None,
-            started,
-            trait_mods,
-        );
+        return run_loading(options, early_settings, vanilla_root, None, started);
     }
     let mut pack_error = None;
     options.resources = packs::startup_root(&vanilla_root, &early_settings.resource_packs, &[])
@@ -19143,7 +19128,6 @@ pub fn run_with(trait_mods: horizon_client::mod_api::Mods) -> Result<()> {
         loaded.rest_loader,
         None,
         None,
-        trait_mods,
     )?;
     if let Some(game) = game {
         run_event_loop(game)?;

@@ -1,13 +1,15 @@
 //! Trait mods implement `Hooks` and link into the game executable.
 //! The executable passes the ordered `Mods` to `entry::main_with`.
+//! Trait mods are process-wide, like mixin module statics.
 //! Hooks use `&self + Send + Sync` for shared and reentrant calls; see `docs/native-mods.md`.
 //! Generate the trait and dispatch with `cargo run -p xtask -- mod-api`.
 //! `Host` is hand-written for this slice; a later change will generate it from native helpers.
-use std::sync::Arc;
+use std::sync::{Arc, Once, OnceLock};
 
+pub use crate::containers::{ModBlockEntity, ModContainer, ModFluidTanks};
 pub use crate::items::ItemStack;
 pub use crate::text::Text;
-pub use horizon_world::registry::BlockStateId;
+pub use horizon_world::{nbt::Compound, registry::BlockStateId};
 
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
@@ -126,6 +128,23 @@ pub struct NativeLifecycleContext {
 /// The ordered list of mods shared by the client and server.
 pub type Mods = Arc<[Box<dyn Hooks>]>;
 
+static MODS: OnceLock<Mods> = OnceLock::new();
+static DUPLICATE_MODS_WARNING: Once = Once::new();
+
+/// Install the process-wide mod list. A second installation is a bug and is ignored.
+#[cfg_attr(test, allow(dead_code))]
+pub(crate) fn install_mods(mods: Mods) {
+    if MODS.set(mods).is_err() {
+        DUPLICATE_MODS_WARNING
+            .call_once(|| log::warn!("Trait mods already installed; ignoring the second list"));
+    }
+}
+
+/// The process-wide list in dispatch order, or an empty list before installation.
+pub fn mods() -> &'static [Box<dyn Hooks>] {
+    MODS.get().map_or(&[], |mods| mods.as_ref())
+}
+
 /// Whether a mod claims a cancellable hook.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Flow {
@@ -147,13 +166,17 @@ pub trait Host {
         state: BlockStateId,
         flags: i32,
     ) -> bool;
-    /// Send the acting player a line with `native_feedback`.
+    /// Add a line to a command answer inside `perform_command` with `native_feedback`.
     fn feedback(&mut self, text: Text);
+    /// The player whose action or command the current hook hears, if any.
+    fn acting_player(&self) -> Option<NativeServerPlayer>;
+    /// Send a chat line to a player. This does not reach the acting player inside that player's hook.
+    fn tell(&self, uuid: u128, line: Text) -> bool;
+    /// Send an action bar line to a player, including the acting player inside their hook.
+    fn action_bar(&mut self, uuid: u128, line: Text) -> bool;
 }
 
 mod generated;
 pub use generated::Hooks;
 #[doc(hidden)]
-pub use generated::{
-    dispatch_level_tick_pre, dispatch_tooltip, dispatch_use_item_on, dispatch_zoom,
-};
+pub use generated::*;

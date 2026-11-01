@@ -53,6 +53,7 @@ pub fn run(check: bool) -> Result<(), String> {
     let mut traits = String::new();
     let mut dispatch = String::new();
     let mut seen = HashSet::new();
+    let mut used_types = HashSet::new();
     for hook in catalog["hooks"]
         .as_array()
         .ok_or("catalog hooks must be an array")?
@@ -81,9 +82,13 @@ pub fn run(check: bool) -> Result<(), String> {
         let sig = &method.sig;
         let mut args = Vec::new();
         let mut receiver_mut = false;
+        let mut has_receiver = false;
         for arg in &sig.inputs {
             match arg {
-                FnArg::Receiver(r) => receiver_mut = r.mutability.is_some(),
+                FnArg::Receiver(r) => {
+                    has_receiver = true;
+                    receiver_mut = r.mutability.is_some();
+                }
                 FnArg::Typed(arg) => {
                     let Pat::Ident(pat) = &*arg.pat else {
                         return Err(format!("unsupported argument in {name}"));
@@ -91,6 +96,18 @@ pub fn run(check: bool) -> Result<(), String> {
                     args.push((pat.ident.to_string(), &*arg.ty));
                 }
             }
+        }
+        for (_, ty) in &args {
+            struct Types<'a>(&'a mut HashSet<String>);
+            impl<'ast> Visit<'ast> for Types<'_> {
+                fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
+                    if ty.qself.is_none() && ty.path.segments.len() == 1 {
+                        self.0.insert(ty.path.segments[0].ident.to_string());
+                    }
+                    syn::visit::visit_type_path(self, ty);
+                }
+            }
+            Types(&mut used_types).visit_type(ty);
         }
         let contract = api["contract"].as_str().ok_or("contract missing")?;
         let out = api.get("out").and_then(|v| v.as_str());
@@ -138,7 +155,10 @@ pub fn run(check: bool) -> Result<(), String> {
             .collect::<String>();
         let call = args
             .iter()
-            .map(|(name, _)| format!(", {name}"))
+            .map(|(name, ty)| match ty {
+                Type::Reference(r) if r.mutability.is_some() => format!(", &mut *{name}"),
+                _ => format!(", {name}"),
+            })
             .collect::<String>();
         let default = match contract {
             "cancel" => "Flow::Continue",
@@ -150,7 +170,7 @@ pub fn run(check: bool) -> Result<(), String> {
             .map(|(name, ty)| format!(", {name}: {}", ty.to_token_stream()))
             .unwrap_or_default();
         let (trait_extra, call_extra) = if contract == "collect" {
-            (output_param.as_str(), format!(", {}", out.unwrap()))
+            (output_param.as_str(), format!(", &mut *{}", out.unwrap()))
         } else {
             ("", String::new())
         };
@@ -183,31 +203,61 @@ pub fn run(check: bool) -> Result<(), String> {
             )),
             _ => {}
         }
-        let unused = if call.is_empty() && call_extra.is_empty() {
-            "host".to_owned()
+        let host_param = if has_receiver {
+            format!(", host: {host}")
         } else {
-            format!("(host{call}{call_extra},)")
+            String::new()
         };
-        traits.push_str(&format!("fn {name}(&self, host: {host}{inputs}{trait_extra}){result} {{ let _ = {unused}; {default} }}\n"));
+        let host_call = if has_receiver { "host" } else { "" };
+        let invoke = format!("{host_call}{call}{call_extra}");
+        let invoke = invoke.trim_start_matches(", ");
+        let mut unused = String::new();
+        if has_receiver {
+            unused.push_str("let _ = host;");
+        }
+        for (arg, _) in &args {
+            unused.push_str(&format!("let _ = {arg};"));
+        }
+        if contract == "collect" {
+            unused.push_str(&format!("let _ = {};", out.unwrap()));
+        }
+        traits.push_str(&format!(
+            "fn {name}(&self{host_param}{inputs}{trait_extra}){result} {{ {unused} {default} }}\n"
+        ));
         let body = match contract {
             "cancel" => format!(
-                "if *{o} {{ return; }} for m in mods {{ if matches!(m.{name}(host{call}), Flow::Cancel) {{ *{o} = true; break; }} }}",
+                "if *{o} {{ return; }} for m in mods {{ if matches!(m.{name}({invoke}), Flow::Cancel) {{ *{o} = true; break; }} }}",
                 o = out.unwrap()
             ),
             "replace" => format!(
-                "if {o}.is_some() {{ return; }} for m in mods {{ if let Some(value) = m.{name}(host{call}) {{ *{o} = Some(value); break; }} }}",
+                "if {o}.is_some() {{ return; }} for m in mods {{ if let Some(value) = m.{name}({invoke}) {{ *{o} = Some(value); break; }} }}",
                 o = out.unwrap()
             ),
-            "collect" => format!("for m in mods {{ m.{name}(host{call}{call_extra}); }}"),
-            _ => format!("for m in mods {{ m.{name}(host{call}); }}"),
+            _ => format!("for m in mods {{ m.{name}({invoke}); }}"),
         };
-        dispatch.push_str(&format!("pub fn dispatch_{name}(host: {host}, mods: &[Box<dyn Hooks>]{inputs}{output_param}) {{ {body} }}\n"));
+        let dispatch_host = if has_receiver {
+            format!("host: {host}, ")
+        } else {
+            String::new()
+        };
+        dispatch.push_str(&format!("pub fn dispatch_{name}({dispatch_host}mods: &[Box<dyn Hooks>]{inputs}{output_param}) {{ {body} }}\n"));
     }
     if seen.is_empty() {
         return Err("no mod API contracts".into());
     }
+    // Names from hook signatures that are not in Rust's prelude come from mod_api.
+    let prelude = [
+        "bool", "char", "str", "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32",
+        "i64", "i128", "isize", "f32", "f64", "Option", "Vec", "String",
+    ];
+    used_types.retain(|name| !prelude.contains(&name.as_str()));
+    used_types.insert("Flow".to_owned());
+    used_types.insert("Host".to_owned());
+    let mut imports: Vec<_> = used_types.into_iter().collect();
+    imports.sort_unstable();
+    let imports = imports.join(", ");
     let code = format!(
-        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::{{Flow, Host, ItemStack, NativeZoom, Text}};\npub trait Hooks: Send + Sync {{\n{traits}}}\n{dispatch}"
+        "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::{{{imports}}};\npub trait Hooks: Send + Sync {{\n{traits}}}\n{dispatch}"
     );
     // Parse before formatting, so invalid catalog names or types fail without writing output.
     syn::parse_file(&code).map_err(|e| format!("generated Rust: {e}"))?;
@@ -242,10 +292,24 @@ pub fn run(check: bool) -> Result<(), String> {
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 mod tests {
     use std::sync::{Arc, Mutex};
 
     struct ItemStack;
+    #[derive(Clone, Copy)]
+    struct BlockStateId;
+    struct Compound;
+    struct ModBlockEntity;
+    struct ModContainer;
+    struct ModFluidTanks;
+    struct NativeCommand;
+    struct NativeLifecycleContext;
+    struct NativeServerPlayer;
+    #[derive(Clone, Copy)]
+    struct ServerTickPhase;
+    #[derive(Clone, Copy)]
+    struct WorldPhase;
     struct Text;
     #[derive(Debug, PartialEq)]
     struct NativeZoom(u32);
@@ -277,6 +341,33 @@ mod tests {
         fn zoom(&self, _: &dyn Host) -> Option<NativeZoom> {
             self.calls.lock().unwrap().push(self.id);
             Some(NativeZoom(self.id))
+        }
+        fn should_apply_effect_tick_this_tick(
+            &self,
+            _: &dyn Host,
+            _: &str,
+            _: i32,
+            _: i32,
+            apply: &mut bool,
+        ) {
+            *apply = !*apply;
+            self.calls.lock().unwrap().push(self.id);
+        }
+        fn living_incoming_damage(
+            &self,
+            _: i32,
+            _: &str,
+            _: &str,
+            _: i32,
+            _: i32,
+            amount: &mut f32,
+        ) -> Flow {
+            *amount += self.id as f32;
+            if self.id == 2 {
+                Flow::Cancel
+            } else {
+                Flow::Continue
+            }
         }
         fn use_item_on(&self, _: &mut dyn Host, _: &ItemStack, _: [i32; 3], _: [i32; 3]) -> Flow {
             self.calls.lock().unwrap().push(self.id);
@@ -325,6 +416,26 @@ mod tests {
         let mut lines = Vec::new();
         dispatch_tooltip(&host, &mods, &ItemStack, &mut lines);
         assert_eq!(lines.iter().map(|line| line.1).collect::<Vec<_>>(), [1, 2]);
+        let mut apply = false;
+        calls.lock().unwrap().clear();
+        dispatch_should_apply_effect_tick_this_tick(&host, &mods, "effect", 0, 0, &mut apply);
+        assert!(!apply);
+        assert_eq!(*calls.lock().unwrap(), [1, 2]);
+        let mut amount = 1.0;
+        let mut canceled = false;
+        dispatch_living_incoming_damage(
+            &mods,
+            0,
+            "kind",
+            "damage",
+            0,
+            0,
+            &mut amount,
+            &mut canceled,
+        );
+        assert_eq!(amount, 4.0);
+        assert!(canceled);
+        calls.lock().unwrap().clear();
         let mut claimed = false;
         dispatch_use_item_on(&mut host, &mods, &ItemStack, [0; 3], [0; 3], &mut claimed);
         assert!(claimed);

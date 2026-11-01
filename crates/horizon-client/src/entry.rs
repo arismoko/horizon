@@ -37,8 +37,9 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         log::info!("Horizon {}", crash::version());
         crash::install(home.clone(), side);
     }
+    crate::mod_api::install_mods(mods);
     raise_open_file_limit();
-    if let Err(error) = game::run_with(mods) {
+    if let Err(error) = game::run_with() {
         // A bad command line is the caller's mistake, not a crash: no report.
         let usage = error.is::<game::UsageError>();
         log::error!("Horizon: {error}");
