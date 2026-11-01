@@ -9,7 +9,8 @@ pub use crate::items::ItemStack;
 pub use crate::text::Text;
 pub use horizon_world::registry::BlockStateId;
 
-/// A native zoom factor and mouse turning scale.
+/// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
+/// field of view like the spyglass when `smooth`, and the scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NativeZoom {
     pub factor: f32,

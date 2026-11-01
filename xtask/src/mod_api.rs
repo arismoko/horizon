@@ -17,7 +17,7 @@ pub fn run(check: bool) -> Result<(), String> {
         if let Item::Impl(item) = item {
             for member in item.items {
                 if let ImplItem::Fn(method) = member {
-                    methods.push(method.sig);
+                    methods.push(method);
                 }
             }
         }
@@ -37,8 +37,8 @@ pub fn run(check: bool) -> Result<(), String> {
             return Err(format!("duplicate hook {name}"));
         }
         let native = format!("native_{name}");
-        let matches: Vec<_> = methods.iter().filter(|m| m.ident == native).collect();
-        let [sig] = matches.as_slice() else {
+        let matches: Vec<_> = methods.iter().filter(|m| m.sig.ident == native).collect();
+        let [method] = matches.as_slice() else {
             return Err(format!("expected one {native} signature"));
         };
         if !hook["target"]
@@ -47,6 +47,7 @@ pub fn run(check: bool) -> Result<(), String> {
         {
             return Err(format!("wrong target for {name}"));
         }
+        let sig = &method.sig;
         let mut args = Vec::new();
         let mut receiver_mut = false;
         for arg in &sig.inputs {
@@ -113,10 +114,20 @@ pub fn run(check: bool) -> Result<(), String> {
         } else {
             ("", String::new())
         };
+        for attr in &method.attrs {
+            if attr.path().is_ident("doc") {
+                traits.push_str(&format!("{}\n", attr.to_token_stream()));
+            }
+        }
         if contract == "replace" {
             traits.push_str("/// The first mod returning `Some` wins.\n");
         }
-        traits.push_str(&format!("fn {name}(&self, host: {host}{inputs}{trait_extra}){result} {{ let _ = (host{call}{call_extra},); {default} }}\n"));
+        let unused = if call.is_empty() && call_extra.is_empty() {
+            "host".to_owned()
+        } else {
+            format!("(host{call}{call_extra},)")
+        };
+        traits.push_str(&format!("fn {name}(&self, host: {host}{inputs}{trait_extra}){result} {{ let _ = {unused}; {default} }}\n"));
         let body = match contract {
             "cancel" => format!(
                 "if *{o} {{ return; }} for m in mods {{ if matches!(m.{name}(host{call}), Flow::Cancel) {{ *{o} = true; break; }} }}",
