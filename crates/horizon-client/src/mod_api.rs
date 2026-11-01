@@ -316,10 +316,8 @@ pub trait LevelTicksHost: LevelHost {
     fn schedule_fluid_tick(&mut self, pos: [i32; 3], fluid: &str, delay: i32) -> bool;
 }
 
-/// Mutable level services, like vanilla's `ServerLevel`.
+/// Mutable level services, like vanilla's `ServerLevel`. Whole-block writes wait for block entity support.
 pub trait LevelWriteHost: LevelTicksHost {
-    /// Set a block through the level's block behaviours. Unlike `native_set_block`, this does not create a block entity.
-    fn set_block(&mut self, pos: [i32; 3], state: BlockStateId, flags: i32) -> bool;
     /// Change a block property through `native_set_block_property`.
     fn set_block_property(&mut self, pos: [i32; 3], key: &str, value: &str, flags: i32) -> bool;
 }
