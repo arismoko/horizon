@@ -202,6 +202,7 @@ pub trait Hooks: Send + Sync {
     /// Whether block `block`'s block entity ticks (`EntityBlock.getTicker`):
     /// set `ticks` when it is yours. Asked for each of the block's states
     /// when a world opens. API 15.
+    /// Set `ticks` to true to make it tick, and never clear a value an earlier mod or mixin set.
     fn block_entity_ticks(&self, host: &dyn Host, block: &str, ticks: &mut bool) {
         let _ = host;
         let _ = block;

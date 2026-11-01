@@ -1122,6 +1122,7 @@ impl Game<'_> {
     /// Whether block `block`'s block entity ticks (`EntityBlock.getTicker`):
     /// set `ticks` when it is yours. Asked for each of the block's states
     /// when a world opens. API 15.
+    /// Set `ticks` to true to make it tick, and never clear a value an earlier mod or mixin set.
     pub(super) fn native_block_entity_ticks(&self, block: &str, ticks: &mut bool) {
         mod_api::dispatch_block_entity_ticks(self, mod_api::mods(), block, ticks);
     }

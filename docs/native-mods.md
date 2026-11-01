@@ -1159,7 +1159,10 @@ state with interior mutability so these calls can share the instance safely.
 
 The trait includes the hooks marked `mod_api` in `native-hooks.json`. These include
 `tick`, the server lifecycle, player action, menu, block entity, entity, mob, effect,
-chunk and player hooks, plus client input, HUD, screen, visual and network hooks.
+chunk and player hooks, plus `frame`, `visuals`, `emissive`, `hud`, `key`, `wheel`,
+`command`, `commands`, `minimap`, `mods`, `settings`, `settings_click`, `panel_event`,
+`screen`, `screen_draw`, `screen_click`, `screen_tooltip`, `health_hud`, `item_bar` and
+`net_from_server`.
 The following catalog hooks are not in the trait yet:
 
 - `block_changed`, `neighbor_changed`, `random_tick`, `tick_block`, `update_shape`,
