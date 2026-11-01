@@ -109,7 +109,8 @@ pub trait Host {
     /// mod keeps its data in a folder of its own there, so the world's
     /// backups carry it. None when no world is open.
     fn world_dir(&self) -> Option<PathBuf>;
-    /// The main hand's stack: its item, count, and whether it is plain.
+    /// The main hand's stack: its item, count, and whether it is plain. On a
+    /// client, the player's own.
     fn held(&self) -> Option<(String, u32, bool)>;
     /// How many of plain `item` (`minecraft:diamond`) the player carries.
     fn count_items(&mut self, item: &str) -> u32;
@@ -275,7 +276,8 @@ pub trait Host {
     /// nobody uses and outside a world. These are the server's table on the
     /// server thread, a dedicated server or a LAN host; a client, the
     /// single-player window included, sees only the content mods' recipes, not
-    /// the world's data packs'. API 36.
+    /// the world's data packs', unless a mod had the server send it the type
+    /// (`native_datapack_sync`). API 36.
     fn recipes_of_type(&self, kind: &str) -> &[CustomRecipe];
     /// An ingredient as a recipe's JSON names it: an item, a `#tag`, or a list
     /// of them, a bare id as `minecraft:` (as vanilla reads it); `test` says
