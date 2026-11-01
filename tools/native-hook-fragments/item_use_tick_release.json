@@ -2,22 +2,26 @@
   "hooks": [
     {
       "name": "living_entity_use_item_tick",
+      "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_living_entity_use_item_tick",
       "neoforge": "LivingEntityUseItemEvent.Tick",
       "cancellable": true
     },
     {
       "name": "on_use_tick",
+      "mod_api": {"contract":"listen"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_on_use_tick"
     },
     {
       "name": "living_entity_use_item_stop",
+      "mod_api": {"contract":"cancel","out":"canceled"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_living_entity_use_item_stop",
       "neoforge": "LivingEntityUseItemEvent.Stop",
       "cancellable": true
     },
     {
       "name": "release_using",
+      "mod_api": {"contract":"listen"},
       "target": "horizon_client::game::native_hooks::Game<'_>::native_release_using"
     }
   ],

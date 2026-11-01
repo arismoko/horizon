@@ -2516,7 +2516,15 @@ impl Game<'_> {
         duration: &mut i32,
         canceled: &mut bool,
     ) {
-        let _ = (stack, entity, hand, duration, canceled);
+        mod_api::dispatch_living_entity_use_item_tick(
+            self,
+            mod_api::mods(),
+            stack,
+            entity,
+            hand,
+            duration,
+            canceled,
+        );
     }
     /// `Item.onUseTick` of `stack`, used by `entity` with `remaining` ticks
     /// left, always above 0: what a mod's own item does each tick it is used
@@ -2534,7 +2542,7 @@ impl Game<'_> {
         entity: Option<i32>,
         remaining: i32,
     ) {
-        let _ = (stack, entity, remaining);
+        mod_api::dispatch_on_use_tick(self, mod_api::mods(), stack, entity, remaining);
     }
     /// NeoForge's `LivingEntityUseItemEvent.Stop`: `entity` lets go of
     /// `stack` in `hand` before its use ran its time
@@ -2552,7 +2560,15 @@ impl Game<'_> {
         duration: i32,
         canceled: &mut bool,
     ) {
-        let _ = (stack, entity, hand, duration, canceled);
+        mod_api::dispatch_living_entity_use_item_stop(
+            self,
+            mod_api::mods(),
+            stack,
+            entity,
+            hand,
+            duration,
+            canceled,
+        );
     }
     /// `Item.releaseUsing` of `stack`: `entity` let it go with `time_left`
     /// ticks of its `native_use_duration` left, so it was held for
@@ -2569,7 +2585,7 @@ impl Game<'_> {
         time_left: i32,
         used: &mut bool,
     ) {
-        let _ = (stack, entity, time_left, used);
+        mod_api::dispatch_release_using(self, mod_api::mods(), stack, entity, time_left, used);
     }
     /// A player breaks the block `state` at `pos`, once the game allowed it
     /// (the held item can break blocks, the debug stick didn't take the
