@@ -1661,12 +1661,12 @@ fn render_visible(
     let overlay = u32::from(red_overlay(m));
     let s = anim::state(m, alpha);
     let (model_key, texture) = body(m);
-    // The packs' custom entity models replace a layer's parts and maybe its texture.
+    // The packs' custom entity models replace a layer's parts and maybe its texture. The read
+    // guard, not a clone of the Arc: one uncontended lock per mob, nothing else without a pack.
     let cem = data
         .cem
         .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone();
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // `main` is the wide player model, `kind.model`.
     let cem_key = if model_key == "main" {
         "player#main"
@@ -1687,6 +1687,18 @@ fn render_visible(
             texture,
         ),
     };
+    // OptiFine random textures: the sprite of the variant the mob wears for a texture, when
+    // the atlas has it. The texture keeps its name for everything else.
+    let random = data
+        .random_textures
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let random_uv = |texture: &str| {
+        if random.is_empty() {
+            return None;
+        }
+        atlas(super::random_textures::texture(m, &random, texture)?)
+    };
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
     if let Some(animation) = body_animation {
@@ -1695,7 +1707,7 @@ fn render_visible(
     let draw_body = |out: &mut Vec<Vertex>| {
         // A player or mannequin whose skin has no atlas sprite (an evicted or
         // never stored download) draws with its default skin, not invisibly.
-        let uv = atlas(&texture).or_else(|| {
+        let uv = random_uv(&texture).or_else(|| atlas(&texture)).or_else(|| {
             if avatar(m) {
                 atlas(&m.kind.texture)
             } else {
@@ -1759,7 +1771,7 @@ fn render_visible(
                 None => continue,
             },
         };
-        let Some(uv) = atlas(&layer.texture) else {
+        let Some(uv) = random_uv(&layer.texture).or_else(|| atlas(&layer.texture)) else {
             continue;
         };
         layer_poses.reset(&part);
@@ -2437,6 +2449,7 @@ mod tests {
             entity_tags: Default::default(),
             villager_hats: Default::default(),
             cem: Default::default(),
+            random_textures: Default::default(),
             pois: Default::default(),
             species_placements: Default::default(),
         };
@@ -2527,6 +2540,7 @@ mod tests {
             entity_tags: Default::default(),
             villager_hats: Default::default(),
             cem: Default::default(),
+            random_textures: Default::default(),
             pois: Default::default(),
             species_placements: Default::default(),
         };
@@ -2581,6 +2595,7 @@ mod tests {
             entity_tags: Default::default(),
             villager_hats: Default::default(),
             cem: Default::default(),
+            random_textures: Default::default(),
             pois: Default::default(),
             species_placements: Default::default(),
         };
@@ -2691,6 +2706,7 @@ mod tests {
             entity_tags: Default::default(),
             villager_hats: Default::default(),
             cem: Default::default(),
+            random_textures: Default::default(),
             pois: Default::default(),
             species_placements: Default::default(),
         };

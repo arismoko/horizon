@@ -372,6 +372,17 @@ impl Game<'_> {
             .cem
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = cem;
+        // The random entity textures the new atlas packs: every mob chooses again.
+        *self
+            .res
+            .mob_data()
+            .random_textures
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
+            std::mem::take(&mut self.gui.atlas.random_textures);
+        for m in &mut self.mobs {
+            m.random_textures.forget_picks();
+        }
         horizon_client::ui::load_metadata(&root);
         lang::set(lang::Language::load(&[&root], &lang::code()));
         self.refresh_remote_language();

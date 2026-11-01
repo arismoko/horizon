@@ -238,6 +238,7 @@ mod prediction;
 mod pumpkin;
 mod quick_actions;
 mod raids;
+mod random_textures;
 mod recipe_book;
 mod remote;
 mod remote_camera;
