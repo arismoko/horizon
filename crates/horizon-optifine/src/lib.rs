@@ -20,5 +20,5 @@ pub mod random;
 pub mod random_textures;
 
 pub use matchers::{BlockMatch, IdList, Name, RangeList};
-pub use paths::{properties_files, resolve, valid};
+pub use paths::{properties_files, properties_files_in, resolve, valid};
 pub use properties::Properties;

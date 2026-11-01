@@ -18,6 +18,7 @@ pub mod camera;
 pub mod chat;
 pub mod chunk;
 pub mod chunk_map;
+pub mod cit;
 pub mod clouds;
 pub mod collisions;
 pub mod command_block;

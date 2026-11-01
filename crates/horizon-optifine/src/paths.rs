@@ -60,6 +60,12 @@ fn resolve_unchecked(props: &str, value: &str) -> String {
 /// `assets/*/mcpatcher/<feature>/` of `root`, as sorted resource paths. `feature` is a folder
 /// (`ctm`, `cit`, `random/entity`, `sky/world0`).
 pub fn properties_files(root: &Path, feature: &str) -> Vec<String> {
+    properties_files_in(root, &["optifine", "mcpatcher"], feature)
+}
+
+/// `properties_files` under other top folders too, for a feature a mod reads from its own
+/// (CIT Resewn's `citresewn/cit/`).
+pub fn properties_files_in(root: &Path, tops: &[&str], feature: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     let Ok(namespaces) = fs::read_dir(root.join("assets")) else {
@@ -67,7 +73,7 @@ pub fn properties_files(root: &Path, feature: &str) -> Vec<String> {
     };
     for ns in namespaces.flatten() {
         let ns = ns.file_name().to_string_lossy().into_owned();
-        for top in ["optifine", "mcpatcher"] {
+        for top in tops {
             let base = format!("assets/{ns}/{top}/{feature}");
             walk(
                 &root.join(&base),
