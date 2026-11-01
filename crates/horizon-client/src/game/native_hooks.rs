@@ -219,6 +219,7 @@ use super::{
     native_panel_recipes::RecipePage,
 };
 pub(crate) use horizon_client::mod_api::NativeBlockRim;
+pub(crate) use horizon_client::mod_api::NativeColoredLight;
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
@@ -478,14 +479,6 @@ impl GameLevel<'_> {
 }
 
 
-/// A camera-local visual light, with no gameplay light or shadow writes.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NativeColoredLight {
-    pub(crate) at: [f64; 3],
-    pub(crate) rgb: u32,
-    pub(crate) radius: f32,
-    pub(crate) intensity: f32,
-}
 
 /// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
 /// minimap: its corner, its side in GUI pixels, blocks per map pixel,

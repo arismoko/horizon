@@ -19,6 +19,15 @@ pub struct NativeBlockRim {
     pub width: f32,
 }
 
+/// A camera-local visual light, with no gameplay light or shadow writes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NativeColoredLight {
+    pub at: [f64; 3],
+    pub rgb: u32,
+    pub radius: f32,
+    pub intensity: f32,
+}
+
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]
