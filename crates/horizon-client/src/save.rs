@@ -26,6 +26,7 @@ use horizon_core::{
     position::{BlockPos, ChunkPos},
     ticks::{SavedTick, TickPriority, TickTypeId},
 };
+use horizon_world::attachments::{ATTACHMENTS_KEY, attachment_compound};
 use horizon_world::{
     DATA_VERSION,
     chunk::BlockState,
@@ -1445,15 +1446,13 @@ pub fn encode_with(
             if let Some((_, attachments)) =
                 extras.and_then(|e| e.block_entity_attachments.iter().find(|(pos, _)| pos == p))
                 && let Tag::Compound(map) = &mut saved
-                && !map
-                    .get(&"horizon:attachments".into())
-                    .is_some_and(|v| !matches!(v, Tag::Compound(_)))
+                && attachment_compound(map.get(&ATTACHMENTS_KEY.into())).is_ok()
             {
                 let data = attachments.to_nbt();
                 if data.is_empty() {
-                    map.remove(&"horizon:attachments".into());
+                    map.remove(&ATTACHMENTS_KEY.into());
                 } else {
-                    map.insert("horizon:attachments".into(), Tag::Compound(data));
+                    map.insert(ATTACHMENTS_KEY.into(), Tag::Compound(data));
                 }
             }
             if let Some(r) = extras.and_then(|x| x.rolled_loot.iter().find(|r| r.pos == *p))
@@ -1501,15 +1500,13 @@ pub fn encode_with(
     }
     if let Some(Tag::Compound(map)) = Some(&mut root) {
         if let Some(extras) = extras
-            && !map
-                .get(&"horizon:attachments".into())
-                .is_some_and(|v| !matches!(v, Tag::Compound(_)))
+            && attachment_compound(map.get(&ATTACHMENTS_KEY.into())).is_ok()
         {
             let attachments = extras.attachments.to_nbt();
             if attachments.is_empty() {
-                map.remove(&"horizon:attachments".into());
+                map.remove(&ATTACHMENTS_KEY.into());
             } else {
-                map.insert("horizon:attachments".into(), Tag::Compound(attachments));
+                map.insert(ATTACHMENTS_KEY.into(), Tag::Compound(attachments));
             }
         }
         map.entry("InhabitedTime".into()).or_insert(Tag::Long(0));
@@ -1728,7 +1725,7 @@ fn decode_column(
             }
             match decode_block_entity(e) {
                 Some(mut be) => {
-                    if let Some(Tag::Compound(data)) = e.get("horizon:attachments") {
+                    if let Ok(Some(data)) = attachment_compound(e.get(ATTACHMENTS_KEY)) {
                         extras.block_entity_attachments.push((
                             be.0,
                             horizon_world::attachments::Attachments::from_nbt(data.clone()),
@@ -1748,7 +1745,7 @@ fn decode_column(
         }
     }
     if let Tag::Compound(map) = tag {
-        if let Some(Tag::Compound(data)) = map.get(&"horizon:attachments".into()) {
+        if let Ok(Some(data)) = attachment_compound(map.get(&ATTACHMENTS_KEY.into())) {
             extras.attachments = horizon_world::attachments::Attachments::from_nbt(data.clone());
         }
         extras.root = map

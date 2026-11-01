@@ -6,7 +6,10 @@ use crate::{
     save::{Level, put, read_dat, uuid_from_tag, write_dat},
 };
 use horizon_protocol::crypto::uuid_string;
-use horizon_world::nbt::Tag;
+use horizon_world::{
+    attachments::{ATTACHMENTS_KEY, attachment_compound},
+    nbt::Tag,
+};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -121,14 +124,13 @@ pub fn apply(guest: &mut Guest, level: &Level) {
         .map(|s| [s[0] + 0.5, s[1], s[2] + 0.5]);
     guest.respawn_elsewhere = level.respawn_elsewhere.clone();
     guest.saved = level.player_extra.clone();
-    guest.attachments = match guest
-        .saved
-        .as_ref()
-        .and_then(|tag| tag.get("horizon:attachments"))
-    {
-        Some(Tag::Compound(data)) => {
-            horizon_world::attachments::Attachments::from_nbt(data.clone())
-        }
+    guest.attachments = match attachment_compound(
+        guest
+            .saved
+            .as_ref()
+            .and_then(|tag| tag.get(ATTACHMENTS_KEY)),
+    ) {
+        Ok(Some(data)) => horizon_world::attachments::Attachments::from_nbt(data.clone()),
         _ => Default::default(),
     };
     guest.seen_credits = level.seen_credits;
@@ -227,15 +229,13 @@ pub fn store(guest: &Guest, level: &mut Level, vehicle: Option<Tag>) {
         .player_extra
         .get_or_insert_with(|| Tag::Compound(Default::default()));
     if let Tag::Compound(map) = extra
-        && !map
-            .get(&"horizon:attachments".into())
-            .is_some_and(|tag| !matches!(tag, Tag::Compound(_)))
+        && attachment_compound(map.get(&ATTACHMENTS_KEY.into())).is_ok()
     {
         let data = guest.attachments.to_nbt();
         if data.is_empty() {
-            map.remove(&"horizon:attachments".into());
+            map.remove(&ATTACHMENTS_KEY.into());
         } else {
-            map.insert("horizon:attachments".into(), Tag::Compound(data));
+            map.insert(ATTACHMENTS_KEY.into(), Tag::Compound(data));
         }
     }
     // The vehicle the player rides (`ServerPlayer.saveParentVehicle`), or

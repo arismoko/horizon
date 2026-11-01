@@ -1,6 +1,9 @@
 use super::{BlockStateId, Game};
 use horizon_client::mod_api::BlockPos;
-use horizon_world::level::Ticks;
+use horizon_world::{
+    attachments::{ATTACHMENTS_KEY, attachment_compound},
+    level::Ticks,
+};
 
 fn world_attachments(
     world: &mut horizon_client::world::World,
@@ -16,15 +19,13 @@ fn world_attachments(
             .chunks
             .get(&(x >> 4, z >> 4))
             .ok_or(AttachmentError::MissingHolder)?;
-        if chunk
-            .saved
-            .as_ref()
-            .and_then(|e| e.block_entity_sources.iter().find(|(p, _)| *p == pos))
-            .and_then(|(_, tag)| tag.get("horizon:attachments"))
-            .is_some_and(|v| !matches!(v, horizon_world::nbt::Tag::Compound(_)))
-        {
-            return Err(AttachmentError::InvalidNamespace);
-        }
+        attachment_compound(
+            chunk
+                .saved
+                .as_ref()
+                .and_then(|e| e.block_entity_sources.iter().find(|(p, _)| *p == pos))
+                .and_then(|(_, tag)| tag.get(ATTACHMENTS_KEY)),
+        )?;
         let map = world
             .block_entities
             .attachments_mut(pos)
@@ -41,49 +42,50 @@ fn world_attachments(
         .ok_or(AttachmentError::MissingHolder)?;
     let chunk = std::sync::Arc::make_mut(chunk);
     let extras = std::sync::Arc::make_mut(chunk.saved.get_or_insert_with(Default::default));
-    if extras
-        .root
-        .get(&"horizon:attachments".into())
-        .is_some_and(|v| !matches!(v, horizon_world::nbt::Tag::Compound(_)))
-    {
-        return Err(AttachmentError::InvalidNamespace);
-    }
+    attachment_compound(extras.root.get(&ATTACHMENTS_KEY.into()))?;
     world.modified.insert((x, z));
     Ok(&mut extras.attachments)
 }
 
-impl horizon_client::mod_api::Host for Game<'_> {
-    fn attachments(
+impl Game<'_> {
+    pub(super) fn native_authoritative(&self) -> bool {
+        self.serving.is_some() || self.options.dedicated.is_some()
+    }
+
+    /// Access a server-owned holder's attachment map.
+    pub(super) fn native_attachments(
         &mut self,
         holder: horizon_client::mod_api::Holder,
     ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
     {
         use horizon_client::mod_api::AttachmentError;
-        if self.serving.is_none() && self.options.dedicated.is_none() {
+        if !self.native_authoritative() {
             return Err(AttachmentError::MissingHolder);
         }
         if let horizon_client::mod_api::Holder::Entity(id) = holder {
-            let exists = self.mobs.iter().any(|e| e.id == id && !e.removed)
-                || self.dropped.iter().any(|e| e.id == id)
-                || self.boats.iter().any(|e| e.id == id)
-                || self.carts.iter().any(|e| e.id == id)
-                || self.armor_stands.iter().any(|e| e.id == id)
-                || self.cushions.iter().any(|e| e.id == id)
-                || self.item_frames.iter().any(|e| e.id == id)
-                || self.paintings.iter().any(|e| e.id == id)
-                || self.others.iter().any(|e| e.id == id);
+            use super::commands::Target;
+            let exists = match i32::try_from(id).ok().and_then(|id| self.level_entity(id)) {
+                Some(Target::Mob(_)) => self.mobs.iter().any(|e| e.id == id && !e.removed),
+                Some(
+                    Target::Item(_)
+                    | Target::Boat(_)
+                    | Target::Cart(_)
+                    | Target::Stand(_)
+                    | Target::Frame(_)
+                    | Target::Painting(_)
+                    | Target::Other(_),
+                ) => true,
+                _ => self.cushions.iter().any(|e| e.id == id),
+            };
             if !exists {
                 return Err(AttachmentError::MissingHolder);
             }
-            if self
-                .persist
-                .raw
-                .get(&id)
-                .and_then(|tag| tag.get("horizon:attachments"))
-                .is_some_and(|v| !matches!(v, horizon_world::nbt::Tag::Compound(_)))
-            {
-                return Err(AttachmentError::InvalidNamespace);
-            }
+            attachment_compound(
+                self.persist
+                    .raw
+                    .get(&id)
+                    .and_then(|tag| tag.get(ATTACHMENTS_KEY)),
+            )?;
             let uuid = self.uuid_for(id);
             return Ok(self.entity_attachments.entry(uuid).or_default());
         }
@@ -104,6 +106,16 @@ impl horizon_client::mod_api::Host for Game<'_> {
                 .ok_or(AttachmentError::MissingHolder);
         }
         world_attachments(&mut self.world, holder)
+    }
+}
+
+impl horizon_client::mod_api::Host for Game<'_> {
+    fn attachments(
+        &mut self,
+        holder: horizon_client::mod_api::Holder,
+    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
+    {
+        self.native_attachments(holder)
     }
     fn block(&self, pos: [i32; 3]) -> String {
         self.native_block(pos)
@@ -132,16 +144,6 @@ impl horizon_client::mod_api::Host for Game<'_> {
 }
 
 impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
-    fn attachments(
-        &mut self,
-        holder: horizon_client::mod_api::Holder,
-    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
-    {
-        if !self.native_authoritative {
-            return Err(horizon_client::mod_api::AttachmentError::MissingHolder);
-        }
-        world_attachments(self.world, holder)
-    }
     fn block_state(&self, pos: [i32; 3]) -> BlockStateId {
         horizon_world::level::LevelAccess::block_state(self, BlockPos::new(pos[0], pos[1], pos[2]))
     }
@@ -159,6 +161,16 @@ impl horizon_client::mod_api::LevelHost for super::GameLevel<'_> {
 }
 
 impl horizon_client::mod_api::LevelRandomHost for super::GameLevel<'_> {
+    fn attachments(
+        &mut self,
+        holder: horizon_client::mod_api::Holder,
+    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
+    {
+        if !self.native_authoritative {
+            return Err(horizon_client::mod_api::AttachmentError::MissingHolder);
+        }
+        world_attachments(self.world, holder)
+    }
     fn random(&mut self) -> Option<&mut horizon_client::mod_api::LegacyRandom> {
         self.native_level_random()
     }
@@ -169,41 +181,9 @@ pub(super) struct LevelTicks<'a, L> {
     pub ticks: &'a mut Ticks,
 }
 
-trait LevelAttachmentAccess {
-    fn attachments(
-        &mut self,
-        holder: horizon_client::mod_api::Holder,
-    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>;
-}
-impl LevelAttachmentAccess for &super::GameLevel<'_> {
-    fn attachments(
-        &mut self,
-        _: horizon_client::mod_api::Holder,
-    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
-    {
-        Err(horizon_client::mod_api::AttachmentError::MissingHolder)
-    }
-}
-impl LevelAttachmentAccess for &mut super::GameLevel<'_> {
-    fn attachments(
-        &mut self,
-        holder: horizon_client::mod_api::Holder,
-    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
-    {
-        horizon_client::mod_api::LevelHost::attachments(*self, holder)
-    }
-}
-
-impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>> + LevelAttachmentAccess>
-    horizon_client::mod_api::LevelHost for LevelTicks<'_, L>
+impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>>> horizon_client::mod_api::LevelHost
+    for LevelTicks<'_, L>
 {
-    fn attachments(
-        &mut self,
-        holder: horizon_client::mod_api::Holder,
-    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
-    {
-        self.level.attachments(holder)
-    }
     fn block_state(&self, pos: [i32; 3]) -> BlockStateId {
         horizon_client::mod_api::LevelHost::block_state(&*self.level, pos)
     }
@@ -221,13 +201,20 @@ impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>> + LevelAttachmentAcce
 }
 
 impl horizon_client::mod_api::LevelRandomHost for LevelTicks<'_, &mut super::GameLevel<'_>> {
+    fn attachments(
+        &mut self,
+        holder: horizon_client::mod_api::Holder,
+    ) -> Result<&mut horizon_client::mod_api::Attachments, horizon_client::mod_api::AttachmentError>
+    {
+        horizon_client::mod_api::LevelRandomHost::attachments(&mut *self.level, holder)
+    }
     fn random(&mut self) -> Option<&mut horizon_client::mod_api::LegacyRandom> {
         horizon_client::mod_api::LevelRandomHost::random(&mut *self.level)
     }
 }
 
-impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>> + LevelAttachmentAccess>
-    horizon_client::mod_api::LevelTicksHost for LevelTicks<'_, L>
+impl<'a, L: std::ops::Deref<Target = super::GameLevel<'a>>> horizon_client::mod_api::LevelTicksHost
+    for LevelTicks<'_, L>
 {
     fn schedule_block_tick(&mut self, pos: [i32; 3], block: &str, delay: i32) -> bool {
         self.level
