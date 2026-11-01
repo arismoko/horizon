@@ -1,5 +1,0 @@
-[mod]
-id = "trait_proof"
-version = "0.1.0"
-[api]
-path = "engine"

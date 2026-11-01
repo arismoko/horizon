@@ -349,7 +349,10 @@ pub struct Bundle {
     /// The native hook points' version it needs (its `.hnmod`'s `hooks`): then `horizon` is the
     /// revision it was tested on, and it builds on any with these hook points or later ones.
     pub hooks: Option<u32>,
+    /// The bundle-relative trait package folder (`[api] path`).
     pub api: Option<String>,
+    /// True when the manifest has content for horizon-mixins.
+    pub mixins_content: bool,
 }
 
 /// The bundles in `folder`: the folder itself when it is one (a `horizon-mixin.toml`, or an
@@ -425,46 +428,14 @@ fn bundle(dir: &Path, mixins: Option<String>) -> Result<Bundle, String> {
     let need = |name: &str| {
         field("mod", name).ok_or_else(|| format!("{} has no [mod] {name}.", path.display()))
     };
-    let api = match value.get("api") {
-        None => None,
-        Some(table) => {
-            if !table
-                .as_table()
-                .is_some_and(|t| t.len() == 1 && t.contains_key("path"))
-            {
-                return Err(format!("{}: [api] accepts only path", path.display()));
-            }
-            let folder = table
-                .get("path")
-                .and_then(toml::Value::as_str)
-                .ok_or_else(|| format!("{}: [api] needs a path", path.display()))?;
-            let relative = Path::new(folder);
-            if relative.as_os_str().is_empty()
-                || !relative.components().all(|c| {
-                    matches!(
-                        c,
-                        std::path::Component::Normal(_) | std::path::Component::CurDir
-                    )
-                })
-            {
-                return Err(format!("{}: invalid [api] path {folder:?}", path.display()));
-            }
-            let source = dir.join(relative);
-            let root = dir
-                .canonicalize()
-                .map_err(|e| format!("{}: {e}", dir.display()))?;
-            let resolved = source
-                .canonicalize()
-                .map_err(|e| format!("{}: {e}", source.display()))?;
-            if !resolved.starts_with(&root) || !resolved.join("Cargo.toml").is_file() {
-                return Err(format!(
-                    "{}: [api] path must be a folder in the bundle with Cargo.toml",
-                    path.display()
-                ));
-            }
-            Some(folder.to_owned())
-        }
-    };
+    let api = value
+        .get("api")
+        .map(|table| api::folder(dir, table))
+        .transpose()?;
+    let mixins_content = value
+        .keys()
+        .any(|key| !["mod", "compatibility", "api"].contains(&key.as_str()));
+    // Reject links before copying the bundle into the incoming folder.
     files(dir)?;
     let id = need("id")?;
     if !api::valid_id(&id) {
@@ -478,6 +449,7 @@ fn bundle(dir: &Path, mixins: Option<String>) -> Result<Bundle, String> {
         mixins,
         hooks: None,
         api,
+        mixins_content,
     })
 }
 
@@ -1085,7 +1057,13 @@ fn apply(rust: &Toolchain, tool: &Path, source: &Path, mods: &Path, out: &Path) 
 /// The build of the game in `stage` with `profile` (game-build.yml's, for `Release`), into `target`. It starts
 /// outside any Cargo configuration of the player's ([`rust_toolchain::outside_configs`]), so only
 /// the workspace's own (`stage/.cargo/config.toml`, when it has one) applies.
-fn compile(rust: &Toolchain, stage: &Path, target: &Path, profile: Profile, api: bool) -> Command {
+fn compile(
+    rust: &Toolchain,
+    stage: &Path,
+    target: &Path,
+    profile: Profile,
+    package: &str,
+) -> Command {
     let mut cmd = cargo(rust, stage, "build");
     // Cargo's progress bar (units done of the total) is read from its output. Incremental
     // compilation, the `fast` profile's, is not turned off by the player's environment: the
@@ -1097,16 +1075,7 @@ fn compile(rust: &Toolchain, stage: &Path, target: &Path, profile: Profile, api:
     if has_mods_feature(stage) {
         cmd.args(["--features", FEATURES]);
     }
-    cmd.args([
-        "-p",
-        if api {
-            "horizon-native-game"
-        } else {
-            "horizon-client"
-        },
-        "--bin",
-        "horizon-client",
-    ]);
+    cmd.args(["-p", package, "--bin", "horizon-client"]);
     cmd
 }
 
@@ -1136,6 +1105,7 @@ fn lock_crates(rust: &Toolchain, source: &Path, stage: &Path) -> Result<(), Stri
     };
     let horizon = crates::downloaded(&read(source)?)?;
     let staged = crates::downloaded(&read(stage)?)?;
+    // `wanted` reads native-crates, which API-only stages do not have.
     let wanted = if crates::any(stage) {
         crates::wanted(stage)?
     } else {
@@ -1367,10 +1337,11 @@ pub fn build(
     if !exists {
         rust_toolchain::linker()?;
         let rust = rust_toolchain::install(|f| progress(Step::Rust(f)))?;
-        let needs_mixins = api::needs_mixins(&mods)?;
+        let needs_mixins = mods.iter().any(|m| m.mixins_content);
         progress(Step::Source(revision.clone()));
         let source = source(&revision)?;
-        // `root()` is resolved for horizon-mixins and MinGW.
+        // `root()` is already the form horizon-mixins and MinGW take: resolved (no link, which
+        // it refuses) and, on Windows, ASCII (which they can't read past), both by build_dir.
         let real = root();
         let fresh = real.join("stage.new");
         let _ = fs::remove_dir_all(&fresh);
@@ -1390,17 +1361,19 @@ pub fn build(
             sync(&source, &fresh)?;
         }
         if mods.iter().any(|m| m.api.is_some()) {
-            // Seed the offline resolver with Horizon's own locked dependencies.
+            // Offline metadata resolves all targets, including packages not fetched for this host.
             let mut fetch = cargo(&rust, &source, "fetch");
             fetch.arg("--locked");
             run(fetch, "Downloading Horizon's crates", |_| {})?;
         }
         let has_api = api::stage(&fresh, &mods)?;
         if has_api {
+            // Add path packages to Cargo.lock before the locked dependency check.
             let mut metadata = cargo(&rust, &fresh, "metadata");
             metadata.args(["--offline", "--format-version", "1"]);
             run(metadata, "Resolving trait mod crates", |_| {})?;
         }
+        // Absolute: the compiler runs from elsewhere (`compile`).
         let stage = real.join("stage");
         sync(&fresh, &stage)?;
         let _ = fs::remove_dir_all(&fresh);
@@ -1413,7 +1386,17 @@ pub fn build(
         let profile = profile_of(&stage, profile);
         let (mut crates, mut total, mut name) = (0, None, String::new());
         run(
-            compile(&rust, &stage, &target, profile, has_api),
+            compile(
+                &rust,
+                &stage,
+                &target,
+                profile,
+                if has_api {
+                    api::PACKAGE
+                } else {
+                    "horizon-client"
+                },
+            ),
             "Compiling the game",
             |line| {
                 for event in parse_cargo(line) {
@@ -1621,7 +1604,7 @@ mod tests {
         }
     }
 
-    fn dir(name: &str) -> PathBuf {
+    pub(super) fn dir(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("horizon-native-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
@@ -1791,6 +1774,7 @@ mod tests {
             mixins: None,
             hooks: None,
             api: None,
+            mixins_content: false,
         };
         let never = || -> Result<String, String> { panic!("a pin wins") };
         fn get(b: &Bundle) -> Option<&String> {
@@ -1824,6 +1808,7 @@ mod tests {
             mixins: mixins.map(str::to_owned),
             hooks: None,
             api: None,
+            mixins_content: false,
         };
         let c = "c".repeat(40);
         // a is the oldest commit, then b, then c.
@@ -1928,6 +1913,7 @@ mod tests {
             mixins: None,
             hooks,
             api: None,
+            mixins_content: false,
         };
         let c = "c".repeat(40);
         // A (the game) has hook points v1, B v2, C none.
@@ -2275,7 +2261,7 @@ mod tests {
             &stage,
             Path::new("/native/target"),
             Profile::Fast,
-            false,
+            "horizon-client",
         );
         let args: Vec<String> = cmd
             .get_args()
@@ -2306,7 +2292,7 @@ mod tests {
             &stage,
             Path::new("/native/target"),
             Profile::Fast,
-            false,
+            "horizon-client",
         );
         let args: Vec<_> = cmd.get_args().collect();
         assert_eq!(args[1], "--config");
@@ -2333,7 +2319,13 @@ mod tests {
         let rust = Toolchain {
             dir: PathBuf::from("/rust/1.99.1-x"),
         };
-        let cmd = compile(&rust, &d, Path::new("/native/target"), Profile::Fast, false);
+        let cmd = compile(
+            &rust,
+            &d,
+            Path::new("/native/target"),
+            Profile::Fast,
+            "horizon-client",
+        );
         let args: Vec<_> = cmd.get_args().collect();
         assert!(args.windows(2).any(|w| w == ["--profile", "fast"]));
     }
