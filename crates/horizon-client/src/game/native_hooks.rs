@@ -993,7 +993,13 @@ impl GameLevel<'_> {
         state: BlockStateId,
         odds: &mut Option<(i32, i32)>,
     ) {
-        let _ = (dimension, state, odds);
+        horizon_client::mod_api::dispatch_fire_odds(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            state,
+            odds,
+        );
     }
 
     /// On an authoritative server, `CampfireBlock.isSmokeSource` for the
@@ -1008,7 +1014,13 @@ impl GameLevel<'_> {
         state: BlockStateId,
         smoke: &mut Option<bool>,
     ) {
-        let _ = (dimension, state, smoke);
+        horizon_client::mod_api::dispatch_smoke_source(
+            self,
+            horizon_client::mod_api::mods(),
+            dimension,
+            state,
+            smoke,
+        );
     }
 }
 

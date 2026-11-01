@@ -3354,6 +3354,47 @@ pub trait Hooks: Send + Sync {
         let _ = experience;
         let _ = repair;
     }
+    /// On an authoritative server, how fire treats the block `state`
+    /// (`FireBlock.setFlammable(block, igniteOdds, burnOdds)`): put
+    /// `(ignite, burn)` in `odds` for your own blocks, and vanilla's table
+    /// isn't read. Ignite odds above zero let fire stand beside the block and
+    /// spread into the air around it (planks 5, wool 30, leaves 30); burn odds
+    /// are how fast fire destroys it (planks 20, wool 60, leaves 60). `(0, 0)`
+    /// never burns; keep both within vanilla's 0 to 100. A waterlogged state
+    /// never burns and isn't asked. Answer only for your own blocks and leave
+    /// `odds` empty otherwise; the level is read-only. Asked hundreds of times
+    /// per fire tick: keep it short. API @API:fire_odds@.
+    ///
+    /// Return `Some` to set `odds`; the first mod returning `Some` wins.
+    fn fire_odds(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        state: BlockStateId,
+    ) -> Option<(i32, i32)> {
+        let _ = level;
+        let _ = dimension;
+        let _ = state;
+        None
+    }
+    /// On an authoritative server, `CampfireBlock.isSmokeSource` for the
+    /// block `state` under a campfire, as the campfire is placed or the block
+    /// under it changes: `Some(true)` for your own blocks makes the campfire a
+    /// signal fire whose smoke rises higher, as over a hay bale. The level is
+    /// read-only. API @API:fire_odds@.
+    ///
+    /// Return `Some` to set `smoke`; the first mod returning `Some` wins.
+    fn smoke_source(
+        &self,
+        level: &dyn LevelHost,
+        dimension: LevelDimension,
+        state: BlockStateId,
+    ) -> Option<bool> {
+        let _ = level;
+        let _ = dimension;
+        let _ = state;
+        None
+    }
     /// `player` (`name`) changed dimension (NeoForge's
     /// `PlayerChangedDimensionEvent`): `from` and `to` are dimension ids
     /// (`minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`).
@@ -5948,6 +5989,40 @@ pub fn dispatch_mending_repair(
 ) {
     for mod_hook in mods {
         mod_hook.mending_repair(host, player, stack, experience, &mut *repair);
+    }
+}
+pub fn dispatch_fire_odds(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    state: BlockStateId,
+    odds: &mut Option<(i32, i32)>,
+) {
+    if odds.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.fire_odds(level, dimension, state) {
+            *odds = Some(replacement);
+            break;
+        }
+    }
+}
+pub fn dispatch_smoke_source(
+    level: &dyn LevelHost,
+    mods: &[Box<dyn Hooks>],
+    dimension: LevelDimension,
+    state: BlockStateId,
+    smoke: &mut Option<bool>,
+) {
+    if smoke.is_some() {
+        return;
+    }
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.smoke_source(level, dimension, state) {
+            *smoke = Some(replacement);
+            break;
+        }
     }
 }
 pub fn dispatch_player_changed_dimension(
