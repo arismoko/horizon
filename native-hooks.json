@@ -662,12 +662,14 @@
     {
       "name": "world_drawn",
       "version": 1,
-      "target": "horizon_client_render::gfx::native_render::native_world_drawn"
+      "target": "horizon_client_render::gfx::native_render::native_world_drawn",
+      "mod_api": { "contract": "listen" }
     },
     {
       "name": "render_needs",
       "version": 1,
-      "target": "horizon_client_render::gfx::native_render::native_render_needs"
+      "target": "horizon_client_render::gfx::native_render::native_render_needs",
+      "mod_api": { "contract": "collect", "out": "needs" }
     },
     {
       "name": "item_bar",
