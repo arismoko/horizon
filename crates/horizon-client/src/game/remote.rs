@@ -6337,6 +6337,8 @@ impl Game<'_> {
                 collision,
                 false,
                 &self.res.motion().fluids,
+                // The server decides what an item rests on; this copy only moves between updates.
+                &[],
             );
         }
         head_lerps.retain(|_, (_, steps)| *steps > 0);
