@@ -639,7 +639,7 @@ checksum = "def"
             [wants("bake", "gtnh-lv-compressor-eval-industrial-sim", "1")]
         );
         let horizon = downloaded(LOCK).unwrap();
-        let err = refused(&horizon, None, &wanted).unwrap();
+        let err = refused(&horizon, None, &wanted, &[]).unwrap();
         assert!(err.starts_with(
             "bake needs gtnh-lv-compressor-eval-industrial-sim 1, which isn't in Horizon's Cargo.lock"
         ));

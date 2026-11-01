@@ -1191,30 +1191,6 @@ it moves only what the player sees, not where they are or aim.
   moved-too-quickly check, which can send them back, as vanilla's does. It answers false for a player not on this server,
   on a client, and inside a player's hook (call it from a tick hook).
 
-### A client mod's view and items
-
-`crates/horizon-client/src/game/native_claimed_items.rs`: helpers for client mods, for the player's own view and hands.
-
-- `native_view_hit()` gives the first block along the view within 1024 blocks and how far it is, and
-  `native_raycast(distance)` the same within `distance` (cut to 0 to 1024). Past the loaded chunks the ray goes on over
-  the distant terrain, a block at a time, and meets its ground: a target far off can be aimed at before its chunks
-  load. `NativeHit` holds the block, where the ray met it and the block's id. Both answer `None` with no player, or
-  with nothing in reach.
-- `native_claim_items(mod_id, ids)` claims up to 64 item ids (`minecraft:stick`, a content mod's own item) for mod
-  `mod_id`; a later call replaces the list, an empty one gives them up. Two mods claiming one id: the first in id
-  order has it. A right-click with a claimed item in the main hand is the mod's alone: the server never hears of it,
-  and the block or entity under the crosshair isn't used. A claimed item in the off hand does nothing on a
-  right-click. The use slows the player as an item in use does, which the server doesn't know of: on a LAN or
-  dedicated server the anticheat's movement check may log it. A claim wins over `native_use_duration` for the same
-  item.
-- `native_poll(mod_id)` gives the mod's events since its last poll, oldest first, at most 256: `UseStart(item, 0)`
-  when the right-click begins the use, and `UseStop(item, ticks)` when it ends, with the ticks it was held. It ends
-  when the button comes up, when the hand's item changes or leaves the claim, when the player respawns, and
-  when the game joins a server, so every `UseStart` has its `UseStop`. `NativeHeldItem` holds the stack's id, count,
-  slot, and its `minecraft:custom_name` and `minecraft:custom_data` as SNBT: items told apart by custom data (a
-  stick named "Designator") are told apart here. Poll from a client tick hook.
-- The stack in the main hand at any time is `native_held()` (API 9), on a client the player's own.
-
 ### Values for a mod's shader pack
 
 `native_shader_params(partial, params)` (client) asks every frame, while a Horizon shader pack is on, for eight
@@ -1474,6 +1450,11 @@ mod draws come in vanilla's order. `LevelTicksHost` adds scheduling through
 `LevelWriteHost` adds random access and `native_set_block_property`. Whole-block writes wait for a
 later slice that creates block entities, as vanilla's `setBlock` does. The game owns
 the tick queue; mods do not pass it back to these helpers.
+For frame hooks, implement `RenderHooks` and return it from `Hooks::render`. The ordered
+renderer list is installed once alongside the mod list. `render_needs` collects requests;
+`world_drawn` observes the world pass and can encode drawing before the hand and HUD. Both
+run on the render thread while the frame is built, before any deferred GPU submission.
+The renderer module re-exports the game's wgpu types.
 ### Server attachments
 
 A mod can declare an `AttachmentType<T>` once and call its `get`, `set` and `remove`
@@ -1532,8 +1513,8 @@ receiver and documentation. Level services stay on the level hosts above.
 The following documented `Game` helpers are not in the trait yet:
 
 - `spawn_mob`, `mob`, `mobs`, `block_in_tag`, `item_in_tag`,
-  `server_block_in_tag`, `server_item_in_tag`, `server_block`, `draw_quad`,
-  `draw_cube`, `draw_block`, `set_display`, `sidebar`, `experience_orbs`,
+  `server_block_in_tag`, `server_item_in_tag`, `server_block`,
+  `set_display`, `sidebar`, `experience_orbs`,
   `item_entities`, `player`, `panel_recipes`, `recipes`, `component`,
   `set_component`, `remove_component`, `spawn_falling_block`, `explode`,
   `fluid_tanks` and `container_slots` use gameplay-private types.
@@ -1542,8 +1523,6 @@ The following documented `Game` helpers are not in the trait yet:
 
 The following catalog hooks are not in the trait yet:
 
-- `world_drawn` and `render_needs` need a renderer trait.
-- `block_entity_submit` needs a renderer trait.
 - Newly added upstream hooks `player_command`, `perform_console_command`, `item_decorations`,
   `client_resources_reloaded`, `camera_shake`, `screen_key_pressed_pre`, `screen_char_typed_pre`,
   `screen_mouse_scrolled_pre`, `use_duration`, `use_animation`, `can_eat`,
