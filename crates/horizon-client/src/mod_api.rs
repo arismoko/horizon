@@ -18,6 +18,111 @@ pub struct NativeZoom {
     pub turn: f32,
 }
 
+/// A player on the server, as a server hook sees them.
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct NativeServerPlayer {
+    pub uuid: u128,
+    pub name: String,
+    /// The operator level, 0 to 4 (`ops.json`; single player's owner with
+    /// cheats on is 4).
+    pub permission: u8,
+    /// `minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`.
+    pub dimension: String,
+    pub position: [f64; 3],
+    /// 0 survival, 1 creative, 2 adventure, 3 spectator.
+    pub game_mode: i32,
+    /// Health points, 20 at full; 0 once dead. API 21.
+    pub health: f32,
+    /// Where they look, in degrees (`yRot`, `xRot`), as their last move told
+    /// the server. API 49.
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+/// A command a native mod adds, as one usage: words, then arguments
+/// `<name:kind>`, optional ones last in brackets `[name:kind]`:
+/// `pay <player:player> <amount:integer>`, `balance [player:player]`,
+/// `eco give <player:player> <amount:integer>`. Kinds: `word`, `text` (the
+/// rest of the line, last), `integer`, `number`, `boolean`, `player`,
+/// `item`, `block_pos`. Usages of one command share their words; the
+/// server merges them into one tree.
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeCommand {
+    pub usage: String,
+    /// The operator level a player needs to see and run it (0: everyone).
+    pub level: u8,
+}
+
+#[allow(dead_code)]
+impl NativeCommand {
+    /// A usage every player may run.
+    pub fn new(usage: &str) -> Self {
+        Self {
+            usage: usage.to_owned(),
+            level: 0,
+        }
+    }
+    /// The same, for operators of `level` and above.
+    pub fn op(usage: &str, level: u8) -> Self {
+        Self {
+            usage: usage.to_owned(),
+            level: level.min(4),
+        }
+    }
+}
+
+/// Which `Game` observes the phase; a mirror `Game` never fires.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeAuthority {
+    LocalAuthoritative,
+    IntegratedServer,
+    DedicatedServer,
+    RemoteClient,
+}
+
+/// One open attempt of one world; it rejects a previous open's commands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeWorldEpoch(pub u64);
+
+/// Non-paused authoritative server ticks since open (not game or frame time).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeTickId(pub u64);
+
+/// The world phases (`native_world_lifecycle`'s `phase`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The phase names are the hook log's stable vocabulary (the Debug text
+/// the mixins write); keep them despite the shared prefix.
+#[allow(clippy::enum_variant_names)]
+pub enum WorldPhase {
+    WorldOpenReady,
+    /// The open failed; `error_text` is the engine's own error text.
+    WorldOpenFailed,
+    WorldCloseFinal,
+    /// The server loop or final save failed; `error_text` carries the error.
+    WorldCloseFailed,
+}
+
+/// The tick phases carry whether the world runs, including frozen steps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServerTickPhase {
+    ServerTickStart { world_running: bool },
+    ServerTickEnd { world_running: bool },
+}
+
+/// Context for every world lifecycle phase.
+/// `authority` is the server role. LocalAuthoritative and RemoteClient never
+/// fire today. `epoch` identifies the open attempt, including failed opens;
+/// the same epoch identifies its ready, final-close, or failed-close event.
+/// `tick` counts non-paused server ticks since the world opened.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeLifecycleContext {
+    pub authority: NativeAuthority,
+    pub epoch: NativeWorldEpoch,
+    pub tick: NativeTickId,
+}
+
 /// The ordered list of mods shared by the client and server.
 pub type Mods = Arc<[Box<dyn Hooks>]>;
 

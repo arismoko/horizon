@@ -214,12 +214,11 @@
 //! that would break such a bundle is not made.
 //! Bodies have no `cfg` and no macros: horizon-mixins refuses a target with
 //! either (`tests::hook_points_stay_hookable`).
-use super::native_lifecycle::{NativeLifecycleContext, ServerTickPhase, WorldPhase};
+use horizon_client::mod_api::{NativeCommand, NativeLifecycleContext, NativeServerPlayer, ServerTickPhase, WorldPhase};
 use super::{
     Game, GameLevel, LevelDimension, Screen,
     execution_role::ExecutionRole,
     native_panel_recipes::RecipePage,
-    native_server::{NativeCommand, NativeServerPlayer},
 };
 use horizon_client::mod_api::NativeZoom;
 use horizon_client::{
