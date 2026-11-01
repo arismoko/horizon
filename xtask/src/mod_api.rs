@@ -1,7 +1,35 @@
 //! Generate the typed mod interface from native hook signatures and catalog contracts.
 use quote::ToTokens;
 use std::{collections::HashSet, fs, path::Path, process::Command};
-use syn::{FnArg, ImplItem, Item, Pat};
+use syn::{FnArg, ImplItem, Item, Pat, Type, visit::Visit};
+
+fn has_dispatch(method: &syn::ImplItemFn, name: &str) -> bool {
+    struct Calls<'a> {
+        expected: &'a str,
+        found: bool,
+    }
+    impl<'ast> Visit<'ast> for Calls<'_> {
+        fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+            if let syn::Expr::Path(path) = &*call.func
+                && path
+                    .path
+                    .segments
+                    .last()
+                    .is_some_and(|s| s.ident == self.expected)
+            {
+                self.found = true;
+            }
+            syn::visit::visit_expr_call(self, call);
+        }
+    }
+    let expected = format!("dispatch_{name}");
+    let mut calls = Calls {
+        expected: &expected,
+        found: false,
+    };
+    calls.visit_block(&method.block);
+    calls.found
+}
 
 pub fn run(check: bool) -> Result<(), String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
@@ -47,6 +75,9 @@ pub fn run(check: bool) -> Result<(), String> {
         {
             return Err(format!("wrong target for {name}"));
         }
+        if !has_dispatch(method, name) {
+            return Err(format!("missing dispatch_{name} call in {native}"));
+        }
         let sig = &method.sig;
         let mut args = Vec::new();
         let mut receiver_mut = false;
@@ -57,18 +88,18 @@ pub fn run(check: bool) -> Result<(), String> {
                     let Pat::Ident(pat) = &*arg.pat else {
                         return Err(format!("unsupported argument in {name}"));
                     };
-                    args.push((pat.ident.to_string(), arg.ty.to_token_stream().to_string()));
+                    args.push((pat.ident.to_string(), &*arg.ty));
                 }
             }
         }
         let contract = api["contract"].as_str().ok_or("contract missing")?;
         let out = api.get("out").and_then(|v| v.as_str());
-        let result = match (contract, out) {
-            ("cancel", Some(_)) => " -> Flow",
-            ("replace", Some(_)) => " -> Option<NativeZoom>",
-            ("collect", Some(_)) | ("listen", None) => "",
-            _ => return Err(format!("invalid contract for {name}")),
-        };
+        if !matches!(
+            (contract, out),
+            ("cancel" | "replace" | "collect", Some(_)) | ("listen", None)
+        ) {
+            return Err(format!("invalid contract for {name}"));
+        }
         let output = if let Some(out) = out {
             let index = args
                 .iter()
@@ -78,15 +109,24 @@ pub fn run(check: bool) -> Result<(), String> {
         } else {
             None
         };
-        let expected_output = match contract {
-            "cancel" => Some("& mut bool"),
-            "replace" => Some("& mut Option < NativeZoom >"),
-            "collect" => Some("& mut Vec < (Text , u32) >"),
-            _ => None,
+        let result = if let Some((_, ty)) = &output {
+            let Type::Reference(reference) = ty else {
+                return Err(format!("output must be a mutable reference in {name}"));
+            };
+            if reference.mutability.is_none() {
+                return Err(format!("output must be a mutable reference in {name}"));
+            }
+            match contract {
+                "cancel" if reference.elem.to_token_stream().to_string() == "bool" => {
+                    " -> Flow".to_owned()
+                }
+                "replace" => format!(" -> {}", reference.elem.to_token_stream()),
+                "collect" => String::new(),
+                _ => return Err(format!("unexpected output type for {name}")),
+            }
+        } else {
+            String::new()
         };
-        if output.as_ref().map(|(_, ty)| ty.as_str()) != expected_output {
-            return Err(format!("unexpected output type for {name}"));
-        }
         let host = if receiver_mut {
             "&mut dyn Host"
         } else {
@@ -94,7 +134,7 @@ pub fn run(check: bool) -> Result<(), String> {
         };
         let inputs = args
             .iter()
-            .map(|(name, ty)| format!(", {name}: {ty}"))
+            .map(|(name, ty)| format!(", {name}: {}", ty.to_token_stream()))
             .collect::<String>();
         let call = args
             .iter()
@@ -107,7 +147,7 @@ pub fn run(check: bool) -> Result<(), String> {
         };
         let output_param = output
             .as_ref()
-            .map(|(name, ty)| format!(", {name}: {ty}"))
+            .map(|(name, ty)| format!(", {name}: {}", ty.to_token_stream()))
             .unwrap_or_default();
         let (trait_extra, call_extra) = if contract == "collect" {
             (output_param.as_str(), format!(", {}", out.unwrap()))
@@ -139,7 +179,7 @@ pub fn run(check: bool) -> Result<(), String> {
                 "///\n/// Return `Some` to set `{out}`; the first mod returning `Some` wins.\n"
             )),
             ("collect", Some(out)) => traits.push_str(&format!(
-                "///\n/// Every mod gets `{out}` in order and may add, change or remove lines.\n"
+                "///\n/// Every mod gets `{out}` in order and may add, change or remove {out}.\n"
             )),
             _ => {}
         }
@@ -250,6 +290,14 @@ mod tests {
     #[test]
     fn generated_output_is_current() {
         super::run(true).unwrap();
+    }
+
+    #[test]
+    fn contracted_hook_requires_dispatch_call() {
+        let missing: syn::ImplItemFn = syn::parse_quote! { fn native_zoom(&self) { unrelated(); } };
+        let present: syn::ImplItemFn = syn::parse_quote! { fn native_zoom(&self) { horizon_client::mod_api::dispatch_zoom(); } };
+        assert!(!super::has_dispatch(&missing, "zoom"));
+        assert!(super::has_dispatch(&present, "zoom"));
     }
 
     #[test]
