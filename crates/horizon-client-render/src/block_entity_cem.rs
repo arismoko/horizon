@@ -3,7 +3,8 @@
 //! "Block entity name" table of OptiFine's `cem_model.txt`, and Entity Model Features' one-file
 //! `banner`), found and read as the mobs' are ([`horizon_optifine::cem::files`]). Each entry
 //! replaces or joins the boxes of the vanilla part it names and takes its `scale`; animations
-//! don't run yet. A `.jem`'s texture paints its model instead of vanilla's when the atlas has it.
+//! don't run yet. A `.jem`'s texture paints the models it reshapes instead of vanilla's when the
+//! atlas has it.
 //!
 //! An entry's part is OptiFine's name for it, else the vanilla part's own name. Trapped and
 //! ender chests take only their own file, and copper chests (no CEM name) keep vanilla's chest.
