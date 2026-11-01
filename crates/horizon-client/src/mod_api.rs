@@ -11,6 +11,14 @@ pub use crate::items::ItemStack;
 pub use crate::text::Text;
 pub use horizon_world::{nbt::Compound, registry::BlockStateId};
 
+/// A depth-tested outline of the client's block selection shape.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NativeBlockRim {
+    pub pos: [i32; 3],
+    pub argb: u32,
+    pub width: f32,
+}
+
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]

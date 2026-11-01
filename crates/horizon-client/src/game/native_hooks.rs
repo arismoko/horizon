@@ -218,6 +218,7 @@ use super::{
     Game, GameLevel, LevelDimension, Screen, execution_role::ExecutionRole,
     native_panel_recipes::RecipePage,
 };
+pub(crate) use horizon_client::mod_api::NativeBlockRim;
 use horizon_client::mod_api::{
     self, NativeCommand, NativeLifecycleContext, NativeServerPlayer, NativeZoom, ServerTickPhase,
     WorldPhase,
@@ -476,13 +477,6 @@ impl GameLevel<'_> {
     }
 }
 
-/// A depth-tested outline of the client's block selection shape.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NativeBlockRim {
-    pub(crate) pos: [i32; 3],
-    pub(crate) argb: u32,
-    pub(crate) width: f32,
-}
 
 /// A camera-local visual light, with no gameplay light or shadow writes.
 #[derive(Clone, Copy, Debug, PartialEq)]
