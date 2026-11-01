@@ -11,6 +11,19 @@ fn field(hash: &mut Sha256, bytes: &[u8]) {
     hash.update(bytes);
 }
 
+/// Whether a manifest value names a path that overlaps the API package.
+fn overlaps_api(value: &toml::Value, root: &Path, api: &Path) -> bool {
+    match value {
+        toml::Value::String(s) => root
+            .join(s)
+            .canonicalize()
+            .is_ok_and(|p| p.starts_with(api) || api.starts_with(&p)),
+        toml::Value::Array(a) => a.iter().any(|v| overlaps_api(v, root, api)),
+        toml::Value::Table(t) => t.values().any(|v| overlaps_api(v, root, api)),
+        _ => false,
+    }
+}
+
 /// Hash all mixin inputs but not an API crate that mixins do not read.
 pub(super) fn key(
     revision: &str,
@@ -39,28 +52,17 @@ pub(super) fn key(
             .transpose()
             .map_err(|e| e.to_string())?;
         let manifest_path = bundle.dir.join(MANIFEST);
-        let manifest: toml::Table = fs::read_to_string(&manifest_path)
+        let mut manifest: toml::Table = fs::read_to_string(&manifest_path)
             .map_err(|e| e.to_string())?
             .parse()
             .map_err(|e| format!("{}: {e}", manifest_path.display()))?;
-        // A helper, module, or crate may live inside [api]. In that case include the whole
-        // package: a false positive costs a rebuild, while a missed input corrupts the cache.
-        fn refers_to_api(value: &toml::Value, root: &Path, api: &Path) -> bool {
-            match value {
-                toml::Value::String(s) => root
-                    .join(s)
-                    .canonicalize()
-                    .is_ok_and(|p| p.starts_with(api) || (p.is_dir() && api.starts_with(&p))),
-                toml::Value::Array(a) => a.iter().any(|v| refers_to_api(v, root, api)),
-                toml::Value::Table(t) => t
-                    .iter()
-                    .any(|(k, v)| k != "api" && refers_to_api(v, root, api)),
-                _ => false,
-            }
-        }
-        let exclude = api
-            .as_ref()
-            .filter(|a| !refers_to_api(&toml::Value::Table(manifest), &bundle.dir, a));
+        // Mixins also reads data/ implicitly, without a manifest entry.
+        manifest.remove("api");
+        let data = toml::Value::String("data".into());
+        let manifest = toml::Value::Table(manifest);
+        let exclude = api.as_ref().filter(|a| {
+            !overlaps_api(&manifest, &bundle.dir, a) && !overlaps_api(&data, &bundle.dir, a)
+        });
         for (name, path) in super::bundle_files(bundle)? {
             if exclude.is_some_and(|a| path.starts_with(a)) {
                 continue;

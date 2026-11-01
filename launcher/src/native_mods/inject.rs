@@ -1,11 +1,15 @@
 //! Trait-backed HEAD injections, generated in the incoming copy and staged game.
-use super::{Bundle, MANIFEST};
-use quote::ToTokens;
-use std::{collections::HashSet, fs, path::Path};
+use super::{api, Bundle, MANIFEST};
+use quote::quote;
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
 /// A trait declaration to add to the staged game after horizon-mixins has run.
 pub(super) struct Injection {
-    name: String,
+    name: syn::Ident,
     parameters: Vec<(syn::Ident, syn::Type)>,
     cancellable: bool,
 }
@@ -14,8 +18,13 @@ pub(super) struct Injection {
 pub(super) fn prepare(mods: &[Bundle]) -> Result<Vec<Injection>, String> {
     let mut result = Vec::new();
     let mut names = HashSet::new();
-    let mut owner = 0;
+    let owners: HashMap<_, _> = api::with_api(mods)
+        .enumerate()
+        .map(|(i, b)| (b.id.as_str(), i))
+        .collect();
+    // These are the copied bundles under mods.incoming, never the player's originals.
     for bundle in mods {
+        api::strip(bundle)?;
         let path = bundle.dir.join(MANIFEST);
         let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         let mut manifest: toml::Table = text
@@ -51,7 +60,7 @@ pub(super) fn prepare(mods: &[Bundle]) -> Result<Vec<Injection>, String> {
                 let _: syn::Ident =
                     syn::parse_str(method).map_err(|_| "trait_method must be a Rust identifier")?;
                 let name = format!("inject_{}_{}", bundle.id.replace('-', "_"), method);
-                let _: syn::Ident =
+                let ident: syn::Ident =
                     syn::parse_str(&name).map_err(|_| "invalid generated trait method")?;
                 if !names.insert(name.clone()) {
                     return Err(format!("duplicate generated trait method {name}"));
@@ -84,7 +93,7 @@ pub(super) fn prepare(mods: &[Bundle]) -> Result<Vec<Injection>, String> {
                     }
                 }
                 let injection = Injection {
-                    name,
+                    name: ident,
                     parameters,
                     cancellable,
                 };
@@ -96,15 +105,12 @@ pub(super) fn prepare(mods: &[Bundle]) -> Result<Vec<Injection>, String> {
                         helper_file.display()
                     ));
                 }
-                fs::write(&helper_file, injection.helper(owner)).map_err(|e| e.to_string())?;
+                fs::write(&helper_file, injection.helper(owners[bundle.id.as_str()]))
+                    .map_err(|e| e.to_string())?;
                 table.insert("helper".into(), helper_path.into());
                 result.push(injection);
             }
         }
-        if bundle.api.is_some() {
-            owner += 1;
-        }
-        manifest.remove("api");
         fs::write(
             &path,
             toml::to_string(&manifest).map_err(|e| e.to_string())?,
@@ -116,58 +122,47 @@ pub(super) fn prepare(mods: &[Bundle]) -> Result<Vec<Injection>, String> {
 
 impl Injection {
     fn helper(&self, owner: usize) -> String {
-        let params = self
-            .parameters
-            .iter()
-            .map(|(n, t)| format!("{n}: {}", t.to_token_stream()))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let args = self
-            .parameters
-            .iter()
-            .map(|(n, t)| {
-                if matches!(t, syn::Type::Reference(r) if r.mutability.is_some()) {
-                    format!("&mut *{n}")
-                } else {
-                    n.to_string()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        let call = format!("crate::mod_api::mods()[{owner}].{}({args})", self.name);
-        let result = if self.cancellable {
-            format!("if {call} == crate::mod_api::Flow::Cancel {{ return core::ops::ControlFlow::Break(()); }}\ncore::ops::ControlFlow::Continue(())")
+        let name = &self.name;
+        let params = self.parameters.iter().map(|(n, t)| quote!(#n: #t));
+        let args = self.parameters.iter().map(|(n, t)| {
+            if matches!(t, syn::Type::Reference(r) if r.mutability.is_some()) {
+                quote!(&mut *#n)
+            } else {
+                quote!(#n)
+            }
+        });
+        let call = quote!(crate::mod_api::mods()[#owner].#name(#(#args),*));
+        let (output, result) = if self.cancellable {
+            (
+                quote!(-> core::ops::ControlFlow<()>),
+                quote! {
+                    if #call == crate::mod_api::Flow::Cancel {
+                        return core::ops::ControlFlow::Break(());
+                    }
+                    core::ops::ControlFlow::Continue(())
+                },
+            )
         } else {
-            format!("{call};")
+            (quote!(), quote!(#call;))
         };
-        let output = if self.cancellable {
-            " -> core::ops::ControlFlow<()>"
-        } else {
-            ""
-        };
-        format!("fn horizon_trait_dispatch({params}){output} {{\ndebug_assert!(crate::mod_api::mods().len() > {owner});\n{result}\n}}\n")
+        quote! {
+            fn horizon_trait_dispatch(#(#params),*) #output {
+                debug_assert!(crate::mod_api::mods().len() > #owner);
+                #result
+            }
+        }
+        .to_string()
     }
 
     fn declaration(&self) -> String {
-        let params = self
-            .parameters
-            .iter()
-            .map(|(n, t)| format!(", {n}: {}", t.to_token_stream()))
-            .collect::<String>();
-        let unused = self
-            .parameters
-            .iter()
-            .map(|(n, _)| format!("let _ = {n}; "))
-            .collect::<String>();
+        let name = &self.name;
+        let types = self.parameters.iter().map(|(_, ty)| ty);
         let (output, default) = if self.cancellable {
-            (" -> Flow", "Flow::Continue")
+            (quote!(-> Flow), quote!(Flow::Continue))
         } else {
-            ("", "")
+            (quote!(), quote!())
         };
-        format!(
-            "    fn {}(&self{params}){output} {{ {unused}{default} }}\n",
-            self.name
-        )
+        quote!(fn #name(&self, #(_: #types),*) #output { #default }).to_string()
     }
 }
 
@@ -240,8 +235,6 @@ mod tests {
         let (root, bundle) = fixture("cancel", "[[injection]]\nid = 'hook'\ntarget = 'horizon_client::game::tick'\nkind = 'HEAD'\ntrait_method = 'tick'\ncancellable = true\nbindings = [{ name = 'amount', ty = '&mut i32', value = '&mut *amount' }]\n");
         let injections = prepare(&[bundle]).unwrap();
         let helper = fs::read_to_string(root.join("horizon-trait-injection-0.rs")).unwrap();
-        assert!(helper.contains("crate::mod_api::mods()[0].inject_example_tick(&mut *amount)"));
-        assert!(helper.contains("ControlFlow::Break(())"));
         let manifest = fs::read_to_string(root.join(MANIFEST)).unwrap();
         assert!(!manifest.contains("trait_method"));
         assert!(!manifest.contains("[api]"));
@@ -254,8 +247,57 @@ mod tests {
         .unwrap();
         stage(&root.join("stage"), &injections).unwrap();
         let output = fs::read_to_string(stage_dir.join("generated.rs")).unwrap();
-        assert!(output.contains("fn inject_example_tick(&self, amount: & mut i32) -> Flow"));
         assert!(syn::parse_file(&output).is_ok());
+        let program = format!(
+            r#"
+            mod mod_api {{
+                use std::sync::OnceLock;
+                #[derive(PartialEq)] pub enum Flow {{ Continue, Cancel }}
+                {output}
+                struct Owner;
+                impl Hooks for Owner {{
+                    fn inject_example_tick(&self, amount: &mut i32) -> Flow {{
+                        *amount = 42;
+                        Flow::Cancel
+                    }}
+                }}
+                struct Other;
+                impl Hooks for Other {{
+                    fn inject_example_tick(&self, _: &mut i32) -> Flow {{ panic!("wrong owner") }}
+                }}
+                pub fn mods() -> &'static [Box<dyn Hooks>] {{
+                    static MODS: OnceLock<Vec<Box<dyn Hooks>>> = OnceLock::new();
+                    MODS.get_or_init(|| vec![Box::new(Owner), Box::new(Other)])
+                }}
+            }}
+            {helper}
+            fn main() {{
+                let mut value = 1;
+                assert!(matches!(horizon_trait_dispatch(&mut value), core::ops::ControlFlow::Break(())));
+                assert_eq!(value, 42);
+            }}
+        "#
+        );
+        let source = root.join("proof.rs");
+        let binary = root.join(format!("proof-bin{}", std::env::consts::EXE_SUFFIX));
+        fs::write(&source, program).unwrap();
+        let compiler = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+        let compiled = std::process::Command::new(compiler)
+            .args(["--edition", "2024"])
+            .arg(&source)
+            .arg("-o")
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(
+            compiled.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compiled.stderr)
+        );
+        assert!(std::process::Command::new(binary)
+            .status()
+            .unwrap()
+            .success());
         fs::remove_dir_all(root).unwrap();
     }
 
