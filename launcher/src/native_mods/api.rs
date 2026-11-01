@@ -65,6 +65,17 @@ pub(super) fn needs_mixins(mods: &[Bundle]) -> Result<bool, String> {
                 }
             }
         }
+        let info = &manifest["mod"];
+        if info
+            .get("priority")
+            .is_some_and(|v| v.as_integer().and_then(|v| i32::try_from(v).ok()).is_none())
+            || manifest
+                .get("compatibility")
+                .and_then(|v| v.get("horizon_revision"))
+                .is_some_and(|v| !v.is_str())
+        {
+            return Ok(true);
+        }
         // Crates and post-build steps also require the mixin tool's staging.
         if [
             "injection",
