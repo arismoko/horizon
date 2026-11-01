@@ -3,7 +3,7 @@ use quote::ToTokens;
 use std::{collections::HashSet, fs, path::Path, process::Command};
 use syn::{FnArg, ImplItem, Item, Pat, Type, visit::Visit};
 
-fn has_dispatch(method: &syn::ImplItemFn, name: &str) -> bool {
+fn has_call(block: &syn::Block, expected: &str) -> bool {
     struct Calls<'a> {
         expected: &'a str,
         found: bool,
@@ -22,12 +22,11 @@ fn has_dispatch(method: &syn::ImplItemFn, name: &str) -> bool {
             syn::visit::visit_expr_call(self, call);
         }
     }
-    let expected = format!("dispatch_{name}");
     let mut calls = Calls {
-        expected: &expected,
+        expected,
         found: false,
     };
-    calls.visit_block(&method.block);
+    calls.visit_block(block);
     calls.found
 }
 
@@ -65,11 +64,21 @@ pub fn run(check: bool) -> Result<(), String> {
         if let Item::Impl(item) = item {
             for member in item.items {
                 if let ImplItem::Fn(method) = member {
-                    methods.push(method);
+                    methods.push(syn::ItemFn {
+                        attrs: method.attrs,
+                        vis: method.vis,
+                        sig: method.sig,
+                        block: Box::new(method.block),
+                    });
                 }
             }
         }
     }
+    let adapters = syn::parse_file(
+        &fs::read_to_string(root.join("crates/horizon-client/src/mod_api.rs"))
+            .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     let mut traits = String::new();
     let mut dispatch = String::new();
     let mut seen = HashSet::new();
@@ -85,19 +94,69 @@ pub fn run(check: bool) -> Result<(), String> {
             return Err(format!("duplicate hook {name}"));
         }
         let native = format!("native_{name}");
-        let matches: Vec<_> = methods.iter().filter(|m| m.sig.ident == native).collect();
-        let [method] = matches.as_slice() else {
-            return Err(format!("expected one {native} signature"));
+        let target = hook["target"].as_str().ok_or("target missing")?;
+        let world_method;
+        let method = if let Some(path) = target.strip_prefix("horizon_world::") {
+            let Some((module, function)) = path.split_once("::") else {
+                return Err(format!("wrong target for {name}"));
+            };
+            if function != native
+                || module.is_empty()
+                || !module
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'_')
+            {
+                return Err(format!("wrong target for {name}"));
+            }
+            let source = fs::read_to_string(
+                root.join("crates/horizon-world/src")
+                    .join(format!("{module}.rs")),
+            )
+            .map_err(|e| e.to_string())?;
+            let file = syn::parse_file(&source).map_err(|e| e.to_string())?;
+            let mut matches = file.items.into_iter().filter_map(|item| match item {
+                Item::Fn(function) if function.sig.ident == native => Some(function),
+                _ => None,
+            });
+            world_method = matches
+                .next()
+                .ok_or_else(|| format!("expected one {native} signature"))?;
+            if matches.next().is_some() {
+                return Err(format!("expected one {native} signature"));
+            }
+            if !has_call(&world_method.block, name) {
+                return Err(format!("missing {name} callback in {native}"));
+            }
+            let adapters: Vec<_> = adapters
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Fn(function) if function.sig.ident == name => Some(function),
+                    _ => None,
+                })
+                .collect();
+            let [adapter] = adapters.as_slice() else {
+                return Err(format!("expected one {name} adapter"));
+            };
+            if !has_call(&adapter.block, &format!("dispatch_{name}")) {
+                return Err(format!("missing dispatch_{name} call in adapter"));
+            }
+            &world_method
+        } else {
+            if !target.starts_with("horizon_client::game::native_hooks::")
+                || !target.ends_with(&format!("::{native}"))
+            {
+                return Err(format!("wrong target for {name}"));
+            }
+            let matches: Vec<_> = methods.iter().filter(|m| m.sig.ident == native).collect();
+            let [method] = matches.as_slice() else {
+                return Err(format!("expected one {native} signature"));
+            };
+            if !has_call(&method.block, &format!("dispatch_{name}")) {
+                return Err(format!("missing dispatch_{name} call in {native}"));
+            }
+            *method
         };
-        if !hook["target"]
-            .as_str()
-            .is_some_and(|target| target.ends_with(&format!("::{native}")))
-        {
-            return Err(format!("wrong target for {name}"));
-        }
-        if !has_dispatch(method, name) {
-            return Err(format!("missing dispatch_{name} call in {native}"));
-        }
         let sig = &method.sig;
         let mut args = Vec::new();
         let mut receiver_mut = None;
@@ -316,6 +375,7 @@ mod tests {
         #[derive(Clone, Copy)]
         pub(super) struct WorldPhase;
     }
+    use serde_json::{Map, Value};
     use stubs::*;
     struct Text;
     #[derive(Debug, PartialEq)]
@@ -346,6 +406,15 @@ mod tests {
         calls: Arc<Mutex<Vec<u32>>>,
     }
     impl Hooks for Mod {
+        fn loot_table_load(&self, _: &str, table: &mut Value) {
+            table.as_array_mut().unwrap().push(self.id.into());
+        }
+        fn modify_default_components(&self, _: &str, components: &mut Map<String, Value>) {
+            let value = components
+                .entry("order")
+                .or_insert_with(|| serde_json::json!([]));
+            value.as_array_mut().unwrap().push(self.id.into());
+        }
         fn level_tick_pre(&self, _: &mut dyn Host, _: &str) {
             self.calls.lock().unwrap().push(self.id);
         }
@@ -431,8 +500,8 @@ mod tests {
     fn contracted_hook_requires_dispatch_call() {
         let missing: syn::ImplItemFn = syn::parse_quote! { fn native_zoom(&self) { unrelated(); } };
         let present: syn::ImplItemFn = syn::parse_quote! { fn native_zoom(&self) { horizon_client::mod_api::dispatch_zoom(); } };
-        assert!(!super::has_dispatch(&missing, "zoom"));
-        assert!(super::has_dispatch(&present, "zoom"));
+        assert!(!super::has_call(&missing.block, "dispatch_zoom"));
+        assert!(super::has_call(&present.block, "dispatch_zoom"));
     }
 
     #[test]
@@ -446,6 +515,12 @@ mod tests {
                 }) as Box<dyn Hooks>
             })
             .collect();
+        let mut table = serde_json::json!([]);
+        dispatch_loot_table_load(&mods, "table", &mut table);
+        assert_eq!(table, serde_json::json!([1, 2]));
+        let mut components = Map::new();
+        dispatch_modify_default_components(&mods, "item", &mut components);
+        assert_eq!(components["order"], serde_json::json!([1, 2]));
         let mut host = TestHost;
         dispatch_level_tick_pre(&mut host, &mods, "overworld");
         assert_eq!(*calls.lock().unwrap(), [1, 2]);

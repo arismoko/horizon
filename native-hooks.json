@@ -794,7 +794,11 @@
     {
       "name": "loot_table_load",
       "version": 1,
-      "target": "horizon_world::loot::native_loot_table_load"
+      "target": "horizon_world::loot::native_loot_table_load",
+      "mod_api": {
+        "contract": "collect",
+        "out": "table"
+      }
     },
     {
       "name": "loot_drops",
@@ -829,7 +833,11 @@
     {
       "name": "modify_default_components",
       "version": 1,
-      "target": "horizon_world::item_defaults::native_modify_default_components"
+      "target": "horizon_world::item_defaults::native_modify_default_components",
+      "mod_api": {
+        "contract": "collect",
+        "out": "components"
+      }
     },
     {
       "name": "screen_mouse_button_pressed_pre",

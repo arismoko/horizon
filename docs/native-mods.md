@@ -1261,7 +1261,9 @@ chunk and player hooks, plus `frame`, `visuals`, `emissive`, `hud`, `key`, `whee
 `command`, `commands`, `minimap`, `mods`, `settings`, `settings_click`, `panel_event`,
 `screen`, `screen_draw`, `screen_click`, `screen_tooltip`, `health_hud`, `item_bar` and
 `net_from_server`, component registration, dispenser, tooltip component, block entity bounds,
-block contact, consumption, loot drops, enchantment effects and screen render and mouse hooks.
+block contact, consumption, loot drops, loot table loading, item default components,
+enchantment effects and screen render and mouse hooks. Data-load hooks can run on
+any loading thread; item default changes must be made identically on every side.
 The following catalog hooks are not in the trait yet:
 
 - `block_changed`, `neighbor_changed`, `random_tick`, `tick_block`, `update_shape`,
@@ -1271,7 +1273,6 @@ The following catalog hooks are not in the trait yet:
   `is_valid_bonemeal_target`, `is_bonemeal_success`, `perform_bonemeal` and
   `state_for_placement` need a level host.
 - `block_entity_submit` needs a renderer trait.
-- `loot_table_load` and `modify_default_components` need a world-owned callback boundary.
 - Newly added upstream hooks `player_command`, `perform_console_command`, `item_decorations`,
   `client_resources_reloaded`, `camera_shake`, `screen_key_pressed_pre`, `screen_char_typed_pre`,
   `screen_mouse_scrolled_pre`, `use_duration`, `use_animation`, `can_eat`,

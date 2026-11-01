@@ -16,6 +16,7 @@ pub use crate::text::Text;
 pub use horizon_core::geometry::Direction;
 pub use horizon_world::{nbt::Compound, registry::BlockStateId};
 pub use serde_json;
+use serde_json::{Map, Value};
 use std::time::Duration;
 
 /// A dispenser hook's answer: the slot's remainder (None empties it) and the
@@ -350,6 +351,14 @@ pub(crate) static MODS: OnceLock<Mods> = OnceLock::new();
 /// The process-wide list in dispatch order, or an empty list before installation.
 pub fn mods() -> &'static [Box<dyn Hooks>] {
     MODS.get().map_or(&[], |mods| mods.as_ref())
+}
+
+pub(crate) fn loot_table_load(id: &str, table: &mut Value) {
+    dispatch_loot_table_load(mods(), id, table);
+}
+
+pub(crate) fn modify_default_components(item: &str, components: &mut Map<String, Value>) {
+    dispatch_modify_default_components(mods(), item, components);
 }
 
 /// Whether a mod claims a cancellable hook.
