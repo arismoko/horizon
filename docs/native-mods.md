@@ -929,6 +929,10 @@ For mods that run where the world is simulated: a dedicated server, a LAN host, 
   vehicle's chest. Heard after the checks that refuse the menu (a locked chest), before the open menu closes. Set
   `cancel` and nothing opens. The player's state is swapped in, so `native_acting_player`, `native_tell` and the item
   helpers reach them. Menus a mod opens (`native_open_menu`) are not heard.
+- **`native_creative_slot(player, name, slot, item, count, cancel)`**: a creative-mode player sets a slot from the creative
+  screen (`slot` is the inventory menu's slot; below 0 is a stack thrown out of the screen), with the `item` (`minecraft:air`
+  for an emptied slot) and `count`. Heard after vanilla's checks, before the slot changes. Set `cancel` and the packet is
+  ignored. The player's state is swapped in. Stacks a creative player gets other ways (pick block, `/give`) are not heard.
 - **`native_perform_command(player, command, ran)`**: a player typed a registered command (without its slash) and
   their level allows it, whether the world allows commands or not. The mod parses the line and sets `ran`. The
   player's state is swapped in for the call, as for their other actions, so `native_player` reads them; a

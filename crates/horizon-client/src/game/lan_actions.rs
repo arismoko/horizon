@@ -1971,6 +1971,9 @@ impl Game<'_> {
                 if !self.creative_stack_valid(host, gi, &stack) {
                     return;
                 }
+                if !self.guest_may_set_creative_slot(host, conn, i32::from(p.slot), Some(&stack)) {
+                    return;
+                }
                 let play = host.play.entry(conn).or_default();
                 if play.creative_drops >= 1480 {
                     eprintln!(
@@ -1993,6 +1996,9 @@ impl Game<'_> {
                     .as_ref()
                     .is_some_and(|s| !self.creative_stack_valid(host, gi, s))
                 {
+                    return;
+                }
+                if !self.guest_may_set_creative_slot(host, conn, i32::from(p.slot), item.as_ref()) {
                     return;
                 }
                 let slot = p.slot as usize;
@@ -2384,6 +2390,32 @@ impl Game<'_> {
                 }),
             );
         }
+    }
+
+    /// Whether the mods let a creative player set `slot` to `stack`
+    /// (`native_creative_slot`), heard with the guest's state swapped in.
+    fn guest_may_set_creative_slot(
+        &mut self,
+        host: &mut LanHost,
+        conn: u32,
+        slot: i32,
+        stack: Option<&ItemStack>,
+    ) -> bool {
+        let Some((uuid, name)) = host.hub.guest(conn).map(|g| (g.uuid, g.name.clone())) else {
+            return true;
+        };
+        let (item, count) = stack.map_or(("minecraft:air", 0), |s| (&*s.item, s.count as i32));
+        let mut cancel = false;
+        let mut hook = |game: &mut Self| {
+            game.native_creative_slot(uuid, &name, slot, item, count, &mut cancel)
+        };
+        // The guest whose turn it is is in place already.
+        if self.lan_acting == Some(conn) {
+            hook(self);
+        } else {
+            self.as_guest(host, conn, hook);
+        }
+        !cancel
     }
 
     /// What ServerboundSetCreativeModeSlotPacket asks of a stack. Its codec
