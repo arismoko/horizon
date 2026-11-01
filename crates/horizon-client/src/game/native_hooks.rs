@@ -1690,6 +1690,29 @@ impl Game<'_> {
     ) {
         let _ = (player, command, ran);
     }
+    /// A player takes an item from an armor stand or puts one on it
+    /// (`ArmorStand.interactAt`, after the stand's disabled-slot checks and
+    /// `swapItem`'s take/put locks, before anything moves): `stand_id` is the
+    /// stand's `Entity.getId` and `slot` the one the click reached
+    /// (`mainhand`, `offhand`, `feet`, `legs`, `chest` or `head`). Set
+    /// `cancel` and nothing changes: neither the stand nor the player's hand,
+    /// and the click is spent. The player's state is swapped in for the call;
+    /// `player` is the UUID the helpers take. Not told of a click that changes
+    /// nothing (an empty hand on an empty slot). Not covered, other ways a
+    /// stand's equipment moves: breaking or blasting the stand (its items
+    /// drop), a dispenser putting armour on one, a mod's own changes.
+    /// Server-side, for every player of the world.
+    /// @API:native_armor_stand_manipulate@.
+    pub(super) fn native_armor_stand_manipulate(
+        &mut self,
+        player: u128,
+        name: &str,
+        stand_id: i32,
+        slot: &str,
+        cancel: &mut bool,
+    ) {
+        let _ = (player, name, stand_id, slot, cancel);
+    }
     /// A click in a menu a mod opened (`native_open_menu`), which moved
     /// nothing: the menu's `slot` (its own first, then the player's
     /// inventory, `native_menu_inventory_slot`; -999 outside), the `button`
