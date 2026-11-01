@@ -20,7 +20,9 @@ pub use crate::game::{
     NativeMapDecoration, NativeMapInfo, NativeMobRender, NativeModEvent, NativePlayerRender,
     NativeShake,
 };
-pub use crate::gfx::native_render::{RenderHooks, RenderNeeds, WorldDrawn, wgpu};
+pub use crate::gfx::native_render::{
+    RenderHooks, RenderNeeds, RenderNeedsEvent, WorldDrawn, WorldDrawnEvent, wgpu,
+};
 pub use crate::hud::HudBatch;
 pub use crate::hud_layout::{GuiDraw, HealthInputs};
 pub use crate::items::ItemStack;
