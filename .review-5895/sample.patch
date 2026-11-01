@@ -1,0 +1,57 @@
+diff --git a/compatibility.json b/compatibility.json
+index 85cf75f..5f7eb32 100644
+--- a/compatibility.json
++++ b/compatibility.json
+@@ -1,8 +1,8 @@
+ {
+-  "horizon_revision": "1b6e55d4f3bd14079551bcad173d0fac8f8225bb",
++  "horizon_revision": "e855aea99ba6fe36db7bc98d6cd6bfc70cc035d5",
+   "source_sha256": {
+-    "crates/horizon-client/src/game.rs": "ef5190d12da7c351dc3c5e4e31b3ad923ec8656f5f95911af1bc9f1da1fb0d4a",
+-    "crates/horizon-client/src/game/native_hooks.rs": "b8dd37636d102b59d429a3160c1ced06899402e091520b79339dcbbdef90510e"
++    "crates/horizon-client/src/game.rs": "5ff5a5fc8328e51c17ca723e62812af829ee05175cf93c278b9914bf4c848d05",
++    "crates/horizon-client/src/game/native_hooks.rs": "59354e1a85bab6f12174b69edfd0dc4ef13654560628f2b439cf81c12547a31c"
+   },
+   "horizon_repository": "https://github.com/horizon-rust/horizon",
+   "horizon_mixins_repository": "https://github.com/horizon-rust/horizon-mixins",
+diff --git a/mixins/machine_sample/horizon-mixin.toml b/mixins/machine_sample/horizon-mixin.toml
+index e1fee90..bb4a0e7 100644
+--- a/mixins/machine_sample/horizon-mixin.toml
++++ b/mixins/machine_sample/horizon-mixin.toml
+@@ -3,8 +3,15 @@ id = "machine_sample"
+ version = "0.1.0"
+ priority = 100
+ 
++[[injection]]
++id = "mob_test"
++kind = "HEAD"
++target = "horizon_client::game::native_hooks::Game<'_>::native_mob_submit"
++helper = "mob.rs"
++bindings = [{ name = "game", ty = "&Game<'_>", value = "&*self" }, { name = "mob", ty = "&NativeMobRender<'_>", value = "mob" }, { name = "draw", ty = "&mut BlockEntityDraw", value = "draw" }, { name = "drawn", ty = "&mut bool", value = "drawn" }]
++
+ [compatibility]
+-horizon_revision = "1b6e55d4f3bd14079551bcad173d0fac8f8225bb"
++horizon_revision = "e855aea99ba6fe36db7bc98d6cd6bfc70cc035d5"
+ 
+ [[module]]
+ id = "runtime"
+diff --git a/tools/horizon.py b/tools/horizon.py
+index b35e199..d8c8815 100644
+--- a/tools/horizon.py
++++ b/tools/horizon.py
+@@ -46,7 +46,14 @@ def stage(horizon, stages):
+         try:
+             with tarfile.open(fileobj=process.stdout, mode="r|") as archive:
+                 for member in archive:
+-                    archive.extract(member, temporary, filter="data")
++                    dest = temporary / member.name
++                    if not dest.resolve().is_relative_to(temporary.resolve()):
++                        raise ValueError(f"unsafe archive path: {member.name}")
++                    if member.issym() and not (dest.parent / member.linkname).resolve().is_relative_to(temporary.resolve()):
++                        raise ValueError(f"unsafe archive symlink: {member.name}")
++                    if not (member.isfile() or member.isdir() or member.issym()):
++                        raise ValueError(f"unsupported archive member: {member.name}")
++                    archive.extract(member, temporary)
+         finally:
+             process.stdout.close()
+             code = process.wait()
