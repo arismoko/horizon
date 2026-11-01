@@ -1011,8 +1011,8 @@ pub fn dispatch_block_changed(
     old: BlockStateId,
     new: BlockStateId,
 ) {
-    for m in mods {
-        m.block_changed(level, dimension, pos, old, new);
+    for mod_hook in mods {
+        mod_hook.block_changed(level, dimension, pos, old, new);
     }
 }
 pub fn dispatch_neighbor_changed(
@@ -1024,8 +1024,8 @@ pub fn dispatch_neighbor_changed(
     changed: BlockId,
     moved: bool,
 ) {
-    for m in mods {
-        m.neighbor_changed(level, dimension, pos, state, changed, moved);
+    for mod_hook in mods {
+        mod_hook.neighbor_changed(level, dimension, pos, state, changed, moved);
     }
 }
 pub fn dispatch_random_tick(
@@ -1040,9 +1040,9 @@ pub fn dispatch_random_tick(
     if *handled {
         return;
     }
-    for m in mods {
+    for mod_hook in mods {
         if matches!(
-            m.random_tick(level, &mut *ticks, dimension, pos, state),
+            mod_hook.random_tick(level, &mut *ticks, dimension, pos, state),
             Flow::Cancel
         ) {
             *handled = true;
@@ -1062,9 +1062,9 @@ pub fn dispatch_tick_block(
     if *handled {
         return;
     }
-    for m in mods {
+    for mod_hook in mods {
         if matches!(
-            m.tick_block(level, &mut *ticks, dimension, pos, state),
+            mod_hook.tick_block(level, &mut *ticks, dimension, pos, state),
             Flow::Cancel
         ) {
             *handled = true;
@@ -1087,8 +1087,8 @@ pub fn dispatch_update_shape(
     if new.is_some() {
         return;
     }
-    for m in mods {
-        if let Some(value) = m.update_shape(
+    for mod_hook in mods {
+        if let Some(replacement) = mod_hook.update_shape(
             level,
             &mut *ticks,
             dimension,
@@ -1098,7 +1098,7 @@ pub fn dispatch_update_shape(
             neighbour_pos,
             neighbour,
         ) {
-            *new = Some(value);
+            *new = Some(replacement);
             break;
         }
     }
@@ -1341,9 +1341,9 @@ pub fn dispatch_block_spread(
     if *canceled {
         return;
     }
-    for m in mods {
+    for mod_hook in mods {
         if matches!(
-            m.block_spread(level, dimension, kind, from, to),
+            mod_hook.block_spread(level, dimension, kind, from, to),
             Flow::Cancel
         ) {
             *canceled = true;
@@ -1364,9 +1364,9 @@ pub fn dispatch_piston_move(
     if *canceled {
         return;
     }
-    for m in mods {
+    for mod_hook in mods {
         if matches!(
-            m.piston_move(level, dimension, piston, direction, push, destroy),
+            mod_hook.piston_move(level, dimension, piston, direction, push, destroy),
             Flow::Cancel
         ) {
             *canceled = true;
@@ -1540,8 +1540,8 @@ pub fn dispatch_block_signal(
     direct: bool,
     signal: &mut i32,
 ) {
-    for m in mods {
-        m.block_signal(level, dimension, pos, state, face, direct, &mut *signal);
+    for mod_hook in mods {
+        mod_hook.block_signal(level, dimension, pos, state, face, direct, &mut *signal);
     }
 }
 pub fn dispatch_is_signal_source(
@@ -1550,8 +1550,8 @@ pub fn dispatch_is_signal_source(
     state: BlockStateId,
     source: &mut bool,
 ) {
-    for m in mods {
-        m.is_signal_source(level, state, &mut *source);
+    for mod_hook in mods {
+        mod_hook.is_signal_source(level, state, &mut *source);
     }
 }
 pub fn dispatch_interact_entity(
