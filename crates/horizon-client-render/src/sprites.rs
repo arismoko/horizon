@@ -419,15 +419,28 @@ impl Sprites {
         per_tile: bool,
     ) -> Result<Vec<Option<u32>>> {
         let path = crate::atlas_sources::texture_path(root, name, "textures");
-        let animation = match fs::read_to_string(path.with_extension("png.mcmeta")) {
-            Ok(text) => {
-                serde_json::from_str::<BTreeMap<String, Box<serde_json::value::RawValue>>>(&text)?
-                    .remove("animation")
-                    .map(|v| v.get().to_owned())
-            }
+        let metadata = match fs::read_to_string(path.with_extension("png.mcmeta")) {
+            Ok(text) => Some(serde_json::from_str::<
+                BTreeMap<String, Box<serde_json::value::RawValue>>,
+            >(&text)?),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => return Err(error.into()),
         };
+        let animation = metadata
+            .as_ref()
+            .and_then(|m| m.get("animation"))
+            .map(|v| v.get().to_owned());
+        // The sheet's `texture` section is each tile's.
+        let texture = texture_section(metadata.as_ref());
+        let strategy = texture
+            .as_ref()
+            .and_then(|t| t["mipmap_strategy"].as_str())
+            .and_then(crate::mipmap::Strategy::parse)
+            .unwrap_or_default();
+        let alpha_cutoff_bias = texture
+            .as_ref()
+            .and_then(|t| t["alpha_cutoff_bias"].as_f64())
+            .unwrap_or(0.0) as f32;
         let (width, height, pixels) = read_rgba(&path)?;
         let side = width / columns.max(1);
         // How far down the next frame of a tile is, and the next row of tiles.
@@ -469,8 +482,8 @@ impl Sprites {
                 let decoded = crate::sprite_cache::Decoded {
                     side,
                     animation: animation.clone().filter(|_| frames.len() > 1),
-                    strategy: Default::default(),
-                    alpha_cutoff_bias: 0.0,
+                    strategy,
+                    alpha_cutoff_bias,
                     has_transparent: alphas().any(|&a| a == 0),
                     opaque: alphas().all(|&a| a == 255),
                     translucent: alphas().any(|&a| a != 0 && a != 255),
@@ -487,8 +500,9 @@ impl Sprites {
         }
         Ok(tiles)
     }
-    /// Layer `layer` shows what `source` does.
+    /// Layer `layer` shows what `source` does, and is no longer the layer of its old pixels.
     fn show_as(&mut self, layer: u32, source: u32) {
+        self.still.retain(|_, l| *l != layer);
         let (l, s) = (layer as usize, source as usize);
         self.native[l] = self.native[s].clone();
         self.opaque[l] = self.opaque[s];
