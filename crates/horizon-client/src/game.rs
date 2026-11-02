@@ -2852,6 +2852,13 @@ struct Game<'a> {
     /// `remote_handle_input`): picked once, so a creative break does not
     /// move the use that follows it past the broken block.
     tick_hit: Option<Option<Hit>>,
+    /// The mob of that `hitResult`, picked with the item held at the pick
+    /// (`LocalPlayer.raycastHitResult`: a spear's `attack_range`), before the
+    /// tick's number keys change it.
+    tick_mob: Option<Option<(usize, f64)>>,
+    /// Number keys since the last tick (`keyHotbarSlots[i].consumeClick`):
+    /// `Minecraft.handleKeybinds` selects them after the tick's pick.
+    hotbar_presses: Vec<usize>,
     /// `Player.entityInteractionRange` and `blockInteractionRange`, refreshed
     /// each tick from the attribute (a server's reach modifier, creative's
     /// +2): the pick helpers' `&self` reach.
@@ -11193,6 +11200,9 @@ impl Game<'_> {
         darken
     }
     fn mob_hit(&self) -> Option<(usize, f64)> {
+        if let Some(hit) = self.tick_mob {
+            return hit;
+        }
         let (eye, dir) = self.aim()?;
         let reach: f64 = self.entity_reach;
         let mut best: Option<(usize, f64)> = None;
@@ -11416,7 +11426,7 @@ impl Game<'_> {
         let Some((index, distance)) = self.mob_hit() else {
             return false;
         };
-        if !self.before_block(distance) {
+        if !self.before_block(distance) || !self.held_range_allows(distance) {
             return false;
         }
         self.attack_mob(index);
@@ -15975,6 +15985,8 @@ impl Game<'_> {
             KeyCode::KeyE => match self.screen {
                 Screen::Playing if self.spectator() => {}
                 Screen::Playing => {
+                    // handleKeybinds: the number keys select before key.inventory.
+                    self.select_queued_hotbar();
                     // key.inventory while riding a tamed mount opens its inventory.
                     if !self.open_ridden_mount_menu() {
                         if self.tutorial.open_inventory() {
@@ -16015,6 +16027,8 @@ impl Game<'_> {
                 }
             }
             KeyCode::KeyF if self.screen == Screen::Playing => {
+                // handleKeybinds: the number keys select before key.swapOffhand.
+                self.select_queued_hotbar();
                 // handlePlayerAction SWAP_ITEM_WITH_OFFHAND: setItemInHand for
                 // the off hand, then the main hand.
                 std::mem::swap(&mut self.offhand, &mut self.inventory[self.selected]);
@@ -16026,6 +16040,8 @@ impl Game<'_> {
                 self.using = None;
             }
             KeyCode::KeyQ if self.screen == Screen::Playing => {
+                // handleKeybinds: the number keys select before key.drop.
+                self.select_queued_hotbar();
                 let all = drop_whole_stack(self.modifiers);
                 self.drop_held(all);
             }
@@ -16063,7 +16079,7 @@ impl Game<'_> {
                 {
                     self.hotbar_load_or_save(slot, load);
                 } else {
-                    self.selected = slot;
+                    self.hotbar_presses.push(slot);
                 }
             }
             _ if self.screen == Screen::Paused && self.pause_menu => {
@@ -16114,6 +16130,8 @@ impl Game<'_> {
                 }
             }
             MouseButton::Middle if pressed => {
+                // handleKeybinds: the number keys select before key.pickItem.
+                self.select_queued_hotbar();
                 // Minecraft.pickBlockOrEntity -> the server's handlePickItemFromBlock:
                 // the block's clone item, with its block entity's data on Ctrl in
                 // creative, picked from the inventory (`pick_item`).
@@ -18541,6 +18559,8 @@ impl<'a> Game<'a> {
             world_icon: None,
             forced_hit: None,
             tick_hit: None,
+            tick_mob: None,
+            hotbar_presses: Vec::new(),
             entity_reach: 3.0,
             block_reach: 4.5,
             guest_use: None,
