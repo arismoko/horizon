@@ -495,6 +495,28 @@ fn uncovered(hooks: &[serde_json::Value], excluded: &[(&str, &str)]) -> Result<(
     Ok(())
 }
 
+/// The crate folder and module path of a hook target that is a free function
+/// outside `Game`. `horizon-client-lib` builds from `horizon-client/src`
+/// (`client_lib.rs`); `menu` and `breathing` are also accepted under their
+/// older `horizon_client::` names.
+fn free_function_source(target: &str) -> Option<(&'static str, String)> {
+    let prefixes = [
+        ("horizon_world::", "horizon-world"),
+        ("horizon_client_render::", "horizon-client-render"),
+        ("horizon_client_lib::", "horizon-client"),
+    ];
+    prefixes
+        .into_iter()
+        .find_map(|(prefix, krate)| target.strip_prefix(prefix).map(|p| (krate, p.to_owned())))
+        .or_else(|| {
+            ["menu", "breathing"].into_iter().find_map(|module| {
+                target
+                    .strip_prefix(&format!("horizon_client::{module}::"))
+                    .map(|p| ("horizon-client", format!("{module}::{p}")))
+            })
+        })
+}
+
 pub fn run(check: bool) -> Result<(), String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let catalog: serde_json::Value = serde_json::from_str(
@@ -528,21 +550,7 @@ pub fn run(check: bool) -> Result<(), String> {
         let native = format!("native_{name}");
         let target = hook["target"].as_str().ok_or("target missing")?;
         let is_render = target.starts_with("horizon_client_render::");
-        let external = target
-            .strip_prefix("horizon_world::")
-            .map(|p| ("horizon-world", p.to_owned()))
-            .or_else(|| {
-                target
-                    .strip_prefix("horizon_client_render::")
-                    .map(|p| ("horizon-client-render", p.to_owned()))
-            })
-            .or_else(|| {
-                ["menu", "breathing"].into_iter().find_map(|module| {
-                    target
-                        .strip_prefix(&format!("horizon_client::{module}::"))
-                        .map(|p| ("horizon-client", format!("{module}::{p}")))
-                })
-            });
+        let external = free_function_source(target);
         let (method, call) = if let Some((krate, path)) = external {
             let Some((module, function)) = path.rsplit_once("::") else {
                 return Err(format!("wrong target for {name}"));
@@ -1440,6 +1448,29 @@ mod tests {
     #[test]
     fn generated_output_is_current() {
         super::run(true).unwrap();
+    }
+
+    #[test]
+    fn library_crate_targets_resolve_to_their_source() {
+        for target in [
+            "horizon_client_lib::menu::native_menu_slot_rules",
+            "horizon_client::menu::native_menu_slot_rules",
+        ] {
+            assert_eq!(
+                super::free_function_source(target),
+                Some(("horizon-client", "menu::native_menu_slot_rules".to_owned()))
+            );
+        }
+        assert_eq!(
+            super::free_function_source("horizon_client_lib::crafting::native_ingredient"),
+            Some(("horizon-client", "crafting::native_ingredient".to_owned()))
+        );
+        assert_eq!(
+            super::free_function_source(
+                "horizon_client::game::native_hooks::Game<'_>::native_zoom"
+            ),
+            None
+        );
     }
 
     #[test]
