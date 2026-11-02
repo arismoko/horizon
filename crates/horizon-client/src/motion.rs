@@ -1052,9 +1052,9 @@ impl MotionWorld<'_, '_, '_> {
         if self.player.spectator {
             self.player.flying = true;
             self.player.ground.on_ground = false;
-        } else if !self.player.may_fly {
-            self.player.flying = false;
-        } else if !was_jumping && jumping && !self.player.was_auto_jump {
+        } else if self.player.may_fly && !was_jumping && jumping && !self.player.was_auto_jump {
+            // `LocalPlayer.aiStep`: mayfly gates the flight toggle, not the
+            // flying state independently supplied by the server's abilities.
             if self.player.jump_trigger_time == 0 {
                 self.player.jump_trigger_time = 7;
             } else if !self.player.swimming {
@@ -5181,6 +5181,60 @@ mod tests {
         w.player.mobility_restricted = false;
         w.controlled_simulation_tick(sprint_key).unwrap();
         assert!(w.player.sprinting);
+    }
+
+    #[test]
+    fn server_forced_flight_survives_without_permission_to_toggle_it() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.local/horizon-client")
+            .join(horizon_core::VANILLA_VERSION);
+        if !root.join("movement-properties.nbt").exists() {
+            eprintln!("skipped forced flight: prepared resources unavailable");
+            return;
+        }
+        let assets = Assets::load(&root).unwrap();
+        let render = assets.reload(&root).unwrap();
+        let binding = crate::collisions::load(&root, assets.registry).unwrap();
+        let resources = MotionResources::load(&root, &assets).unwrap();
+        let mut scene = World::test_scene(&assets, &render, 3).unwrap();
+        let start = Vec3::new(20.5, 20.0, 20.5);
+        let mut player = PlayerMotion::new(&resources, start).unwrap();
+        player.may_fly = false;
+        player.flying = true;
+        player.flying_speed = 0.0;
+        let mut w = MotionWorld {
+            entities: &[],
+            player: &mut player,
+            scene: &mut scene,
+            assets: &assets,
+            collision_binding: &binding,
+            resources: &resources,
+        };
+        // Idle, movement in all directions, and repeated jump presses must
+        // neither cancel server-forced flight nor move a zero-speed flyer.
+        for tick in 0..60 {
+            w.controlled_simulation_tick(crate::sprint::Keys {
+                forward: tick % 4 == 0,
+                backward: tick % 4 == 1,
+                left: tick % 4 == 2,
+                right: tick % 4 == 3,
+                jump: tick % 2 == 0,
+                shift: tick % 3 == 0,
+                ..Default::default()
+            })
+            .unwrap();
+            assert!(w.player.flying, "server-forced flight ended on tick {tick}");
+            assert_eq!(w.player.position, start);
+            assert_eq!(w.player.velocity, Vec3::ZERO);
+        }
+        // A later abilities update from the server can still end flight.
+        w.player.flying = false;
+        for _ in 0..3 {
+            w.controlled_simulation_tick(crate::sprint::Keys::default())
+                .unwrap();
+        }
+        assert!(!w.player.flying);
+        assert!(w.player.position.y < start.y);
     }
 
     /// Vanilla `Player.getFlyingSpeed`: a flying player moves at the ability
