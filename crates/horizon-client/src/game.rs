@@ -11344,7 +11344,7 @@ impl Game<'_> {
         let Some((index, distance)) = self.mob_hit() else {
             return false;
         };
-        if !self.before_block(distance) {
+        if !self.before_block(distance) || !self.held_range_allows(distance) {
             return false;
         }
         self.attack_mob(index);
@@ -15891,6 +15891,8 @@ impl Game<'_> {
             KeyCode::KeyE => match self.screen {
                 Screen::Playing if self.spectator() => {}
                 Screen::Playing => {
+                    // handleKeybinds: the number keys select before key.inventory.
+                    self.select_queued_hotbar();
                     // key.inventory while riding a tamed mount opens its inventory.
                     if !self.open_ridden_mount_menu() {
                         if self.tutorial.open_inventory() {
@@ -15931,6 +15933,8 @@ impl Game<'_> {
                 }
             }
             KeyCode::KeyF if self.screen == Screen::Playing => {
+                // handleKeybinds: the number keys select before key.swapOffhand.
+                self.select_queued_hotbar();
                 // handlePlayerAction SWAP_ITEM_WITH_OFFHAND: setItemInHand for
                 // the off hand, then the main hand.
                 std::mem::swap(&mut self.offhand, &mut self.inventory[self.selected]);
@@ -15942,6 +15946,8 @@ impl Game<'_> {
                 self.using = None;
             }
             KeyCode::KeyQ if self.screen == Screen::Playing => {
+                // handleKeybinds: the number keys select before key.drop.
+                self.select_queued_hotbar();
                 let all = drop_whole_stack(self.modifiers);
                 self.drop_held(all);
             }
@@ -16030,6 +16036,8 @@ impl Game<'_> {
                 }
             }
             MouseButton::Middle if pressed => {
+                // handleKeybinds: the number keys select before key.pickItem.
+                self.select_queued_hotbar();
                 // Minecraft.pickBlockOrEntity -> the server's handlePickItemFromBlock:
                 // the block's clone item, with its block entity's data on Ctrl in
                 // creative, picked from the inventory (`pick_item`).

@@ -212,11 +212,15 @@ impl Game<'_> {
     pub(super) fn pick_tick_targets(&mut self) {
         self.tick_hit = Some(self.pick());
         self.tick_mob = None;
-        let mob = self
-            .active_attack_range()
-            .and_then(|range| self.attack_range_mob_hit(&range))
-            .or_else(|| self.mob_hit());
-        self.tick_mob = Some(mob);
+        let mob = match self.active_attack_range() {
+            Some(range) => self.attack_range_pick(&range),
+            None => None,
+        };
+        self.tick_mob = Some(mob.unwrap_or_else(|| self.mob_hit()));
+        self.select_queued_hotbar();
+    }
+    /// `handleKeybinds`' number keys (`keyHotbarSlots[i].consumeClick`).
+    pub(super) fn select_queued_hotbar(&mut self) {
         for slot in std::mem::take(&mut self.hotbar_presses) {
             self.selected = slot;
         }
@@ -225,6 +229,19 @@ impl Game<'_> {
     pub(super) fn release_tick_targets(&mut self) {
         self.tick_hit = None;
         self.tick_mob = None;
+    }
+    /// `Minecraft.startAttack` on an entity: a main-hand item with an
+    /// `attack_range` attacks only a hit inside it.
+    pub(super) fn held_range_allows(&self, distance: f64) -> bool {
+        let range = self.held().and_then(|stack| {
+            self.pack
+                .item_renderer
+                .models
+                .components(&horizon_client::item_render::stack_view(stack))
+                .get("minecraft:attack_range")
+                .cloned()
+        });
+        range.is_none_or(|r| attack_range_contains(&r, distance, self.creative))
     }
     /// `LocalPlayer.raycastHitResult`'s item (`getActiveItem`: the one in
     /// use, else the main hand's) `attack_range` component.
@@ -241,9 +258,12 @@ impl Game<'_> {
             .cloned()
     }
     /// `AttackRange.getClosesetHit` against the mobs `mob_hit` can pick
-    /// (`EntitySelector.CAN_BE_PICKED`): the nearest one hit within the
-    /// item's reach, none on a miss or a block first.
-    fn attack_range_mob_hit(&self, range: &serde_json::Value) -> Option<(usize, f64)> {
+    /// (`EntitySelector.CAN_BE_PICKED`), as `raycastHitResult` reads it: the
+    /// nearest mob hit within the item's reach; no mob when the clip met a
+    /// block within the block reach (`getHitEntitiesAlong`'s block result,
+    /// kept by `filterHitResult`); `None` on a miss, where the plain pick
+    /// decides.
+    fn attack_range_pick(&self, range: &serde_json::Value) -> Option<Option<(usize, f64)>> {
         let eye = v3(self.eye_position()?);
         let look = v3(super::view_vector(self.yaw, self.pitch));
         let reach = attack_reach(range, self.creative);
@@ -261,10 +281,17 @@ impl Game<'_> {
                 .map(|hit| Vec3::new(hit.point[0], hit.point[1], hit.point[2]))
         };
         let movement = self.known_player_movement();
-        super::spear::hits_in_reach(&boxes, eye, look, movement, reach, clip)
+        let nearest = super::spear::hits_in_reach(&boxes, eye, look, movement, reach, &clip)
             .into_iter()
             .map(|(i, at)| (i, eye.distance_squared(at).sqrt()))
-            .reduce(|a, b| if b.1 < a.1 { b } else { a })
+            .reduce(|a, b| if b.1 < a.1 { b } else { a });
+        if nearest.is_some() {
+            return Some(nearest);
+        }
+        let to = eye.add_vector(look.scale(f64::from(reach.1) + movement.dot(look).max(0.0)));
+        clip(eye, to)
+            .is_some_and(|block| eye.distance_squared(block) <= self.block_reach.powi(2))
+            .then_some(None)
     }
     /// The attack and use part of `Minecraft.tick` for the local player:
     /// attack clicks since the last tick and the held attack button.
