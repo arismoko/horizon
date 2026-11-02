@@ -8502,7 +8502,7 @@ impl Game<'_> {
         batch.blur_at = batch.vertices.len() as u32;
         // PackConfirmScreen takes the open screen's place (it comes back once
         // the prompt is answered): the screen under the prompt isn't drawn.
-        let screen = if self.server_packs.prompt.is_some() {
+        let screen = if self.server_packs.prompt.is_some() || self.book.is_some() {
             Screen::Playing
         } else {
             self.screen
@@ -8575,7 +8575,7 @@ impl Game<'_> {
     /// read-only: what a mod draws is its own.
     fn fire_screen_render_post(&self, batch: &mut HudBatch) {
         let screen = self.screen;
-        if screen == Screen::Playing || self.server_packs.prompt.is_some() {
+        if screen == Screen::Playing || self.server_packs.prompt.is_some() || self.book.is_some() {
             return;
         }
         // slot_count mirrors slots() without allocating; keep them in step.
