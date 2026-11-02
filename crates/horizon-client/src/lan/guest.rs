@@ -108,6 +108,11 @@ pub struct Guest {
     pub input: u8,
     /// The boat or minecart the player rides (`Entity.getVehicle`).
     pub vehicle: Option<u32>,
+    /// When the player last got into its vehicle, from `Hub.seat_order`:
+    /// `Entity.addPassenger` seats a rider behind the players already in the
+    /// vehicle, so the smallest order on a boat is its controlling rider
+    /// (`getControllingPassenger`).
+    pub vehicle_order: u64,
     /// `ServerGamePacketListenerImpl.lastGoodX/Y/Z` of the vehicle it controls.
     pub vehicle_good: Option<[f64; 3]>,
     pub sprinting: bool,
@@ -159,6 +164,14 @@ pub struct Guest {
     /// (`clientIsFloating`), and the ticks it has (`aboveGroundTickCount`).
     pub client_is_floating: bool,
     pub above_ground_ticks: i32,
+    /// The same for the vehicle the player drives (`clientVehicleIsFloating`,
+    /// `aboveGroundVehicleTickCount`), with that vehicle's gravity
+    /// (`getMaximumFlyingTicks(lastVehicle)`) and whether its last accepted
+    /// move came down onto something (`verticalCollisionBelow`).
+    pub vehicle_floating: bool,
+    pub above_ground_vehicle_ticks: i32,
+    pub vehicle_gravity: f64,
+    pub vehicle_rests: bool,
     /// A position move arrived since the client's last ClientTickEnd
     /// (receivedPositionThisTick): a second one is a protocol error.
     pub position_this_tick: bool,
@@ -346,6 +359,7 @@ impl Guest {
             sneaking: false,
             input: 0,
             vehicle: None,
+            vehicle_order: 0,
             vehicle_good: None,
             sprinting: false,
             fall_flying: false,
@@ -371,6 +385,10 @@ impl Guest {
             known_moves: 0,
             client_is_floating: false,
             above_ground_ticks: 0,
+            vehicle_floating: false,
+            above_ground_vehicle_ticks: 0,
+            vehicle_gravity: 0.0,
+            vehicle_rests: false,
             position_this_tick: false,
             anticheat: Default::default(),
             replay: None,
