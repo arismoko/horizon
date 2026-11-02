@@ -2768,7 +2768,6 @@ impl Game<'_> {
     ) {
         let _ = (player, name, kind, pos, cancel);
     }
-    }
     /// A hanging entity is about to break: an item frame
     /// (`minecraft:item_frame`, `minecraft:glow_item_frame`) or a painting
     /// (`minecraft:painting`) at `pos` (the block it takes), hit by a player
