@@ -798,9 +798,11 @@ enum Cmd {
         /// Build mods made for different Horizon versions together anyway, on the newest of them
         #[arg(long)]
         allow_version_mismatch: bool,
-        /// The Cargo profile: fast (the default: incremental, quick to rebuild) or release
-        /// (thin LTO: slower to build, slightly faster game). Default: the native-profile setting
-        #[arg(long, value_parser = ["fast", "release"])]
+        /// The build profile: default, dev (quickest to rebuild a mod, slow game) or release (the release's
+        /// own, thin LTO: slowest to build); performance, balanced and fast-rebuild are
+        /// experimental (docs/native-mods.md). Default: HORIZON_LAUNCHER_NATIVE_PROFILE, else the
+        /// native-profile setting
+        #[arg(long, value_parser = ["default", "dev", "release", "performance", "balanced", "fast-rebuild"])]
         profile: Option<String>,
     },
     /// Show a release's patch notes (default: the newest)
@@ -820,8 +822,9 @@ enum Cmd {
     /// ("default" removes it), while-playing stay|minimize|hide (what the window does while the game runs), language
     /// system|en|fr|ru|de|zh|es|uk|pl (the window's language; system follows the computer's), accent
     /// violet|blue|teal|green|amber|red|pink, background PATH (a picture behind Home; "default"
-    /// shows Horizon's landscape), native-profile fast|release (the Cargo profile native mods
-    /// build with: fast is incremental, release is slower to build and slightly faster to play)
+    /// shows Horizon's landscape), native-profile default|dev|release (the profile native mods
+    /// build with: dev rebuilds a mod quickest for a slow game, release is the release's own and slowest
+    /// to build)
     Settings {
         #[arg(value_parser = SETTING_KEYS)]
         key: Option<String>,
@@ -1046,11 +1049,11 @@ fn set_setting(s: &mut backend::Settings, key: &str, value: &str) -> Result<(), 
             }
         }
         "native-profile" => {
-            s.native_release = match value {
-                "fast" | "default" => false,
-                "release" => true,
-                _ => return Err(format!("{value}: say fast or release")),
-            }
+            let profile = native_mods::Profile::parse(value)
+                .filter(|p| native_mods::Profile::ALL.contains(p))
+                .ok_or_else(|| format!("{value}: say default, dev or release"))?;
+            s.native_profile = Some(profile);
+            s.native_release = false;
         }
         "proxy" => {
             if value == "default" || value.is_empty() {
@@ -1083,7 +1086,7 @@ fn settings_json(s: &backend::Settings) -> serde_json::Value {
         "language": s.language.map_or("system", |l| l.code()),
         "accent": s.accent.name(),
         "background": horizon_launcher::themes::background(&backend::data_dir(), s.background.as_deref()),
-        "native_profile": native_mods::Profile::from_setting(s.native_release).name(),
+        "native_profile": native_mods::Profile::chosen(s).name(),
         "no_ai": backend::no_ai(),
     })
 }
@@ -1245,9 +1248,7 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
             let started = std::time::Instant::now();
             let profile = match profile.as_deref().and_then(native_mods::Profile::parse) {
                 Some(profile) => profile,
-                None => {
-                    native_mods::Profile::from_setting(backend::Settings::load().native_release)
-                }
+                None => native_mods::Profile::chosen(&backend::Settings::load()),
             };
             let steps = |step: native_mods::Step| {
                 let secs = started.elapsed().as_secs();

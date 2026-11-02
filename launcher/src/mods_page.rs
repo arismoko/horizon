@@ -1509,22 +1509,48 @@ impl Launcher {
                 }),
             ));
         }
+        let profile = native_mods::Profile::chosen(&self.settings);
+        let picker = segments(
+            "native-profile",
+            &[
+                (native_mods::Profile::Default, "Default"),
+                (native_mods::Profile::Dev, "Dev build"),
+                (native_mods::Profile::Release, "Release build"),
+            ],
+            profile,
+            &t,
+            {
+                let this = cx.entity().downgrade();
+                move |choice, _, cx| {
+                    let _ = this.update(cx, |this, cx| {
+                        this.settings.native_profile = Some(choice);
+                        this.settings.native_release = false;
+                        this.native_done = None;
+                        this.settings.save();
+                        cx.notify();
+                    });
+                }
+            },
+        );
+        let said = match profile {
+            native_mods::Profile::Default => tr("The everyday build for playing with mods").into(),
+            native_mods::Profile::Dev => {
+                tr("For developing a mod: quickest to rebuild, the game runs about twice as slow")
+                    .into()
+            }
+            native_mods::Profile::Release => {
+                tr("Release build: slower to build, slightly faster game").into()
+            }
+            // An experimental one, named only by the environment or `--profile`.
+            other => format!("{} ({})", other.name(), native_mods::PROFILE_ENV),
+        };
         detail = detail.child(
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.))
-                .child(
-                    switch("native-release", self.settings.native_release, &t).on_click(
-                        cx.listener(|this, _: &ClickEvent, _, cx| {
-                            this.settings.native_release = !this.settings.native_release;
-                            this.native_done = None;
-                            this.settings.save();
-                            cx.notify();
-                        }),
-                    ),
-                )
-                .child(tr("Release build: slower to build, slightly faster game").to_string()),
+                .child(picker)
+                .child(said),
         );
         if let Some(list) = mismatch {
             detail = detail.child(self.native_mismatch_panel(list, cx));

