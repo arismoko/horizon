@@ -14,7 +14,8 @@
 //!
 //!   horizon-bots --server 127.0.0.1:25565 --bots 25 --behaviour mixed --seconds 360 --report bots.json
 //!
-//! It prints one JSON line a second (bots online, chunks received) and writes a summary with `--report`.
+//! It prints one JSON line a second (bots online, chunks received), one with the first bot's spawn position, and
+//! writes a summary with `--report`.
 //! A bot moves only while it holds the chunk it stands in: vanilla's client stops ticking its player in a chunk
 //! it hasn't received, so a player can't outrun the server's chunk sending, on any server.
 //! Each bot also keeps the chunks it holds, as a client's chunk cache does, so the report tells chunks that
@@ -1078,6 +1079,10 @@ fn run_bot(
     };
     bot.joined_after_ms
         .store(asked.elapsed().as_millis() as u64, Ordering::SeqCst);
+    if index == 0 {
+        // Where the bots gather, for a client that comes to watch them (tools/perf_bench.py --server-bots).
+        println!("{}", json!({ "spawn": spawn }));
+    }
     let send = |body: Vec<u8>| lock(&writer).send(&body).is_ok();
     if !o.no_loaded {
         send(raw(sb::PLAYER_LOADED, |_| {}));
