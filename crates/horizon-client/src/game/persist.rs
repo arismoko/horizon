@@ -452,13 +452,20 @@ impl Game<'_> {
                     }
                     "minecraft:trident" => {
                         if let Some(n) = entity_nbt::trident_from_nbt(&tag) {
-                            self.tridents
-                                .push(super::trident::ThrownTrident::from_nbt(n));
+                            let mut t = super::trident::ThrownTrident::from_nbt(n);
+                            // One that came through a portal keeps its cooldown.
+                            super::lan_entities::assign_entity_id(&mut self.next_entity, &mut t.id);
+                            self.restore_portal_cooldown(t.id, &tag);
+                            self.tridents.push(t);
                         }
                     }
                     "minecraft:firework_rocket" => {
                         if let Some(r) = entity_nbt::firework_rocket_from_nbt(&tag, player_uuid) {
-                            self.rockets.push(super::fireworks::Rocket::from_nbt(r));
+                            let mut r = super::fireworks::Rocket::from_nbt(r);
+                            // One that came through a portal keeps its cooldown.
+                            super::lan_entities::assign_entity_id(&mut self.next_entity, &mut r.id);
+                            self.restore_portal_cooldown(r.id, &tag);
+                            self.rockets.push(r);
                         }
                     }
                     // PrimedTnt.readAdditionalSaveData: its fuse (80 when absent) and motion.
