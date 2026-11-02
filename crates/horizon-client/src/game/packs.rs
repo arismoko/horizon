@@ -299,6 +299,7 @@ impl Game<'_> {
             pack,
             textures,
             cem,
+            block_entity_shapes,
         } = staged;
         // Keep the working GPU resources, and hand its window surface over.
         if let Some(renderer) = &mut self.renderer {
@@ -372,7 +373,12 @@ impl Game<'_> {
             .cem
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = cem;
-        // The random entity textures the new atlas packs: every mob chooses again.
+        self.res
+            .block_entity_render()
+            .set_shapes(block_entity_shapes);
+        // The random entity textures and emissive overlays the new atlas packs. A new scan is
+        // a new generation:
+        // every mob (every splitscreen player's too) chooses again on its next tick.
         *self
             .res
             .mob_data()
@@ -380,9 +386,19 @@ impl Game<'_> {
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) =
             std::mem::take(&mut self.gui.atlas.random_textures);
-        for m in &mut self.mobs {
-            m.random_textures.forget_picks();
-        }
+        *self
+            .res
+            .mob_data()
+            .emissive
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = self.gui.atlas.emissive.clone();
+        *self
+            .res
+            .mob_data()
+            .blinks
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
+            std::mem::take(&mut self.gui.atlas.blinks);
         horizon_client::ui::load_metadata(&root);
         lang::set(lang::Language::load(&[&root], &lang::code()));
         self.refresh_remote_language();
@@ -442,7 +458,7 @@ pub(super) fn stage_pack(
     let (render, atlas, panorama) = std::thread::scope(|s| {
         let atlas =
             s.spawn(|| HudAtlas::build_over(&root, vanilla_root).map_err(|e| e.to_string()));
-        let panorama = s.spawn(|| horizon_client::gfx::panorama::Faces::load(&root));
+        let panorama = s.spawn(|| horizon_client::gfx::panorama::Faces::load(&root, vanilla_root));
         (assets.reload(&root), atlas.join(), panorama.join())
     });
     let render = Arc::new(render?);
@@ -467,6 +483,7 @@ pub(super) fn stage_pack(
         &root,
         res.mob_types(),
     ));
+    let block_entity_shapes = res.block_entity_render().shapes_for(&root);
     progress.set(3);
     Ok(StagedPack {
         root,
@@ -474,6 +491,7 @@ pub(super) fn stage_pack(
         pack,
         textures,
         cem,
+        block_entity_shapes,
     })
 }
 
@@ -486,6 +504,8 @@ pub(super) struct StagedPack {
     pub textures: PreparedTextures,
     /// The packs' custom entity models (OptiFine CEM).
     pub cem: Arc<horizon_client::mobs::cem::CemModels>,
+    /// The block entities' models, the packs' custom entity models over vanilla's.
+    pub block_entity_shapes: Arc<horizon_client::block_entity_render::BlockEntityShapes>,
 }
 
 /// `LoadingOverlay`'s stage lines for a pack reload, indexed by `progress`.
