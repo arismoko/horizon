@@ -407,9 +407,10 @@ impl Sprites {
     }
     /// The tiles of the texture `name` (`ns:path`) cut into a `columns` x `rows` grid, row by
     /// row from the top left: a Fusion connecting texture's sheet. Each tile is its own layer
-    /// (named `fusion/<ns>/<path>#<tile>`); a fully transparent one is `None`, as Fusion skips empty
-    /// tiles. Tiles are square, as wide as a column. An animated sheet's frames are whole grids
-    /// one below the other, or with `per_tile` each cell is a column of its tile's frames.
+    /// (named `fusion/<ns>/<path>#<tile>`); a fully transparent one is `None`, as Fusion skips
+    /// empty tiles. Tiles are square, as wide as a column. An animated sheet's frames are whole
+    /// grids one below the other, or with `per_tile` each cell is a column of its tile's frames.
+    /// The sheet's own layer, if models already show it, shows its first tile from then on.
     pub fn insert_tiles(
         &mut self,
         root: &Path,
@@ -445,7 +446,7 @@ impl Sprites {
         if side == 0 || frames == 0 || width % columns.max(1) != 0 || !whole {
             return Err(format!("{name} isn't a {columns} x {rows} grid of square tiles").into());
         }
-        (0..columns * rows)
+        let tiles = (0..columns * rows)
             .map(|tile| {
                 let frames: Vec<Vec<u8>> = (0..frames)
                     .map(|f| {
@@ -478,7 +479,30 @@ impl Sprites {
                 let tile_name = format!("fusion/{}#{tile}", name.replace(':', "/"));
                 self.register(root, &tile_name, decoded).map(Some)
             })
-            .collect()
+            .collect::<Result<Vec<_>>>()?;
+        // Where Fusion doesn't draw the sheet (items, other models), the lone tile rather than
+        // the whole sheet squeezed square, whose size would set every layer's.
+        if let (Some(&own), Some(&first)) = (self.layers.get(name), tiles.iter().flatten().next()) {
+            self.show_as(own, first);
+        }
+        Ok(tiles)
+    }
+    /// Layer `layer` shows what `source` does.
+    fn show_as(&mut self, layer: u32, source: u32) {
+        let (l, s) = (layer as usize, source as usize);
+        self.native[l] = self.native[s].clone();
+        self.opaque[l] = self.opaque[s];
+        self.translucent[l] = self.translucent[s];
+        self.mips[l] = self.mips[s];
+        self.pbr[l] = self.pbr[s].clone();
+        self.animations.retain(|a| a.layer != layer);
+        if let Some(animation) = self.animations.iter().find(|a| a.layer == source) {
+            let animation = SpriteAnimation {
+                layer,
+                ..animation.clone()
+            };
+            self.animations.push(animation);
+        }
     }
     /// Read and decode one texture and its `.mcmeta`.
     fn decode(root: &Path, name: &str) -> Result<crate::sprite_cache::Decoded> {
@@ -865,8 +889,11 @@ mod tests {
         };
         let mut sprites = Sprites::default();
         let name = "minecraft:block/sheet";
+        let own = sprites.insert(&root, name).unwrap();
         // Still, as a 3 x 2 grid: the empty middle column draws nothing.
         let tiles = sprites.insert_tiles(&root, name, (3, 2), false).unwrap();
+        // The sheet's own layer now shows the top-left tile, at a tile's size.
+        assert_eq!(texels(&sprites, own, 0), [(0, 0), (1, 0), (0, 1), (1, 1)]);
         assert_eq!(
             tiles.iter().map(Option::is_some).collect::<Vec<_>>(),
             [true, false, true, true, false, true]
