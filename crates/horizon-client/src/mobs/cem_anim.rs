@@ -957,6 +957,21 @@ mod tests {
     }
 
     #[test]
+    fn the_swimming_pose_in_water_swims_without_crawling() {
+        let mut m = mob();
+        m.extra.pose = 3;
+        let model = bone("root", vec![]);
+        let animation = animate(&model, &[("root.tx", "is_swimming + is_crawling * 2")]);
+        let mut read = |in_water: bool| {
+            m.fluids.in_water = in_water;
+            let mut poses = Poses::new(&model);
+            animation.run_in(&Frame::default(), &m, &still(), &mut poses);
+            poses.get("root")[0]
+        };
+        assert_eq!([read(true), read(false)], [1.0, 3.0]);
+    }
+
+    #[test]
     fn a_fox_sits_by_its_own_flags() {
         let mut m = mob();
         m.kind = std::sync::Arc::new(crate::mobs::MobType {
