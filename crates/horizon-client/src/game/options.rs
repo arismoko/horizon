@@ -586,7 +586,11 @@ impl Game<'_> {
             self.title.is_none(),
             &mut hooked,
         );
-        if hooked >= 1 { hooked.min(limit) } else { limit }
+        if hooked >= 1 {
+            hooked.min(limit)
+        } else {
+            limit
+        }
     }
     /// `Minecraft.runTick`'s frame limiter: `FramerateLimiter.limitDisplayFPS`
     /// below 260 frames per second, sleeping then spin-waiting until the
