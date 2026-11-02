@@ -485,8 +485,117 @@ fn free_function_source(target: &str) -> Option<(&'static str, String)> {
         })
 }
 
+/// Whether a hook function needs its dispatch `call` filled in: false when it
+/// makes the call; true when it is a `Game` or `GameLevel` method whose body is
+/// only the placeholder a new hook starts with, `let _ = (every, parameter);`
+/// (`let _ = parameter;` for one). Any other body is an error, left alone.
+fn needs_fill(method: &syn::ItemFn, call: &str, in_game: bool) -> Result<bool, String> {
+    if has_call(&method.block, call) {
+        return Ok(false);
+    }
+    let params: Vec<String> = method
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            FnArg::Typed(arg) => Some(arg.pat.to_token_stream().to_string()),
+            FnArg::Receiver(_) => None,
+        })
+        .collect();
+    let named = match &method.block.stmts[..] {
+        [
+            syn::Stmt::Local(syn::Local {
+                pat: Pat::Wild(_),
+                init:
+                    Some(syn::LocalInit {
+                        expr,
+                        diverge: None,
+                        ..
+                    }),
+                ..
+            }),
+        ] => match &**expr {
+            syn::Expr::Tuple(tuple) => Some(
+                tuple
+                    .elems
+                    .iter()
+                    .map(|e| e.to_token_stream().to_string())
+                    .collect(),
+            ),
+            single @ syn::Expr::Path(_) => Some(vec![single.to_token_stream().to_string()]),
+            _ => None,
+        },
+        _ => None,
+    };
+    if in_game && named == Some(params) {
+        return Ok(true);
+    }
+    Err(format!(
+        "missing {call} call in {}: add it, or leave a Game hook's body as the let _ = (…); placeholder for cargo run -p xtask -- mod-api to fill",
+        method.sig.ident
+    ))
+}
+
+/// A hook function whose placeholder body becomes `call`.
+struct Fill {
+    native: String,
+    call: String,
+}
+
+/// `source` with each fill's placeholder statement replaced by its call,
+/// formatted as `cargo fmt` would.
+fn filled_hooks(source: &str, fills: &[Fill]) -> Result<Vec<u8>, String> {
+    let mut source = source.to_owned();
+    for Fill { native, call } in fills {
+        let start = source
+            .find(&format!("fn {native}("))
+            .ok_or_else(|| format!("{native} not found"))?;
+        let placeholder = start
+            + source[start..]
+                .find("let _ =")
+                .ok_or_else(|| format!("{native} has no placeholder"))?;
+        let end = placeholder
+            + source[placeholder..]
+                .find(';')
+                .ok_or_else(|| format!("{native} has no placeholder"))?
+            + 1;
+        source.replace_range(placeholder..end, call);
+    }
+    rustfmt(&source)
+}
+
+/// The workspace's edition, which rustfmt formats generated code for.
+const EDITION: &str = "2024";
+
+/// `code` as `cargo fmt` formats it.
+fn rustfmt(code: &str) -> Result<Vec<u8>, String> {
+    let mut child = Command::new("rustfmt")
+        .args(["--emit", "stdout", "--edition", EDITION])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    use std::io::Write;
+    child
+        .stdin
+        .take()
+        .ok_or("rustfmt stdin")?
+        .write_all(code.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let formatted = child.wait_with_output().map_err(|e| e.to_string())?;
+    if !formatted.status.success() {
+        return Err("rustfmt failed".into());
+    }
+    Ok(formatted.stdout)
+}
+
 pub fn run(check: bool) -> Result<(), String> {
-    let root = &Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    generate(&Path::new(env!("CARGO_MANIFEST_DIR")).join(".."), check)
+}
+
+/// Writes the mod API generated from the sources under `root`, and fills new
+/// hooks' placeholder bodies; with `check`, fails instead if either would change.
+fn generate(root: &Path, check: bool) -> Result<(), String> {
     let catalog: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(root.join("native-hooks.json")).map_err(|e| e.to_string())?,
     )
@@ -505,6 +614,7 @@ pub fn run(check: bool) -> Result<(), String> {
     let mut render_traits = String::new();
     let mut render_dispatch = String::new();
     let hooks = catalog_hooks(root, &catalog)?;
+    let mut fills = Vec::new();
     for hook in &hooks {
         let name = hook["name"].as_str().ok_or("hook name missing")?;
         let api = hook
@@ -514,6 +624,7 @@ pub fn run(check: bool) -> Result<(), String> {
         let target = hook["target"].as_str().ok_or("target missing")?;
         let is_render = target.starts_with("horizon_client_render::");
         let external = free_function_source(target);
+        let in_game = external.is_none();
         let (method, call) = if let Some((krate, path)) = external {
             let Some((module, function)) = path.rsplit_once("::") else {
                 return Err(format!("wrong target for {name}"));
@@ -556,9 +667,7 @@ pub fn run(check: bool) -> Result<(), String> {
                 format!("dispatch_{name}"),
             )
         };
-        if !has_call(&method.block, &call) {
-            return Err(format!("missing {call} call in {native}"));
-        }
+        let fill = needs_fill(&method, &call, in_game)?;
         let sig = &method.sig;
         let mut args = Vec::new();
         let mut receiver_mut = None;
@@ -681,6 +790,27 @@ pub fn run(check: bool) -> Result<(), String> {
             "replace" => "None",
             _ => "",
         };
+        if fill {
+            // The dispatch's parameters in order: the host, the mods, the
+            // arguments and the output last.
+            let host = host.as_ref().map(|_| {
+                if ticks {
+                    "&mut super::mod_api_host::LevelTicks { level: self, ticks }"
+                } else {
+                    "self"
+                }
+            });
+            let passed = host
+                .into_iter()
+                .chain(["mod_api::mods()"])
+                .chain(args.iter().chain(output.as_ref()).map(|(n, _)| n.as_str()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            fills.push(Fill {
+                native: native.clone(),
+                call: format!("mod_api::{call}({passed});"),
+            });
+        }
         let invoke = call_args.join(", ");
         let trait_params = trait_params.join(", ");
         let dispatch_params = dispatch_params.join(", ");
@@ -811,6 +941,21 @@ pub fn run(check: bool) -> Result<(), String> {
     let render_code = format!(
         "// @generated by cargo run -p xtask -- mod-api; do not edit.\nuse super::*;\npub trait RenderHooks: Send + Sync {{\n{render_traits}}}\n{render_dispatch}"
     );
+    // A new hook's placeholder body becomes its dispatch call.
+    let filled = if fills.is_empty() {
+        None
+    } else if check {
+        let natives = fills
+            .iter()
+            .map(|fill| fill.native.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(format!(
+            "{natives}: the let _ = (…); placeholder needs its dispatch call; run cargo run -p xtask -- mod-api"
+        ));
+    } else {
+        Some(filled_hooks(&source, &fills)?)
+    };
     for (relative, code) in [
         (
             "crates/horizon-client-render/src/gfx/native_render/generated.rs",
@@ -825,33 +970,24 @@ pub fn run(check: bool) -> Result<(), String> {
     ] {
         // Parse before formatting, so invalid catalog names or types fail without writing output.
         syn::parse_file(&code).map_err(|e| format!("generated Rust: {e}"))?;
-        let mut child = Command::new("rustfmt")
-            .args(["--emit", "stdout", "--edition", "2021"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        use std::io::Write;
-        child
-            .stdin
-            .take()
-            .ok_or("rustfmt stdin")?
-            .write_all(code.as_bytes())
-            .map_err(|e| e.to_string())?;
-        let formatted = child.wait_with_output().map_err(|e| e.to_string())?;
-        if !formatted.status.success() {
-            return Err("rustfmt failed".into());
-        }
+        let formatted = rustfmt(&code)?;
         let path = root.join(relative);
         if check {
-            if fs::read(&path).map_err(|e| e.to_string())? != formatted.stdout {
+            if fs::read(&path).map_err(|e| e.to_string())? != formatted {
                 return Err("mod API output is stale; run cargo run -p xtask -- mod-api".into());
             }
         } else {
             fs::create_dir_all(path.parent().ok_or("output parent missing")?)
                 .map_err(|e| e.to_string())?;
-            fs::write(path, formatted.stdout).map_err(|e| e.to_string())?;
+            fs::write(path, formatted).map_err(|e| e.to_string())?;
         }
+    }
+    if let Some(filled) = filled {
+        fs::write(
+            root.join("crates/horizon-client/src/game/native_hooks.rs"),
+            filled,
+        )
+        .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -1343,6 +1479,148 @@ mod tests {
             super::host_for(false, Some(true), false),
             Some(("host", "&mut dyn Host".into()))
         );
+    }
+
+    #[test]
+    fn only_a_game_hooks_placeholder_body_is_filled() {
+        let fill = |body: &str, in_game: bool| {
+            let method: syn::ItemFn = syn::parse_str(&format!(
+                "fn native_h(&mut self, player: u128, cancel: &mut bool) {{ {body} }}"
+            ))
+            .unwrap();
+            super::needs_fill(&method, "dispatch_h", in_game)
+        };
+        assert_eq!(fill("let _ = (player, cancel);", true), Ok(true));
+        assert_eq!(
+            fill(
+                "horizon_client::mod_api::dispatch_h(self, mods(), player, cancel);",
+                true
+            ),
+            Ok(false)
+        );
+        for (body, in_game) in [
+            ("let _ = (player, cancel);", false),
+            ("let _ = (cancel, player);", true),
+            ("let _ = player;", true),
+            ("let _ = (player, cancel); *cancel = true;", true),
+            ("", true),
+        ] {
+            assert!(
+                fill(body, in_game)
+                    .unwrap_err()
+                    .starts_with("missing dispatch_h call in native_h: "),
+                "{body}"
+            );
+        }
+        let one: syn::ItemFn =
+            syn::parse_quote! { fn native_one(&self, from: &str) { let _ = from; } };
+        assert_eq!(super::needs_fill(&one, "dispatch_one", true), Ok(true));
+        let source = "impl Game<'_> {\n    fn native_other(&self, a: u32) {\n        let _ = a;\n    }\n    fn native_h(&mut self, player: u128, name: &str, cancel: &mut bool) {\n        let _ = (player, name, cancel);\n    }\n}\n";
+        let filled = super::filled_hooks(
+            source,
+            &[super::Fill {
+                native: "native_h".into(),
+                call: "mod_api::dispatch_h(self, mod_api::mods(), player, name, cancel);".into(),
+            }],
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(filled).unwrap(),
+            "impl Game<'_> {\n    fn native_other(&self, a: u32) {\n        let _ = a;\n    }\n    fn native_h(&mut self, player: u128, name: &str, cancel: &mut bool) {\n        mod_api::dispatch_h(self, mod_api::mods(), player, name, cancel);\n    }\n}\n"
+        );
+    }
+
+    /// `item_damaged` taken back to how a new hook arrives (its body the
+    /// placeholder) in a copy of the sources: the check reports it, any other
+    /// body is left alone, a missing `mod_api` entry fails by name, and the
+    /// generator brings back the shipped file byte for byte with the generated
+    /// code unchanged.
+    #[test]
+    fn new_hook_placeholder_is_reported_then_filled() {
+        fn copy(from: &std::path::Path, to: &std::path::Path) {
+            if from.is_dir() {
+                for entry in std::fs::read_dir(from).unwrap() {
+                    let entry = entry.unwrap();
+                    copy(&entry.path(), &to.join(entry.file_name()));
+                }
+            } else {
+                std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+                std::fs::copy(from, to).unwrap();
+            }
+        }
+        let real = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let root = real
+            .join("target")
+            .join(format!("mod-api-fill-{}", std::process::id()));
+        let catalog: Value =
+            serde_json::from_str(&std::fs::read_to_string(real.join("native-hooks.json")).unwrap())
+                .unwrap();
+        let mut inputs: Vec<String> = [
+            "native-hooks.json",
+            "tools/native-hook-fragments",
+            "crates/horizon-client/src/game",
+            "crates/horizon-client/src/mod_api.rs",
+            "crates/horizon-client/src/mod_api",
+            "crates/horizon-client-render/src/gfx/native_render",
+        ]
+        .map(str::to_owned)
+        .into();
+        for hook in super::catalog_hooks(&real, &catalog).unwrap() {
+            if let Some((krate, path)) =
+                super::free_function_source(hook["target"].as_str().unwrap())
+            {
+                let (module, _) = path.rsplit_once("::").unwrap();
+                inputs.push(format!(
+                    "crates/{krate}/src/{}.rs",
+                    module.replace("::", "/")
+                ));
+            }
+        }
+        for input in &inputs {
+            copy(&real.join(input), &root.join(input));
+        }
+        let hooks = root.join("crates/horizon-client/src/game/native_hooks.rs");
+        let shipped = std::fs::read_to_string(&hooks).unwrap();
+        let call = "mod_api::dispatch_item_damaged(self, mod_api::mods(), player, name, item, amount, cancel);";
+        assert_eq!(shipped.matches(call).count(), 1);
+        let unfinished = shipped.replace(call, "let _ = (player, name, item, amount);");
+        std::fs::write(&hooks, &unfinished).unwrap();
+        assert!(
+            super::generate(&root, false)
+                .unwrap_err()
+                .starts_with("missing dispatch_item_damaged call in native_item_damaged: ")
+        );
+        assert_eq!(std::fs::read_to_string(&hooks).unwrap(), unfinished);
+        let placeholder = shipped.replace(call, "let _ = (player, name, item, amount, cancel);");
+        std::fs::write(&hooks, &placeholder).unwrap();
+        assert_eq!(
+            super::generate(&root, true).unwrap_err(),
+            "native_item_damaged: the let _ = (…); placeholder needs its dispatch call; run cargo run -p xtask -- mod-api"
+        );
+        assert_eq!(std::fs::read_to_string(&hooks).unwrap(), placeholder);
+        let fragment = root.join("tools/native-hook-fragments/native_item_damaged.json");
+        let shipped_fragment = std::fs::read_to_string(&fragment).unwrap();
+        let mut json: Value = serde_json::from_str(&shipped_fragment).unwrap();
+        json["hooks"][0].as_object_mut().unwrap().remove("mod_api");
+        std::fs::write(&fragment, json.to_string()).unwrap();
+        assert_eq!(
+            super::generate(&root, false).unwrap_err(),
+            "hook item_damaged has no mod_api entry: add one"
+        );
+        std::fs::write(&fragment, shipped_fragment).unwrap();
+        super::generate(&root, false).unwrap();
+        assert_eq!(std::fs::read_to_string(&hooks).unwrap(), shipped);
+        for generated in [
+            "crates/horizon-client/src/mod_api/generated.rs",
+            "crates/horizon-client-render/src/gfx/native_render/generated.rs",
+        ] {
+            assert_eq!(
+                std::fs::read(root.join(generated)).unwrap(),
+                std::fs::read(real.join(generated)).unwrap()
+            );
+        }
+        super::generate(&root, true).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
