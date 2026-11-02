@@ -6689,7 +6689,7 @@ mod tests {
 
     #[test]
     fn native_breathing_stays_hookable() {
-        let source = include_str!("../breathing.rs");
+        let source = include_str!("../breathing.rs").replace("\r\n", "\n");
         let hook = source.find("pub fn native_living_breathe(").unwrap();
         // From its doc comment's first line, so an attribute above it counts.
         let start = source[..hook].find("/// An entity's breathing").unwrap();
@@ -6705,7 +6705,7 @@ mod tests {
 
     #[test]
     fn native_loot_kinds_stay_hookable() {
-        let source = include_str!("../../../horizon-world/src/loot.rs");
+        let source = include_str!("../../../horizon-world/src/loot.rs").replace("\r\n", "\n");
         for hook in [
             "pub fn native_loot_function(",
             "pub fn native_loot_condition(",
@@ -6720,6 +6720,23 @@ mod tests {
                 for mac in ["!(", "![", "! {", "!{"] {
                     assert!(!line.contains(mac), "a macro in a loot hook point: {line}");
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn native_ingredient_stays_hookable() {
+        let source = include_str!("../crafting.rs");
+        let at = source.find("pub fn native_ingredient(").unwrap();
+        let start = source[..at].rfind("///").unwrap();
+        let body = &source[start..start + source[start..].find("\n}\n").unwrap()];
+        for line in body.lines() {
+            assert!(
+                !line.contains("cfg"),
+                "a cfg in the ingredient hook: {line}"
+            );
+            for mac in ["!(", "![", "! {", "!{"] {
+                assert!(!line.contains(mac), "a macro: {line}");
             }
         }
     }
@@ -6826,6 +6843,8 @@ mod tests {
         let menu_hooks = free_hooks(include_str!("../menu.rs"));
         // The air supply's (`horizon_client::breathing`).
         let breath_hooks = free_hooks(include_str!("../breathing.rs"));
+        // The crafting loaders' (`horizon_client_lib::crafting`).
+        let crafting_hooks = free_hooks(include_str!("../crafting.rs"));
         let declared: BTreeSet<_> = section
             .lines()
             .chain(level_section.lines())
@@ -6840,6 +6859,7 @@ mod tests {
             .chain(loot_hooks.iter().copied())
             .chain(menu_hooks.iter().copied())
             .chain(breath_hooks.iter().copied())
+            .chain(crafting_hooks.iter().copied())
             .collect();
         let mut names = BTreeSet::new();
         let mut contracts = BTreeSet::new();
@@ -6857,6 +6877,10 @@ mod tests {
                 format!("horizon_world::item_defaults::native_{name}")
             } else if loot_hooks.contains(name) {
                 format!("horizon_world::loot::native_{name}")
+            } else if crafting_hooks.contains(name) {
+                // crafting.rs compiles into horizon-client-lib (#5446's
+                // split): horizon-mixins resolves the crate by its package.
+                format!("horizon_client_lib::crafting::native_{name}")
             } else if menu_hooks.contains(name) {
                 format!("horizon_client::menu::native_{name}")
             } else if breath_hooks.contains(name) {

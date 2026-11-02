@@ -441,6 +441,15 @@ position), `block_entity` (the broken block's entity as it was before the break,
 vanilla's `time_check` and `weather_check`). The game sets it for a block a player or an explosion breaks and for a
 mob's death loot; on other rolls `place` is `None`.
 
+### A mod's own ingredient kinds
+
+A recipe's ingredient that names a type in a namespace outside `minecraft:` reaches
+`native_ingredient(kind, data, items)` at load time. Fill `items` with the item ids the
+ingredient matches (item ids only: components are not checked; a match-time hook follows
+separately). Duplicates are removed keeping first-seen order. The hook may be called more
+than once per recipe; the answer must be the same. An unclaimed kind leaves the list empty
+and the recipe fails, as an unknown kind does.
+
 ### Data files
 
 A bundle's `data/` folder (any files) is staged as `native-data/<mod>/` at the root of the workspace. A helper or

@@ -4009,6 +4009,10 @@ impl Renderer {
     pub fn section_count(&self) -> usize {
         self.sections.len()
     }
+    /// The running native pack's `[[particle_lights]]`.
+    pub fn particle_lights(&self) -> Option<&[horizon_shader_api::manifest::ParticleLight]> {
+        self.native.as_ref().map(|n| n.particle_lights.as_slice())
+    }
     /// Whether one of Horizon's own packs with `[shadow]` draws, whose shadow pass takes the
     /// frame's `shadow_only` quads.
     pub fn native_shadow(&self) -> bool {
@@ -4883,6 +4887,11 @@ impl Renderer {
             let world = pack_post::World {
                 atlas: self.pack_atlas.as_ref().map(|a| (a.view.clone(), a.size())),
                 lightmap: self.lightmap_view.clone(),
+                gui_size: self
+                    .hud
+                    .atlas_texture
+                    .as_ref()
+                    .map_or([1, 1], |t| [t.width(), t.height()]),
                 terrain: self.pack_atlas.as_ref().map(|_| pack_post::Geometry {
                     buffers: if flat { &buffers[..1] } else { &buffers },
                     table: self.flat.as_ref().filter(|_| flat).map(|f| &f.draw_layout),
@@ -6354,6 +6363,7 @@ impl Renderer {
                 &self.queue,
                 frame.entities,
                 frame.entity_spans,
+                frame.crumbling_sprite,
                 &mut self.pack_entity_rest,
             );
             entities = &self.pack_entity_rest;
