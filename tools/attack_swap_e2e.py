@@ -37,7 +37,8 @@ from test_locator_bar_parity import server_dir
 ROOT = Path(__file__).resolve().parents[1]
 EXE = '.exe' if os.name == 'nt' else ''
 NAME = 'SwapTester'
-PIG = '@e[type=minecraft:pig,limit=1]'
+# Tagged: a generated world has pigs of its own.
+PIG = '@e[type=minecraft:pig,tag=swap,limit=1]'
 # Player at 0.5 80 0.5 looking east; the pig's near face is `distance` - 0.45
 # from the eyes' column.
 OPEN = ['fill 2 80 -3 8 84 3 minecraft:air']
@@ -101,6 +102,7 @@ def main():
             ctl('connect', f'127.0.0.1:{port}', NAME)
             ctl('wait-ready', 400)
             for line in (f'op {NAME}', 'gamerule spawn_mobs false', f'gamemode survival {NAME}',
+                         'kill @e[type=!minecraft:player]',
                          'fill -3 79 -3 8 79 3 minecraft:stone', 'fill -3 80 -3 8 84 3 minecraft:air',
                          f'tp {NAME} 0.5 80 0.5 -90 0',
                          f'item replace entity {NAME} hotbar.0 with minecraft:iron_spear',
@@ -115,7 +117,7 @@ def main():
                 for line in terrain:
                     server.console(line)
                 server.console(f'summon minecraft:pig {0.5 + distance} {feet} 0.5 '
-                               '{NoAI:1b,Silent:1b,NoGravity:1b}')
+                               '{NoAI:1b,Silent:1b,NoGravity:1b,Tags:["swap"]}')
                 server.console(f'tp {NAME} 0.5 80 0.5 -90 0')
                 game_time(server)
                 ctl('key', '1', 'tap')
