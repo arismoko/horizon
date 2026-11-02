@@ -281,7 +281,7 @@ impl Game<'_> {
                 .map(|hit| Vec3::new(hit.point[0], hit.point[1], hit.point[2]))
         };
         let movement = self.known_player_movement();
-        let nearest = super::spear::hits_in_reach(&boxes, eye, look, movement, reach, &clip)
+        let nearest = super::spear::hits_in_reach(&boxes, eye, look, movement, reach, clip)
             .into_iter()
             .map(|(i, at)| (i, eye.distance_squared(at).sqrt()))
             .reduce(|a, b| if b.1 < a.1 { b } else { a });
