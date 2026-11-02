@@ -53,7 +53,7 @@ fn shows_world(c: vec3<f32>, w: vec3<f32>) -> bool {
         return true;
     }
     let f = (c.r + c.g + c.b) / max(w.r + w.g + w.b, 1.0 / 255.0);
-    return f <= 1.01 && f > 0.5 && all(abs(c - f * w) <= 0.03 * w + 1.0 / 255.0);
+    return f <= 1.01 && f > 0.02 && all(abs(c - f * w) <= 0.03 * w + 1.0 / 255.0);
 }
 
 // Linear BT.709 to BT.2020 (ITU-R BT.2087), columns first.
