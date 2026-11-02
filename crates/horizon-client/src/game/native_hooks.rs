@@ -2768,27 +2768,6 @@ impl Game<'_> {
     ) {
         let _ = (player, name, cancel, reason);
     }
-    /// A server player a command teleported (NeoForge's
-    /// `EntityTeleportEvent`, for a player): `/tp` and `/teleport`, inside
-    /// their level or into another one. `from` and `to` are their feet before
-    /// and after, `dimension` the level they are in now. Heard after the move
-    /// has reached the player's state and their client (an inter-level
-    /// teleport: when the new level is entered, before it has loaded around
-    /// them), so it cannot stop it. The player's state is swapped in, so the
-    /// helpers that read the acting player and `native_tell` work. Once for
-    /// each teleported player, on a server. Other teleports are not heard
-    /// yet: ender pearls, chorus fruit, a spectator's teleport menu; portals
-    /// and respawns are not teleports here. @API:native_player_teleported@.
-    pub(super) fn native_player_teleported(
-        &mut self,
-        player: u128,
-        name: &str,
-        from: [f64; 3],
-        to: [f64; 3],
-        dimension: &str,
-    ) {
-        let _ = (player, name, from, to, dimension);
-    }
     /// The command tree a server sends a player (NeoForge's and Paper's
     /// "commands sent to a player" stage): when they join and when their
     /// level changes (`/op`, `/deop`, the LAN settings). `names` are the
