@@ -3663,6 +3663,7 @@ impl Game<'_> {
         // ItemEntity.bobOffs comes from the entity's own random, not the level's.
         let bob = self.particles.random().next_float() * std::f32::consts::PI * 2.0;
         self.dropped.push(ItemEntity {
+            no_gravity: false,
             health: 5,
             fire_ticks: 0,
             thrower: None,
@@ -3867,6 +3868,7 @@ impl Game<'_> {
         let merging = self.remote.is_none();
         let obstacles = horizon_client::entities::ObstacleGrid::new(self.item_entity_collisions());
         let mut nearby = Vec::new();
+        let mut bubble_tops = Vec::new();
         for i in 0..items.len() {
             if removed[i] {
                 // Merged into an earlier item before its own tick: it never ticked.
@@ -3912,6 +3914,17 @@ impl Game<'_> {
                 &nearby,
             );
             cells.moved(i, item.previous, item.position);
+            // Entity.handleOnAboveBubbleColumn: the server sends the particles of
+            // the surface of a bubble column the item is at the top of.
+            if merging {
+                bubble_tops.extend(horizon_client::motion::bubble_column_surfaces(
+                    &self.world,
+                    self.pack.assets.registry,
+                    self.res.facts(),
+                    self.collision,
+                    item.bounds(),
+                ));
+            }
             // ItemEntity.tick: merge every 2 ticks while moving between
             // blocks, every 40 otherwise, before the lifetime check.
             let block = |v: Vec3| (v.x.floor(), v.y.floor(), v.z.floor());
@@ -3958,6 +3971,9 @@ impl Game<'_> {
                 removed[i] = true;
                 cells.remove(i, item.position);
             }
+        }
+        for pos in bubble_tops {
+            self.bubble_column_particles(pos);
         }
         let mut removed = removed.into_iter();
         items.retain(|_| !removed.next().unwrap_or(false));
@@ -7554,6 +7570,17 @@ impl Game<'_> {
         Ok(())
     }
     /// Keep the held-key state of toggled sneak and sprint in step with their mapping.
+    /// `KeyMapping.resetToggleKeys`: every toggle mapping up, and the latched sneak and sprint
+    /// keys with it.
+    fn reset_toggle_keys(&mut self) {
+        for key in &mut self.toggles.0 {
+            key.reset();
+        }
+        self.sync_toggle(0);
+        self.sync_toggle(1);
+        self.left = false;
+        self.right = false;
+    }
     fn sync_toggle(&mut self, slot: usize) {
         let key = [KeyCode::ShiftLeft, KeyCode::ControlLeft][slot];
         if self.toggles.is_down(slot) {
@@ -12255,6 +12282,9 @@ impl Game<'_> {
         self.streaming.paused = true;
         self.world = World::new(self.res.facts().air, 0);
         self.player = None;
+        // `LocalPlayer`'s constructor: `KeyMapping.resetToggleKeys`, so a sneak or sprint toggled
+        // in this world is not still on in the next one.
+        self.reset_toggle_keys();
         self.sleeping = None;
         self.sleep_timer = 0;
         self.player_beds.clear();
@@ -13202,6 +13232,7 @@ impl Game<'_> {
         let p = Vec3::new(at[0], at[1], at[2]);
         self.next_entity += 1;
         self.orbs.push(ExperienceOrb {
+            no_gravity: false,
             id: self.next_entity,
             position: p,
             previous: p,
