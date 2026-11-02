@@ -2855,7 +2855,14 @@ impl Game<'_> {
         state: i32,
         cancel: &mut bool,
     ) {
-        let _ = (player, name, state, cancel);
+        horizon_client::mod_api::dispatch_player_fish(
+            self,
+            horizon_client::mod_api::mods(),
+            player,
+            name,
+            state,
+            cancel,
+        );
     }
     /// A click in a menu a mod opened (`native_open_menu`), which moved
     /// nothing: the menu's `slot` (its own first, then the player's
@@ -3295,7 +3302,12 @@ impl Game<'_> {
     /// only hears: the change has already happened. Server-side. API
     /// @API:difficulty_changed@.
     pub(super) fn native_difficulty_changed(&mut self, from: &str, to: &str) {
-        let _ = (from, to);
+        horizon_client::mod_api::dispatch_difficulty_changed(
+            self,
+            horizon_client::mod_api::mods(),
+            from,
+            to,
+        );
     }
     /// Chunk `chunk` (`[x, z]`, in chunks) of `dimension` came into the world
     /// (NeoForge's `ChunkEvent.Load`): `new` when it was just generated, false
@@ -3761,7 +3773,15 @@ impl Game<'_> {
         amount: &mut i32,
         cancel: &mut bool,
     ) {
-        let _ = (player, name, item, amount, cancel);
+        horizon_client::mod_api::dispatch_item_damaged(
+            self,
+            horizon_client::mod_api::mods(),
+            player,
+            name,
+            item,
+            amount,
+            cancel,
+        );
     }
     /// `player` threw `count` of `item` (`Player.drop`: the drop key, a
     /// menu's throw...), not what scatters when they die. It only hears.
@@ -3790,7 +3810,13 @@ impl Game<'_> {
     /// included, and not for a stonecutter's, a smithing table's or a
     /// furnace's result. Server-side. API @API:item_crafted@.
     pub(super) fn native_item_crafted(&mut self, player: u128, recipe: &str, stack: &ItemStack) {
-        let _ = (player, recipe, stack);
+        horizon_client::mod_api::dispatch_item_crafted(
+            self,
+            horizon_client::mod_api::mods(),
+            player,
+            recipe,
+            stack,
+        );
     }
     /// Whether a mod hears `native_experience_orb_pickup`: set `listened`
     /// (a HEAD injection), or the server skips swapping the player in for it,

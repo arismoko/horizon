@@ -1144,7 +1144,8 @@ pub trait Hooks: Send + Sync {
     /// the clicked position, whether the clicked block is being replaced, the
     /// item in hand) and `fluid` the fluid in the position the block would go
     /// in, which a waterlogged block reads. Build the state from `state` with
-    /// `native_state_with_property`. It is asked for every placer that goes
+    /// `native_state_with_property`, and know whether `state` is yours with
+    /// `native_state_block`. It is asked for every placer that goes
     /// through vanilla's placement (a player's `BlockItem.place`, a
     /// dispenser's `DirectionalPlaceContext`), and the answer still takes its
     /// survival and entity obstruction checks. A trait mod returns
@@ -2453,6 +2454,17 @@ pub trait Hooks: Send + Sync {
         let _ = event;
         Flow::Continue
     }
+    /// The server's difficulty changed, from `from` to `to` (`peaceful`,
+    /// `easy`, `normal`, `hard`; NeoForge's `DifficultyChangeEvent`). It is
+    /// vanilla's `MinecraftServer.setDifficulty`, which `/difficulty`, a
+    /// dedicated server's management and a test environment's difficulty all
+    /// go through, and it is told only when the difficulty is another one. It
+    /// only hears: the change has already happened. Server-side. API
+    /// @API:difficulty_changed@.
+    fn difficulty_changed(&self, host: &mut dyn Host, event: &mut DifficultyChangedEvent<'_>) {
+        let _ = host;
+        let _ = event;
+    }
     /// Whether a mod hears `native_experience_orb_pickup`: set `listened`
     /// (a HEAD injection), or the server skips swapping the player in for it,
     /// and with this empty the pickup costs nothing more without mods.
@@ -2522,6 +2534,36 @@ pub trait Hooks: Send + Sync {
         let _ = event;
         None
     }
+    /// A player took a crafting grid's result (`ResultSlot.onTake`, NeoForge's
+    /// `PlayerEvent.ItemCraftedEvent`): `player` is the player's uuid, `recipe`
+    /// the recipe the grid matched (`minecraft:oak_planks`) and `stack` the
+    /// result it took, with its components. It only hears: the take has
+    /// already happened. It fires for the crafting grid of an inventory or a
+    /// crafting table, on the integrated server and a dedicated server, guests
+    /// included, and not for a stonecutter's, a smithing table's or a
+    /// furnace's result. Server-side. API @API:item_crafted@.
+    fn item_crafted(&self, host: &mut dyn Host, event: &mut ItemCraftedEvent<'_>) {
+        let _ = host;
+        let _ = event;
+    }
+    /// The item `item` of a server player is about to lose `amount` points of
+    /// durability (`ItemStack.hurtAndBreak`; Bukkit's `PlayerItemDamageEvent`):
+    /// the tool that mines or hits, the armour that takes a hit, a shield, a
+    /// rod, an elytra. `amount` is what is left after Unbreaking; change it
+    /// (0 or less leaves the item whole) or set `cancel` for no wear at all. It
+    /// is not heard for a creative player's tools (they take no wear) nor when
+    /// Unbreaking already saved the item, nor for the wear of a mob's armour or
+    /// of a tool a dispenser uses, nor the host of a LAN world. The player's
+    /// state is swapped in, so `native_acting_player`, `native_tell` and the
+    /// item helpers reach them. Once for each wear, on a server.
+    /// @API:native_item_damaged@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `cancel`, and later mods are skipped.
+    fn item_damaged(&self, host: &mut dyn Host, event: &mut ItemDamagedEvent<'_>) -> Flow {
+        let _ = host;
+        let _ = event;
+        Flow::Continue
+    }
     /// `player` (`name`) changed dimension (NeoForge's
     /// `PlayerChangedDimensionEvent`): `from` and `to` are dimension ids
     /// (`minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`).
@@ -2547,6 +2589,26 @@ pub trait Hooks: Send + Sync {
     ) {
         let _ = host;
         let _ = event;
+    }
+    /// A server player's fishing rod, with `state`: 0 the cast
+    /// (`FishingRodItem.use` throwing the bobber), 1 a fish biting
+    /// (`FishingHook.catchingFish`), 2 the reel-in of a bite, which gives the
+    /// catch, 3 the reel-in with nothing on the line, 4 the reel-in of a
+    /// bobber hooked to an entity or item (like Bukkit's `PlayerFishEvent`;
+    /// NeoForge's `ItemFishedEvent` is later, in `FishingHook.retrieve`). Set `cancel` on the cast and nothing
+    /// is thrown; on a bite the fish gets away and the wait starts over; on
+    /// a reel-in (2 to 4) nothing happens, the bobber stays out and the rod
+    /// takes no wear. The bobber ending by itself (too far, the rod put
+    /// away, the owner dying), nor the host of a LAN world's rod. The
+    /// player's state is swapped in, so `native_acting_player`, `native_tell`
+    /// and the item helpers reach them. Once for each cast, bite and reel-in,
+    /// on a server. @API:native_player_fish@.
+    ///
+    /// Return `Flow::Cancel` to take it: this sets `cancel`, and later mods are skipped.
+    fn player_fish(&self, host: &mut dyn Host, event: &mut PlayerFishEvent<'_>) -> Flow {
+        let _ = host;
+        let _ = event;
+        Flow::Continue
     }
     /// A server player's game mode is about to change (NeoForge's
     /// `PlayerChangeGameModeEvent`): from `from` to `to` (0 survival, 1
@@ -6897,6 +6959,23 @@ pub fn dispatch_player_toggle_flight(
         }
     }
 }
+/// What [`Hooks::difficulty_changed`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct DifficultyChangedEvent<'a> {
+    pub from: &'a str,
+    pub to: &'a str,
+}
+pub fn dispatch_difficulty_changed(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    from: &str,
+    to: &str,
+) {
+    let mut event = DifficultyChangedEvent { from, to };
+    for mod_hook in mods {
+        mod_hook.difficulty_changed(host, &mut event);
+    }
+}
 /// What [`Hooks::experience_orb_pickup_listened`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
 #[non_exhaustive]
 pub struct ExperienceOrbPickupListenedEvent {
@@ -7031,6 +7110,63 @@ pub fn dispatch_smoke_source(
         }
     }
 }
+/// What [`Hooks::item_crafted`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct ItemCraftedEvent<'a> {
+    pub player: u128,
+    pub recipe: &'a str,
+    pub stack: &'a ItemStack,
+}
+pub fn dispatch_item_crafted(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    recipe: &str,
+    stack: &ItemStack,
+) {
+    let mut event = ItemCraftedEvent {
+        player,
+        recipe,
+        stack,
+    };
+    for mod_hook in mods {
+        mod_hook.item_crafted(host, &mut event);
+    }
+}
+/// What [`Hooks::item_damaged`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct ItemDamagedEvent<'a> {
+    pub player: u128,
+    pub name: &'a str,
+    pub item: &'a str,
+    pub amount: i32,
+}
+pub fn dispatch_item_damaged(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    item: &str,
+    amount: &mut i32,
+    cancel: &mut bool,
+) {
+    if *cancel {
+        return;
+    }
+    let mut event = ItemDamagedEvent {
+        player,
+        name,
+        item,
+        amount: *amount,
+    };
+    for mod_hook in mods {
+        if matches!(mod_hook.item_damaged(host, &mut event), Flow::Cancel) {
+            *cancel = true;
+            break;
+        }
+    }
+    *amount = event.amount;
+}
 /// What [`Hooks::player_changed_dimension`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
 #[non_exhaustive]
 pub struct PlayerChangedDimensionEvent<'a> {
@@ -7055,6 +7191,36 @@ pub fn dispatch_player_changed_dimension(
     };
     for mod_hook in mods {
         mod_hook.player_changed_dimension(host, &mut event);
+    }
+}
+/// What [`Hooks::player_fish`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct PlayerFishEvent<'a> {
+    pub player: u128,
+    pub name: &'a str,
+    pub state: i32,
+}
+pub fn dispatch_player_fish(
+    host: &mut dyn Host,
+    mods: &[Box<dyn Hooks>],
+    player: u128,
+    name: &str,
+    state: i32,
+    cancel: &mut bool,
+) {
+    if *cancel {
+        return;
+    }
+    let mut event = PlayerFishEvent {
+        player,
+        name,
+        state,
+    };
+    for mod_hook in mods {
+        if matches!(mod_hook.player_fish(host, &mut event), Flow::Cancel) {
+            *cancel = true;
+            break;
+        }
     }
 }
 /// What [`Hooks::player_game_mode_changed`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
