@@ -10,12 +10,13 @@ server is slowed to one tick a second so both inputs land in one client tick.
 
 Cases: the swap and the click in one tick hit a pig 3.75 blocks away; the
 swap a tick before the click misses it (the mace's own pick reaches 3); a
-mace click at 2.25 blocks hits (the setup lands attacks at all). A pig inside
-the spear's 2 block minimum: with the floor behind it, the spear's pick ends
-on the floor (`getHitEntitiesAlong`'s block result), so the mace misses the
-pig; over a pit the spear's pick misses and the plain pick finds the pig. A
-stick given an `attack_range` does not attack a pig inside its minimum
-(`startAttack`).
+mace click at 2.25 blocks hits (the setup lands attacks at all). A pig
+hovering at eye height inside the spear's 2 block minimum (its box, with the
+0.125 margin, ends 1.475 along the ray): with a wall 3.5 away the spear's pick
+ends on the wall (`getHitEntitiesAlong`'s block result), so the mace misses
+the pig; with nothing behind it the spear's pick misses and the plain pick
+finds the pig. A stick given an `attack_range` does not attack that pig,
+inside its minimum (`startAttack`).
 Requires prepared resources and built horizon-client/horizon-ctl binaries.
 """
 import argparse
@@ -39,19 +40,19 @@ NAME = 'SwapTester'
 PIG = '@e[type=minecraft:pig,limit=1]'
 # Player at 0.5 80 0.5 looking east; the pig's near face is `distance` - 0.45
 # from the eyes' column.
-FLOOR = ['fill -3 70 -3 8 79 3 minecraft:stone']
-# Stone under the player and the pig only, air past 2 down to 70.
-PIT = ['fill -3 70 -3 8 79 3 minecraft:air', 'fill -3 79 -3 1 79 3 minecraft:stone']
+OPEN = ['fill 2 80 -3 8 84 3 minecraft:air']
+WALL = [*OPEN, 'fill 4 80 -3 4 84 3 minecraft:stone']
 SWAP = ['key 2 tap', 'mouse left click']
 APART = ['key 2 tap', 'wait 1', 'mouse left click']
+EYE = 81.62
 CASES = [
-    # (label, terrain, pig distance, look height, inputs, expected hit)
-    ('same-tick', FLOOR, 4.2, 80.45, SWAP, True),
-    ('tick-apart', FLOOR, 4.2, 80.45, APART, False),
-    ('mace-near', FLOOR, 2.7, 80.45, APART, True),
-    ('min-reach-floor', FLOOR, 1.0, 80.6, SWAP, False),
-    ('min-reach-pit', PIT, 1.0, 80.6, SWAP, True),
-    ('ranged-stick', PIT, 1.0, 80.6, ['key 3 tap', 'wait 1', 'mouse left click'], False),
+    # (label, terrain, pig distance, pig feet y, look height, inputs, expected hit)
+    ('same-tick', OPEN, 4.2, 80, 80.45, SWAP, True),
+    ('tick-apart', OPEN, 4.2, 80, 80.45, APART, False),
+    ('mace-near', OPEN, 2.7, 80, 80.45, APART, True),
+    ('min-reach-wall', WALL, 0.9, 80.8, EYE, SWAP, False),
+    ('min-reach-open', OPEN, 0.9, 80.8, EYE, SWAP, True),
+    ('ranged-stick', OPEN, 0.9, 80.8, EYE, ['key 3 tap', 'wait 1', 'mouse left click'], False),
 ]
 
 
@@ -109,11 +110,12 @@ def main():
                 server.console(line)
             game_time(server)
             ctl('wait', 20)
-            for label, terrain, distance, look, inputs, expected in CASES:
+            for label, terrain, distance, feet, look, inputs, expected in CASES:
                 server.console(f'kill {PIG}')
                 for line in terrain:
                     server.console(line)
-                server.console(f'summon minecraft:pig {0.5 + distance} 80 0.5 {{NoAI:1b,Silent:1b}}')
+                server.console(f'summon minecraft:pig {0.5 + distance} {feet} 0.5 '
+                               '{NoAI:1b,Silent:1b,NoGravity:1b}')
                 server.console(f'tp {NAME} 0.5 80 0.5 -90 0')
                 game_time(server)
                 ctl('key', '1', 'tap')
