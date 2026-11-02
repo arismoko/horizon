@@ -6,7 +6,6 @@
 //! those bytes for as long as one of them holds the [`Folder`], then it is
 //! gone (nothing is kept past the load).
 use std::{
-    collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, Weak},
