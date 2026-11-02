@@ -308,6 +308,10 @@ sends, saving...), the slowest ticks, how many entities of each type, chunks, pl
 settings that matter (view and simulation distance, max players). They hold no names, UUIDs or addresses, so you
 can attach them to an issue as they are. On the console it is `horizon-report [SECONDS]`.
 
+Between reports, the log keeps the spikes: a tick slower than 250 ms writes a `Horizon: slow tick` line with
+its phases (`HORIZON_SPIKES=MS` in the engine's environment sets another threshold), and a server more than
+two seconds behind says `Can't keep up!` as vanilla's does, at most every 15 seconds.
+
 `config set` changes `server.toml` without opening it: `horizon-server config set world.difficulty=hard
 server.max_players=10`. Each key is a section and a name from the file (`properties.spawn-protection=0` for any
 other vanilla key). The values are checked as the server checks them, and nothing is written if one is wrong.
@@ -385,7 +389,7 @@ Integrations → Webhooks → New Webhook → Copy Webhook URL, then:
 ```toml
 [discord]
 webhook = "https://discord.com/api/webhooks/..."   # a secret: whoever has it can post in the channel
-events = ["chat", "join", "leave", "death"]        # and "kick"
+events = ["chat", "join", "leave", "death"]        # and "kick", "announce" (lines native mods post)
 enabled = true                                     # false pauses it and keeps the webhook
 ```
 
@@ -458,8 +462,10 @@ read when the server starts. To turn it off again, set `enable-rcon = false`: ta
 `server.toml` leaves what `server.properties` already holds, as for any other key.
 
 Where it differs from vanilla: a connection that hasn't logged in within 30 seconds is closed, at most 16 are open
-at once, and a command a client's TCP splits in two still works. A command shows as the console's (`Server`, not
-`Rcon`), and `broadcast-rcon-to-ops` isn't honoured yet.
+at once, and a command a client's TCP splits in two still works.
+
+A command runs from a source named `Rcon`: operators in game see what it did as `[Rcon: ...]` (gray, italic) unless
+`broadcast-rcon-to-ops` is `false`, and a `say` shows as `[Rcon] ...`.
 
 ### Tools that read the query
 
