@@ -1,0 +1,85 @@
+pr_ready: 119 files changed since 6bbc718343; checks on local
+  Public tree...
+  Public tree: pass (0 s)
+  Python tests...
+  Python tests: pass (57 s)
+  rustfmt...
+  rustfmt: pass (12 s)
+  clippy...
+  clippy: pass (2 min 34 s)
+  tests: workspace...
+test mobs::armadillo::tests::two_armadillos_in_love_make_a_baby ... ok
+test motion::tests::resident_bubble_columns_and_nautilus_preserve_their_air_rules ... ok
+test random_tick_sections::tick_parity::actual_random_ticks_match_a_block_scan ... ok
+test motion::tests::a_server_copy_takes_its_new_scale_box_the_next_tick ... ok
+test mobs::armadillo::tests::a_baby_armadillo_follows_an_adult ... ok
+test mobs::ai::ridden_tests::the_server_leaves_a_horse_to_its_riders_client ... ok
+test motion::tests::a_passenger_stops_swimming_and_stands ... ok
+test lan::prediction::tests::attributes_sent_mid_sprint_are_played_as_the_client_takes_them ... ok
+test motion::tests::a_clients_own_fall_does_not_hurt_it ... ok
+test motion::tests::spectator_scroll_speed_controls_horizontal_and_vertical_flight ... ok
+test motion::tests::a_water_cauldron_puts_out_a_burning_player ... ok
+test motion::tests::slow_falling_clears_the_fall_distance_so_landing_does_not_hurt ... ok
+test motion::tests::resident_water_and_lava_are_not_treated_as_air ... ok
+test motion::tests::resident_fire_precedes_first_tick_lava_and_water_extinguishing ... ok
+test lan::prediction::tests::a_missed_push_counts_once ... ok
+test mobs::golem::created_golem_tests::a_golem_a_player_built_never_targets_one ... ok
+test mobs::phantom::tests::a_phantom_cannot_target_a_player_it_cannot_see ... ok
+test mod_content::tests::refuses_unknown_templates_and_vanilla_ids ... ok
+test mod_content::tests::a_replacing_mod_tag_reaches_the_root ... ok
+test mod_content::tests::listed_namespaces_join_the_root ... ok
+test mobs::ai::same_vehicle_push_tests::a_camel_and_its_rider_never_push_each_other ... ok
+test mod_content::tests::builds_past_sixteen_bit_states ... ok
+test mobs::camel::tests::a_camel_with_a_husk_on_its_back_never_sits_down ... ok
+test mobs::cube::golem_touch_tests::a_cube_touching_an_iron_golem_hurts_it ... ok
+
+failures:
+
+---- lan::tests::a_flood_of_silent_sockets_is_turned_away stdout ----
+
+thread 'lan::tests::a_flood_of_silent_sockets_is_turned_away' (40355) panicked at crates/horizon-client-lib/../horizon-client/src/lan/mod.rs:928:9:
+the socket past the limit should be closed
+
+
+failures:
+    lan::tests::a_flood_of_silent_sockets_is_turned_away
+
+test result: FAILED. 1151 passed; 1 failed; 37 ignored; 0 measured; 0 filtered out; finished in 405.53s
+
+error: test failed, to rerun pass `-p horizon-client-lib --lib`
+
+  tests: workspace: fail (10 min 41 s)
+  doc tests...
+  doc tests: pass (2 min 26 s)
+  content root tests...
+  content root tests: pass (4 min 45 s)
+  mod API up to date...
+  mod API up to date: pass (5 s)
+  tokens.css up to date...
+  tokens.css up to date: pass (0 s)
+  launcher rustfmt...
+  launcher rustfmt: pass (2 s)
+  launcher clippy...
+  launcher clippy: pass (48 s)
+  launcher tests...
+  launcher tests: pass (2 min 12 s)
+**pr_ready** (`tools/pr_ready.py --quick --base 6bbc718343` on f38957b0472c, against 6bbc718343 at 6bbc71834, 24 min 42 s)
+
+| Check | Result |
+| --- | --- |
+| Scope | ⚠️ 119 files, +1022 −305; 973 lines of code: over 500, split it if it can ship in parts; mixes CI, game |
+| Cargo.lock | ✅ changes with a Cargo.toml |
+| Public tree | ✅ |
+| Python tests | ✅ 536 passed (57 s) |
+| rustfmt | ✅ (12 s) |
+| clippy | ✅ (2 min 34 s) |
+| tests: workspace | ❌ 1853 passed, 1 failed (10 min 41 s) |
+| doc tests | ✅ 0 passed (2 min 26 s) |
+| content root tests | ✅ 21 passed (4 min 45 s) |
+| mod API up to date | ✅ (5 s) |
+| tokens.css up to date | ✅ |
+| launcher rustfmt | ✅ (2 s) |
+| launcher clippy | ✅ (48 s) |
+| launcher tests | ✅ 385 passed (2 min 12 s) |
+| Parity | ➖ 368 affected, to run in CI (--quick): active_effect_tick, active_effects, ambient_sound, anchor, arrow, attribute_health, attribute_map_queries, attribute, attribute_updates, audio_attributes, auto_jump, bamboo and 356 more |
+| Label | player-facing: `feature` if players get something new, no label for a fix (`release-now` if urgent) |
