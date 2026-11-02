@@ -869,7 +869,8 @@ impl GameLevel<'_> {
     /// the clicked position, whether the clicked block is being replaced, the
     /// item in hand) and `fluid` the fluid in the position the block would go
     /// in, which a waterlogged block reads. Build the state from `state` with
-    /// `native_state_with_property`. It is asked for every placer that goes
+    /// `native_state_with_property`, and know whether `state` is yours with
+    /// `native_state_block`. It is asked for every placer that goes
     /// through vanilla's placement (a player's `BlockItem.place`, a
     /// dispenser's `DirectionalPlaceContext`), and the answer still takes its
     /// survival and entity obstruction checks. A trait mod returns
@@ -2834,6 +2835,28 @@ impl Game<'_> {
     pub(super) fn native_perform_console_command(&mut self, command: &str, ran: &mut bool) {
         mod_api::dispatch_perform_console_command(self, mod_api::mods(), command, ran);
     }
+    /// A server player's fishing rod, with `state`: 0 the cast
+    /// (`FishingRodItem.use` throwing the bobber), 1 a fish biting
+    /// (`FishingHook.catchingFish`), 2 the reel-in of a bite, which gives the
+    /// catch, 3 the reel-in with nothing on the line, 4 the reel-in of a
+    /// bobber hooked to an entity or item (like Bukkit's `PlayerFishEvent`;
+    /// NeoForge's `ItemFishedEvent` is later, in `FishingHook.retrieve`). Set `cancel` on the cast and nothing
+    /// is thrown; on a bite the fish gets away and the wait starts over; on
+    /// a reel-in (2 to 4) nothing happens, the bobber stays out and the rod
+    /// takes no wear. The bobber ending by itself (too far, the rod put
+    /// away, the owner dying), nor the host of a LAN world's rod. The
+    /// player's state is swapped in, so `native_acting_player`, `native_tell`
+    /// and the item helpers reach them. Once for each cast, bite and reel-in,
+    /// on a server. @API:native_player_fish@.
+    pub(super) fn native_player_fish(
+        &mut self,
+        player: u128,
+        name: &str,
+        state: i32,
+        cancel: &mut bool,
+    ) {
+        let _ = (player, name, state, cancel);
+    }
     /// A click in a menu a mod opened (`native_open_menu`), which moved
     /// nothing: the menu's `slot` (its own first, then the player's
     /// inventory, `native_menu_inventory_slot`; -999 outside), the `button`
@@ -3263,6 +3286,16 @@ impl Game<'_> {
     /// 134.
     pub(super) fn native_level_unload(&mut self, dimension: &str) {
         mod_api::dispatch_level_unload(self, mod_api::mods(), dimension);
+    }
+    /// The server's difficulty changed, from `from` to `to` (`peaceful`,
+    /// `easy`, `normal`, `hard`; NeoForge's `DifficultyChangeEvent`). It is
+    /// vanilla's `MinecraftServer.setDifficulty`, which `/difficulty`, a
+    /// dedicated server's management and a test environment's difficulty all
+    /// go through, and it is told only when the difficulty is another one. It
+    /// only hears: the change has already happened. Server-side. API
+    /// @API:difficulty_changed@.
+    pub(super) fn native_difficulty_changed(&mut self, from: &str, to: &str) {
+        let _ = (from, to);
     }
     /// Chunk `chunk` (`[x, z]`, in chunks) of `dimension` came into the world
     /// (NeoForge's `ChunkEvent.Load`): `new` when it was just generated, false
@@ -3709,6 +3742,27 @@ impl Game<'_> {
     ) {
         mod_api::dispatch_loot_drops(self, mod_api::mods(), context, drops);
     }
+    /// The item `item` of a server player is about to lose `amount` points of
+    /// durability (`ItemStack.hurtAndBreak`; Bukkit's `PlayerItemDamageEvent`):
+    /// the tool that mines or hits, the armour that takes a hit, a shield, a
+    /// rod, an elytra. `amount` is what is left after Unbreaking; change it
+    /// (0 or less leaves the item whole) or set `cancel` for no wear at all. It
+    /// is not heard for a creative player's tools (they take no wear) nor when
+    /// Unbreaking already saved the item, nor for the wear of a mob's armour or
+    /// of a tool a dispenser uses, nor the host of a LAN world. The player's
+    /// state is swapped in, so `native_acting_player`, `native_tell` and the
+    /// item helpers reach them. Once for each wear, on a server.
+    /// @API:native_item_damaged@.
+    pub(super) fn native_item_damaged(
+        &mut self,
+        player: u128,
+        name: &str,
+        item: &str,
+        amount: &mut i32,
+        cancel: &mut bool,
+    ) {
+        let _ = (player, name, item, amount, cancel);
+    }
     /// `player` threw `count` of `item` (`Player.drop`: the drop key, a
     /// menu's throw...), not what scatters when they die. It only hears.
     /// Server-side. API 40.
@@ -3726,6 +3780,17 @@ impl Game<'_> {
         canceled: &mut bool,
     ) {
         mod_api::dispatch_item_picked_up(self, mod_api::mods(), player, item, count, canceled);
+    }
+    /// A player took a crafting grid's result (`ResultSlot.onTake`, NeoForge's
+    /// `PlayerEvent.ItemCraftedEvent`): `player` is the player's uuid, `recipe`
+    /// the recipe the grid matched (`minecraft:oak_planks`) and `stack` the
+    /// result it took, with its components. It only hears: the take has
+    /// already happened. It fires for the crafting grid of an inventory or a
+    /// crafting table, on the integrated server and a dedicated server, guests
+    /// included, and not for a stonecutter's, a smithing table's or a
+    /// furnace's result. Server-side. API @API:item_crafted@.
+    pub(super) fn native_item_crafted(&mut self, player: u128, recipe: &str, stack: &ItemStack) {
+        let _ = (player, recipe, stack);
     }
     /// Whether a mod hears `native_experience_orb_pickup`: set `listened`
     /// (a HEAD injection), or the server skips swapping the player in for it,
@@ -4417,6 +4482,14 @@ impl GameLevel<'_> {
     ) -> Option<BlockStateId> {
         with_property(self.registry, state, key, value)
     }
+    /// The block `state` is a state of (`BlockState.getBlock()`): its name,
+    /// `mymod:cable`. `native_state_for_placement` is asked for every block
+    /// placed and given the block's default state: compare this with your
+    /// block to answer only for it. None for an unknown state. API
+    /// @API:state_block@.
+    pub(super) fn native_state_block(&self, state: BlockStateId) -> Option<&str> {
+        self.registry.state(state).map(|s| &*s.name)
+    }
     /// This level's own random (vanilla's `Level.random`): the stream
     /// `native_level_random(dimension)` hands a server hook, for a world hook
     /// that draws as a vanilla block does (`isBonemealSuccess`), so the mod's
@@ -5033,6 +5106,12 @@ impl Game<'_> {
         stack: ItemStack,
     ) -> Option<ItemStack> {
         self.insert_stack_through(pos, face, stack)
+    }
+    /// The window's width and height in physical pixels, independent of GUI
+    /// scale; none on a server or when no window exists. API @API:physical_window_size@.
+    pub(super) fn native_physical_window_size(&self) -> Option<[u32; 2]> {
+        let size = self.window.as_ref()?.inner_size();
+        Some([size.width, size.height])
     }
     /// Where the mouse is, in GUI pixels. API 20.
     pub(super) fn native_cursor(&self) -> [f32; 2] {

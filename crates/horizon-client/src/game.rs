@@ -922,6 +922,9 @@ struct GameLevel<'w> {
     /// not a rocket boosting a player or a hook on an entity, whose ticks
     /// skip that step, nor a trident, which `tick_blocks` sweeps itself.
     trigger_projectiles: Vec<(Aabb, bool)>,
+    /// The lightning bolts here: none ignores block triggers
+    /// (`Entity.isIgnoringBlockTriggers`).
+    trigger_extras: Vec<Aabb>,
     biomes: &'w Biomes,
     seed: i64,
     behaviours: &'w Behaviours,
@@ -1001,6 +1004,18 @@ impl EntityObstructionWorld for BuildingObstruction {
             .collect())
     }
 }
+/// An entity's box (`EntityDimensions.makeBoundingBox`): `width` wide and
+/// `height` tall, standing on `feet`.
+fn point_box(feet: [f64; 3], width: f64, height: f64) -> Aabb {
+    Aabb::new(
+        Vec3::new(feet[0] - width / 2.0, feet[1], feet[2] - width / 2.0),
+        Vec3::new(
+            feet[0] + width / 2.0,
+            feet[1] + height,
+            feet[2] + width / 2.0,
+        ),
+    )
+}
 impl GameLevel<'_> {
     /// The living entities that trigger plates and tripwires and don't ignore
     /// block triggers (`Entity.isIgnoringBlockTriggers`: bats and marker armor
@@ -1060,6 +1075,7 @@ impl GameLevel<'_> {
                     .iter()
                     .map(move |p| square(p.position, p.kind.size())),
             )
+            .chain(self.trigger_extras.iter().copied())
     }
     /// `DetectorRailBlock.getAnalogOutputSignal`: a powered rail reads the
     /// minecart on it, a command block cart first (its success count), else the first container cart's fullness.
@@ -3735,13 +3751,16 @@ impl Game<'_> {
     /// Where a loot roll at `origin` happens, for a mod's own loot kinds:
     /// the block entity it may copy from, and this level as
     /// `LootContext.getLevel` gives it (`Level.isRaining`: rain above 0.2;
-    /// `isThundering`: thunder above 0.9).
+    /// `isThundering`: thunder above 0.9; neither where `canHaveWeather` is
+    /// false: a level with a ceiling or no sky light, or the End).
     fn loot_place_at(
         &self,
         origin: [f64; 3],
         block_entity: Option<horizon_world::nbt::Tag>,
     ) -> horizon_world::loot::NativeLootPlace {
         let (rain, thunder) = self.world.weather.levels(1.0);
+        // Level.canHaveWeather: the Nether has a ceiling, the End is the End.
+        let weather = self.dim == Dim::Overworld;
         horizon_world::loot::NativeLootPlace {
             origin: Some(origin),
             block_entity,
@@ -3749,8 +3768,8 @@ impl Game<'_> {
                 dimension: self.dim.id().to_owned(),
                 game_time: self.world.game_time,
                 day_time: self.world.day_time,
-                raining: rain > 0.2,
-                thundering: thunder > 0.9,
+                raining: weather && rain > 0.2,
+                thundering: weather && thunder > 0.9,
             }),
         }
     }
@@ -4191,6 +4210,12 @@ impl Game<'_> {
             )
             .collect();
         self.lan_hook_triggers(&mut trigger_projectiles);
+        // EntityType.LIGHTNING_BOLT: 0 x 0.
+        let trigger_extras: Vec<Aabb> = self
+            .bolts
+            .iter()
+            .map(|b| point_box(b.at, 0.0, 0.0))
+            .collect();
         let blockers = Blockers {
             mobs: &self.mobs,
             armor_stands: &self.armor_stands,
@@ -4210,6 +4235,7 @@ impl Game<'_> {
             orbs: &self.orbs,
             projectiles: &self.creatures.projectiles,
             trigger_projectiles,
+            trigger_extras,
             world: &mut self.world,
             facts: self.res.facts(),
             collision: self.collision,
@@ -10438,6 +10464,7 @@ impl Game<'_> {
             let mut crafted = 0;
             while let Some((recipe, result)) = self.craft_recipe() {
                 let made = (result.item.clone(), result.count);
+                let taken = result.clone();
                 let cells = self.craft_size * self.craft_size;
                 let ingredients = self.craft_grid[..cells].to_vec();
                 let remainders = world_recipes!(self).remainders(
@@ -10478,6 +10505,10 @@ impl Game<'_> {
                     }
                 }
                 crafted += 1;
+                // `ResultSlot.onTake`: the recipe and the stack taken
+                // (native_item_crafted).
+                let player = self.native_acting_id();
+                self.native_item_crafted(player, &format!("minecraft:{recipe}"), &taken);
                 self.stats.add("crafted", &made.0, made.1 as i32);
                 self.award_crafted(&[(format!("minecraft:{recipe}"), ingredients)]);
                 if !shift || crafted >= 64 {
@@ -10571,6 +10602,8 @@ impl Game<'_> {
         alpha: f64,
         mut out: Vec<Vertex>,
     ) -> Vec<Vertex> {
+        // Its steps as spans (HORIZON_SPIKES): each lap names the step that just ended.
+        let mut laps = horizon_client::spans::laps();
         self.entity_spans.borrow_mut().clear();
         self.entity_motion.borrow_mut().clear();
         // LevelExtractor.extract: the transient blocks queued since the last frame.
@@ -10586,6 +10619,7 @@ impl Game<'_> {
         } else {
             self.yaw
         };
+        laps.lap("eg_prep");
         for m in &self.mobs {
             // Blaze.isOnFire: a charged blaze burns.
             let blazing = m.species() == horizon_client::mobs::Species::Blaze && m.extra.flag;
@@ -10630,6 +10664,7 @@ impl Game<'_> {
                 &mut out,
             );
         }
+        laps.lap("eg_fire_mobs");
         for item in &self.dropped {
             if item.fire_ticks > 0
                 && !self
@@ -10654,6 +10689,7 @@ impl Game<'_> {
                 );
             }
         }
+        laps.lap("eg_fire_items");
         for stand in &self.armor_stands {
             if stand.fire_ticks > 0 && !stand.marker {
                 let scale = if stand.small { 0.5 } else { 1.0 };
@@ -10674,6 +10710,7 @@ impl Game<'_> {
                 );
             }
         }
+        laps.lap("eg_fire_stands");
         // `ItemEntityRenderer`.
         self.mark_entity(out.len(), "minecraft:item");
         self.dropped_item_geometry(camera, alpha, &mut out);
@@ -10688,9 +10725,11 @@ impl Game<'_> {
         self.shelf_geometry(camera, &mut out);
         self.mark_entity(out.len(), "minecraft:ominous_item_spawner");
         self.ominous_item_spawner_geometry(camera, alpha, &mut out);
+        laps.lap("eg_items_misc");
         // Mobs and their projectiles (a span each).
         self.mob_geometry(camera, alpha, &mut out);
         self.mark_motion(out.len(), 0);
+        laps.lap("eg_mobs");
         // In first person only a shader pack's shadow pass draws the player.
         self.mark_player(out.len(), !self.own_body_in_view());
         let player_start = out.len();
@@ -10707,6 +10746,7 @@ impl Game<'_> {
         self.mark_entity(out.len(), "minecraft:evoker_fangs");
         self.fangs_geometry(camera, alpha, &mut out);
         self.block_item_display_geometry(camera, alpha, &mut out);
+        laps.lap("eg_players");
         let mut see_through = std::mem::take(&mut self.see_through_vertices);
         see_through.clear();
         self.name_tag_geometry(camera, alpha, &mut out, &mut see_through);
@@ -10714,6 +10754,7 @@ impl Game<'_> {
         self.debug_renderer_geometry(camera, &mut out);
         self.text_display_geometry(camera, alpha, &mut out, &mut see_through);
         self.see_through_vertices = see_through;
+        laps.lap("eg_name_tags");
         // Entity shadows (EntityRenderer.extractShadow).
         self.mark_translucent_entity(out.len(), "minecraft:entity_shadow");
         // A native shader pack's sun shadows already fall under the entities in the Overworld:
@@ -10779,6 +10820,7 @@ impl Game<'_> {
                 );
             }
         }
+        laps.lap("eg_shadows");
         // Block entities (BlockEntityRenderers): chests, shulker boxes, banners, skulls...
         if let Some(r) = &self.renderer {
             let lid = |p: [i32; 3]| self.chest_lid(p, alpha as f32);
@@ -10875,6 +10917,7 @@ impl Game<'_> {
                     .render_breaking(&scene, pos, state.0, stage, &mut out);
             }
         }
+        laps.lap("eg_block_entities");
         // Experience orbs (ExperienceOrbRenderer): pulsing billboards from a 4x4 icon sheet.
         self.mark_entity(out.len(), "minecraft:experience_orb");
         if let Some(r) = self
@@ -10944,6 +10987,7 @@ impl Game<'_> {
                 }
             }
         }
+        laps.lap("eg_orbs");
         // Falling blocks use their baked model, including non-cubic shapes.
         self.mark_entity(out.len(), "minecraft:falling_block");
         for f in &self.falling {
@@ -11008,6 +11052,7 @@ impl Game<'_> {
         self.rocket_geometry(camera, alpha, &mut out);
         self.mark_entity(out.len(), "minecraft:splash_potion");
         self.thrown_potion_geometry(camera, alpha, &mut out);
+        laps.lap("eg_objects");
         // Particles (ParticleEngine.extract): camera-facing quads.
         self.mark_stage(out.len(), "PARTICLES");
         let world = &self.world;
@@ -11019,6 +11064,7 @@ impl Game<'_> {
             &|b| world.light(b[0], b[1], b[2]),
             &mut out,
         );
+        laps.lap("eg_particles");
         // Breaking progress overlays (destroy_stage_0..9): ours and the other players'.
         self.mark_stage(out.len(), "DESTROY");
         for &(pos, stage) in &cracks {
@@ -11049,7 +11095,9 @@ impl Game<'_> {
                 }
             }
         }
+        laps.lap("eg_cracks");
         self.finish_async_entity_culling();
+        laps.lap("eg_culling_finish");
         out
     }
 
@@ -13812,7 +13860,12 @@ impl Game<'_> {
                     4,
                 )
             };
-            let state = self.resolve_item(&stack, context, Some(&owner), seed);
+            let cit_hand = if hand == Hand::Off {
+                horizon_client::cit::Hand::Off
+            } else {
+                horizon_client::cit::Hand::Main
+            };
+            let state = self.resolve_item_in_hand(&stack, context, Some(&owner), seed, cit_hand);
             let light = self.world.light(
                 eye[0].floor() as i32,
                 eye[1].floor() as i32,
@@ -17645,8 +17698,9 @@ impl Game<'_> {
                                 | KeyCode::ArrowUp
                                 | KeyCode::ArrowDown),
                             ) => {
+                                let shift = self.has_shift_down();
                                 if let Some(t) = self.title.as_mut() {
-                                    t.arrow_key(key, (w, h));
+                                    t.arrow_key(key, (w, h), shift);
                                 }
                             }
                             PhysicalKey::Code(KeyCode::Backspace) => self.title_edit(None, true),
@@ -19745,6 +19799,10 @@ fn build_renderer(
     renderer
         .hud
         .set_text_shader(&renderer.device, atlas.text_shader.as_deref());
+    let cit_glints = pack.item_renderer.cit.as_ref().map(|c| &c.glint_textures);
+    renderer
+        .hud
+        .set_cit_glints(&renderer.device, &renderer.queue, cit_glints);
     Ok(renderer)
 }
 
