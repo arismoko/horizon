@@ -74,6 +74,24 @@ pub fn main_with(mods: crate::mod_api::Mods) {
                     components,
                 );
             },
+            loot_function: |kind, data, ctx, stack| {
+                crate::mod_api::dispatch_loot_function(
+                    crate::mod_api::mods(),
+                    kind,
+                    data,
+                    ctx,
+                    stack,
+                );
+            },
+            loot_condition: |kind, data, ctx, holds| {
+                crate::mod_api::dispatch_loot_condition(
+                    crate::mod_api::mods(),
+                    kind,
+                    data,
+                    ctx,
+                    holds,
+                );
+            },
         },
     )
     .is_err()
