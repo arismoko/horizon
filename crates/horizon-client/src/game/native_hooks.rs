@@ -2768,25 +2768,6 @@ impl Game<'_> {
     ) {
         let _ = (player, name, kind, pos, cancel);
     }
-    /// A hanging entity is about to break: an item frame
-    /// (`minecraft:item_frame`, `minecraft:glow_item_frame`) or a painting
-    /// (`minecraft:painting`) at `pos` (the block it takes), hit by a player
-    /// (`player`, who is swapped in when a server's guest, so `native_tell`
-    /// answers them), blown up, or left without its wall (`player` is None).
-    /// Where `HangingEntity`'s `hurtServer` kills it, before it drops. A frame
-    /// holding an item loses the item first, which is not a break and not
-    /// heard. Set `cancel` and it stays. Not heard: `/kill`, a leash knot, and
-    /// what mobs or projectiles do to a frame. Server-side and in single
-    /// player. @API:native_hanging_break@.
-    pub(super) fn native_hanging_break(
-        &mut self,
-        player: Option<u128>,
-        kind: &str,
-        pos: [i32; 3],
-        cancel: &mut bool,
-    ) {
-        let _ = (player, kind, pos, cancel);
-    }
     /// A server player empties a bucket at `pos` (`fluid`: `minecraft:water`,
     /// `minecraft:lava`, `minecraft:powder_snow`; a fish or axolotl bucket
     /// empties `minecraft:water`): where `BucketItem.use` has found the block
