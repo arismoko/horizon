@@ -2789,39 +2789,6 @@ impl Game<'_> {
     ) {
         let _ = (player, name, from, to, dimension);
     }
-    /// A command a player typed (NeoForge's `CommandEvent`, before
-    /// `Commands.performCommand` runs it), without its slash: any command,
-    /// vanilla's and the mods' own, also one the player may not run. Set
-    /// `canceled` to stop it: nothing runs and nothing is answered but the
-    /// lines pushed to `replies`, which go to the player as system chat.
-    /// No player's state is swapped in and the server's player list is busy
-    /// with this one, so `native_tell` and the other helpers that take a UUID
-    /// reach nobody here: answer through `replies`. Once for each command a
-    /// player sends, on a server, and for each line of a quiet command batch
-    /// (`horizon:quiet_commands`, whose replies are dropped). A command the
-    /// server refuses before reading it (unsigned chat arguments, the chat
-    /// rate limit) never reaches it. @API:native_player_command@.
-    pub(super) fn native_player_command(
-        &mut self,
-        player: u128,
-        name: &str,
-        command: &str,
-        canceled: &mut bool,
-        replies: &mut Vec<Text>,
-    ) {
-        let _ = (player, name, command, canceled, replies);
-    }
-    /// A command a mod registered, typed on the dedicated server's console
-    /// or sent through `horizon-server console`
-    /// (`DedicatedServer.handleConsoleInputs`), without its slash: set `ran`
-    /// when it is yours. There is no player: the source is the console, at
-    /// permission level 4, so `native_acting_player` is None and the
-    /// player-only helpers give nothing; `native_feedback` answers on the
-    /// console. A name no mod registered goes to vanilla's dispatcher as
-    /// before. @API:native_perform_console_command@.
-    pub(super) fn native_perform_console_command(&mut self, command: &str, ran: &mut bool) {
-        let _ = (command, ran);
-    }
     /// The command tree a server sends a player (NeoForge's and Paper's
     /// "commands sent to a player" stage): when they join and when their
     /// level changes (`/op`, `/deop`, the LAN settings). `names` are the
