@@ -8549,8 +8549,9 @@ impl Renderer {
         if let Some(radius) = menu_blur {
             let format = self.config.format;
             let device = &self.device;
+            let software = is_software(self.info.device_type);
             self.menu_blur
-                .get_or_insert_with(|| crate::menu_blur::MenuBlur::new(device, format))
+                .get_or_insert_with(|| crate::menu_blur::MenuBlur::new(device, format, software))
                 .apply(
                     &self.device,
                     &self.queue,
