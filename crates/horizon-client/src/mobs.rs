@@ -70,6 +70,7 @@ pub mod raider;
 pub mod random_textures;
 pub mod ravager;
 pub mod render;
+pub mod skin;
 pub mod riders;
 pub mod seen_grid;
 pub mod shulker;
