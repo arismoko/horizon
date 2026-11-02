@@ -482,6 +482,7 @@
   "Running {name}'s post-build step": "{name} derleme sonrası adımı çalıştırılıyor",
   "Installing the build": "Derleme yükleniyor",
   "Release build: slower to build, slightly faster game": "Sürüm derlemesi: daha yavaş derlenir, oyun biraz daha hızlı",
+  "Performance build": "Performans derlemesi",
   "Dev build": "Geliştirme derlemesi",
   "Release build": "Sürüm derlemesi",
   "The everyday build for playing with mods": "Modlarla oynamak için günlük derleme",

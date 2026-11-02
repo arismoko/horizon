@@ -1513,7 +1513,7 @@ impl Launcher {
         let picker = segments(
             "native-profile",
             &[
-                (native_mods::Profile::Default, "Default"),
+                (native_mods::Profile::Performance, "Performance build"),
                 (native_mods::Profile::Dev, "Dev build"),
                 (native_mods::Profile::Release, "Release build"),
             ],
@@ -1533,16 +1533,13 @@ impl Launcher {
             },
         );
         let said = match profile {
-            native_mods::Profile::Default => tr("The everyday build for playing with mods").into(),
+            native_mods::Profile::Performance => tr("The everyday build for playing with mods"),
             native_mods::Profile::Dev => {
                 tr("For developing a mod: quickest to rebuild, the game runs about twice as slow")
-                    .into()
             }
             native_mods::Profile::Release => {
-                tr("Release build: slower to build, slightly faster game").into()
+                tr("Release build: slower to build, slightly faster game")
             }
-            // An experimental one, named only by the environment or `--profile`.
-            other => format!("{} ({})", other.name(), native_mods::PROFILE_ENV),
         };
         detail = detail.child(
             div()

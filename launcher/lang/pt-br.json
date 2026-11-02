@@ -482,6 +482,7 @@
   "Running {name}'s post-build step": "Executando a etapa pós-compilação de {name}",
   "Installing the build": "Instalando a compilação",
   "Release build: slower to build, slightly faster game": "Compilação release: mais lenta para compilar, jogo um pouco mais rápido",
+  "Performance build": "Compilação de desempenho",
   "Dev build": "Compilação dev",
   "Release build": "Compilação release",
   "The everyday build for playing with mods": "A build do dia a dia para jogar com mods",

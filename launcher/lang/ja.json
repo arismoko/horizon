@@ -482,6 +482,7 @@
   "Running {name}'s post-build step": "{name} のビルド後ステップを実行中",
   "Installing the build": "ビルドをインストール中",
   "Release build: slower to build, slightly faster game": "リリースビルド：ビルドは遅く、ゲームは少し速くなります",
+  "Performance build": "パフォーマンスビルド",
   "Dev build": "開発ビルド",
   "Release build": "リリースビルド",
   "The everyday build for playing with mods": "Mod で遊ぶための普段使いのビルド",

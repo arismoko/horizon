@@ -798,11 +798,10 @@ enum Cmd {
         /// Build mods made for different Horizon versions together anyway, on the newest of them
         #[arg(long)]
         allow_version_mismatch: bool,
-        /// The build profile: default, dev (quickest to rebuild a mod, slow game) or release (the release's
-        /// own, thin LTO: slowest to build); performance, balanced and fast-rebuild are
-        /// experimental (docs/native-mods.md). Default: HORIZON_LAUNCHER_NATIVE_PROFILE, else the
-        /// native-profile setting
-        #[arg(long, value_parser = ["default", "dev", "release", "performance", "balanced", "fast-rebuild"])]
+        /// The build profile: performance (the default: incremental, quick to rebuild), dev (quickest
+        /// to rebuild a mod, slow game) or release (thin LTO: slowest to build, slightly faster
+        /// game). Default: the native-profile setting
+        #[arg(long, value_parser = ["performance", "dev", "release"])]
         profile: Option<String>,
     },
     /// Show a release's patch notes (default: the newest)
@@ -822,9 +821,9 @@ enum Cmd {
     /// ("default" removes it), while-playing stay|minimize|hide (what the window does while the game runs), language
     /// system|en|fr|ru|de|zh|es|uk|pl (the window's language; system follows the computer's), accent
     /// violet|blue|teal|green|amber|red|pink, background PATH (a picture behind Home; "default"
-    /// shows Horizon's landscape), native-profile default|dev|release (the profile native mods
-    /// build with: dev rebuilds a mod quickest for a slow game, release is the release's own and slowest
-    /// to build)
+    /// shows Horizon's landscape), native-profile performance|dev|release (the profile native
+    /// mods build with: performance is incremental, dev rebuilds a mod quickest for a slow game,
+    /// release is slowest to build and slightly faster to play)
     Settings {
         #[arg(value_parser = SETTING_KEYS)]
         key: Option<String>,
@@ -1049,10 +1048,14 @@ fn set_setting(s: &mut backend::Settings, key: &str, value: &str) -> Result<(), 
             }
         }
         "native-profile" => {
-            let profile = native_mods::Profile::parse(value)
-                .filter(|p| native_mods::Profile::ALL.contains(p))
-                .ok_or_else(|| format!("{value}: say default, dev or release"))?;
-            s.native_profile = Some(profile);
+            // "default", as for the other settings, goes back to `performance`.
+            s.native_profile = match value {
+                "default" => None,
+                _ => Some(
+                    native_mods::Profile::parse(value)
+                        .ok_or_else(|| format!("{value}: say performance, dev or release"))?,
+                ),
+            };
             s.native_release = false;
         }
         "proxy" => {
