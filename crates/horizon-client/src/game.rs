@@ -1931,9 +1931,22 @@ impl UiResources {
     /// From a resource root layering packs over `defaults`, the game's own
     /// resources (`root` itself when no pack is on).
     pub fn load(root: &std::path::Path, defaults: &std::path::Path) -> Result<Self> {
-        Ok(Self {
-            atlas: HudAtlas::build_over(root, defaults)?,
-            panorama: Arc::new(horizon_client::gfx::panorama::Faces::load(root, defaults)),
+        // The title screen waits for both: the panorama's six faces decode
+        // beside the atlas.
+        std::thread::scope(|scope| {
+            let panorama = scope.spawn(|| {
+                startup::time("ui.panorama", || {
+                    horizon_client::gfx::panorama::Faces::load(root, defaults)
+                })
+            });
+            let atlas = startup::time("ui.atlas", || HudAtlas::build_over(root, defaults));
+            let panorama = panorama
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+            Ok(Self {
+                atlas: atlas?,
+                panorama: Arc::new(panorama),
+            })
         })
     }
     /// What a server's game holds, since it draws nothing: the font, which books
@@ -19303,7 +19316,6 @@ fn load_resources(
     let parallel = threads > 1;
     let mut offer = |ui: UiResources, root: &std::path::Path| {
         if menu {
-            horizon_client::telemetry::mark_ui_ready();
             log::info!(
                 "Horizon: UI bundle ready after {} ms",
                 started.elapsed().as_millis()
@@ -19409,23 +19421,6 @@ fn load_resources(
             started.elapsed().as_millis()
         );
     }
-    // Finish fallible CPU preparation before starting the tail, so an error
-    // cannot detach a tail worker that races the next pack-loader generation.
-    let prepared_at = Instant::now();
-    let game_cpu = menu
-        .then(|| startup::time("handoff.game_cpu", || GameCpuResources::load(&root)))
-        .transpose()?;
-    let renderer_cpu = menu.then(|| {
-        startup::time("handoff.renderer_textures", || {
-            prepare_renderer_textures(&pack)
-        })
-    });
-    if menu {
-        log::info!(
-            "Horizon: handoff CPU resources prepared on worker in {} ms",
-            prepared_at.elapsed().as_millis()
-        );
-    }
     // The block entity renderer's face visibility: the meshes' own, whose
     // shapes already hold their faces, not a second load of the same tables.
     let visibility = pack.context.tables.visibility.clone();
@@ -19483,6 +19478,37 @@ fn load_resources(
             .set(rest)
             .map_err(|_| "world resources already loaded")?;
         None
+    };
+    // The world tables load (above) while the handoff's CPU work is done: the
+    // world renderer's textures beside the game's own tables. A failure here
+    // waits for the tail, so no tail worker outlives its pack-loader generation.
+    let prepared_at = Instant::now();
+    let (game_cpu, renderer_cpu) = if menu {
+        let (game_cpu, renderer_cpu) = std::thread::scope(|scope| {
+            let textures = Step::spawn(scope, parallel, || {
+                startup::time("handoff.renderer_textures", || {
+                    prepare_renderer_textures(&pack)
+                })
+            });
+            let game_cpu = startup::time("handoff.game_cpu", || GameCpuResources::load(&root));
+            (game_cpu, textures.join())
+        });
+        let game_cpu = match game_cpu {
+            Ok(game_cpu) => game_cpu,
+            Err(error) => {
+                if let Some(tail) = rest_loader {
+                    let _ = tail.handle.join();
+                }
+                return Err(error);
+            }
+        };
+        log::info!(
+            "Horizon: handoff CPU resources prepared on worker in {} ms",
+            prepared_at.elapsed().as_millis()
+        );
+        (Some(game_cpu), Some(renderer_cpu))
+    } else {
+        (None, None)
     };
     Ok(Loaded {
         game_cpu,
@@ -20102,10 +20128,26 @@ struct Loading {
     delivered: bool,
     handle: Option<JoinHandle<()>>,
     shown: bool,
+    /// When the menu bundle arrived (`set_ui`), and whether a title frame with
+    /// it was presented since: the world renderer waits for that frame
+    /// (`ready_for_handoff`).
+    ui_at: Option<Instant>,
+    title_drawn: bool,
     menu: startup_menu::StartupMenu,
     error: Option<Box<dyn std::error::Error>>,
 }
+/// How long the handoff waits for the first title frame before building the
+/// world renderer anyway (a hidden window may never be asked to redraw).
+const TITLE_FRAME_WAIT: Duration = Duration::from_secs(1);
 impl Loading {
+    /// The world renderer is built on the main thread, so building it before
+    /// the title is on the screen holds the title back by that build. Wait for
+    /// one title frame first, unless a world is waiting to open.
+    fn ready_for_handoff(&self) -> bool {
+        self.title_drawn
+            || self.menu.pending.is_some()
+            || self.ui_at.is_none_or(|at| at.elapsed() >= TITLE_FRAME_WAIT)
+    }
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() {
             return;
@@ -20216,6 +20258,7 @@ impl Loading {
         );
         self.menu.set_root(root, &self.settings);
         self.gui = Some(gui);
+        self.title_drawn = false;
         horizon_client::ui_theme::reset_atlas();
         self.apply_menu_settings();
         let Some(window) = self.window.clone() else {
@@ -20241,6 +20284,8 @@ impl Loading {
             }
             Err(e) => self.error = Some(e),
         }
+        // The title frame's wait starts once its renderer is built.
+        self.ui_at = Some(Instant::now());
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         // The loop may run once more after exit(): keep the first error, the
@@ -20287,6 +20332,7 @@ impl Loading {
         if let Some(renderer) = &mut self.renderer {
             match renderer.render(&frame) {
                 Ok(true) if self.gui.is_some() && self.menu.pending.is_none() => {
+                    self.title_drawn = true;
                     self.menu.perf.title_shown()
                 }
                 Ok(_) => {}
@@ -20424,7 +20470,7 @@ impl ApplicationHandler for App {
                     event_loop.exit();
                     return;
                 }
-                match if loading.menu.reload_packs {
+                match if loading.menu.reload_packs || !loading.ready_for_handoff() {
                     None
                 } else {
                     loading.loaded.take()
@@ -20508,6 +20554,8 @@ fn run_loading(
         delivered: false,
         handle: Some(loader),
         shown: false,
+        ui_at: None,
+        title_drawn: false,
         menu,
         error: None,
     };
