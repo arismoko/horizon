@@ -415,6 +415,8 @@
   "Playing offline": "Гра офлайн",
   "Sign in to Tailscale": "Увійти в Tailscale",
   "Offline names without an account": "Офлайн-імена без облікового запису",
+  "Faster mod builds (dev profile)": "Швидше збирання модів (профіль dev)",
+  "Mod edits rebuild about 6× faster; the game runs slower.": "Зміни модів перезбираються приблизно в 6 разів швидше; гра працює повільніше.",
   "Help make Horizon faster and steadier?": "Help make Horizon faster and steadier?",
   "Sign in to play": "Увійдіть, щоб грати",
   "Ported": "Ported",

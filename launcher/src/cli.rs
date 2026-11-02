@@ -2257,6 +2257,9 @@ fn github_native(
         settings.save();
     }
     println!("Build it next: horizon-launcher native-build --trust-native-code");
+    println!(
+        "Developing a mod? horizon-launcher settings native-profile dev (or native-build --profile dev): a mod edit rebuilds about 6× faster, while game logic runs up to about twice as slow. Use it while developing, not for playing."
+    );
     Ok(())
 }
 

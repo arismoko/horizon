@@ -586,6 +586,8 @@
   "{name} is on.": "{name} está ativado.",
   "The frame time, CPU and GPU overlay.": "O overlay de tempo de quadro, CPU e GPU.",
   "Offline names without an account": "Nomes offline sem uma conta",
+  "Faster mod builds (dev profile)": "Compilações de mods mais rápidas (perfil dev)",
+  "Mod edits rebuild about 6× faster; the game runs slower.": "Alterações em mods recompilam cerca de 6× mais rápido; o jogo fica mais lento.",
   "{name} is off.": "{name} está desativado.",
   "Copying…": "Copiando…",
   "Name": "Nome",

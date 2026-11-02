@@ -415,6 +415,8 @@
   "Playing offline": "离线游玩中",
   "Sign in to Tailscale": "登录 Tailscale",
   "Offline names without an account": "无账户使用离线名称",
+  "Faster mod builds (dev profile)": "更快的模组构建（dev 配置）",
+  "Mod edits rebuild about 6× faster; the game runs slower.": "模组修改的重新构建快约 6 倍；游戏运行会变慢。",
   "Help make Horizon faster and steadier?": "Help make Horizon faster and steadier?",
   "Sign in to play": "登录以开始游戏",
   "Ported": "Ported",
