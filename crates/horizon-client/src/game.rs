@@ -2676,6 +2676,10 @@ struct Game<'a> {
     cart_models: minecarts::CartModels,
     /// The boat the player rides.
     riding: Option<u32>,
+    /// The mount the last `position_rider` put the player on, to tell the tick
+    /// a seat is taken (`Entity.moveTo`, no camera sweep) from the ones that
+    /// follow it (`positionRider`, interpolated as usual).
+    posed_rider: Option<u32>,
     /// The vehicle the player's file names, waiting for it to be in the world
     /// (`ServerPlayer.loadAndSpawnParentVehicle`).
     pending_vehicle: Option<[i32; 4]>,
@@ -7149,6 +7153,11 @@ impl Game<'_> {
             self.tick_riding(keys)?;
         }
         let riding = self.riding.is_some();
+        // A seat that is given up is taken again as a new one: the next mount
+        // snaps the camera even when it is the same vehicle.
+        if !riding {
+            self.posed_rider = None;
+        }
         let entity_collisions = self.player_entity_collisions();
         let spin_targets = self.spin_targets();
         let sprint_window = self.settings.sprint_window;
@@ -18436,6 +18445,7 @@ impl<'a> Game<'a> {
             trim_slots: Vec::new(),
             cart_models: prepared.cart_models,
             riding: None,
+            posed_rider: None,
             pending_vehicle: None,
             ender_items: vec![None; 27],
             ender_open: None,
