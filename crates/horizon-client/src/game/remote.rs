@@ -8181,9 +8181,23 @@ impl Game<'_> {
             self.stop_remote_mining();
         }
         if !ready {
+            // A screen's opening released the keys (`KeyMapping.releaseAll`).
+            self.hotbar_presses.clear();
             return;
         }
         // MultiPlayerGameMode.tick syncs the carried slot before keybinds.
+        self.remote_send_carried();
+        let (attack, use_item) = (self.left, self.right);
+        input.tick(&mut RemoteInputWorld(self), attack, use_item);
+        self.remote_queued_keys();
+        if let Some(r) = self.remote.as_mut() {
+            r.input = input;
+        }
+    }
+
+    /// `MultiPlayerGameMode.ensureHasSentCarriedItem`: the server hears of a
+    /// new selected slot before anything the slot acts with.
+    fn remote_send_carried(&mut self) {
         let carried_changed = self.remote.as_mut().is_some_and(|r| {
             if r.carried == Some(self.selected) {
                 false
@@ -8197,8 +8211,9 @@ impl Game<'_> {
                 slot: self.selected as i16,
             }));
         }
-        let (attack, use_item) = (self.left, self.right);
-        input.tick(&mut RemoteInputWorld(self), attack, use_item);
+    }
+
+    fn remote_queued_keys(&mut self) {
         // handleKeybinds' keybind polls: the queued presses act now, in tick
         // order, so no packet goes out between CLIENT_TICK_END and a pong.
         let pending = self
@@ -8228,9 +8243,6 @@ impl Game<'_> {
         }
         if self.clicks.miss_time > 0 {
             self.clicks.miss_time -= 1;
-        }
-        if let Some(r) = self.remote.as_mut() {
-            r.input = input;
         }
     }
 
@@ -9836,10 +9848,12 @@ impl horizon_client::interaction_input::TargetUseWorld for RemoteUseWorld<'_, '_
 
 impl horizon_client::interaction_input::InteractionWorld for RemoteInputWorld<'_, '_> {
     fn pick_hit_result(&mut self) {
-        self.0.tick_hit = Some(self.0.pick());
+        self.0.pick_tick_targets();
+        // The attack or use a number key's slot makes sends the slot first.
+        self.0.remote_send_carried();
     }
     fn release_hit_result(&mut self) {
-        self.0.tick_hit = None;
+        self.0.release_tick_targets();
     }
     fn using_item(&self) -> bool {
         self.0.using.is_some()

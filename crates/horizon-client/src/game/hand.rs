@@ -205,6 +205,67 @@ impl Game<'_> {
         self.attack_ticks = 0;
         self.hand_strength.reset();
     }
+    /// `Minecraft.tick`'s `pick`, then `handleKeybinds`' number keys: the
+    /// tick's clicks act on what the item held before the keys picked (a
+    /// spear's 4.5 blocks), with the item the keys select (attribute
+    /// swapping a spear's reach onto a mace).
+    pub(super) fn pick_tick_targets(&mut self) {
+        self.tick_hit = Some(self.pick());
+        self.tick_mob = None;
+        let mob = self
+            .active_attack_range()
+            .and_then(|range| self.attack_range_mob_hit(&range))
+            .or_else(|| self.mob_hit());
+        self.tick_mob = Some(mob);
+        for slot in std::mem::take(&mut self.hotbar_presses) {
+            self.selected = slot;
+        }
+    }
+    /// The tick's clicks are done: later picks follow the crosshair again.
+    pub(super) fn release_tick_targets(&mut self) {
+        self.tick_hit = None;
+        self.tick_mob = None;
+    }
+    /// `LocalPlayer.raycastHitResult`'s item (`getActiveItem`: the one in
+    /// use, else the main hand's) `attack_range` component.
+    fn active_attack_range(&self) -> Option<serde_json::Value> {
+        let active = self
+            .using
+            .and_then(|(slot, _)| self.inventory.get(slot).and_then(Option::as_ref))
+            .or_else(|| self.held())?;
+        self.pack
+            .item_renderer
+            .models
+            .components(&horizon_client::item_render::stack_view(active))
+            .get("minecraft:attack_range")
+            .cloned()
+    }
+    /// `AttackRange.getClosesetHit` against the mobs `mob_hit` can pick
+    /// (`EntitySelector.CAN_BE_PICKED`): the nearest one hit within the
+    /// item's reach, none on a miss or a block first.
+    fn attack_range_mob_hit(&self, range: &serde_json::Value) -> Option<(usize, f64)> {
+        let eye = v3(self.eye_position()?);
+        let look = v3(super::view_vector(self.yaw, self.pitch));
+        let reach = attack_reach(range, self.creative);
+        let camera = self.remote_camera_id();
+        let boxes: Vec<(usize, Aabb)> = (self.mobs.iter().enumerate())
+            .filter(|(_, m)| !m.removed && Some(m.id) != self.riding && Some(m.id) != camera)
+            .map(|(i, m)| (i, m.bounds()))
+            .collect();
+        let clip = |from: Vec3, to: Vec3| {
+            let length = from.distance_squared(to).sqrt();
+            let d = to.subtract(from).scale(1.0 / length);
+            (length > 0.0)
+                .then(|| self.clip_ray([from.x, from.y, from.z], [d.x, d.y, d.z], length))
+                .flatten()
+                .map(|hit| Vec3::new(hit.point[0], hit.point[1], hit.point[2]))
+        };
+        let movement = self.known_player_movement();
+        super::spear::hits_in_reach(&boxes, eye, look, movement, reach, clip)
+            .into_iter()
+            .map(|(i, at)| (i, eye.distance_squared(at).sqrt()))
+            .reduce(|a, b| if b.1 < a.1 { b } else { a })
+    }
     /// The attack and use part of `Minecraft.tick` for the local player:
     /// attack clicks since the last tick and the held attack button.
     pub(super) fn tick_local_hand(&mut self) -> Result<()> {
@@ -216,11 +277,10 @@ impl Game<'_> {
             // (scripts under --control hold buttons without grabbing it).
             let down = self.left;
             let ticks = self.clicks.destroying.ticks;
-            // Minecraft.hitResult is picked once per frame: a creative break
-            // does not move the use that follows it past the broken block.
-            if use_clicks > 0 && attack_clicks > 0 {
-                self.tick_hit = Some(self.pick());
-            }
+            // Minecraft.hitResult is picked once per tick, before the number
+            // keys: a creative break does not move the use that follows it
+            // past the broken block.
+            self.pick_tick_targets();
             let mut world = GameHands {
                 game: self,
                 error: None,
@@ -229,7 +289,7 @@ impl Game<'_> {
             let error = world.error.take();
             self.clicks = clicks;
             if let Some(e) = error {
-                self.tick_hit = None;
+                self.release_tick_targets();
                 return Err(e);
             }
             // Use clicks follow the attack clicks within the tick, against
@@ -245,7 +305,7 @@ impl Game<'_> {
                     break;
                 }
             }
-            self.tick_hit = None;
+            self.release_tick_targets();
             used?;
             // A tick of breaking: the hit sound every fourth tick and the
             // cracking particles.
@@ -267,8 +327,10 @@ impl Game<'_> {
                 }
             }
         } else {
-            // Minecraft.tick: a screen keeps the attack from starting.
+            // Minecraft.tick: a screen keeps the attack from starting, and
+            // opening it released the keys (`KeyMapping.releaseAll`).
             self.clicks.miss_time = 10000;
+            self.hotbar_presses.clear();
         }
         let d = &self.clicks.destroying;
         self.mining = d.active.then_some(Mining {
