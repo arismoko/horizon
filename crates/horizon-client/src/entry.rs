@@ -98,6 +98,35 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     {
         log::warn!("Native data-load hooks already installed; keeping the first callbacks");
     }
+    if crate::native_client_hooks::install(crate::native_client_hooks::NativeClientHooks {
+        menu_slot_rules: |menu, slot, stack, may_place, max_stack| {
+            crate::mod_api::dispatch_menu_slot_rules(
+                crate::mod_api::mods(),
+                menu,
+                slot,
+                stack,
+                may_place,
+                max_stack,
+            );
+        },
+        living_breathe: |entity, kind, can_breathe, consume, refill| {
+            crate::mod_api::dispatch_living_breathe(
+                crate::mod_api::mods(),
+                entity,
+                kind,
+                can_breathe,
+                consume,
+                refill,
+            );
+        },
+        ingredient: |kind, data, items| {
+            crate::mod_api::dispatch_ingredient(crate::mod_api::mods(), kind, data, items);
+        },
+    })
+    .is_err()
+    {
+        log::warn!("Native client hooks already installed; keeping the first callbacks");
+    }
     raise_open_file_limit();
     if let Err(error) = game::run_with() {
         // A bad command line is the caller's mistake, not a crash: no report.

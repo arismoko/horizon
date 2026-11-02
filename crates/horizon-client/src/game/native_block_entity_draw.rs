@@ -173,7 +173,6 @@ impl BlockEntityDraw {
 /// One face of a `native_draw_cube` box: its sprite (`mymod:entity/cog`,
 /// `mymod:block/casing`) and its UVs in texels of 16 per side, as a model
 /// face's `uv` (none takes the box's own, as a model's default).
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub struct CubeFace<'a> {
     pub sprite: &'a str,

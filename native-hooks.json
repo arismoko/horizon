@@ -1732,7 +1732,10 @@
       "version": 1,
       "target": "horizon_client::menu::native_menu_slot_rules",
       "side": "server",
-      "cancellable": false
+      "cancellable": false,
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "living_entity_use_item_tick",
@@ -1965,7 +1968,10 @@
       "target": "horizon_client::breathing::native_living_breathe",
       "neoforge": "LivingBreatheEvent",
       "side": "server",
-      "cancellable": false
+      "cancellable": false,
+      "mod_api": {
+        "contract": "listen"
+      }
     },
     {
       "name": "blocks",

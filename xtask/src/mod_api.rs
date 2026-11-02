@@ -464,15 +464,25 @@ fn catalog_hooks(
 }
 
 /// The crate folder and module path of a hook target that is a free function
-/// outside `Game`.
+/// outside `Game`. `horizon-client-lib` builds from `horizon-client/src`
+/// (`client_lib.rs`); `menu` and `breathing` are also accepted under their
+/// older `horizon_client::` names.
 fn free_function_source(target: &str) -> Option<(&'static str, String)> {
     let prefixes = [
         ("horizon_world::", "horizon-world"),
         ("horizon_client_render::", "horizon-client-render"),
+        ("horizon_client_lib::", "horizon-client"),
     ];
     prefixes
         .into_iter()
         .find_map(|(prefix, krate)| target.strip_prefix(prefix).map(|p| (krate, p.to_owned())))
+        .or_else(|| {
+            ["menu", "breathing"].into_iter().find_map(|module| {
+                target
+                    .strip_prefix(&format!("horizon_client::{module}::"))
+                    .map(|p| ("horizon-client", format!("{module}::{p}")))
+            })
+        })
 }
 
 pub fn run(check: bool) -> Result<(), String> {
@@ -496,10 +506,10 @@ pub fn run(check: bool) -> Result<(), String> {
     let mut render_dispatch = String::new();
     let hooks = catalog_hooks(root, &catalog)?;
     for hook in &hooks {
-        let Some(api) = hook.get("mod_api") else {
-            continue;
-        };
         let name = hook["name"].as_str().ok_or("hook name missing")?;
+        let api = hook
+            .get("mod_api")
+            .ok_or_else(|| format!("hook {name} has no mod_api entry: add one"))?;
         let native = format!("native_{name}");
         let target = hook["target"].as_str().ok_or("target missing")?;
         let is_render = target.starts_with("horizon_client_render::");
@@ -987,6 +997,10 @@ mod tests {
                 Flow::Continue
             }
         }
+        fn menu_slot_rules(&self, event: &mut MenuSlotRulesEvent<'_>) {
+            event.may_place = false;
+            event.max_stack = self.id;
+        }
         fn living_entity_use_item_tick(
             &self,
             _: &mut dyn Host,
@@ -1068,11 +1082,21 @@ mod tests {
     }
 
     #[test]
-    fn item_tick_can_cancel() {
+    fn slot_rules_mutate_and_item_tick_can_cancel() {
         let mods: Vec<Box<dyn Hooks>> = vec![Box::new(Mod {
             id: 1,
             calls: Arc::new(Mutex::new(Vec::new())),
         })];
+        let (mut may_place, mut max_stack) = (true, 64);
+        dispatch_menu_slot_rules(
+            &mods,
+            "test:menu",
+            0,
+            &ItemStack,
+            &mut may_place,
+            &mut max_stack,
+        );
+        assert_eq!((may_place, max_stack), (false, 1));
         let (mut duration, mut canceled) = (10, false);
         dispatch_living_entity_use_item_tick(
             &mut TestHost,
@@ -1366,6 +1390,29 @@ mod tests {
     #[test]
     fn generated_output_is_current() {
         super::run(true).unwrap();
+    }
+
+    #[test]
+    fn library_crate_targets_resolve_to_their_source() {
+        for target in [
+            "horizon_client_lib::menu::native_menu_slot_rules",
+            "horizon_client::menu::native_menu_slot_rules",
+        ] {
+            assert_eq!(
+                super::free_function_source(target),
+                Some(("horizon-client", "menu::native_menu_slot_rules".to_owned()))
+            );
+        }
+        assert_eq!(
+            super::free_function_source("horizon_client_lib::crafting::native_ingredient"),
+            Some(("horizon-client", "crafting::native_ingredient".to_owned()))
+        );
+        assert_eq!(
+            super::free_function_source(
+                "horizon_client::game::native_hooks::Game<'_>::native_zoom"
+            ),
+            None
+        );
     }
 
     #[test]

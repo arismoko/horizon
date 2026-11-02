@@ -1837,6 +1837,20 @@ pub trait Hooks: Send + Sync {
         let _ = event;
         Flow::Continue
     }
+    /// Hook point for native mods (docs/native-mods.md, listed in `native-hooks.json`
+    /// with the game's): container slot `slot` of the content mod menu type `menu`
+    /// (`data/<id>/horizon/menu/`) is asked whether it takes `stack`
+    /// (`Slot.mayPlace`) and how many of it it holds (`Slot.getMaxStackSize`).
+    /// `may_place` and `max_stack` hold the type's own answer (false on one of its
+    /// `results`, true elsewhere, and 99): change them for your own menu types.
+    /// `max_stack` is kept to 1 to 99,
+    /// and the item's own stack size still caps it. Asked on the server, for each
+    /// click, drag and shift-click that puts an item in a slot, several times for
+    /// one shift-click: answer from `stack` alone, and fast. API
+    /// 130.
+    fn menu_slot_rules(&self, event: &mut MenuSlotRulesEvent<'_>) {
+        let _ = event;
+    }
     /// NeoForge's `LivingEntityUseItemEvent.Tick`: each tick `entity` uses
     /// `stack` in `hand`, where `LivingEntity.updatingUsingItem` starts,
     /// `duration` the ticks left. `entity` is as in
@@ -2173,6 +2187,19 @@ pub trait Hooks: Send + Sync {
     /// Every mod gets `event.types` in order and may add, change or remove types.
     fn data_map_types(&self, host: &dyn Host, event: &mut DataMapTypesEvent<'_>) {
         let _ = host;
+        let _ = event;
+    }
+    /// An entity's breathing this tick (`LivingBreatheEvent`, posted from
+    /// `LivingEntity.baseTick` every tick for a living entity with the generic
+    /// air logic): `entity` is its ID and `kind` its type (`minecraft:player`,
+    /// `minecraft:zombie`). `can_breathe`, `consume` and `refill` come in as
+    /// Horizon does it today (a mod-free game changes nothing); set them to
+    /// change this tick. With `can_breathe` the air rises by `refill`, up to its
+    /// maximum (300); without, it falls by `consume`, and at -20 it is set to 0
+    /// and the entity takes 2 drowning damage. Negative amounts count as 0.
+    /// Asked on servers for players and for mobs, except those with a
+    /// `WaterAnimal`'s or an axolotl's own air logic. API 144.
+    fn living_breathe(&self, event: &mut LivingBreatheEvent<'_>) {
         let _ = event;
     }
     /// Blocks this mod adds, declared in code rather than one file each
@@ -2515,6 +2542,20 @@ pub trait Hooks: Send + Sync {
     /// API @API:framerate_limit@.
     fn framerate_limit(&self, host: &dyn Host, event: &mut FramerateLimitEvent) {
         let _ = host;
+        let _ = event;
+    }
+    /// A recipe ingredient of a mod's own kind: the entry named a type in a
+    /// namespace outside `minecraft:`, and the loader kept it for this call.
+    /// The kind and the JSON the file wrote are here; fill `items` with the
+    /// item ids the ingredient matches (item ids only: components are not
+    /// checked here; a match-time hook follows separately). Duplicates are
+    /// removed keeping first-seen order. The hook may be called more than
+    /// once per recipe; the answer must be the same. An unclaimed kind
+    /// leaves the list empty and the recipe fails, as an unknown kind does.
+    /// API @API:ingredient@.
+    ///
+    /// Every mod gets `event.items` in order and may add, change or remove items.
+    fn ingredient(&self, event: &mut IngredientEvent<'_>) {
         let _ = event;
     }
     /// A player took a crafting grid's result (`ResultSlot.onTake`, NeoForge's
@@ -6007,6 +6048,36 @@ pub fn dispatch_experience_orb_merge(
         }
     }
 }
+/// What [`Hooks::menu_slot_rules`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct MenuSlotRulesEvent<'a> {
+    pub menu: &'a str,
+    pub slot: usize,
+    pub stack: &'a ItemStack,
+    pub may_place: bool,
+    pub max_stack: u32,
+}
+pub fn dispatch_menu_slot_rules(
+    mods: &[Box<dyn Hooks>],
+    menu: &str,
+    slot: usize,
+    stack: &ItemStack,
+    may_place: &mut bool,
+    max_stack: &mut u32,
+) {
+    let mut event = MenuSlotRulesEvent {
+        menu,
+        slot,
+        stack,
+        may_place: *may_place,
+        max_stack: *max_stack,
+    };
+    for mod_hook in mods {
+        mod_hook.menu_slot_rules(&mut event);
+    }
+    *may_place = event.may_place;
+    *max_stack = event.max_stack;
+}
 /// What [`Hooks::living_entity_use_item_tick`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
 #[non_exhaustive]
 pub struct LivingEntityUseItemTickEvent<'a> {
@@ -6514,6 +6585,37 @@ pub fn dispatch_data_map_types(
     for mod_hook in mods {
         mod_hook.data_map_types(host, &mut event);
     }
+}
+/// What [`Hooks::living_breathe`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct LivingBreatheEvent<'a> {
+    pub entity: u32,
+    pub kind: &'a str,
+    pub can_breathe: bool,
+    pub consume: i32,
+    pub refill: i32,
+}
+pub fn dispatch_living_breathe(
+    mods: &[Box<dyn Hooks>],
+    entity: u32,
+    kind: &str,
+    can_breathe: &mut bool,
+    consume: &mut i32,
+    refill: &mut i32,
+) {
+    let mut event = LivingBreatheEvent {
+        entity,
+        kind,
+        can_breathe: *can_breathe,
+        consume: *consume,
+        refill: *refill,
+    };
+    for mod_hook in mods {
+        mod_hook.living_breathe(&mut event);
+    }
+    *can_breathe = event.can_breathe;
+    *consume = event.consume;
+    *refill = event.refill;
 }
 /// What [`Hooks::blocks`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
 #[non_exhaustive]
@@ -7058,6 +7160,24 @@ pub fn dispatch_framerate_limit(
         mod_hook.framerate_limit(host, &mut event);
     }
     *limit = event.limit;
+}
+/// What [`Hooks::ingredient`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct IngredientEvent<'a> {
+    pub kind: &'a str,
+    pub data: &'a serde_json::Map<String, Value>,
+    pub items: &'a mut Vec<String>,
+}
+pub fn dispatch_ingredient(
+    mods: &[Box<dyn Hooks>],
+    kind: &str,
+    data: &serde_json::Map<String, Value>,
+    items: &mut Vec<String>,
+) {
+    let mut event = IngredientEvent { kind, data, items };
+    for mod_hook in mods {
+        mod_hook.ingredient(&mut event);
+    }
 }
 /// What [`Hooks::item_crafted`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
 #[non_exhaustive]
