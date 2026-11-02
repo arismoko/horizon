@@ -321,7 +321,8 @@ def size_label(label, width, height):
 
 def scene_list(args):
     picked = args.scenes.split(",") if args.scenes else [s[0] for s in SCENES]
-    return [s for s in SCENES if s[0] in picked]
+    # --server-bots adds the crowd scene over the bots.
+    return [s for s in SCENES if s[0] in picked] + list(getattr(args, "extra_scenes", None) or [])
 
 
 def yaw(start, end):
@@ -506,7 +507,31 @@ class LocalServer:
             time.sleep(0.5)
         return self
 
+    def crowd(self, args):
+        """--server-bots: horizon-bots walking around the spawn for the whole run (they need a few seconds to join
+        and settle), and the scene that flies over them: (name, from, to, pitch)."""
+        binary = Path(args.bots_build or args.build).resolve() / ("horizon-bots.exe" if sys.platform == "win32" else "horizon-bots")
+        self.bots = subprocess.Popen([str(binary), "--server", self.address, "--bots", str(args.server_bots),
+                                      "--behaviour", "walk", "--view-distance", "10", "--join-every", "0.1",
+                                      "--seconds", "100000", "--seed", str(SEED)],
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        deadline = time.time() + 120
+        for line in self.bots.stdout:
+            if '"spawn"' in line:
+                sx, sy, sz = json.loads(line)["spawn"]
+                break
+            if time.time() > deadline:
+                raise RuntimeError("horizon-bots: no spawn position")
+        else:
+            raise RuntimeError("horizon-bots ended before a bot spawned")
+        threading.Thread(target=self.bots.stdout.read, daemon=True).start()
+        time.sleep(args.server_bots * 0.1 + 10)
+        # Bots fly 24 blocks above the spawn, 8 to 48 blocks out (horizon-bots' walk).
+        return ("crowd", (sx - 32.0, sy + 40.0, sz), (sx + 32.0, sy + 40.0, sz), 50.0)
+
     def __exit__(self, *_):
+        if getattr(self, "bots", None):
+            stop(self.bots)
         try:
             self.proc.stdin.write("stop\n")
             self.proc.stdin.flush()
@@ -1060,6 +1085,9 @@ def main():
                    help="join a local dedicated server (Horizon's, or your own 26.3 server.jar) instead of creating "
                         "a world: startup.join_ms is connect to loaded")
     p.add_argument("--server-build", help="--server horizon: the server's binary folder (default --build)")
+    p.add_argument("--server-bots", type=int, default=0,
+                   help="--server: this many horizon-bots walk around the spawn, and a 'crowd' scene flies over them")
+    p.add_argument("--bots-build", help="--server-bots: horizon-bots' folder (default --build)")
     p.add_argument("--table", nargs="+", metavar="LABEL", help="compare saved runs with matching recorded conditions, and exit")
     args = p.parse_args()
     if args.table:
@@ -1081,6 +1109,7 @@ def main():
                     args.server_build = args.server_build or args.build
                     server = stack.enter_context(LocalServer(args, d))
                     args.server_address = server.address
+                    args.extra_scenes = [server.crowd(args)] if args.server_bots else []
                     if server.fresh:
                         print(f"warm-up join of the new {args.server} server world (not measured)")
                         run(args, d)
