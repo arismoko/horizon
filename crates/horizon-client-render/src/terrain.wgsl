@@ -463,8 +463,12 @@ fn solid_finish(in: TerrainOut, texel: vec4<f32>, color: vec4<f32>) -> vec4<f32>
         let l = in.layer & 0x7fffu;
         let t = textureLoad(emission_thresholds, vec2(i32(l % SPRITE_SPLIT), i32(l / SPRITE_SPLIT)), 0);
         let y = brightness(texel.rgb);
-        if y >= select(t.r, t.g, whole) {
-            emissive = hdr_mark(tier, y);
+        // All over means all over: the sprite's range is one frame's, and an animated sprite's
+        // other frames dip below it. Fog hides a light source as it hides everything else.
+        if whole || y >= t.r {
+            let fogged = max(linear_fog(in.spherical, globals.fog.x, globals.fog.y),
+                linear_fog(in.cylindrical, globals.fog.z, globals.fog.w)) * globals.fog_color.a;
+            emissive = hdr_mark(tier, y * (1.0 - fogged));
         }
     }
     if in.emissive_layer != 0xffffffffu {

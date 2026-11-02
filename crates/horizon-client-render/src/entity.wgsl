@@ -329,7 +329,10 @@ fn shadow_color(in: Out) -> vec4<f32> {
     if in.overlay == 6u { uv.y = in.wrap.x + fract(in.uv.y) * in.wrap.y; }
     let texel = textureSample(atlas, atlas_sampler, uv);
     if in.tier == 0u || texel.a < 0.1 { discard; }
-    return vec4(0.0, 0.0, 0.0, hdr_mark(in.tier, brightness(texel.rgb * in.color.rgb)));
+    // Fog hides a light source as it hides everything else.
+    let fogged = max(linear_fog(in.spherical, globals.fog.x, globals.fog.y),
+        linear_fog(in.cylindrical, globals.fog.z, globals.fog.w)) * globals.fog_color.a;
+    return vec4(0.0, 0.0, 0.0, hdr_mark(in.tier, brightness(texel.rgb * in.color.rgb) * (1.0 - fogged)));
 }
 fn brightness(c: vec3<f32>) -> f32 {
     let l = pow(max(c, vec3(0.0)), vec3(2.2));
