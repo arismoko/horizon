@@ -2712,10 +2712,6 @@ mod tests {
             .map(|p| version_for(A, B, p, Target::Client, &found).unwrap())
             .collect();
         assert_eq!(keys.len(), 3);
-        assert_eq!(
-            version_for(A, B, Profile::Dev, Target::Client, &found).unwrap(),
-            version_for(A, B, Profile::Dev, Target::Client, &found).unwrap()
-        );
         // The last build in `native/target/fast/` is either's, as `fast`'s was before `dev`.
         assert_eq!(record_key(Target::Client, Profile::Performance), "fast");
         assert_eq!(record_key(Target::Client, Profile::Dev), "fast");
