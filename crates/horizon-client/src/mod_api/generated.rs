@@ -2534,6 +2534,20 @@ pub trait Hooks: Send + Sync {
         let _ = event;
         None
     }
+    /// A recipe ingredient of a mod's own kind: the entry named a type in a
+    /// namespace outside `minecraft:`, and the loader kept it for this call.
+    /// The kind and the JSON the file wrote are here; fill `items` with the
+    /// item ids the ingredient matches (item ids only: components are not
+    /// checked here; a match-time hook follows separately). Duplicates are
+    /// removed keeping first-seen order. The hook may be called more than
+    /// once per recipe; the answer must be the same. An unclaimed kind
+    /// leaves the list empty and the recipe fails, as an unknown kind does.
+    /// API @API:ingredient@.
+    ///
+    /// Every mod gets `event.items` in order and may add, change or remove items.
+    fn ingredient(&self, event: &mut IngredientEvent<'_>) {
+        let _ = event;
+    }
     /// A player took a crafting grid's result (`ResultSlot.onTake`, NeoForge's
     /// `PlayerEvent.ItemCraftedEvent`): `player` is the player's uuid, `recipe`
     /// the recipe the grid matched (`minecraft:oak_planks`) and `stack` the
@@ -7108,6 +7122,24 @@ pub fn dispatch_smoke_source(
             *smoke = Some(replacement);
             break;
         }
+    }
+}
+/// What [`Hooks::ingredient`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct IngredientEvent<'a> {
+    pub kind: &'a str,
+    pub data: &'a serde_json::Map<String, Value>,
+    pub items: &'a mut Vec<String>,
+}
+pub fn dispatch_ingredient(
+    mods: &[Box<dyn Hooks>],
+    kind: &str,
+    data: &serde_json::Map<String, Value>,
+    items: &mut Vec<String>,
+) {
+    let mut event = IngredientEvent { kind, data, items };
+    for mod_hook in mods {
+        mod_hook.ingredient(&mut event);
     }
 }
 /// What [`Hooks::item_crafted`] is told. Fields may be added: the struct is `#[non_exhaustive]`.

@@ -126,6 +126,13 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     {
         log::warn!("Native breathing hook already installed; keeping the first callback");
     }
+    if crate::crafting::install_ingredient(|kind, data, items| {
+        crate::mod_api::dispatch_ingredient(crate::mod_api::mods(), kind, data, items);
+    })
+    .is_err()
+    {
+        log::warn!("Native ingredient hook already installed; keeping the first callback");
+    }
     raise_open_file_limit();
     if let Err(error) = game::run_with() {
         // A bad command line is the caller's mistake, not a crash: no report.

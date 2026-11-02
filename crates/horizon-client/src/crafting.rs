@@ -19,6 +19,21 @@ use std::{
     sync::Arc,
 };
 
+/// Callback for trait mods' ingredient kinds, installed before recipes load.
+pub type IngredientHook = fn(&str, &serde_json::Map<String, Value>, &mut Vec<String>);
+static INGREDIENT: std::sync::OnceLock<IngredientHook> = std::sync::OnceLock::new();
+
+/// Install the ingredient callback once; a second installation keeps the first.
+pub fn install_ingredient(hook: IngredientHook) -> std::result::Result<(), IngredientHook> {
+    INGREDIENT.set(hook)
+}
+
+fn ingredient(kind: &str, data: &serde_json::Map<String, Value>, items: &mut Vec<String>) {
+    if let Some(hook) = INGREDIENT.get() {
+        hook(kind, data, items);
+    }
+}
+
 /// A recipe ingredient of a mod's own kind: the entry named a type in a
 /// namespace outside `minecraft:`, and the loader kept it for this call.
 /// The kind and the JSON the file wrote are here; fill `items` with the
@@ -34,7 +49,7 @@ pub fn native_ingredient(
     data: &serde_json::Map<String, Value>,
     items: &mut Vec<String>,
 ) {
-    let _ = (kind, data, items);
+    ingredient(kind, data, items);
 }
 
 /// Keep first-seen order, drop the rest.
