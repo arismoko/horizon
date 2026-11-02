@@ -11,6 +11,16 @@ switch. The first install shows a trust notice, and every build waits behind a r
 after a review (its later releases are checked by machine); and they play in a game of their own, built for the
 instance they are installed in.
 
+## Villager farming
+
+Farmers recognize mod blocks made from farmland and `CropBlock` templates, including declarations from
+`native_blocks`. A crop block's generated item is its seed: add that item to
+`minecraft:villager_plantable_seeds` to let farmers plant its default block state from their inventory.
+Untagged items and tagged items without a block are skipped. Crop maturity follows the template's class:
+beetroots mature at age 3, ordinary crops at 7; torchflower crops never reach their maximum age 2 while
+still crops. Pitcher crops are not `CropBlock`s and are not harvested by this behavior. Farming still
+requires a farmer at work and `mob_griefing` enabled.
+
 ## Pinned to a Nightly
 
 A native mod builds on one exact Horizon commit: `[compatibility] horizon_revision` in its `horizon-mixin.toml`,
