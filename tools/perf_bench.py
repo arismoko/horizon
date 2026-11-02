@@ -967,7 +967,7 @@ def report(args, distance, runs, app):
     conditions = {"scenario": "perf_bench:" + ",".join(first["scenes"]), "seed": str(SEED),
                   "render_distance": distance, "simulation_distance": 12, "vsync": False,
                   "offscreen": bool(args.offscreen), "repeats": len(runs), "warmup_s": args.settle}
-    if args.server:
+    if getattr(args, "server", None):
         conditions["server"] = args.server
     if first["load_before"] is not None:
         conditions["load_avg_1m"] = rnd(first["load_before"])
