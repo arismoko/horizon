@@ -2534,6 +2534,16 @@ pub trait Hooks: Send + Sync {
         let _ = event;
         None
     }
+    /// The frame rate this window is about to be held to: Max Framerate after the
+    /// inactivity throttle and Battery Mode (260 is unlimited). `focused` is whether the
+    /// window has focus, `minimized` whether it is minimised and `in_world` whether a world
+    /// is open. A mod may lower `limit`, as Dynamic FPS does for a window in the background:
+    /// Horizon keeps the lower of its own limit and the mod's, and ignores values below 1.
+    /// API @API:framerate_limit@.
+    fn framerate_limit(&self, host: &dyn Host, event: &mut FramerateLimitEvent) {
+        let _ = host;
+        let _ = event;
+    }
     /// A recipe ingredient of a mod's own kind: the entry named a type in a
     /// namespace outside `minecraft:`, and the loader kept it for this call.
     /// The kind and the JSON the file wrote are here; fill `items` with the
@@ -7123,6 +7133,33 @@ pub fn dispatch_smoke_source(
             break;
         }
     }
+}
+/// What [`Hooks::framerate_limit`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
+#[non_exhaustive]
+pub struct FramerateLimitEvent {
+    pub focused: bool,
+    pub minimized: bool,
+    pub in_world: bool,
+    pub limit: i32,
+}
+pub fn dispatch_framerate_limit(
+    host: &dyn Host,
+    mods: &[Box<dyn Hooks>],
+    focused: bool,
+    minimized: bool,
+    in_world: bool,
+    limit: &mut i32,
+) {
+    let mut event = FramerateLimitEvent {
+        focused,
+        minimized,
+        in_world,
+        limit: *limit,
+    };
+    for mod_hook in mods {
+        mod_hook.framerate_limit(host, &mut event);
+    }
+    *limit = event.limit;
 }
 /// What [`Hooks::ingredient`] is told. Fields may be added: the struct is `#[non_exhaustive]`.
 #[non_exhaustive]

@@ -1313,7 +1313,14 @@ impl Game<'_> {
         in_world: bool,
         limit: &mut i32,
     ) {
-        let _ = (focused, minimized, in_world, limit);
+        horizon_client::mod_api::dispatch_framerate_limit(
+            self,
+            horizon_client::mod_api::mods(),
+            focused,
+            minimized,
+            in_world,
+            limit,
+        );
     }
     /// Render-thread notification after a resource-pack reload has applied successfully.
     /// Atlas, models, renderer and client caches already refer to the new resources.
