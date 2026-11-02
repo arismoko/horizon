@@ -929,8 +929,8 @@ API @API:physical_window_size@ adds `native_physical_window_size()`, the window'
 
 ## What the launcher does
 
-**Developing a mod?** Run `horizon-launcher settings native-profile dev` once, or turn on "Faster mod builds" in the
-launcher's developer options. `dev` builds the game crate unoptimized: a mod edit rebuilds about 6× faster than with
+**Developing a mod?** Run `horizon-launcher settings native-profile dev` once, or pick "Dev build" in the Mods page's
+"Native build" row. `dev` builds the game crate unoptimized: a mod edit rebuilds about 6× faster than with
 `performance`, while game logic runs up to about twice as slow. Use it while developing, not for playing;
 `performance` stays the default for players and releases (step 5 below).
 
@@ -987,7 +987,7 @@ trusting native code is the player's decision, never an agent's.
 
    | Profile | Cargo profile | Use |
    |---|---|---|
-   | `performance` (the default) | `fast`, the workspace's own: the release's optimizations without its link-time ones (`lto = false`, `codegen-units = 16`, incremental) | The everyday build for playing with mods: a rebuild recompiles and links only what changed |
+   | `performance` (the default) | `fast`, the workspace's own: `codegen-units = 16`, incremental, and `lto = false`, Cargo's default, which is thin-local LTO across one crate's codegen units, none across crates | The everyday build for playing with mods: a rebuild recompiles and links only what changed |
    | `dev` | `fast` with `horizon-client` at opt-level 0 (`--config profile.fast.package.horizon-client.opt-level=0`) | Developing a mod: the quickest rebuild after an edit, but the game runs about twice as slow, so iterate with it rather than play |
    | `release` | `release`, the release's own (game-build.yml: thin LTO, one codegen unit) | Slowest to build, slightly faster game |
 

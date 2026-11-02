@@ -38,8 +38,8 @@ pub const MIXINS_REV: &str = "ddd9700b21997c95d95ac6ee5ecafe3830cf622a";
 /// The features of the release's own game (game-build.yml).
 const FEATURES: &str = "horizon-client/mods";
 
-/// What a native build is compiled for. `Performance`, the default, is the workspace's `fast` (no
-/// LTO, 16 codegen units, incremental), so changing a mod recompiles only `horizon-client`'s
+/// What a native build is compiled for. `Performance`, the default, is the workspace's `fast` (16
+/// codegen units, incremental, thin-local LTO only), so changing a mod recompiles only `horizon-client`'s
 /// changed parts; `Dev`, for developing a mod, is `fast` with `horizon-client` unoptimized: the
 /// quickest to rebuild after an edit, for a game about twice as slow; `Release` is the release's
 /// own (thin LTO, one codegen unit): slowest to build, slightly faster game. `Performance` and

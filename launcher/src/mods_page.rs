@@ -1535,7 +1535,7 @@ impl Launcher {
         let said = match profile {
             native_mods::Profile::Performance => tr("The everyday build for playing with mods"),
             native_mods::Profile::Dev => {
-                tr("For developing a mod: quickest to rebuild, the game runs about twice as slow")
+                tr("For developing a mod: about 6× faster to rebuild a mod edit, game logic up to about twice as slow")
             }
             native_mods::Profile::Release => {
                 tr("Release build: slower to build, slightly faster game")
