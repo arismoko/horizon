@@ -55,11 +55,7 @@ impl NativeDisplay {
             && (0..=1_000_000).contains(&self.interpolation)
             && (0..=59).contains(&self.teleport)
     }
-    /// Writes its keys into a display's compound. `start` is the
-    /// interpolation's start delay: entity data reaches clients only when it
-    /// changes (as vanilla's does unless forced), and a display restarts its
-    /// interpolation only when the start comes, so each write flips it
-    /// between 0 and -1.
+    /// Writes its keys into a display's compound, starting interpolation now.
     fn write(&self, tag: &mut Compound) {
         let floats = |v: &[f32]| Tag::List(v.iter().map(|x| Tag::Float(x.to_bits())).collect());
         let mut t = Compound::new();
@@ -73,11 +69,7 @@ impl NativeDisplay {
             Tag::Int(self.interpolation),
         );
         tag.insert("teleport_duration".into(), Tag::Int(self.teleport));
-        let start = match tag.get(&"start_interpolation".into()) {
-            Some(Tag::Int(0)) => -1,
-            _ => 0,
-        };
-        tag.insert("start_interpolation".into(), Tag::Int(start));
+        tag.insert("start_interpolation".into(), Tag::Int(0));
     }
 }
 
@@ -217,6 +209,7 @@ impl Game<'_> {
             return false;
         };
         display.write(c);
+        self.persist.force_meta(id, 8);
         true
     }
 }
@@ -634,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn a_display_write_flips_the_start_so_clients_restart_the_ease() {
+    fn a_display_write_starts_interpolation_now() {
         let display = NativeDisplay {
             translation: [0.0, 1.5, 0.0],
             scale: [2.0; 3],
@@ -650,7 +643,7 @@ mod tests {
             Some(&Tag::Int(10))
         );
         display.write(&mut tag);
-        assert_eq!(tag.get(&"start_interpolation".into()), Some(&Tag::Int(-1)));
+        assert_eq!(tag.get(&"start_interpolation".into()), Some(&Tag::Int(0)));
         display.write(&mut tag);
         assert_eq!(tag.get(&"start_interpolation".into()), Some(&Tag::Int(0)));
         let Some(Tag::Compound(t)) = tag.get(&"transformation".into()) else {

@@ -1,0 +1,22 @@
+{
+  "hooks": [],
+  "helpers": [
+    {
+      "name": "player_give_experience_points",
+      "side": "server",
+      "target": "horizon_client::game::native_player_food::Game<'_>::native_player_give_experience_points",
+      "receiver": "player"
+    },
+    {
+      "name": "player_give_levels",
+      "side": "server",
+      "target": "horizon_client::game::native_player_food::Game<'_>::native_player_give_levels",
+      "receiver": "player"
+    }
+  ],
+  "rust_summary": "a player's experience give through a `PlayerRef` (`native_player_give_experience_points`, `native_player_give_levels`), which replace the Host's `give_experience` and `give_levels`.",
+  "doc_summary": "a player's experience give through a `PlayerRef`: `give_experience_points(host, points)` hands points over as an orb they touch does (Mending repairs their damaged items first, `ExperienceOrb.repairPlayerItems`; the rest goes to their experience, `Player.giveExperiencePoints`, with the level-up sound and no orb pickup sound), and `give_levels(host, levels)` adds levels or takes them off (`Player.giveExperienceLevels`; below 0 the level, the total and the progress are all 0). They replace the Host's `give_experience` and `give_levels`. Writes return false for a stale handle, a dead player, or another player than the one whose turn it is. Bundles need \"hooks\": @API:player_xp_give@.",
+  "comments": [
+    "crates/horizon-client/src/game/native_player_food.rs"
+  ]
+}

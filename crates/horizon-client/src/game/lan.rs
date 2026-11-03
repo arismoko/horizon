@@ -1398,7 +1398,7 @@ impl Game<'_> {
             .hub
             .guests
             .iter()
-            .filter(|g| g.placed)
+            .filter(|g| g.placed && g.participates_in_player_simulation())
             .map(|g| (g.conn, super::Dim::from_id(&g.dimension)))
             .collect();
         for (conn, dim) in open {
@@ -1410,6 +1410,9 @@ impl Game<'_> {
             log::error!("could not reopen {}: {e}", back.id());
         }
         for i in 0..host.hub.guests.len() {
+            if !host.hub.guests[i].participates_in_player_simulation() {
+                continue;
+            }
             let mut g = host.hub.guests.remove(i);
             self.take_parent_vehicle(host, &mut g);
             self.save_guest(host, &mut g);
@@ -1425,6 +1428,9 @@ impl Game<'_> {
         host: &LanHost,
         guest: &mut horizon_client::lan::guest::Guest,
     ) {
+        if !guest.participates_in_player_simulation() {
+            return;
+        }
         self.guest_attachments_into(guest);
         if guest.placed {
             let _ = self.finish_player_autosaves(true);
@@ -1576,7 +1582,10 @@ impl Game<'_> {
         host: &LanHost,
         guest: &horizon_client::lan::guest::Guest,
     ) {
-        if !guest.placed || self.adv.tree.list.is_empty() {
+        if !guest.participates_in_player_simulation()
+            || !guest.placed
+            || self.adv.tree.list.is_empty()
+        {
             return;
         }
         let Some(uuid) = self.records_uuid(host, guest.uuid) else {
@@ -1672,6 +1681,13 @@ impl Game<'_> {
             host.settings.force_game_mode = force;
             host.hub.config.force_game_mode = force;
             enforce_guest_game_mode(host, &self.world, self.collision);
+        }
+    }
+
+    /// Update the live movement check's flight policy.
+    pub(super) fn set_allow_flight(&mut self, allow: bool) {
+        if let Some(host) = self.lan.as_mut() {
+            host.hub.config.allow_flight = allow;
         }
     }
 
@@ -2228,6 +2244,11 @@ impl Game<'_> {
         self.lan = Some(host);
     }
 
+    /// Spend the current level's forced marks after its tracker snapshot.
+    pub(super) fn spend_forced_meta(&mut self) {
+        self.persist.forced_meta.clear();
+    }
+
     /// Run the hub for this tick and apply what the guests did. While the
     /// single player game is `paused` only the connections run
     /// (`IntegratedServer.tickPaused`): `ServerGamePacketListenerImpl.tick`
@@ -2301,6 +2322,8 @@ impl Game<'_> {
                     cart.lerp_steps.clear();
                 }
             }
+            // Persist is swapped per level, so parked dimensions retain their marks.
+            self.spend_forced_meta();
             // ServerEntity.sendChanges clears needsSync once it has looked.
             for m in &mut self.mobs {
                 m.needs_sync = false;

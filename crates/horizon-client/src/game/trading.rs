@@ -270,7 +270,7 @@ impl Game<'_> {
             "wandering_trader"
         };
         let level = if villager {
-            i32::from(m.extra.variant3.max(1)).min(5)
+            i32::from(m.extra.variant3.max(1))
         } else {
             1
         };
@@ -327,7 +327,7 @@ impl Game<'_> {
             return;
         };
         if session.villager {
-            m.extra.variant3 = session.level.clamp(1, 5) as u8;
+            m.extra.variant3 = session.level.clamp(1, i32::from(u8::MAX)) as u8;
         }
         m.extra.flag2 = false;
         m.random = session.random.clone();
@@ -429,7 +429,7 @@ impl Game<'_> {
             m.random = session.random.clone();
             m.ambient_timer = session.ambient_sound_time;
             if villager {
-                m.extra.variant3 = session.level.clamp(1, 5) as u8;
+                m.extra.variant3 = session.level.clamp(1, i32::from(u8::MAX)) as u8;
             }
         }
         for e in events {

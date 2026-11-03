@@ -599,6 +599,7 @@ impl Game<'_> {
                         m.extra.vector[0] = -1.0;
                         m.extra.variant =
                             horizon_client::mobs::copper_golem::weather_previous(m.extra.variant);
+                        self.persist.force_meta(m.id, 16);
                     }
                 }
                 _ => {}

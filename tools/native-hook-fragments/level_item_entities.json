@@ -1,0 +1,9 @@
+{
+  "hooks": [],
+  "helpers": [
+    {"name": "level_pop_resource", "side": "server", "target": "horizon_client::game::native_level_items::Game<'_>::native_level_pop_resource", "receiver": "level"},
+    {"name": "level_spawn_item", "side": "server", "target": "horizon_client::game::native_level_items::Game<'_>::native_level_spawn_item", "receiver": "level"},
+    {"name": "level_spawn_item_with_motion", "side": "server", "target": "horizon_client::game::native_level_items::Game<'_>::native_level_spawn_item_with_motion", "receiver": "level"},
+    {"name": "level_award_experience", "side": "server", "target": "horizon_client::game::native_level_items::Game<'_>::native_level_award_experience", "receiver": "level"}
+  ]
+}

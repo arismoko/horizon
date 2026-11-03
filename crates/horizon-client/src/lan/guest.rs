@@ -458,6 +458,12 @@ impl Guest {
         };
         let mut guest = Self::with_defaults(GuestKind::Fake, init, entity_id, position, 2);
         guest.placed = true;
+        // No connection ever reports the world loaded: the record is
+        // material, and the body's damage policy treats it as loaded from
+        // the start instead of invulnerable forever.
+        guest.loaded = true;
+        guest.loading = false;
+        guest.load_timeout = 0;
         guest.motion = Some(Box::new(motion));
         guest
     }

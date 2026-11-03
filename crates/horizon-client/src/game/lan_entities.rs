@@ -43,6 +43,7 @@ fn state(id: u32, kind: &str, position: [f64; 3], yaw: f32, on_ground: bool) -> 
         minecart_steps: None,
         data: 0,
         meta: Vec::new(),
+        forced_meta: [0; 4],
         defaults: Vec::new(),
         equipment: Vec::new(),
         attributes: Vec::new(),
@@ -487,6 +488,9 @@ impl Game<'_> {
     pub(super) fn lan_entity_uuids(&mut self, states: &mut States) {
         for e in states.as_mut_slice() {
             e.uuid = ints_uuid(self.uuid_for(e.id as u32));
+            if let Some(bits) = self.persist.forced_meta.get(&(e.id as u32)) {
+                e.forced_meta = *bits;
+            }
         }
     }
 

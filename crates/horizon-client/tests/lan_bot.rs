@@ -1010,6 +1010,7 @@ fn guests_see_each_other_and_the_world_entities() {
         minecart_steps: None,
         data: 0,
         meta: Vec::new(),
+        forced_meta: [0; 4],
         defaults: Vec::new(),
         equipment: Vec::new(),
         attributes: Vec::new(),

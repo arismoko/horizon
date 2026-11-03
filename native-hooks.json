@@ -85,14 +85,6 @@
       "target": "horizon_client::game::native_server::Game<'_>::native_world_dir", "side": "server"
     },
     {
-      "name": "give_experience",
-      "target": "horizon_client::game::native_server::Game<'_>::native_give_experience", "side": "server"
-    },
-    {
-      "name": "give_levels",
-      "target": "horizon_client::game::native_server::Game<'_>::native_give_levels", "side": "server"
-    },
-    {
       "name": "lit_block_name",
       "target": "horizon_client::game::native_hooks::Game<'_>::native_lit_block_name", "side": "both"
     },

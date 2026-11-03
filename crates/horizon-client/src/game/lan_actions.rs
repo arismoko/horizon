@@ -569,7 +569,9 @@ impl Game<'_> {
         self.close_ender_chest();
         std::mem::swap(&mut self.ender_items, &mut g.ender_items);
         // The guest's advancements, recipe book and statistics.
-        self.advancement_tree();
+        if g.participates_in_player_simulation() {
+            self.advancement_tree();
+        }
         std::mem::swap(&mut self.adv.progress, &mut g.advancements);
         std::mem::swap(&mut self.adv.changed, &mut g.advancements_changed);
         std::mem::swap(&mut self.adv.unlocked, &mut g.recipes_unlocked);
@@ -1193,7 +1195,7 @@ impl Game<'_> {
     /// of them, not only on the host. A server has no player of its own.
     /// Inside a guest's action (the hub taken) only that player is in place.
     pub(super) fn for_each_player(&mut self, mut f: impl FnMut(&mut Self)) {
-        if self.player.is_some() {
+        if self.player.is_some() && !self.lan_acting_fake {
             f(self);
         }
         let Some(mut host) = self.lan.take() else {
@@ -1234,9 +1236,13 @@ impl Game<'_> {
         kind: &str,
         pos: Option<[i32; 3]>,
     ) -> bool {
-        let Some((uuid, name)) = host.hub.guest(conn).map(|g| (g.uuid, g.name.clone())) else {
+        let Some(guest) = host.hub.guest(conn) else {
             return true;
         };
+        if !guest.participates_in_player_simulation() {
+            return false;
+        }
+        let (uuid, name) = (guest.uuid, guest.name.clone());
         let mut cancel = false;
         let mut hook =
             |game: &mut Self| game.native_container_opened(uuid, &name, kind, pos, &mut cancel);
@@ -3222,7 +3228,9 @@ impl Game<'_> {
                 .flatten();
             self.send_guest_motion(host, conn, sent);
             // The mob now answers to this guest (game/lan_mobs.rs).
-            if let Ok(id) = u32::try_from(id) {
+            if host.hub.guests[gi].participates_in_player_simulation()
+                && let Ok(id) = u32::try_from(id)
+            {
                 host.mob_players.insert(id, conn);
             }
             return;
@@ -3247,7 +3255,9 @@ impl Game<'_> {
             .flatten();
         self.send_guest_motion(host, conn, sent);
         // The mob now answers to this guest (game/lan_mobs.rs).
-        if let Ok(id) = u32::try_from(id) {
+        if host.hub.guests[gi].participates_in_player_simulation()
+            && let Ok(id) = u32::try_from(id)
+        {
             host.mob_players.insert(id, conn);
         }
         host.hub.guests[gi].yaw = old_yaw;
@@ -4364,13 +4374,14 @@ impl Game<'_> {
                 }
             }
         };
-        if self.player.is_some() && !self.spectator() {
+        if self.player.is_some() && !self.lan_acting_fake && !self.spectator() {
             count(self.sleeping.is_some(), self.sleep_timer);
         }
         if let Some(host) = self.lan.as_ref() {
             // A native mod's ignored players count only once in bed.
             for g in host.hub.guests.iter().filter(|g| {
                 g.placed
+                    && g.participates_in_player_simulation()
                     && !g.spectator()
                     && (g.bed.is_some() || !host.sleep_ignored.contains(&g.uuid))
             }) {
@@ -5581,6 +5592,27 @@ fn copied_respawn_point(has_config: bool, spawn: Option<[f64; 3]>) -> Option<Opt
 mod tests {
     use super::{copied_respawn_point, eye_columns};
     use horizon_client::pose::Pose;
+
+    #[test]
+    #[ignore = "requires prepared game resources"]
+    fn fake_body_does_not_count_toward_sleep() {
+        super::super::native_entity_refs::tests::with_game(|game| {
+            game.player = Some(
+                horizon_client::motion::PlayerMotion::new(
+                    game.motion,
+                    horizon_core::geometry::Vec3::ZERO,
+                )
+                .unwrap(),
+            );
+            game.lan_acting_fake = false;
+            let real = game.sleep_counts();
+            assert_eq!(real.0, 1);
+            game.lan_acting_fake = true;
+            assert_eq!(game.sleep_counts(), (0, 0, 0));
+            game.lan_acting_fake = false;
+            assert_eq!(game.sleep_counts(), real);
+        });
+    }
 
     /// `copyRespawnPosition` copies an Overworld forced point, not none; a
     /// point with a block is left to its block check.

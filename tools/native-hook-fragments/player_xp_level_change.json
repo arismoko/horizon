@@ -13,5 +13,5 @@
     }
   ],
   "rust_summary": "a server player's level changing through `Player.giveExperienceLevels`, changeable and cancellable (`native_player_xp_level_change`).",
-  "doc_summary": "a server player's level changing: `native_player_xp_level_change(player, name, levels, cancel)` is called before `Player.giveExperienceLevels` applies `levels`, once per level gained or lost by experience points, and for an anvil's cost, `/experience add ... levels` and `native_give_levels`. Change `levels` or set `cancel` to leave the level as it is. Enchanting's cost and `/experience set` do not call it. The player's state is swapped in, so `native_acting_player`, `native_tell` and the item helpers reach them. Bundles need \"hooks\": @API:player_xp_level_change@."
+  "doc_summary": "a server player's level changing: `native_player_xp_level_change(player, name, levels, cancel)` is called before `Player.giveExperienceLevels` applies `levels`, once per level gained or lost by experience points, and for an anvil's cost, `/experience add ... levels` and `PlayerRef::give_levels`. Change `levels` or set `cancel` to leave the level as it is. Enchanting's cost and `/experience set` do not call it. The player's state is swapped in, so `native_acting_player`, `native_tell` and the item helpers reach them. Bundles need \"hooks\": @API:player_xp_level_change@."
 }

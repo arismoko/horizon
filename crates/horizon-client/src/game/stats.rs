@@ -211,6 +211,9 @@ impl Game<'_> {
     /// `ServerPlayer.awardStat`: `n` more of the statistic `ty` (a bare type
     /// such as `used`) and `key`, unless a native mod cancels the award.
     pub(super) fn award_stat(&mut self, ty: &str, key: &str, n: i32) {
+        if self.lan_acting_fake {
+            return;
+        }
         // No mod, no name copied: the per-tick counters come through here.
         let acting = if horizon_client::mod_api::mods().is_empty() {
             None

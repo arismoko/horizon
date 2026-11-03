@@ -531,7 +531,7 @@
 //! API 102 adds lead drops to `native_loot_drops`: untying a lead or cutting it with shears, and the lead a mob a player
 //! killed while leashed drops on its next tick, with the player named.
 //!
-//! API 101 adds experience for server mods: reading orbs (`native_experience_orbs`), giving points as an orb does (`native_give_experience`) and giving or taking levels (`native_give_levels`).
+//! API 101 added experience for server mods: reading orbs (`native_experience_orbs`), giving points as an orb does (`native_give_experience`) and giving or taking levels (`native_give_levels`); the `PlayerRef` handle's `give_experience_points` and `give_levels` replace the two gives, and they are removed.
 //!
 //! API 100 adds player-use drops to `native_loot_drops` (`NativeLootDrops::used`): shearing, brushing, carving a
 //! pumpkin, picking berries and breaking an item frame, with the player named.
@@ -4245,7 +4245,7 @@ impl Game<'_> {
     }
     /// A server player's level is about to change through
     /// `Player.giveExperienceLevels`: once per level gained or lost by points,
-    /// and for the anvil, `/experience add ... levels` and `native_give_levels`.
+    /// and for the anvil, `/experience add ... levels` and `PlayerRef::give_levels`.
     /// Change `levels`, or set `cancel` to leave the level unchanged. The
     /// player's state is swapped in, so `native_acting_player`, `native_tell`
     /// and the item helpers reach them. Server-side.
@@ -7274,7 +7274,7 @@ impl Game<'_> {
     /// for `experience` points. The amount is clamped to the stack's current damage. Zero leaves the
     /// experience unspent when it overrides a positive proposal. If the selected
     /// stack changes, the repair is skipped.
-    /// Server-side, including `native_give_experience`.
+    /// Server-side, including `PlayerRef::give_experience_points`.
     /// 155.
     pub(super) fn native_mending_repair(
         &mut self,

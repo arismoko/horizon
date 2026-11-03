@@ -330,6 +330,9 @@ pub(super) type Skinned = Option<((usize, usize, u32), Option<(glam::Vec3, glam:
 
 impl Game<'_> {
     pub(super) fn player_view(&self) -> Option<PlayerView> {
+        if self.lan_acting_fake {
+            return None;
+        }
         let p = self.player.as_ref()?;
         let w = f64::from(p.dimensions.width) / 2.0;
         let bounds = Aabb::new(

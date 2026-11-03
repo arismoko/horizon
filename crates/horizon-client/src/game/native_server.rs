@@ -836,7 +836,7 @@ impl Game<'_> {
     /// The experience orbs of the server level `dimension` whose box meets
     /// the box `min`..`max`, in the level's order: what a mod reads before it
     /// cancels an orb in `native_entity_join_level`, to give its points with
-    /// `native_give_experience`. Empty for a level not in place and on a
+    /// `PlayerRef::give_experience_points`. Empty for a level not in place and on a
     /// client of a server.
     pub(super) fn native_experience_orbs(
         &self,
@@ -888,33 +888,6 @@ impl Game<'_> {
         orb.count = count.unwrap_or(orb.count);
         orb.age = age.unwrap_or(orb.age);
         true
-    }
-    /// Gives `points` of experience to the player `uuid` as an orb they touch
-    /// does (`ExperienceOrb.playerTouch`): Mending repairs their damaged items
-    /// with it first (`repairPlayerItems`), then the rest goes to their
-    /// experience (`Player.giveExperiencePoints`), with the level-up sound
-    /// every fifth level. No orb pickup sound. False, and nothing given, for
-    /// a player who isn't here or is dead, and for another player than the one
-    /// whose state is swapped in (inside that player's hook, only they are
-    /// reached), and while the server's player list is busy elsewhere in the
-    /// tick: give first, and cancel an orb only when this returned true.
-    /// Their bar follows as for any change to their experience.
-    pub(super) fn native_give_experience(&mut self, uuid: u128, points: u32) -> bool {
-        self.native_as_player(uuid, |game| {
-            let rest = if points > 0 { game.mending(points) } else { 0 };
-            if rest > 0 {
-                game.give_experience_points(rest as i32);
-            }
-        })
-    }
-    /// Adds `levels` to the player `uuid`'s level, or takes them off when
-    /// negative (`Player.giveExperienceLevels`): what the anvil and the
-    /// enchanting table charge with, and a mod can charge or reward with.
-    /// Below level 0 the level and the points are 0. The progress toward the
-    /// next level is kept. False, and nothing changed, as for
-    /// `native_give_experience`.
-    pub(super) fn native_give_levels(&mut self, uuid: u128, levels: i32) -> bool {
-        self.native_as_player(uuid, |game| game.give_levels(levels))
     }
     /// Runs `f` with the player `uuid`'s state in place: theirs already when
     /// they are the acting player (the host, or a guest swapped in), else a

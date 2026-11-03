@@ -54,6 +54,8 @@ pub struct EntityState {
     pub data: i32,
     /// SynchedEntityData entries that differ from the defaults.
     pub meta: Vec<(u8, i32, Value)>,
+    /// Entries marked dirty even if their values have not changed.
+    pub forced_meta: [u64; 4],
     /// The defaults of entries `meta` leaves out while they are at them,
     /// sent when one goes back to its default (a calf grown up, a mob healed
     /// back to 1, wool grown back white) beyond Entity's own below.
@@ -104,6 +106,7 @@ impl EntityState {
         self.minecart_steps = None;
         self.data = 0;
         self.meta.clear();
+        self.forced_meta = [0; 4];
         self.defaults.clear();
         self.equipment.clear();
         self.attributes.clear();
@@ -419,7 +422,7 @@ impl ServerEntity {
             self.leash = e.leash;
         }
         // SynchedEntityData.isDirty: once for every client.
-        let dirty = e.meta != self.meta;
+        let dirty = e.meta != self.meta || e.forced_meta != [0; 4];
         let due = self.interval != 0 && self.tick.is_multiple_of(self.interval);
         if due || dirty || e.needs_sync {
             let rotation = (pack_degrees(e.pitch), pack_degrees(e.yaw));
@@ -606,7 +609,10 @@ impl ServerEntity {
             let mut changed: Vec<_> = e
                 .meta
                 .iter()
-                .filter(|m| !self.meta.contains(m))
+                .filter(|m| {
+                    e.forced_meta[usize::from(m.0) / 64] & (1 << (m.0 % 64)) != 0
+                        || !self.meta.contains(m)
+                })
                 .cloned()
                 .collect();
             // A value back at its default is left out of the state, but the
@@ -629,6 +635,17 @@ impl ServerEntity {
                 };
                 if !e.meta.iter().any(|m| m.0 == *index) {
                     changed.push((*index, *kind, default));
+                }
+            }
+            if e.forced_meta != [0; 4] {
+                for default in &e.defaults {
+                    let index = usize::from(default.0);
+                    if e.forced_meta[index / 64] & (1 << (index % 64)) != 0
+                        && !e.meta.iter().any(|m| m.0 == default.0)
+                        && !changed.iter().any(|m| m.0 == default.0)
+                    {
+                        changed.push(default.clone());
+                    }
                 }
             }
             if !changed.is_empty() {
@@ -1241,6 +1258,7 @@ mod tests {
             minecart_steps: None,
             data: 0,
             meta: Vec::new(),
+            forced_meta: [0; 4],
             defaults: Vec::new(),
             equipment: Vec::new(),
             attributes: Vec::new(),
@@ -1288,6 +1306,27 @@ mod tests {
         let mut out = Vec::new();
         s.send_changes(e, &Riding::default(), &mut out);
         out
+    }
+
+    #[test]
+    fn forced_default_is_sent_on_each_write_but_equal_unforced_is_not() {
+        let mut display = state(0.0);
+        display.kind = "minecraft:block_display".into();
+        display.defaults.push((8, serializer::INT, Value::Int(0)));
+        let mut tracker = added(&display);
+        for _ in 0..2 {
+            display.forced_meta[0] = 1 << 8;
+            let packets = changes(&mut tracker, &display);
+            assert_eq!(packets.iter().filter(|p| matches!(p,
+                play::Clientbound::SetEntityData(data) if data.values == [(8, serializer::INT, Value::Int(0))]
+            )).count(), 1);
+            display.forced_meta = [0; 4];
+            assert!(
+                !changes(&mut tracker, &display)
+                    .iter()
+                    .any(|p| matches!(p, play::Clientbound::SetEntityData(_)))
+            );
+        }
     }
 
     #[test]

@@ -634,7 +634,7 @@ impl Game<'_> {
                         .get(d)
                         .is_some_and(|p| !p.streaming.forced.is_empty())
                 };
-                guests.iter().any(|g| g.dimension == d.id())
+                guests.iter().any(|g| g.dimension == d.id() && g.participates_in_player_simulation())
                     // A viewer count not yet told to 0 (`tick_mod_container_viewers`).
                     || self.mod_container_viewers.keys().any(|(k, _)| *k == d.id())
                     || self.player_bed_levels().any(|b| b == *d)

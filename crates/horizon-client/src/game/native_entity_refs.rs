@@ -111,7 +111,10 @@ impl Game<'_> {
             }
         });
         for guest in self.lan.iter().flat_map(|h| &h.hub.guests) {
-            if !guest.placed || guest.dimension != level.dimension() {
+            if !guest.participates_in_player_simulation()
+                || !guest.placed
+                || guest.dimension != level.dimension()
+            {
                 continue;
             }
             let body = if self.lan_acting == Some(guest.conn)
@@ -976,6 +979,7 @@ pub(super) mod tests {
             let motion = PlayerMotion::new(game.motion, Vec3::ZERO).unwrap();
             let fake = Guest::connectionless(fake_id, 2, "fake".into(), 2, [0.0; 3], motion);
             assert!(fake.placed && fake.motion.is_some());
+            assert!(fake.loaded && fake.client_loaded());
             assert!(!fake.participates_online() && !fake.participates_in_player_simulation());
             assert_eq!((fake.game_mode, fake.permission, fake.input), (0, 0, 0));
             assert!(fake.vehicle.is_none() && fake.bed.is_none() && fake.menu.is_none());
@@ -1044,6 +1048,13 @@ pub(super) mod tests {
             let players = game.native_server_players();
             assert_eq!(players.len(), 1);
             assert_eq!(players[0].uuid, 1);
+            // A fake record in the Nether does not keep that level ticking.
+            game.lan.as_mut().unwrap().hub.guests[1].dimension = "minecraft:the_nether".into();
+            let ticking = game.levels_to_tick();
+            assert!(!ticking.contains(&super::super::Dim::Nether));
+            game.lan.as_mut().unwrap().hub.guests[0].dimension = "minecraft:the_nether".into();
+            assert!(game.levels_to_tick().contains(&super::super::Dim::Nether));
+            game.lan.as_mut().unwrap().hub.guests[0].dimension = "minecraft:overworld".into();
             game.lan_acting = Some(real_id);
             let selector = horizon_client::command::args::Selector {
                 kind: 'a',
@@ -1060,10 +1071,38 @@ pub(super) mod tests {
             assert!(!game.run_command_quietly("tp fake 0 64 0"));
             game.lan_acting = None;
             let mut host = game.lan.take().unwrap();
+            for (conn, learns) in [(fake_id, false), (real_id, true)] {
+                game.as_guest(&mut host, conn, |game| {
+                    let mut book =
+                        horizon_client::items::ItemStack::new("minecraft:knowledge_book", 1);
+                    book.data_mut().set_other(
+                        "minecraft:recipes",
+                        Some(horizon_world::nbt::Tag::List(vec![
+                            horizon_world::nbt::Tag::String("minecraft:stick".into()),
+                        ])),
+                    );
+                    let slot = game.held_slot();
+                    *game.stack_in_mut(slot) = Some(book.clone());
+                    assert!(game.use_knowledge_book(&book));
+                    assert!(game.stack_in(slot).is_none());
+                    assert_eq!(game.level.recipe_book.knows("minecraft:stick"), learns);
+                })
+                .unwrap();
+            }
             game.guest_packets
                 .push(Clientbound::SetSimulationDistance(Distance { distance: 4 }));
             game.as_guest(&mut host, fake_id, |game| {
                 assert!(game.lan_acting_fake);
+                assert!(game.player.as_ref().is_some_and(|p| p.client_loaded));
+                assert!(game.player_view().is_none());
+                let mut visited = 0;
+                game.for_each_player(|_| visited += 1);
+                assert_eq!(visited, 0);
+                let before = game.stats.get("custom", "minecraft:jump");
+                game.award_stat("custom", "minecraft:jump", 1);
+                assert_eq!(game.stats.get("custom", "minecraft:jump"), before);
+                game.trigger("minecraft:tick", |_, _| panic!("fake criterion evaluated"));
+                assert_eq!(game.award_recipes(&["minecraft:test".into()]), 0);
                 let source = horizon_client::command::args::Selector {
                     kind: 's',
                     limit: 1,
@@ -1134,6 +1173,9 @@ pub(super) mod tests {
                 .push(("fake_outer".into(), [0.0; 3], 1.0, 1.0));
             game.as_guest(&mut host, real_id, |game| {
                 assert!(!game.lan_acting_fake);
+                let before = game.stats.get("custom", "minecraft:jump");
+                game.award_stat("custom", "minecraft:jump", 1);
+                assert_eq!(game.stats.get("custom", "minecraft:jump"), before + 1);
                 game.guest_cooldowns
                     .push(("minecraft:real_inner".into(), 9));
             })
