@@ -107,7 +107,7 @@ impl Game<'_> {
     /// `GameTestRunner`: every forced chunk of the level is released when a
     /// batch is done or a failure halts the run.
     pub(super) fn release_forced_chunks(&mut self) {
-        self.streaming.forced.clear();
+        self.streaming.clear_forced();
         self.levels.release_parked_forced_chunks();
     }
 }

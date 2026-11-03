@@ -2597,6 +2597,11 @@ impl Streaming {
         self.set_forced_area((x, z), (x, z), forced, |_, _, c| changed = c);
         changed
     }
+    /// Release every forced chunk (`/forceload remove all`, a game-test
+    /// batch's end).
+    pub fn clear_forced(&mut self) {
+        self.forced.clear();
+    }
     /// `ServerLevel.setChunkForced` over chunks `(x0, z0)..=(x1, z1)`, x then
     /// z: `each` hears whether each chunk changed. An add then ranks the area
     /// once for decoration (`forced_order`). The one writer of `forced`.

@@ -89,7 +89,7 @@ impl Game<'_> {
                 }
             }
             "forceload.remove.all" => {
-                self.streaming.forced.clear();
+                self.streaming.clear_forced();
                 self.feedback(Text::translate("commands.forceload.removed.all", &[dim]));
                 Ok(0)
             }

@@ -185,7 +185,7 @@ impl Levels {
     /// The forced chunks of every level not in place, released.
     pub(super) fn release_parked_forced_chunks(&mut self) {
         for level in self.parked.values_mut() {
-            level.streaming.forced.clear();
+            level.streaming.clear_forced();
         }
     }
 
