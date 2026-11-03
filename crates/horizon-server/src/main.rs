@@ -2,3 +2,5 @@
 fn main() -> std::process::ExitCode {
     horizon_server::main()
 }
+
+// Keep the executable thin: the shared library owns the CLI and the supervisor.
