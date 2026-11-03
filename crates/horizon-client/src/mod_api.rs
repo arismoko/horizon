@@ -764,6 +764,23 @@ impl MinecartRef {
     }
 }
 
+/// A villager or wandering trader (vanilla's `AbstractVillager`, a `Merchant`),
+/// narrowed from an entity with `host.merchant(entity)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MerchantRef(EntityRef);
+
+impl MerchantRef {
+    /// Create a handle for the game.
+    #[doc(hidden)]
+    pub fn new(entity: EntityRef) -> Self {
+        Self(entity)
+    }
+    /// The same entity as an [`EntityRef`].
+    pub fn entity(self) -> EntityRef {
+        self.0
+    }
+}
+
 /// Which minecart an entity is: one per vanilla `AbstractMinecart` subclass.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NativeMinecartKind {

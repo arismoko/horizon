@@ -3426,7 +3426,9 @@ fn read_villager(m: &mut Mob, tag: &Tag) {
         m.extra.variant2 = name("profession")
             .and_then(|p| PROFESSIONS.iter().position(|v| *v == p))
             .unwrap_or(0) as u8;
-        m.extra.variant3 = number(data.get("level")).unwrap_or(1).clamp(1, 5) as u8;
+        m.extra.variant3 = number(data.get("level"))
+            .unwrap_or(1)
+            .clamp(1, i64::from(u8::MAX)) as u8;
     }
     let memory = |key: &str| {
         tag.get("Brain")

@@ -789,7 +789,7 @@ impl Game<'_> {
             .any(|f| f == "minecraft:minecart_improvements")
     }
     /// `NewMinecartBehavior.getMaxSpeed`: the game rule over water's half,
-    /// every cart alike (the old behavior's furnace bonus is its own).
+    /// every cart alike (`cart_max_speed` cuts a furnace minecart's).
     fn max_speed_new(&self, c: &Minecart) -> f64 {
         f64::from(self.ui.rules.int("max_minecart_speed")) * if c.in_water { 0.5 } else { 1.0 }
             / 20.0
@@ -1007,7 +1007,7 @@ impl Game<'_> {
                 c.velocity = v;
                 v = self.natural_slowdown(c, ridden, 0.975);
                 if v.length_squared() > 0.0 {
-                    let speed = v.length().min(self.max_speed_new(c));
+                    let speed = v.length().min(self.cart_max_speed(c));
                     v = v.normalize().scale(speed);
                 }
             }
@@ -1142,11 +1142,7 @@ impl Game<'_> {
     }
     /// `comeOffTrack`.
     fn come_off_track(&self, c: &mut Minecart) {
-        let max = if self.minecart_improvements() {
-            self.max_speed_new(c)
-        } else {
-            self.max_speed(c)
-        };
+        let max = self.cart_max_speed(c);
         c.velocity.x = c.velocity.x.clamp(-max, max);
         c.velocity.z = c.velocity.z.clamp(-max, max);
         if c.on_ground {
@@ -2723,6 +2719,58 @@ fn furnace_speed(c: &Minecart, base: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    /// `NewMinecartBehavior` caps the first track step with
+    /// `AbstractMinecart.getMaxSpeed`, which `MinecartFurnace` halves, and
+    /// `comeOffTrack` clamps with it too.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_furnace_cart_is_capped_at_half_the_rule_speed_under_the_new_physics() {
+        super::super::native_entity_refs::tests::with_game(|game| {
+            game.level
+                .enabled_features
+                .push("minecraft:minecart_improvements".into());
+            game.ui.rules =
+                horizon_client::gamerules::GameRules::with_features(&game.level.enabled_features);
+            let rule = f64::from(game.ui.rules.int("max_minecart_speed")) / 20.0;
+            assert_eq!(rule, 0.4);
+            game.world.chunks.insert(
+                (0, 0),
+                std::sync::Arc::new(horizon_client::chunk::Chunk::empty(0, 0)),
+            );
+            let rail = game
+                .pack
+                .assets
+                .registry
+                .default_state("minecraft:rail")
+                .unwrap();
+            for z in 0..16 {
+                game.world.set(0, 64, z, rail).unwrap();
+            }
+            let speed_after = |game: &mut Game<'_>, kind: CartKind, on_rail: bool| {
+                let at = if on_rail {
+                    Vec3::new(0.5, 64.0625, 2.5)
+                } else {
+                    Vec3::new(8.5, 80.0, 8.5)
+                };
+                let mut cart = Minecart::new(1, kind, at);
+                cart.velocity = Vec3::new(0.0, 0.0, 1.0);
+                cart.first_tick = false;
+                game.tick_cart(&mut cart, [0.0; 2]);
+                cart.velocity.horizontal_distance()
+            };
+            // On a rail, the first iteration's cap.
+            let furnace = speed_after(game, CartKind::Furnace, true);
+            let plain = speed_after(game, CartKind::Rideable, true);
+            assert!(furnace <= 0.2 + 1e-9, "{furnace}");
+            assert!(plain > 0.2 + 1e-9 && plain <= 0.4 + 1e-9, "{plain}");
+            // Off the rails, comeOffTrack's clamp (and the same cut in water).
+            let furnace = speed_after(game, CartKind::Furnace, false);
+            assert!(furnace <= 0.2 + 1e-9, "{furnace}");
+            let plain = speed_after(game, CartKind::Rideable, false);
+            assert!(plain > 0.2 + 1e-9, "{plain}");
+        });
+    }
+
     #[test]
     fn mob_walking_into_a_cart_pushes_it_by_a_twentieth() {
         // Issue #6776: a villager at x=0.13 next to a cart at x=0.5 east-west.
