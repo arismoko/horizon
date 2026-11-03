@@ -47,7 +47,6 @@ refuse the manifest. Code adds `[native]`:
 | `horizon` | string | the exact Horizon commit, 40 lowercase hex characters |
 | `mixins` | string | the exact horizon-mixins commit, 40 lowercase hex characters |
 | `injection` | array of tables | optional raw injections, written as `[[native.injection]]` |
-| `post_build` | array of tables | optional programs from the sole root crate, written as `[[native.post_build]]` with `bin` and optional `args` |
 
 An injection has a unique, nonempty `id` and a `kind`; it selects exactly one of `hook` or `target`, and
 exactly one of `helper` or `trait_method`. A helper is a selected `.rs` file under `src/`, or `build.rs`.

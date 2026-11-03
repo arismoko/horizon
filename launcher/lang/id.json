@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "Membangun langkah pasca-bangun {name}",
   "In use": "Digunakan",
   "Prepare": "Siapkan",
   "Developer options": "Opsi pengembang",
@@ -519,7 +518,6 @@
   "{size} on disk": "{size} pada disk",
   "Data collection": "Pengumpulan data",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} adalah data pack: letakkan ke dunia di Beranda, atau instal ke salah satu dunia dari sana.",
-  "Running {name}'s post-build step": "Menjalankan langkah pasca-bangun {name}",
   "Shared: {url}": "Dibagikan: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "Teman dalam Wi-Fi yang sama: Multiplayer -> Tambah Server, lalu tempel alamat ini.",
   "None yet: drop a .hshader or a shader pack .zip here.": "Belum ada: letakkan .hshader atau file .zip paket shader di sini.",

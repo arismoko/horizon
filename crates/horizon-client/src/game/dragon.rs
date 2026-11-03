@@ -99,7 +99,7 @@ fn fireball_cloud_origin(feet: [f64; 3], targets: &[(Aabb, Vec3)]) -> [f64; 3] {
 pub(super) const SPECIAL: u32 = u32::MAX - 4096;
 pub(super) const CRYSTAL_IDS: u32 = SPECIAL + 16;
 const FIGHT_FILE: &str = "data/minecraft/ender_dragon_fight.dat";
-const MAX_HEALTH: f32 = 200.0;
+pub(super) const MAX_HEALTH: f32 = 200.0;
 /// `Mob.getAmbientSoundInterval`.
 const AMBIENT_INTERVAL: i32 = 80;
 

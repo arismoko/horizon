@@ -161,9 +161,17 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     }
     /// `SignalGetter.getSignal(pos, direction)`.
     pub fn signal(&self, pos: BlockPos, direction: Direction) -> i32 {
+        let has_hook = self.level.has_weak_power_hook();
         let state = self.state(pos);
         let signal = self.state_signal(state, pos, direction);
-        if self.is_redstone_conductor(state, pos) {
+        let vanilla = self.is_redstone_conductor(state, pos);
+        let check = if has_hook {
+            self.level
+                .adjust_should_check_weak_power(pos, state, direction, vanilla)
+        } else {
+            vanilla
+        };
+        if check {
             signal.max(self.direct_signal_to(pos))
         } else {
             signal

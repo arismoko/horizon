@@ -1,14 +1,11 @@
-//! Lock-file isolation and post-build programs for the launcher's flat native crates.
-//! The launcher stages one crate at native-api/<mod>/ and owns its post-build plan.
+//! Lock-file isolation for the launcher's flat native crates.
+//! The launcher stages one crate at native-api/<mod>/.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::process::Command;
 
 /// Where the launcher stages the mods' crates.
 pub(super) const DIR: &str = "native-api";
-/// The post-build steps it found, in mod order.
-const POST_BUILD: &str = "native-post-build.json";
 
 /// A package of a `Cargo.lock` from a registry (or git): the ones a build would download.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -322,48 +319,6 @@ pub(super) fn locked(error: String) -> String {
     )
 }
 
-/// A mod's post-build step: a program of one of its crates, run after the game compiles.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-pub(super) struct PostBuild {
-    #[serde(rename = "mod")]
-    pub mod_id: String,
-    pub package: String,
-    pub bin: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-}
-
-/// Persist the launcher's typed post-build plan beside the staged workspace.
-pub(super) fn write_post_builds(stage: &Path, steps: &[PostBuild]) -> Result<(), String> {
-    let bytes = serde_json::to_vec_pretty(steps).map_err(|e| e.to_string())?;
-    fs::write(stage.join(POST_BUILD), bytes).map_err(|e| e.to_string())
-}
-
-/// The post-build steps listed in `stage` (none when no mod has one).
-pub(super) fn post_builds(stage: &Path) -> Result<Vec<PostBuild>, String> {
-    let path = stage.join(POST_BUILD);
-    match fs::read_to_string(&path) {
-        Ok(text) => {
-            let steps: Vec<PostBuild> =
-                serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-            match steps
-                .iter()
-                .find(|s| !horizon_mods::index::valid_id(&s.mod_id))
-            {
-                Some(bad) => Err(format!(
-                    "{}: invalid mod id {:?}",
-                    path.display(),
-                    bad.mod_id
-                )),
-                None => Ok(steps),
-            }
-        }
-        // Only a missing file means none: any other error must not skip the steps.
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
-        Err(e) => Err(format!("{}: {e}", path.display())),
-    }
-}
-
 /// Whether `stage` has any mod's crate: a build with none skips the crate check, even when an
 /// earlier build left `native-api/` behind (the stage keeps folders).
 pub(super) fn any(stage: &Path) -> bool {
@@ -374,38 +329,6 @@ pub(super) fn any(stage: &Path) -> bool {
         Ok(metadata) if is_link_or_junction(&metadata) || !metadata.is_dir() => true,
         Ok(_) => manifests(&dir).map_or(true, |m| !m.is_empty()),
     }
-}
-
-/// Step `step`'s program `program` set up to run in the new build's version folder `version`,
-/// with the mod's folders in its environment: `HORIZON_NATIVE_DATA_DIR` (what the game reads at
-/// run time, in the version folder) and `HORIZON_NATIVE_CACHE_DIR` (kept across builds, under
-/// `cache`). Both are created. `HORIZON_NATIVE_BUNDLE_DATA_DIR` is the bundle's own `data/`
-/// as staged in `stage` (`native-data/<mod id>/`), which the step may read.
-pub(super) fn post_build(
-    program: &Path,
-    step: &PostBuild,
-    version: &Path,
-    cache: &Path,
-    stage: &Path,
-) -> Result<Command, String> {
-    let data = version.join("native-data").join(&step.mod_id);
-    let cache = cache.join(&step.mod_id);
-    for dir in [&data, &cache] {
-        fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    }
-    let mut cmd = Command::new(program);
-    crate::rust_toolchain::low_priority(&mut cmd);
-    cmd.args(&step.args)
-        .current_dir(version)
-        .env("HORIZON_NATIVE_MOD", &step.mod_id)
-        .env("HORIZON_NATIVE_VERSION_DIR", version)
-        .env("HORIZON_NATIVE_DATA_DIR", &data)
-        .env("HORIZON_NATIVE_CACHE_DIR", &cache)
-        .env(
-            "HORIZON_NATIVE_BUNDLE_DATA_DIR",
-            stage.join("native-data").join(&step.mod_id),
-        );
-    Ok(cmd)
 }
 
 #[cfg(test)]
@@ -618,7 +541,6 @@ checksum = "def"
             5,
             "an emptied crate folder is skipped"
         );
-        assert_eq!(post_builds(&stage).unwrap(), []);
         assert!(any(&stage));
         fs::remove_file(krate.join("Cargo.toml")).unwrap();
         assert!(!any(&stage), "only emptied crate folders left");
@@ -815,60 +737,5 @@ checksum = "def"
     #[cfg(windows)]
     fn create_test_dir_link(target: &Path, link: &Path) -> std::io::Result<()> {
         crate::sources::junction(target, link)
-    }
-
-    #[test]
-    fn post_build_steps_run_in_the_version_folder_with_the_mods_folders() {
-        let json = r#"[{"mod":"bake","package":"bake-engine","bin":"bake","args":["--fast"]},
-            {"mod":"zoom","package":"zoom-tables","bin":"tables"}]"#;
-        let root = std::env::temp_dir().join(format!("horizon-native-post-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
-        fs::write(root.join(POST_BUILD), json).unwrap();
-        let steps = post_builds(&root).unwrap();
-        assert_eq!(steps.len(), 2);
-        assert_eq!(steps[1].args, Vec::<String>::new());
-        let version = root.join("versions/native-abc");
-        let cmd = post_build(
-            Path::new("/target/fast/bake"),
-            &steps[0],
-            &version,
-            &root.join("cache"),
-            &root.join("stage"),
-        )
-        .unwrap();
-        assert_eq!(cmd.get_current_dir(), Some(version.as_path()));
-        assert_eq!(cmd.get_args().collect::<Vec<_>>(), ["--fast"]);
-        let env = |name: &str| {
-            cmd.get_envs()
-                .find(|(k, _)| *k == name)
-                .and_then(|(_, v)| v)
-                .map(PathBuf::from)
-        };
-        assert_eq!(env("HORIZON_NATIVE_MOD"), Some("bake".into()));
-        assert_eq!(env("HORIZON_NATIVE_VERSION_DIR"), Some(version.clone()));
-        assert_eq!(
-            env("HORIZON_NATIVE_DATA_DIR"),
-            Some(version.join("native-data/bake"))
-        );
-        assert_eq!(
-            env("HORIZON_NATIVE_CACHE_DIR"),
-            Some(root.join("cache/bake"))
-        );
-        assert_eq!(
-            env("HORIZON_NATIVE_BUNDLE_DATA_DIR"),
-            Some(root.join("stage/native-data/bake"))
-        );
-        assert!(version.join("native-data/bake").is_dir() && root.join("cache/bake").is_dir());
-        fs::write(root.join(POST_BUILD), "{}").unwrap();
-        assert!(post_builds(&root).is_err());
-        // A mod id that would leave its folder is refused.
-        let bad = r#"[{"mod":"../x","package":"p","bin":"b"}]"#;
-        fs::write(root.join(POST_BUILD), bad).unwrap();
-        assert!(post_builds(&root).is_err());
-        // A file that can't be read is an error, not "no steps".
-        fs::remove_file(root.join(POST_BUILD)).unwrap();
-        fs::create_dir(root.join(POST_BUILD)).unwrap();
-        assert!(post_builds(&root).is_err());
     }
 }

@@ -50,6 +50,12 @@ fn slot_name(slot: EquipmentSlot) -> &'static str {
     }
 }
 
+/// `LivingEntity.isAlive`'s health test: above 0, so a NaN health loaded from
+/// a save is not alive either.
+fn alive_at(health: f32) -> bool {
+    health > 0.0
+}
+
 fn equipment_stack(stack: Option<ItemStack>) -> Option<ItemStack> {
     stack.filter(|s| s.count > 0 && &*s.item != "minecraft:air")
 }
@@ -118,6 +124,65 @@ impl Game<'_> {
         };
         let key = player.attributes.key(name)?;
         player.attributes.value(Some(key), kind).ok()
+    }
+
+    /// The entity's health (`LivingEntity.getHealth`; Paper's
+    /// `Damageable#getHealth`). During a player's turn only that player
+    /// resolves: the hub is out for their action, and other players'
+    /// handles read `None` until it is back.
+    pub(super) fn native_living_health(&self, living: LivingRef) -> Option<f32> {
+        match self.native_living_target(living)? {
+            Target::Player => Some(self.player.as_ref()?.health.health()),
+            Target::Guest(conn) => Some(self.command_guest(conn)?.health),
+            Target::Mob(id) => self
+                .mobs
+                .iter()
+                .find(|m| m.id == id && !m.removed)
+                .map(|m| m.health),
+            // An armor stand carries the fixed 20 the game gives it: lava
+            // does not hurt it and splash water reads the very field.
+            Target::Stand(id) => self
+                .armor_stands
+                .iter()
+                .find(|a| a.id == id)
+                .map(|a| a.health),
+            Target::Dragon(id) => self
+                .dragon
+                .as_ref()
+                .filter(|d| d.id == id)
+                .map(|d| d.health),
+            _ => None,
+        }
+    }
+    /// The entity's maximum health (`LivingEntity.getMaxHealth`; Paper's
+    /// `Damageable#getMaxHealth`). Players and guests read their attribute
+    /// map; a mob, an armor stand and the dragon their own fields (the
+    /// armor stand the fixed 20 the game seeds it with, the dragon its
+    /// 200) until live attribute maps cover them.
+    pub(super) fn native_living_max_health(&mut self, living: LivingRef) -> Option<f32> {
+        match self.native_living_target(living)? {
+            Target::Player | Target::Guest(_) => self
+                .native_living_attribute(
+                    living,
+                    "minecraft:max_health",
+                    horizon_world::attribute_map::ValueKind::Computed,
+                )
+                .map(|max| max as f32),
+            Target::Mob(id) => self
+                .mobs
+                .iter()
+                .find(|m| m.id == id && !m.removed)
+                .map(|m| m.attrs.max_health),
+            Target::Stand(_) => Some(20.0),
+            Target::Dragon(_) => Some(super::dragon::MAX_HEALTH),
+            _ => None,
+        }
+    }
+    /// Whether the entity is alive (`LivingEntity.isAlive`; Paper's
+    /// `Entity#isDead` is its inverse). A dying mob, mid death
+    /// animation, is not.
+    pub(super) fn native_living_alive(&self, living: LivingRef) -> Option<bool> {
+        self.native_living_health(living).map(alive_at)
     }
 
     /// The stack in `slot` (`LivingEntity.getItemBySlot`). Players, guests,
@@ -267,6 +332,63 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn living_reads_answer_the_vanilla_defaults_and_a_gone_entity_reads_none() {
+        use horizon_client::entities::ArmorStand;
+        use horizon_client::mobs::Mob;
+        use horizon_client::motion::PlayerMotion;
+        use horizon_core::geometry::Vec3;
+        super::super::native_entity_refs::tests::with_game(|game| {
+            let zombie = game
+                .res
+                .mob_types()
+                .get("minecraft:zombie")
+                .unwrap()
+                .clone();
+            game.mobs.push(Mob::new(12, zombie, Vec3::ZERO, 0.0));
+            game.armor_stands.push(ArmorStand::new(13, Vec3::ZERO, 0.0));
+            let mut dragon = super::super::dragon::Dragon::new(Vec3::ZERO, 0.0, 0);
+            dragon.id = 14;
+            game.dragon = Some(dragon);
+            game.player = Some(PlayerMotion::new(game.motion, Vec3::ZERO).unwrap());
+            game.lan_acting_uuid = Some(123);
+            game.lan_acting_entity = Some(20);
+            // The vanilla attribute defaults: a player and a zombie 20, an
+            // armor stand the 20 the game seeds it with, the dragon its 200.
+            for (id, health, max, alive) in [
+                (20u32, 20.0, 20.0, true),
+                (12, 20.0, 20.0, true),
+                (13, 20.0, 20.0, true),
+                (14, 200.0, 200.0, true),
+            ] {
+                let living = game.native_living(game.native_entity(id).unwrap()).unwrap();
+                assert_eq!(living.health(game), Some(health), "health of {id}");
+                assert_eq!(living.max_health(game), Some(max), "max of {id}");
+                assert_eq!(living.alive(game), Some(alive), "alive of {id}");
+            }
+            // A dead dragon: isAlive is health above zero.
+            let dragon_handle = game.native_living(game.native_entity(14).unwrap()).unwrap();
+            game.dragon.as_mut().unwrap().health = 0.0;
+            assert_eq!(dragon_handle.health(game), Some(0.0));
+            assert_eq!(dragon_handle.alive(game), Some(false));
+            // The entities gone: every read answers None.
+            game.player = None;
+            game.lan_acting_uuid = None;
+            game.lan_acting_entity = None;
+            game.mobs[0].removed = true;
+            game.armor_stands.clear();
+            game.dragon = None;
+            for id in [20u32, 12, 13, 14] {
+                let handle = game.native_entity(id).and_then(|er| game.native_living(er));
+                assert!(handle.is_none(), "handle of {id} after it is gone");
+            }
+            assert_eq!(dragon_handle.health(game), None);
+            assert_eq!(dragon_handle.max_health(game), None);
+            assert_eq!(dragon_handle.alive(game), None);
+        });
+    }
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
@@ -501,6 +623,14 @@ mod tests {
                 (Some(&body), Some(&saddle))
             );
         });
+    }
+
+    #[test]
+    fn alive_is_health_above_zero_as_in_vanilla() {
+        assert!(alive_at(0.5));
+        assert!(!alive_at(0.0));
+        assert!(!alive_at(-1.0));
+        assert!(!alive_at(f32::NAN));
     }
 
     #[test]

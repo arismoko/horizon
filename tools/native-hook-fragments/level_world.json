@@ -30,6 +30,11 @@
       "name": "level_is_thundering", "side": "server",
       "target": "horizon_client::game::native_level_world::Game<'_>::native_level_is_thundering",
       "receiver": "level"
+    },
+    {
+      "name": "level_random", "side": "server",
+      "target": "horizon_client::game::native_hooks::Game<'_>::native_level_random",
+      "receiver": "level"
     }
   ]
 }

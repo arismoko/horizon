@@ -31,6 +31,7 @@ pub struct NativeHit {
 }
 /// What happened to a mod's claimed item, oldest first.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum NativeModEvent {
     /// A right-click with the item began its use: the stack, and 0 ticks.
     UseStart(NativeHeldItem, u32),

@@ -4,6 +4,7 @@ use super::Game;
 
 /// Which of a column's heights (`Heightmap.Types`) a run's `y` counts from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum NativeHeightmap {
     WorldSurface,
     MotionBlocking,

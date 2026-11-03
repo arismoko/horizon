@@ -68,12 +68,8 @@ pub(super) fn content_root(
     dev: &[std::path::PathBuf],
 ) -> horizon_client::Result<std::path::PathBuf> {
     use horizon_client::mod_content::{self, ContentMod};
-    use horizon_mods::{Content, Package};
+    use horizon_mods::Content;
     let here = std::env::current_dir().unwrap_or_default();
-    let mut paths = horizon_mods::find(&here.join(mod_list::DIR));
-    paths.extend(horizon_mods::find(&here.join(mod_list::NATIVE_DIR)));
-    paths.retain(|path| !dev.contains(path));
-    paths.extend(dev.iter().cloned());
     let built = std::env::current_exe()
         .ok()
         .and_then(|exe| std::fs::read_to_string(exe.with_file_name(BUILD_INFO)).ok())
@@ -83,14 +79,10 @@ pub(super) fn content_root(
     let mut mods: Vec<ContentMod> = Vec::new();
     let announce = !horizon_protocol::mod_list::is_set();
     let mut announced = Vec::new();
-    for path in &paths {
-        let Ok(package) = Package::read(path) else {
-            continue;
-        };
-        let m = &package.manifest;
-        let native = horizon_mods::index::native::holds(path);
-        let on = content_enabled(&m.id, native, enabled, &built) || dev.contains(path);
-        if !on || mods.iter().any(|c| c.id == m.id) {
+    for selected in horizon_mods::selection::packages(&here, enabled, &built, dev) {
+        let path = &selected.path;
+        let m = &selected.package.manifest;
+        if mods.iter().any(|c| c.id == m.id) {
             continue;
         }
         // The items this mod's native code declares may be a file item's crafting remainder.
@@ -246,20 +238,6 @@ fn register_menu_types(mods: &[horizon_client::mod_content::ContentMod]) {
 /// What the launcher writes beside a game it built with native mods: their ids under `mods`.
 const BUILD_INFO: &str = "native-mods.json";
 
-/// Native content follows the compiled build; content-only mods follow the player's selection.
-fn content_enabled(
-    id: &str,
-    native: bool,
-    enabled: &std::collections::BTreeSet<String>,
-    built: &std::collections::BTreeSet<String>,
-) -> bool {
-    if native {
-        built.contains(id)
-    } else {
-        enabled.contains(id)
-    }
-}
-
 /// IDs compiled into this executable, from the launcher's build record.
 fn built_ids(built: &str) -> std::collections::BTreeSet<String> {
     let info: serde_json::Value = serde_json::from_str(built).unwrap_or_default();
@@ -402,64 +380,6 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn native_content_follows_the_build_not_the_next_toggle() {
-        let built = built_ids(r#"{"mods":[{"id":"machine_sample"}]}"#);
-        let toggled_off = std::collections::BTreeSet::new();
-        assert!(content_enabled(
-            "machine_sample",
-            true,
-            &toggled_off,
-            &built
-        ));
-        assert!(!content_enabled(
-            "machine_sample",
-            false,
-            &toggled_off,
-            &built
-        ));
-        let rebuilt = built_ids(r#"{"mods":[]}"#);
-        assert!(!content_enabled(
-            "machine_sample",
-            true,
-            &toggled_off,
-            &rebuilt
-        ));
-    }
-
-    #[test]
-    fn misplaced_packages_follow_their_actual_kind() {
-        let dir = std::env::temp_dir().join(format!("horizon-misplaced-{}", std::process::id()));
-        let content = dir.join("horizon-mods");
-        let native = dir.join("horizon-native-mods");
-        std::fs::create_dir_all(&content).unwrap();
-        std::fs::create_dir_all(&native).unwrap();
-        hmod(&content, "built");
-        let file = std::fs::File::create(native.join("plain.hmod")).unwrap();
-        let mut zip = zip::ZipWriter::new(file);
-        zip.start_file("horizon-mod.toml", zip::write::SimpleFileOptions::default())
-            .unwrap();
-        zip.write_all(b"content").unwrap();
-        zip.finish().unwrap();
-        let built = built_ids(r#"{"mods":[{"id":"built"}]}"#);
-        let enabled = std::collections::BTreeSet::from(["plain".to_string()]);
-        assert!(content_enabled(
-            "built",
-            horizon_mods::index::native::holds(&content.join("built.hmod")),
-            &enabled,
-            &built
-        ));
-        assert!(content_enabled(
-            "plain",
-            horizon_mods::index::native::holds(&native.join("plain.hmod")),
-            &enabled,
-            &built
-        ));
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
     /// Only a build whose `native-mods.json` lists a mod counts as built with mods.
     #[test]
     fn only_a_listed_mod_makes_a_build_a_mod_build() {

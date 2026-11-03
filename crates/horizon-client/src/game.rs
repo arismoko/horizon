@@ -433,6 +433,7 @@ use horizon_core::{
     position::BlockPos,
 };
 use horizon_core::{geometry::Vec3, random::RandomSource};
+use horizon_mods::selection::{Argument, LaunchArguments};
 use horizon_world::{
     block_collision::BlockCollisionRegistry,
     collision_context::{CollisionContext, CollisionEntity, CollisionItem},
@@ -550,7 +551,7 @@ struct Options {
     /// as vanilla's DisplayData does, without saving it there.
     fullscreen: bool,
     /// `--game-dir DIR`: the folder `read` makes the working directory (saves, options.txt...).
-    game_dir: Option<PathBuf>,
+    game_dir: PathBuf,
     /// `--quickPlaySingleplayer`, checked once the game folder is known.
     quick_play: Option<String>,
     session_file: Option<String>,
@@ -574,9 +575,9 @@ impl Options {
     }
     /// The command line, then what it asks of the process: the game folder, the account.
     /// A bad command line is a [`launch_api::UsageError`] (exit code 2, no crash report).
-    fn read() -> Result<Option<Self>> {
-        let Some(mut o) = Self::parse(std::env::args().skip(1))
-            .map_err(|e| launch_api::UsageError(e.to_string()))?
+    fn read(launch: LaunchArguments) -> Result<Option<Self>> {
+        let Some(mut o) =
+            Self::from_launch(launch).map_err(|e| launch_api::UsageError(e.to_string()))?
         else {
             return Ok(None);
         };
@@ -605,15 +606,13 @@ impl Options {
             Ok(None) => {}
             Err(e) => eprintln!("Horizon: not signed in: {e}"),
         }
-        if let Some(dir) = o.game_dir.take() {
-            // Paths given on the command line stay relative to where the game was started.
-            o.resources = std::path::absolute(&o.resources)?;
-            o.report = o.report.map(std::path::absolute).transpose()?;
-            o.control = o.control.map(std::path::absolute).transpose()?;
-            std::fs::create_dir_all(&dir)
-                .and_then(|()| std::env::set_current_dir(&dir))
-                .map_err(|e| format!("game folder {}: {e}", dir.display()))?;
-        }
+        // Paths given on the command line stay relative to where the game was started.
+        o.resources = std::path::absolute(&o.resources)?;
+        o.report = o.report.map(std::path::absolute).transpose()?;
+        o.control = o.control.map(std::path::absolute).transpose()?;
+        std::fs::create_dir_all(&o.game_dir)
+            .and_then(|()| std::env::set_current_dir(&o.game_dir))
+            .map_err(|e| format!("game folder {}: {e}", o.game_dir.display()))?;
         // Vanilla's quick play (Main, QuickPlay.joinSingleplayerWorld): only a
         // world that exists opens; else the title screen. --world also creates one.
         if let Some(world) = o.quick_play.take() {
@@ -632,7 +631,17 @@ impl Options {
     }
     /// The command line alone: no file is read and nothing changes. `None` for `--help` and
     /// `--launch-api`, which print and end the run.
-    fn parse(mut args: impl Iterator<Item = String>) -> Result<Option<Self>> {
+    #[cfg(test)]
+    fn parse(args: impl Iterator<Item = String>) -> Result<Option<Self>> {
+        Self::from_launch(LaunchArguments::parse(
+            args,
+            &std::env::current_dir()?,
+            &horizon_client::logging::game_home(),
+            std::env::var_os("HORIZON_HOME").as_deref(),
+        )?)
+    }
+
+    fn from_launch(LaunchArguments { context, rest }: LaunchArguments) -> Result<Option<Self>> {
         let sibling = std::env::current_exe()?
             .parent()
             .ok_or("missing executable directory")?
@@ -675,55 +684,55 @@ impl Options {
                 .filter(|n| !n.is_empty()),
             dedicated: None,
             benchmark: None,
-            dev_mods: Vec::new(),
+            dev_mods: context.dev_mods,
             execution_role: execution_role::ExecutionRole::Client,
             fullscreen: false,
-            game_dir: None,
+            game_dir: context.game_dir,
             quick_play: None,
             session_file: std::env::var("HORIZON_SESSION_FILE").ok(),
             session_stdin: false,
         };
-        while let Some(arg) = args.next() {
-            match arg.as_str() {
-                "--help" | "-h" => {
-                    println!(
-                        "Horizon — Minecraft Java Edition {} in Rust\n\n  --resources PATH        Prepared resources (horizon-prepare)\n  --render-distance N     Chunks, 2..128 (default 12)\n  --world NAME            World folder under saves/ (default \"New World\")\n  --seed N                World seed for new worlds (default 0)\n  --width N, --height N   Window size (default 1280 x 720)\n  --creative              Creative mode (default survival)\n  --test-terrain          Simple test terrain instead of vanilla generation\n  --frames N              Exit after N frames (testing)\n  --world-frames N        Exit after N frames drawn in the world (testing)\n  --smoke-report PATH     Write a JSON report on exit\n  --benchmark SCENARIO    Run a benchmark (standard, village, forest, ocean, mountain), write its report to benchmarks/ and quit\n  --control               Accept horizon-ctl commands on a local socket\n  --control-socket PATH   Control socket path (default $XDG_RUNTIME_DIR/horizon-control.sock)\n  --server HOST[:PORT]    Join a multiplayer server (offline mode) at start\n  --quickPlaySingleplayer WORLD  Open this world of saves/ at start, only if it exists (vanilla's)\n  --quickPlayMultiplayer HOST[:PORT]  The same as --server (vanilla's name)\n  --name NAME             Player name for multiplayer (default: generated once, kept in horizon-player.txt)\n  --session-file PATH     Signed-in account from the launcher (read once, then deleted)\n  --session-stdin         The same account as JSON on standard input\n  --game-dir DIR          Game folder: saves, options.txt, packs, mods (default: the working directory)\n  --home DIR              Logs and crash reports (default $HORIZON_HOME, else the platform data folder)\n  --player-dir DIR        This player's own files when several play in one game folder: options.txt, logs, horizon-player.txt, servers.dat, screenshots\n  --fullscreen            Open the window fullscreen\n  --launch-api            Print the Launch API version and options as JSON (docs/api/launch.md)\n  --dev-mod PATH          A content mod (.hmod or folder) to develop: always on\n  --pregen                Add Horizon's /pregen command (docs/pregeneration.md)\n\nControls: mouse look, WASD move, Space jump, Left Shift sneak, Left Ctrl sprint,\nleft click break, right click place/use, 1-9/scroll hotbar, E inventory,\nQ drop, F3 debug, Esc pause.",
-                        horizon_core::VANILLA_VERSION
-                    );
-                    return Ok(None);
-                }
-                "--launch-api" => {
-                    println!("{}", launch_api::reply(&horizon_client::crash::version()));
-                    return Ok(None);
-                }
-                "--fullscreen" => o.fullscreen = true,
-                "--session-stdin" => o.session_stdin = true,
-                "--dedicated" => {
+        for argument in rest {
+            match argument {
+                Argument::Switch(arg) => match arg.as_str() {
+                    "--help" | "-h" => {
+                        println!(
+                            "Horizon — Minecraft Java Edition {} in Rust\n\n  --resources PATH        Prepared resources (horizon-prepare)\n  --render-distance N     Chunks, 2..128 (default 12)\n  --world NAME            World folder under saves/ (default \"New World\")\n  --seed N                World seed for new worlds (default 0)\n  --width N, --height N   Window size (default 1280 x 720)\n  --creative              Creative mode (default survival)\n  --test-terrain          Simple test terrain instead of vanilla generation\n  --frames N              Exit after N frames (testing)\n  --world-frames N        Exit after N frames drawn in the world (testing)\n  --smoke-report PATH     Write a JSON report on exit\n  --benchmark SCENARIO    Run a benchmark (standard, village, forest, ocean, mountain), write its report to benchmarks/ and quit\n  --control               Accept horizon-ctl commands on a local socket\n  --control-socket PATH   Control socket path (default $XDG_RUNTIME_DIR/horizon-control.sock)\n  --server HOST[:PORT]    Join a multiplayer server (offline mode) at start\n  --quickPlaySingleplayer WORLD  Open this world of saves/ at start, only if it exists (vanilla's)\n  --quickPlayMultiplayer HOST[:PORT]  The same as --server (vanilla's name)\n  --name NAME             Player name for multiplayer (default: generated once, kept in horizon-player.txt)\n  --session-file PATH     Signed-in account from the launcher (read once, then deleted)\n  --session-stdin         The same account as JSON on standard input\n  --game-dir DIR          Game folder: saves, options.txt, packs, mods (default: the working directory)\n  --home DIR              Logs and crash reports (default $HORIZON_HOME, else the platform data folder)\n  --player-dir DIR        This player's own files when several play in one game folder: options.txt, logs, horizon-player.txt, servers.dat, screenshots\n  --fullscreen            Open the window fullscreen\n  --launch-api            Print the Launch API version and options as JSON (docs/api/launch.md)\n  --dev-mod PATH          A content mod (.hmod or folder) to develop: always on\n  --pregen                Add Horizon's /pregen command (docs/pregeneration.md)\n\nControls: mouse look, WASD move, Space jump, Left Shift sneak, Left Ctrl sprint,\nleft click break, right click place/use, 1-9/scroll hotbar, E inventory,\nQ drop, F3 debug, Esc pause.",
+                            horizon_core::VANILLA_VERSION
+                        );
+                        return Ok(None);
+                    }
+                    "--launch-api" => {
+                        println!("{}", launch_api::reply(&horizon_client::crash::version()));
+                        return Ok(None);
+                    }
+                    "--fullscreen" => o.fullscreen = true,
+                    "--session-stdin" => o.session_stdin = true,
+                    "--creative" => o.creative = true,
+                    "--test-terrain" => o.test_terrain = true,
+                    "--no-pause" => o.no_pause = true,
+                    "--offscreen" => o.offscreen = true,
+                    "--headless" => {
+                        o.headless = true;
+                        o.offscreen = true;
+                    }
+                    "--control" => o.control = Some(horizon_client::control::default_path()),
+                    // Single player always runs on its server thread: a launcher's saved arguments
+                    // may still name the old switches.
+                    "--server-thread" => {}
+                    "--in-frame" | "--no-server-thread" => eprintln!(
+                        "Horizon: {arg} was removed: single player runs on its server thread."
+                    ),
+                    // Horizon's own commands (/pregen), off by default as on vanilla.
+                    "--pregen" => horizon_client::command::vanilla::set_horizon_commands(true),
+                    _ => return Err(format!("{arg}: unknown option").into()),
+                },
+                Argument::Dedicated(args) => {
                     o.execution_role = execution_role::ExecutionRole::DedicatedServer;
-                    o.dedicated = Some(args.by_ref().collect());
+                    o.dedicated = Some(args);
                     break;
                 }
-                "--creative" => o.creative = true,
-                "--test-terrain" => o.test_terrain = true,
-                "--no-pause" => o.no_pause = true,
-                "--offscreen" => o.offscreen = true,
-                "--headless" => {
-                    o.headless = true;
-                    o.offscreen = true;
-                }
-                "--control" => o.control = Some(horizon_client::control::default_path()),
-                // Single player always runs on its server thread: a launcher's saved arguments
-                // may still name the old switches.
-                "--server-thread" => {}
-                "--in-frame" | "--no-server-thread" => eprintln!(
-                    "Horizon: {arg} was removed: single player runs on its server thread."
-                ),
-                // Horizon's own commands (/pregen), off by default as on vanilla.
-                "--pregen" => horizon_client::command::vanilla::set_horizon_commands(true),
-                _ => {
-                    let value = args
-                        .next()
-                        .ok_or_else(|| format!("missing value after {arg}"))?;
+                Argument::Value(arg, value) => {
                     // A launcher shows the error to the player: it names the option.
                     let read = || -> Result<()> {
                         match arg.as_str() {
@@ -771,12 +780,8 @@ impl Options {
                                 }
                                 o.quick_play = Some(value);
                             }
-                            "--game-dir" | "--gameDir" => o.game_dir = Some(value.into()),
-                            // main has made it the game home already (logging::set_game_home).
-                            "--home" => {}
-                            // ...and this player's own folder (logging::set_player_dir).
+                            // main has set this player's own folder (logging::set_player_dir).
                             "--player-dir" => {}
-                            "--dev-mod" => o.dev_mods.push(std::path::absolute(&value)?),
                             "--benchmark" => {
                                 if horizon_client::benchmark::scenes(&value).is_none() {
                                     return Err(format!(
@@ -1455,6 +1460,20 @@ impl LevelAccess for GameLevel<'_> {
             self.native_is_signal_source(state, &mut source);
         }
         source
+    }
+    fn has_weak_power_hook(&self) -> bool {
+        self.native_authoritative && !horizon_client::mod_api::mods().is_empty()
+    }
+    fn adjust_should_check_weak_power(
+        &self,
+        pos: BlockPos,
+        state: BlockStateId,
+        direction: Direction,
+        vanilla: bool,
+    ) -> bool {
+        let mut check = vanilla;
+        self.native_should_check_weak_power(self.dimension, pos, state, direction, &mut check);
+        check
     }
     fn has_redstone_wire_connection_hook(&self) -> bool {
         self.native_authoritative && !horizon_client::mod_api::mods().is_empty()
@@ -5168,10 +5187,47 @@ impl Game<'_> {
             for &bounds in &level.trigger_extras {
                 touch(bounds);
             }
-            touched.sort_unstable_by_key(|p| (p.x, p.y, p.z));
-            touched.dedup();
-            for pos in inside.into_iter().chain(touched) {
+            for pos in inside {
                 b.entity_inside(level, ticks, pos);
+            }
+            // The touched blocks go once each, in (x, y, z) order. Only an
+            // entity-sensing block does anything there, so the others are
+            // passed over while no block has changed since they were looked
+            // at (they are still not sensing), and only the few sensing ones
+            // are sorted. Once a block changes, every later one goes, as the
+            // whole sorted list would.
+            let key = |p: &BlockPos| (p.x, p.y, p.z);
+            let (mut sensing, rest): (Vec<_>, Vec<_>) = touched
+                .into_iter()
+                .partition(|p| b.senses_entities(level.world.block(p.x, p.y, p.z)));
+            sensing.sort_unstable_by_key(key);
+            sensing.dedup();
+            let looked = (
+                level.world.revision,
+                level.world.chunks.membership_revision(),
+            );
+            let mut i = 0;
+            while i < sensing.len() {
+                let pos = sensing[i];
+                b.entity_inside(level, ticks, pos);
+                i += 1;
+                let now = (
+                    level.world.revision,
+                    level.world.chunks.membership_revision(),
+                );
+                if now != looked {
+                    let mut later: Vec<_> = rest
+                        .into_iter()
+                        .chain(sensing.drain(i..))
+                        .filter(|p| key(p) > key(&pos))
+                        .collect();
+                    later.sort_unstable_by_key(key);
+                    later.dedup();
+                    for pos in later {
+                        b.entity_inside(level, ticks, pos);
+                    }
+                    break;
+                }
             }
             for (pos, on_ground, feet_y) in standing {
                 b.entity_on_big_dripleaf(level, ticks, pos, on_ground, feet_y);
@@ -21918,8 +21974,8 @@ fn run_loading(
 
 pub use launch_api::{UsageError, exit_code};
 
-pub fn run_with() -> Result<()> {
-    let Some(mut options) = Options::read()? else {
+pub fn run_with(launch: LaunchArguments) -> Result<()> {
+    let Some(mut options) = Options::read(launch)? else {
         return Ok(());
     };
     if options.execution_role == execution_role::ExecutionRole::DedicatedServer

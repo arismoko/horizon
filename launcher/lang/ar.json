@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "خطوة ما بعد البناء لـ {name}",
   "In use": "قيد الاستخدام",
   "Prepare": "تحضير",
   "Developer options": "خيارات المطور",
@@ -519,7 +518,6 @@
   "{size} on disk": "{size} على القرص",
   "Data collection": "جمع البيانات",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} هي حزمة بيانات: اسحبها وأفلتها على عالم في الشاشة الرئيسية، أو ثبتها في أحد العوالم من هناك.",
-  "Running {name}'s post-build step": "جاري تنفيذ خطوة ما بعد البناء لـ {name}",
   "Shared: {url}": "تمت المشاركة: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "الأصدقاء على نفس شبكة الواي فاي: اللعب الجماعي > إضافة خادم، ثم الصق هذا العنوان.",
   "None yet: drop a .hshader or a shader pack .zip here.": "لا شيء بعد: اسحب ملف .hshader أو حزمة تظليل بصيغة .zip وأفلتها هنا.",

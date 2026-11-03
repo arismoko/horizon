@@ -2125,10 +2125,11 @@ impl Hub {
 
     /// Every player's chunks here: their views, then the next batch of each
     /// (PlayerChunkSender.sendNextChunks). The batches are chosen first, the
-    /// columns in them encoded once each, their new sections on the warm-up
-    /// threads too (`ChunkEncoder::warm`), then sent: nothing changes the
-    /// level in between, and each player's packets keep their order. The far
-    /// ring's chunks the level doesn't hold go as the save's readers made them.
+    /// columns in them encoded once each, their new sections and their light
+    /// on the warm-up threads too (`ChunkEncoder::warm`, `bodies_with`), then
+    /// sent: nothing changes the level in between, and each player's packets
+    /// keep their order. The far ring's chunks the level doesn't hold go as
+    /// the save's readers made them.
     fn update_chunks(&mut self, ctx: &TickCtx) {
         let world = &*ctx.world;
         if let Some(far) = self.far.as_mut() {
@@ -2170,15 +2171,9 @@ impl Hub {
             })
             .collect();
         self.encoder.warm(&columns.chunks);
-        let mut encoded: Vec<Vec<u8>> = columns
-            .chunks
-            .iter()
-            .map(|c| {
-                self.encoder.body_with(c, world, &|x, z| {
-                    ctx.streaming.and_then(|s| s.proto_sections(x, z))
-                })
-            })
-            .collect();
+        let mut encoded = self.encoder.bodies_with(&columns.chunks, world, &|x, z| {
+            ctx.streaming.and_then(|s| s.proto_sections(x, z))
+        });
         let uses = &mut columns.uses;
         let chunks = &columns.chunks;
         for (i, taken, far, batch) in batches {
@@ -2718,23 +2713,16 @@ impl Hub {
         }
     }
 
+    /// `LivingEntity.collectEquipmentChanges`: what a player holds and wears,
+    /// walking `EquipmentSlot.VALUES`, body and saddle included. `slots` is
+    /// indexed by the slot's ordinal, which is its wire slot; empty slots are
+    /// left out (the tracker sends a slot that empties as empty).
     fn equipment_of(
         &mut self,
-        main: &Option<ItemStack>,
-        off: &Option<ItemStack>,
-        armor: [&Option<ItemStack>; 4],
+        slots: [&Option<ItemStack>; 8],
     ) -> Vec<(u8, Option<horizon_protocol::item::Stack>)> {
-        // Armor is stored head..feet; the wire slots are feet(2) legs(3) chest(4) head(5).
         let mut out = Vec::new();
-        let slots = [
-            (0u8, main),
-            (1, off),
-            (5, armor[0]),
-            (4, armor[1]),
-            (3, armor[2]),
-            (2, armor[3]),
-        ];
-        for (slot, item) in slots {
+        for (slot, item) in (0u8..).zip(slots) {
             if item.is_some() {
                 out.push((slot, self.stack(item)));
             }
@@ -2791,16 +2779,21 @@ impl Hub {
         let guest_states: Vec<_> = placed
             .into_iter()
             .map(|i| {
-                let (main, off, armor) = {
+                use horizon_items::equipment::{BODY, SADDLE};
+                let (main, off, armor, body, saddle) = {
                     let g = &self.guests[i];
                     (
                         g.inventory.get(g.selected).cloned().flatten(),
                         g.offhand.clone(),
                         g.armor.clone(),
+                        g.equipment[BODY].clone(),
+                        g.equipment[SADDLE].clone(),
                     )
                 };
-                let equipment =
-                    self.equipment_of(&main, &off, [&armor[0], &armor[1], &armor[2], &armor[3]]);
+                // Armor is kept head..feet; the slots run feet, legs, chest, head.
+                let equipment = self.equipment_of([
+                    &main, &off, &armor[3], &armor[2], &armor[1], &armor[0], &body, &saddle,
+                ]);
                 let g = &self.guests[i];
                 let mut state = self.player_state(
                     g.entity_id,
@@ -4774,6 +4767,72 @@ mod tests {
         };
         assert_eq!(update.entries.len(), 1);
         assert_eq!(update.entries[0].uuid, 1);
+    }
+
+    /// `LivingEntity.collectEquipmentChanges` walks every `EquipmentSlot`: a
+    /// player's body (wire slot 6) and saddle (7) reach the players who see
+    /// them, with the hands and armor.
+    #[test]
+    fn a_players_body_and_saddle_reach_the_players_who_see_them() {
+        use horizon_items::equipment::{BODY, SADDLE};
+        let (mut hub, rx) = hub_with_a_guest();
+        let (tx, _ann_rx) = std::sync::mpsc::channel();
+        let mut ann = Guest::new(
+            crate::lan::Joined {
+                conn: 2,
+                uuid: 2,
+                name: "Ann".into(),
+                properties: Vec::new(),
+                info: horizon_protocol::packets::configuration::ClientInformation::new(8),
+                brand: "vanilla".into(),
+                sender: crate::lan::PlayerSender::new(tx, std::sync::Arc::default()),
+                latency: std::sync::Arc::default(),
+                address: "127.0.0.1:25566".parse().unwrap(),
+            },
+            2,
+            [4.5, 64.0, 0.5],
+            8,
+        );
+        ann.placed = true;
+        ann.dimension = "minecraft:overworld".into();
+        ann.offhand = Some(ItemStack::new("minecraft:shield", 1));
+        ann.equipment[BODY] = Some(ItemStack::new("minecraft:white_carpet", 1));
+        ann.equipment[SADDLE] = Some(ItemStack::new("minecraft:saddle", 1));
+        hub.guests.push(ann);
+        hub.guests[0].sent_chunks.insert((0, 0));
+        // The test hub syncs no entity type registry.
+        hub.entity_types.insert("minecraft:player".into(), 1);
+        let mut world = crate::world::World::new(horizon_world::registry::BlockStateId(0), 0);
+        let mut next_entity = 100;
+        let border = crate::worldborder::WorldBorder::default();
+        let mut ctx = TickCtx {
+            world: &mut world,
+            entities: &[],
+            next_entity: &mut next_entity,
+            spawn: [0.5, 64.0, 0.5],
+            difficulty: 2,
+            difficulty_locked: false,
+            clock_rate: 1.0,
+            tick_rate: 20.0,
+            tick_frozen: false,
+            tick_steps: Default::default(),
+            collision: None,
+            border: &border,
+            streaming: None,
+        };
+        hub.track_entities(&mut ctx);
+        assert!(hub.guests[0].tracker.is_tracking(2));
+        let mut slots = None;
+        while let Ok(crate::lan::Out::Packet(body)) = rx.try_recv() {
+            let mut reader = horizon_protocol::buf::Reader::new(&body);
+            let Ok(id) = reader.varint() else { continue };
+            if let Ok(C::SetEquipment(p)) = C::decode(id, reader.rest())
+                && p.id == 2
+            {
+                slots = Some(p.slots.iter().map(|(slot, _)| *slot).collect::<Vec<_>>());
+            }
+        }
+        assert_eq!(slots, Some(vec![1, 6, 7]));
     }
 
     /// `handleChatSessionUpdate` shares `chatMessageChain` with chat: a new

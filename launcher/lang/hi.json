@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "{name} का पोस्ट-बिल्ड चरण बनाया जा रहा है",
   "In use": "उपयोग में है",
   "Prepare": "तैयार करें",
   "Developer options": "डेवलपर विकल्प",
@@ -519,7 +518,6 @@
   "{size} on disk": "डिस्क पर {size}",
   "Data collection": "डेटा संग्रह",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} एक डेटा पैक है: इसे होम पर किसी दुनिया पर छोड़ें, या वहाँ से किसी एक में इंस्टॉल करें।",
-  "Running {name}'s post-build step": "{name} का पोस्ट-बिल्ड चरण चल रहा है",
   "Shared: {url}": "साझा किया गया: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "एक ही Wi-Fi पर मित्र: मल्टीप्लेयर, ऐड सर्वर, फिर इस पते को पेस्ट करें।",
   "None yet: drop a .hshader or a shader pack .zip here.": "अभी तक कुछ नहीं: यहाँ एक .hshader या शेडर पैक .zip छोड़ें।",

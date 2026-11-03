@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "Сборка шага после сборки мода {name}",
   "In use": "Используется",
   "Prepare": "Подготовить",
   "Developer options": "Для разработчиков",
@@ -519,7 +518,6 @@
   "{size} on disk": "{size} на диске",
   "Data collection": "Data collection",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} — набор данных: перетащите его на мир на главной странице или установите оттуда.",
-  "Running {name}'s post-build step": "Выполнение шага после сборки мода {name}",
   "Shared: {url}": "Опубликовано: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "Друзья в той же сети Wi-Fi: «Сетевая игра», «Добавить сервер», затем вставьте этот адрес.",
   "None yet: drop a .hshader or a shader pack .zip here.": "Пока пусто: перетащите сюда файл .hshader или .zip с набором шейдеров.",

@@ -22,6 +22,7 @@ pub(super) fn key(
     for part in [
         // Bump when launcher generation or validation changes the snapshot's contents.
         "flat-trait-injection-v1",
+        super::STAGING,
         revision,
         mixins,
         // The Cargo profile: `Performance` and `Dev` stage the same source.

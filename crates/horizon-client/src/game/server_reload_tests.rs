@@ -359,7 +359,7 @@ fn server_reload_skips_unparsable_files_and_delivers_the_rest() {
 
 #[test]
 #[ignore = "needs prepared resources"]
-fn server_reload_registration_failure_stops_world_open_and_quiet_mods_are_pruned() {
+fn server_reload_registration_failure_stops_world_open_and_quiet_mods_never_listen() {
     struct Quiet;
     #[mod_api::__subscriptions]
     impl Hooks for Quiet {}
@@ -384,7 +384,11 @@ fn server_reload_registration_failure_stops_world_open_and_quiet_mods_are_pruned
     let _ = std::fs::remove_dir_all(&root);
     mod_api::testing::with_mods(vec![ModEntry::new("quiet", Box::new(Quiet))].into(), || {
         with_game(|game| {
-            assert!(mod_api::listened(mod_api::HookId::AddServerReloadListeners));
+            // A mod that doesn't implement the hook is never subscribed, so
+            // world open and `/reload` skip the registration graph.
+            assert!(!mod_api::listened(
+                mod_api::HookId::AddServerReloadListeners
+            ));
             game.load_world(request(&root)).unwrap();
             assert!(!mod_api::listened(
                 mod_api::HookId::AddServerReloadListeners

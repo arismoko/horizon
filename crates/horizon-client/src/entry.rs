@@ -1,5 +1,6 @@
 //! Startup shared by the gameplay library and its executable.
 use crate::{crash, game, logging, ram_limit};
+use horizon_mods::selection::{Argument, LaunchArguments};
 
 /// Start the game. The executable supplies the allocator and retains the mod API marker.
 pub fn main() {
@@ -13,35 +14,41 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     horizon_threads::configure_allocator();
     horizon_client::telemetry::mark_start();
     horizon_client::spans::startup::init(std::time::Instant::now());
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let game_args = args.iter().take_while(|a| *a != "--dedicated");
-    let help = game_args
-        .clone()
-        .any(|a| a == "--help" || a == "-h" || a == "--launch-api");
-    // --home before the log opens in it.
-    if let Some(dir) = game_args.clone().skip_while(|a| *a != "--home").nth(1) {
-        logging::set_game_home(std::path::absolute(dir).unwrap_or_else(|_| dir.into()));
-    }
-    // The dedicated server logs in its own folder (--game-dir's), as vanilla's does; the game in its home.
-    let (home, side, thread) = if args.iter().any(|a| a == "--dedicated") {
-        let folder = game_args
-            .clone()
-            .skip_while(|a| *a != "--game-dir" && *a != "--gameDir")
-            .nth(1)
-            .and_then(|dir| std::path::absolute(dir).ok())
-            .unwrap_or_else(|| ".".into());
-        (folder, "server", "Server thread")
+    let launch: crate::Result<_> = std::env::current_dir().map_err(Into::into).and_then(|cwd| {
+        Ok(LaunchArguments::parse(
+            std::env::args().skip(1),
+            &cwd,
+            &logging::game_home(),
+            std::env::var_os("HORIZON_HOME").as_deref(),
+        )?)
+    });
+    let launch = match launch {
+        Ok(launch) => launch,
+        Err(error) => {
+            eprintln!("Horizon: {error}");
+            std::process::exit(game::exit_code::USAGE);
+        }
+    };
+    let help = launch.rest.iter().any(|arg| {
+        matches!(arg, Argument::Switch(name) if matches!(name.as_str(), "--help" | "-h" | "--launch-api"))
+    });
+    logging::set_game_home(launch.context.home.clone());
+    // The dedicated server logs in its own folder, as vanilla's does; the game in its home.
+    let (home, side, thread) = if launch
+        .rest
+        .iter()
+        .any(|arg| matches!(arg, Argument::Dedicated(_)))
+    {
+        (launch.context.game_dir.clone(), "server", "Server thread")
     } else {
-        // --player-dir too (a game's, not a server's): a player of a shared game folder keeps
-        // its log and crash reports in its own; crash telemetry stays with the home's consent.
-        if let Some(dir) = game_args
-            .clone()
-            .skip_while(|a| *a != "--player-dir")
-            .nth(1)
-        {
+        // A player's own log stays separate; crash telemetry follows the shared home.
+        if let Some(dir) = launch.rest.iter().find_map(|arg| match arg {
+            Argument::Value(name, value) if name == "--player-dir" => Some(value),
+            _ => None,
+        }) {
             logging::set_player_dir(std::path::absolute(dir).unwrap_or_else(|_| dir.into()));
         }
-        (logging::game_home(), "client", "Render thread")
+        (launch.context.home.clone(), "client", "Render thread")
     };
     if !help {
         logging::init(
@@ -137,7 +144,7 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         log::warn!("Native client hooks already installed; keeping the first callbacks");
     }
     raise_open_file_limit();
-    if let Err(error) = game::run_with() {
+    if let Err(error) = game::run_with(launch) {
         // A bad command line is the caller's mistake, not a crash: no report.
         let usage = error.is::<game::UsageError>();
         log::error!("Horizon: {error}");

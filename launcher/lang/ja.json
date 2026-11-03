@@ -477,8 +477,6 @@
   "Applying the mixins": "ミックスインを適用中",
   "Reusing patched game source": "変更済みゲームソースを再利用中",
   "Checking the mods' crates against Horizon's Cargo.lock": "MODのクレートを Horizon の Cargo.lock と照合中",
-  "Building {name}'s post-build step": "{name} のビルド後ステップをビルド中",
-  "Running {name}'s post-build step": "{name} のビルド後ステップを実行中",
   "Installing the build": "ビルドをインストール中",
   "Release build: slower to build, slightly faster game": "リリースビルド：ビルドは遅く、ゲームは少し速くなります",
   "Performance build": "パフォーマンスビルド",

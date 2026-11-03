@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "Izvođenje koraka nakon gradnje za {name}",
   "In use": "U upotrebi",
   "Prepare": "Pripremi",
   "Developer options": "Razvojne opcije",
@@ -519,7 +518,6 @@
   "{size} on disk": "{size} na disku",
   "Data collection": "Prikupljanje podataka",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} je paket podataka: ispustite ga na svijet na Početnoj ili ga instalirajte u neki od tamo.",
-  "Running {name}'s post-build step": "Izvođenje koraka nakon gradnje za {name}",
   "Shared: {url}": "Podijeljeno: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "Prijatelji na istom Wi-Fi-ju: Više igrača > Dodaj poslužitelj, pa zalijepite ovu adresu.",
   "None yet: drop a .hshader or a shader pack .zip here.": "Još ništa: ispustite .hshader ili .zip paket shadera ovdje.",

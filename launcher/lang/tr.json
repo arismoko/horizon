@@ -477,8 +477,6 @@
   "Applying the mixins": "Mixin'ler uygulanıyor",
   "Reusing patched game source": "Değiştirilmiş oyun kaynak kodu yeniden kullanılıyor",
   "Checking the mods' crates against Horizon's Cargo.lock": "Modların crate'leri Horizon'un Cargo.lock dosyasıyla karşılaştırılıyor",
-  "Building {name}'s post-build step": "{name} derleme sonrası adımı derleniyor",
-  "Running {name}'s post-build step": "{name} derleme sonrası adımı çalıştırılıyor",
   "Installing the build": "Derleme yükleniyor",
   "Release build: slower to build, slightly faster game": "Sürüm derlemesi: daha yavaş derlenir, oyun biraz daha hızlı",
   "Performance build": "Performans derlemesi",

@@ -57,23 +57,6 @@ pub(super) fn stage(
             .ok_or_else(|| format!("{}: missing package name", path.display()))?;
         packages.insert(bundle.manifest.id.as_str(), name.to_owned());
     }
-    let post_builds: Vec<_> = mods
-        .iter()
-        .flat_map(|(_, bundle)| {
-            let package = &packages[bundle.manifest.id.as_str()];
-            bundle
-                .native()
-                .post_build
-                .iter()
-                .map(move |step| super::crates::PostBuild {
-                    mod_id: bundle.manifest.id.clone(),
-                    package: package.clone(),
-                    bin: step.bin.clone(),
-                    args: step.args.clone(),
-                })
-        })
-        .collect();
-    super::crates::write_post_builds(stage, &post_builds)?;
     let mut deps = toml::Table::new();
     for name in ["horizon-client", "horizon-threads", "horizon-mods"] {
         deps.insert(name.into(), path_dep(&format!("../{name}")));
@@ -266,10 +249,6 @@ mod tests {
     #[test]
     fn stages_api_without_a_dependency_cycle() {
         let dir = fixture();
-        let path = dir.join(horizon_mods::manifest::MANIFEST);
-        let text = fs::read_to_string(&path).unwrap()
-            + "[[native.post_build]]\nbin='prepare'\nargs=['--proof']\n";
-        fs::write(path, text).unwrap();
         let bundle = super::super::bundle_in(&dir).unwrap().unwrap();
         let stage_dir = dir.with_extension("workspace");
         let _ = fs::remove_dir_all(&stage_dir);
@@ -296,15 +275,6 @@ mod tests {
         )
         .unwrap();
         assert!(stage(&stage_dir, &[bundle], &[vec![]], &resolution).unwrap());
-        assert_eq!(
-            super::super::crates::post_builds(&stage_dir).unwrap(),
-            [super::super::crates::PostBuild {
-                mod_id: "example".into(),
-                package: "example-mod".into(),
-                bin: "prepare".into(),
-                args: vec!["--proof".into()],
-            }]
-        );
         let root = read(&stage_dir.join("Cargo.toml")).unwrap();
         let members = root["workspace"]["members"].as_array().unwrap();
         assert!(members

@@ -75,16 +75,6 @@ pub struct Native {
     pub mixins: String,
     #[serde(default)]
     pub injection: Vec<Injection>,
-    #[serde(default)]
-    pub post_build: Vec<PostBuild>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct PostBuild {
-    pub bin: String,
-    #[serde(default)]
-    pub args: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -267,16 +257,6 @@ impl Manifest {
                     }
                 }
             }
-            for step in &native.post_build {
-                if step.bin.is_empty()
-                    || !step
-                        .bin
-                        .bytes()
-                        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-                {
-                    return Err(format!("{MANIFEST}: invalid post-build binary name"));
-                }
-            }
             if m.version.is_empty()
                 || native.game.is_empty()
                 || !revision(&native.horizon)
@@ -327,7 +307,7 @@ impl Manifest {
 }
 
 /// A source file that belongs to the flat Cargo project, not its resource packs.
-fn source_file(name: &str) -> bool {
+pub fn source_file(name: &str) -> bool {
     if name
         .split('/')
         .any(|part| matches!(part, ".git" | "target"))
@@ -829,12 +809,11 @@ capabilities = ["registries"]
     #[test]
     fn native_manifest_requires_exact_pins_and_known_fields() {
         let native = format!(
-            "[native]\ngame = '26.3'\nhorizon = '{}'\nmixins = '{}'\n[[native.post_build]]\nbin = 'bake'\nargs = ['one']\n",
+            "[native]\ngame = '26.3'\nhorizon = '{}'\nmixins = '{}'\n",
             "a".repeat(40),
             "b".repeat(40)
         );
-        let manifest = Manifest::parse(&format!("{EXAMPLE}{native}")).unwrap();
-        assert_eq!(manifest.native.unwrap().post_build[0].bin, "bake");
+        Manifest::parse(&format!("{EXAMPLE}{native}")).unwrap();
         assert!(
             Manifest::parse(&format!(
                 "{EXAMPLE}{}",
@@ -842,7 +821,9 @@ capabilities = ["registries"]
             ))
             .is_err()
         );
-        assert!(Manifest::parse(&format!("{EXAMPLE}{native}unexpected = true\n")).is_err());
+        for unsupported in ["unexpected = true", "[[native.post_build]]\nbin = 'bake'"] {
+            assert!(Manifest::parse(&format!("{EXAMPLE}{native}{unsupported}\n")).is_err());
+        }
     }
 
     #[test]

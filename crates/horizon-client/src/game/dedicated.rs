@@ -1314,6 +1314,18 @@ impl Game<'_> {
         }
     }
 
+    /// Network players `BanIpCommands` and the management service disconnect for an address.
+    fn ip_ban_players(&self, ip: &str) -> Vec<u128> {
+        self.lan.as_ref().map_or_else(Vec::new, |h| {
+            h.hub
+                .guests
+                .iter()
+                .filter(|g| g.participates_online() && g.address.ip().to_string() == ip)
+                .map(|g| g.uuid)
+                .collect()
+        })
+    }
+
     /// ServerGamePacketListenerImpl.tick: players idle longer than the
     /// timeout are kicked.
     pub(super) fn kick_idle(&mut self, minutes: i32) {
@@ -1389,7 +1401,7 @@ impl Game<'_> {
         let g = hub
             .guests
             .iter()
-            .find(|g| g.name.eq_ignore_ascii_case(name))?;
+            .find(|g| g.participates_online() && g.name.eq_ignore_ascii_case(name))?;
         Some(NameAndId {
             id: g.uuid,
             name: g.name.clone(),
@@ -1688,18 +1700,7 @@ impl Game<'_> {
                         ),
                     ],
                 ));
-                let banned: Vec<u128> = self
-                    .lan
-                    .as_ref()
-                    .map(|h| {
-                        h.hub
-                            .guests
-                            .iter()
-                            .filter(|g| g.address.ip().to_string() == ip)
-                            .map(|g| g.uuid)
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let banned = self.ip_ban_players(&ip);
                 if !banned.is_empty() {
                     self.console_reply(Text::translate(
                         "commands.banip.info",
@@ -2207,6 +2208,43 @@ mod tests {
         process::{Command, Stdio},
         time::{SystemTime, UNIX_EPOCH},
     };
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn console_name_lookup_skips_fake_players() {
+        crate::game::native_guest_turn_tests::with_guests(|game| {
+            let level = game.native_level("minecraft:overworld").unwrap();
+            game.native_fake_player(level, 100, "robot").unwrap();
+            assert!(game.online_player("robot").is_none());
+            assert_eq!(game.online_player("GUEST12").unwrap().id, 12);
+            // A fake with the same name must not hide a real player later in join order.
+            let guests = &mut game.lan.as_mut().unwrap().hub.guests;
+            guests.iter_mut().find(|g| g.uuid == 12).unwrap().name = "robot".into();
+            guests.reverse();
+            assert_eq!(game.online_player("ROBOT").unwrap().id, 12);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn console_and_management_ip_ban_sets_skip_fake_players() {
+        crate::game::native_guest_turn_tests::with_guests(|game| {
+            let level = game.native_level("minecraft:overworld").unwrap();
+            game.native_fake_player(level, 100, "robot").unwrap();
+            assert!(game.ip_ban_players("0.0.0.0").is_empty());
+            assert_eq!(game.ip_ban_players("127.0.0.1"), [12, 13]);
+            // Even with a matching real peer, the fake is not counted as affected.
+            game.lan
+                .as_mut()
+                .unwrap()
+                .hub
+                .guest_mut(12)
+                .unwrap()
+                .address = "0.0.0.0:1".parse().unwrap();
+            assert_eq!(game.ip_ban_players("0.0.0.0"), [12]);
+            assert_eq!(game.ip_ban_players("127.0.0.1"), [13]);
+        });
+    }
 
     /// `SaveAllCommand.saveAll`: a save that throws is the `ERROR_FAILED` the
     /// source is told about, not a log line the caller never sees.

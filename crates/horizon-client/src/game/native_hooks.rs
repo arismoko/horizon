@@ -28,8 +28,8 @@ use horizon_client::mod_api::{
     WorldPhase,
 };
 use horizon_client::mod_api::{
-    AttachmentResult, Attachments, BlockHit, GameRuleValue, Holder, LogicalSide, NativeBlockClick,
-    NativeInteractionResult, NativeTriState, Suggestion,
+    AttachmentResult, Attachments, BlockHit, GameRuleValue, Holder, LegacyRandom, LevelRef,
+    LogicalSide, NativeBlockClick, NativeInteractionResult, NativeTriState, Suggestion,
 };
 pub(crate) use horizon_client::mod_api::{
     NativeBlockRim, NativeColoredLight, NativeExplosionStart, NativeItemFished, NativeLootDrops,
@@ -556,6 +556,22 @@ impl GameLevel<'_> {
         mod_api::dispatch_is_signal_source(self, state, source);
     }
 
+    /// `IBlockExtension.shouldCheckWeakPower`: set `check` to decide whether
+    /// indirect power is read through this block. `check` starts with vanilla's
+    /// conductor answer. `direction` is the input side of the block being powered,
+    /// opposite the queried block's output side. Authoritative servers only.
+    #[inline(always)]
+    pub(super) fn native_should_check_weak_power(
+        &self,
+        dimension: LevelDimension,
+        pos: BlockPos,
+        state: BlockStateId,
+        direction: Direction,
+        check: &mut bool,
+    ) {
+        mod_api::dispatch_should_check_weak_power(self, dimension, pos, state, direction, check);
+    }
+
     /// `BlockBehaviour.shouldRedstoneWireConnectTo`: set `connected` to say
     /// whether redstone wire connects to the block `state` at `pos`.
     /// `direction` points from the wire toward the neighbouring block, or is
@@ -1002,6 +1018,7 @@ impl OpenNativeScreen {
 
 /// `PlayerSpawnPhantomsEvent.Result`: whether the phantom spawner tries a spawn near a player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PhantomSpawnResult {
     /// Always try, skipping the skylight and sea level check.
     Allow,
@@ -1013,6 +1030,7 @@ pub enum PhantomSpawnResult {
 
 /// `Player.BedSleepingProblem` as `CanContinueSleepingEvent.getProblem` reports it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SleepProblem {
     /// The sleeper's bed is gone.
     NotPossibleHere,
@@ -7500,31 +7518,23 @@ impl Game<'_> {
     pub(super) fn native_max_stack_size(&self, item: &str) -> Option<u32> {
         self.res.items().get(item).map(|i| i.max_stack)
     }
-    /// The random of the server level `dimension`: vanilla's `Level.random`
+    /// The random of the server level `level` names: vanilla's `Level.random`
     /// (`level.getRandom()`), the one its explosions, block drops and other
     /// level draws use, so a mod's draws move vanilla's later ones as a Java
-    /// mod's do. Draw with `horizon_core::random::RandomSource` (`next_int_bound`,
-    /// `next_float`...). `None` on a client of a server, and for a level not
-    /// open: the Nether and the End open when someone first goes there and
-    /// close after 300 ticks with nobody in them (`close_idle_levels`).
-    pub(super) fn native_level_random(
-        &mut self,
-        dimension: &str,
-    ) -> Option<&mut horizon_core::random::LegacyRandom> {
-        if self.serving.is_none() && self.options.dedicated.is_none() {
-            return None;
-        }
-        let dim = match dimension {
-            "minecraft:overworld" => super::Dim::Overworld,
-            "minecraft:the_nether" => super::Dim::Nether,
-            "minecraft:the_end" => super::Dim::End,
-            _ => return None,
-        };
-        if dim == self.dim {
+    /// mod's do. A parked level (the Nether while the server ticks the
+    /// Overworld) answers with its own stream. Draw with
+    /// `horizon_core::random::RandomSource` (`next_int_bound`, `next_float`...),
+    /// at the call site: the stream is the level's, not a copy. `None` on a
+    /// client of a server, for a stale handle and for a level not open: the
+    /// Nether and the End open when someone first goes there and close after
+    /// 300 ticks with nobody in them (`close_idle_levels`).
+    pub(super) fn native_level_random(&mut self, level: LevelRef) -> Option<&mut LegacyRandom> {
+        self.native_level_world(level)?;
+        if level.dimension() == self.dim.id() {
             Some(&mut self.world.random)
         } else {
             self.levels
-                .parked_world_mut(dim)
+                .parked_world_mut_of(level.dimension())
                 .map(|world| &mut world.random)
         }
     }
@@ -8128,12 +8138,6 @@ impl Game<'_> {
     pub(super) fn native_data_dir(&self, mod_id: &str) -> PathBuf {
         let mods = Self::game_dir().join(mod_list::DIR);
         mods.join(".horizon-mod-data").join(mod_id)
-    }
-    /// The folder mod `mod_id`'s post-build step wrote into when the launcher built the game
-    /// (`native-data/<id>/` in the build's version folder); None when the game's own path is
-    /// unknown.
-    pub(super) fn native_built_data(&self, mod_id: &str) -> Option<PathBuf> {
-        horizon_client::native_data::built(mod_id)
     }
     /// A mod's setting `key` (one file per key in `native_data_dir`).
     pub(super) fn native_setting(&self, mod_id: &str, key: &str) -> Option<String> {

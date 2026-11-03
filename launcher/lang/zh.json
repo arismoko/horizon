@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "正在构建 {name} 的构建后步骤",
   "In use": "使用中",
   "Prepare": "准备",
   "Developer options": "开发者选项",
@@ -519,7 +518,6 @@
   "{size} on disk": "磁盘占用 {size}",
   "Data collection": "数据收集",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} 是数据包：请将其拖放到“主页”上的某个世界上，或从那里安装。",
-  "Running {name}'s post-build step": "正在运行 {name} 的构建后步骤",
   "Shared: {url}": "已分享：{url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "同一 Wi-Fi 下的好友：进入“多人游戏” > “添加服务器”，然后粘贴此地址。",
   "None yet: drop a .hshader or a shader pack .zip here.": "还没有内容：将 .hshader 或光影包 .zip 拖放到这里。",

@@ -1,0 +1,16 @@
+{
+  "hooks": [
+    {
+      "name": "should_check_weak_power",
+      "target": "horizon_client::game::native_hooks::GameLevel<'_>::native_should_check_weak_power",
+      "side": "server",
+      "neoforge": "IBlockExtension.shouldCheckWeakPower",
+      "mod_api": {
+        "contract": "collect",
+        "out": "check",
+        "scope": "block",
+        "key": "state"
+      }
+    }
+  ]
+}

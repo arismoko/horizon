@@ -5,7 +5,7 @@
 //! block in a chunk that isn't loaded.
 use super::Game;
 use horizon_client::mod_api::{
-    ChunkRef, ChunkStatus, LevelRef, NativeTicketOwner, TicketController,
+    BlockStateId, ChunkRef, ChunkStatus, LevelRef, NativeTicketOwner, TicketController,
 };
 use horizon_client::mod_chunk_tickets::ModTicket;
 use horizon_client::{streaming::Streaming, world::World};
@@ -222,27 +222,17 @@ impl Game<'_> {
         forced.sort_unstable_by_key(|&(x, z)| ChunkPos::new(x, z).pack());
         Some(forced.into_iter().map(|(x, z)| [x, z]).collect())
     }
-    /// The state at `pos`, if its chunk is loaded and `y` is inside the world.
+    /// The block state ID at `pos` (`Level.getBlockState`), without formatting a string.
+    /// None for a chunk that isn't loaded or a `y` outside the world.
     pub(super) fn native_level_state(
         &self,
         level: LevelRef,
         pos: [i32; 3],
-    ) -> Option<horizon_world::registry::BlockStateId> {
+    ) -> Option<BlockStateId> {
         let world = self.native_level_world(level)?;
         let [x, y, z] = pos;
         let inside = world.shape.contains_y(y);
         (inside && world.chunks.contains_key(&(x >> 4, z >> 4))).then(|| world.block(x, y, z))
-    }
-    /// The block state at `pos` (`Level.getBlockState`) as `/setblock` takes
-    /// it: `minecraft:oak_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]`.
-    /// None for a chunk that isn't loaded or a `y` outside the world.
-    pub(super) fn native_level_block_state(
-        &self,
-        level: LevelRef,
-        pos: [i32; 3],
-    ) -> Option<String> {
-        self.native_level_state(level, pos)
-            .map(|state| self.state_string(state))
     }
     /// The block at `pos` without its properties: `minecraft:oak_stairs`.
     /// None as for `block_state`.
@@ -311,6 +301,34 @@ impl Game<'_> {
 mod tests {
     use super::super::{Dim, native_entity_refs::tests::with_game};
     use horizon_client::mod_api::{ChunkRef, NativeWorldEpoch};
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn block_state_reads_stored_ids_and_refuses_unloaded_positions() {
+        use horizon_client::chunk::Chunk;
+        use std::sync::Arc;
+
+        with_game(|game| {
+            game.world
+                .chunks
+                .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+            let level = game.native_level(game.dim.id()).unwrap();
+            let bottom = game.world.bottom_y();
+            let top = game.world.top_y();
+            let registry = &game.pack.assets.registry;
+            let stone = registry.default_state("minecraft:stone").unwrap();
+            let stairs = registry.default_state("minecraft:oak_stairs").unwrap();
+            let air = registry.default_state("minecraft:air").unwrap();
+            for (pos, expected) in [([0, bottom, 0], stone), ([15, top - 1, 15], stairs)] {
+                game.world.set(pos[0], pos[1], pos[2], expected).unwrap();
+                assert_eq!(level.block_state(game, pos), Some(expected));
+            }
+            assert_eq!(level.block_state(game, [1, bottom, 1]), Some(air));
+            assert_eq!(level.block_state(game, [16, bottom, 0]), None);
+            assert_eq!(level.block_state(game, [0, bottom - 1, 0]), None);
+            assert_eq!(level.block_state(game, [0, top, 0]), None);
+        });
+    }
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
@@ -398,6 +416,66 @@ mod tests {
             assert!(game.levels_to_tick().contains(&other));
             assert!(game.native_chunk_set_forced(chunk, false));
             assert!(!game.levels_to_tick().contains(&other));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_level_ref_draws_from_its_levels_own_stream() {
+        use horizon_client::mod_api::{LevelRef, ServerHost};
+        use horizon_core::random::RandomSource;
+
+        with_game(|game| {
+            let level = game.native_level(game.dim.id()).unwrap();
+            // The level in place: the draws advance `World.random` itself.
+            let mut expected = game.world.random.clone();
+            let host: &mut dyn ServerHost = game;
+            let drawn: Vec<i32> = (0..3)
+                .map(|_| level.random(&mut *host).unwrap().next_int())
+                .collect();
+            let want: Vec<i32> = (0..3).map(|_| expected.next_int()).collect();
+            assert_eq!(drawn, want);
+            assert_eq!(game.world.random.next_int(), expected.next_int());
+
+            // A parked level answers with its own stream, not the one in place.
+            let other = if game.dim == Dim::Nether {
+                Dim::End
+            } else {
+                Dim::Nether
+            };
+            let parked = LevelRef::new(level.epoch(), other.id());
+            let host: &mut dyn ServerHost = game;
+            assert!(parked.random(&mut *host).is_none(), "not open yet");
+            let back = game.dim;
+            game.enter_level(other).unwrap();
+            game.enter_level(back).unwrap();
+            let mut expected = game
+                .levels
+                .parked_world_of(other.id())
+                .unwrap()
+                .random
+                .clone();
+            let in_place = game.world.random.clone();
+            let host: &mut dyn ServerHost = game;
+            let drawn = parked.random(&mut *host).unwrap().next_long();
+            assert_eq!(drawn, expected.next_long());
+            let mut after = game
+                .levels
+                .parked_world_of(other.id())
+                .unwrap()
+                .random
+                .clone();
+            assert_eq!(after.next_long(), expected.next_long());
+            let mut untouched = in_place;
+            assert_eq!(game.world.random.next_long(), untouched.next_long());
+
+            // A handle of an earlier open names nothing.
+            let stale = LevelRef::new(
+                NativeWorldEpoch::new(level.epoch().get() + 1),
+                game.dim.id(),
+            );
+            let host: &mut dyn ServerHost = game;
+            assert!(stale.random(&mut *host).is_none());
         });
     }
 

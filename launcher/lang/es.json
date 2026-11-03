@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "Compilando el paso posterior a la compilación de {name}",
   "In use": "En uso",
   "Prepare": "Preparar",
   "Developer options": "Opciones de desarrollador",
@@ -519,7 +518,6 @@
   "{size} on disk": "{size} en disco",
   "Data collection": "Recopilación de datos",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} es un paquete de datos: suéltalo sobre un mundo en Inicio o instálalo en uno desde allí.",
-  "Running {name}'s post-build step": "Ejecutando el paso posterior a la compilación de {name}",
   "Shared: {url}": "Compartido: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "Amigos en el mismo Wi-Fi: Multijugador, Añadir servidor y pega esta dirección.",
   "None yet: drop a .hshader or a shader pack .zip here.": "Aún no hay ninguno: suelta aquí un archivo .hshader o un paquete de shaders .zip.",

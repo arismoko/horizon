@@ -222,9 +222,107 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(o.fullscreen && o.session_stdin);
-        assert_eq!(o.game_dir.as_deref(), Some(std::path::Path::new("g")));
+        assert_eq!(o.game_dir, std::env::current_dir().unwrap().join("g"));
         assert!(parse(&["--launch-api"]).unwrap().is_none());
         assert!(parse(&["--no-such-option"]).is_err());
+    }
+
+    #[test]
+    fn game_uses_the_command_selection_context() {
+        use horizon_mods::selection::{LaunchArguments, packages};
+        use std::{collections::BTreeSet, fs, process::Command};
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("launch-selection-{}-{nonce}", std::process::id()));
+        for (file, id) in [
+            ("horizon-mods/base.hmod", "base"),
+            ("other/horizon-mods/other.hmod", "other"),
+            ("workspace/dev.hmod", "dev"),
+        ] {
+            let path = root.join(file);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let manifest = format!(
+                "id='{id}'\nname='{id}'\nversion='1'\napi='0.2'\ncapabilities=['registries']\n"
+            );
+            fs::write(
+                path,
+                horizon_mods::Package::write_files(&manifest, &[]).unwrap(),
+            )
+            .unwrap();
+        }
+        let enabled = BTreeSet::from(["base".into(), "other".into()]);
+        struct Case<'a> {
+            args: &'a [&'a str],
+            environment: Option<&'a str>,
+            home: &'a str,
+            ids: &'a [&'a str],
+        }
+        for case in [
+            Case {
+                args: &[],
+                environment: None,
+                home: "default",
+                ids: &["base"],
+            },
+            Case {
+                args: &[],
+                environment: Some("environment"),
+                home: "environment",
+                ids: &["base"],
+            },
+            Case {
+                args: &["--home", "cache"],
+                environment: Some("environment"),
+                home: "cache",
+                ids: &["base"],
+            },
+            Case {
+                args: &["--game-dir", "other"],
+                environment: None,
+                home: "default",
+                ids: &["other"],
+            },
+            Case {
+                args: &["--dev-mod", "workspace/dev.hmod"],
+                environment: None,
+                home: "default",
+                ids: &["base", "dev"],
+            },
+        ] {
+            let mut command = Command::new("horizon-client");
+            command.current_dir(&root).args(case.args);
+            if let Some(home) = case.environment {
+                command.env("HORIZON_HOME", home);
+            } else {
+                command.env_remove("HORIZON_HOME");
+            }
+            let launch = LaunchArguments::parse(
+                command.get_args().map(|a| a.to_str().unwrap().to_string()),
+                command.get_current_dir().unwrap(),
+                &root.join("default"),
+                command
+                    .get_envs()
+                    .find_map(|(name, value)| if name == "HORIZON_HOME" { value } else { None }),
+            )
+            .unwrap();
+            assert_eq!(launch.context.home, root.join(case.home));
+            let game = super::super::Options::from_launch(launch).unwrap().unwrap();
+            let selected: Vec<_> =
+                packages(&game.game_dir, &enabled, &BTreeSet::new(), &game.dev_mods)
+                    .map(|p| p.package.manifest.id)
+                    .collect();
+            assert_eq!(selected, case.ids);
+        }
+        fs::remove_dir_all(root).unwrap();
+        let game = parse(&["--resources", "--home", "--creative"])
+            .unwrap()
+            .unwrap();
+        assert_eq!(game.resources, std::path::Path::new("--home"));
+        assert!(game.creative);
+        assert!(parse(&["--help", "--missing"]).unwrap().is_none());
     }
 
     /// A launcher shows the error to the player, so it names the option.

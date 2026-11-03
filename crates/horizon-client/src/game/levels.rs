@@ -143,6 +143,15 @@ impl Levels {
             .map(|(_, level)| &level.world)
     }
 
+    /// The world of the level not in place whose dimension is `dimension`, to
+    /// change.
+    pub(super) fn parked_world_mut_of(&mut self, dimension: &str) -> Option<&mut World> {
+        self.parked
+            .iter_mut()
+            .find(|(dim, _)| dim.id() == dimension)
+            .map(|(_, level)| &mut level.world)
+    }
+
     /// The streaming of the level not in place whose dimension is `dimension`.
     pub(super) fn parked_streaming_of(&self, dimension: &str) -> Option<&Streaming> {
         self.parked
@@ -166,11 +175,6 @@ impl Levels {
     /// The worlds of the levels not in place.
     pub(super) fn parked_worlds(&self) -> impl Iterator<Item = &World> {
         self.parked.values().map(|level| &level.world)
-    }
-
-    /// The world of the level not in place, in `dim`, to change.
-    pub(super) fn parked_world_mut(&mut self, dim: Dim) -> Option<&mut World> {
-        self.parked.get_mut(&dim).map(|level| &mut level.world)
     }
 
     /// The level not in place, in `dim`.

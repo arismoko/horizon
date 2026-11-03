@@ -1,0 +1,23 @@
+{
+  "hooks": [],
+  "helpers": [
+    {
+      "name": "living_health",
+      "side": "server",
+      "target": "horizon_client::game::native_living_refs::Game<'_>::native_living_health",
+      "receiver": "living"
+    },
+    {
+      "name": "living_max_health",
+      "side": "server",
+      "target": "horizon_client::game::native_living_refs::Game<'_>::native_living_max_health",
+      "receiver": "living"
+    },
+    {
+      "name": "living_alive",
+      "side": "server",
+      "target": "horizon_client::game::native_living_refs::Game<'_>::native_living_alive",
+      "receiver": "living"
+    }
+  ]
+}

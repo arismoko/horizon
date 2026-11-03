@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "{name}의 빌드 후 단계 빌드 중",
   "In use": "사용 중",
   "Prepare": "준비",
   "Developer options": "개발자 옵션",
@@ -519,7 +518,6 @@
   "{size} on disk": "디스크 공간 {size}",
   "Data collection": "데이터 수집",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name}은(는) 데이터 팩입니다. 홈 화면에서 월드 위에 놓거나 해당 월드에 설치하세요.",
-  "Running {name}'s post-build step": "{name}의 빌드 후 단계 실행 중",
   "Shared: {url}": "공유됨: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "동일한 Wi-Fi를 사용하는 친구: '멀티플레이어' > '서버 추가'에서 이 주소를 붙여넣으세요.",
   "None yet: drop a .hshader or a shader pack .zip here.": "없음: .hshader 또는 셰이더 팩 .zip 파일을 여기에 놓으세요.",

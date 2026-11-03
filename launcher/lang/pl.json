@@ -1,5 +1,4 @@
 {
-  "Building {name}'s post-build step": "Budowanie kroku po kompilacji moda {name}",
   "In use": "W użyciu",
   "Prepare": "Przygotuj",
   "Developer options": "Opcje programistyczne",
@@ -519,7 +518,6 @@
   "{size} on disk": "{size} na dysku",
   "Data collection": "Data collection",
   "{name} is a data pack: drop it on a world on Home, or install it into one from there.": "{name} to paczka danych: upuść ją na świat na stronie Start lub zainstaluj ją stamtąd.",
-  "Running {name}'s post-build step": "Uruchamianie kroku po kompilacji moda {name}",
   "Shared: {url}": "Udostępniono: {url}",
   "Friends on the same Wi-Fi: Multiplayer, Add Server, then paste this address.": "Znajomi w tej samej sieci Wi-Fi: Tryb wieloosobowy, Dodaj serwer, a następnie wklej ten adres.",
   "None yet: drop a .hshader or a shader pack .zip here.": "Jeszcze nic nie ma: upuść tutaj plik .hshader lub paczkę shaderów .zip.",

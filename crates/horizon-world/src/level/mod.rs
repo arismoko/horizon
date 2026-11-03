@@ -692,6 +692,20 @@ pub trait LevelAccess {
     fn adjust_signal_source(&self, _state: BlockStateId, vanilla: bool) -> bool {
         vanilla
     }
+    /// Whether a signal query needs the weak-power block hook.
+    fn has_weak_power_hook(&self) -> bool {
+        false
+    }
+    /// Override `SignalGetter.getSignal`'s conductor check for a block.
+    fn adjust_should_check_weak_power(
+        &self,
+        _pos: BlockPos,
+        _state: BlockStateId,
+        _direction: Direction,
+        vanilla: bool,
+    ) -> bool {
+        vanilla
+    }
     /// Whether redstone wire connection queries need the level hook.
     fn has_redstone_wire_connection_hook(&self) -> bool {
         false
@@ -1188,6 +1202,16 @@ impl Behaviours {
         pos: BlockPos,
     ) {
         self.sim(level, ticks).entity_inside(pos);
+    }
+    /// Whether [`Self::entity_inside`] may do anything at a block of `state`:
+    /// the entity-sensing blocks' classes it looks for. At any other block it
+    /// only reads the state.
+    pub fn senses_entities(&self, state: BlockStateId) -> bool {
+        let data = self.data(state);
+        data.is(classes::Class::BasePressurePlate)
+            || data.is(classes::Class::DetectorRail)
+            || data.is(classes::Class::Button)
+            || data.is(classes::Class::TripWire)
     }
     /// `LilyPadBlock.entityInside` for a boat whose box is inside `pos`.
     pub fn boat_inside<L: LevelAccess + ?Sized>(

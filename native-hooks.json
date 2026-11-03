@@ -241,10 +241,6 @@
       "target": "horizon_client::game::native_hooks::Game<'_>::native_text", "side": "client"
     },
     {
-      "name": "built_data",
-      "target": "horizon_client::game::native_hooks::Game<'_>::native_built_data", "side": "both"
-    },
-    {
       "name": "on",
       "target": "horizon_client::game::native_hooks::Game<'_>::native_on", "side": "both"
     },
