@@ -2591,21 +2591,40 @@ impl Streaming {
         self.band
     }
     /// `ServerLevel.setChunkForced` for one chunk: true when the forced set
-    /// changed. An added chunk is ranked for decoration as `/forceload add` does.
+    /// changed. An add ranks the chunk for decoration as `/forceload add` does.
     pub fn set_forced(&mut self, x: i32, z: i32, forced: bool) -> bool {
-        if !forced {
-            return self.forced.remove(&(x, z));
+        let mut changed = false;
+        self.set_forced_area((x, z), (x, z), forced, |_, _, c| changed = c);
+        changed
+    }
+    /// `ServerLevel.setChunkForced` over chunks `(x0, z0)..=(x1, z1)`, x then
+    /// z: `each` hears whether each chunk changed. An add then ranks the area
+    /// once for decoration (`forced_order`). The one writer of `forced`.
+    pub fn set_forced_area(
+        &mut self,
+        (x0, z0): (i32, i32),
+        (x1, z1): (i32, i32),
+        forced: bool,
+        mut each: impl FnMut(i32, i32, bool),
+    ) {
+        for x in x0..=x1 {
+            for z in z0..=z1 {
+                let changed = if forced {
+                    self.forced.insert((x, z))
+                } else {
+                    self.forced.remove(&(x, z))
+                };
+                each(x, z, changed);
+            }
         }
-        let added = self.forced.insert((x, z));
-        if added {
-            self.rank_forced(x, z, x, z);
+        if forced {
+            self.rank_forced(x0, z0, x1, z1);
         }
-        added
     }
     /// Rank the chunks `/forceload add` over chunks `(x0, z0)..=(x1, z1)`
     /// decorates in vanilla's order (`forced_order`), after every chunk
     /// ranked before.
-    pub fn rank_forced(&mut self, x0: i32, z0: i32, x1: i32, z1: i32) {
+    fn rank_forced(&mut self, x0: i32, z0: i32, x1: i32, z1: i32) {
         for (x, z) in horizon_world::worldgen::decoration_order::forced_order(x0, z0, x1, z1) {
             self.decoration_order.rank_or_append(x, z);
         }

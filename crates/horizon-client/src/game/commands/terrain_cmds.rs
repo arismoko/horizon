@@ -116,19 +116,10 @@ impl Game<'_> {
                     return Err(err("commands.forceload.toobig", &[&256, &count]));
                 }
                 let mut tracker = Tracker::default();
-                for x in cx0..=cx1 {
-                    for z in cz0..=cz1 {
-                        let changed = if add {
-                            self.streaming.forced.insert((x, z))
-                        } else {
-                            self.streaming.forced.remove(&(x, z))
-                        };
+                self.streaming
+                    .set_forced_area((cx0, cz0), (cx1, cz1), add, |x, z, changed| {
                         tracker.track(&holder(chunk_text(x, z)), i32::from(changed));
-                    }
-                }
-                if add {
-                    self.streaming.rank_forced(cx0, cz0, cx1, cz1);
-                }
+                    });
                 let (lo, hi) = (chunk_text(cx0, cz0), chunk_text(cx1, cz1));
                 let verb = if add { "added" } else { "removed" };
                 let (message, total) = tracker.message(

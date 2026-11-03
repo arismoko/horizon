@@ -100,12 +100,8 @@ impl Game<'_> {
     pub(super) fn force_load_test_chunks(&mut self, area: &BoundingBox) {
         let (x0, x1) = (area.min[0] >> 4, area.max[0] >> 4);
         let (z0, z1) = (area.min[2] >> 4, area.max[2] >> 4);
-        for x in x0..=x1 {
-            for z in z0..=z1 {
-                self.streaming.forced.insert((x, z));
-            }
-        }
-        self.streaming.rank_forced(x0, z0, x1, z1);
+        self.streaming
+            .set_forced_area((x0, z0), (x1, z1), true, |_, _, _| {});
     }
 
     /// `GameTestRunner`: every forced chunk of the level is released when a
