@@ -99,6 +99,9 @@ impl From<super::spawn_rules::Reason> for Reason {
             R::Bucket => Self::Bucket,
             R::Load => Self::Load,
             R::DimensionTravel => Self::DimensionTravel,
+            // `NativeSpawnReason` is `#[non_exhaustive]` for mods; the game
+            // maps every variant above, so a new one must be added here.
+            _ => unreachable!("a NativeSpawnReason without its finalize::Reason"),
         }
     }
 }
