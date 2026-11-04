@@ -646,7 +646,7 @@ impl Game<'_> {
         self.native_living_equipment(living, hand_slot(hand))
     }
     /// Puts `stack` in hand `hand` (`LivingEntity.setItemInHand`): the main
-    /// hand's slot or the off hand's, written as [`Self::native_living_set_equipment`]
+    /// hand's slot or the off hand's, written as `set_equipment`
     /// writes them, with its equip events and sound. None, air or a zero count
     /// empties the hand. False means unsupported or stale.
     pub(super) fn native_living_set_hand_item(
