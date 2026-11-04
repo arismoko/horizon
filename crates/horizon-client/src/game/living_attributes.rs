@@ -730,7 +730,11 @@ mod tests {
             assert_eq!(map.value(key).unwrap(), 0.2);
             let mut synced = Vec::new();
             let zombie_mob = game.mobs[0].clone();
-            game.mob_attributes(&zombie_mob, &mut synced);
+            game.mob_attributes(
+                &zombie_mob,
+                &mut super::super::lan_attributes::SpeedByType::default(),
+                &mut synced,
+            );
             let registry = key.registry_id();
             let sent = synced.iter().find(|s| s.attribute == registry).unwrap();
             assert_eq!(sent.base, 0.1);
