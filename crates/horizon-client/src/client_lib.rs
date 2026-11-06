@@ -96,6 +96,7 @@ pub mod merchant;
 pub mod mobs;
 pub mod mod_content;
 pub mod mod_registry;
+pub mod modgen;
 pub mod motion;
 pub mod multiplayer;
 pub mod music;

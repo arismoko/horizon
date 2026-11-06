@@ -26,7 +26,8 @@ pub struct DimensionSettings {
     pub has_skylight: bool,
     /// Whether the level has a bedrock ceiling, as the Nether does.
     pub has_ceiling: bool,
-    /// The chunk generator's id: `minecraft:noise`.
+    /// The chunk generator's id: `minecraft:noise`, or one a mod registered
+    /// with `register_chunk_generator`, which takes no noise settings.
     pub generator: String,
     /// The noise settings' id (`minecraft:overworld`, or a data pack's).
     pub noise_settings: String,

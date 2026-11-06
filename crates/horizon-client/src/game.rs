@@ -24713,6 +24713,14 @@ pub fn run_with(
     {
         log::warn!("Mod dimensions already installed; keeping the first table");
     }
+    // Their chunk generators, which those levels' and the packs' stems name.
+    if horizon_world::worldgen::mod_generators::install_mod_chunk_generators(
+        mod_api::__private::installed_chunk_generators(),
+    )
+    .is_err()
+    {
+        log::warn!("Mod chunk generators already installed; keeping the first table");
+    }
     mods::register_components(&vanilla_root)?;
     mods::register_standalone_models(options.execution_role);
     mods::register_layer_definitions(options.execution_role);

@@ -103,7 +103,8 @@ reads them into `LevelShapes::extra`, and `Dim::Extra` names them. They open, ti
 as the Nether and the End do, in `dimensions/<ns>/<path>/`, and a player saved in one comes back
 there. `execute in` reaches them; the pack's dimension type goes to clients in the registry, so a
 client takes the level's build height from it. The generator reads the stem as it does a vanilla
-level's, so only `minecraft:noise` generators work. The sky and the fog are the Overworld's.
+level's, so only `minecraft:noise` generators and those a native mod registered work. The sky and
+the fog are the Overworld's.
 
 ## Not done yet
 
