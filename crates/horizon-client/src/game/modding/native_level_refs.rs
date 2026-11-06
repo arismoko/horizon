@@ -70,6 +70,23 @@ impl Game<'_> {
             .contains_key(&(pos[0], pos[1]))
             .then_some(mod_api::__private::game::chunk_ref(level, pos))
     }
+    /// Every loaded chunk of an open server level as handles, ordered by chunk x then z. None
+    /// for a stale handle or on a client. Loads nothing.
+    pub(super) fn native_level_loaded_chunks(&self, level: LevelRef) -> Option<Vec<ChunkRef>> {
+        let mut positions: Vec<(i32, i32)> = self
+            .native_level_world(level)?
+            .chunks
+            .keys()
+            .copied()
+            .collect();
+        positions.sort_unstable();
+        Some(
+            positions
+                .into_iter()
+                .map(|(x, z)| mod_api::__private::game::chunk_ref(level, [x, z]))
+                .collect(),
+        )
+    }
     /// Whether this chunk is loaded; false on a client or for a stale handle.
     pub(super) fn native_chunk_ref_loaded(&self, chunk: ChunkRef) -> bool {
         self.native_chunk(chunk.level(), chunk.pos()).is_some()
@@ -683,6 +700,34 @@ mod tests {
                 assert_eq!(unavailable.signal(host, [1, y, 1], Direction::East), None);
                 assert!(!unavailable.has_neighbor_signal(host, [2, y, 1]));
             }
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn loaded_chunks_lists_the_level_in_order_without_loading() {
+        use horizon_client::chunk::Chunk;
+        use mod_api::Host;
+        use std::sync::Arc;
+
+        with_game(|game| {
+            let level = game.level("minecraft:overworld").unwrap();
+            let before = level.loaded_chunks(game).unwrap().len();
+            for pos in [(2, -1), (0, 5), (0, -3)] {
+                game.world
+                    .chunks
+                    .insert(pos, Arc::new(Chunk::empty(pos.0, pos.1)));
+            }
+            let chunks = level.loaded_chunks(game).unwrap();
+            assert_eq!(chunks.len(), before + 3);
+            let positions: Vec<[i32; 2]> = chunks.iter().map(|chunk| chunk.pos()).collect();
+            assert!(
+                positions.windows(2).all(|pair| pair[0] <= pair[1]),
+                "ordered"
+            );
+            assert!(positions.contains(&[0, -3]) && positions.contains(&[2, -1]));
+            let nether = LevelRef::new(level.epoch(), mod_api::DimensionKey::NETHER);
+            assert_eq!(nether.loaded_chunks(game), None, "not opened yet");
         });
     }
 
