@@ -635,7 +635,7 @@ pub struct DataStore {
 }
 /// `<kind-dir>/<ns>:<path>` for a pack file the content tables read:
 /// `recipe/`, `recipe_filter/`, `loot_table/`, `advancement/`, `trade_set/`,
-/// `villager_trade/`, `dialog/`, `damage_type/`, `data_maps/`, enchantments, songs,
+/// `villager_trade/`, `dialog/`, `damage_type/`, `dimension_type/`, `data_maps/`, enchantments, songs,
 /// instruments, predicates, item modifiers or `tags/<sub>/`, where the id keeps the sub
 /// path so a nested tag kind stays addressable.
 fn content_id(file: &str) -> Option<String> {
@@ -644,8 +644,8 @@ fn content_id(file: &str) -> Option<String> {
     let (kind, rest) = rest.split_once('/')?;
     let kind = match kind {
         "recipe" | "recipe_filter" | "loot_table" | "advancement" | "trade_set"
-        | "villager_trade" | "dialog" | "damage_type" | "data_maps" | "enchantment"
-        | "jukebox_song" | "instrument" | "predicate" | "item_modifier" => kind,
+        | "villager_trade" | "dialog" | "damage_type" | "dimension_type" | "data_maps"
+        | "enchantment" | "jukebox_song" | "instrument" | "predicate" | "item_modifier" => kind,
         // A tag id is `{ns}:{path-under-tags}` (`tags/worldgen/biome/
         // test:sub/mytag`), the whole path after the namespace, so nested
         // registries keep their directory (`TagLoader`'s id shape).
@@ -693,6 +693,7 @@ impl DataStore {
                 "damage_type",
                 "data_maps",
                 "dialog",
+                "dimension_type",
                 "enchantment",
                 "function",
                 "instrument",
@@ -1308,6 +1309,7 @@ mod tests {
             "data/mine/dialog/config/points.json",
             "{\"type\":\"minecraft:notice\",\"title\":\"Points\"}",
         );
+        write("data/mine/dimension_type/pocket.json", "{\"min_y\":-128}");
         let packs = discover(&dir);
         assert_eq!(packs.len(), 1);
         assert_eq!(packs[0].id, "file/mypack");
@@ -1324,6 +1326,11 @@ mod tests {
         assert_eq!(
             store.files["dialog/mine:config/points"],
             [b"{\"type\":\"minecraft:notice\",\"title\":\"Points\"}".to_vec()]
+        );
+        // So do dimension types: a client takes a level's build height from them.
+        assert_eq!(
+            store.files["dimension_type/mine:pocket"],
+            [b"{\"min_y\":-128}".to_vec()]
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

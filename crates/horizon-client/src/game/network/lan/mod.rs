@@ -3351,6 +3351,7 @@ impl Game<'_> {
         let force = host.hub.config.force_game_mode;
         let root = self.world_root.clone();
         let in_place = host.hub.config.dimension.clone();
+        let levels = host.hub.config.levels;
         let owner = host.owner.as_mut();
         let Some((known, uuid, name)) = host.hub.update_guest(conn, |g| {
             // PlayerList.loadPlayerData: the owner gets the world's player file,
@@ -3359,6 +3360,10 @@ impl Game<'_> {
                 Some(o) => playerdata::load_owner(g, &root, o.saved.take().as_deref()),
                 None => playerdata::load(g, &root),
             };
+            // `PlayerList.placeNewPlayer`: a saved level the world no longer has is the Overworld.
+            if !levels.has(&g.dimension) {
+                g.dimension = "minecraft:overworld".to_owned();
+            }
             // PlayerEvent.LoadFromFile: the player's data is read and applied,
             // the player not yet placed.
             (known, g.uuid, g.name.clone())

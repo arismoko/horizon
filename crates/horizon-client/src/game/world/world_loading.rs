@@ -235,13 +235,14 @@ impl WorldRequest {
             level.dimension = d.clone();
             level.position = None;
         }
-        let dim = Dim::from_id(&level.dimension);
         let shapes = level_shapes(
             &save_root,
             &options.resources,
             res.biomes(),
             &pack.additional_data,
         );
+        Dim::set_extra(shapes.extra.iter().map(|level| level.id));
+        let dim = Dim::from_id(&level.dimension);
         let shape = shapes.get(dim.id());
         let streaming_step = startup::step("world.make_streaming");
         let loot = horizon_client::structure_blocks::LootSnapshot::default();
@@ -622,7 +623,7 @@ pub(super) fn level_shapes(
     biomes: &horizon_client::biome::Biomes,
     additional: &[Arc<horizon_client::datapack::DataPack>],
 ) -> horizon_client::chunk::LevelShapes {
-    use horizon_client::chunk::{LevelShape, LevelShapes};
+    use horizon_client::chunk::{ExtraLevel, LevelShape, LevelShapes};
     let packs = super::pack_finders::data_repository(world_root, resources, additional);
     let enabled_features = horizon_client::save::Level::read(world_root)
         .map(|l| l.enabled_features)
@@ -662,6 +663,37 @@ pub(super) fn level_shapes(
             ),
         }
     }
+    let extra: Vec<_> = overrides
+        .entries(horizon_world::worldgen::overrides::DIMENSIONS)
+        .filter(|(level, _)| !Dim::is_vanilla(level))
+        .filter_map(|(level, stem)| {
+            let shape = overrides.level_height(level).and_then(|h| {
+                LevelShape::new(
+                    h.min_y,
+                    h.height,
+                    h.logical_height,
+                    h.has_skylight,
+                    h.has_ceiling,
+                )
+                .ok()
+            });
+            if shape.is_none() {
+                log::warn!(
+                    "Horizon: data pack worldgen: the dimension type of {level} is not one the \
+                     game accepts; the level is left out"
+                );
+            }
+            // A stem's `type` is a dimension type's id, or the type itself.
+            let stem = serde_json::from_str::<serde_json::Value>(stem).ok()?;
+            let dimension_type = stem["type"].as_str().unwrap_or(level);
+            Some(ExtraLevel {
+                id: level.to_owned().leak(),
+                dimension_type: dimension_type.to_owned().leak(),
+                shape: shape?,
+            })
+        })
+        .collect();
+    shapes.extra = extra.leak();
     shapes
 }
 

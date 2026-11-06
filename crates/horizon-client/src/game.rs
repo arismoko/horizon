@@ -3531,11 +3531,18 @@ struct Game<'a> {
     /// The local player as a model (third person, the inventory).
     player_model: Option<Mob>,
 }
+/// The open world's dimensions past vanilla's three. One per process, as a window
+/// and its server thread name the same dimensions.
+static EXTRA_DIMS: std::sync::RwLock<Vec<mod_api::DimensionKey>> =
+    std::sync::RwLock::new(Vec::new());
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Dim {
     Overworld,
     Nether,
     End,
+    /// A dimension past vanilla's three, from a data pack or a mod.
+    Extra(mod_api::DimensionKey),
 }
 impl Dim {
     /// The level as block behaviour and the mods name it.
@@ -3544,6 +3551,7 @@ impl Dim {
             Self::Overworld => LevelDimension::Overworld,
             Self::Nether => LevelDimension::Nether,
             Self::End => LevelDimension::End,
+            Self::Extra(_) => LevelDimension::Overworld,
         }
     }
     fn id(self) -> &'static str {
@@ -3551,14 +3559,47 @@ impl Dim {
             Self::Overworld => "minecraft:overworld",
             Self::Nether => "minecraft:the_nether",
             Self::End => "minecraft:the_end",
+            Self::Extra(key) => {
+                mod_api::__private::dimension_id(key).expect("the game's table made the key")
+            }
         }
     }
     fn from_id(id: &str) -> Self {
         match id {
             "minecraft:the_nether" => Self::Nether,
             "minecraft:the_end" => Self::End,
-            _ => Self::Overworld,
+            _ => Self::extra(id).unwrap_or(Self::Overworld),
         }
+    }
+    /// The open world's dimension `id` past vanilla's three.
+    fn extra(id: &str) -> Option<Self> {
+        let extra = EXTRA_DIMS.read().unwrap();
+        let key = extra
+            .iter()
+            .find(|key| mod_api::__private::dimension_id(**key) == Some(id))?;
+        Some(Self::Extra(*key))
+    }
+    fn is_vanilla(id: &str) -> bool {
+        matches!(
+            id,
+            "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
+        )
+    }
+    /// Whether the open world has the dimension `id`.
+    fn exists(id: &str) -> bool {
+        Self::is_vanilla(id) || Self::extra(id).is_some()
+    }
+    /// The open world's dimensions, in the order its server ticks them.
+    fn all() -> Vec<Self> {
+        let extra = EXTRA_DIMS.read().unwrap();
+        [Self::Overworld, Self::Nether, Self::End]
+            .into_iter()
+            .chain(extra.iter().copied().map(Self::Extra))
+            .collect()
+    }
+    /// The dimensions past vanilla's three of the world being opened.
+    fn set_extra<'a>(ids: impl Iterator<Item = &'a str>) {
+        *EXTRA_DIMS.write().unwrap() = ids.map(mod_api::__private::dimension_key).collect();
     }
     /// The dimension as mods' level handles name it.
     fn key(self) -> mod_api::DimensionKey {
@@ -3566,6 +3607,7 @@ impl Dim {
             Self::Overworld => mod_api::DimensionKey::OVERWORLD,
             Self::Nether => mod_api::DimensionKey::NETHER,
             Self::End => mod_api::DimensionKey::END,
+            Self::Extra(key) => key,
         }
     }
     /// The level's shape in a world of vanilla's dimension types.
@@ -3575,6 +3617,7 @@ impl Dim {
             Self::Overworld => LevelShape::OVERWORLD,
             Self::Nether => LevelShape::NETHER,
             Self::End => LevelShape::END,
+            Self::Extra(_) => LevelShape::OVERWORLD,
         }
     }
 }
@@ -12320,7 +12363,7 @@ impl Game<'_> {
             let ambient = match self.dim {
                 Dim::Nether => 0.1,
                 Dim::End => 0.25,
-                Dim::Overworld => 0.0,
+                Dim::Overworld | Dim::Extra(_) => 0.0,
             };
             let darken = self.sky_darken();
             let a = alpha;

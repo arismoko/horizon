@@ -721,7 +721,10 @@ impl Hub {
             .id("minecraft:chat_type", "minecraft:chat")
             .unwrap_or(0);
         let dimension_type = sync
-            .id("minecraft:dimension_type", &config.dimension)
+            .id(
+                "minecraft:dimension_type",
+                config.levels.dimension_type(&config.dimension),
+            )
             .unwrap_or(0);
         let clock_ids = (0..sync.dynamic.len("minecraft:world_clock") as i32).collect();
         let mut encoder = encoder;
@@ -1431,10 +1434,18 @@ impl Hub {
     }
 
     /// The levels of a server, in MinecraftServer.levelKeys order.
-    fn level_keys() -> Vec<String> {
+    fn level_keys(&self) -> Vec<String> {
         ["overworld", "the_end", "the_nether"]
             .map(|l| format!("minecraft:{l}"))
-            .to_vec()
+            .into_iter()
+            .chain(
+                self.config
+                    .levels
+                    .extra
+                    .iter()
+                    .map(|level| level.id.to_owned()),
+            )
+            .collect()
     }
 
     /// PlayerList.placeNewPlayer for a guest whose saved state is loaded.
@@ -1463,7 +1474,7 @@ impl Hub {
         g.send(&C::Login(play::Login {
             player_id: entity_id,
             hardcore: self.config.hardcore,
-            levels: Self::level_keys(),
+            levels: self.level_keys(),
             max_players: self.config.max_players as i32,
             chunk_radius: self.chunk_radius(),
             simulation_distance: self.config.simulation_distance,
@@ -5211,7 +5222,10 @@ impl Hub {
         self.config.dimension = dimension.to_owned();
         self.dimension_type = self
             .sync
-            .id("minecraft:dimension_type", dimension)
+            .id(
+                "minecraft:dimension_type",
+                self.config.levels.dimension_type(dimension),
+            )
             .unwrap_or(0);
         self.encoder
             .set_dimension(self.config.levels.get(dimension));

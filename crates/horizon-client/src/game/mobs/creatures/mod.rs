@@ -7805,7 +7805,7 @@ impl Game<'_> {
             time: self.world.game_time as f64 + alpha,
             day_time: self.world.day_time as f64 + alpha,
             dimension: match self.dim {
-                Dim::Overworld => 0.0,
+                Dim::Overworld | Dim::Extra(_) => 0.0,
                 Dim::Nether => -1.0,
                 Dim::End => 1.0,
             },

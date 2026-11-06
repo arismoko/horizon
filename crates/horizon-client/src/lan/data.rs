@@ -82,7 +82,7 @@ pub const CORE_PACK: (&str, &str, &str) = ("minecraft", "core", horizon_protocol
 /// Synchronized registries a world's data packs add entries to (or replace
 /// them in). The others stay the game's own: Horizon's gameplay reads them
 /// from the prepared resources only.
-const PACK_REGISTRIES: &[&str] = &["minecraft:dialog"];
+const PACK_REGISTRIES: &[&str] = &["minecraft:dialog", "minecraft:dimension_type"];
 
 /// A data-driven registry: entry names in network order and their NBT.
 #[derive(Clone)]

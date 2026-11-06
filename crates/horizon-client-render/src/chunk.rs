@@ -101,18 +101,30 @@ impl LevelShape {
     }
 }
 
-/// The shapes of a world's three levels, from its dimension types.
+/// The shapes of a world's levels, from its dimension types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LevelShapes {
     pub overworld: LevelShape,
     pub nether: LevelShape,
     pub end: LevelShape,
+    /// The levels past vanilla's three that the world's data packs give, by id.
+    /// Leaked once per world opened, so the shapes stay `Copy`.
+    pub extra: &'static [ExtraLevel],
+}
+/// A level past vanilla's three.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExtraLevel {
+    pub id: &'static str,
+    /// The dimension type its level stem names.
+    pub dimension_type: &'static str,
+    pub shape: LevelShape,
 }
 impl LevelShapes {
     pub const VANILLA: Self = Self {
         overworld: LevelShape::OVERWORLD,
         nether: LevelShape::NETHER,
         end: LevelShape::END,
+        extra: &[],
     };
     /// The shape of the level `id` (`minecraft:overworld`,
     /// `minecraft:the_nether`, `minecraft:the_end`); others get the
@@ -121,8 +133,26 @@ impl LevelShapes {
         match id {
             "minecraft:the_nether" => self.nether,
             "minecraft:the_end" => self.end,
-            _ => self.overworld,
+            _ => self
+                .extra
+                .iter()
+                .find(|level| level.id == id)
+                .map_or(self.overworld, |level| level.shape),
         }
+    }
+    /// Whether the world has the level `id`.
+    pub fn has(&self, id: &str) -> bool {
+        matches!(
+            id,
+            "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
+        ) || self.extra.iter().any(|level| level.id == id)
+    }
+    /// The dimension type of the level `id`: a vanilla level's is its own name.
+    pub fn dimension_type<'a>(&self, id: &'a str) -> &'a str {
+        self.extra
+            .iter()
+            .find(|level| level.id == id)
+            .map_or(id, |level| level.dimension_type)
     }
     pub fn get_mut(&mut self, id: &str) -> &mut LevelShape {
         match id {
@@ -904,6 +934,30 @@ pub struct ChunkExtras {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_worlds_extra_levels_keep_their_shape_and_type() {
+        let shape = super::LevelShape::new(-128, 448, 448, true, false).unwrap();
+        let levels = super::LevelShapes {
+            extra: vec![super::ExtraLevel {
+                id: "test:pocket",
+                dimension_type: "test:small",
+                shape,
+            }]
+            .leak(),
+            ..super::LevelShapes::VANILLA
+        };
+        assert_eq!(levels.get("test:pocket"), shape);
+        assert_eq!(levels.dimension_type("test:pocket"), "test:small");
+        assert_eq!(
+            levels.dimension_type("minecraft:the_end"),
+            "minecraft:the_end"
+        );
+        assert!(levels.has("test:pocket"));
+        assert!(levels.has("minecraft:the_nether"));
+        assert!(!levels.has("test:gone"));
+        assert_eq!(levels.get("test:gone"), super::LevelShape::OVERWORLD);
+    }
+
     use super::*;
     #[test]
     fn each_light_form_keeps_every_value_and_run() {
