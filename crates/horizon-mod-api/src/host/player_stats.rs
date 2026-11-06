@@ -26,6 +26,16 @@ pub trait PlayerStatsBackend {
             crate::phase::LoadAccess::WorldOnly,
         )
     }
+    /// Side: both.
+    /// The recipes in the player's recipe book (`ServerRecipeBook.recipes`), as qualified ids in
+    /// order (`minecraft:oak_planks`). None for a player it can't reach. Server-side.
+    fn player_discovered_recipes(&self, player: PlayerRef) -> Option<Vec<String>> {
+        crate::phase::unprovided(
+            "Backend::player_discovered_recipes",
+            "player_discovered_recipes",
+            crate::phase::LoadAccess::WorldOnly,
+        )
+    }
 }
 /// The handles' server writes of the `player_stats` area, implemented by the game and reached through [`Backend`].
 // hidden: a handle's backend, reached through `Backend`; mods call the handle, never this trait

@@ -13,6 +13,13 @@ impl PlayerStatsBackend for Game<'_> {
         );
         self.native_player_has_discovered_recipe(player, recipe)
     }
+    fn player_discovered_recipes(&self, player: PlayerRef) -> Option<Vec<String>> {
+        mod_api::__private::check_access(
+            "player_discovered_recipes",
+            mod_api::__private::LoadAccess::WorldOnly,
+        );
+        self.native_player_discovered_recipes(player)
+    }
 }
 impl PlayerStatsBackendMut for Game<'_> {
     fn player_award_stat(
