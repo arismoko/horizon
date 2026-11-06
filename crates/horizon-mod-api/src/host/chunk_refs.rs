@@ -31,4 +31,15 @@ pub trait ChunkRefsBackend {
             crate::phase::LoadAccess::WorldOnly,
         )
     }
+    /// Side: both.
+    /// Every loaded chunk of the level (`ServerChunkCache` loaded chunks), as handles ordered by
+    /// chunk x then z. Server-side; None for a stale handle or on a client. Loads nothing, and the
+    /// list is a snapshot: a chunk can unload after it, so read `chunk_loaded` again before use.
+    fn level_loaded_chunks(&self, level: LevelRef) -> Option<Vec<ChunkRef>> {
+        crate::phase::unprovided(
+            "Backend::level_loaded_chunks",
+            "level_loaded_chunks",
+            crate::phase::LoadAccess::WorldOnly,
+        )
+    }
 }

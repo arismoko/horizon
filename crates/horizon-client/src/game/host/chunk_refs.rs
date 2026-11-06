@@ -16,4 +16,11 @@ impl ChunkRefsBackend for Game<'_> {
         mod_api::__private::check_access("chunk_status", mod_api::__private::LoadAccess::WorldOnly);
         self.native_chunk_status(chunk)
     }
+    fn level_loaded_chunks(&self, level: LevelRef) -> Option<Vec<ChunkRef>> {
+        mod_api::__private::check_access(
+            "level_loaded_chunks",
+            mod_api::__private::LoadAccess::WorldOnly,
+        );
+        self.native_level_loaded_chunks(level)
+    }
 }
