@@ -101,6 +101,21 @@ impl Game<'_> {
             None => self.level.recipe_book.recipes.contains(&id),
         })
     }
+    /// Every recipe the player's recipe book knows (`ServerRecipeBook.recipes`), qualified ids in
+    /// order. None for a player it can't reach.
+    pub(super) fn native_player_discovered_recipes(
+        &self,
+        player: PlayerRef,
+    ) -> Option<Vec<String>> {
+        if !self.native_player_current(player) {
+            return None;
+        }
+        let book = match self.native_player_resting(player) {
+            Some(g) => &g.recipe_book.recipes,
+            None => &self.level.recipe_book.recipes,
+        };
+        Some(book.iter().cloned().collect())
+    }
     /// `ServerPlayer.awardRecipes`, as `/recipe give` does: the recipes
     /// unlock in the player's book, with their toasts and the
     /// `player_recipe_discovered` hook, and the client hears of them.
@@ -223,6 +238,10 @@ mod tests {
             assert_eq!(
                 game.native_player_has_discovered_recipe(player, "minecraft:diamond_pickaxe"),
                 Some(false)
+            );
+            assert_eq!(
+                game.native_player_discovered_recipes(player),
+                Some(vec!["minecraft:stick".to_string()])
             );
             // In the guest's turn their state is in the game.
             game.lan_acting_uuid = Some(123);
