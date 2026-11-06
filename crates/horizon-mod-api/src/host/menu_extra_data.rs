@@ -1,6 +1,6 @@
 //! The `menu_extra_data` area: host methods the game implements (`game/host/menu_extra_data.rs`).
 #![allow(unused_variables)]
-/// The client host's methods of the `menu_extra_data` area, implemented by the game and reached through [`ClientHost`].
+/// The client host's methods of the `menu_extra_data` area, implemented by the game and reached through [`ClientHost`](crate::ClientHost).
 pub trait MenuExtraDataClientHost {
     /// Side: client.
     /// The block of the mod screen that is open (`native_screen`), as the

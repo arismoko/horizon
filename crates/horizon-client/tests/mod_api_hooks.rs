@@ -162,6 +162,8 @@ fn an_anvil_update_is_changed_in_turn_and_cancel_stops_later_mods() {
     use mod_api::{AnvilUpdateEvent, Flow, Host, HostSide, ItemStack, ServerHost};
     struct TestHost;
     impl Host for TestHost {}
+    mod_api::impl_host_areas!(TestHost);
+    mod_api::impl_server_host_areas!(TestHost);
     impl ServerHost for TestHost {}
     #[derive(Default)]
     struct Recipe;

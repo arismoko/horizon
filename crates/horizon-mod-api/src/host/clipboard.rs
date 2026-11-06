@@ -1,6 +1,6 @@
 //! The `clipboard` area: host methods the game implements (`game/host/clipboard.rs`).
 #![allow(unused_variables)]
-/// The client host's methods of the `clipboard` area, implemented by the game and reached through [`ClientHost`].
+/// The client host's methods of the `clipboard` area, implemented by the game and reached through [`ClientHost`](crate::ClientHost).
 pub trait ClipboardClientHost {
     /// Side: client.
     /// The clipboard's text (`KeyboardHandler.getClipboard`), empty when it holds none,

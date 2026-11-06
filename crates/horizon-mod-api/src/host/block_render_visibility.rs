@@ -1,6 +1,6 @@
 //! The `block_render_visibility` area: host methods the game implements (`game/host/block_render_visibility.rs`).
 #![allow(unused_variables)]
-/// The client host's methods of the `block_render_visibility` area, implemented by the game and reached through [`ClientHost`].
+/// The client host's methods of the `block_render_visibility` area, implemented by the game and reached through [`ClientHost`](crate::ClientHost).
 pub trait BlockRenderVisibilityClientHost {
     /// Side: client.
     /// Asks `native_block_render_visibility` again for every state and, when the answers differ

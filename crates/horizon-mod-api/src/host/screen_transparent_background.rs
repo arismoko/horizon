@@ -1,6 +1,6 @@
 //! The `screen_transparent_background` area: host methods the game implements (`game/host/screen_transparent_background.rs`).
 #![allow(unused_variables)]
-/// The client host's methods of the `screen_transparent_background` area, implemented by the game and reached through [`ClientHost`].
+/// The client host's methods of the `screen_transparent_background` area, implemented by the game and reached through [`ClientHost`](crate::ClientHost).
 pub trait ScreenTransparentBackgroundClientHost {
     /// Side: client.
     /// Requests vanilla's menu background blur for this frame, with a per-frame guard

@@ -1,6 +1,6 @@
 //! The `screen_exclusion_areas` area: host methods the game implements (`game/host/screen_exclusion_areas.rs`).
 #![allow(unused_variables)]
-/// The client host's methods of the `screen_exclusion_areas` area, implemented by the game and reached through [`ClientHost`].
+/// The client host's methods of the `screen_exclusion_areas` area, implemented by the game and reached through [`ClientHost`](crate::ClientHost).
 pub trait ScreenExclusionAreasClientHost {
     /// Side: client.
     /// Where the open screen draws outside its `rect`, and where mods draw

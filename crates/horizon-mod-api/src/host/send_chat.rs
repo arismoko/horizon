@@ -1,6 +1,6 @@
 //! The `send_chat` area: host methods the game implements (`game/host/send_chat.rs`).
 #![allow(unused_variables)]
-/// The client host's methods of the `send_chat` area, implemented by the game and reached through [`ClientHost`].
+/// The client host's methods of the `send_chat` area, implemented by the game and reached through [`ClientHost`](crate::ClientHost).
 pub trait SendChatClientHost {
     /// Side: client.
     /// A mod's chat line or command (`/` first), sent as `send_chat` sends
