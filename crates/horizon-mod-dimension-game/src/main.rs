@@ -27,7 +27,7 @@ const BUILT: &[BuiltMod] = &[BuiltMod {
 struct Slab;
 
 impl ChunkGenerator for Slab {
-    fn fill_from_noise(&self, chunk: &mut dyn ChunkAccess) {
+    fn build_terrain(&self, chunk: &mut dyn ChunkAccess) {
         let stone = chunk.state("stone");
         let gold = chunk.state("gold_block");
         let [x, z] = [chunk.pos().x * 16, chunk.pos().z * 16];

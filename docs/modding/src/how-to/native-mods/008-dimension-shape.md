@@ -79,14 +79,14 @@ at the destination, so look for the ground first, or place one.
 ### Chunk generators
 
 A chunk generator is a mod's code for a level's terrain: vanilla's `ChunkGenerator`, and
-`fill_from_noise` its `fillFromNoise`. Register it once, at startup, and name it from a dimension,
+`build_terrain` its `buildTerrain`. Register it once, at startup, and name it from a dimension,
 or from a data pack's level stem as `"generator": {"type": "mymod:void"}`:
 
 ```rust,ignore
 struct Floor;
 
 impl ChunkGenerator for Floor {
-    fn fill_from_noise(&self, chunk: &mut dyn ChunkAccess) {
+    fn build_terrain(&self, chunk: &mut dyn ChunkAccess) {
         let stone = chunk.state("stone");
         let [x, z] = [chunk.pos().x * 16, chunk.pos().z * 16];
         for (dx, dz) in (0..16).flat_map(|dx| (0..16).map(move |dz| (dx, dz))) {

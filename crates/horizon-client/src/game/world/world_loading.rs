@@ -1114,7 +1114,7 @@ mod tests {
         };
         struct Floor;
         impl ModChunkGenerator for Floor {
-            fn fill_from_noise(&self, chunk: &mut dyn ChunkAccess) {
+            fn build_terrain(&self, chunk: &mut dyn ChunkAccess) {
                 let stone = chunk.state("stone");
                 chunk.set_block([0, chunk.min_y(), 0], stone);
             }

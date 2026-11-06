@@ -33,8 +33,8 @@ pub trait ChunkAccess {
 /// `Send + Sync` because neighbouring chunks fill at once on worker threads;
 /// the same seed gives the same terrain.
 pub trait ModChunkGenerator: Send + Sync {
-    /// `ChunkGenerator.fillFromNoise`: the chunk's terrain.
-    fn fill_from_noise(&self, chunk: &mut dyn ChunkAccess);
+    /// `ChunkGenerator.buildTerrain`: the chunk's terrain.
+    fn build_terrain(&self, chunk: &mut dyn ChunkAccess);
 }
 
 /// The installed generators, `modid:void` → generator. Set once, before any
