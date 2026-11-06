@@ -959,7 +959,20 @@ pub fn worldgen_overrides(
     packs: &[&DataPack],
     biomes: impl Fn(&str) -> bool,
 ) -> (WorldgenOverrides, Vec<String>) {
+    worldgen_overrides_over(overrides::mod_dimensions(), packs, biomes)
+}
+
+/// [`worldgen_overrides`] over the levels `mods` registered, which sit below
+/// every pack.
+pub fn worldgen_overrides_over(
+    mods: &[overrides::ModDimension],
+    packs: &[&DataPack],
+    biomes: impl Fn(&str) -> bool,
+) -> (WorldgenOverrides, Vec<String>) {
     let mut out = WorldgenOverrides::default();
+    for dimension in mods {
+        out.add_mod_dimension(dimension);
+    }
     let mut not_read: BTreeMap<String, usize> = BTreeMap::new();
     let mut warnings = Vec::new();
     for pack in packs {
@@ -991,6 +1004,38 @@ pub fn worldgen_overrides(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pack_replaces_a_mods_level() {
+        let root = std::env::temp_dir().join(format!("horizon-mod-level-{}", std::process::id()));
+        let world = root.join("world");
+        let pack = world.join("datapacks/over");
+        let types = pack.join("data/test/dimension_type");
+        std::fs::create_dir_all(&types).unwrap();
+        std::fs::write(
+            pack.join("pack.mcmeta"),
+            r#"{"pack":{"description":"","pack_format":15}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            types.join("pocket.json"),
+            r#"{"min_y":0,"height":64,"logical_height":64}"#,
+        )
+        .unwrap();
+        let packs = discover(&world);
+        let mods = [overrides::ModDimension {
+            id: "test:pocket".into(),
+            stem: r#"{"type":"test:pocket"}"#.into(),
+            dimension_type: r#"{"min_y":-128,"height":448,"logical_height":448}"#.into(),
+        }];
+        let height = |packs: &[&DataPack]| {
+            let (o, _) = worldgen_overrides_over(&mods, packs, |_| true);
+            o.level_height("test:pocket").unwrap().height
+        };
+        assert_eq!(height(&[]), 448);
+        assert_eq!(height(&[&packs[0]]), 64);
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn structure_templates_read_archive_generations_without_extraction() {

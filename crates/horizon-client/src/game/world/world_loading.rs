@@ -623,7 +623,6 @@ pub(super) fn level_shapes(
     biomes: &horizon_client::biome::Biomes,
     additional: &[Arc<horizon_client::datapack::DataPack>],
 ) -> horizon_client::chunk::LevelShapes {
-    use horizon_client::chunk::{ExtraLevel, LevelShape, LevelShapes};
     let packs = super::pack_finders::data_repository(world_root, resources, additional);
     let enabled_features = horizon_client::save::Level::read(world_root)
         .map(|l| l.enabled_features)
@@ -633,13 +632,18 @@ pub(super) fn level_shapes(
         .iter()
         .filter_map(|id| packs.iter().find(|p| &p.id == id))
         .collect();
-    let mut shapes = LevelShapes::VANILLA;
-    if enabled.is_empty() {
-        return shapes;
-    }
     // What the packs leave out is logged when the generator reads them.
     let (overrides, _) =
         horizon_client::datapack::worldgen_overrides(&enabled, |b| biomes.contains(b));
+    shapes_of(&overrides)
+}
+
+/// The levels' shapes the mods' and packs' worldgen entries give.
+fn shapes_of(
+    overrides: &horizon_world::worldgen::overrides::WorldgenOverrides,
+) -> horizon_client::chunk::LevelShapes {
+    use horizon_client::chunk::{ExtraLevel, LevelShape, LevelShapes};
+    let mut shapes = LevelShapes::VANILLA;
     for level in [
         "minecraft:overworld",
         "minecraft:the_nether",
@@ -1006,6 +1010,31 @@ mod tests {
             Some(Value::Bool(false))
         );
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_mods_level_opens_with_no_data_packs() {
+        use horizon_client::chunk::{LevelShape, LevelShapes};
+        use horizon_client::datapack::worldgen_overrides_over;
+        let (none, _) = worldgen_overrides_over(&[], &[], |_| true);
+        assert_eq!(shapes_of(&none), LevelShapes::VANILLA);
+
+        let pocket = horizon_world::worldgen::overrides::ModDimension {
+            id: "test:pocket".into(),
+            stem: r#"{"type":"test:pocket","generator":{"type":"minecraft:noise"}}"#.into(),
+            dimension_type:
+                r#"{"min_y":-128,"height":448,"logical_height":320,"has_skylight":false,"has_ceiling":true}"#
+                    .into(),
+        };
+        let (overrides, _) = worldgen_overrides_over(&[pocket], &[], |_| true);
+        let shapes = shapes_of(&overrides);
+        assert!(shapes.has("test:pocket"));
+        assert_eq!(
+            shapes.get("test:pocket"),
+            LevelShape::new(-128, 448, 320, false, true).unwrap()
+        );
+        assert_eq!(shapes.dimension_type("test:pocket"), "test:pocket");
+        assert_eq!(shapes.overworld, LevelShape::OVERWORLD);
     }
 
     #[test]

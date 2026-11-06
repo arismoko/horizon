@@ -182,6 +182,31 @@ fn pack_entries(
     }
 }
 
+/// The mods' dimension types, below the packs': the overworld's with the
+/// mod's fields over it. No client knows them, so their data is always sent.
+fn mod_dimension_types(
+    mods: &[horizon_world::worldgen::overrides::ModDimension],
+    entries: &mut Vec<((String, String), Value, bool)>,
+) {
+    let overworld = entries
+        .iter()
+        .find(|((ns, path), ..)| ns == "minecraft" && path == "overworld")
+        .map(|(_, value, _)| value.clone());
+    for dimension in mods {
+        let Some((ns, path)) = dimension.id.split_once(':') else {
+            continue;
+        };
+        let mut value = overworld
+            .clone()
+            .unwrap_or_else(|| Value::Object(<_>::default()));
+        let fields = serde_json::from_str::<Value>(&dimension.dimension_type);
+        if let (Some(value), Ok(Value::Object(fields))) = (value.as_object_mut(), fields) {
+            value.extend(fields);
+        }
+        entries.push(((ns.to_owned(), path.to_owned()), value, true));
+    }
+}
+
 /// ResourceManagerRegistryLoadTask.load: the entries register sorted by the
 /// file `Identifier` FileToIdConverter.listMatchingResources keys them by
 /// (`<dir>/<path>.json`), path first, then namespace (Identifier.compareTo).
@@ -409,6 +434,12 @@ impl SyncData {
                 }
                 damage_entries = Some(decoded);
             } else if PACK_REGISTRIES.contains(key) {
+                if *key == "minecraft:dimension_type" {
+                    mod_dimension_types(
+                        horizon_world::worldgen::overrides::mod_dimensions(),
+                        &mut entries,
+                    );
+                }
                 pack_entries(path, overlay, &mut entries);
             }
             entries.retain(|(_, value, _)| overlay.conditions.allows(value));
@@ -1212,6 +1243,44 @@ mod tests {
         assert!(matches!(t.get("a"), Some(Tag::Int(1))));
         assert!(matches!(t.get("c"), Some(Tag::String(_))));
         assert!(matches!(t.get("b"), Some(Tag::List(l)) if l.len() == 2));
+    }
+
+    #[test]
+    fn a_mods_dimension_type_is_the_overworlds_under_the_packs() {
+        use horizon_world::{loot::PackOverlay, worldgen::overrides::ModDimension};
+        let overworld = serde_json::json!({"min_y":-64,"height":384,"ambient_light":0.0});
+        let mut entries = vec![(
+            ("minecraft".to_owned(), "overworld".to_owned()),
+            overworld,
+            false,
+        )];
+        let dimension = |id: &str| ModDimension {
+            id: id.into(),
+            stem: String::new(),
+            dimension_type: r#"{"min_y":-128,"height":448}"#.into(),
+        };
+        mod_dimension_types(
+            &[dimension("test:pocket"), dimension("test:packed")],
+            &mut entries,
+        );
+        let files = [(
+            "dimension_type/test:packed".to_owned(),
+            vec![br#"{"min_y":0,"height":64}"#.to_vec()],
+        )];
+        pack_entries("dimension_type", &PackOverlay::new(&files), &mut entries);
+
+        let entry = |path: &str| entries.iter().find(|((_, p), ..)| p == path).unwrap();
+        let (_, pocket, sent) = entry("pocket");
+        assert!(*sent, "no client knows a mod's type");
+        assert_eq!(
+            *pocket,
+            serde_json::json!({"min_y":-128,"height":448,"ambient_light":0.0})
+        );
+        assert_eq!(
+            entry("packed").1,
+            serde_json::json!({"min_y":0,"height":64})
+        );
+        assert!(!entry("overworld").2);
     }
 
     #[test]

@@ -24705,6 +24705,14 @@ pub fn run_with(
     {
         log::warn!("Mod structure types already installed; keeping the first table");
     }
+    // The levels they registered, below the data packs of every world opened.
+    if horizon_world::worldgen::overrides::install_mod_dimensions(
+        mod_api::__private::installed_dimensions(),
+    )
+    .is_err()
+    {
+        log::warn!("Mod dimensions already installed; keeping the first table");
+    }
     mods::register_components(&vanilla_root)?;
     mods::register_standalone_models(options.execution_role);
     mods::register_layer_definitions(options.execution_role);
