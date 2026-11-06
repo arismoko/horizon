@@ -1067,6 +1067,16 @@ impl Game<'_> {
         (self.native_acting_player() == Some(player)).then(String::new)
     }
 
+    /// The brand the player's client announced when it connected (`ServerPlayer.clientBrand`),
+    /// empty when it sent none. Displaced connected players keep theirs; an acting player with
+    /// no known connection has an empty one. None for a stale or unavailable player.
+    pub(super) fn native_player_client_brand(&self, player: PlayerRef) -> Option<String> {
+        if let Some(guest) = self.online_player_record(player) {
+            return Some(guest.brand.clone());
+        }
+        (self.native_acting_player() == Some(player)).then(String::new)
+    }
+
     /// Validate identity without requiring a live body: sending to an online
     /// displaced player still works, as it did through the UUID send path.
     fn message_player_uuid(&self, player: PlayerRef) -> Option<u128> {
