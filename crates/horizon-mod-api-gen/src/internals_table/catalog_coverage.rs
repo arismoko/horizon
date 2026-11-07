@@ -4,12 +4,17 @@ use horizon_mod_api_gen::{crossing::Rule, internals_table, internals_view, point
 use std::{collections::BTreeMap, fs, path::Path, process::Command};
 
 fn checked(command: &mut Command) -> std::process::Output {
+    let started = std::time::Instant::now();
     let output = command.output().expect("start coverage command");
     assert!(
         output.status.success(),
         "{command:?}\n{}\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+    println!(
+        "coverage command {command:?} finished in {:?}",
+        started.elapsed()
     );
     output
 }
@@ -82,6 +87,9 @@ fn real_catalog_has_compiling_host_and_guest_bindings() {
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     }
+    // Toolchain changes invalidate staging even if all tracked sources are identical.
+    hash.update(checked(Command::new(&cargo).args(["--version"])).stdout);
+    hash.update(checked(Command::new(guest.get_program()).args(["--version"])).stdout);
     let fingerprint = format!("{:x}", hash.finalize());
     let stage = build.join("stage");
     let marker = build.join("source.sha256");

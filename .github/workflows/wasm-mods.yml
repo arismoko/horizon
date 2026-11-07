@@ -56,9 +56,12 @@ jobs:
     # the mod API's generated WIT as an artifact, and its diff in the job summary (never a failure).
     needs: runner
     runs-on: ${{ inputs.runner != '' && inputs.runner != 'auto' && inputs.runner || (needs.runner.outputs.self_hosted == 'true' && 'dyna-large' || 'ubuntu-latest') }}
-    # The universal host and guest binding build alone takes about an hour on the OVH runners (36 minutes
-    # for the whole job on the desktop runner). This workflow has its own queue, so it never holds up the
-    # lint and verify of a newer main commit.
+    # Optimize the generator and Cranelift, not just the guest modules. Debug assertions stay on.
+    env:
+      CARGO_PROFILE_DEV_OPT_LEVEL: 2
+      CARGO_PROFILE_TEST_OPT_LEVEL: 2
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
@@ -78,32 +81,26 @@ jobs:
               curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
             fi
             export PATH="$CARGO_HOME/bin:$PATH"
+            export CARGO_TARGET_DIR="$CARGO_TARGET_DIR/wasm-mods-v2"
+            echo "CARGO_TARGET_DIR=$CARGO_TARGET_DIR" >> "$GITHUB_ENV"
             mkdir -p "$CARGO_TARGET_DIR"
             ln -s "$CARGO_TARGET_DIR" target
           fi
           rustup toolchain install stable --profile minimal --component rustfmt
           rustup toolchain install 1.99.1 --profile minimal --component rust-src --target wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-        if: runner.environment == 'github-hosted'
-        with:
-          shared-key: wasm-mods
-          # Every fixture uses this workspace's target, so its std and shared dependencies
-          # are cached once rather than in seven independent target directories.
-          workspaces: .
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      # Unlike rust-cache, retain the staged workspace artifacts and source mtimes.
-      # Dyna's target symlink already persists these directories between jobs.
+      # Keep workspace artifacts too, including optimized test binaries and staged sources.
+      # Self-hosted runs use the isolated persistent target above; hosted runs restore a snapshot.
       - uses: actions/cache/restore@v4
         if: runner.environment == 'github-hosted'
         id: coverage-cache
         with:
-          path: |
-            target/internals-catalog-coverage
-            target/internals-catalog-check
-          key: internals-coverage-v1-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          path: target
+          key: wasm-mods-v2-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            internals-coverage-v1-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}-
-            internals-coverage-v1-${{ runner.os }}-
+            wasm-mods-v2-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}-
+            wasm-mods-v2-${{ runner.os }}-
+      - name: Restore mtimes only for identical tracked inputs
+        run: python3 tools/ci/source_mtimes.py target/wasm-source-mtimes.json
       - name: The mod API, points and internals crates build for wasm32
         run: cargo +1.99.1 check -p horizon-mod-api -p horizon-mod-points -p horizon-mod-internals --target wasm32-unknown-unknown
       - name: Generated internals copies, containers and functions compile for wasm32
@@ -117,13 +114,6 @@ jobs:
           export HORIZON_COVERAGE_WASM_RUSTC="$(rustup which --toolchain 1.99.1 rustc)"
           cargo +stable test -j4 -p horizon-mod-api-gen --lib guest_compiler_ignores_another_toolchains_driver -- --ignored --nocapture
           cargo +stable test -j4 -p horizon-mod-api-gen --lib real_catalog_has_compiling_host_and_guest_bindings -- --ignored --nocapture
-      - uses: actions/cache/save@v4
-        if: runner.environment == 'github-hosted' && steps.coverage-cache.outputs.cache-hit != 'true'
-        with:
-          path: |
-            target/internals-catalog-coverage
-            target/internals-catalog-check
-          key: ${{ steps.coverage-cache.outputs.cache-primary-key }}
       - name: Build all wasm fixtures and the std member in one shared target
         run: |
           cargo +stable build -p cargo-horizon-mod -p xtask
@@ -147,7 +137,7 @@ jobs:
           import json, sys
           for line in sys.stdin:
               artifact = json.loads(line)
-              if artifact["reason"] == "compiler-artifact" and artifact["target"]["kind"] == ["test"] and artifact["executable"]:
+              if artifact["reason"] == "compiler-artifact" and artifact["profile"]["test"] and artifact["executable"]:
                   print("WASM_TEST_" + artifact["target"]["name"].upper() + "=" + artifact["executable"])
           ' >> "$GITHUB_ENV"
       - name: Load it in the runtime
@@ -174,7 +164,7 @@ jobs:
         env:
           HORIZON_WASM_INTERNALS: ${{ github.workspace }}/crates/horizon-mod-wasm/tests/internals
           HORIZON_WASM_STD: ${{ github.workspace }}/target/horizon-wasm-std.wasm
-        run: 'cargo +stable test -j4 -p horizon-mod-wasm --lib "view::tests::" -- --ignored'
+        run: '"$WASM_TEST_HORIZON_MOD_WASM" "view::tests::" --ignored'
       - name: A listener refused with its library keeps nothing of their group
         env:
           HORIZON_WASM_GROUPS: ${{ github.workspace }}/crates/horizon-mod-wasm/tests/groups
@@ -205,3 +195,8 @@ jobs:
             target/horizon-wasm-std.wasm
             docs/modding/examples/wasm-hello/target/horizon-mod/hello_wasm.hmod
 
+      - uses: actions/cache/save@v4
+        if: runner.environment == 'github-hosted' && steps.coverage-cache.outputs.cache-hit != 'true'
+        with:
+          path: target
+          key: ${{ steps.coverage-cache.outputs.cache-primary-key }}
