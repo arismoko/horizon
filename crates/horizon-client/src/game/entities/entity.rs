@@ -28,6 +28,17 @@ use horizon_world::{level::data::PushReaction, piston_push};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
+/// Assign a stored owner's delayed id at its existing allocation point.
+/// Kinds without a lifetime slot pass None; a bound owner must keep its id.
+pub(super) fn assign_stored_id(
+    next: &mut u32,
+    id: &mut u32,
+    lifetime: Option<&horizon_mod_runtime::attachments::AttachmentLifetime>,
+) -> u32 {
+    debug_assert!(*id != 0 || lifetime.is_none_or(|slot| !slot.is_bound()));
+    super::lan_entities::assign_entity_id(next, id)
+}
+
 /// What `Entity.thunderHit` does to a kind: it sets the entity on fire and
 /// calls `hurtServer(lightning_bolt, 5)`, so a kind whose `hurtServer` does
 /// nothing (projectiles, rockets, TNT, falling blocks, armor stands here) stays
