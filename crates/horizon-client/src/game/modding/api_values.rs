@@ -64,7 +64,6 @@ pub(in crate::game) trait TryIntoApi {
     fn try_into_api(&self) -> Result<Self::Api, Self::Error>;
 }
 
-/// Validate a mod value against the game's registry before admitting it to engine state.
 /// Tests use the production snapshot conversion, never a second fixture codec.
 #[cfg(test)]
 pub(in crate::game) fn test_snapshot<T: TryIntoApi + ?Sized>(value: &T) -> T::Api
@@ -76,10 +75,11 @@ where
         .expect("fixture snapshot has resolved item keys and a nonempty count")
 }
 
-pub(in crate::game) trait TryIntoEngine {
+/// Validate a mod value against the game's registry before admitting it to engine state.
+pub(in crate::game) trait TryIntoEngine<Context: ?Sized = Items> {
     type Engine;
     type Error;
-    fn try_into_engine(&self, items: &Items) -> Result<Self::Engine, Self::Error>;
+    fn try_into_engine(&self, context: &Context) -> Result<Self::Engine, Self::Error>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1933,5 +1933,48 @@ mod completion_snapshot_tests {
         assert_eq!(engine.int_value, Some(43));
         assert_eq!(engine.apply("foo 123 bar"), "foo 43 bar");
         assert_eq!(source.text, "42");
+    }
+}
+
+// Registration declarations do not need a live item registry.
+impl TryIntoEngine<()> for mod_api::BlockEntityTypeDecl {
+    type Engine = horizon_mod_package::content::BlockEntityType;
+    type Error = std::convert::Infallible;
+    fn try_into_engine(&self, _: &()) -> Result<Self::Engine, Self::Error> {
+        Ok(Self::Engine {
+            id: self.id.clone(),
+            blocks: self.blocks.clone(),
+        })
+    }
+}
+pub(in crate::game) fn block_entity_declarations()
+-> Vec<horizon_mod_package::content::BlockEntityType> {
+    mod_api::__private::block_entity_types()
+        .iter()
+        .map(|decl| decl.try_into_engine(&()).unwrap())
+        .collect()
+}
+
+#[cfg(test)]
+mod declaration_snapshot_tests {
+    use super::*;
+    #[test]
+    fn block_entity_declarations_keep_supported_block_order() {
+        // Use registration, the owner of declaration validation.
+        struct Mod;
+        #[mod_api::__subscriptions]
+        impl mod_api::Hooks for Mod {
+            fn register(&self, r: &mut dyn mod_api::Registrar, _: &mod_api::RegistrationContext) {
+                r.declare_block_entity_type(
+                    "machine",
+                    vec!["test:second".into(), "test:first".into()],
+                );
+            }
+        }
+        mod_api::__private::install_parts(&[mod_api::ModEntry::new("test", Box::new(Mod))])
+            .unwrap();
+        let declarations = block_entity_declarations();
+        assert_eq!(declarations[0].id, "test:machine");
+        assert_eq!(declarations[0].blocks, ["test:second", "test:first"]);
     }
 }

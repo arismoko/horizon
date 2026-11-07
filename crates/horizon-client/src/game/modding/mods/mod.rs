@@ -218,7 +218,7 @@ fn native_declared() -> &'static NativeDeclared {
         let (mut blocks, mut items) = (Vec::new(), Vec::new());
         Game::native_blocks(&RegistrationContext::new(), &mut blocks);
         Game::native_items(&RegistrationContext::new(), &mut items);
-        let types = mod_api::__private::block_entity_types().to_vec();
+        let types = super::api_values::block_entity_declarations();
         NativeDeclared {
             blocks,
             items,

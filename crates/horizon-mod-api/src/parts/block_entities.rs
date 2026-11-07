@@ -19,8 +19,9 @@ pub type BlockProvider<T> = dyn BlockCapabilityProvider<T>;
 
 pub use super::capabilities::providers_of::{BlockProviderOf, EntityProviderOf, ItemProviderOf};
 
-/// The block entity types mods registered.
-pub fn block_entity_types() -> &'static [BlockEntityType] {
+/// Owned declarations of the block entity types mods registered.
+/// The game converts these snapshots to its content model when registration freezes.
+pub fn block_entity_types() -> &'static [BlockEntityTypeDecl] {
     installed().map_or(&[], |installed| &installed.block_entity_types)
 }
 
@@ -506,7 +507,8 @@ impl BlockEntitiesRegistrar for PartRegistrar {
     ) -> crate::BlockEntityTypeKey {
         let id = format!("{}:{path}", self.mod_id);
         let key = self.block_entity_type_key(&id);
-        self.block_entity_types.push(BlockEntityType { id, blocks });
+        self.block_entity_types
+            .push(BlockEntityTypeDecl { id, blocks });
         key
     }
 

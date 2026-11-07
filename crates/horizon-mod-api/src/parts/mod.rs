@@ -4,13 +4,13 @@
 //! own tags, at world open and on `/reload`, into a table kept by that game's thread; that table
 //! also indexes the block parts by state, so the state-keyed hooks look theirs up without the
 //! block's name.
+use crate::BlockEntityTypeDecl;
 use crate::ticket_controller::{self, ControllerInfo};
 use crate::{
     BlockEntityPart, BlockPart, BlockSide, BlockStateId, Capability, CapabilityKey,
     EntityCapabilityKey, EntityPart, EntityRef, HOOK_COUNT, HookId, Host, ItemCapabilityKey,
     ItemPart, ItemPlace, MenuPart, ModEntry, PlaceProvider, ServerHost, TicketController,
 };
-use horizon_mod_package::content::BlockEntityType;
 use std::{
     any::{Any, type_name},
     cell::{Cell, RefCell},
