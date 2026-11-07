@@ -104,6 +104,13 @@ completion shares the item registry's requested-slot preservation and sorted enu
 
 ### Placement and loot snapshots
 
+`mod_api::PlacementContext` owns the placement inputs, including world-space click
+coordinates and the placer view/flags. Its `item` is `Option<ItemKey>`: `None` is a
+real empty hand, including falling-block placement contexts, not an invented air
+item. Nonempty items resolve through the existing load-owned item table. The game
+captures this read-only snapshot after the scoped subscription guard; no subscriber
+means no snapshot or item lookup. The block-state answer is applied as before.
+
 The `snapshots` module owns placement inputs and loot-roll facts. Placement and tool
 items are resolved `ItemKey`s. Loot context entities, damage sources, tools, biome,
 block and place facts are owned values; retaining one never retains a borrowed engine

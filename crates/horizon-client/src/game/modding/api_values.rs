@@ -2014,6 +2014,71 @@ mod declaration_snapshot_tests {
     }
 }
 
+impl TryIntoApi for horizon_world::level::PlacementContext {
+    type Api = mod_api::PlacementContext;
+    type Error = StackReadError;
+    fn try_into_api(&self) -> Result<Self::Api, Self::Error> {
+        let item = if self.item.is_empty() {
+            None
+        } else {
+            Some(mod_api::__private::item_key(&self.item).ok_or(StackReadError::UnknownItem)?)
+        };
+        let mut snapshot = mod_api::PlacementContext::new(self.pos, self.face, item);
+        snapshot.hit_pos = self.hit_pos;
+        snapshot.hit = [self.hit.x, self.hit.y, self.hit.z];
+        snapshot.inside = self.inside;
+        snapshot.yaw = self.yaw;
+        snapshot.pitch = self.pitch;
+        snapshot.sneaking = self.sneaking;
+        snapshot.replace_clicked = self.replace_clicked;
+        Ok(snapshot)
+    }
+}
+
+#[cfg(test)]
+mod placement_snapshot_tests {
+    use super::*;
+    #[test]
+    fn placement_keeps_click_view_flags_and_empty_hand_without_fallback() {
+        install_parts(&[]).unwrap();
+        mod_api::__private::resolve_items(["minecraft:stone"]).unwrap();
+        let mut engine = horizon_world::level::PlacementContext {
+            pos: horizon_core::position::BlockPos::new(1, 2, 3),
+            hit_pos: horizon_core::position::BlockPos::new(4, 5, 6),
+            face: horizon_core::geometry::Direction::Up,
+            hit: horizon_core::geometry::Vec3::new(4.25, 5.5, 6.75),
+            inside: true,
+            yaw: -45.0,
+            pitch: 90.0,
+            sneaking: true,
+            item: "minecraft:stone".into(),
+            replace_clicked: true,
+        };
+        let snapshot = engine.try_into_api().unwrap();
+        assert_eq!(snapshot.pos, horizon_core::position::BlockPos::new(1, 2, 3));
+        assert_eq!(
+            snapshot.hit_pos,
+            horizon_core::position::BlockPos::new(4, 5, 6)
+        );
+        assert_eq!(snapshot.face, horizon_core::geometry::Direction::Up);
+        assert_eq!(snapshot.hit, [4.25, 5.5, 6.75]);
+        assert!(snapshot.inside);
+        assert_eq!(snapshot.yaw, -45.0);
+        assert_eq!(snapshot.pitch, 90.0);
+        assert!(snapshot.sneaking && snapshot.replace_clicked);
+        assert_eq!(
+            snapshot.item,
+            mod_api::__private::item_key("minecraft:stone")
+        );
+        engine.item.clear();
+        let mut empty = snapshot;
+        empty.item = None;
+        assert_eq!(engine.try_into_api(), Ok(empty));
+        engine.item = "missing:item".into();
+        assert_eq!(engine.try_into_api(), Err(StackReadError::UnknownItem));
+    }
+}
+
 impl TryIntoApi for horizon_client_core::gamerules::Value {
     type Api = mod_api::GameRuleValue;
     type Error = StackReadError;

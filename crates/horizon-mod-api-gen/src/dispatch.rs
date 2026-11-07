@@ -662,6 +662,7 @@ fn stack_crossing(
                                 | "MerchantOffer"
                                 | "Suggestion"
                                 | "GameRuleValue"
+                                | "PlacementContext"
                         )
                     });
                 syn::visit::visit_type_path(self, path);
@@ -931,6 +932,31 @@ fn main() {
         assert!(crossing.before.contains("value.try_into_api()"));
         assert_eq!(crossing.arguments, ["__api_value"]);
         assert!(crossing.after.is_empty());
+    }
+
+    #[test]
+    fn placement_hook_gates_before_snapshot_and_stages_the_answer() {
+        let context: Type = syn::parse_quote!(&PlacementContext);
+        let answer: Type = syn::parse_quote!(&mut Option<Option<BlockStateId>>);
+        let crossing = stack_crossing(
+            &[
+                ("context".to_owned(), &context),
+                ("answer".to_owned(), &answer),
+            ],
+            None,
+            "StateForPlacement",
+            true,
+            &Default::default(),
+        )
+        .unwrap();
+        assert!(
+            crossing
+                .before
+                .starts_with("if !mod_api::__private::has_part_hook")
+        );
+        assert!(crossing.before.contains("context.try_into_api()"));
+        assert_eq!(crossing.arguments, ["&__api_context", "&mut __api_answer"]);
+        assert!(crossing.after.contains("*answer = __engine_answer"));
     }
 
     #[test]
