@@ -1955,6 +1955,20 @@ pub(in crate::game) fn block_entity_declarations()
         .collect()
 }
 
+impl TryIntoEngine<()> for mod_api::GameRuleDecl {
+    type Engine = horizon_client_core::gamerules::Rule;
+    type Error = std::convert::Infallible;
+    fn try_into_engine(&self, _: &()) -> Result<Self::Engine, Self::Error> {
+        Ok(Self::Engine {
+            name: self.name.clone(),
+            category: self.category.clone(),
+            default: horizon_client_core::gamerules::Value::Bool(self.default),
+            min: 0,
+            max: 0,
+        })
+    }
+}
+
 #[cfg(test)]
 mod declaration_snapshot_tests {
     use super::*;

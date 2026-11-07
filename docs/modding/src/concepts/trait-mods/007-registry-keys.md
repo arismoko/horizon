@@ -55,6 +55,12 @@ and remain strings, as do labels and tags.
 | Command `Suggestion` | `mod_api::Suggestion` | Construct with `Suggestion::new((start, end), text)`; optional `tooltip` and `int_value` remain writable. Offsets are byte offsets. |
 | Package block entity type storage | `mod_api::BlockEntityTypeDecl` | Existing `r.block_entity_type(...).build()` registration is unchanged. The declaration snapshot no longer exposes the package parser's model; the game converts it once when declarations freeze. |
 
+The API's `GameRuleDecl` records a mod's boolean rule name, category and default.
+Its internal `RuleSchema` input describes vanilla categories and dense rule positions
+through read-only lookups rather than a copied vanilla list or fixed slot numbers.
+Schema validation resolves category references after all mods have declared them and
+returns either all declaration slots or every refusal; it never installs a partial table.
+
 The game owns package and completion conversion. Mods do not import package-loader or
 client-core types for these values. Completion edits are copied back after subscribed
 listeners run; no listener means no snapshot allocation. Package metadata is copied once
