@@ -5,7 +5,6 @@ pub use horizon_mod_api_macros::__subscriptions;
 ///
 /// On `impl Hooks`, also exports `pub fn hooks()` using the mod's `Default`
 /// implementation. Put that impl at the crate root so the launcher finds it.
-/// On `impl RenderHooks`, derives subscriptions without another export.
 ///
 /// An implementation without the attribute does not compile:
 /// ```compile_fail

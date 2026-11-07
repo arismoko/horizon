@@ -81,13 +81,6 @@ impl LevelSide<'_> {
         }
     }
 }
-trait RenderHooks {
-    fn subscribed(&self) -> &'static [Option<mod_api::RenderHookId>];
-    #[allow(dead_code)]
-    fn mob_render(&self, _: &dyn Host, _: &mut NativeMobRender<'_>) {}
-    #[allow(dead_code)]
-    fn block_entity_draw(&self, _: &dyn Host, _: &mut BlockEntityDraw) {}
-}
 struct TestHost;
 struct TestLevel;
 impl LevelHost for TestLevel {}
@@ -106,17 +99,6 @@ mod generated {
     pub(super) mod mod_api {
         pub(super) use super::super::ItemStack;
         include!(concat!(env!("OUT_DIR"), "/dispatch_fixtures_api.rs"));
-    }
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub enum RenderHookId {
-        MobRender,
-        BlockEntityDraw,
-    }
-    #[allow(non_upper_case_globals)]
-    pub mod render_hook_ids {
-        use super::RenderHookId;
-        pub const mob_render: Option<RenderHookId> = Some(RenderHookId::MobRender);
-        pub const block_entity_draw: Option<RenderHookId> = Some(RenderHookId::BlockEntityDraw);
     }
     include!(concat!(env!("OUT_DIR"), "/mod_api_generated.rs"));
     pub use horizon_mod_api_macros::__subscriptions;
@@ -275,21 +257,6 @@ fn cfg_disabled_hooks_are_not_subscribed_and_cfg_attr_stays() {
     );
 }
 
-#[test]
-fn cfg_disabled_render_hooks_are_not_subscribed_and_cfg_attr_stays() {
-    struct Renderer;
-    #[mod_api::__subscriptions]
-    impl RenderHooks for Renderer {
-        #[cfg(any())]
-        fn mob_render(&self, _: &dyn Host, _: &mut NativeMobRender<'_>) {}
-        #[cfg_attr(test, inline)]
-        fn block_entity_draw(&self, _: &dyn Host, _: &mut BlockEntityDraw) {}
-    }
-    assert_eq!(
-        Renderer.subscribed(),
-        &[mod_api::render_hook_ids::block_entity_draw]
-    );
-}
 struct Mod {
     id: u32,
     calls: Arc<Mutex<Vec<u32>>>,

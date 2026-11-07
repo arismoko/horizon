@@ -3,7 +3,6 @@ use super::*;
 pub(super) struct HookSources {
     pub traits: String,
     pub dispatch: String,
-    pub render_traits: String,
     pub render_dispatch: String,
     pub part_traits: BTreeMap<&'static str, String>,
     pub fills: Vec<Fill>,
@@ -11,9 +10,6 @@ pub(super) struct HookSources {
     pub hook_ids: String,
     pub hook_constants: String,
     pub hook_count: usize,
-    pub render_hook_ids: String,
-    pub render_hook_constants: String,
-    pub render_hook_count: usize,
 }
 
 /// The most parameters a `native_*` target takes, receiver included (clippy's limit): a hook
@@ -34,7 +30,7 @@ pub(super) fn is_render(hook: &Hook) -> bool {
     hook.target.starts_with("mod_render::render::")
 }
 
-/// Render emission reads only the catalog and its API-owned raw target signatures.
+/// Render emission reads only the catalog and its native raw target signatures.
 pub(super) fn render(root: &Path, catalog: &Catalog) -> Result<HookSources, String> {
     emit(
         root,
@@ -53,12 +49,8 @@ pub(super) fn emit<'a>(
     let mut hook_ids = String::new();
     let mut hook_constants = String::new();
     let mut hook_count = 0;
-    let mut render_hook_ids = String::new();
-    let mut render_hook_constants = String::new();
-    let mut render_hook_count = 0;
     let mut traits = String::new();
     let mut dispatch = String::new();
-    let mut render_traits = String::new();
     let mut render_dispatch = String::new();
     let mut part_traits: BTreeMap<&str, String> = BTreeMap::new();
     let mut fills = Vec::new();
@@ -284,13 +276,7 @@ pub(super) fn emit<'a>(
         let event = fresh_name("event", &mut used);
         let event_type = format!("{}Event", hook_id(name));
         let hook_id = event_type.strip_suffix("Event").unwrap();
-        if is_render {
-            render_hook_ids.push_str(&format!("{hook_id},\n"));
-            render_hook_constants.push_str(&format!(
-                "pub const {name}: Option<super::RenderHookId> = Some(super::RenderHookId::{hook_id});\n"
-            ));
-            render_hook_count += 1;
-        } else {
+        if !is_render {
             hook_ids.push_str(&format!("{hook_id},\n"));
             hook_constants.push_str(&format!(
                 "pub const {name}: Option<super::HookId> = Some(super::HookId::{hook_id});\n"
@@ -391,6 +377,12 @@ pub(super) fn emit<'a>(
             (true, false) => ("<'a>", "<'_>"),
             (false, false) => ("", ""),
         };
+        if is_render {
+            render_dispatch.push_str(&format!(
+                "#[allow(missing_docs)]\npub struct {event_type}{generics} {{\n{fields}}}\n"
+            ));
+            continue;
+        }
         trait_params.push(format!("{event}: &mut {event_type}{elided}"));
         call_args.push(format!("&mut {event}"));
         let unused = trait_params[1..]
@@ -494,17 +486,7 @@ pub(super) fn emit<'a>(
         let invoke = call_args.join(", ");
         let trait_params = trait_params.join(", ");
         let dispatch_params = dispatch_params.join(", ");
-        let trait_name = if is_render { "RenderHooks" } else { "Hooks" };
-        let traits = if is_render {
-            &mut render_traits
-        } else {
-            &mut traits
-        };
-        let dispatch = if is_render {
-            &mut render_dispatch
-        } else {
-            &mut dispatch
-        };
+        let trait_name = "Hooks";
         let mut method_source = String::new();
         for line in hook.doc.trim().lines() {
             method_source.push_str(&format!(
@@ -549,10 +531,8 @@ pub(super) fn emit<'a>(
             "/// What [`{trait_name}::{name}`] is told. Each field is that hook's argument of the same name, described in the hook's doc.\n#[allow(missing_docs)]\npub struct {event_type}{generics} {{\n{fields}}}\n"
         ));
         let build = format!("let mut {event} = {event_type} {{ {} }};", inits.join(", "));
-        // A trait mod's call is marked with the mod for a panic to name; render hooks are called bare.
-        let each = if is_render {
-            format!("super::entered_render(RenderHookId::{hook_id})")
-        } else if answered {
+        // A trait mod's call is marked with the mod for a panic to name.
+        let each = if answered {
             format!("super::entered_with_id(HookId::{hook_id}, \"{name}\")")
         } else {
             format!("super::entered(HookId::{hook_id}, \"{name}\")")
@@ -607,8 +587,6 @@ pub(super) fn emit<'a>(
         };
         let early_return = if scoped.is_some() {
             String::new()
-        } else if is_render {
-            format!("if !super::render_listened(RenderHookId::{hook_id}) {{ return; }}")
         } else {
             format!("if !super::listened(HookId::{hook_id}) {{ return; }}")
         };
@@ -630,7 +608,6 @@ pub(super) fn emit<'a>(
     Ok(HookSources {
         traits,
         dispatch,
-        render_traits,
         render_dispatch,
         part_traits,
         fills,
@@ -638,9 +615,6 @@ pub(super) fn emit<'a>(
         hook_ids,
         hook_constants,
         hook_count,
-        render_hook_ids,
-        render_hook_constants,
-        render_hook_count,
     })
 }
 

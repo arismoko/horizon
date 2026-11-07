@@ -87,22 +87,21 @@ fn expand(mut implementation: ItemImpl, export: bool) -> TokenStream {
     let Some((_, trait_path, _)) = &implementation.trait_ else {
         return syn::Error::new_spanned(
             &implementation,
-            "expected an impl of Hooks or RenderHooks",
+            "expected an impl of Hooks or a Part trait",
         )
         .into_compile_error()
         .into();
     };
     let name = &trait_path.segments.last().unwrap().ident;
-    let (render, part) = match name.to_string().as_str() {
-        "Hooks" => (false, None),
-        "RenderHooks" => (true, None),
-        "BlockPart" => (false, Some("block_subscribed")),
-        "BlockEntityPart" => (false, Some("block_entity_subscribed")),
-        "ItemPart" => (false, Some("item_subscribed")),
-        "MenuPart" => (false, Some("menu_subscribed")),
+    let part = match name.to_string().as_str() {
+        "Hooks" => None,
+        "BlockPart" => Some("block_subscribed"),
+        "BlockEntityPart" => Some("block_entity_subscribed"),
+        "ItemPart" => Some("item_subscribed"),
+        "MenuPart" => Some("menu_subscribed"),
         // Entity parts carry no scoped hook yet (#1077): `register_goals` is
         // not one, so its subscriptions stay empty whatever it overrides.
-        "EntityPart" => (false, Some("entity_subscribed_empty")),
+        "EntityPart" => Some("entity_subscribed_empty"),
         _ => {
             return syn::Error::new_spanned(name, "expected a hook or part trait")
                 .into_compile_error()
@@ -128,16 +127,8 @@ fn expand(mut implementation: ItemImpl, export: bool) -> TokenStream {
             cfgs.push(cfg_attributes(method));
         }
     }
-    let id = if render {
-        format_ident!("RenderHookId")
-    } else {
-        format_ident!("HookId")
-    };
-    let ids = if render {
-        format_ident!("render_hook_ids")
-    } else {
-        format_ident!("hook_ids")
-    };
+    let id = format_ident!("HookId");
+    let ids = format_ident!("hook_ids");
     let subscribed_name = format_ident!("{}", part.unwrap_or("subscribed"));
     let subscribed = if subscribed_name == "entity_subscribed_empty" {
         // Entity parts (arismoko/horizon#1077): no scoped hook exists for them
@@ -155,7 +146,7 @@ fn expand(mut implementation: ItemImpl, export: bool) -> TokenStream {
         }
     };
     implementation.items.push(subscribed);
-    let export = if export && !render && part.is_none() {
+    let export = if export && part.is_none() {
         let ty = &implementation.self_ty;
         quote! {
             pub fn hooks() -> Box<dyn mod_api::Hooks> { Box::new(<#ty as Default>::default()) }
@@ -224,7 +215,7 @@ pub fn host_area(_attribute: TokenStream, input: TokenStream) -> TokenStream {
     quote!(#area).into()
 }
 
-/// Mark a trait mod or its renderer and derive its hook subscriptions.
+/// Mark a trait mod and derive its hook subscriptions.
 #[proc_macro_attribute]
 pub fn horizon_mod(_attribute: TokenStream, input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as ItemImpl), true)

@@ -12,7 +12,6 @@ fn generated_host_constructors_refuse_nested_inputs_and_hook_outputs() {
     let included = [
         ("mod_api_generated.rs", generated.hooks.as_str()),
         ("mod_api_generated_host.rs", generated.host.as_str()),
-        ("native_render_generated.rs", generated.render.as_str()),
     ];
     let mut types = Types::new(Index::new(&root, &included)).unwrap();
     let module = types.index.module("mod_api", &[]).unwrap();

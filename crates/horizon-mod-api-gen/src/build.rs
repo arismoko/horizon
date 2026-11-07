@@ -41,7 +41,6 @@ pub fn generate(root: &Path, out_dir: &Path, target: Target) -> Result<(), Strin
                 (host::AREAS_OUTPUT, generated.areas.as_str()),
                 ("mod_api_generated.rs", hooks.as_str()),
                 ("mod_api_generated_host.rs", generated.host.as_str()),
-                ("native_render_generated.rs", generated.render.as_str()),
             ];
             // The resolver recurses through the API's types: give it a deep stack.
             let wasm = std::thread::scope(|scope| {
@@ -60,7 +59,6 @@ pub fn generate(root: &Path, out_dir: &Path, target: Target) -> Result<(), Strin
                 (host::AREAS_OUTPUT, generated.areas),
                 ("mod_api_generated.rs", hooks),
                 ("mod_api_generated_host.rs", generated.host),
-                ("native_render_generated.rs", generated.render),
                 ("capability_providers_generated.rs", wasm.providers),
                 ("wasm_guest_generated.rs", wasm.guest),
                 ("wasm_host_generated.rs", wasm.host),
