@@ -197,4 +197,4 @@ fn call(raw: HandleChatInputRaw, game: Option<Game>) {
     raw.set_cancel(true).unwrap();
 }
 
-mod_internals::raw_listeners!(call);
+mod_internals::raw_listeners!();

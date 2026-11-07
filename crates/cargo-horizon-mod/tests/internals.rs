@@ -378,7 +378,7 @@ fn wasm_sync_project(name: &str) -> (Project, PathBuf) {
     fs::create_dir_all(repo.join("crates/horizon-mod-api-gen/wasm-internals")).unwrap();
     fs::write(repo.join("Cargo.toml"), "[workspace]\n").unwrap();
     let manifest = format!(
-        "id='example'\nname='Example'\nversion='0.1.0'\napi='0.2'\ncapabilities=['registries']\n[wasm]\nsha512='{}'\ntoolchain='nightly'\n[native]\ninternals=[{{path='z::last',hash='a'}},{{path='a::first',hash='b'}}]\n[[native.injection]]\nid='fell'\ntarget='a::first'\nkind='HEAD'\nraw='fell'\n",
+        "id='example'\nname='Example'\nversion='0.1.0'\napi='0.2'\ncapabilities=['registries']\n[wasm]\nsha512='{}'\ntoolchain='nightly'\n[native]\ninternals=[{{path='z::last',hash='a'}},{{path='a::first',hash='b'}}]\n[[inject]]\nid='fell'\nat='a::first'\nkind='head'\naccess='internals'\nwith='fell'\nhash='b'\n[[inject]]\nid='only'\nat='m::only_injection'\nkind='head'\naccess='internals'\nwith='only'\nhash='c'\n",
         "a".repeat(128)
     );
     fs::write(project.dir.join(MANIFEST), manifest).unwrap();
@@ -405,7 +405,7 @@ fn wasm_sync_sorts_and_deduplicates() {
     assert_eq!(
         fs::read_to_string(repo.join("crates/horizon-mod-api-gen/wasm-internals/example.txt"))
             .unwrap(),
-        "# example: written by cargo horizon-mod internals sync from horizon-mod.toml\na::first\nz::last\n"
+        "# example: written by cargo horizon-mod internals sync from horizon-mod.toml\na::first\nm::only_injection\nz::last\n"
     );
 }
 

@@ -25,8 +25,14 @@ internals = [
   { path = "horizon_client::game::Game::add", kind = "method", hash = "638665cf01d552d5765711831232b653f7b98d9c7bdddb54a58182e433e5cd0e" },
 ]
 
-[[native.injection]]
+[[inject]]
 id = "access"
-target = "horizon_client::game::chat::Game<'_>::handle_chat_input"
-kind = "HEAD"
-raw = "access"
+at = "horizon_client::game::chat::Game<'_>::handle_chat_input"
+kind = "head"
+access = "internals"
+hash = "fixture-signature"
+with = "access"
+
+[wasm]
+sha512 = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+toolchain = "1.99.1"

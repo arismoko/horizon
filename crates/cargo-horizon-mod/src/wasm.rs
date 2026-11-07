@@ -365,11 +365,7 @@ pub fn build(root: &Path) -> Result<(), String> {
     if manifest
         .get("native")
         .and_then(toml_edit::Item::as_table_like)
-        .is_some_and(|native| {
-            native
-                .iter()
-                .any(|(key, _)| !matches!(key, "injection" | "internals"))
-        })
+        .is_some_and(|native| native.iter().any(|(key, _)| key != "internals"))
     {
         return Err(format!(
             "{MANIFEST}: a [native] mod builds through the launcher, not --wasm"

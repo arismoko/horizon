@@ -3,6 +3,7 @@
 use crate::Refusal;
 use crate::frame::{Frame, Root};
 use crate::view::{self, Resolved};
+use horizon_mod_package::manifest::inject::{Access, Kind};
 use horizon_mod_package::manifest::{Internal, Manifest};
 use mod_api::__private::wasm_host::{CallHost, Exports};
 use mod_points::__private::SlotListener;
@@ -76,12 +77,13 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
         return Ok(None);
     }
     let table = crate::INTERNALS.get().copied().unwrap_or(&Table::EMPTY);
-    for path in wasm
-        .internals()
-        .iter()
-        .map(|i| i.path.as_str())
-        .chain(wasm.raw_injections().iter().map(|i| i.target.as_str()))
-    {
+    for path in wasm.internals().iter().map(|i| i.path.as_str()).chain(
+        manifest
+            .inject
+            .iter()
+            .filter(|i| i.access == Access::Internals)
+            .map(|i| i.at.as_str()),
+    ) {
         if table.native_only.contains(&path) {
             return Err(Refusal::missing_internal(table, &manifest.id, path));
         }
@@ -124,7 +126,11 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
     }
     let declared: Arc<[Resolved]> = resolved.into();
 
-    let injections = wasm.raw_injections();
+    let injections: Vec<_> = manifest
+        .inject
+        .iter()
+        .filter(|i| i.access == Access::Internals)
+        .collect();
     if injections.is_empty() {
         return Ok(None);
     }
@@ -139,8 +145,17 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
         })?;
     let mut expected = Vec::new();
     for injection in injections {
-        let target = injection.target.as_str();
-        let place = crate::points::target_place(target, injection.kind)?;
+        let target = injection.at.as_str();
+        let kind = match (injection.kind, injection.priority) {
+            (Kind::Head, 0) => horizon_mod_package::manifest::InjectionKind::Head,
+            (Kind::Return, 0) => horizon_mod_package::manifest::InjectionKind::Return,
+            _ => {
+                return Err(Refusal::Points(
+                    "E_INJECT_NO_SLOT: wasm listener kind or priority pending".into(),
+                ));
+            }
+        };
+        let place = crate::points::target_place(target, kind)?;
         expected.push(place);
     }
     let mut listeners = Vec::new();
@@ -436,3 +451,7 @@ mod tests {
         assert!(!roots[0].receiver);
     }
 }
+
+#[cfg(test)]
+#[path = "raw/controlled_exports.rs"]
+mod controlled_exports;

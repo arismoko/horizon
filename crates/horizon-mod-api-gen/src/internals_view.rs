@@ -631,7 +631,6 @@ pub fn generate(
     }
     let mut subscriptions = Vec::new();
     let mut calls = Vec::new();
-    let mut listeners = Vec::new();
     for (index, inj) in injections.iter().enumerate() {
         let (internal, point) = selected
             .raw
@@ -725,9 +724,8 @@ pub fn generate(
             quote!(None::<()>)
         };
         let idx = index as u32;
-        let listener = format_ident!("raw_listener_{index}");
-        listeners.push(listener.clone());
-        calls.push(quote!(#idx => $ #listener($crate::runtime::root_as::<$crate::view::#ty>(#root), #recv),));
+        let listener = format_ident!("{}", inj.listener);
+        calls.push(quote!(#idx => crate::#listener($crate::runtime::root_as::<$crate::view::#ty>(#root), #recv),));
     }
     for shape in copies.values() {
         if let Shape::Tuple(parts) = shape
@@ -766,7 +764,7 @@ pub fn generate(
         }
         #[macro_export]
         macro_rules! raw_listeners {
-            (#($ #listeners:path),*) => {
+            () => {
                 #[cfg(target_arch = "wasm32")]
                 const _: () = {
                     use $crate::runtime::{Guest, HostKind};

@@ -13,59 +13,37 @@ fn generate() -> Result<String, String> {
     };
     println!("cargo:rerun-if-changed={}", manifest.display());
     println!("cargo:rerun-if-changed={}", catalog.display());
-    #[derive(serde::Deserialize, Default)]
-    struct Native {
-        #[serde(default)]
-        internals: Vec<Internal>,
-        #[serde(default)]
-        injection: Vec<Raw>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Internal {
-        path: String,
-        hash: String,
-        kind: Option<String>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Raw {
-        target: Option<String>,
-        kind: String,
-        raw: Option<String>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Manifest {
-        #[serde(default)]
-        native: Native,
-    }
     let text = fs::read_to_string(&manifest).map_err(|e| format!("{}: {e}", manifest.display()))?;
-    let manifest: Manifest = toml::from_str(&text).map_err(|e| e.to_string())?;
+    let manifest = horizon_mod_package::manifest::Manifest::parse(&text)?;
     let catalog =
         fs::read_to_string(&catalog).map_err(|e| format!("{}: {e}", catalog.display()))?;
     let entries = internals_view::catalog(&catalog)?;
     let declared = manifest
-        .native
-        .internals
-        .into_iter()
+        .wasm
+        .as_ref()
+        .map(|w| w.internals())
+        .or_else(|| manifest.native.as_ref().map(|n| n.internals.as_slice()))
+        .unwrap_or(&[])
+        .iter()
         .map(|i| Declaration {
-            path: i.path,
-            hash: i.hash,
-            kind: i.kind,
+            path: i.path.clone(),
+            hash: i.hash.clone(),
+            kind: i.kind.clone(),
         })
         .collect::<Vec<_>>();
     let injections = manifest
-        .native
-        .injection
-        .into_iter()
-        .filter_map(|i| i.raw.map(|raw| (i.target, i.kind, raw)))
-        .map(|(target, kind, raw)| {
+        .inject
+        .iter()
+        .filter(|i| i.access == horizon_mod_package::manifest::inject::Access::Internals)
+        .map(|i| {
             Ok(Injection {
-                target: target.ok_or("a raw injection needs a target")?,
-                at_return: match kind.as_str() {
-                    "HEAD" => false,
-                    "RETURN" => true,
-                    _ => return Err("a raw injection needs HEAD or RETURN".to_owned()),
+                target: i.at.clone(),
+                at_return: match i.kind {
+                    horizon_mod_package::manifest::inject::Kind::Head => false,
+                    horizon_mod_package::manifest::inject::Kind::Return => true,
+                    _ => return Err(format!("{}: E_INJECT_NO_SLOT: wasm sites pending", i.id)),
                 },
-                listener: raw,
+                listener: i.with.clone(),
             })
         })
         .collect::<Result<Vec<_>, String>>()?;

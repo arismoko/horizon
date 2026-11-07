@@ -163,9 +163,13 @@ fn sync(dir: &Path, repo: Option<&Path>) -> Result<(), String> {
             .iter()
             .map(|entry| entry.path.as_str())
             .chain(
-                wasm.raw_injections()
+                manifest
+                    .inject
                     .iter()
-                    .map(|entry| entry.target.as_str()),
+                    .filter(|i| {
+                        i.access == horizon_mod_package::manifest::inject::Access::Internals
+                    })
+                    .map(|entry| entry.at.as_str()),
             )
             .collect();
         let mut contents = format!(

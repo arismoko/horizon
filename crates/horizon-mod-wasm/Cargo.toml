@@ -22,7 +22,9 @@ wit-parser = "0.261"
 [dev-dependencies]
 wit-component = { version = "0.261", features = ["dummy-module"] }
 # A component built in the test, importing a function this game doesn't have.
-wasm-encoder = "0.261"
+wasm-encoder = { version = "0.261", features = ["wasmparser"] }
+wasmparser = "0.261"
+horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
 wit-parser = "0.261"
 # The worldgen side of a mod's structure type, driven from worker threads in the bench test.
 horizon-core = { path = "../horizon-core" }

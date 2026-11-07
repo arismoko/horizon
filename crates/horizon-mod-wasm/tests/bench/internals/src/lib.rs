@@ -57,4 +57,4 @@ fn access(raw: HandleChatInputRaw, game: Option<Game>) {
     };
     raw.set_message(Box::new(result)).unwrap();
 }
-mod_internals::raw_listeners!(access);
+mod_internals::raw_listeners!();

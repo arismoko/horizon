@@ -2071,9 +2071,8 @@ name = "horizon-mod-internals"
 version = "0.1.0"
 dependencies = [
  "horizon-mod-api-gen",
+ "horizon-mod-package",
  "horizon-mod-points",
- "serde",
- "toml",
 ]
 
 [[package]]
@@ -2135,6 +2134,7 @@ dependencies = [
  "log",
  "serde_json",
  "wasm-encoder 0.261.0",
+ "wasmparser 0.261.0",
  "wasmtime",
  "wit-component 0.261.0",
  "wit-parser 0.261.0",

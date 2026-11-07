@@ -14,8 +14,7 @@ horizon-mod-points = { path = "../horizon-mod-points" }
 
 [build-dependencies]
 horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
-serde = { version = "1", features = ["derive"] }
-toml = "1.1"
+horizon-mod-package = { path = "../horizon-mod-package" }
 
 [lints]
 workspace = true

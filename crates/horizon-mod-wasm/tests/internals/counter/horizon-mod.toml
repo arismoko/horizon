@@ -14,8 +14,14 @@ internals = [
   { path = "horizon_client::mutate_copies", kind = "fn", hash = "mutate-copies-hash" },
  ]
 
-[[native.injection]]
+[[inject]]
 id = "counter"
-target = "horizon_client::game::chat::Game<'_>::handle_chat_input"
-kind = "HEAD"
-raw = "call"
+at = "horizon_client::game::chat::Game<'_>::handle_chat_input"
+kind = "head"
+access = "internals"
+hash = "fixture-signature"
+with = "call"
+
+[wasm]
+sha512 = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+toolchain = "1.99.1"

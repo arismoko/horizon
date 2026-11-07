@@ -144,7 +144,7 @@ impl Listening {
     }
 }
 
-fn export_refusal(error: LoadError, point: &str) -> Refusal {
+pub(crate) fn export_refusal(error: LoadError, point: &str) -> Refusal {
     match error {
         LoadError::MissingExport(_) => Refusal::UnfilledPoint {
             point: point.into(),
@@ -160,7 +160,7 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
         return Ok(None);
     }
     let raw = crate::raw::listen(manifest, exports)?;
-    if manifest.inject.is_empty() {
+    if !manifest.inject.iter().any(|i| i.access == Access::Api) {
         return Ok(raw.map(|raw| Listening {
             exports: exports.clone(),
             fire: None,
@@ -169,7 +169,7 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
         }));
     }
     let mut declared = BTreeMap::new();
-    for inject in &manifest.inject {
+    for inject in manifest.inject.iter().filter(|i| i.access == Access::Api) {
         declared.insert(inject.id.as_str(), (declared_place(inject)?, inject));
     }
     let interface = format!(

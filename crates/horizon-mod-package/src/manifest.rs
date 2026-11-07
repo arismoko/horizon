@@ -9,7 +9,7 @@ pub use jar::{
     JarConflict, JarInputsError, JarRef, JarRequirement, MissingJar, collect_jar_requirements,
     missing_jars,
 };
-pub use wasm::{MAX_WASM, RawInjection, Wasm, WasmError, export_prefix, sha512_of};
+pub use wasm::{MAX_WASM, Wasm, WasmError, export_prefix, sha512_of};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -343,8 +343,6 @@ fn check_injection(injection: &Injection) -> Result<(), String> {
 #[serde(deny_unknown_fields)]
 struct WasmNative {
     #[serde(default)]
-    injection: Vec<RawInjection>,
-    #[serde(default)]
     internals: Vec<Internal>,
 }
 
@@ -385,28 +383,16 @@ impl Manifest {
             .try_into()
             .map_err(|e| format!("{MANIFEST}: {e}"))?;
         if let Some(wasm) = &mut m.wasm {
-            let mut ids = std::collections::HashSet::new();
             Internal::check_all(&declarations.internals)?;
-            for injection in &declarations.injection {
-                if injection.id.is_empty() || !ids.insert(&injection.id) {
-                    return Err(format!("{MANIFEST}: empty or duplicate injection id"));
-                }
-                if injection.target.is_empty()
-                    || !rust_ident(&injection.raw)
-                    || !matches!(injection.kind, InjectionKind::Head | InjectionKind::Return)
-                {
-                    return Err(format!(
-                        "{MANIFEST}: injection {}: raw internals listeners require a target, crate-root function and HEAD or RETURN",
-                        injection.id
-                    ));
-                }
-                if declarations.internals.is_empty() {
-                    return Err(format!(
-                        "{MANIFEST}: a wasm raw listener needs declared internals"
-                    ));
-                }
+            if declarations.internals.is_empty()
+                && m.inject
+                    .iter()
+                    .any(|i| i.access == inject::Access::Internals)
+            {
+                return Err(format!(
+                    "{MANIFEST}: a wasm internals listener needs declared internals"
+                ));
             }
-            wasm.raw_injections = declarations.injection;
             wasm.internals = declarations.internals;
         }
         if !valid_mod_id(&m.id) {
@@ -1461,7 +1447,7 @@ capabilities = ["registries"]
         assert!(
             Manifest::parse(&format!("{base}{missing_raw}"))
                 .unwrap_err()
-                .contains("missing field `raw`")
+                .contains("unknown field")
         );
         for unified in [
             "",
@@ -1492,12 +1478,12 @@ capabilities = ["registries"]
             "0".repeat(128)
         );
         let native = "[native]\ninternals=[{path='Game::world',kind='field',hash='world-hash'}]\n";
-        let injection = "[[native.injection]]\nid='fell'\ntarget='Game::break_block'\nkind='HEAD'\nraw='fell'\n";
+        let injection = "[[inject]]\nid='fell'\nat='Game::break_block'\nkind='head'\nwith='fell'\naccess='internals'\nhash='h'\n";
         let parsed = Manifest::parse(&format!("{wasm}{native}{injection}")).unwrap();
         assert!(parsed.native.is_none());
         let declarations = parsed.wasm.unwrap();
         assert_eq!(declarations.internals()[0].hash, "world-hash");
-        assert_eq!(declarations.raw_injections()[0].raw, "fell");
+
         for wrong in [
             "internals=[{path='',hash='h'}]",
             "internals=[{path='Game',hash=''}]",

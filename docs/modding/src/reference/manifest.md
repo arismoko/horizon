@@ -82,9 +82,11 @@ A wasm mod adds `[wasm]` instead, written by `cargo horizon-mod build --wasm`
 At load `mod.wasm` must start with `\0asm`, be at most 64 MiB and match `sha512`; each failure refuses the
 package with its reason.
 
-Beside `[wasm]`, `[native]` may contain `internals` and `injection`, but no `game`, `horizon`,
-`mixins` or `module`: a wasm package contains no native code. A `raw` injection requires at least
-one declared internal. The compiled view must include every manifest internal at the same hash,
+Beside `[wasm]`, `[native]` may contain only `internals`, not injections or native build pins.
+Wasm internals listeners use top-level `[[inject]]` with `access = "internals"`, `kind = "head"`
+or `"return"`, a pinned function `hash`, and a crate-root `with` function. They require at least
+one declared internal. The generated `mod_internals::raw_listeners!()` entry exports those
+functions without a second listener list. Call-site kinds remain refused as wasm sites pending. The compiled view must include every manifest internal at the same hash,
 plus the named types it walks; the game resolves all of them before registering any listener.
 Missing internals name the prebuilt game's opt-in file to update; changed hashes and a game built
 without an internals table refuse the mod. A raw listener receives no Host: its access is through
