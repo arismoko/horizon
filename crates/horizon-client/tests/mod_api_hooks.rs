@@ -246,3 +246,33 @@ fn an_anvil_update_is_changed_in_turn_and_cancel_stops_later_mods() {
         );
     });
 }
+
+#[test]
+fn wind_burst_filter_preserves_order_and_context() {
+    use mod_api::{Host, ServerHost, WindBurstEvent, dispatch_wind_burst};
+    struct TestHost;
+    impl Host for TestHost {}
+    mod_api::impl_host_areas!(TestHost);
+    mod_api::impl_server_host_areas!(TestHost);
+    impl ServerHost for TestHost {}
+    struct Claims;
+    #[mod_api::__subscriptions]
+    impl Hooks for Claims {
+        fn wind_burst(&self, _host: &mut dyn ServerHost, event: &mut WindBurstEvent<'_>) {
+            assert_eq!(event.dimension, "minecraft:the_nether");
+            assert_eq!(event.center, [1.5, 70.0, -2.5]);
+            event.blocks.retain(|p| p[0] != 1);
+        }
+    }
+    let mods: mod_api::Mods = vec![ModEntry::new("claims", Box::new(Claims))].into();
+    mod_api::testing::with_mods(mods, || {
+        let mut blocks = vec![[3, 70, -2], [1, 70, -2], [2, 70, -2]];
+        dispatch_wind_burst(
+            &mut TestHost,
+            "minecraft:the_nether",
+            [1.5, 70.0, -2.5],
+            &mut blocks,
+        );
+        assert_eq!(blocks, vec![[3, 70, -2], [2, 70, -2]]);
+    });
+}

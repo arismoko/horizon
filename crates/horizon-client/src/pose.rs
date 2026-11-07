@@ -24,6 +24,17 @@ impl Pose {
     pub fn from_id(id: i32) -> Self {
         mod_api::Pose::from_id(id).into()
     }
+    /// Network ID for this pose (`Pose.id`).
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Standing => 0,
+            Self::FallFlying => 1,
+            Self::Sleeping => 2,
+            Self::Swimming => 3,
+            Self::SpinAttack => 4,
+            Self::Crouching => 5,
+        }
+    }
     pub fn name(self) -> &'static str {
         match self {
             Self::Standing => "STANDING",

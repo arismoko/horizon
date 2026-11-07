@@ -47,6 +47,8 @@ impl Game<'_> {
                 if g.fall_flying != gliding {
                     g.fall_flying = gliding;
                     changed = Some((g.uuid, g.name.clone(), gliding));
+                } else if !gliding {
+                    g.sent_shared ^= -128;
                 }
             });
         }

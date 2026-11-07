@@ -5886,3 +5886,14 @@ mod held_break_slot_tests {
         assert_eq!(game.offhand.as_ref().unwrap().damage, 0);
     }
 }
+
+impl Game<'_> {
+    pub(in crate::game) fn native_wind_burst(
+        &mut self,
+        dimension: &str,
+        center: [f64; 3],
+        blocks: &mut Vec<[i32; 3]>,
+    ) {
+        self.fire_wind_burst(dimension, center, blocks);
+    }
+}
