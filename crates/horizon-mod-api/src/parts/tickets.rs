@@ -1,9 +1,7 @@
 use super::*;
 /// The ticket controllers registered at startup.
 pub(crate) fn installed_controllers() -> &'static [ControllerInfo] {
-    INSTALLED
-        .get()
-        .map_or(&[], |installed| installed.controllers.as_slice())
+    installed().map_or(&[], |installed| installed.controllers.as_slice())
 }
 
 /// The ticket controllers `mods` register, for a test's mods.
@@ -41,6 +39,17 @@ pub mod tests {
         assert!(r.refused[0].contains("not its own"));
         assert!(r.refused[1].contains("no name") && r.refused[2].contains("no name"));
         assert_eq!(r.controllers.len(), 2);
+    }
+
+    #[test]
+    fn installed_ticket_controllers_read_the_installed_table() {
+        let mut registrar = PartRegistrar::new("first");
+        registrar.register_ticket_controller("quarry", true);
+        install_registrar(registrar).unwrap();
+        let controllers = installed_controllers();
+        assert_eq!(controllers.len(), 1);
+        assert_eq!(&*controllers[0].id, "first:quarry");
+        assert!(controllers[0].validates);
     }
 
     #[test]
