@@ -60,6 +60,9 @@ Its internal `RuleSchema` input describes vanilla categories and dense rule posi
 through read-only lookups rather than a copied vanilla list or fixed slot numbers.
 Schema validation resolves category references after all mods have declared them and
 returns either all declaration slots or every refusal; it never installs a partial table.
+The game supplies this schema at Parts installation, then builds each world's engine
+rule registry from the installed `GameRuleDecl` snapshots. Existing rule registrar calls
+are unchanged; engine registry construction is no longer exposed through the API.
 
 The game owns package and completion conversion. Mods do not import package-loader or
 client-core types for these values. Completion edits are copied back after subscribed

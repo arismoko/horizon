@@ -411,7 +411,7 @@ impl Game<'_> {
             .map_or_else(|| self.options.player_name(), |a| a.name.clone());
         let new_world = create.is_some();
         let rule_registry = create.map_or_else(
-            || Arc::new(mod_api::__private::game_rule_registry()),
+            || Arc::new(crate::game::api_values::game_rule_registry()),
             |options| options.rules.registry().clone(),
         );
         let launch = Launch {

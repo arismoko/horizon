@@ -17,18 +17,17 @@ impl PartRegistrar {
     }
 }
 
-/// Construct a fresh registry from the immutable installed category snapshot.
-// hidden: the game owns session registry construction.
+/// The immutable declarations installed after schema validation.
+// hidden: the game builds engine registries from the installed declaration snapshot.
 #[doc(hidden)]
-pub fn game_rule_registry() -> horizon_client_core::gamerules::RuleRegistry {
-    let Some(parts) = installed() else {
-        return horizon_client_core::gamerules::RuleRegistry::vanilla();
-    };
-    horizon_client_core::gamerules::RuleRegistry::with_bool_rules(
-        &parts.game_rule_categories,
-        &parts.game_rules,
-    )
-    .expect("validated at registration")
+pub fn game_rules() -> &'static [crate::GameRuleDecl] {
+    installed().map_or(&[], |parts| &parts.game_rules)
+}
+/// The immutable category declarations installed by mods.
+// hidden: the game builds engine registries from the installed category snapshot.
+#[doc(hidden)]
+pub fn game_rule_categories() -> &'static [String] {
+    installed().map_or(&[], |parts| &parts.game_rule_categories)
 }
 /// Dense position for a validated rule key.
 // hidden: the game resolves load-owned keys to dense positions.
@@ -64,8 +63,12 @@ pub mod tests {
             ModEntry::new("first", Box::new(Rule)),
             ModEntry::new("later", Box::new(Category)),
         ];
-        super::install_parts(&mods).unwrap();
-        assert!(super::game_rule_registry().rule("first:active").is_some());
+        super::install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
+        assert!(
+            super::game_rules()
+                .iter()
+                .any(|rule| rule.name == "first:active")
+        );
     }
     #[test]
     pub(crate) fn unknown_category_reports_rule_category_and_owner_without_installing() {
@@ -82,7 +85,7 @@ pub mod tests {
             ModEntry::new("first", Box::new(Rule)),
             ModEntry::new("second", Box::new(Rule)),
         ];
-        let errors = super::install_parts(&mods).unwrap_err();
+        let errors = super::install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap_err();
         assert_eq!(errors.len(), 2);
         assert!(errors[0].contains("first:active"));
         assert!(errors[1].contains("second:active"));
@@ -91,7 +94,11 @@ pub mod tests {
                 .iter()
                 .all(|error| error.contains("missing:machines"))
         );
-        assert!(super::game_rule_registry().rule("first:active").is_none());
+        assert!(
+            !super::game_rules()
+                .iter()
+                .any(|rule| rule.name == "first:active")
+        );
     }
 
     #[test]
@@ -101,7 +108,9 @@ pub mod tests {
             .game_rule_bool("active", "missing:machines", true)
             .unwrap();
         let _ = refused.game_rule_bool("foreign:bad", "example:machines", true);
-        let errors = super::install_registrar(refused).unwrap_err().join(" ");
+        let errors = super::install_registrar(refused, &crate::parts::tests::rule_schema())
+            .unwrap_err()
+            .join(" ");
         assert!(
             errors.contains("ForeignNamespace")
                 && errors.contains("example:active")
@@ -116,13 +125,13 @@ pub mod tests {
             good.game_rule_bool("active", "example:machines", true),
             Err(crate::GameRuleError::Duplicate)
         );
-        assert!(super::install_registrar(good).is_err());
+        assert!(super::install_registrar(good, &crate::parts::tests::rule_schema()).is_err());
         let mut good = super::PartRegistrar::new("example");
         let key = good
             .game_rule_bool("active", "example:machines", true)
             .unwrap();
         good.game_rule_category("machines").unwrap();
-        super::install_registrar(good).unwrap();
+        super::install_registrar(good, &crate::parts::tests::rule_schema()).unwrap();
         assert!(crate::BoolGameRuleKey::from_slot(key.0).is_ok());
         assert!(crate::BoolGameRuleKey::from_slot(key.0 + 1).is_err());
         assert!(super::game_rule_bool_slot(key).is_some());
@@ -135,28 +144,24 @@ pub mod tests {
             foreign.game_rule_category("foreign:machines"),
             Err(crate::GameRuleError::ForeignNamespace)
         );
-        assert!(super::install_registrar(foreign).is_err());
+        assert!(super::install_registrar(foreign, &crate::parts::tests::rule_schema()).is_err());
         let mut invalid = super::PartRegistrar::new("example");
         assert_eq!(
             invalid.game_rule_category("bad path"),
             Err(crate::GameRuleError::InvalidId)
         );
-        assert!(super::install_registrar(invalid).is_err());
+        assert!(super::install_registrar(invalid, &crate::parts::tests::rule_schema()).is_err());
         let mut good = super::PartRegistrar::new("example");
         assert_eq!(good.game_rule_category("machines"), Ok(()));
-        assert!(super::install_registrar(good).is_ok());
-        assert!(
-            super::game_rule_registry()
-                .categories()
-                .contains(&"example:machines".to_owned())
-        );
+        assert!(super::install_registrar(good, &crate::parts::tests::rule_schema()).is_ok());
+        assert!(super::game_rule_categories().contains(&"example:machines".to_owned()));
         let mut duplicate = super::PartRegistrar::new("example");
         duplicate.game_rule_category("machines").unwrap();
         assert_eq!(
             duplicate.game_rule_category("example:machines"),
             Err(crate::GameRuleError::Duplicate)
         );
-        assert!(super::install_registrar(duplicate).is_err());
+        assert!(super::install_registrar(duplicate, &crate::parts::tests::rule_schema()).is_err());
     }
 }
 
@@ -212,12 +217,10 @@ impl GameRulesRegistrar for PartRegistrar {
                 .game_rules
                 .request(self.mod_id, &id)
                 .map_err(|_| crate::GameRuleError::InvalidId)?;
-            self.game_rules.push(horizon_client_core::gamerules::Rule {
+            self.game_rules.push(crate::GameRuleDecl {
                 name: id,
                 category: category.into(),
-                default: horizon_client_core::gamerules::Value::Bool(default),
-                min: 0,
-                max: 0,
+                default,
             });
             Ok(crate::BoolGameRuleKey(slot))
         })();

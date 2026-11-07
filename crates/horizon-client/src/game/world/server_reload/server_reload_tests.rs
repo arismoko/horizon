@@ -208,7 +208,7 @@ fn reload_command_uses_applied_listener_state_and_preserves_tables_on_refusal() 
                     game.items().block_tags["reload_order:derived"].contains("minecraft:stone")
                 );
                 let old = game.world_tables.as_ref().map(|tables| tables as *const _);
-                mod_api::__private::install_parts(&[ModEntry::new(
+                crate::game::api_values::install_parts(&[ModEntry::new(
                     "reload_order",
                     Box::new(Missing),
                 )])

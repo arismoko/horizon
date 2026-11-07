@@ -499,7 +499,7 @@ mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("menu_rules", Box::new(Mod))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         crate::entry::install_client_hooks();
         mod_api::testing::with_mods(mods, || {
             super::super::native_guest_turn_tests::with_guests(|game| {
@@ -1189,7 +1189,7 @@ mod tests {
             }),
         )]
         .into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
@@ -1758,7 +1758,7 @@ mod tests {
             Box::new(BlockUse(calls.clone())),
         )]
         .into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
@@ -1827,7 +1827,7 @@ mod tests {
             Box::new(Replacement(replace.clone())),
         )]
         .into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             with_game(|game| {
                 game.options.dedicated = Some(Vec::new());

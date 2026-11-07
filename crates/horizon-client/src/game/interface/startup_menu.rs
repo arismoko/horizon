@@ -124,7 +124,7 @@ impl StartupMenu {
     }
 
     pub(super) fn handoff(&mut self, game: &mut Game<'_>) {
-        let registry = Arc::new(mod_api::__private::game_rule_registry());
+        let registry = Arc::new(crate::game::api_values::game_rule_registry());
         if let Some(PendingWorldEntry::Local {
             create: Some(options),
             ..

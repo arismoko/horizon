@@ -1466,7 +1466,7 @@ pub(super) mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("pigs", Box::new(Pigs(bin.clone())))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || with_game(test));
     }
 
@@ -1713,7 +1713,7 @@ pub(super) mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("energy", Box::new(Energy))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             assert!(!has_entity_providers(&ENTITY_AUTOMATION));
             with_game(|game| {

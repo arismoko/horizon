@@ -495,7 +495,7 @@ mod tests {
         }
         let mods: Mods = Arc::from([ModEntry::new("item_test", Box::new(TestMod))]);
         mod_api::__private::install(mods.clone());
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let root = super::super::mods::content_root(&base, &Default::default())
             .unwrap()

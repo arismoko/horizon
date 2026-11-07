@@ -177,7 +177,7 @@ mod tests {
     fn a_level_event_in_a_write_hook_joins_the_events_in_order() {
         let mods: mod_api::Mods =
             vec![mod_api::ModEntry::new("level-events", Box::new(EventsMod))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             super::super::native_guest_turn_tests::with_guests(|game| {
                 game.options.dedicated = Some(Vec::new());

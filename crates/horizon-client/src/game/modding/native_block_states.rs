@@ -537,7 +537,7 @@ mod tests {
         use mod_api::__private::{ResolvedBlock, part_tests, resolve_blocks, resolved_block};
         let (_, registry) = blocks();
         mod_api::__private::install(Default::default());
-        part_tests::register_game_keys([
+        crate::game::api_values::register_game_keys([
             "minecraft:oak_stairs".to_owned(),
             "minecraft:wheat".to_owned(),
         ]);

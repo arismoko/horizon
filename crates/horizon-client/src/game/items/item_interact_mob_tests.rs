@@ -115,7 +115,7 @@ fn actual_item_interact_mob_fallback_priority_and_filters() {
     let probe = Probe::default();
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("item", Box::new(probe.clone()))].into();
     mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::__private::mark_game_thread();
         let mut game = Game::new(
             &loaded.resources,

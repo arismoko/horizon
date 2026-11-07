@@ -59,7 +59,11 @@ fn generated_key_imports_use_canonical_slots_and_refuse_before_the_backend() {
             );
         }
     }
-    crate::install_parts(&[ModEntry::new("boundary", Box::new(Requests))]).unwrap();
+    crate::install_parts(
+        &[ModEntry::new("boundary", Box::new(Requests))],
+        &crate::parts::tests::rule_schema(),
+    )
+    .unwrap();
     crate::registry_keys::resolve_effects(
         horizon_client_core::potions::all_effects()
             .map(|def| horizon_client_core::potions::namespaced(def.id)),

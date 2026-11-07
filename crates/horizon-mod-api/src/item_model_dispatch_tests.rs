@@ -39,7 +39,7 @@ impl Hooks for Selected {
 
 #[test]
 fn model_callbacks_receive_owned_counts_and_the_exact_runtime_selection() {
-    install_parts(&[]).unwrap();
+    install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
     let stack = crate::parts::tests::stack("minecraft:stick", 2, 0);
     let mods = vec![ModEntry::new("selected", Box::new(Selected))].into();
     testing::with_mods(mods, || {

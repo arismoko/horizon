@@ -146,7 +146,7 @@ fn with_changes(
     )]
     .into();
     mod_api::__private::install(mods.clone());
-    mod_api::__private::install_parts(&mods).unwrap();
+    crate::game::api_values::install_parts(&mods).unwrap();
     let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let root = crate::game::mods::content_root(&base, &Default::default())
         .unwrap()

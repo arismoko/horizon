@@ -636,7 +636,7 @@ mod tests {
         crate::install(mods.clone());
         let owner = PhaseOwner::new(ModPhase::Packages);
         owner.advance(ModPhase::Registration).unwrap();
-        crate::install_parts(&mods).unwrap();
+        crate::install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         owner.advance(ModPhase::Setup).unwrap();
         let mut host = Server;
         for _world in 0..2 {

@@ -190,7 +190,11 @@ pub mod tests {
                 r.entity_part("minecraft:zombie", Once);
             }
         }
-        let errors = install_parts(&[ModEntry::new("test", Box::new(Invalid))]).unwrap_err();
+        let errors = install_parts(
+            &[ModEntry::new("test", Box::new(Invalid))],
+            &crate::parts::tests::rule_schema(),
+        )
+        .unwrap_err();
         assert_eq!(errors.len(), 2, "{errors:?}");
         assert!(
             errors[0].contains("to \"zombie\", which is not a namespaced id"),

@@ -11758,7 +11758,7 @@ mod tests {
             Box::new(Mod(calls.clone())),
         )]
         .into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 let (client, _server) = horizon_protocol::connection::Pipe::pair();

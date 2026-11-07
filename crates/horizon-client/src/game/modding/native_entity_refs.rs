@@ -772,7 +772,7 @@ pub(super) mod tests {
                     .clone()
             })
             .collect();
-        mod_api::__private::part_tests::register_game_keys(ids);
+        crate::game::api_values::register_game_keys(ids);
         mod_api::__private::resolve_items(game.items().registry_order.iter().map(|id| &**id))
             .expect("fixture item keys resolve against its loaded catalog");
 

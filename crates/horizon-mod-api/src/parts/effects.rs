@@ -28,10 +28,13 @@ pub mod tests {
             }
         }
         let requested = Arc::new(std::sync::Mutex::new(Vec::new()));
-        install_parts(&[
-            ModEntry::new("first", Box::new(Keys(requested.clone()))),
-            ModEntry::new("second", Box::new(Keys(requested.clone()))),
-        ])
+        install_parts(
+            &[
+                ModEntry::new("first", Box::new(Keys(requested.clone()))),
+                ModEntry::new("second", Box::new(Keys(requested.clone()))),
+            ],
+            &crate::parts::tests::rule_schema(),
+        )
         .unwrap();
         let speed_key = requested.lock().unwrap()[0];
         assert_eq!(EffectKey::from_slot(speed_key.0), Ok(speed_key));

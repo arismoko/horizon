@@ -176,7 +176,8 @@ fn the_sample_mod_loads_subscribes_and_registers_its_part() {
         "the sample listens to server_chat"
     );
     // Its `register` runs in the mod and attaches a part to sticks, which listens to use_item.
-    mod_api::__private::install_parts(&loaded.mods).unwrap();
+    mod_api::__private::install_parts(&loaded.mods, &mod_api::__private::part_tests::rule_schema())
+        .unwrap();
     mod_api::__private::resolve_effects(
         horizon_client_core::potions::all_effects()
             .map(|def| horizon_client_core::potions::namespaced(def.id)),

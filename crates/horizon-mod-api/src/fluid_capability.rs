@@ -430,7 +430,7 @@ mod tests {
     /// flowing fluid too.
     fn load() -> LoadContext {
         crate::__private::install(Default::default());
-        crate::install_parts(&[]).unwrap();
+        crate::install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         crate::registry_keys::resolve_fluids(&[
             "minecraft:empty",
             "minecraft:water",

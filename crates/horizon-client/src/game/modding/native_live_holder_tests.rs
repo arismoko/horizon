@@ -56,7 +56,7 @@ fn thousand_live_block_entity_ticks() {
     )]
     .into();
     mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::__private::mark_game_thread();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let root = super::mods::content_root(&base, &Default::default()).unwrap();
@@ -114,7 +114,7 @@ pub(super) fn with_mod_parts(test: impl FnOnce(std::path::PathBuf)) {
     )]
     .into();
     mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::__private::mark_game_thread();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         test(

@@ -416,7 +416,11 @@ mod item_tests {
 
     #[test]
     fn completed_items_preserve_forward_slots_and_refuse_unresolved_requests() {
-        crate::install_parts(&[ModEntry::new("test", Box::new(Requests))]).unwrap();
+        crate::install_parts(
+            &[ModEntry::new("test", Box::new(Requests))],
+            &crate::parts::tests::rule_schema(),
+        )
+        .unwrap();
         assert!(resolve_items(["minecraft:stone"]).is_err());
         assert!(item_key("minecraft:stone").is_none());
         resolve_items(["minecraft:stone", "minecraft:stick", "minecraft:apple"]).unwrap();

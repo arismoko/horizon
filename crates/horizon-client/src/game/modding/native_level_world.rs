@@ -368,7 +368,7 @@ mod tests {
         let mods: mod_api::Mods = vec![ModEntry::new("example", Box::new(RuleMod))].into();
         with_mods(mods, || {
             with_game(|game| {
-                let registry = Arc::new(mod_api::__private::game_rule_registry());
+                let registry = Arc::new(crate::game::api_values::game_rule_registry());
                 game.level.rule_registry = registry.clone();
                 game.ui.rules = gamerules::GameRules::with_registry(registry, &[]);
                 let level = game.level("minecraft:overworld").unwrap();

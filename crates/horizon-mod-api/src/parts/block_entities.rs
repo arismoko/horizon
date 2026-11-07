@@ -229,10 +229,13 @@ pub mod tests {
             }
         }
         let keys = Arc::new(std::sync::Mutex::new(Vec::new()));
-        install_parts(&[
-            ModEntry::new("first", Box::new(Request(keys.clone()))),
-            ModEntry::new("owner", Box::new(Declare(keys.clone()))),
-        ])
+        install_parts(
+            &[
+                ModEntry::new("first", Box::new(Request(keys.clone()))),
+                ModEntry::new("owner", Box::new(Declare(keys.clone()))),
+            ],
+            &crate::parts::tests::rule_schema(),
+        )
         .unwrap();
         let types = |names: &[&str]| {
             horizon_client_core::block_entity_types::BlockEntityTypes::new(
@@ -301,7 +304,11 @@ pub mod tests {
                 }
             }
         }
-        let errors = install_parts(&[ModEntry::new("test", Box::new(Invalid))]).unwrap_err();
+        let errors = install_parts(
+            &[ModEntry::new("test", Box::new(Invalid))],
+            &crate::parts::tests::rule_schema(),
+        )
+        .unwrap_err();
         assert_eq!(errors.len(), 4);
         assert!(
             errors

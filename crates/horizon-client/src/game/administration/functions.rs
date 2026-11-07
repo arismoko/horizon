@@ -1241,7 +1241,7 @@ mod tests {
             .unwrap();
             game.world_root = root.clone();
             game.set_allow_commands(true);
-            mod_api::__private::install_parts(&[ModEntry::new(
+            crate::game::api_values::install_parts(&[ModEntry::new(
                 "reload_test",
                 Box::new(MissingItem),
             )])
@@ -1287,8 +1287,11 @@ mod tests {
                     registrar.block_key("minecraft:stone");
                 }
             }
-            mod_api::__private::install_parts(&[ModEntry::new("reload_test", Box::new(Valid))])
-                .unwrap();
+            crate::game::api_values::install_parts(&[ModEntry::new(
+                "reload_test",
+                Box::new(Valid),
+            )])
+            .unwrap();
             game.reload_datapacks(true, &[]).unwrap();
             assert!(game.items().block_tags["reload_test:candidate"].contains("minecraft:stone"));
             assert_eq!(
@@ -1304,7 +1307,7 @@ mod tests {
             let enabled = game.fns.enabled.clone();
             let context = game.loop_context.clone();
             let generation = game.damage_tag_generation;
-            mod_api::__private::install_parts(&[ModEntry::new(
+            crate::game::api_values::install_parts(&[ModEntry::new(
                 "reload_test",
                 Box::new(MissingItem),
             )])

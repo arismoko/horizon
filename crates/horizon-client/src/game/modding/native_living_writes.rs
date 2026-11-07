@@ -330,7 +330,7 @@ mod tests {
     fn with_uses(test: impl FnOnce(&mut super::Game<'_>, &Shared, LivingRef)) {
         let uses = Shared::default();
         let mods: Mods = vec![ModEntry::new("uses", Box::new(UseMod(uses.clone())))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             with_game(|game| {
                 game.resolve_parts().unwrap();
@@ -343,7 +343,7 @@ mod tests {
                 game.right = true;
                 let player = game.living(game.entity(20).unwrap()).unwrap();
                 test(game, &uses, player);
-                mod_api::__private::install_parts(&[]).unwrap();
+                crate::game::api_values::install_parts(&[]).unwrap();
                 game.resolve_parts().unwrap();
             });
         });

@@ -139,7 +139,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn item_keys_validate_forward_references_and_reused_slots() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         struct Keys(Arc<std::sync::Mutex<Vec<crate::ItemKey>>>);
         #[mod_api::__subscriptions]
         impl Hooks for Keys {
@@ -155,7 +155,7 @@ pub mod tests {
         let keys = Arc::new(std::sync::Mutex::new(Vec::new()));
         let mods: Mods = vec![ModEntry::new("requester", Box::new(Keys(keys.clone())))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         let check = |known: &dyn Fn(&str) -> bool| {
             resolve_parts(
                 &HashMap::new(),
@@ -191,7 +191,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn tooltip_appender_restores_owner_even_on_panic() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         struct Check(bool);
         impl TooltipAppender for Check {
             fn append(
@@ -433,7 +433,7 @@ pub mod tests {
 
     pub(crate) fn fixture_item_key(id: &str) -> ItemKey {
         if super::super::installed().is_none() {
-            install_parts(&[]).unwrap();
+            install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         }
         crate::registry_keys::resolve_items([
             "minecraft:stick",
@@ -939,7 +939,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_players_items_are_their_inventory_and_each_index_takes_only_what_fits_there() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let entity = |id| EntityRef::new(NativeWorldEpoch::new(1), id);
         let helmet = || stack("minecraft:iron_helmet", 1, 0);
@@ -1000,7 +1000,7 @@ pub mod tests {
     #[test]
     pub(crate) fn an_entitys_items_come_from_its_types_provider_and_none_outside_the_level_in_place()
      {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let entity = |id| EntityRef::new(NativeWorldEpoch::new(1), id);
         let mut player = Player::default();
@@ -1270,7 +1270,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn an_item_handler_writes_its_stack_back_where_it_lives_splitting_one_off() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let mut player = Player {
             main_hand: Some(stack("test:pouch", 2, 0)),
@@ -1341,7 +1341,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn an_items_energy_moves_through_its_place_and_a_charged_one_splits_off_its_stack() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let slot = ItemPlace::PlayerSlot { player: 1, slot: 9 };
         let mut player = Player {
@@ -1375,7 +1375,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_stack_inside_an_item_and_a_mods_place_are_reached_through_their_handlers() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let mut player = Player {
             main_hand: Some(stack("test:bag", 1, 1)),
@@ -1619,7 +1619,7 @@ pub mod tests {
     #[test]
     pub(crate) fn a_move_takes_what_the_filter_accepts_up_to_max_and_leaves_what_the_target_refuses()
      {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let sticks = |n| Some(stack("minecraft:stick", n, 0));
         let apples = Some(stack("minecraft:apple", 3, 0));
@@ -1656,7 +1656,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_move_into_a_handler_answering_more_than_it_was_given_is_undone() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let mut world = TwoChests {
             from: [Some(stack("minecraft:stick", 5, 0)), None, None],
@@ -1681,7 +1681,7 @@ pub mod tests {
     #[test]
     pub(crate) fn a_changed_component_is_an_exchange_of_one_that_splits_it_off_and_an_abort_puts_it_back()
      {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let sword = |count, damage| stack("minecraft:iron_sword", count, damage);
         let mut shelf_ = shelf([Some(sword(2, 0)), None, None]);
@@ -1707,7 +1707,7 @@ pub mod tests {
     #[test]
     pub(crate) fn a_removed_default_component_is_recorded_in_the_patch_and_a_default_set_one_is_dropped()
      {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let shelf_ = shelf([None, None, None]);
         let host: &dyn Host = &shelf_;
@@ -1774,7 +1774,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_component_set_keeps_a_change_its_codec_reads_and_raw_nbt_keeps_its_types() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         /// A stick's report: `custom_data` `{x: 1}`, a huge `max_damage` and a mod's `test:long`.
         struct Report;
         impl mod_api::prelude::ItemsHost for Report {
@@ -1822,7 +1822,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_component_id_is_a_namespaced_identifier() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         for id in ["minecraft:damage", "mymod:charge/level"] {
             assert_eq!(
                 ComponentId::new(id).map(|id| id.as_str().to_owned()),
@@ -1843,7 +1843,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_write_that_cant_go_through_changes_nothing_and_no_item_is_made_or_lost() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let bread = |count| stack("minecraft:bread", count, 0);
         let stone = || Some(stack("minecraft:stone", 64, 0));
@@ -1912,7 +1912,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_truthful_handler_moving_one_per_call_is_moved_in_passes_and_never_named() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         // A slot that gives one item per extract and takes one per insert: the 3 apples come
         // out, and the 3 bread go in, one pass each.
@@ -1948,7 +1948,7 @@ pub mod tests {
     #[test]
     pub(crate) fn an_item_handler_answering_more_than_it_was_asked_or_offered_moves_nothing_and_is_named()
      {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let apples = |count| stack("minecraft:apple", count, 0);
         let bread = stack("minecraft:bread", 1, 0);
@@ -1967,7 +1967,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_change_inside_one_of_two_bags_splits_that_bag_off_whole() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         // Two bags in the hand, each holding an empty pouch.
         let mut player = Player {
@@ -1989,7 +1989,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn an_aborted_write_inside_a_nested_item_puts_every_level_back() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         // The pouch in the bag in the hand is filled in a transaction that then aborts: the
         // bag and its pouch are as they were, and nothing was given.
@@ -2013,7 +2013,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn an_aborted_inner_write_of_a_handler_inside_an_item_changes_nothing() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         // A case of one diamond and one stick in the hand: its stick is taken and two put in;
         // on the way it tries emptying its diamond slot in a transaction it aborts. The
@@ -2241,7 +2241,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_place_provider_given_twice_is_refused() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         let mut r = super::PartRegistrar::new("first");
         (&mut r as &mut dyn Registrar).place_provider("test:charms", Arc::new(Charms));
         r.mod_id = "second";
@@ -2262,7 +2262,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn disabled_place_providers_refuse_reads_and_writes_and_resume() {
-        install_parts(&[]).unwrap();
+        install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
         game_thread();
         let mut player = Player::default();
         let charm = ItemPlace::Mod {

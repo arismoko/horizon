@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn fluid_state_conversion_preserves_source_and_empty_invariants() {
         mod_api::__private::install(Default::default());
-        mod_api::__private::part_tests::register_game_keys([]);
+        crate::game::api_values::register_game_keys([]);
         for kind in FluidKind::ALL {
             let engine =
                 EngineFluidState::new(kind, if kind == FluidKind::Empty { 0 } else { 8 }, true);
@@ -259,7 +259,10 @@ mod tests {
         use horizon_world::level::states::BlockId;
         use mod_api::__private::{ResolvedBlock, part_tests, resolve_blocks};
         mod_api::__private::install(Default::default());
-        part_tests::register_game_keys(["minecraft:stone".into(), "test:machine".into()]);
+        crate::game::api_values::register_game_keys([
+            "minecraft:stone".into(),
+            "test:machine".into(),
+        ]);
         let stone = part_tests::block_key("stone");
         let machine = part_tests::block_key("test:machine");
         let mut items = Items::for_tests(Default::default());

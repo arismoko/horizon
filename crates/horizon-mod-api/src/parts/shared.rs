@@ -135,7 +135,7 @@ pub(crate) struct TagParts {
 #[derive(Default)]
 pub(crate) struct Installed {
     pub(crate) game_rule_categories: Vec<String>,
-    pub(crate) game_rules: Vec<horizon_client_core::gamerules::Rule>,
+    pub(crate) game_rules: Vec<crate::GameRuleDecl>,
     pub(crate) game_rule_slots: Vec<u32>,
     pub(crate) keys: Parts,
     pub(crate) tags: TagParts,
@@ -510,7 +510,7 @@ pub(crate) fn attached<'a, 'k, P: ?Sized>(
 // exhaustive: its fields are private, so mods cannot build or destructure it
 pub struct PartRegistrar {
     pub(crate) game_rule_categories: Vec<String>,
-    pub(crate) game_rules: Vec<horizon_client_core::gamerules::Rule>,
+    pub(crate) game_rules: Vec<crate::GameRuleDecl>,
     pub(crate) mod_id: &'static str,
     pub(crate) mod_index: usize,
     /// Parts registered so far, by every mod: the next part's `order`.
@@ -639,43 +639,25 @@ pub(crate) fn register_all(mods: &[ModEntry]) -> PartRegistrar {
 
 /// Builds the parts from every mod's [`Hooks::register`](crate::Hooks::register), in dispatch order. Once, at startup;
 /// the error lists every part refused, naming its mods.
-pub fn install_parts(mods: &[ModEntry]) -> Result<(), Vec<String>> {
-    install_registrar(register_all(mods))
+pub fn install_parts(
+    mods: &[ModEntry],
+    schema: &crate::declarations::RuleSchema<'_>,
+) -> Result<(), Vec<String>> {
+    install_registrar(register_all(mods), schema)
 }
 
-pub(crate) fn install_registrar(mut registrar: PartRegistrar) -> Result<(), Vec<String>> {
-    let registry = horizon_client_core::gamerules::RuleRegistry::with_bool_rules(
-        &registrar.game_rule_categories,
-        &registrar.game_rules,
-    )
-    .map_err(|errors| {
-        registrar.refused.extend(
-            errors
-                .into_iter()
-                .map(|error| {
-                    let owner = match &error {
-                        horizon_client_core::gamerules::RuleRegistryError::UnknownCategory {
-                            rule,
-                            ..
-                        }
-                        | horizon_client_core::gamerules::RuleRegistryError::Duplicate(rule) => {
-                            rule.split_once(':').map_or("unknown", |(owner, _)| owner)
-                        }
-                    };
-                    format!("mod {owner}: {error:?}")
-                })
-                .collect::<Vec<_>>(),
-        );
-        registrar.refused.clone()
-    })?;
+pub(crate) fn install_registrar(
+    mut registrar: PartRegistrar,
+    schema: &crate::declarations::RuleSchema<'_>,
+) -> Result<(), Vec<String>> {
+    let slots = schema.validate(&registrar.game_rule_categories, &registrar.game_rules);
+    if let Err(errors) = &slots {
+        registrar.refused.extend(errors.iter().cloned());
+    }
     if !registrar.refused.is_empty() {
         return Err(registrar.refused);
     }
-    let game_rule_slots = registrar
-        .game_rules
-        .iter()
-        .map(|rule| registry.position(&rule.name).unwrap())
-        .collect();
+    let game_rule_slots = slots.expect("every schema refusal was collected");
     let mut installed = Installed {
         game_rule_slots,
         game_rules: registrar.game_rules,
@@ -729,16 +711,28 @@ pub mod tests {
 
     use std::sync::Arc;
 
+    /// A small independent vanilla-schema fixture for tests without a game.
+    pub fn rule_schema() -> crate::__private::RuleSchema<'static> {
+        crate::__private::RuleSchema {
+            category: &|id| matches!(id, "minecraft:drops" | "minecraft:misc"),
+            position: &|_| None,
+            rule_count: 0,
+        }
+    }
+
     /// Register the game fixture's final block registry through the actual registrar, retaining
     /// its installed test mods and Parts. Production mods request only the entries they use.
-    pub fn register_game_keys(ids: impl IntoIterator<Item = String>) {
+    pub fn register_game_keys(
+        ids: impl IntoIterator<Item = String>,
+        schema: &crate::declarations::RuleSchema<'_>,
+    ) {
         let mut registrar = super::register_all(crate::mods());
         registrar.mod_id = "horizon";
         registrar.declare_fluid("definition_test");
         for id in ids {
             registrar.block_key(&id);
         }
-        super::install_registrar(registrar).unwrap();
+        super::install_registrar(registrar, schema).unwrap();
         crate::registry_keys::resolve_effects(
             horizon_client_core::potions::all_effects()
                 .map(|def| horizon_client_core::potions::namespaced(def.id)),
@@ -818,7 +812,11 @@ pub mod tests {
                 r.effect_key("absent:effect");
             }
         }
-        install_parts(&[ModEntry::new("lookup", Box::new(Unknown))]).unwrap();
+        install_parts(
+            &[ModEntry::new("lookup", Box::new(Unknown))],
+            &crate::parts::tests::rule_schema(),
+        )
+        .unwrap();
         assert_eq!(
             crate::registry_keys::resolve_blocks(|_| None).unwrap_err(),
             ["mod lookup requested unknown block absent:block"]
@@ -845,7 +843,11 @@ pub mod tests {
                 }
             }
         }
-        let errors = install_parts(&[ModEntry::new("lookup", Box::new(Invalid))]).unwrap_err();
+        let errors = install_parts(
+            &[ModEntry::new("lookup", Box::new(Invalid))],
+            &crate::parts::tests::rule_schema(),
+        )
+        .unwrap_err();
         assert_eq!(errors.len(), 3);
         assert!(
             errors
@@ -1067,7 +1069,7 @@ pub mod tests {
         ]
         .into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         crate::registry_keys::resolve_fluids(&[
             "minecraft:water",
             "minecraft:lava",

@@ -647,7 +647,7 @@ mod tests {
         }
         let calls = Arc::new(AtomicUsize::new(0));
         let mods: Mods = vec![ModEntry::new("animation", Box::new(Mod(calls.clone())))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 for id in [
@@ -725,7 +725,7 @@ mod tests {
                 game.inventory[game.selected] =
                     Some(horizon_client::items::ItemStack::new("minecraft:bow", 1));
                 game.visible_hands[0].1 = game.inventory[game.selected].clone();
-                mod_api::__private::install_parts(&[]).unwrap();
+                crate::game::api_values::install_parts(&[]).unwrap();
                 game.resolve_parts().unwrap();
                 let (vanilla, _) = game.hand_geometry(0.0);
                 assert!(!overridden.is_empty());

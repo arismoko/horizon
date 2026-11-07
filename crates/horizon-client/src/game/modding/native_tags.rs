@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn empty_stacks_refuse_before_membership_and_air_is_an_explicit_key() {
         use crate::game::api_values::{StackReadError, TryIntoApi};
-        mod_api::__private::install_parts(&[]).unwrap();
+        crate::game::api_values::install_parts(&[]).unwrap();
         mod_api::__private::resolve_items(["minecraft:air", "minecraft:stone"]).unwrap();
         let air = mod_api::__private::item_key("minecraft:air").unwrap();
         let stone = mod_api::__private::item_key("minecraft:stone").unwrap();
@@ -107,7 +107,7 @@ mod tests {
     }
     #[test]
     fn keys_survive_membership_reload_and_reads_distinguish_unavailable_from_unknown() {
-        mod_api::__private::install_parts(&[]).unwrap();
+        crate::game::api_values::install_parts(&[]).unwrap();
         mod_api::__private::resolve_items(["minecraft:stick", "minecraft:stone"]).unwrap();
         let stick = mod_api::__private::item_key("minecraft:stick").unwrap();
         let stone = mod_api::__private::item_key("minecraft:stone").unwrap();

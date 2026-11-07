@@ -114,7 +114,7 @@ mod entity_inside_tests {
         let heard = Stone::default();
         let mods: mod_api::Mods =
             vec![ModEntry::new("inside", Box::new(Mod(heard.clone())))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         let _ = horizon_client::block_contact::HOOKS.set(BLOCK_CONTACT_HOOKS);
         with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {

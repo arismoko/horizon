@@ -81,7 +81,7 @@ pub mod tests {
         )]
         .into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
         let keys = requested.lock().unwrap().clone();
         assert_eq!(BlockKey::from_slot(keys[0].0), Ok(keys[0]));
@@ -202,7 +202,7 @@ pub mod tests {
         }
         let mods: crate::Mods = vec![ModEntry::new("signal_test", Box::new(SignalMod))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
     }
 
@@ -230,7 +230,7 @@ pub mod tests {
         let mods: crate::Mods =
             vec![ModEntry::new("weak_power_test", Box::new(WeakPowerMod))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
     }
 
@@ -270,7 +270,7 @@ pub mod tests {
         }
         let mods: crate::Mods = vec![ModEntry::new("path_test", Box::new(PathMod))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
     }
 
@@ -298,7 +298,7 @@ pub mod tests {
         }
         let mods: crate::Mods = vec![ModEntry::new("leaver_test", Box::new(LeaverMod))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
     }
 
@@ -322,7 +322,7 @@ pub mod tests {
         let mods: crate::Mods =
             vec![ModEntry::new("connection_test", Box::new(ConnectionMod))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
     }
 
@@ -389,7 +389,7 @@ pub mod tests {
         let mods: crate::Mods =
             vec![ModEntry::new("signal_reader_test", Box::new(ReaderMod))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
     }
 
@@ -405,7 +405,7 @@ pub mod tests {
         }
         let mods: crate::Mods = vec![ModEntry::new("redstone_test", Box::new(RedstoneMod))].into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
     }
 
@@ -602,7 +602,7 @@ pub mod tests {
         std::thread::scope(|scope| {
             let client = scope.spawn(|| {
                 crate::install(mods.clone());
-                install_parts(&mods).unwrap();
+                install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
                 mark_game_thread();
                 resolve(&["test:other"]).unwrap();
                 resolved.wait();
@@ -610,7 +610,7 @@ pub mod tests {
             });
             let server = scope.spawn(|| {
                 crate::install(mods.clone());
-                install_parts(&mods).unwrap();
+                install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
                 mark_game_thread();
                 resolve(&["test:gauge"]).unwrap();
                 resolved.wait();

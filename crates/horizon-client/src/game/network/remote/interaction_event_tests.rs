@@ -283,7 +283,7 @@ fn phase_events_replace_the_behaviour_before_its_part_on_both_sides() {
         Box::new(observer.clone()),
     )]
     .into();
-    mod_api::__private::install_parts(&mods).unwrap();
+    crate::game::api_values::install_parts(&mods).unwrap();
     mod_api::testing::with_mods(mods, || {
         for client in [false, true] {
             with_interaction_game(client, |game| {
@@ -506,7 +506,7 @@ fn canceled_item_results_keep_the_stack_wrappers_side_effects() {
         Box::new(observer.clone()),
     )]
     .into();
-    mod_api::__private::install_parts(&mods).unwrap();
+    crate::game::api_values::install_parts(&mods).unwrap();
     mod_api::testing::with_mods(mods, || {
         let cooling_stack = |item: &str| {
             let mut stack = ItemStack::new(item, 1);
@@ -615,7 +615,7 @@ fn air_event_skips_the_item_and_non_success_client_answers_try_the_other_hand() 
         Box::new(observer.clone()),
     )]
     .into();
-    mod_api::__private::install_parts(&mods).unwrap();
+    crate::game::api_values::install_parts(&mods).unwrap();
     mod_api::testing::with_mods(mods, || {
         for client in [false, true] {
             with_interaction_game(client, |game| {
@@ -722,7 +722,7 @@ fn on_item_use_first_runs_before_the_block_and_ends_the_click() {
         Box::new(observer.clone()),
     )]
     .into();
-    mod_api::__private::install_parts(&mods).unwrap();
+    crate::game::api_values::install_parts(&mods).unwrap();
     mod_api::testing::with_mods(mods, || {
         with_interaction_game(false, |game| {
             let registry = game.pack.assets.registry;
@@ -792,7 +792,7 @@ fn an_item_used_from_the_off_hand_reaches_the_use_hooks_on_the_server() {
         Box::new(observer.clone()),
     )]
     .into();
-    mod_api::__private::install_parts(&mods).unwrap();
+    crate::game::api_values::install_parts(&mods).unwrap();
     mod_api::testing::with_mods(mods, || {
         with_interaction_game(false, |game| {
             let side = LogicalSide::Server;

@@ -803,7 +803,7 @@ mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("fluid_filter_test", Box::new(WaterTanks))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             let base =
                 std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());

@@ -1232,7 +1232,7 @@ mod enchantment_boundary_tests {
 #[cfg(test)]
 fn prepare_stack_boundary_tests() {
     install_stack_hooks();
-    mod_api::__private::install_parts(&[]).unwrap();
+    install_parts(&[]).unwrap();
     mod_api::__private::resolve_items([
         "minecraft:iron_sword",
         "minecraft:stick",
@@ -1973,7 +1973,8 @@ impl TryIntoEngine<()> for mod_api::GameRuleDecl {
 mod declaration_snapshot_tests {
     use super::*;
     #[test]
-    fn block_entity_declarations_keep_supported_block_order() {
+    fn declarations_keep_supported_blocks_and_rule_positions() {
+        static KEY: std::sync::OnceLock<mod_api::BoolGameRuleKey> = std::sync::OnceLock::new();
         // Use registration, the owner of declaration validation.
         struct Mod;
         #[mod_api::__subscriptions]
@@ -1983,12 +1984,53 @@ mod declaration_snapshot_tests {
                     "machine",
                     vec!["test:second".into(), "test:first".into()],
                 );
+                r.game_rule_category("machines").unwrap();
+                KEY.set(r.game_rule_bool("active", "test:machines", true).unwrap())
+                    .unwrap();
             }
         }
-        mod_api::__private::install_parts(&[mod_api::ModEntry::new("test", Box::new(Mod))])
-            .unwrap();
+        install_parts(&[mod_api::ModEntry::new("test", Box::new(Mod))]).unwrap();
         let declarations = block_entity_declarations();
         assert_eq!(declarations[0].id, "test:machine");
         assert_eq!(declarations[0].blocks, ["test:second", "test:first"]);
+        let registry = game_rule_registry();
+        let key = *KEY.get().unwrap();
+        assert_eq!(
+            mod_api::__private::game_rule_bool_slot(key),
+            registry.position("test:active")
+        );
+        assert_eq!(
+            registry.rule("test:active").unwrap().default,
+            horizon_client_core::gamerules::Value::Bool(true)
+        );
     }
+}
+
+fn with_rule_schema<T>(f: impl FnOnce(&mod_api::__private::RuleSchema<'_>) -> T) -> T {
+    let registry = horizon_client_core::gamerules::rule_registry();
+    f(&mod_api::__private::RuleSchema {
+        category: &|id| registry.categories().iter().any(|category| category == id),
+        position: &|id| registry.position(id),
+        rule_count: u32::try_from(registry.available_rules(true).count())
+            .expect("vanilla rule count fits u32"),
+    })
+}
+pub(in crate::game) fn install_parts(mods: &[mod_api::ModEntry]) -> Result<(), Vec<String>> {
+    with_rule_schema(|schema| mod_api::__private::install_parts(mods, schema))
+}
+#[cfg(test)]
+pub(in crate::game) fn register_game_keys(ids: impl IntoIterator<Item = String>) {
+    with_rule_schema(|schema| mod_api::__private::part_tests::register_game_keys(ids, schema));
+}
+
+pub(in crate::game) fn game_rule_registry() -> horizon_client_core::gamerules::RuleRegistry {
+    let rules: Vec<_> = mod_api::__private::game_rules()
+        .iter()
+        .map(|rule| rule.try_into_engine(&()).unwrap())
+        .collect();
+    horizon_client_core::gamerules::RuleRegistry::with_bool_rules(
+        mod_api::__private::game_rule_categories(),
+        &rules,
+    )
+    .expect("validated at registration")
 }

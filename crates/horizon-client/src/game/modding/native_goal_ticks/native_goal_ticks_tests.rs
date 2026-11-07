@@ -16,7 +16,7 @@ use std::sync::Mutex;
 /// `resolve_parts` for the game's own table.
 fn install_game_mods() {
     mod_api::__private::install(vec![ModEntry::new("test", Box::new(Mod))].into());
-    mod_api::__private::install_parts(&[ModEntry::new("test", Box::new(Mod))]).unwrap();
+    crate::game::api_values::install_parts(&[ModEntry::new("test", Box::new(Mod))]).unwrap();
 }
 
 /// What one test goal did, by mob id.
@@ -363,7 +363,7 @@ fn set_target_follows_the_write_rules() {
     EVENTS.lock().unwrap().clear();
     with_game(|game| {
         mod_api::__private::install(vec![ModEntry::new("targets", Box::new(TargetMod))].into());
-        mod_api::__private::install_parts(&[ModEntry::new("targets", Box::new(TargetMod))])
+        crate::game::api_values::install_parts(&[ModEntry::new("targets", Box::new(TargetMod))])
             .unwrap();
         game.resolve_parts().unwrap();
         zombie(game, 40, [3.5, 65.0, 3.5]);
@@ -478,7 +478,8 @@ fn the_host_answers_without_panicking() {
     EVENTS.lock().unwrap().clear();
     with_game(|game| {
         mod_api::__private::install(vec![ModEntry::new("reader", Box::new(ReaderMod))].into());
-        mod_api::__private::install_parts(&[ModEntry::new("reader", Box::new(ReaderMod))]).unwrap();
+        crate::game::api_values::install_parts(&[ModEntry::new("reader", Box::new(ReaderMod))])
+            .unwrap();
         game.resolve_parts().unwrap();
         zombie(game, 70, [3.5, 65.0, 3.5]);
         zombie(game, 71, [13.5, 65.0, 13.5]);
@@ -650,7 +651,8 @@ fn a_goal_jump_goes_through_the_jump_control_input() {
     }
     with_game(|game| {
         mod_api::__private::install(vec![ModEntry::new("jumps", Box::new(JumpMod))].into());
-        mod_api::__private::install_parts(&[ModEntry::new("jumps", Box::new(JumpMod))]).unwrap();
+        crate::game::api_values::install_parts(&[ModEntry::new("jumps", Box::new(JumpMod))])
+            .unwrap();
         game.resolve_parts().unwrap();
         zombie(game, 82, [3.5, 65.0, 3.5]);
         game.mobs[0].ai.goals.clear();
@@ -711,7 +713,8 @@ fn set_target_refuses_what_the_write_handle_refuses() {
     ANSWERS.lock().unwrap().clear();
     with_game(|game| {
         mod_api::__private::install(vec![ModEntry::new("golems", Box::new(TargetMod))].into());
-        mod_api::__private::install_parts(&[ModEntry::new("golems", Box::new(TargetMod))]).unwrap();
+        crate::game::api_values::install_parts(&[ModEntry::new("golems", Box::new(TargetMod))])
+            .unwrap();
         game.resolve_parts().unwrap();
         mob_of(game, 90, "minecraft:iron_golem", [3.5, 65.0, 3.5]);
         mob_of(game, 91, "minecraft:zombie", [13.5, 65.0, 13.5]);
@@ -825,7 +828,8 @@ fn move_and_look_inputs_pass_the_navigation_boundary() {
     RESULTS.lock().unwrap().clear();
     with_game(|game| {
         mod_api::__private::install(vec![ModEntry::new("moves", Box::new(MoveMod))].into());
-        mod_api::__private::install_parts(&[ModEntry::new("moves", Box::new(MoveMod))]).unwrap();
+        crate::game::api_values::install_parts(&[ModEntry::new("moves", Box::new(MoveMod))])
+            .unwrap();
         game.resolve_parts().unwrap();
         zombie(game, 83, [3.5, 65.0, 3.5]);
         game.mobs[0].ai.goals.clear();
@@ -888,7 +892,7 @@ fn the_player_the_tick_sees_resolves_by_its_captured_identity() {
     READS.lock().unwrap().clear();
     with_game(|game| {
         mod_api::__private::install(vec![ModEntry::new("players", Box::new(PlayerMod))].into());
-        mod_api::__private::install_parts(&[ModEntry::new("players", Box::new(PlayerMod))])
+        crate::game::api_values::install_parts(&[ModEntry::new("players", Box::new(PlayerMod))])
             .unwrap();
         game.resolve_parts().unwrap();
         zombie(game, 84, [3.5, 65.0, 3.5]);

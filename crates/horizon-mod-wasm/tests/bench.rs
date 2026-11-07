@@ -221,7 +221,8 @@ fn worldgen_workers_sharing_a_wasm_structure_each_get_their_structure() {
     let mut budgets = Budgets::default();
     budgets.wait = Duration::from_millis(1);
     let loaded = load(budgets);
-    mod_api::__private::install_parts(&loaded.mods).unwrap();
+    mod_api::__private::install_parts(&loaded.mods, &mod_api::__private::part_tests::rule_schema())
+        .unwrap();
     let types = mod_api::__private::installed_structure_types();
     let spin = types
         .get("bench_mod:spin")

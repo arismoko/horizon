@@ -37,7 +37,7 @@ impl Hooks for BrewModifier {
 
 #[test]
 fn brewing_callbacks_keep_owned_slot_edits_and_report_cancellation() {
-    install_parts(&[]).unwrap();
+    install_parts(&[], &crate::parts::tests::rule_schema()).unwrap();
     for cancel in [true, false] {
         let seen = Arc::new(Mutex::new(Vec::new()));
         let mods = vec![ModEntry::new(

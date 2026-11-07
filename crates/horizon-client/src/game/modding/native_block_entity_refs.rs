@@ -798,7 +798,7 @@ mod tests {
         if replacing {
             let mods: Mods = vec![ModEntry::new("replace", Box::new(ReplaceDuringOpen))].into();
             mod_api::__private::install(mods.clone());
-            mod_api::__private::install_parts(&mods).unwrap();
+            crate::game::api_values::install_parts(&mods).unwrap();
         }
         super::super::native_guest_turn_tests::with_guests(|game| {
             game.options.dedicated = Some(Vec::new());

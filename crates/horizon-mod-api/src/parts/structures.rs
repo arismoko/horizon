@@ -60,7 +60,11 @@ pub mod tests {
                 r.register_structure_type("", Tower);
             }
         }
-        let errors = install_parts(&[ModEntry::new("test", Box::new(Invalid))]).unwrap_err();
+        let errors = install_parts(
+            &[ModEntry::new("test", Box::new(Invalid))],
+            &crate::parts::tests::rule_schema(),
+        )
+        .unwrap_err();
         assert_eq!(errors.len(), 3);
         assert!(errors[0].contains("test registered structure type test:tower twice"));
         assert!(errors[1].contains("namespace"));

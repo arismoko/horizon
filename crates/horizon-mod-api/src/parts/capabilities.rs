@@ -569,7 +569,7 @@ pub mod tests {
         ]
         .into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
 
         // These lookup objects keep their indexed registrations, not a snapshot of enabled mods.
@@ -690,7 +690,7 @@ pub mod tests {
         ]
         .into();
         crate::install(mods.clone());
-        install_parts(&mods).unwrap();
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
         mark_game_thread();
         let found = here()
             .capability(&mut Ordered, &ITEMS, [7, 64, 0], None)

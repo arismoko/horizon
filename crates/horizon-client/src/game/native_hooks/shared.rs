@@ -355,7 +355,7 @@ impl Game<'_> {
     /// show, so a mod's `Cancel` or its own screen doesn't keep it shut (a
     /// mod's screen can't open over the title).
     pub(super) fn show_title(&mut self, mut title: horizon_client::title::Title) {
-        title.set_rule_registry(Arc::new(mod_api::__private::game_rule_registry()));
+        title.set_rule_registry(Arc::new(crate::game::api_values::game_rule_registry()));
         self.show_title_with_registry(title);
     }
     pub(super) fn show_title_with_registry(&mut self, mut title: horizon_client::title::Title) {
@@ -4005,7 +4005,7 @@ mod tests {
             ),
         ]);
         mod_api::__private::install(mods.clone());
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let root = super::super::mods::content_root(&base, &Default::default());
         if invalid {
@@ -5135,7 +5135,7 @@ mod item_fall_on_tests {
     fn a_dropped_item_lands_on_a_fall_on_part() {
         let heard = Lands::default();
         let mods: mod_api::Mods = vec![ModEntry::new("lands", Box::new(Mod(heard.clone())))].into();
-        mod_api::__private::install_parts(&mods).unwrap();
+        crate::game::api_values::install_parts(&mods).unwrap();
         let _ = horizon_client::block_contact::HOOKS.set(BLOCK_CONTACT_HOOKS);
         with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
