@@ -53,20 +53,25 @@ pub trait MerchantsBackendMut {
     /// Replaces offer `index` (a player trading with it is sent the new
     /// offers). False for an index past the end, a stale handle, or an offer
     /// without a real item in `base_cost_a` or `result` (or `cost_b` when set).
+    /// An invalid count, damage or component maximum refuses the whole write with a typed error.
     #[access(WorldOnly)]
     fn merchant_set_offer(
         &mut self,
         merchant: MerchantRef,
         index: u32,
         offer: MerchantOffer,
-    ) -> bool;
+    ) -> Result<bool, StackWriteError>;
     /// Side: server.
     /// Appends an offer, as `getOffers().add(offer)` does. Offers not rolled
     /// yet are rolled first, as `getOffers` does for a player's first trade
     /// (this draws the trade set's world random sequence, as that does).
     /// False for a stale handle or an invalid offer (see `set_offer`).
     #[access(WorldOnly)]
-    fn merchant_add_offer(&mut self, merchant: MerchantRef, offer: MerchantOffer) -> bool;
+    fn merchant_add_offer(
+        &mut self,
+        merchant: MerchantRef,
+        offer: MerchantOffer,
+    ) -> Result<bool, StackWriteError>;
     /// Side: server.
     /// Removes offer `index`, the ones after it moving up. False for an index
     /// past the end or a stale handle.

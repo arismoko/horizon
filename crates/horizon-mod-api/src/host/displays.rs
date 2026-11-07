@@ -220,7 +220,11 @@ pub trait DisplaysBackendMut {
     /// Side: server.
     /// `ItemDisplay.setItemStack`; None empties it. False for another kind of display.
     #[access(WorldOnly)]
-    fn display_set_item(&mut self, display: DisplayRef, stack: Option<ItemStack>) -> bool;
+    fn display_set_item(
+        &mut self,
+        display: DisplayRef,
+        stack: Option<ItemStack>,
+    ) -> Result<bool, StackWriteError>;
     /// Side: server.
     /// `ItemDisplay.setItemTransform`; false for another kind of display.
     #[access(WorldOnly)]

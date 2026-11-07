@@ -1,6 +1,7 @@
 //! Fishing: `FishingRodItem.use` (cast / reel in), the `FishingHook` (flight,
 //! bobbing, lure and bite timers, open water, hooking mobs, retrieving the
 //! `gameplay/fishing` loot) and `FishingHookRenderer` (bobber and line).
+use super::api_values::TryIntoApi;
 use super::{Game, lan_mobs::guest_bounds, view_vector};
 use horizon_client::advancements::EntityView;
 use horizon_client::lan::entity::States;
@@ -602,12 +603,13 @@ impl Game<'_> {
             let mut rod_damage = if hook.on_ground { 2 } else { 1 };
             if let Some(player) = self.lan_acting_uuid
                 && mod_api::__private::listened(mod_api::HookId::ItemFished)
+                && let Ok(drops) = caught.try_into_api()
             {
                 let fished =
                     mod_api::NativeItemFished::from(mod_api::__private::built::NativeItemFished {
                         hook: hook.id,
                         position: [hook.position.x, hook.position.y, hook.position.z],
-                        drops: &caught,
+                        drops: &drops,
                     });
                 let mut cancel = false;
                 let entity_id = self.own_entity_id();

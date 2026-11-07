@@ -32,7 +32,7 @@ mod render_tooltip_texture_tests {
     impl Hooks for Gold {
         fn render_tooltip_texture(
             &self,
-            _: &dyn ClientHost,
+            host: &dyn ClientHost,
             event: &mut RenderTooltipTextureEvent<'_>,
         ) {
             assert_eq!(*event.texture, None);
@@ -41,7 +41,7 @@ mod render_tooltip_texture_tests {
                 (0xf0100010, 0x505000ff, 0x5028007f)
             );
             match event.stack {
-                Some(stack) if &*stack.item == "minecraft:stick" => {
+                Some(stack) if stack.item().id(host) == "minecraft:stick" => {
                     *event.texture = Some(Identifier::parse("lobby:gold").unwrap());
                 }
                 Some(_) => {}

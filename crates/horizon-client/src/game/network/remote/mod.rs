@@ -10314,13 +10314,13 @@ impl Game<'_> {
         }
         let cost = |g: &Self, c: &play::NetCost| {
             g.to_stack(&Some(c.clone().into()))
-                .map(|stack| mod_api::merchant::ItemCost { stack })
+                .map(|stack| horizon_client::merchant::ItemCost { stack })
         };
         let offers: Vec<_> = p
             .offers
             .iter()
             .filter_map(|o| {
-                let mut offer = mod_api::merchant::MerchantOffer {
+                let mut offer = horizon_client::merchant::MerchantOffer {
                     base_cost_a: cost(self, &o.cost_a)?,
                     cost_b: match &o.cost_b {
                         Some(b) => Some(cost(self, b)?),
@@ -11736,6 +11736,7 @@ mod level_sound_tests;
 
 #[cfg(test)]
 mod tests {
+    use super::super::api_values::TryIntoApi;
     /// The remote player animation uses the scoped item answer once per tick.
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
@@ -12560,7 +12561,7 @@ mod tests {
                 },
             ] {
                 assert!(!menu.click(game, &[invalid]));
-                assert_eq!(menu.slot(game, 36).unwrap().unwrap().count, 3);
+                assert_eq!(menu.slot(game, 36).unwrap().unwrap().count(), 3);
                 assert_eq!(menu.carried(game), Some(None));
             }
             game.options.execution_role = ExecutionRole::IntegratedServer;
@@ -12593,10 +12594,10 @@ mod tests {
             assert!(sent.changed[0].1.is_none());
             assert_eq!(sent.carried.unwrap().count, 3);
             assert_eq!(menu.slot(game, 36), Some(None));
-            assert_eq!(menu.carried(game).unwrap().unwrap().count, 3);
+            assert_eq!(menu.carried(game).unwrap().unwrap().count(), 3);
             assert!(!menu.click(game, &[pickup(36), pickup(usize::MAX),]));
             assert_eq!(menu.slot(game, 36), Some(None));
-            assert_eq!(menu.carried(game).unwrap().unwrap().count, 3);
+            assert_eq!(menu.carried(game).unwrap().unwrap().count(), 3);
             assert!(menu.click(
                 game,
                 &[MenuClick::Drag {
@@ -12604,21 +12605,21 @@ mod tests {
                     slots: vec![37]
                 },]
             ));
-            assert_eq!(menu.slot(game, 37).unwrap().unwrap().count, 3);
+            assert_eq!(menu.slot(game, 37).unwrap().unwrap().count(), 3);
             assert_eq!(menu.carried(game), Some(None));
             assert!(menu.click(game, &[pickup(37)]));
             assert!(menu.click(game, &[pickup(36)]));
             assert_eq!(menu.carried(game), Some(None));
-            assert_eq!(menu.slot(game, 36).unwrap().unwrap().count, 3);
+            assert_eq!(menu.slot(game, 36).unwrap().unwrap().count(), 3);
             game.handle_packet(C::SetPlayerInventory(play::SetPlayerInventory {
                 slot: 0,
                 item: Some(Stack::new(game.item_id("minecraft:stone"), 2)),
             }))
             .unwrap();
-            assert_eq!(menu.slot(game, 36).unwrap().unwrap().count, 2);
+            assert_eq!(menu.slot(game, 36).unwrap().unwrap().count(), 2);
             assert!(menu.click(game, &[MenuClick::QuickMove { slot: 36 }]));
             assert_eq!(menu.slot(game, 36), Some(None));
-            assert_eq!(menu.slot(game, 9).unwrap().unwrap().count, 2);
+            assert_eq!(menu.slot(game, 9).unwrap().unwrap().count(), 2);
             assert!(menu.click(
                 game,
                 &[MenuClick::Swap {
@@ -12627,7 +12628,7 @@ mod tests {
                 }]
             ));
             assert_eq!(menu.slot(game, 9), Some(None));
-            assert_eq!(menu.slot(game, 37).unwrap().unwrap().count, 2);
+            assert_eq!(menu.slot(game, 37).unwrap().unwrap().count(), 2);
             assert!(menu.click(
                 game,
                 &[MenuClick::Throw {
@@ -12734,9 +12735,9 @@ mod tests {
                 .unwrap();
             assert!(chest.click(game, &[pickup(2)]));
             assert_eq!(chest.slot(game, 2), Some(None));
-            assert_eq!(chest.carried(game).unwrap().unwrap().count, 4);
+            assert_eq!(chest.carried(game).unwrap().unwrap().count(), 4);
             assert!(chest.click(game, &[pickup(2)]));
-            assert_eq!(chest.slot(game, 2).unwrap().unwrap().count, 4);
+            assert_eq!(chest.slot(game, 2).unwrap().unwrap().count(), 4);
             assert_eq!(chest.carried(game), Some(None));
             for expected in [
                 (0, 17, -999, 0, 5),
@@ -13083,7 +13084,13 @@ mod tests {
             }))
             .unwrap();
             let held = living.hand_item(game, Hand::Main).unwrap();
-            assert_eq!((&*held.item, held.count), ("minecraft:stone", 3));
+            assert_eq!(
+                (
+                    mod_api::__private::item_key_id(held.item()).unwrap(),
+                    held.count()
+                ),
+                ("minecraft:stone", 3)
+            );
             assert_eq!(living.equipment(game, EquipmentSlot::Head), None);
             assert_eq!(living.hand_item(game, Hand::Off), None);
 
@@ -13609,14 +13616,21 @@ mod tests {
             assert_eq!(player.xp_needed_for_next_level(game), Some(13));
 
             // The main inventory retains typed stacks and their damage, in slot order.
-            let mut stack = mod_api::ItemStack::new("minecraft:diamond_pickaxe", 1);
+            let mut stack = horizon_client::items::ItemStack::new("minecraft:diamond_pickaxe", 1);
             stack.damage = 7;
             game.inventory.fill(None);
             game.inventory[3] = Some(stack.clone());
-            game.inventory[8] = Some(mod_api::ItemStack::new("minecraft:stone", 12));
+            game.inventory[8] = Some(horizon_client::items::ItemStack::new("minecraft:stone", 12));
             assert_eq!(
                 player.inventory(game),
-                Some(vec![stack, mod_api::ItemStack::new("minecraft:stone", 12)])
+                Some(
+                    vec![
+                        stack,
+                        horizon_client::items::ItemStack::new("minecraft:stone", 12)
+                    ]
+                    .try_into_api()
+                    .unwrap()
+                )
             );
 
             // Another player: the client isn't sent their state.
@@ -15240,8 +15254,10 @@ mod player_tick_tests {
                     .inventory(host)
                     .unwrap_or_default()
                     .iter()
-                    .filter(|s| &*s.item == "minecraft:diamond")
-                    .map(|s| s.count)
+                    .filter(|s| {
+                        mod_api::__private::item_key_id(s.item()).unwrap() == "minecraft:diamond"
+                    })
+                    .map(|s| s.count())
                     .sum(),
                 xp: player.experience(host).map_or(0, |xp| xp.total),
                 cooldown,

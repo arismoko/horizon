@@ -1122,7 +1122,10 @@ mod tests {
     #[mod_api::__subscriptions]
     impl mod_api::Hooks for Plated {
         fn item_attribute_modifier(&self, event: &mut mod_api::ItemAttributeModifierEvent<'_>) {
-            if !event.stack.item.ends_with("_chestplate") {
+            if !mod_api::__private::item_key_id(event.stack.item())
+                .unwrap()
+                .ends_with("_chestplate")
+            {
                 return;
             }
             let id = |text: &str| Identifier::parse(text).unwrap();

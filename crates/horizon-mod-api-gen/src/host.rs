@@ -297,7 +297,9 @@ pub(super) fn areas_source(root: &Path) -> Result<String, String> {
 /// Generate every area impl explicitly. Full-path calls plus a hard recursion lint
 /// refuse a missing inherent implementation instead of inheriting a trait default.
 pub(super) fn game_forwarders(root: &Path) -> Result<String, String> {
-    let mut code = String::from("use crate::game::Game;\nuse mod_api::*;\n");
+    let mut code = String::from(
+        "use crate::game::Game;\nuse crate::game::api_values::{call_stack_write, call_write, TryIntoApi, TryIntoEngine};\nuse mod_api::*;\n",
+    );
     for area in load(root)? {
         for (tier, entries) in &area.tiers {
             code.push_str(&format!(
@@ -323,7 +325,7 @@ pub(super) fn game_forwarders(root: &Path) -> Result<String, String> {
                 ) {
                     return Err(format!("{name}: unknown access level {level}"));
                 }
-                let args = signature_args(&entry.sig, name)?;
+                let (setup, args, checked_write) = boundary_arguments(&entry.sig, name)?;
                 let static_call = entry.attrs.iter().any(|a| a.path().is_ident("static_call"));
                 let args = if static_call {
                     args
@@ -338,7 +340,32 @@ pub(super) fn game_forwarders(root: &Path) -> Result<String, String> {
                 } else {
                     format!("Game::{name}({args})")
                 };
-                code.push_str(&format!("{sig} {{ mod_api::__private::check_access({name:?}, mod_api::__private::LoadAccess::{level}); {call} }}\n"));
+                let crosses_output = match &entry.sig.output {
+                    syn::ReturnType::Type(_, ty) => boundary_value(ty),
+                    syn::ReturnType::Default => false,
+                };
+                let call = if checked_write {
+                    if crosses_output {
+                        format!("call_stack_write(|| {call})")
+                    } else {
+                        format!("call_write(|| {call})")
+                    }
+                } else if crosses_output {
+                    let is_result = match &entry.sig.output {
+                        syn::ReturnType::Type(_, ty) => outer_type(ty, "Result"),
+                        _ => false,
+                    };
+                    if is_result {
+                        format!(
+                            "{call}.try_into_api().unwrap_or_else(|error| Err(error.into_write_error().into()))"
+                        )
+                    } else {
+                        format!("{call}.try_into_api().unwrap_or_default()")
+                    }
+                } else {
+                    call
+                };
+                code.push_str(&format!("{sig} {{ mod_api::__private::check_access({name:?}, mod_api::__private::LoadAccess::{level}); {setup} {call} }}\n"));
             }
             code.push_str("}\n");
         }
@@ -347,6 +374,94 @@ pub(super) fn game_forwarders(root: &Path) -> Result<String, String> {
     let imports = standard_imports(&parsed);
     let parsed = syn::parse_file(&(imports + &code)).map_err(|e| e.to_string())?;
     Ok(prettyplease::unparse(&parsed))
+}
+
+/// API records whose game representation is owned by another crate. Conversions are
+/// implemented once by the game; this rule only selects the boundary, never its behaviour.
+fn boundary_value(ty: &Type) -> bool {
+    struct Values(bool);
+    impl<'ast> Visit<'ast> for Values {
+        fn visit_type_path(&mut self, path: &'ast syn::TypePath) {
+            self.0 |= path.path.segments.last().is_some_and(|segment| {
+                matches!(
+                    segment.ident.to_string().as_str(),
+                    "ItemStack"
+                        | "ItemResource"
+                        | "ItemCost"
+                        | "MerchantOffer"
+                        | "Ingredient"
+                        | "Recipe"
+                        | "RecipeRule"
+                        | "RecipeTemplate"
+                        | "RecipeTrimPattern"
+                        | "FireworkShapeIngredient"
+                        | "AnvilResult"
+                        | "AnvilCraft"
+                        | "AnvilUpdate"
+                        | "GrindstonePlace"
+                        | "GrindstoneTake"
+                )
+            });
+            syn::visit::visit_type_path(self, path);
+        }
+    }
+    let mut values = Values(false);
+    values.visit_type(ty);
+    values.0
+}
+
+fn outer_type(ty: &Type, expected: &str) -> bool {
+    matches!(ty, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == expected))
+}
+
+fn boundary_arguments(
+    sig: &syn::Signature,
+    method: &str,
+) -> Result<(String, String, bool), String> {
+    let mutable = sig
+        .receiver()
+        .is_some_and(|receiver| receiver.mutability.is_some());
+    let typed = sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            FnArg::Typed(arg) => Some(arg),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let checked_write = mutable && typed.iter().any(|arg| boundary_value(&arg.ty));
+    let mut setup = String::new();
+    let mut args = Vec::new();
+    for arg in typed {
+        let Pat::Ident(pat) = &*arg.pat else {
+            return Err(format!("{method}: unsupported argument"));
+        };
+        let name = pat.ident.to_string();
+        if !boundary_value(&arg.ty) {
+            args.push(name);
+            continue;
+        }
+        let conversion = format!("{name}.try_into_engine(self.items())");
+        let value = if checked_write {
+            format!("{conversion}?")
+        } else {
+            format!(
+                "match {conversion} {{ Ok(value) => value, Err(_) => return Default::default() }}"
+            )
+        };
+        setup.push_str(&format!("let {name} = {value};\n"));
+        args.push(match &*arg.ty {
+            Type::Reference(_) => format!("&{name}"),
+            Type::Path(path) if outer_type(&arg.ty, "Option") => {
+                let segment = path.path.segments.last().unwrap();
+                let borrowed = matches!(&segment.arguments, syn::PathArguments::AngleBracketed(args)
+                    if args.args.iter().any(|arg| matches!(arg, syn::GenericArgument::Type(Type::Reference(_)))));
+                if borrowed { format!("{name}.as_ref()") } else { name }
+            }
+            _ => name,
+        });
+    }
+    Ok((setup, args.join(", "), checked_write))
 }
 
 fn standard_imports(file: &syn::File) -> String {

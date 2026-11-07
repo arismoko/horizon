@@ -1,3 +1,6 @@
+use crate::game::api_values::{TryIntoApi, TryIntoEngine};
+use horizon_client::containers::ModBlockEntity as EngineBlockEntity;
+
 struct ContentsChangedGuard<'a, 'game> {
     game: &'a mut Game<'game>,
 }
@@ -1339,12 +1342,15 @@ pub(super) fn incoming_damage(
     let (entity, kind, source) = hurt_server_args(hurting, level.attack());
     let mut canceled = false;
     let attack = level.attack();
+    let Ok(weapon) = attack.weapon_of(source.direct).try_into_api() else {
+        return false;
+    };
     HitLevel(level).native_living_incoming_damage(mod_api::__private::LivingIncomingDamageCall {
         entity,
         kind,
         source: &source,
         victim: &victim,
-        weapon: attack.weapon_of(source.direct),
+        weapon: weapon.as_ref(),
         container,
         canceled: &mut canceled,
     });
@@ -1486,6 +1492,9 @@ pub(super) fn knockback(level: DamageLevel<'_>, pushed: Hurting<'_>, knock: &mut
     let (entity, kind, source) = hurt_server_args(pushed, level.attack());
     let mut canceled = false;
     let [main, off] = &attack.held;
+    let (Ok(main), Ok(off)) = (main.try_into_api(), off.try_into_api()) else {
+        return false;
+    };
     HitLevel(level).native_living_knockback(mod_api::__private::LivingKnockbackCall {
         entity,
         kind,
@@ -1929,7 +1938,7 @@ fn block_entity_for_block(
     initial: Compound,
 ) -> Option<BlockEntity> {
     if let Some(kind) = horizon_client::block_entity_types::type_for(name) {
-        return Some(BlockEntity::Mod(Box::new(ModBlockEntity::new(
+        return Some(BlockEntity::Mod(Box::new(EngineBlockEntity::new(
             kind.to_owned(),
             ModBlockEntityFields {
                 nbt: initial,
@@ -2076,7 +2085,7 @@ impl Game<'_> {
     pub(super) fn native_with_mod_block_entity<R>(
         &mut self,
         pos: [i32; 3],
-        change: impl FnOnce(&mut ModBlockEntity) -> R,
+        change: impl FnOnce(&mut EngineBlockEntity) -> R,
     ) -> Option<R> {
         let key = (pos[0], pos[1], pos[2]);
         let Some(BlockEntity::Mod(m)) = self.world.block_entities.get_mut(&key) else {
@@ -2368,6 +2377,13 @@ impl Game<'_> {
             (None, None)
         };
         let (mut successful, mut canceled) = (false, false);
+        let Ok(snapshot) = stack.try_into_api() else {
+            return BonemealAsk {
+                crop: None,
+                check: Some(check),
+            };
+        };
+        let mut snapshot = Some(snapshot);
         self.native_bonemeal(mod_api::__private::BonemealCall {
             dimension: self.dim.level(),
             player,
@@ -2375,11 +2391,21 @@ impl Game<'_> {
             pos,
             state,
             source: BonemealSource::Interaction,
-            stack,
+            stack: &mut snapshot,
             valid_bonemeal_target: valid,
             successful: &mut successful,
             canceled: &mut canceled,
         });
+        match snapshot.try_into_engine(self.items()) {
+            Ok(Some(next)) => *stack = next,
+            Ok(None) => stack.count = 0,
+            Err(_) => {
+                return BonemealAsk {
+                    crop: None,
+                    check: Some(check),
+                };
+            }
+        }
         BonemealAsk {
             crop: canceled.then_some(successful),
             check: Some(check),
@@ -2492,7 +2518,13 @@ impl Game<'_> {
                 use_item,
             };
         }
-        let click = self.block_click(hit, hand, stack);
+        let Ok(snapshot) = stack.try_into_api() else {
+            return BlockClickAnswer::Go {
+                use_block,
+                use_item,
+            };
+        };
+        let click = self.block_click(hit, hand, snapshot.as_ref());
         let (mut result, mut canceled) = (NativeInteractionResult::Pass, false);
         self.native_right_click_block(
             &click,
@@ -2521,7 +2553,8 @@ impl Game<'_> {
         if !mod_api::__private::listened(mod_api::HookId::UseItemOnBlock) {
             return None;
         }
-        let click = self.block_click(hit, hand, stack);
+        let snapshot = stack.try_into_api().ok()?;
+        let click = self.block_click(hit, hand, snapshot.as_ref());
         let (mut result, mut canceled) = (NativeInteractionResult::TryWithEmptyHand, false);
         self.native_use_item_on_block(&click, phase, &mut result, &mut canceled);
         if !canceled {
@@ -2557,9 +2590,10 @@ impl Game<'_> {
         if !mod_api::__private::has_part_hook(mod_api::HookId::OnItemUseFirst) {
             return None;
         }
-        let click = self.block_click(hit, hand, Some(stack));
+        let snapshot = stack.try_into_api().ok()?;
+        let click = self.block_click(hit, hand, Some(&snapshot));
         let mut answer = None;
-        self.native_on_item_use_first(stack, &click, &mut answer);
+        self.native_on_item_use_first(&snapshot, &click, &mut answer);
         answer.filter(|answer| *answer != NativeInteractionResult::Pass)
     }
     /// Air use only: a passing block or entity keeps its target, rather than
@@ -2582,6 +2616,7 @@ impl Game<'_> {
             .target_position(super::commands::Target::Player)?
             .map(|v| v.floor() as i32);
         let (player, player_entity_id) = self.native_clicker();
+        let snapshot = stack.try_into_api().ok()?;
         let click = NativeItemClick::from(mod_api::__private::built::NativeItemClick {
             side: if self.remote.is_some() {
                 LogicalSide::Client
@@ -2591,7 +2626,7 @@ impl Game<'_> {
             dimension: self.dim.level(),
             pos,
             hand,
-            stack,
+            stack: &snapshot,
             player,
             player_entity_id,
         });
@@ -2602,29 +2637,6 @@ impl Game<'_> {
             self.with_hand(hand, |game| game.apply_after_use_components(stack));
         }
         canceled.then_some(result)
-    }
-    /// The shared context for a block's behaviour and the click event.
-    pub(super) fn block_click<'a>(
-        &mut self,
-        hit: &super::Hit,
-        hand: Hand,
-        stack: Option<&'a ItemStack>,
-    ) -> NativeBlockClick<'a> {
-        let (player, player_entity_id) = self.native_clicker();
-        NativeBlockClick::from(mod_api::__private::built::NativeBlockClick {
-            side: if self.remote.is_some() {
-                LogicalSide::Client
-            } else {
-                LogicalSide::Server
-            },
-            dimension: self.dim.level(),
-            pos: hit.pos,
-            hit: hit.native(),
-            hand,
-            stack,
-            player,
-            player_entity_id,
-        })
     }
     /// `GameRuleChangedEvent` once the server set the rule `name` to `value`
     /// (`GameRules.set` with a server).
@@ -2692,6 +2704,12 @@ impl Game<'_> {
         explosion: Option<f32>,
         drops: &mut Vec<ItemStack>,
     ) {
+        if !mod_api::__private::listened(mod_api::HookId::LootDrops) {
+            return;
+        }
+        let Ok(snapshot) = tool.try_into_api() else {
+            return;
+        };
         let items = match &self.world_tables {
             Some(tables) => &tables.items,
             None => self.res.items(),
@@ -2704,7 +2722,7 @@ impl Game<'_> {
             block: Some((pos, state)),
             entity: None,
             player,
-            tool,
+            tool: snapshot.as_ref(),
             explosion,
             used: false,
         });
@@ -2724,6 +2742,12 @@ impl Game<'_> {
         tool: Option<&ItemStack>,
         drops: &mut Vec<ItemStack>,
     ) {
+        if !mod_api::__private::listened(mod_api::HookId::LootDrops) {
+            return;
+        }
+        let Ok(snapshot) = tool.try_into_api() else {
+            return;
+        };
         let context = NativeLootDrops::from(mod_api::__private::built::NativeLootDrops {
             table,
             dimension: self.dim.id(),
@@ -2731,7 +2755,7 @@ impl Game<'_> {
             block,
             entity,
             player,
-            tool,
+            tool: snapshot.as_ref(),
             explosion: None,
             used: true,
         });
@@ -3243,7 +3267,7 @@ impl Game<'_> {
             let items = horizon_client::save::encode_items(&std::mem::take(&mut taken.items));
             taken.nbt.insert("Items".into(), items);
         }
-        self.native_block_entity_tick([pos.0, pos.1, pos.2], &mut taken);
+        self.api_block_entity_tick([pos.0, pos.1, pos.2], &mut taken);
         self.put_back_mod_block_entity(pos, taken, &items);
     }
     /// Puts back a mod block entity taken out for a call, unless the call
@@ -3251,7 +3275,7 @@ impl Game<'_> {
     pub(super) fn put_back_mod_block_entity(
         &mut self,
         pos: Pos,
-        mut taken: ModBlockEntity,
+        mut taken: EngineBlockEntity,
         items: &[Option<ItemStack>],
     ) {
         if let Some(BlockEntity::Mod(m)) = self.world.block_entities.get_mut(&pos)
@@ -3297,7 +3321,7 @@ impl Game<'_> {
         }
         let mut taken = std::mem::take(&mut **m);
         let items = taken.items.clone();
-        self.native_menu_button(&context, &mut taken, carried);
+        self.api_menu_button(&context, &mut taken, carried);
         self.put_back_mod_block_entity(pos, taken, &items);
     }
     /// The cursor from the open mod screen's top left, with its block and
@@ -3730,8 +3754,6 @@ fn packet_view(
 
 #[cfg(test)]
 mod tests {
-    use mod_api::__private::game::*;
-
     #[test]
     fn client_packet_view_exposes_the_type_and_custom_payload_only() {
         use horizon_protocol::packets::{
@@ -4163,7 +4185,6 @@ mod tests {
         use horizon_client::chunk::Chunk;
         use horizon_client::containers::{BlockEntity, ModBlockEntity, ModBlockEntityFields};
         use horizon_client::save::{decode_block_entity, encode_block_entity};
-        use mod_api;
         use std::sync::Arc;
 
         with_game(|game| {
@@ -4178,15 +4199,11 @@ mod tests {
                 .insert(pos, BlockEntity::Mod(Box::new(machine)));
             assert_eq!(
                 game.native_with_mod_block_entity([1, 64, 1], |entity| {
-                    let mut event = mod_api::BlockEntityTickEvent {
-                        pos: [1, 64, 1],
-                        entity: mod_api::ModBlockEntityView::new(entity),
-                    };
-                    *event.entity = ModBlockEntityFields {
+                    **entity = ModBlockEntityFields {
                         data: vec![7],
                         ..Default::default()
                     };
-                    assert_eq!(event.entity.id(), "test:machine");
+                    assert_eq!(entity.id(), "test:machine");
                 }),
                 Some(())
             );
@@ -5360,7 +5377,7 @@ pub(super) mod particle_count_tests {
                     );
                 let at = game.particles.camera;
                 game.spawn_item(
-                    mod_api::ItemStack::new("minecraft:stick", 1),
+                    horizon_client::items::ItemStack::new("minecraft:stick", 1),
                     at,
                     [0.0; 3],
                     0,
@@ -5494,7 +5511,7 @@ pub(super) mod particle_count_tests {
                 game.particles.camera = [0.5, 65.5, 1.5];
                 // Ordinary (non-particle) entity geometry and an unrelated item light.
                 game.spawn_item(
-                    mod_api::ItemStack::new("minecraft:torch", 1),
+                    horizon_client::items::ItemStack::new("minecraft:torch", 1),
                     [0.5, 65.0, 4.5],
                     [0.0; 3],
                     0,
@@ -5531,7 +5548,7 @@ pub(super) mod particle_count_tests {
             );
         }
         game.spawn_item(
-            mod_api::ItemStack::new("minecraft:stick", 1),
+            horizon_client::items::ItemStack::new("minecraft:stick", 1),
             game.particles.camera,
             [0.0; 3],
             0,

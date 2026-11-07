@@ -25,7 +25,7 @@ fn register_range_select_item_model_property(
 
 fn item_model_range_property(&self, _host: &dyn ClientHost, event: &mut ItemModelRangePropertyEvent<'_>) {
     if event.property == "example:fill" {
-        event.value = event.stack.count as f32 / 64.0;
+        event.value = event.stack.count() as f32 / 64.0;
     }
 }
 ```

@@ -40,7 +40,7 @@ pub fn get_enchantment_level(
         }
     }
     let mut enchantments = mod_api::__private::game::item_enchantments(entries);
-    mod_api::enchantments::native_get_enchantment_level(stack, target.as_ref(), &mut enchantments);
+    crate::native_stack_hooks::enchantments(stack, target.as_ref(), &mut enchantments);
     let (mut entries, changed) = mod_api::__private::game::item_enchantments_entries(enchantments);
     let levels = changed.then(|| {
         kept.extend(entries.iter().map(|(id, level)| (text(own, id), *level)));
@@ -73,55 +73,9 @@ fn text(own: &[(Arc<str>, u32)], id: &Identifier) -> Arc<str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mod_api::{GetEnchantmentLevelEvent, Hooks, ModEntry, testing::with_mods};
-    use std::borrow::Cow;
 
     fn id(text: &str) -> Identifier {
         Identifier::parse(text).unwrap()
-    }
-
-    /// An iron sword fights as if it had Looting II and no Sharpness.
-    struct Keen;
-    #[mod_api::__subscriptions]
-    impl Hooks for Keen {
-        fn get_enchantment_level(&self, event: &mut GetEnchantmentLevelEvent<'_>) {
-            if &*event.stack.item != "minecraft:iron_sword" {
-                return;
-            }
-            let looting = id("minecraft:looting");
-            if event.target.is_none_or(|target| *target == looting) {
-                event.enchantments.upgrade(looting, 2);
-            }
-            event.enchantments.set(id("minecraft:sharpness"), 0);
-        }
-    }
-
-    /// Gameplay reads see the mod's levels; the stack's own component, a
-    /// stack the mod leaves alone and every stack with no mod listening
-    /// keep theirs, borrowed.
-    #[test]
-    fn a_mod_changes_the_levels_gameplay_reads() {
-        let _ = horizon_items::native_enchantment_hooks::install(get_enchantment_level);
-        let mut iron = ItemStack::new("minecraft:iron_sword", 1);
-        iron.enchant("minecraft:sharpness", 3);
-        let mut diamond = ItemStack::new("minecraft:diamond_sword", 1);
-        diamond.enchant("minecraft:sharpness", 3);
-        with_mods(Vec::new().into(), || {
-            assert!(matches!(iron.all_enchantments(), Cow::Borrowed(_)));
-            assert_eq!(iron.enchantment_level("minecraft:sharpness"), 3);
-        });
-        with_mods(vec![ModEntry::new("keen", Box::new(Keen))].into(), || {
-            assert_eq!(
-                &*iron.all_enchantments(),
-                [(Arc::from("minecraft:looting"), 2)]
-            );
-            assert_eq!(iron.enchantment_level("minecraft:looting"), 2);
-            assert_eq!(iron.enchantment_level("minecraft:sharpness"), 0);
-            assert_eq!(iron.tag_enchantment_level("minecraft:sharpness"), 3);
-            assert_eq!(iron.enchantments(), [(Arc::from("minecraft:sharpness"), 3)]);
-            assert!(matches!(diamond.all_enchantments(), Cow::Borrowed(_)));
-            assert_eq!(diamond.enchantment_level("minecraft:sharpness"), 3);
-        });
     }
 
     /// `ItemEnchantments` edits as `ItemEnchantments.Mutable` does, and

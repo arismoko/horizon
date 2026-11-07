@@ -1,7 +1,7 @@
 //! The target of `get_enchantment_level` (`GetEnchantmentLevelEvent`).
+use crate::item_stack::ItemStack;
 #[allow(unused_imports)]
 use crate::*;
-use horizon_items::items::ItemStack;
 /// `GetEnchantmentLevelEvent`: the enchantments gameplay sees on `stack`,
 /// starting from its own `minecraft:enchantments`. `target` is the one
 /// enchantment a read asks for (`ItemStack.getEnchantmentLevel`), and then

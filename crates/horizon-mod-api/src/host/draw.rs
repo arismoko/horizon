@@ -223,7 +223,7 @@ pub trait BlockEntityDrawContext {
     fn item(
         &mut self,
         stack: &ItemStack,
-        display: DisplayContext,
+        display: NativeItemDisplayContext,
         owner_yaw: Option<f32>,
         seed: i32,
     ) -> bool {

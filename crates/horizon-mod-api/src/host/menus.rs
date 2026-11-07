@@ -15,7 +15,7 @@ pub trait MenusServerHost {
         rows: u8,
         title: Text,
         items: Vec<Option<ItemStack>>,
-    ) -> Option<i32>;
+    ) -> Result<Option<i32>, StackWriteError>;
     /// Side: server.
     /// Closes the player's native menu (a `native_menu_closed` follows).
     #[access(WorldOnly)]

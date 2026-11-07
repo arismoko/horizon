@@ -8,7 +8,7 @@ impl Game<'_> {
     /// on to the block.
     pub(in crate::game) fn native_on_item_use_first(
         &mut self,
-        stack: &ItemStack,
+        stack: &mod_api::ItemStack,
         click: &NativeBlockClick<'_>,
         answer: &mut Option<NativeInteractionResult>,
     ) {

@@ -25,7 +25,7 @@ fn register_item_tint_sources(
 fn item_tint_source(&self, _host: &dyn ClientHost, event: &mut ItemTintSourceEvent<'_>) {
     if event.source == "example:charge" {
         let rgb = event.config["default"].as_i64().unwrap_or(0xFFFFFF) as u32;
-        let rgb = if event.stack.count > 1 { 0x55FF55 } else { rgb };
+        let rgb = if event.stack.count() > 1 { 0x55FF55 } else { rgb };
         event.color = 0xFF000000 | rgb;
     }
 }

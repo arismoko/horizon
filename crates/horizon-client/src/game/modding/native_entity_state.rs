@@ -512,8 +512,9 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn fire_ticks_reads_supported_entities_and_refuses_others() {
         use horizon_client::entities::ArmorStand;
+        use horizon_client::items::ItemStack;
         use horizon_core::geometry::Vec3;
-        use mod_api::{ItemStack, NativeWorldEpoch};
+        use mod_api::NativeWorldEpoch;
 
         with_player(|game, player| {
             game.player.as_mut().unwrap().fire_ticks = 0;
@@ -570,8 +571,9 @@ mod tests {
     fn tick_count_reads_supported_entities_and_refuses_others() {
         use super::super::minecarts::{CartKind, Minecart};
         use horizon_client::entities::ExperienceOrb;
+        use horizon_client::items::ItemStack;
         use horizon_core::geometry::Vec3;
-        use mod_api::{ItemStack, NativeWorldEpoch};
+        use mod_api::NativeWorldEpoch;
 
         with_player(|game, player| {
             assert_eq!(player.tick_count(game), None);
@@ -651,9 +653,10 @@ mod tests {
             minecarts::Minecart, trident::ThrownTrident,
         };
         use horizon_client::entities::{ArmorStand, ExperienceOrb};
+        use horizon_client::items::ItemStack;
         use horizon_client::projectiles::{Projectile, ProjectileKind};
         use horizon_core::{geometry::Vec3, position::BlockPos};
-        use mod_api::{ItemStack, NativeWorldEpoch};
+        use mod_api::NativeWorldEpoch;
 
         with_guests(|game| {
             // Players keep their own state: in place during their turn, beside the hub otherwise.

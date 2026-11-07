@@ -1,5 +1,5 @@
 //! Load-owned declarations and resolved mappings for registration-slot keys.
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{LazyLock, RwLock};
 
 #[derive(Clone, Default)]
@@ -17,6 +17,8 @@ pub struct Requests {
 pub struct Names {
     pub entries: Vec<Request>,
     pub slots: HashMap<String, u32>,
+    /// Typed identifier lookup without formatting a string on metadata reads.
+    pub identifiers: BTreeMap<horizon_core::identifier::Identifier, u32>,
     pub utf16_slots: HashMap<Vec<u16>, u32>,
     pub world_fluids: Vec<Option<u32>>,
 }
@@ -35,17 +37,39 @@ impl Names {
         } else {
             format!("minecraft:{id}")
         };
-        if horizon_core::identifier::Identifier::parse_namespaced(&id).is_none() {
-            return Err(format!("mod {mod_id}: invalid registry key {id:?}"));
-        }
-        let slot = *self.slots.entry(id.clone()).or_insert_with(|| {
-            let slot = u32::try_from(self.entries.len()).expect("registry key slots exhausted");
+        let identifier = horizon_core::identifier::Identifier::parse_namespaced(&id)
+            .ok_or_else(|| format!("mod {mod_id}: invalid registry key {id:?}"))?;
+        self.request_parsed(mod_id, id, identifier)
+    }
+
+    /// Request a name already validated by the owning identifier boundary.
+    pub fn request_identifier(
+        &mut self,
+        mod_id: &'static str,
+        identifier: &horizon_core::identifier::Identifier,
+    ) -> Result<u32, String> {
+        self.request_parsed(mod_id, identifier.to_string(), identifier.clone())
+    }
+
+    fn request_parsed(
+        &mut self,
+        mod_id: &'static str,
+        id: String,
+        identifier: horizon_core::identifier::Identifier,
+    ) -> Result<u32, String> {
+        let slot = if let Some(slot) = self.slots.get(&id) {
+            *slot
+        } else {
+            let slot = u32::try_from(self.entries.len())
+                .map_err(|_| "registry key slots exhausted".to_owned())?;
+            self.slots.insert(id.clone(), slot);
             self.entries.push(Request {
                 id,
                 mods: Vec::new(),
             });
             slot
-        });
+        };
+        self.identifiers.insert(identifier, slot);
         let mods = &mut self.entries[slot as usize].mods;
         if !mods.contains(&mod_id) {
             mods.push(mod_id);
@@ -77,6 +101,31 @@ impl Names {
         } else {
             Err(errors)
         }
+    }
+}
+
+// Tag names are process-lifetime identities; only membership belongs to reloadable data.
+// Reuse the same slot and identifier tables as registered keys, without a per-world cache.
+static TAG_NAMES: LazyLock<RwLock<Names>> = LazyLock::new(RwLock::default);
+
+/// Resolve a validated tag name once. Unknown membership does not prevent naming a tag.
+/// An unavailable table or exhausted index space refuses resolution without panicking.
+pub fn tag_slot(id: &horizon_core::identifier::Identifier) -> Option<u32> {
+    if let Some(slot) = TAG_NAMES.read().ok()?.identifiers.get(id) {
+        return Some(*slot);
+    }
+    TAG_NAMES
+        .write()
+        .ok()?
+        .request_identifier("horizon", id)
+        .ok()
+}
+
+/// Borrow a retained tag name while its table is read-locked. No string is allocated.
+pub fn with_tag_name<R>(slot: u32, read: impl FnOnce(Option<&str>) -> R) -> R {
+    match TAG_NAMES.read() {
+        Ok(names) => read(names.id(slot)),
+        Err(_) => read(None),
     }
 }
 
@@ -224,4 +273,31 @@ pub fn resolve_block_entity_types<'a, T>(
             .expect("registry owns valid ids");
     }
     Ok(names)
+}
+
+#[cfg(test)]
+mod item_tag_tests {
+    use super::*;
+    use horizon_core::identifier::Identifier;
+    #[test]
+    fn typed_requests_share_canonical_slots_and_preserve_requesters() {
+        let mut names = Names::default();
+        let slot = names.request("first", "stick").unwrap();
+        let identifier = Identifier::parse("minecraft:stick").unwrap();
+        assert_eq!(names.request_identifier("second", &identifier), Ok(slot));
+        assert_eq!(names.entries.len(), 1);
+        assert_eq!(names.entries[0].mods, ["first", "second"]);
+        assert_eq!(names.identifiers.get(&identifier), Some(&slot));
+        assert!(names.request("bad", "Not valid").is_err());
+        assert_eq!(names.entries.len(), 1);
+    }
+    #[test]
+    fn tag_name_keys_keep_their_identity_and_refuse_unknown_slots() {
+        let first = Identifier::parse("test:retained_tag_name").unwrap();
+        let slot = tag_slot(&first).unwrap();
+        tag_slot(&Identifier::parse("test:unrelated_tag_name").unwrap()).unwrap();
+        assert_eq!(tag_slot(&first), Some(slot));
+        assert!(with_tag_name(slot, |name| name == Some("test:retained_tag_name")));
+        assert!(with_tag_name(u32::MAX, |name| name.is_none()));
+    }
 }

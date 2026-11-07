@@ -229,7 +229,10 @@ fn another_guests_menu_and_push_work_during_a_turn() {
             assert_eq!(a_menu.slot_count(game), None);
             assert_eq!(game.player_container_menu(b), Some(b_menu));
             assert_eq!(b_menu.slot_count(game), Some(46));
-            assert_eq!(b_menu.slot(game, 36), Some(Some(stone.clone())));
+            assert_eq!(
+                b_menu.slot(game, 36),
+                Some(Some(crate::game::api_values::test_snapshot(&stone)))
+            );
             assert!(game.entity_set_rotation(b.entity(), 90.0, 10.0));
             assert!(game.entity_set_head_yaw(b.entity(), 45.0));
             assert_eq!(game.entity_head_yaw(b.entity()), Some(45.0));
@@ -252,7 +255,10 @@ fn another_guests_menu_and_push_work_during_a_turn() {
             );
         })
         .unwrap();
-        assert_eq!(b_menu.slot(game, 36), Some(Some(stone)));
+        assert_eq!(
+            b_menu.slot(game, 36),
+            Some(Some(crate::game::api_values::test_snapshot(&stone)))
+        );
         assert_eq!(
             game.lan
                 .as_ref()
@@ -512,7 +518,10 @@ fn another_guests_live_merchant_session_is_visible_during_a_turn() {
             },
         );
         game.as_guest(12, |game| {
-            assert_eq!(villager.offers(game), Some(vec![live]));
+            assert_eq!(
+                villager.offers(game),
+                Some(vec![crate::game::api_values::test_snapshot(&live)])
+            );
             assert_eq!(villager.xp(game), Some(17));
             assert_eq!(villager.level(game), Some(2));
             assert_eq!(villager.trading_player(game).map(|p| p.uuid()), Some(13));

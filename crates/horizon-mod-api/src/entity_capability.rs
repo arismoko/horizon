@@ -230,7 +230,7 @@ fn fill(
 ) -> u32 {
     let held = match place.stack(host) {
         Some(held) if !resource.matches(&held) => return 0,
-        held => held.map_or(0, |held| held.count),
+        held => held.map_or(0, |held| held.count()),
     };
     match amount.min(limit.saturating_sub(held)) {
         0 => 0,

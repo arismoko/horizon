@@ -982,7 +982,11 @@ impl Game<'_> {
         stack: &ItemStack,
         take: impl FnOnce(&mut Self, u32) -> Option<()>,
     ) -> u32 {
-        let resource = ItemResource::of(stack);
+        use super::api_values::TryIntoApi;
+        let Ok(snapshot) = stack.try_into_api() else {
+            return 0;
+        };
+        let resource = ItemResource::of(&snapshot);
         mod_api::run_transaction(self, |game, tx| {
             let host: &mut dyn mod_api::ServerHost = game;
             let went = part.insert_any(host, tx, &resource, stack.count);
@@ -1047,7 +1051,10 @@ impl Game<'_> {
             let Some(resource) = part.resource(self, slot) else {
                 continue;
             };
-            let one = resource.to_stack(1);
+            use super::api_values::TryIntoEngine;
+            let Ok(one) = resource.as_stack().try_into_engine(self.items()) else {
+                continue;
+            };
             let c = self.containers();
             if !(0..hopper.len()).any(|s| c.fits(hopper, s, &one) > 0)
                 || self.part_move_canceled(at, into, &one.item)

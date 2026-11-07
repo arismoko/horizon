@@ -312,6 +312,7 @@ impl Game<'_> {
 
 #[cfg(test)]
 pub(super) mod tests {
+    use super::super::api_values::{StackReadError, TryIntoApi, TryIntoEngine};
     use super::super::native_entity_refs::tests::with_game;
     use super::*;
     use horizon_client::{items::ItemStack, merchant::ItemCost, mobs::Mob};
@@ -385,11 +386,28 @@ pub(super) mod tests {
             // Nothing is rolled yet; reading and a refused write draw nothing.
             assert_eq!(villager.offers(game), Some(Vec::new()));
             assert!(!villager.remove_offer(game, 0));
-            assert!(!villager.set_offer(game, 0, offer("minecraft:wheat", "minecraft:emerald")));
+            assert_eq!(
+                villager.set_offer(
+                    game,
+                    0,
+                    offer("minecraft:wheat", "minecraft:emerald")
+                        .try_into_api()
+                        .unwrap()
+                ),
+                Ok(false)
+            );
             assert!(game.mobs[0].extra.trade.as_ref().is_none_or(|t| t.unset));
 
             // A wandering trader has offers but no villager data.
-            assert!(trader.add_offer(game, offer("minecraft:emerald", "minecraft:diamond")));
+            assert_eq!(
+                trader.add_offer(
+                    game,
+                    offer("minecraft:emerald", "minecraft:diamond")
+                        .try_into_api()
+                        .unwrap()
+                ),
+                Ok(true)
+            );
             assert!(trader.offers(game).unwrap().len() > 1);
             assert_eq!(trader.profession(game), None);
             assert!(!trader.set_level(game, 2));
@@ -406,12 +424,22 @@ pub(super) mod tests {
             }));
             let mut changed = offer("minecraft:carrot", "minecraft:diamond");
             changed.uses = 5;
-            assert!(villager.set_offer(game, 1, changed.clone()));
-            assert_eq!(villager.offers(game).unwrap()[1], changed);
-            assert!(!villager.set_offer(game, 2, changed.clone()));
+            assert_eq!(
+                villager.set_offer(game, 1, changed.try_into_api().unwrap()),
+                Ok(true)
+            );
+            assert_eq!(
+                villager.offers(game).unwrap()[1],
+                changed.try_into_api().unwrap()
+            );
+            assert_eq!(
+                villager.set_offer(game, 2, changed.try_into_api().unwrap()),
+                Ok(false)
+            );
+            // Empty and unknown engine stacks are refused before an API offer exists.
             let mut bad = changed.clone();
             bad.result.count = 0;
-            assert!(!villager.set_offer(game, 0, bad));
+            assert_eq!(bad.try_into_api(), Err(StackReadError::Empty));
             for (a, b, r) in [
                 ("minecraft:not_an_item", None, "minecraft:emerald"),
                 (
@@ -427,16 +455,18 @@ pub(super) mod tests {
                     stack: ItemStack::new(b, 1),
                 });
                 bad.result = ItemStack::new(r, 1);
-                assert!(!villager.set_offer(game, 0, bad.clone()));
-                assert!(!villager.add_offer(game, bad));
+                assert_eq!(bad.try_into_api(), Err(StackReadError::UnknownItem));
             }
-            assert!(villager.add_offer(game, changed.clone()));
+            assert_eq!(
+                villager.add_offer(game, changed.try_into_api().unwrap()),
+                Ok(true)
+            );
             assert_eq!(villager.offers(game).unwrap().len(), 3);
             assert!(villager.remove_offer(game, 0));
             assert!(!villager.remove_offer(game, 5));
             assert_eq!(
                 villager.offers(game).unwrap(),
-                vec![changed.clone(), changed]
+                vec![changed.clone(), changed].try_into_api().unwrap()
             );
             assert_eq!(villager.trading_player(game), None);
 
@@ -489,7 +519,11 @@ pub(super) mod tests {
             assert_eq!(villager.offers(game).unwrap().len(), 1);
 
             // Saved with the entity (`Offers`) and read back unchanged.
-            let saved = villager.offers(game).unwrap();
+            let saved = villager
+                .offers(game)
+                .unwrap()
+                .try_into_engine(game.items())
+                .unwrap();
             let tag = horizon_client::entity_nbt::offers_to_nbt(&saved);
             assert_eq!(horizon_client::entity_nbt::offers_from_nbt(&tag), saved);
 
@@ -499,7 +533,15 @@ pub(super) mod tests {
             ));
             assert_eq!(stale.offers(game), None);
             assert!(!stale.set_xp(game, 1));
-            assert!(!stale.add_offer(game, offer("minecraft:wheat", "minecraft:emerald")));
+            assert_eq!(
+                stale.add_offer(
+                    game,
+                    offer("minecraft:wheat", "minecraft:emerald")
+                        .try_into_api()
+                        .unwrap()
+                ),
+                Ok(false)
+            );
             let taken = std::mem::take(&mut game.mobs);
             assert_eq!(villager.level(game), None);
             game.mobs = taken;

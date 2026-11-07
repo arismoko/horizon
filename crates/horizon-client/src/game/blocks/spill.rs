@@ -3,6 +3,7 @@
 //! block drops (`Block.dropResources`), drawn from the level random at the
 //! moment vanilla draws them. The item entities they make are added to the
 //! world as soon as the behaviour returns, within the same tick.
+use super::api_values::{TryIntoApi, TryIntoEngine};
 use super::{Game, GameLevel, Screen, dispenser::new_item_motion, storage::is_shulker_box};
 use horizon_client::{
     block_entity_item, block_entity_nbt,
@@ -14,7 +15,6 @@ use horizon_client::{
 };
 use horizon_core::position::BlockPos;
 use horizon_core::random::RandomSource;
-use mod_api::NativeItemDrop;
 use std::collections::HashMap;
 use {
     horizon_core::nbt::{Compound, JavaString, Tag},
@@ -214,9 +214,18 @@ pub(super) struct Spawn {
 }
 
 /// What a broken block spawns (`GameLevel::block_dropped`).
+/// Prepared engine item entity; API snapshots exist only while a listener runs.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct BlockItemDrop {
+    pub(super) stack: ItemStack,
+    pub(super) position: [f64; 3],
+    pub(super) velocity: [f64; 3],
+    pub(super) pickup_delay: u32,
+}
+
 pub(super) struct BlockDrops {
     /// The item entities to add, as the mods left them.
-    pub(super) items: Vec<NativeItemDrop>,
+    pub(super) items: Vec<BlockItemDrop>,
     /// The experience points to award at the block's centre.
     pub(super) experience: u32,
     /// A mod canceled the break's drops: `spawnAfterBreak` doesn't run.
@@ -505,10 +514,15 @@ impl GameLevel<'_> {
         )
     }
     /// Build item entities only after vanilla has finished merging stacks.
-    pub(super) fn block_drop_item(&mut self, at: [i32; 3], mut stack: ItemStack) -> NativeItemDrop {
+    pub(super) fn block_drop_item(&mut self, at: [i32; 3], mut stack: ItemStack) -> BlockItemDrop {
         self.pending.attach(at, &mut stack);
         let position = pop_position(&mut self.world.random, at);
-        NativeItemDrop::new(stack, position, new_item_motion(), 10)
+        BlockItemDrop {
+            stack,
+            position,
+            velocity: new_item_motion(),
+            pickup_delay: 10,
+        }
     }
     /// The one event/filter boundary for prepared block item entities and XP.
     /// Explosions supply their merged entities, keeping that caller's zero
@@ -526,18 +540,27 @@ impl GameLevel<'_> {
             mut experience,
             mut canceled,
         } = dropped;
-        if self.native_authoritative {
+        if self.native_authoritative
+            && mod_api::__private::listened(mod_api::HookId::BlockDrops)
+            && let (Ok(tool), Ok(mut snapshots)) = (tool.try_into_api(), items.try_into_api())
+        {
+            let mut next_experience = experience;
+            let mut next_canceled = canceled;
             self.native_block_drops(mod_api::__private::BlockDropsCall {
                 dimension: self.dimension,
                 pos,
                 state,
                 breaker,
-                tool,
-                drops: &mut items,
-                experience: &mut experience,
-                cancel: &mut canceled,
+                tool: tool.as_ref(),
+                drops: &mut snapshots,
+                experience: &mut next_experience,
+                cancel: &mut next_canceled,
             });
-            items.retain(|item| &*item.stack.item != "minecraft:air" && item.stack.count > 0);
+            if let Ok(next_items) = snapshots.try_into_engine(self.items) {
+                items = next_items;
+                experience = next_experience;
+                canceled = next_canceled;
+            }
         }
         if canceled || !self.rules.block_drops {
             items.clear();
@@ -591,7 +614,7 @@ impl GameLevel<'_> {
             )
             && let Some((lease, BlockEntity::Mod(entity))) = self.world.block_entities.take(&key)
         {
-            self.native_pre_remove_side_effects(pos, old, &entity, &mut part_drops);
+            self.api_pre_remove_side_effects(pos, old, &entity, &mut part_drops);
             self.world
                 .block_entities
                 .put(lease, BlockEntity::Mod(entity));
@@ -889,11 +912,9 @@ mod tests {
             _: &dyn mod_api::LevelHost,
             event: &mut mod_api::BlockDropsEvent<'_>,
         ) -> mod_api::Flow {
-            if event
-                .drops
-                .iter()
-                .any(|d| &*d.stack.item == "minecraft:dirt")
-            {
+            if event.drops.iter().any(|d| {
+                mod_api::__private::item_key_id(d.stack.item()).unwrap() == "minecraft:dirt"
+            }) {
                 return mod_api::Flow::Cancel;
             }
             event.experience += 2;

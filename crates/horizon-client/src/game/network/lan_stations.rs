@@ -186,7 +186,7 @@ impl Game<'_> {
                     })
                     .unwrap_or((0, String::new()));
                 let mut cancel = false;
-                self.native_anvil_craft_pre(uuid, &name, gs.pos, craft, &mut cancel);
+                self.api_anvil_craft_pre(uuid, &name, gs.pos, craft, &mut cancel);
                 if cancel && let Some(undo) = undo {
                     // The take is refused: the result, inputs, cost, inventory
                     // and cursor are as before the click (the resync below
@@ -209,7 +209,7 @@ impl Game<'_> {
                     .map(|host| (host.hub.guests[gi].uuid, host.hub.guests[gi].entity_id))
                     .unwrap_or((0, 0));
                 let mut cancel = false;
-                self.native_grindstone_take(uuid, entity_id, gs.pos, &mut take, &mut cancel);
+                self.api_grindstone_take(uuid, entity_id, gs.pos, &mut take, &mut cancel);
                 cancelled |= cancel;
                 let env = self.menu_env();
                 ground_xp = gs.menu.grindstone_taken(&env, take, cancel);
@@ -238,7 +238,7 @@ impl Game<'_> {
                     .map(|host| (host.hub.guests[gi].uuid, host.hub.guests[gi].entity_id))
                     .unwrap_or((0, 0));
                 let mut cancel = false;
-                self.native_anvil_update(uuid, entity_id, gs.pos, &mut update, &mut cancel);
+                self.api_anvil_update(uuid, entity_id, gs.pos, &mut update, &mut cancel);
                 gs.menu.anvil_updated(update, cancel);
             }
             if recomputed && gs.kind == StationKind::Grindstone && gs.menu.grind_hook {
@@ -249,7 +249,7 @@ impl Game<'_> {
                     .unwrap_or((0, 0));
                 let mut place = gs.menu.grindstone_place();
                 let mut cancel = false;
-                self.native_grindstone_place(uuid, entity_id, gs.pos, &mut place, &mut cancel);
+                self.api_grindstone_place(uuid, entity_id, gs.pos, &mut place, &mut cancel);
                 gs.menu.grindstone_placed(place, cancel);
             }
             if recomputed && gs.kind == StationKind::Smithing {
@@ -479,7 +479,7 @@ impl Game<'_> {
                     .and_then(|host| host.hub.guests.iter().find(|g| g.conn == conn))
                     .map(|guest| (guest.uuid, guest.name.clone()))
             {
-                self.native_anvil_craft_post(uuid, &name, gs.pos, craft);
+                self.api_anvil_craft_post(uuid, &name, gs.pos, craft);
             }
         }
     }
@@ -522,7 +522,11 @@ impl Game<'_> {
                 |row, cost| *drawn[row].insert(cost),
             );
             let mut levels = drawn.map(|cost| cost.unwrap_or(0));
-            if let Some(item) = gs.menu.slot(0) {
+            if let Some(item) = gs
+                .menu
+                .slot(0)
+                .and_then(|item| super::api_values::TryIntoApi::try_into_api(item).ok())
+            {
                 for (row, original) in drawn.iter().enumerate() {
                     if let Some(original_level) = *original {
                         let offer = mod_api::stations::EnchantmentRow {
@@ -530,7 +534,7 @@ impl Game<'_> {
                             player_entity_id: guest_entity_id,
                             row: row as i32,
                             power: bookcases,
-                            item,
+                            item: &item,
                             original_level,
                         };
                         self.native_enchantment_level_set(gs.pos, &offer, &mut levels[row]);

@@ -10,10 +10,11 @@ use horizon_client::{
     world::World,
 };
 use horizon_core::nbt::{Compound, Tag};
+use horizon_items::items::ItemStack;
 use mod_api::__private::game::*;
 use mod_api::{
     BlockEntityDataError, BlockEntityError, BlockEntityItemError, BlockEntityRef,
-    BlockEntityTypeKey, ItemStack, LevelRef, PlayerRef, Transaction,
+    BlockEntityTypeKey, LevelRef, PlayerRef, Transaction,
 };
 
 impl Game<'_> {

@@ -12,8 +12,12 @@ use crate::{
 use horizon_core::nbt::{JavaString, Tag};
 use horizon_world::native_load_context::LoopContext;
 use horizon_world::{component_patch::Patch, loot::PackOverlay};
-use mod_api::__private::game::IngredientTest;
-pub use mod_api::crafting::{Ingredient, Shape, native_ingredient, native_ingredient_test};
+mod snapshots;
+pub use snapshots::{
+    FireworkShapeIngredient, RecipeRule, RecipeSnapshot, RecipeTemplate, RecipeTrimPattern,
+};
+mod ingredient;
+pub use ingredient::{Ingredient, Shape};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -90,8 +94,8 @@ impl Template {
             components,
         })
     }
-    pub(crate) fn view(&self) -> mod_api::RecipeTemplate {
-        mod_api::RecipeTemplate::new(
+    pub(crate) fn view(&self) -> crate::crafting::RecipeTemplate {
+        crate::crafting::RecipeTemplate::new(
             self.item.as_deref().map(str::to_owned),
             self.count,
             self.components.clone(),
@@ -292,8 +296,8 @@ pub enum Special {
 }
 impl Special {
     /// A data projection of this parse; concrete outputs still use `craft`.
-    fn rule(&self) -> mod_api::RecipeRule {
-        use mod_api::RecipeRule as Rule;
+    fn rule(&self) -> crate::crafting::RecipeRule {
+        use crate::crafting::RecipeRule as Rule;
         match self {
             Self::BannerDuplicate { banner, result } => Rule::BannerDuplicate {
                 banner: banner.clone(),
@@ -380,7 +384,7 @@ impl Special {
                 shapes: shapes
                     .iter()
                     .map(|(shape, ingredient)| {
-                        mod_api::FireworkShapeIngredient::new(*shape, ingredient.clone())
+                        crate::crafting::FireworkShapeIngredient::new(*shape, ingredient.clone())
                     })
                     .collect(),
                 result: result.view(),
@@ -1288,7 +1292,7 @@ pub struct Recipes {
     pub cooking: Vec<Cooking>,
     /// Every effective recipe's file, by recipe type (`minecraft:smelting`,
     /// `mymod:crusher`), in file order: data packs merged, load conditions held.
-    pub by_type: HashMap<String, std::sync::Arc<[mod_api::Recipe]>>,
+    pub by_type: HashMap<String, std::sync::Arc<[crate::crafting::RecipeSnapshot]>>,
     /// `category` and `group` of each crafting recipe, by file name.
     pub meta: HashMap<String, (String, String)>,
     facts: HashMap<Arc<str>, Facts>,
@@ -1630,7 +1634,7 @@ impl Recipes {
     ) -> Result<Self> {
         let mut crafting = Vec::new();
         let mut cooking = Vec::new();
-        let mut by_type: HashMap<String, Vec<mod_api::Recipe>> = HashMap::new();
+        let mut by_type: HashMap<String, Vec<crate::crafting::RecipeSnapshot>> = HashMap::new();
         let mut meta = HashMap::new();
         for (
             ResolvedRecipe {
@@ -1651,7 +1655,7 @@ impl Recipes {
                 } else {
                     format!("minecraft:{name}")
                 };
-                entry = Some(mod_api::Recipe::new(id, kind, json.clone()));
+                entry = Some(crate::crafting::RecipeSnapshot::new(id, kind, json.clone()));
             }
             if custom_type(json).is_some() {
                 if let Some(entry) = entry {
@@ -2404,14 +2408,16 @@ mod tests {
         let stations = crate::stations::StationRecipes::from_sources(&root, &items, &sources);
         let cuts = &recipes.by_type["minecraft:stonecutting"];
         assert_eq!(cuts.len(), 1);
-        let Some(mod_api::RecipeRule::Stonecutting { input, result }) = &cuts[0].rule else {
+        let Some(crate::crafting::RecipeRule::Stonecutting { input, result }) = &cuts[0].rule
+        else {
             panic!("missing stonecutting rule")
         };
         assert_eq!(input.order, ["minecraft:stone"]);
         assert_eq!(result.count, 2);
         assert_eq!(stations.stonecutting[0].result, *result);
         let smith = &recipes.by_type["minecraft:smithing_transform"][0];
-        let Some(mod_api::RecipeRule::SmithingTransform { base, result, .. }) = &smith.rule else {
+        let Some(crate::crafting::RecipeRule::SmithingTransform { base, result, .. }) = &smith.rule
+        else {
             panic!("missing smithing rule")
         };
         assert_eq!(base.order, ["minecraft:stone"]);
@@ -2421,7 +2427,7 @@ mod tests {
             "smithing output inherits components"
         );
         let transmute = &recipes.by_type["minecraft:crafting_transmute"][0];
-        let Some(mod_api::RecipeRule::Transmute {
+        let Some(crate::crafting::RecipeRule::Transmute {
             min,
             max,
             add_count,
@@ -2440,14 +2446,14 @@ mod tests {
         assert!(patch.get("minecraft:damage").is_some());
         assert!(patch.get("!minecraft:custom_name").is_some());
         let trim = &recipes.by_type["minecraft:smithing_trim"][0];
-        let Some(mod_api::RecipeRule::SmithingTrim {
+        let Some(crate::crafting::RecipeRule::SmithingTrim {
             pattern, addition, ..
         }) = &trim.rule
         else {
             panic!("missing smithing trim rule")
         };
         assert!(
-            matches!(pattern, mod_api::RecipeTrimPattern::Reference(id) if id == "minecraft:coast")
+            matches!(pattern, crate::crafting::RecipeTrimPattern::Reference(id) if id == "minecraft:coast")
         );
         assert_eq!(addition.order, ["minecraft:iron_ingot"]);
         assert!(trim.results.is_empty());
@@ -2513,9 +2519,9 @@ mod tests {
             "minecraft:smithing_transform",
         ] {
             let result = match recipes.by_type[kind][0].rule.as_ref().unwrap() {
-                mod_api::RecipeRule::BannerDuplicate { result, .. }
-                | mod_api::RecipeRule::ShieldDecoration { result, .. }
-                | mod_api::RecipeRule::SmithingTransform { result, .. } => result,
+                crate::crafting::RecipeRule::BannerDuplicate { result, .. }
+                | crate::crafting::RecipeRule::ShieldDecoration { result, .. }
+                | crate::crafting::RecipeRule::SmithingTransform { result, .. } => result,
                 _ => panic!("wrong rule"),
             };
             assert_eq!(result.item.as_deref(), Some("minecraft:diamond"));
@@ -2602,7 +2608,7 @@ mod tests {
             let entries = &recipes.by_type[&format!("minecraft:{kind}")];
             assert_eq!(entries.len(), 1, "{kind}");
             let rule = entries[0].rule.as_ref().expect(kind);
-            use mod_api::RecipeRule as R;
+            use crate::crafting::RecipeRule as R;
             assert!(
                 matches!(
                     (kind, rule),

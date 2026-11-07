@@ -105,24 +105,6 @@ pub mod game {
         fn fields(&self) -> Self::Fields<'_>;
     }
 
-    /// `Ingredient::test` with the loop context the game's own matching holds.
-    pub trait IngredientTest {
-        fn test_in(
-            &self,
-            context: &horizon_world::native_load_context::LoopContext,
-            stack: &ItemStack,
-        ) -> bool;
-    }
-    impl IngredientTest for Ingredient {
-        fn test_in(
-            &self,
-            context: &horizon_world::native_load_context::LoopContext,
-            stack: &ItemStack,
-        ) -> bool {
-            Ingredient::test_in(self, context, stack)
-        }
-    }
-
     /// A block entity handle the game names.
     pub fn block_entity_ref(
         level: LevelRef,

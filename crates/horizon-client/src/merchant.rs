@@ -9,7 +9,8 @@ use crate::{
 };
 use horizon_core::random::{RandomSource, XoroshiroRandom, mix_stafford13, seed_from_hash};
 use horizon_world::loot::PackOverlay;
-pub use mod_api::merchant::{ItemCost, MerchantOffer};
+mod offer;
+pub use offer::{ItemCost, MerchantOffer};
 use serde_json::Value;
 use std::{collections::HashMap, path::Path, sync::Arc};
 

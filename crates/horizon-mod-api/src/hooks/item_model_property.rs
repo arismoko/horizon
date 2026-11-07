@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// Client-side evaluation of a mod's namespaced conditional item model property.
     /// Set value only for a property your mod owns; unhandled properties stay false.
-    /// The borrowed stack is the one being resolved, including nested bundle items.
+    /// The owned stack snapshot is the one being resolved, including nested bundle items.
     #[notes = r#"## Conditional item model properties
 
 A client mod supplies its own namespaced `minecraft:condition` property by implementing
@@ -19,15 +19,15 @@ fn item_model_property(
     event: &mut ItemModelPropertyEvent<'_>,
 ) {
     if event.property == "example:charged" {
-        event.value = event.stack.patch.get("example:charged").and_then(Option::as_ref)
-            .and_then(serde_json::Value::as_bool) == Some(true);
+        event.value = event.stack.components().and_then(|patch| patch.as_nbt().get("example:charged"))
+            .is_some_and(|value| matches!(value, mod_api::Tag::Byte(1)));
     }
 }
 ```
 
-`ClientHost`, `ItemModelPropertyEvent`, and `StackView` are exported by `mod_api`. The stack is borrowed,
-including for nested bundle items: `item`, `count`, explicit component `patch` (not merged
-defaults), and the runtime bundle selection. Listeners run in mod order; later answers win.
+`ClientHost`, `ItemModelPropertyEvent`, and `ItemStack` are exported by `mod_api`. The stack is an owned `ItemStack` snapshot,
+including for nested bundle items: `item()`, `count()` and explicit `components()` (not merged
+defaults). `bundle_selected` carries the runtime selection separately; -1 means none. Listeners run in mod order; later answers win.
 Use `"property": "example:charged"` with both `on_true` and `on_false` in the item's
 `minecraft:condition` node. Custom special model renderers are not supplied by this hook.
 
@@ -36,6 +36,7 @@ item draws as its `base` model, and the log says so once per type. A mod gets th
 JSON: a `minecraft:model` leaf naming a model file with `elements` and `display` draws cuboids with a
 transformation per display context, `tints` colours them, and `minecraft:select`, `condition` and
 `range_dispatch` on a property the mod answers through `item_model_property` pick between variants."#]
+    /// `bundle_selected` is the runtime bundle selection index; -1 means none.
     #[hook(
         side = "client",
         contract = "listen",

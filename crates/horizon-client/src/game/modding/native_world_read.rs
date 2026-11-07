@@ -1,9 +1,6 @@
 //! Read-only block, tag and fluid queries for native mods.
 use super::{Dim, Game};
-use horizon_client::{
-    items::{ItemStack, Items},
-    world::World,
-};
+use horizon_client::{items::Items, world::World};
 use horizon_world::{
     chunk::BlockState,
     fluid::{FluidKind, FluidState as EngineFluidState},
@@ -11,7 +8,7 @@ use horizon_world::{
     registry::{BlockRegistry, BlockStateId},
 };
 use mod_api::BlockKey;
-use mod_api::{FluidState, LevelRef, NativeLifecycleContext, TagRegistry, UnresolvedFluid};
+use mod_api::{FluidState, LevelRef, NativeLifecycleContext, UnresolvedFluid};
 
 /// Why a server block cannot be read.
 #[allow(dead_code)]
@@ -71,16 +68,6 @@ pub(super) fn block_in_tag(block: BlockKey, tag: &str) -> Option<bool> {
     }))
 }
 
-/// `ItemStack.is(TagKey)` over the merged item tags. An empty stack tests `minecraft:air`.
-pub(super) fn stack_in_tag(items: &Items, stack: &ItemStack, tag: &str) -> bool {
-    let item = if stack.count == 0 {
-        "minecraft:air"
-    } else {
-        &stack.item
-    };
-    items.item_in_tag(&horizon_client::command::args::normalized(tag), item)
-}
-
 /// `BlockState.getFluidState`. None for an id no state has.
 pub(super) fn state_fluid(
     behaviours: &Behaviours,
@@ -131,16 +118,6 @@ impl Game<'_> {
     pub(super) fn block_in_tag(&self, block: BlockKey, tag: &str) -> Option<bool> {
         self.native_tag_items()?;
         block_in_tag(block, tag)
-    }
-
-    /// The members of a tag in vanilla's order (`HolderSet.Named` iteration: file order, nested
-    /// tags in place, first occurrence kept), over the merged tags. Empty for an unknown tag.
-    /// None as for `block_in_tag`.
-    pub(super) fn tag_members(&self, registry: TagRegistry, tag: &str) -> Option<Vec<String>> {
-        let members = self
-            .native_tag_items()?
-            .tag_members(registry, &horizon_client::command::args::normalized(tag));
-        Some(members.map(<[String]>::to_vec).unwrap_or_default())
     }
 
     /// The outline of `state` as `BlockState.getShape` answers it with an empty getter at the
@@ -253,6 +230,7 @@ mod tests {
     use super::super::native_entity_refs::tests::with_game;
     use super::*;
     use horizon_client::chunk::Chunk;
+    use horizon_client::items::TagRegistry;
     use mod_api::LevelHost;
     use std::sync::Arc;
 
@@ -435,30 +413,43 @@ mod tests {
                 "stripped_oak_wood",
             ]
             .map(|name| format!("minecraft:{name}"));
+            let engine_members = |registry, tag: &str| {
+                game.native_tag_items().map(|items| {
+                    items
+                        .tag_members(registry, &horizon_client::command::args::normalized(tag))
+                        .unwrap_or_default()
+                        .to_vec()
+                })
+            };
             for registry in [TagRegistry::Block, TagRegistry::Item] {
                 assert_eq!(
-                    game.tag_members(registry, "oak_logs").as_deref(),
+                    engine_members(registry, "oak_logs").as_deref(),
                     Some(&oak[..])
                 );
             }
             {
                 let host: &dyn mod_api::Host = game;
+                let tags = host.tags();
+                let oak_tag = tags
+                    .key(&mod_api::Identifier::parse("minecraft:oak_logs").unwrap())
+                    .unwrap();
                 assert_eq!(
-                    host.tag_members(TagRegistry::Item, "oak_logs").as_deref(),
+                    tags.items(oak_tag)
+                        .map(|keys| keys.into_iter().map(|key| key.id(host)).collect::<Vec<_>>())
+                        .as_deref(),
                     Some(&oak[..])
                 );
-                assert_eq!(
-                    host.item_stack_in_tag(&ItemStack::new("minecraft:oak_log", 1), "oak_logs"),
-                    Some(true)
-                );
+                let item = host
+                    .item_key(&mod_api::Identifier::parse("minecraft:oak_log").unwrap())
+                    .unwrap();
+                assert_eq!(tags.is_in_tag(item, oak_tag), Some(true));
             }
             assert_eq!(
-                game.tag_members(TagRegistry::Fluid, "minecraft:water")
-                    .unwrap(),
+                engine_members(TagRegistry::Fluid, "minecraft:water").unwrap(),
                 ["minecraft:water", "minecraft:flowing_water"]
             );
             assert_eq!(
-                game.tag_members(TagRegistry::Item, "nope:missing"),
+                engine_members(TagRegistry::Item, "nope:missing"),
                 Some(Vec::new())
             );
 
@@ -724,11 +715,15 @@ mod tests {
             assert_eq!(game.world.chunks.len(), chunks, "nothing was loaded");
             game.options.execution_role = super::super::execution_role::ExecutionRole::Client;
             let host: &dyn mod_api::Host = game;
-            assert_eq!(host.tag_members(TagRegistry::Item, "oak_logs"), None);
-            assert_eq!(
-                host.item_stack_in_tag(&ItemStack::new("minecraft:oak_log", 1), "oak_logs"),
-                None
-            );
+            let tags = host.tags();
+            let oak_tag = tags
+                .key(&mod_api::Identifier::parse("minecraft:oak_logs").unwrap())
+                .unwrap();
+            let item = host
+                .item_key(&mod_api::Identifier::parse("minecraft:oak_log").unwrap())
+                .unwrap();
+            assert_eq!(tags.items(oak_tag), None);
+            assert_eq!(tags.is_in_tag(item, oak_tag), None);
             game.session_lock = None;
             let _ = std::fs::remove_dir_all(dir);
         });
@@ -767,28 +762,5 @@ mod tests {
             assert_eq!(host.fluid_pickup_sound("minecraft:empty"), None);
             assert_eq!(host.fluid_pickup_sound("nope:missing"), None);
         });
-    }
-
-    #[test]
-    fn an_empty_stack_tests_air() {
-        let mut tags = std::collections::HashMap::new();
-        tags.insert(
-            "minecraft:x".to_owned(),
-            ["minecraft:air".to_owned()].into_iter().collect(),
-        );
-        let items = Items::for_tests(tags);
-        let stack = |item: &str, count| ItemStack {
-            item: item.into(),
-            count,
-            damage: 0,
-            extra: None,
-        };
-        assert!(stack_in_tag(&items, &stack("minecraft:stone", 0), "x"));
-        assert!(!stack_in_tag(&items, &stack("minecraft:stone", 1), "x"));
-        assert!(!stack_in_tag(
-            &items,
-            &stack("minecraft:stone", 0),
-            "minecraft:y"
-        ));
     }
 }

@@ -120,25 +120,29 @@ pub fn dedup_keep_order(items: &mut Vec<String>) {
 /// its hook left at load, a fluid one none, which fails the file. An empty
 /// result is no ingredient, as an empty list or an unloaded tag is.
 #[derive(Clone, Debug)]
-pub(crate) struct WalkedIngredient {
+// hidden: shared parser output for the game-owned ingredient adapter, not a mod-facing recipe.
+#[doc(hidden)]
+#[non_exhaustive]
+pub struct WalkedIngredient {
     /// The ids it accepts, however the source shape named them.
-    pub(crate) set: HashSet<String>,
+    pub set: HashSet<String>,
     /// The same ids in the sources' order (`HolderSet`).
-    pub(crate) order: Vec<String>,
+    pub order: Vec<String>,
     /// NeoForge's shapes, with their children walked.
-    pub(crate) children: Option<(Shape, Vec<Self>)>,
+    pub children: Option<(Shape, Vec<Self>)>,
     /// A kind outside the standard shapes: the kind and its JSON, as the
     /// file wrote it, without the wrapper's answer.
-    pub(crate) custom: Option<(String, serde_json::Map<String, Value>)>,
+    pub custom: Option<(String, serde_json::Map<String, Value>)>,
 }
 /// The wrapper's answer for a kind outside the standard shapes: the ids it
 /// matches, taken out of its JSON, or none to fail the file.
-pub(crate) type CustomIds<'a> =
-    &'a dyn Fn(&mut serde_json::Map<String, Value>) -> Option<Vec<String>>;
+// hidden: the game-owned ingredient adapter supplies custom ids while walking JSON.
+#[doc(hidden)]
+pub type CustomIds<'a> = &'a dyn Fn(&mut serde_json::Map<String, Value>) -> Option<Vec<String>>;
 impl WalkedIngredient {
     /// The walk of `v`: the shapes' flat lists in the sources' order, their
     /// children kept for matching a concrete stack.
-    pub(crate) fn walk(
+    pub fn walk(
         v: &Value,
         tags: &std::collections::HashMap<String, Vec<String>>,
         custom: CustomIds<'_>,
@@ -146,7 +150,9 @@ impl WalkedIngredient {
         Self::walk_resolved(v, tags, custom, &|id| Some(id.to_owned()))
     }
 
-    pub(crate) fn walk_resolved(
+    // hidden: the game-owned adapter resolves ids using its own load-time registry.
+    #[doc(hidden)]
+    pub fn walk_resolved(
         v: &Value,
         tags: &std::collections::HashMap<String, Vec<String>>,
         custom: CustomIds<'_>,
@@ -311,75 +317,6 @@ impl Ingredient {
             children: None,
         }
     }
-    /// Asks the `ingredient` hook once for each mod kind in `v`, nested ones
-    /// included, and leaves each answer with its occurrence for `parse`: the
-    /// one place the hook is called, so every table that reads the recipes
-    /// shares the same answers. A file's own answer is dropped first, so data
-    /// cannot forge one. `true`: `v` changed.
-    // hidden: the load's half of the ingredient hook, not part of the mod surface
-    #[doc(hidden)]
-    pub fn resolve(v: &mut Value, context: &LoadContext) -> bool {
-        match v {
-            Value::Array(entries) => entries
-                .iter_mut()
-                .fold(false, |changed, e| Self::resolve(e, context) | changed),
-            Value::Object(o) => {
-                let mut changed = o.remove(RESOLVED_ITEMS).is_some();
-                let kind = ingredient_kind(o).map(str::to_owned);
-                match kind.as_deref() {
-                    Some("neoforge:compound" | "neoforge:intersection") => {
-                        for key in ["children", "ingredients"] {
-                            if let Some(children) = o.get_mut(key) {
-                                changed |= Self::resolve(children, context);
-                            }
-                        }
-                    }
-                    Some("neoforge:difference") => {
-                        for key in ["base", "subtracted"] {
-                            if let Some(part) = o.get_mut(key) {
-                                changed |= Self::resolve(part, context);
-                            }
-                        }
-                    }
-                    Some(k) if is_custom(k) => {
-                        let mut list = Vec::new();
-                        native_ingredient(context, k, o, &mut list);
-                        dedup_keep_order(&mut list);
-                        o.insert(RESOLVED_ITEMS.to_owned(), list.into());
-                        changed = true;
-                    }
-                    Some(_) => {}
-                    // A brewing slot's item predicate wraps its ingredient.
-                    None => {
-                        if let Some(item) = o.get_mut("item") {
-                            changed |= Self::resolve(item, context);
-                        }
-                    }
-                }
-                changed
-            }
-            _ => false,
-        }
-    }
-    /// Drops every answer `resolve` left anywhere in `v`: what a load sends
-    /// or shows is the files' own JSON. `true`: `v` changed.
-    // hidden: the load's half of the ingredient hook, not part of the mod surface
-    #[doc(hidden)]
-    pub fn forget_answers(v: &mut Value) -> bool {
-        match v {
-            Value::Array(entries) => entries
-                .iter_mut()
-                .fold(false, |changed, e| Self::forget_answers(e) | changed),
-            Value::Object(o) => {
-                let mut changed = o.remove(RESOLVED_ITEMS).is_some();
-                for part in o.values_mut() {
-                    changed |= Self::forget_answers(part);
-                }
-                changed
-            }
-            _ => false,
-        }
-    }
     pub fn parse(v: &Value, items: &Items) -> Option<Self> {
         // A mod's own kind: `resolve` asked the hook once at load and left
         // the item list it matches with the occurrence; one no load
@@ -419,35 +356,6 @@ impl Ingredient {
     /// the side `host` runs on; a host without a game refuses every stack.
     pub fn test(&self, host: &dyn Host, stack: &ItemStack) -> bool {
         backend_of(host).is_some_and(|backend| backend.recipe_ingredient_test(self, stack))
-    }
-    /// `test` with the loop context the game already holds, for the game's
-    /// own matching.
-    pub(crate) fn test_in(
-        &self,
-        context: &horizon_world::native_load_context::LoopContext,
-        stack: &ItemStack,
-    ) -> bool {
-        match &self.children {
-            // Each child its own `test`, as on NeoForge — a mod's kind
-            // among them answers through its hook.
-            Some((Shape::Compound, kids)) => kids.iter().any(|k| k.test_in(context, stack)),
-            Some((Shape::Intersection, kids)) => kids.iter().all(|k| k.test_in(context, stack)),
-            Some((Shape::Difference, kids)) => {
-                kids.first().is_some_and(|k| k.test_in(context, stack))
-                    && kids.get(1).is_none_or(|k| !k.test_in(context, stack))
-            }
-            None => {
-                if !self.items.contains(&*stack.item) {
-                    return false;
-                }
-                if let Some((kind, data)) = &self.custom {
-                    let mut accept = true;
-                    native_ingredient_test(context, kind, data, stack, &mut accept);
-                    return accept;
-                }
-                true
-            }
-        }
     }
 }
 /// A recipe in force (`RecipeManager.getAllRecipesFor`), whatever its type

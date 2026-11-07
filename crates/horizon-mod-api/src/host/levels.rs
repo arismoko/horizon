@@ -476,7 +476,7 @@ pub trait LevelsBackendMut {
         drop: bool,
         tool: Option<&ItemStack>,
         collect: bool,
-    ) -> Option<Vec<ItemStack>>;
+    ) -> Result<Option<Vec<ItemStack>>, StackWriteError>;
     /// Side: server.
     /// Send `ServerLevel.destroyBlockProgress` in this level: stages 0..9 show a crack,
     /// any other stage removes it. A machine uses a stable negative breaker id.
@@ -579,7 +579,7 @@ pub trait LevelsBackendMut {
         level: LevelRef,
         pos: [i32; 3],
         stack: ItemStack,
-    ) -> Option<EntityRef>;
+    ) -> Result<Option<EntityRef>, StackWriteError>;
     /// Side: server.
     /// Spawns `stack` as an item entity at `x y z` (`new ItemEntity(level, x,
     /// y, z, stack)` and `addFreshEntity`): its own random motion (up 0.2, up
@@ -599,7 +599,7 @@ pub trait LevelsBackendMut {
         z: f64,
         stack: ItemStack,
         pickup_delay: u32,
-    ) -> Option<EntityRef>;
+    ) -> Result<Option<EntityRef>, StackWriteError>;
     /// Side: server.
     /// `spawn_item` with the item entity's motion set to
     /// `motion` (blocks a tick), as `new ItemEntity(level, x, y, z, stack,
@@ -616,7 +616,7 @@ pub trait LevelsBackendMut {
         stack: ItemStack,
         motion: [f64; 3],
         pickup_delay: u32,
-    ) -> Option<EntityRef>;
+    ) -> Result<Option<EntityRef>, StackWriteError>;
     /// Side: server.
     /// Awards `amount` experience at `x y z` as vanilla's `ExperienceOrb.award`
     /// does: orbs of the largest sizes first (2477, 1237, ... 3, 1), each

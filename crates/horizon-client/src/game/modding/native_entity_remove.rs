@@ -171,6 +171,7 @@ impl Game<'_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::game::api_values::{StackReadError, TryIntoApi, test_snapshot};
     #[test]
     #[ignore = "needs prepared resources"]
     fn destroying_a_cart_spills_all_slots_after_the_removal_flush() {
@@ -303,27 +304,36 @@ mod tests {
                 .push(Mob::new(12, kind, Vec3::new(3.5, 70.0, -2.5), 0.0));
             let mob = game.entity(12).unwrap();
             let item = mob
-                .spawn_at_location(game, ItemStack::new("minecraft:carrot", 2), 0.5)
+                .spawn_at_location(
+                    game,
+                    test_snapshot(&ItemStack::new("minecraft:carrot", 2)),
+                    0.5,
+                )
+                .unwrap()
                 .unwrap();
             let dropped = game.dropped.iter().find(|d| d.id == item.id()).unwrap();
             assert_eq!(&*dropped.stack.item, "minecraft:carrot");
             assert_eq!(dropped.stack.count, 2);
             assert_eq!(dropped.position, Vec3::new(3.5, 70.5, -2.5));
             assert_eq!(dropped.pickup_delay, 10);
-            // An empty stack or an unknown item drops nothing; nor does a gone entity.
+            // Invalid engine values are refused before an API value can exist.
             let before = game.dropped.len();
-            assert!(
-                mob.spawn_at_location(game, ItemStack::new("minecraft:carrot", 0), 0.0)
-                    .is_none()
+            assert_eq!(
+                ItemStack::new("minecraft:carrot", 0).try_into_api(),
+                Err(StackReadError::Empty)
             );
-            assert!(
-                mob.spawn_at_location(game, ItemStack::new("minecraft:no_such_item", 1), 0.0)
-                    .is_none()
+            assert_eq!(
+                ItemStack::new("minecraft:no_such_item", 1).try_into_api(),
+                Err(StackReadError::UnknownItem)
             );
             assert!(mob.discard(game));
-            assert!(
-                mob.spawn_at_location(game, ItemStack::new("minecraft:carrot", 1), 0.0)
-                    .is_none()
+            assert_eq!(
+                mob.spawn_at_location(
+                    game,
+                    test_snapshot(&ItemStack::new("minecraft:carrot", 1)),
+                    0.0
+                ),
+                Ok(None)
             );
             assert_eq!(game.dropped.len(), before);
         });
@@ -375,7 +385,12 @@ mod tests {
             ] {
                 let entity = game.entity(id).unwrap();
                 let item = entity
-                    .spawn_at_location(game, ItemStack::new("minecraft:carrot", 2), 0.5)
+                    .spawn_at_location(
+                        game,
+                        test_snapshot(&ItemStack::new("minecraft:carrot", 2)),
+                        0.5,
+                    )
+                    .unwrap()
                     .unwrap();
                 let dropped = game.dropped.iter().find(|d| d.id == item.id()).unwrap();
                 assert_eq!(dropped.position, expected);

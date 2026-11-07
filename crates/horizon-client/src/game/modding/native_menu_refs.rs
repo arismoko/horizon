@@ -426,6 +426,7 @@ fn client_click_ops(
 
 #[cfg(test)]
 mod tests {
+    use super::super::api_values::TryIntoApi;
     use super::super::{lan::LanSettings, native_entity_refs::tests::with_game};
     use super::*;
     use horizon_client::lan::{Joined, NetConfig, PlayerSender, guest::Guest, hub::HubConfig};
@@ -635,10 +636,19 @@ mod tests {
             assert_eq!(menu.container_id(game), Some(window));
             assert_eq!(menu.kind(game), Some(Some("minecraft:generic_9x1".into())));
             assert_eq!(menu.slot_count(game), Some(45));
-            assert_eq!(menu.slot(game, 0), Some(Some(stone.clone())));
+            assert_eq!(
+                menu.slot(game, 0),
+                Some(Some(stone.try_into_api().unwrap()))
+            );
             assert_eq!(menu.slot(game, 1), Some(None));
-            assert_eq!(menu.slot(game, 9), Some(Some(stone.clone())));
-            assert_eq!(menu.carried(game), Some(Some(stone)));
+            assert_eq!(
+                menu.slot(game, 9),
+                Some(Some(stone.try_into_api().unwrap()))
+            );
+            assert_eq!(
+                menu.carried(game),
+                Some(Some(stone.try_into_api().unwrap()))
+            );
             assert_eq!(
                 game.menu_slot_backing(menu, 0),
                 Some(MenuSlotBacking::Native(0))
@@ -709,7 +719,10 @@ mod tests {
                     slot: 0
                 })
             );
-            assert_eq!(menu.slot(game, 2), Some(Some(stone.clone())));
+            assert_eq!(
+                menu.slot(game, 2),
+                Some(Some(stone.try_into_api().unwrap()))
+            );
             let vehicle = (i32::MAX - 15, VEHICLE_KEY_Y, 42);
             game.world
                 .block_entities
@@ -731,7 +744,10 @@ mod tests {
                     slot: 0
                 })
             );
-            assert_eq!(menu.slot(game, 0), Some(Some(stone)));
+            assert_eq!(
+                menu.slot(game, 0),
+                Some(Some(stone.try_into_api().unwrap()))
+            );
 
             // Identical coordinates in different dimensions must not alias.
             let gold = ItemStack::new("minecraft:gold_ingot", 2);
@@ -776,7 +792,10 @@ mod tests {
             let other_player = game.player(456).unwrap();
             let nether_menu = game.player_container_menu(other_player).unwrap();
             let nether = game.level("minecraft:the_nether").unwrap();
-            assert_eq!(overworld_menu.slot(game, 0), Some(Some(gold)));
+            assert_eq!(
+                overworld_menu.slot(game, 0),
+                Some(Some(gold.try_into_api().unwrap()))
+            );
             assert_eq!(
                 game.menu_slot_backing(overworld_menu, 0),
                 Some(MenuSlotBacking::BlockEntity {
@@ -789,7 +808,10 @@ mod tests {
                 game.enter_command_level(super::super::Dim::Overworld)
                     .is_some()
             );
-            assert_eq!(nether_menu.slot(game, 0), Some(Some(emerald)));
+            assert_eq!(
+                nether_menu.slot(game, 0),
+                Some(Some(emerald.try_into_api().unwrap()))
+            );
             assert_eq!(
                 game.menu_slot_backing(nether_menu, 0),
                 Some(MenuSlotBacking::BlockEntity {

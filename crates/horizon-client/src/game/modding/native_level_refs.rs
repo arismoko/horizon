@@ -8,10 +8,11 @@ use horizon_core::{
     geometry::Direction,
     position::{BlockPos, ChunkPos},
 };
+use horizon_items::items::ItemStack;
 use mod_api::mod_chunk_tickets::ModTicket;
 use mod_api::{
-    BlockHit, BlockStateId, BlockTransformPreview, ChunkRef, ChunkStatus, Hand, ItemStack,
-    LevelRef, LightLayer, NativeTicketOwner, PlayerRef, TicketController, Vec3,
+    BlockHit, BlockStateId, BlockTransformPreview, ChunkRef, ChunkStatus, Hand, LevelRef,
+    LightLayer, NativeTicketOwner, PlayerRef, TicketController, Vec3,
 };
 
 fn block_pos([x, y, z]: [i32; 3]) -> BlockPos {
@@ -627,6 +628,7 @@ fn horizontal_in_bounds(pos: [i32; 3]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::api_values::TryIntoApi;
     use super::super::{Dim, native_entity_refs::tests::with_game};
     use horizon_core::position::BlockPos;
     use mod_api::{ChunkRef, LevelRef, LightLayer, NativeWorldEpoch};
@@ -724,7 +726,14 @@ mod tests {
                 let level = game.level(game.dim.id()).unwrap();
                 let hit = BlockHit::new([0.5, 65.0, 0.5], [0, 1, 0], false);
                 let preview = level
-                    .block_transform(game, player, Hand::Main, &tool, pos, hit)
+                    .block_transform(
+                        game,
+                        player,
+                        Hand::Main,
+                        &tool.try_into_api().unwrap(),
+                        pos,
+                        hit,
+                    )
                     .unwrap();
                 let stripped = game
                     .pack
@@ -741,7 +750,14 @@ mod tests {
                 );
                 assert!(
                     level
-                        .block_transform(game, player, Hand::Main, &tool, [16, 64, 0], hit)
+                        .block_transform(
+                            game,
+                            player,
+                            Hand::Main,
+                            &tool.try_into_api().unwrap(),
+                            [16, 64, 0],
+                            hit
+                        )
                         .is_none()
                 );
                 game.as_guest(12, |game| {

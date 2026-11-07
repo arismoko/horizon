@@ -3,6 +3,7 @@
 //! dropped items (`ItemEntityRenderer`) and items posed in the world (hands,
 //! frames, armour stands). This binds the resolver's host services
 //! (`ItemEnv`) and the special renderers' registries to the game.
+use super::api_values::TryIntoApi;
 use super::{Dim, Game};
 use horizon_assets::item_model::{
     Components, DisplayContext, GlobalPos, ItemEnv, LevelState, OwnerState, StackView,
@@ -35,36 +36,65 @@ impl ItemEnv for Env<'_, '_> {
         if !mod_api::__private::listened(mod_api::HookId::ItemModelProperty) {
             return false;
         }
+        let Ok(snapshot) = stack.try_into_api() else {
+            return false;
+        };
         let mut value = false;
-        self.game
-            .native_item_model_property(property, stack, &mut value);
+        self.game.native_item_model_property(
+            property,
+            &snapshot,
+            stack.bundle_selected,
+            &mut value,
+        );
         value
     }
     fn item_model_range_property(&self, property: &str, stack: &StackView) -> f32 {
         if !mod_api::__private::listened(mod_api::HookId::ItemModelRangeProperty) {
             return 0.0;
         }
+        let Ok(snapshot) = stack.try_into_api() else {
+            return 0.0;
+        };
         let mut value = 0.0;
-        self.game
-            .native_item_model_range_property(property, stack, &mut value);
+        self.game.native_item_model_range_property(
+            property,
+            &snapshot,
+            stack.bundle_selected,
+            &mut value,
+        );
         value
     }
     fn item_model_select_property(&self, property: &str, stack: &StackView) -> Option<String> {
         if !mod_api::__private::listened(mod_api::HookId::ItemModelSelectProperty) {
             return None;
         }
+        let Ok(snapshot) = stack.try_into_api() else {
+            return None;
+        };
         let mut value = None;
-        self.game
-            .native_item_model_select_property(property, stack, &mut value);
+        self.game.native_item_model_select_property(
+            property,
+            &snapshot,
+            stack.bundle_selected,
+            &mut value,
+        );
         value
     }
     fn item_tint_source(&self, source: &str, config: &Value, stack: &StackView) -> i32 {
         if !mod_api::__private::listened(mod_api::HookId::ItemTintSource) {
             return -1;
         }
+        let Ok(snapshot) = stack.try_into_api() else {
+            return -1;
+        };
         let mut color = u32::MAX;
-        self.game
-            .native_item_tint_source(source, config, stack, &mut color);
+        self.game.native_item_tint_source(
+            source,
+            config,
+            &snapshot,
+            stack.bundle_selected,
+            &mut color,
+        );
         color as i32
     }
     fn enchantment_in_tag(&self, enchantment: &str, tag: &str) -> bool {
@@ -865,7 +895,7 @@ mod tests {
             event: &mut mod_api::ItemModelRangePropertyEvent<'_>,
         ) {
             if event.property == "example:fill" {
-                event.value = event.stack.count as f32 / 64.0;
+                event.value = event.stack.count() as f32 / 64.0;
             }
         }
     }
@@ -923,7 +953,7 @@ mod tests {
         ) {
             if event.property == "example:mode" {
                 *event.value = Some(
-                    if event.stack.count > 1 {
+                    if event.stack.count() > 1 {
                         "build"
                     } else {
                         "dig"
@@ -1027,7 +1057,7 @@ mod tests {
             event: &mut mod_api::ItemTintSourceEvent<'_>,
         ) {
             if event.source == "example:charge" {
-                event.color = match event.stack.count {
+                event.color = match event.stack.count() {
                     1 => event.config["low"].as_i64().unwrap_or(0) as u32,
                     _ => 0xFF11_2233,
                 };

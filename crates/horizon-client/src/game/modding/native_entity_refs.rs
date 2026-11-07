@@ -14,9 +14,10 @@ use super::{
     entity::{Entity as _, entity_lists_of, for_each_entity},
 };
 use horizon_core::geometry::{Aabb, Vec3};
+use horizon_items::items::ItemStack;
 use horizon_world::registry::BlockStateId;
 use mod_api::{
-    DimensionKey, EntityRef, ItemStack, LevelRef, NativeBlockFace, NativeBlockShapeKind,
+    DimensionKey, EntityRef, LevelRef, NativeBlockFace, NativeBlockShapeKind,
     NativeBlockUpdateFlags, NativeClipBlock, NativeClipFluid, NativeClipHit, NativeSupportType,
     NeighbourUpdate,
 };
@@ -772,6 +773,8 @@ pub(super) mod tests {
             })
             .collect();
         mod_api::__private::part_tests::register_game_keys(ids);
+        mod_api::__private::resolve_items(game.items().registry_order.iter().map(|id| &**id))
+            .expect("fixture item keys resolve against its loaded catalog");
 
         // A game that opened its world resolves its parts; the harness stops
         // short of the open, so do it here for the by-state part table.
@@ -1656,7 +1659,9 @@ pub(super) mod tests {
             let player = game.player(12).unwrap();
             assert_eq!(
                 player.inventory(game),
-                Some(vec![ItemStack::new("minecraft:stone", 1)])
+                Some(vec![crate::game::api_values::test_snapshot(
+                    &ItemStack::new("minecraft:stone", 1)
+                )])
             );
             let guest_living = game.living(player.fields().entity).unwrap();
             let host: &dyn mod_api::Host = game;
@@ -1756,8 +1761,8 @@ pub(super) mod tests {
                     living
                         .equipment(game, EquipmentSlot::MainHand)
                         .unwrap()
-                        .item
-                        .as_ref(),
+                        .item()
+                        .id(game),
                     "minecraft:stone"
                 );
                 assert_eq!(game.player.as_ref().unwrap().health.health(), 20.0);
@@ -1829,8 +1834,8 @@ pub(super) mod tests {
                 living
                     .equipment(game, EquipmentSlot::MainHand)
                     .unwrap()
-                    .item
-                    .as_ref(),
+                    .item()
+                    .id(game),
                 "minecraft:stone"
             );
             let player = game.player(13).unwrap();
@@ -2227,9 +2232,8 @@ pub(super) mod tests {
                 player: 2345,
                 slot: 0,
             };
-            let sticks = mod_api::ItemResource::of(&horizon_client::items::ItemStack::new(
-                "minecraft:stick",
-                1,
+            let sticks = mod_api::ItemResource::of(&crate::game::api_values::test_snapshot(
+                &horizon_client::items::ItemStack::new("minecraft:stick", 1),
             ));
             let host: &mut dyn mod_api::ServerHost = game;
             let rolled_back: Result<(), ()> = host.transaction(|host, tx| {
@@ -2255,7 +2259,7 @@ pub(super) mod tests {
                 host.transaction(|host, tx| Ok::<_, ()>(place.insert(host, tx, &sticks, 1))),
                 Ok(1)
             );
-            assert_eq!(place.stack(game).unwrap().count, 1);
+            assert_eq!(place.stack(game).unwrap().count(), 1);
             assert_eq!(game.fake_player(nether, 2345, "parked"), Some(nether_actor));
             assert!(game.player_set_experience_levels(nether_actor, 8));
             assert!(game.player_set_experience_levels(overworld_actor, 3));

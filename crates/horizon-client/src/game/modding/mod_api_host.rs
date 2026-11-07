@@ -227,9 +227,8 @@ impl mod_api::LevelHost for super::GameLevel<'_> {
         }
         super::native_world_read::block_in_tag(block, tag)
     }
-    fn item_stack_in_tag(&self, stack: &mod_api::ItemStack, tag: &str) -> Option<bool> {
-        self.native_authoritative
-            .then(|| super::native_world_read::stack_in_tag(self.items, stack, tag))
+    fn tags(&self) -> &dyn mod_api::Tags {
+        self
     }
     fn fluid_state(&self, pos: [i32; 3]) -> Option<mod_api::FluidState> {
         let [x, y, z] = pos;
@@ -325,6 +324,9 @@ impl mod_api::LevelHost for super::native_hooks::HitLevel<'_> {
         self.0.tags()?;
         super::native_world_read::block_in_tag(block, tag)
     }
+    fn tags(&self) -> &dyn mod_api::Tags {
+        self
+    }
     fn fluid_in_tag(&self, fluid: &str, tag: &str) -> Option<bool> {
         Some(super::native_world_read::fluid_in_tag(
             self.0.tags()?,
@@ -416,8 +418,8 @@ impl<'a: 'b, 'b, L: std::ops::Deref<Target = super::GameLevel<'a>>> mod_api::Lev
     fn block_in_tag(&self, block: mod_api::BlockKey, tag: &str) -> Option<bool> {
         mod_api::LevelHost::block_in_tag(&*self.level, block, tag)
     }
-    fn item_stack_in_tag(&self, stack: &mod_api::ItemStack, tag: &str) -> Option<bool> {
-        mod_api::LevelHost::item_stack_in_tag(&*self.level, stack, tag)
+    fn tags(&self) -> &dyn mod_api::Tags {
+        mod_api::LevelHost::tags(&*self.level)
     }
     fn fluid_state(&self, pos: [i32; 3]) -> Option<mod_api::FluidState> {
         mod_api::LevelHost::fluid_state(&*self.level, pos)
@@ -555,3 +557,10 @@ impl<'a: 'b, 'b> mod_api::LevelWriteHost for LevelTicks<'b, &mut super::GameLeve
         self.level.native_level_event(id, pos, data)
     }
 }
+
+super::native_tags::impl_tags!(
+    super::GameLevel<'_>,
+    level,
+    level.native_authoritative.then_some(level.items)
+);
+super::native_tags::impl_tags!(super::native_hooks::HitLevel<'_>, level, level.0.tags());

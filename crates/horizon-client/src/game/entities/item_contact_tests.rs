@@ -20,17 +20,18 @@ impl BlockPart for Probe {
         _: HostSide,
         event: &mut ItemAfterVerticalCollisionEvent<'_>,
     ) -> Flow {
+        let stack = event.stack.as_ref().expect("active item stack");
         self.contacts.lock().unwrap().push((
             event.client,
             event.entity,
             event.block_pos,
             event.item_pos,
-            event.stack.count,
+            stack.count(),
         ));
-        if event.stack.count == 1 {
+        if stack.count() == 1 {
             return Flow::Cancel;
         }
-        event.stack.count = event.stack.count.saturating_sub(2);
+        *event.stack = event.stack.take().unwrap().shrink(2);
         Flow::Continue
     }
 }

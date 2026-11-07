@@ -131,6 +131,7 @@ impl Game<'_> {
 mod tests {
     use super::super::native_entity_refs::tests::with_game;
     use super::*;
+    use crate::game::api_values::test_snapshot;
     use horizon_client::{entities::ArmorStand, mobs::Mob};
     use horizon_core::geometry::Vec3;
     use mod_api::NativeWorldEpoch;
@@ -154,12 +155,13 @@ mod tests {
             assert_eq!(item.entity(), entity);
             let read = item.stack(game).unwrap();
             assert_eq!(
-                (&*read.item, read.count, read.damage),
+                (read.item().id(game).as_str(), read.count(), read.damage()),
                 ("minecraft:diamond_pickaxe", 1, 17)
             );
             let mut changed = stack;
             changed.damage = 21;
-            assert!(item.set_stack(game, changed.clone()));
+            let changed = test_snapshot(&changed);
+            assert_eq!(item.set_stack(game, changed.clone()), Ok(true));
             assert_eq!(item.stack(game), Some(changed));
             assert!(item.set_pickup_delay(game, -7));
             assert_eq!(item.pickup_delay(game), Some(-7));
@@ -201,12 +203,10 @@ mod tests {
             assert_eq!(stale.age(game), None);
             assert!(!stale.set_target(game, Some(target)));
             let mut empty = item.stack(game).unwrap();
-            empty.count = 0;
-            assert!(!item.set_stack(game, empty));
-            let mut air = item.stack(game).unwrap();
-            air.item = "minecraft:air".into();
-            assert!(!item.set_stack(game, air));
-            assert_eq!(item.stack(game).unwrap().damage, 21);
+            assert_eq!(empty.set_count(0), Err(mod_api::StackError::Empty));
+            let air = test_snapshot(&ItemStack::new("minecraft:air", 1));
+            assert_eq!(item.set_stack(game, air), Ok(false));
+            assert_eq!(item.stack(game).unwrap().damage(), 21);
             let taken = std::mem::take(&mut game.dropped);
             assert!(item.stack(game).is_none());
             assert!(!item.set_no_pickup_delay(game));

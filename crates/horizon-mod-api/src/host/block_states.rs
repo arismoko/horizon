@@ -43,15 +43,6 @@ pub trait BlockStatesHost {
     #[access(Metadata)]
     fn block_state_default(&self, block: BlockKey) -> Option<BlockStateId>;
     /// Side: both.
-    /// Whether `stack` is in the item tag `tag` (`minecraft:logs` or `logs`,
-    /// no `#`):
-    /// `ItemStack.is(TagKey)`, over the world's merged tags, its data packs
-    /// and content mods included. An empty stack tests `minecraft:air`, an
-    /// unknown tag is false. None on a server's client or before the world
-    /// has loaded its tags.
-    #[access(Metadata)]
-    fn item_stack_in_tag(&self, stack: &ItemStack, tag: &str) -> Option<bool>;
-    /// Side: both.
     /// `Item.getCraftingRemainder`: Horizon currently stores the remainder's
     /// item id, so the result is a single plain stack.
     #[access(Metadata)]

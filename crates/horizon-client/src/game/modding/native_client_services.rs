@@ -6,7 +6,8 @@ use horizon_client::{
     hud::{HudBatch, rgba},
     hud_layout::GuiDraw,
 };
-use mod_api::{ItemStack, Text};
+use horizon_items::items::ItemStack;
+use mod_api::Text;
 
 impl Game<'_> {
     /// Paint GUI extraction calls through this window's atlas, including player faces.

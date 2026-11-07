@@ -45,11 +45,14 @@ impl ItemPart for Probe {
         event: &mut ItemInteractMobEvent<'_>,
     ) -> Option<bool> {
         let stack = event.stack;
-        assert!(stack.count > 0);
-        self.calls
-            .lock()
-            .unwrap()
-            .push((event.entity, event.kind.into(), stack.item.to_string()));
+        assert!(stack.count() > 0);
+        self.calls.lock().unwrap().push((
+            event.entity,
+            event.kind.into(),
+            mod_api::__private::item_key_id(stack.item())
+                .unwrap()
+                .to_string(),
+        ));
         let answer = self.answer.load(Ordering::Relaxed);
         if answer != 0 && self.discard.load(Ordering::Relaxed) {
             let entity = host.entity(event.entity as u32).unwrap();

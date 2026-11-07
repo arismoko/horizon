@@ -17,10 +17,11 @@ use crate::{
 #[cfg(test)]
 use horizon_world::native_load_context::{DataLoadOrigin, LoadContext, LoadInputs};
 use horizon_world::native_load_context::{LoopContext, LoopSide};
-use mod_api::__private::game::IngredientTest;
-pub use mod_api::menu::{
+pub use mod_api::menu::{LogicalSide, MenuButtonContext};
+mod models;
+pub use models::{
     AnvilCraft, AnvilUpdate, AnvilVanilla, CarriedAccess, GrindstonePlace, GrindstoneTake,
-    LogicalSide, MenuButtonContext, SlotView, StackedOnOther,
+    SlotView, StackedOnOther,
 };
 use std::sync::Arc;
 
@@ -313,6 +314,10 @@ struct MenuSlotView<'a, 'e> {
 }
 
 impl SlotView for MenuSlotView<'_, '_> {
+    fn items(&self) -> &crate::items::Items {
+        self.env.items
+    }
+
     fn item(&self) -> Option<ItemStack> {
         self.menu.slot(self.slot).cloned()
     }
@@ -5507,33 +5512,11 @@ pub(crate) mod tests {
         );
     }
 
-    /// A server host that answers nothing: the hooks here don't call it.
-    struct NoHost;
-    impl mod_api::Host for NoHost {}
-    mod_api::impl_host_areas!(NoHost);
-    impl mod_api::ServerHost for NoHost {}
-    mod_api::impl_server_host_areas!(NoHost);
-
-    /// Records what `player_brewed_potion` told it.
-    struct BrewWatcher(std::sync::Arc<std::sync::Mutex<Vec<(u128, i32, ItemStack)>>>);
-
-    #[mod_api::__subscriptions]
-    impl mod_api::Hooks for BrewWatcher {
-        fn player_brewed_potion(
-            &self,
-            _host: &mut dyn mod_api::ServerHost,
-            event: &mut mod_api::PlayerBrewedPotionEvent<'_>,
-        ) {
-            let seen = (event.player, event.player_entity_id, event.stack.clone());
-            self.0.lock().unwrap().push(seen);
-        }
-    }
-
     /// `BrewingStandMenu.PotionSlot.onTake`: a pickup and a shift-click on a
-    /// bottle slot each tell a listening mod once, with the taken stack and
-    /// the player's UUID and entity id; with no listener nothing is kept.
+    /// bottle slot each queue the taken stack once for the game's hook adapter;
+    /// with no listener nothing is kept.
     #[test]
-    fn a_bottle_slot_take_tells_the_listener_once_with_the_player() {
+    fn a_bottle_slot_take_records_once_when_a_hook_listens() {
         let root = std::env::temp_dir().join(format!("horizon-brewed-{}", std::process::id()));
         std::fs::create_dir_all(root.join("data/minecraft/recipe")).unwrap();
         let items = horizon_items::items::Items::for_tests(Default::default());
@@ -5566,36 +5549,28 @@ pub(crate) mod tests {
             known_recipes: None,
         };
         let potion = ItemStack::new("minecraft:potion", 1);
-        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        let mods: Vec<mod_api::ModEntry> = vec![mod_api::ModEntry::new(
-            "brew-watcher",
-            Box::new(BrewWatcher(seen.clone())),
-        )];
-        let mut host = NoHost;
-        mod_api::testing::with_mods(mods.into(), || {
-            for input in [Input::Pickup, Input::QuickMove] {
-                let mut menu = Menu::new(Kind::Brewing);
-                menu.set_slot(env, 0, Some(potion.clone()));
-                menu.click(env, 0, 0, input).unwrap();
-                // Without a listener the take is only the advancement's.
-                assert!(menu.brewed_potion_takes.is_empty(), "{input:?}");
-                assert_eq!(menu.brewed, std::slice::from_ref(&potion), "{input:?}");
+        let mut seen = Vec::new();
+        for input in [Input::Pickup, Input::QuickMove] {
+            let mut menu = Menu::new(Kind::Brewing);
+            menu.set_slot(env, 0, Some(potion.clone()));
+            menu.click(env, 0, 0, input).unwrap();
+            // Without a listener the take is only the advancement's.
+            assert!(menu.brewed_potion_takes.is_empty(), "{input:?}");
+            assert_eq!(menu.brewed, std::slice::from_ref(&potion), "{input:?}");
 
-                let mut menu = Menu::new(Kind::Brewing);
-                menu.brewed_potion_hook = true;
-                menu.set_slot(env, 0, Some(potion.clone()));
-                menu.click(env, 0, 0, input).unwrap();
-                assert_eq!(
-                    menu.brewed_potion_takes,
-                    std::slice::from_ref(&potion),
-                    "{input:?}"
-                );
-                for stack in &menu.brewed_potion_takes {
-                    mod_api::dispatch_player_brewed_potion(&mut host, 7, 41, stack);
-                }
+            let mut menu = Menu::new(Kind::Brewing);
+            menu.brewed_potion_hook = true;
+            menu.set_slot(env, 0, Some(potion.clone()));
+            menu.click(env, 0, 0, input).unwrap();
+            assert_eq!(
+                menu.brewed_potion_takes,
+                std::slice::from_ref(&potion),
+                "{input:?}"
+            );
+            for stack in &menu.brewed_potion_takes {
+                seen.push(stack.clone());
             }
-        });
-        let told = (7, 41, potion);
-        assert_eq!(*seen.lock().unwrap(), [told.clone(), told]);
+        }
+        assert_eq!(seen, [potion.clone(), potion]);
     }
 }

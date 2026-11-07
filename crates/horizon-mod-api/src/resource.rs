@@ -2,8 +2,7 @@
 //! ([`ItemResource`]), and a [`ResourceHandler`] is the indexed contents of one holder, written
 //! only inside a transaction.
 use super::{
-    Capability, Compound, Host, HostTransaction, ItemStack, ServerHost, Tag, Transaction,
-    backend_of,
+    Capability, Host, HostTransaction, ItemStack, ServerHost, Tag, Transaction, backend_of,
 };
 use horizon_core::nbt::JavaString;
 use std::fmt;
@@ -64,31 +63,41 @@ pub struct ItemResource(pub(crate) ItemStack);
 impl ItemResource {
     /// What `stack` is, whatever its count.
     pub fn of(stack: &ItemStack) -> Self {
-        Self(ItemStack {
-            count: 1,
-            ..stack.clone()
-        })
+        let mut stack = stack.clone();
+        stack.set_count(1).expect("one item is nonempty");
+        Self(stack)
     }
-    /// The item's id (`minecraft:apple`).
-    pub fn item(&self) -> &str {
-        &self.0.item
+    /// The item's process-local identity.
+    pub fn item(&self) -> crate::ItemKey {
+        self.0.item()
     }
-    /// `count` of it as a stack.
-    pub fn to_stack(&self, count: u32) -> ItemStack {
-        ItemStack {
-            count,
-            ..self.0.clone()
-        }
+    /// Borrow the resource's single-item stack without cloning its component patch.
+    pub fn as_stack(&self) -> &ItemStack {
+        &self.0
+    }
+    /// `count` of it as a stack, or none for an empty result.
+    pub fn to_stack(&self, count: u32) -> Option<ItemStack> {
+        let mut stack = self.0.clone();
+        stack.set_count(count).ok()?;
+        Some(stack)
     }
     /// Whether `stack` is this item with these components.
     pub fn matches(&self, stack: &ItemStack) -> bool {
-        self.0.same_item_same_components(stack)
+        self.0.is_stackable_with(stack)
     }
     /// This item's own value of component `id` in its patch, as saved (`minecraft:damage` on a
     /// worn sword); none where it keeps the item's default or has the component removed.
     pub fn component(&self, id: &ComponentId) -> Option<Tag> {
-        horizon_items::item_data::encode_components(&self.0)?
-            .get(id.as_str())
+        if id.as_str() == "minecraft:damage" {
+            return self
+                .0
+                .damage_component()
+                .map(crate::item_stack::unsigned_tag);
+        }
+        self.0
+            .components()?
+            .as_nbt()
+            .get(&JavaString::from(id.as_str()))
             .cloned()
     }
     /// This item's value of component `id` (`ItemResource.get`): its own, else the item's default
@@ -98,13 +107,18 @@ impl ItemResource {
         self.value_id(host, id.as_str())
     }
     fn value_id(&self, host: &dyn Host, id: &str) -> Option<Tag> {
-        if let Some(patch) = horizon_items::item_data::encode_components(&self.0) {
-            if let Some(own) = patch.get(id) {
+        if let Some(patch) = self.0.components().map(|patch| patch.as_nbt()) {
+            if let Some(own) = patch.get(&JavaString::from(id)) {
                 return Some(own.clone());
             }
-            if patch.get(&format!("!{id}")).is_some() {
+            if patch.contains_key(&JavaString::from(format!("!{id}").as_str())) {
                 return None;
             }
+        }
+        if id == "minecraft:damage"
+            && let Some(damage) = self.0.damage_component()
+        {
+            return Some(crate::item_stack::unsigned_tag(damage));
         }
         host.item_default_component(self.item(), id)
     }
@@ -123,8 +137,11 @@ impl ItemResource {
             .value_id(host, "minecraft:enchantment_glint_override")
             .as_ref()
             .and_then(horizon_items::item_data::component_bool);
+        let Some(item) = crate::registry_keys::item_id(self.item()) else {
+            return false;
+        };
         let item_foil = horizon_items::properties::item_foil(
-            self.item(),
+            item,
             self.value_id(host, "minecraft:lodestone_tracker").is_some(),
             self.enchanted(host),
         );
@@ -151,8 +168,18 @@ impl ItemResource {
     pub fn repairable(&self, host: &dyn Host, material: &ItemResource) -> bool {
         self.value_id(host, "minecraft:repairable")
             .is_some_and(|component| {
-                horizon_items::properties::repairable(&component, material.item(), |tag| {
-                    host.item_stack_in_tag(&material.0, tag).unwrap_or(false)
+                let Some(item) = crate::registry_keys::item_id(material.item()) else {
+                    return false;
+                };
+                horizon_items::properties::repairable(&component, item, |tag| {
+                    let Ok(id) = crate::Identifier::parse(tag) else {
+                        return false;
+                    };
+                    let tags = host.tags();
+                    let Some(tag) = tags.key(&id) else {
+                        return false;
+                    };
+                    tags.is_in_tag(material.item(), tag).unwrap_or(false)
                 })
             })
     }
@@ -188,46 +215,36 @@ impl ItemResource {
     /// the plain item again. A stack changes where it lives by an exchange of one of it for
     /// this: `place.exchange(host, tx, &changed, 1)`, which splits it off a bigger stack, in the
     /// transaction.
-    pub fn with_component(&self, host: &dyn Host, id: &ComponentId, value: Tag) -> Self {
-        let default = host.item_default_component(self.item(), id.as_str());
-        let own = !default.is_some_and(|default| same_value(id, &default, &value));
-        self.patched(id, own.then(|| (JavaString::from(id.as_str()), value)))
+    pub fn with_component(
+        &self,
+        host: &dyn Host,
+        id: &ComponentId,
+        value: Tag,
+    ) -> Result<Self, crate::StackError> {
+        let mut stack = self.0.clone();
+        let own = !host
+            .item_default_component(self.item(), id.as_str())
+            .is_some_and(|default| same_value(id, &default, &value));
+        if own || id.as_str() == "minecraft:damage" {
+            stack.set_component_value(id.as_str(), value)?;
+        }
+        if !own {
+            stack.remove_component_value(id.as_str(), false);
+        }
+        Ok(Self(stack))
     }
     /// This item without component `id` (`ItemResource.without`, as vanilla's
     /// `PatchedDataComponentMap.remove`): its own value dropped and, where the item has the
     /// component by default (`host.item_default_component`), a removal recorded in its patch
     /// (`"!minecraft:max_damage": {}`), saved and sent as vanilla's are.
     pub fn without_component(&self, host: &dyn Host, id: &ComponentId) -> Self {
-        let removal = host
-            .item_default_component(self.item(), id.as_str())
-            .is_some()
-            .then(|| {
-                (
-                    JavaString::from(format!("!{}", id.as_str()).as_str()),
-                    Tag::Compound(Compound::new()),
-                )
-            });
-        self.patched(id, removal)
-    }
-    /// This item with its patch's entries for `id`, a value or a removal, replaced by `entry`.
-    fn patched(&self, id: &ComponentId, entry: Option<(JavaString, Tag)>) -> Self {
-        let mut components = match horizon_items::item_data::encode_components(&self.0) {
-            Some(Tag::Compound(components)) => components,
-            _ => Compound::new(),
-        };
-        components.remove(&JavaString::from(id.as_str()));
-        components.remove(&JavaString::from(format!("!{}", id.as_str()).as_str()));
-        if let Some((key, value)) = entry {
-            components.insert(key, value);
-        }
-        let (damage, extra) =
-            horizon_items::item_data::decode_components(Some(&Tag::Compound(components)));
-        Self(ItemStack {
-            item: self.0.item.clone(),
-            count: 1,
-            damage,
-            extra,
-        })
+        let mut stack = self.0.clone();
+        stack.remove_component_value(
+            id.as_str(),
+            host.item_default_component(self.item(), id.as_str())
+                .is_some(),
+        );
+        Self(stack)
     }
 }
 
@@ -315,7 +332,7 @@ impl Eq for ItemResource {}
 
 impl fmt::Debug for ItemResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ItemResource").field(&self.0.item).finish()
+        f.debug_tuple("ItemResource").field(&self.0.item()).finish()
     }
 }
 

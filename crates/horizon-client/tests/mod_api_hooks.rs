@@ -160,6 +160,9 @@ fn an_anvil_update_is_changed_in_turn_and_cancel_stops_later_mods() {
     use mod_api::menu::AnvilUpdate;
     use mod_api::stations::AnvilResult;
     use mod_api::{AnvilUpdateEvent, Flow, Host, HostSide, ItemStack, ServerHost};
+    fn key(id: &str) -> mod_api::ItemKey {
+        mod_api::__private::item_key(id).unwrap()
+    }
     struct TestHost;
     impl Host for TestHost {}
     mod_api::impl_host_areas!(TestHost);
@@ -174,13 +177,13 @@ fn an_anvil_update_is_changed_in_turn_and_cancel_stops_later_mods() {
             if update.name.as_deref() == Some("void") {
                 return Flow::Cancel;
             }
-            if &*update.left.item == "minecraft:iron_ingot"
+            if update.left.item() == key("minecraft:iron_ingot")
                 && update
                     .right
                     .as_ref()
-                    .is_some_and(|r| &*r.item == "minecraft:emerald")
+                    .is_some_and(|r| r.item() == key("minecraft:emerald"))
             {
-                update.output = Some(ItemStack::new("minecraft:diamond", 1));
+                update.output = Some(ItemStack::of(key("minecraft:diamond")));
                 update.xp_cost = 5;
                 update.material_cost = 1;
             }
@@ -206,16 +209,24 @@ fn an_anvil_update_is_changed_in_turn_and_cancel_stops_later_mods() {
     ]
     .into();
     mod_api::testing::with_mods(mods, || {
+        mod_api::__private::install_parts(&[]).unwrap();
+        mod_api::__private::resolve_items([
+            "minecraft:iron_sword",
+            "minecraft:iron_ingot",
+            "minecraft:emerald",
+            "minecraft:diamond",
+        ])
+        .unwrap();
         let update = |left: &str, right: Option<&str>, name: Option<&str>| {
             let vanilla = AnvilResult {
-                result: Some(ItemStack::new("minecraft:iron_sword", 1)),
+                result: Some(ItemStack::of(key("minecraft:iron_sword"))),
                 cost: 3,
                 repair_item_count_cost: 0,
                 only_renaming: false,
             };
             let mut update = AnvilUpdate::new(
-                ItemStack::new(left, 1),
-                right.map(|r| ItemStack::new(r, 4)),
+                ItemStack::of(key(left)),
+                right.map(|r| ItemStack::new(key(r), 4).unwrap()),
                 name.map(str::to_owned),
                 &vanilla,
             );
@@ -229,7 +240,11 @@ fn an_anvil_update_is_changed_in_turn_and_cancel_stops_later_mods() {
                 &mut cancel,
             );
             (
-                update.output.map(|o| o.item.to_string()),
+                update.output.map(|o| {
+                    mod_api::__private::item_key_id(o.item())
+                        .unwrap()
+                        .to_owned()
+                }),
                 update.xp_cost,
                 update.material_cost,
                 cancel,

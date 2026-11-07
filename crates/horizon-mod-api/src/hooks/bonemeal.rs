@@ -7,7 +7,8 @@ pub trait Hooks {
     /// `isValidBonemealTarget`. Cancel skips vanilla's growth, the block's
     /// own bone meal Parts and the meal's use: `growCrop` then answers
     /// `successful` (`setSuccessful`), which is `false` unless a mod sets it.
-    /// Fired on both sides; changes to `stack` stay.
+    /// Fired on both sides; changes to `stack` stay. Set it to None to consume
+    /// the whole stack; a nonempty result is validated before any write-back.
     #[hook(
         side = "both",
         contract = "cancel",
@@ -22,7 +23,7 @@ pub trait Hooks {
         pos: BlockPos,
         state: BlockStateId,
         source: BonemealSource,
-        stack: &mut ItemStack,
+        stack: &mut Option<ItemStack>,
         valid_bonemeal_target: bool,
         successful: &mut bool,
         canceled: &mut bool,

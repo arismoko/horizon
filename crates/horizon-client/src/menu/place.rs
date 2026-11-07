@@ -14,7 +14,6 @@ use crate::{
     crafting::{Ingredient, Placement},
     items::ItemStack,
 };
-use mod_api::__private::game::IngredientTest;
 use std::{collections::HashMap, sync::Arc};
 
 /// `StackedContents<Holder<Item>>`: item counts in an iteration order.

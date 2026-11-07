@@ -176,7 +176,11 @@ mod tests {
         fn bonemeal(&self, _: HostSide, event: &mut BonemealEvent<'_>) -> Flow {
             heard().push((event.player, event.valid_bonemeal_target, event.source));
             if let Some(count) = self.count {
-                event.stack.count = count;
+                if count == 0 {
+                    *event.stack = None;
+                } else if let Some(stack) = event.stack.as_mut() {
+                    stack.set_count(count).unwrap();
+                }
             }
             let Some(successful) = self.cancel else {
                 return Flow::Continue;

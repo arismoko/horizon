@@ -27,12 +27,12 @@ mod tests {
     impl mod_api::Hooks for Probe {
         fn entity_interact_specific(
             &self,
-            _: &mut dyn mod_api::ServerHost,
+            host: &mut dyn mod_api::ServerHost,
             event: &mut mod_api::EntityInteractSpecificEvent<'_>,
         ) -> mod_api::Flow {
             assert_eq!(event.entity, 7);
             assert_eq!(event.kind, "minecraft:cow");
-            assert_eq!(event.stack.unwrap().item.as_ref(), "minecraft:stick");
+            assert_eq!(event.stack.unwrap().item().id(host), "minecraft:stick");
             self.seen.lock().unwrap().push((self.name, event.location));
             if self.claim {
                 mod_api::Flow::Cancel

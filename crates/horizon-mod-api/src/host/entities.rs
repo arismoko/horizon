@@ -475,7 +475,7 @@ pub trait EntitiesBackendMut {
         entity: EntityRef,
         stack: ItemStack,
         y_offset: f32,
-    ) -> Option<EntityRef>;
+    ) -> Result<Option<EntityRef>, StackWriteError>;
     /// Side: server.
     /// Attempts to board a vehicle through the shared server mount path.
     ///

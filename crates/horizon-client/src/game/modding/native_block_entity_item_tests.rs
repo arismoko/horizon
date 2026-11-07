@@ -1,9 +1,11 @@
+use super::api_values::{StackReadError, TryIntoApi};
 use super::native_live_holder_tests::{mod_holder, with_mod_parts};
 use horizon_client::containers::{BlockEntity, ModBlockEntity, ModContainer};
+use horizon_client::items::ItemStack;
 use horizon_core::nbt::Tag;
 use mod_api::{
-    BlockEntityItemError as Error, Host, HostTransaction, ITEMS, ItemResource, ItemStack,
-    ServerHost, Transaction,
+    BlockEntityItemError as Error, Host, HostTransaction, ITEMS, ItemResource, ServerHost,
+    Transaction,
 };
 use std::sync::Arc;
 
@@ -33,8 +35,10 @@ fn internal_slots_preserve_automation_limits_and_nested_transactions() {
                 .registry
                 .default_state("minecraft:granite")
                 .unwrap();
-            let dirt = ItemStack::new("minecraft:dirt", 2);
-            let diamond = ItemStack::new("minecraft:diamond", 1);
+            let dirt = ItemStack::new("minecraft:dirt", 2).try_into_api().unwrap();
+            let diamond = ItemStack::new("minecraft:diamond", 1)
+                .try_into_api()
+                .unwrap();
             assert_eq!(get(game, 0), Err(Error::Unavailable));
             commit(game, |host, tx| {
                 assert_eq!(
@@ -84,7 +88,12 @@ fn internal_slots_preserve_automation_limits_and_nested_transactions() {
             game.world.modified.clear();
             let aborted: Result<(), ()> = (game as &mut dyn ServerHost).transaction(|host, tx| {
                 assert_eq!(
-                    set(host, tx, 0, Some(ItemStack::new("minecraft:dirt", 1))),
+                    set(
+                        host,
+                        tx,
+                        0,
+                        Some(ItemStack::new("minecraft:dirt", 1).try_into_api().unwrap())
+                    ),
                     Ok(true)
                 );
                 host.transaction(|host, child| {
@@ -99,12 +108,22 @@ fn internal_slots_preserve_automation_limits_and_nested_transactions() {
             assert_eq!(get(game, 1), Ok(None));
             commit(game, |host, tx| {
                 assert_eq!(
-                    set(host, tx, 0, Some(ItemStack::new("minecraft:dirt", 1))),
+                    set(
+                        host,
+                        tx,
+                        0,
+                        Some(ItemStack::new("minecraft:dirt", 1).try_into_api().unwrap())
+                    ),
                     Ok(true)
                 );
                 assert_eq!(set(host, tx, 1, Some(diamond.clone())), Ok(true));
             });
-            assert_eq!(get(game, 0), Ok(Some(ItemStack::new("minecraft:dirt", 1))));
+            assert_eq!(
+                get(game, 0),
+                Ok(Some(
+                    ItemStack::new("minecraft:dirt", 1).try_into_api().unwrap()
+                ))
+            );
             assert_eq!(get(game, 1), Ok(Some(diamond.clone())));
             assert!(!game.world.modified.is_empty());
             let BlockEntity::Mod(holder) = game.world.block_entities.get(&pos).unwrap() else {
@@ -116,6 +135,14 @@ fn internal_slots_preserve_automation_limits_and_nested_transactions() {
                 "saved excess is not truncated"
             );
             let before_revision = holder.revision();
+            assert_eq!(
+                ItemStack::new("missing:item", 1).try_into_api(),
+                Err(StackReadError::UnknownItem)
+            );
+            assert_eq!(
+                ItemStack::new("minecraft:dirt", 0).try_into_api(),
+                Err(StackReadError::Empty)
+            );
             game.world.modified.clear();
             let mut component = ItemStack::new("minecraft:diamond", 5);
             component
@@ -130,23 +157,25 @@ fn internal_slots_preserve_automation_limits_and_nested_transactions() {
                 for (stack, error) in [
                     (
                         ItemStack::new("minecraft:diamond", 65),
-                        Error::StackTooLarge {
-                            count: 65,
-                            limit: 64,
-                        },
+                        Error::StackRejected(mod_api::StackWriteError::CountExceeded {
+                            maximum: 64,
+                        }),
                     ),
                     (
                         ItemStack::new("minecraft:diamond_sword", 2),
-                        Error::StackTooLarge { count: 2, limit: 1 },
+                        Error::StackRejected(mod_api::StackWriteError::CountExceeded {
+                            maximum: 1,
+                        }),
                     ),
                     (
                         component.clone(),
-                        Error::StackTooLarge { count: 5, limit: 4 },
+                        Error::StackRejected(mod_api::StackWriteError::CountExceeded {
+                            maximum: 4,
+                        }),
                     ),
-                    (ItemStack::new("missing:item", 1), Error::InvalidStack),
                     (ItemStack::new("minecraft:air", 1), Error::InvalidStack),
-                    (ItemStack::new("minecraft:dirt", 0), Error::InvalidStack),
                 ] {
+                    let stack = stack.try_into_api().unwrap();
                     assert_eq!(set(host, tx, 1, Some(stack)), Err(error));
                 }
             });
@@ -158,8 +187,11 @@ fn internal_slots_preserve_automation_limits_and_nested_transactions() {
             assert!(game.world.modified.is_empty());
             component.count = 4;
             commit(game, |host, tx| {
-                assert_eq!(set(host, tx, 1, Some(component.clone())), Ok(true));
-                assert_eq!(get(host, 1), Ok(Some(component.clone())));
+                assert_eq!(
+                    set(host, tx, 1, Some(component.try_into_api().unwrap())),
+                    Ok(true)
+                );
+                assert_eq!(get(host, 1), Ok(Some(component.try_into_api().unwrap())));
                 assert_eq!(set(host, tx, 1, None), Ok(true));
             });
             assert_eq!(get(game, 1), Ok(None));

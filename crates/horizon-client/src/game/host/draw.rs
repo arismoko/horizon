@@ -1,5 +1,5 @@
 //! The game's side of the `draw` area (`horizon-mod-api/src/host/draw.rs`).
-use crate::game::Game;
+use crate::game::{Game, api_values::TryIntoEngine};
 use mod_api::{prelude::*, *};
 
 /// [`DrawContext`] on the game's `crate::hud::HudBatch`.
@@ -33,8 +33,11 @@ impl DrawContext for GameDrawContext<'_, '_> {
             .native_text(&mut *self.surface, text, at, argb, shadow)
     }
     fn item_stack(&mut self, stack: &ItemStack, at: [f32; 2], size: f32) -> bool {
+        let Ok(stack) = stack.try_into_engine(self.game.items()) else {
+            return false;
+        };
         self.game
-            .native_item_stack(&mut *self.surface, stack, at, size)
+            .native_item_stack(&mut *self.surface, &stack, at, size)
     }
     fn gui_paint(&mut self, draws: &[GuiDraw]) {
         self.game.native_gui_paint(&mut *self.surface, draws)
@@ -65,8 +68,11 @@ impl DrawContext for GameDrawContext<'_, '_> {
             .native_tiled_sprite(&mut *self.surface, sprite, rect, size, argb)
     }
     fn gui_draw_item_with(&mut self, stack: &ItemStack, at: [f32; 2], text: Option<&str>) {
+        let Ok(stack) = stack.try_into_engine(self.game.items()) else {
+            return;
+        };
         self.game
-            .native_gui_draw_item_with(&mut *self.surface, stack, at, text)
+            .native_gui_draw_item_with(&mut *self.surface, &stack, at, text)
     }
 }
 /// [`BlockEntityDrawContext`] on the game's `crate::game::native_block_entity_draw::BlockEntityDraw`.
@@ -127,12 +133,18 @@ impl BlockEntityDrawContext for GameBlockEntityDrawContext<'_, '_> {
     fn item(
         &mut self,
         stack: &ItemStack,
-        display: DisplayContext,
+        display: NativeItemDisplayContext,
         owner_yaw: Option<f32>,
         seed: i32,
     ) -> bool {
+        let Ok(stack) = stack.try_into_engine(self.game.items()) else {
+            return false;
+        };
+        let Ok(display) = display.try_into_engine(self.game.items()) else {
+            return false;
+        };
         self.game
-            .native_draw_item(&mut *self.surface, stack, display, owner_yaw, seed)
+            .native_draw_item(&mut *self.surface, &stack, display, owner_yaw, seed)
     }
     fn spin(&mut self, axis: [f32; 3], pivot: [f32; 3], degrees_per_tick: f32, phase: f32) {
         self.game

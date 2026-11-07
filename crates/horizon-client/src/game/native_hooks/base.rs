@@ -1,4 +1,5 @@
 use super::*;
+use mod_api::ModBlockEntity;
 
 impl GameLevel<'_> {
     /// Initial saved data for a declared block entity (`EntityBlock.newBlockEntity`),
@@ -1591,7 +1592,7 @@ impl Game<'_> {
         &mut self,
         context: &mod_api::menu::MenuButtonContext,
         entity: &mut ModBlockEntity,
-        carried: &mut Option<ItemStack>,
+        carried: &mut Option<mod_api::ItemStack>,
     ) {
         self.fire_menu_button(context, entity, carried);
     }
@@ -1624,7 +1625,7 @@ impl Game<'_> {
         entity: &mut ModBlockEntity,
         container_slots: usize,
         slot: usize,
-        stack: &mut ItemStack,
+        stack: &mut mod_api::ItemStack,
         handled: &mut bool,
     ) {
         self.fire_menu_quick_move(pos, entity, container_slots, slot, stack, handled);
@@ -4676,8 +4677,20 @@ impl Game<'_> {
     /// The most of the item `item` one slot holds (`Item.getDefaultMaxStackSize`),
     /// or `None` for an unknown item: for a mod's container that fills or
     /// merges stacks itself.
-    pub(in crate::game) fn max_stack_size(&self, item: &str) -> Option<u32> {
-        self.res.items().get(item).map(|i| i.max_stack)
+    pub(in crate::game) fn max_stack_size(&self, item: mod_api::ItemKey) -> Option<u32> {
+        self.res
+            .items()
+            .get(mod_api::__private::item_key_id(item)?)
+            .map(|i| i.max_stack)
+    }
+    pub(in crate::game) fn max_damage(&self, item: mod_api::ItemKey) -> Option<u32> {
+        self.res
+            .items()
+            .get(mod_api::__private::item_key_id(item)?)
+            .map(|i| i.max_damage)
+    }
+    pub(in crate::game) fn item_key(&self, id: &mod_api::Identifier) -> Option<mod_api::ItemKey> {
+        mod_api::__private::item_key_by_identifier(id)
     }
     /// Sets property `key` of the block at `pos` to `value`, as a furnace's
     /// tick sets its `lit` (`Level.setBlock` with `UPDATE_ALL`: neighbours
@@ -5061,7 +5074,10 @@ impl Game<'_> {
     /// single-player window included, sees vanilla's and the content mods' recipes,
     /// not the world's data packs', unless a mod had the server send it the type
     /// (`native_datapack_sync`).
-    pub(in crate::game) fn recipes_of_type(&self, kind: &str) -> Arc<[Recipe]> {
+    pub(in crate::game) fn recipes_of_type(
+        &self,
+        kind: &str,
+    ) -> Arc<[crate::crafting::RecipeSnapshot]> {
         if self.outside_world() {
             return Default::default();
         }

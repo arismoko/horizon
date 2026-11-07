@@ -552,7 +552,7 @@ pub(super) fn host(
         }
     }
     code.push_str("impl api::types::Host for super::State {}\n");
-    code.push_str(&frame(servers));
+    code.push_str(&frame(servers, methods));
     let arms: Vec<String> = hooks
         .iter()
         .map(|(v, n)| format!("\"{n}\" => Some(crate::HookId::{v})"))
@@ -1211,7 +1211,7 @@ fn heap(types: &Types<'_>, ty: &Ty) -> bool {
 /// over, and the getters the imports reach it by. A trait is served by its own slot, else by a
 /// subtrait's (`servers`), and mutably only by a slot set mutably; a trait no call hands over is
 /// reached through another's method (`REACHED`).
-fn frame(servers: &[(&str, Vec<&str>)]) -> String {
+fn frame(servers: &[(&str, Vec<&str>)], methods: &[&Method]) -> String {
     let snake = |owner: &str| owner.rsplit("::").next().unwrap().to_snake_case();
     let path = |owner: &str| format!("dyn crate::{owner}");
     let mut fields = String::new();
@@ -1221,8 +1221,13 @@ fn frame(servers: &[(&str, Vec<&str>)]) -> String {
         let name = snake(owner);
         let ty = path(owner);
         if let Some((_, from, expr)) = super::REACHED.iter().find(|(o, ..)| o == owner) {
-            // An empty `from`: `expr` reaches it from the frame itself, mutably.
-            let mutable = from.is_empty() || from.ends_with("_mut");
+            // An empty source reaches through the frame expression. Its trait's
+            // receivers determine whether the resource needs an exclusive borrow.
+            let mutable = from.ends_with("_mut")
+                || (from.is_empty()
+                    && methods
+                        .iter()
+                        .any(|method| method.owner == *owner && method.receiver == Some(true)));
             let body = match *from {
                 "" => expr.to_string(),
                 from => format!("let h = {from}()?; {expr}"),

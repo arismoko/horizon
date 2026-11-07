@@ -11,8 +11,8 @@ use crate::{
 use horizon_core::random::{LegacyRandom, RandomSource};
 use horizon_world::loot::PackOverlay;
 use horizon_world::native_load_context::LoopContext;
-use mod_api::__private::game::IngredientTest;
-pub use mod_api::stations::{AnvilResult, EnchantmentRow};
+mod models;
+pub use models::{AnvilResult, EnchantmentRow};
 use serde_json::Value;
 use std::{collections::HashSet, fs, path::Path, sync::Arc};
 
@@ -516,7 +516,7 @@ pub enum Smithing {
         template: Ingredient,
         base: Ingredient,
         addition: Ingredient,
-        pattern: mod_api::RecipeTrimPattern,
+        pattern: crate::crafting::RecipeTrimPattern,
     },
 }
 #[derive(Clone, Debug)]
@@ -547,9 +547,9 @@ impl ParsedStationRecipe {
                 base: ingredient(&v["base"], items),
                 addition: ingredient(&v["addition"], items),
                 pattern: if let Some(id) = v["pattern"].as_str() {
-                    mod_api::RecipeTrimPattern::Reference(id.to_owned())
+                    crate::crafting::RecipeTrimPattern::Reference(id.to_owned())
                 } else {
-                    mod_api::RecipeTrimPattern::Inline {
+                    crate::crafting::RecipeTrimPattern::Inline {
                         asset_id: v["pattern"]["asset_id"].as_str()?.to_owned(),
                         description: crate::crafting::json_tag(v["pattern"].get("description")?),
                         decal: v["pattern"]["decal"].as_bool().unwrap_or(false),
@@ -565,9 +565,9 @@ impl ParsedStationRecipe {
         }
     }
 
-    pub(crate) fn rule(&self) -> mod_api::RecipeRule {
+    pub(crate) fn rule(&self) -> crate::crafting::RecipeRule {
         match self {
-            Self::Stonecutting(recipe) => mod_api::RecipeRule::Stonecutting {
+            Self::Stonecutting(recipe) => crate::crafting::RecipeRule::Stonecutting {
                 input: recipe.input.clone(),
                 result: recipe.result.clone(),
             },
@@ -577,7 +577,7 @@ impl ParsedStationRecipe {
                 addition,
                 result,
                 ..
-            }) => mod_api::RecipeRule::SmithingTransform {
+            }) => crate::crafting::RecipeRule::SmithingTransform {
                 template: template.clone(),
                 base: base.clone(),
                 addition: addition.clone(),
@@ -589,7 +589,7 @@ impl ParsedStationRecipe {
                 addition,
                 pattern,
                 ..
-            }) => mod_api::RecipeRule::SmithingTrim {
+            }) => crate::crafting::RecipeRule::SmithingTrim {
                 template: template.clone(),
                 base: base.clone(),
                 addition: addition.clone(),
@@ -834,12 +834,11 @@ fn apply_trim(
     e: &Enchantments,
     base: &ItemStack,
     material: &ItemStack,
-    pattern: &mod_api::RecipeTrimPattern,
+    pattern: &crate::crafting::RecipeTrimPattern,
 ) -> Option<ItemStack> {
     let pattern = match pattern {
-        mod_api::RecipeTrimPattern::Reference(id) => id.as_str(),
-        mod_api::RecipeTrimPattern::Inline { asset_id, .. } => asset_id.as_str(),
-        _ => return None,
+        crate::crafting::RecipeTrimPattern::Reference(id) => id.as_str(),
+        crate::crafting::RecipeTrimPattern::Inline { asset_id, .. } => asset_id.as_str(),
     };
     let material = e.props(&material.item)?.trim_material.clone()?;
     let trim = (Arc::from(material.as_str()), Arc::from(pattern));
@@ -1199,7 +1198,7 @@ mod tests {
         let rule = ParsedStationRecipe::parse("test:cut".into(), &json, &items)
             .unwrap()
             .rule();
-        let mod_api::RecipeRule::Stonecutting { result, .. } = rule else {
+        let crate::crafting::RecipeRule::Stonecutting { result, .. } = rule else {
             panic!("wrong rule")
         };
         assert_eq!(result.item.as_ref(), "minecraft:diamond");
@@ -1214,7 +1213,7 @@ mod tests {
         let parsed = ParsedStationRecipe::parse("test:smith".into(), &json, &items).unwrap();
         assert!(matches!(
             parsed.rule(),
-            mod_api::RecipeRule::SmithingTransform {
+            crate::crafting::RecipeRule::SmithingTransform {
                 template: None,
                 addition: None,
                 ..
@@ -1279,9 +1278,9 @@ mod tests {
         let rule = ParsedStationRecipe::parse("test:trim".into(), &json, &items)
             .unwrap()
             .rule();
-        let mod_api::RecipeRule::SmithingTrim {
+        let crate::crafting::RecipeRule::SmithingTrim {
             pattern:
-                mod_api::RecipeTrimPattern::Inline {
+                crate::crafting::RecipeTrimPattern::Inline {
                     asset_id,
                     description,
                     decal,

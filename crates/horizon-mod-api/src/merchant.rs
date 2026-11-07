@@ -1,101 +1,138 @@
-//! Moved here from the game so mods can name it.
-#[allow(unused_imports)]
-use crate::*;
-use horizon_items::items::Items;
-/// An `ItemCost`: item and count (component predicates are not used by the
-/// 26.3 trade data except for one exact match, kept as the stack's data).
+//! Owned trading snapshots; the game keeps its own trading state and validates writes.
+use crate::{Host, ItemStack};
+
+/// An item payment, with an optional exact component predicate.
 #[derive(Clone, Debug, PartialEq)]
-// exhaustive: the game builds it with a literal; mods only read it
+#[non_exhaustive]
 pub struct ItemCost {
+    /// Item and minimum count required for this payment.
     pub stack: ItemStack,
 }
 impl ItemCost {
-    pub fn test(&self, s: &ItemStack) -> bool {
-        s.item == self.stack.item && (self.stack.extra.is_none() || s.data() == self.stack.data())
+    /// Construct a payment from a nonempty item value.
+    pub fn new(stack: ItemStack) -> Self {
+        Self { stack }
+    }
+    /// Whether `stack` matches the payment's identity and explicit component predicate.
+    pub fn test(&self, stack: &ItemStack) -> bool {
+        stack.same_item(&self.stack)
+            && (self.stack.components().is_none() || stack.same_components(&self.stack))
     }
 }
+
+/// A merchant offer copied at an API boundary, not a reference into the game's trade table.
 #[derive(Clone, Debug, PartialEq)]
-// exhaustive: the game builds it with a literal; mods only read it
+#[non_exhaustive]
 pub struct MerchantOffer {
+    /// Undiscounted first payment.
     pub base_cost_a: ItemCost,
+    /// Optional second payment.
     pub cost_b: Option<ItemCost>,
+    /// Items received in exchange.
     pub result: ItemStack,
+    /// Trades already performed since restocking.
     pub uses: i32,
+    /// Trades allowed before the offer is out of stock.
     pub max_uses: i32,
+    /// Whether completing this trade awards experience.
     pub reward_exp: bool,
+    /// Player-specific price adjustment.
     pub special_price_diff: i32,
+    /// Demand accumulated during restocking.
     pub demand: i32,
+    /// Multiplier for demand and reputation price adjustments.
     pub price_multiplier: f32,
+    /// Villager experience awarded by this trade.
     pub xp: i32,
 }
 impl MerchantOffer {
-    fn max_stack(items: &Items, s: &ItemStack) -> u32 {
-        items.get(&s.item).map_or(64, |i| i.max_stack)
-    }
-    /// `getModifiedCostCount` for cost A.
-    pub fn cost_a_count(&self, items: &Items) -> u32 {
-        let base = self.base_cost_a.stack.count as i32;
-        // Mth.floor(basePrice * demand * priceMultiplier): an int product, then the float.
-        let demand_diff =
-            ((base.wrapping_mul(self.demand) as f32 * self.price_multiplier).floor() as i32).max(0);
-        (base + demand_diff + self.special_price_diff)
-            .clamp(1, Self::max_stack(items, &self.base_cost_a.stack) as i32) as u32
-    }
-    pub fn cost_a(&self, items: &Items) -> ItemStack {
-        ItemStack {
-            count: self.cost_a_count(items),
-            ..self.base_cost_a.stack.clone()
+    /// Construct an unused offer with explicit payments, output, limits and experience.
+    /// Discounts and demand begin at zero; completing it rewards experience.
+    pub fn new(
+        base_cost_a: ItemCost,
+        cost_b: Option<ItemCost>,
+        result: ItemStack,
+        max_uses: i32,
+        xp: i32,
+        price_multiplier: f32,
+    ) -> Self {
+        Self {
+            base_cost_a,
+            cost_b,
+            result,
+            uses: 0,
+            max_uses,
+            reward_exp: true,
+            special_price_diff: 0,
+            demand: 0,
+            price_multiplier,
+            xp,
         }
     }
-    pub fn cost_b(&self) -> Option<ItemStack> {
-        self.cost_b.as_ref().map(|c| c.stack.clone())
+    /// The adjusted first payment count, or none if its item metadata is unavailable.
+    pub fn cost_a_count(&self, host: &dyn Host) -> Option<u32> {
+        let maximum = host.max_stack_size(self.base_cost_a.stack.item())?;
+        Some(horizon_core::trading::modified_cost_count(
+            self.base_cost_a.stack.count(),
+            self.demand,
+            self.price_multiplier,
+            self.special_price_diff,
+            maximum,
+        ))
     }
+    /// First payment with demand and discounts applied.
+    pub fn cost_a(&self, host: &dyn Host) -> Option<ItemStack> {
+        let mut result = self.base_cost_a.stack.clone();
+        result.set_count(self.cost_a_count(host)?).ok()?;
+        Some(result)
+    }
+    /// The optional second payment.
+    pub fn cost_b(&self) -> Option<ItemStack> {
+        self.cost_b.as_ref().map(|cost| cost.stack.clone())
+    }
+    /// Whether this offer has exhausted its uses.
     pub fn out_of_stock(&self) -> bool {
         self.uses >= self.max_uses
     }
-    /// `MerchantOffer.updateDemand` (on restock).
+    /// Apply `MerchantOffer.updateDemand` to this snapshot.
     pub fn update_demand(&mut self) {
         self.demand = self.demand + self.uses - (self.max_uses - self.uses);
     }
-    /// `satisfiedBy(buyA, buyB)`.
+    /// Whether both payment slots satisfy this snapshot's current price.
     pub fn satisfied_by(
         &self,
-        items: &Items,
+        host: &dyn Host,
         a: Option<&ItemStack>,
         b: Option<&ItemStack>,
     ) -> bool {
-        let Some(a) = a else { return false };
-        if !self.base_cost_a.test(a) || a.count < self.cost_a_count(items) {
+        let (Some(a), Some(count)) = (a, self.cost_a_count(host)) else {
+            return false;
+        };
+        if !self.base_cost_a.test(a) || a.count() < count {
             return false;
         }
         match (&self.cost_b, b) {
-            (None, b) => b.is_none(),
-            (Some(c), Some(b)) => c.test(b) && b.count >= c.stack.count,
-            (Some(_), None) => false,
+            (None, None) => true,
+            (Some(cost), Some(stack)) => cost.test(stack) && stack.count() >= cost.stack.count(),
+            _ => false,
         }
     }
-    /// `MerchantOffer.take`: consume the payment; false when not satisfied.
+    /// Consume local payment values if satisfied. This does not change the game's trade state.
     pub fn take(
         &self,
-        items: &Items,
+        host: &dyn Host,
         a: &mut Option<ItemStack>,
         b: &mut Option<ItemStack>,
     ) -> bool {
-        if !self.satisfied_by(items, a.as_ref(), b.as_ref()) {
+        if !self.satisfied_by(host, a.as_ref(), b.as_ref()) {
             return false;
         }
-        let n = self.cost_a_count(items);
-        if let Some(s) = a.as_mut() {
-            s.count -= n;
-            if s.count == 0 {
-                *a = None;
-            }
-        }
-        if let (Some(c), Some(s)) = (&self.cost_b, b.as_mut()) {
-            s.count -= c.stack.count;
-            if s.count == 0 {
-                *b = None;
-            }
+        let Some(count) = self.cost_a_count(host) else {
+            return false;
+        };
+        *a = a.take().and_then(|stack| stack.shrink(count));
+        if let Some(cost) = &self.cost_b {
+            *b = b.take().and_then(|stack| stack.shrink(cost.stack.count()));
         }
         true
     }

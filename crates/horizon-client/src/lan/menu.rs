@@ -375,6 +375,10 @@ struct HostedSlotView<'a, 'v> {
 }
 
 impl crate::menu::SlotView for HostedSlotView<'_, '_> {
+    fn items(&self) -> &crate::items::Items {
+        self.rules.items()
+    }
+
     fn item(&self) -> Option<ItemStack> {
         self.view.get(self.slot)
     }

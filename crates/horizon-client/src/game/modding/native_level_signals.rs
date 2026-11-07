@@ -13,6 +13,8 @@ pub(super) struct ReadLevel<'g, 'a> {
     pub level: mod_api::LevelRef,
 }
 
+super::native_tags::impl_tags!(ReadLevel<'_, '_>, level, level.game.native_tag_items());
+
 /// The output side passed to Parts is opposite SignalGetter's input direction.
 /// Both the shared view and the write context apply the same output bound.
 pub(super) fn adjust_signal(
@@ -161,12 +163,8 @@ impl LevelHost for ReadLevel<'_, '_> {
     fn block_in_tag(&self, block: mod_api::BlockKey, tag: &str) -> Option<bool> {
         super::native_world_read::block_in_tag(block, tag)
     }
-    fn item_stack_in_tag(&self, stack: &mod_api::ItemStack, tag: &str) -> Option<bool> {
-        Some(super::native_world_read::stack_in_tag(
-            self.game.items(),
-            stack,
-            tag,
-        ))
+    fn tags(&self) -> &dyn mod_api::Tags {
+        self
     }
     fn fluid_state(&self, [x, y, z]: [i32; 3]) -> Option<mod_api::FluidState> {
         self.game

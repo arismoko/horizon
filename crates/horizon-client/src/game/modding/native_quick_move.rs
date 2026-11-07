@@ -196,7 +196,7 @@ impl Game<'_> {
         let mut taken = std::mem::take(&mut **m);
         let items = taken.items.clone();
         let mut handled = false;
-        self.native_menu_quick_move(
+        self.api_menu_quick_move(
             [pos.0, pos.1, pos.2],
             &mut taken,
             size,

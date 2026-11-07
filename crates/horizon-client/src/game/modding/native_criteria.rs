@@ -4,10 +4,7 @@
 //! it as it keeps vanilla's, and the mod fires it where its event happens, as
 //! a NeoForge mod calls its own `SimpleCriterionTrigger.trigger`.
 use super::{Game, advancements::item_view};
-use horizon_client::{
-    advancements::{self as adv, EntityView},
-    items::ItemStack,
-};
+use horizon_client::advancements::{self as adv, EntityView};
 use mod_api::{
     CriterionContext, CriterionTest, CriterionTestError, Identifier, PlayerRef,
     TriggerCriterionError,
@@ -32,8 +29,11 @@ impl CriterionContext for NativeCriterion<'_> {
     /// and `damage` components, and the `enchantments` and `damage`
     /// predicates; other components and predicates aren't checked. A missing
     /// key passes, as an absent `Optional<ItemPredicate>` does.
-    fn item(&self, key: &str, stack: &ItemStack) -> bool {
-        adv::item(&self.conditions[key], &item_view(stack), self.world)
+    fn item(&self, key: &str, stack: &mod_api::ItemStack) -> bool {
+        let Ok(stack) = super::api_values::stack_value(stack) else {
+            return false;
+        };
+        adv::item(&self.conditions[key], &item_view(&stack), self.world)
     }
 }
 
@@ -133,6 +133,7 @@ fn passes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mod_api::ItemStack;
     use serde_json::json;
     use std::collections::BTreeMap;
 
@@ -197,6 +198,12 @@ mod tests {
 
     #[test]
     fn a_mods_criterion_takes_its_own_test_and_the_player_predicate() {
+        mod_api::__private::install_parts(&[]).unwrap();
+        mod_api::__private::resolve_items(["minecraft:stick"]).unwrap();
+        mod_api::__private::install(Default::default());
+        mod_api::__private::install_parts(&[]).unwrap();
+        mod_api::__private::resolve_items(["minecraft:copper_ingot", "minecraft:iron_ingot"])
+            .unwrap();
         let burning = EntityView {
             kind: "minecraft:player".into(),
             on_fire: true,
@@ -206,7 +213,11 @@ mod tests {
             on_fire: false,
             ..burning.clone()
         };
-        let copper = ItemStack::new("minecraft:copper_ingot", 2);
+        let copper = ItemStack::new(
+            mod_api::__private::item_key("minecraft:copper_ingot").unwrap(),
+            2,
+        )
+        .unwrap();
         let pipe = |stack: &ItemStack| ItemTest {
             key: "pipe",
             stack: stack.clone(),
@@ -218,13 +229,21 @@ mod tests {
             Ok(false),
             "the player predicate"
         );
-        let one = ItemStack::new("minecraft:copper_ingot", 1);
+        let one = ItemStack::new(
+            mod_api::__private::item_key("minecraft:copper_ingot").unwrap(),
+            1,
+        )
+        .unwrap();
         assert_eq!(
             passes(&c, &burning, &Plains, &pipe(&one)),
             Ok(false),
             "the item's count"
         );
-        let iron = ItemStack::new("minecraft:iron_ingot", 2);
+        let iron = ItemStack::new(
+            mod_api::__private::item_key("minecraft:iron_ingot").unwrap(),
+            2,
+        )
+        .unwrap();
         assert_eq!(
             passes(&c, &burning, &Plains, &pipe(&iron)),
             Ok(false),

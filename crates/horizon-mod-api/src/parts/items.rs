@@ -139,6 +139,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn item_keys_validate_forward_references_and_reused_slots() {
+        install_parts(&[]).unwrap();
         struct Keys(Arc<std::sync::Mutex<Vec<crate::ItemKey>>>);
         #[mod_api::__subscriptions]
         impl Hooks for Keys {
@@ -190,6 +191,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn tooltip_appender_restores_owner_even_on_panic() {
+        install_parts(&[]).unwrap();
         struct Check(bool);
         impl TooltipAppender for Check {
             fn append(
@@ -210,7 +212,7 @@ pub mod tests {
             creative: false,
             nested: false,
         };
-        let stack = ItemStack::new("minecraft:stick", 1);
+        let stack = stick();
         let outer = crate::crash::enter_native_mod(crate::crash::NativeModCall {
             id: "outer",
             hook: "outer",
@@ -375,14 +377,18 @@ pub mod tests {
             &mut self,
             BlockSide { pos, .. }: BlockSide,
             slot: usize,
-            stack: ItemStack,
+            resource: &ItemResource,
+            amount: u32,
             _: &Transaction,
-        ) -> Option<ItemStack> {
+        ) -> Result<Option<ItemStack>, crate::StackWriteError> {
+            let Some(stack) = resource.to_stack(amount) else {
+                return Ok(None);
+            };
             if pos != CHEST || slot != 0 || self.chest.is_some() {
-                return Some(stack);
+                return Ok(Some(stack));
             }
             self.chest = Some(stack);
-            None
+            Ok(None)
         }
     }
     #[cfg(test)]
@@ -425,13 +431,48 @@ pub mod tests {
         stack("minecraft:stick", 1, 0)
     }
 
-    pub(crate) fn stack(item: &str, count: u32, damage: u32) -> ItemStack {
-        ItemStack {
-            item: Arc::from(item),
-            count,
-            damage,
-            extra: None,
+    pub(crate) fn fixture_item_key(id: &str) -> ItemKey {
+        if super::super::installed().is_none() {
+            install_parts(&[]).unwrap();
         }
+        crate::registry_keys::resolve_items([
+            "minecraft:stick",
+            "minecraft:iron_helmet",
+            "minecraft:iron_sword",
+            "minecraft:diamond",
+            "minecraft:emerald",
+            "minecraft:potion",
+            "minecraft:stone",
+            "minecraft:apple",
+            "minecraft:bread",
+            "minecraft:iron_ingot",
+            "minecraft:cod",
+            "minecraft:salmon",
+            "minecraft:gold_ingot",
+            "test:pouch",
+            "test:bag",
+            "test:case",
+            "test:cell",
+            "test:outer",
+            "test:ordered_item",
+            "test:pipe",
+            "test:item",
+            "test:item_overstates",
+            "test:lying",
+            "test:none",
+            "test:robot",
+        ])
+        .unwrap();
+        crate::registry_keys::item_key(id).expect("explicit fixture item")
+    }
+
+    pub(crate) fn stack(item: &str, count: u32, damage: u32) -> ItemStack {
+        let mut stack =
+            ItemStack::new(fixture_item_key(item), count).expect("fixture stacks are nonempty");
+        if damage != 0 {
+            stack.set_damage(damage);
+        }
+        stack
     }
 
     /// A pouch of sticks at `.0`: one slot, its stick count kept in the pouch's own stack (its
@@ -445,7 +486,7 @@ pub mod tests {
             (self.amount(host, index) > 0).then(|| ItemResource::of(&stick()))
         }
         fn amount(&self, host: &mut dyn ServerHost, _: usize) -> u32 {
-            self.0.stack(host).map_or(0, |pouch| pouch.damage)
+            self.0.stack(host).map_or(0, |pouch| pouch.damage())
         }
         fn capacity(&self, _: &mut dyn ServerHost, _: usize, resource: &ItemResource) -> u32 {
             if resource.matches(&stick()) { 64 } else { 0 }
@@ -461,7 +502,7 @@ pub mod tests {
             let Some(pouch) = self.0.stack(host).filter(|_| resource.matches(&stick())) else {
                 return 0;
             };
-            let filled = ItemResource::of(&stack("test:pouch", 1, pouch.damage + amount));
+            let filled = ItemResource::of(&stack("test:pouch", 1, pouch.damage() + amount));
             match self.0.exchange(host, tx, &filled, 1) {
                 1 => amount,
                 _ => 0,
@@ -487,14 +528,14 @@ pub mod tests {
             1
         }
         fn resource(&self, host: &mut dyn ServerHost, _: usize) -> Option<ItemResource> {
-            let held = self.0.stack(host)?.damage;
+            let held = self.0.stack(host)?.damage();
             (held > 0).then(|| ItemResource::of(&stack("test:pouch", 1, held - 1)))
         }
         fn amount(&self, host: &mut dyn ServerHost, index: usize) -> u32 {
             u32::from(self.resource(host, index).is_some())
         }
         fn capacity(&self, _: &mut dyn ServerHost, _: usize, resource: &ItemResource) -> u32 {
-            u32::from(resource.item() == "test:pouch")
+            u32::from(resource.item() == fixture_item_key("test:pouch"))
         }
         fn insert(
             &self,
@@ -504,10 +545,14 @@ pub mod tests {
             resource: &ItemResource,
             amount: u32,
         ) -> u32 {
-            let pouch = resource.to_stack(1);
+            let pouch = resource.to_stack(1).unwrap();
             match self.0.stack(host) {
-                Some(bag) if bag.damage == 0 && amount > 0 && resource.item() == "test:pouch" => {
-                    let full = ItemResource::of(&stack("test:bag", 1, pouch.damage + 1));
+                Some(bag)
+                    if bag.damage() == 0
+                        && amount > 0
+                        && resource.item() == fixture_item_key("test:pouch") =>
+                {
+                    let full = ItemResource::of(&stack("test:bag", 1, pouch.damage() + 1));
                     self.0.exchange(host, tx, &full, 1)
                 }
                 _ => 0,
@@ -535,7 +580,7 @@ pub mod tests {
     pub(crate) struct Case(pub(crate) ItemPlace);
     impl Case {
         fn held(&self, host: &mut dyn ServerHost, index: usize) -> u32 {
-            let damage = self.0.stack(host).map_or(0, |case| case.damage);
+            let damage = self.0.stack(host).map_or(0, |case| case.damage());
             [damage / 100, damage % 100][index]
         }
         fn rewrite(&self, host: &mut dyn ServerHost, tx: &Transaction, damage: u32) -> bool {
@@ -556,7 +601,11 @@ pub mod tests {
         }
         fn capacity(&self, _: &mut dyn ServerHost, index: usize, resource: &ItemResource) -> u32 {
             let item = ["minecraft:diamond", "minecraft:stick"][index];
-            if resource.item() == item { 99 } else { 0 }
+            if resource.item() == fixture_item_key(item) {
+                99
+            } else {
+                0
+            }
         }
         fn insert(
             &self,
@@ -566,10 +615,10 @@ pub mod tests {
             resource: &ItemResource,
             amount: u32,
         ) -> u32 {
-            if index != 1 || resource.item() != "minecraft:stick" {
+            if index != 1 || resource.item() != fixture_item_key("minecraft:stick") {
                 return 0;
             }
-            let damage = self.0.stack(host).map_or(0, |case| case.damage);
+            let damage = self.0.stack(host).map_or(0, |case| case.damage());
             match self.rewrite(host, tx, damage + amount) {
                 true => amount,
                 false => 0,
@@ -583,16 +632,16 @@ pub mod tests {
             resource: &ItemResource,
             amount: u32,
         ) -> u32 {
-            if index != 1 || resource.item() != "minecraft:stick" {
+            if index != 1 || resource.item() != fixture_item_key("minecraft:stick") {
                 return 0;
             }
-            let damage = self.0.stack(host).map_or(0, |case| case.damage);
+            let damage = self.0.stack(host).map_or(0, |case| case.damage());
             let tried: Result<(), ()> = host.transaction(|host, tx| {
                 self.rewrite(host, tx, damage % 100);
                 Err(())
             });
             assert!(tried.is_err());
-            let damage = self.0.stack(host).unwrap().damage;
+            let damage = self.0.stack(host).unwrap().damage();
             assert_eq!(damage / 100, 1, "diamond restored after inner abort");
             let took = amount.min(damage % 100);
             match self.rewrite(host, tx, damage - took) {
@@ -622,7 +671,7 @@ pub mod tests {
             match place.stack(host) {
                 Some(held) if !resource.matches(&held) => 0,
                 held => {
-                    let room = 64 - held.map_or(0, |held| held.count);
+                    let room = 64 - held.map_or(0, |held| held.count());
                     place.insert(host, tx, resource, amount.min(room))
                 }
             }
@@ -730,38 +779,52 @@ pub mod tests {
                 _ => None,
             }
         }
-        fn game_insert(&mut self, place: &ItemPlace, stack: ItemStack, _: &Transaction) -> u32 {
-            if !self.is_place(place) {
-                return 0;
-            }
-            let mut rest = stack.clone();
-            match self.game_stack(place) {
-                None => {
-                    self.put(place, Some(stack.clone()));
-                    rest.count = 0;
-                }
-                Some(mut held) if held.same_item_same_components(&rest) => {
-                    let put = (64 - held.count).min(rest.count);
-                    held.count += put;
-                    rest.count -= put;
-                    self.put(place, Some(held));
-                }
-                Some(_) => {}
-            }
-            self.given.extend((rest.count > 0).then_some(rest));
-            stack.count
-        }
-        fn game_extract(&mut self, place: &ItemPlace, stack: ItemStack, _: &Transaction) -> u32 {
-            let Some(mut held) = self.game_stack(place) else {
-                return 0;
+        fn game_insert(
+            &mut self,
+            place: &ItemPlace,
+            resource: &ItemResource,
+            amount: u32,
+            _: &Transaction,
+        ) -> Result<u32, crate::StackWriteError> {
+            let Some(stack) = resource.to_stack(amount) else {
+                return Ok(0);
             };
-            if !held.same_item_same_components(&stack) {
-                return 0;
+            if !self.is_place(place) {
+                return Ok(0);
             }
-            let took = held.count.min(stack.count);
-            held.count -= took;
-            self.put(place, (held.count > 0).then_some(held));
-            took
+            let count = stack.count();
+            let rest = match self.game_stack(place) {
+                None => {
+                    self.put(place, Some(stack));
+                    None
+                }
+                Some(mut held) if held.is_stackable_with(&stack) => {
+                    let put = (64 - held.count()).min(count);
+                    held.grow(put).unwrap();
+                    self.put(place, Some(held));
+                    stack.shrink(put)
+                }
+                Some(_) => Some(stack),
+            };
+            self.given.extend(rest);
+            Ok(count)
+        }
+        fn game_extract(
+            &mut self,
+            place: &ItemPlace,
+            resource: &ItemResource,
+            amount: u32,
+            _: &Transaction,
+        ) -> Result<u32, crate::StackWriteError> {
+            let Some(held) = self.game_stack(place) else {
+                return Ok(0);
+            };
+            if !resource.matches(&held) {
+                return Ok(0);
+            }
+            let took = held.count().min(amount);
+            self.put(place, held.shrink(took));
+            Ok(took)
         }
     }
     #[cfg(test)]
@@ -777,8 +840,8 @@ pub mod tests {
     }
     #[cfg(test)]
     impl mod_api::prelude::ItemsHost for Player {
-        fn item_default_component(&self, item: &str, component: &str) -> Option<Tag> {
-            let helmet = item == "minecraft:iron_helmet";
+        fn item_default_component(&self, item: ItemKey, component: &str) -> Option<Tag> {
+            let helmet = item == fixture_item_key("minecraft:iron_helmet");
             match component {
                 "minecraft:max_stack_size" => Some(Tag::Int(if helmet { 1 } else { 64 })),
                 "minecraft:equippable" if helmet => Some(Tag::Compound(
@@ -876,6 +939,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_players_items_are_their_inventory_and_each_index_takes_only_what_fits_there() {
+        install_parts(&[]).unwrap();
         game_thread();
         let entity = |id| EntityRef::new(NativeWorldEpoch::new(1), id);
         let helmet = || stack("minecraft:iron_helmet", 1, 0);
@@ -912,7 +976,7 @@ pub mod tests {
         assert_eq!(insert(host, 3, &sticks, 60), 54);
         assert_eq!(insert(host, 38, &sticks, 1), 0);
         assert_eq!(insert(host, 39, &helmet_, 1), 1);
-        assert_eq!(player.slots[&3].count, 64);
+        assert_eq!(player.slots[&3].count(), 64);
         assert_eq!(player.slots[&103], helmet());
         assert!(player.given.is_empty());
         // Without an index, as `Inventory.add`: the selected slot's sticks first, then an
@@ -936,6 +1000,7 @@ pub mod tests {
     #[test]
     pub(crate) fn an_entitys_items_come_from_its_types_provider_and_none_outside_the_level_in_place()
      {
+        install_parts(&[]).unwrap();
         game_thread();
         let entity = |id| EntityRef::new(NativeWorldEpoch::new(1), id);
         let mut player = Player::default();
@@ -953,9 +1018,9 @@ pub mod tests {
     pub(crate) fn items(stacks: impl IntoIterator<Item = ItemStack>) -> u32 {
         stacks
             .into_iter()
-            .map(|s| match &*s.item {
-                "test:pouch" | "test:bag" => s.count * (1 + s.damage),
-                _ => s.count,
+            .map(|s| match crate::registry_keys::item_id(s.item()).unwrap() {
+                "test:pouch" | "test:bag" => s.count() * (1 + s.damage()),
+                _ => s.count(),
             })
             .sum()
     }
@@ -1049,28 +1114,32 @@ pub mod tests {
             &mut self,
             _: BlockSide,
             slot: usize,
-            stack: ItemStack,
+            resource: &ItemResource,
+            amount: u32,
             _: &Transaction,
-        ) -> Option<ItemStack> {
-            let held = self.slots.get(slot)?.clone();
+        ) -> Result<Option<ItemStack>, crate::StackWriteError> {
+            let Some(stack) = resource.to_stack(amount) else {
+                return Ok(None);
+            };
+            let Some(held) = self.slots.get(slot).cloned() else {
+                return Ok(Some(stack));
+            };
             let room = match &held {
                 _ if self.output == Some(slot) => 0,
                 None => self.limit,
-                Some(held) if held.same_item_same_components(&stack) => self.limit - held.count,
+                Some(held) if held.is_stackable_with(&stack) => self.limit - held.count(),
                 Some(_) => 0,
             };
             let most = if self.one_per_insert { 1 } else { u32::MAX };
-            let put = room.min(stack.count).min(most);
+            let put = room.min(stack.count()).min(most);
             if put > 0 {
-                self.slots[slot] = Some(ItemStack {
-                    count: held.map_or(0, |h| h.count) + put,
-                    ..stack.clone()
-                });
+                let mut inserted = stack.clone();
+                inserted
+                    .set_count(held.map_or(0, |h| h.count()) + put)
+                    .unwrap();
+                self.slots[slot] = Some(inserted);
             }
-            (put < stack.count).then(|| ItemStack {
-                count: stack.count - put,
-                ..stack
-            })
+            Ok(stack.shrink(put))
         }
         fn container_extract(
             &mut self,
@@ -1080,16 +1149,9 @@ pub mod tests {
             _: &Transaction,
         ) -> Option<ItemStack> {
             let most = if self.whole_extract { max } else { 1 };
-            let held = self.slots.get_mut(slot)?.as_mut()?;
-            let out = ItemStack {
-                count: most.min(held.count),
-                ..held.clone()
-            };
-            held.count -= out.count;
-            if held.count == 0 {
-                self.slots[slot] = None;
-            }
-            Some(out)
+            let split = self.slots.get_mut(slot)?.take()?.split(most);
+            self.slots[slot] = split.remainder;
+            split.taken
         }
     }
     #[cfg(test)]
@@ -1098,7 +1160,7 @@ pub mod tests {
     mod_api::impl_backend_mut_areas!(Shelf, except(items));
     #[cfg(test)]
     impl mod_api::prelude::ItemsHost for Shelf {
-        fn item_default_component(&self, item: &str, component: &str) -> Option<Tag> {
+        fn item_default_component(&self, item: ItemKey, component: &str) -> Option<Tag> {
             // An iron sword's, as its item report gives them.
             let default = match component {
                 "minecraft:max_damage" => Tag::Int(250),
@@ -1108,7 +1170,7 @@ pub mod tests {
                 }
                 _ => return None,
             };
-            (item == "minecraft:iron_sword").then_some(default)
+            (item == fixture_item_key("minecraft:iron_sword")).then_some(default)
         }
     }
     #[cfg(test)]
@@ -1167,7 +1229,7 @@ pub mod tests {
         fn amount(&self, host: &mut dyn ServerHost, index: usize) -> u32 {
             backend_of(&*host)
                 .and_then(|backend| backend.container_stack(on(SHELF, None), index))
-                .map_or(0, |held| held.count)
+                .map_or(0, |held| held.count())
         }
         fn capacity(
             &self,
@@ -1176,7 +1238,7 @@ pub mod tests {
             resource: &ItemResource,
         ) -> u32 {
             backend_of(&*host).map_or(0, |backend| {
-                backend.container_capacity(on(SHELF, None), index, &resource.to_stack(1))
+                backend.container_capacity(on(SHELF, None), index, &resource.to_stack(1).unwrap())
             })
         }
         fn insert(
@@ -1202,12 +1264,13 @@ pub mod tests {
             };
             backend
                 .container_extract(on(SHELF, None), index, amount + 5, tx)
-                .map_or(0, |out| out.count)
+                .map_or(0, |out| out.count())
         }
     }
 
     #[test]
     pub(crate) fn an_item_handler_writes_its_stack_back_where_it_lives_splitting_one_off() {
+        install_parts(&[]).unwrap();
         game_thread();
         let mut player = Player {
             main_hand: Some(stack("test:pouch", 2, 0)),
@@ -1255,7 +1318,7 @@ pub mod tests {
     }
     impl EnergyHandler for Cell {
         fn amount(&self, host: &mut dyn ServerHost) -> u32 {
-            self.0.stack(host).map_or(0, |cell| cell.damage)
+            self.0.stack(host).map_or(0, |cell| cell.damage())
         }
         fn capacity(&self, _: &mut dyn ServerHost) -> u32 {
             1000
@@ -1278,6 +1341,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn an_items_energy_moves_through_its_place_and_a_charged_one_splits_off_its_stack() {
+        install_parts(&[]).unwrap();
         game_thread();
         let slot = ItemPlace::PlayerSlot { player: 1, slot: 9 };
         let mut player = Player {
@@ -1311,6 +1375,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_stack_inside_an_item_and_a_mods_place_are_reached_through_their_handlers() {
+        install_parts(&[]).unwrap();
         game_thread();
         let mut player = Player {
             main_hand: Some(stack("test:bag", 1, 1)),
@@ -1347,17 +1412,18 @@ pub mod tests {
     pub(crate) fn insert(host: &mut dyn ServerHost, place: &ItemPlace, stack: ItemStack) -> u32 {
         let resource = ItemResource::of(&stack);
         let went = host
-            .transaction(|host, tx| Ok::<_, ()>(place.insert(host, tx, &resource, stack.count)));
+            .transaction(|host, tx| Ok::<_, ()>(place.insert(host, tx, &resource, stack.count())));
         went.unwrap_or(0)
     }
 
     #[cfg(test)]
-    /// `place.exchange` of `stack.count` of what is there for `stack`, in a transaction of its
+    /// `place.exchange` of `stack.count()` of what is there for `stack`, in a transaction of its
     /// own: how many.
     pub(crate) fn exchange(host: &mut dyn ServerHost, place: &ItemPlace, stack: ItemStack) -> u32 {
         let resource = ItemResource::of(&stack);
-        let swapped = host
-            .transaction(|host, tx| Ok::<_, ()>(place.exchange(host, tx, &resource, stack.count)));
+        let swapped = host.transaction(|host, tx| {
+            Ok::<_, ()>(place.exchange(host, tx, &resource, stack.count()))
+        });
         swapped.unwrap_or(0)
     }
 
@@ -1389,8 +1455,8 @@ pub mod tests {
             slots
                 .iter()
                 .flatten()
-                .filter(|s| &*s.item == item)
-                .map(|s| s.count)
+                .filter(|s| s.item() == fixture_item_key(item))
+                .map(|s| s.count())
                 .sum()
         }
     }
@@ -1436,29 +1502,31 @@ pub mod tests {
             &mut self,
             BlockSide { pos, .. }: BlockSide,
             slot: usize,
-            stack: ItemStack,
+            resource: &ItemResource,
+            amount: u32,
             _: &Transaction,
-        ) -> Option<ItemStack> {
+        ) -> Result<Option<ItemStack>, crate::StackWriteError> {
+            let Some(stack) = resource.to_stack(amount) else {
+                return Ok(None);
+            };
             let Some((slots, limit)) = self.slots(pos) else {
-                return Some(stack);
+                return Ok(Some(stack));
             };
             let held = slots[slot].clone();
             let room = match &held {
                 None => limit,
-                Some(held) if held.same_item_same_components(&stack) => limit - held.count,
+                Some(held) if held.is_stackable_with(&stack) => limit - held.count(),
                 Some(_) => 0,
             };
-            let put = room.min(stack.count);
+            let put = room.min(stack.count());
             if put > 0 {
-                slots[slot] = Some(ItemStack {
-                    count: held.map_or(0, |h| h.count) + put,
-                    ..stack.clone()
-                });
+                let mut inserted = stack.clone();
+                inserted
+                    .set_count(held.map_or(0, |h| h.count()) + put)
+                    .unwrap();
+                slots[slot] = Some(inserted);
             }
-            (put < stack.count).then(|| ItemStack {
-                count: stack.count - put,
-                ..stack
-            })
+            Ok(stack.shrink(put))
         }
         fn container_extract(
             &mut self,
@@ -1468,16 +1536,9 @@ pub mod tests {
             _: &Transaction,
         ) -> Option<ItemStack> {
             let (slots, _) = self.slots(pos)?;
-            let held = slots[slot].as_mut()?;
-            let out = ItemStack {
-                count: max.min(held.count),
-                ..held.clone()
-            };
-            held.count -= out.count;
-            if held.count == 0 {
-                slots[slot] = None;
-            }
-            Some(out)
+            let split = slots[slot].take()?.split(max);
+            slots[slot] = split.remainder;
+            split.taken
         }
     }
     #[cfg(test)]
@@ -1558,6 +1619,7 @@ pub mod tests {
     #[test]
     pub(crate) fn a_move_takes_what_the_filter_accepts_up_to_max_and_leaves_what_the_target_refuses()
      {
+        install_parts(&[]).unwrap();
         game_thread();
         let sticks = |n| Some(stack("minecraft:stick", n, 0));
         let apples = Some(stack("minecraft:apple", 3, 0));
@@ -1567,7 +1629,7 @@ pub mod tests {
             limit: 64,
             kept: Vec::new(),
         };
-        let only_sticks = |r: &ItemResource| r.item() == "minecraft:stick";
+        let only_sticks = |r: &ItemResource| r.item() == fixture_item_key("minecraft:stick");
         let moved = |world: &mut TwoChests, max| {
             let host: &mut dyn ServerHost = world;
             let from = here().capability(host, &ITEMS, FROM, None).unwrap();
@@ -1594,6 +1656,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_move_into_a_handler_answering_more_than_it_was_given_is_undone() {
+        install_parts(&[]).unwrap();
         game_thread();
         let mut world = TwoChests {
             from: [Some(stack("minecraft:stick", 5, 0)), None, None],
@@ -1618,6 +1681,7 @@ pub mod tests {
     #[test]
     pub(crate) fn a_changed_component_is_an_exchange_of_one_that_splits_it_off_and_an_abort_puts_it_back()
      {
+        install_parts(&[]).unwrap();
         game_thread();
         let sword = |count, damage| stack("minecraft:iron_sword", count, damage);
         let mut shelf_ = shelf([Some(sword(2, 0)), None, None]);
@@ -1626,7 +1690,7 @@ pub mod tests {
         let plain = place.resource(host).unwrap();
         let damage = ComponentId::new("minecraft:damage").unwrap();
         assert_eq!(plain.component(&damage), None);
-        let worn = plain.with_component(host, &damage, Tag::Int(5));
+        let worn = plain.with_component(host, &damage, Tag::Int(5)).unwrap();
         assert_eq!(worn.component(&damage), Some(Tag::Int(5)));
         // Aborted, nothing changed; committed, one sword of the two is worn and splits off.
         let aborted = host.transaction(|host, tx| {
@@ -1643,17 +1707,18 @@ pub mod tests {
     #[test]
     pub(crate) fn a_removed_default_component_is_recorded_in_the_patch_and_a_default_set_one_is_dropped()
      {
+        install_parts(&[]).unwrap();
         game_thread();
         let shelf_ = shelf([None, None, None]);
         let host: &dyn Host = &shelf_;
         let sword = ItemResource::of(&stack("minecraft:iron_sword", 1, 0));
         let patch = |resource: &ItemResource| {
-            let Some(Tag::Compound(patch)) =
-                horizon_items::item_data::encode_components(&resource.to_stack(1))
-            else {
+            let stack = resource.to_stack(1).unwrap();
+            let Some(patch) = stack.components() else {
                 return Vec::new();
             };
             patch
+                .as_nbt()
                 .keys()
                 .map(|key| key.to_string_lossy())
                 .collect::<Vec<_>>()
@@ -1666,39 +1731,54 @@ pub mod tests {
         assert_ne!(unbreakable, sword);
         assert_eq!(unbreakable.component(&max_damage), None);
         // Set again, the removal goes and the value is the patch's own.
-        let set = unbreakable.with_component(host, &max_damage, Tag::Int(10));
+        let set = unbreakable
+            .with_component(host, &max_damage, Tag::Int(10))
+            .unwrap();
         assert_eq!(patch(&set), ["minecraft:max_damage"]);
         assert_eq!(set.component(&max_damage), Some(Tag::Int(10)));
         // A component the item hasn't by default only loses the stack's own value.
         let data = ComponentId::new("minecraft:custom_data").unwrap();
-        let tagged = sword.with_component(host, &data, Tag::Compound(Compound::new()));
+        let tagged = sword
+            .with_component(host, &data, Tag::Compound(Compound::new()))
+            .unwrap();
         assert_ne!(tagged, sword);
         assert_eq!(tagged.without_component(host, &data), sword);
         // Set to the item's default, a component keeps no value of the stack's own, as vanilla's
         // `set` drops it: the stack is the plain item, whatever NBT type the mod wrote.
-        assert_eq!(set.with_component(host, &max_damage, Tag::Int(250)), sword);
         assert_eq!(
-            unbreakable.with_component(host, &max_damage, Tag::Short(250)),
+            set.with_component(host, &max_damage, Tag::Int(250))
+                .unwrap(),
+            sword
+        );
+        assert_eq!(
+            unbreakable
+                .with_component(host, &max_damage, Tag::Short(250))
+                .unwrap(),
             sword
         );
         let enchantable = ComponentId::new("minecraft:enchantable").unwrap();
         let value = |v| Tag::Compound([("value".into(), v)].into_iter().collect());
         assert_eq!(
-            sword.with_component(host, &enchantable, value(Tag::Byte(14))),
+            sword
+                .with_component(host, &enchantable, value(Tag::Byte(14)))
+                .unwrap(),
             sword
         );
         assert_ne!(
-            sword.with_component(host, &enchantable, value(Tag::Int(15))),
+            sword
+                .with_component(host, &enchantable, value(Tag::Int(15)))
+                .unwrap(),
             sword
         );
     }
 
     #[test]
     pub(crate) fn a_component_set_keeps_a_change_its_codec_reads_and_raw_nbt_keeps_its_types() {
+        install_parts(&[]).unwrap();
         /// A stick's report: `custom_data` `{x: 1}`, a huge `max_damage` and a mod's `test:long`.
         struct Report;
         impl mod_api::prelude::ItemsHost for Report {
-            fn item_default_component(&self, _: &str, id: &str) -> Option<Tag> {
+            fn item_default_component(&self, _: ItemKey, id: &str) -> Option<Tag> {
                 let x = || Tag::Compound([("x".into(), Tag::Int(1))].into_iter().collect());
                 match id {
                     "minecraft:custom_data" => Some(x()),
@@ -1712,7 +1792,10 @@ pub mod tests {
         let stick = ItemResource::of(&stick());
         let set = |id, value: Tag| {
             let id = ComponentId::new(id).unwrap();
-            stick.with_component(&Report, &id, value).component(&id)
+            stick
+                .with_component(&Report, &id, value)
+                .unwrap()
+                .component(&id)
         };
         // `custom_data` is kept as the NBT given (`CustomData.equals`): a byte where the report
         // has an int is a change, while the same int is the default.
@@ -1739,6 +1822,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_component_id_is_a_namespaced_identifier() {
+        install_parts(&[]).unwrap();
         for id in ["minecraft:damage", "mymod:charge/level"] {
             assert_eq!(
                 ComponentId::new(id).map(|id| id.as_str().to_owned()),
@@ -1759,6 +1843,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_write_that_cant_go_through_changes_nothing_and_no_item_is_made_or_lost() {
+        install_parts(&[]).unwrap();
         game_thread();
         let bread = |count| stack("minecraft:bread", count, 0);
         let stone = || Some(stack("minecraft:stone", 64, 0));
@@ -1827,6 +1912,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_truthful_handler_moving_one_per_call_is_moved_in_passes_and_never_named() {
+        install_parts(&[]).unwrap();
         game_thread();
         // A slot that gives one item per extract and takes one per insert: the 3 apples come
         // out, and the 3 bread go in, one pass each.
@@ -1836,11 +1922,33 @@ pub mod tests {
         assert_eq!(exchange(&mut shelf_, &shelf_slot(0), bread.clone()), 3);
         assert_eq!(shelf_.slots, [Some(bread), None, None]);
         assert!(!crate::item_place::warned_about("the game"));
+
+        // A transfer amount is not a resident stack: 128 offered, one accepted,
+        // and a 127-item remainder are valid even though this slot's maximum is 64.
+        let resource = ItemResource::of(&stack("minecraft:bread", 1, 0));
+        let inspected = shelf_.transaction(|host, tx| {
+            let remainder = backend_mut_of(host)
+                .unwrap()
+                .container_insert(on(SHELF, None), 1, &resource, 128, tx)
+                .unwrap()
+                .unwrap();
+            assert_eq!(remainder.count(), 127);
+            Err::<(), ()>(())
+        });
+        assert!(inspected.is_err());
+        assert!(shelf_.slots[1].is_none());
+        let handler = here().capability(&mut shelf_, &ITEMS, SHELF, None).unwrap();
+        assert_eq!(handler.capacity(&mut shelf_, 1, &resource), 64);
+        let moved =
+            shelf_.transaction(|host, tx| Ok::<_, ()>(handler.insert(host, tx, 1, &resource, 128)));
+        assert_eq!(moved, Ok(1));
+        assert_eq!(shelf_.slots[1], Some(stack("minecraft:bread", 1, 0)));
     }
 
     #[test]
     pub(crate) fn an_item_handler_answering_more_than_it_was_asked_or_offered_moves_nothing_and_is_named()
      {
+        install_parts(&[]).unwrap();
         game_thread();
         let apples = |count| stack("minecraft:apple", count, 0);
         let bread = stack("minecraft:bread", 1, 0);
@@ -1859,6 +1967,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_change_inside_one_of_two_bags_splits_that_bag_off_whole() {
+        install_parts(&[]).unwrap();
         game_thread();
         // Two bags in the hand, each holding an empty pouch.
         let mut player = Player {
@@ -1880,6 +1989,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn an_aborted_write_inside_a_nested_item_puts_every_level_back() {
+        install_parts(&[]).unwrap();
         game_thread();
         // The pouch in the bag in the hand is filled in a transaction that then aborts: the
         // bag and its pouch are as they were, and nothing was given.
@@ -1903,6 +2013,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn an_aborted_inner_write_of_a_handler_inside_an_item_changes_nothing() {
+        install_parts(&[]).unwrap();
         game_thread();
         // A case of one diamond and one stick in the hand: its stick is taken and two put in;
         // on the way it tries emptying its diamond slot in a transaction it aborts. The
@@ -1938,14 +2049,14 @@ pub mod tests {
                 1
             }
             fn resource(&self, host: &mut dyn ServerHost, _: usize) -> Option<ItemResource> {
-                let n = self.0.stack(host)?.damage;
+                let n = self.0.stack(host)?.damage();
                 (n > 0).then(|| ItemResource::of(&stack("test:bag", 1, n - 1)))
             }
             fn amount(&self, host: &mut dyn ServerHost, i: usize) -> u32 {
                 u32::from(self.resource(host, i).is_some())
             }
             fn capacity(&self, _: &mut dyn ServerHost, _: usize, r: &ItemResource) -> u32 {
-                u32::from(r.item() == "test:bag")
+                u32::from(r.item() == fixture_item_key("test:bag"))
             }
             fn insert(
                 &self,
@@ -1955,10 +2066,14 @@ pub mod tests {
                 r: &ItemResource,
                 n: u32,
             ) -> u32 {
-                if n == 0 || r.item() != "test:bag" || self.0.stack(host).unwrap().damage != 0 {
+                if n == 0
+                    || r.item() != fixture_item_key("test:bag")
+                    || self.0.stack(host).unwrap().damage() != 0
+                {
                     return 0;
                 }
-                let new = ItemResource::of(&stack("test:outer", 1, r.to_stack(1).damage + 1));
+                let new =
+                    ItemResource::of(&stack("test:outer", 1, r.to_stack(1).unwrap().damage() + 1));
                 self.0.exchange(host, tx, &new, 1)
             }
             fn extract(
@@ -2126,6 +2241,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn a_place_provider_given_twice_is_refused() {
+        install_parts(&[]).unwrap();
         let mut r = super::PartRegistrar::new("first");
         (&mut r as &mut dyn Registrar).place_provider("test:charms", Arc::new(Charms));
         r.mod_id = "second";
@@ -2146,6 +2262,7 @@ pub mod tests {
 
     #[test]
     pub(crate) fn disabled_place_providers_refuse_reads_and_writes_and_resume() {
+        install_parts(&[]).unwrap();
         game_thread();
         let mut player = Player::default();
         let charm = ItemPlace::Mod {
@@ -2171,7 +2288,8 @@ pub mod tests {
             Ok(0)
         );
         assert_eq!(
-            player.slots[&24].count, 3,
+            player.slots[&24].count(),
+            3,
             "disabled writes leave the place unchanged"
         );
         assert!(crate::set_mod_enabled("doubler", true));
@@ -2191,7 +2309,7 @@ pub mod tests {
     #[cfg(test)]
     impl mod_api::prelude::ItemsBackend for HeldItem {
         fn item_container_slots(&self, stack: &ItemStack) -> Option<Vec<Option<ItemStack>>> {
-            (stack.damage == 1).then(|| vec![None; 27])
+            (stack.damage() == 1).then(|| vec![None; 27])
         }
     }
     #[cfg(test)]
@@ -2406,7 +2524,7 @@ pub trait ItemsCapabilityProviders {
     fn item_provider(
         &self,
         name: &str,
-        item: &str,
+        item: crate::ItemKey,
         index: &mut u32,
     ) -> Option<(ItemProviderOf, &'static str, bool)>;
 
@@ -2418,9 +2536,10 @@ impl ItemsCapabilityProviders for InstalledProviders {
     fn item_provider(
         &self,
         name: &str,
-        item: &str,
+        item: crate::ItemKey,
         index: &mut u32,
     ) -> Option<(ItemProviderOf, &'static str, bool)> {
+        let item = crate::registry_keys::item_id(item)?;
         next(&installed()?.keys.item_capabilities, name, item, index)
     }
 

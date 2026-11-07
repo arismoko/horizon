@@ -258,7 +258,7 @@ pub trait LivingBackendMut {
         living: LivingRef,
         stack: &ItemStack,
         index: usize,
-    ) -> Option<bool>;
+    ) -> Result<Option<bool>, StackWriteError>;
     /// Side: server.
     /// `LivingEntity.addEffect(instance)`: gives the living entity the
     /// effect by the game's own path. A player's or a guest's goes through
@@ -443,7 +443,7 @@ pub trait LivingBackendMut {
         living: LivingRef,
         slot: EquipmentSlot,
         stack: Option<ItemStack>,
-    ) -> bool;
+    ) -> Result<bool, StackWriteError>;
     /// Side: server.
     /// Puts `stack` in hand `hand` (`LivingEntity.setItemInHand`): the main
     /// hand's slot or the off hand's, written as `set_equipment`
@@ -455,7 +455,7 @@ pub trait LivingBackendMut {
         living: LivingRef,
         hand: Hand,
         stack: Option<ItemStack>,
-    ) -> bool;
+    ) -> Result<bool, StackWriteError>;
     /// Side: server.
     /// Damage an equipped stack without an equip/unequip notification.
     #[access(WorldOnly)]
@@ -480,7 +480,7 @@ pub trait LivingBackendMut {
         stack: ItemStack,
         throw_randomly: bool,
         include_thrower_name: bool,
-    ) -> Option<EntityRef>;
+    ) -> Result<Option<EntityRef>, StackWriteError>;
     /// Side: server.
     /// `LivingEntity.swing(hand, DEFAULT, sendToSwingingEntity)`: starts the
     /// arm swing (shortened by haste, lengthened by mining fatigue) unless

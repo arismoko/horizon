@@ -1,7 +1,7 @@
 //! The target of `item_attribute_modifier` (`ItemAttributeModifierEvent`).
+use crate::item_stack::ItemStack;
 #[allow(unused_imports)]
 use crate::*;
-use horizon_items::items::ItemStack;
 /// `ItemAttributeModifierEvent`: the attribute modifiers `stack` grants
 /// (`ItemStack.getAttributeModifiers`), starting from its own
 /// `minecraft:attribute_modifiers` or its item's. Add, replace or remove

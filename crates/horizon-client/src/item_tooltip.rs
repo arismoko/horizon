@@ -7,8 +7,8 @@ use crate::{
     items::{ItemInfo, ItemStack, Items},
 };
 use horizon_core::nbt::Tag;
+use mod_api::TooltipPlacement;
 pub use mod_api::item_tooltip::TooltipDisplay;
-use mod_api::{ClientHost, TooltipAppendContext, TooltipAppender, TooltipPlacement};
 
 /// `EquipmentSlotGroup` in declaration order, the order tooltips list them in.
 const SLOT_GROUPS: [&str; 11] = [
@@ -829,14 +829,13 @@ fn anchor(
 /// placement puts them. `registered` yields (component, placement, its mod enabled, appender) in
 /// registration order; an appender is asked only for a stack that carries its component and
 /// whose tooltip `display` shows it.
-pub fn add_appender_lines<'a>(
+pub fn add_appender_lines<'a, A: ?Sized + 'a>(
     lines: &mut Vec<(Text, u32)>,
     marks: &DetailMarks,
     stack: &ItemStack,
     info: Option<&ItemInfo>,
-    host: &dyn ClientHost,
-    context: &TooltipAppendContext,
-    registered: impl Iterator<Item = (&'a str, &'a TooltipPlacement, bool, &'a dyn TooltipAppender)>,
+    append: impl Fn(&A, &ItemStack, &mut Vec<(Text, u32)>),
+    registered: impl Iterator<Item = (&'a str, &'a TooltipPlacement, bool, &'a A)>,
 ) {
     let starts = marks.starts.as_deref().unwrap_or(&[]);
     let display = TooltipDisplay::for_stack(stack);
@@ -846,7 +845,7 @@ pub fn add_appender_lines<'a>(
             continue;
         }
         let mut out = Vec::new();
-        appender.append(host, stack, context, &mut out);
+        append(appender, stack, &mut out);
         let (at, boundary, rank) = anchor(placement, starts, marks.finish);
         added.push((at, boundary, rank, seq, out));
     }
@@ -1885,23 +1884,11 @@ mod tests {
 
     /// An appender that adds its own name, so the order of the lines shows.
     struct Named(&'static str);
-    impl TooltipAppender for Named {
-        fn append(
-            &self,
-            _: &dyn ClientHost,
-            _: &ItemStack,
-            _: &TooltipAppendContext,
-            lines: &mut Vec<(Text, u32)>,
-        ) {
+    impl Named {
+        fn append(&self, _: &ItemStack, lines: &mut Vec<(Text, u32)>) {
             lines.push((Text::literal(self.0), u32::MAX));
         }
     }
-
-    struct NoHost;
-    impl mod_api::Host for NoHost {}
-    mod_api::impl_host_areas!(NoHost);
-    impl mod_api::ClientHost for NoHost {}
-    mod_api::impl_client_host_areas!(NoHost);
 
     #[test]
     fn empty_component_boundaries_keep_builder_order() {
@@ -1964,18 +1951,12 @@ mod tests {
             &marks,
             &stack,
             None,
-            &NoHost,
-            &no_context(),
+            Named::append,
             placements
                 .into_iter()
                 .zip(&names)
                 .map(|(placement, appender)| {
-                    (
-                        "test:component",
-                        placement,
-                        true,
-                        appender as &dyn TooltipAppender,
-                    )
+                    ("test:component", placement, true, appender as &Named)
                 }),
         );
         assert_eq!(
@@ -1985,16 +1966,6 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["name", "first", "before 1", "before 2", "after", "last"]
         );
-    }
-
-    fn no_context() -> TooltipAppendContext {
-        TooltipAppendContext {
-            player: 0,
-            player_entity_id: 0,
-            advanced: false,
-            creative: false,
-            nested: false,
-        }
     }
 
     /// Two mods' appenders, before and after the details: a component's lines go where its
@@ -2044,51 +2015,20 @@ mod tests {
             Named("mod B: not carried"),
         );
         let registered = [
-            (
-                "mymod:charge",
-                &after_lore,
-                true,
-                &charge as &dyn TooltipAppender,
-            ),
-            (
-                "mymod:glow",
-                &before_all,
-                true,
-                &glow as &dyn TooltipAppender,
-            ),
-            (
-                "mymod:hidden",
-                &after_all,
-                true,
-                &hidden as &dyn TooltipAppender,
-            ),
-            (
-                "other:absent",
-                &after_all,
-                true,
-                &absent as &dyn TooltipAppender,
-            ),
-            ("mymod:off", &after_all, false, &off as &dyn TooltipAppender),
-            (
-                "mymod:pre",
-                &before_enchantments,
-                true,
-                &pre as &dyn TooltipAppender,
-            ),
-            (
-                "mymod:tail",
-                &after_all,
-                true,
-                &tail as &dyn TooltipAppender,
-            ),
+            ("mymod:charge", &after_lore, true, &charge as &Named),
+            ("mymod:glow", &before_all, true, &glow as &Named),
+            ("mymod:hidden", &after_all, true, &hidden as &Named),
+            ("other:absent", &after_all, true, &absent as &Named),
+            ("mymod:off", &after_all, false, &off as &Named),
+            ("mymod:pre", &before_enchantments, true, &pre as &Named),
+            ("mymod:tail", &after_all, true, &tail as &Named),
         ];
         add_appender_lines(
             &mut lines,
             &marks,
             &stack,
             None,
-            &NoHost,
-            &no_context(),
+            Named::append,
             registered.into_iter(),
         );
         let texts: Vec<String> = lines.iter().map(|(text, _)| text.plain()).collect();
@@ -2119,13 +2059,12 @@ mod tests {
             &DetailMarks::new(true),
             &map,
             None,
-            &NoHost,
-            &no_context(),
+            Named::append,
             [(
                 "minecraft:map_post_processing",
                 &after_all,
                 true,
-                &scale as &dyn TooltipAppender,
+                &scale as &Named,
             )]
             .into_iter(),
         );

@@ -997,7 +997,17 @@ fn canonical_other_component(id: &str, tag: &Tag) -> Tag {
 /// The saved `DataComponentPatch.CODEC` compound, or None when default.
 /// A filled map's empty decorations equal its prototype (`Items.mapProperties`).
 pub fn encode_components(stack: &ItemStack) -> Option<Tag> {
-    let mut components = components_tag(stack.damage, stack.data())?;
+    encode_stack_components(stack, true)
+}
+
+/// Encode the extra patch for a snapshot whose typed scalar already carries damage.
+/// This uses the same component codec and canonicalization as persistent stacks.
+pub fn encode_extra_components(stack: &ItemStack) -> Option<Tag> {
+    encode_stack_components(stack, false)
+}
+
+fn encode_stack_components(stack: &ItemStack, include_damage: bool) -> Option<Tag> {
+    let mut components = components_tag_inner(stack.damage, stack.data(), include_damage)?;
     // LodestoneTracker.CODEC: optionalFieldOf("tracked", true).
     if let Some(Tag::Compound(tracker)) = components.get_mut("minecraft:lodestone_tracker")
         && tracker.get(&JavaString::from("tracked")) == Some(&Tag::Byte(1))
@@ -1031,8 +1041,16 @@ pub fn encode_components(stack: &ItemStack) -> Option<Tag> {
 }
 /// `encode_components` from the damage value and extra components.
 pub fn components_tag(damage: u32, data: Option<&StackData>) -> Option<Tag> {
+    components_tag_inner(damage, data, true)
+}
+
+fn components_tag_inner(
+    damage: u32,
+    data: Option<&StackData>,
+    include_damage: bool,
+) -> Option<Tag> {
     let mut entries: Vec<(&str, Tag)> = Vec::new();
-    if damage > 0 || data.is_some_and(|data| data.damage_set) {
+    if include_damage && (damage > 0 || data.is_some_and(|data| data.damage_set)) {
         entries.push(("minecraft:damage", Tag::Int(damage as i32)));
     }
     if let Some(d) = data {
@@ -2193,6 +2211,40 @@ mod carried_component_tests {
         let removed = Tag::compound([("!minecraft:damage", Tag::Compound(Default::default()))]);
         let (damage, extra) = decode_components(Some(&removed));
         assert_eq!(components_tag(damage, extra.as_deref()), Some(removed));
+    }
+
+    #[test]
+    fn extra_snapshot_codec_omits_typed_damage_but_preserves_the_patch() {
+        for damage in [0, 5] {
+            let original = Tag::compound([("minecraft:damage", Tag::Int(damage))]);
+            let (damage, extra) = decode_components(Some(&original));
+            let stack = ItemStack {
+                damage,
+                extra,
+                ..ItemStack::new("minecraft:iron_sword", 1)
+            };
+            assert_eq!(encode_extra_components(&stack), None);
+            assert_eq!(encode_components(&stack), Some(original));
+        }
+        let patch = Tag::compound([
+            ("minecraft:damage", Tag::Int(5)),
+            (
+                "minecraft:custom_name",
+                Tag::String(JavaString::from("Snapshot")),
+            ),
+            ("!minecraft:consumable", Tag::Compound(Default::default())),
+        ]);
+        let (damage, extra) = decode_components(Some(&patch));
+        let stack = ItemStack {
+            damage,
+            extra,
+            ..ItemStack::new("minecraft:iron_sword", 1)
+        };
+        let mut expected = patch;
+        if let Tag::Compound(entries) = &mut expected {
+            entries.remove(&JavaString::from("minecraft:damage"));
+        }
+        assert_eq!(encode_extra_components(&stack), Some(expected));
     }
 
     #[test]

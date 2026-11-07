@@ -25,6 +25,14 @@ pub enum BlockEntityItemError {
         /// Maximum count for this stack.
         limit: u32,
     },
+    /// The game's item conversion boundary refused the supplied stack.
+    StackRejected(crate::StackWriteError),
+}
+
+impl From<crate::StackWriteError> for BlockEntityItemError {
+    fn from(error: crate::StackWriteError) -> Self {
+        Self::StackRejected(error)
+    }
 }
 
 impl crate::NoBackend for BlockEntityItemError {

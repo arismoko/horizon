@@ -47,6 +47,35 @@ carry `Option<EffectKey>` for each power; `None` is no selection. Enchantment ef
 names (for example `minecraft:damage` in `has_enchantment_effect`) are a different registry
 and remain strings, as do labels and tags.
 
+### Item values and tag names
+
+Every item has an `ItemKey`, including vanilla items no mod requested during registration.
+`r.item_key(id)` retains a forward reference in the same load-owned table; after the item
+registry is complete, `host.item_key(&identifier)` resolves any registered item. A key is
+still a private `u32` index, not a copy of an item definition. Resolve once and retain it.
+`host.max_stack_size(key)` and `host.max_damage(key)` read item defaults without exposing
+the engine's item table.
+
+`ItemStack` is owned API data with private fields. `ItemStack::new(key, count)` refuses
+zero, while `ItemStack::of(key)` makes one item. Count mutation refuses zero and arithmetic
+overflow. Registry-dependent maximum count and damage, including component overrides,
+are checked by the game when accepting a write; an oversized value is refused with a typed
+error, never silently clamped. This is the same boundary on native and wasm. Consuming
+`split(n)` returns `StackSplit { taken, remainder }`, both optional; consuming `shrink(n)`
+returns the remainder or `None`. There is no empty-stack sentinel. Component descriptors
+read and write an optional owned NBT patch; a plain stack has no patch allocation.
+
+`host.tags()` and a restricted level host's `tags()` expose the same `Tags` service. Resolve
+a validated identifier once with `tags.key(&identifier)` and retain its `TagKey`. The runtime
+owns tag-name slots for the process; reload replaces membership, not names or key identity.
+`tags.is_in_tag(item_key, tag_key)` tests merged item membership. `tags.items(tag_key)`
+and `tags.fluids(tag_key)` return registered keys in vanilla's member order. Unknown tags
+return false or empty lists. Membership reads return `None` on clients, before authoritative
+tags load, or if the relevant registry mapping is unavailable. Key resolution itself can be
+refused if the runtime cannot allocate a name slot. No lookup stringifies a retained key.
+Block member enumeration moves with the registry-wide `BlockKey` table in the next type slice.
+The engine `TagRegistry`, `StackData`, `StackView` and `DisplayContext` are not API types.
+
 A hook whose catalog entry has a `scope` (`block`, `block_entity`, `item`, `menu`) and a `key`, the argument
 naming the thing it is about, is a method on that scope's trait only: `BlockPart`, `BlockEntityPart` (a
 `BlockPart` too), `ItemPart` and `MenuPart`, as vanilla's and NeoForge's `Block` and `Item` methods are. It has

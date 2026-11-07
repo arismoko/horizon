@@ -12,6 +12,7 @@ mod __private {
         dimension_key, effect_id as effect_key_id, item_id as item_key_id,
     };
     pub use crate::registry_keys::{
-        effect_key, fluid_id, fluid_key, fluid_key_utf16, resolve_fluids, world_fluid_key,
+        effect_key, fluid_id, fluid_key, fluid_key_utf16, item_key, item_key_by_identifier,
+        resolve_fluids, resolve_items, world_fluid_key,
     };
 }

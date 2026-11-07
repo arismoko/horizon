@@ -1043,6 +1043,7 @@ impl Game<'_> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::api_values::TryIntoApi;
     use super::*;
     use horizon_core::geometry::Vec3;
 
@@ -1118,7 +1119,7 @@ mod tests {
             let broken = living
                 .hurt_and_break(game, EquipmentSlot::MainHand, 1)
                 .unwrap();
-            assert_eq!(broken.damage, max);
+            assert_eq!(broken.damage(), max);
             assert!(game.inventory[game.selected].is_none());
 
             let kind = game
@@ -1131,11 +1132,18 @@ mod tests {
             let mob = game.living(game.entity(21).unwrap()).unwrap();
             let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
             sword.damage = max - 1;
-            assert!(mob.set_equipment(game, EquipmentSlot::MainHand, Some(sword)));
+            assert!(
+                mob.set_equipment(
+                    game,
+                    EquipmentSlot::MainHand,
+                    Some(sword.try_into_api().unwrap())
+                )
+                .unwrap()
+            );
             let broken = mob
                 .hurt_and_break(game, EquipmentSlot::MainHand, 1)
                 .unwrap();
-            assert_eq!(broken.damage, max);
+            assert_eq!(broken.damage(), max);
             assert!(mob.equipment(game, EquipmentSlot::MainHand).is_none());
         });
     }
@@ -1749,13 +1757,27 @@ mod tests {
             let sword = ItemStack::new("minecraft:iron_sword", 1);
             let shield = ItemStack::new("minecraft:shield", 1);
             let host: &mut dyn ServerHost = game;
-            assert!(player.set_hand_item(host, Hand::Main, Some(sword.clone())));
-            assert!(player.set_hand_item(host, Hand::Off, Some(shield.clone())));
+            assert!(
+                player
+                    .set_hand_item(host, Hand::Main, Some(sword.try_into_api().unwrap()))
+                    .unwrap()
+            );
+            assert!(
+                player
+                    .set_hand_item(host, Hand::Off, Some(shield.try_into_api().unwrap()))
+                    .unwrap()
+            );
             assert_eq!(game.inventory[3], Some(sword.clone()));
             assert_eq!(game.offhand, Some(shield.clone()));
-            assert_eq!(player.hand_item(game, Hand::Main), Some(sword.clone()));
-            assert_eq!(player.hand_item(game, Hand::Off), Some(shield));
-            assert!(player.set_hand_item(game, Hand::Off, None));
+            assert_eq!(
+                player.hand_item(game, Hand::Main),
+                Some(sword.try_into_api().unwrap())
+            );
+            assert_eq!(
+                player.hand_item(game, Hand::Off),
+                Some(shield.try_into_api().unwrap())
+            );
+            assert!(player.set_hand_item(game, Hand::Off, None).unwrap());
             assert_eq!(game.offhand, None);
             assert_eq!(game.inventory[3], Some(sword.clone()));
 
@@ -1767,13 +1789,21 @@ mod tests {
                 .clone();
             game.mobs.push(Mob::new(12, kind, Vec3::ZERO, 0.0));
             let zombie = game.living(game.entity(12).unwrap()).unwrap();
-            assert!(zombie.set_hand_item(game, Hand::Off, Some(sword.clone())));
+            assert!(
+                zombie
+                    .set_hand_item(game, Hand::Off, Some(sword.try_into_api().unwrap()))
+                    .unwrap()
+            );
             let stacks = game.mobs[0].equipment_stacks();
             assert_eq!(stacks[EquipmentSlot::OffHand as usize], Some(sword.clone()));
             assert_eq!(stacks[EquipmentSlot::MainHand as usize], None);
 
             game.mobs.clear();
-            assert!(!zombie.set_hand_item(game, Hand::Main, Some(sword)));
+            assert!(
+                !zombie
+                    .set_hand_item(game, Hand::Main, Some(sword.try_into_api().unwrap()))
+                    .unwrap()
+            );
         });
     }
 
@@ -1908,10 +1938,18 @@ mod tests {
             let mut helmet = ItemStack::new("minecraft:iron_helmet", 2);
             helmet.damage = 7;
             helmet.data_mut().enchantments = vec![("minecraft:protection".into(), 3)];
-            assert!(zombie.set_equipment(game, EquipmentSlot::Head, Some(helmet.clone())));
+            assert_eq!(
+                zombie.set_equipment(
+                    game,
+                    EquipmentSlot::Head,
+                    Some(helmet.try_into_api().unwrap())
+                ),
+                Err(mod_api::StackWriteError::CountExceeded { maximum: 1 })
+            );
+            assert!(game.living_set_equipment(zombie, EquipmentSlot::Head, Some(helmet.clone())));
             assert_eq!(
                 zombie.equipment(game, EquipmentSlot::Head),
-                Some(helmet.clone())
+                Some(helmet.try_into_api().unwrap())
             );
             assert_eq!(
                 game.mobs[0]
@@ -2089,11 +2127,19 @@ mod tests {
                 if event.entity == 18 && event.slot == "mainhand" {
                     let entity = host.entity(event.entity).unwrap();
                     let living = host.living(entity).unwrap();
-                    assert!(living.set_equipment(
-                        host,
-                        EquipmentSlot::Head,
-                        Some(ItemStack::new("minecraft:iron_helmet", 1)),
-                    ));
+                    assert!(
+                        living
+                            .set_equipment(
+                                host,
+                                EquipmentSlot::Head,
+                                Some(
+                                    ItemStack::new("minecraft:iron_helmet", 1)
+                                        .try_into_api()
+                                        .unwrap()
+                                ),
+                            )
+                            .unwrap()
+                    );
                 }
             }
         }

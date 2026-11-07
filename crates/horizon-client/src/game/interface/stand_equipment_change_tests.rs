@@ -10,7 +10,13 @@ use mod_api::{self, Hooks, LivingEquipmentChangeEvent, ServerHost};
 
 use super::native_entity_refs::tests::with_game;
 
-type Heard = Vec<(u32, String, Option<ItemStack>, Option<ItemStack>)>;
+use super::api_values::TryIntoApi;
+type Heard = Vec<(
+    u32,
+    String,
+    Option<mod_api::ItemStack>,
+    Option<mod_api::ItemStack>,
+)>;
 
 struct Counter(Arc<Mutex<Heard>>);
 #[mod_api::__subscriptions]
@@ -61,10 +67,10 @@ fn a_stands_body_and_saddle_writes_are_told_once_each() {
             assert_eq!(
                 told,
                 vec![
-                    (16, "head", None, Some(helmet)),
-                    (16, "body", None, Some(body.clone())),
-                    (16, "saddle", None, Some(saddle)),
-                    (16, "body", Some(body), None),
+                    (16, "head", None, Some(helmet.try_into_api().unwrap())),
+                    (16, "body", None, Some(body.try_into_api().unwrap())),
+                    (16, "saddle", None, Some(saddle.try_into_api().unwrap())),
+                    (16, "body", Some(body.try_into_api().unwrap()), None),
                 ]
             );
         })

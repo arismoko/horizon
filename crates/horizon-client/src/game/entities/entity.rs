@@ -7,6 +7,7 @@
 //! `Game` end. The walk allocates nothing and dispatch is static: hot paths pay
 //! no vtable. A new kind is one line in `entity_lists!` and one `impl Entity`.
 
+use super::api_values::{TryIntoApi, TryIntoEngine};
 use super::commands::Target;
 use super::persist::ChunkKey;
 use super::{FallingBlock, Game};
@@ -616,18 +617,28 @@ impl Game<'_> {
             let state = self.world.block(pos.x, pos.y, pos.z);
             let position = item.position;
             let mut discarded = false;
-            self.native_item_after_vertical_collision(
-                mod_api::__private::ItemAfterVerticalCollisionCall {
-                    dimension: self.dim.id(),
-                    client,
-                    entity: item.id,
-                    state,
-                    block_pos: [pos.x, pos.y, pos.z],
-                    item_pos: [position.x, position.y, position.z],
-                    stack: &mut item.stack,
-                    discard: &mut discarded,
-                },
-            );
+            if mod_api::__private::has_part_hook(mod_api::HookId::ItemAfterVerticalCollision)
+                && let Ok(snapshot) = item.stack.try_into_api()
+            {
+                let mut stack = Some(snapshot);
+                self.native_item_after_vertical_collision(
+                    mod_api::__private::ItemAfterVerticalCollisionCall {
+                        dimension: self.dim.id(),
+                        client,
+                        entity: item.id,
+                        state,
+                        block_pos: [pos.x, pos.y, pos.z],
+                        item_pos: [position.x, position.y, position.z],
+                        stack: &mut stack,
+                        discard: &mut discarded,
+                    },
+                );
+                match stack.try_into_engine(self.items()) {
+                    Ok(Some(stack)) => item.stack = stack,
+                    Ok(None) => discarded = true,
+                    Err(_) => discarded = false,
+                }
+            }
             if discarded || item.stack.count == 0 {
                 return (false, true);
             }

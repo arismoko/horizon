@@ -370,10 +370,12 @@ pub mod tests {
 
     #[cfg(test)]
     pub(crate) fn potion(amount: u32, potion: &str) -> FluidStack {
-        let mut components = horizon_items::item_data::StackData::default();
-        components.potion = Some(Arc::from(potion));
+        let components = crate::Compound::from([(
+            horizon_core::nbt::JavaString::from("minecraft:potion_contents"),
+            crate::Tag::compound([("potion", crate::Tag::String(potion.into()))]),
+        )]);
         FluidStack {
-            components: Some(Box::new(components)),
+            components: Some(Box::new(crate::Components::from(components))),
             ..FluidStack::new(
                 crate::registry_keys::fluid_key("test:potion").unwrap(),
                 amount,

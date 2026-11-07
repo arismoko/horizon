@@ -36,14 +36,58 @@ impl FluidKey {
 impl ItemKey {
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
         crate::parts::with_registering_keys(|registering| {
-            registering
-                .unwrap_or(crate::parts::requested_keys())
-                .items
-                .id(slot)
-                .ok_or("unknown ItemKey slot")?;
+            let names = match registering {
+                Some(requests) => &requests.items,
+                None => resolved_items()
+                    .get()
+                    .unwrap_or(&crate::parts::requested_keys().items),
+            };
+            names.id(slot).ok_or("unknown ItemKey slot")?;
             Ok(Self(slot))
         })
     }
+}
+
+fn resolved_items() -> &'static std::sync::OnceLock<horizon_mod_runtime::registry_keys::Names> {
+    static EMPTY: std::sync::OnceLock<horizon_mod_runtime::registry_keys::Names> =
+        std::sync::OnceLock::new();
+    crate::parts::installed().map_or(&EMPTY, |installed| &installed.resolved_items)
+}
+
+/// Complete the load-owned item table with all registry entries, preserving requested slots.
+/// Missing forward references are refused before publishing any keys.
+pub fn resolve_items<'a>(
+    ids: impl IntoIterator<Item = &'a str>,
+) -> Result<(), Vec<crate::parts::ItemKeyError>> {
+    let mut names = crate::parts::requested_keys().items.clone();
+    let all: std::collections::HashSet<_> = ids.into_iter().collect();
+    names.resolve(
+        |id| all.contains(id).then_some(()),
+        |mod_id, id| crate::parts::ItemKeyError {
+            mod_id,
+            id: id.to_owned(),
+        },
+    )?;
+    // Registry enumeration is sorted so unrequested entries have reproducible slots.
+    let mut all: Vec<_> = all.into_iter().collect();
+    all.sort_unstable();
+    for id in all {
+        names
+            .request("horizon", id)
+            .expect("registry owns valid ids");
+    }
+    let _ = resolved_items().set(names);
+    Ok(())
+}
+
+/// Find an item in the completed registry without allocating at a hook boundary.
+pub fn item_key(id: &str) -> Option<ItemKey> {
+    Some(ItemKey(*resolved_items().get()?.slots.get(id)?))
+}
+
+/// Resolve a typed identifier at a load boundary without formatting it as a string.
+pub fn item_key_by_identifier(id: &crate::Identifier) -> Option<ItemKey> {
+    Some(ItemKey(*resolved_items().get()?.identifiers.get(id)?))
 }
 
 impl EffectKey {
@@ -329,7 +373,10 @@ pub fn block_id(key: BlockKey) -> Option<&'static str> {
 
 /// Canonical diagnostic name retained by an item registration slot.
 pub fn item_id(key: ItemKey) -> Option<&'static str> {
-    crate::parts::requested_keys().items.id(key.0)
+    resolved_items()
+        .get()
+        .unwrap_or(&crate::parts::requested_keys().items)
+        .id(key.0)
 }
 
 /// The API key for an engine registry index, also for entries not explicitly requested by mods.
@@ -351,5 +398,33 @@ impl crate::BoolGameRuleKey {
                 .ok_or("unknown bool rule slot")?;
             Ok(Self(slot))
         })
+    }
+}
+
+#[cfg(test)]
+mod item_tests {
+    use super::*;
+    use crate::{Hooks, ModEntry, Registrar, RegistrationContext};
+
+    struct Requests;
+    #[crate::__subscriptions]
+    impl Hooks for Requests {
+        fn register(&self, registrar: &mut dyn Registrar, _: &RegistrationContext) {
+            assert_eq!(registrar.item_key("stick").0, 0);
+        }
+    }
+
+    #[test]
+    fn completed_items_preserve_forward_slots_and_refuse_unresolved_requests() {
+        crate::install_parts(&[ModEntry::new("test", Box::new(Requests))]).unwrap();
+        assert!(resolve_items(["minecraft:stone"]).is_err());
+        assert!(item_key("minecraft:stone").is_none());
+        resolve_items(["minecraft:stone", "minecraft:stick", "minecraft:apple"]).unwrap();
+        assert_eq!(item_key("minecraft:stick"), Some(ItemKey(0)));
+        let apple = item_key("minecraft:apple").unwrap();
+        assert_ne!(apple, ItemKey(0));
+        assert_eq!(ItemKey::from_slot(apple.0), Ok(apple));
+        assert_eq!(item_id(apple), Some("minecraft:apple"));
+        assert!(ItemKey::from_slot(3).is_err());
     }
 }

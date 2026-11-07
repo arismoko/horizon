@@ -7,6 +7,7 @@
 //! player's plain items: count, take, give. They act on the server's own
 //! players (the hub's: a dedicated server's, a LAN host's, single player's
 //! server thread's), never on a client's.
+use super::api_values::{TryIntoApi, TryIntoEngine};
 use super::{Dim, Game, commands::execute, lan::LanHost};
 use mod_api::__private::game::*;
 pub use mod_api::game::NativeExperienceOrb;
@@ -555,7 +556,7 @@ impl Game<'_> {
         {
             return Err(ActionRefused::InvalidSetup);
         }
-        let mut state = ScopedPlayerState::new(self.motion, setup)?;
+        let mut state = ScopedPlayerState::new(self.motion, self.items(), setup)?;
         let host = self.lan.as_mut().expect("validated fake's host");
         host.hub.guests.update(gi, |guest| state.swap(guest));
         let play = host.play.insert(conn, Default::default());
@@ -567,7 +568,7 @@ impl Game<'_> {
                 .get_mut(guest.selected)
                 .and_then(Option::take)
                 .filter(|s| s.count > 0);
-            let other = guest
+            let other: Vec<horizon_items::items::ItemStack> = guest
                 .inventory
                 .iter_mut()
                 .chain([&mut guest.offhand, &mut guest.carried])
@@ -582,7 +583,16 @@ impl Game<'_> {
         if let Some(play) = play {
             host.play.insert(conn, play);
         }
-        outcome.map(|outcome| ScopedActionResult::new(outcome, held, other))
+        outcome.map(|outcome| {
+            ScopedActionResult::new(
+                outcome,
+                held.try_into_api()
+                    .expect("action results use load-resolved item keys"),
+                other
+                    .try_into_api()
+                    .expect("action results use load-resolved item keys"),
+            )
+        })
     }
 
     fn fake_action_actor(
@@ -1739,7 +1749,11 @@ impl Game<'_> {
                 Arg::Coords(coordinates) => {
                     Value::BlockPos(self.resolve_coords(&coordinates).map(|v| v.floor() as i32))
                 }
-                Arg::Item(input) => Value::Item(self.command_item_stack(&input, 1)?),
+                Arg::Item(input) => Value::Item(
+                    self.command_item_stack(&input, 1)?
+                        .try_into_api()
+                        .expect("command item validation resolves registered items"),
+                ),
                 _ => unreachable!("the native tree contains only registered native argument kinds"),
             };
             arguments.push(CommandArgument::new(argument.name, value));
@@ -1807,11 +1821,11 @@ struct ScopedPlayerState {
     sneaking: bool,
     sprinting: bool,
     fall_flying: bool,
-    inventory: Vec<Option<mod_api::ItemStack>>,
+    inventory: Vec<Option<horizon_items::items::ItemStack>>,
     selected: usize,
-    armor: [Option<mod_api::ItemStack>; 4],
-    offhand: Option<mod_api::ItemStack>,
-    carried: Option<mod_api::ItemStack>,
+    armor: [Option<horizon_items::items::ItemStack>; 4],
+    offhand: Option<horizon_items::items::ItemStack>,
+    carried: Option<horizon_items::items::ItemStack>,
     equipment: horizon_items::equipment::Equipment,
     effects: horizon_client::effects::PlayerEffects,
     health: f32,
@@ -1821,6 +1835,7 @@ struct ScopedPlayerState {
 impl ScopedPlayerState {
     fn new(
         resources: &horizon_client::motion::MotionResources,
+        items: &horizon_items::items::Items,
         setup: PlayerActionSetup,
     ) -> Result<Self, ActionRefused> {
         // Standing eye height even for secondary use, just as a freshly positioned fake.
@@ -1836,7 +1851,10 @@ impl ScopedPlayerState {
         .map_err(|_| ActionRefused::InvalidSetup)?;
         motion.shift_key_down = setup.secondary_use;
         let mut inventory = vec![None; 36];
-        inventory[0] = (setup.stack.count > 0).then_some(setup.stack);
+        inventory[0] = setup
+            .stack
+            .try_into_engine(items)
+            .map_err(ActionRefused::InvalidStack)?;
         Ok(Self {
             motion: Some(Box::new(motion)),
             position,
@@ -2638,9 +2656,12 @@ mod tests {
                     let Some(Value::Item(item)) = data.argument("item") else {
                         panic!("typed item")
                     };
-                    assert_eq!(&*item.item, "minecraft:stone");
-                    assert_eq!(item.count, 1);
-                    assert!(item.extra.is_some(), "command components retained");
+                    assert_eq!(
+                        mod_api::__private::item_key_id(item.item()),
+                        Some("minecraft:stone")
+                    );
+                    assert_eq!(item.count(), 1);
+                    assert!(item.components().is_some(), "command components retained");
                     assert_eq!(heard[5].1.argument("enabled"), Some(&Value::Boolean(false)));
                     assert_eq!(
                         heard[5].1.argument("pos"),
@@ -3402,7 +3423,10 @@ mod fake_action_tests {
             assert!(game.world.block_entities.get(&stand_in).is_some());
 
             let setup = PlayerActionSetup::new(
-                ItemStack::new("minecraft:fishing_rod", 1),
+                Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                    "minecraft:fishing_rod",
+                    1,
+                ))),
                 [0.5, 64.0 + f64::from(1.62_f32), 0.5],
                 0.0,
                 0.0,
@@ -3530,7 +3554,10 @@ mod fake_action_tests {
             ));
             let target = game.entity(5000).unwrap();
             let setup = PlayerActionSetup::new(
-                ItemStack::new("minecraft:bucket", 2),
+                Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                    "minecraft:bucket",
+                    2,
+                ))),
                 [0.5, 64.0 + f64::from(1.62_f32), 0.5],
                 170.0,
                 -15.0,
@@ -3543,10 +3570,19 @@ mod fake_action_tests {
             };
             let result = player.perform_action_scoped(game, action, setup).unwrap();
             assert_eq!(result.outcome, ActionOutcome::Consumed);
-            assert_eq!(result.held, Some(ItemStack::new("minecraft:bucket", 1)));
+            assert_eq!(
+                result.held,
+                Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                    "minecraft:bucket",
+                    1
+                )))
+            );
             assert_eq!(
                 result.other,
-                vec![ItemStack::new("minecraft:milk_bucket", 1)]
+                vec![crate::game::api_values::test_snapshot(&ItemStack::new(
+                    "minecraft:milk_bucket",
+                    1
+                ))]
             );
             let guest = game.lan.as_ref().unwrap().hub.guest(conn).unwrap();
             assert_eq!(guest.position, [0.5, 64.0, 0.5]);
@@ -3581,7 +3617,9 @@ mod fake_action_tests {
             let (player, conn, _) = fake(game, Some("minecraft:diamond"), 1);
             let setup = |item, sneaking| {
                 PlayerActionSetup::new(
-                    ItemStack::new(item, 1),
+                    Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                        item, 1,
+                    ))),
                     [0.5, 64.0 + f64::from(1.62_f32), 0.5],
                     0.0,
                     90.0,
@@ -3600,7 +3638,13 @@ mod fake_action_tests {
                 )
                 .unwrap();
             assert_eq!(result.outcome, ActionOutcome::Consumed);
-            assert_eq!(result.held, Some(ItemStack::new("minecraft:bucket", 1)));
+            assert_eq!(
+                result.held,
+                Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                    "minecraft:bucket",
+                    1
+                )))
+            );
             let level = game.level(game.dim.id()).unwrap();
             assert_eq!(
                 game.level_block(level, [2, 64, 2]).as_deref(),
@@ -3758,7 +3802,10 @@ mod fake_action_tests {
                             game,
                             on_top([1, 63, 0]),
                             PlayerActionSetup::new(
-                                ItemStack::new("minecraft:oak_log", 1),
+                                Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                                    "minecraft:oak_log",
+                                    1,
+                                ))),
                                 [0.5, 64.0 + f64::from(1.62_f32), 0.5],
                                 123.0,
                                 17.0,
@@ -3771,7 +3818,13 @@ mod fake_action_tests {
                         "normal Host-bearing hook ran"
                     );
                     assert_eq!(result.outcome, ActionOutcome::Passed);
-                    assert_eq!(result.held, Some(ItemStack::new("minecraft:oak_log", 1)));
+                    assert_eq!(
+                        result.held,
+                        Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                            "minecraft:oak_log",
+                            1
+                        )))
+                    );
                     assert!(game.use_failed, "outer per-action flag restored");
                     let level = game.level(game.dim.id()).unwrap();
                     assert_eq!(

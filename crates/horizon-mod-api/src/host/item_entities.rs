@@ -51,7 +51,11 @@ pub trait ItemEntitiesBackendMut {
     /// remove an item entity, use the removal handle. False also for an
     /// unavailable item or outside a server.
     #[access(WorldOnly)]
-    fn item_entity_set_stack(&mut self, item: ItemEntityRef, stack: ItemStack) -> bool;
+    fn item_entity_set_stack(
+        &mut self,
+        item: ItemEntityRef,
+        stack: ItemStack,
+    ) -> Result<bool, StackWriteError>;
     /// Side: server.
     /// `ItemEntity.setPickUpDelay`.
     #[access(WorldOnly)]

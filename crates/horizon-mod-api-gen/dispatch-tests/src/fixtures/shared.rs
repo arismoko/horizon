@@ -6,9 +6,24 @@ use std::time::Duration;
 #[derive(Default)]
 struct ItemStack {
     item: Arc<str>,
+    count: u32,
 }
-struct StackView {
-    count: i32,
+// Dispatch tests isolate the runtime key table: the fixture key retains its name.
+// Production key resolution and slot stability are tested in mod-runtime.
+#[derive(Clone, Copy)]
+struct ItemKey<'a>(&'a str);
+impl ItemStack {
+    fn count(&self) -> u32 {
+        self.count
+    }
+    fn item(&self) -> ItemKey<'_> {
+        ItemKey(&self.item)
+    }
+}
+mod registry_keys {
+    pub(super) fn item_id(key: super::ItemKey<'_>) -> Option<&str> {
+        Some(key.0)
+    }
 }
 struct BlockEntityDraw(Vec<u32>);
 use serde_json::{Map, Value};
@@ -89,6 +104,7 @@ mod generated {
         }
     }
     pub(super) mod mod_api {
+        pub(super) use super::super::ItemStack;
         include!(concat!(env!("OUT_DIR"), "/dispatch_fixtures_api.rs"));
     }
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -296,6 +312,7 @@ impl BlockEntityPart for Mod {
         event.entity.data.push(9);
         *event.carried = Some(ItemStack {
             item: "bucket".into(),
+            count: 1,
         });
     }
     fn block_entity_submit(&self, _: &dyn ClientHost, event: &mut BlockEntitySubmitEvent<'_>) {

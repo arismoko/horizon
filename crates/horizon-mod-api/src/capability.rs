@@ -105,11 +105,11 @@ impl ResourceHandler<ItemResource> for GameItems {
     fn amount(&self, host: &mut dyn ServerHost, index: usize) -> u32 {
         backend_of(&*host)
             .and_then(|backend| backend.container_stack(self.0, index))
-            .map_or(0, |stack| stack.count)
+            .map_or(0, |stack| stack.count())
     }
     fn capacity(&self, host: &mut dyn ServerHost, index: usize, resource: &ItemResource) -> u32 {
         backend_of(&*host).map_or(0, |backend| {
-            backend.container_capacity(self.0, index, &resource.to_stack(1))
+            backend.container_capacity(self.0, index, resource.as_stack())
         })
     }
     fn insert(
@@ -120,12 +120,16 @@ impl ResourceHandler<ItemResource> for GameItems {
         resource: &ItemResource,
         amount: u32,
     ) -> u32 {
-        let stack = resource.to_stack(amount);
+        if amount == 0 {
+            return 0;
+        }
         let Some(backend) = backend_mut_of(host) else {
             return 0;
         };
-        let rest = backend.container_insert(self.0, index, stack, tx);
-        amount - rest.map_or(0, |rest| rest.count.min(amount))
+        let Ok(rest) = backend.container_insert(self.0, index, resource, amount, tx) else {
+            return 0;
+        };
+        amount - rest.map_or(0, |rest| rest.count().min(amount))
     }
     fn extract(
         &self,
@@ -144,7 +148,7 @@ impl ResourceHandler<ItemResource> for GameItems {
         };
         backend
             .container_extract(self.0, index, amount, tx)
-            .map_or(0, |out| out.count.min(amount))
+            .map_or(0, |out| out.count().min(amount))
     }
 }
 

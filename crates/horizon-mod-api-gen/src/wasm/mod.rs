@@ -34,6 +34,7 @@ pub(super) const IMPORTS: &[&str] = &[
     "Players",
     "ClientSession",
     "RenderAssets",
+    "Tags",
     "menu::SlotView",
     "Registrar",
     "CapabilityProviders",
@@ -62,6 +63,11 @@ pub(super) const REACHED: &[(&str, &str, &str)] = &[
     ("Players", "server_host", "Ok(h.players())"),
     ("ClientSession", "client_host", "Ok(h.client_session())"),
     ("RenderAssets", "client_host", "Ok(h.render_assets())"),
+    (
+        "Tags",
+        "",
+        "level_host().map(|h| h.tags()).or_else(|_| host().map(|h| h.tags()))",
+    ),
     // A level hook's host first: inside a level write it is the one the call hands over.
     (
         "AttachmentStore",

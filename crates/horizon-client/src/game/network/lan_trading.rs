@@ -694,6 +694,7 @@ impl Game<'_> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::api_values::TryIntoApi;
     use super::super::native_entity_refs::tests::with_game;
     use super::super::native_merchant_refs::tests::{offer, spawn};
     use super::*;
@@ -1027,16 +1028,28 @@ mod tests {
             let player = villager.trading_player(game).unwrap();
             assert_eq!(player.uuid(), 12);
             let second = offer("minecraft:coal", "minecraft:diamond");
-            assert!(villager.add_offer(game, second.clone()));
+            assert!(
+                villager
+                    .add_offer(game, second.try_into_api().unwrap())
+                    .unwrap()
+            );
             assert_eq!(sent_offers(), 1);
             let mut changed = first.clone();
             changed.uses = 9;
-            assert!(villager.set_offer(game, 0, changed.clone()));
+            assert!(
+                villager
+                    .set_offer(game, 0, changed.try_into_api().unwrap())
+                    .unwrap()
+            );
             assert!(villager.set_xp(game, 40));
             assert!(villager.set_level(game, 3));
             // The profession cannot change under an open screen.
             assert!(!villager.set_profession(game, "minecraft:cleric"));
-            assert!(!villager.set_offer(game, 7, changed.clone()));
+            assert!(
+                !villager
+                    .set_offer(game, 7, changed.try_into_api().unwrap())
+                    .unwrap()
+            );
             assert_eq!(sent_offers(), 3);
             // The mob still has the old offers; the screen has the new ones.
             assert_eq!(
@@ -1044,7 +1057,7 @@ mod tests {
                 vec![first]
             );
             let live = vec![changed.clone(), second.clone()];
-            assert_eq!(villager.offers(game), Some(live.clone()));
+            assert_eq!(villager.offers(game), Some(live.try_into_api().unwrap()));
             assert_eq!(villager.xp(game), Some(40));
             assert_eq!(villager.level(game), Some(3));
             {
@@ -1168,7 +1181,13 @@ mod tests {
                     .and_then(|id| host.entity(id))
                     .and_then(|entity| host.merchant(entity));
                 let wrote = merchant.is_some_and(|m| {
-                    m.add_offer(host, offer("minecraft:wheat", "minecraft:emerald"))
+                    m.add_offer(
+                        host,
+                        offer("minecraft:wheat", "minecraft:emerald")
+                            .try_into_api()
+                            .unwrap(),
+                    )
+                    .unwrap()
                 });
                 let player = merchant.is_some_and(|m| m.trading_player(host).is_some());
                 self.0
@@ -1187,7 +1206,11 @@ mod tests {
             with_game(|game| {
                 let (villager, _rx, first) = open_trade(game, 1);
                 let second = offer("minecraft:coal", "minecraft:diamond");
-                assert!(villager.add_offer(game, second.clone()));
+                assert!(
+                    villager
+                        .add_offer(game, second.try_into_api().unwrap())
+                        .unwrap()
+                );
                 game.lan_select_trade(12, 1);
                 // The selected menu is restored before the hook, so its live
                 // session and trading player are readable and writable there.
@@ -1196,11 +1219,11 @@ mod tests {
                 assert_eq!(seen[0], (Some(40), 1, true, true));
                 assert_eq!(
                     villager.offers(game),
-                    Some(vec![
-                        first,
-                        second,
-                        offer("minecraft:wheat", "minecraft:emerald")
-                    ])
+                    Some(
+                        vec![first, second, offer("minecraft:wheat", "minecraft:emerald")]
+                            .try_into_api()
+                            .unwrap()
+                    )
                 );
             });
         });

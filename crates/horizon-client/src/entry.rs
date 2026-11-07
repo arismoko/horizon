@@ -240,14 +240,11 @@ pub fn main_with(
 }
 
 pub(crate) fn install_client_hooks() {
+    game::api_values::install_stack_hooks();
     if !crate::native_client_hooks::install(crate::native_client_hooks::NativeClientHooks {
-        menu_slot_rules: |context, menu, slot, stack, may_place, max_stack| {
-            let context = mod_api::OwningLoop::new(context);
-            mod_api::dispatch_menu_slot_rules(&context, menu, slot, stack, may_place, max_stack);
-        },
+        menu_slot_rules: game::api_values::menu_slot_rules,
         item_stacked_on_other: |context, event, canceled| {
-            let context = mod_api::OwningLoop::new(context);
-            mod_api::dispatch_item_stacked_on_other(&context, event, canceled);
+            game::api_values::stacked_on_other(context, event, canceled);
         },
         living_heal: |context, entity, amount, cancel| {
             let context = mod_api::OwningLoop::new(context);

@@ -1,7 +1,6 @@
 //! Moved here from the game so mods can name it.
 #[allow(unused_imports)]
 use crate::*;
-use std::sync::atomic::{AtomicU64, Ordering};
 /// A mod's block entity, read and changed through its fields
 /// (`ModBlockEntityFields`) as a struct's: `entity.nbt`. Each change goes
 /// through `DerefMut` and gives it a new `revision`, so a client tells
@@ -35,14 +34,43 @@ pub struct ModRevision {
     pub(crate) born: u64,
     pub(crate) changes: u64,
 }
-static MOD_BLOCK_ENTITIES_MADE: AtomicU64 = AtomicU64::new(0);
+
+impl ModRevision {
+    // hidden: the game verifies callback snapshots still name their engine entity
+    #[doc(hidden)]
+    pub fn identity(self) -> u64 {
+        self.born
+    }
+
+    // hidden: game write-back retains the callback's revision, not a new single write
+    #[doc(hidden)]
+    pub fn changes(self) -> u64 {
+        self.changes
+    }
+
+    // hidden: copy the engine's revision data at the game boundary
+    #[doc(hidden)]
+    pub fn from_snapshot(born: u64, changes: u64) -> Self {
+        Self { born, changes }
+    }
+}
 impl ModBlockEntity {
+    // hidden: game snapshot construction, retaining the engine's revision identity
+    #[doc(hidden)]
+    pub fn from_snapshot(id: String, fields: ModBlockEntityFields, revision: ModRevision) -> Self {
+        Self {
+            id,
+            fields,
+            revision,
+        }
+    }
+
     pub fn new(id: String, fields: ModBlockEntityFields) -> Self {
         Self {
             id,
             fields,
             revision: ModRevision {
-                born: MOD_BLOCK_ENTITIES_MADE.fetch_add(1, Ordering::Relaxed),
+                born: horizon_mod_runtime::block_entities::new_identity(),
                 changes: 0,
             },
         }

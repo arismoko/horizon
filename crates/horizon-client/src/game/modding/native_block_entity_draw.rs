@@ -791,7 +791,7 @@ impl Game<'_> {
             let id = BlockStateId(state);
             let block = &*self.res.facts().get(id).name;
             let mut bounds = DEFAULT_BOUNDS;
-            self.native_block_entity_render_bounding_box(pos, block, id, entity, &mut bounds);
+            self.api_block_entity_render_bounding_box(pos, block, id, entity, &mut bounds);
             if !in_frustum(self.view_frustum.as_ref(), origin, bounds) {
                 continue;
             }
@@ -806,7 +806,7 @@ impl Game<'_> {
             draw.kept = false;
             draw.spins.clear();
             draw.records.clear();
-            self.native_block_entity_submit(pos, block, id, entity, &mut draw);
+            self.api_block_entity_submit(pos, block, id, entity, &mut draw);
             self.finish_prepared_draw(&mut draw, corner, camera);
             // The turning parts, from the start of this block's vertices.
             let spins: Vec<(usize, Option<Spin>)> = draw

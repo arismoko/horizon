@@ -86,9 +86,14 @@ impl Game<'_> {
         &mut self,
         at: BlockSide,
         slot: usize,
-        stack: ItemStack,
+        resource: &ItemStack,
+        amount: u32,
         tx: &Transaction,
     ) -> Option<ItemStack> {
+        let stack = ItemStack {
+            count: amount,
+            ..resource.clone()
+        };
         let _ = tx;
         let Some(view) = self.capability_view(at) else {
             return Some(stack);

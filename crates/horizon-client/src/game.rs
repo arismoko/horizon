@@ -70,6 +70,7 @@ mod host;
 mod native_hooks;
 use event_loop::EventLoopCtl;
 // `Action` here is the title screen's buttons (`title::Action`).
+use self::api_values::TryIntoApi;
 use horizon_client::actions::Action as Mapping;
 use horizon_client::held::Source;
 use horizon_client::spans::startup;
@@ -7207,8 +7208,9 @@ impl Game<'_> {
                 && mod_api::__private::parts(mod_api::HookId::UseItemOn, "use_item_on")
                     .for_hook(mod_api::HookId::UseItemOn)
                     .is_some_and(|parts| !parts.block_state(state).is_empty())
+                && let Ok(snapshot) = held.try_into_api()
             {
-                let click = self.block_click(hit, self.hand, held.as_ref());
+                let click = self.block_click(hit, self.hand, snapshot.as_ref());
                 self.native_use_item_on(state, &click, &mut block_answer);
             }
             let mut chains_sign = false;
@@ -7339,9 +7341,16 @@ impl Game<'_> {
                     (result, UseBranch::ItemOn)
                 } else if self.hand == Hand::Main {
                     let mut empty_answer = None;
-                    if !mod_api::__private::mods().is_empty() {
-                        let empty_held = self.held().cloned();
-                        let click = self.block_click(hit, self.hand, empty_held.as_ref());
+                    if mod_api::__private::has_part_hook(mod_api::HookId::UseWithoutItem)
+                        && mod_api::__private::parts(
+                            mod_api::HookId::UseWithoutItem,
+                            "use_without_item",
+                        )
+                        .for_hook(mod_api::HookId::UseWithoutItem)
+                        .is_some_and(|parts| !parts.block_state(state).is_empty())
+                        && let Ok(snapshot) = self.held().try_into_api()
+                    {
+                        let click = self.block_click(hit, self.hand, snapshot.as_ref());
                         self.native_use_without_item(state, &click, &mut empty_answer);
                     }
                     if empty_answer.is_none()
@@ -7517,11 +7526,13 @@ impl Game<'_> {
                     return Ok(false);
                 }
                 block_hit = None;
-            } else {
+            } else if mod_api::__private::has_part_hook(mod_api::HookId::UseOn)
+                && let Ok(snapshot) = stack.try_into_api()
+            {
                 let (player, player_entity_id) = self.native_clicker();
                 let (hand, at) = (self.hand, hit.native());
                 self.native_use_on(mod_api::__private::UseOnCall {
-                    stack: &stack,
+                    stack: &snapshot,
                     pos: hit.pos,
                     face: hit.face,
                     hand,
@@ -14380,7 +14391,7 @@ impl Game<'_> {
                 .filter_map(|(i, e)| {
                     Some(mod_api::NativeArmorHurt {
                         slot: armor_slot(i),
-                        stack: e.as_ref()?.clone(),
+                        stack: e.as_ref()?.try_into_api().ok()?,
                         damage: durability_damage(damage),
                         new_damage: durability_damage(damage),
                     })
@@ -15863,11 +15874,19 @@ impl Game<'_> {
             let attack = attacks[i];
             let inverse_height =
                 horizon_client::first_person::equip_displacement(heights[i], scale);
+            let snapshot = if mod_api::__private::listened(mod_api::HookId::RenderHand) {
+                item.as_ref()
+                    .filter(|stack| stack.count > 0)
+                    .try_into_api()
+                    .ok()
+            } else {
+                None
+            };
             let mut render = mod_api::NativeHandRender {
                 player: self.own_uuid(),
                 player_entity_id: self.own_entity_id(),
                 hand,
-                stack: item.as_ref(),
+                stack: snapshot.as_ref().and_then(Option::as_ref),
                 partial: a,
                 interpolated_pitch,
                 swing: attack,
@@ -15880,7 +15899,7 @@ impl Game<'_> {
                 scale: 1.0,
             };
             let mut canceled = false;
-            if mod_api::__private::listened(mod_api::HookId::RenderHand) {
+            if snapshot.is_some() {
                 self.native_render_hand(&mut render, &mut canceled);
             }
             if canceled {
@@ -23318,6 +23337,17 @@ fn load_world_rest(
         let items = startup::time("rest.items", || {
             Items::load(root, registry, facts, overlay, resources.item_defaults())
         })?;
+        mod_api::__private::resolve_items(items.registry_order.iter().map(|id| &**id)).map_err(
+            |errors| {
+                errors
+                    .into_iter()
+                    .map(|error| {
+                        format!("mod {} requested unknown item {}", error.mod_id, error.id)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            },
+        )?;
         log::info!("load items: {:.2}s", started.elapsed().as_secs_f32());
         progress.set(7);
         // The recipe tables, the stations and the recipe book read one folder:

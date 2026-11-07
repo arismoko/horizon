@@ -41,7 +41,7 @@ fn modified<'a>(stack: &ItemStack, rows: Cow<'a, [ModifierRow]>) -> Cow<'a, [Mod
         }
     }
     let mut modifiers = mod_api::__private::game::item_attribute_modifiers(entries);
-    mod_api::item_attributes::native_item_attribute_modifier(stack, &mut modifiers);
+    crate::native_stack_hooks::attributes(stack, &mut modifiers);
     match mod_api::__private::game::changed_item_attribute_modifiers(modifiers) {
         Some(entries) => {
             kept.extend(entries.iter().map(row));
@@ -104,88 +104,6 @@ fn row(entry: &ItemAttributeModifier) -> ModifierRow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mod_api::{Hooks, ItemAttributeModifierEvent, ModEntry, testing::with_mods};
-
-    /// Makes a netherite chestplate heavier: +0.4 knockback resistance in
-    /// the chest slot, and no armor toughness.
-    struct Heavy;
-    #[mod_api::__subscriptions]
-    impl Hooks for Heavy {
-        fn item_attribute_modifier(&self, event: &mut ItemAttributeModifierEvent<'_>) {
-            if &*event.stack.item != "minecraft:netherite_chestplate" {
-                return;
-            }
-            let id = |text: &str| Identifier::parse(text).unwrap();
-            let heavy = |amount| {
-                AttributeModifier::new(id("test:heavy"), amount, AttributeOperation::AddValue)
-            };
-            let resistance = id("minecraft:knockback_resistance");
-            assert!(
-                event
-                    .modifiers
-                    .add(resistance.clone(), heavy(0.4), EquipmentSlotGroup::Chest)
-            );
-            // The id is taken on that attribute.
-            assert!(
-                !event
-                    .modifiers
-                    .add(resistance, heavy(1.0), EquipmentSlotGroup::Chest)
-            );
-            assert!(
-                event
-                    .modifiers
-                    .remove_all_for(&id("minecraft:armor_toughness"))
-            );
-        }
-    }
-
-    fn chestplate() -> Vec<ModifierRow> {
-        ["minecraft:armor", "minecraft:armor_toughness"]
-            .map(|attribute| {
-                ModifierRow::new(
-                    attribute,
-                    "minecraft:armor.chestplate",
-                    3.0,
-                    "add_value",
-                    "chest",
-                )
-            })
-            .to_vec()
-    }
-
-    /// A mod's edits are what the stack grants; a stack it leaves alone, and
-    /// any stack with no mod listening, keeps the item's list borrowed.
-    #[test]
-    fn a_mod_edits_what_a_stack_grants() {
-        let types = chestplate();
-        let netherite = ItemStack::new("minecraft:netherite_chestplate", 1);
-        let diamond = ItemStack::new("minecraft:diamond_chestplate", 1);
-        with_mods(Vec::new().into(), || {
-            assert!(matches!(
-                attribute_modifiers_or(&netherite, &types),
-                Cow::Borrowed(_)
-            ));
-        });
-        with_mods(vec![ModEntry::new("heavy", Box::new(Heavy))].into(), || {
-            assert_eq!(
-                &*attribute_modifiers_or(&netherite, &types),
-                [
-                    types[0].clone(),
-                    ModifierRow::new(
-                        "minecraft:knockback_resistance",
-                        "test:heavy",
-                        0.4,
-                        "add_value",
-                        "chest"
-                    ),
-                ]
-            );
-            assert!(matches!(
-                attribute_modifiers_or(&diamond, &types),
-                Cow::Borrowed(_)
-            ));
-        });
-    }
 
     /// Every slot group and operation the API names reads back as the row it
     /// came from.

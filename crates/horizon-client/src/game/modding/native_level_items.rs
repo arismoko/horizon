@@ -6,7 +6,8 @@
 //! server's players, and in-frame on the window's own level. Clients get the
 //! new entities through the tracker, as any other.
 use super::{Game, dispenser, spill};
-use mod_api::{EntityRef, ItemStack, LevelRef};
+use horizon_items::items::ItemStack;
+use mod_api::{EntityRef, LevelRef};
 
 impl Game<'_> {
     /// Whether vanilla could make an item entity of `stack`: not empty
@@ -159,8 +160,9 @@ mod tests {
             load_resources, spill,
         };
         use horizon_client::gamerules::Value as RuleValue;
+        use horizon_client::items::ItemStack;
         use horizon_core::random::RandomSource;
-        use mod_api::{ItemStack, LevelRef, NativeAuthority, NativeWorldEpoch};
+        use mod_api::{LevelRef, NativeAuthority, NativeWorldEpoch};
 
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let settings = Settings::default();

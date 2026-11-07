@@ -1,4 +1,4 @@
-// hidden: a module of game-side types; mods use their re-exports
+// hidden: owned trading values are re-exported at the API root
 #[doc(hidden)]
 pub mod merchant;
-pub use crate::merchant::MerchantOffer;
+pub use crate::merchant::{ItemCost, MerchantOffer};

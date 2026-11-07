@@ -591,36 +591,37 @@ mod tests {
         impl ItemPart for Part {
             fn use_animation(&self, _: &dyn ClientHost, event: &mut UseAnimationEvent<'_>) {
                 self.0.fetch_add(1, Ordering::Relaxed);
-                let expected = match &*event.stack.item {
+                let expected = match mod_api::__private::item_key_id(event.stack.item()).unwrap() {
                     "minecraft:bow" => UseAnimation::Bow,
                     "minecraft:crossbow" => UseAnimation::Crossbow,
                     "minecraft:trident" => UseAnimation::Trident,
                     "minecraft:brush" => UseAnimation::Brush,
                     "minecraft:wooden_spear"
-                        if event
-                            .stack
-                            .data()
-                            .is_none_or(|d| d.other("!minecraft:kinetic_weapon").is_none()) =>
+                        if event.stack.components().is_none_or(|d| {
+                            d.as_nbt()
+                                .get(&"!minecraft:kinetic_weapon".into())
+                                .is_none()
+                        }) =>
                     {
                         UseAnimation::Spear
                     }
                     "minecraft:stick"
-                        if event
-                            .stack
-                            .data()
-                            .is_some_and(|d| d.other("minecraft:kinetic_weapon").is_some()) =>
+                        if event.stack.components().is_some_and(|d| {
+                            d.as_nbt().get(&"minecraft:kinetic_weapon".into()).is_some()
+                        }) =>
                     {
                         UseAnimation::Spear
                     }
                     _ => UseAnimation::None,
                 };
                 assert_eq!(*event.animation, expected);
-                *event.animation = if &*event.stack.item == "minecraft:stick"
-                    || event
-                        .stack
-                        .data()
-                        .is_some_and(|d| d.other("!minecraft:kinetic_weapon").is_some())
-                {
+                *event.animation = if mod_api::__private::item_key_id(event.stack.item()).unwrap()
+                    == "minecraft:stick"
+                    || event.stack.components().is_some_and(|d| {
+                        d.as_nbt()
+                            .get(&"!minecraft:kinetic_weapon".into())
+                            .is_some()
+                    }) {
                     UseAnimation::Spear
                 } else {
                     UseAnimation::Drink

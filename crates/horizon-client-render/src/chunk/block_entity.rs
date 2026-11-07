@@ -7,9 +7,9 @@ use horizon_client_core::{
     who::{EventSource, Who},
 };
 use horizon_items::{banner_layer::BannerLayer, items::ItemStack};
-pub use mod_api::containers::{
-    ModBlockEntity, ModBlockEntityFields, ModContainer, ModEnergyBuffer, ModFluidTanks, ModRevision,
-};
+mod mod_models;
+pub use mod_api::containers::{ModContainer, ModEnergyBuffer, ModFluidTanks};
+pub use mod_models::{ModBlockEntity, ModBlockEntityFields, ModRevision};
 use std::{collections::HashMap, sync::Arc};
 use {
     horizon_core::nbt::{Compound, Tag},
