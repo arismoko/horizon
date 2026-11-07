@@ -3,13 +3,13 @@
 use crate::Refusal;
 use crate::frame::{Frame, Root};
 use crate::view::{self, Resolved};
-use horizon_mod_package::manifest::inject::{Access, Kind};
+use horizon_mod_package::manifest::inject::{self, Access, Kind};
 use horizon_mod_package::manifest::{Internal, Manifest};
 use mod_api::__private::wasm_host::{CallHost, Exports};
 use mod_points::__private::SlotListener;
 use mod_points::internals::bindings::exports::horizon::mod_internals::raw_listeners::HostKind;
 use mod_points::internals::{Place, Table};
-use mod_points::places::{IDS, NAMES, TARGETS};
+use mod_points::places::{IDS, TARGETS};
 use mod_points::register;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -28,6 +28,8 @@ struct Listener {
     descriptor: usize,
     index: u32,
     declared: Arc<[Resolved]>,
+    priority: i32,
+    inject: String,
 }
 
 pub(crate) struct Listeners(Vec<Listener>);
@@ -39,14 +41,12 @@ impl Listeners {
             let place = &listener.table.places[listener.descriptor];
             let key = (listener.exports.id(), place.place);
             let listeners = open.entry(key).or_default();
-            // One erased callback per mod and place. It fans out repeated injections in guest
-            // order, since the registry's erased callback carries a place but no injection id.
-            if listeners.is_empty() {
-                // SAFETY: load checked the descriptor against this exact place's raw shape;
-                // `fire` uses it only for the callback's synchronous lifetime.
-                let raw = unsafe { SlotListener::erased(key.0, IDS[key.1], fire) };
-                register(&raw)?;
-            }
+            let index = listeners.len() as u32;
+            let name = Box::leak(listener.inject.clone().into_boxed_str());
+            // SAFETY: load checked this exact raw descriptor and its synchronous borrows.
+            let raw = unsafe { SlotListener::indexed(key.0, IDS[key.1], fire, index) }
+                .ordered(listener.priority, name);
+            register(&raw)?;
             listeners.push(listener);
         }
         Ok(())
@@ -68,22 +68,70 @@ fn check_declared(manifest: &[Internal], listed: &[(String, String)]) -> Result<
     Ok(())
 }
 
+fn check_slot(table: &Table, mod_id: &str, injection: &inject::Inject) -> Result<(), Refusal> {
+    let descriptors: Vec<_> = table
+        .places
+        .iter()
+        .filter(|p| p.target == injection.at)
+        .collect();
+    let slots = descriptors
+        .iter()
+        .map(|p| {
+            if TARGETS.get(p.place.wrapping_sub(1)) == Some(&p.target) {
+                inject::SlotKind::Return
+            } else {
+                inject::SlotKind::Head
+            }
+        })
+        .collect();
+    let catalog = [inject::Place {
+        at: injection.at.clone(),
+        hash: descriptors
+            .first()
+            .map_or(injection.hash.clone(), |p| p.signature_hash.into()),
+        slots,
+        calls: vec![],
+        native_only: table.native_only.contains(&injection.at.as_str()),
+    }];
+    if injection.call.is_some() || !matches!(injection.kind, Kind::Head | Kind::Return) {
+        return Err(Refusal::Inject(inject::InjectError::NoSlot {
+            id: format!("{}:{}", mod_id, injection.id),
+            reason: if injection.call.is_some() {
+                inject::NoSlotReason::WasmSitesPending
+            } else {
+                inject::NoSlotReason::KindHasNoSlot
+            },
+            declaration: injection.at.clone(),
+        }));
+    }
+    inject::route(
+        inject::Entry {
+            inject: injection,
+            target: inject::Target::Wasm,
+            mod_id,
+            resolved_call: None,
+        },
+        &catalog,
+    )
+    .map_err(Refusal::Inject)?;
+    Ok(())
+}
+
 pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Listeners>, Refusal> {
     let wasm = manifest
         .wasm
         .as_ref()
         .expect("wasm loading checked the package");
-    if wasm.internals().is_empty() {
+    let injections: Vec<_> = manifest
+        .inject
+        .iter()
+        .filter(|i| i.access == Access::Internals)
+        .collect();
+    if wasm.internals().is_empty() && injections.is_empty() {
         return Ok(None);
     }
     let table = crate::INTERNALS.get().copied().unwrap_or(&Table::EMPTY);
-    for path in wasm.internals().iter().map(|i| i.path.as_str()).chain(
-        manifest
-            .inject
-            .iter()
-            .filter(|i| i.access == Access::Internals)
-            .map(|i| i.at.as_str()),
-    ) {
+    for path in wasm.internals().iter().map(|i| i.path.as_str()) {
         if table.native_only.contains(&path) {
             return Err(Refusal::missing_internal(table, &manifest.id, path));
         }
@@ -96,13 +144,29 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
     {
         return Err(Refusal::NoInternalsTable);
     }
+    let mut expected = BTreeMap::new();
+    for injection in &injections {
+        check_slot(table, &manifest.id, injection)?;
+        let kind = if injection.kind == Kind::Return {
+            horizon_mod_package::manifest::InjectionKind::Return
+        } else {
+            horizon_mod_package::manifest::InjectionKind::Head
+        };
+        expected.insert(
+            injection.id.as_str(),
+            (
+                crate::points::target_place(&injection.at, kind)?,
+                *injection,
+            ),
+        );
+    }
     let interface = format!(
         "{}-raw-listeners",
         horizon_mod_package::manifest::export_prefix(&manifest.id)
     );
-    let declared: Listed = exports
-        .func(&interface, "declared")
-        .map_err(Refusal::Load)?;
+    let declared: Listed = exports.func(&interface, "declared").map_err(|e| {
+        crate::points::export_refusal(e, injections.first().map_or("internals", |i| i.id.as_str()))
+    })?;
     let listed = exports
         .load(|store| Ok(declared.call(store, ())?.0))
         .ok_or_else(|| {
@@ -126,54 +190,25 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
     }
     let declared: Arc<[Resolved]> = resolved.into();
 
-    let injections: Vec<_> = manifest
-        .inject
-        .iter()
-        .filter(|i| i.access == Access::Internals)
-        .collect();
     if injections.is_empty() {
         return Ok(None);
     }
-    let subscribed: Listed = exports
-        .func(&interface, "subscribed")
-        .map_err(Refusal::Load)?;
-    let fire: Fire = exports.func(&interface, "fire").map_err(Refusal::Load)?;
+    let refused = |e| crate::points::export_refusal(e, &injections[0].id);
+    let subscribed: Listed = exports.func(&interface, "subscribed").map_err(refused)?;
+    let fire: Fire = exports.func(&interface, "fire").map_err(refused)?;
     let listed = exports
         .load(|store| Ok(subscribed.call(store, ())?.0))
         .ok_or_else(|| {
             Refusal::Points("its raw listeners didn't answer which places they fill".into())
         })?;
-    let mut expected = Vec::new();
-    for injection in injections {
-        let target = injection.at.as_str();
-        let kind = match (injection.kind, injection.priority) {
-            (Kind::Head, 0) => horizon_mod_package::manifest::InjectionKind::Head,
-            (Kind::Return, 0) => horizon_mod_package::manifest::InjectionKind::Return,
-            _ => {
-                return Err(Refusal::Points(
-                    "E_INJECT_NO_SLOT: wasm listener kind or priority pending".into(),
-                ));
-            }
-        };
-        let place = crate::points::target_place(target, kind)?;
-        expected.push(place);
-    }
     let mut listeners = Vec::new();
     for (index, (name, shape)) in listed.into_iter().enumerate() {
-        let place = NAMES
-            .iter()
-            .position(|n| *n == name)
-            .ok_or_else(|| Refusal::NoSuchPoint {
-                point: name.clone(),
-            })?;
-        let found =
+        let (place, injection) =
             expected
-                .iter()
-                .position(|p| *p == place)
+                .remove(name.as_str())
                 .ok_or_else(|| Refusal::UndeclaredPoint {
                     point: name.clone(),
                 })?;
-        expected.remove(found);
         let descriptor = table
             .places
             .iter()
@@ -192,12 +227,12 @@ pub(crate) fn listen(manifest: &Manifest, exports: &Exports) -> Result<Option<Li
             descriptor,
             index: index as u32,
             declared: declared.clone(),
+            priority: injection.priority,
+            inject: injection.id.clone(),
         });
     }
-    if let Some(&place) = expected.first() {
-        return Err(Refusal::UnfilledPoint {
-            point: NAMES[place].into(),
-        });
+    if let Some((&id, _)) = expected.first_key_value() {
+        return Err(Refusal::UnfilledPoint { point: id.into() });
     }
     Ok(Some(Listeners(listeners)))
 }
@@ -226,7 +261,7 @@ fn roots(place: &Place, receiver: *mut (), record: *mut ()) -> Vec<Root> {
 
 /// # Safety
 /// Called only by the points registry with the registered place's exact erased borrows.
-unsafe fn fire(place: usize, receiver: *mut (), record: *mut ()) {
+unsafe fn fire(place: usize, index: u32, receiver: *mut (), record: *mut ()) {
     // The points registry's `fire_raw` enters the listener's mod before every callback.
     let Some(id) = mod_api::crash::current_native_mod() else {
         return;
@@ -236,7 +271,7 @@ unsafe fn fire(place: usize, receiver: *mut (), record: *mut ()) {
     let Some(listeners) = registered.get(&(id, place)) else {
         return;
     };
-    for listener in listeners {
+    if let Some(listener) = listeners.get(index as usize) {
         let descriptor = &listener.table.places[listener.descriptor];
         // SAFETY: registration matched this exact raw place and its descriptor. Each frame is
         // synchronous and discarded before another listener can observe the slot's borrows.
@@ -248,7 +283,6 @@ unsafe fn fire(place: usize, receiver: *mut (), record: *mut ()) {
         });
         if answer.is_none() && listener.exports.stopped() {
             mod_points::stop(id);
-            break;
         }
     }
 }
@@ -326,6 +360,7 @@ mod tests {
             places: &[Place {
                 place: mod_points::PointId::Tick as usize,
                 target: "fixture",
+                signature_hash: "fixture-signature",
                 hash: "shape",
                 receiver: None,
                 receiver_writable: false,
@@ -333,10 +368,10 @@ mod tests {
             }],
         };
         fn native() {}
-        unsafe fn erased(_: usize, receiver: *mut (), record: *mut ()) {
-            let factor = match mod_api::crash::current_native_mod() {
-                Some("fixture_wasm") => 10,
-                Some("fixture_wasm_other") => 100,
+        unsafe fn erased(_: usize, index: u32, receiver: *mut (), record: *mut ()) {
+            let factor = match (mod_api::crash::current_native_mod(), index) {
+                (Some("fixture_wasm"), 7) => 10,
+                (Some("fixture_wasm_other"), 3) => 100,
                 id => panic!("wrong erased listener identity: {id:?}"),
             };
             // SAFETY: only the fixture slot below calls this callback, with its live record.
@@ -370,25 +405,33 @@ mod tests {
                 native as *const (),
             ))
             .unwrap();
-            register(&SlotListener::erased("fixture_wasm", point, erased)).unwrap();
+            register(&SlotListener::indexed("fixture_wasm", point, erased, 7)).unwrap();
             register(&SlotListener::new(
                 "fixture_middle",
                 point,
                 native as *const (),
             ))
             .unwrap();
-            register(&SlotListener::erased("fixture_wasm_other", point, erased)).unwrap();
+            register(&SlotListener::indexed(
+                "fixture_wasm_other",
+                point,
+                erased,
+                3,
+            ))
+            .unwrap();
         }
         mod_points::__private::seal();
         let mut value: i64 = 1;
         mod_points::__private::fire_raw(point, "fixture", &mut |kind| {
             match kind {
                 mod_points::__private::RawKind::Typed(_) => value += 1,
-                mod_points::__private::RawKind::Erased(callback) => {
+                mod_points::__private::RawKind::Erased(..) => unreachable!(),
+                mod_points::__private::RawKind::Indexed(callback, index) => {
                     // SAFETY: this synthetic slot's record is the live i64 its table names.
                     unsafe {
                         callback(
                             point as usize,
+                            index,
                             std::ptr::null_mut(),
                             (&raw mut value).cast(),
                         )
@@ -404,11 +447,13 @@ mod tests {
         value = 1;
         mod_points::__private::fire_raw(point, "fixture", &mut |kind| match kind {
             mod_points::__private::RawKind::Typed(_) => value += 1,
-            mod_points::__private::RawKind::Erased(callback) => {
+            mod_points::__private::RawKind::Erased(..) => unreachable!(),
+            mod_points::__private::RawKind::Indexed(callback, index) => {
                 // SAFETY: the same synthetic slot's exclusively borrowed i64 record.
                 unsafe {
                     callback(
                         point as usize,
+                        index,
                         std::ptr::null_mut(),
                         (&raw mut value).cast(),
                     )
@@ -428,6 +473,7 @@ mod tests {
         let place = Place {
             place: 0,
             target: "Game::read",
+            signature_hash: "fixture-signature",
             hash: "shape",
             receiver: Some(3),
             receiver_writable: false,

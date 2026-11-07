@@ -86,7 +86,7 @@ fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
             heard.push(if row.one_owner {
                 match kind {
                     RawKind::Typed(_) => "native",
-                    RawKind::Erased(_) => "wasm",
+                    RawKind::Erased(_) | RawKind::Indexed(..) => "wasm",
                 }
             } else {
                 mod_api::crash::current_native_mod().unwrap()

@@ -231,6 +231,7 @@ pub struct Declaration {
 }
 /// One raw listener, in manifest dispatch order.
 pub struct Injection {
+    pub id: String,
     pub target: String,
     pub at_return: bool,
     pub listener: String,
@@ -708,11 +709,7 @@ pub fn generate(
         {
             items.push(quote!(pub use #ty as #alias;));
         }
-        let method = if inj.at_return {
-            format!("{}_return", point.name)
-        } else {
-            point.name.clone()
-        };
+        let method = &inj.id;
         let hash = &point.wire_shape;
         subscriptions.push(quote!((#method.into(), #hash.into())));
         let has_receiver = sig.receiver().is_some() && !(inj.at_return && shape.borrowed_return);

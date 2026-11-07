@@ -40,12 +40,12 @@ fn a_generated_guest_view_reads_writes_calls_and_commits_a_raw_listener() {
         cancel: false,
     };
     mod_points::__private::fire_raw(point, "handle_chat_input", &mut |kind| {
-        let mod_points::__private::RawKind::Erased(callback) = kind else {
+        let mod_points::__private::RawKind::Indexed(callback, index) = kind else {
             panic!("a wasm raw listener")
         };
         // SAFETY: the descriptor above describes exactly these two live fixture roots.
         unsafe {
-            callback(place, (&raw mut game).cast(), (&raw mut raw).cast());
+            callback(place, index, (&raw mut game).cast(), (&raw mut raw).cast());
         }
     });
     assert_eq!(

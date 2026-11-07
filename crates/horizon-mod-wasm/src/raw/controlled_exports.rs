@@ -1,8 +1,10 @@
 use super::*;
 use mod_api::__private::wasm_host::{Budgets, Member, instantiate};
 use wasm_encoder::{CodeSection, Function, Instruction as Op, Module, reencode::Reencode};
-// Only load metadata and the raw fixture functions get executable bodies.
-fn component(names: &[(&str, &str)]) -> Exports {
+
+// The production WIT supplies all mandatory API exports. Only load metadata and
+// this fixture's raw functions have bodies; every other dummy function traps.
+fn component(names: &[(&str, &str)], omit_fire: bool) -> Exports {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let dir = root.join(format!("target/raw-exports-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -15,7 +17,11 @@ fn component(names: &[(&str, &str)]) -> Exports {
         )
         .unwrap();
     let world = resolve.select_world(&[package], Some("mod")).unwrap();
-    let raw_package = resolve.push_str("raw.wit", "package test:raw; interface listeners { enum host-kind { read, server, client, none } declared: func() -> list<tuple<string, string>>; subscribed: func() -> list<tuple<string, string>>; fire: func(place: u32, host: host-kind); } world raw { export listeners; }").unwrap();
+    let raw_package = resolve.push_str("raw.wit", "package test:raw; interface listeners { enum host-kind { read, server, client, none } declared: func() -> list<tuple<string, string>>; subscribed: func() -> list<tuple<string, string>>; fire: func(place: u32, host: host-kind); trace: func() -> u32; fallback: func(place: u32, host: host-kind); } world raw { export listeners; }").unwrap();
+    let raw = resolve.packages[raw_package].interfaces["listeners"];
+    if omit_fire {
+        resolve.interfaces[raw].functions.shift_remove("fire");
+    }
     let prefix = horizon_mod_package::manifest::export_prefix("controlled");
     let exports = std::mem::take(&mut resolve.worlds[world].exports);
     for (_, item) in exports {
@@ -33,6 +39,7 @@ fn component(names: &[(&str, &str)]) -> Exports {
         wit_parser::WorldKey::Name(format!("{prefix}-raw-listeners")),
         raw_item,
     );
+
     let module =
         wit_component::dummy_module(&resolve, world, wit_parser::ManglingAndAbi::Standard32);
     let mut rewriter = Fixture::new(&module, names);
@@ -79,10 +86,12 @@ fn component(names: &[(&str, &str)]) -> Exports {
     .remove(0)
     .exports
 }
+
 struct Fixture {
     functions: std::collections::HashMap<u32, String>,
     next: u32,
     data: Vec<u8>,
+    declared: i32,
     subscribed: i32,
 }
 impl Fixture {
@@ -91,6 +100,7 @@ impl Fixture {
             functions: Default::default(),
             next: 0,
             data: vec![0; 16],
+            declared: 0,
             subscribed: 0,
         };
         for payload in wasmparser::Parser::new(0).parse_all(module) {
@@ -113,7 +123,7 @@ impl Fixture {
                 _ => {}
             }
         }
-        fixture.list(&[("Counter", "internal")]);
+        fixture.declared = fixture.list(&[("Counter", "internal")]);
         fixture.subscribed = fixture.list(names);
         fixture
     }
@@ -158,13 +168,36 @@ impl Reencode for Fixture {
         let name = self.functions.get(&self.next).cloned().unwrap_or_default();
         self.next += 1;
         let mut f = Function::new([]);
-        if name.contains("raw-listeners") && name.ends_with("subscribed") {
+        if name.contains("post-return") {
+        } else if name.contains("raw-listeners") && name.ends_with("subscribed") {
             f.instruction(&Op::I32Const(self.subscribed));
         } else if name.contains("raw-listeners") && name.ends_with("declared") {
-            f.instruction(&Op::I32Const(16));
+            f.instruction(&Op::I32Const(self.declared));
         } else if name.ends_with("subscribed") {
             f.instruction(&Op::I32Const(0));
+        } else if name.ends_with("trace") {
+            f.instruction(&Op::I32Const(4096))
+                .instruction(&Op::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
         } else if name.contains("raw-listeners") && name.ends_with("fire") {
+            let mem = wasm_encoder::MemArg {
+                offset: 0,
+                align: 2,
+                memory_index: 0,
+            };
+            f.instruction(&Op::I32Const(4096))
+                .instruction(&Op::I32Const(4096))
+                .instruction(&Op::I32Load(mem))
+                .instruction(&Op::I32Const(10))
+                .instruction(&Op::I32Mul)
+                .instruction(&Op::LocalGet(0))
+                .instruction(&Op::I32Const(1))
+                .instruction(&Op::I32Add)
+                .instruction(&Op::I32Add)
+                .instruction(&Op::I32Store(mem));
         } else if !name.contains("post-return") {
             return wasm_encoder::reencode::utils::parse_function_body(self, code, body);
         }
@@ -173,6 +206,142 @@ impl Reencode for Fixture {
         Ok(())
     }
 }
+
+#[test]
+fn controlled_load_and_registration() {
+    // Registry sealing is process-wide. Isolate this real registration from
+    // other unit tests without changing the production registry's lifetime.
+    if std::env::var_os("HORIZON_CONTROLLED_RAW_CHILD").is_none() {
+        assert!(
+            std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "raw::controlled_exports::controlled_load_and_registration",
+                    "--nocapture"
+                ])
+                .env("HORIZON_CONTROLLED_RAW_CHILD", "1")
+                .status()
+                .unwrap()
+                .success()
+        );
+        return;
+    }
+    use mod_points::internals::{Op, Reply, Type};
+    unsafe fn node(
+        _: *mut (),
+        _: bool,
+        _: Op<'_>,
+    ) -> Result<Reply, mod_points::internals::Refusal> {
+        Err(mod_points::internals::not_here("fixture has no fields"))
+    }
+    static TABLE: Table = Table {
+        types: &[Type {
+            path: "Counter",
+            hash: "internal",
+            node,
+            raw_fields: &[],
+            raw_gets: &[],
+            raw_index: false,
+        }],
+        places: &[Place {
+            place: mod_points::PointId::Tick as usize,
+            target: TARGETS[mod_points::PointId::Tick as usize],
+            hash: "wire",
+            signature_hash: "signature",
+            receiver: None,
+            receiver_writable: false,
+            record: 0,
+        }],
+        ..Table::EMPTY
+    };
+    assert!(crate::INTERNALS.set(&TABLE).is_ok());
+    let text = format!(
+        "id='controlled'\nname='Controlled'\nversion='1.0.0'\napi='0.2'\nside='both'\ncapabilities=['registries']\n[native]\n[[native.internals]]\npath='Counter'\nhash='internal'\n[wasm]\nsha512='{}'\ntoolchain='1.99.1'\n[[inject]]\nid='a'\nat=\"{}\"\nkind='head'\naccess='internals'\nwith='listener'\nhash='signature'\npriority=10\n",
+        "0".repeat(128),
+        TARGETS[mod_points::PointId::Tick as usize]
+    );
+    let manifest = Manifest::parse(&text).unwrap();
+    let cases = [
+        ("signature", vec![("a", "wire")], false),
+        ("wire", vec![("a", "changed")], false),
+        ("unknown", vec![("b", "wire")], false),
+        ("duplicate", vec![("a", "wire"), ("a", "wire")], false),
+        ("missing", vec![("a", "wire")], true),
+        ("missing-id", vec![], false),
+    ];
+    let filter = std::env::var("HORIZON_CONTROLLED_RAW_CASE").ok();
+    for (case, names, missing) in cases {
+        if filter.as_deref().is_some_and(|wanted| wanted != case) {
+            continue;
+        }
+        let mut manifest = manifest.clone();
+        if case == "signature" {
+            manifest.inject[0].hash = "changed".into();
+        }
+        let exports = component(&names, missing);
+        let why = match listen(&manifest, &exports) {
+            Err(why) => why,
+            Ok(_) => panic!("accepted {case}"),
+        };
+        assert!(
+            match case {
+                "signature" => matches!(why, Refusal::Inject(inject::InjectError::Changed { .. })),
+                "wire" => matches!(why, Refusal::ChangedInternal { .. }),
+                "unknown" | "duplicate" => matches!(why, Refusal::UndeclaredPoint { .. }),
+                "missing" => matches!(why, Refusal::UnfilledPoint { .. }),
+                "missing-id" => matches!(&why, Refusal::UnfilledPoint { point } if point == "a"),
+                _ => unreachable!(),
+            },
+            "{case}: {why:?}"
+        );
+    }
+    if filter.as_deref().is_some_and(|wanted| wanted != "priority") {
+        return;
+    }
+    let mut manifest = manifest;
+    for (id, priority) in [("b", -5), ("c", 0)] {
+        let mut entry = manifest.inject[0].clone();
+        entry.id = id.into();
+        entry.priority = priority;
+        manifest.inject.push(entry);
+    }
+    let exports = component(&[("a", "wire"), ("b", "wire"), ("c", "wire")], false);
+    listen(&manifest, &exports)
+        .unwrap()
+        .unwrap()
+        .register()
+        .unwrap();
+    mod_points::__private::seal();
+    mod_points::__private::fire_raw(mod_points::PointId::Tick, "tick", &mut |kind| {
+        let mod_points::__private::RawKind::Indexed(fire, index) = kind else {
+            panic!("indexed raw listener")
+        };
+        let mut record = 0_u8;
+        // SAFETY: the fixture node never dereferences the live record.
+        unsafe {
+            fire(
+                mod_points::PointId::Tick as usize,
+                index,
+                std::ptr::null_mut(),
+                (&raw mut record).cast(),
+            )
+        };
+    });
+    let trace = exports
+        .func::<(), (u32,)>(
+            &format!(
+                "{}-raw-listeners",
+                horizon_mod_package::manifest::export_prefix("controlled")
+            ),
+            "trace",
+        )
+        .unwrap();
+    assert_eq!(
+        exports.load(|store| Ok(trace.call(store, ())?.0)),
+        Some(132)
+    );
+}
+
 #[test]
 fn manifest_listener_loads_at_its_declared_place() {
     use mod_points::internals::{Op, Refusal, Reply, Type};
@@ -192,6 +361,7 @@ fn manifest_listener_loads_at_its_declared_place() {
             place: mod_points::PointId::Tick as usize,
             target: TARGETS[mod_points::PointId::Tick as usize],
             hash: "wire",
+            signature_hash: "signature",
             receiver: None,
             receiver_writable: false,
             record: 0,
@@ -205,10 +375,10 @@ fn manifest_listener_loads_at_its_declared_place() {
         TARGETS[mod_points::PointId::Tick as usize]
     );
     let mut manifest = Manifest::parse(&text).unwrap();
-    let exports = component(&[("tick", "wire")]);
+    let exports = component(&[("a", "wire")], false);
     assert!(listen(&manifest, &exports).unwrap().is_some());
     manifest.inject[0].priority = 1;
-    assert!(listen(&manifest, &exports).is_err());
+    assert!(listen(&manifest, &exports).unwrap().is_some());
 }
 mod build_script {
     include!(concat!(

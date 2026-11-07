@@ -1069,8 +1069,9 @@ impl<'r> Gen<'r> {
         let variant = shape.variant();
         let target = &point.target;
         let hash = &point.wire_shape;
+        let signature_hash = &internal.hash;
         let mut places = vec![
-            quote!(I::Place { place: ::mod_points::PointId::#variant as usize, target: #target, hash: #hash, receiver: #receiver, receiver_writable: #writable, record: #id },),
+            quote!(I::Place { place: ::mod_points::PointId::#variant as usize, target: #target, hash: #hash, signature_hash: #signature_hash, receiver: #receiver, receiver_writable: #writable, record: #id },),
         ];
         // A RETURN borrows the returned value directly, not the head's Option<R> slot.
         let returned = match &sig.output {
@@ -1108,7 +1109,7 @@ impl<'r> Gen<'r> {
                 receiver
             };
             let variant = shape.return_variant();
-            places.push(quote!(I::Place { place: ::mod_points::PointId::#variant as usize, target: #target, hash: #hash, receiver: #receiver, receiver_writable: #writable, record: #id },));
+            places.push(quote!(I::Place { place: ::mod_points::PointId::#variant as usize, target: #target, hash: #hash, signature_hash: #signature_hash, receiver: #receiver, receiver_writable: #writable, record: #id },));
         }
         Some(places)
     }

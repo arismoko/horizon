@@ -255,6 +255,7 @@ fn prepare(stage: &Path, build: &Path) {
         .iter()
         .enumerate()
         .map(|(index, (entry, _))| internals_view::Injection {
+            id: format!("raw_{index}"),
             target: entry.path.clone(),
             at_return: false,
             listener: format!("raw_{index}"),
@@ -305,7 +306,7 @@ fn prepare(stage: &Path, build: &Path) {
     for injection in &raw {
         manifest.push_str(&format!(
             "[[inject]]\nid = {:?}\nat = {:?}\nkind = \"head\"\naccess = \"internals\"\nhash = \"coverage\"\nwith = {:?}\n",
-            injection.listener, injection.target, injection.listener
+            injection.id, injection.target, injection.listener
         ));
     }
     manifest.push_str(&format!(

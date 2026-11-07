@@ -89,11 +89,14 @@ pub enum Refusal {
     NoInternalsTable,
     /// Its listeners couldn't be set up.
     Points(String),
+    /// A unified injection failed freshness or slot routing.
+    Inject(horizon_mod_package::manifest::inject::InjectError),
 }
 
 impl std::fmt::Display for Refusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Inject(why) => write!(f, "{why}"),
             Self::MissingDependency {
                 dependency,
                 version,

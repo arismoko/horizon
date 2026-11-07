@@ -171,6 +171,7 @@ fn table() -> &'static Table {
         places: Box::leak(Box::new([Place {
             place: point,
             target: mod_points::places::TARGETS[point],
+            signature_hash: "fixture-signature",
             hash: mod_points::places::SHAPES[point],
             receiver: Some(0),
             receiver_writable: true,
@@ -190,13 +191,14 @@ fn wasm(mode: &str, count: i64) -> (Game, String) {
         mod_points::PointId::HandleChatInput,
         "handle_chat_input",
         &mut |kind| {
-            let mod_points::__private::RawKind::Erased(callback) = kind else {
+            let mod_points::__private::RawKind::Indexed(callback, index) = kind else {
                 panic!("wasm listener")
             };
             // SAFETY: table() supplies exactly these receiver and record layouts.
             unsafe {
                 callback(
                     mod_points::PointId::HandleChatInput as usize,
+                    index,
                     (&raw mut game).cast(),
                     (&raw mut record).cast(),
                 );

@@ -171,6 +171,7 @@ pub fn table() -> &'static Table {
         places: Box::leak(Box::new([Place {
             place,
             target: mod_points::places::TARGETS[place],
+            signature_hash: "fixture-signature",
             hash: mod_points::places::SHAPES[place],
             receiver: Some(0),
             receiver_writable: true,

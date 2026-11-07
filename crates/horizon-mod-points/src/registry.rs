@@ -35,6 +35,8 @@ pub enum RawKind {
     /// associated function, and at a borrowed-return place. A shared receiver must not be written
     /// to; its mutable pointer only erases the type, not its mutability.
     Erased(unsafe fn(usize, *mut (), *mut ())),
+    /// A checked runtime export, with its identity preserved through ordering.
+    Indexed(unsafe fn(usize, u32, *mut (), *mut ()), u32),
 }
 
 // Function pointers: no data behind them, so they move between threads.
@@ -202,6 +204,25 @@ impl SlotListener {
             id,
             place: place as usize,
             kind: Kind::Raw(RawKind::Erased(function)),
+            priority: 0,
+            injection: "",
+        }
+    }
+
+    /// A runtime listener whose export index is retained by the registry.
+    ///
+    /// # Safety
+    /// The callback must obey the same pointer contract as [`Self::erased`].
+    pub const unsafe fn indexed(
+        id: &'static str,
+        place: PointId,
+        function: unsafe fn(usize, u32, *mut (), *mut ()),
+        index: u32,
+    ) -> Self {
+        Self {
+            id,
+            place: place as usize,
+            kind: Kind::Raw(RawKind::Indexed(function, index)),
             priority: 0,
             injection: "",
         }

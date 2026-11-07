@@ -37,6 +37,7 @@ fn generate() -> Result<String, String> {
         .filter(|i| i.access == horizon_mod_package::manifest::inject::Access::Internals)
         .map(|i| {
             Ok(Injection {
+                id: i.id.clone(),
                 target: i.at.clone(),
                 at_return: match i.kind {
                     horizon_mod_package::manifest::inject::Kind::Head => false,
