@@ -204,7 +204,7 @@ impl Parser<'_> {
 }
 /// `click_event` / `hover_event`, or the pre-datafixer `clickEvent` /
 /// `hoverEvent` names SNBT and older chat JSON still use.
-fn style_event_object<'a>(
+pub fn style_event_object<'a>(
     o: &'a serde_json::Map<String, Value>,
     modern: &str,
     legacy: &str,
@@ -215,7 +215,7 @@ fn style_event_object<'a>(
 }
 
 /// Style flags from JSON bools, or SNBT `1b`/`0b` which parse as numbers.
-fn style_flag(v: Option<&Value>) -> Option<bool> {
+pub fn style_flag(v: Option<&Value>) -> Option<bool> {
     match v {
         Some(Value::Bool(b)) => Some(*b),
         Some(Value::Number(n)) => n.as_i64().map(|i| i != 0),
@@ -235,7 +235,7 @@ pub fn untrusted_http_url(url: &str) -> bool {
 
 /// `ClickEvent.CODEC` plus the legacy `value` field TextComponentHoverAndClickEventFix
 /// renames (`url` / `command` / `page`).
-fn parse_click_event(e: &serde_json::Map<String, Value>) -> Option<crate::text::ClickEvent> {
+pub fn parse_click_event(e: &serde_json::Map<String, Value>) -> Option<crate::text::ClickEvent> {
     let text = |k: &str| e.get(k).and_then(Value::as_str).map(str::to_owned);
     let legacy = || text("value");
     match e.get("action").and_then(Value::as_str) {
@@ -333,7 +333,7 @@ pub(crate) fn hex_color(c: &str) -> Option<u32> {
 }
 
 /// `Style.shadow_color`: a packed ARGB int or normalized RGBA array.
-pub(crate) fn shadow_color(value: &Value) -> Option<u32> {
+pub fn shadow_color(value: &Value) -> Option<u32> {
     if let Some(packed) = value.as_i64() {
         return i32::try_from(packed).ok().map(|n| n as u32);
     }
@@ -513,7 +513,8 @@ fn build(
     }
 }
 
-fn inline_object(
+/// Decode inline object fields, including the engine's profile and atlas defaults.
+pub fn inline_object(
     object: &serde_json::Map<String, Value>,
     resolve: &mut dyn FnMut(&str) -> Text,
     contents: &mut dyn FnMut(&serde_json::Map<String, Value>) -> Option<Text>,

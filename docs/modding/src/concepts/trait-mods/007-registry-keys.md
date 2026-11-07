@@ -100,6 +100,10 @@ name every case rather than silently treating a new protocol case as an old one.
 Typed content and style fields are authoritative; metadata retains unrecognized
 properties, not overrides of those typed fields. Game-side encoding is infallible
 and reuses the engine's translation-argument and fallback construction rules.
+Capture keeps dynamic contents and metadata rather than flattening the rendered spans.
+It shares the engine's SNBT flag, shadow-colour, click-policy and inline-object parsers.
+File-opening metadata is discarded before a listener receives the owned value; a
+no-op listener cannot promote an untrusted file action into a local action.
 
 ### Particle identities
 
