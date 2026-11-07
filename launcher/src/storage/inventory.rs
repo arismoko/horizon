@@ -1,4 +1,7 @@
 //! The CLI and Storage page share one fixed-path inventory.
+#[cfg(test)]
+#[path = "inventory_regressions.rs"]
+mod regressions;
 use super::*;
 use crate::{backend, instances, native_mods};
 use serde::Serialize;
