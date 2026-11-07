@@ -2077,6 +2077,7 @@ mod tests {
             game.prepared_model_draws.borrow_mut().clear();
             game.finish_prepared_draw(&mut deferred, origin, camera);
             let deferred_instance = game.prepared_model_draws.borrow()[0].instance;
+            game.prepared_model_draws.borrow_mut().clear();
             let mut batch = crate::world_geometry::WorldGeometry::default();
             batch.reset(camera.to_array(), Mat4::IDENTITY, [0.0, 0.0]);
             let copy = ModelInstance::new(
@@ -2093,7 +2094,6 @@ mod tests {
                 };
                 ctx.draw_model_instances(model, &[copy]).unwrap();
             }
-            game.prepared_model_draws.borrow_mut().clear();
             let mut entities = Vec::new();
             game.commit_model_instances(&mut batch, camera, &mut entities);
             let batch_instance = game.prepared_model_draws.borrow()[0].instance;

@@ -200,7 +200,8 @@ mod prepared_model;
 #[cfg(feature = "test-support")]
 pub use prepared_model::fail_next_prepared_upload;
 pub use prepared_model::{
-    PreparedModelDraw, PreparedModelInstance, PreparedModelVertex, PreparedModels, camera_matrix,
+    PreparedInstanceBuilder, PreparedModelDraw, PreparedModelInstance, PreparedModelVertex,
+    PreparedModels, camera_matrix,
 };
 #[cfg(feature = "test-support")]
 pub use prepared_model::{

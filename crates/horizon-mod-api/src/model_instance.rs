@@ -69,6 +69,7 @@ pub struct ModelInstance {
 
 impl ModelInstance {
     /// One copy. The draw call checks finiteness, light range and the view budget.
+    #[inline]
     pub fn new(
         origin: [f64; 3],
         transform: [f32; 12],
@@ -86,6 +87,7 @@ impl ModelInstance {
     }
 
     /// Identity transform at `origin`, full bright, with no overlay.
+    #[inline]
     pub fn at(origin: [f64; 3], tint: u32) -> Self {
         Self::new(
             origin,

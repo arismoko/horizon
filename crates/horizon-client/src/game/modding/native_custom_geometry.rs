@@ -46,6 +46,7 @@ impl Game<'_> {
         if title {
             return;
         }
+        draw.set_model_cut(entities.len() as u32);
         let view = mod_api::WorldRenderView::new(camera, alpha as f32, self.world.game_time);
         self.native_submit_custom_geometry(&view, draw);
         self.follow_debug_selection();
@@ -104,45 +105,36 @@ impl Game<'_> {
             uploaded,
             fields.generation,
         );
-        draw.submit_model(
+        let mut staged = self.prepared_model_draws.borrow_mut();
+        let start = staged.len();
+        let mut gpu_left = if gpu {
+            self.prepared_copy_room(start as u64, instances.len())
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        let cut = draw.model_cut();
+        let camera = DVec3::from(draw.camera());
+        let mut builder = horizon_client::gfx::PreparedInstanceBuilder::default();
+        let result = draw.submit_model(
             ModelBatch {
                 slot: fields.slot,
                 generation: fields.generation,
                 translucent: slot.translucent,
                 bounds: slot.bounds,
-                gpu,
             },
             instances,
             self.view_frustum.as_ref(),
-        )
-    }
-    /// Stage the copies the instance buffer can take, and bake the rest onto the entity stream.
-    pub(super) fn commit_model_instances(
-        &mut self,
-        draw: &mut WorldGeometry,
-        camera: DVec3,
-        entities: &mut Vec<Vertex>,
-    ) {
-        if draw.copy_count() == 0 {
-            return;
-        }
-        let wanted = (0..draw.copy_count())
-            .filter(|&index| draw.copy(index).gpu && draw.copy(index).overlay == 0)
-            .count();
-        let already = self.prepared_model_draws.borrow().len() as u64;
-        let mut gpu_left = self.prepared_copy_room(already, wanted).unwrap_or(0);
-        let cut = entities.len() as u32;
-        let mut staged = self.prepared_model_draws.borrow_mut();
-        for index in 0..draw.copy_count() {
-            let copy = draw.copy(index);
-            let on_gpu = copy.gpu && copy.overlay == 0 && gpu_left > 0;
-            if on_gpu {
+            |copy| {
+                if copy.overlay != 0 || gpu_left == 0 {
+                    return false;
+                }
                 gpu_left -= 1;
-                let mut instance = super::native_block_entity_draw::prepared_instance(
+                let mut instance = builder.instance(
                     world_geometry::row_major_3x4(copy.transform),
                     DVec3::from(copy.origin),
                     camera,
-                    copy.tint,
+                    super::native_block_entity_draw::prepared_tint(copy.tint),
                     copy.light,
                 );
                 instance.tint[3] = (copy.tint >> 24) as f32 / 255.0;
@@ -152,8 +144,23 @@ impl Game<'_> {
                     slot: copy.slot,
                     instance,
                 });
-                continue;
-            }
+                true
+            },
+        );
+        if result.is_err() {
+            staged.truncate(start);
+        }
+        result
+    }
+    /// Bake copies the instance route could not take onto the entity stream.
+    pub(super) fn commit_model_instances(
+        &mut self,
+        draw: &mut WorldGeometry,
+        camera: DVec3,
+        entities: &mut Vec<Vertex>,
+    ) {
+        for index in 0..draw.copy_count() {
+            let copy = draw.copy(index);
             let Some(faces) = self.standalone_geometry.faces(copy.slot) else {
                 continue;
             };
@@ -531,7 +538,7 @@ mod tests {
         super::super::native_entity_refs::tests::with_client_game(|game| {
             let _restore = Restore;
             let model = grass(game);
-            horizon_client::gfx::cap_prepared_instance_slots(8);
+            horizon_client::gfx::cap_prepared_instance_slots(16_384);
             game.view_frustum = Some(horizon_client::gfx::test_frustum([
                 glam::Vec4::new(-1.0, 0.0, 0.0, 4.0),
                 glam::Vec4::W,
@@ -577,13 +584,18 @@ mod tests {
                     1,
                     "a refused batch must draw nothing"
                 );
-                ctx.draw_model_instances(model, &vec![near; 16_383])
+                ctx.draw_model_instances(model, &vec![near; 16_382])
                     .unwrap();
+                let staged = game.prepared_model_draws.borrow().len();
                 assert_eq!(
-                    ctx.draw_model_instances(model, &[near]),
+                    ctx.draw_model_instances(model, &[near, near]),
                     Err(InstanceError::CapacityExceeded)
                 );
+                assert_eq!(ctx.usage().instances_used, 16_383);
+                assert_eq!(game.prepared_model_draws.borrow().len(), staged);
+                ctx.draw_model_instances(model, &[near]).unwrap();
                 assert_eq!(ctx.usage().instances_used, 16_384);
+                game.prepared_model_draws.borrow_mut().clear();
                 ctx.surface.reset([0.0; 3], Mat4::IDENTITY, [0.0, 0.0]);
                 assert_eq!(
                     ctx.draw_model_instances(model, &vec![far; 16_385]),
@@ -609,7 +621,7 @@ mod tests {
             mod_api::__private::install(vec![ModEntry::new("batch", Box::new(FillBatch))].into());
             FILL_ARMED.store(true, Ordering::Relaxed);
             let mut draw = WorldGeometry::default();
-            let mut entities = Vec::new();
+            let mut entities = vec![<Vertex as bytemuck::Zeroable>::zeroed(); 4];
             game.fill_world_geometry(
                 false,
                 [0.0; 3],
@@ -625,7 +637,8 @@ mod tests {
                 "fill_world_geometry must commit the accepted copy"
             );
             assert_eq!(draw.usage().instances_used, 0);
-            assert!(entities.is_empty());
+            assert_eq!(entities.len(), 4);
+            assert_eq!(game.prepared_model_draws.borrow()[0].cpu_vertices, 4);
         });
     }
 }

@@ -28,15 +28,14 @@ impl PreparedModelInstance {
     /// `local` is the block-corner pose. The camera translation is subtracted in f64.
     pub fn new(local: Mat4, origin: DVec3, camera: DVec3, tint: [f32; 4], light: u32) -> Self {
         let model = camera_matrix(local, origin, camera);
-        let normal = Mat3::from_mat4(model).inverse().transpose();
-        let cols = normal.to_cols_array_2d();
-        let mut rows = [[0.0; 4]; 3];
-        for column in 0..3 {
-            rows[column][..3].copy_from_slice(&cols[column]);
-        }
+        Self::from_model(model.to_cols_array_2d(), normal_matrix(model), tint, light)
+    }
+
+    #[inline]
+    fn from_model(model: [[f32; 4]; 4], normal: [[f32; 4]; 3], tint: [f32; 4], light: u32) -> Self {
         Self {
-            model: model.to_cols_array_2d(),
-            normal: rows,
+            model,
+            normal,
             tint,
             light,
             _pad: [0; 3],
@@ -46,6 +45,56 @@ impl PreparedModelInstance {
     /// The camera-relative pose stored for this copy.
     pub fn matrix(&self) -> Mat4 {
         Mat4::from_cols_array_2d(&self.model)
+    }
+}
+
+#[inline]
+fn normal_matrix(model: Mat4) -> [[f32; 4]; 3] {
+    let normal = Mat3::from_mat4(model).inverse().transpose();
+    let cols = normal.to_cols_array_2d();
+    let mut rows = [[0.0; 4]; 3];
+    for column in 0..3 {
+        rows[column][..3].copy_from_slice(&cols[column]);
+    }
+    rows
+}
+
+/// Reuse the inverse transpose for consecutive copies with the same linear pose.
+/// This is a batch-local cache, not retained across views or resource generations.
+#[derive(Default)]
+pub struct PreparedInstanceBuilder {
+    previous: Option<PreparedNormal>,
+}
+
+struct PreparedNormal {
+    basis: [[f32; 4]; 3],
+    normal: [[f32; 4]; 3],
+}
+
+impl PreparedInstanceBuilder {
+    /// Construct the same instance as `PreparedModelInstance::new`, including singular poses.
+    #[inline]
+    pub fn instance(
+        &mut self,
+        local: Mat4,
+        origin: DVec3,
+        camera: DVec3,
+        tint: [f32; 4],
+        light: u32,
+    ) -> PreparedModelInstance {
+        let model = camera_matrix(local, origin, camera);
+        let columns = model.to_cols_array_2d();
+        let basis = [columns[0], columns[1], columns[2]];
+        let previous = self.previous.get_or_insert_with(|| PreparedNormal {
+            basis,
+            normal: normal_matrix(model),
+        });
+        // Byte equality preserves signed zero and NaN payloads as well as finite poses.
+        if bytemuck::bytes_of(&previous.basis) != bytemuck::bytes_of(&basis) {
+            previous.basis = basis;
+            previous.normal = normal_matrix(model);
+        }
+        PreparedModelInstance::from_model(columns, previous.normal, tint, light)
     }
 }
 
@@ -559,6 +608,26 @@ thread_local! {
 mod tests {
     use super::*;
     use bytemuck::Zeroable;
+
+    #[test]
+    fn batch_normal_reuse_matches_independent_instances() {
+        let mut builder = PreparedInstanceBuilder::default();
+        let camera = DVec3::new(30_000_000.25, 72.5, -30_000_000.75);
+        for local in [
+            Mat4::IDENTITY,
+            Mat4::from_rotation_y(0.6),
+            Mat4::from_scale(Vec3::new(-0.5, 1.25, 2.0)),
+            Mat4::from_scale(Vec3::ZERO),
+        ] {
+            for offset in [0.0, 1.5, 100.25, f64::MAX] {
+                let origin = camera + DVec3::splat(offset);
+                let tint = [0.5, 0.25, 1.0, 0.125];
+                let expected = PreparedModelInstance::new(local, origin, camera, tint, 0xF030);
+                let cached = builder.instance(local, origin, camera, tint, 0xF030);
+                assert_eq!(bytemuck::bytes_of(&cached), bytemuck::bytes_of(&expected));
+            }
+        }
+    }
 
     #[test]
     fn camera_translation_keeps_a_fraction_past_f32_precision() {

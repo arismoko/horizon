@@ -19,7 +19,6 @@ pub struct ModelCopy {
     pub tint: u32,
     pub light: u32,
     pub overlay: u32,
-    pub gpu: bool,
 }
 
 /// The model a batch draws. Resolved once, then applied to every copy.
@@ -29,7 +28,6 @@ pub struct ModelBatch {
     pub generation: u64,
     pub translucent: bool,
     pub bounds: [[f32; 3]; 2],
-    pub gpu: bool,
 }
 
 /// Reused between views, including frames with no subscribers or output.
@@ -40,6 +38,8 @@ pub struct WorldGeometry {
     lines: [Vec<[f32; 8]>; 2],
     quads: [Vec<Vertex>; 2],
     copies: Vec<ModelCopy>,
+    accepted_models: u32,
+    model_cut: u32,
 }
 impl Default for WorldGeometry {
     fn default() -> Self {
@@ -50,6 +50,8 @@ impl Default for WorldGeometry {
             lines: std::array::from_fn(|_| Vec::with_capacity(CAPACITY as usize)),
             quads: std::array::from_fn(|_| Vec::with_capacity(CAPACITY as usize * 4)),
             copies: Vec::with_capacity(INSTANCE_CAPACITY as usize),
+            accepted_models: 0,
+            model_cut: 0,
         }
     }
 }
@@ -61,7 +63,18 @@ impl WorldGeometry {
         self.white = white;
         self.lines.iter_mut().for_each(Vec::clear);
         self.quads.iter_mut().for_each(Vec::clear);
-        self.copies.clear();
+        self.clear_copies();
+        self.model_cut = 0;
+    }
+    /// Entity-stream cut used by directly staged instances in this view.
+    pub fn set_model_cut(&mut self, cut: u32) {
+        self.model_cut = cut;
+    }
+    pub fn model_cut(&self) -> u32 {
+        self.model_cut
+    }
+    pub fn camera(&self) -> [f64; 3] {
+        self.camera
     }
     /// The current counts and setup-time limits across both depth modes.
     pub fn usage(&self) -> WorldDrawUsage {
@@ -70,19 +83,21 @@ impl WorldGeometry {
             CAPACITY,
             self.quads.iter().map(|v| v.len() as u32 / 4).sum(),
             CAPACITY,
-            self.copies.len() as u32,
+            self.accepted_models,
             INSTANCE_CAPACITY,
         )
     }
     /// Accept every visible copy, or leave the output unchanged.
     ///
     /// Culled copies are omitted and do not count. A fault in any input, including one
-    /// that would have been culled, refuses the whole batch.
+    /// that would have been culled, refuses the whole batch. `stage` returns true
+    /// for copies it consumes directly; its caller rolls back that output on error.
     pub fn submit_model(
         &mut self,
         batch: ModelBatch,
         instances: &[ModelInstance],
         cull: Option<&impl crate::gfx::Cull>,
+        mut stage: impl FnMut(&ModelCopy) -> bool,
     ) -> Result<(), InstanceError> {
         if instances.is_empty() {
             return Ok(());
@@ -103,21 +118,8 @@ impl WorldGeometry {
                 return Err(InstanceError::InvalidLight);
             }
         }
-        let visible = instances
-            .iter()
-            .filter(|instance| {
-                copy_visible(
-                    batch.bounds,
-                    instance.transform,
-                    instance.origin,
-                    self.camera,
-                    cull,
-                )
-            })
-            .count();
-        if visible > INSTANCE_CAPACITY as usize - self.copies.len() {
-            return Err(InstanceError::CapacityExceeded);
-        }
+        let start = self.copies.len();
+        let accepted = self.accepted_models;
         for instance in instances {
             if !copy_visible(
                 batch.bounds,
@@ -128,7 +130,14 @@ impl WorldGeometry {
             ) {
                 continue;
             }
-            self.copies.push(ModelCopy {
+            // Validation above has already checked even the culled inputs. Roll back
+            // only this submission on overflow; cull each copy just once.
+            if self.accepted_models == INSTANCE_CAPACITY {
+                self.copies.truncate(start);
+                self.accepted_models = accepted;
+                return Err(InstanceError::CapacityExceeded);
+            }
+            let copy = ModelCopy {
                 slot: batch.slot,
                 generation: batch.generation,
                 origin: instance.origin,
@@ -136,8 +145,11 @@ impl WorldGeometry {
                 tint: instance.tint,
                 light: pack_light(instance.light),
                 overlay: pack_overlay(instance.overlay),
-                gpu: batch.gpu,
-            });
+            };
+            if !stage(&copy) {
+                self.copies.push(copy);
+            }
+            self.accepted_models += 1;
         }
         Ok(())
     }
@@ -149,6 +161,7 @@ impl WorldGeometry {
     }
     pub fn clear_copies(&mut self) {
         self.copies.clear();
+        self.accepted_models = 0;
     }
     /// Validate once at the submission boundary, before any output is appended.
     fn validate_positions(&self, points: impl Iterator<Item = [f64; 3]>) -> Result<(), DrawError> {
@@ -221,6 +234,7 @@ impl WorldGeometry {
 }
 
 /// Row-major 3×4 to a column-major matrix. The last row is the affine 0,0,0,1.
+#[inline]
 pub fn row_major_3x4(m: [f32; 12]) -> Mat4 {
     Mat4::from_cols(
         Vec4::new(m[0], m[4], m[8], 0.0),
@@ -262,17 +276,32 @@ fn copy_visible(
     let local = row_major_3x4(transform);
     let delta = DVec3::from(origin) - DVec3::from(camera);
     let shift = Vec3::new(delta.x as f32, delta.y as f32, delta.z as f32);
-    let mut min = Vec3::splat(f32::INFINITY);
-    let mut max = Vec3::splat(f32::NEG_INFINITY);
-    for corner in 0..8 {
-        let point = Vec3::new(
-            bounds[usize::from(corner & 1 != 0)][0],
-            bounds[usize::from(corner & 2 != 0)][1],
-            bounds[usize::from(corner & 4 != 0)][2],
-        );
-        let world = local.transform_point3(point) + shift;
-        min = min.min(world);
-        max = max.max(world);
+    // Affine extrema are selected independently for each output axis. Keep the
+    // multiply/add order of transform_point3, without transforming eight corners.
+    let x0 = local.x_axis.truncate() * bounds[0][0];
+    let x1 = local.x_axis.truncate() * bounds[1][0];
+    let y0 = local.y_axis.truncate() * bounds[0][1];
+    let y1 = local.y_axis.truncate() * bounds[1][1];
+    let z0 = local.z_axis.truncate() * bounds[0][2];
+    let z1 = local.z_axis.truncate() * bounds[1][2];
+    let translation = local.w_axis.truncate();
+    let mut min = translation + (z0.min(z1) + (y0.min(y1) + x0.min(x1))) + shift;
+    let mut max = translation + (z0.max(z1) + (y0.max(y1) + x0.max(x1))) + shift;
+    if !min.is_finite() || !max.is_finite() {
+        // Overflow can produce NaNs whose min/max depends on corner order.
+        // Preserve that order only for these exceptional finite inputs.
+        min = Vec3::splat(f32::INFINITY);
+        max = Vec3::splat(f32::NEG_INFINITY);
+        for corner in 0..8 {
+            let point = Vec3::new(
+                bounds[usize::from(corner & 1 != 0)][0],
+                bounds[usize::from(corner & 2 != 0)][1],
+                bounds[usize::from(corner & 4 != 0)][2],
+            );
+            let world = local.transform_point3(point) + shift;
+            min = min.min(world);
+            max = max.max(world);
+        }
     }
     !min.is_finite() || !max.is_finite() || cull.intersects(min, max)
 }
@@ -358,7 +387,6 @@ mod tests {
             generation: 9,
             translucent: false,
             bounds: [[0.0; 3], [1.0; 3]],
-            gpu: true,
         };
         let kept = draw.usage();
         let mut bad = ModelInstance::at([1.0, 0.0, 0.0], 0xFF11_2233);
@@ -367,20 +395,21 @@ mod tests {
             draw.submit_model(
                 batch,
                 &[ModelInstance::at([1.0, 0.0, 0.0], 1), bad],
-                None::<&NearX>
+                None::<&NearX>,
+                |_| false
             ),
             Err(InstanceError::InvalidLight)
         );
         bad.light.block = 15;
         bad.origin[0] = f64::NAN;
         assert_eq!(
-            draw.submit_model(batch, &[bad], None::<&NearX>),
+            draw.submit_model(batch, &[bad], None::<&NearX>, |_| false),
             Err(InstanceError::NonFinite)
         );
         bad.origin[0] = 1.0;
         bad.transform[4] = f32::INFINITY;
         assert_eq!(
-            draw.submit_model(batch, &[bad], None::<&NearX>),
+            draw.submit_model(batch, &[bad], None::<&NearX>, |_| false),
             Err(InstanceError::NonFinite)
         );
         assert_eq!(
@@ -391,31 +420,32 @@ mod tests {
                 },
                 &[ModelInstance::at([1.0, 0.0, 0.0], 1)],
                 None::<&NearX>,
+                |_| false,
             ),
             Err(InstanceError::Translucent)
         );
         assert_eq!(draw.usage(), kept);
         let near = ModelInstance::at([1.0, 2.0, 3.0], 0xFF80_C040);
         let far = ModelInstance::at([40.0, 0.0, 0.0], 0xFF80_C040);
-        draw.submit_model(batch, &[near, far], Some(&NearX))
+        draw.submit_model(batch, &[near, far], Some(&NearX), |_| false)
             .unwrap();
         assert_eq!(draw.copy_count(), 1);
         assert_eq!(draw.copy(0).light, 0xF0F0);
         assert_eq!(draw.copy(0).overlay, 0);
-        assert!(draw.copy(0).gpu);
         assert_eq!(draw.usage().instances_used, 1);
         assert_eq!(draw.usage().instances_capacity, INSTANCE_CAPACITY);
         let mut hurt = near;
         hurt.overlay = mod_api::Overlay::new(8, true).unwrap();
         hurt.light = mod_api::LightCoords::new(15, 3).unwrap();
-        draw.submit_model(batch, &[hurt], None::<&NearX>).unwrap();
+        draw.submit_model(batch, &[hurt], None::<&NearX>, |_| false)
+            .unwrap();
         assert_eq!(draw.copy(1).light, 0xF030);
         assert_eq!(draw.copy(1).overlay, 1);
         let fill = INSTANCE_CAPACITY as usize - draw.copy_count();
-        draw.submit_model(batch, &vec![near; fill], None::<&NearX>)
+        draw.submit_model(batch, &vec![near; fill], None::<&NearX>, |_| false)
             .unwrap();
         assert_eq!(
-            draw.submit_model(batch, &[near], None::<&NearX>),
+            draw.submit_model(batch, &[near], None::<&NearX>, |_| false),
             Err(InstanceError::CapacityExceeded)
         );
         assert_eq!(draw.copy_count(), INSTANCE_CAPACITY as usize);
@@ -423,5 +453,141 @@ mod tests {
         draw.reset([0.0; 3], Mat4::IDENTITY, [0.0; 2]);
         assert_eq!(draw.copy_count(), 0);
         assert!(draw.copies.capacity() >= reserved);
+    }
+    #[test]
+    fn model_capacity_failure_restores_the_previous_submission() {
+        struct Visible;
+        impl crate::gfx::Cull for Visible {
+            fn intersects(&self, _: Vec3, _: Vec3) -> bool {
+                true
+            }
+            fn contains(&self, _: Vec3, _: Vec3) -> bool {
+                false
+            }
+        }
+        let batch = ModelBatch {
+            slot: 7,
+            generation: 3,
+            translucent: false,
+            bounds: [[0.0; 3], [1.0; 3]],
+        };
+        let mut draw = WorldGeometry::default();
+        let original = ModelInstance::at([1.0, 2.0, 3.0], 0xFF123456);
+        draw.submit_model(
+            batch,
+            &vec![original; INSTANCE_CAPACITY as usize - 1],
+            Some(&Visible),
+            |_| false,
+        )
+        .unwrap();
+        let incoming = ModelInstance::at([4.0, 5.0, 6.0], 0xFFABCDEF);
+        let usage = draw.usage();
+        let capacity = draw.copies.capacity();
+        assert_eq!(
+            draw.submit_model(batch, &[incoming, incoming], Some(&Visible), |_| false),
+            Err(InstanceError::CapacityExceeded)
+        );
+        assert_eq!(draw.usage(), usage);
+        assert_eq!(draw.copies.capacity(), capacity);
+        assert!(
+            draw.copies
+                .iter()
+                .all(|copy| copy.origin == original.origin && copy.tint == original.tint)
+        );
+        // A later invalid copy still wins over capacity failure.
+        let mut invalid = incoming;
+        invalid.origin[0] = f64::NAN;
+        assert_eq!(
+            draw.submit_model(
+                batch,
+                &[incoming, incoming, invalid],
+                Some(&Visible),
+                |_| false
+            ),
+            Err(InstanceError::NonFinite)
+        );
+        assert_eq!(draw.usage(), usage);
+        draw.submit_model(batch, &[incoming], Some(&Visible), |_| false)
+            .unwrap();
+        assert_eq!(
+            draw.copy(INSTANCE_CAPACITY as usize - 1).origin,
+            incoming.origin
+        );
+    }
+    #[test]
+    fn directly_staged_models_share_the_view_budget() {
+        let mut draw = WorldGeometry::default();
+        let batch = ModelBatch {
+            slot: 7,
+            generation: 3,
+            translucent: false,
+            bounds: [[0.0; 3], [1.0; 3]],
+        };
+        let copy = ModelInstance::at([1.0, 2.0, 3.0], u32::MAX);
+        draw.submit_model(
+            batch,
+            &vec![copy; INSTANCE_CAPACITY as usize],
+            None::<&crate::gfx::Frustum>,
+            |_| true,
+        )
+        .unwrap();
+        assert_eq!(draw.copy_count(), 0, "direct copies must not also be baked");
+        assert_eq!(draw.usage().instances_used, INSTANCE_CAPACITY);
+        assert_eq!(
+            draw.submit_model(batch, &[copy], None::<&crate::gfx::Frustum>, |_| true),
+            Err(InstanceError::CapacityExceeded)
+        );
+        assert_eq!(draw.usage().instances_used, INSTANCE_CAPACITY);
+    }
+
+    #[test]
+    fn affine_culling_matches_the_eight_corner_box() {
+        use std::cell::Cell;
+        struct Bounds(Cell<[Vec3; 2]>);
+        impl crate::gfx::Cull for Bounds {
+            fn intersects(&self, min: Vec3, max: Vec3) -> bool {
+                self.0.set([min, max]);
+                true
+            }
+            fn contains(&self, _: Vec3, _: Vec3) -> bool {
+                false
+            }
+        }
+        let capture = Bounds(Cell::new([Vec3::ZERO; 2]));
+        let bounds = [[-0.75, -2.0, 0.125], [1.5, 0.5, 3.0]];
+        let origin = [30_000_000.25, -100.5, -30_000_000.75];
+        let camera = [30_000_000.0, 5.25, -30_000_000.0];
+        let shift = (DVec3::from(origin) - DVec3::from(camera)).as_vec3();
+        let mut seed = 42u32;
+        for case in 0..1024 {
+            // Include shear, reflections, nonuniform scales, and finite inputs that overflow.
+            let scale = if case < 512 { 1.0 } else { f32::MAX * 0.25 };
+            let transform = std::array::from_fn(|_| {
+                seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+                ((seed >> 8) as f32 / 2097152.0 - 4.0) * scale
+            });
+            let matrix = row_major_3x4(transform);
+            let mut expected = [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)];
+            for corner in 0..8 {
+                let point = Vec3::new(
+                    bounds[corner & 1][0],
+                    bounds[(corner >> 1) & 1][1],
+                    bounds[(corner >> 2) & 1][2],
+                );
+                let point = matrix.transform_point3(point) + shift;
+                expected[0] = expected[0].min(point);
+                expected[1] = expected[1].max(point);
+            }
+            assert!(copy_visible(
+                bounds,
+                transform,
+                origin,
+                camera,
+                Some(&capture)
+            ));
+            if expected.iter().all(|point| point.is_finite()) {
+                assert_eq!(capture.0.get(), expected);
+            }
+        }
     }
 }
