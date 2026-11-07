@@ -85,6 +85,15 @@ The recursive tree has one serde model. `TextForm` carries its serialized form f
 finite generated wasm bindings; decoding refuses malformed trees. Component and style
 metadata is retained through serialization rather than discarded by flattening text.
 
+### Placement and loot snapshots
+
+The `snapshots` module owns placement inputs and loot-roll facts. Placement and tool
+items are resolved `ItemKey`s. Loot context entities, damage sources, tools, biome,
+block and place facts are owned values; retaining one never retains a borrowed engine
+context or a live level. A loot candidate is not an inventory `ItemStack`: its signed
+count can be non-positive while loot functions run, in which case it produces no item.
+Exploration searches remain deferred data, and name components remain unresolved text.
+
 ### Item values and tag names
 
 Every item has an `ItemKey`, including vanilla items no mod requested during registration.
