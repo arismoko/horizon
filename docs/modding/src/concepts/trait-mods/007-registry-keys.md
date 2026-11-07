@@ -54,6 +54,7 @@ and remain strings, as do labels and tags.
 | Package manifest `Side` | `mod_api::Side` | Match `Client` and `Both` on the package metadata snapshot. This is not `HostSide` or the executing logical side. |
 | Command `Suggestion` | `mod_api::Suggestion` | Construct with `Suggestion::new((start, end), text)`; optional `tooltip` and `int_value` remain writable. Offsets are byte offsets. |
 | Package block entity type storage | `mod_api::BlockEntityTypeDecl` | Existing `r.block_entity_type(...).build()` registration is unchanged. The declaration snapshot no longer exposes the package parser's model; the game converts it once when declarations freeze. |
+| File-opening click actions | Not in `text::TextClick` | Mods can neither produce nor round-trip `OpenFile`; untrusted file-opening action metadata is dropped. Part of [per-node origin tracking #1738](https://github.com/arismoko/horizon/issues/1738). |
 
 The API's `GameRuleDecl` records a mod's boolean rule name, category and default.
 Its internal `RuleSchema` input describes vanilla categories and dense rule positions
@@ -68,6 +69,21 @@ The game owns package and completion conversion. Mods do not import package-load
 client-core types for these values. Completion edits are copied back after subscribed
 listeners run; no listener means no snapshot allocation. Package metadata is copied once
 at startup, retaining declared namespaces and dependencies.
+
+### Owned component trees
+
+The `text` module defines owned component data: literal and translatable contents,
+style overrides, ordered children, selector and NBT sources, inline objects, and click
+and hover actions. Translation keys and argument components stay unresolved until the
+game displays them. `None` style fields inherit; `Some(false)` overrides an inherited
+decoration. Arbitrary profile and component-patch JSON remains data, never engine state.
+Inline player and atlas objects use `Option<Box<Text>>` for their fallback: `None`
+keeps the engine-computed default; `Some` preserves a styled or translatable component
+rather than flattening it to a string.
+
+The recursive tree has one serde model. `TextForm` carries its serialized form for
+finite generated wasm bindings; decoding refuses malformed trees. Component and style
+metadata is retained through serialization rather than discarded by flattening text.
 
 ### Item values and tag names
 
