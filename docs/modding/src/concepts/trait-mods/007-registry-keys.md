@@ -56,6 +56,14 @@ and remain strings, as do labels and tags.
 | Package block entity type storage | `mod_api::BlockEntityTypeDecl` | Existing `r.block_entity_type(...).build()` registration is unchanged. The declaration snapshot no longer exposes the package parser's model; the game converts it once when declarations freeze. |
 | File-opening click actions | Not in `text::TextClick` | Mods can neither produce nor round-trip `OpenFile`; untrusted file-opening action metadata is dropped. Part of [per-node origin tracking #1738](https://github.com/arismoko/horizon/issues/1738). |
 
+`mod_api::GameRuleValue` owns the `Bool(bool)` and `Int(i32)` cases, in that order.
+`level.game_rule(host, id)` returns `Result<Option<GameRuleValue>, LevelReadError>`:
+`Ok(None)` means unknown rule, `Stale` means a gone/reopened level, and `Unavailable`
+means the side or phase cannot read it. `level.game_rules(host)` returns the typed
+result containing every available rule, not an optional list. The existing boolean
+key getter is unchanged. The game converts values after the subscription guard for
+`game_rule_changed`; no subscriber means no conversion work.
+
 The API's `GameRuleDecl` records a mod's boolean rule name, category and default.
 Its internal `RuleSchema` input describes vanilla categories and dense rule positions
 through read-only lookups rather than a copied vanilla list or fixed slot numbers.

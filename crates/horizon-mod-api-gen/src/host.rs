@@ -351,16 +351,14 @@ pub(super) fn game_forwarders(root: &Path) -> Result<String, String> {
                         format!("call_write(|| {call})")
                     }
                 } else if crosses_output {
-                    let is_result = match &entry.sig.output {
-                        syn::ReturnType::Type(_, ty) => outer_type(ty, "Result"),
-                        _ => false,
-                    };
-                    if is_result {
-                        format!(
+                    match result_error(&entry.sig.output) {
+                        Some(error) if outer_type(error, "LevelReadError") => format!(
+                            "{call}.try_into_api().unwrap_or(Err(mod_api::LevelReadError::Unavailable))"
+                        ),
+                        Some(_) => format!(
                             "{call}.try_into_api().unwrap_or_else(|error| Err(error.into_write_error().into()))"
-                        )
-                    } else {
-                        format!("{call}.try_into_api().unwrap_or_default()")
+                        ),
+                        None => format!("{call}.try_into_api().unwrap_or_default()"),
                     }
                 } else {
                     call
@@ -386,6 +384,7 @@ fn boundary_value(ty: &Type) -> bool {
                 matches!(
                     segment.ident.to_string().as_str(),
                     "ItemStack"
+                        | "GameRuleValue"
                         | "ItemResource"
                         | "ItemCost"
                         | "MerchantOffer"
@@ -408,6 +407,24 @@ fn boundary_value(ty: &Type) -> bool {
     let mut values = Values(false);
     values.visit_type(ty);
     values.0
+}
+
+fn result_error(output: &syn::ReturnType) -> Option<&Type> {
+    let syn::ReturnType::Type(_, ty) = output else {
+        return None;
+    };
+    let Type::Path(path) = &**ty else { return None };
+    let segment = path.path.segments.last()?;
+    if segment.ident != "Result" {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    let syn::GenericArgument::Type(error) = args.args.last()? else {
+        return None;
+    };
+    Some(error)
 }
 
 fn outer_type(ty: &Type, expected: &str) -> bool {

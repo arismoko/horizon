@@ -274,15 +274,23 @@ pub trait LevelsBackend {
     fn level_game_rule_bool(&self, level: LevelRef, key: BoolGameRuleKey) -> Option<bool>;
     /// Side: server.
     /// Game rule `rule` (`minecraft:keep_inventory` or `keep_inventory`), as
-    /// `/gamerule` queries it: None for an unknown rule.
+    /// `/gamerule` queries it: `Ok(None)` for an unknown rule. A gone/reopened level
+    /// returns `Stale`; an unreadable side or phase returns `Unavailable`.
     #[access(WorldOnly)]
-    fn level_game_rule(&self, level: LevelRef, rule: &str) -> Option<GameRuleValue>;
+    fn level_game_rule(
+        &self,
+        level: LevelRef,
+        rule: &str,
+    ) -> Result<Option<GameRuleValue>, LevelReadError>;
     /// Side: server.
     /// Every game rule the world has (`GameRules`) with its current value, by `minecraft:` id
-    /// (`max_minecart_speed` only with minecart improvements): None for a stale handle and on
-    /// a client.
+    /// (`max_minecart_speed` only with minecart improvements). A gone/reopened level
+    /// returns `Stale`; an unreadable side or phase returns `Unavailable`.
     #[access(WorldOnly)]
-    fn level_game_rules(&self, level: LevelRef) -> Option<Vec<(String, GameRuleValue)>>;
+    fn level_game_rules(
+        &self,
+        level: LevelRef,
+    ) -> Result<Vec<(String, GameRuleValue)>, LevelReadError>;
     /// Side: both.
     /// The rain and thunder levels, each 0.0 to 1.0 (`Level.getRainLevel`,
     /// `getThunderLevel` at partial tick 1.0): both 0 in a level with no weather.

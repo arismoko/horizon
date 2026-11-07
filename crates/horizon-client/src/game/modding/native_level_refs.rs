@@ -49,13 +49,25 @@ impl Game<'_> {
     }
     /// The world a handle names now, or None for a stale or foreign one.
     pub(super) fn native_level_world(&self, level: LevelRef) -> Option<&World> {
-        if !self.is_logical_server() || self.native_lifecycle.epoch() != Some(level.epoch()) {
-            return None;
+        self.native_level_world_result(level).ok()
+    }
+    /// The single residency boundary for typed server-level reads.
+    pub(super) fn native_level_world_result(
+        &self,
+        level: LevelRef,
+    ) -> Result<&World, mod_api::LevelReadError> {
+        if !self.is_logical_server() {
+            return Err(mod_api::LevelReadError::Unavailable);
+        }
+        if self.native_lifecycle.epoch() != Some(level.epoch()) {
+            return Err(mod_api::LevelReadError::Stale);
         }
         if level.dimension() == self.dim.key() {
-            return Some(&self.world);
+            return Ok(&self.world);
         }
-        self.levels.parked_world_of(level.dimension_id())
+        self.levels
+            .parked_world_of(level.dimension_id())
+            .ok_or(mod_api::LevelReadError::Stale)
     }
     /// The world a handle names for a read that works on both sides: the
     /// server's level, or on a client the one it shows (`Minecraft.level`, its

@@ -5,10 +5,11 @@
 use super::{Dim, Game};
 use horizon_client::command::vanilla::DIFFICULTIES;
 use horizon_client::world::World;
+use horizon_client_core::gamerules::Value as GameRuleValue;
 use horizon_core::position::BlockPos;
 use horizon_core::random::LegacyRandom;
 use horizon_world::registry::BlockStateId;
-use mod_api::{BoolGameRuleKey, FeatureFlags, GameRuleValue, LevelDimensionShape, LevelRef};
+use mod_api::{BoolGameRuleKey, FeatureFlags, LevelDimensionShape, LevelReadError, LevelRef};
 use std::sync::Arc;
 use {horizon_core::dimension::Dimension as LevelDimension, horizon_world::level::LevelAccess};
 
@@ -129,22 +130,27 @@ impl Game<'_> {
     }
     /// Game rule `rule` (`minecraft:keep_inventory` or `keep_inventory`), as
     /// `/gamerule` queries it: None for an unknown rule.
-    pub(super) fn level_game_rule(&self, level: LevelRef, rule: &str) -> Option<GameRuleValue> {
-        self.native_level_world(level)?;
-        self.ui.rules.get(rule)
+    pub(super) fn level_game_rule(
+        &self,
+        level: LevelRef,
+        rule: &str,
+    ) -> Result<Option<GameRuleValue>, LevelReadError> {
+        self.native_level_world_result(level)?;
+        Ok(self.ui.rules.get(rule))
     }
     /// Every game rule the world has (`GameRules`) with its current value, by `minecraft:` id
     /// (`max_minecart_speed` only with minecart improvements): None for a stale handle and on
     /// a client.
-    pub(super) fn level_game_rules(&self, level: LevelRef) -> Option<Vec<(String, GameRuleValue)>> {
-        self.native_level_world(level)?;
+    pub(super) fn level_game_rules(
+        &self,
+        level: LevelRef,
+    ) -> Result<Vec<(String, GameRuleValue)>, LevelReadError> {
+        self.native_level_world_result(level)?;
         let rules = &self.ui.rules;
-        Some(
-            rules
-                .available_rules()
-                .filter_map(|r| Some((r.name.clone(), rules.get(&r.name)?)))
-                .collect(),
-        )
+        Ok(rules
+            .available_rules()
+            .filter_map(|r| Some((r.name.clone(), rules.get(&r.name)?)))
+            .collect())
     }
     /// The rain and thunder levels, each 0.0 to 1.0 (`Level.getRainLevel`,
     /// `getThunderLevel` at partial tick 1.0): both 0 in a level with no weather.
@@ -396,7 +402,7 @@ mod tests {
         ) {
             let rules = host
                 .level("minecraft:overworld")
-                .and_then(|level| level.game_rules(host))
+                .and_then(|level| level.game_rules(host).ok())
                 .unwrap_or_default();
             let value = |id: &str| rules.iter().find(|(rule, _)| rule == id).map(|(_, v)| *v);
             self.0.lock().unwrap().push((
@@ -425,13 +431,13 @@ mod tests {
                 assert!(
                     game.ui
                         .rules
-                        .set("random_tick_speed", GameRuleValue::Int(7))
+                        .set("random_tick_speed", gamerules::Value::Int(7))
                 );
                 let keep_inventory = gamerules::rule_registry()
                     .rule("keep_inventory")
                     .unwrap()
                     .clone();
-                game.set_game_rule(&keep_inventory, GameRuleValue::Bool(true), None);
+                game.set_game_rule(&keep_inventory, gamerules::Value::Bool(true), None);
             });
         });
         assert_eq!(
@@ -445,6 +451,60 @@ mod tests {
                 58,
             )]
         );
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn rule_reads_distinguish_unknown_stale_and_unavailable_and_snapshot_values() {
+        use super::super::execution_role::ExecutionRole;
+        use mod_api::{LevelReadError, NativeWorldEpoch};
+        with_game(|game| {
+            let level = game.level(game.dim.id()).unwrap();
+            assert!(
+                game.ui
+                    .rules
+                    .set("keep_inventory", gamerules::Value::Bool(true))
+            );
+            assert!(
+                game.ui
+                    .rules
+                    .set("random_tick_speed", gamerules::Value::Int(7))
+            );
+            assert_eq!(level.game_rule(game, "missing:rule"), Ok(None));
+            assert_eq!(
+                level.game_rule(game, "keep_inventory"),
+                Ok(Some(GameRuleValue::Bool(true)))
+            );
+            assert_eq!(
+                level.game_rule(game, "random_tick_speed"),
+                Ok(Some(GameRuleValue::Int(7)))
+            );
+            let rules = level.game_rules(game).unwrap();
+            assert!(rules.contains(&("minecraft:random_tick_speed".into(), GameRuleValue::Int(7))));
+            let stale = mod_api::LevelRef::new(
+                NativeWorldEpoch::new(level.epoch().get() + 1),
+                level.dimension(),
+            );
+            let gone = mod_api::LevelRef::new(
+                level.epoch(),
+                mod_api::__private::dimension_key("missing:level"),
+            );
+            for handle in [stale, gone] {
+                assert_eq!(
+                    handle.game_rule(game, "keep_inventory"),
+                    Err(LevelReadError::Stale)
+                );
+                assert_eq!(handle.game_rules(game), Err(LevelReadError::Stale));
+                assert!(game.native_level_world(handle).is_none());
+            }
+            game.options.execution_role = ExecutionRole::Client;
+            assert_eq!(
+                level.game_rule(game, "keep_inventory"),
+                Err(LevelReadError::Unavailable)
+            );
+            assert_eq!(level.game_rules(game), Err(LevelReadError::Unavailable));
+            assert!(game.native_level_world(level).is_none());
+        });
     }
 
     #[test]

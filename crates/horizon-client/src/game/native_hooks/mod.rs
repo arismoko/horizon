@@ -50,6 +50,7 @@ use horizon_client::{
     particles::{ParticleOptions, ParticleType},
     text::Text,
 };
+use horizon_client_core::gamerules::Value as GameRuleValue;
 use horizon_client_core::suggestion::Suggestion;
 use horizon_core::{
     geometry::Direction,
@@ -71,10 +72,9 @@ use mod_api::{
     ScreenshotImage, ServerReloadListeners, ServerTickPhase, TicketController, ToolUse, WorldPhase,
 };
 use mod_api::{
-    AttachmentStore, BonemealSource, ChunkRef, FluidStack, GameRuleValue, LandingWrite, LevelRef,
-    LogicalSide, NativeActiveEffect, NativeBlockClick, NativeBlockUpdateFlags,
-    NativeInteractionResult, NativeItemClick, NativeTriState, NeighbourUpdate, TooltipElement,
-    UsePhase,
+    AttachmentStore, BonemealSource, ChunkRef, FluidStack, LandingWrite, LevelRef, LogicalSide,
+    NativeActiveEffect, NativeBlockClick, NativeBlockUpdateFlags, NativeInteractionResult,
+    NativeItemClick, NativeTriState, NeighbourUpdate, TooltipElement, UsePhase,
 };
 use mod_api::{BlockKey, DebugEntry, DebugRenderer, EffectKey};
 use mod_api::{

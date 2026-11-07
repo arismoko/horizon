@@ -5562,17 +5562,35 @@ mod tests {
         };
         let mut rules = horizon_client_core::gamerules::GameRules::default();
         // What `set_game_rule` and the other setters do.
-        let mut set = |name: &str, value: GameRuleValue| {
-            if rules.set(name, value) {
+        use horizon_client_core::gamerules::Value as EngineValue;
+        // Independent engine inputs and expected API values: production conversion lives in Game.
+        for (name, engine, value) in [
+            (
+                "keep_inventory",
+                EngineValue::Bool(true),
+                GameRuleValue::Bool(true),
+            ),
+            (
+                "random_tick_speed",
+                EngineValue::Int(-1),
+                GameRuleValue::Int(-1),
+            ),
+            ("keep_inventory", EngineValue::Int(1), GameRuleValue::Int(1)),
+            (
+                "no_such_rule",
+                EngineValue::Bool(true),
+                GameRuleValue::Bool(true),
+            ),
+            (
+                "random_tick_speed",
+                EngineValue::Int(7),
+                GameRuleValue::Int(7),
+            ),
+        ] {
+            if rules.set(name, engine) {
                 dispatch_game_rule_changed(&mut host, &["minecraft:", name].concat(), value, None);
             }
-        };
-        set("keep_inventory", GameRuleValue::Bool(true));
-        // Out of range, of the wrong type, unknown: GameRules.set refuses them.
-        set("random_tick_speed", GameRuleValue::Int(-1));
-        set("keep_inventory", GameRuleValue::Int(1));
-        set("no_such_rule", GameRuleValue::Bool(true));
-        set("random_tick_speed", GameRuleValue::Int(7));
+        }
         assert_eq!(
             *seen.lock().unwrap(),
             [
