@@ -1,4 +1,8 @@
 """Focused negative tests for the move and record gates."""
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
 from gate import EVENTS, records
@@ -35,6 +39,43 @@ class ProofTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             records(source + source)
         self.assertNotEqual(records(source), records(source.replace("u32", "u64")))
+        attributed = source.replace("pub struct", "#[non_exhaustive]\n#[derive(Debug)]\npub struct")
+        self.assertNotEqual(records(source), records(attributed))
+        self.assertNotEqual(records(attributed), records(attributed.replace("Debug", "Clone")))
+
+    def test_records_refuse_multiline_and_comment_separated_attributes(self):
+        source = "\n".join(f"#[allow(missing_docs)]\npub struct {name} {{ x: u32 }}"
+                           for name in EVENTS)
+        records(source)
+        spaced = source.replace("#[allow(missing_docs)]", "#[cfg(any())]\n \n  #[allow(missing_docs)]", 1)
+        self.assertNotEqual(records(source), records(spaced))
+        for prefix in ("#[cfg(\n    any()\n)]\n", "#[cfg(any())]\n// separated\n",
+                       "#[cfg(any())]\n/* separated */\n"):
+            mutated = source.replace("#[allow(missing_docs)]", prefix + "#[allow(missing_docs)]", 1)
+            with self.subTest(prefix=prefix), self.assertRaises(ValueError):
+                records(mutated)
+
+    def test_cli_refuses_inner_attribute_mutations(self):
+        source = "\n".join(f"pub struct {name} {{ x: u32 }}" for name in EVENTS)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            before, after, unchanged = (root / name for name in ("before.rs", "after.rs", "same"))
+            before.write_text(source)
+            unchanged.write_text("")
+            command = [sys.executable, str(Path(__file__).with_name("gate.py")),
+                       "--before-render", str(before), "--after-render", str(after)]
+            for name in ("wit", "host"):
+                command += [f"--before-{name}", str(unchanged), f"--after-{name}", str(unchanged)]
+            after.write_text(source)
+            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            for prefix in ("#!", "# !", "#\n!", "#! /* gap */ ",
+                           "# /* gap */ ! // gap\n", "# // gap\n !\n"):
+                after.write_text(prefix + "[cfg(any())]\n" + source)
+                with self.subTest(prefix=prefix):
+                    result = subprocess.run(command, capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("inner attributes are unsupported", result.stderr)
+                    self.assertNotIn("PASS:", result.stdout)
 
 
 if __name__ == "__main__":

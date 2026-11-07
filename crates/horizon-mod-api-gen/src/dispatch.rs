@@ -30,9 +30,23 @@ fn target_parameters(name: &str, native: &str, count: usize, carrier: &str) -> R
     Ok(())
 }
 
-pub(super) fn emit(
+pub(super) fn is_render(hook: &Hook) -> bool {
+    hook.target.starts_with("mod_api::render::")
+}
+
+/// Render emission reads only the catalog and its API-owned raw target signatures.
+pub(super) fn render(root: &Path, catalog: &Catalog) -> Result<HookSources, String> {
+    emit(
+        root,
+        catalog.hooks.iter().filter(|hook| is_render(hook)),
+        &[],
+        &catalog.draw_contexts,
+    )
+}
+
+pub(super) fn emit<'a>(
     root: &Path,
-    hooks: &[Hook],
+    hooks: impl Iterator<Item = &'a Hook>,
     methods: &[syn::ItemFn],
     contexts: &[DrawContext],
 ) -> Result<HookSources, String> {
@@ -54,7 +68,7 @@ pub(super) fn emit(
         let name = hook.name.as_str();
         let native = format!("native_{name}");
         let target = hook.target.as_str();
-        let is_render = target.starts_with("mod_api::render::");
+        let is_render = is_render(hook);
         let external = free_function_source(target);
         let in_game = external.is_none();
         let (method, call) = if let Some((krate, path)) = external {

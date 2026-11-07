@@ -2114,6 +2114,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-mod-render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "horizon-mod-api",
+ "horizon-mod-api-gen",
+ "horizon-mod-points",
+ "wgpu",
+]
+
+[[package]]
 name = "horizon-mod-runtime"
 version = "0.1.0"
 dependencies = [

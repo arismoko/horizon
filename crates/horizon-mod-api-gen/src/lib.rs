@@ -522,18 +522,30 @@ fn sources(root: &Path, fill: FillMode) -> Result<Sources, String> {
     let dispatch::HookSources {
         traits,
         dispatch,
-        render_traits,
-        render_dispatch,
         part_traits,
         fills,
         fire,
         hook_ids,
         hook_constants,
         hook_count,
+        ..
+    } = dispatch::emit(
+        root,
+        catalog
+            .hooks
+            .iter()
+            .filter(|hook| !dispatch::is_render(hook)),
+        &methods,
+        &catalog.draw_contexts,
+    )?;
+    let dispatch::HookSources {
+        render_traits,
+        render_dispatch,
         render_hook_ids,
         render_hook_constants,
         render_hook_count,
-    } = dispatch::emit(root, &catalog.hooks, &methods, &catalog.draw_contexts)?;
+        ..
+    } = dispatch::render(root, &catalog)?;
     if catalog.hooks.is_empty() {
         return Err(catalog::CatalogError::NoHooks.into());
     }
@@ -618,7 +630,7 @@ pub mod staging;
 mod wasm;
 /// Shared registration emitter for component-model WIT worlds.
 pub mod wasm_imports;
-pub use build::{generate, generate_points};
+pub use build::{generate, generate_points, generate_render};
 pub use notes::generate as generate_hook_notes;
 pub use wasm::{Wasm, generate as generate_wasm};
 

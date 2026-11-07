@@ -3,6 +3,7 @@ exclude = ["launcher", "crates/horizon-mod-registry", "third_party/wgpu-hal", "t
 members = [
     "crates/horizon-core",
     "crates/horizon-mod-runtime",
+    "crates/horizon-mod-render",
     "docs/modding/examples",
     "crates/horizon-dualsense",
     "crates/horizon-narrator",

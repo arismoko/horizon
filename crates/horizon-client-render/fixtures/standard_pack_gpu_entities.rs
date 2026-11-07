@@ -1,6 +1,6 @@
 //! Original asset-free standard-pack entity fixture. Run with throwaway HORIZON_HOME,
 //! HORIZON_LAUNCHER_HOME, XDG_DATA_HOME and XDG_CONFIG_HOME (AGENTS.md).
-//! `cargo run -p horizon-client-render --example standard_pack_gpu_entities -- <output-dir>`
+//! `python3 tools/run_standard_pack_gpu_entities.py <output-dir>`
 use client::{
     gfx::{
         Frame, Renderer, ScreenshotRequest,
