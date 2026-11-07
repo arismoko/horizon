@@ -639,7 +639,10 @@ impl syn::parse::Parse for IfInstalled {
 /// Declares how a plain-data type crosses the generated wasm interface.
 ///
 /// `#[wasm(via = Form)]` on a type or its re-export checks `From<&Type> for Form`
-/// and `TryFrom<Form> for Type`. `#[wasm(host_constructor = method)]` on an owned
+/// and `TryFrom<Form> for Type`. Add `writeback = method` to apply a returned form
+/// through `Type::method(&mut self, Form)` instead of replacing the value. This keeps
+/// identity and native mutation bookkeeping under the type's control.
+/// `#[wasm(host_constructor = method)]` on an owned
 /// tuple struct makes incoming host lifts call that checked constructor with the
 /// lifted fields instead of constructing the tuple directly. It returns `Result<Self, E>`
 /// with a displayable refusal. Guest lifts remain structural: the host owns validation.
@@ -696,7 +699,7 @@ pub fn wasm(attribute: TokenStream, input: TokenStream) -> TokenStream {
         }
         .into();
     }
-    let WasmRule::Via(via) = rule else {
+    let WasmRule::Via(via, writeback) = rule else {
         unreachable!()
     };
     let ty = match &item {
@@ -716,9 +719,15 @@ pub fn wasm(attribute: TokenStream, input: TokenStream) -> TokenStream {
                 .into();
         }
     };
+    let writer = writeback.map(|method| {
+        quote! {
+            fn writes_its_form(value: &mut #ty, form: #via) { value.#method(form); }
+        }
+    });
     quote! {
         #item
         const _: () = {
+            #writer
             fn crosses_as_its_form()
             where
                 #via: for<'a> ::core::convert::From<&'a #ty>,
@@ -732,7 +741,7 @@ pub fn wasm(attribute: TokenStream, input: TokenStream) -> TokenStream {
 
 /// The single conversion rule on a type declaration.
 enum WasmRule {
-    Via(syn::Type),
+    Via(syn::Type, Option<syn::Ident>),
     HostConstructor(syn::Ident),
 }
 
@@ -741,7 +750,21 @@ impl syn::parse::Parse for WasmRule {
         let key: syn::Ident = input.parse()?;
         input.parse::<syn::Token![=]>()?;
         match key.to_string().as_str() {
-            "via" => Ok(Self::Via(input.parse()?)),
+            "via" => {
+                let form = input.parse()?;
+                let writeback = if input.is_empty() {
+                    None
+                } else {
+                    input.parse::<syn::Token![,]>()?;
+                    let key: syn::Ident = input.parse()?;
+                    if key != "writeback" {
+                        return Err(syn::Error::new(key.span(), "expected writeback"));
+                    }
+                    input.parse::<syn::Token![=]>()?;
+                    Some(input.parse()?)
+                };
+                Ok(Self::Via(form, writeback))
+            }
             "host_constructor" => Ok(Self::HostConstructor(input.parse()?)),
             _ => Err(syn::Error::new(
                 key.span(),

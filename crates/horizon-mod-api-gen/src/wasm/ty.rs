@@ -71,6 +71,8 @@ pub(crate) struct Def {
     pub(super) kind: Kind,
     /// A checked tuple-record constructor used only when the host receives untrusted fields.
     pub(super) host_constructor: Option<String>,
+    /// A via form applied by the type, preserving its native mutation contract.
+    pub(super) writeback: Option<String>,
 }
 
 #[derive(Debug)]
@@ -289,6 +291,7 @@ impl<'a> Types<'a> {
                 }
                 let def = self.push(Def {
                     host_constructor: None,
+                    writeback: None,
                     rust: format!("mod_api::{std}"),
                     wit,
                     lifetimes: 0,
@@ -369,6 +372,7 @@ impl<'a> Types<'a> {
         }
         Ok(self.push(Def {
             host_constructor: None,
+            writeback: None,
             rust: rust.into(),
             wit: format!("json-{}", name.to_kebab_case()),
             lifetimes: 0,
@@ -398,6 +402,7 @@ impl<'a> Types<'a> {
             let wit = self.unique_wit(id, name);
             let def = self.push(Def {
                 host_constructor: None,
+                writeback: None,
                 rust,
                 wit,
                 lifetimes: 0,
@@ -405,6 +410,7 @@ impl<'a> Types<'a> {
             });
             self.by_item.insert(id, def);
             self.defs[def].kind = Kind::Via(self.ty(module, &form, &[])?);
+            self.defs[def].writeback = conversion_method(attrs(&item), "writeback")?;
             return Ok(Ty::Named(def));
         }
         if let Item::Type(alias) = &item {
@@ -428,6 +434,7 @@ impl<'a> Types<'a> {
         // Reserve the slot first: a type may refer to itself.
         let def = self.push(Def {
             host_constructor: None,
+            writeback: None,
             rust,
             wit: wit.clone(),
             lifetimes,
@@ -435,7 +442,7 @@ impl<'a> Types<'a> {
         });
         self.by_item.insert(id, def);
         let kind = self.kind(id, &item, name, &wit)?;
-        let constructor = host_constructor(attrs(&item))?;
+        let constructor = conversion_method(attrs(&item), "host_constructor")?;
         if constructor.is_some() && (lifetimes != 0 || !matches!(kind, Kind::TupleRecord(_))) {
             return Err(format!(
                 "{name}: host_constructor requires an owned tuple struct"
@@ -537,6 +544,7 @@ impl<'a> Types<'a> {
             let def = &self.defs[id];
             let frame = Def {
                 host_constructor: None,
+                writeback: None,
                 rust: def.rust.clone(),
                 wit: format!("{}-frame", def.wit),
                 lifetimes: def.lifetimes,
@@ -567,6 +575,7 @@ impl<'a> Types<'a> {
         let def = &self.defs[id];
         let frame = Def {
             host_constructor: None,
+            writeback: None,
             rust: def.rust.clone(),
             wit: format!("{}-frame", def.wit),
             lifetimes: def.lifetimes,
@@ -747,6 +756,8 @@ fn via(attrs: &[syn::Attribute]) -> Option<Type> {
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("via") {
                 form = Some(meta.value()?.parse::<Type>()?);
+            } else if meta.path.is_ident("writeback") {
+                let _ = meta.value()?.parse::<syn::Ident>()?;
             }
             Ok(())
         })
@@ -756,7 +767,7 @@ fn via(attrs: &[syn::Attribute]) -> Option<Type> {
 }
 
 /// The checked constructor declared on an owned tuple struct.
-fn host_constructor(attrs: &[syn::Attribute]) -> Result<Option<String>, String> {
+fn conversion_method(attrs: &[syn::Attribute], name: &str) -> Result<Option<String>, String> {
     let mut constructor = None;
     for attr in attrs {
         if !attr
@@ -768,12 +779,15 @@ fn host_constructor(attrs: &[syn::Attribute]) -> Result<Option<String>, String> 
             continue;
         }
         attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("host_constructor") {
-                constructor = Some(meta.value()?.parse::<syn::Ident>()?.to_string());
+            if meta.path.is_ident("host_constructor") || meta.path.is_ident("writeback") {
+                let method = meta.value()?.parse::<syn::Ident>()?.to_string();
+                if meta.path.is_ident(name) {
+                    constructor = Some(method);
+                }
             } else if meta.path.is_ident("via") {
                 let _ = meta.value()?.parse::<Type>()?;
             } else {
-                return Err(meta.error("expected via or host_constructor"));
+                return Err(meta.error("expected via, writeback or host_constructor"));
             }
             Ok(())
         })

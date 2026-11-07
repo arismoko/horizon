@@ -33,6 +33,8 @@ include!(concat!(env!("OUT_DIR"), "/guest_injects.rs"));
 impl Hooks for Mod {
     fn register(&self, r: &mut dyn Registrar, _: &RegistrationContext) {
         r.register_structure_type("spin", Spin);
+        let kind = r.block_entity_type("counter").blocks(&[]).build();
+        r.block_entity_part(&kind, Counter).unwrap();
     }
 
     fn server_tick(&self, _host: &mut dyn ServerHost, _event: &mut ServerTickEvent<'_>) {}
@@ -63,6 +65,27 @@ impl Hooks for Mod {
             _ => {}
         }
         Flow::Continue
+    }
+}
+
+struct Counter;
+
+#[mod_api::horizon_part]
+impl mod_api::BlockPart for Counter {}
+
+#[mod_api::horizon_part]
+impl mod_api::BlockEntityPart for Counter {
+    fn block_entity_tick(
+        &self,
+        _: &mut dyn ServerHost,
+        event: &mut mod_api::BlockEntityTickEvent<'_>,
+    ) {
+        event
+            .entity
+            .nbt
+            .insert("counter".into(), mod_api::Tag::Int(17));
+        event.entity.data = vec![23];
+        event.entity.items.clear();
     }
 }
 

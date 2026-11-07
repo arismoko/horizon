@@ -158,6 +158,75 @@ fn borrows(types: &Types<'_>, ty: &Ty) -> bool {
     }
 }
 
+/// Apply a full returned value through the mutable borrows it contains. A via type
+/// owns its update policy; in particular, returning a snapshot must not replace identity.
+pub(super) fn prepare_value(
+    types: &Types<'_>,
+    ty: &Ty,
+    value: &str,
+    wire: &str,
+    prepared: &mut String,
+    next: &mut usize,
+) -> String {
+    match ty {
+        Ty::Ref(inner, true) => {
+            prepare_value(types, inner, &format!("(*{value})"), wire, prepared, next)
+        }
+        Ty::Named(id)
+            if let Kind::Via(form) = &types.defs[*id].kind
+                && let Some(method) = &types.defs[*id].writeback =>
+        {
+            let name = format!("lifted{next}");
+            *next += 1;
+            writeln!(prepared, "let {name} = {};", lift(types, form, wire)).unwrap();
+            format!("{value}.{method}({name});")
+        }
+        ty if !borrows(types, ty) => {
+            let name = format!("lifted{next}");
+            *next += 1;
+            writeln!(prepared, "let {name} = {};", lift(types, ty, wire)).unwrap();
+            format!("{value} = {name};")
+        }
+        Ty::Named(id) => match &types.defs[*id].kind {
+            Kind::Record(fields) => fields
+                .iter()
+                .filter(|field| writable(&field.ty) && crosses(types, &field.ty))
+                .map(|field| {
+                    prepare_value(
+                        types,
+                        &field.ty,
+                        &format!("{value}.{}", field.rust),
+                        &format!("{wire}.{}", bound_ident(&field.wit)),
+                        prepared,
+                        next,
+                    )
+                })
+                .collect(),
+            Kind::TupleRecord(fields) => fields
+                .iter()
+                .enumerate()
+                .filter(|(_, field)| writable(field) && crosses(types, field))
+                .map(|(i, field)| {
+                    prepare_value(
+                        types,
+                        field,
+                        &format!("{value}.{i}"),
+                        &if fields.len() == 1 {
+                            wire.to_owned()
+                        } else {
+                            format!("{wire}.{i}")
+                        },
+                        prepared,
+                        next,
+                    )
+                })
+                .collect(),
+            _ => panic!("unsupported borrowed writeback: {}", types.defs[*id].rust),
+        },
+        _ => panic!("unsupported borrowed writeback: {ty:?}"),
+    }
+}
+
 /// Whether a type holds a record with a lifetime, which has nothing to borrow from when the
 /// game hands it back to the mod.
 pub(super) fn borrowed_record(types: &Types<'_>, ty: &Ty) -> bool {
@@ -737,6 +806,9 @@ pub(super) fn conversions(
             Kind::Opaque(_) => unreachable!(),
         };
         writeln!(code, "#[allow(unused_variables, unreachable_patterns, clippy::all)] fn lower_{id}(v: &{rust}) -> Result<{wire}, Refused> {{ Ok({body}) }}").unwrap();
+        if def.rust == "mod_api::ModBlockEntityView" {
+            writeln!(code, "#[cfg(test)] pub(super) fn block_entity_view(v: &{rust}) -> Result<{wire}, Refused> {{ lower_{id}(v) }}").unwrap();
+        }
         // Lifting, for types that own their contents.
         if def.lifetimes == 0 {
             let path = rust.as_str();
@@ -981,56 +1053,45 @@ pub(super) fn conversions(
             .unwrap();
             writeln!(code, "#[allow(unused_variables, clippy::all)] fn before_{id}(v: &{rust}) -> Before{id} {{ Before{id} {{ {} }} }}", copies.join(", ")).unwrap();
             writeln!(code, "#[allow(unused_variables, clippy::all)] fn lower_out_{id}(v: &{rust}, b: &Before{id}) -> Result<{out}, Refused> {{ Ok({out} {{ {} }}) }}", parts.join(", ")).unwrap();
+            let mut prepared = String::new();
             let mut writes = String::new();
-            for f in &writable {
+            for (index, f) in writable.iter().enumerate() {
                 let field = format!("o.{}", bound_ident(&f.wit));
-                // A field the other side left as it was comes back as `None`.
-                let source = "x".to_string();
-                let unchanged = |write: String| format!("if let Some(x) = {field} {{ {write} }}\n");
+                let apply = format!("apply{index}");
                 match &f.ty {
                     Ty::Ref(inner, true)
                         if let Ty::Named(inner) = &**inner
                             && wit::has_out(types, &types.defs[*inner]) =>
                     {
-                        writeln!(writes, "write_back_{inner}(&mut *v.{}, {field})?;", f.rust)
-                            .unwrap();
+                        writeln!(prepared, "let {apply} = prepare_{inner}({field})?;").unwrap();
+                        writeln!(writes, "{apply}(&mut *v.{});", f.rust).unwrap();
                     }
-                    Ty::Ref(inner, true) if !borrows(types, inner) => writes.push_str(&unchanged(
-                        format!("*v.{} = {};", f.rust, lift(types, inner, &source)),
-                    )),
-                    Ty::Ref(inner, true) => {
-                        if let Ty::Named(inner) = &**inner
-                            && outs.contains(inner)
-                        {
-                            writes.push_str(&unchanged(format!(
-                                "write_back_{inner}(v.{}, {source})?;",
-                                f.rust
-                            )));
-                        } else {
-                            writeln!(writes, "let _ = {field};").unwrap();
-                        }
+                    ty if matches!(ty, Ty::Ref(_, true) | Ty::Named(_)) || !borrows(types, ty) => {
+                        let mut lifted = String::new();
+                        let update = prepare_value(
+                            types,
+                            ty,
+                            &format!("v.{}", f.rust),
+                            "x",
+                            &mut lifted,
+                            &mut 0,
+                        );
+                        // No closure can mutate the host until every field has been lifted.
+                        writeln!(prepared, "let {apply} = match {field} {{ Some(x) => {{ {lifted} Some(move |v: &mut {rust}| {{ {update} }}) }}, None => None }};").unwrap();
+                        writeln!(writes, "if let Some(apply) = {apply} {{ apply(v); }}").unwrap();
                     }
-                    ty if !borrows(types, ty) => writes.push_str(&unchanged(format!(
-                        "v.{} = {};",
-                        f.rust,
-                        lift(types, ty, &source)
-                    ))),
-                    // A wrapper around one mutable borrow (`CarriedAccess`): write through it.
-                    Ty::Named(inner)
-                        if let Kind::TupleRecord(items) = &types.defs[*inner].kind
-                            && let [Ty::Ref(target, true)] = items.as_slice()
-                            && !borrows(types, target) =>
-                    {
-                        writes.push_str(&unchanged(format!(
-                            "*v.{}.0 = {};",
-                            f.rust,
-                            lift(types, target, &source)
-                        )))
-                    }
-                    _ => writeln!(writes, "let _ = {field};").unwrap(),
+                    _ => writeln!(prepared, "let _ = {field};").unwrap(),
                 }
             }
-            writeln!(code, "#[allow(unused_variables, clippy::all)] fn write_back_{id}(v: &mut {rust}, o: {out}) -> Result<(), Refused> {{ {writes} Ok(()) }}").unwrap();
+            writeln!(code, "#[allow(unused_variables, clippy::all)] fn prepare_{id}(o: {out}) -> Result<impl FnOnce(&mut {rust}), Refused> {{ {prepared} Ok(move |v: &mut {rust}| {{ {writes} }}) }}").unwrap();
+            writeln!(code, "#[allow(unused_variables, clippy::all)] fn write_back_{id}(v: &mut {rust}, o: {out}) -> Result<(), Refused> {{ prepare_{id}(o)?(v); Ok(()) }}").unwrap();
+            if matches!(
+                def.rust.as_str(),
+                "mod_api::MenuButtonEvent" | "mod_api::MenuQuickMoveEvent"
+            ) {
+                let name = def.wit.to_snake_case();
+                writeln!(code, "#[cfg(test)] pub(super) fn write_{name}(v: &mut {rust}, o: {out}) -> Result<(), Refused> {{ write_back_{id}(v, o) }}").unwrap();
+            }
         }
     }
     code

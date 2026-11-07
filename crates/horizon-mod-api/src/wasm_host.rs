@@ -1135,6 +1135,73 @@ impl Exports {
 mod glue {
     use super::{array, intern};
     include!(concat!(env!("OUT_DIR"), "/wasm_host_generated.rs"));
+
+    #[test]
+    fn refused_menu_button_output_keeps_all_host_state() {
+        let mut entity = crate::ModBlockEntity::new("test:counter".into(), Default::default());
+        let revision = entity.revision();
+        let context = crate::menu::MenuButtonContext {
+            player: 0,
+            player_entity_id: 0,
+            pos: [0; 3],
+            id: 0,
+        };
+        let mut carried = None;
+        let mut event = crate::MenuButtonEvent {
+            context: &context,
+            entity: crate::ModBlockEntityView::new(&mut entity),
+            carried: &mut carried,
+        };
+        let mut wire = block_entity_view(&event.entity).unwrap();
+        wire.entity.fields.data = vec![17];
+        let output = horizon::mod_api::types::MenuButtonEventOut {
+            entity: Some(wire),
+            carried: Some(Some(vec![])),
+        };
+        assert!(write_menu_button_event(&mut event, output).is_err());
+        assert!(
+            entity.data.is_empty(),
+            "a refused return must apply no earlier writes"
+        );
+        assert_eq!(entity.revision(), revision);
+        assert!(carried.is_none());
+    }
+
+    #[test]
+    fn refused_menu_quick_move_output_keeps_all_host_state() {
+        let mut entity = crate::ModBlockEntity::new("test:counter".into(), Default::default());
+        let revision = entity.revision();
+        let mut stack = crate::ItemStack {
+            item: "minecraft:stone".into(),
+            count: 1,
+            damage: 0,
+            extra: None,
+        };
+        let original = stack.clone();
+        let mut event = crate::MenuQuickMoveEvent {
+            pos: [0; 3],
+            entity: crate::ModBlockEntityView::new(&mut entity),
+            container_slots: 2,
+            slot: 0,
+            stack: &mut stack,
+        };
+        let mut wire = block_entity_view(&event.entity).unwrap();
+        wire.entity.fields.data = vec![17];
+        let output = horizon::mod_api::types::MenuQuickMoveEventOut {
+            pos: Some((1, 2, 3)),
+            entity: Some(wire),
+            container_slots: Some(4),
+            slot: Some(1),
+            stack: Some(vec![]),
+        };
+        assert!(write_menu_quick_move_event(&mut event, output).is_err());
+        assert_eq!(event.pos, [0; 3]);
+        assert_eq!(event.container_slots, 2);
+        assert_eq!(event.slot, 0);
+        assert!(entity.data.is_empty());
+        assert_eq!(entity.revision(), revision);
+        assert_eq!(stack, original);
+    }
 }
 
 #[cfg(test)]

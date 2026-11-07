@@ -1,7 +1,8 @@
 //! The two sides' code: the guest's `Guest` (every imported trait) and exports, and the game's
 //! imports and proxies (every exported trait).
 use super::glue::{
-    InPlace, conversions, flat_element, flat_method, lift, lower, lower_owned, rust_path, unpack,
+    InPlace, conversions, flat_element, flat_method, lift, lower, lower_owned, prepare_value,
+    rust_path, unpack,
 };
 use super::ty::{Kind, List, Str, Ty, Types, bound_ident, wit_ident};
 use super::wit::{self, Signature, interface, signature};
@@ -323,6 +324,51 @@ pub(super) fn guest(
     Ok(code)
 }
 
+struct Writeback {
+    prepare: String,
+    apply: String,
+}
+
+/// Validate every returned parameter before applying any of them (or the return value).
+fn writeback(types: &Types<'_>, method: &Method, sig: &Signature, names: &[String]) -> Writeback {
+    let mut out = Writeback {
+        prepare: String::new(),
+        apply: String::new(),
+    };
+    let mut next = usize::from(wit::wit(types, &method.ret).unwrap().is_some());
+    let mut temporary = 0;
+    for (i, (_, ty)) in method.params.iter().enumerate() {
+        if let Ty::Ref(inner, true) = ty {
+            match &**inner {
+                Ty::Named(def) if sig.results.contains(&wit::out_name(&types.defs[*def])) => {
+                    writeln!(
+                        out.prepare,
+                        "let apply{i} = prepare_{def}({})?;",
+                        names[next]
+                    )
+                    .unwrap();
+                    writeln!(out.apply, "apply{i}(p{i});").unwrap();
+                    next += 1;
+                }
+                Ty::Dyn(..) => {}
+                Ty::Named(def) if matches!(types.defs[*def].kind, Kind::Record(_)) => {}
+                inner => {
+                    out.apply.push_str(&prepare_value(
+                        types,
+                        inner,
+                        &format!("(*p{i})"),
+                        &names[next],
+                        &mut out.prepare,
+                        &mut temporary,
+                    ));
+                    next += 1;
+                }
+            }
+        }
+    }
+    out
+}
+
 /// A guest method calling import `callee` (with `lead`, the held object's index, first).
 fn guest_call(
     types: &Types<'_>,
@@ -354,24 +400,7 @@ fn guest_call(
         }
     }
     let (pattern, names) = unpack(&sig);
-    let mut back = String::new();
-    let mut next = usize::from(wit::wit(types, &method.ret)?.is_some());
-    for (i, (_, ty)) in method.params.iter().enumerate() {
-        if let Ty::Ref(inner, true) = ty {
-            match &**inner {
-                Ty::Named(def) if sig.results.contains(&wit::out_name(&types.defs[*def])) => {
-                    writeln!(back, "write_back_{def}(p{i}, {})?;", names[next]).unwrap();
-                    next += 1;
-                }
-                Ty::Dyn(..) => {}
-                Ty::Named(def) if matches!(types.defs[*def].kind, Kind::Record(_)) => {}
-                inner => {
-                    writeln!(back, "*p{i} = {};", lift(types, inner, &names[next])).unwrap();
-                    next += 1;
-                }
-            }
-        }
-    }
+    let Writeback { prepare, apply } = writeback(types, method, &sig, &names);
     let value = if wit::wit(types, &method.ret)?.is_some() {
         guest_ret(types, &method.ret, &names[0])
     } else if let Ty::Dyn(..) = method.ret {
@@ -383,7 +412,7 @@ fn guest_call(
         args.insert(0, lead.to_string());
     }
     Ok(format!(
-        "#[allow(unused_variables, unused_mut, clippy::all)] {} {{ super::expect((|| -> Result<_, Refused> {{ {prep} let {pattern} = {callee}({}); {back} Ok({value}) }})()) }}\n",
+        "#[allow(unused_variables, unused_mut, clippy::all)] {} {{ super::expect((|| -> Result<_, Refused> {{ {prep} let {pattern} = {callee}({}); {prepare} let value = {value}; {apply} Ok(value) }})()) }}\n",
         rust_sig(types, method),
         args.join(", ")
     ))
@@ -626,27 +655,7 @@ pub(super) fn host(
             }
             args.extend(sent.iter().cloned());
             let (pattern, names) = unpack(&sig);
-            let mut back = String::new();
-            let mut next = usize::from(wit::wit(types, &method.ret)?.is_some());
-            for (i, (_, ty)) in method.params.iter().enumerate() {
-                if let Ty::Ref(inner, true) = ty {
-                    match &**inner {
-                        Ty::Named(def)
-                            if sig.results.contains(&wit::out_name(&types.defs[*def])) =>
-                        {
-                            writeln!(back, "write_back_{def}(p{i}, {})?;", names[next]).unwrap();
-                            next += 1;
-                        }
-                        Ty::Dyn(..) => {}
-                        Ty::Named(def) if matches!(types.defs[*def].kind, Kind::Record(_)) => {}
-                        inner => {
-                            writeln!(back, "*p{i} = {};", lift(types, inner, &names[next]))
-                                .unwrap();
-                            next += 1;
-                        }
-                    }
-                }
-            }
+            let Writeback { prepare, apply } = writeback(types, method, &sig, &names);
             let value = if wit::wit(types, &method.ret)?.is_some() {
                 lift(types, &method.ret, &names[0])
             } else {
@@ -669,7 +678,7 @@ pub(super) fn host(
             }
             writeln!(
                 code,
-                "#[allow(unused_variables, unused_mut, clippy::all)] {} {{ let mut frame = super::Frame::default(); {frame} {prep} self.call_or(frame, {}, {no_answer}, |m, store| -> wasmtime::Result<_> {{ let {pattern} = m.horizon_mod_api_{iface}().call_{}(store, {})?; {back} Ok({value}) }}) }}",
+                "#[allow(unused_variables, unused_mut, clippy::all)] {} {{ let mut frame = super::Frame::default(); {frame} {prep} self.call_or(frame, {}, {no_answer}, |m, store| -> wasmtime::Result<_> {{ let {pattern} = m.horizon_mod_api_{iface}().call_{}(store, {})?; {prepare} let value = {value}; {apply} Ok(value) }}) }}",
                 rust_sig(types, method),
                 super::call_class(types, method),
                 bound_ident(&wit_ident(&method.name)),

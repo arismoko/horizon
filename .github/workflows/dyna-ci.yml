@@ -257,6 +257,7 @@ jobs:
         # The internals bench seals the process-wide hook registry, so it runs alone, as its #[ignore] note says.
         run: |
           cargo +stable test --release -p horizon-mod-wasm --test bench -- --ignored --nocapture --test-threads=1 --skip internals_bench
+          cargo +stable test --release -p horizon-mod-wasm --test borrowed_view -- --ignored --nocapture
           cargo +stable test --release -p horizon-mod-wasm --test bench -- --ignored --nocapture --test-threads=1 internals_bench
 
   verify:
