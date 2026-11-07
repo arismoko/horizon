@@ -121,7 +121,7 @@ Native mods (docs/modding/src/how-to/native-mods.md): compile flat Rust mod proj
 - `--allow-jar-downloads`: Allow exact-hash jar downloads into the local cache for the server export; jar bytes are never included in the exported folder
 - `--instance`: The instance whose installed native mods to build, and which then plays the build (default: the selected one)
 - `--update`: Move to the newest installed release or Nightly instead of the Horizon the instance plays (a full rebuild)
-- `--trust-native-code`: You read the mods' source and trust it with full access to this computer
+- `--trust-native-code`: Allow native code for this install (remembered; revoke in Settings, Storage)
 - `--profile` (optimized, balanced, developer): The build mode: optimized (the default: the prebuilt game when the mods allow it, else the game built with the release profile), balanced (built here, quicker to rebuild) or developer (quickest to rebuild a mod, slow game). Default: the native-profile setting
 
 MCP: none: the player's switch.
@@ -849,7 +849,7 @@ Install a native mod from a GitHub link (docs/modding/src/how-to/native-mods.md,
 - `--mod`: The mod to install when the link holds several
 - `--all`: Install every mod the link holds
 - `--instance`: The instance (default: the selected one)
-- `--trust-native-code`: You read the mod's source (the link printed) and trust it with full access to this computer
+- `--trust-native-code`: Allow native code for this install (remembered; revoke in Settings, Storage)
 
 MCP: none: the player's switch.
 
@@ -862,7 +862,7 @@ Look for newer versions of the native mods installed from GitHub (the latest rel
 - `ID`: One mod (default: all of them)
 - `--check`: Only say what is newer
 - `--instance`: The instance (default: the selected one)
-- `--trust-native-code`: You read the new source and trust it with full access to this computer
+- `--trust-native-code`: Allow native code for this install (remembered; revoke in Settings, Storage)
 
 MCP: none: the player's switch.
 

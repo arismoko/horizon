@@ -1319,7 +1319,7 @@ impl Launcher {
                     let last = self.native_step.take();
                     self.native_progress = None;
                     self.native_started = None;
-                    let cancelled = matches!(&result, Err(e) if e == native_mods::CANCELLED);
+                    let cancelled = matches!(&result, Err(native_mods::Failed::Other(error)) if error == native_mods::CANCELLED);
                     self.native_done = match (&result, cancelled) {
                         (Ok(_), _) => last,
                         (Err(_), true) => Some(tr(native_mods::CANCELLED).into()),
@@ -1330,7 +1330,7 @@ impl Launcher {
                     // A build attempt ended: an open panel reads the log it left.
                     self.native_log.stale = true;
                     if let (Err(e), false) = (result, cancelled) {
-                        self.native_error = Some(e);
+                        self.native_error = Some(String::from(e));
                     }
                 }
                 Msg::LauncherProgress(p) => {
@@ -4007,6 +4007,11 @@ impl Launcher {
                     &t,
                 )
                 .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                    if let Err(error) = this.settings.allow_native_mods() {
+                        this.native_error = Some(error);
+                        cx.notify();
+                        return;
+                    }
                     this.build_native();
                     cx.notify();
                 })),
