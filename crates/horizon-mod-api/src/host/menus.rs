@@ -90,12 +90,16 @@ pub trait MenusClientBackendMut {
     /// True means submitted, not accepted by the server: its corrections win.
     #[access(WorldOnly)]
     fn menu_click(&mut self, menu: MenuRef, clicks: &[MenuClick]) -> bool;
-    /// Side: client.
-    /// Close the local player's open container screen as Escape does
+    /// Side: both.
+    /// On a client, close the local player's open container screen as Escape does
     /// (`AbstractContainerScreen.onClose`, `LocalPlayer.closeContainer`): the
     /// server is told (`ContainerClose`) and the screen goes. Refuses stale
-    /// menus, non-client hosts and a menu whose screen is not open, such as
-    /// the inventory menu while playing.
+    /// menus and a menu whose screen is not open, such as the inventory menu
+    /// while playing. On a server, close a player's open menu as
+    /// `ServerPlayer.closeContainer` does, running the normal lifecycle once: the
+    /// container's lid, a vehicle's or a trade's stand-in, the carried stack back to the
+    /// inventory, `player_container_close`, and the client's window closed. Refuses stale
+    /// menus and the player's own inventory menu, which is never closed.
     #[access(WorldOnly)]
     fn menu_close(&mut self, menu: MenuRef) -> bool;
     /// Side: client.

@@ -656,6 +656,13 @@ impl Game<'_> {
         if self.guest_menu_still_valid(conn) {
             return;
         }
+        self.guest_close_menus_and_tell(conn);
+    }
+
+    /// `ServerPlayer.closeContainer`: every menu the guest has open closes through
+    /// `guest_close_all` (the lid, stand-ins, the cursor stack back to the inventory,
+    /// `PlayerContainerEvent.Close`), once, and then the client is told to close each window.
+    pub(in crate::game) fn guest_close_menus_and_tell(&mut self, conn: u32) {
         let Some(host) = self.lan.as_ref() else {
             return;
         };

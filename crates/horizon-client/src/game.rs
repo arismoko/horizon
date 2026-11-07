@@ -4555,14 +4555,24 @@ impl Game<'_> {
     /// `Player.drop(stack, false)`, as `ItemUtils.createFilledResult` drops what no longer fits
     /// in the inventory: thrown from the eyes, with no thrower, statistic or drop hook.
     pub(super) fn drop_plain(&mut self, stack: ItemStack) -> Option<u32> {
+        self.drop_stack_from_eyes(stack, false)
+    }
+    /// `Player.drop(stack, false, thrown_from_hand)`: the stack thrown from the eyes along the
+    /// view, the main hand swinging for every drop (`LivingEntity.drop`; `PREDICTED` only keeps
+    /// the swing from being sent back to the player who made it). `thrown_from_hand` names the
+    /// player as the thrower, as the drop key does. The item's id, none for an empty stack or a
+    /// toss a mod canceled.
+    pub(super) fn drop_stack_from_eyes(
+        &mut self,
+        stack: ItemStack,
+        thrown_from_hand: bool,
+    ) -> Option<u32> {
         if stack.count == 0 {
             return None;
         }
-        // LivingEntity.drop swings the main hand for every drop (`PREDICTED` only keeps the
-        // swing from being sent back to the player who made it).
         self.swing_hand(Hand::Main, SwingAnimation::DEFAULT);
         let eye = self.eye_position()?;
-        self.throw_from_eyes(stack, eye, false, false)
+        self.throw_from_eyes(stack, eye, false, thrown_from_hand)
     }
     /// `Player.createItemStackToDrop`: an item entity thrown from the eyes
     /// along the view direction. `thrown_from_hand` (`drop(stack, true)`, the

@@ -433,6 +433,29 @@ pub trait PlayersBackendMut {
     #[access(WorldOnly)]
     fn player_set_game_mode(&mut self, player: PlayerRef, mode: GameMode) -> bool;
     /// Side: server.
+    /// `Inventory.setSelectedSlot`: makes `slot` (0 to 8) the hotbar slot the player holds and
+    /// tells their client (`ClientboundSetHeldSlot`), as `/clear`-style server code does. A new
+    /// slot ends a main-hand use in progress, as the client's own switch does, and asks no
+    /// `player_switch_hotbar_slot_pre`: that hook is for the player's own input. Returns false for
+    /// a slot past 8, a stale or unavailable player, and a dead one; true when the player already
+    /// held `slot`.
+    #[access(WorldOnly)]
+    fn player_set_selected_slot(&mut self, player: PlayerRef, slot: usize) -> bool;
+    /// Side: server.
+    /// `Player.drop(stack, false, thrown_by_player)`: `stack` is thrown from the player's eyes
+    /// along their view as an item entity, with the main hand swinging and `item_toss` asked
+    /// first. Nothing is taken from an inventory: the stack is the caller's, taken out through
+    /// the item places first, which is what separates it from giving or dropping into the
+    /// inventory. `thrown_by_player` names the player as the item's thrower, as the drop key
+    /// does. False for an empty stack, a stale or dead player and a toss a mod canceled.
+    #[access(WorldOnly)]
+    fn player_drop_stack(
+        &mut self,
+        player: PlayerRef,
+        stack: ItemStack,
+        thrown_by_player: bool,
+    ) -> bool;
+    /// Side: server.
     /// Remove a fake without treating it as a disconnect or saving it.
     #[access(WorldOnly)]
     fn player_remove_fake(&mut self, player: PlayerRef) -> bool;

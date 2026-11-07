@@ -44,10 +44,19 @@ impl Game<'_> {
     /// menus, non-client hosts and a menu whose screen is not open, such as
     /// the inventory menu while playing.
     pub(super) fn menu_close(&mut self, menu: MenuRef) -> bool {
-        if self.is_logical_server()
-            || self.screen != super::Screen::Inventory
-            || self.native_client_menu_name(menu).is_none()
-        {
+        if self.is_logical_server() {
+            // `ServerPlayer.closeContainer` of a guest's menu; the inventory menu (window 0) is
+            // never closed.
+            let Some(conn) = self.native_menu_guest(menu).map(|guest| guest.conn) else {
+                return false;
+            };
+            if menu.fields().window == 0 {
+                return false;
+            }
+            self.guest_close_menus_and_tell(conn);
+            return true;
+        }
+        if self.screen != super::Screen::Inventory || self.native_client_menu_name(menu).is_none() {
             return false;
         }
         self.close_container();
@@ -567,6 +576,110 @@ mod tests {
         );
         g.placed = true;
         g
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn a_server_closes_a_guests_menu_and_sets_their_selected_slot() {
+        with_game(|game| {
+            let config = HubConfig {
+                default_game_mode: 0,
+                guest_commands: false,
+                force_game_mode: false,
+                hardcore: false,
+                view_distance: 4,
+                simulation_distance: 4,
+                dimension: "minecraft:overworld".into(),
+                allow_flight: true,
+                seed: 0,
+                max_players: 10,
+                integrated: true,
+                levels: game.level_shapes,
+            };
+            let mut net = NetConfig::lan(0, "test".into(), 10);
+            net.listen = false;
+            game.lan_host(
+                LanSettings {
+                    port: 0,
+                    guest_commands: false,
+                    force_game_mode: false,
+                },
+                net,
+                config,
+            )
+            .unwrap();
+            game.lan.as_mut().unwrap().hub.guests.push(guest());
+            let player = game.player(123).unwrap();
+
+            // The selected slot: a slot past the hotbar is refused, a real one is held.
+            assert_eq!(player.selected_slot(game), Some(0));
+            assert!(!player.set_selected_slot(game, 9));
+            assert!(player.set_selected_slot(game, 4));
+            assert!(
+                player.set_selected_slot(game, 4),
+                "the same slot is no error"
+            );
+            assert_eq!(player.selected_slot(game), Some(4));
+            assert_eq!(game.lan.as_ref().unwrap().hub.guests[0].selected, 4);
+
+            // A menu: closing it returns the carried stack and leaves no menu behind.
+            let stone = ItemStack::new("minecraft:stone", 4);
+            let host = game.lan.as_mut().unwrap();
+            {
+                let value = Some(stone.clone());
+                host.hub.guests.update(0, |guest| guest.carried = value);
+            }
+            host.hub
+                .open_native_menu(
+                    1,
+                    1,
+                    horizon_core::nbt::Tag::String("test".into()),
+                    vec![Some(stone.clone())],
+                )
+                .unwrap();
+            let menu = game.player_container_menu(player).unwrap();
+            assert_ne!(menu.container_id(game), Some(0));
+            assert!(menu.close(game));
+            let guest = &game.lan.as_ref().unwrap().hub.guests[0];
+            assert!(guest.menu.is_none(), "the menu is gone");
+            assert!(guest.carried.is_none(), "the cursor stack went back");
+            assert_eq!(
+                guest
+                    .inventory
+                    .iter()
+                    .flatten()
+                    .map(|s| s.count)
+                    .sum::<u32>(),
+                4,
+                "to the inventory, none lost or doubled"
+            );
+            assert!(!menu.close(game), "a stale menu is refused");
+            // The player's own inventory menu is never closed.
+            let inventory = game.player_container_menu(player).unwrap();
+            assert_eq!(inventory.container_id(game), Some(0));
+            assert!(!inventory.close(game));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn a_stack_is_thrown_from_the_eyes_as_player_drop_does() {
+        with_game(|game| {
+            let stone = ItemStack::new("minecraft:stone", 3);
+            let before = game.dropped.len();
+            let id = game.drop_stack_from_eyes(stone.clone(), true).unwrap();
+            assert_eq!(game.dropped.len(), before + 1);
+            let thrown = game.dropped.last().unwrap();
+            assert_eq!((thrown.id, &thrown.stack), (id, &stone));
+            assert!(thrown.thrower.is_some(), "the drop key names the thrower");
+            game.drop_stack_from_eyes(stone.clone(), false).unwrap();
+            assert!(game.dropped.last().unwrap().thrower.is_none());
+            assert_eq!(
+                game.drop_stack_from_eyes(ItemStack::new("minecraft:stone", 0), true),
+                None,
+                "an empty stack is no drop"
+            );
+        });
     }
 
     #[test]

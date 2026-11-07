@@ -970,6 +970,58 @@ impl Game<'_> {
         })
     }
 
+    /// `Inventory.setSelectedSlot` for a server write: `slot` (0 to 8) becomes the hotbar slot the
+    /// player holds and a guest's client is told (`SetHeldSlot`). A new slot ends a main-hand use,
+    /// as `handleSetCarriedItem` does, without `player_switch_hotbar_slot_pre`, which is for the
+    /// player's own input. False for a slot past 8, a stale or dead player.
+    pub(super) fn player_set_selected_slot(&mut self, player: PlayerRef, slot: usize) -> bool {
+        if slot >= 9 {
+            return false;
+        }
+        let conn = match self.player_handle_read(player) {
+            Some(PlayerRead::Guest(guest)) => Some(guest.conn),
+            _ => None,
+        };
+        let changed = self.player_selected_slot(player) != Some(slot);
+        if !self.native_as_player_handle(player, |game| {
+            game.selected = slot;
+            if changed
+                && game
+                    .using
+                    .is_some_and(|(held, _)| held != crate::game::shield::OFFHAND_SLOT)
+            {
+                game.using = None;
+            }
+        }) {
+            return false;
+        }
+        if let (Some(conn), Some(host)) = (conn, self.lan.as_ref()) {
+            host.hub.send_to(
+                conn,
+                &C::SetHeldSlot(play::SetHeldSlot { slot: slot as i32 }),
+            );
+        }
+        true
+    }
+
+    /// `Player.drop(stack, false, thrown_by_player)`: `stack` thrown from the player's eyes along
+    /// their view as an item entity with the drop key's pickup delay, the main hand swinging and
+    /// `item_toss` asked first. Nothing is taken from an inventory: the stack is the caller's
+    /// (take it out through the item places first). `thrown_by_player` names the player as the
+    /// thrower, as the drop key does. False for an empty stack, a stale or dead player and a
+    /// toss a mod canceled.
+    pub(super) fn player_drop_stack(
+        &mut self,
+        player: PlayerRef,
+        stack: ItemStack,
+        thrown_by_player: bool,
+    ) -> bool {
+        let mut dropped = false;
+        self.native_as_player_handle(player, |game| {
+            dropped = game.drop_stack_from_eyes(stack, thrown_by_player).is_some();
+        }) && dropped
+    }
+
     /// `Player.isSpectator`; Paper `HumanEntity#getGameMode`.
     pub(super) fn player_is_spectator(&self, player: PlayerRef) -> Option<bool> {
         Some(self.player_read_both(player)?.mode() == 3)
