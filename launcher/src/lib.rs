@@ -5,6 +5,7 @@ pub mod backend;
 pub mod browser;
 pub mod bug_report;
 pub mod build_import;
+pub mod cache_cleanup;
 pub mod data_location;
 pub mod datapacks;
 pub mod desktop;
