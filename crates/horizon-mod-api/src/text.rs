@@ -14,12 +14,12 @@ pub struct Text {
     pub children: Vec<Text>,
     /// Unrecognised component metadata survives an engine round trip.
     #[serde(default)]
-    metadata: std::collections::BTreeMap<String, serde_json::Value>,
+    pub metadata: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 /// What supplies the characters or inline object of a component.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
+// exhaustive: closed serialized component vocabulary; new cases change the link contract
 pub enum TextContent {
     /// Literal characters, without interpreting legacy formatting codes.
     Literal(String),
@@ -65,7 +65,7 @@ pub enum TextContent {
 
 /// The source of an NBT component, not the NBT itself.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
+// exhaustive: closed serialized component vocabulary; new cases change the link contract
 pub enum TextNbtSource {
     /// Block position expression.
     Block(String),
@@ -77,7 +77,7 @@ pub enum TextNbtSource {
 
 /// An inline object embedded in text.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
+// exhaustive: closed serialized component vocabulary; new cases change the link contract
 pub enum TextObject {
     /// A player head, retaining the profile properties carried by the component.
     Player {
@@ -127,7 +127,7 @@ pub struct TextStyle {
     pub font: Option<String>,
     /// Unknown style metadata remains owned data, without engine types.
     #[serde(default)]
-    metadata: std::collections::BTreeMap<String, serde_json::Value>,
+    pub metadata: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 /// A text component's click action.
@@ -136,7 +136,7 @@ pub struct TextStyle {
 /// round-trip `OpenFile`. Capture drops untrusted file-opening action metadata.
 /// Part of the [per-node origin tracking follow-up](https://github.com/arismoko/horizon/issues/1738).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
+// exhaustive: closed serialized component vocabulary; new cases change the link contract
 pub enum TextClick {
     /// Open an HTTP or HTTPS URL.
     OpenUrl(String),
@@ -161,7 +161,7 @@ pub enum TextClick {
 
 /// A text component's hover action.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
+// exhaustive: closed serialized component vocabulary; new cases change the link contract
 pub enum TextHover {
     /// Show another styled component tree.
     Text(Box<Text>),
@@ -191,25 +191,26 @@ impl Default for Text {
     }
 }
 impl Text {
-    /// A literal component, with no inherited style overrides or children.
-    pub fn literal(value: impl Into<String>) -> Self {
+    /// A component with the given contents, with no style overrides or children.
+    pub fn new(content: TextContent) -> Self {
         Self {
-            content: TextContent::Literal(value.into()),
+            content,
             style: TextStyle::default(),
             children: Vec::new(),
             metadata: Default::default(),
         }
     }
+    /// A literal component, with no inherited style overrides or children.
+    pub fn literal(value: impl Into<String>) -> Self {
+        Self::new(TextContent::Literal(value.into()))
+    }
     /// A translatable component. The key and arguments remain unresolved data.
     pub fn translate(key: impl Into<String>, arguments: Vec<Text>) -> Self {
-        Self {
-            content: TextContent::Translatable {
-                key: key.into(),
-                fallback: None,
-                arguments,
-            },
-            ..Self::default()
-        }
+        Self::new(TextContent::Translatable {
+            key: key.into(),
+            fallback: None,
+            arguments,
+        })
     }
     /// Append a child without flattening its style or translation.
     pub fn append(mut self, child: Text) -> Self {

@@ -54,6 +54,7 @@ and remain strings, as do labels and tags.
 | Package manifest `Side` | `mod_api::Side` | Match `Client` and `Both` on the package metadata snapshot. This is not `HostSide` or the executing logical side. |
 | Command `Suggestion` | `mod_api::Suggestion` | Construct with `Suggestion::new((start, end), text)`; optional `tooltip` and `int_value` remain writable. Offsets are byte offsets. |
 | Package block entity type storage | `mod_api::BlockEntityTypeDecl` | Existing `r.block_entity_type(...).build()` registration is unchanged. The declaration snapshot no longer exposes the package parser's model; the game converts it once when declarations freeze. |
+| Component protocol vocabulary | `text::{TextContent, TextNbtSource, TextObject, TextClick, TextHover}` | Match these enums exhaustively: their serialized vocabulary is closed. Records remain `non_exhaustive`. |
 | File-opening click actions | Not in `text::TextClick` | Mods can neither produce nor round-trip `OpenFile`; untrusted file-opening action metadata is dropped. Part of [per-node origin tracking #1738](https://github.com/arismoko/horizon/issues/1738). |
 
 `mod_api::GameRuleValue` owns the `Bool(bool)` and `Int(i32)` cases, in that order.
@@ -92,6 +93,13 @@ rather than flattening it to a string.
 The recursive tree has one serde model. `TextForm` carries its serialized form for
 finite generated wasm bindings; decoding refuses malformed trees. Component and style
 metadata is retained through serialization rather than discarded by flattening text.
+`Text::new(content)` constructs any content kind without exposing an engine value.
+The content, NBT-source, object, click and hover enums are exhaustive protocol enums;
+new cases change the link contract, just as enum-case order does. Mod matches should
+name every case rather than silently treating a new protocol case as an old one.
+Typed content and style fields are authoritative; metadata retains unrecognized
+properties, not overrides of those typed fields. Game-side encoding is infallible
+and reuses the engine's translation-argument and fallback construction rules.
 
 ### Particle identities
 
