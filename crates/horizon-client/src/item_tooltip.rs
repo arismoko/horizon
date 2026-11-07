@@ -87,11 +87,113 @@ fn attribute_color(attribute: &str, rises: bool) -> u32 {
     }
 }
 
+/// What listeners hid from a stack's attribute lines (`GatherSkippedAttributeTooltipsEvent`):
+/// every modifier, the modifiers with these ids, or those in these slot groups.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AttributeFilter {
+    /// Hide every attribute line.
+    pub skip_all: bool,
+    /// Modifier ids to hide; a bare name is `minecraft:`'s.
+    pub ids: Vec<String>,
+    /// `EquipmentSlotGroup` names to hide (`mainhand`, `armor`, `any`...).
+    pub groups: Vec<String>,
+}
+
+impl AttributeFilter {
+    /// Whether the modifier `id` in slot group `group` is hidden.
+    pub fn skips(&self, id: &str, group: &str) -> bool {
+        let qualified = |name: &str| {
+            if name.contains(':') {
+                name.to_owned()
+            } else {
+                format!("minecraft:{name}")
+            }
+        };
+        self.skip_all
+            || self.groups.iter().any(|g| g == group)
+            || self.ids.iter().any(|i| qualified(i) == qualified(id))
+    }
+}
+
+/// The context an attribute tooltip is built in (NeoForge's `AttributeTooltipContext`): the
+/// player's attack damage and speed bases, none for recipe-search text, which has no player, and
+/// the tooltip's `TooltipFlag`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AttributeTooltipContext {
+    /// The local player's base attack damage and attack speed; none without a player.
+    pub player_base: Option<[f64; 2]>,
+    /// F3+H advanced tooltips.
+    pub advanced: bool,
+    /// A creative tab's own slot.
+    pub creative: bool,
+}
+
+/// What mods change about a stack's attribute lines. The game answers it by firing the
+/// `gather_skipped_attribute_tooltips` and `add_attribute_tooltips` hooks; a builder with no game
+/// to ask (the creative search cache) uses [`NoAttributeListener`].
+pub trait AttributeTooltipListener {
+    /// The modifiers to leave out.
+    fn skipped(&self, _stack: &ItemStack, _ctx: &AttributeTooltipContext) -> AttributeFilter {
+        AttributeFilter::default()
+    }
+    /// The lines to add right after the attribute lines. `shown` is whether the stack's
+    /// `minecraft:tooltip_display` shows the attribute modifiers at all.
+    fn extra(
+        &self,
+        _stack: &ItemStack,
+        _ctx: &AttributeTooltipContext,
+        _shown: bool,
+    ) -> Vec<(Text, u32)> {
+        Vec::new()
+    }
+}
+
+/// An [`AttributeTooltipListener`] that changes nothing.
+pub struct NoAttributeListener;
+impl AttributeTooltipListener for NoAttributeListener {}
+
+/// The one attribute tooltip builder both routes use (the ordinary item tooltip and the recipe
+/// book's search text): the filtered modifier lines when `shown`, then the lines listeners add,
+/// even when the display hides the modifiers (`AddAttributeTooltipsEvent.shouldShow`). Returns the
+/// modifier lines and the added ones, in order.
+pub fn attribute_tooltip(
+    stack: &ItemStack,
+    modifiers: &[horizon_items::item_data::ModifierRow],
+    ctx: &AttributeTooltipContext,
+    shown: bool,
+    listener: &dyn AttributeTooltipListener,
+    translate: &dyn Fn(&str) -> Option<String>,
+) -> (Vec<(String, u32)>, Vec<(Text, u32)>) {
+    let lines = if shown {
+        let filter = listener.skipped(stack, ctx);
+        attribute_lines_filtered(modifiers, ctx.player_base, &filter, translate)
+    } else {
+        Vec::new()
+    };
+    (lines, listener.extra(stack, ctx, shown))
+}
+
 /// `ItemStack.addAttributeTooltips`: slot groups, colors and optional player
 /// attack damage/speed bases. Recipe search has no player context.
 pub fn attribute_lines(
     modifiers: &[horizon_items::item_data::ModifierRow],
     player_base: Option<[f64; 2]>,
+    translate: &dyn Fn(&str) -> Option<String>,
+) -> Vec<(String, u32)> {
+    attribute_lines_filtered(
+        modifiers,
+        player_base,
+        &AttributeFilter::default(),
+        translate,
+    )
+}
+
+/// [`attribute_lines`] without the modifiers `filter` hides; a slot group with nothing left shows
+/// no heading.
+pub fn attribute_lines_filtered(
+    modifiers: &[horizon_items::item_data::ModifierRow],
+    player_base: Option<[f64; 2]>,
+    filter: &AttributeFilter,
     translate: &dyn Fn(&str) -> Option<String>,
 ) -> Vec<(String, u32)> {
     let mut lines = Vec::new();
@@ -105,7 +207,7 @@ pub fn attribute_lines(
             slot,
         } in modifiers
         {
-            if slot != group {
+            if slot != group || filter.skips(modifier, slot) {
                 continue;
             }
             if std::mem::take(&mut first) {
@@ -915,6 +1017,7 @@ pub fn disc_fragment_line(
 pub fn detail_lines(
     stack: &ItemStack,
     info: Option<&ItemInfo>,
+    attributes: &dyn AttributeTooltipListener,
     translate: &dyn Fn(&str) -> Option<String>,
 ) -> Vec<String> {
     let text = |key: &str| translate(key).unwrap_or_else(|| key.to_owned());
@@ -977,11 +1080,19 @@ pub fn detail_lines(
     lines.extend(dyed_line(stack, &display, false, translate).map(|l| l.0));
     let modifiers =
         crate::item_attributes::attribute_modifiers_or(stack, info.map_or(&[], |i| &i.modifiers));
-    lines.extend(
-        attribute_lines(&modifiers, None, translate)
-            .into_iter()
-            .map(|(line, _)| line),
+    // Recipe search has no player, no advanced flag and no creative slot.
+    let ctx = AttributeTooltipContext {
+        player_base: None,
+        advanced: false,
+        creative: false,
+    };
+    let (modifier_lines, added) = attribute_tooltip(
+        stack, &modifiers, &ctx,
+        // The search text lists attribute lines whatever the stack's display says, as before.
+        true, attributes, translate,
     );
+    lines.extend(modifier_lines.into_iter().map(|(line, _)| line));
+    lines.extend(added.into_iter().map(|(text, _)| text.plain()));
     lines.extend(ominous_bottle_line(stack, &display, translate).map(|l| l.0));
     lines
 }
@@ -1114,13 +1225,14 @@ pub fn container_lines(
 pub fn lines(
     stack: &ItemStack,
     info: Option<&ItemInfo>,
+    attributes: &dyn AttributeTooltipListener,
     translate: &dyn Fn(&str) -> Option<String>,
 ) -> Vec<String> {
     let mut lines = vec![name_line(stack, translate)];
     if TooltipDisplay::for_stack(stack).shows("minecraft:lore") {
         lines.extend(lore_texts(stack).into_iter().map(|t| t.plain()));
     }
-    lines.extend(detail_lines(stack, info, translate));
+    lines.extend(detail_lines(stack, info, attributes, translate));
     lines
 }
 
@@ -1187,12 +1299,12 @@ mod tests {
             disc_fragment_line(&stack, &translate).as_deref(),
             Some("Music Disc - 5")
         );
-        let lines = detail_lines(&stack, None, &translate);
+        let lines = detail_lines(&stack, None, &NoAttributeListener, &translate);
         assert_eq!(lines.first().map(String::as_str), Some("Music Disc - 5"));
         let other = ItemStack::new("minecraft:stick", 1);
         assert_eq!(disc_fragment_line(&other, &translate), None);
         assert!(
-            !detail_lines(&other, None, &translate)
+            !detail_lines(&other, None, &NoAttributeListener, &translate)
                 .iter()
                 .any(|l| l == "Music Disc - 5")
         );
@@ -1413,9 +1525,10 @@ mod tests {
             Some((format!("Bad Omen IV ({duration})"), blue))
         );
         assert!(
-            lines(&bottle, None, &lang).contains(&format!("Bad Omen IV ({duration})")),
+            lines(&bottle, None, &NoAttributeListener, &lang)
+                .contains(&format!("Bad Omen IV ({duration})")),
             "{:?}",
-            lines(&bottle, None, &lang)
+            lines(&bottle, None, &NoAttributeListener, &lang)
         );
         // A numbered template, as some languages write it.
         let numbered = |key: &str| match key {
@@ -1760,6 +1873,133 @@ mod tests {
             modifier_line(&lang, "attack_damage", 0.0, 0, true).as_deref(),
             Some("0 Attack Damage")
         );
+    }
+
+    fn sword_rows() -> Vec<horizon_items::item_data::ModifierRow> {
+        use horizon_items::item_data::ModifierRow;
+        vec![
+            ModifierRow::new(
+                "minecraft:attack_damage",
+                "minecraft:base_attack_damage",
+                6.0,
+                "add_value",
+                "mainhand",
+            ),
+            ModifierRow::new(
+                "minecraft:attack_speed",
+                "minecraft:base_attack_speed",
+                -2.4,
+                "add_value",
+                "mainhand",
+            ),
+            ModifierRow::new("minecraft:armor", "mod:plating", 3.0, "add_value", "head"),
+        ]
+    }
+
+    #[test]
+    fn a_filter_hides_modifiers_by_id_group_or_all_and_drops_empty_headings() {
+        let rows = sword_rows();
+        let lang = |key: &str| Some(key.to_owned());
+        let text = |filter: &AttributeFilter| -> Vec<String> {
+            attribute_lines_filtered(&rows, None, filter, &lang)
+                .into_iter()
+                .map(|(line, _)| line)
+                .collect()
+        };
+        let all = text(&AttributeFilter::default());
+        assert_eq!(all.len(), 7, "two headings, three modifiers, two blanks");
+        assert_eq!(
+            all,
+            text(&AttributeFilter {
+                ids: vec!["mod:nothing".into()],
+                ..Default::default()
+            }),
+            "an id no modifier has hides nothing"
+        );
+        // A bare name is `minecraft:`'s.
+        let no_damage = text(&AttributeFilter {
+            ids: vec!["base_attack_damage".into()],
+            ..Default::default()
+        });
+        assert_eq!(no_damage.len(), 6);
+        assert!(!no_damage.iter().any(|l| l.contains("attack_damage")));
+        // Hiding a group takes its heading with it.
+        let no_head = text(&AttributeFilter {
+            groups: vec!["head".into()],
+            ..Default::default()
+        });
+        assert!(!no_head.iter().any(|l| l.contains("item.modifiers.head")));
+        assert!(
+            no_head
+                .iter()
+                .any(|l| l.contains("item.modifiers.mainhand"))
+        );
+        assert_eq!(no_head.len(), 4);
+        assert!(
+            text(&AttributeFilter {
+                skip_all: true,
+                ..Default::default()
+            })
+            .is_empty()
+        );
+    }
+
+    /// Answers the two questions as a mod's two hooks would.
+    struct Hide(AttributeFilter, Vec<(&'static str, u32)>);
+    impl AttributeTooltipListener for Hide {
+        fn skipped(&self, _: &ItemStack, _: &AttributeTooltipContext) -> AttributeFilter {
+            self.0.clone()
+        }
+        fn extra(
+            &self,
+            _: &ItemStack,
+            ctx: &AttributeTooltipContext,
+            shown: bool,
+        ) -> Vec<(Text, u32)> {
+            assert!(ctx.player_base.is_none());
+            assert_eq!(shown, self.0 != AttributeFilter::default());
+            self.1.iter().map(|&(t, c)| (Text::legacy(t), c)).collect()
+        }
+    }
+
+    #[test]
+    fn the_builder_filters_then_adds_even_when_the_display_hides_the_modifiers() {
+        let rows = sword_rows();
+        let lang = |key: &str| Some(key.to_owned());
+        let stack = ItemStack::new("minecraft:diamond_sword", 1);
+        let ctx = AttributeTooltipContext {
+            player_base: None,
+            advanced: false,
+            creative: false,
+        };
+        let (lines, added) = attribute_tooltip(
+            &stack,
+            &rows,
+            &ctx,
+            true,
+            &Hide(
+                AttributeFilter {
+                    groups: vec!["mainhand".into()],
+                    ..Default::default()
+                },
+                vec![("Rune: fire", 7)],
+            ),
+            &lang,
+        );
+        assert_eq!(lines.len(), 3, "only the head modifier is left");
+        assert_eq!(added.len(), 1);
+        assert_eq!(added[0].1, 7);
+        // The display hides the modifiers: no gather, but the lines are still asked for.
+        let (lines, added) = attribute_tooltip(
+            &stack,
+            &rows,
+            &ctx,
+            false,
+            &Hide(AttributeFilter::default(), vec![("note", u32::MAX)]),
+            &lang,
+        );
+        assert!(lines.is_empty());
+        assert_eq!(added.len(), 1);
     }
 
     #[test]

@@ -2507,7 +2507,8 @@ impl Game<'_> {
             }
         }
         details.start("minecraft:attribute_modifiers", lines.len());
-        if display.shows("minecraft:attribute_modifiers") {
+        {
+            let shown_modifiers = display.shows("minecraft:attribute_modifiers");
             // The item's own modifiers, then its enchantments' for each slot
             // group (`ItemStack.forEachModifier`).
             let mut modifiers = horizon_client::item_attributes::attribute_modifiers_or(
@@ -2539,11 +2540,29 @@ impl Game<'_> {
                     ),
                 ]
             });
-            for (text, c) in
-                horizon_client::item_tooltip::attribute_lines(&modifiers, player_base, &translate)
-            {
+            let context = horizon_client::item_tooltip::AttributeTooltipContext {
+                player_base,
+                advanced,
+                creative,
+            };
+            // `AttributeUtil.addAttributeTooltips`: the one builder the recipe search shares,
+            // with the mods' skipped modifiers and added lines. A nested stack has no player.
+            let listener = crate::game::native_hooks::HookedAttributeTooltips::new(
+                self,
+                (!nested).then(|| (self.own_uuid(), self.own_entity_id())),
+            );
+            let (modifier_lines, added) = horizon_client::item_tooltip::attribute_tooltip(
+                stack,
+                &modifiers,
+                &context,
+                shown_modifiers,
+                &listener,
+                &translate,
+            );
+            for (text, c) in modifier_lines {
                 push(&mut lines, text, c);
             }
+            lines.extend(added);
         }
         details.start("minecraft:unbreakable", lines.len());
         // ItemStack.UNBREAKABLE_TOOLTIP.
@@ -3483,6 +3502,69 @@ mod tests {
                     .map(|(text, _)| text.plain())
                     .collect();
                 assert_eq!(creative[..2], ["Stick", "part"]);
+            });
+        });
+    }
+    /// A helmet's armour lines go where `ItemStack.addAttributeTooltips` puts them; a mod's
+    /// `gather_skipped_attribute_tooltips` takes a slot group out, heading and all, and its
+    /// `add_attribute_tooltips` line lands right after what is left, with the local player
+    /// handed to both.
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn attribute_tooltip_hooks_hide_modifiers_and_add_lines_after_them() {
+        use horizon_client::text::Text;
+        use mod_api::{
+            self, AddAttributeTooltipsEvent, ClientHost, GatherSkippedAttributeTooltipsEvent,
+            Hooks, ModEntry, Mods,
+        };
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        static HIDE: AtomicBool = AtomicBool::new(false);
+        struct Mod;
+        #[mod_api::__subscriptions]
+        impl Hooks for Mod {
+            fn gather_skipped_attribute_tooltips(
+                &self,
+                _: &dyn ClientHost,
+                event: &mut GatherSkippedAttributeTooltipsEvent<'_>,
+            ) {
+                assert!(event.player.is_some(), "the ordinary tooltip has a player");
+                if HIDE.load(Ordering::Relaxed) {
+                    event.skipped_groups.push("head".into());
+                }
+            }
+            fn add_attribute_tooltips(
+                &self,
+                _: &dyn ClientHost,
+                event: &mut AddAttributeTooltipsEvent<'_>,
+            ) {
+                assert!(event.shown);
+                event.lines.push((Text::literal("Rune: warding"), u32::MAX));
+            }
+        }
+        let mods: Mods = vec![ModEntry::new("runes", Box::new(Mod))].into();
+        mod_api::testing::with_mods(mods, || {
+            super::super::native_entity_refs::tests::with_game(|game| {
+                let helmet = super::ItemStack::new("minecraft:diamond_helmet", 1);
+                let plain = |game: &super::Game<'_>| -> Vec<String> {
+                    game.stack_tooltip_lines(&helmet, false, false)
+                        .iter()
+                        .map(|(text, _)| text.plain())
+                        .collect()
+                };
+                HIDE.store(false, Ordering::Relaxed);
+                let shown = plain(game);
+                let heading = shown
+                    .iter()
+                    .position(|l| l.contains("On Head"))
+                    .unwrap_or_else(|| panic!("{shown:?}"));
+                let rune = shown.iter().position(|l| l == "Rune: warding").unwrap();
+                assert!(rune > heading, "after the attribute lines: {shown:?}");
+                HIDE.store(true, Ordering::Relaxed);
+                let hidden = plain(game);
+                assert!(!hidden.iter().any(|l| l.contains("On Head")), "{hidden:?}");
+                assert!(!hidden.iter().any(|l| l.contains("Armor")), "{hidden:?}");
+                assert!(hidden.iter().any(|l| l == "Rune: warding"), "{hidden:?}");
             });
         });
     }

@@ -542,6 +542,7 @@ impl Game<'_> {
                     horizon_client::item_tooltip::lines(
                         stack,
                         self.items().get(&stack.item),
+                        &crate::game::native_hooks::HookedAttributeTooltips::new(self, None),
                         &|k| self.pack.names.display_get(k),
                     )
                 })

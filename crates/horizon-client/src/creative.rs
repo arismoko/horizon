@@ -578,10 +578,15 @@ impl Creative {
         self.search_items
             .iter()
             .map(|s| {
-                crate::item_tooltip::lines(s, None, translate)
-                    .iter()
-                    .map(|l| java_lower(l))
-                    .collect()
+                crate::item_tooltip::lines(
+                    s,
+                    None,
+                    &crate::item_tooltip::NoAttributeListener,
+                    translate,
+                )
+                .iter()
+                .map(|l| java_lower(l))
+                .collect()
             })
             .collect()
     }

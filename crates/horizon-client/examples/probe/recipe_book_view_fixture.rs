@@ -38,7 +38,12 @@ pub fn main() -> horizon_client::Result<()> {
     );
     let translate = |k: &str| names.get(k).map(str::to_owned);
     let tooltip = |s: &horizon_client::items::ItemStack| {
-        horizon_client::item_tooltip::lines(s, items.get(&s.item), &translate)
+        horizon_client::item_tooltip::lines(
+            s,
+            items.get(&s.item),
+            &horizon_client::item_tooltip::NoAttributeListener,
+            &translate,
+        )
     };
     let mut out = String::new();
     for line in cases.lines() {
