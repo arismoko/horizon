@@ -4,6 +4,7 @@ import argparse
 from collections import Counter
 import difflib
 import json
+import hashlib
 from pathlib import Path
 import subprocess
 
@@ -29,7 +30,15 @@ def lines(text):
 
 def apply_seam(text, entries):
     for entry in entries:
-        old, new, count = entry["old"], entry["new"], entry["count"]
+        new = entry["new"]
+        if "start" in entry:
+            start = text.index(entry["start"])
+            end = text.index(entry["end"], start)
+            old, count = text[start:end], 1
+            if hashlib.sha256(old.encode()).hexdigest() != entry["sha256"]:
+                raise ValueError("declared seam source hash mismatch")
+        else:
+            old, count = entry["old"], entry["count"]
         if not old or text.count(old) != count:
             raise ValueError(f"declared seam occurrence mismatch: {old!r}")
         text = text.replace(old, new)
@@ -59,7 +68,7 @@ def main():
     original = old_file(root, args.base, SOURCE)
     if not original:
         raise ValueError("base has no original renderer")
-    expected = apply_seam(original, json.loads(args.seam.read_text()))
+    expected = rewrite(apply_seam(original, json.loads(args.seam.read_text())), args.destination_lib)
     actual = (root / destination).read_text()
     removed, added = lines(expected) - lines(actual), lines(actual) - lines(expected)
     if removed or added:
@@ -74,7 +83,7 @@ def main():
         if name.endswith("Cargo.lock"):
             continue
         before = old_file(root, args.base, name)
-        expected = rewrite(before, args.destination_lib) if name.endswith((".rs", ".md")) else before
+        expected = rewrite(before, args.destination_lib) if name.endswith((".rs", ".md", ".txt")) else before
         path = root / name
         after = path.read_text() if path.exists() else ""
         count = hand_lines(expected, after)

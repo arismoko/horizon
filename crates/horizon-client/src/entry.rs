@@ -35,7 +35,6 @@ pub fn main_with(
             std::process::exit(game::exit_code::ERROR);
         }
     };
-    crate::gfx::native_render::set_mods_built_in(!native.built().is_empty());
     horizon_threads::configure_allocator();
     horizon_client::spans::startup::init(std::time::Instant::now());
     horizon_client::spans::trace::start_from_env();
@@ -169,19 +168,6 @@ pub fn main_with(
         // The log's first line names the build, so a bug report that carries the log says which one it was.
         log::info!("Horizon {}", crash::version());
         crash::install(home.clone(), side);
-    }
-    let renderers = mod_api::__private::mods()
-        .iter()
-        .enumerate()
-        .filter_map(|(index, m)| {
-            m.fields()
-                .hooks
-                .render()
-                .map(|hooks| mod_api::render::RenderEntry::new(index, hooks))
-        })
-        .collect();
-    if crate::gfx::native_render::install(renderers).is_err() {
-        log::warn!("Trait renderers already installed; keeping the first list");
     }
     if horizon_world::native_load_hooks::install(
         horizon_world::native_load_hooks::NativeLoadHooks {

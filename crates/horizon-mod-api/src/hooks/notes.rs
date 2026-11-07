@@ -1303,11 +1303,12 @@ stock client shows as a chest (`generic_9x1` to `generic_9x6`); nothing is insta
 
 ### Render hook points
 
-`crates/horizon-mod-api/src/render.rs`: the renderer's own hook points, free functions rather than
-`Game` methods, which a bundle targets as `mod_api::render::native_<name>`. They run on the
-render thread with the frame's wgpu objects; what a mod draws there shows in that frame.
+`crates/horizon-mod-render/src/render.rs`: native-only, unstable raw frame places, outside `mod_api`.
+Use `[[inject]]` with `access = "internals"`, `kind = "head"` and a checked listener signature at
+`horizon_mod_render::render::<name>`. They run on the render thread with the frame's wgpu objects;
+what a mod draws there shows in that frame. Draw contexts remain the API-typed drawing route.
 
-- `native_world_drawn(world)`: the world is drawn (sky, terrain, entities, particles, weather and the world post pass),
+- `world_drawn(world)`: the world is drawn (sky, terrain, entities, particles, weather and the world post pass),
   the first-person hand, the HUD and screens not yet. `WorldDrawn` holds the device, queue and encoder, the frame's
   colour target (copy it out before sampling it), the world's reversed depth and its size, the camera's position and
   its matrices with and without TAA's jitter, the frame's camera-relative entity quads with their runs by entity, the
@@ -1315,14 +1316,14 @@ render thread with the frame's wgpu objects; what a mod draws there shows in tha
   called on the title screen's panorama. `motion` says which mob, player or dropped item each run of the entity quads
   is, by its entity id, so a mod can match an entity's vertices with last frame's (a motion blur's own motion
   vectors); `spans` only name the type.
-- `native_hand_drawn(hand)`: the first-person hand and held item are drawn, after `native_world_drawn` and before
-  entity outlines, post effects, screen effects and the HUD, on every frame `native_world_drawn` runs. `HandDrawn`
+- `hand_drawn(hand)`: the first-person hand and held item are drawn, after `world_drawn` and before
+  entity outlines, post effects, screen effects and the HUD, on every frame `world_drawn` runs. `HandDrawn`
   holds the device, queue and encoder, the frame's colour target with the hand in it, the hand's camera-relative
   quads (empty when no hand drew: third person, F1, a shader pack's own hand), the hand's clip matrix (its own field
   of view and the view bob, no jitter), the camera, the entity atlas and the quad index buffer. The hand's depth isn't
   kept: draw its quads into a depth of your own. A motion blur can match the hand's quads with last frame's for the
   swing, attack, equip and bob motion, and blur the picture with the hand in it.
-- `native_render_needs(needs)`: set `entity_spans` to have the entity geometry split into runs by entity without a
+- `render_needs(needs)`: set `entity_spans` to have the entity geometry split into runs by entity without a
   shader pack (each run's id is stable from frame to frame: a hash of the entity type's name, a block entity's state),
   and `world_depth` to keep the world pass's depth when nothing else needs it. Set what you need and leave the rest:
   several mods can ask. It's asked as each frame is built, so keep it cheap.
@@ -1629,8 +1630,8 @@ one, where vanilla gives the `by` one.
   the game tells them after the hub's network step for that level, so a handler sees the state after that step; the order per
   player and chunk is vanilla's. The far ring's columns past the view distance aren't told, and the server stopping doesn't unwatch.
 
-- [the renderer's hook points](#render-hook-points): `native_world_drawn`, called once the world is drawn with its colour, depth, matrices and entity geometry, and
-  `native_render_needs`, where a mod asks for the entity runs and the world's depth without a shader pack.
+- [the renderer's hook points](#render-hook-points): `world_drawn`, called once the world is drawn with its colour, depth, matrices and entity geometry, and
+  `render_needs`, where a mod asks for the entity runs and the world's depth without a shader pack.
 
 - [entities](#entities) for server mods: `native_summon(dimension, kind, pos, nbt)` spawns any entity from its compound
   as `/summon` does.

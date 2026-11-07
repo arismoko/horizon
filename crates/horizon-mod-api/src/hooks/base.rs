@@ -1043,7 +1043,7 @@ pub trait Hooks {
     #[hook(
         side = "client",
         contract = "listen",
-        target = "mod_api::render::native_world_drawn",
+        target = "mod_render::render::world_drawn",
         neoforge = "RenderLevelStageEvent.AfterLevel"
     )]
     fn world_drawn();
@@ -1053,7 +1053,7 @@ pub trait Hooks {
         side = "client",
         contract = "collect",
         out = "needs",
-        target = "mod_api::render::native_render_needs",
+        target = "mod_render::render::render_needs",
         neoforge = "none (Horizon-only; NeoForge has no counterpart)"
     )]
     fn render_needs();

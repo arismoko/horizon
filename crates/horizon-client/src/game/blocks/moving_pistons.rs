@@ -3,7 +3,7 @@
 //! mesher); this draws each moved block at its interpolated offset.
 use super::Game;
 use horizon_world::{piston_shape::MovingPistonState, registry::BlockStateId};
-use mod_api::render::Vertex;
+use mod_render::render::Vertex;
 
 impl Game<'_> {
     /// `PistonHeadRenderer.extractRenderState` and `submit`.

@@ -336,7 +336,7 @@ mod lod;
 mod native_material;
 mod native_pack;
 mod native_post;
-pub use mod_api::render as native_render;
+pub use mod_render::render as native_render;
 mod native_shadow;
 mod native_sky;
 mod occlusion;
@@ -6585,7 +6585,7 @@ impl Renderer {
             && !self.frame_gen.on
             && self.pack_post.as_ref().is_none_or(|(_, post)| {
                 post.as_ref().is_some_and(|post| post.skins_entities())
-                    && !native_render::render_needs().entity_spans
+                    && !native_render::needs().entity_spans
             })
             && self.native.is_none()
     }
@@ -9314,7 +9314,7 @@ impl Renderer {
         let keep_depth = pack_reads_world
             || (taa && self.world_post.taa)
             || oit_on
-            || native_render::render_needs().world_depth
+            || native_render::needs().world_depth
             || fg;
         // The pack's program reads the vertices this frame's draws bind.
         let pack_draws_terrain = pack_terrain && flat_frame == self.pack_terrain_flat;
@@ -9376,7 +9376,7 @@ impl Renderer {
         }
         // The hand draws at the end of the world pass, after a depth reset, when nothing runs
         // between them (a scaled world's post pass, HDR's world copy, a native mod's
-        // `native_world_drawn`): one render pass fewer, ~10 µs of wgpu's encoding a frame.
+        // `world_drawn`): one render pass fewer, ~10 µs of wgpu's encoding a frame.
         let hand_in_world = (frame.hand.len() / 4) > 0
             && !pack_draws_hand
             && scaled.is_none()
@@ -10958,8 +10958,8 @@ impl Renderer {
                 Some((_, depth)) => (depth, self.world_post.size().unwrap_or(size)),
                 None => (&self.depth, size),
             };
-            native_render::native_world_drawn(&mut native_render::WorldDrawn::from(
-                mod_api::__private::built::WorldDrawn {
+            native_render::world_drawn(&mut native_render::WorldDrawn::from(
+                mod_render::render::built::WorldDrawn {
                     device: &self.device,
                     queue: &self.queue,
                     encoder: &mut encoder,
@@ -10978,7 +10978,7 @@ impl Renderer {
                     atlas: self.hud.atlas_texture.as_ref(),
                     quad_indices: &self.indices,
                     block_sprites: native_render::BlockSpriteArrays::from(
-                        mod_api::__private::built::BlockSpriteArrays {
+                        mod_render::render::built::BlockSpriteArrays {
                             views: &self.sprite_views,
                             split: self.sprite_split,
                             size: self.sprite_textures[0].width(),
@@ -11304,8 +11304,8 @@ impl Renderer {
         }
         // A native mod's turn after the hand, on the real frame only.
         if overlay.real && !frame.title {
-            native_render::native_hand_drawn(&mut native_render::HandDrawn::from(
-                mod_api::__private::built::HandDrawn {
+            native_render::hand_drawn(&mut native_render::HandDrawn::from(
+                mod_render::render::built::HandDrawn {
                     device: &self.device,
                     queue: &self.queue,
                     encoder: &mut *encoder,

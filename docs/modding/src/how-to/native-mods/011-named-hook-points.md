@@ -12,4 +12,8 @@ contract is never changed, its `mod_api` entry (the trait method's contract) inc
 a version. New parameters before the out-parameter, with the old ones kept in name and order, keep the version: a
 binding names a parameter, and a trait mod's event gains fields; a test that calls the `dispatch_*` function passes them. Helpers (`native_text`, `native_player`…) have no hook entry; the catalog's `helpers` list names the ones
 the generated `Host` offers, and they are kept stable as the hook points are. A test (`catalog_matches_hook_points`) keeps the
-catalog and the hook points' sources (`native_hooks/`, `horizon-mod-api`'s `render.rs`, `horizon-world`'s `loot.rs`) in step.
+catalog and the hook points' sources (`native_hooks/`, `horizon-mod-render`'s `render.rs`, `horizon-world`'s `loot.rs`) in step.
+Raw frame functions are native escape hatches, not methods on `Hooks`. For example, an
+internals injection at `horizon_mod_render::render::world_drawn` names its listener with
+`with`; use the current catalog hash and `kind = "head"`. The launcher supplies the
+checked raw listener signature, and the ordinary registry owns its priority and lifetime.

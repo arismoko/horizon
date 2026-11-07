@@ -1,7 +1,7 @@
 //! The uniforms a shader pack's gbuffers programs read per draw (`HzDraw` at set 2, the
 //! translator's `DRAW_UNIFORMS`): one slot per render stage of a uniform buffer, picked with a
 //! dynamic offset at each draw.
-pub use mod_api::render::EntitySpan;
+pub use mod_render::render::EntitySpan;
 
 use horizon_shaders::{RENDER_STAGES, render_stage};
 

@@ -657,7 +657,7 @@ impl Game<'_> {
         at: glam::Vec3,
         light: u32,
         partial: f32,
-        out: &mut Vec<mod_api::render::Vertex>,
+        out: &mut Vec<mod_render::render::Vertex>,
     ) {
         let Some(model) = self.entity_models.wind_charge.as_ref() else {
             return;

@@ -4,7 +4,7 @@
 //! cardinal shading, tint sources, block offsets; see `lighting`). Fluids
 //! follow `FluidRenderer` (see `fluid`).
 pub use mod_api::mesher::TintSource;
-pub use mod_api::render::Vertex;
+pub use mod_render::render::Vertex;
 mod fluid;
 mod leaf_culling;
 mod lighting;

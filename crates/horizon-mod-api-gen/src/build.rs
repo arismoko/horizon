@@ -118,7 +118,8 @@ pub fn generate_render(root: &Path, out_dir: &Path) -> Result<(), String> {
     }
     println!(
         "cargo:rerun-if-changed={}",
-        root.join("crates/horizon-mod-api/src/render.rs").display()
+        root.join("crates/horizon-mod-render/src/render.rs")
+            .display()
     );
     let source = super::dispatch::render(root, &Catalog::load(root)?)?.render_dispatch;
     use syn::spanned::Spanned;
@@ -157,7 +158,8 @@ fn render_records_need_no_game_sources() {
             fs::copy(&path, declarations.join(path.file_name().unwrap())).unwrap();
         }
     }
-    let raw = "crates/horizon-mod-api/src/render.rs";
+    let raw = "crates/horizon-mod-render/src/render.rs";
+    fs::create_dir_all(root.join(raw).parent().unwrap()).unwrap();
     fs::copy(workspace.join(raw), root.join(raw)).unwrap();
     assert!(!root.join("crates/horizon-client").exists());
     generate_render(&root, &root).unwrap();

@@ -7687,7 +7687,7 @@ impl Game<'_> {
                 if hidden {
                     let mut skin = self.skin_frame.borrow_mut();
                     let end = skin.vertices as usize;
-                    mod_api::render::EntitySpan::hide(&mut skin.spans, mark.2 as usize, end);
+                    mod_render::render::EntitySpan::hide(&mut skin.spans, mark.2 as usize, end);
                 }
             }
             out.truncate(len - 2);

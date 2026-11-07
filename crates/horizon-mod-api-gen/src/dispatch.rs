@@ -31,7 +31,7 @@ fn target_parameters(name: &str, native: &str, count: usize, carrier: &str) -> R
 }
 
 pub(super) fn is_render(hook: &Hook) -> bool {
-    hook.target.starts_with("mod_api::render::")
+    hook.target.starts_with("mod_render::render::")
 }
 
 /// Render emission reads only the catalog and its API-owned raw target signatures.
@@ -75,7 +75,7 @@ pub(super) fn emit<'a>(
             let Some((module, function)) = path.rsplit_once("::") else {
                 return Err(format!("wrong target for {name}"));
             };
-            if function != native {
+            if function != if is_render { name } else { &native } {
                 return Err(format!("wrong target for {name}"));
             }
             let path = root
@@ -95,7 +95,7 @@ pub(super) fn emit<'a>(
                 })
                 .collect();
             (
-                one_function(functions.iter(), &native)?.clone(),
+                one_function(functions.iter(), function)?.clone(),
                 // A hook in the mod API crate, or in a crate above it, calls its dispatch
                 // directly; one below it calls the callback the game installs.
                 if matches!(krate, "horizon-mod-api" | "horizon-client-render") {
@@ -115,7 +115,7 @@ pub(super) fn emit<'a>(
                 format!("dispatch_{name}"),
             )
         };
-        let fill = needs_fill(&method, &call, in_game)?;
+        let fill = !is_render && needs_fill(&method, &call, in_game)?;
         let sig = &method.sig;
         let mut native_args = Vec::new();
         let mut receiver_mut = None;

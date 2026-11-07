@@ -68,8 +68,15 @@ it creates starts with the data the `block_entity` hook gives, which is fired in
 changed, and false off an authoritative server, for a position that is not loaded or outside the build height,
 an invalid state, or the state the block already has. It never loads a chunk. The game owns
 the tick queue; mods do not pass it back to these helpers.
-For frame hooks, implement `RenderHooks` and return it from `Hooks::render`. The ordered
-renderer list is installed once alongside the mod list. `render_needs` collects requests;
-`world_drawn` observes the world pass and can encode drawing before the hand and HUD. Both
-run on the render thread while the frame is built, before any deferred GPU submission.
-The renderer module re-exports the game's wgpu types.
+Frame drawing through `DrawContext`, `BlockEntityDrawContext` and `WorldDrawContext` stays
+in `mod_api`. Raw GPU access is native-only, unstable and outside that API, in
+`mod_render::render` (`horizon-mod-render`). Register its listed frame functions through
+`[[inject]]` with `access = "internals"` and `kind = "head"`; the ordinary listener registry
+owns ordering and disabling. `render_needs` collects requests; `world_drawn` runs before
+the hand and HUD, and `hand_drawn` runs after the hand, on the render thread.
+
+| Removed path or registration | Current route |
+| --- | --- |
+| `mod_api::render` raw GPU types | `mod_render::render` (native escape hatch) |
+| `RenderHooks` / `Hooks::render` | `[[inject]]` internals listeners on the three listed frame functions |
+| API draw contexts | Unchanged; use these for API-typed drawing |

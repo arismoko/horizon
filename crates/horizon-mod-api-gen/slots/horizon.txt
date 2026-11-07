@@ -5,6 +5,9 @@
 # Seeded with the survey's targets (classified.json), less the per-block and per-quad ones
 # (Chunk::get, Section::unpack, Mesher::face, HudBatch::fill/rect_uv, ParticleEngine::push):
 # their frame cost can't be measured without a GPU yet, so they wait for a number.
+horizon_mod_render::render::world_drawn
+horizon_mod_render::render::hand_drawn
+horizon_mod_render::render::render_needs
 horizon_client_input::input::modify_input
 horizon_client_lib::clock::FixedStep::advance
 horizon_client_lib::extras_hud::draw_minimap

@@ -11,7 +11,7 @@ use horizon_client::text::Text;
 use horizon_shaders::{BlockIds, Macros, Pack, Properties, dimension_folder_named, load_post};
 
 use super::{Dim, Game};
-use mod_api::render::EntitySpan;
+use mod_render::render::EntitySpan;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 
@@ -742,7 +742,7 @@ fn block_item_ids(
 
 /// Spans for a native mod (`native_render::RenderNeeds::entity_spans`), without a pack.
 fn native_spans() -> bool {
-    horizon_client::gfx::native_render::render_needs().entity_spans
+    horizon_client::gfx::native_render::needs().entity_spans
 }
 
 /// A span's id for entity type `name` without a pack: stable, so a mod can match runs from one

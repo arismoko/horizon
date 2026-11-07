@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Move the raw renderer and rewrite its paths after the destination is approved."""
 import argparse
+import json
 from pathlib import Path
 import subprocess
 
@@ -11,7 +12,15 @@ EXPORT = "crates/horizon-mod-api/src/exports/render.rs"
 def replacements(lib):
     return {
         "mod_api::render::": f"{lib}::render::",
+        "crates/horizon-mod-api/src/render.rs": "crates/horizon-mod-render/src/render.rs",
         "mod_api::render as native_render": f"{lib}::render as native_render",
+        "mod_api::__private::built::WorldDrawn": f"{lib}::render::built::WorldDrawn",
+        "mod_api::__private::built::HandDrawn": f"{lib}::render::built::HandDrawn",
+        "mod_api::__private::built::BlockSpriteArrays": f"{lib}::render::built::BlockSpriteArrays",
+        "native_render::render_needs()": "native_render::needs()",
+        "native_world_drawn": "world_drawn",
+        "native_hand_drawn": "hand_drawn",
+        "native_render_needs": "render_needs",
     }
 
 
@@ -31,14 +40,16 @@ def edits(root, crate, lib):
     destination = f"crates/{crate}/src/render.rs"
     if (root / destination).exists():
         raise ValueError(f"destination already exists: {destination}")
+    from moved_lines_check import apply_seam
+    seam = json.loads(Path(__file__).with_name("seam.json").read_text())
     # Read every input before writing; the export disappears, not a compatibility shim.
     changes = {
         SOURCE: None,
         EXPORT: None,
-        destination: (root / SOURCE).read_text(),
+        destination: rewrite(apply_seam((root / SOURCE).read_text(), seam), lib),
     }
     for name in tracked(root):
-        if name in changes or not name.endswith((".rs", ".md")):
+        if name in changes or not name.endswith((".rs", ".md", ".txt")):
             continue
         text = (root / name).read_text()
         changed = rewrite(text, lib)
