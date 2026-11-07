@@ -297,6 +297,17 @@ pub fn route(entry: Entry<'_>, slots: &[Place]) -> Result<Route, InjectError> {
         });
     }
     let available = if inject.kind.needs_call() {
+        // An unlisted native internals call is checked against source by U2 before compilation.
+        if entry.target == Target::Native
+            && inject.access == Access::Internals
+            && inject.kind.slot() == Some(SlotKind::Site)
+            && !place
+                .calls
+                .iter()
+                .any(|c| Some(c.call.as_str()) == entry.resolved_call)
+        {
+            return Ok(Route::Source(NoSlotReason::NotListed));
+        }
         let mut candidates = place.calls.iter().filter(|c| {
             Some(c.call.as_str()) == entry.resolved_call
                 && Some(c.ctx.as_str()) == inject.ctx.as_deref()
@@ -402,6 +413,45 @@ mod tests {
             },
             places,
         )
+    }
+
+    #[test]
+    fn only_absent_native_internals_calls_defer_identity_to_source() {
+        let mut i = inject(Kind::BeforeCall);
+        i.access = Access::Internals;
+        let mut p = place();
+        p.calls.clear();
+        assert_eq!(
+            run(&i, Target::Native, &[p.clone()]),
+            Ok(Route::Source(NoSlotReason::NotListed))
+        );
+        assert!(matches!(
+            run(&i, Target::Wasm, &[p.clone()]),
+            Err(InjectError::Lost { .. })
+        ));
+        i.access = Access::Api;
+        assert!(matches!(
+            run(&i, Target::Native, &[p.clone()]),
+            Err(InjectError::Lost { .. })
+        ));
+        i.access = Access::Internals;
+        i.hash = "stale".into();
+        assert!(matches!(
+            run(&i, Target::Native, &[p]),
+            Err(InjectError::Changed { .. })
+        ));
+        i.hash = "signature".into();
+        i.ctx = Some("wrong".into());
+        assert!(matches!(
+            run(&i, Target::Native, &[place()]),
+            Err(InjectError::Lost { .. })
+        ));
+        i.ctx = Some("context".into());
+        i.nth = Some(1);
+        assert!(matches!(
+            run(&i, Target::Native, &[place()]),
+            Err(InjectError::Moved { nth: 0, .. })
+        ));
     }
 
     #[test]

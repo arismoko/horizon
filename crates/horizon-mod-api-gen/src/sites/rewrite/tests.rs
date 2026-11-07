@@ -1,6 +1,15 @@
 use super::*;
 use crate::crossing::tests::internal;
 
+fn rewrite(
+    source: &str,
+    module: &str,
+    entries: &[Internal],
+    declarations: &[Declaration],
+) -> Result<(String, Vec<Site>), Error> {
+    super::rewrite(source, module, entries, declarations, false)
+}
+
 fn entries() -> Vec<Internal> {
     vec![
         internal(
@@ -340,6 +349,81 @@ fn pinned_site_context_refusal_table() {
         .unwrap();
         assert_ne!(sites[0].ctx, sites[1].ctx);
     }
+}
+
+#[test]
+fn explicit_receivers_preserve_canonical_identity_and_execute() {
+    let mut names = Vec::new();
+    for (selector, call) in [
+        ("self.step", "self.step(2)"),
+        ("Self::step", "Self::step(self, 2)"),
+    ] {
+        let source = format!(
+            "pub struct Game {{ pub value: u32 }} impl Game {{ fn step(&mut self, value: u32) -> u32 {{ self.value += value; self.value }} pub fn run(&mut self) -> u32 {{ self.step(self.value); {call} }} }}"
+        );
+        let (rewritten, sites) = rewrite(
+            &source,
+            "horizon_client::game",
+            &entries(),
+            &[declaration(selector, Some(1))],
+        )
+        .unwrap();
+        assert_eq!(sites[0].call, "horizon_client::game::Game::step");
+        assert_eq!(sites[0].ordinal, 1);
+        names.push(crate::sites::source::facade_name(
+            &sites[0].target,
+            &sites[0].call,
+            sites[0].ordinal,
+        ));
+        let variant = &sites[0].name;
+        let code = format!(
+            r#"
+            extern crate self as mod_points;
+            extern crate self as horizon_mod_api_macros;
+            pub enum SiteId {{ {variant} }}
+            pub mod __private {{ pub static SITES: [std::sync::atomic::AtomicBool; 1] = [std::sync::atomic::AtomicBool::new(true)]; }}
+            #[macro_export] macro_rules! site {{ ($wrap:ident, $place:ident, $listener:ident, $recv_ty:ident, $record:ident, $output:ident, $receiver:expr, $args:expr, $original:expr) => {{ ($original)($receiver, &mut $args) }}; }}
+            mod game {{ {rewritten} }}
+            fn main() {{ let mut game = game::Game {{ value: 0 }}; assert_eq!(game.run(), 2); assert_eq!(game.value, 2); }}
+        "#
+        );
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "../../target/explicit-receiver-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let input = root.join("fixture.rs");
+        let binary = root.join("fixture");
+        fs::write(&input, code).unwrap();
+        let compiled = std::process::Command::new("rustc")
+            .args(["--edition=2024", "-Awarnings"])
+            .arg(&input)
+            .arg("-o")
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(
+            compiled.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compiled.stderr)
+        );
+        assert!(
+            std::process::Command::new(binary)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+    assert_eq!(names[0], names[1]);
+    assert_ne!(
+        names[0],
+        crate::sites::source::facade_name(
+            "horizon_client::game::Game::run",
+            "horizon_client::game::other",
+            1
+        )
+    );
 }
 
 #[test]

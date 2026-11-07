@@ -453,7 +453,7 @@ pub(crate) fn file_points<'a>(
     file_functions(module, items, keep, &point_shape::eligible, out);
 }
 
-fn file_functions<'a>(
+pub(crate) fn file_functions<'a>(
     module: &str,
     items: &'a [Item],
     keep: &dyn Fn(&Found<'_>) -> bool,

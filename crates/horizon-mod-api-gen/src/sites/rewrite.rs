@@ -1,7 +1,7 @@
 use super::identity::{CallIdentity, Refusal, Selection, select};
 use super::resolve::{Resolved, resolve};
 use super::*;
-use crate::{crossing::Rule, internals::Internal, points::file_points};
+use crate::{crossing::Rule, internals::Internal, points::file_functions};
 use quote::{ToTokens, format_ident, quote};
 use sha2::{Digest, Sha256};
 use syn::{FnArg, Type, spanned::Spanned};
@@ -88,10 +88,23 @@ pub fn rewrite(
     module: &str,
     entries: &[Internal],
     declarations: &[Declaration],
+    private: bool,
 ) -> Result<(String, Vec<Site>), Error> {
     let parsed = syn::parse_file(source)?;
     let mut functions = Vec::new();
-    file_points(module, &parsed.items, &|_| true, &mut functions);
+    file_functions(
+        module,
+        &parsed.items,
+        &|_| true,
+        &|attrs, sig| {
+            if private {
+                crate::points::source::eligible(attrs, sig)
+            } else {
+                point_shape::eligible(attrs, sig)
+            }
+        },
+        &mut functions,
+    );
     let rule = Rule::new(entries);
     let mut edits = BTreeMap::new();
     let mut claimed = BTreeMap::new();
@@ -207,7 +220,11 @@ pub fn rewrite(
                         call.args = arg_fields.into_iter().collect();
                     }
                     Expr::Call(call) => {
-                        call.args = arg_fields.into_iter().collect();
+                        call.args = receiver
+                            .map(|_| syn::parse_quote!(#recv))
+                            .into_iter()
+                            .chain(arg_fields)
+                            .collect();
                     }
                     _ => unreachable!(),
                 }

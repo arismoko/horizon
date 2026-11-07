@@ -79,6 +79,7 @@ pub(crate) struct Resolved<'a> {
 /// Identity facts, independent of whether the call can be lowered into a repeatable record.
 pub(crate) struct Callee<'a> {
     pub callee: &'a Internal,
+    pub signature: Option<syn::Signature>,
     pub receiver: Option<&'a Expr>,
     pub arguments: Vec<&'a Expr>,
 }
@@ -172,8 +173,21 @@ pub(crate) fn callee<'a>(
         }
         _ => unreachable!(),
     };
+    let signature = crate::internals_table::signature(&callee.signature);
+    let (mut recv, mut arguments) = (recv, arguments);
+    if recv.is_none()
+        && signature
+            .as_ref()
+            .is_some_and(|sig| sig.receiver().is_some())
+    {
+        recv = arguments.first().copied();
+        if recv.is_some() {
+            arguments.remove(0);
+        }
+    }
     Ok(Callee {
         callee,
+        signature,
         receiver: recv,
         arguments,
     })
@@ -190,6 +204,7 @@ pub(crate) fn resolve<'a>(
 ) -> Result<Resolved<'a>, Error> {
     let Callee {
         callee,
+        signature,
         receiver: recv,
         arguments,
     } = callee(expr, enclosing, enclosing_sig, lexical, entries, rule)?;
@@ -204,8 +219,7 @@ pub(crate) fn resolve<'a>(
         return Err(Cause::Signature("generic callee").into());
     }
 
-    let sig = crate::internals_table::signature(&callee.signature)
-        .ok_or(Cause::Signature("generic or bounded callee"))?;
+    let sig = signature.ok_or(Cause::Signature("generic or bounded callee"))?;
     if sig.generics.params.len() != sig.generics.lifetimes().count()
         || sig.unsafety.is_some()
         || sig.asyncness.is_some()

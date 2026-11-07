@@ -77,7 +77,7 @@ impl std::error::Error for Error {}
 
 /// One requested call expression, with its list-file diagnostic location.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Declaration {
+pub struct Declaration {
     pub target: String,
     pub selector: String,
     pub ordinal: Option<usize>,
@@ -193,8 +193,8 @@ pub(crate) fn slots(directory: &Path) -> Result<Slots, Error> {
 }
 
 /// A compiled call site's raw form, written to `points.json` beside the head/return points.
-#[derive(Debug, serde::Serialize)]
-pub(crate) struct Site {
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Site {
     pub name: String,
     pub target: String,
     pub selector: String,
@@ -215,6 +215,7 @@ pub(crate) mod analysis;
 pub mod identity;
 pub(crate) mod resolve;
 pub(crate) mod rewrite;
+pub mod source;
 mod stage;
 pub(crate) use stage::{ids, stage, tracked};
 

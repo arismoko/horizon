@@ -613,7 +613,7 @@ pub mod internals_table;
 pub mod internals_view;
 pub mod notes;
 pub mod points;
-pub(crate) mod sites;
+pub mod sites;
 pub mod staging;
 mod wasm;
 /// Shared registration emitter for component-model WIT worlds.

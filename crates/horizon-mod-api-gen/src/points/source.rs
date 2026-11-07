@@ -42,6 +42,17 @@ pub fn build_input(root: &Path) -> Result<Vec<Point>, String> {
     read(root)
 }
 
+pub(crate) fn eligible(attrs: &[syn::Attribute], sig: &syn::Signature) -> bool {
+    point_shape::eligible(
+        &attrs
+            .iter()
+            .filter(|attr| !attr.path().is_ident("inline"))
+            .cloned()
+            .collect::<Vec<_>>(),
+        sig,
+    )
+}
+
 /// Mark checked source targets after normal point staging, retaining their lexical type scope.
 pub fn stage(root: &Path, points: &mut [Point]) -> Result<(), String> {
     let below = below_points(root)?;
@@ -106,16 +117,7 @@ pub fn stage(root: &Path, points: &mut [Point]) -> Result<(), String> {
                 &file.module,
                 &parsed.items,
                 &|candidate| plain_path(&candidate.target()) == plain_path(&point.target),
-                &|attrs, sig| {
-                    point_shape::eligible(
-                        &attrs
-                            .iter()
-                            .filter(|attr| !attr.path().is_ident("inline"))
-                            .cloned()
-                            .collect::<Vec<_>>(),
-                        sig,
-                    )
-                },
+                &eligible,
                 &mut found,
             );
             for function in found {
