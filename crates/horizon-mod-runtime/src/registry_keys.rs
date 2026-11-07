@@ -10,6 +10,7 @@ pub struct Requests {
     pub declared_fluids: HashMap<String, &'static str>,
     pub items: Names,
     pub effects: Names,
+    pub particles: Names,
     pub block_entity_types: Names,
 }
 
@@ -83,6 +84,26 @@ impl Names {
             .map(|entry| entry.id.as_str())
     }
 
+    /// Complete a load-owned name table with a registry's entries, keeping requested slots.
+    /// Unknown forward references refuse the entire snapshot before any entry is added.
+    pub fn complete<'a, E>(
+        &self,
+        ids: impl IntoIterator<Item = &'a str>,
+        unknown: impl FnMut(&'static str, &str) -> E,
+    ) -> Result<Self, Vec<E>> {
+        let all: std::collections::HashSet<_> = ids.into_iter().collect();
+        self.resolve(|id| all.contains(id).then_some(()), unknown)?;
+        let mut names = self.clone();
+        let mut all: Vec<_> = all.into_iter().collect();
+        all.sort_unstable();
+        for id in all {
+            names
+                .request("horizon", id)
+                .expect("registry owns valid ids");
+        }
+        Ok(names)
+    }
+
     pub fn resolve<T, E>(
         &self,
         mut resolve: impl FnMut(&str) -> Option<T>,
@@ -102,6 +123,33 @@ impl Names {
             Err(errors)
         }
     }
+}
+
+/// A particle's resolved engine-independent provider identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParticleKind {
+    /// An index supplied by the game's vanilla particle registry.
+    Vanilla(u32),
+    /// A mod's named sprite provider, addressed by its retained name.
+    Custom,
+}
+
+/// One immutable load result: identities and their resolved providers publish together.
+pub struct Particles {
+    pub names: Names,
+    pub kinds: Vec<ParticleKind>,
+}
+
+/// Resolve each provider once, keeping the same requested-slot lifecycle as other keys.
+pub fn resolve_particles<'a>(
+    requested: &Names,
+    ids: impl IntoIterator<Item = &'a str>,
+    resolve: impl FnMut(&str) -> Option<ParticleKind>,
+) -> Result<Particles, Vec<String>> {
+    let unknown = |owner, id: &str| format!("mod {owner} requested unknown particle {id}");
+    let names = requested.complete(ids, unknown)?;
+    let kinds = names.resolve(resolve, unknown)?;
+    Ok(Particles { names, kinds })
 }
 
 // Tag names are process-lifetime identities; only membership belongs to reloadable data.

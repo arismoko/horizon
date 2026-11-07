@@ -146,6 +146,7 @@ pub(crate) struct Installed {
     pub(crate) resolved_block_entity_types: OnceLock<horizon_mod_runtime::registry_keys::Names>,
     pub(crate) fluids: OnceLock<horizon_mod_runtime::registry_keys::Names>,
     pub(crate) resolved_items: OnceLock<horizon_mod_runtime::registry_keys::Names>,
+    pub(crate) particles: OnceLock<horizon_mod_runtime::registry_keys::Particles>,
     /// The ticket controllers the mods registered; a [`TicketController`]'s slot indexes it.
     pub(crate) controllers: Vec<ControllerInfo>,
     pub(crate) structure_types: Vec<crate::structure_type::StructureTypeInfo>,
@@ -673,6 +674,7 @@ pub(crate) fn install_registrar(
         effects: registrar.effects,
         fluids: OnceLock::new(),
         resolved_items: OnceLock::new(),
+        particles: OnceLock::new(),
         controllers: registrar.controllers,
         structure_types: registrar.structure_types,
         hook_bits: Vec::new(),

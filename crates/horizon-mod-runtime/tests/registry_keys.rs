@@ -109,6 +109,56 @@ fn block_entity_resolution_checks_requests_before_appending_registry_names() {
 }
 
 #[test]
+fn completed_names_keep_requested_slots_and_sort_unrequested_entries() {
+    let mut requests = horizon_mod_runtime::registry_keys::Requests::default();
+    requests.particles.request("mod", "test:spark").unwrap();
+    let names = requests
+        .particles
+        .complete(
+            [
+                "minecraft:smoke",
+                "test:spark",
+                "minecraft:flame",
+                "minecraft:smoke",
+            ],
+            |owner, id| format!("{owner}: {id}"),
+        )
+        .unwrap();
+    assert_eq!(names.id(0), Some("test:spark"));
+    assert_eq!(names.id(1), Some("minecraft:flame"));
+    assert_eq!(names.id(2), Some("minecraft:smoke"));
+    assert_eq!(names.entries.len(), 3);
+    assert_eq!(requests.particles.entries.len(), 1);
+    let again = requests
+        .particles
+        .complete(
+            ["minecraft:flame", "test:spark", "minecraft:smoke"],
+            |owner, id| format!("{owner}: {id}"),
+        )
+        .unwrap();
+    assert_eq!(names.slots, again.slots);
+}
+
+#[test]
+fn incomplete_names_report_each_owner_without_publishing_a_partial_table() {
+    let mut names = Names::default();
+    names.request("first", "test:absent").unwrap();
+    names.request("second", "test:absent").unwrap();
+    assert_eq!(
+        names
+            .complete(["minecraft:flame"], |owner, id| format!("{owner}: {id}"))
+            .err(),
+        Some(vec![
+            "first: test:absent".into(),
+            "second: test:absent".into()
+        ])
+    );
+    assert_eq!(names.entries.len(), 1);
+    assert_eq!(names.id(0), Some("test:absent"));
+    assert_eq!(names.id(1), None);
+}
+
+#[test]
 fn extra_dimension_slots_are_shared_and_stable() {
     let slot = dimension_slot("test:custom");
     let other = std::thread::spawn(|| dimension_slot("test:custom"))

@@ -59,23 +59,12 @@ fn resolved_items() -> &'static std::sync::OnceLock<horizon_mod_runtime::registr
 pub fn resolve_items<'a>(
     ids: impl IntoIterator<Item = &'a str>,
 ) -> Result<(), Vec<crate::parts::ItemKeyError>> {
-    let mut names = crate::parts::requested_keys().items.clone();
-    let all: std::collections::HashSet<_> = ids.into_iter().collect();
-    names.resolve(
-        |id| all.contains(id).then_some(()),
-        |mod_id, id| crate::parts::ItemKeyError {
+    let names = crate::parts::requested_keys()
+        .items
+        .complete(ids, |mod_id, id| crate::parts::ItemKeyError {
             mod_id,
             id: id.to_owned(),
-        },
-    )?;
-    // Registry enumeration is sorted so unrequested entries have reproducible slots.
-    let mut all: Vec<_> = all.into_iter().collect();
-    all.sort_unstable();
-    for id in all {
-        names
-            .request("horizon", id)
-            .expect("registry owns valid ids");
-    }
+        })?;
     let _ = resolved_items().set(names);
     Ok(())
 }

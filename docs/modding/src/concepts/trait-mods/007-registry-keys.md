@@ -85,6 +85,15 @@ The recursive tree has one serde model. `TextForm` carries its serialized form f
 finite generated wasm bindings; decoding refuses malformed trees. Component and style
 metadata is retained through serialization rather than discarded by flattening text.
 
+### Particle identities
+
+`ParticleKey` is an opaque slot in the load-owned registry tables. One completed
+snapshot retains both canonical names and provider identities: a vanilla provider's
+numeric index or a custom named sprite provider. The load resolves each provider once;
+reads of a retained key do not parse identifiers or scan the provider list. Unknown
+forward references refuse publication of the entire particle snapshot. Name-table
+completion shares the item registry's requested-slot preservation and sorted enumeration.
+
 ### Placement and loot snapshots
 
 The `snapshots` module owns placement inputs and loot-roll facts. Placement and tool
