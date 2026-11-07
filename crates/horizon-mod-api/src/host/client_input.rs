@@ -31,6 +31,12 @@ pub trait ClientInputClientHost {
     #[access(ClientSetup)]
     fn mapping(&self, name: &str) -> Option<NativeKeyMapping>;
     /// Side: client.
+    /// Milliseconds on the game's own clock (`Util.getMillis`), counting from the game's start:
+    /// what a text field's cursor blinks by and what tells a double click from two clicks.
+    /// Only differences between two readings mean anything.
+    #[access(ClientSetup)]
+    fn millis(&self) -> u64;
+    /// Side: client.
     /// The current window modifier keys in the same GLFW encoding as input hooks.
     /// Cleared when the window loses focus; available even outside a world.
     #[access(ClientSetup)]

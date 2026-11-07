@@ -11,6 +11,11 @@ impl Game<'_> {
             && self.sign_edit.is_none()
             && self.book.is_none()
     }
+    /// Milliseconds on the game's own clock (`Util.getMillis`), counting from the game's start:
+    /// the clock the HUD's scrolling labels and the screens' text fields read too.
+    pub(in crate::game) fn millis(&self) -> u64 {
+        horizon_client::hud_overlays::now_ms().max(0) as u64
+    }
     /// The current window modifier keys in the same GLFW encoding as input hooks.
     /// Cleared when the window loses focus; available even outside a world.
     pub(in crate::game) fn modifiers(&self) -> ClientModifiers {

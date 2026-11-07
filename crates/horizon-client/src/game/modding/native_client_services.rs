@@ -6,7 +6,7 @@ use horizon_client::{
     hud::{HudBatch, rgba},
     hud_layout::GuiDraw,
 };
-use mod_api::{ItemStack, Text};
+use mod_api::{ItemStack, Text, TextFieldLayout, TextFieldView};
 
 impl Game<'_> {
     /// Paint GUI extraction calls through this window's atlas, including player faces.
@@ -32,6 +32,52 @@ impl Game<'_> {
             rect[3],
             rgba(r, g, b, a),
         );
+    }
+    /// A mod's button, drawn as the game's screens draw theirs (`ui::button`).
+    pub(super) fn native_widget_button(
+        &self,
+        batch: &mut HudBatch,
+        [x, y, w, h]: [f32; 4],
+        label: &Text,
+        active: bool,
+        highlighted: bool,
+    ) {
+        horizon_client::ui::button(
+            batch,
+            &self.gui.atlas,
+            x,
+            y,
+            w,
+            h,
+            label,
+            active,
+            highlighted,
+        );
+    }
+    /// A mod's text field, drawn as the game's screens draw theirs (`ui::EditBox`), from the
+    /// state the mod keeps; answers the scroll it drew with and its character boundaries.
+    pub(super) fn native_widget_text_field(
+        &self,
+        batch: &mut HudBatch,
+        field: &TextFieldView,
+    ) -> TextFieldLayout {
+        let [x, y, w, h] = field.rect;
+        let mut edit = horizon_client::ui::EditBox::new(x, y, w, h);
+        edit.max_length = field.max_length;
+        edit.value = field.value.clone();
+        let len = horizon_client::ui::char_len(&edit.value);
+        edit.cursor = field.cursor.min(len);
+        edit.highlight = field.highlight.min(len);
+        edit.set_scroll(field.scroll);
+        edit.bordered = field.bordered;
+        edit.focused = field.focused;
+        let [a, r, g, b] = field.text_color.to_be_bytes();
+        edit.text_color = rgba(r, g, b, a);
+        edit.suggestion = field.suggestion.clone();
+        edit.message = field.message.clone();
+        edit.draw_with_caret(batch, &self.gui.atlas, None, field.caret_shown);
+        let (scroll, edges) = edit.shown_edges(&self.gui.atlas);
+        TextFieldLayout::new(scroll, edges)
     }
     /// A vanilla tooltip at the cursor, in GUI pixels.
     pub(super) fn native_gui_tooltip(&self, batch: &mut HudBatch, lines: &[Text], at: [f32; 2]) {
@@ -85,6 +131,66 @@ mod tests {
                 bytemuck::cast_slice::<_, u8>(&custom.vertices),
                 "custom count text must reach the actual GUI geometry"
             );
+        });
+    }
+
+    /// A mod's widgets draw with the game's own: a button as `ui::button` draws it, and a text
+    /// field as `ui::EditBox` draws it, answering where each shown character ends so a press
+    /// lands on it, and scrolling on to keep the cursor in view.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn mod_widgets_draw_as_the_games_own() {
+        use mod_api::widgets::{TextField, Widgets};
+        super::super::native_entity_refs::tests::with_client_game(|game| {
+            let label = Text::literal("Done");
+            let mut ours = HudBatch::scratch([320, 240]);
+            game.native_widget_button(&mut ours, [10.0, 10.0, 100.0, 20.0], &label, true, true);
+            let mut games = HudBatch::scratch([320, 240]);
+            horizon_client::ui::button(
+                &mut games,
+                &game.gui.atlas,
+                10.0,
+                10.0,
+                100.0,
+                20.0,
+                &label,
+                true,
+                true,
+            );
+            assert!(!ours.vertices.is_empty());
+            assert_eq!(
+                bytemuck::cast_slice::<_, u8>(&ours.vertices),
+                bytemuck::cast_slice::<_, u8>(&games.vertices)
+            );
+
+            // The view a mod's group sends for a focused field, as `Widgets::draw` builds it.
+            struct Draws<'a, 'g>(&'a super::Game<'g>, HudBatch, Vec<TextFieldView>);
+            impl mod_api::DrawContext for Draws<'_, '_> {
+                fn widget_text_field(&mut self, field: &TextFieldView) -> TextFieldLayout {
+                    self.2.push(field.clone());
+                    self.0.native_widget_text_field(&mut self.1, field)
+                }
+            }
+            let mut widgets = Widgets::new();
+            let id = widgets.add_text_field(TextField::new([10.0, 40.0, 60.0, 20.0], 64));
+            let long = "a long name that does not fit in sixty pixels";
+            widgets.text_field_mut(id).unwrap().set_value(long);
+            widgets.set_focus(&*game, Some(id));
+            let mut draws = Draws(game, HudBatch::scratch([320, 240]), Vec::new());
+            widgets.draw(&mut draws, &*game, [0.0, 0.0]);
+            let view = draws.2[0].clone();
+            assert!(!draws.1.vertices.is_empty());
+            let layout = game.native_widget_text_field(&mut HudBatch::scratch([320, 240]), &view);
+            // The cursor is at the end, so the field scrolled on to show it.
+            assert!(layout.scroll > 0);
+            let shown = layout.edges.len() - 1;
+            assert_eq!(layout.scroll + shown, long.chars().count());
+            assert_eq!(
+                layout.edges[0], 14.0,
+                "4 pixels in from a bordered field's left"
+            );
+            assert!(layout.edges.windows(2).all(|w| w[0] < w[1]));
+            assert!(*layout.edges.last().unwrap() <= 10.0 + 60.0 - 4.0);
         });
     }
 }

@@ -127,7 +127,7 @@ jobs:
       - name: Build all wasm fixtures and the std member in one shared target
         run: |
           cargo +stable build -p cargo-horizon-mod -p xtask
-          for mod in docs/modding/examples/wasm-hello \
+          for mod in docs/modding/examples/wasm-hello docs/modding/examples/wasm-widgets \
             crates/horizon-mod-wasm/tests/groups/{counter_lib,alpha,beta,gamma} \
             crates/horizon-mod-wasm/tests/points/{chat_tail,lib_tail}; do
             mkdir -p "$mod/target"

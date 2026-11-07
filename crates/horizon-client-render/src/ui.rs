@@ -1133,15 +1133,12 @@ fn tooltip_box(
 /// The EditBox text field.
 #[derive(Clone, Debug)]
 pub struct EditBox {
-    pub value: String,
-    /// Cursor and selection anchor, in characters.
-    pub cursor: usize,
-    pub highlight: usize,
+    /// The text, cursor, selection anchor, maximum length and whether line breaks are kept (a
+    /// book page's `MultiLineEditBox`): the editing core mods' text fields share. Its fields
+    /// read and write through the box (`edit_box.value`).
+    pub edit: mod_api::widgets::TextEdit,
     display: usize,
-    pub max_length: usize,
     pub bordered: bool,
-    /// `MultiLineEditBox`: a book page keeps line breaks. A single-line box strips them.
-    pub multiline: bool,
     pub x: f32,
     pub y: f32,
     pub width: f32,
@@ -1314,67 +1311,9 @@ pub fn append_field(
         }
     }
 }
-fn byte_index(s: &str, chars: usize) -> usize {
-    s.char_indices().nth(chars).map_or(s.len(), |(i, _)| i)
-}
-pub fn char_len(s: &str) -> usize {
-    s.chars().count()
-}
-/// `EditBox.getWordPosition(dir, from)`: the character index `dir` words away
-/// from `from`. Forward, past the rest of the word and its spaces; backward,
-/// over any spaces to the start of the word.
-pub fn word_position(value: &str, dir: isize, from: usize) -> usize {
-    let chars: Vec<char> = value.chars().collect();
-    let mut pos = from.min(chars.len());
-    if dir < 0 {
-        while pos > 0 && chars[pos - 1] == ' ' {
-            pos -= 1;
-        }
-        while pos > 0 && chars[pos - 1] != ' ' {
-            pos -= 1;
-        }
-    } else {
-        while pos < chars.len() && chars[pos] != ' ' {
-            pos += 1;
-        }
-        while pos < chars.len() && chars[pos] == ' ' {
-            pos += 1;
-        }
-    }
-    pos
-}
-/// `MultilineTextField.getPreviousWord` / `getNextWord`'s `beginIndex` (a book page): any
-/// whitespace, line breaks included, separates words, and the search starts from the cursor
-/// clamped to the last character, as vanilla's does.
-pub fn multiline_word_position(value: &str, dir: isize, from: usize) -> usize {
-    let chars: Vec<char> = value.chars().collect();
-    if chars.is_empty() {
-        return 0;
-    }
-    let mut pos = from.min(chars.len() - 1);
-    if dir < 0 {
-        while pos > 0 && java_whitespace(chars[pos - 1]) {
-            pos -= 1;
-        }
-        while pos > 0 && !java_whitespace(chars[pos - 1]) {
-            pos -= 1;
-        }
-    } else {
-        while pos < chars.len() && !java_whitespace(chars[pos]) {
-            pos += 1;
-        }
-        while pos < chars.len() && java_whitespace(chars[pos]) {
-            pos += 1;
-        }
-    }
-    pos
-}
-/// `Character.isWhitespace`: Unicode spaces and line breaks but not the no-break spaces, plus
-/// the ASCII separators U+001C to U+001F.
-pub(crate) fn java_whitespace(c: char) -> bool {
-    (c.is_whitespace() && !matches!(c, '\u{85}' | '\u{a0}' | '\u{2007}' | '\u{202f}'))
-        || ('\u{1c}'..='\u{1f}').contains(&c)
-}
+// The editing core's helpers, shared with mods' text fields (`mod_api::widgets`).
+use mod_api::widgets::byte_index;
+pub use mod_api::widgets::{char_len, java_whitespace, multiline_word_position, word_position};
 /// `EditBox.deleteWords(dir)` for an append-only field, whose caret is at the
 /// end: removes the word in that direction. True when the value changed.
 pub fn delete_words(value: &mut String, dir: isize) -> bool {
@@ -1392,7 +1331,7 @@ impl crate::clipboard::Editable for EditBox {
         self.highlight = 0;
     }
     fn selected_text(&self) -> String {
-        EditBox::selected_text(self)
+        self.edit.selected_text()
     }
     fn insert(&mut self, text: &str) -> bool {
         let before = self.value.clone();
@@ -1400,16 +1339,23 @@ impl crate::clipboard::Editable for EditBox {
         self.value != before
     }
 }
+impl std::ops::Deref for EditBox {
+    type Target = mod_api::widgets::TextEdit;
+    fn deref(&self) -> &Self::Target {
+        &self.edit
+    }
+}
+impl std::ops::DerefMut for EditBox {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.edit
+    }
+}
 impl EditBox {
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
         Self {
-            value: String::new(),
-            cursor: 0,
-            highlight: 0,
+            edit: mod_api::widgets::TextEdit::default(),
             display: 0,
-            max_length: 32,
             bordered: true,
-            multiline: false,
             x,
             y,
             width,
@@ -1446,67 +1392,33 @@ impl EditBox {
     pub fn cursor_visible(&self) -> bool {
         self.focused && (self.focused_at.elapsed().as_millis() / 300).is_multiple_of(2)
     }
+    /// After the core moved the cursor once: scroll to it and restart the blink, as
+    /// `EditBox.moveCursorTo` does.
+    fn moved(&mut self) {
+        self.scroll_to(self.edit.cursor);
+        self.reset_blink();
+    }
     pub fn set_value(&mut self, value: &str) {
-        self.value = value.chars().take(self.max_length).collect();
-        self.move_cursor_to_end(false);
-    }
-    fn selected(&self) -> (usize, usize) {
-        (
-            self.cursor.min(self.highlight),
-            self.cursor.max(self.highlight),
-        )
-    }
-    pub fn selected_text(&self) -> String {
-        let (a, b) = self.selected();
-        self.value.chars().skip(a).take(b - a).collect()
+        self.edit.set_value(value);
+        self.moved();
     }
     /// EditBox.insertText: replace the selection, respecting the maximum length.
     pub fn insert_text(&mut self, text: &str) {
-        let (a, b) = self.selected();
-        let filtered = crate::clipboard::filter_text(text, self.multiline);
-        let room = self
-            .max_length
-            .saturating_sub(char_len(&self.value) - (b - a));
-        let insert: String = filtered.chars().take(room).collect();
-        let (ba, bb) = (byte_index(&self.value, a), byte_index(&self.value, b));
-        self.value.replace_range(ba..bb, &insert);
-        let pos = a + char_len(&insert);
-        self.set_cursor(pos, false);
+        self.edit.insert_text(text);
+        self.moved();
     }
     /// Delete `n` characters (negative: backwards) or the selection.
     pub fn delete_chars(&mut self, n: isize) {
-        if self.cursor != self.highlight {
-            self.insert_text("");
-            return;
-        }
-        let target = (self.cursor as isize + n).clamp(0, char_len(&self.value) as isize) as usize;
-        let (a, b) = (self.cursor.min(target), self.cursor.max(target));
-        let (ba, bb) = (byte_index(&self.value, a), byte_index(&self.value, b));
-        self.value.replace_range(ba..bb, "");
-        self.set_cursor(a, false);
-    }
-    /// EditBox.getWordPosition from the cursor.
-    pub fn word_position(&self, dir: isize) -> usize {
-        self.word_position_from(dir, self.cursor)
-    }
-    /// EditBox.getWordPosition(dir, from), or MultilineTextField's word for a book page.
-    fn word_position_from(&self, dir: isize, from: usize) -> usize {
-        if self.multiline {
-            multiline_word_position(&self.value, dir, from)
-        } else {
-            word_position(&self.value, dir, from)
-        }
+        self.edit.delete_chars(n);
+        self.moved();
     }
     pub fn set_cursor(&mut self, pos: usize, select: bool) {
-        self.cursor = pos.min(char_len(&self.value));
-        if !select {
-            self.highlight = self.cursor;
-        }
-        self.scroll_to(self.cursor);
-        self.reset_blink();
+        self.edit.set_cursor(pos, select);
+        self.moved();
     }
     pub fn move_cursor_to_end(&mut self, select: bool) {
-        self.set_cursor(char_len(&self.value), select);
+        self.edit.move_cursor_to_end(select);
+        self.moved();
     }
     /// EditBox.findClickedPositionInText: the character boundary under GUI `x`.
     pub fn position_at(&mut self, atlas: &HudAtlas, x: f32) -> usize {
@@ -1520,10 +1432,7 @@ impl EditBox {
     pub fn click(&mut self, atlas: &HudAtlas, x: f32, shift: bool, double: bool) {
         let pos = self.position_at(atlas, x);
         if double {
-            let (start, end) = (
-                self.word_position_from(-1, pos),
-                self.word_position_from(1, pos),
-            );
+            let (start, end) = self.edit.word_at(pos);
             self.set_cursor(start, false);
             self.set_cursor(end, true);
         } else {
@@ -1553,7 +1462,12 @@ impl EditBox {
     fn scroll_to(&mut self, pos: usize) {
         // EditBox.scrollTo without font access is completed in `layout`.
         self.display = self.display.min(char_len(&self.value));
-        if pos < self.display {
+        if pos == self.display && pos > 0 {
+            // A cursor on the first shown character steps back about a field's width
+            // (`displayPos -= plainSubstrByWidth(value, width, true).length()`): `layout` scrolls
+            // forward from the start until the cursor is at the right edge.
+            self.display = 0;
+        } else if pos < self.display {
             self.display = pos;
         }
     }
@@ -1574,49 +1488,23 @@ impl EditBox {
     }
     /// Keyboard editing shared by every text field. Returns true if handled.
     pub fn key(&mut self, key: winit::keyboard::KeyCode, ctrl: bool, shift: bool) -> bool {
+        use mod_api::widgets::EditKey;
         use winit::keyboard::KeyCode as K;
-        match key {
-            K::Backspace => {
-                let n = if ctrl {
-                    self.word_position(-1) as isize - self.cursor as isize
-                } else {
-                    -1
-                };
-                self.delete_chars(n);
-            }
-            K::Delete => {
-                let n = if ctrl {
-                    self.word_position(1) as isize - self.cursor as isize
-                } else {
-                    1
-                };
-                self.delete_chars(n);
-            }
-            K::ArrowLeft => {
-                let p = if ctrl {
-                    self.word_position(-1)
-                } else {
-                    self.cursor.saturating_sub(1)
-                };
-                self.set_cursor(p, shift);
-            }
-            K::ArrowRight => {
-                let p = if ctrl {
-                    self.word_position(1)
-                } else {
-                    self.cursor + 1
-                };
-                self.set_cursor(p, shift);
-            }
-            K::Home => self.set_cursor(0, shift),
-            K::End => self.move_cursor_to_end(shift),
-            K::KeyA if ctrl => {
-                self.move_cursor_to_end(false);
-                self.highlight = 0;
-            }
+        let key = match key {
+            K::Backspace => EditKey::Backspace,
+            K::Delete => EditKey::Delete,
+            K::ArrowLeft => EditKey::Left,
+            K::ArrowRight => EditKey::Right,
+            K::Home => EditKey::Home,
+            K::End => EditKey::End,
+            K::KeyA => EditKey::SelectAll,
             _ => return false,
+        };
+        let handled = self.edit.key(key, ctrl, shift);
+        if handled {
+            self.moved();
         }
-        true
+        handled
     }
     /// Ctrl+A/C/V/X (`EditBox.keyPressed`). True when the value changed.
     pub fn shortcut(
@@ -1637,6 +1525,33 @@ impl EditBox {
     }
     /// Draw the field; `format` styles the visible text (command colouring).
     pub fn draw(&mut self, batch: &mut HudBatch, atlas: &HudAtlas, format: Option<&Text>) {
+        let caret = self.cursor_visible();
+        self.draw_with_caret(batch, atlas, format, caret);
+    }
+    /// The first character shown (`EditBox.displayPos`): a field kept outside the box (a
+    /// mod's) hands back the scroll its last draw answered.
+    pub fn set_scroll(&mut self, first: usize) {
+        self.display = first.min(char_len(&self.value));
+    }
+    /// After a draw: the first character shown and the GUI x of each shown character
+    /// boundary, from the start of the shown text to its end.
+    pub fn shown_edges(&self, atlas: &HudAtlas) -> (usize, Vec<f32>) {
+        let rest: String = self.value.chars().skip(self.display).collect();
+        let shown = atlas.font.fit(&rest, self.inner_width());
+        let edges = (0..=shown)
+            .map(|n| self.text_x() + atlas.font.width(&rest.chars().take(n).collect::<String>()))
+            .collect();
+        (self.display, edges)
+    }
+    /// [`Self::draw`] with the caret's blink decided by the caller: `caret` shows it (when it
+    /// is in view) for a field whose blink a mod keeps.
+    pub fn draw_with_caret(
+        &mut self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        format: Option<&Text>,
+        caret: bool,
+    ) {
         self.layout(atlas);
         crate::widgets::target_as(
             self.frame
@@ -1674,9 +1589,7 @@ impl EditBox {
         let displayed: String = rest.chars().take(shown_len).collect();
         let rel_cursor = self.cursor as isize - self.display as isize;
         let on_screen = rel_cursor >= 0 && rel_cursor as usize <= shown_len;
-        let show_cursor = self.focused
-            && (self.focused_at.elapsed().as_millis() / 300).is_multiple_of(2)
-            && on_screen;
+        let show_cursor = caret && on_screen;
         let styled = |from: usize, to: usize| -> Text {
             match format {
                 Some(t) => t.slice(self.display + from, self.display + to),
@@ -2315,6 +2228,31 @@ mod tests {
         e.click(&atlas, at(&e, "hello "), false, false);
         e.drag_to(&atlas, e.text_x() - 5.0);
         assert_eq!((e.cursor, e.highlight), (0, 6));
+    }
+    /// `EditBox.scrollTo`: a cursor on the first shown character steps back a field's width,
+    /// so replacing all of a scrolled text shows the new text, and walking left past the
+    /// shown start pages back.
+    #[test]
+    fn edit_box_steps_back_when_the_cursor_reaches_the_first_shown_character() {
+        let atlas = HudAtlas::build(&horizon_assets::resource_source::ResourceSource::directory(
+            (Path::new("/nonexistent/horizon-test-assets")).to_owned(),
+        ))
+        .unwrap();
+        let mut e = EditBox::new(0.0, 0.0, 60.0, 20.0);
+        e.set_value("the quick brown fox jumps over");
+        e.layout(&atlas);
+        let scrolled = e.display;
+        assert!(scrolled > 0);
+        assert!(e.key(winit::keyboard::KeyCode::KeyA, true, false));
+        e.insert_text("a");
+        e.layout(&atlas);
+        assert_eq!((e.value.as_str(), e.cursor, e.display), ("a", 1, 0));
+        e.set_value("the quick brown fox jumps over");
+        e.layout(&atlas);
+        e.set_cursor(scrolled, false);
+        e.layout(&atlas);
+        assert!(e.display < scrolled);
+        assert!(e.cursor > e.display);
     }
     #[test]
     fn edit_box_editing() {

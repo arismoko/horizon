@@ -122,6 +122,23 @@ pub trait DrawContext {
     fn gui_draw_item_with(&mut self, stack: &ItemStack, at: [f32; 2], text: Option<&str>) {
         unimplemented!("DrawContext::gui_draw_item_with")
     }
+    /// A button as the game's screens draw one (`AbstractButton`): `label` centred on the
+    /// `widget/button` sprite (`button_highlighted` when `highlighted`, `button_disabled` and
+    /// grey when not `active`), scrolling when it doesn't fit, and recorded for the narrator and
+    /// a controller's focus. `rect` is `[x, y, w, h]` in GUI pixels. What
+    /// [`crate::widgets::Widgets`] draws its buttons with.
+    fn widget_button(&mut self, rect: [f32; 4], label: &Text, active: bool, highlighted: bool) {
+        unimplemented!("DrawContext::widget_button")
+    }
+    /// A text field as the game's screens draw one (`EditBox`): its text from the first
+    /// character `field.scroll` shows, scrolled on to keep the cursor in view, the selection
+    /// highlighted, the caret, the suggestion, the `widget/text_field` sprite when bordered, and
+    /// a record for the narrator and a controller's focus. Answers the scroll it drew with and
+    /// the x of each shown character boundary, for the next press. What
+    /// [`crate::widgets::Widgets`] draws its fields with.
+    fn widget_text_field(&mut self, field: &TextFieldView) -> TextFieldLayout {
+        unimplemented!("DrawContext::widget_text_field")
+    }
 }
 /// What a block entity, mob or player submit hook draws with, in blocks under a pose stack (`PoseStack`): one per hook call.
 pub trait BlockEntityDrawContext {
