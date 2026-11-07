@@ -47,6 +47,18 @@ carry `Option<EffectKey>` for each power; `None` is no selection. Enchantment ef
 names (for example `minecraft:damage` in `has_enchantment_effect`) are a different registry
 and remain strings, as do labels and tags.
 
+### API-owned values: migration table
+
+| Previous engine value | API-owned value | Mod changes |
+| --- | --- | --- |
+| Package manifest `Side` | `mod_api::Side` | Match `Client` and `Both` on the package metadata snapshot. This is not `HostSide` or the executing logical side. |
+| Command `Suggestion` | `mod_api::Suggestion` | Construct with `Suggestion::new((start, end), text)`; optional `tooltip` and `int_value` remain writable. Offsets are byte offsets. |
+
+The game owns package and completion conversion. Mods do not import package-loader or
+client-core types for these values. Completion edits are copied back after subscribed
+listeners run; no listener means no snapshot allocation. Package metadata is copied once
+at startup, retaining declared namespaces and dependencies.
+
 ### Item values and tag names
 
 Every item has an `ItemKey`, including vanilla items no mod requested during registration.

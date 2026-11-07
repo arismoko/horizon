@@ -4627,8 +4627,9 @@ requires a farmer at work and `mob_griefing` enabled."#]
         target = "horizon_client::game::native_hooks::base::GameLevel<'_>::native_sponge_absorb"
     )]
     fn sponge_absorb();
-    /// A guest asked to complete `command`; `suggestions` may be added to or
-    /// filtered. `range` is the replaced byte range.
+    /// A guest asked to complete `command`; owned API `Suggestion` records may be
+    /// added to or filtered from `suggestions`. `range` is the replaced byte range.
+    /// The game snapshots completions only when a listener subscribes.
     #[hook(
         side = "server",
         contract = "collect",

@@ -24544,7 +24544,7 @@ pub fn run_with(
         .mods
         .select(&std::env::current_dir()?, &early_settings.mods.enabled);
     let mod_phase = mod_api::__private::PhaseOwner::new(mod_api::__private::ModPhase::Packages);
-    mod_api::__private::install_packages(options.mods.native.packages(), &options.mods.selected);
+    api_values::install_packages(options.mods.native.packages(), &options.mods.selected);
     mod_phase.advance(mod_api::__private::ModPhase::Registration)?;
     if let Err(refused) = mod_api::__private::install_parts(mod_api::__private::mods()) {
         panic!("Mod parts refused:\n{}", refused.join("\n"));

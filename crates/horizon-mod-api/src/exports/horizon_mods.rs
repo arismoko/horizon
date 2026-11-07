@@ -1,1 +1,2 @@
-pub use horizon_mod_package::Side;
+mod package_side;
+pub use package_side::Side;

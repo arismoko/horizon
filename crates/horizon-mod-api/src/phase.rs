@@ -230,12 +230,13 @@ pub enum PackageKind {
 }
 
 /// Read-only package metadata available during registration.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct PackageInfo {
     pub(crate) id: String,
     pub(crate) version: String,
     pub(crate) kind: PackageKind,
-    pub(crate) side: horizon_mod_package::Side,
+    pub(crate) side: crate::Side,
     /// Its own namespace, then the others it declares.
     pub(crate) namespaces: Vec<String>,
     /// The ids it declares dependencies on.
@@ -243,17 +244,22 @@ pub struct PackageInfo {
 }
 
 impl PackageInfo {
-    fn new(kind: PackageKind, manifest: &horizon_mod_package::Manifest) -> Self {
+    /// An owned package snapshot supplied by the loader.
+    pub fn new(
+        id: String,
+        version: String,
+        kind: PackageKind,
+        side: crate::Side,
+        namespaces: Vec<String>,
+        dependencies: Vec<String>,
+    ) -> Self {
         Self {
-            id: manifest.id.clone(),
-            version: manifest.version.clone(),
+            id,
+            version,
             kind,
-            side: manifest.side,
-            namespaces: std::iter::once(&manifest.id)
-                .chain(&manifest.namespaces)
-                .cloned()
-                .collect(),
-            dependencies: manifest.dependencies.keys().cloned().collect(),
+            side,
+            namespaces,
+            dependencies,
         }
     }
     /// Package identifier.
@@ -269,7 +275,7 @@ impl PackageInfo {
         self.kind
     }
     /// The package's declared side.
-    pub fn side(&self) -> horizon_mod_package::Side {
+    pub fn side(&self) -> crate::Side {
         self.side
     }
     /// The package's own namespace followed by any additional namespaces.
@@ -294,11 +300,14 @@ pub fn with_test_packages<R>(ids: &[&str], f: impl FnOnce() -> R) -> R {
     let packages: Vec<_> = ids
         .iter()
         .map(|id| {
-            let manifest = horizon_mod_package::Manifest::parse(&format!(
-                "id='{id}'\nname='{id}'\nversion='1'\napi='0.2'\ncapabilities=['registries']\n"
-            ))
-            .unwrap();
-            PackageInfo::new(PackageKind::Code, &manifest)
+            PackageInfo::new(
+                (*id).to_owned(),
+                "1".to_owned(),
+                PackageKind::Code,
+                crate::Side::Client,
+                vec![(*id).to_owned()],
+                vec![],
+            )
         })
         .collect();
     TEST_PACKAGES.set(Some(packages.into()));
@@ -307,23 +316,11 @@ pub fn with_test_packages<R>(ids: &[&str], f: impl FnOnce() -> R) -> R {
     result
 }
 
-fn inventory(
-    native: &[horizon_mod_package::packages::AdjacentManifest],
-    content: &[horizon_mod_package::selection::SelectedPackage],
-) -> Vec<PackageInfo> {
-    let mut packages: Vec<_> = native
-        .iter()
-        .map(|p| PackageInfo::new(PackageKind::Code, &p.manifest))
-        .collect();
+fn inventory(native: &[PackageInfo], content: &[PackageInfo]) -> Vec<PackageInfo> {
+    let mut packages = native.to_vec();
     for selected in content {
-        let manifest = &selected.package.manifest;
-        // A wasm package is code, selected with the content packages.
-        let kind = match manifest.wasm {
-            Some(_) => PackageKind::Code,
-            None => PackageKind::Content,
-        };
-        if !packages.iter().any(|p| p.id() == manifest.id) {
-            packages.push(PackageInfo::new(kind, manifest));
+        if !packages.iter().any(|p| p.id() == selected.id()) {
+            packages.push(selected.clone());
         }
     }
     // The code inventory follows the one installed native/wasm dispatch slice;
@@ -338,10 +335,7 @@ fn inventory(
 }
 
 /// Records the package inventory once at startup; a second call panics.
-pub fn install_packages(
-    native: &[horizon_mod_package::packages::AdjacentManifest],
-    content: &[horizon_mod_package::selection::SelectedPackage],
-) {
+pub fn install_packages(native: &[PackageInfo], content: &[PackageInfo]) {
     assert!(
         PACKAGES.set(inventory(native, content).into()).is_ok(),
         "package inventory already installed"
@@ -809,24 +803,23 @@ mod tests {
 
     #[test]
     fn inventory_keeps_first_content_package_after_code_mods() {
-        let native = [horizon_mod_package::packages::AdjacentManifest {
-            path: Default::default(),
-            manifest: horizon_mod_package::Manifest::parse(
-                "id='runtime'\nname='Runtime'\nversion='3'\napi='0.2'\ncapabilities=['registries']\n",
-            )
-            .unwrap(),
-        }];
+        let native = [PackageInfo::new(
+            "runtime".into(),
+            "3".into(),
+            PackageKind::Code,
+            crate::Side::Client,
+            vec!["runtime".into()],
+            vec![],
+        )];
         let package = |version: &str| {
-            let manifest = horizon_mod_package::Manifest::parse(&format!(
-                "id='plain'\nname='Plain'\nversion='{version}'\napi='0.2'\ncapabilities=['registries']\n"
-            )).unwrap();
-            horizon_mod_package::selection::SelectedPackage {
-                path: Default::default(),
-                package: horizon_mod_package::Package {
-                    manifest,
-                    icon: None,
-                },
-            }
+            PackageInfo::new(
+                "plain".into(),
+                version.into(),
+                PackageKind::Content,
+                crate::Side::Client,
+                vec!["plain".into()],
+                vec![],
+            )
         };
         let entries = inventory(&native, &[package("1"), package("2")]);
         let view = LoadedMods {
@@ -836,11 +829,11 @@ mod tests {
         let runtime = view.get("runtime").unwrap();
         assert_eq!(runtime.kind(), PackageKind::Code);
         assert_eq!(runtime.version(), "3");
-        assert_eq!(runtime.side(), horizon_mod_package::Side::Client);
+        assert_eq!(runtime.side(), crate::Side::Client);
         let plain = view.get("plain").unwrap();
         assert_eq!(plain.kind(), PackageKind::Content);
         assert_eq!(plain.version(), "1");
-        assert_eq!(plain.side(), horizon_mod_package::Side::Client);
+        assert_eq!(plain.side(), crate::Side::Client);
         assert_eq!(plain.namespaces().collect::<Vec<_>>(), ["plain"]);
         assert!(!plain.depends_on("runtime"));
         assert!(view.get("missing").is_none());

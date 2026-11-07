@@ -657,7 +657,7 @@ fn stack_crossing(
                     && path.path.segments.last().is_some_and(|s| {
                         matches!(
                             s.ident.to_string().as_str(),
-                            "ItemStack" | "ItemCost" | "MerchantOffer"
+                            "ItemStack" | "ItemCost" | "MerchantOffer" | "Suggestion"
                         )
                     });
                 syn::visit::visit_type_path(self, path);
@@ -758,6 +758,30 @@ mod stack_crossing_tests {
         let body = format!(
             "{{ {} {}; {} }}",
             crossing.before, "dispatch(&mut __api_stack, &mut __api_power)", crossing.after
+        );
+        syn::parse_str::<syn::Block>(&body).unwrap();
+    }
+    #[test]
+    fn completion_hook_converts_only_after_subscription_check() {
+        let ty: Type = syn::parse_quote!(&mut Vec<Suggestion>);
+        let crossing = stack_crossing(
+            &[("suggestions".to_owned(), &ty)],
+            None,
+            "TabComplete",
+            false,
+            &Default::default(),
+        )
+        .unwrap();
+        assert!(
+            crossing
+                .before
+                .starts_with("if !mod_api::__private::listened")
+        );
+        assert!(crossing.before.contains("suggestions.try_into_api()"));
+        assert_eq!(crossing.arguments, ["&mut __api_suggestions"]);
+        let body = format!(
+            "{{ {} dispatch(&mut __api_suggestions); {} }}",
+            crossing.before, crossing.after
         );
         syn::parse_str::<syn::Block>(&body).unwrap();
     }

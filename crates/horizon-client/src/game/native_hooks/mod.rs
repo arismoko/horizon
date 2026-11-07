@@ -50,6 +50,7 @@ use horizon_client::{
     particles::{ParticleOptions, ParticleType},
     text::Text,
 };
+use horizon_client_core::suggestion::Suggestion;
 use horizon_core::{
     geometry::Direction,
     position::BlockPos,
@@ -72,8 +73,8 @@ use mod_api::{
 use mod_api::{
     AttachmentStore, BonemealSource, ChunkRef, FluidStack, GameRuleValue, LandingWrite, LevelRef,
     LogicalSide, NativeActiveEffect, NativeBlockClick, NativeBlockUpdateFlags,
-    NativeInteractionResult, NativeItemClick, NativeTriState, NeighbourUpdate, Suggestion,
-    TooltipElement, UsePhase,
+    NativeInteractionResult, NativeItemClick, NativeTriState, NeighbourUpdate, TooltipElement,
+    UsePhase,
 };
 use mod_api::{BlockKey, DebugEntry, DebugRenderer, EffectKey};
 use mod_api::{

@@ -1807,3 +1807,131 @@ mod item_model_snapshot_tests {
         );
     }
 }
+
+impl TryIntoApi for horizon_mod_package::Side {
+    type Api = mod_api::Side;
+    type Error = std::convert::Infallible;
+    fn try_into_api(&self) -> Result<Self::Api, Self::Error> {
+        Ok(match self {
+            Self::Client => mod_api::Side::Client,
+            Self::Both => mod_api::Side::Both,
+        })
+    }
+}
+
+fn package_snapshot(
+    manifest: &horizon_mod_package::Manifest,
+    kind: mod_api::PackageKind,
+) -> mod_api::PackageInfo {
+    mod_api::PackageInfo::new(
+        manifest.id.clone(),
+        manifest.version.clone(),
+        kind,
+        manifest.side.try_into_api().unwrap(),
+        std::iter::once(&manifest.id)
+            .chain(&manifest.namespaces)
+            .cloned()
+            .collect(),
+        manifest.dependencies.keys().cloned().collect(),
+    )
+}
+impl TryIntoApi for horizon_mod_package::Manifest {
+    type Api = mod_api::PackageInfo;
+    type Error = std::convert::Infallible;
+    fn try_into_api(&self) -> Result<Self::Api, Self::Error> {
+        Ok(package_snapshot(
+            self,
+            if self.wasm.is_some() {
+                mod_api::PackageKind::Code
+            } else {
+                mod_api::PackageKind::Content
+            },
+        ))
+    }
+}
+impl TryIntoApi for horizon_mod_package::packages::AdjacentManifest {
+    type Api = mod_api::PackageInfo;
+    type Error = std::convert::Infallible;
+    fn try_into_api(&self) -> Result<Self::Api, Self::Error> {
+        Ok(package_snapshot(&self.manifest, mod_api::PackageKind::Code))
+    }
+}
+
+pub(in crate::game) fn install_packages(
+    native: &[horizon_mod_package::packages::AdjacentManifest],
+    content: &[horizon_mod_package::selection::SelectedPackage],
+) {
+    let native: Vec<_> = native.iter().map(|p| p.try_into_api().unwrap()).collect();
+    let content: Vec<_> = content
+        .iter()
+        .map(|p| p.package.manifest.try_into_api().unwrap())
+        .collect();
+    mod_api::__private::install_packages(&native, &content);
+}
+
+#[cfg(test)]
+mod package_snapshot_tests {
+    use super::*;
+    #[test]
+    fn package_metadata_keeps_declared_side_and_namespace_order() {
+        for (side, expected) in [
+            ("client", mod_api::Side::Client),
+            ("both", mod_api::Side::Both),
+        ] {
+            let manifest = horizon_mod_package::Manifest::parse(&format!(
+                "id='test'\nname='Test'\nversion='1'\napi='0.2'\nside='{side}'\ncapabilities=['registries']\n"
+            )).unwrap();
+            let snapshot = manifest.try_into_api().unwrap();
+            assert_eq!(snapshot.side(), expected);
+            assert_eq!(snapshot.namespaces().collect::<Vec<_>>(), ["test"]);
+            assert_eq!(snapshot.kind(), mod_api::PackageKind::Content);
+        }
+    }
+}
+
+impl TryIntoApi for horizon_client_core::suggestion::Suggestion {
+    type Api = mod_api::Suggestion;
+    type Error = std::convert::Infallible;
+    fn try_into_api(&self) -> Result<Self::Api, Self::Error> {
+        let mut value = mod_api::Suggestion::new(self.range, self.text.clone());
+        value.tooltip.clone_from(&self.tooltip);
+        value.int_value = self.int_value;
+        Ok(value)
+    }
+}
+impl TryIntoEngine for mod_api::Suggestion {
+    type Engine = horizon_client_core::suggestion::Suggestion;
+    type Error = StackWriteError;
+    fn try_into_engine(&self, _: &Items) -> Result<Self::Engine, Self::Error> {
+        Ok(Self::Engine {
+            range: self.range,
+            text: self.text.clone(),
+            tooltip: self.tooltip.clone(),
+            int_value: self.int_value,
+        })
+    }
+}
+#[cfg(test)]
+mod completion_snapshot_tests {
+    use super::*;
+    #[test]
+    fn completion_round_trip_keeps_range_tooltip_and_numeric_order() {
+        let source = horizon_client_core::suggestion::Suggestion {
+            range: (4, 7),
+            text: "42".into(),
+            tooltip: Some("count".into()),
+            int_value: Some(42),
+        };
+        let mut api = source.try_into_api().unwrap();
+        api.text = "43".into();
+        api.int_value = Some(43);
+        let engine = api
+            .try_into_engine(&Items::for_tests(Default::default()))
+            .unwrap();
+        assert_eq!(engine.range, (4, 7));
+        assert_eq!(engine.tooltip.as_deref(), Some("count"));
+        assert_eq!(engine.int_value, Some(43));
+        assert_eq!(engine.apply("foo 123 bar"), "foo 43 bar");
+        assert_eq!(source.text, "42");
+    }
+}
