@@ -965,6 +965,7 @@ impl Game<'_> {
             Dim::Overworld => 0,
             Dim::Nether => 1,
             Dim::End => 2,
+            Dim::Extra(_) => 3,
         });
         dims
     }
@@ -2169,7 +2170,7 @@ impl Game<'_> {
         let clock = match ctx.get("clock") {
             Some(Arg::Resource(c)) => c.clone(),
             _ => match self.dim {
-                Dim::Overworld => "minecraft:overworld".to_owned(),
+                Dim::Overworld | Dim::Extra(_) => "minecraft:overworld".to_owned(),
                 Dim::End => "minecraft:the_end".to_owned(),
                 Dim::Nether => {
                     return Err(err("commands.time.no_default_clock", &[&self.dim.id()]));

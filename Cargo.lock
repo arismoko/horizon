@@ -2067,6 +2067,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-mod-dimension-game"
+version = "0.1.0"
+dependencies = [
+ "horizon-client",
+ "horizon-mod-api",
+ "horizon-mod-package",
+ "log",
+]
+
+[[package]]
 name = "horizon-mod-internals"
 version = "0.1.0"
 dependencies = [

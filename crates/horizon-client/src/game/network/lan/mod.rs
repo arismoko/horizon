@@ -3351,6 +3351,7 @@ impl Game<'_> {
         let force = host.hub.config.force_game_mode;
         let root = self.world_root.clone();
         let in_place = host.hub.config.dimension.clone();
+        let levels = host.hub.config.levels;
         let owner = host.owner.as_mut();
         let Some((known, uuid, name)) = host.hub.update_guest(conn, |g| {
             // PlayerList.loadPlayerData: the owner gets the world's player file,
@@ -3359,6 +3360,10 @@ impl Game<'_> {
                 Some(o) => playerdata::load_owner(g, &root, o.saved.take().as_deref()),
                 None => playerdata::load(g, &root),
             };
+            // `PlayerList.placeNewPlayer`: a saved level the world no longer has is the Overworld.
+            if !levels.has(&g.dimension) {
+                g.dimension = "minecraft:overworld".to_owned();
+            }
             // PlayerEvent.LoadFromFile: the player's data is read and applied,
             // the player not yet placed.
             (known, g.uuid, g.name.clone())
@@ -3420,7 +3425,7 @@ impl Game<'_> {
             return;
         };
         let back = self.dim;
-        let Some((level, elsewhere)) = host.hub.update_guest(conn, |g| {
+        let Some((level, mut elsewhere)) = host.hub.update_guest(conn, |g| {
             let level = super::Dim::from_id(&g.dimension);
             let elsewhere = level != back;
             if !elsewhere {
@@ -3433,12 +3438,22 @@ impl Game<'_> {
         self.load_guest_records(conn);
         // The mods say which commands the newcomer's tree keeps.
         self.native_filter_commands(Some(conn));
-        let mut theirs = States::default();
-        let entities = if elsewhere {
-            if let Err(e) = self.enter_level(level) {
-                log::error!("could not open {}: {e}", level.id());
+        // A level that will not open, its generator gone with a mod, is one the
+        // world no longer has: left in it, the player would fail the next tick.
+        if elsewhere && let Err(e) = self.enter_level(level) {
+            log::error!("could not open {}: {e}", level.id());
+            let overworld = super::Dim::Overworld;
+            let moved = self.lan.as_mut().and_then(|host| {
+                host.hub
+                    .update_guest(conn, |g| g.dimension = overworld.id().to_owned())
+            });
+            elsewhere = back != overworld;
+            if moved.is_none() || (elsewhere && self.enter_level(overworld).is_err()) {
                 return;
             }
+        }
+        let mut theirs = States::default();
+        let entities = if elsewhere {
             // A dedicated server has no host player.
             self.lan_entities(&mut theirs, false, 0, None);
             self.lan_hook_states(&mut theirs);

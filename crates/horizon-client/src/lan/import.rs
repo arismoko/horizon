@@ -561,6 +561,7 @@ pub fn import_player(hub: &mut Hub, uuid: u128, request: &Value) -> Result<Impor
             g.ender_items.iter_mut().for_each(|slot| *slot = None);
         }
         playerdata::apply(g, &level);
+        g.dimension = playerdata_dimension(&level);
         kept.restore(g, &request.parts);
         // What the request says of where the player stands wins over the record.
         let a = &request.arrival;

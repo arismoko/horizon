@@ -30,7 +30,7 @@ impl Game<'_> {
         };
         draws.clear();
         let world = match self.dim {
-            Dim::Overworld => Some(0),
+            Dim::Overworld | Dim::Extra(_) => Some(0),
             Dim::End => Some(1),
             Dim::Nether => None,
         };

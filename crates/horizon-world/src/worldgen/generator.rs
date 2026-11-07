@@ -3931,6 +3931,38 @@ mod tests {
         let none = WorldgenOverrides::default();
         assert!(build_tags(&broken, &none, "biome_tags", &mut dropped, known).is_err());
     }
+    /// A pack's level on a generator nobody registered: opening it is an
+    /// error for the caller to report, and the noise levels still build.
+    #[test]
+    fn a_level_stem_naming_an_unknown_generator_is_an_error() {
+        let root = std::env::var_os("HORIZON_TEST_RESOURCES")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/horizon-client/26.3")
+            });
+        if !root.join("worldgen/world_presets.json").exists() {
+            eprintln!("skipping: no worldgen bundle at {}", root.display());
+            return;
+        }
+        let registry = Box::leak(Box::new(crate::level::data::load_registry(&root).unwrap()));
+        let mut ov = WorldgenOverrides::default();
+        ov.set(
+            overrides::DIMENSIONS,
+            "test:gone",
+            r#"{"type":"minecraft:overworld","generator":{"type":"test:gone"}}"#.to_owned(),
+        );
+        let data = GeneratorData::load_with(&root.join("worldgen"), registry, &ov).unwrap();
+        let open = |dimension| {
+            OverworldGenerator::for_world(data.clone(), 0, "minecraft:normal", dimension, false)
+        };
+        let error = open("test:gone").err().expect("no such generator");
+        assert!(
+            error
+                .to_string()
+                .contains("test:gone is not a noise generator")
+        );
+        assert!(open("minecraft:overworld").is_ok());
+    }
     #[test]
     fn a_pack_level_stem_names_taller_noise_which_clamps_to_the_build_height() {
         let root = std::env::var_os("HORIZON_TEST_RESOURCES")

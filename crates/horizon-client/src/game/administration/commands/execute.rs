@@ -637,10 +637,7 @@ impl Game<'_> {
                 let Some(Arg::Resource(dim)) = c.get("dimension") else {
                     return Ok(vec![s]);
                 };
-                if !matches!(
-                    dim.as_str(),
-                    "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
-                ) {
+                if !Dim::exists(dim) {
                     return Err(err("argument.dimension.invalid", &[dim]));
                 }
                 let dimension = Dim::from_id(dim);

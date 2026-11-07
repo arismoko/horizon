@@ -235,13 +235,14 @@ impl WorldRequest {
             level.dimension = d.clone();
             level.position = None;
         }
-        let dim = Dim::from_id(&level.dimension);
         let shapes = level_shapes(
             &save_root,
             &options.resources,
             res.biomes(),
             &pack.additional_data,
         );
+        Dim::set_extra(shapes.extra.iter().map(|level| level.id));
+        let dim = Dim::from_id(&level.dimension);
         let shape = shapes.get(dim.id());
         let streaming_step = startup::step("world.make_streaming");
         let loot = horizon_client::structure_blocks::LootSnapshot::default();
@@ -622,7 +623,6 @@ pub(super) fn level_shapes(
     biomes: &horizon_client::biome::Biomes,
     additional: &[Arc<horizon_client::datapack::DataPack>],
 ) -> horizon_client::chunk::LevelShapes {
-    use horizon_client::chunk::{LevelShape, LevelShapes};
     let packs = super::pack_finders::data_repository(world_root, resources, additional);
     let enabled_features = horizon_client::save::Level::read(world_root)
         .map(|l| l.enabled_features)
@@ -632,13 +632,18 @@ pub(super) fn level_shapes(
         .iter()
         .filter_map(|id| packs.iter().find(|p| &p.id == id))
         .collect();
-    let mut shapes = LevelShapes::VANILLA;
-    if enabled.is_empty() {
-        return shapes;
-    }
     // What the packs leave out is logged when the generator reads them.
     let (overrides, _) =
         horizon_client::datapack::worldgen_overrides(&enabled, |b| biomes.contains(b));
+    shapes_of(&overrides)
+}
+
+/// The levels' shapes the mods' and packs' worldgen entries give.
+fn shapes_of(
+    overrides: &horizon_world::worldgen::overrides::WorldgenOverrides,
+) -> horizon_client::chunk::LevelShapes {
+    use horizon_client::chunk::{ExtraLevel, LevelShape, LevelShapes};
+    let mut shapes = LevelShapes::VANILLA;
     for level in [
         "minecraft:overworld",
         "minecraft:the_nether",
@@ -662,7 +667,79 @@ pub(super) fn level_shapes(
             ),
         }
     }
+    let extra: Vec<_> = overrides
+        .entries(horizon_world::worldgen::overrides::DIMENSIONS)
+        .filter(|(level, _)| !Dim::is_vanilla(level))
+        .filter_map(|(level, stem)| {
+            let shape = overrides.level_height(level).and_then(|h| {
+                LevelShape::new(
+                    h.min_y,
+                    h.height,
+                    h.logical_height,
+                    h.has_skylight,
+                    h.has_ceiling,
+                )
+                .ok()
+            });
+            if shape.is_none() {
+                log::warn!(
+                    "Horizon: data pack worldgen: the dimension type of {level} is not one the \
+                     game accepts; the level is left out"
+                );
+            }
+            // A stem's `type` is a dimension type's id, or the type itself.
+            let stem = serde_json::from_str::<serde_json::Value>(stem).ok()?;
+            let dimension_type = stem["type"].as_str().unwrap_or(level);
+            Some(ExtraLevel {
+                id: level.to_owned().leak(),
+                dimension_type: dimension_type.to_owned().leak(),
+                shape: shape?,
+            })
+        })
+        .collect();
+    shapes.extra = extra.leak();
     shapes
+}
+
+/// The terrain of a level whose stem names a generator a mod registered, the
+/// stem being read as the game's own generator reads it: a pack's or mod's,
+/// else the saved one. A stem naming any other generator is left to that
+/// generator, which refuses all but noise.
+fn mod_terrain(
+    world_root: &std::path::Path,
+    resources: &std::path::Path,
+    additional: &[Arc<horizon_client::datapack::DataPack>],
+    enabled_features: &[String],
+    registry: &'static horizon_world::registry::BlockRegistry,
+    biomes: &horizon_client::biome::Biomes,
+    dim: Dim,
+    shape: horizon_client::chunk::LevelShape,
+    seed: i64,
+) -> Option<horizon_client::modgen::ModTerrain> {
+    use horizon_world::worldgen::{mod_generators::mod_chunk_generators, overrides::DIMENSIONS};
+    let generators = mod_chunk_generators();
+    if generators.is_empty() {
+        return None;
+    }
+    let (overrides, _) =
+        worldgen_overrides_of(world_root, resources, biomes, enabled_features, additional);
+    let stem = overrides
+        .entries(DIMENSIONS)
+        .find(|(level, _)| *level == dim.id())
+        .and_then(|(_, stem)| serde_json::from_str(stem).ok())
+        .or_else(|| {
+            horizon_client::save::world_gen_settings(world_root)
+                .and_then(|s| s.get("dimensions")?.get(dim.id()).cloned())
+                .map(|stem| horizon_client::scoreboard::tag_to_json(&stem))
+        })?;
+    horizon_client::modgen::ModTerrain::for_stem(
+        &stem,
+        generators,
+        registry,
+        |biome| biomes.id(biome),
+        shape,
+        seed,
+    )
 }
 
 pub(super) fn make_streaming(
@@ -840,6 +917,27 @@ pub(super) fn make_streaming(
             pack.context_with(biomes.clone()),
             res.threads(),
         )
+    } else if let Some(inner) = mod_terrain(
+        world_root,
+        &options.resources,
+        &pack.additional_data,
+        enabled_features,
+        pack.assets.registry,
+        &biomes,
+        dim,
+        shape,
+        seed,
+    ) {
+        Streaming::new(
+            Arc::new(Persistent {
+                inner: Arc::new(inner),
+                save: save.clone(),
+                registry: pack.assets.clone(),
+                biomes: biomes.clone(),
+            }),
+            pack.context_with(biomes.clone()),
+            res.threads(),
+        )
     } else {
         // WorldOptions.generateStructures, from the world's settings.
         let structures =
@@ -974,6 +1072,90 @@ mod tests {
             Some(Value::Bool(false))
         );
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_mods_level_opens_with_no_data_packs() {
+        use horizon_client::chunk::{LevelShape, LevelShapes};
+        use horizon_client::datapack::worldgen_overrides_over;
+        let (none, _) = worldgen_overrides_over(&[], &[], |_| true);
+        assert_eq!(shapes_of(&none), LevelShapes::VANILLA);
+
+        let pocket = horizon_world::worldgen::overrides::ModDimension {
+            id: "test:pocket".into(),
+            stem: r#"{"type":"test:pocket","generator":{"type":"minecraft:noise"}}"#.into(),
+            dimension_type:
+                r#"{"min_y":-128,"height":448,"logical_height":320,"has_skylight":false,"has_ceiling":true}"#
+                    .into(),
+        };
+        let (overrides, _) = worldgen_overrides_over(&[pocket], &[], |_| true);
+        let shapes = shapes_of(&overrides);
+        assert!(shapes.has("test:pocket"));
+        assert_eq!(
+            shapes.get("test:pocket"),
+            LevelShape::new(-128, 448, 320, false, true).unwrap()
+        );
+        assert_eq!(shapes.dimension_type("test:pocket"), "test:pocket");
+        assert_eq!(shapes.overworld, LevelShape::OVERWORLD);
+    }
+
+    /// A registered level's stem finds its generator through the world's
+    /// worldgen entries; the Overworld's noise stays the game's. Ignored as it
+    /// installs the process-wide tables.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_stem_naming_a_mods_generator_opens_on_mod_terrain() {
+        use horizon_client::streaming::ChunkGenerator as _;
+        use horizon_world::worldgen::{
+            mod_generators::{
+                ChunkAccess, ModChunkGenerator, ModChunkGenerators, install_mod_chunk_generators,
+            },
+            overrides::{ModDimension, install_mod_dimensions},
+        };
+        struct Floor;
+        impl ModChunkGenerator for Floor {
+            fn build_terrain(&self, chunk: &mut dyn ChunkAccess) {
+                let stone = chunk.state("stone");
+                chunk.set_block([0, chunk.min_y(), 0], stone);
+            }
+        }
+        install_mod_dimensions(vec![ModDimension {
+            id: "test:pocket".into(),
+            stem: r#"{"type":"test:pocket","generator":{"type":"test:floor"}}"#.into(),
+            dimension_type: r#"{"min_y":-128,"height":448,"logical_height":448}"#.into(),
+        }])
+        .unwrap();
+        let floor: Arc<dyn ModChunkGenerator> = Arc::new(Floor);
+        install_mod_chunk_generators(ModChunkGenerators::from([("test:floor".to_owned(), floor)]))
+            .map_err(|_| "installed twice")
+            .unwrap();
+
+        let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
+        let biomes = horizon_client::biome::Biomes::load(
+            &horizon_assets::resource_source::ResourceRoot::directory(root.clone()),
+        )
+        .unwrap();
+        let registry = horizon_client::assets::Assets::load(&root)
+            .unwrap()
+            .registry;
+        let world =
+            std::env::temp_dir().join(format!("horizon-mod-terrain-{}", std::process::id()));
+        std::fs::create_dir_all(&world).unwrap();
+        let (overrides, _) = worldgen_overrides_of(&world, &root, &biomes, &[], &[]);
+        let shapes = shapes_of(&overrides);
+        let open = |dim: Dim| {
+            let shape = shapes.get(dim.id());
+            mod_terrain(&world, &root, &[], &[], registry, &biomes, dim, shape, 0)
+        };
+        let pocket = Dim::Extra(mod_api::__private::dimension_key("test:pocket"));
+        let terrain = open(pocket).expect("the stem names a registered generator");
+        let chunk = terrain.finish(terrain.proto(&mut (), 0, 0));
+        assert_eq!(
+            chunk.block(0, -128, 0),
+            registry.default_state("minecraft:stone").unwrap()
+        );
+        assert!(open(Dim::Overworld).is_none());
+        let _ = std::fs::remove_dir_all(world);
     }
 
     #[test]

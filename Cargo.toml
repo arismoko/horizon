@@ -39,6 +39,7 @@ members = [
     "crates/horizon-mod-wasm",
     "crates/horizon-mod-api-gen",
     "crates/horizon-mod-api",
+    "crates/horizon-mod-dimension-game",
     "crates/horizon-mod-api-macros",
     "crates/horizon-mod-point-shape",
     "crates/horizon-mod-api-gen/dispatch-tests",

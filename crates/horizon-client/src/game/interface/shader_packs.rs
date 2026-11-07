@@ -277,7 +277,7 @@ impl Game<'_> {
         }
         let name = selected.clone();
         let dimension = match self.dim {
-            Dim::Overworld => 0,
+            Dim::Overworld | Dim::Extra(_) => 0,
             Dim::Nether => -1,
             Dim::End => 1,
         };

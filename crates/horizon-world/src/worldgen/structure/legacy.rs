@@ -284,7 +284,16 @@ pub fn state(
     name: &str,
     properties: &[(&str, &str)],
 ) -> BlockStateId {
-    let registry = resources.registry;
+    block_state(resources.registry, name, properties)
+}
+
+/// A block state of `registry` by block name, a bare name being vanilla's:
+/// missing properties keep defaults, and a block it lacks is air.
+pub fn block_state(
+    registry: &crate::registry::BlockRegistry,
+    name: &str,
+    properties: &[(&str, &str)],
+) -> BlockStateId {
     let mut descriptor = BlockState {
         name: if name.contains(':') {
             name.to_owned()
