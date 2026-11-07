@@ -394,6 +394,17 @@ pub struct EntityLootParams {
     /// The killing player's luck.
     pub luck: f32,
 }
+/// The most a table's read of an enchantment level counts as. A mod can answer
+/// any level, and what it answers drives loops: a stack of that size splits one
+/// stack at a time, and a binomial bonus draws once a level. `ItemEnchantments`
+/// keeps vanilla's levels to 255, so vanilla's rolls never reach this.
+pub const MAX_LOOT_LEVEL: i32 = 1024;
+/// What a roll asks when it reads an attacker's enchantment level (NeoForge's
+/// `EnchantedEntityLootEvent`): given the roll's random, the enchantment's id
+/// and the level, the level to use. The random is the roll's own: whoever
+/// answers can put it back in its home first, so draws made meanwhile keep
+/// their order.
+pub type EnchantedLevel<'a, R> = dyn FnMut(&mut R, &str, i32) -> i32 + 'a;
 /// `EquipmentSlot.VALUES` order.
 pub const EQUIPMENT_SLOTS: [&str; 8] = [
     "mainhand", "offhand", "feet", "legs", "chest", "head", "body", "saddle",
@@ -874,6 +885,7 @@ impl LootData {
             luck: 0.0,
             open_water: None,
             entity: Some(&damage_params),
+            enchanted_level: None,
         };
         let mut chance = chance;
         c.equipment_drops(&params.this, "victim", &mut chance);
@@ -960,6 +972,7 @@ impl LootData {
             luck,
             open_water,
             entity: None,
+            enchanted_level: None,
         };
         let mut items = Vec::new();
         c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
@@ -975,6 +988,27 @@ impl LootData {
         random: &mut R,
         params: &EntityLootParams,
     ) -> Vec<LootStack> {
+        self.roll_entity_with(table, random, params, None)
+    }
+    /// [`Self::roll_entity`] for a death, with `level` asked each time
+    /// `enchanted_count_increase` or `random_chance_with_enchanted_bonus`
+    /// reads the attacker's level.
+    pub fn roll_death_entity<R: RandomSource + Clone>(
+        &self,
+        table: &str,
+        random: &mut R,
+        params: &EntityLootParams,
+        level: &mut EnchantedLevel<'_, R>,
+    ) -> Vec<LootStack> {
+        self.roll_entity_with(table, random, params, Some(level))
+    }
+    fn roll_entity_with<'a, R: RandomSource + Clone>(
+        &'a self,
+        table: &str,
+        random: &mut R,
+        params: &'a EntityLootParams,
+        enchanted_level: Option<&'a mut EnchantedLevel<'a, R>>,
+    ) -> Vec<LootStack> {
         let Some(json) = self.tables.get(table) else {
             return Vec::new();
         };
@@ -986,6 +1020,7 @@ impl LootData {
             luck: params.luck,
             open_water: None,
             entity: Some(params),
+            enchanted_level,
         };
         let mut items = Vec::new();
         c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
@@ -1011,6 +1046,7 @@ impl LootData {
             luck: 0.0,
             open_water: None,
             entity: None,
+            enchanted_level: None,
         };
         let mut items = Vec::new();
         c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
@@ -1065,6 +1101,7 @@ impl LootData {
             luck: 0.0,
             open_water: None,
             entity: None,
+            enchanted_level: None,
         };
         let mut items = Vec::new();
         c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
@@ -1157,6 +1194,8 @@ struct Context<'a, R> {
     open_water: Option<bool>,
     /// The entity, damage source and killer parameters.
     entity: Option<&'a EntityLootParams>,
+    /// Asked for a death's enchantment levels; None for every other roll.
+    enchanted_level: Option<&'a mut EnchantedLevel<'a, R>>,
 }
 type Sink<'s, R> = dyn FnMut(&mut Context<'_, R>, LootStack) + 's;
 
@@ -1175,6 +1214,21 @@ impl<R: RandomSource> Context<'_, R> {
     /// The `ATTACKING_ENTITY` parameter when it is a living entity.
     fn living_attacker(&self) -> Option<&LootEntity> {
         self.target("attacker").filter(|a| a.living)
+    }
+    /// The level `EnchantedCountIncreaseFunction` and
+    /// `LootItemRandomChanceWithEnchantedBonusCondition` use: the living
+    /// attacker's (0 without one), then what the death's `enchanted_level`
+    /// makes of it, up to what a table reads.
+    fn attacker_level(&mut self, enchantment: &str) -> i32 {
+        let data = self.data;
+        let level = self
+            .living_attacker()
+            .map_or(0, |a| data.enchantment_level(enchantment, a));
+        let level = match &mut self.enchanted_level {
+            Some(ask) => ask(&mut self.random, enchantment, level),
+            None => level,
+        };
+        level.min(MAX_LOOT_LEVEL)
     }
     /// The `equipment_drops` effects on one entity's equipment
     /// (`runIterationOnEquipment`), for the given `enchanted` target.
@@ -1361,9 +1415,7 @@ impl<R: RandomSource> Context<'_, R> {
                 }
                 "minecraft:killed_by_player" => self.entity.is_some_and(|p| p.player.is_some()),
                 "minecraft:random_chance_with_enchanted_bonus" => {
-                    let level = self.living_attacker().map_or(0, |a| {
-                        data.enchantment_level(c["enchantment"].as_str().unwrap_or(""), a)
-                    });
+                    let level = self.attacker_level(c["enchantment"].as_str().unwrap_or(""));
                     let chance = if level > 0 {
                         level_value(&c["enchanted_chance"], level)
                     } else {
@@ -1625,17 +1677,17 @@ impl<R: RandomSource> Context<'_, R> {
             }
             "minecraft:discard" => stack.count = 0,
             "minecraft:enchanted_count_increase" => {
-                if let Some(attacker) = self.living_attacker() {
-                    let level =
-                        data.enchantment_level(f["enchantment"].as_str().unwrap_or(""), attacker);
-                    if level != 0 {
-                        let addition = level as f32 * self.float(&f["count"]);
-                        // ItemStack.grow(Math.round(addition)).
-                        stack.count = stack.get_count() + (addition + 0.5).floor() as i32;
-                        let limit = int_value(&f["limit"]).unwrap_or(0) as i32;
-                        if limit > 0 && !stack.is_empty() && stack.count > limit {
-                            stack.count = limit;
-                        }
+                let level = self.attacker_level(f["enchantment"].as_str().unwrap_or(""));
+                if level != 0 {
+                    let addition = level as f32 * self.float(&f["count"]);
+                    // ItemStack.grow(Math.round(addition)): an int sum, so a mod's
+                    // huge level wraps as in Java, and the stack is empty.
+                    stack.count = stack
+                        .get_count()
+                        .wrapping_add((addition + 0.5).floor() as i32);
+                    let limit = int_value(&f["limit"]).unwrap_or(0) as i32;
+                    if limit > 0 && !stack.is_empty() && stack.count > limit {
+                        stack.count = limit;
                     }
                 }
             }
@@ -2523,5 +2575,107 @@ mod location_check_biome_tests {
         assert!(drops(&data, Some("minecraft:bamboo_jungle")));
         assert!(drops(&data, Some("minecraft:desert")));
         assert!(!drops(&data, Some("minecraft:savanna")));
+    }
+}
+
+#[cfg(test)]
+mod enchanted_level_tests {
+    use super::*;
+    use horizon_core::random::LegacyRandom;
+
+    fn table(name: &str, modifier: &str, condition: &str) -> LootData {
+        let json = format!(
+            r#"{{"pools":[{{"rolls":1,"entries":[{{"type":"minecraft:item","name":"minecraft:stone",
+                "condition":{condition},"modifier":{modifier}}}]}}]}}"#
+        );
+        let root = std::env::temp_dir().join(format!("loot-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("data/minecraft/loot_table");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("test.json"), json).unwrap();
+        std::fs::write(root.join("items.json"), "{}").unwrap();
+        let defaults = crate::item_defaults::read(&root).unwrap();
+        let data = LootData::load(&root, &PackOverlay::NONE, &defaults).unwrap();
+        let _ = std::fs::remove_dir_all(&root);
+        data
+    }
+
+    const INCREASE: &str = r#"[{"type":"minecraft:enchanted_count_increase",
+        "enchantment":"minecraft:looting","count":2.0}]"#;
+    const BONUS: &str = r#"{"type":"minecraft:random_chance_with_enchanted_bonus",
+        "enchantment":"minecraft:looting","unenchanted_chance":0.0,"enchanted_chance":1.0}"#;
+
+    fn count(data: &LootData, level: i32) -> i32 {
+        let mut heard = Vec::new();
+        let items = data.roll_death_entity(
+            "minecraft:test",
+            &mut LegacyRandom::new(1),
+            &EntityLootParams::default(),
+            &mut |_, enchantment: &str, was| {
+                heard.push((enchantment.to_owned(), was));
+                level
+            },
+        );
+        assert_eq!(heard, [("minecraft:looting".to_owned(), 0)]);
+        items.iter().map(LootStack::get_count).sum()
+    }
+
+    /// `EnchantedEntityLootEvent`: both readers use the level the game
+    /// answers, and one raised from 0 counts with no attacker at all.
+    #[test]
+    fn the_answered_level_drives_the_count_and_the_chance() {
+        let increase = table("enchanted-increase", INCREASE, "null");
+        assert_eq!(count(&increase, 0), 1);
+        assert_eq!(count(&increase, 3), 7);
+        let bonus = table("enchanted-bonus", "null", BONUS);
+        assert_eq!(count(&bonus, 0), 0);
+        assert_eq!(count(&bonus, 1), 1);
+    }
+
+    /// A mod may answer any level, and it counts as [`MAX_LOOT_LEVEL`]: the
+    /// stack, which splits one stack at a time, stays small, and the square
+    /// doesn't overflow. Below that, the level counts in full.
+    #[test]
+    fn a_huge_level_counts_as_the_most_a_table_reads() {
+        let increase = table("enchanted-huge-increase", INCREASE, "null");
+        assert_eq!(count(&increase, 1000), 2001);
+        assert_eq!(count(&increase, i32::MAX), 1 + 2 * MAX_LOOT_LEVEL);
+        let limited = r#"[{"type":"minecraft:enchanted_count_increase",
+            "enchantment":"minecraft:looting","count":2.0,"limit":5}]"#;
+        let limited = table("enchanted-huge-limited", limited, "null");
+        assert_eq!(count(&limited, i32::MAX), 5);
+        let squared = r#"{"type":"minecraft:random_chance_with_enchanted_bonus",
+            "enchantment":"minecraft:looting","unenchanted_chance":0.0,
+            "enchanted_chance":{"type":"minecraft:levels_squared","added":0.0}}"#;
+        assert_eq!(
+            count(&table("enchanted-huge-bonus", "null", squared), i32::MAX),
+            1
+        );
+    }
+
+    /// An answer of the level asked changes nothing about the roll, the
+    /// random's state included.
+    #[test]
+    fn asking_leaves_the_roll_as_it_was() {
+        let modifier = r#"[{"type":"minecraft:enchanted_count_increase",
+            "enchantment":"minecraft:looting",
+            "count":{"type":"minecraft:uniform","min":0.0,"max":1.0}},
+            {"type":"minecraft:set_count","count":{"type":"minecraft:uniform","min":1.0,"max":9.0}}]"#;
+        let condition = r#"{"type":"minecraft:random_chance_with_enchanted_bonus",
+            "enchantment":"minecraft:looting","unenchanted_chance":1.0,"enchanted_chance":1.0}"#;
+        let data = table("enchanted-same", modifier, condition);
+        let params = EntityLootParams::default();
+        let mut plain = LegacyRandom::new(5);
+        let mut asked = LegacyRandom::new(5);
+        let expected = data.roll_entity("minecraft:test", &mut plain, &params);
+        let items =
+            data.roll_death_entity("minecraft:test", &mut asked, &params, &mut |_, _, level| {
+                level
+            });
+        assert_eq!(
+            items.iter().map(|s| s.count).collect::<Vec<_>>(),
+            expected.iter().map(|s| s.count).collect::<Vec<_>>()
+        );
+        assert_eq!(asked.next_long(), plain.next_long());
     }
 }

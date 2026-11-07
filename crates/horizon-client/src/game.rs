@@ -10,7 +10,7 @@ use mod_api::__private::game::PartsLookup;
 macro_rules! world_items {
     ($s:ident) => {
         match (&$s.server_items, &$s.world_tables) {
-            (Some(items), _) => items,
+            (Some(items), _) => &**items,
             (None, Some(t)) => &t.items,
             (None, None) => $s.res.items(),
         }
@@ -3027,7 +3027,7 @@ struct Game<'a> {
     world_tables: Option<WorldTables>,
     /// Server-owned loot and item snapshots, independent of client preloads.
     server_loot: horizon_client::structure_blocks::LootSnapshot,
-    server_items: Option<Items>,
+    server_items: Option<Arc<Items>>,
     /// The world is superflat (`ServerLevel.isFlat`, for every dimension).
     world_flat: bool,
     /// The world is the Debug preset (`Level.isDebug`, for every dimension): its blocks
@@ -22351,7 +22351,7 @@ impl Game<'_> {
         {
             let mut items = self.items().clone();
             items.set_loot_tables(loot.tables().clone());
-            self.server_items = Some(items);
+            self.server_items = Some(Arc::new(items));
         }
         self.server_loot.set(loot);
     }

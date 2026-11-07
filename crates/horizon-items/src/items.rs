@@ -4,7 +4,10 @@
 use crate::{Result, blocks::BlockFacts};
 use horizon_core::random::RandomSource;
 use horizon_world::registry::{BlockRegistry, BlockStateId};
-use horizon_world::{item_defaults::ItemDefaults, loot::PackOverlay};
+use horizon_world::{
+    item_defaults::ItemDefaults,
+    loot::{MAX_LOOT_LEVEL, PackOverlay},
+};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -1308,6 +1311,7 @@ impl Items {
             killed_by_player: false,
             explosion_radius: None,
             this_entity: false,
+            levels: None,
         };
         ctx.evaluate(table, random)
     }
@@ -1466,6 +1470,7 @@ impl Items {
                 killed_by_player: false,
                 explosion_radius,
                 this_entity: breaker,
+                levels: None,
             };
             return ctx.evaluate(table, random);
         }
@@ -1477,6 +1482,7 @@ impl Items {
             killed_by_player: false,
             explosion_radius,
             this_entity: breaker,
+            levels: None,
         };
         ctx.evaluate(table, random)
     }
@@ -1501,6 +1507,7 @@ impl Items {
             killed_by_player,
             explosion_radius: None,
             this_entity: false,
+            levels: None,
         };
         // LootTable.getRandomItemsRaw visits the table itself first.
         NESTED_ROLLS.with(|v| v.borrow_mut().push(id.to_owned()));
@@ -1530,19 +1537,32 @@ impl Items {
         let (Some(table), Some(block)) = (self.loot.get(id), registry.state(state)) else {
             return vec![];
         };
+        match table.get("random_sequence").and_then(Value::as_str) {
+            Some(sequence) => {
+                let random = sequences.get(sequence, seed);
+                self.interact_roll(table, &block.name, &block.properties, random)
+            }
+            None => self.interact_roll(table, &block.name, &block.properties, random),
+        }
+    }
+    fn interact_roll<R: RandomSource>(
+        &self,
+        table: &Value,
+        block: &str,
+        properties: &horizon_world::chunk::BlockProperties,
+        random: &mut R,
+    ) -> Vec<ItemStack> {
         let ctx = LootContext {
             items: self,
-            block: &block.name,
-            properties: &block.properties,
+            block,
+            properties,
             held: None,
             killed_by_player: false,
             explosion_radius: None,
             this_entity: false,
+            levels: None,
         };
-        match table.get("random_sequence").and_then(Value::as_str) {
-            Some(sequence) => ctx.evaluate(table, sequences.get(sequence, seed)),
-            None => ctx.evaluate(table, random),
-        }
+        ctx.evaluate(table, random)
     }
     /// `loot_table` drawing from any random (a random sequence).
     pub fn loot_table_from(
@@ -1564,6 +1584,7 @@ impl Items {
             killed_by_player,
             explosion_radius: None,
             this_entity: false,
+            levels: None,
         };
         ctx.evaluate(table, random)
     }
@@ -1573,6 +1594,34 @@ impl Items {
         killed_by_player: bool,
         held: Option<&ItemStack>,
         random: &mut R,
+    ) -> Vec<ItemStack> {
+        self.entity_drops_with(entity, killed_by_player, held, random, None)
+    }
+    /// [`Self::entity_drops`] with `level` asked each time
+    /// `enchanted_count_increase` or `random_chance_with_enchanted_bonus`
+    /// reads the attacker's level.
+    pub fn entity_drops_asked<R: RandomSource>(
+        &self,
+        entity: &str,
+        killed_by_player: bool,
+        held: Option<&ItemStack>,
+        random: &mut R,
+        level: &mut horizon_world::loot::EnchantedLevel<'_, R>,
+    ) -> Vec<ItemStack> {
+        let level = std::cell::RefCell::new(level);
+        let levels = |random: &mut R, id: &str, read: u32| {
+            let read = read.min(i32::MAX as u32) as i32;
+            (level.borrow_mut())(random, id, read).max(0) as u32
+        };
+        self.entity_drops_with(entity, killed_by_player, held, random, Some(&levels))
+    }
+    fn entity_drops_with<R: RandomSource>(
+        &self,
+        entity: &str,
+        killed_by_player: bool,
+        held: Option<&ItemStack>,
+        random: &mut R,
+        levels: Option<&LootLevels<'_, R>>,
     ) -> Vec<ItemStack> {
         let name = entity.trim_start_matches("minecraft:");
         let Some(table) = self.loot.get(&format!("minecraft:entities/{name}")) else {
@@ -1587,14 +1636,15 @@ impl Items {
             killed_by_player,
             explosion_radius: None,
             this_entity: false,
+            levels,
         };
         ctx.evaluate(table, random)
     }
 }
 /// `DataComponents.BLOCK_STATE`.
 const BLOCK_STATE: &str = "minecraft:block_state";
-impl LootContext<'_> {
-    fn evaluate<R: RandomSource>(&self, table: &Value, random: &mut R) -> Vec<ItemStack> {
+impl<R: RandomSource> LootContext<'_, R> {
+    fn evaluate(&self, table: &Value, random: &mut R) -> Vec<ItemStack> {
         let ctx = self;
         let mut out = Vec::new();
         for pool in table["pools"].as_array().into_iter().flatten() {
@@ -1602,7 +1652,7 @@ impl LootContext<'_> {
                 continue;
             }
             // LootPool: rolls.getInt (Mth.randomBetweenInclusive for uniform rolls).
-            let rolls = LootContext::int_number(&pool["rolls"], random).max(0) as u32;
+            let rolls = Self::int_number(&pool["rolls"], random).max(0) as u32;
             for _ in 0..rolls {
                 let mut produced = Vec::new();
                 ctx.choose(
@@ -1622,7 +1672,11 @@ impl LootContext<'_> {
         out
     }
 }
-struct LootContext<'a> {
+/// What a roll asks when its table reads an enchantment level: given the
+/// roll's random, the enchantment and the level, the level to use. The random
+/// is the roll's own, so whoever answers can keep draws made meanwhile in order.
+pub type LootLevels<'a, R> = dyn Fn(&mut R, &str, u32) -> u32 + 'a;
+struct LootContext<'a, R> {
     items: &'a Items,
     block: &'a str,
     properties: &'a horizon_world::chunk::BlockProperties,
@@ -1632,20 +1686,34 @@ struct LootContext<'a> {
     explosion_radius: Option<f32>,
     /// `LootContextParams.THIS_ENTITY` is set (a player broke the block).
     this_entity: bool,
+    /// Asked for the levels the table reads; None keeps them.
+    levels: Option<&'a LootLevels<'a, R>>,
 }
-impl LootContext<'_> {
+impl<R: RandomSource> LootContext<'_, R> {
     /// Level of an enchantment on the tool / killer's weapon.
     fn enchantment_level(&self, id: &str) -> u32 {
         self.held.map_or(0, |h| h.enchantment_level(id))
+    }
+    /// The level `EnchantedCountIncreaseFunction` and
+    /// `LootItemRandomChanceWithEnchantedBonusCondition` use: the attacker's
+    /// (a player's, 0 without one), as `levels` leaves it, up to what a table
+    /// reads.
+    fn attacker_level(&self, id: &str, random: &mut R) -> u32 {
+        let level = if self.killed_by_player && self.block.is_empty() {
+            self.enchantment_level(id)
+        } else {
+            0
+        };
+        let level = self
+            .levels
+            .map_or(level, |levels| levels(random, id, level));
+        level.min(MAX_LOOT_LEVEL as u32)
     }
     /// The context a mod's own loot kind sees in this engine: the block and
     /// the tool it has, and a seed from the roll's random. The entity, the
     /// damage, the player and the biome belong to the main loot engine's
     /// rolls; they are None here (docs/modding/src/how-to/native-mods.md).
-    fn native_loot_context<R: RandomSource>(
-        &self,
-        random: &mut R,
-    ) -> horizon_world::loot::NativeLootContext<'_> {
+    fn native_loot_context(&self, random: &mut R) -> horizon_world::loot::NativeLootContext<'_> {
         horizon_world::loot::NativeLootContext {
             entity: None,
             damage: None,
@@ -1665,7 +1733,7 @@ impl LootContext<'_> {
             place: horizon_world::loot::current_native_loot_place(),
         }
     }
-    fn number<R: RandomSource>(v: &Value, random: &mut R) -> f32 {
+    fn number(v: &Value, random: &mut R) -> f32 {
         match v {
             Value::Number(n) => n.as_f64().unwrap_or(0.0) as f32,
             Value::Object(o) => match o
@@ -1697,7 +1765,7 @@ impl LootContext<'_> {
             _ => 0.0,
         }
     }
-    fn int_number<R: RandomSource>(v: &Value, random: &mut R) -> i32 {
+    fn int_number(v: &Value, random: &mut R) -> i32 {
         if let Value::Object(o) = v
             && o.get("type")
                 .and_then(Value::as_str)
@@ -1714,7 +1782,7 @@ impl LootContext<'_> {
         }
         Self::number(v, random).round() as i32
     }
-    fn condition<R: RandomSource>(&self, c: &Value, random: &mut R) -> bool {
+    fn condition(&self, c: &Value, random: &mut R) -> bool {
         let (kind, c) = match c {
             Value::Null => return true,
             Value::Array(list) => return list.iter().all(|c| self.condition(c, random)),
@@ -1810,11 +1878,7 @@ impl LootContext<'_> {
             }
             "minecraft:killed_by_player" => self.killed_by_player,
             "minecraft:random_chance_with_enchanted_bonus" => {
-                let level = if self.killed_by_player && self.block.is_empty() {
-                    self.enchantment_level(c["enchantment"].as_str().unwrap_or(""))
-                } else {
-                    0
-                };
+                let level = self.attacker_level(c["enchantment"].as_str().unwrap_or(""), random);
                 let chance = if level > 0 {
                     crate::enchant::level_value(&c["enchanted_chance"], level)
                 } else {
@@ -1848,7 +1912,7 @@ impl LootContext<'_> {
             _ => false,
         }
     }
-    fn conditions<R: RandomSource>(&self, o: &Value, random: &mut R) -> bool {
+    fn conditions(&self, o: &Value, random: &mut R) -> bool {
         if let Some(c) = o.get("condition")
             && !self.condition(c, random)
         {
@@ -1861,12 +1925,7 @@ impl LootContext<'_> {
             .all(|c| self.condition(c, random))
     }
     /// Expand entries; returns whether an entry succeeded (for alternatives).
-    fn expand<R: RandomSource>(
-        &self,
-        e: &Value,
-        random: &mut R,
-        out: &mut Vec<(i32, ItemStack, Value)>,
-    ) -> bool {
+    fn expand(&self, e: &Value, random: &mut R, out: &mut Vec<(i32, ItemStack, Value)>) -> bool {
         if !self.conditions(e, random) {
             return false;
         }
@@ -1952,12 +2011,7 @@ impl LootContext<'_> {
             _ => false,
         }
     }
-    fn choose<R: RandomSource>(
-        &self,
-        entries: &[Value],
-        random: &mut R,
-        produced: &mut Vec<ItemStack>,
-    ) {
+    fn choose(&self, entries: &[Value], random: &mut R, produced: &mut Vec<ItemStack>) {
         let mut candidates = Vec::new();
         for e in entries {
             self.expand(e, random, &mut candidates);
@@ -1991,12 +2045,7 @@ impl LootContext<'_> {
     /// `NestedLootTable.createItemStack`: the entry's table rolls in full
     /// (its pools and its own functions), then the entry's functions apply to
     /// each stack. A table already rolling further out adds nothing.
-    fn nested<R: RandomSource>(
-        &self,
-        entry: &Value,
-        random: &mut R,
-        produced: &mut Vec<ItemStack>,
-    ) {
+    fn nested(&self, entry: &Value, random: &mut R, produced: &mut Vec<ItemStack>) {
         let (name, table) = match &entry["value"] {
             Value::String(name) => (name.as_str(), self.items.loot.get(name.as_str())),
             inline @ Value::Object(_) => ("<inline>", Some(inline)),
@@ -2031,7 +2080,7 @@ impl LootContext<'_> {
             _ => e.list.iter().map(|x| Arc::clone(&x.id)).collect(),
         }
     }
-    fn modifiers<R: RandomSource>(&self, m: &Value, stack: &mut ItemStack, random: &mut R) {
+    fn modifiers(&self, m: &Value, stack: &mut ItemStack, random: &mut R) {
         let list: Vec<&Value> = match m {
             Value::Array(a) => a.iter().collect(),
             Value::Object(_) => vec![m],
@@ -2115,10 +2164,13 @@ impl LootContext<'_> {
                 }
                 "minecraft:enchanted_count_increase" => {
                     // Attacker's level x count, rounded (looting).
-                    let level = self.enchantment_level(f["enchantment"].as_str().unwrap_or(""));
-                    if level > 0 && self.killed_by_player && self.block.is_empty() {
+                    let level =
+                        self.attacker_level(f["enchantment"].as_str().unwrap_or(""), random);
+                    if level > 0 {
                         let add = level as f32 * Self::number(&f["count"], random);
-                        stack.count = (stack.count as i32 + add.round() as i32).max(0) as u32;
+                        // ItemStack.grow: an int sum, which wraps as in Java.
+                        let count = (stack.count as i32).wrapping_add(add.round() as i32);
+                        stack.count = count.max(0) as u32;
                         if let Some(limit) = f["limit"].as_i64().filter(|l| *l > 0) {
                             stack.count = stack.count.min(limit as u32);
                         }
@@ -2980,7 +3032,7 @@ mod tests {
         held: Option<&'a ItemStack>,
         props: &'a horizon_world::chunk::BlockProperties,
         block: &'a str,
-    ) -> LootContext<'a> {
+    ) -> LootContext<'a, LegacyRandom> {
         LootContext {
             items,
             block,
@@ -2989,6 +3041,7 @@ mod tests {
             killed_by_player: block.is_empty(),
             explosion_radius: None,
             this_entity: false,
+            levels: None,
         }
     }
 
@@ -3186,6 +3239,94 @@ mod tests {
         assert_eq!(drops.len(), 1);
         assert_eq!(&*drops[0].item, "minecraft:splash_potion");
         assert_eq!(drops[0].potion(), Some("minecraft:fire_resistance"));
+    }
+
+    /// What `levels` answers is what `/loot ... kill`'s two readers use, with
+    /// no player at all; a level left alone rolls as if nobody were asked.
+    #[test]
+    fn the_answered_level_drives_a_kills_count_and_chance() {
+        let items = Items::for_tests(HashMap::new());
+        let props = horizon_world::chunk::BlockProperties::new();
+        let reads = std::cell::RefCell::new(Vec::new());
+        let levels = |_: &mut LegacyRandom, id: &str, level: u32| {
+            reads.borrow_mut().push((id.to_owned(), level));
+            3
+        };
+        let answered = LootContext {
+            killed_by_player: false,
+            levels: Some(&levels),
+            ..ctx(&items, None, &props, "")
+        };
+        let count = json!({"pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:bone","modifier":[{"type":"minecraft:enchanted_count_increase","count":2.0,"enchantment":"minecraft:looting"}]}]}]});
+        let got = answered.evaluate(&count, &mut LegacyRandom::new(7));
+        assert_eq!(got[0].count, 7);
+        let chance = json!({"pools":[{"rolls":1,"conditions":[{"type":"minecraft:random_chance_with_enchanted_bonus","enchantment":"minecraft:looting","unenchanted_chance":0.0,"enchanted_chance":1.0}],"entries":[{"type":"minecraft:item","name":"minecraft:bone"}]}]});
+        assert_eq!(
+            answered.evaluate(&chance, &mut LegacyRandom::new(7)).len(),
+            1
+        );
+        let looting = ("minecraft:looting".to_owned(), 0);
+        assert_eq!(*reads.borrow(), [looting.clone(), looting]);
+
+        let mut sword = ItemStack::new("minecraft:iron_sword", 1);
+        sword.enchant("minecraft:looting", 2);
+        let same = |_: &mut LegacyRandom, _: &str, level: u32| level;
+        let table = json!({"pools":[{"rolls":1,"conditions":[{"type":"minecraft:random_chance_with_enchanted_bonus","enchantment":"minecraft:looting","unenchanted_chance":0.5,"enchanted_chance":0.5}],"entries":[{"type":"minecraft:item","name":"minecraft:bone","modifier":[{"type":"minecraft:enchanted_count_increase","count":{"type":"minecraft:uniform","min":0.0,"max":3.0},"enchantment":"minecraft:looting"}]}]}]});
+        for seed in 0..16 {
+            let (mut plain, mut asked) = (LegacyRandom::new(seed), LegacyRandom::new(seed));
+            let expected = ctx(&items, Some(&sword), &props, "").evaluate(&table, &mut plain);
+            let got = LootContext {
+                levels: Some(&same),
+                ..ctx(&items, Some(&sword), &props, "")
+            }
+            .evaluate(&table, &mut asked);
+            assert_eq!(
+                got.iter().map(|s| s.count).collect::<Vec<_>>(),
+                expected.iter().map(|s| s.count).collect::<Vec<_>>()
+            );
+            assert_eq!(asked.next_long(), plain.next_long());
+        }
+    }
+
+    /// A draw the answer makes on the roll's random is a draw of the roll.
+    #[test]
+    fn a_kills_answer_draws_on_the_rolls_own_random() {
+        let items = Items::for_tests(HashMap::new());
+        let props = horizon_world::chunk::BlockProperties::new();
+        let drawing = |random: &mut LegacyRandom, _: &str, level: u32| {
+            random.next_int();
+            level
+        };
+        let context = LootContext {
+            levels: Some(&drawing),
+            ..ctx(&items, None, &props, "")
+        };
+        let table = json!({"pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:bone","modifier":[{"type":"minecraft:enchanted_count_increase","count":1.0,"enchantment":"minecraft:looting"}]}]}]});
+        let mut random = LegacyRandom::new(7);
+        context.evaluate(&table, &mut random);
+        let mut expected = LegacyRandom::new(7);
+        expected.next_int();
+        assert_eq!(random.next_long(), expected.next_long());
+    }
+
+    /// A mod may answer any level, and it counts as `MAX_LOOT_LEVEL`.
+    #[test]
+    fn a_kills_largest_level_counts_as_the_most_a_table_reads() {
+        let items = Items::for_tests(HashMap::new());
+        let props = horizon_world::chunk::BlockProperties::new();
+        let huge = |_: &mut LegacyRandom, _: &str, _: u32| u32::MAX;
+        let context = LootContext {
+            levels: Some(&huge),
+            ..ctx(&items, None, &props, "")
+        };
+        let count = json!({"pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:bone","modifier":[{"type":"minecraft:enchanted_count_increase","count":2.0,"enchantment":"minecraft:looting"}]}]}]});
+        let got = context.evaluate(&count, &mut LegacyRandom::new(7));
+        assert_eq!(got[0].count, 1 + 2 * MAX_LOOT_LEVEL as u32);
+        let squared = json!({"pools":[{"rolls":1,"conditions":[{"type":"minecraft:random_chance_with_enchanted_bonus","enchantment":"minecraft:looting","unenchanted_chance":0.0,"enchanted_chance":{"type":"minecraft:levels_squared","added":0.0}}],"entries":[{"type":"minecraft:item","name":"minecraft:bone"}]}]});
+        assert_eq!(
+            context.evaluate(&squared, &mut LegacyRandom::new(7)).len(),
+            1
+        );
     }
 
     /// `/loot give` and every other table this dispatcher rolls: the two
