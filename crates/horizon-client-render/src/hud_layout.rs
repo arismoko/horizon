@@ -6,8 +6,80 @@
 //! drawing so the parity fixture can compare them with the vanilla client.
 use crate::{font::Font, text::Text};
 use horizon_core::random::{LegacyRandom, RandomSource};
-pub use mod_api::hud_layout::{Blend, GuiDraw, HealthInputs, HeartKind, PoseOp};
+pub use mod_api::hud_layout::{Blend, HealthInputs, HeartKind, PoseOp};
 use std::borrow::Cow;
+
+/// One `GuiGraphicsExtractor` call.
+#[derive(Clone, Debug, PartialEq)]
+// exhaustive: a closed set the game matches without a wildcard
+pub enum GuiDraw {
+    /// `blitSprite(pipeline, sprite, x, y, w, h, color)`; `region` =
+    /// (spriteW, spriteH, u, v) for the partial overload.
+    Sprite {
+        sprite: Cow<'static, str>,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        region: Option<[i32; 4]>,
+        color: u32,
+        blend: Blend,
+    },
+    /// `blitSprite(pipeline, TextureAtlasSprite, ...)` with a block atlas
+    /// sprite (the nether portal overlay).
+    AtlasSprite {
+        sprite: Cow<'static, str>,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        color: u32,
+    },
+    /// `blit(pipeline, texture, x, y, u, v, w, h, srcW, srcH, texW, texH,
+    /// color)`; `texture` is the path under `textures/` without `.png`.
+    Blit {
+        texture: Cow<'static, str>,
+        blend: Blend,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        uv: [f32; 2],
+        src: [i32; 2],
+        tex: [i32; 2],
+        color: u32,
+    },
+    /// `fill(x0, y0, x1, y1, color)` with the corners sorted.
+    Fill {
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        color: u32,
+    },
+    /// `text(font, text, x, y, argb, dropShadow)`.
+    Text {
+        text: Text,
+        x: i32,
+        y: i32,
+        color: u32,
+        shadow: bool,
+    },
+    /// `item(owner, stack, x, y, seed)` for a hotbar slot (0-8, 40 = off hand)
+    /// under the pose's x/y scale about (cx, cy) (the pop squeeze).
+    Item {
+        slot: u32,
+        x: i32,
+        y: i32,
+        seed: i32,
+        scale: [f32; 2],
+        pivot: [f32; 2],
+    },
+    /// `pose().pushMatrix()` followed by `ops`.
+    Push(Vec<PoseOp>),
+    /// `pose().popMatrix()`.
+    Pop,
+}
 
 /// A JOML `Matrix3x2f` as `[m00, m01, m10, m11, m20, m21]`.
 pub type Pose = [f32; 6];

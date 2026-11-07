@@ -40,7 +40,8 @@ impl DrawContext for GameDrawContext<'_, '_> {
             .native_item_stack(&mut *self.surface, &stack, at, size)
     }
     fn gui_paint(&mut self, draws: &[GuiDraw]) {
-        self.game.native_gui_paint(&mut *self.surface, draws)
+        let draws = draws.try_into_engine(&()).unwrap();
+        self.game.native_gui_paint(&mut *self.surface, &draws)
     }
     fn gui_nine_slice(&mut self, sprite: &str, rect: [f32; 4], color: u32) {
         self.game

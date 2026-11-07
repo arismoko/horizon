@@ -55,6 +55,7 @@ and remain strings, as do labels and tags.
 | Command `Suggestion` | `mod_api::Suggestion` | Construct with `Suggestion::new((start, end), text)`; optional `tooltip` and `int_value` remain writable. Offsets are byte offsets. |
 | Package block entity type storage | `mod_api::BlockEntityTypeDecl` | Existing `r.block_entity_type(...).build()` registration is unchanged. The declaration snapshot no longer exposes the package parser's model; the game converts it once when declarations freeze. |
 | Component protocol vocabulary | `text::{TextContent, TextNbtSource, TextObject, TextClick, TextHover}` | Match these enums exhaustively: their serialized vocabulary is closed. Records remain `non_exhaustive`. |
+| Renderer GUI commands | `mod_api::GuiDraw` | Mods pass API command records to `DrawContext::gui_paint` and HUD hooks. The renderer keeps its own command buffer and engine text; conversion happens at the game boundary. |
 | File-opening click actions | Not in `text::TextClick` | Mods can neither produce nor round-trip `OpenFile`; untrusted file-opening action metadata is dropped. Part of [per-node origin tracking #1738](https://github.com/arismoko/horizon/issues/1738). |
 
 `mod_api::GameRuleValue` owns the `Bool(bool)` and `Int(i32)` cases, in that order.

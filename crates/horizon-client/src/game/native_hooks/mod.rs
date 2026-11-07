@@ -40,6 +40,7 @@ use horizon_client::{
         Victim,
     },
     hud::{HudBatch, rgba},
+    hud_layout::GuiDraw,
     items::ItemStack,
     keybinds,
     lan::menu::Slots,

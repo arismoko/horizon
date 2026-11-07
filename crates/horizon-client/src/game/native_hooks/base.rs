@@ -832,7 +832,7 @@ impl Game<'_> {
         inputs: &mod_api::hud_layout::HealthInputs,
         wi: i32,
         hi: i32,
-        draws: &mut Option<Vec<mod_api::hud_layout::GuiDraw>>,
+        draws: &mut Option<Vec<GuiDraw>>,
     ) {
         self.fire_health_hud(inputs, wi, hi, draws);
     }
