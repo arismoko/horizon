@@ -2784,6 +2784,28 @@ mod gui_draw_boundary_tests {
 #[cfg(test)]
 mod text_capture_tests {
     use super::{TryIntoApi, TryIntoEngine};
+
+    #[test]
+    fn native_translation_fallback_survives_noop_owned_round_trip() {
+        let language = horizon_client_core::lang::Language::of(
+            "en_us",
+            [("test.fallback".into(), "Wrong translation".into())],
+        );
+        horizon_client_core::lang::scoped(language, || {
+            let native = horizon_client_core::text::Text::translate_with_fallback(
+                "test.missing",
+                "test.fallback",
+                &[],
+            );
+            let mut api = native.try_into_api().unwrap();
+            let listener = |_: &mut mod_api::text::Text| {};
+            listener(&mut api);
+            let actual = api.try_into_engine(&()).unwrap();
+            assert_eq!(actual.plain(), "test.fallback");
+            assert_eq!(actual.spans, native.spans);
+            assert_eq!(actual.component(), native.component());
+        });
+    }
     use horizon_client_core::text::Text as EngineText;
     use mod_api::text::{TextContent as C, TextHover};
     use serde_json::json;

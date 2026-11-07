@@ -237,7 +237,7 @@ impl Text {
     }
     /// Component.translatable(key, args) in the current language.
     pub fn translate(key: &str, args: &[Text]) -> Self {
-        let mut t = format_translation(&lang::get(key), args);
+        let mut t = format_translatable(key, None, args);
         let mut c = Map::new();
         c.insert("translate".into(), key.into());
         if !args.is_empty() {
@@ -249,10 +249,7 @@ impl Text {
     /// Component.translatableWithFallback(key, fallback, args): `translate`, with `fallback` as
     /// the template when the language has no `key`.
     pub fn translate_with_fallback(key: &str, fallback: &str, args: &[Text]) -> Self {
-        let template = lang::current()
-            .and_then(|l| l.get(key).map(str::to_owned))
-            .unwrap_or_else(|| fallback.to_owned());
-        let mut t = format_translation(&template, args);
+        let mut t = format_translatable(key, Some(fallback), args);
         let mut c = Map::new();
         c.insert("translate".into(), key.into());
         c.insert("fallback".into(), fallback.into());
@@ -669,6 +666,18 @@ pub fn legacy_format(style: &Style, code: char, reset: &Style) -> Style {
         _ => {}
     }
     s
+}
+
+/// Shared lookup for constructors and rendering-only component decoding.
+/// A fallback is a literal template, never another translation key.
+pub(crate) fn format_translatable(key: &str, fallback: Option<&str>, args: &[Text]) -> Text {
+    let template = match fallback {
+        Some(fallback) => lang::current()
+            .and_then(|language| language.get(key).map(str::to_owned))
+            .unwrap_or_else(|| fallback.to_owned()),
+        None => lang::get(key),
+    };
+    format_translation(&template, args)
 }
 
 /// TranslatableContents.decomposeTemplate: `%s` takes the next argument,

@@ -412,10 +412,11 @@ impl Sourced {
             }
         }
     }
-    fn translate(self, key: &str, args: &[Text]) -> Text {
-        match self.0 {
-            true => Text::translate(key, args),
-            false => crate::text::format_translation(&crate::lang::get(key), args),
+    fn translate(self, key: &str, fallback: Option<&str>, args: &[Text]) -> Text {
+        match (self.0, fallback) {
+            (true, Some(fallback)) => Text::translate_with_fallback(key, fallback, args),
+            (true, None) => Text::translate(key, args),
+            (false, fallback) => crate::text::format_translatable(key, fallback, args),
         }
     }
 }
@@ -475,13 +476,7 @@ fn build(
                             .collect()
                     })
                     .unwrap_or_default();
-                let translated = sourced.translate(key, &args);
-                match o.get("fallback").and_then(Value::as_str) {
-                    Some(fallback) if translated.plain() == key => {
-                        sourced.translate(fallback, &args)
-                    }
-                    _ => translated,
-                }
+                sourced.translate(key, o.get("fallback").and_then(Value::as_str), &args)
             } else if let Some(sel) = o.get("selector").and_then(Value::as_str) {
                 resolve(sel)
             } else if let Some(key) = o.get("keybind").and_then(Value::as_str) {
@@ -584,6 +579,32 @@ pub fn name_text(tag: &Tag) -> Text {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn translation_fallback_is_a_literal_template_not_a_second_key() {
+        let language = crate::lang::Language::of(
+            "en_us",
+            [
+                ("test.fallback".into(), "Wrong translation".into()),
+                ("test.same".into(), "test.same".into()),
+            ],
+        );
+        crate::lang::scoped(language, || {
+            for (key, fallback, expected) in [
+                ("test.missing", "test.fallback", "test.fallback"),
+                ("test.same", "Wrong fallback", "test.same"),
+            ] {
+                let value = serde_json::json!({"translate":key, "fallback":fallback});
+                assert_eq!(Text::from(value.clone()).plain(), expected);
+                assert_eq!(to_text(&value, &mut |s| Text::literal(s)).plain(), expected);
+            }
+            let value = serde_json::json!({"translate":"test.missing", "fallback":"value: %s", "with":[{"text":"argument", "bold":true}]});
+            let text = Text::from(value);
+            assert_eq!(text.plain(), "value: argument");
+            assert_eq!(text.spans.last().unwrap().style.bold, Some(true));
+        });
+    }
+
     /// SnbtGrammar: a compound or list may end with one comma; two in a row
     /// stay an error.
     #[test]

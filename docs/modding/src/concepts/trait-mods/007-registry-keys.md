@@ -105,6 +105,9 @@ Capture keeps dynamic contents and metadata rather than flattening the rendered 
 It shares the engine's SNBT flag, shadow-colour, click-policy and inline-object parsers.
 File-opening metadata is discarded before a listener receives the owned value; a
 no-op listener cannot promote an untrusted file action into a local action.
+A translatable's fallback is a literal format template, not another language key.
+A missing key whose fallback equals an existing key therefore still displays the
+fallback text itself; parsing and native constructors follow the same rule.
 
 ### Particle identities
 
