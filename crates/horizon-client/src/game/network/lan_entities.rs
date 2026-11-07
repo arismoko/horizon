@@ -605,23 +605,42 @@ impl Game<'_> {
             });
         }
         let next = &mut self.next_entity;
-        let mut give = |id: &mut u32| {
+        self.tnts.iter_mut().for_each(|t| {
+            super::entity::assign_stored_id(next, &mut t.id, None);
+        });
+        self.falling.for_each_mut(|f| {
+            super::entity::assign_stored_id(next, &mut f.id, Some(&f.attachment_lifetime));
+        });
+        self.creatures.projectiles.for_each_mut(|p| {
+            super::entity::assign_stored_id(next, &mut p.id, Some(&p.attachment_lifetime));
+        });
+        self.tridents.iter_mut().for_each(|t| {
+            super::entity::assign_stored_id(next, &mut t.id, None);
+        });
+        self.rockets.iter_mut().for_each(|r| {
+            super::entity::assign_stored_id(next, &mut r.id, None);
+        });
+        self.crystals.iter_mut().for_each(|c| {
+            super::entity::assign_stored_id(next, &mut c.id, None);
+        });
+        self.bolts.iter_mut().for_each(|b| {
+            assign_entity_id(next, &mut b.id);
+        });
+        self.ominous_spawners.for_each_mut(|o| {
+            super::entity::assign_stored_id(next, &mut o.id, None);
+        });
+        self.potions.thrown_ids().for_each(|id| {
             assign_entity_id(next, id);
-        };
-        self.tnts.iter_mut().for_each(|t| give(&mut t.id));
-        self.falling.for_each_mut(|f| give(&mut f.id));
-        self.creatures.projectiles.for_each_mut(|p| give(&mut p.id));
-        self.tridents.iter_mut().for_each(|t| give(&mut t.id));
-        self.rockets.iter_mut().for_each(|r| give(&mut r.id));
-        self.crystals.iter_mut().for_each(|c| give(&mut c.id));
-        self.bolts.iter_mut().for_each(|b| give(&mut b.id));
-        self.ominous_spawners.for_each_mut(|o| give(&mut o.id));
-        self.potions.thrown_ids().for_each(&mut give);
-        self.end.eye_ids().for_each(&mut give);
-        self.breath_clouds.for_each_mut(|b| give(&mut b.id));
-        self.dragon_fireballs
-            .iter_mut()
-            .for_each(|b| give(&mut b.id));
+        });
+        self.end.eye_ids().for_each(|id| {
+            assign_entity_id(next, id);
+        });
+        self.breath_clouds.for_each_mut(|b| {
+            super::entity::assign_stored_id(next, &mut b.id, None);
+        });
+        self.dragon_fireballs.iter_mut().for_each(|b| {
+            assign_entity_id(next, &mut b.id);
+        });
     }
 
     /// Primed TNT, falling blocks, projectiles, tridents, firework rockets and
@@ -960,6 +979,224 @@ fn arrow_meta(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // NBT constructors assign ids. Reinstall unbound owners to exercise delayed tracking.
+    macro_rules! pending {
+        ($list:expr) => {{
+            let mut owner = $list.remove($list.len() - 1);
+            owner.id = 0;
+            $list.push(owner);
+        }};
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn tracking_ids_preserve_all_family_interleaving() {
+        crate::game::native_entity_refs::tests::with_game(|game| {
+            for (kind, nbt) in [
+                ("minecraft:tnt", "{fuse:80s}"),
+                (
+                    "minecraft:falling_block",
+                    "{BlockState:{Name:\"minecraft:sand\"},Time:1}",
+                ),
+                ("minecraft:arrow", "{}"),
+                ("minecraft:trident", "{}"),
+                ("minecraft:firework_rocket", "{LifeTime:20}"),
+                ("minecraft:end_crystal", "{}"),
+                (
+                    "minecraft:ominous_item_spawner",
+                    "{item:{id:\"minecraft:stone\",count:1}}",
+                ),
+                ("minecraft:area_effect_cloud", "{Duration:200,Radius:3.0f}"),
+            ] {
+                game.summon_with_nbt(kind, [1.0, 70.0, 1.0], nbt).unwrap();
+            }
+            pending!(game.tnts);
+            pending!(game.falling);
+            pending!(game.creatures.projectiles);
+            pending!(game.tridents);
+            pending!(game.rockets);
+            pending!(game.crystals);
+            pending!(game.ominous_spawners);
+            pending!(game.breath_clouds);
+            game.spawn_remote_bolt(0, [1.0, 70.0, 1.0]);
+            game.potions.add_remote_thrown(
+                0,
+                "minecraft:splash_potion",
+                Default::default(),
+                Default::default(),
+            );
+            game.end.add_remote_eye(0, [1.0, 70.0, 1.0], [0.0; 3]);
+            game.dragon_fireballs
+                .push(crate::game::dragon::DragonFireball::remote(
+                    0,
+                    Default::default(),
+                    Default::default(),
+                ));
+            let base = game.next_entity;
+            let joined = game.persist.joined_seq;
+            let announced = game.persist.live.clone();
+            let mut slots = crate::game::entity::taken_pass_tests::SlotIdentities::default();
+            for _ in 0..2 {
+                game.lan_assign_ids();
+                let ids = [
+                    game.tnts[0].id,
+                    game.falling[0].id,
+                    game.creatures.projectiles[0].id,
+                    game.tridents[0].id,
+                    game.rockets[0].id,
+                    game.crystals[0].id,
+                    game.bolts[0].id,
+                    game.ominous_spawners[0].id,
+                    *game.potions.thrown_ids().next().unwrap(),
+                    *game.end.eye_ids().next().unwrap(),
+                    game.breath_clouds[0].id,
+                    game.dragon_fireballs[0].id,
+                ];
+                assert_eq!(
+                    ids,
+                    std::array::from_fn::<_, 12, _>(|i| base + i as u32 + 1)
+                );
+                assert_eq!(game.next_entity, base + 12);
+                assert_eq!(game.persist.joined_seq, joined);
+                assert_eq!(game.persist.live, announced);
+                let epoch = game.native_lifecycle.epoch().unwrap();
+                slots.observe(&mut game.falling, epoch, |f| f.id);
+                game.creatures.projectiles.for_each_mut(|p| {
+                    let id = p.id;
+                    slots.observe_one(p, epoch, id);
+                });
+            }
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn tracking_ids_refuse_bound_zero_owners() {
+        for kind in ["minecraft:falling_block", "minecraft:arrow"] {
+            crate::game::native_entity_refs::tests::with_game(|game| {
+                let nbt = if kind == "minecraft:arrow" {
+                    "{}"
+                } else {
+                    "{BlockState:{Name:\"minecraft:sand\"},Time:1}"
+                };
+                game.summon_with_nbt(kind, [1.0, 70.0, 1.0], nbt).unwrap();
+                let epoch = game.native_lifecycle.epoch().unwrap();
+                let mut slots = crate::game::entity::taken_pass_tests::SlotIdentities::default();
+                if kind == "minecraft:arrow" {
+                    pending!(game.creatures.projectiles);
+                    game.creatures
+                        .projectiles
+                        .for_each_mut(|p| slots.observe_one(p, epoch, 0));
+                } else {
+                    pending!(game.falling);
+                    slots.observe(&mut game.falling, epoch, |f| f.id);
+                }
+                let before = game.next_entity;
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    game.lan_assign_ids()
+                }));
+                assert!(result.is_err());
+                assert_eq!(game.next_entity, before);
+            });
+        }
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn tracking_ids_only_number_the_spawn_buffer_during_a_taken_pass() {
+        macro_rules! check {
+            ($kind:expr, $nbt:expr, $game:ident, $list:expr) => {
+                crate::game::native_entity_refs::tests::with_game(|$game| {
+                    $game
+                        .summon_with_nbt($kind, [1.0, 70.0, 1.0], $nbt)
+                        .unwrap();
+                    pending!($list);
+                    let taken = $list.take();
+                    $game
+                        .summon_with_nbt($kind, [2.0, 70.0, 1.0], $nbt)
+                        .unwrap();
+                    pending!($list);
+                    let base = $game.next_entity;
+                    $game.lan_assign_ids();
+                    assert_eq!(taken[0].id, 0);
+                    assert_eq!($list[0].id, base + 1);
+                    $list.restore(taken);
+                    $game.lan_assign_ids();
+                    assert_eq!(
+                        $list.iter().map(|p| p.id).collect::<Vec<_>>(),
+                        [base + 2, base + 1]
+                    );
+                    assert_eq!($game.next_entity, base + 2);
+                });
+            };
+        }
+        crate::game::native_entity_refs::tests::with_game(|game| {
+            game.summon_with_nbt("minecraft:arrow", [1.0, 70.0, 1.0], "{}")
+                .unwrap();
+            pending!(game.creatures.projectiles);
+            let taken = game.take_entities();
+            game.summon_with_nbt("minecraft:arrow", [2.0, 70.0, 1.0], "{}")
+                .unwrap();
+            pending!(game.creatures.projectiles);
+            let base = game.next_entity;
+            game.lan_assign_ids();
+            assert_eq!(game.creatures.projectiles[0].id, base + 1);
+            game.restore_entities(taken);
+            assert_eq!(game.creatures.projectiles[0].id, 0);
+            game.lan_assign_ids();
+            assert_eq!(
+                game.creatures
+                    .projectiles
+                    .iter()
+                    .map(|p| p.id)
+                    .collect::<Vec<_>>(),
+                [base + 2, base + 1]
+            );
+            assert_eq!(game.next_entity, base + 2);
+        });
+        check!(
+            "minecraft:area_effect_cloud",
+            "{Duration:200,Radius:3.0f}",
+            game,
+            game.breath_clouds
+        );
+        check!(
+            "minecraft:ominous_item_spawner",
+            "{}",
+            game,
+            game.ominous_spawners
+        );
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn late_dragon_ids_reserve_parts_before_crystals() {
+        crate::game::native_entity_refs::tests::with_game(|game| {
+            game.summon_with_nbt("minecraft:ender_dragon", [1.0, 70.0, 1.0], "{}")
+                .unwrap();
+            let mut dragon = game.dragon.extract().unwrap();
+            dragon.id = 0;
+            assert!(game.dragon.install(dragon).is_ok());
+            for _ in 0..2 {
+                game.summon_with_nbt("minecraft:end_crystal", [1.0, 70.0, 1.0], "{}")
+                    .unwrap();
+                pending!(game.crystals);
+            }
+            let base = game.next_entity;
+            for _ in 0..2 {
+                game.assign_dragon_and_crystal_ids();
+                assert_eq!(game.dragon.as_ref().unwrap().id, base + 1);
+                assert_eq!(
+                    game.crystals.iter().map(|c| c.id).collect::<Vec<_>>(),
+                    [base + 10, base + 11]
+                );
+                assert_eq!(game.next_entity, base + 11);
+                game.lan_assign_ids();
+                assert_eq!(game.next_entity, base + 11);
+            }
+        });
+    }
 
     #[test]
     fn summoned_ids_are_unique_and_survive_the_tracking_pass() {

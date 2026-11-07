@@ -1342,14 +1342,13 @@ impl Game<'_> {
         if let Some(d) = self.dragon.as_mut()
             && d.id == 0
         {
-            d.id = self.next_entity + 1;
-            self.next_entity += 9;
+            super::entity::assign_stored_id(&mut self.next_entity, &mut d.id, None);
+            self.next_entity += 8;
         }
         // The spikes' crystals too (EndCrystal's constructor): an id whether
         // or not a client has tracked them yet, to be aimed at by it.
         for c in self.crystals.iter_mut().filter(|c| c.id == 0) {
-            self.next_entity += 1;
-            c.id = self.next_entity;
+            super::entity::assign_stored_id(&mut self.next_entity, &mut c.id, None);
         }
     }
     /// EndSpikeFeature's crystals (with fire under them on the bedrock).
