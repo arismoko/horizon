@@ -8,8 +8,12 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod inventory;
+pub use inventory::{Report, Row};
+
 /// The five rows on the Storage page.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, clap::ValueEnum)]
+#[serde(rename_all = "kebab-case")]
 pub enum Category {
     BuildFiles,
     PrebuiltGames,
@@ -143,7 +147,7 @@ impl Storage {
         let mut parts = relative.components().peekable();
         while let Some(part) = parts.next() {
             if parts.peek().is_none() {
-                self.clear_entry(&parent, Path::new(part.as_os_str()))?;
+                Self::clear_entry(&self.directory, &parent, Path::new(part.as_os_str()))?;
             } else {
                 parent = parent.open_dir_nofollow(part.as_os_str())?;
             }
@@ -151,14 +155,14 @@ impl Storage {
         Ok(bytes.saturating_sub(allocated_bytes(path)?))
     }
 
-    fn clear_entry(&self, parent: &Dir, name: &Path) -> Result<(), Error> {
+    fn clear_entry(trash: &Dir, parent: &Dir, name: &Path) -> Result<(), Error> {
         let meta = parent.symlink_metadata(name)?;
         let plan = if meta.is_dir() && !meta.file_type().is_symlink() {
             Plan::pin(&parent.open_dir_nofollow(name)?)?
         } else {
             Plan::pin_file(parent, name)?
         };
-        plan.clear(&self.directory)
+        plan.clear(trash)
     }
 
     pub fn sweep(&self) -> Result<(), Error> {
@@ -166,7 +170,11 @@ impl Storage {
         for entry in self.directory.entries()? {
             let entry = entry?;
             if entry.file_name().to_string_lossy().starts_with(".trash-") {
-                self.clear_entry(&self.directory, Path::new(&entry.file_name()))?;
+                Self::clear_entry(
+                    &self.directory,
+                    &self.directory,
+                    Path::new(&entry.file_name()),
+                )?;
             }
         }
         Ok(())

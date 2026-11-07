@@ -564,7 +564,7 @@ pub fn sync_internals(
 
 pub const DEFAULT_CACHE_GIB: u64 = 30;
 
-fn cache_error(error: crate::native_cache::Error) -> String {
+pub fn cache_error(error: crate::storage::Error) -> String {
     match error {
         crate::native_cache::Error::Busy => {
             tr("A native build or cache cleanup is running. Try again when it finishes.").into()
@@ -578,34 +578,6 @@ fn cache_error(error: crate::native_cache::Error) -> String {
             &[("error", &error.to_string())],
         ),
     }
-}
-
-#[derive(serde::Serialize)]
-pub struct CacheInfo {
-    pub path: PathBuf,
-    pub bytes: u64,
-    pub cleared_bytes: u64,
-    pub limit_gib: u64,
-}
-
-/// Inspect or clear only Cargo's native fast/release outputs, while no build is using them.
-/// This does not remove installed versions, instances, mods, saves, toolchains or downloads.
-pub fn cache_info(clear: bool) -> Result<CacheInfo, String> {
-    let cache = crate::native_cache::Cache::acquire(&backend::build_dir()).map_err(cache_error)?;
-    let bytes = cache.bytes().map_err(cache_error)?;
-    let cleared_bytes = if clear {
-        cache.clear().map_err(cache_error)?
-    } else {
-        0
-    };
-    Ok(CacheInfo {
-        path: root().join("target"),
-        bytes,
-        cleared_bytes,
-        limit_gib: backend::Settings::load()
-            .native_cache_gib
-            .unwrap_or(DEFAULT_CACHE_GIB),
-    })
 }
 
 const MANIFEST: &str = "horizon-mixin.toml";

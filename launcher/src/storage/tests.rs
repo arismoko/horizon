@@ -1,9 +1,9 @@
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-struct Home(PathBuf);
+pub(super) struct Home(pub(super) PathBuf);
 impl Home {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
             "horizon-storage-{}-{}",
@@ -13,7 +13,7 @@ impl Home {
         fs::create_dir(&path).unwrap();
         Self(path)
     }
-    fn seed(&self, path: &str) -> PathBuf {
+    pub(super) fn seed(&self, path: &str) -> PathBuf {
         let path = self.0.join(path);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, vec![7; 8192]).unwrap();
