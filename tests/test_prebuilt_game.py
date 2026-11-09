@@ -8,6 +8,18 @@ from pathlib import Path
 from tools import prebuilt_game
 
 
+class AllocatorSelectionTests(unittest.TestCase):
+    def test_windows_archives_use_the_system_allocator(self):
+        self.assertEqual(prebuilt_game.cargo_features(False, "win32"), ["--features", "system-allocator"])
+        self.assertEqual(prebuilt_game.cargo_features(True, "win32"),
+                         ["--no-default-features", "--features", "system-allocator"])
+
+    def test_other_systems_keep_mimalloc(self):
+        for platform in ("linux", "darwin"):
+            self.assertEqual(prebuilt_game.cargo_features(False, platform), [])
+            self.assertEqual(prebuilt_game.cargo_features(True, platform), ["--no-default-features"])
+
+
 class PrebuiltContentsTests(unittest.TestCase):
     def folder(self, *names: str) -> Path:
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))

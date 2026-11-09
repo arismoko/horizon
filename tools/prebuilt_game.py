@@ -82,6 +82,17 @@ def stage(target_dir: Path) -> Path:
     return staged
 
 
+def cargo_features(server: bool, platform: str) -> list[str]:
+    """The game crate's features for this archive. On Windows the game keeps no allocator of its own (#2392):
+    std is a DLL there with its own default-allocator shim, and Windows binds each import to the DLL that exports
+    it, so a mimalloc `#[global_allocator]` in the game would leave the mods' executable and std's own code on
+    the system heap beside it. Elsewhere the first definition wins and every library shares the game's mimalloc."""
+    features = ["--no-default-features"] if server else []
+    if platform == "win32":
+        features += ["--features", "system-allocator"]
+    return features
+
+
 def build(out: Path, server: bool) -> None:
     # Resolved here: the staging and build steps run from the staged copy.
     target_dir = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")).resolve() / "prebuilt"
@@ -91,7 +102,7 @@ def build(out: Path, server: bool) -> None:
     # On macOS this also gives both dylibs an @rpath install name instead of an absolute build path.
     if sys.platform == "darwin":
         rustflags += " -C rpath"
-    features = ["--no-default-features"] if server else []
+    features = cargo_features(server, sys.platform)
     # Linux's executable RUNPATH doesn't cover transitive dependencies: the game itself must find
     # the wasm runtime beside it. macOS's @rpath install names use the executable's rpath.
     link = ["--", "-C", "link-arg=-Wl,-rpath,$ORIGIN"] if sys.platform == "linux" else []

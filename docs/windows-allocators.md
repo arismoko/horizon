@@ -1,8 +1,11 @@
 # Windows allocator experiments
 
 The normal client already uses mimalloc through `horizon_threads::Allocator`,
-including its startup configuration and memory-release behavior. It does not
-request Windows Segment Heap. An off-by-default Cargo feature allows a separate
+including its startup configuration and memory-release behavior. The Windows
+prebuilt archive that native mods build against is the exception: it uses the
+system heap (feature `system-allocator`), because std is a separate DLL there
+with its own allocator, and a mimalloc game would leave the mods and std's own
+allocations on a second heap (#2392). It does not request Windows Segment Heap. An off-by-default Cargo feature allows a separate
 experiment with the Win32 heap used by native libraries:
 
 | Feature | Effect on Windows |
