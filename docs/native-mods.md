@@ -4624,7 +4624,9 @@ API 10, `crates/horizon-client/src/game/native_menus.rs`: menus a server mod bui
 stock client shows as a chest (`generic_9x1` to `generic_9x6`); nothing is installed on the player's side.
 
 - `native_open_menu(uuid, rows, title, items)` opens one in place of the player's open menu (its window id);
-  `native_set_menu_items(uuid, items)` changes what it shows; `native_close_menu(uuid)` closes it.
+  `native_set_menu_items(uuid, items)` changes what it shows; `native_close_menu(uuid)` closes it. Inside a
+  player's own hook (an interaction, a command), the menu opens as that turn ends, still on the same tick, with
+  the window id the call returned.
 - **No click moves anything.** Each reaches `native_menu_clicked(uuid, window, slot, button, mode)`, and the client
   is sent the menu, its inventory and its cursor as they were. `slot` counts the menu's own slots first, then the
   player's inventory below it: `native_menu_inventory_slot(size, slot)` gives the inventory slot (0..9 the hotbar).
@@ -4636,8 +4638,11 @@ stock client shows as a chest (`generic_9x1` to `generic_9x6`); nothing is insta
   dead). A trade on these menus leaves the offered stacks in their owners' inventories until this one step, so
   closing the menu, leaving or dying moves nothing.
 
-The menu hooks run with no player's state swapped in; `native_player_stacks` and `native_exchange_items` refuse a
-player whose state is (inside `native_perform_command`): call them from a menu hook or `native_server_tick`.
+The menu hooks run with no player's state swapped in. `native_player_stacks` and `native_exchange_items` refuse a
+player whose state is swapped in (inside `native_perform_command`, or another player's hook): call them from a menu
+hook or `native_server_tick`. A menu opened inside a player's own hook (a mob interaction, a command) opens as that
+turn ends, on the same tick, with the window id `native_open_menu` returned; until then `native_menu_contents`
+answers with what it will show, and `native_set_menu_items` and `native_close_menu` change or cancel it.
 
 ### Text, turning parts and copycats in block entities
 

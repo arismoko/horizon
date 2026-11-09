@@ -3070,9 +3070,9 @@ struct Game<'a> {
     lan_acting_name: Option<String>,
     /// Their UUID (`Player.getUUID`).
     lan_acting_uuid: Option<u128>,
-    /// The player and the stack on their cursor as they clicked a native
-    /// menu, while `native_menu_clicked` hears it (`native_menu_cursor`).
-    native_click_cursor: Option<(u128, Option<horizon_client::items::ItemStack>)>,
+    /// The cursor of a native menu click, and the menus a mod opened in the
+    /// acting guest's turn, which open as it ends (`native_menus::MenuTurn`).
+    menu_turn: native_menus::MenuTurn,
     /// Where the mods refused to prime TNT: the sound and game event the level
     /// queued right after the prime are dropped (`prime_tnt_event`).
     tnt_refused: Option<BlockPos>,
@@ -12371,7 +12371,7 @@ impl<'a> Game<'a> {
             guest_player_sounds: Vec::new(),
             lan_acting_name: None,
             lan_acting_uuid: None,
-            native_click_cursor: None,
+            menu_turn: Default::default(),
             tnt_refused: None,
             lan_acting_permission: None,
             lan_acting_spawn_protection: None,

@@ -384,6 +384,21 @@ impl Hub {
         conn: u32,
         rows: u8,
         title: Tag,
+        items: Vec<Option<ItemStack>>,
+    ) -> Option<i32> {
+        self.open_native_menu_with_window(conn, None, rows, title, items)
+    }
+
+    /// `open_native_menu` with the window id it takes: `Some` one a caller
+    /// reserved before the guest's turn ended (a mod opened the menu while the
+    /// hub was out of reach, #13974), which becomes the guest's next window
+    /// so later menus continue from it; None for the next one.
+    pub fn open_native_menu_with_window(
+        &mut self,
+        conn: u32,
+        reserved: Option<i32>,
+        rows: u8,
+        title: Tag,
         mut items: Vec<Option<ItemStack>>,
     ) -> Option<i32> {
         let rows = rows.clamp(1, 6);
@@ -398,7 +413,7 @@ impl Hub {
         items.resize(size, None);
         let g = &mut self.guests[i];
         g.native_menu = items.clone();
-        g.next_window = g.next_window % 100 + 1;
+        g.next_window = reserved.unwrap_or(g.next_window % 100 + 1);
         let window = g.next_window;
         g.send(&C::OpenScreen(play::OpenScreen {
             container: window,

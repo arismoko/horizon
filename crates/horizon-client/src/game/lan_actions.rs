@@ -551,7 +551,7 @@ impl Game<'_> {
             play.score_recorded = Default::default();
         }
         let g = &mut host.hub.guests[i];
-        // The guest's body.
+        self.menu_turn.next_window = Some(g.next_window);
         let Some(mut motion) = g.motion.take() else {
             self.ui.registries.permission = permission;
             host.play.insert(conn, play);
@@ -813,6 +813,7 @@ impl Game<'_> {
     /// The second half of `as_guest`: the guest's state back into their
     /// record, the game's back in place, and what the turn changed sent.
     pub(super) fn leave_guest(&mut self, host: &mut LanHost, swap: GuestSwap) {
+        self.flush_deferred_menus(host);
         let turn_events = self
             .player
             .as_mut()
@@ -1013,7 +1014,6 @@ impl Game<'_> {
         // An ender chest the guest opened: the menu shows their inventory
         // itself (lan_open_container), not a stand-in block entity.
         self.close_ender_chest();
-
         // What the action opened: handed to the guest instead of the host.
         let opened = self.container.take();
         let guest_table = std::mem::replace(&mut self.craft_table, craft_table);

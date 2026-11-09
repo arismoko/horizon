@@ -109,11 +109,38 @@ fn exchange(
     Ok(())
 }
 
+/// A menu a mod opened while the acting player's state was swapped in and the
+/// hub was out of `Game::lan` (a player interaction's hook, #13974): it opens
+/// as the turn ends (`Game::flush_deferred_menus`), with the window id
+/// reserved when the mod asked for it.
+pub(super) struct DeferredMenu {
+    pub(super) uuid: u128,
+    pub(super) window: i32,
+    pub(super) rows: u8,
+    pub(super) title: Text,
+    pub(super) items: Vec<Option<ItemStack>>,
+    pub(super) input: Option<Range<usize>>,
+}
+
+/// The menu API's per-turn state (`Game::menu_turn`): the click
+/// `native_menu_cursor` answers with while a click is heard, and the menus a
+/// mod opened during the acting player's turn, while the hub was out of
+/// `Game::lan` — they open as the turn ends, with the window ids reserved
+/// then (#13974).
+#[derive(Default)]
+pub(super) struct MenuTurn {
+    pub(super) click: Option<(u128, Option<ItemStack>)>,
+    pub(super) deferred: Vec<DeferredMenu>,
+    /// The acting guest's next window id, which a queued menu takes.
+    pub(super) next_window: Option<i32>,
+}
+
 /// Server menus, for server mods (API 10). The players are named by UUID;
-/// none of these runs while a player's state is swapped in (inside
-/// `native_perform_command`, the menus can be opened and filled, but
-/// `native_player_stacks` and `native_exchange_items` refuse: call them from
-/// `native_menu_clicked` or `native_server_tick`).
+/// `native_player_stacks` and `native_exchange_items` refuse while a player's
+/// state is swapped in (call them from `native_menu_clicked` or
+/// `native_server_tick`). A menu opened while one is swapped in, outside
+/// `native_perform_command` where the hub is back in place, opens as that
+/// turn ends, in the order the mod asked for it.
 impl Game<'_> {
     pub(super) fn native_conn(&self, uuid: u128) -> Option<u32> {
         let host = self.lan.as_ref()?;
@@ -126,7 +153,9 @@ impl Game<'_> {
     }
     /// Opens a chest menu of `rows` rows (1 to 6) titled `title` for the
     /// player, showing `items` (by slot, padded with empty ones), in place of
-    /// the menu they had open: its window id.
+    /// the menu they had open: its window id. Inside the player's own turn
+    /// (a hook), the menu opens as that turn ends, with the id it reserves
+    /// now (#13974).
     pub(super) fn native_open_menu(
         &mut self,
         uuid: u128,
@@ -134,19 +163,95 @@ impl Game<'_> {
         title: Text,
         items: Vec<Option<ItemStack>>,
     ) -> Option<i32> {
-        let conn = self.native_conn(uuid)?;
+        self.open_native_menu_for(uuid, rows, title, items, None)
+    }
+    /// `native_open_menu`, with the input slots of
+    /// `native_open_menu_with_input`.
+    fn open_native_menu_for(
+        &mut self,
+        uuid: u128,
+        rows: u8,
+        title: Text,
+        items: Vec<Option<ItemStack>>,
+        input: Option<Range<usize>>,
+    ) -> Option<i32> {
+        let Some(conn) = self.native_conn(uuid) else {
+            // The acting player's turn has the hub out of `self.lan`
+            // (`as_guest`): reserve its next window and open the menu when
+            // the turn ends, which is the tick's own ordering anyway.
+            if self.lan.is_none() && self.lan_acting_uuid == Some(uuid) {
+                let next = self.menu_turn.next_window?;
+                let window = next % 100 + 1;
+                self.menu_turn.next_window = Some(window);
+                self.menu_turn.deferred.push(DeferredMenu {
+                    uuid,
+                    window,
+                    rows,
+                    title,
+                    items,
+                    input,
+                });
+                return Some(window);
+            }
+            return None;
+        };
         let mut host = self.lan.take()?;
         // ServerPlayer.openMenu closes the menu that was open.
         self.guest_close_all(&mut host, conn);
         let window =
             host.hub
                 .open_native_menu(conn, rows, component_nbt(&title.component()), items);
+        if let (Some(_), Some(input)) = (window, input) {
+            host.hub.set_native_store(conn, NativeStore::Input(input));
+        }
         self.lan = Some(host);
         window
+    }
+    /// Opens the menus mods asked for during the player's turn, now that the
+    /// hub is back, in the order they asked for them (#13974).
+    pub(super) fn flush_deferred_menus(&mut self, host: &mut LanHost) {
+        self.menu_turn.next_window = None;
+        for menu in std::mem::take(&mut self.menu_turn.deferred) {
+            let Some(conn) = host
+                .hub
+                .guests
+                .iter()
+                .find(|g| g.placed && g.uuid == menu.uuid)
+                .map(|g| g.conn)
+            else {
+                continue;
+            };
+            self.guest_close_all(host, conn);
+            let window = host.hub.open_native_menu_with_window(
+                conn,
+                Some(menu.window),
+                menu.rows,
+                component_nbt(&menu.title.component()),
+                menu.items,
+            );
+            if let (Some(_), Some(input)) = (window, menu.input) {
+                host.hub.set_native_store(conn, NativeStore::Input(input));
+            }
+        }
     }
     /// Replaces what the player's open native menu shows; sent with the
     /// tick's container sync.
     pub(super) fn native_set_menu_items(&mut self, uuid: u128, items: Vec<Option<ItemStack>>) {
+        // A menu opened in the player's turn is not open yet (#13974): the
+        // change is one it opens with.
+        let mut queued = false;
+        for menu in self
+            .menu_turn
+            .deferred
+            .iter_mut()
+            .filter(|m| m.uuid == uuid)
+        {
+            menu.items = items.clone();
+            queued = true;
+        }
+        if queued {
+            return;
+        }
         if let Some(conn) = self.native_conn(uuid)
             && let Some(host) = self.lan.as_mut()
         {
@@ -176,17 +281,22 @@ impl Game<'_> {
         if input.is_empty() || input.end > size {
             return None;
         }
-        let conn = self.native_conn(uuid)?;
-        let window = self.native_open_menu(uuid, rows, title, items)?;
-        if let Some(host) = self.lan.as_mut() {
-            host.hub.set_native_store(conn, NativeStore::Input(input));
-        }
-        Some(window)
+        self.open_native_menu_for(uuid, rows, title, items, Some(input))
     }
     /// What the player's open native menu holds, by slot: the items the mod
     /// shows and what the player put in its input slots. None while no menu
     /// a mod opened is open. API @API:menu_input@.
     pub(super) fn native_menu_contents(&self, uuid: u128) -> Option<Vec<Option<ItemStack>>> {
+        // A menu opened in the player's turn, opening at its end (#13974).
+        if let Some(menu) = self
+            .menu_turn
+            .deferred
+            .iter()
+            .rev()
+            .find(|m| m.uuid == uuid)
+        {
+            return Some(menu.items.clone());
+        }
         let host = self.lan.as_ref()?;
         let g = host
             .hub
@@ -201,7 +311,7 @@ impl Game<'_> {
     /// moves nothing, so it is still there); else the one they hold now.
     /// None for an empty cursor or a player not here. API @API:menu_input@.
     pub(super) fn native_menu_cursor(&self, uuid: u128) -> Option<ItemStack> {
-        if let Some((player, cursor)) = &self.native_click_cursor
+        if let Some((player, cursor)) = &self.menu_turn.click
             && *player == uuid
         {
             return cursor.clone();
@@ -216,6 +326,9 @@ impl Game<'_> {
     }
     /// Closes the player's native menu (a `native_menu_closed` follows).
     pub(super) fn native_close_menu(&mut self, uuid: u128) {
+        // A menu opened and closed in the player's turn never opens
+        // (#13974).
+        self.menu_turn.deferred.retain(|m| m.uuid != uuid);
         if let Some(conn) = self.native_conn(uuid)
             && let Some(host) = self.lan.as_mut()
             && host
@@ -455,9 +568,9 @@ impl Game<'_> {
                     mode,
                     cursor,
                 } => {
-                    self.native_click_cursor = Some((uuid, cursor));
+                    self.menu_turn.click = Some((uuid, cursor));
                     self.native_menu_clicked(uuid, window, slot, button, mode);
-                    self.native_click_cursor = None;
+                    self.menu_turn.click = None;
                 }
                 NativeMenuEvent::Closed { uuid, window } => self.native_menu_closed(uuid, window),
             }
@@ -683,5 +796,111 @@ mod tests {
         let mut b = b0.clone();
         assert!(exchange(&mut a, &twice, &mut b, &[], max).is_err());
         assert_eq!((&a, &b), (&a0, &b0));
+    }
+
+    /// #13974: a mod opening a menu from a player interaction's hook runs
+    /// while the guest's turn has the hub out of `Game::lan`, so the menu
+    /// opens as the turn ends, with the window id the call reserved; a later
+    /// open continues from that id.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_menu_opened_in_a_guest_turn_opens_as_it_ends() {
+        use crate::game::lan::LanSettings;
+        use horizon_client::lan::{Joined, NetConfig, PlayerSender, guest::Guest, hub::HubConfig};
+        use horizon_protocol::packets::configuration::ClientInformation;
+        use std::sync::{Arc, atomic::AtomicI32, mpsc};
+
+        let mut game = crate::game::native_machines::tests::server_game();
+        game.build_registries();
+        game.lan_host(
+            LanSettings {
+                port: 0,
+                guest_commands: true,
+                force_game_mode: false,
+            },
+            NetConfig {
+                announce: false,
+                ..NetConfig::loopback(0, "native-menu-turn".into(), 2)
+            },
+            HubConfig {
+                default_game_mode: 0,
+                guest_commands: true,
+                force_game_mode: false,
+                hardcore: false,
+                view_distance: 2,
+                simulation_distance: 2,
+                dimension: "minecraft:overworld".into(),
+                allow_flight: false,
+                seed: 0,
+                max_players: 2,
+                integrated: false,
+                levels: Default::default(),
+            },
+        )
+        .unwrap();
+        let (tx, _rx) = mpsc::channel();
+        let mut guest = Guest::new(
+            Joined {
+                conn: 2,
+                uuid: 207,
+                name: "MenuGuest".into(),
+                properties: Vec::new(),
+                info: ClientInformation::new(2),
+                brand: "test".into(),
+                sender: PlayerSender::new(tx, Arc::default()),
+                latency: Arc::new(AtomicI32::new(0)),
+                address: "127.0.0.1:25565".parse().unwrap(),
+                expected: false,
+                configured: Default::default(),
+            },
+            2,
+            [0.5, 64.0, 0.5],
+            2,
+        );
+        guest.dimension = "minecraft:overworld".into();
+        guest.placed = true;
+        guest.loaded = true;
+        let mut host = game.lan.take().unwrap();
+        host.hub.guests.push(guest);
+
+        let items = vec![Some(stack("minecraft:diamond", 1))];
+        let emerald = vec![Some(stack("minecraft:emerald", 1))];
+        let (first, shown, closed, second) = game
+            .as_guest(&mut host, 2, |g| {
+                assert!(g.lan.is_none(), "the hub is out for the guest's turn");
+                let first = g.native_open_menu(207, 1, Text::literal("Menu"), items.clone());
+                // What the turn changes is what the menu opens with; one
+                // closed before the turn ends never opens.
+                g.native_set_menu_items(207, emerald);
+                let shown = g.native_menu_contents(207);
+                g.native_close_menu(207);
+                let closed = g.native_menu_contents(207);
+                let second =
+                    g.native_open_menu_with_input(207, 1, Text::literal("Menu"), items, 0..9);
+                (first, shown, closed, second)
+            })
+            .expect("the guest is in place");
+        assert_eq!(first, Some(1));
+        assert_eq!(
+            shown
+                .as_ref()
+                .and_then(|slots| slots[0].as_ref())
+                .map(|s| &*s.item),
+            Some("minecraft:emerald")
+        );
+        assert_eq!(closed, None);
+        assert_eq!(second, Some(2));
+        let g = host.hub.guest(2).unwrap();
+        let menu = g.menu.as_ref().expect("the menu opened as the turn ended");
+        assert_eq!(menu.window, 2);
+        assert_eq!(menu.slots, Slots::Native);
+        assert_eq!(
+            g.native_menu[0].as_ref().map(|s| (&*s.item, s.count)),
+            Some(("minecraft:diamond", 1))
+        );
+        assert!(matches!(
+            g.native_store,
+            Some(NativeStore::Input(ref input)) if *input == (0..9)
+        ));
     }
 }
