@@ -9,14 +9,14 @@ use horizon_core::geometry::Direction;
 
 /// A slot of a container as a side reaches it (`native_container_slots`).
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct NativeContainerSlot {
+pub struct NativeContainerSlot {
     /// Its number, for `native_extract_item`.
-    pub(crate) slot: usize,
-    pub(crate) stack: Option<ItemStack>,
+    pub slot: usize,
+    pub stack: Option<ItemStack>,
     /// Whether its stack can be taken through this side: not a furnace's fuel
     /// through its bottom, unless it's a bucket, nor a brewing stand's reagent
     /// unless it's a glass bottle, nor a mod's slot outside its `outputs`.
-    pub(crate) can_take: bool,
+    pub can_take: bool,
 }
 
 /// Whether a mod can take items from this container (`native_item_source`).

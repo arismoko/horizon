@@ -12,7 +12,7 @@ pub(super) const NATIVE_EXPLOSION_MAX_RADIUS: f32 = 32.0;
 /// mods only.
 #[allow(dead_code, reason = "native mod API (docs/native-mods.md)")]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum NativeBlast {
+pub enum NativeBlast {
     /// Blocks stay; entities are hurt and pushed (`ExplosionInteraction.NONE`).
     Keep,
     /// Blocks break and drop by the `block_explosion_drop_decay` rule

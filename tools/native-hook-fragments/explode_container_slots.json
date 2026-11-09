@@ -1,0 +1,16 @@
+{
+  "hooks": [],
+  "helpers": [
+    {
+      "name": "explode",
+      "target": "horizon_client::game::native_explosions::Game<'_>::native_explode"
+    },
+    {
+      "name": "container_slots",
+      "target": "horizon_client::game::machines::native_items::Game<'_>::native_container_slots"
+    }
+  ],
+  "rust_summary": "explosions and a container's slots for trait mods (`explode`, `container_slots`).",
+  "doc_summary": "`Host::explode(dimension, center, radius, fire, blast)` (`native_explode`, `Level.explode`) and `Host::container_slots(dimension, pos, face)` (`native_container_slots`), so a trait mod's explosives, pipes and import buses reach what mixin bundles already could. Bundles need \"hooks\": @API:explode_container_slots@.",
+  "comments": []
+}
