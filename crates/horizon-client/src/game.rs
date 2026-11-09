@@ -568,8 +568,7 @@ use loading_screen::{
 use loading_window::{
     build_renderer, loading_frame, loading_renderer, prepare_renderer_textures, start_game,
 };
-pub use machines::native_fluids::NativeFluidTank;
-pub use machines::native_items::NativeContainerSlot;
+pub use machines::{native_fluids::NativeFluidTank, native_items::NativeContainerSlot};
 pub use maps::{NativeMapDecoration, NativeMapInfo};
 pub use native_block_entity_draw::BlockEntityDraw;
 pub use native_chunk_snapshot::NativeChunkSnapshot;
@@ -579,8 +578,7 @@ pub use native_components::NativeComponentError;
 pub use native_configs::{NativeConfig, NativeConfigFile, NativeConfigKind};
 pub use native_criteria::NativeCriterion;
 pub use native_data_maps::NativeDataMapType;
-pub use native_explosions::NativeBlast;
-pub use native_falling::NativeFalling;
+pub use {native_explosions::NativeBlast, native_falling::NativeFalling};
 pub use native_hooks::{NativeClock, NativeItemEntity, NativePlayer, NativeShake};
 pub use native_inventories::{NativeInventoryError, NativeInventoryKind};
 pub use native_item_energy::ItemEnergyBuffer;
