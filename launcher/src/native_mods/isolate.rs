@@ -102,6 +102,14 @@ fn modules(bundle: &Bundle) -> Vec<(String, String)> {
 /// this Horizon may not have); between two mods, neither: the later one is left out.
 pub(super) fn from_mixins(output: &str, mods: &[Bundle]) -> Option<LeftOut> {
     let value: serde_json::Value = serde_json::from_str(&output[output.find('{')?..]).ok()?;
+    // A helper that breaks a rule of the format is the mod's own source: every
+    // Horizon refuses it, so no version it could be built on would take it.
+    // The build fails with the tool's diagnostic (which names the helper, the
+    // injection and the code) instead of leaving the mod out as made for
+    // another Horizon version (#13971).
+    if value["code"].as_str() == Some("E_INVALID_HELPER") {
+        return None;
+    }
     let message = value["message"].as_str().unwrap_or_default();
     let declared: Vec<(&Bundle, Vec<(String, String)>)> =
         mods.iter().map(|b| (b, modules(b))).collect();
@@ -242,6 +250,25 @@ mod tests {
             None
         );
         assert_eq!(from_mixins("no diagnostic", &mods), None);
+    }
+
+    /// A helper that breaks a rule of the format is the mod's own source, not
+    /// a Horizon it doesn't fit: the build fails with the tool's diagnostic
+    /// (which names the injection and the code) rather than leaving the mod out
+    /// as "made for another Horizon version" (#13971).
+    #[test]
+    fn an_invalid_helper_fails_the_build_instead_of_leaving_its_mod_out() {
+        let root = super::super::tests::dir("isolate-invalid-helper");
+        let mods = [bundle(&root, "armor_hud", &[])];
+        // Two functions in one helper: horizon-mixins refuses the bundle.
+        let output = r#"{
+  "code": "E_INVALID_HELPER",
+  "message": "helper 'x.rs' must contain exactly one function",
+  "file": "mixins.incoming/armor_hud/x.rs",
+  "mod_id": "armor_hud",
+  "injection_id": "hud"
+}"#;
+        assert_eq!(from_mixins(output, &mods), None);
     }
 
     #[test]
