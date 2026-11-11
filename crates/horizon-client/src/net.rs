@@ -1397,6 +1397,14 @@ fn configure(
                         .as_deref()
                         == Some("horizon")
                 {
+                    if let Some(control) = negotiation.require_protocol() {
+                        reply(cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                            channel: horizon_protocol::payload_negotiation::CHANNEL.into(),
+                            data: control
+                                .encode()
+                                .map_err(|error| Reason::plain(error.to_string()))?,
+                        }))?;
+                    }
                     let mut w = horizon_protocol::buf::Writer::new();
                     w.string("horizon");
                     reply(cfg::Serverbound::CustomPayload(cfg::CustomPayload {
@@ -1791,6 +1799,69 @@ mod tests {
     }
 
     #[test]
+    fn horizon_server_without_raw_protocol_is_refused_at_finish() {
+        for wrong_version in [false, true] {
+            let (root, data) = empty_item_data("raw-protocol-refusal");
+            let (client, server) = horizon_protocol::connection::Pipe::pair();
+            let (mut reader, writer) = Connection::local(client).split();
+            reader
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            let thread = std::thread::spawn(move || {
+                let (send, _events) = event_channel();
+                configure(
+                    &mut reader,
+                    &Arc::new(Mutex::new(Some(QueuedWriter::new(writer).unwrap()))),
+                    &Arc::new(AtomicBool::new(true)),
+                    &Language::new(),
+                    &send,
+                    &Cookies::default(),
+                    &data,
+                    &crate::raw_payloads::Transport::empty(),
+                )
+            });
+            let mut server = Connection::local(server);
+            let mut brand = horizon_protocol::buf::Writer::new();
+            brand.string("horizon");
+            server
+                .send(
+                    &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                        channel: "minecraft:brand".into(),
+                        data: brand.data,
+                    })
+                    .encode(),
+                )
+                .unwrap();
+            if wrong_version {
+                server
+                    .send(
+                        &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                            channel: horizon_protocol::payload_negotiation::CHANNEL.into(),
+                            data: vec![0, horizon_protocol::payload_negotiation::RAW_PROTOCOL + 1],
+                        })
+                        .encode(),
+                    )
+                    .unwrap();
+            } else {
+                server
+                    .send(&cfg::Clientbound::FinishConfiguration(Empty).encode())
+                    .unwrap();
+            }
+            let error = thread
+                .join()
+                .unwrap()
+                .err()
+                .expect("old Horizon server admitted");
+            assert!(error.text.contains(if wrong_version {
+                "protocol version"
+            } else {
+                "missing response"
+            }));
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
     fn configuration_keeps_mod_lists_private_until_the_server_identifies_as_horizon() {
         for server_brand in ["vanilla", "horizon"] {
             let (root, data) = empty_item_data(&format!("mod-list-{server_brand}"));
@@ -1862,6 +1933,22 @@ mod tests {
             loop {
                 let (id, body) = server.recv().unwrap();
                 match cfg::Serverbound::decode(id, &body).unwrap() {
+                    cfg::Serverbound::CustomPayload(p)
+                        if p.channel == horizon_protocol::payload_negotiation::CHANNEL =>
+                    {
+                        use horizon_protocol::payload_negotiation::{CHANNEL, Control, Manifest};
+                        if Control::decode(&p.data).unwrap() == Control::Query {
+                            server
+                                .send(
+                                    &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                                        channel: CHANNEL.into(),
+                                        data: Control::Offer(Manifest::default()).encode().unwrap(),
+                                    })
+                                    .encode(),
+                                )
+                                .unwrap();
+                        }
+                    }
                     cfg::Serverbound::CustomPayload(p)
                         if p.channel == horizon_protocol::mod_list::CHANNEL =>
                     {

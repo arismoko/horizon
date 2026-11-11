@@ -95,20 +95,26 @@ fn codec_limits_and_malformed() {
         Control::decode(&vec![0; MAX_MANIFEST_BYTES + 1]),
         Err(Error::MetadataTooLarge)
     );
-    assert_eq!(Control::decode(&[0, 1]), Err(Error::TrailingBytes));
+    assert_eq!(
+        Control::decode(&[0, RAW_PROTOCOL, 1]),
+        Err(Error::TrailingBytes)
+    );
     assert_eq!(Control::decode(&[3]), Err(Error::InvalidFlags));
     let mut w = Writer::new();
     w.u8(1);
+    w.u8(RAW_PROTOCOL);
     w.varint(4097);
     assert_eq!(Control::decode(&w.data), Err(Error::TooManyRecords));
     let mut w = Writer::new();
     w.u8(1);
+    w.u8(RAW_PROTOCOL);
     w.varint(1);
     w.u8(0);
     w.varint(98302);
     assert!(matches!(Control::decode(&w.data), Err(Error::Codec(_))));
     let mut w = Writer::new();
     w.u8(1);
+    w.u8(RAW_PROTOCOL);
     w.varint(2);
     for _ in 0..2 {
         w.u8(0);
@@ -122,7 +128,7 @@ fn codec_limits_and_malformed() {
         Err(Error::Duplicate { .. })
     ));
     let mut invalid = w.data.clone();
-    invalid[2] = 7;
+    invalid[3] = 7;
     assert_eq!(Control::decode(&invalid), Err(Error::InvalidFlags));
     let mut b = Manifest::builder();
     assert!(matches!(
@@ -223,4 +229,32 @@ fn first_offer_replies_and_freezes_without_query() {
     assert_eq!(n.accepted().unwrap().len(), 2);
     n.finish_without_offer().unwrap();
     assert_eq!(n.accepted().unwrap().len(), 2);
+}
+
+#[test]
+fn horizon_protocol_mark_is_required_independently_of_declarations() {
+    for local in [Manifest::default(), manifest(true, "v", Flow::ToServer)] {
+        {
+            let mut n = Negotiation::new(local.clone());
+            n.require_protocol();
+            assert_eq!(
+                n.finish_without_offer(),
+                Err(Error::MissingProtocolResponse)
+            );
+            for tag in [0, 1] {
+                assert_eq!(
+                    Control::decode(&[tag, RAW_PROTOCOL + 1]),
+                    Err(Error::ProtocolVersion {
+                        peer: Some(RAW_PROTOCOL + 1)
+                    })
+                );
+                assert_eq!(
+                    Control::decode(&[tag]),
+                    Err(Error::ProtocolVersion { peer: None })
+                );
+            }
+            let mut vanilla = Negotiation::new(local.clone());
+            assert_eq!(vanilla.finish_without_offer(), Ok(()));
+        }
+    }
 }

@@ -1249,6 +1249,9 @@ fn login_and_configure(
                     .string(32767)
                     .unwrap_or(brand);
                 if brand == "horizon" {
+                    if let Some(control) = payload_negotiation.require_protocol() {
+                        send_payload_control(c, control)?;
+                    }
                     send(
                         c,
                         cfg::Clientbound::CustomPayload(cfg::CustomPayload {
@@ -2515,6 +2518,68 @@ mod tests {
                 }
                 cfg::Clientbound::FinishConfiguration(_) => panic!("extra mod was accepted"),
                 _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn horizon_client_without_raw_protocol_is_refused_at_known_packs() {
+        for wrong_version in [false, true] {
+            let config = crate::lan::NetConfig {
+                announce: false,
+                listen: false,
+                ..crate::lan::NetConfig::lan(0, "test".into(), 8)
+            };
+            let lan = crate::lan::Lan::start_with(Arc::new(SyncData::empty()), config).unwrap();
+            let mut c = Connection::local(lan.connect_local().unwrap());
+            c.reader
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            login_profile(&mut c, "Owner");
+            c.send(
+                &login::Serverbound::LoginAcknowledged(horizon_protocol::packets::Empty).encode(),
+            )
+            .unwrap();
+            let mut brand = horizon_protocol::buf::Writer::new();
+            brand.string("horizon");
+            c.send(
+                &cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                    channel: "minecraft:brand".into(),
+                    data: brand.data,
+                })
+                .encode(),
+            )
+            .unwrap();
+            if wrong_version {
+                c.send(
+                    &cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                        channel: horizon_protocol::payload_negotiation::CHANNEL.into(),
+                        data: vec![0, horizon_protocol::payload_negotiation::RAW_PROTOCOL + 1],
+                    })
+                    .encode(),
+                )
+                .unwrap();
+            }
+            loop {
+                let (id, payload) = c.recv().unwrap();
+                match cfg::Clientbound::decode(id, &payload).unwrap() {
+                    cfg::Clientbound::SelectKnownPacks(p) => {
+                        let _ = c.send(&cfg::Serverbound::SelectKnownPacks(p).encode());
+                    }
+                    cfg::Clientbound::Disconnect(d) => {
+                        let text = horizon_protocol::text::plain(&d.reason, &Default::default());
+                        assert!(text.contains(if wrong_version {
+                            "protocol version"
+                        } else {
+                            "missing response"
+                        }));
+                        break;
+                    }
+                    cfg::Clientbound::FinishConfiguration(_) => {
+                        panic!("old Horizon client admitted")
+                    }
+                    _ => {}
+                }
             }
         }
     }

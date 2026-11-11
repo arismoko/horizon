@@ -2,6 +2,8 @@
 use crate::buf::{Codec, Ident, Reader, Writer};
 use std::collections::BTreeMap;
 
+/// Global raw transport revision, independent of application declaration versions.
+pub const RAW_PROTOCOL: u8 = 1;
 pub const CHANNEL: &str = "horizon:payloads";
 pub const MAX_RECORDS: usize = 4096;
 pub const MAX_MANIFEST_BYTES: usize = 1_048_576;
@@ -39,6 +41,10 @@ pub enum Error {
     TrailingBytes,
     UnexpectedOffer,
     Frozen,
+    MissingProtocolResponse,
+    ProtocolVersion {
+        peer: Option<u8>,
+    },
     Incompatible {
         phase: Phase,
         id: String,
@@ -68,6 +74,14 @@ impl std::fmt::Display for Error {
                     "incompatible payload {id} ({phase:?}): {reason:?}; local {local:?}, peer {peer:?}"
                 )
             }
+            Self::MissingProtocolResponse => write!(
+                f,
+                "Horizon raw protocol: missing response on horizon:payloads"
+            ),
+            Self::ProtocolVersion { peer } => write!(
+                f,
+                "Horizon raw protocol version mismatch: local {RAW_PROTOCOL}, peer {peer:?}"
+            ),
             Self::Duplicate { phase, id } => write!(f, "duplicate payload {id} ({phase:?})"),
             Self::InvalidId(id) => write!(f, "invalid payload id {id}"),
             Self::Codec(reason) => write!(f, "payload manifest codec: {reason}"),
@@ -174,7 +188,7 @@ impl ManifestBuilder {
                     + id.len()
                     + varint_bytes(version.len())
                     + version.len());
-        if 1 + varint_bytes(self.entries.len() + phases.len()) + record_bytes > MAX_MANIFEST_BYTES {
+        if 2 + varint_bytes(self.entries.len() + phases.len()) + record_bytes > MAX_MANIFEST_BYTES {
             return Err(Error::MetadataTooLarge);
         }
         for &phase in phases {
@@ -208,7 +222,11 @@ impl ManifestBuilder {
     }
 }
 
-/// Tags: Query = 0; Offer = 1, then VarInt count and phase/id/flow/version/optional records.
+/// Wire: byte tag (Query = 0, Offer = 1), byte global RAW_PROTOCOL.
+/// Offer then carries VarInt count and phase/id/flow/version/optional records.
+/// Phase: 0 configuration, 1 play; flow: 0 to client, 1 to server, 2 bidirectional.
+/// IDs and application versions are VarInt-length UTF-8 strings; optional is byte 0/1.
+/// No old envelope or unmarked control compatibility is supported.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Control {
     Query,
@@ -218,9 +236,13 @@ impl Control {
     pub fn encode(&self) -> Result<Vec<u8>, Error> {
         let mut w = Writer::new();
         match self {
-            Self::Query => w.u8(0),
+            Self::Query => {
+                w.u8(0);
+                w.u8(RAW_PROTOCOL);
+            }
             Self::Offer(m) => {
                 w.u8(1);
+                w.u8(RAW_PROTOCOL);
                 w.varint(m.entries.len() as i32);
                 for e in &m.entries {
                     w.u8(e.phase as u8);
@@ -242,7 +264,15 @@ impl Control {
             return Err(Error::MetadataTooLarge);
         }
         let mut r = Reader::new(bytes);
-        let message = match r.u8()? {
+        let tag = r.u8()?;
+        if tag > 1 {
+            return Err(Error::InvalidFlags);
+        }
+        let peer = r.u8().ok();
+        if peer != Some(RAW_PROTOCOL) {
+            return Err(Error::ProtocolVersion { peer });
+        }
+        let message = match tag {
             0 => Self::Query,
             1 => {
                 let count = r.varint()?;
@@ -286,6 +316,7 @@ impl Control {
 pub struct Negotiation {
     local: Manifest,
     offered: bool,
+    protocol_required: bool,
     frozen: Option<Vec<Entry>>,
 }
 impl Negotiation {
@@ -293,12 +324,20 @@ impl Negotiation {
         Self {
             local,
             offered: false,
+            protocol_required: false,
             frozen: None,
         }
     }
     /// Call once at setup. Empty installations emit no control traffic.
     pub fn initial(&self) -> Option<Control> {
         (!self.local.entries.is_empty()).then_some(Control::Query)
+    }
+    /// Require a marked response for Horizon-branded peers, including empty installations.
+    /// Both endpoints announce this before their existing configuration barrier.
+    pub fn require_protocol(&mut self) -> Option<Control> {
+        self.protocol_required = true;
+        (self.local.entries.is_empty() && !self.offered && self.frozen.is_none())
+            .then_some(Control::Query)
     }
     pub fn accepted(&self) -> Option<&[Entry]> {
         self.frozen.as_deref()
@@ -331,6 +370,9 @@ impl Negotiation {
     /// Invoke only at the real known-packs/FinishConfiguration ordering barrier.
     pub fn finish_without_offer(&mut self) -> Result<(), Error> {
         if self.frozen.is_none() {
+            if self.protocol_required {
+                return Err(Error::MissingProtocolResponse);
+            }
             self.frozen = Some(intersect(&self.local, &Manifest::default())?);
         }
         Ok(())
