@@ -2165,6 +2165,18 @@ mod tests {
                 drop(session);
                 continue;
             }
+            if server_brand == b"\x07horizon" {
+                use horizon_protocol::payload_negotiation::{CHANNEL, Control};
+                server
+                    .send(
+                        &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                            channel: CHANNEL.into(),
+                            data: Control::Query.encode().unwrap(),
+                        })
+                        .encode(),
+                    )
+                    .unwrap();
+            }
             server
                 .send(
                     &cfg::Clientbound::SelectKnownPacks(cfg::SelectKnownPacks { packs: vec![] })
@@ -2172,6 +2184,24 @@ mod tests {
                 )
                 .unwrap();
             if server_brand == b"\x07horizon" {
+                use horizon_protocol::payload_negotiation::{CHANNEL, Control, Manifest};
+                let (id, body) = server.recv().unwrap();
+                assert_eq!(
+                    cfg::Serverbound::decode(id, &body).unwrap(),
+                    cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                        channel: CHANNEL.into(),
+                        data: Control::Query.encode().unwrap(),
+                    })
+                );
+                server
+                    .send(
+                        &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                            channel: CHANNEL.into(),
+                            data: Control::Offer(Manifest::default()).encode().unwrap(),
+                        })
+                        .encode(),
+                    )
+                    .unwrap();
                 let (id, body) = server.recv().unwrap();
                 assert_eq!(
                     cfg::Serverbound::decode(id, &body).unwrap(),
@@ -2183,16 +2213,27 @@ mod tests {
             }
             // Wait for the pack reply without pinning unrelated extension payloads.
             // The negotiated brand must not be announced a second time.
+            let mut saw_protocol_offer = false;
             loop {
                 let (id, body) = server.recv().unwrap();
                 match cfg::Serverbound::decode(id, &body).unwrap() {
                     cfg::Serverbound::SelectKnownPacks(_) => break,
                     cfg::Serverbound::CustomPayload(p) => {
                         assert_ne!(p.channel, "minecraft:brand");
+                        if p.channel == horizon_protocol::payload_negotiation::CHANNEL {
+                            use horizon_protocol::payload_negotiation::{Control, Manifest};
+                            assert_eq!(
+                                Control::decode(&p.data).unwrap(),
+                                Control::Offer(Manifest::default())
+                            );
+                            assert!(!saw_protocol_offer, "duplicate protocol offer");
+                            saw_protocol_offer = true;
+                        }
                     }
                     packet => panic!("unexpected configuration reply: {packet:?}"),
                 }
             }
+            assert_eq!(saw_protocol_offer, server_brand == b"\x07horizon");
             drop(server);
             drop(session);
         }
