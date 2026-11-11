@@ -5,6 +5,7 @@ use syn::{spanned::Spanned, visit::Visit};
 struct Filter {
     remove: Vec<proc_macro2::Span>,
     kept: usize,
+    unsupported_impl: bool,
 }
 impl Filter {
     fn function(&mut self, attrs: &[syn::Attribute], sig: &syn::Signature) {
@@ -15,7 +16,7 @@ impl Filter {
                     _ => Default::default(),
                 };
                 let shape = point_shape::shape(tokens, sig).expect("fixed-base point attribute");
-                if shape.api() && crate::replace::eligible(attrs, sig) {
+                if !self.unsupported_impl && shape.api() && crate::replace::eligible(attrs, sig) {
                     self.kept += 1;
                 } else {
                     self.remove.push(a.span());
@@ -25,6 +26,17 @@ impl Filter {
     }
 }
 impl<'a> Visit<'a> for Filter {
+    fn visit_item_impl(&mut self, block: &'a syn::ItemImpl) {
+        let previous = self.unsupported_impl;
+        self.unsupported_impl |= block
+            .generics
+            .params
+            .iter()
+            .any(|p| !matches!(p, syn::GenericParam::Lifetime(_)))
+            || !matches!(&*block.self_ty, syn::Type::Path(p) if p.qself.is_none());
+        syn::visit::visit_item_impl(self, block);
+        self.unsupported_impl = previous;
+    }
     fn visit_item_fn(&mut self, f: &'a syn::ItemFn) {
         self.function(&f.attrs, &f.sig);
         syn::visit::visit_item_fn(self, f);
@@ -87,4 +99,27 @@ pub fn filter(root: &Path) -> Result<(usize, usize), String> {
         }
     }
     Ok((kept, removed))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn generic_owner_cannot_leave_an_api_point_without_a_cell() {
+        let file = syn::parse_file(
+            r#"
+            impl<T> Holder<T> {
+                #[point(name = "generic_new")]
+                fn new(count: usize) -> Self { todo!() }
+            }
+            #[point(name = "plain")]
+            fn plain(count: usize) -> usize { count }
+        "#,
+        )
+        .unwrap();
+        let mut filter = Filter::default();
+        filter.visit_file(&file);
+        assert_eq!(filter.remove.len(), 1);
+        assert_eq!(filter.kept, 1);
+    }
 }
