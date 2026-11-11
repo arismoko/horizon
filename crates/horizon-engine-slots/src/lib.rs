@@ -30,33 +30,34 @@ impl std::fmt::Display for Refusal {
 impl std::error::Error for Refusal {}
 
 enum State {
-    Open(Option<fn()>),
+    Open(Option<fn()>, bool),
     Sealing,
     Sealed,
 }
 struct Lifecycle(Mutex<State>);
 impl Lifecycle {
     const fn new() -> Self {
-        Self(Mutex::new(State::Open(None)))
+        Self(Mutex::new(State::Open(None, false)))
     }
     fn install(&self, callback: fn()) -> Result<(), Refusal> {
         let mut state = self.0.lock().unwrap_or_else(|e| e.into_inner());
         match &mut *state {
-            State::Open(provider @ None) => {
+            State::Open(_, true) => Err(Refusal::AlreadyPublished),
+            State::Open(provider @ None, false) => {
                 *provider = Some(callback);
                 Ok(())
             }
-            State::Open(Some(_)) => Err(Refusal::AlreadyInstalled),
+            State::Open(Some(_), false) => Err(Refusal::AlreadyInstalled),
             _ => Err(Refusal::Sealed),
         }
     }
-    fn seal(&self) {
+    fn seal(&self) -> Result<(), Refusal> {
         let callback = {
             let mut state = self.0.lock().unwrap_or_else(|e| e.into_inner());
-            if !matches!(*state, State::Open(_)) {
-                return;
+            if !matches!(*state, State::Open(_, _)) {
+                return Err(Refusal::Sealed);
             }
-            let State::Open(callback) = std::mem::replace(&mut *state, State::Sealing) else {
+            let State::Open(callback, _) = std::mem::replace(&mut *state, State::Sealing) else {
                 unreachable!()
             };
             callback
@@ -66,6 +67,7 @@ impl Lifecycle {
             callback();
         }
         *self.0.lock().unwrap_or_else(|e| e.into_inner()) = State::Sealed;
+        Ok(())
     }
 }
 
@@ -98,22 +100,29 @@ impl Slots {
         lifecycle: &Lifecycle,
         activity: impl IntoIterator<Item = bool>,
     ) -> Result<(), Refusal> {
-        let state = lifecycle.0.lock().unwrap_or_else(|e| e.into_inner());
+        let mut state = lifecycle.0.lock().unwrap_or_else(|e| e.into_inner());
         if matches!(*state, State::Sealed) {
             return Err(Refusal::Sealed);
         }
         self.flags
             .set(activity.into_iter().collect())
-            .map_err(|_| Refusal::AlreadyPublished)
+            .map_err(|_| Refusal::AlreadyPublished)?;
+        if let State::Open(_, published) = &mut *state {
+            *published = true;
+        }
+        Ok(())
     }
 }
-/// Install the provider before engine startup; late or duplicate installation is refused.
+/// Install the provider before engine startup. Installation after any activity publication,
+/// during or after sealing, or after another provider was installed is refused.
 pub fn install_seal(callback: fn()) -> Result<(), Refusal> {
     LIFECYCLE.install(callback)
 }
 /// Finish listener registration once, including when no provider was loaded.
-pub fn seal() {
-    LIFECYCLE.seal();
+/// Repeat, concurrent and re-entrant calls return [`Refusal::Sealed`] without
+/// invoking the provider. Only the successful caller waits for its callback to finish.
+pub fn seal() -> Result<(), Refusal> {
+    LIFECYCLE.seal()
 }
 
 #[cfg(test)]
@@ -139,19 +148,19 @@ mod tests {
     fn seal_without_provider_refuses_late_publication() {
         let lifecycle = Lifecycle::new();
         let slots = Slots::new();
-        lifecycle.seal();
+        lifecycle.seal().unwrap();
         assert_eq!(slots.publish_in(&lifecycle, [true]), Err(Refusal::Sealed));
         assert!(!slots.active(0));
     }
     #[test]
     fn seal_without_provider_refuses_late_installation() {
         let lifecycle = Lifecycle::new();
-        lifecycle.seal();
+        lifecycle.seal().unwrap();
         assert_eq!(
             lifecycle.install(|| panic!("late provider")),
             Err(Refusal::Sealed)
         );
-        lifecycle.seal();
+        assert_eq!(lifecycle.seal(), Err(Refusal::Sealed));
     }
     #[test]
     fn engine_seal_invokes_only_the_installed_provider() {
@@ -168,8 +177,32 @@ mod tests {
             lifecycle.install(|| panic!("second provider")),
             Err(Refusal::AlreadyInstalled)
         );
-        lifecycle.seal();
-        lifecycle.seal();
+        lifecycle.seal().unwrap();
+        assert_eq!(lifecycle.seal(), Err(Refusal::Sealed));
         assert_eq!(CALLS.load(Ordering::Relaxed), 1);
+    }
+    #[test]
+    fn publication_refuses_late_provider_installation() {
+        let lifecycle = Lifecycle::new();
+        let slots = Slots::new();
+        assert_eq!(slots.publish_in(&lifecycle, [true]), Ok(()));
+        assert_eq!(lifecycle.install(|| {}), Err(Refusal::AlreadyPublished));
+        assert!(slots.active(0));
+    }
+    #[test]
+    fn repeat_seal_is_refused() {
+        let lifecycle = Lifecycle::new();
+        assert_eq!(lifecycle.seal(), Ok(()));
+        assert_eq!(lifecycle.seal(), Err(Refusal::Sealed));
+    }
+    #[test]
+    fn reentrant_seal_is_refused_before_callback_finishes() {
+        static REENTRANT: Lifecycle = Lifecycle::new();
+        REENTRANT
+            .install(|| {
+                assert_eq!(REENTRANT.seal(), Err(Refusal::Sealed));
+            })
+            .unwrap();
+        assert_eq!(REENTRANT.seal(), Ok(()));
     }
 }
