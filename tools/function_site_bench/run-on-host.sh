@@ -6,7 +6,7 @@
 # This is the tick-only campaign (same rotating order as campaign.py); no frame benchmark.
 set -euo pipefail
 : "${FNR_INPUT:?Set FNR_INPUT to the host-visible worker artifact bundle}"
-: "${FNR_RESULTS:=/box/shared/fnr-wholegame/results}"
+: "${FNR_RESULTS:=$HOME/bench-fnr/results}"
 INPUT=$(realpath "$FNR_INPUT")
 case "$INPUT" in *vanilla*) echo 'Refusing shared vanilla input' >&2; exit 2;; esac
 BASE=$HOME/bench-fnr
@@ -32,6 +32,27 @@ trap cleanup EXIT
 # All copied data is private and disposable. No game is run against INPUT.
 cp -a "$INPUT/kit" "$WORK/kit"
 cp -a "$INPUT/resources" "$WORK/resources"
+# Only the three signed distribution packages approved by root, privately extracted.
+# Arch calls the libpfm.so.4 provider `libpfm`, not Debian's `libpfm4`.
+: "${PERF_PACKAGE_DIR:=$BASE/perf-7.2.11-1}"
+: "${LIBPFM_PACKAGE_DIR:=$BASE/libpfm}"
+: "${LIBTRACEEVENT_PACKAGE_DIR:=$BASE/libtraceevent}"
+export FNR_PERF_BINARY=$PERF_PACKAGE_DIR/root/usr/bin/perf
+export FNR_PERF_LIBS=$LIBPFM_PACKAGE_DIR/root/usr/lib:$LIBTRACEEVENT_PACKAGE_DIR/root/usr/lib
+export PERF=$WORK/perf
+cat > "$PERF" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+export LD_LIBRARY_PATH=$FNR_PERF_LIBS
+exec "$FNR_PERF_BINARY" "$@"
+SH
+chmod +x "$PERF"
+LD_LIBRARY_PATH=$FNR_PERF_LIBS ldd "$FNR_PERF_BINARY" > "$WORK/perf-ldd.txt"
+if grep -q 'not found' "$WORK/perf-ldd.txt"; then
+  cat "$WORK/perf-ldd.txt" >&2
+  echo 'Distribution perf has missing libraries; stop without fetching dependencies.' >&2
+  exit 78
+fi
 mkdir -p "$WORK/out"
 VARIANTS=${FNR_VARIANTS:-A,B,C}
 IFS=',' read -r -a builds <<< "$VARIANTS"
@@ -41,9 +62,36 @@ for v in "${builds[@]}"; do
   cp -a "$INPUT/builds/$v/zc-game" "$WORK/out/stage-$v/zc-game"
   cp "$INPUT/builds/$v/points.json" "$WORK/out/stage-$v/points.json"
 done
-# Intel hybrid PMU's cpu_core list is the performance-core logical CPU set.
-# Require it rather than silently timing efficiency cores. Root may explicitly narrow it.
-: "${BENCH_CPUS:=$(cat /sys/bus/event_source/devices/cpu_core/cpus)}"
+# Check only Dyna CI containers, not the owner's other sessions or game clients.
+# Exit 75 on a busy runner; the agent waits for that container to exit before retrying.
+command -v podman >/dev/null
+runners=$(podman ps --filter label=dyna.ci --format '{{.Names}}')
+while IFS= read -r runner; do
+  [ -z "$runner" ] && continue
+  processes=$(podman top "$runner" args)
+  if grep -q '[R]unner.Worker' <<< "$processes"; then
+    printf 'CI_BUSY_CONTAINER=%s\n' "$runner" >&2
+    exit 75
+  fi
+done <<< "$runners"
+# AMD desktop: select exactly four physical cores with their online SMT siblings,
+# leaving the other four physical cores free. Read topology, never assume CPU numbers.
+BENCH_CPUS=$(python3 - <<'PY'
+from pathlib import Path
+def parse(text):
+    out = set()
+    for part in text.strip().split(','):
+        bounds = list(map(int, part.split('-')))
+        out.update(range(bounds[0], bounds[-1] + 1))
+    return out
+online = parse(Path('/sys/devices/system/cpu/online').read_text())
+groups = {tuple(sorted(parse(p.read_text()) & online)) for p in Path('/sys/devices/system/cpu').glob('cpu[0-9]*/topology/thread_siblings_list')}
+groups.discard(())
+assert len(groups) == 8, f'Expected 8 physical cores, got {groups}'
+selected = sorted(groups, key=min)[:4]
+print(','.join(map(str, sorted({cpu for group in selected for cpu in group}))))
+PY
+)
 export BENCH_CPUS
 export OUT=$WORK/out HORIZON_RES=$WORK/resources
 export TMPDIR=$WORK
@@ -55,11 +103,16 @@ mkdir -p "$RESULT"
 {
   date -u; uname -a; lscpu; lscpu --extended
   echo "BENCH_CPUS=$BENCH_CPUS"; cat /proc/sys/kernel/perf_event_paranoid
-  perf --version
-  echo 'Kit reference machine: Ryzen 9 7900X; this run uses Intel performance cores.'
+  "$PERF" --version
+  for package in "$PERF_PACKAGE_DIR" "$LIBPFM_PACKAGE_DIR" "$LIBTRACEEVENT_PACKAGE_DIR"; do
+    grep -E '^(pkgname|pkgver|arch) = ' "$package/root/.PKGINFO"
+    cat "$package/package.sha256" "$package/signature-check.txt"
+  done
+  cp "$WORK/perf-ldd.txt" "$RESULT/perf-ldd.txt"
+  echo 'Kit reference machine: Ryzen 9 7900X; this run uses Ryzen 7 9800X3D, four physical cores and their SMT siblings.'
   echo 'Only tick campaign; no frame or hot-loop wall timing on a non-quiet host.'
 } > "$RESULT/environment.txt"
-taskset -c "$BENCH_CPUS" perf stat -e cpu_core/instructions/u -- true > "$RESULT/perf-probe.txt" 2>&1
+taskset -c "$BENCH_CPUS" "$PERF" stat -e instructions:u -- true > "$RESULT/perf-probe.txt" 2>&1
 if [ -n "${FNR_SAVE:-}" ]; then
   mkdir -p "$WORK/out/points-setup"
   cp -a "$FNR_SAVE" "$WORK/out/points-setup/game"
@@ -97,5 +150,7 @@ done
 cp -a "$WORK/out/runs" "$RESULT/runs"
 cp -a "$WORK/out/points-setup" "$RESULT/points-setup"
 mkdir -p "$FNR_RESULTS"
-cp -a "$RESULT" "$FNR_RESULTS/"
+if [ "$(realpath "$FNR_RESULTS")" != "$(dirname "$RESULT")" ]; then
+  cp -a "$RESULT" "$FNR_RESULTS/"
+fi
 printf 'Results: %s\n' "$RESULT"
