@@ -10,9 +10,9 @@ checks={
  'counter storage':'pub static COUNTS:' in (stage/'crates/horizon-mod-vocab/src/__private/points.rs').read_text(),
  'fixed-base metadata':len(json.loads((stage/'points.json').read_text())['points'])==9764,
 }
-if v in ['A','D']:checks['no-points expansion']='REQ-R1-2 build A: no point' in macro
+if v in ['A','D','Dw','Dh']:checks['no-points expansion']='REQ-R1-2 build A: no point' in macro
 if v=='C':checks['five-byte site']='0x0f, 0x1f, 0x44, 0x00, 0x00' in macro
-if v=='D':checks['replacement slots']='__REPLACE' in (stage/'crates/horizon-client/src/lib.rs').read_text()
+if v in ['D','Dw','Dh']:checks['replacement slots']='__REPLACE' in (stage/'crates/horizon-client/src/lib.rs').read_text()
 if v=='E':
  checks['API-only']='if !shape.api()' in macro and 'RawKind' not in macro
  checks['shared pointer']='let Some(slot) = shape.slot' in macro and 'let entry = reader("slot")' in macro

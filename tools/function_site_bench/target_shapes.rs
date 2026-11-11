@@ -54,6 +54,7 @@ struct Row {
     line: usize,
     tokens: usize,
     inline: bool,
+    guarded: bool,
     features: Features,
 }
 struct Scan {
@@ -63,7 +64,11 @@ struct Scan {
 }
 fn gated(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|a| {
-        a.path().is_ident("cfg") || a.path().is_ident("cfg_attr") || a.path().is_ident("test")
+        // The benchmark's compiler-erased marker changes staging eligibility, not its body.
+        let benchmark_marker = a.path().is_ident("cfg_attr")
+            && matches!(&a.meta, syn::Meta::List(list) if list.tokens.to_string() == "any () , doc (hidden)");
+        !benchmark_marker
+            && (a.path().is_ident("cfg") || a.path().is_ident("cfg_attr") || a.path().is_ident("test"))
     })
 }
 impl Scan {
@@ -92,6 +97,10 @@ impl Scan {
             line: sig.span().start().line,
             tokens: quote!(#body).to_string().split_whitespace().count(),
             inline: attrs.iter().any(|a| a.path().is_ident("inline")),
+            guarded: body
+                .stmts
+                .first()
+                .is_some_and(|s| quote!(#s).to_string().contains("__fnr_read_slot_")),
             features,
         };
         assert!(

@@ -68,7 +68,7 @@ mkdir -p "$WORK/out"
 VARIANTS=${FNR_VARIANTS:-A,B,C}
 IFS=',' read -r -a builds <<< "$VARIANTS"
 for v in "${builds[@]}"; do
-  case "$v" in A|B|C|D|E|Ma|Mb|Mc|Mall|base|L0|L1c|L1|L3) ;; *) echo "Invalid variant: $v" >&2; exit 2;; esac
+  case "$v" in A|B|C|D|E|F|Dw|Dh|Ma|Mb|Mc|Mall|base|L0|L1c|L1|L3) ;; *) echo "Invalid variant: $v" >&2; exit 2;; esac
   mkdir -p "$WORK/out/stage-$v"
   cp -a "$BUILDS/$v/zc-game" "$WORK/out/stage-$v/zc-game"
   # The cross-host file copy can drop executable mode; change only our private copy.
