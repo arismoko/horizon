@@ -1,0 +1,30 @@
+diff --git a/crates/horizon-mod-api-gen/src/patch.rs b/crates/horizon-mod-api-gen/src/patch.rs
+index d81605ac3f..ef039cf382 100644
+--- a/crates/horizon-mod-api-gen/src/patch.rs
++++ b/crates/horizon-mod-api-gen/src/patch.rs
+@@ -654,8 +654,13 @@ pub fn generate(
+     let mut trees: BTreeMap<String, Tree> = BTreeMap::new();
+     let mut patched = Vec::new();
+     let unique: BTreeSet<&String> = targets.iter().collect();
++    // fnr-coarse prototype: path-internal copies are never installed, so the install rules don't apply.
++    let skip: BTreeSet<String> = std::env::var("FNR_PROTO_SKIP")
++        .map(|v| v.split('|').map(str::to_owned).collect())
++        .unwrap_or_default();
+     for target in unique {
+-        match crate::replace::refusal(root, target) {
++        let skipped = skip.contains(target.as_str());
++        match if skipped { Ok(None) } else { crate::replace::refusal(root, target) } {
+             Ok(None) => {}
+             Ok(Some(why)) => {
+                 refusals.push(refuse(target, "E_MIXIN_NOT_REPLACEABLE", why));
+@@ -673,7 +678,9 @@ pub fn generate(
+                 continue;
+             }
+         };
+-        if let Err(why) = replaceable(&found, &mut source) {
++        if let Err(why) = replaceable(&found, &mut source)
++            && !skipped
++        {
+             refusals.push(refuse(target, "E_MIXIN_NOT_REPLACEABLE", why));
+             continue;
+         }
