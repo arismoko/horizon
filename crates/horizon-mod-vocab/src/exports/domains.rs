@@ -2,6 +2,7 @@ pub mod backend;
 pub mod block;
 pub mod client;
 pub mod command;
+mod configuration_task;
 pub mod content;
 pub mod entity;
 pub mod item;

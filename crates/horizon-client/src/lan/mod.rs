@@ -77,6 +77,16 @@ pub enum NetEvent {
     /// profile replaces the player already in the world.
     Duplicate(u128),
 }
+
+/// A connection waiting for the game thread to collect its mod tasks.
+pub struct ConfigurationRequest {
+    pub player: u128,
+    pub name: String,
+    pub brand: String,
+    pub deadline: Instant,
+    pub reply: Sender<Vec<mod_api::ConfigurationTask>>,
+}
+
 pub struct Joined {
     pub conn: u32,
     pub uuid: u128,
@@ -383,6 +393,7 @@ pub struct Shared {
     /// What the next login is sent; `PlayerList.reloadResources` swaps it.
     sync: Mutex<Arc<data::SyncData>>,
     pub events: Sender<NetEvent>,
+    configuration_requests: Option<Sender<ConfigurationRequest>>,
     pub config: NetConfig,
     motd: Mutex<String>,
     max_players: AtomicUsize,
@@ -624,6 +635,7 @@ pub fn base64(data: &[u8]) -> String {
 pub struct Lan {
     pub shared: Arc<Shared>,
     events: Receiver<NetEvent>,
+    configuration_requests: Option<Receiver<ConfigurationRequest>>,
     pub port: u16,
     listener: Option<JoinHandle<()>>,
     /// Stops the accept loop alone: local connections stay.
@@ -643,13 +655,28 @@ impl Lan {
     }
     /// ServerConnectionListener.startTcpServerListener with a configuration.
     pub fn start_with(sync: Arc<data::SyncData>, config: NetConfig) -> io::Result<Self> {
+        Self::start_with_configuration_tasks(sync, config, false)
+    }
+    /// Start a listener whose game thread can collect per-connection mod tasks.
+    pub fn start_with_configuration_tasks(
+        sync: Arc<data::SyncData>,
+        config: NetConfig,
+        register_tasks: bool,
+    ) -> io::Result<Self> {
         let (tx, events) = channel();
+        let (request_tx, request_rx) = if register_tasks {
+            let (tx, rx) = channel();
+            (Some(tx), Some(rx))
+        } else {
+            (None, None)
+        };
         let (listen, port, announce) = (config.listen, config.port, config.announce);
         let hide_online_players = config.hide_online_players;
         let enable_status = config.enable_status;
         let shared = Arc::new(Shared {
             sync: Mutex::new(sync),
             events: tx,
+            configuration_requests: request_tx,
             motd: Mutex::new(config.motd.clone()),
             max_players: AtomicUsize::new(config.max_players),
             hide_online_players: AtomicBool::new(hide_online_players),
@@ -671,6 +698,7 @@ impl Lan {
         let mut lan = Self {
             shared,
             events,
+            configuration_requests: request_rx,
             port: 0,
             listener: None,
             listener_stop: Arc::new(AtomicBool::new(false)),
@@ -680,6 +708,12 @@ impl Lan {
             lan.listen(port, announce)?;
         }
         Ok(lan)
+    }
+    /// Take requests since the last game tick.
+    pub fn configuration_requests(&self) -> impl Iterator<Item = ConfigurationRequest> + '_ {
+        self.configuration_requests
+            .iter()
+            .flat_map(Receiver::try_iter)
     }
     /// Start accepting connections on `port` (0 picks a free one), and
     /// announce the world on the local network when `announce`

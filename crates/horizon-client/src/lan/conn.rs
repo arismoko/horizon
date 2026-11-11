@@ -7,7 +7,7 @@
 //! thread, frame, compress and encrypt what the game queues, and keep the
 //! keep-alive schedule on their own so a long tick never times a client out.
 use super::{
-    Joined, NetEvent, Out, Shared,
+    ConfigurationRequest, Joined, NetEvent, Out, Shared,
     data::{CORE_PACK, SyncData},
     forwarding,
     io_pool::{self, Session as _},
@@ -1273,6 +1273,28 @@ fn login_and_configure(
         lost(shared, &format!("{name} ({})", uuid_string(uuid)), &text);
         return Ok(None);
     }
+    if let Some(requests) = &shared.configuration_requests {
+        let deadline = Instant::now() + READ_TIMEOUT;
+        let (reply, tasks) = channel();
+        requests
+            .send(ConfigurationRequest {
+                player: uuid,
+                name: name.to_owned(),
+                brand: brand.clone(),
+                deadline,
+                reply,
+            })
+            .map_err(|err| err.to_string())?;
+        let tasks = match tasks.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+            Ok(tasks) => tasks,
+            Err(RecvTimeoutError::Timeout) => {
+                let _ = send(c, configuration_timeout());
+                return Err(horizon_protocol::Error::timed_out().to_string());
+            }
+            Err(err) => return Err(err.to_string()),
+        };
+        run_configuration_tasks(c, tasks, &mut info, deadline)?;
+    }
     send(c, cfg::Clientbound::FinishConfiguration(Empty))?;
     loop {
         let (id, payload) = c.recv().map_err(e)?;
@@ -1290,6 +1312,80 @@ fn login_and_configure(
         brand,
         datapack_offer,
     }))
+}
+
+fn configuration_timeout() -> cfg::Clientbound {
+    cfg::Clientbound::Disconnect(cfg::Disconnect {
+        reason: translatable("disconnect.timeout", &[]),
+    })
+}
+
+fn run_configuration_tasks(
+    c: &mut Connection,
+    tasks: Vec<mod_api::ConfigurationTask>,
+    info: &mut ClientInformation,
+    deadline: Instant,
+) -> Result<(), String> {
+    let valid = |payload: &mod_api::ConfigurationPayload, limit| {
+        let namespace = payload.channel.namespace();
+        let path = payload.channel.path();
+        !matches!(namespace, "" | "horizon" | "minecraft")
+            && !path.is_empty()
+            && namespace.len() + 1 + path.len() <= 32767
+            && payload.data.len() <= limit
+    };
+    let mut ids = std::collections::BTreeSet::new();
+    for task in &tasks {
+        if !ids.insert(&task.id)
+            || !task
+                .payloads
+                .iter()
+                .all(|p| valid(p, horizon_protocol::attachment_sync::MAX_PAYLOAD))
+            || task.reply.as_ref().is_some_and(|p| !valid(p, MAX_PAYLOAD))
+        {
+            return Err(format!("Invalid configuration task {}", task.id));
+        }
+    }
+
+    'tasks: for task in tasks {
+        for payload in task.payloads {
+            if Instant::now() >= deadline {
+                break 'tasks;
+            }
+            c.send(
+                &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                    channel: payload.channel.to_string(),
+                    data: payload.data,
+                })
+                .encode(),
+            )
+            .map_err(|err| err.to_string())?;
+        }
+        if let Some(reply) = task.reply {
+            let channel = reply.channel.to_string();
+            wait_alive(c, Some(deadline), |packet| match packet {
+                Ok(cfg::Serverbound::CustomPayload(p))
+                    if p.channel == channel && p.data == reply.data =>
+                {
+                    Some(Ok(()))
+                }
+                Ok(cfg::Serverbound::FinishConfiguration(_)) => {
+                    Some(Err("Unexpected configuration task".to_owned()))
+                }
+                Ok(cfg::Serverbound::ClientInformation(i)) => {
+                    *info = i;
+                    None
+                }
+                Ok(_) => None,
+                Err(err) => Some(Err(err)),
+            })?;
+        }
+    }
+    if Instant::now() >= deadline {
+        let _ = c.send(&configuration_timeout().encode());
+        return Err(horizon_protocol::Error::timed_out().to_string());
+    }
+    Ok(())
 }
 
 /// ServerboundResourcePackPacket.Action.DECLINED.
@@ -1409,7 +1505,7 @@ fn offer_pack(
     };
     c.send(&cfg::Clientbound::ResourcePackPush(push).encode())
         .map_err(e)?;
-    wait_alive(c, |packet| match packet {
+    wait_alive(c, None, |packet| match packet {
         Ok(cfg::Serverbound::ResourcePack(r)) if !matches!(r.action, 3 | 4) => {
             let rejected = r.action == PACK_DECLINED && pack.required;
             Some(Ok(rejected.then_some(r.id)))
@@ -1436,7 +1532,7 @@ fn accept_code_of_conduct(
     let e = |e: horizon_protocol::Error| e.to_string();
     c.send(&cfg::Clientbound::CodeOfConduct(cfg::CodeOfConduct { text: text.into() }).encode())
         .map_err(e)?;
-    wait_alive(c, |packet| match packet {
+    wait_alive(c, None, |packet| match packet {
         Ok(cfg::Serverbound::AcceptCodeOfConduct(_)) => Some(Ok(())),
         Ok(cfg::Serverbound::FinishConfiguration(_)) => {
             Some(Err("Unexpected configuration task".to_owned()))
@@ -1452,17 +1548,37 @@ fn accept_code_of_conduct(
 
 /// Read configuration packets until `answer` has a result, sending a
 /// keep-alive every `KEEP_ALIVE_EVERY` meanwhile
-/// (ServerConfigurationPacketListenerImpl.tick).
+/// (ServerConfigurationPacketListenerImpl.tick). An optional absolute
+/// deadline also ends a task whose peer continues sending unrelated packets.
 fn wait_alive<T>(
     c: &mut Connection,
+    deadline: Option<Instant>,
     mut answer: impl FnMut(Result<cfg::Serverbound, String>) -> Option<Result<T, String>>,
 ) -> Result<T, String> {
+    let closer = deadline
+        .map(|_| c.reader.closer())
+        .transpose()
+        .map_err(|err| err.to_string())?;
     std::thread::scope(|scope| {
         let (stop, stopped) = channel::<()>();
         let writer = &mut c.writer;
         scope.spawn(move || {
             let start = Instant::now();
-            while stopped.recv_timeout(KEEP_ALIVE_EVERY) == Err(RecvTimeoutError::Timeout) {
+            loop {
+                let wait = deadline.map_or(KEEP_ALIVE_EVERY, |at| {
+                    at.saturating_duration_since(Instant::now())
+                        .min(KEEP_ALIVE_EVERY)
+                });
+                if stopped.recv_timeout(wait) != Err(RecvTimeoutError::Timeout) {
+                    break;
+                }
+                if let Some(closer) = &closer
+                    && deadline.is_some_and(|at| Instant::now() >= at)
+                {
+                    let _ = writer.send(&configuration_timeout().encode());
+                    closer.close();
+                    break;
+                }
                 let id = i64::try_from(start.elapsed().as_millis()).unwrap_or(0);
                 let keep_alive = cfg::Clientbound::KeepAlive(cfg::KeepAlive { id });
                 if writer.send(&keep_alive.encode()).is_err() {
@@ -1477,12 +1593,19 @@ fn wait_alive<T>(
                 }
                 Err(err) => break Err(err.to_string()),
             };
+            if deadline.is_some_and(|at| Instant::now() >= at) {
+                break Err(horizon_protocol::Error::timed_out().to_string());
+            }
             if let Some(result) = answer(packet) {
                 break result;
             }
         };
         drop(stop);
-        result
+        if deadline.is_some_and(|at| Instant::now() >= at) && result.is_err() {
+            Err(horizon_protocol::Error::timed_out().to_string())
+        } else {
+            result
+        }
     })
 }
 
@@ -1981,6 +2104,180 @@ mod tests {
                 login::Clientbound::LoginFinished(p) => return p.profile,
                 other => panic!("unexpected login packet {other:?}"),
             }
+        }
+    }
+
+    mod configuration_tasks {
+        use super::*;
+        use mod_api::{
+            ConfigurationPayload, ConfigurationTask, Hooks, Identifier, ModEntry,
+            RegisterConfigurationTasksEvent, ServerHost,
+        };
+
+        fn payload(channel: &str, value: u8) -> ConfigurationPayload {
+            ConfigurationPayload::new(Identifier::parse(channel).unwrap(), vec![value])
+        }
+
+        #[derive(Default)]
+        struct SyncMod;
+
+        #[mod_api::horizon_mod]
+        impl Hooks for SyncMod {
+            fn register_configuration_tasks(
+                &self,
+                _host: &mut dyn ServerHost,
+                event: &mut RegisterConfigurationTasksEvent<'_>,
+            ) {
+                assert_eq!(event.name, "Alex");
+                event.tasks.push(
+                    ConfigurationTask::new(
+                        Identifier::parse("fixture:sync").unwrap(),
+                        vec![payload("fixture:value", 7)],
+                    )
+                    .awaiting(payload("fixture:received", 7)),
+                );
+                event.tasks.push(ConfigurationTask::new(
+                    Identifier::parse("fixture:second").unwrap(),
+                    vec![payload("fixture:second", 8)],
+                ));
+            }
+        }
+
+        fn next_config(c: &mut Connection) -> cfg::Clientbound {
+            let (id, body) = c.recv().unwrap();
+            cfg::Clientbound::decode(id, &body).unwrap()
+        }
+
+        fn send_reply(c: &mut Connection, value: u8) {
+            c.send(
+                &cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                    channel: "fixture:received".into(),
+                    data: vec![value],
+                })
+                .encode(),
+            )
+            .unwrap();
+        }
+
+        #[test]
+        fn configuration_tasks_sync_in_order_before_play() {
+            let config = crate::lan::NetConfig::loopback(0, String::new(), 8);
+            let lan = crate::lan::Lan::start_with_configuration_tasks(
+                Arc::new(SyncData::empty()),
+                config,
+                true,
+            )
+            .unwrap();
+            let mut c = Connection::connect("127.0.0.1", lan.port, Duration::from_secs(5)).unwrap();
+            c.reader
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let profile = login_profile(&mut c, "Alex");
+            c.send(&login::Serverbound::LoginAcknowledged(Empty).encode())
+                .unwrap();
+            while !matches!(next_config(&mut c), cfg::Clientbound::SelectKnownPacks(_)) {}
+            c.send(
+                &cfg::Serverbound::SelectKnownPacks(cfg::SelectKnownPacks { packs: vec![] })
+                    .encode(),
+            )
+            .unwrap();
+            let request = lan
+                .configuration_requests
+                .as_ref()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap();
+            assert_eq!(request.player, profile.uuid);
+            let mut tasks = Vec::new();
+            mod_api::testing::with_mods(vec![ModEntry::new("fixture", hooks())].into(), || {
+                mod_api::dispatch_register_configuration_tasks(
+                    &mut mod_api::testing::FakeHost::new(),
+                    request.player,
+                    &request.name,
+                    &request.brand,
+                    &mut tasks,
+                );
+            });
+            request.reply.send(tasks).unwrap();
+            loop {
+                match next_config(&mut c) {
+                    cfg::Clientbound::CustomPayload(p) if p.channel == "fixture:value" => {
+                        assert_eq!(p.data, [7]);
+                        break;
+                    }
+                    cfg::Clientbound::FinishConfiguration(_) => {
+                        panic!("configuration finished before the mod sent its value")
+                    }
+                    _ => {}
+                }
+            }
+            send_reply(&mut c, 99);
+            c.reader
+                .set_read_timeout(Some(Duration::from_millis(50)))
+                .unwrap();
+            assert!(c.recv().unwrap_err().is_timed_out());
+            assert!(lan.poll().is_empty());
+            c.reader
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            send_reply(&mut c, 7);
+            assert!(matches!(
+                next_config(&mut c),
+                cfg::Clientbound::CustomPayload(p) if p.channel == "fixture:second" && p.data == [8]
+            ));
+            assert!(matches!(
+                next_config(&mut c),
+                cfg::Clientbound::FinishConfiguration(_)
+            ));
+            c.send(&cfg::Serverbound::FinishConfiguration(Empty).encode())
+                .unwrap();
+            let NetEvent::Joined(joined) = lan.events.recv_timeout(Duration::from_secs(5)).unwrap()
+            else {
+                panic!("client was not admitted after both tasks");
+            };
+            let first_play = play::Clientbound::KeepAlive(cfg::KeepAlive { id: 42 });
+            joined.sender.send(first_play.encode());
+            let (id, body) = c.recv().unwrap();
+            assert!(matches!(
+                play::Clientbound::decode(id, &body).unwrap(),
+                play::Clientbound::KeepAlive(p) if p.id == 42
+            ));
+        }
+
+        #[test]
+        fn unfinished_configuration_task_times_out() {
+            let (client, server) = horizon_protocol::connection::Pipe::pair();
+            let mut client = Connection::local(client);
+            client
+                .reader
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let worker = std::thread::spawn(move || {
+                run_configuration_tasks(
+                    &mut Connection::local(server),
+                    vec![
+                        ConfigurationTask::new(
+                            Identifier::parse("fixture:timeout").unwrap(),
+                            vec![payload("fixture:value", 7)],
+                        )
+                        .awaiting(payload("fixture:received", 7)),
+                    ],
+                    &mut ClientInformation::new(10),
+                    Instant::now() + Duration::from_millis(200),
+                )
+            });
+            assert!(matches!(
+                next_config(&mut client),
+                cfg::Clientbound::CustomPayload(p) if p.channel == "fixture:value"
+            ));
+            assert!(matches!(
+                next_config(&mut client),
+                cfg::Clientbound::Disconnect(d) if d.reason == translatable("disconnect.timeout", &[])
+            ));
+            assert_eq!(
+                worker.join().unwrap().unwrap_err(),
+                horizon_protocol::Error::timed_out().to_string()
+            );
         }
     }
 

@@ -23,7 +23,7 @@ use horizon_client::{
         visible_effect_particles,
     },
     lan::{
-        self, Lan, NetConfig,
+        self, NetConfig,
         chunks::ChunkEncoder,
         data::{BIOME_REGISTRY, FrozenDamage, SyncData},
         entity::{EntityState, States},
@@ -1663,7 +1663,7 @@ impl Game<'_> {
         self.lan_update_tag_sources(&mut encoder);
         let far = (net.lod_distance > 0)
             .then(|| horizon_client::lod_net::Service::new(net.lod_distance, biome_names.clone()));
-        let lan = Lan::start_with(sync.clone(), net)?;
+        let lan = super::lan_configuration_tasks::start(sync.clone(), net)?;
         let mut hub = Hub::new(lan, sync, encoder, config, self.loop_context.clone());
         self.bind_guest_residency(&mut hub);
         hub.rule_registry = self.level.rule_registry.clone();
@@ -2874,7 +2874,7 @@ impl Game<'_> {
         if self.level_pass.packets_drained {
             return;
         }
-        let Some(mut host) = self.lan.take() else {
+        let Some(mut host) = self.take_lan_for_packet_tick() else {
             return;
         };
         let holding = lan::Holding::start();
