@@ -103,7 +103,7 @@ depend on a mod transport flag.
 | --- | --- |
 | `SERVERBOUND_PAYLOAD_CAPACITY`, `CLIENTBOUND_PAYLOAD_CAPACITY` | Discard-fallback body limits only, not registered-payload caps |
 | `PayloadPhase` (`Configuration`, `Play`, `Common`), `ConnectionPhase` | `permits` says whether a declaration may travel in the connection's phase |
-| `PeerPolicy` (`Required`, `Optional`) | As under [Negotiation and absent mods](#negotiation-and-absent-mods) |
+| `PeerPolicy` (`Required`, `Optional`) | As under [Admission, sending and context](#admission-sending-and-context) |
 | `PayloadTokenDirection` (`ToServer`, `ToClient`) | The direction of a staged token, distinct from raw registration's bidirectional `PayloadDirection` |
 | `PayloadToken` | The erased token: slot, phases, direction and the load session that issued it. Private fields, issued by the game. `admit(direction, load_session, phase, declarations)` returns the slot or `StaleToken`, `WrongDirection`, `WrongPhase`, after exact comparison against the engine-owned frozen slot table, before any codec or handler runs |
 | `ToServer<T>`, `ToClient<T>` | A `PayloadToken` bound to its value type and direction. Binding a token of the other direction fails |
