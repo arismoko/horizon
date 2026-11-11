@@ -94,7 +94,6 @@
   "crate::client::types::ParticleStatus",
   "crate::entity::mobs::PathComputationType",
   "crate::entity::mobs::PathType",
-  "crate::content::payloads::PayloadDirection",
   "crate::content::payloads::PayloadPhase",
   "crate::content::payloads::PeerPolicy",
   "crate::command::types::PermissionLevel",

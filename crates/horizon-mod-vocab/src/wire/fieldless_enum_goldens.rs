@@ -481,11 +481,6 @@ fn existing_fieldless_enum_layouts_match_baseline() {
         "PathType"
     );
     assert_eq!(
-        <crate::content::payloads::PayloadDirection as Wire>::layout(&mut vec![]),
-        0x389907f5b5c09dfc,
-        "PayloadDirection"
-    );
-    assert_eq!(
         <crate::content::payloads::PayloadPhase as Wire>::layout(&mut vec![]),
         0x5d2ee1d25cc9ec33,
         "PayloadPhase"

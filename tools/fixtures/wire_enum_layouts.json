@@ -575,12 +575,6 @@
       "canonical_path": "crate::entity::mobs::PathType"
     },
     {
-      "name": "PayloadDirection",
-      "path": "crate::content::payloads::PayloadDirection",
-      "hash": "389907f5b5c09dfc",
-      "canonical_path": "crate::content::payloads::PayloadDirection"
-    },
-    {
       "name": "PayloadPhase",
       "path": "crate::content::payloads::PayloadPhase",
       "hash": "5d2ee1d25cc9ec33",
@@ -902,6 +896,7 @@
   ],
   "retired_identities": [
     "crate::client::keyframe_animation::AnimationTarget",
-    "crate::client::keyframe_animation::Interpolation"
+    "crate::client::keyframe_animation::Interpolation",
+    "crate::content::payloads::PayloadDirection"
   ]
 }

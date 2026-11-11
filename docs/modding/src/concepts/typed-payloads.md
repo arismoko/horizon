@@ -104,10 +104,11 @@ depend on a mod transport flag.
 | `SERVERBOUND_PAYLOAD_CAPACITY`, `CLIENTBOUND_PAYLOAD_CAPACITY` | Discard-fallback body limits only, not registered-payload caps |
 | `PayloadPhase` (`Configuration`, `Play`, `Common`), `ConnectionPhase` | `permits` says whether a declaration may travel in the connection's phase |
 | `PeerPolicy` (`Required`, `Optional`) | As under [Negotiation and absent mods](#negotiation-and-absent-mods) |
+| `PayloadTokenDirection` (`ToServer`, `ToClient`) | The direction of a staged token, distinct from raw registration's bidirectional `PayloadDirection` |
 | `PayloadToken` | The erased token: slot, phases, direction and the load session that issued it. Private fields, issued by the game. `admit(direction, load_session, phase, declarations)` returns the slot or `StaleToken`, `WrongDirection`, `WrongPhase`, after exact comparison against the engine-owned frozen slot table, before any codec or handler runs |
 | `ToServer<T>`, `ToClient<T>` | A `PayloadToken` bound to its value type and direction. Binding a token of the other direction fails |
 | `ServerboundPayloads::send_erased(token, body)`, `ClientboundPayloads::send_erased(player, token, body)` | The two object-safe send services, one erased operation each. A constant in the module stops compiling if either stops being usable behind `dyn` |
-| `PayloadSendError` | `PayloadTooLarge`, `UnsupportedPeer`, `Backpressure`, `StaleToken`, `WrongDirection`, `WrongPhase`, `NotConnected`; has a Wire form |
+| `PayloadTokenSendError` | `PayloadTooLarge`, `UnsupportedPeer`, `Backpressure`, `StaleToken`, `WrongDirection`, `WrongPhase`, `NotConnected`; has a Wire form |
 
 The typed send helper (stage 2, with the codec) is generic and lives on the token: `ToServer<T>` encodes a value and calls `ServerboundPayloads::send_erased`, `ToClient<T>` calls `ClientboundPayloads::send_erased`. A `ToClient<T>` has no method taking the serverbound service, which is the compile-time refusal the acceptance matrix asks for. The connection epoch is the connection's, not the token's: the send service checks it with the token.
 

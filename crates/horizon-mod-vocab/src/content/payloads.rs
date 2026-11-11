@@ -15,7 +15,7 @@ pub const CLIENTBOUND_PAYLOAD_CAPACITY: usize = 1_048_576;
 /// Which way a payload travels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, horizon_mod_api_macros::Wire)]
 // exhaustive: a connection has two ends
-pub enum PayloadDirection {
+pub enum PayloadTokenDirection {
     /// From a client to its server.
     ToServer,
     /// From a server to one client.
@@ -64,14 +64,14 @@ pub enum PeerPolicy {
     /// refused admission.
     Required,
     /// A peer without it joins; a send to that peer is
-    /// [`PayloadSendError::UnsupportedPeer`] and no packet.
+    /// [`PayloadTokenSendError::UnsupportedPeer`] and no packet.
     Optional,
 }
 
 /// Why a typed payload was not accepted for sending. Nothing was sent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, horizon_mod_api_macros::Wire)]
 #[non_exhaustive]
-pub enum PayloadSendError {
+pub enum PayloadTokenSendError {
     /// The encoded payload exceeds its codec or frame limit.
     PayloadTooLarge {
         /// Bytes of the complete envelope.
@@ -107,7 +107,7 @@ pub struct PayloadToken {
     slot: u32,
     load_session: u64,
     phase: PayloadPhase,
-    direction: PayloadDirection,
+    direction: PayloadTokenDirection,
 }
 
 impl PayloadToken {
@@ -118,7 +118,7 @@ impl PayloadToken {
         slot: u32,
         load_session: u64,
         phase: PayloadPhase,
-        direction: PayloadDirection,
+        direction: PayloadTokenDirection,
     ) -> Self {
         Self {
             slot,
@@ -134,7 +134,7 @@ impl PayloadToken {
     }
 
     /// The way the payload travels.
-    pub const fn direction(self) -> PayloadDirection {
+    pub const fn direction(self) -> PayloadTokenDirection {
         self.direction
     }
 
@@ -145,26 +145,31 @@ impl PayloadToken {
     /// reaches no codec and no handler.
     pub fn admit(
         self,
-        direction: PayloadDirection,
+        direction: PayloadTokenDirection,
         load_session: u64,
         phase: ConnectionPhase,
         declarations: &[PayloadToken],
-    ) -> Result<u32, PayloadSendError> {
+    ) -> Result<u32, PayloadTokenSendError> {
         if declarations.get(self.slot as usize) != Some(&self) {
-            return Err(PayloadSendError::StaleToken);
+            return Err(PayloadTokenSendError::StaleToken);
         }
         if self.load_session != load_session {
-            return Err(PayloadSendError::StaleToken);
+            return Err(PayloadTokenSendError::StaleToken);
         }
         if !matches!(
             (self.direction, direction),
-            (PayloadDirection::ToServer, PayloadDirection::ToServer)
-                | (PayloadDirection::ToClient, PayloadDirection::ToClient)
+            (
+                PayloadTokenDirection::ToServer,
+                PayloadTokenDirection::ToServer
+            ) | (
+                PayloadTokenDirection::ToClient,
+                PayloadTokenDirection::ToClient
+            )
         ) {
-            return Err(PayloadSendError::WrongDirection);
+            return Err(PayloadTokenSendError::WrongDirection);
         }
         if !self.phase.permits(phase) {
-            return Err(PayloadSendError::WrongPhase { phase });
+            return Err(PayloadTokenSendError::WrongPhase { phase });
         }
         Ok(self.slot)
     }
@@ -201,7 +206,7 @@ macro_rules! typed_token {
             #[doc(hidden)]
             pub const fn bind(token: PayloadToken) -> Option<Self> {
                 match token.direction {
-                    PayloadDirection::$direction => Some(Self {
+                    PayloadTokenDirection::$direction => Some(Self {
                         token,
                         value: PhantomData,
                     }),
@@ -242,7 +247,11 @@ pub trait ServerboundPayloads {
     /// Queues `body`, the encoded value of `token`'s payload, for the
     /// server. Ok means accepted for sending, not delivered. Implementations must
     /// call `PayloadToken::admit` with their own frozen declaration table first.
-    fn send_erased(&mut self, token: PayloadToken, body: &[u8]) -> Result<(), PayloadSendError>;
+    fn send_erased(
+        &mut self,
+        token: PayloadToken,
+        body: &[u8],
+    ) -> Result<(), PayloadTokenSendError>;
 }
 
 /// The server's send service: encoded payloads to one player's client.
@@ -257,7 +266,7 @@ pub trait ClientboundPayloads {
         player: u128,
         token: PayloadToken,
         body: &[u8],
-    ) -> Result<(), PayloadSendError>;
+    ) -> Result<(), PayloadTokenSendError>;
 }
 
 // Both services stay usable behind `dyn`: a generic method on either stops this compiling.
@@ -269,30 +278,30 @@ mod tests {
 
     const SESSION: u64 = 41;
 
-    fn token(phase: PayloadPhase, direction: PayloadDirection) -> PayloadToken {
+    fn token(phase: PayloadPhase, direction: PayloadTokenDirection) -> PayloadToken {
         PayloadToken::issue(0, SESSION, phase, direction)
     }
 
     #[test]
     fn a_token_sends_only_its_own_way_in_its_phases_and_session() {
         use ConnectionPhase::{Configuration, Play};
-        use PayloadDirection::{ToClient, ToServer};
+        use PayloadTokenDirection::{ToClient, ToServer};
         let play = token(PayloadPhase::Play, ToServer);
         assert_eq!(play.admit(ToServer, SESSION, Play, &[play]), Ok(0));
         assert_eq!(
             play.admit(ToClient, SESSION, Play, &[play]),
-            Err(PayloadSendError::WrongDirection)
+            Err(PayloadTokenSendError::WrongDirection)
         );
         assert_eq!(
             play.admit(ToServer, SESSION, Configuration, &[play]),
-            Err(PayloadSendError::WrongPhase {
+            Err(PayloadTokenSendError::WrongPhase {
                 phase: Configuration
             })
         );
         // A token of another load session is refused whatever else matches.
         assert_eq!(
             play.admit(ToServer, SESSION + 1, Play, &[play]),
-            Err(PayloadSendError::StaleToken)
+            Err(PayloadTokenSendError::StaleToken)
         );
         let common = token(PayloadPhase::Common, ToClient);
         assert_eq!(
@@ -303,13 +312,13 @@ mod tests {
         let configuration = token(PayloadPhase::Configuration, ToClient);
         assert_eq!(
             configuration.admit(ToClient, SESSION, Play, &[configuration]),
-            Err(PayloadSendError::WrongPhase { phase: Play })
+            Err(PayloadTokenSendError::WrongPhase { phase: Play })
         );
     }
 
     #[test]
     fn forged_wire_metadata_never_admits() {
-        let real = token(PayloadPhase::Play, PayloadDirection::ToServer);
+        let real = token(PayloadPhase::Play, PayloadTokenDirection::ToServer);
         for forged in [
             PayloadToken { slot: 1, ..real },
             PayloadToken {
@@ -317,21 +326,21 @@ mod tests {
                 ..real
             },
             PayloadToken {
-                direction: PayloadDirection::ToClient,
+                direction: PayloadTokenDirection::ToClient,
                 ..real
             },
         ] {
             assert_eq!(
                 forged.admit(forged.direction, SESSION, ConnectionPhase::Play, &[real]),
-                Err(PayloadSendError::StaleToken)
+                Err(PayloadTokenSendError::StaleToken)
             );
         }
     }
 
     #[test]
     fn a_typed_token_binds_only_its_direction() {
-        let to_server = token(PayloadPhase::Play, PayloadDirection::ToServer);
-        let to_client = token(PayloadPhase::Play, PayloadDirection::ToClient);
+        let to_server = token(PayloadPhase::Play, PayloadTokenDirection::ToServer);
+        let to_client = token(PayloadPhase::Play, PayloadTokenDirection::ToClient);
         assert_eq!(
             ToServer::<u32>::bind(to_server).map(|t| t.erased()),
             Some(to_server)
