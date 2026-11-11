@@ -17,6 +17,10 @@ on:
         description: Force GitHub-hosted runners after a boat runner outage
         type: boolean
         default: false
+      windows-prebuilt-measure:
+        description: Opt in to one fresh-target and warm Windows prebuilt measurement
+        type: boolean
+        default: false
       prepare-output-check:
         description: Check the prepared output digest
         type: boolean
@@ -337,17 +341,23 @@ jobs:
   # Informational until three consecutive green main pushes; not in the picker gate set.
   windows-prebuilt-check:
     needs: changes
-    if: needs.changes.outputs.windows_prebuilt_required == 'true'
+    if: needs.changes.outputs.windows_prebuilt_required == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows-prebuilt-measure == true)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-      - uses: dtolnay/rust-toolchain@stable
+      - name: The launcher's pinned Rust
+        id: rust
+        shell: bash
+        run: |
+          echo "version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' launcher/src/rust_toolchain.rs)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ steps.rust.outputs.version }}
           targets: x86_64-pc-windows-gnu
       - name: Install Windows cross compiler
         run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
@@ -356,7 +366,14 @@ jobs:
           shared-key: windows-prebuilt-check
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Check generated Windows prebuilt crate graph
-        run: python3 tools/ci/windows_prebuilt.py
+        env:
+          MEASURE: ${{ github.event_name == 'workflow_dispatch' && inputs.windows-prebuilt-measure == true && 'true' || 'false' }}
+        run: |
+          if [ "$MEASURE" = true ]; then
+            python3 tools/ci/windows_prebuilt.py --measure
+          else
+            python3 tools/ci/windows_prebuilt.py
+          fi
 
   verify:
     needs: changes
