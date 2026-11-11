@@ -1,0 +1,21 @@
+id = "bench_l3"
+name = "Published loop bench: l3"
+version = "0.1.0"
+description = "HEAD cancellable mixin on tick_hopper with L1's logic"
+authors = []
+api = "0.2"
+side = "both"
+capabilities = ["registries"]
+
+[native]
+game = "26.3"
+horizon = "HEAD"
+mixins = "MIXINS"
+
+[[native.mixin]]
+id = "throttle"
+target = "horizon_client::game::machines::Game<'_>::tick_hopper"
+kind = "HEAD"
+cancellable = true
+helper = "src/mixins/head.rs"
+bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }, { name = "pos", ty = "(i32, i32, i32)", value = "pos" }]

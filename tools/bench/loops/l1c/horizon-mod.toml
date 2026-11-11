@@ -1,0 +1,18 @@
+id = "bench_l1c"
+name = "Published loop bench: l1c"
+version = "0.1.0"
+description = "block_entities.tick slot that only answers Continue"
+authors = []
+api = "0.2"
+side = "both"
+capabilities = ["registries"]
+
+[native]
+game = "26.3"
+horizon = "HEAD"
+mixins = "MIXINS"
+
+[[native.loop]]
+id = "floor"
+loop = "block_entities.tick"
+with = "crate::Floor"
