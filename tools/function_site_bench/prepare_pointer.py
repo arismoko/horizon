@@ -1,5 +1,6 @@
 from pathlib import Path
 import subprocess,shutil,json,re
+from stage_support import exclude_generated_point_helpers
 root=Path(__file__).resolve().parents[2]
 base=root/'target/wholegame/kit-out/stage-B';stage=root/'target/wholegame/kit-out/stage-D'
 assert not stage.exists()
@@ -22,6 +23,8 @@ keep=[s for s in text.splitlines() if s.startswith('#') or (s and normal(s) in t
 (stage/'crates/horizon-mod-api-gen/replaceable.txt').write_text('\n'.join(keep)+'\n')
 print('lower list retained',len([s for s in keep if not s.startswith('#')]),flush=True)
 subprocess.run([str(root/'target/wholegame/pointer-gen-target/release/fnr-stage'),str(stage)],check=True)
+# Keep both the staged metadata and the build-time catalog free of generated helpers.
+exclude_generated_point_helpers(stage)
 # Keep baseline metadata intact: do not restage generated readers/installers as points.
 for patch in ['instrumentation.patch','A-point-macro.patch']:
  subprocess.run(['git','apply',str(patches/patch)],cwd=stage,check=True)

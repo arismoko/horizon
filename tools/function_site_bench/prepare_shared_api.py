@@ -1,6 +1,7 @@
 """E: fixed-base API points and native replacement, one shared entry cell per function."""
 from pathlib import Path
 import shutil,subprocess,json,re
+from stage_support import exclude_generated_point_helpers
 root=Path(__file__).resolve().parents[2];base=root/'target/wholegame/kit-out/stage-B';dest=base.parent/'stage-E'
 assert not dest.exists()
 shutil.copytree(base,dest,ignore=shutil.ignore_patterns('target','zc-game','build.json'))
@@ -21,6 +22,7 @@ s=s.replace('pub struct Shape {','pub struct Shape {\n    pub slot: Option<usize
 s=s.replace('    let mut raw_only = false;','    let mut raw_only = false;\n    let mut slot = None;',1)
 s=s.replace('        if meta.path.is_ident("raw") {','        if meta.path.is_ident("slot") {\n            slot = Some(meta.value()?.parse::<syn::LitInt>()?.base10_parse()?);\n        } else if meta.path.is_ident("raw") {',1)
 s=s.replace('    Ok(Shape {\n        name,','    Ok(Shape {\n        slot,\n        name,',1);p.write_text(s)
+exclude_generated_point_helpers(dest)
 # Arm points after the original registry is sealed; it publishes dispatchers into the same cells.
 p=dest/'crates/horizon-client/src/game.rs';s=p.read_text();anchor='    mod_points::__private::seal();';assert s.count(anchor)==1;s=s.replace(anchor,anchor+'\n    crate::__fnr_arm();',1);p.write_text(s)
 subprocess.run(['git','apply',str(patches/'instrumentation.patch')],cwd=dest,check=True)
