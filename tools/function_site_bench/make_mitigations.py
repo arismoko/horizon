@@ -12,7 +12,7 @@ def eligibility(s):
     impl<'ast> syn::visit::Visit<'ast> for Leaf {
         fn visit_expr_call(&mut self, _: &'ast syn::ExprCall) { self.0 = false; }
         fn visit_expr_method_call(&mut self, _: &'ast syn::ExprMethodCall) { self.0 = false; }
-        fn visit_expr_macro(&mut self, _: &'ast syn::ExprMacro) { self.0 = false; }
+        fn visit_macro(&mut self, _: &'ast syn::Macro) { self.0 = false; }
         fn visit_expr_loop(&mut self, _: &'ast syn::ExprLoop) { self.0 = false; }
         fn visit_expr_for_loop(&mut self, _: &'ast syn::ExprForLoop) { self.0 = false; }
         fn visit_expr_while(&mut self, _: &'ast syn::ExprWhile) { self.0 = false; }

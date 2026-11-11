@@ -9,7 +9,7 @@ impl<'a> Visit<'a> for Leaf {
     fn visit_expr_method_call(&mut self, _: &'a syn::ExprMethodCall) {
         self.0 = false;
     }
-    fn visit_expr_macro(&mut self, _: &'a syn::ExprMacro) {
+    fn visit_macro(&mut self, _: &'a syn::Macro) {
         self.0 = false;
     }
     fn visit_expr_loop(&mut self, _: &'a syn::ExprLoop) {
