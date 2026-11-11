@@ -1209,9 +1209,9 @@ fn login_and_configure(
     let mut payload_negotiation = horizon_protocol::payload_negotiation::Negotiation::new(
         payload_transport.local.manifest.clone(),
     );
-    if let Some(control) = payload_negotiation.initial() {
-        send_payload_control(c, control)?;
-    }
+    // Query must precede known packs even for empty installations: a client
+    // answers it before its pack reply, so the barrier cannot overtake its Offer.
+    send_payload_control(c, horizon_protocol::payload_negotiation::Control::Query)?;
     // Horizon clients announce their list after recognizing our brand, before
     // answering known packs. That reply orders the announcement without a ping.
     let server_mods = horizon_protocol::mod_list::local();
@@ -1249,9 +1249,8 @@ fn login_and_configure(
                     .string(32767)
                     .unwrap_or(brand);
                 if brand == "horizon" {
-                    if let Some(control) = payload_negotiation.require_protocol() {
-                        send_payload_control(c, control)?;
-                    }
+                    // The query was already sent before known packs.
+                    let _ = payload_negotiation.require_protocol();
                     send(
                         c,
                         cfg::Clientbound::CustomPayload(cfg::CustomPayload {
@@ -2523,8 +2522,10 @@ mod tests {
     }
 
     #[test]
-    fn horizon_client_without_raw_protocol_is_refused_at_known_packs() {
-        for wrong_version in [false, true] {
+    fn horizon_client_raw_protocol_admission_at_known_packs() {
+        for mode in [0, 1, 2] {
+            let wrong_version = mode == 1;
+            let compatible = mode == 2;
             let config = crate::lan::NetConfig {
                 announce: false,
                 listen: false,
@@ -2563,10 +2564,27 @@ mod tests {
             loop {
                 let (id, payload) = c.recv().unwrap();
                 match cfg::Clientbound::decode(id, &payload).unwrap() {
+                    cfg::Clientbound::CustomPayload(p)
+                        if compatible
+                            && p.channel == horizon_protocol::payload_negotiation::CHANNEL =>
+                    {
+                        use horizon_protocol::payload_negotiation::{CHANNEL, Control, Manifest};
+                        if Control::decode(&p.data).unwrap() == Control::Query {
+                            c.send(
+                                &cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                                    channel: CHANNEL.into(),
+                                    data: Control::Offer(Manifest::default()).encode().unwrap(),
+                                })
+                                .encode(),
+                            )
+                            .unwrap();
+                        }
+                    }
                     cfg::Clientbound::SelectKnownPacks(p) => {
                         let _ = c.send(&cfg::Serverbound::SelectKnownPacks(p).encode());
                     }
                     cfg::Clientbound::Disconnect(d) => {
+                        assert!(!compatible, "compatible empty Horizon peer refused");
                         let text = horizon_protocol::text::plain(&d.reason, &Default::default());
                         assert!(text.contains(if wrong_version {
                             "protocol version"
@@ -2576,7 +2594,15 @@ mod tests {
                         break;
                     }
                     cfg::Clientbound::FinishConfiguration(_) => {
-                        panic!("old Horizon client admitted")
+                        assert!(compatible, "old Horizon client admitted");
+                        c.send(
+                            &cfg::Serverbound::FinishConfiguration(
+                                horizon_protocol::packets::Empty,
+                            )
+                            .encode(),
+                        )
+                        .unwrap();
+                        break;
                     }
                     _ => {}
                 }
@@ -2641,11 +2667,9 @@ mod tests {
                 .unwrap()
                 {
                     cfg::Clientbound::CustomPayload(p) if p.channel == CHANNEL => {
-                        assert!(matches!(
-                            Control::decode(&p.data).unwrap(),
-                            Control::Offer(_)
-                        ));
-                        saw_offer = true;
+                        if matches!(Control::decode(&p.data).unwrap(), Control::Offer(_)) {
+                            saw_offer = true;
+                        }
                     }
                     cfg::Clientbound::SelectKnownPacks(p) => c
                         .send(&cfg::Serverbound::SelectKnownPacks(p).encode())

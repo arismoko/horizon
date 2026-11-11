@@ -1923,6 +1923,18 @@ mod tests {
                     .encode(),
                 )
                 .unwrap();
+            if server_brand == "horizon" {
+                use horizon_protocol::payload_negotiation::{CHANNEL, Control};
+                server
+                    .send(
+                        &cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                            channel: CHANNEL.into(),
+                            data: Control::Query.encode().unwrap(),
+                        })
+                        .encode(),
+                    )
+                    .unwrap();
+            }
             server
                 .send(
                     &cfg::Clientbound::SelectKnownPacks(cfg::SelectKnownPacks { packs: vec![] })
@@ -1930,6 +1942,7 @@ mod tests {
                 )
                 .unwrap();
             let mut declared_mods = false;
+            let mut saw_offer = false;
             loop {
                 let (id, body) = server.recv().unwrap();
                 match cfg::Serverbound::decode(id, &body).unwrap() {
@@ -1947,6 +1960,8 @@ mod tests {
                                     .encode(),
                                 )
                                 .unwrap();
+                        } else {
+                            saw_offer = true;
                         }
                     }
                     cfg::Serverbound::CustomPayload(p)
@@ -1959,6 +1974,7 @@ mod tests {
                 }
             }
             assert_eq!(declared_mods, server_brand == "horizon");
+            assert_eq!(saw_offer, server_brand == "horizon");
             server
                 .send(&cfg::Clientbound::FinishConfiguration(Empty).encode())
                 .unwrap();
