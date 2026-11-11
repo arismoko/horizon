@@ -198,3 +198,5 @@ pub use horizon_items::random_sequences;
 
 pub mod render_geometry;
 pub mod render_slots;
+
+pub mod render_views;

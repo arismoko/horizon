@@ -15,6 +15,12 @@ The renderer owns the frame geometry and dispatch slots; the mod host installs a
 startup. `mod_render::render::{Vertex, EntitySpan}` re-exports the engine's geometry without
 copying buffers. `RenderNeeds` requests are copied back into the engine's frame requirements;
 world and hand callbacks borrow the current GPU resources without allocating per frame.
+World-view requests and draw notices use the same engine-owned slots: the provider copies
+mod-facing `WorldView` values into engine-owned request values, and adapts the borrowed
+`WorldViewDrawn` resources back to the mod-facing event. The renderer filters invalid,
+duplicate and oversized requests before drawing or notifying listeners. No subscriber means
+no request collection. Slot dispatch adds no allocation; request collection and filtering
+retain their existing `Vec` storage. This changes rendering only, not tick-time work.
 
 #### Teleport hooks
 

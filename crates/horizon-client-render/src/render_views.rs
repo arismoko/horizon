@@ -1,17 +1,17 @@
 use glam::{DVec3, Mat4};
 
-/// The most world views ([`world_views`]) one frame draws.
+/// The most world views ([`crate::render_slots::world_views`]) one frame draws.
 pub const MAX_WORLD_VIEWS: usize = 4;
 /// The largest side of a world view's target, in pixels.
 pub const MAX_WORLD_VIEW_SIDE: u32 = 4096;
 
-/// A view of the world a mod asks for ([`world_views`]): the same world, drawn again from a
+/// A view of the world a mod asks for ([`crate::render_slots::world_views`]): the same world, drawn again from a
 /// camera of its own into a target of its own (a camera monitor, a second camera's preview, a
 /// still for a film strip).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct WorldView {
-    /// The mod's name for the view: [`world_view_drawn`] hands its picture back with it, and
+    /// The mod's name for the view: [`crate::render_slots::world_view_drawn`] hands its picture back with it, and
     /// the target stays the view's while each frame asks for it again.
     pub id: u64,
     /// Where the camera is in the world.
@@ -65,17 +65,16 @@ impl WorldView {
     }
 }
 
-/// A world view just drawn ([`world_view_drawn`]): its picture and depth, and what a mod needs
-/// to draw into it or copy it out. Drawn after the frame's world and before [`world_drawn`], so
+/// A world view just drawn ([`crate::render_slots::world_view_drawn`]): its picture and depth, and what a mod needs
+/// to draw into it or copy it out. Drawn after the frame's world and before [`crate::render_slots::world_drawn`], so
 /// a mod can show it in the frame's picture there.
-#[non_exhaustive]
 pub struct WorldViewDrawn<'a> {
     /// The [`WorldView::id`] it was asked with.
     pub id: u64,
     pub device: &'a wgpu::Device,
     pub queue: &'a wgpu::Queue,
     pub encoder: &'a mut wgpu::CommandEncoder,
-    /// The view's picture (the world's light in `color_format`, as [`WorldDrawn::color`] holds
+    /// The view's picture (the world's light in `color_format`, as [`crate::render_slots::WorldDrawn::color`] holds
     /// it, before the tone curve and without the hand or the HUD), and a view of it. The target
     /// is the view's while it is asked for each frame and is drawn over the next frame: copy it
     /// (it can be copied and sampled) to keep a still.
@@ -91,8 +90,7 @@ pub struct WorldViewDrawn<'a> {
     pub camera: DVec3,
 }
 
-
-/// The views of those asked for ([`world_views`]) that can be drawn on a device whose textures
+/// The views of those asked for ([`crate::render_slots::world_views`]) that can be drawn on a device whose textures
 /// are at most `max_side` pixels a side (`max_texture_dimension_2d`; never above
 /// [`MAX_WORLD_VIEW_SIDE`]).
 pub fn drawable_world_views(mut views: Vec<WorldView>, max_side: u32) -> Vec<WorldView> {
@@ -106,7 +104,6 @@ pub fn drawable_world_views(mut views: Vec<WorldView>, max_side: u32) -> Vec<Wor
     views.truncate(MAX_WORLD_VIEWS);
     views
 }
-
 
 #[cfg(test)]
 mod tests {

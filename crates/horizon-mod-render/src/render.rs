@@ -151,6 +151,84 @@ pub fn needs() -> RenderNeeds {
     needs
 }
 
+/// The most world views ([`world_views`]) one frame draws.
+pub const MAX_WORLD_VIEWS: usize = 4;
+/// The largest side of a world view's target, in pixels.
+pub const MAX_WORLD_VIEW_SIDE: u32 = 4096;
+
+/// A view of the world a mod asks for ([`world_views`]): the same world, drawn again from a
+/// camera of its own into a target of its own (a camera monitor, a second camera's preview, a
+/// still for a film strip).
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct WorldView {
+    /// The mod's name for the view: [`world_view_drawn`] hands its picture back with it, and
+    /// the target stays the view's while each frame asks for it again.
+    pub id: u64,
+    /// Where the camera is in the world.
+    pub camera: DVec3,
+    /// Degrees, as the player's camera turns: yaw, pitch, and a roll about the view direction
+    /// (positive turns the picture counterclockwise).
+    pub yaw: f32,
+    pub pitch: f32,
+    pub roll: f32,
+    /// The vertical field of view, in degrees (1 to 170).
+    pub fov_degrees: f32,
+    /// The target's width and height, in pixels (1 to [`MAX_WORLD_VIEW_SIDE`]).
+    pub size: [u32; 2],
+}
+
+impl WorldView {
+    pub fn new(
+        id: u64,
+        camera: DVec3,
+        yaw: f32,
+        pitch: f32,
+        fov_degrees: f32,
+        size: [u32; 2],
+    ) -> Self {
+        Self {
+            id,
+            camera,
+            yaw,
+            pitch,
+            roll: 0.0,
+            fov_degrees,
+            size,
+        }
+    }
+
+    pub fn with_roll(self, roll: f32) -> Self {
+        Self { roll, ..self }
+    }
+}
+
+/// A world view just drawn ([`world_view_drawn`]): its picture and depth, and what a mod needs
+/// to draw into it or copy it out. Drawn after the frame's world and before [`world_drawn`], so
+/// a mod can show it in the frame's picture there.
+#[non_exhaustive]
+pub struct WorldViewDrawn<'a> {
+    /// The [`WorldView::id`] it was asked with.
+    pub id: u64,
+    pub device: &'a wgpu::Device,
+    pub queue: &'a wgpu::Queue,
+    pub encoder: &'a mut wgpu::CommandEncoder,
+    /// The view's picture (the world's light in `color_format`, as [`WorldDrawn::color`] holds
+    /// it, before the tone curve and without the hand or the HUD), and a view of it. The target
+    /// is the view's while it is asked for each frame and is drawn over the next frame: copy it
+    /// (it can be copied and sampled) to keep a still.
+    pub color: &'a wgpu::Texture,
+    pub color_view: &'a wgpu::TextureView,
+    pub color_format: wgpu::TextureFormat,
+    pub size: [u32; 2],
+    /// Its depth (Depth32Float, reversed: 0 is the sky), sampleable.
+    pub depth: &'a wgpu::TextureView,
+    /// World relative to [`WorldViewDrawn::camera`] to clip space.
+    pub view_proj: Mat4,
+    /// The view's camera.
+    pub camera: DVec3,
+}
+
 /// Asked as each frame is built and drawn (not on the title screen's panorama), more than once:
 /// push the world views your mod wants drawn this frame, the same each time. The first
 /// [`MAX_WORLD_VIEWS`] valid ones draw; one with a value out of range, or an `id` already asked
@@ -234,7 +312,33 @@ pub fn install() {
             v.entity_spans = needs.entity_spans;
             v.world_depth = needs.world_depth;
         },
+        world_views: |views| {
+            let mut requested = Vec::new();
+            world_views(&mut requested);
+            *views = requested
+                .into_iter()
+                .map(|v| {
+                    engine::WorldView::new(v.id, v.camera, v.yaw, v.pitch, v.fov_degrees, v.size)
+                        .with_roll(v.roll)
+                })
+                .collect();
+        },
+        world_views_hooked,
+        world_view_drawn: |v| {
+            world_view_drawn(&mut WorldViewDrawn {
+                id: v.id,
+                device: v.device,
+                queue: v.queue,
+                encoder: &mut *v.encoder,
+                color: v.color,
+                color_view: v.color_view,
+                color_format: v.color_format,
+                size: v.size,
+                depth: v.depth,
+                view_proj: v.view_proj,
+                camera: v.camera,
+            })
+        },
         world_drawn_hooked,
     });
 }
-

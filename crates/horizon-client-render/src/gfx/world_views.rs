@@ -188,21 +188,19 @@ impl Renderer {
             self.uploads
                 .buffer(encoder, &self.globals, 0, bytemuck::bytes_of(&globals));
             self.draw_world_view(encoder, target, frame, lists);
-            native_render::world_view_drawn(&mut native_render::WorldViewDrawn::from(
-                mod_render::render::built::WorldViewDrawn {
-                    id: view.id,
-                    device: &self.device,
-                    queue: &self.queue,
-                    encoder,
-                    color: &target.color,
-                    color_view: &target.color_view,
-                    color_format: format,
-                    size: view.size,
-                    depth: &target.depth,
-                    view_proj: camera.own_view_proj,
-                    camera: view.camera,
-                },
-            ));
+            native_render::world_view_drawn(&mut native_render::WorldViewDrawn {
+                id: view.id,
+                device: &self.device,
+                queue: &self.queue,
+                encoder,
+                color: &target.color,
+                color_view: &target.color_view,
+                color_format: format,
+                size: view.size,
+                depth: &target.depth,
+                view_proj: camera.own_view_proj,
+                camera: view.camera,
+            });
         }
         if !views.is_empty() {
             self.uploads.buffer(

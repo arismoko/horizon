@@ -17,11 +17,14 @@ def pieces(text):
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--verify')
+parser.add_argument('--output-revision', help='verify the mechanical output before hand corrections')
 args = parser.parse_args()
 if args.verify:
     donor = subprocess.check_output(['git', 'show', f'{args.verify}:{SOURCE}'], text=True)
     expected = 'use glam::{DVec3, Mat4};\n\n' + '\n'.join(pieces(donor))
-    assert Path(TARGET).read_text().strip() == expected.strip()
+    actual = (subprocess.check_output(['git', 'show', f'{args.output_revision}:{TARGET}'], text=True)
+              if args.output_revision else Path(TARGET).read_text())
+    assert actual.strip() == expected.strip()
 else:
     path = Path(SOURCE)
     source = path.read_text()
