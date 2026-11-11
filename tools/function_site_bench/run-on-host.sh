@@ -8,6 +8,7 @@ set -euo pipefail
 : "${FNR_INPUT:?Set FNR_INPUT to the host-visible worker artifact bundle}"
 : "${FNR_RESULTS:=$HOME/bench-fnr/results}"
 INPUT=$(realpath "$FNR_INPUT")
+BUILDS=$(realpath "${FNR_BUILDS_INPUT:-$INPUT/builds}")
 case "$INPUT" in *vanilla*) echo 'Refusing shared vanilla input' >&2; exit 2;; esac
 BASE=$HOME/bench-fnr
 mkdir -p "$BASE/results"
@@ -66,12 +67,15 @@ mkdir -p "$WORK/out"
 VARIANTS=${FNR_VARIANTS:-A,B,C}
 IFS=',' read -r -a builds <<< "$VARIANTS"
 for v in "${builds[@]}"; do
-  case "$v" in A|B|C|D|E|Ma|Mb|Mc|Mall) ;; *) echo "Invalid variant: $v" >&2; exit 2;; esac
+  case "$v" in A|B|C|D|E|Ma|Mb|Mc|Mall|base|L0|L1c|L1|L3) ;; *) echo "Invalid variant: $v" >&2; exit 2;; esac
   mkdir -p "$WORK/out/stage-$v"
-  cp -a "$INPUT/builds/$v/zc-game" "$WORK/out/stage-$v/zc-game"
+  cp -a "$BUILDS/$v/zc-game" "$WORK/out/stage-$v/zc-game"
   # The cross-host file copy can drop executable mode; change only our private copy.
   chmod u+x "$WORK/out/stage-$v/zc-game/horizon-client"
-  cp "$INPUT/builds/$v/points.json" "$WORK/out/stage-$v/points.json"
+  case "$v" in
+    base|L0|L1c|L1|L3) ;; # Published-loop bundle has no point metadata or census.
+    *) cp "$BUILDS/$v/points.json" "$WORK/out/stage-$v/points.json";;
+  esac
 done
 # Check only Dyna CI containers, not the owner's other sessions or game clients.
 # Exit 75 on a busy runner; the agent waits for that container to exit before retrying.
@@ -114,6 +118,7 @@ mkdir -p "$RESULT"
 {
   date -u; uname -a; lscpu; lscpu --extended
   echo "BENCH_CPUS=$BENCH_CPUS"; cat /proc/sys/kernel/perf_event_paranoid
+  printf 'INPUT=%s\nBUILDS=%s\nSAVE=%s\n' "$INPUT" "$BUILDS" "${FNR_SAVE:-generated}"
   "$PERF" --version
   for package in "$PERF_PACKAGE_DIR" "$LIBPFM_PACKAGE_DIR" "$LIBTRACEEVENT_PACKAGE_DIR"; do
     grep -E '^(pkgname|pkgver|arch) = ' "$package/root/.PKGINFO"
@@ -147,10 +152,12 @@ cp "$FNR_PERF_LOG" "$RESULT/perf-invocations.txt"
 python3 "$WORK/kit/points-tick/summary.py" reproduced > "$RESULT/summary.txt"
 mkdir -p "$RESULT/census"
 for v in "${builds[@]}"; do
+  [ -f "$WORK/out/stage-$v/points.json" ] || continue
   python3 "$WORK/kit/points-tick/census/census.py" "$WORK/out/stage-$v/zc-game/libhorizon_mod_host.so" "$RESULT/census/$v.json" >> "$RESULT/census/log.txt"
 done
 for v in "${builds[@]}"; do
   [ "$v" = A ] && continue
+  [ -f "$WORK/out/stage-$v/points.json" ] || continue
   (
     cd "$RESULT/census"
     python3 "$WORK/kit/points-tick/census/match.py" A.json "$v.json" "$WORK/out/stage-$v/points.json" > "match-$v.txt"
