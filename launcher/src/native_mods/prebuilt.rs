@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const IDENTITY: &str = "horizon-prebuilt.json";
-const TEMPLATE: &str = "native_main.rs.template";
+pub(super) const TEMPLATE: &str = "native_main.rs.template";
 const SUMS: &str = "SHA256SUMS";
 /// The optimization level of the `release` profile the prebuilt game is built with: the mods' code
 /// matches the game's.
@@ -26,16 +26,16 @@ const UNPACKED_LIMIT: u64 = 8 << 30;
 /// Why a build compiles the game from source instead of using the prebuilt game.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SourceReason {
-    /// A mod has a checked private source point, legacy helper, or module changing game code.
-    Injections { mod_id: String },
+    /// A mod has a `[[native.mixin]]`, bridge, state field or support module, which change game code.
+    Mixins { mod_id: String },
     /// A mod has a build script, which the prebuilt route doesn't run.
     BuildScript { mod_id: String },
     /// A mod declares Cargo features, or asks the mod API for features of its own.
     Features { mod_id: String },
-    /// A mod depends on a crate other than the mod API and other mods.
-    Crate { mod_id: String, krate: String },
     /// No prebuilt game for this computer.
     Host,
+    /// This release has an older SDK whose registry patch ownership is incomplete.
+    IncompatibleSdk { archive: String },
     /// The prebuilt game's release couldn't be downloaded.
     Download { why: String },
     /// No prebuilt game was released for this revision and target.
@@ -45,10 +45,7 @@ pub enum SourceReason {
 impl std::fmt::Display for SourceReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
-            Self::Injections { mod_id } => trf(
-                "{mod} injects into the game's code, so the game builds from source",
-                &[("mod", mod_id)],
-            ),
+            Self::Mixins { mod_id } => trf("{mod}: mixins compile game code", &[("mod", mod_id)]),
             Self::BuildScript { mod_id } => trf(
                 "{mod} has a build script, so the game builds from source",
                 &[("mod", mod_id)],
@@ -57,9 +54,9 @@ impl std::fmt::Display for SourceReason {
                 "{mod} uses Cargo features, so the game builds from source",
                 &[("mod", mod_id)],
             ),
-            Self::Crate { mod_id, krate } => trf(
-                "{mod} depends on the crate {crate}, so the game builds from source",
-                &[("mod", mod_id), ("crate", krate)],
+            Self::IncompatibleSdk { archive } => trf(
+                "SDK {archive} lacks game registry patches; install a matched SDK v5 release",
+                &[("archive", archive)],
             ),
             Self::Host => {
                 tr("no prebuilt game for this computer, so the game builds from source").into()
@@ -79,7 +76,7 @@ impl std::fmt::Display for SourceReason {
 
 impl SourceReason {
     pub(super) fn forces_source(&self) -> bool {
-        !matches!(self, Self::Download { .. })
+        !matches!(self, Self::Download { .. } | Self::IncompatibleSdk { .. })
     }
 }
 
@@ -88,7 +85,7 @@ pub(super) fn refusal(projects: &[api::Project<'_>]) -> Option<SourceReason> {
     projects.iter().find_map(project_refusal)
 }
 
-/// Checked private-source routes require an install-time game build, never a prebuilt retry.
+/// Refuse injections without compiled slots before selecting an artifact.
 pub(super) fn source_refusal(
     game: &Path,
     projects: &[api::Project<'_>],
@@ -105,7 +102,7 @@ pub(super) fn source_refusal(
     Ok(None)
 }
 
-/// One slot/source decision per project, including named refusals. Cargo restrictions are
+/// One slot attachment decision per project, including named refusals. Cargo restrictions are
 /// reported separately by `project_refusal`; both consumers use the same slot router here.
 pub(super) fn slot_routes(
     catalog: &internals::Catalog,
@@ -116,20 +113,6 @@ pub(super) fn slot_routes(
         .map(|project| {
             let manifest = &project.bundle.manifest;
             let route = match super::slots::routes(catalog, manifest) {
-                Ok(routes)
-                    if routes.iter().any(|route| {
-                        matches!(
-                            route,
-                            horizon_mod_package::manifest::inject::Route::Source(_)
-                        )
-                    }) =>
-                {
-                    super::Route::Game {
-                        reason: SourceReason::Injections {
-                            mod_id: manifest.id.clone(),
-                        },
-                    }
-                }
                 Ok(_) => super::Route::Prebuilt,
                 Err(error) => super::Route::Invalid {
                     reason: error.to_string(),
@@ -145,7 +128,7 @@ pub(super) fn project_refusal(project: &api::Project<'_>) -> Option<SourceReason
     {
         let mod_id = || project.bundle.manifest.id.clone();
         if project.bundle.needs_mixins() {
-            return Some(SourceReason::Injections { mod_id: mod_id() });
+            return Some(SourceReason::Mixins { mod_id: mod_id() });
         }
         let cargo = &project.cargo;
         let package = cargo.get("package");
@@ -172,10 +155,7 @@ pub(super) fn project_refusal(project: &api::Project<'_>) -> Option<SourceReason
                     .and_then(toml::Value::as_str)
                     .unwrap_or(key);
                 if !api::PACKAGES.iter().any(|(package, _)| *package == krate) {
-                    return Some(SourceReason::Crate {
-                        mod_id: mod_id(),
-                        krate: krate.to_owned(),
-                    });
+                    continue;
                 }
                 let own_features = value
                     .get("features")
@@ -310,6 +290,12 @@ fn release_sum(revision: &str, name: &str) -> Result<String, SourceReason> {
     sums.into_reader()
         .read_to_string(&mut text)
         .map_err(|error| download(error.to_string()))?;
+    if expected_sum(&text, name).is_none() {
+        let old = name.replace("prebuilt-v5-", "prebuilt-v4-");
+        if expected_sum(&text, &old).is_some() {
+            return Err(SourceReason::IncompatibleSdk { archive: old });
+        }
+    }
     expected_sum(&text, name).ok_or_else(missing)
 }
 
@@ -402,18 +388,37 @@ fn expected_sum(listing: &str, name: &str) -> Option<String> {
 }
 
 #[derive(serde::Deserialize)]
-struct Identity {
+pub(super) struct Identity {
     commit: String,
     rustc: String,
     target: String,
     side: String,
-    link_args: Vec<String>,
+    pub(super) link_args: Vec<String>,
+    #[serde(default)]
+    pub(super) registry_lock: Option<String>,
+    #[serde(default)]
+    pub(super) registry_patches: Option<toml::Table>,
+    #[serde(default)]
+    pub(super) native_links: Option<Vec<super::registry_inventory::NativeLink>>,
+    #[serde(default)]
+    facade_crates: std::collections::BTreeSet<String>,
 }
 
-fn identity(dir: &Path) -> Result<Identity, String> {
+pub(super) fn identity(dir: &Path) -> Result<Identity, String> {
     let path = dir.join(IDENTITY);
     let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+    #[derive(serde::Deserialize)]
+    struct Format {
+        #[serde(default)]
+        format_version: u32,
+    }
+    let format: Format =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    match format.format_version {
+        5 => serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display())),
+        0..=4 => Err(trf("SDK format {version} is too old; install a newer SDK (format 5)", &[("version", &format.format_version.to_string())])),
+        version => Err(trf("SDK format {version} is newer than this launcher's supported format 5; update the launcher", &[("version", &version.to_string())])),
+    }
 }
 
 /// Whether the unpacked game in `dir` is the one asked for: built from `revision` for `host` and
@@ -442,7 +447,7 @@ fn check_identity(dir: &Path, revision: &str, host: &str, target: Target) -> Res
 }
 
 /// The library file a crate named `krate` left in `deps`: its metadata, or its own dylib.
-fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
+pub(super) fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
     // A cached target can still contain metadata from an earlier static build. Prefer the dylib:
     // callers installing runtime libraries need its code, not a stale metadata-only artifact.
     let dylib = ["so", "dll", "dylib"]
@@ -454,19 +459,41 @@ fn library(deps: &Path, krate: &str) -> Result<PathBuf, String> {
         return Ok(path);
     }
     let prefix = format!("lib{krate}-");
-    fs::read_dir(deps)
+    let candidates: Vec<_> = fs::read_dir(deps)
         .map_err(|e| e.to_string())?
         .flatten()
         .map(|entry| entry.path())
-        .find(|path| {
+        .filter(|path| {
             let name = path.file_name().unwrap_or_default().to_string_lossy();
             name.starts_with(&prefix) && name.ends_with(".rmeta")
         })
-        .ok_or_else(|| trf("The prebuilt game has no {crate}.", &[("crate", krate)]))
+        .collect();
+    match candidates.as_slice() {
+        [path] => Ok(path.clone()),
+        [] => Err(trf(
+            "The prebuilt game has no {crate}.",
+            &[("crate", krate)],
+        )),
+        _ => Err(facade_refused(krate)),
+    }
+}
+
+fn facade_refused(krate: &str) -> String {
+    trf(
+        "The prebuilt game cannot expose {crate}: it is build-only or has ambiguous metadata.",
+        &[("crate", krate)],
+    )
+}
+
+pub(super) fn facade_library(deps: &Path, krate: &str, sdk: &Identity) -> Result<PathBuf, String> {
+    if !sdk.facade_crates.contains(krate) {
+        return Err(facade_refused(krate));
+    }
+    library(deps, krate)
 }
 
 /// Rust's standard library as a dynamic library: what the prebuilt game and its executable load.
-fn standard_library(rust: &Toolchain) -> Result<PathBuf, String> {
+pub(super) fn standard_library(rust: &Toolchain) -> Result<PathBuf, String> {
     let dir = rust
         .target_libdir()
         .ok_or("no Rust standard library for this computer")?;
@@ -501,6 +528,8 @@ fn rustc(rust: &Toolchain, game: &Path, out: &Path, edition: &str) -> Command {
     .arg("-L")
     .arg(format!("dependency={}", game.join("deps").display()))
     .arg("-L")
+    .arg(format!("dependency={}", game.join("host").display()))
+    .arg("-L")
     .arg(format!("native={}", game.join("native").display()))
     .arg("-L")
     .arg(format!("dependency={}", out.display()));
@@ -519,7 +548,32 @@ pub(super) fn compile(
     projects: &[api::Project<'_>],
     declared: &[Vec<dependencies::Dependency>],
     resolution: &dependencies::Resolution,
+    consent: Option<&dyn Fn(&super::RegistryInventory) -> bool>,
 ) -> Result<(PathBuf, Vec<PathBuf>), String> {
+    if projects.iter().any(|project| {
+        project.dependency_tables().any(|(_, dependencies)| {
+            dependencies.iter().any(|(key, value)| {
+                let name = value
+                    .get("package")
+                    .and_then(toml::Value::as_str)
+                    .unwrap_or(key);
+                !api::PACKAGES.iter().any(|(package, _)| *package == name)
+            })
+        })
+    }) {
+        return super::registry_compile::compile(
+            rust,
+            game,
+            out,
+            projects,
+            declared,
+            resolution,
+            super::registry_compile::Options {
+                consent,
+                adapter: &std::env::current_exe().map_err(|e| e.to_string())?,
+            },
+        );
+    }
     let catalog =
         internals::Catalog::read(game)?.with_mods(projects.iter().map(|project| project.bundle))?;
     let generated = catalog
@@ -531,6 +585,7 @@ pub(super) fn compile(
     let _ = fs::remove_dir_all(out);
     fs::create_dir_all(out).map_err(|e| e.to_string())?;
     let deps = game.join("deps");
+    let sdk = identity(game)?;
     let api_library = library(&deps, "mod_api")?;
     let mut libraries = std::collections::HashMap::new();
     for (package, name) in api::PACKAGES {
@@ -587,8 +642,10 @@ pub(super) fn compile(
                 .arg(source);
             for krate in &facade.crates {
                 if krate != "horizon_client" {
-                    cmd.arg("--extern")
-                        .arg(format!("{krate}={}", library(&deps, krate)?.display()));
+                    cmd.arg("--extern").arg(format!(
+                        "{krate}={}",
+                        facade_library(&deps, krate, &sdk)?.display()
+                    ));
                 }
             }
             super::run(
@@ -672,11 +729,7 @@ pub(super) fn compile(
         "macos" => Some("-Wl,-rpath,@executable_path"),
         _ => None,
     };
-    for arg in origin
-        .into_iter()
-        .map(str::to_owned)
-        .chain(identity(game)?.link_args)
-    {
+    for arg in origin.into_iter().map(str::to_owned).chain(sdk.link_args) {
         cmd.arg("-C").arg(format!("link-arg={arg}"));
     }
     cmd.arg("-o").arg(&binary).arg(&main);
@@ -688,7 +741,7 @@ pub(super) fn compile(
 
 /// The game's own dynamic libraries, which the executable loads from beside itself: the game and
 /// the wasm mod runtime it links (`tools/prebuilt_game.py` checks the archive holds both).
-fn game_dylibs(deps: &Path) -> Result<Vec<PathBuf>, String> {
+pub(super) fn game_dylibs(deps: &Path) -> Result<Vec<PathBuf>, String> {
     let top = if library(deps, "horizon_mod_host").is_ok() {
         "horizon_mod_host"
     } else {
@@ -714,6 +767,73 @@ fn game_dylibs(deps: &Path) -> Result<Vec<PathBuf>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sdk_identity_refuses_old_and_unknown_newer_formats_by_name() {
+        let dir = tempfile::tempdir().unwrap();
+        for version in [0, 4, 6] {
+            let text = serde_json::json!({"format_version":version});
+            std::fs::write(dir.path().join(IDENTITY), text.to_string()).unwrap();
+            let error = identity(dir.path()).err().unwrap();
+            assert!(error.contains(&format!("SDK format {version}")), "{error}");
+            assert!(
+                error.contains(if version < 5 {
+                    "install a newer SDK"
+                } else {
+                    "update the launcher"
+                }),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn older_sdk_layout_is_a_named_refusal_not_source_permission() {
+        let reason = SourceReason::IncompatibleSdk {
+            archive: "horizon-prebuilt-v4-fixture.tar.gz".into(),
+        };
+        assert!(!reason.forces_source());
+        let error = or_source(Err(reason)).unwrap_err();
+        assert!(
+            error.contains("horizon-prebuilt-v4-fixture.tar.gz"),
+            "{error}"
+        );
+        assert!(error.contains("SDK v5"), "{error}");
+    }
+
+    #[test]
+    fn facades_refuse_build_only_crates_and_ambiguous_runtime_metadata() {
+        let deps = super::super::tests::dir("prebuilt-facade-eligibility");
+        for name in [
+            "libpoint_shape-host.rmeta",
+            "libpoint_shape-target.rmeta",
+            "libbuild_tool-one.rmeta",
+            "libhorizon_core-one.rmeta",
+        ] {
+            fs::write(deps.join(name), b"").unwrap();
+        }
+        let mut sdk: Identity = serde_json::from_value(serde_json::json!({
+            "format_version": 5, "commit": "test", "rustc": "test", "target": "test", "side": "client",
+            "link_args": [], "facade_crates": ["horizon_core"],
+        }))
+        .unwrap();
+        assert_eq!(
+            facade_library(&deps, "horizon_core", &sdk).unwrap(),
+            deps.join("libhorizon_core-one.rmeta")
+        );
+        for krate in ["point_shape", "build_tool"] {
+            let refusal = facade_library(&deps, krate, &sdk).unwrap_err();
+            assert!(refusal.contains(krate), "{refusal}");
+            assert!(
+                refusal.contains("build-only or has ambiguous metadata"),
+                "{refusal}"
+            );
+        }
+        // Even an incorrect allowlist cannot make lookup select one of two variants.
+        sdk.facade_crates.insert("point_shape".into());
+        assert!(facade_library(&deps, "point_shape", &sdk).is_err());
+        fs::remove_dir_all(deps).unwrap();
+    }
 
     #[test]
     fn the_executable_carries_the_game_and_its_wasm_runtime() {
@@ -742,7 +862,7 @@ mod tests {
     }
 
     #[test]
-    fn plans_all_private_sources_and_keeps_named_refusals_invalid() {
+    fn injects_without_slots_are_invalid_and_never_plan_source() {
         use serde_json::json;
         let root = super::super::tests::dir("slot-planning");
         let mut bundles = Vec::new();
@@ -762,10 +882,6 @@ mod tests {
             (
                 "api_refusal",
                 json!({"at":"Example::private","kind":"head","access":"api"}),
-            ),
-            (
-                "expression",
-                json!({"at":"Example::calls","kind":"expression","access":"internals","expr":"64.0","type":"f64","nth":0,"ctx":"context"}),
             ),
         ] {
             let dir = root.join(id);
@@ -800,16 +916,13 @@ mod tests {
                 super::super::Route::Invalid { .. } => "invalid",
             })
             .collect();
-        assert_eq!(
-            classes,
-            ["prebuilt", "source", "source", "invalid", "source"]
-        );
+        assert_eq!(classes, ["prebuilt", "invalid", "invalid", "invalid"]);
         let causes: Vec<_> = routes
             .iter()
             .filter(|(_, route)| matches!(route, super::super::Route::Game { .. }))
             .map(|(id, _)| id.as_str())
             .collect();
-        assert_eq!(causes, ["private_head", "unlisted_call", "expression"]);
+        assert!(causes.is_empty());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -906,7 +1019,7 @@ mod tests {
         let dir = super::super::tests::dir("prebuilt-exact-build");
         let check = |commit: &str, rustc: &str, target: &str, side: &str| {
             let identity = serde_json::json!({
-                "commit": commit, "rustc": rustc, "target": target, "side": side, "link_args": [],
+                "format_version": 5, "commit": commit, "rustc": rustc, "target": target, "side": side, "link_args": [],
             });
             fs::write(dir.join(IDENTITY), identity.to_string()).unwrap();
             check_identity(&dir, "abc123", "x86_64-pc-windows-gnu", Target::Client)
@@ -960,23 +1073,19 @@ mod tests {
     }
 
     #[test]
+    fn registry_dependencies_do_not_rebuild_the_game() {
+        for cargo in [
+            "[dependencies]\nhorizon-mod-api='0.1'\nserde='1'",
+            "[dependencies]\nhorizon-mod-api='0.1'\n[target.'cfg(unix)'.dependencies]\nlibc='0.2'",
+        ] {
+            assert_eq!(refusal_of(cargo), None);
+        }
+    }
+
+    #[test]
     fn anything_the_prebuilt_game_cant_build_names_why() {
         let id = || "example".to_owned();
         for (cargo, reason) in [
-            (
-                "[dependencies]\nhorizon-mod-api='0.1'\nserde='1'",
-                SourceReason::Crate {
-                    mod_id: id(),
-                    krate: "serde".into(),
-                },
-            ),
-            (
-                "[dependencies]\nhorizon-mod-api='0.1'\n[target.'cfg(unix)'.dependencies]\nlibc='0.2'",
-                SourceReason::Crate {
-                    mod_id: id(),
-                    krate: "libc".into(),
-                },
-            ),
             (
                 "[dependencies]\nhorizon-mod-api={version='0.1',features=['testing']}",
                 SourceReason::Features { mod_id: id() },
@@ -999,10 +1108,10 @@ mod tests {
         let name = native::prebuilt_archive("x86_64-unknown-linux-gnu", true);
         assert_eq!(
             name,
-            "horizon-prebuilt-v3-x86_64-unknown-linux-gnu-server.tar.gz"
+            "horizon-prebuilt-v5-x86_64-unknown-linux-gnu-server.tar.gz"
         );
         let listing =
-            format!("AB12  horizon-prebuilt-v3-x86_64-unknown-linux-gnu.tar.gz\ncd34 *{name}\n");
+            format!("AB12  horizon-prebuilt-v5-x86_64-unknown-linux-gnu.tar.gz\ncd34 *{name}\n");
         assert_eq!(expected_sum(&listing, &name).as_deref(), Some("cd34"));
         assert_eq!(expected_sum(&listing, "horizon-prebuilt-x.tar.gz"), None);
     }

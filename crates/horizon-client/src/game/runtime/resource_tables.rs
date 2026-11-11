@@ -146,6 +146,8 @@ impl PackResources {
     ) -> Result<Self> {
         let visibility = models::load_visibility(root.prepared(), assets.registry)?;
         api_values::resolve_block_definitions(assets.registry)?;
+        mods::extend_poi_types(assets.registry);
+        mods::register_cauldron_fluid_contents(assets.registry);
         let tables = Arc::new(
             MeshTables::new(
                 &assets,
@@ -232,13 +234,9 @@ impl PackResources {
         )
         .map(Arc::new);
         Self {
-            layer_names: Arc::new(
-                render
-                    .sprite_layers
-                    .iter()
-                    .map(|(name, layer)| (*layer, name.trim_start_matches("minecraft:").to_owned()))
-                    .collect(),
-            ),
+            layer_names: Arc::new(horizon_client::block_sprites::texture_names(
+                &render.sprite_layers,
+            )),
             context: Arc::new(WorkerContext {
                 assets: assets.clone(),
                 render: render.clone(),

@@ -515,6 +515,7 @@ impl Game<'_> {
             .set_resource_root(self.pack.source.clone());
         self.maps.slots.forget();
         self.map_patches.clear();
+        self.text_patches.get_mut().clear();
         // Kept mod block entities name the old atlas's sprites, and their view distances the old
         // registry's states.
         self.kept_block_entities.get_mut().clear();
@@ -535,6 +536,7 @@ impl Game<'_> {
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) =
             horizon_client::mobs::villager_hats::VillagerHats::load(&self.pack.source);
+        self.client_professions()?;
         *self
             .res
             .mob_data()
@@ -575,6 +577,8 @@ impl Game<'_> {
         } else {
             lang::Language::load(&[&self.pack.source], &code)
         });
+        // Book search terms and resolved result icons belong to these resources.
+        self.recipe_ui.reset_screen();
         self.refresh_remote_language();
         self.audio.reload_with(&self.pack.source, sounds);
         self.clear_lod();
@@ -606,6 +610,7 @@ impl Game<'_> {
         super::client_reload::apply_client_reload(&self.mod_phase, client_applies);
         self.install_loop_context(loop_context);
         self.texture_atlases_stitched();
+        self.native_model_baking_completed();
         self.native_client_resources_reloaded();
         Ok(())
     }

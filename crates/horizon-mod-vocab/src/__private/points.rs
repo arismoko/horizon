@@ -229,16 +229,20 @@ impl Table {
                 }
             }
             Activity::Engine => {
-                horizon_engine_slots::POINTS.publish(
-                    sealed.slots[..self.points]
-                        .iter()
-                        .map(|slot| !slot.entries.is_empty()),
-                );
-                horizon_engine_slots::SITES.publish(
-                    sealed.slots[self.points..]
-                        .iter()
-                        .map(|slot| !slot.entries.is_empty()),
-                );
+                horizon_engine_slots::POINTS
+                    .publish(
+                        sealed.slots[..self.points]
+                            .iter()
+                            .map(|slot| !slot.entries.is_empty()),
+                    )
+                    .expect("provider publishes activity once before engine seal");
+                horizon_engine_slots::SITES
+                    .publish(
+                        sealed.slots[self.points..]
+                            .iter()
+                            .map(|slot| !slot.entries.is_empty()),
+                    )
+                    .expect("provider publishes activity once before engine seal");
             }
         }
     }
@@ -699,6 +703,35 @@ pub fn seal() {
     }
 }
 
+/// Adapts a replacement listener to a point's ordinary typed listener without registry values.
+// hidden: generated mod-point adapters share replacement semantics without exposing registry types.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! replacement_listener {
+    (cancel, host, $listener:path) => {
+        |host, args| {
+            $listener(host, args);
+            args.cancel = true;
+        }
+    };
+    (cancel, none, $listener:path) => {
+        |args| {
+            $listener(args);
+            args.cancel = true;
+        }
+    };
+    (result, host, $listener:path) => {
+        |host, args| {
+            args.result = ::core::option::Option::Some($listener(host, args));
+        }
+    };
+    (result, none, $listener:path) => {
+        |args| {
+            args.result = ::core::option::Option::Some($listener(args));
+        }
+    };
+}
+
 #[cfg(test)]
 mod activity_tests {
     use super::*;
@@ -708,8 +741,8 @@ mod activity_tests {
         static POINTS: [AtomicBool; 2] = [AtomicBool::new(true), AtomicBool::new(false)];
         static SITES: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(true)];
         let local = Table::new(&POINTS, &SITES);
-        horizon_engine_slots::POINTS.publish([false, true]);
-        horizon_engine_slots::SITES.publish([true, false]);
+        horizon_engine_slots::POINTS.publish([false, true]).unwrap();
+        horizon_engine_slots::SITES.publish([true, false]).unwrap();
         let game = Table::engine(2, 2);
         assert!(local.active_point(0));
         assert!(!local.active_point(1));
