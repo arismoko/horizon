@@ -3,6 +3,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
+#[doc(hidden)]
+pub static COUNTS: [std::sync::atomic::AtomicU64; 32768] = [const { std::sync::atomic::AtomicU64::new(0) }; 32768];
+
 /// Runs a point's listened path out of line: the code that builds its record and calls its
 /// listeners stays out of the function, which nothing listening leaves small enough to inline.
 #[cold]

@@ -1375,6 +1375,7 @@ impl Game<'_> {
             // MinecraftServer.tickServer: while paused only the connections run.
             // `MinecraftServer.runServer` catches what the tick throws, writes the crash
             // report and still stops the server (saves). A panic here does the same.
+            let zc_started = Instant::now();
             let ticked =
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     match &mut state.report {
@@ -1391,6 +1392,7 @@ impl Game<'_> {
                         None => self.tick_server_timed(paused),
                     }
                 }));
+            crate::game::zc_bench::tick(zc_started.elapsed());
             match ticked {
                 Ok(result) => result?,
                 Err(payload) => {

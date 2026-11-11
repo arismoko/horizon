@@ -1727,6 +1727,7 @@ impl Game<'_> {
                                 );
                             }
                             self.world_frames += 1;
+                            crate::game::zc_bench::frame();
                         }
                         self.frames += 1;
                         self.fps_frames += 1;
