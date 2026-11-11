@@ -4,6 +4,9 @@ root=Path(__file__).resolve().parents[2]
 base=root/'target/wholegame/kit-out/stage-B';stage=root/'target/wholegame/kit-out/stage-D'
 assert not stage.exists()
 shutil.copytree(base,stage,ignore=shutil.ignore_patterns('target','zc-game','build.json'))
+# Nested target trees otherwise inherit the outer Git worktree, and git-format patches
+# may silently skip every path. Make this disposable staged tree its own repository.
+subprocess.run(['git','init','-q'],cwd=stage,check=True)
 # Remove measurement helpers before pointer staging so they acquire no replacement sites.
 patches=root/'target/wholegame/kit/points-tick/patches'
 subprocess.run(['git','apply','--reverse',str(patches/'instrumentation.patch')],cwd=stage,check=True)
