@@ -12,7 +12,22 @@ case "$INPUT" in *vanilla*) echo 'Refusing shared vanilla input' >&2; exit 2;; e
 BASE=$HOME/bench-fnr
 mkdir -p "$BASE/results"
 WORK=$(mktemp -d "$BASE/run.XXXXXX")
-cleanup() { rm -rf -- "$WORK"; }
+cleanup() {
+  # A failed perf attach can leave the kit's server blocked on its control FIFO.
+  # Terminate only processes with an argv path inside this run's private directory.
+  python3 - "$WORK" <<'PY'
+import os, pathlib, signal, sys
+prefix = os.fsencode(sys.argv[1] + '/')
+for proc in pathlib.Path('/proc').glob('[0-9]*'):
+    try:
+        args = (proc / 'cmdline').read_bytes().split(b'\0')
+        if any(arg.startswith(prefix) for arg in args):
+            os.kill(int(proc.name), signal.SIGTERM)
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        pass
+PY
+  rm -rf -- "$WORK"
+}
 trap cleanup EXIT
 # All copied data is private and disposable. No game is run against INPUT.
 cp -a "$INPUT/kit" "$WORK/kit"
