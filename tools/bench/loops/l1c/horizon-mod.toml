@@ -15,4 +15,5 @@ mixins = "MIXINS"
 [[native.loop]]
 id = "floor"
 loop = "block_entities.tick"
-with = "crate::Floor"
+helper = "src/loops/slot.rs"
+with = "Floor"

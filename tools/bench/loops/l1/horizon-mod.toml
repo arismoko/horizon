@@ -15,4 +15,5 @@ mixins = "MIXINS"
 [[native.loop]]
 id = "throttle"
 loop = "block_entities.tick"
-with = "crate::Throttle"
+helper = "src/loops/slot.rs"
+with = "Throttle"
