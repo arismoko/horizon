@@ -10,6 +10,7 @@ set -euo pipefail
 INPUT=$(realpath "$FNR_INPUT")
 BUILDS=$(realpath "${FNR_BUILDS_INPUT:-$INPUT/builds}")
 case "$INPUT" in *vanilla*) echo 'Refusing shared vanilla input' >&2; exit 2;; esac
+case "$BUILDS" in *vanilla*) echo 'Refusing shared vanilla builds' >&2; exit 2;; esac
 BASE=$HOME/bench-fnr
 mkdir -p "$BASE/results"
 WORK=$(mktemp -d "$BASE/run.XXXXXX")
