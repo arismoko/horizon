@@ -14,8 +14,9 @@ if v in ['A','D']:checks['no-points expansion']='REQ-R1-2 build A: no point' in 
 if v=='C':checks['five-byte site']='0x0f, 0x1f, 0x44, 0x00, 0x00' in macro
 if v=='D':checks['replacement slots']='__REPLACE' in (stage/'crates/horizon-client/src/lib.rs').read_text()
 if v=='E':
- checks['API-only']='shape.raw = false' in macro and 'if !shape.api()' in macro
- checks['shared flag']='POINTS_SHARED[' in macro and 'let __returned = __head_listened' in macro
+ checks['API-only']='if !shape.api()' in macro and 'RawKind' not in macro
+ checks['shared pointer']='let Some(slot) = shape.slot' in macro and 'let entry = reader("slot")' in macro
+ checks['dispatcher arming']='crate::__fnr_arm();' in (stage/'crates/horizon-client/src/game.rs').read_text()
 if v in ['Ma','Mall']:checks['leaf rule']='HZ_SITE_SKIP' in macro and 'fn visit_macro' in macro
 if v in ['Mb','Mall']:checks['plain flag read']='.as_ptr().read()' in macro
 if v in ['Mc','Mall']:checks['borrowed argument state']='borrowed_slots' in macro
