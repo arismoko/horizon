@@ -13,6 +13,7 @@ BASE=$HOME/bench-fnr
 mkdir -p "$BASE/results"
 WORK=$(mktemp -d "$BASE/run.XXXXXX")
 cleanup() {
+  local status=$?
   # A failed perf attach can leave the kit's server blocked on its control FIFO.
   # Terminate only processes with an argv path inside this run's private directory.
   python3 - "$WORK" <<'PY'
@@ -26,6 +27,11 @@ for proc in pathlib.Path('/proc').glob('[0-9]*'):
     except (FileNotFoundError, ProcessLookupError, PermissionError):
         pass
 PY
+  if [ "$status" -ne 0 ] && [ -n "${RESULT:-}" ]; then
+    [ ! -d "$WORK/out/runs" ] || cp -a "$WORK/out/runs" "$RESULT/partial-runs" || true
+    [ ! -f "$WORK/out/points-setup/game/server.log" ] || cp "$WORK/out/points-setup/game/server.log" "$RESULT/setup-server.log" || true
+    [ ! -f "$WORK/perf-invocations.txt" ] || cp "$WORK/perf-invocations.txt" "$RESULT/perf-invocations.txt" || true
+  fi
   rm -rf -- "$WORK"
 }
 trap cleanup EXIT
@@ -40,10 +46,13 @@ cp -a "$INPUT/resources" "$WORK/resources"
 export FNR_PERF_BINARY=$PERF_PACKAGE_DIR/root/usr/bin/perf
 export FNR_PERF_LIBS=$LIBPFM_PACKAGE_DIR/root/usr/lib:$LIBTRACEEVENT_PACKAGE_DIR/root/usr/lib
 export PERF=$WORK/perf
+export FNR_PERF_LOG=$WORK/perf-invocations.txt
 cat > "$PERF" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 export LD_LIBRARY_PATH=$FNR_PERF_LIBS
+printf '%s\t' "$FNR_PERF_BINARY" "$@" >> "$FNR_PERF_LOG"
+printf '\n' >> "$FNR_PERF_LOG"
 exec "$FNR_PERF_BINARY" "$@"
 SH
 chmod +x "$PERF"
@@ -60,6 +69,8 @@ for v in "${builds[@]}"; do
   case "$v" in A|B|C|D|E|Ma|Mb|Mc|Mall) ;; *) echo "Invalid variant: $v" >&2; exit 2;; esac
   mkdir -p "$WORK/out/stage-$v"
   cp -a "$INPUT/builds/$v/zc-game" "$WORK/out/stage-$v/zc-game"
+  # The cross-host file copy can drop executable mode; change only our private copy.
+  chmod u+x "$WORK/out/stage-$v/zc-game/horizon-client"
   cp "$INPUT/builds/$v/points.json" "$WORK/out/stage-$v/points.json"
 done
 # Check only Dyna CI containers, not the owner's other sessions or game clients.
@@ -132,6 +143,7 @@ for r in range(1,6):
         print('round',r,'variant',v,flush=True)
         subprocess.run(['python3',scene,'tick',str(out/f'stage-{v}'/'zc-game'),str(out/'points-setup'/'game'),str(run),'500','2000'],check=True)
 PY
+cp "$FNR_PERF_LOG" "$RESULT/perf-invocations.txt"
 python3 "$WORK/kit/points-tick/summary.py" reproduced > "$RESULT/summary.txt"
 mkdir -p "$RESULT/census"
 for v in "${builds[@]}"; do
