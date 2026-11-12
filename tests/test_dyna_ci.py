@@ -260,6 +260,53 @@ class DynaRoutingTests(unittest.TestCase):
                         static.index("- name: Test offline research tooling"))
 
     @unittest.skipUnless(POSIX_BASH and os.name != "nt", "needs the runner's bash and POSIX paths")
+    def test_verify_reuses_persistent_target_without_replacing_existing_paths(self):
+        import textwrap
+        from test_ci_runners import jobs
+        runtime = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))["verify"]
+        setup = runtime.split("- name: Use persistent verify build artifacts\n", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn("if: needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true'", setup)
+        script = textwrap.dedent(setup.split("        run: |\n", 1)[1])
+        restore = runtime.split("- name: Restore unchanged source timestamps\n", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn("if: needs.changes.outputs.rust_required != 'false'", restore)
+        self.assertIn("python3 tools/ci/source_mtimes.py target/ci-source-mtimes.json", restore)
+        self.assertLess(runtime.index("- name: Use persistent verify build artifacts"),
+                        runtime.index("- name: Restore unchanged source timestamps"))
+        self.assertLess(runtime.index("- name: Restore unchanged source timestamps"),
+                        runtime.index("- name: Build the runtime holder test actor"))
+        for case in ("absent", "correct-link", "directory", "file", "wrong-link", "dangling-link"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                persistent = root / "persistent"
+                persistent.mkdir()
+                target = root / "target"
+                other = root / "other"
+                other.mkdir()
+                if case == "correct-link":
+                    target.symlink_to(persistent)
+                elif case == "directory":
+                    target.mkdir()
+                    (target / "keep").write_text("retained")
+                elif case == "file":
+                    target.write_text("retained")
+                elif case in ("wrong-link", "dangling-link"):
+                    target.symlink_to(other if case == "wrong-link" else root / "missing")
+                before = target.lstat() if case != "absent" else None
+                env = dict(os.environ, CARGO_TARGET_DIR=str(persistent))
+                result = subprocess.run(["bash", "-e", "-c", script], cwd=root, env=env,
+                                        capture_output=True, text=True)
+                if case in ("absent", "correct-link"):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(target.resolve(), persistent)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(target.lstat(), before)
+                    if case == "directory":
+                        self.assertEqual((target / "keep").read_text(), "retained")
+                    elif case == "file":
+                        self.assertEqual(target.read_text(), "retained")
+
+    @unittest.skipUnless(POSIX_BASH and os.name != "nt", "needs the runner's bash and POSIX paths")
     def test_stage_artifact_handoff_selects_normal_binary_and_rejects_unsafe_paths(self):
         import json
         import textwrap

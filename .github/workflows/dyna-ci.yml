@@ -378,6 +378,21 @@ jobs:
           shared-key: verify-workspace
           cache-workspace-crates: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Use persistent verify build artifacts
+        if: needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true'
+        run: |
+          mkdir -p "${CARGO_TARGET_DIR:?}"
+          if [ ! -e target ] && [ ! -L target ]; then
+            ln -s "$CARGO_TARGET_DIR" target
+          elif [ ! target -ef "$CARGO_TARGET_DIR" ]; then
+            echo '::error::Existing target path does not point to CARGO_TARGET_DIR; refusing to replace it.'
+            exit 1
+          fi
+      # Pair the retained artifacts with lint's input snapshot. Cargo still decides freshness;
+      # only byte-identical Git objects regain their previous source timestamps.
+      - name: Restore unchanged source timestamps
+        if: needs.changes.outputs.rust_required != 'false'
+        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes.json | tee -a "$GITHUB_STEP_SUMMARY"
       # A dyna-large runner has a hard 16 GiB limit and 8 CPUs; horizon-client rustc processes take about 2.6 GB
       # each, so Dyna runs build four crates at a time. Formatting and lint run in parallel on GitHub's
       # runners (the lint job), so this job only tests. A cargo flag, not CARGO_BUILD_JOBS: sccache hashes
