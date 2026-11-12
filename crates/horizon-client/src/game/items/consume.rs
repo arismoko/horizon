@@ -847,7 +847,9 @@ mod teleport_hook_tests {
             with_game(|game| {
                 let at = Vec3::new(0.0, 65.0, 0.0);
                 game.player = Some(PlayerMotion::new(game.motion, at).unwrap());
-                crate::game::native_entity_refs::tests::bind_local_player(game, 2, 7);
+                // This body belongs to the guest record installed below, never
+                // to a separately admitted local player with the same runtime ID.
+                game.player.as_mut().unwrap().entity_id = 2;
                 game.lan_acting = Some(12);
                 game.lan_acting_uuid = Some(7);
                 game.lan_acting_name = Some("ConsumedStackTest".into());
