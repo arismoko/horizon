@@ -72,7 +72,12 @@ impl TryIntoEngine<()> for mod_api::Block {
     type Error = String;
     fn try_into_engine(&self, _: &()) -> Result<Self::Engine, Self::Error> {
         Ok(engine::Block {
-            state_light: None,
+            state_light: self.state_light.as_ref().map(|light| engine::StateValues {
+                property: String::new(),
+                properties: light.properties.clone(),
+                values: light.values.clone(),
+                default: light.default,
+            }),
             id: self.id.clone(),
             template: self.template.clone(),
             pick_item: self.pick_item.clone(),
@@ -199,6 +204,34 @@ mod tests {
     use super::*;
     use mod_api::{Block, BlockProperties, Item, Tag};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn state_light_matches_json_and_preserves_emission() {
+        let mut draft = Block::new("test:lamp", "minecraft:stone");
+        draft
+            .state_properties
+            .insert("lit".into(), mod_api::BlockStateProperty::Boolean);
+        draft.properties.light = Some(3);
+        draft.state_light = Some(mod_api::StateLight {
+            properties: vec!["lit".into()],
+            values: BTreeMap::from([("true".into(), 15)]),
+            default: Some(0),
+        });
+        let converted = draft.try_into_engine(&()).unwrap();
+        let json: engine::StateLight =
+            serde_json::from_str(r#"{"properties":["lit"],"values":{"true":15},"default":0}"#)
+                .unwrap();
+        assert_eq!(converted.state_light.as_ref(), Some(&json));
+        let table = converted.state_light.unwrap();
+        assert_eq!(
+            table.values.get("false").copied().or(table.default),
+            Some(0)
+        );
+        assert_eq!(
+            table.values.get("true").copied().or(table.default),
+            Some(15)
+        );
+    }
 
     #[test]
     fn duplicate_component_ids_refuse_blocks_and_items() {

@@ -976,3 +976,13 @@ otherwise it draws no model. Pack layers bind independently. An unknown type,
 explicit refusal, invalid model, out-of-range state, duplicate state or answer
 with no picks rejects the whole layer with a diagnostic, leaving lower layers
 available. Vanilla `variants` and `multipart` remain available for ordinary files.
+
+## Per-state light
+
+Blocks in JSON and code can set `state_light`, which overrides `properties.light`.
+Use `properties` for an ordered list of state property names, `values` for
+comma-separated value tuples mapped to emission (0 to 15), and `default` for
+unmatched states. Without a default, every state must match a tuple.
+For example, `"state_light":{"properties":["lit"],"values":{"true":15},"default":0}`
+makes a lamp dark when unlit and emit 15 when lit. Code uses `mod_api::StateLight`
+with the same `properties`, `values` and `default` fields on `Block::state_light`.
