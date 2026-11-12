@@ -1,6 +1,13 @@
 # Generated block class tags
 
-Attach with `block_part_tag("horizon:class/fence", part)`. World open and successful `/reload` generate these reserved tags from actual class chains, including template mod blocks and recognized ancestors. State variants deduplicate by block key. `block` includes the root class. Typed tag reads use the same snapshot. Datapack definitions under `horizon:class/` are ignored with a warning; ordinary tags remain independent. Failed reload keeps the installed snapshot. Generation costs O(states × chain length) during preparation; dispatch adds no tick work.
+Use `block_part_tag("horizon:class/fence", part)` to attach a part to every block in a generated class tag.
+
+- World open and successful `/reload` generate these reserved tags from actual class chains, including template mod blocks and recognized ancestors.
+- State variants deduplicate by block key. `horizon:class/block` includes the root class.
+- Typed tag reads use the same snapshot as part attachment.
+- Data pack definitions under `horizon:class/` are ignored with a warning; ordinary tags remain independent.
+- A failed reload keeps the installed snapshot. Tag generation runs during preparation, not on each tick.
+
 
 | Tag | Vanilla class |
 | --- | --- |

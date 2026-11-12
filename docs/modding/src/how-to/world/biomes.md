@@ -1,6 +1,6 @@
 # Biomes
 
-What a mod can do with biomes, by what it wants. Each row names the call or file; the pages it links to give the detail.
+Use biome content, region declarations and level handles to control biome generation, query biomes and edit biome cells.
 
 | I want to | Use | Side |
 |---|---|---|
@@ -18,16 +18,11 @@ Code and file modifiers support features, spawns, spawn costs, carvers, climate 
 then removals, then modifications when the world loads, after its data packs. Mods cannot choose explicit phases
 or supply custom biome-modifier serializers ([content mods](../content-mods.md)).
 
-## What is not here yet
+## Adopt installed biome regions
 
-- Adopting the installed mods' biome regions from the client's world list; a dedicated server can already ([arismoko/horizon#2554](https://github.com/arismoko/horizon/issues/2554)).
-- Full custom biome-modifier serializers and explicit phases between modifiers ([#2732](https://github.com/arismoko/horizon/issues/2732)).
-- A mod's own worldgen registry loaded into the world ([#811](https://github.com/arismoko/horizon/issues/811)).
-- Features and placers defined in code ([#815](https://github.com/arismoko/horizon/issues/815)).
+From the client's world list, open Edit World and confirm adoption to save the installed mods' biome regions for that world. Adoption changes generation in new chunks, not existing chunks. See [biome regions](../content-mods/biome-regions.md).
 
-Some of these have a PR open; a page for each lands with it.
-
-## Reads and writes are limited on purpose
+## Read and write limits
 
 - `biome_at` never loads or generates a chunk: an unloaded column answers `None`.
 - `find_closest_biome` follows vanilla's sampled spiral, so it is not a search through cells a mod edited, and it refuses a search whose sample count passes `BiomeSearch::MAX_SAMPLES`.

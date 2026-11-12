@@ -11,5 +11,4 @@ when its `weak_changes` part sets `receive` to true (initially false). This quer
 belongs to the farther block. Reading that cell never loads a chunk.
 
 These correspond to NeoForge's `IBlockExtension.onNeighborChange` and
-`getWeakChanges`. Using the comparator walk and ordering vanilla before parts
-are fork decisions. With no parts, vanilla's comparator rules are unchanged.
+`getWeakChanges`. With no parts, vanilla's comparator rules are unchanged.

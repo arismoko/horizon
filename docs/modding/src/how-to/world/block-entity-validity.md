@@ -8,7 +8,7 @@ are harmless. Unknown keys and blocks that do not share the target's common vani
 superclass fail startup.
 
 A block may be valid for several entity types. Its native declaration or original
-vanilla template still selects creation and ticking. For example, a block declared
+vanilla template selects creation and ticking. For example, a block declared
 with `template: "minecraft:vault"` and added to `minecraft:vault` creates and saves the
 vanilla vault entity. Adding another valid type does not replace that factory. Sign
 templates retain their existing membership defaults. Validity is frozen with the
