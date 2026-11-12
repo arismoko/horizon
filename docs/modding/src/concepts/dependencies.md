@@ -28,11 +28,11 @@ mod_api::if_installed!(host, extra_mod, {
 });
 ```
 
-Do not define these dependencies or features yourself in Cargo.toml.
+Do not define these dependencies or features yourself in `Cargo.toml`.
 Public statics must use appropriate synchronization for shared and reentrant hooks; private state in
 another mod's hook object is not exposed.
 
-Trait dispatch follows dependency order, with ties kept in bundle order. Mixin injection order remains
+Hook listeners run in descending priority, then dependency installation order, with dependency-order ties kept in bundle order. Mixin injection order remains
 horizon-mixins' priority, mod ID, then injection ID for source splices. Function-slot listeners
 instead use descending priority, dependency/registration order, then injection ID within a mod;
 call-site listeners retain mod-ID tie ordering.

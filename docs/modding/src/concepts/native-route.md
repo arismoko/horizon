@@ -6,7 +6,7 @@ and the launcher applies them to the prebuilt game without rebuilding the game.
 
 ## When to use it
 
-Try these first. They work on native and wasm, and they keep working on the next game build:
+Try these first. They work on native and wasm:
 
 1. a **hook**, a method of `mod_api::Hooks` that the game calls at one moment, or a **Part** method
    ([Your first native mod](../start/first-mod.md));
@@ -50,7 +50,7 @@ the game's own types, such as `Game` and its fields, and these change between bu
 | `horizon` | The game build: the exact Horizon commit, 40 lowercase hex characters. |
 | `mixins` | The exact commit of the [horizon-mixins](https://github.com/horizon-rust/horizon-mixins) tool, which applies `[[native.mixin]]` rows; 40 lowercase hex characters. |
 
-`cargo horizon-mod new` writes all three; to move an existing mod, edit them. Otherwise the mod is an ordinary native mod
+`cargo horizon-mod new path/to/mod --template native` writes all three; to move an existing mod, edit them. Otherwise the mod is an ordinary native mod
 ([Your first native mod](../start/first-mod.md)).
 
 ## Building
@@ -59,19 +59,12 @@ Build as for any native mod: the launcher's **Build**, or
 `horizon-launcher native-build path/to/mod --trust-native-code`. The flag says you trust the mod's code to
 run with your rights.
 
-The first build with a `[[native.mixin]]` row gets the horizon-mixins tool once for your `mixins` commit:
-a prebuilt download where one is published, otherwise a build from source that takes about a minute. Later
-builds take a few seconds.
+A build with a `[[native.mixin]]` row obtains the horizon-mixins tool for your `mixins` commit.
 
 The prebuilt tool is checked against its release's `SHA256SUMS` and against the commit, patch and platform the
 launcher pins. Where no prebuilt exists for your platform or pin, the launcher builds the tool from source.
 
-When it works, the launcher's [build log](../how-to/native-mods/05-build-log.md) (`native/build.log`, also
-the **Build log** button) shows the number of patched functions and mixin rows:
-
-```text
-Prebuilt game: only the mods compile
-Function replacement: 1 functions patched by 1 mixins, without rebuilding the game (copy … ms, horizon-mixins … ms, compile … ms, total … ms)
-```
+Read the launcher's [build log](../how-to/native-mods/05-build-log.md) (`native/build.log`,
+also available through **Build log**) for the number of patched functions and mixin rows.
 
 What the launcher does under the hood is on [How the native route works](native-route/8-how-it-works.md).
