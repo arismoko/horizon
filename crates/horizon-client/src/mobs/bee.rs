@@ -207,6 +207,7 @@ pub fn stop_being_angry(m: &mut Mob) {
 
 fn stop_being_angry_with_world(m: &mut Mob, world: Option<&MobWorld>) {
     m.ai.last_hurt_by = None;
+    m.ai.last_hurt_by_ref = None;
     m.ai.last_hurt_by_time = m.age as i32;
     if let Some(world) = world {
         m.set_ai_target(world, None);

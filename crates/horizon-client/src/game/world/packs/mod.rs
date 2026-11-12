@@ -464,6 +464,7 @@ impl Game<'_> {
                     Some(textures),
                     self.settings.horizon.api,
                     self.settings.horizon.translucent_batching,
+                    self.settings.vsync,
                     &self.settings.horizon,
                     super::shader_packs::picked_pack_shape(&self.settings),
                     self.renderer
@@ -502,6 +503,7 @@ impl Game<'_> {
         self.random_tick_sections.clear();
         self.portals.sections.clear();
         self.options.resources = root.clone();
+        self.falling_vertices.get_mut().clear();
         self.pack = pack;
         self.gui = gui;
         self.standalone_geometry = standalone_geometry;
