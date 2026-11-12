@@ -1,9 +1,16 @@
 # Standalone server export
 
-`horizon-launcher native-build FOLDER --server-output DIR --version TAG --trust-native-code [--profile PROFILE] [--allow-jar-downloads]`
+Build a dedicated-server runtime with your native mods:
 
-Builds a standalone dedicated-server engine into `DIR`, which must not exist yet. `FOLDER` (a mod folder or a
-folder of them) is required; no instance is read, selected, edited or played, and no launcher config is written.
+```sh
+horizon-launcher native-build FOLDER --server-output DIR --version TAG --trust-native-code
+```
+
+`--trust-native-code` saves your consent to run unsandboxed native code. You can omit it when
+consent is saved. Optional flags include `--profile PROFILE` and `--allow-jar-downloads`.
+
+The command exports a standalone dedicated-server engine into `DIR`, which must not exist. `FOLDER` (a mod folder or a
+folder of them) is required. The export does not select, edit or launch an instance.
 It uses the pinned prebuilt dedicated-server SDK and builds only the mods and native
 function-replacement libraries, never the game. `--version` pins the Horizon release/Nightly
 for reproducibility. The export holds the engine executable, prepared resources,
@@ -25,18 +32,20 @@ preparer to download the exact files into the local cache. Cached jar bytes are 
 When moving the runtime to another machine or game home, prepare its jar cache separately; errors
 name the required files and cache paths. No Java code from a jar runs.
 
-Point a server at it:
+## Run the server
+
+Point a server at the exported engine:
 
     horizon-server --dir SERVER config set engine.path=/absolute/export/horizon-engine
     horizon-server --dir SERVER restart
 
 Updates do not rebuild a pinned `engine.path`: build a new export folder, set `engine.path` to it, restart, and keep
-the old folder for manual rollback. The supervisor does not auto-update or rebuild a pinned engine path
-(remaining work in horizon-rust/horizon#6304). To inspect the running server, its authenticated
+the old folder for manual rollback. The supervisor does not auto-update or rebuild a pinned engine path.
+
+To inspect the running server, its authenticated
 [`GET /api/v1/mods`](https://github.com/arismoko/horizon/blob/main/docs/api/server.md) queries the engine's canonical `LoadedMods` inventory:
 `mods` lists loaded native, wasm and content package ids and versions in inventory order.
 `provenance` separately reports the configured program's build record, which may differ and is never
 used as an inventory fallback. A stopped or unreachable engine returns HTTP 409, not an empty list.
-Configuration mod matching is implemented as described above.
+The configuration handshake checks both-side mod IDs and versions; see [Multiplayer](11-multiplayer.md).
 Native mods run unsandboxed: only build code you have read and trust.
-`--trust-native-code` records the operator's decision; an agent must not supply that consent.

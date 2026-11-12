@@ -17,7 +17,7 @@ The launcher keeps these managed caches under its data folder:
 inputs and embedded mod inventory. Client builds share their base version's prepared resources,
 so retain that base while its native builds are installed. Dedicated server exports are standalone.
 
-Run `horizon-launcher storage` to inspect actual disk use and cleanup eligibility. Storage keeps
+Run `horizon-launcher storage` to inspect disk use and cleanup eligibility. Storage keeps
 in-use versions and shared caches protected through runtime leases and publication locks. A busy
 or unverifiable unit is retained with a reason; it is not counted as freed. Cargo lock files also
 prevent unsafe cleanup. Do not delete managed cache directories while a build or game is running.

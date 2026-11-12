@@ -1,31 +1,53 @@
 # Install from GitHub
 
-An author can ship a native mod without a registry pull request per version: the player installs it from a
-GitHub link, on the Mods page ("Add from GitHub") or with `horizon-launcher mods add-github <url>
-[--mod ID | --all] [--instance NAME] --trust-native-code`. The link is `https://github.com/<owner>/<repo>`
-(its latest release), `.../releases/tag/<tag>`, `.../tree/<ref>` or `.../commit/<sha>`.
+Install a native mod from the Mods page with **Add from GitHub**, or use:
 
-- **Resolved to something exact.** GitHub's public API (no sign-in; a rate limit is said plainly, and
-  `HORIZON_GITHUB_TOKEN` raises it) turns the link into a release's `.hmod` file or a **commit SHA**, never a
-  branch that moves. A release with a `.hmod` asset installs that file (its SHA-256 is compared with the one GitHub
-  lists). With no release or no such asset, the launcher fetches
-  `codeload.github.com/<owner>/<repo>/tar.gz/<sha>` and looks in it for mods by the rules of
-  `native-build <folder>`: a flat project with `horizon-mod.toml`, `[native]`, `Cargo.toml` and `src/`.
-  Several mods: they are listed, and the player picks one or installs all. Each source folder pins the Horizon commit
-  in `[native] horizon`; the launcher packs the checked project into a `.hmod`.
-  Release packages must contain native code; content-only packages are rejected by this native installer.
-- **Checked like the registry's files.** The `.hmod` is read as `horizon_mod_package::index::native::Bundle::read` reads a
-  registry file (flat source and content, size limits, nothing run) before it is installed.
-- **Said first.** Before anything is downloaded: "not reviewed by the Horizon registry; native mods run with full
-  access to this computer; read the source", with a link to the exact commit. The command needs
-  `--trust-native-code`, as `native-build` does. It is not an MCP tool: trusting native code is the player's
-  decision, never an agent's.
-- **Origin kept.** `horizon-native-mods/<id>.origin.json` beside the `.hmod`: owner/repo, release tag (for a
-  release), commit, asset name and the SHA-256 of the installed file. `mods list` shows "from GitHub: owner/repo @
-  tag" (or the commit's first 7 digits).
-- **Updates.** `horizon-launcher mods update-github [ID] [--check]` compares a mod from a release with the
-  repository's latest release, and a mod from a commit with the head of the default branch; a newer one is
-  installed with the same warning and `--trust-native-code`. `mods remove <id>` removes it. A mod already
-  installed from the registry (or by hand) is never replaced.
+```sh
+horizon-launcher mods add-github URL --trust-native-code
+```
 
-Installing turns Native mods on, as any native mod does; then build as usual.
+`--trust-native-code` records your consent to run native code. You can omit it after the launcher
+has saved your consent. Native mods run with full access to your computer; read the source before
+installing. GitHub installs are not reviewed by the Horizon registry.
+
+## Choose a source
+
+| URL | Selection |
+| --- | --- |
+| `https://github.com/OWNER/REPO` | Latest release, or the default branch if there is no release |
+| `https://github.com/OWNER/REPO/releases/tag/TAG` | Named release |
+| `https://github.com/OWNER/REPO/tree/REF` | Branch or tag resolved to a commit |
+| `https://github.com/OWNER/REPO/commit/SHA` | Exact commit |
+
+The launcher resolves links through GitHub's public API without sign-in. It reports rate-limit
+errors; set `HORIZON_GITHUB_TOKEN` to use an authenticated rate limit.
+
+A release with a `.hmod` asset installs that package. The launcher compares its SHA-256 with
+GitHub's digest **when GitHub supplies one**. Without a package asset, it downloads the source
+archive at the resolved commit from `codeload.github.com`.
+
+Source discovery follows `native-build FOLDER`: each mod is a flat project with
+`horizon-mod.toml`, `[native]`, `Cargo.toml` and `src/`. Each project pins its Horizon commit
+with `[native] horizon`. If the archive contains several mods, select one with `--mod ID` or
+install all with `--all`. Use `--instance NAME` to choose the destination instance.
+
+The launcher validates packages and packs source projects into `.hmod` files before installation.
+Validation checks flat source and content layouts and size limits without executing the mod.
+This installer rejects content-only release packages.
+
+## Build and update
+
+Build the installed mods with `horizon-launcher native-build`. Installing a native mod enables
+Native mods for the destination.
+
+The launcher saves `horizon-native-mods/<id>.origin.json` beside the package, recording the
+repository, release tag when applicable, commit, asset name and installed file's SHA-256.
+`horizon-launcher mods list` displays the GitHub origin with its tag or abbreviated commit.
+
+- `horizon-launcher mods update-github [ID] --check` checks for updates without installing them.
+- `horizon-launcher mods update-github [ID]` installs updates with the native-code warning and
+  saved consent requirement. Release installs follow the latest release; commit installs follow
+  the default branch.
+- `horizon-launcher mods remove ID` removes a mod.
+
+A GitHub install does not overwrite a mod installed from the registry or by hand.

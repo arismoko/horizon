@@ -1,20 +1,36 @@
-# Trust
+# Trust native mods
 
-- **A notice, then a warning.** The first native install shows a trust notice once. The command needs
-  `--trust-native-code`; the window
-  shows a warning in red before every build: the mods run with full access to the computer, and their ids and
-  versions. The Mods page says who made each one, and "Not made or endorsed by the Horizon project" for any mod not
-  Horizon's own.
-- **The registry** (horizon-rust/horizon-mods) lists them as their own kind, `native-mod`, only after a maintainer
-  has read the source and the repository they come from. Its entry names the GitHub repository (`repo`); each
-  release of it with a `.hmod` asset is a version once the bundle passes the registry's checks, with no further
-  review (nothing is built or run by the registry; the player's launcher builds it behind its warning).
-  The `.hmod` contains the flat Rust project and may contain `assets/`, `data/` and an optional `icon.png`.
-  The launcher checks the bundle without running anything. Native code is trusted. Mixins are code compiled into the game, with the same trust as internals.
-  The file is pinned by SHA-256 like every registry file; its identity and exact build pins come from
-  `horizon-mod.toml`. `revoked.toml` takes a bad release down.
-  A project's kind never changes.
-- **Isolation of data.** Native mods run only in the instance they are installed in, with its worlds, options and
-  logs (the default Horizon instance's, when they are installed there); other instances play their own versions.
-- What this does not do: sandbox the compiled game. horizon-mixins' checks stop mistakes, not a malicious helper
-  ([security notes](https://github.com/horizon-rust/horizon-mixins/blob/main/docs/security.md)).
+Native mods run unsandboxed with full access to your computer. Read and trust their source
+before installing or building them. Bundle validation checks packaging, not whether code is safe.
+Native mixins compile function-replacement code with the same access as other native code.
+
+## Give consent
+
+The launcher shows a trust notice for native mods. In the command line, `--trust-native-code`
+records your consent in launcher settings. Commands accept that saved consent without repeating
+the flag; without consent they refuse to proceed. The window shows a red warning before each
+build, including the mod IDs and versions.
+
+The Mods page identifies each mod's author and marks third-party mods as not made or endorsed
+by the Horizon project.
+
+## Package checks
+
+Registry entries distinguish native code with the `native-mod` kind and identify the source
+repository with `repo`. Registry review is separate from the launcher's local consent and
+validation checks; it does not sandbox the code you run.
+
+- A `.hmod` contains a flat Rust project and can include `assets/`, `data/` and `icon.png`.
+- The launcher validates the bundle without running its code, then builds it on your computer.
+- Registry downloads are pinned by SHA-256. `horizon-mod.toml` supplies the mod identity and exact
+  game build pins. Revocation entries in `revoked.toml` prevent installing revoked releases.
+- A registry project's kind cannot change.
+
+## Instance data
+
+The launcher loads native mods for the instance where you install them, using that instance's
+worlds, options and logs. Other instances select their own versions. This separation is not a
+security boundary: native code can access files outside its instance.
+
+The checks in `horizon-mixins` catch mistakes, not malicious code. See its
+[security notes](https://github.com/horizon-rust/horizon-mixins/blob/main/docs/security.md).

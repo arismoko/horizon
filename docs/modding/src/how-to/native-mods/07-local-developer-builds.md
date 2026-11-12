@@ -1,4 +1,4 @@
-# A local unsigned developer base
+# Install a local unsigned developer base
 
 `developer-install` installs a game executable built from a trusted checkout. This is a separate
 launcher installation command, not a native mod build route. It runs the checkout's packaging
@@ -15,8 +15,8 @@ The command returns a `developer-…` tag. Select that exact tag, prepare its re
 instance to it. Automatic updates do not replace a local unsigned base. Remove it with
 `horizon-launcher remove DEVELOPER_TAG` when no instance needs it.
 
-A native mod build needs the prebuilt SDK of the base's exact commit. A local commit has no
-published one, so build it from the same checkout and name its folder; one folder holds one side:
+A native mod build needs the prebuilt SDK of the base's exact commit. For a commit without a
+published SDK, build it from the same checkout and name its folder; one folder holds one side:
 
 ```sh
 python3 tools/prebuilt_game.py build SDK_FOLDER            # add --server for a dedicated server
