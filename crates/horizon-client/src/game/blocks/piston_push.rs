@@ -1043,9 +1043,6 @@ impl Game<'_> {
         } else if tnt_after_move {
             self.restitute_piston(target, limited, resolved);
         }
-        // Restitution reads the block below the final position, as Entity.move
-        // does. Run it even when the collision prevented any position update.
-        self.restitute_piston(target, limited, resolved);
         if let Some((i, from, ..)) = tnt {
             self.finish_tnt_piston_move(i, from, resolved);
         }
