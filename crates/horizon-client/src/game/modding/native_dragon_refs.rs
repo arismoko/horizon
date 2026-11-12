@@ -344,6 +344,7 @@ mod tests {
                 join: Default::default(),
                 id: 0,
                 at: [0.0; 3],
+                motion: [0.0; 3],
                 radius: 5.0,
                 age: 0,
                 duration: 200,

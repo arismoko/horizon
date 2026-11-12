@@ -4,6 +4,7 @@
 //! for cross-mod recipes — a recipe for another mod's material only makes
 //! sense to load when that mod's data is in the root.
 use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Enabled package IDs captured by the engine for one owning data load.
 /// Readers share this immutable view; they never recover IDs from namespaces.
@@ -12,12 +13,18 @@ use serde_json::Value;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct LoadConditions {
     mods: Vec<String>,
+    registered: Option<RegisteredLookup>,
+    diagnostics: Diagnostics,
 }
 
 impl LoadConditions {
     /// A vanilla data load has the built-in package only.
     pub const fn vanilla() -> Self {
-        Self { mods: Vec::new() }
+        Self {
+            mods: Vec::new(),
+            registered: None,
+            diagnostics: Diagnostics::new(),
+        }
     }
 
     /// Capture IDs visible to the owning load's side. The engine supplies its
@@ -30,7 +37,34 @@ impl LoadConditions {
             .collect();
         mods.sort();
         mods.dedup();
-        Self { mods }
+        Self {
+            mods,
+            registered: None,
+            diagnostics: Diagnostics::default(),
+        }
+    }
+
+    /// Use the recipe source's inventory while retaining this candidate's
+    /// registered handlers, evaluation cache and diagnostics.
+    pub fn with_mod_inventory<'a>(&self, ids: impl IntoIterator<Item = &'a str>) -> Self {
+        let mut view = self.clone();
+        view.mods = Self::new(ids).mods;
+        if view.mods != self.mods {
+            view.diagnostics = match &self.registered {
+                Some(registered) => registered
+                    .0
+                    .inventories
+                    .lock()
+                    .unwrap()
+                    .entry(view.mods.clone())
+                    .or_default()
+                    .clone(),
+                // Without handlers there are no cached answers or errors;
+                // keep foreign diagnostic deduplication shared across the candidate.
+                None => self.diagnostics.clone(),
+            };
+        }
+        view
     }
 
     pub fn mod_loaded(&self, id: &str) -> bool {
@@ -41,71 +75,322 @@ impl LoadConditions {
                 .is_ok()
     }
 
-    /// Unknown condition kinds fail closed through the shared evaluator.
+    /// Attach the engine's immutable registration table to this candidate load.
+    pub fn with_lookup(
+        mut self,
+        owned: BTreeMap<String, String>,
+        lookup: impl Fn(&str, &Value) -> Option<Result<bool, String>> + Send + Sync + 'static,
+    ) -> Self {
+        if self.diagnostics.0.is_none() {
+            self.diagnostics = Diagnostics::default();
+        }
+        self.registered = Some(RegisteredLookup(std::sync::Arc::new(LookupState {
+            lookup: Box::new(lookup),
+            owned,
+            inventories: std::sync::Mutex::new(BTreeMap::from([(
+                self.mods.clone(),
+                self.diagnostics.clone(),
+            )])),
+        })));
+        self
+    }
+
+    /// Whether this candidate has any registered condition handlers.
+    pub fn has_registered(&self) -> bool {
+        self.registered.is_some()
+    }
+
+    /// Unknown condition kinds retain the built-in fail-closed behavior.
     pub fn allows(&self, file: &Value) -> bool {
-        conditions_hold(file, &|id| self.mod_loaded(id))
+        self.allows_file(file, "data file")
+    }
+
+    /// Evaluate a resource, constructing its path only for registered handlers or diagnostics.
+    pub fn allows_id(&self, file: &Value, kind: &str, id: &str) -> bool {
+        self.allows_context(file, || {
+            let (namespace, path) = id.split_once(':').unwrap_or(("minecraft", id));
+            format!("data/{namespace}/{kind}/{path}.json")
+        })
+    }
+
+    /// Evaluate one tag layer.
+    pub fn allows_tag(&self, file: &Value, registry: &str, id: &str) -> bool {
+        self.allows_context(file, || {
+            let (namespace, path) = id.split_once(':').unwrap_or(("minecraft", id));
+            format!("data/{namespace}/tags/{registry}/{path}.json")
+        })
+    }
+
+    /// Evaluate a resource whose namespace and path are stored separately.
+    pub fn allows_parts(&self, file: &Value, kind: &str, namespace: &str, path: &str) -> bool {
+        self.allows_context(file, || format!("data/{namespace}/{kind}/{path}.json"))
+    }
+
+    /// Evaluate a folder resource without joining paths in the no-mod fast path.
+    pub fn allows_path(&self, file: &Value, directory: &std::path::Path, name: &str) -> bool {
+        self.allows_context(file, || {
+            directory.join(format!("{name}.json")).display().to_string()
+        })
+    }
+
+    /// Evaluate once per entry and payload, outside the diagnostics mutex.
+    pub fn allows_file(&self, file: &Value, path: &str) -> bool {
+        self.allows_context(file, || path.to_owned())
+    }
+
+    fn allows_context(&self, file: &Value, context: impl FnOnce() -> String) -> bool {
+        let Some(payload) = file.get("neoforge:conditions") else {
+            return true;
+        };
+        let loaded = |id: &str| self.mod_loaded(id);
+        let Some(registered) = &self.registered else {
+            // The ordinary path uses only borrowed nodes and a boolean. No path,
+            // argument copy, name set, cache key or diagnostics lock is needed.
+            let mut unknown = false;
+            let answer = evaluate(file, &loaded, &|_, _| None, &BTreeMap::new(), &mut |_| {
+                unknown = true
+            })
+            .expect("empty lookup cannot fail");
+            if !unknown {
+                return answer;
+            }
+            let mut names = BTreeSet::new();
+            let _ = evaluate(file, &loaded, &|_, _| None, &BTreeMap::new(), &mut |name| {
+                names.insert(name.to_owned());
+            });
+            self.report_unknown(&context(), names);
+            return answer;
+        };
+        let path = context();
+        let path = path
+            .rfind("/data/")
+            .map_or(path.as_str(), |index| &path[index + 1..]);
+        let state = self
+            .diagnostics
+            .0
+            .as_ref()
+            .expect("owning candidate diagnostics");
+        let cell = state
+            .lock()
+            .unwrap()
+            .cache
+            .entry((path.to_owned(), payload.to_string()))
+            .or_default()
+            .clone();
+        *cell.get_or_init(|| {
+            let mut unknown = BTreeSet::new();
+            let result = evaluate(
+                file,
+                &loaded,
+                &*registered.0.lookup,
+                &registered.0.owned,
+                &mut |name| {
+                    unknown.insert(name.to_owned());
+                },
+            );
+            if !unknown.is_empty() {
+                self.report_unknown(path, unknown);
+            }
+            match result {
+                Ok(answer) => answer,
+                Err(error) => {
+                    state
+                        .lock()
+                        .unwrap()
+                        .errors
+                        .push(format!("{path}: {error}"));
+                    false
+                }
+            }
+        })
+    }
+
+    fn report_unknown(&self, path: &str, names: BTreeSet<String>) {
+        let diagnostic = || {
+            format!(
+                "{path}: unknown load conditions [{}]; file left out",
+                names.into_iter().collect::<Vec<_>>().join(", ")
+            )
+        };
+        if let Some(state) = &self.diagnostics.0 {
+            let mut state = state.lock().unwrap();
+            if !state.foreign_errors.contains_key(path) {
+                let diagnostic = diagnostic();
+                log::error!("{diagnostic}");
+                state.foreign_errors.insert(path.to_owned(), diagnostic);
+            }
+        } else {
+            log::error!("{}", diagnostic());
+        }
+    }
+
+    /// Non-fatal foreign-namespace errors emitted by this candidate, one per file.
+    pub fn foreign_errors(&self) -> Vec<String> {
+        self.diagnostics
+            .0
+            .as_ref()
+            .map(|state| {
+                state
+                    .lock()
+                    .unwrap()
+                    .foreign_errors
+                    .values()
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Refuse a failed candidate before publishing any of its tables.
+    pub fn check_errors(&self) -> Result<(), String> {
+        if let Some(state) = self.diagnostics.0.as_ref() {
+            let state = state.lock().unwrap();
+            if !state.errors.is_empty() {
+                return Err(state.errors.join("; "));
+            }
+        }
+        Ok(())
     }
 }
 
-/// What a condition asks: whether a mod is enabled for this data-load side.
-/// Callers use the owning resource generation's enabled-mod inventory, plus
-/// `minecraft`, always. Resource namespaces do not identify loaded mods.
+#[derive(Debug, Default)]
+struct CandidateDiagnostics {
+    cache: BTreeMap<(String, String), std::sync::Arc<std::sync::OnceLock<bool>>>,
+    foreign_errors: BTreeMap<String, String>,
+    errors: Vec<String>,
+}
+// Diagnostics do not contribute to a resource generation's cache identity.
+#[derive(Clone, Debug)]
+struct Diagnostics(Option<std::sync::Arc<std::sync::Mutex<CandidateDiagnostics>>>);
+impl Diagnostics {
+    const fn new() -> Self {
+        Self(None)
+    }
+}
+impl Default for Diagnostics {
+    fn default() -> Self {
+        Self(Some(Default::default()))
+    }
+}
+impl PartialEq for Diagnostics {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+impl Eq for Diagnostics {}
+impl std::hash::Hash for Diagnostics {
+    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
+}
+
+/// A lower-layer lookup over a raw condition node, including `type`.
+/// `None` means the engine has no handler for this name; the engine removes
+/// `type` only after finding a handler, avoiding argument copies without mods.
+pub type ConditionLookup<'a> = dyn Fn(&str, &Value) -> Option<Result<bool, String>> + 'a;
+type SharedLookup = dyn Fn(&str, &Value) -> Option<Result<bool, String>> + Send + Sync;
+struct LookupState {
+    inventories: std::sync::Mutex<BTreeMap<Vec<String>, Diagnostics>>,
+    lookup: Box<SharedLookup>,
+    owned: BTreeMap<String, String>,
+}
+#[derive(Clone)]
+struct RegisteredLookup(std::sync::Arc<LookupState>);
+impl std::fmt::Debug for RegisteredLookup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("RegisteredLookup")
+    }
+}
+impl PartialEq for RegisteredLookup {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for RegisteredLookup {}
+impl std::hash::Hash for RegisteredLookup {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&std::sync::Arc::as_ptr(&self.0), state);
+    }
+}
+
+/// Whether a package is enabled for the owning data load.
 pub type ModLoaded<'a> = dyn Fn(&str) -> bool + 'a;
 
-/// Whether `v`'s `neoforge:conditions` all hold; a file without the key
-/// loads, one with an unknown condition type doesn't.
+/// Evaluate built-in conditions with an empty registration lookup.
 pub fn conditions_hold(v: &Value, loaded: &ModLoaded) -> bool {
-    fn hold(c: &Value, loaded: &ModLoaded) -> bool {
-        let all = |key: &str| {
-            c[key]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .all(|c| hold(c, loaded))
-        };
-        match c["type"].as_str() {
-            Some("neoforge:mod_loaded") => c["modid"].as_str().is_some_and(loaded),
-            Some("neoforge:true") => true,
-            // An unknown child fails the file: `not` of it is not a pass.
-            Some("neoforge:not") => known(&c["value"]) && !hold(&c["value"], loaded),
-            Some("neoforge:and") => all("values"),
-            Some("neoforge:or") => {
-                let values: Vec<&Value> = c["values"].as_array().into_iter().flatten().collect();
-                values.iter().all(|v| known(v)) && values.iter().any(|v| hold(v, loaded))
-            }
-            _ => false,
-        }
-    }
-    v["neoforge:conditions"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .all(|c| hold(c, loaded))
+    conditions_hold_with_lookup(v, loaded, &|_, _| None, &BTreeMap::new())
+        .expect("empty condition lookup cannot fail")
 }
 
-/// Whether the condition's kind is one the game knows; an unknown kind
-/// anywhere in the tree leaves the file out, through `not` and the
-/// combinators alike.
-fn known(c: &Value) -> bool {
-    if !matches!(
-        c["type"].as_str(),
-        Some("neoforge:mod_loaded")
-            | Some("neoforge:true")
-            | Some("neoforge:not")
-            | Some("neoforge:and")
-            | Some("neoforge:or")
-    ) {
-        return false;
+/// The shared evaluator, including engine-provided registered conditions.
+/// Unknown nodes propagate through combinators without becoming a passing `not`.
+pub fn conditions_hold_with_lookup(
+    v: &Value,
+    loaded: &ModLoaded,
+    lookup: &ConditionLookup,
+    owned: &BTreeMap<String, String>,
+) -> Result<bool, String> {
+    evaluate(v, loaded, lookup, owned, &mut |_| {})
+}
+
+fn evaluate(
+    v: &Value,
+    loaded: &ModLoaded,
+    lookup: &ConditionLookup,
+    owned: &BTreeMap<String, String>,
+    unknown: &mut dyn FnMut(&str),
+) -> Result<bool, String> {
+    fn hold(
+        c: &Value,
+        loaded: &ModLoaded,
+        lookup: &ConditionLookup,
+        owned: &BTreeMap<String, String>,
+        unknown: &mut dyn FnMut(&str),
+    ) -> Result<Option<bool>, String> {
+        Ok(match c["type"].as_str() {
+            Some("neoforge:mod_loaded") => Some(c["modid"].as_str().is_some_and(loaded)),
+            Some("neoforge:true") => Some(true),
+            Some("neoforge:not") => hold(&c["value"], loaded, lookup, owned, unknown)?.map(|v| !v),
+            Some(kind @ ("neoforge:and" | "neoforge:or")) => {
+                // Visit every child: an unknown node invalidates the whole file,
+                // including after a sibling already determines its boolean result.
+                let mut answer = kind == "neoforge:and";
+                let mut known = true;
+                for child in c["values"].as_array().into_iter().flatten() {
+                    match hold(child, loaded, lookup, owned, unknown)? {
+                        Some(value) => {
+                            if kind == "neoforge:and" {
+                                answer &= value;
+                            } else {
+                                answer |= value;
+                            }
+                        }
+                        None => known = false,
+                    }
+                }
+                known.then_some(answer)
+            }
+            Some(name) => match lookup(name, c) {
+                Some(answer) => Some(answer?),
+                None => {
+                    if let Some(owner) = name
+                        .split_once(':')
+                        .and_then(|(namespace, _)| owned.get(namespace))
+                    {
+                        return Err(format!(
+                            "unknown condition {name} in namespace registered by mod {owner}"
+                        ));
+                    }
+                    unknown(name);
+                    None
+                }
+            },
+            None => None,
+        })
     }
-    // The whole tree must be known, not only this node: an unknown kind
-    // nested inside `not` or a combinator leaves the file out too.
-    match c["type"].as_str() {
-        Some("neoforge:not") => known(&c["value"]),
-        Some("neoforge:and") | Some("neoforge:or") => {
-            c["values"].as_array().into_iter().flatten().all(known)
-        }
-        _ => true,
+    let mut allowed = true;
+    for condition in v["neoforge:conditions"].as_array().into_iter().flatten() {
+        allowed &= hold(condition, loaded, lookup, owned, unknown)?.unwrap_or(false);
     }
+    Ok(allowed)
 }
 
 #[cfg(test)]
@@ -240,3 +525,11 @@ mod tests {
         assert!(!conditions_hold(&Value::Object(c), &loaded));
     }
 }
+
+#[cfg(test)]
+#[path = "condition_registry_tests.rs"]
+mod registry_tests;
+
+#[cfg(test)]
+#[path = "condition_log_tests.rs"]
+mod log_tests;

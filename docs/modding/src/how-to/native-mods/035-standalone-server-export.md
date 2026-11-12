@@ -7,20 +7,16 @@
 
 Builds a standalone dedicated-server engine into `DIR`, which must not exist yet. `FOLDER` (a mod folder or a
 folder of them) is required; no instance is read, selected, edited or played, and no launcher config is written.
-It reuses the pinned toolchain, source and horizon-mixins and compiles `--no-default-features` (no audio or
-controllers). `--version` pins the Horizon release/Nightly the
-export reuses (explicit for reproducibility). The export holds the built `horizon-engine` executable, prepared resources
-the canonical `horizon-native-mods/<id>/` projects and the provenance `native-mods.json`, and prints its absolute path. It runs on the same OS/architecture as the
-host only (no cross compilation), needs a prepared installed launcher base release, and survives cache pruning
-because it is copied outside the managed folders. On Windows use the printed `horizon-engine.exe` path.
+It uses the pinned prebuilt dedicated-server SDK and builds only the mods and native
+function-replacement libraries, never the game. `--version` pins the Horizon release/Nightly
+for reproducibility. The export holds the engine executable, prepared resources,
+`horizon-native-mods/<id>/` projects and provenance `native-mods.json`, and prints its path.
+It runs on the same OS/architecture as the host and requires an installed launcher base.
+It is copied outside managed cache folders. On Windows use `horizon-engine.exe`.
 
-For wasm mods that declare internals, put their `.hmod` packages directly in `FOLDER`, alongside any
-native projects. A folder containing only wasm packages with internals also works. The export compiles
-their declared internals and raw listener targets into the engine's table, without consulting an
-instance or its enabled-mod list. The selected paths are recorded in `native-mods.json` and changing
-them selects a new cached build. Packages without wasm internals do not select table entries.
-Install and enable the same `.hmod` packages in the server game folder's `horizon-mods/` as usual;
-the export carries the compiled table, not those packages or the server's configuration.
+Wasm packages use API hooks and API injection points, not engine internals. Install and
+enable their `.hmod` packages in the server game folder's `horizon-mods/`. A plain engine
+build refuses API listeners by name; listeners require the staged SDK engine.
 
 A mod's crate depends on `horizon-mod-api` and never on the game: a `horizon-client` dependency,
 under any name or target, is refused naming the mod and the key, before toolchain work. The mod API

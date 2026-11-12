@@ -46,7 +46,7 @@ fn maker(root: &Path) -> impl Fn(&str) -> Result<Instance, String> + '_ {
             icon: None,
             group: None,
             version: None,
-            native_profile: crate::native_mods::Profile::Balanced,
+            native_profile: crate::native_mods::Profile::Optimized,
             played: Duration::ZERO,
             last_played: None,
             launch: Default::default(),
@@ -99,6 +99,17 @@ fn says_what_a_dropped_file_is() {
             zip_file(
                 &p,
                 &[("manifest.json", b"{}"), ("overrides/config/a.toml", b"")],
+            );
+            (p, Ok(Dropped::Modpack))
+        },
+        {
+            let p = dir.join("prism.zip");
+            zip_file(
+                &p,
+                &[
+                    ("Example/mmc-pack.json", b"{}"),
+                    ("Example/.minecraft/mods/example.jar", b""),
+                ],
             );
             (p, Ok(Dropped::Modpack))
         },

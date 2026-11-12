@@ -202,6 +202,13 @@ pub trait LevelsBackend {
     #[access(WorldOnly)]
     fn chunk_status(&self, chunk: ChunkRef) -> Option<ChunkStatus>;
     /// Side: server.
+    /// Whether the chunk passes vanilla's seeded slime-chunk test, independent of
+    /// dimension, height, biome and other spawn conditions. Works for unloaded chunks
+    /// in active or parked open levels. None for a stale level, a client or a chunk
+    /// outside world bounds. Does not load chunks or advance the world's random stream.
+    #[access(WorldOnly)]
+    fn chunk_is_slime_chunk(&self, chunk: ChunkRef) -> Option<bool>;
+    /// Side: server.
     /// `ChunkMap.getPlayers(pos, false)`: the players watching this chunk, those
     /// it is inside the view of and was sent to, in the order the server keeps
     /// its players. A player watches it from its `chunk_watch` until it leaves
@@ -796,6 +803,16 @@ pub trait LevelsBackendMut {
     /// Remove a block in place (`Level.removeBlock`), preserving its fluid.
     #[access(WorldOnly)]
     fn level_remove_block(&mut self, level: LevelRef, pos: [i32; 3], moved: bool) -> bool;
+    /// Side: server.
+    /// Check the block light at `pos` again (`LevelLightEngine.checkBlock`), at the level's
+    /// next light update, as an edit there is checked; checking the same position again before
+    /// then queues nothing. A block declaring `dynamic_light` is asked `light_emission` again
+    /// first: the light engine never asks on its own, so a part whose answer reads more than
+    /// the block's state (the block below, the depth) calls this when that changes. Clients take the new light from the server's light update and ask
+    /// their own parts again. False, with nothing queued, off the level in place, for a stale
+    /// handle, on a client and for a position that isn't loaded.
+    #[access(WorldOnly)]
+    fn level_check_light(&mut self, level: LevelRef, pos: [i32; 3]) -> bool;
     /// Side: server.
     /// Destroy a block in the level in place (`Level.destroyBlock`), optionally dropping
     /// resources with `tool` (None is an empty hand). With `collect`, return the dropped

@@ -41,10 +41,14 @@ fn spec(
     spec
 }
 
-/// `mob_split`: mode 0 changes nothing, 1 cancels, 2 edits A, removes B and appends D, 3 replaces C
+/// `mob_split`: mode 6 edits A then traps (wasm only: a native panic unwinds), mode 0 changes nothing, 1 cancels, 2 edits A, removes B and appends D, 3 replaces C
 /// with E and reports a second append of E in A's yaw, 4 tries invalid input, 5 reads a removed child.
 pub fn mob_split(host: &mut dyn ServerHost, event: &mut MobSplitEvent<'_>) -> Flow {
-    let (edits, children, dim) = (event.edits, event.children, event.dimension);
+    let (edits, children, dim) = (
+        event.edits,
+        event.edits.children().unwrap(),
+        event.dimension,
+    );
     match event.parent % 10 {
         1 => return Flow::Cancel,
         2 => {
@@ -128,17 +132,25 @@ pub fn mob_split(host: &mut dyn ServerHost, event: &mut MobSplitEvent<'_>) -> Fl
             let read = b.kind(&*host).map(|_| ());
             edits.set_yaw(a, code(read)).unwrap();
         }
+        6 => {
+            let a = edits.child(children, 0).unwrap();
+            edits.set_yaw(a, 55.0).unwrap();
+            panic!("a guest traps after editing");
+        }
         _ => {}
     }
     Flow::Continue
 }
 
-/// `baby_entity_spawn`: mode 0 changes nothing, 1 cancels, 2 replaces the baby with a pig baby whose
+/// `baby_entity_spawn`: mode 6 edits the baby then traps (wasm only), mode 0 changes nothing, 1 cancels, 2 replaces the baby with a pig baby whose
 /// yaw reports a second baby (`Capacity` is 3), 3 removes the baby, 4 offers a grown replacement
 /// and reports its refusal (`Invalid` is 4) in the kept baby's yaw.
 pub fn baby_entity_spawn(_: &mut dyn ServerHost, event: &mut BabyEntitySpawnEvent<'_>) -> Flow {
-    let (edits, children, dim): (&dyn PendingChildrenEdits, PendingChildrenRef, &str) =
-        (event.edits, event.children, event.dimension);
+    let (edits, children, dim): (&dyn PendingChildrenEdits, PendingChildrenRef, &str) = (
+        event.edits,
+        event.edits.children().unwrap(),
+        event.dimension,
+    );
     let pig = |baby| spec("minecraft:pig", dim, [0.5, 64.0, 0.0], 0.0, None, baby);
     match event.parent % 10 {
         1 => return Flow::Cancel,
@@ -155,6 +167,11 @@ pub fn baby_entity_spawn(_: &mut dyn ServerHost, event: &mut BabyEntitySpawnEven
             let baby = edits.child(children, 0).unwrap();
             let grown = code(edits.construct(children, pig(false)));
             edits.set_yaw(baby, grown).unwrap();
+        }
+        6 => {
+            let baby = edits.child(children, 0).unwrap();
+            edits.set_yaw(baby, 55.0).unwrap();
+            panic!("a guest traps after editing");
         }
         _ => {}
     }

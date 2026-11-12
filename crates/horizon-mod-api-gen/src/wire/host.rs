@@ -10,12 +10,32 @@ fn snake(owner: &str) -> String {
     owner.rsplit("::").next().unwrap().to_snake_case()
 }
 
+fn serves(supers: &[(&str, Vec<String>)], child: &str, parent: &str) -> bool {
+    let mut stack = vec![child];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(name) = stack.pop() {
+        if name == parent {
+            return true;
+        }
+        if !visited.insert(name) {
+            continue;
+        }
+        if let Some((_, parents)) = supers
+            .iter()
+            .find(|(owner, _)| owner.rsplit("::").next() == Some(name))
+        {
+            stack.extend(parents.iter().map(String::as_str));
+        }
+    }
+    false
+}
+
 fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
     use crate::index::Found;
     let types = &mut surface.types;
     let api = types.index.module("mod_api", &[])?;
     let mut supers = Vec::new();
-    for owner in super::IMPORTS {
+    for owner in super::imports() {
         let path = owner.split("::").map(str::to_string).collect::<Vec<_>>();
         let Found::Item(id) = types.index.resolve_path(api, &path)? else {
             return Err(format!("{owner} is not a trait"));
@@ -35,7 +55,7 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
     }
     let mut fields = String::new();
     let mut methods = String::new();
-    for owner in super::IMPORTS {
+    for owner in super::imports() {
         let name = snake(owner);
         let path = trait_path(owner);
         if let Some((_, from, expr)) = super::REACHED.iter().find(|(o, ..)| o == owner) {
@@ -70,25 +90,15 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
         writeln!(methods, "pub fn set_{name}(&mut self, v: &(dyn {path} + '_)) {{ self.{name} = Some((unsafe {{ std::mem::transmute(v as *const (dyn {path} + '_)) }}, false)); }} pub fn set_{name}_mut(&mut self, v: &mut (dyn {path} + '_)) {{ self.{name} = Some((unsafe {{ std::mem::transmute(v as *mut (dyn {path} + '_)) }}, true)); }}").unwrap();
         for mutable in [false, true] {
             let mut choices = Vec::new();
-            for sub in super::IMPORTS {
+            for sub in super::imports() {
                 if super::REACHED.iter().any(|(o, ..)| o == sub) {
                     continue;
                 }
-                let mut stack = vec![sub.rsplit("::").next().unwrap().to_string()];
-                let mut serves = false;
-                while let Some(t) = stack.pop() {
-                    if t == owner.rsplit("::").next().unwrap() {
-                        serves = true;
-                        break;
-                    }
-                    if let Some((_, parents)) = supers
-                        .iter()
-                        .find(|(o, _)| o.rsplit("::").next() == Some(t.as_str()))
-                    {
-                        stack.extend(parents.iter().cloned());
-                    }
-                }
-                if serves {
+                if serves(
+                    &supers,
+                    sub.rsplit("::").next().unwrap(),
+                    owner.rsplit("::").next().unwrap(),
+                ) {
                     choices.push(format!(
                         "self.{}{filter}.map(|(p, _)| unsafe {{ &{m}*p as &{m}dyn {path} }})",
                         snake(sub),
@@ -101,13 +111,17 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
             // from a stored source pointer, not recursively through getters: cyclic
             // accessor graphs cannot recurse when no source is present.
             for method in &surface.methods {
-                let Ty::Dyn(target, ret_mut) = &method.ret else {
-                    continue;
+                let (target, ret_mut, fallible) = match &method.ret {
+                    Ty::Dyn(target, mutable) => (target.as_str(), *mutable, false),
+                    _ => match super::fallible_frame_accessor(method) {
+                        Some((target, mutable, _)) => (target, mutable, true),
+                        None => continue,
+                    },
                 };
-                if target != owner.rsplit("::").next().unwrap()
+                if !serves(&supers, target, owner.rsplit("::").next().unwrap())
                     || (mutable && !ret_mut)
                     || !method.params.is_empty()
-                    || !super::IMPORTS.contains(&method.owner)
+                    || !super::imports().contains(&method.owner)
                     || method.owner == *owner
                     || super::REACHED.iter().any(|(o, ..)| *o == method.owner)
                 {
@@ -115,7 +129,14 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
                 }
                 let source = snake(method.owner);
                 let source_mut = method.receiver == Some(true);
-                choices.push(format!("self.{source}{filter}.map(|(p,_)| unsafe {{ (&{s}*p).{}() as &{m}dyn {path} }})",method.name,filter=if source_mut {".filter(|(_,m)|*m)"} else {""},s=if source_mut {"mut "} else {""},m=if mutable {"mut "} else {""}));
+                let filter = if source_mut { ".filter(|(_,m)|*m)" } else { "" };
+                let s = if source_mut { "mut " } else { "" };
+                let m = if mutable { "mut " } else { "" };
+                if fallible {
+                    choices.push(format!("self.{source}{filter}.and_then(|(p,_)| unsafe {{ (&{s}*p).{}().ok().map(|host| host as &{m}dyn {path}) }})", method.name));
+                } else {
+                    choices.push(format!("self.{source}{filter}.map(|(p,_)| unsafe {{ (&{s}*p).{}() as &{m}dyn {path} }})", method.name));
+                }
             }
             let expr = choices.join(".or_else(|| ");
             let expr = format!("{expr}{}", ")".repeat(choices.len().saturating_sub(1)));
@@ -238,6 +259,11 @@ fn event_input(
 }
 fn fallback(types: &super::ty::Types<'_>, m: &Method) -> &'static str {
     match &m.ret {
+        // String-error operations can report a refused VM call directly. In particular,
+        // callbacks must not turn a trap after staged effects into a successful commit.
+        Ty::Result(_, error) if matches!(**error, Ty::Str(super::ty::Str::Owned)) => {
+            "Err(String::from(\"wasm call refused or trapped\"))"
+        }
         Ty::Result(ok, _) if **ok == Ty::Unit => "Ok(())",
         Ty::Result(..) => "Err(call_refused())",
         Ty::Named(d) if types.defs[*d].rust.ends_with("::Flow") => "mod_api::Flow::Continue",
@@ -400,8 +426,9 @@ impl Cx {
         .enumerate()
     {
         let is_held = id >= imports.len();
-        if (resource(&m.ret) && !supported_resource(&m.ret))
-            || (has_frame(&m.ret) && !resource(&m.ret))
+        if (super::fallible_frame_accessor(m).is_none()
+            && ((resource(&m.ret) && !supported_resource(&m.ret))
+                || (has_frame(&m.ret) && !resource(&m.ret))))
             || m.params
                 .iter()
                 .any(|(_, t)| !matches!(t, Ty::Dyn(..)) && has_frame(t) && !supported_resource(t))
@@ -464,7 +491,9 @@ impl Cx {
             };
             args.push(arg);
         }
-        let mut answer: String = if m.ret == Ty::Str(super::ty::Str::Static) {
+        let mut answer: String = if super::fallible_frame_accessor(m).is_some() {
+            "out.put_owned(answer.map(|_| ()));".into()
+        } else if m.ret == Ty::Str(super::ty::Str::Static) {
             "unsafe { (&mut *cx).put_static(out,answer,static_ack)?; }".into()
         } else if resource(&m.ret) {
             "out.put_owned(answer);".into()
@@ -689,6 +718,10 @@ impl Cx {
 
 /// Generate the host boundary from the same source surface as the guest.
 pub fn generate_host(root: &std::path::Path) -> Result<String, String> {
+    // The build script that runs this reads the vocabulary's hook declarations, exports and
+    // parts and the native hook sources: ask Cargo to rerun it when any of them changes, from the
+    // generator's own list of what it reads (a list in the build script would drift).
+    crate::build::track(root, false)?;
     host_and_coverage(root).map(|(code, _)| code)
 }
 
@@ -700,7 +733,10 @@ pub fn generate_coverage(root: &std::path::Path) -> Result<String, String> {
 
 fn host_and_coverage(root: &std::path::Path) -> Result<(String, String), String> {
     let generated = crate::sources(root, crate::FillMode::Require)?;
-    let providers = crate::capability_providers::generate(root, &[])?.0;
+    let (providers, provider_sources) = crate::capability_providers::generate(root, &[])?;
+    for path in provider_sources {
+        crate::rerun_if_changed(&path.display());
+    }
     let included = [
         ("mod_api_generated.rs", generated.hooks.as_str()),
         ("mod_api_generated_host.rs", generated.host.as_str()),
@@ -794,5 +830,49 @@ fn host_and_coverage(root: &std::path::Path) -> Result<(String, String), String>
         .unwrap();
     }
     code.push_str("_ => None } } pub fn subscriptions_of(owner: &str, names: Vec<String>) -> &'static [Option<mod_api::HookId>] { names.into_iter().filter_map(|name| { let id = hook_id(&name); if id.is_none() { log::warn!(\"wasm {owner}: unknown hook {name}\"); } id.map(Some) }).collect::<Vec<_>>().leak() }\n");
+    for path in surface.types.index.read.take() {
+        crate::rerun_if_changed(&path.display());
+    }
     Ok((code, report))
+}
+
+#[cfg(test)]
+mod tests {
+    /// The wasm host's build script runs `generate_host`, so every file the generator reads must be
+    /// one Cargo is told to watch: a hook signature moved in the vocabulary left the generated code
+    /// stale until the build script was touched (#3123).
+    #[test]
+    fn host_generation_asks_cargo_to_watch_the_vocabulary_hook_sources() {
+        let captured = std::thread::Builder::new()
+            .stack_size(64 << 20)
+            .spawn(|| {
+                let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+                crate::CAPTURED_RERUNS.set(Some(Vec::new()));
+                let result = super::generate_host(&root);
+                let captured = crate::CAPTURED_RERUNS.take().unwrap();
+                result.unwrap();
+                captured
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        let watched: Vec<String> = captured
+            .iter()
+            .map(|path| path.replace('\\', "/"))
+            .collect();
+        for needed in [
+            crate::catalog::DECLARATIONS,
+            "crates/horizon-mod-vocab/src/exports",
+            "crates/horizon-mod-vocab/src/parts",
+            "crates/horizon-mod-vocab/src/lib.rs",
+            "crates/horizon-mod-vocab/src/host/draw.rs",
+            "crates/horizon-mod-vocab/src/exports/generated_host.rs",
+            "crates/horizon-client/src/game/native_hooks",
+        ] {
+            assert!(
+                watched.iter().any(|path| path.ends_with(needed)),
+                "the host generator reads {needed} but does not ask Cargo to watch it: {watched:#?}"
+            );
+        }
+    }
 }

@@ -3,6 +3,7 @@
 //! unpacked as `RandomizableContainer.unpackLootTable` would on first open.
 use crate::{containers::BlockEntity, items::ItemStack};
 use std::{
+    cell::RefCell,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -144,6 +145,31 @@ impl LootSnapshot {
     }
 }
 
+thread_local! {
+    /// Loot data this thread keeps to itself, read ahead of [`LOOT`]. A game
+    /// never sets it: a test that installs a world pack's tables does, so the
+    /// tables reach its own rolls only and never a test running beside it
+    /// (each test runs on its own thread; #14266).
+    static THREAD_LOOT: RefCell<Option<Arc<LootData>>> = const { RefCell::new(None) };
+}
+
+fn thread_loot() -> Option<Arc<LootData>> {
+    THREAD_LOOT.with(|own| own.borrow().clone())
+}
+
+/// Load the loot data of `root` with `overlay` for this thread alone:
+/// [`loot_data`] and [`loaded_loot_data`] return it on this thread, while
+/// other threads keep the process's copy. For tests whose world has packs.
+pub fn load_thread_loot_data(
+    root: &Path,
+    overlay: &horizon_world::loot::PackOverlay,
+    defaults: &ItemDefaults,
+) -> Option<Arc<LootData>> {
+    let data = load_loot(root, overlay, defaults).data;
+    THREAD_LOOT.with(|own| *own.borrow_mut() = data.clone());
+    data
+}
+
 /// The resource root and the packs' files the loot data was loaded from.
 fn loot_key(root: &Path, overlay: &horizon_world::loot::PackOverlay) -> u64 {
     use std::hash::{DefaultHasher, Hash, Hasher};
@@ -181,6 +207,9 @@ pub fn loot_data(
     overlay: &horizon_world::loot::PackOverlay,
     defaults: &ItemDefaults,
 ) -> Option<Arc<LootData>> {
+    if let Some(own) = thread_loot() {
+        return Some(own);
+    }
     let mut loot = LOOT.lock().unwrap_or_else(|e| e.into_inner());
     if loot
         .as_ref()
@@ -224,6 +253,9 @@ fn reuse_or_load(
 
 /// The loot data `loot_data` loaded, if it ran.
 pub fn loaded_loot_data(defaults: &ItemDefaults) -> Option<Arc<LootData>> {
+    if let Some(own) = thread_loot() {
+        return Some(own);
+    }
     LOOT.lock()
         .unwrap_or_else(|e| e.into_inner())
         .as_ref()
@@ -362,16 +394,18 @@ mod tests {
     fn declared_structure_entities_keep_template_payload_not_template_type() {
         const CHILD: &str = "HORIZON_TEST_DECLARED_STRUCTURE_ENTITY";
         if std::env::var_os(CHILD).is_none() {
-            assert!(
-                std::process::Command::new(std::env::current_exe().unwrap())
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
                         "--exact",
                         "structure_blocks::tests::declared_structure_entities_keep_template_payload_not_template_type",
                     ])
                     .env(CHILD, "1")
-                    .status()
-                    .unwrap()
-                    .success()
+                    .output()
+                    .unwrap();
+            assert!(
+                output.status.success(),
+                "test=structure_blocks::tests::declared_structure_entities_keep_template_payload_not_template_type exit_code={:?} category=fixture-child-failed",
+                output.status.code()
             );
             return;
         }

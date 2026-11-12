@@ -175,8 +175,13 @@ impl Game<'_> {
         if self.cmds.guest_cameras.get(&conn).map(|c| c.id) == camera {
             return;
         }
+        // A target with no state (gone, dead, in another level) is no camera: nothing changes
+        // and nobody is told.
         let at = match camera {
-            Some(id) => self.camera_state(id).map(|s| s.0),
+            Some(id) => match self.camera_state(id) {
+                Some((position, _)) => Some(position),
+                None => return,
+            },
             None => Some(host.hub.guests[gi].position),
         };
         match camera {
@@ -208,6 +213,9 @@ impl Game<'_> {
         let teleports = host.hub.guests[gi].teleport_counter;
         if let Some(c) = self.cmds.guest_cameras.get_mut(&conn) {
             c.teleports = teleports;
+        }
+        if let Some(entity_id) = camera {
+            self.native_player_start_spectating_entity(uuid, &name, entity_id);
         }
         if camera.is_none()
             && let Some(entity_id) = previous

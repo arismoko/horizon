@@ -1,4 +1,4 @@
-//! `horizon-stage ROOT POINTS_JSON INTERNALS_JSON API_VERSION`: mark points and expose internals in a staged
+//! `horizon-stage ROOT POINTS_JSON INTERNALS_JSON API_VERSION`: expose internals, mark points and give functions their replacement slots in a staged
 //! source copy, then write both manifests (#589). Never run on a working tree.
 use horizon_mod_api_gen::staging::{self, Mode};
 use std::path::PathBuf;
@@ -26,11 +26,16 @@ fn main() {
     match staging::stage(root, list, internals, mode, api_version) {
         Ok(staging::Staged {
             points: staged,
+            replace,
             internals: widened,
         }) => {
             println!(
-                "staged {} points ({} with a head only, {} with a raw form) in {} files",
-                staged.points, staged.head_only, staged.raw, staged.files
+                "staged {} points ({} with a head only; {} functions have no API record) in {} files",
+                staged.points, staged.head_only, staged.refused, staged.files
+            );
+            println!(
+                "gave {} functions a replacement slot in {} files of {} crates",
+                replace.functions, replace.files, replace.crates
             );
             let shapes = widened
                 .entries

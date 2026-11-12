@@ -5,10 +5,10 @@ pub trait Hooks {
     /// A player's data was copied to their new player (NeoForge's
     /// `PlayerEvent.Clone`, from `ServerPlayer.restoreFrom`): `was_death` is
     /// true after a death, false when they left the End after the credits
-    /// (`respawn` with `keepAllPlayerData`). The uuid stays the same, so the
-    /// old and the new player share `player`. Heard before the new player is
-    /// placed, on a server, with no player's state swapped in. Not
-    /// cancellable.
+    /// (`respawn` with `keepAllPlayerData`). `original` is a hook-scoped view
+    /// of the old player's attachments (all types), inventory, position and
+    /// level. `player` is the replacement's UUID. Heard before placement on
+    /// a server, without swapping a player's state in. Not cancellable.
     #[hook(
         side = "server",
         contract = "listen",

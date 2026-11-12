@@ -615,20 +615,13 @@ impl Game<'_> {
     ) {
         self.fire_world_lifecycle(context, phase, error_text);
     }
-    /// The server is about to send its data to the players (NeoForge's
-    /// `OnDatapackSyncEvent`, its `sendRecipes`): push the recipe types
-    /// (`minecraft:smelting`, `mymod:crusher`) whose recipes your client half
-    /// needs. Horizon sends their final recipes — the world's data packs
-    /// merged, load conditions held — to every Horizon client when it joins
-    /// and again after each `/reload`; a vanilla client is sent nothing new.
-    /// Asked once per load, when the server's data tables are built, and the
-    /// same types go to every player: unlike NeoForge, which asks again for
-    /// each joining player, it can't differ between players. Push nothing and
-    /// nothing is sent; push nothing after a load that pushed some and the
-    /// clients go back to their own recipes. Server-side (the single
-    /// player's integrated server included).
-    pub(in crate::game) fn native_datapack_sync(&mut self, recipe_types: &mut Vec<String>) {
-        self.fire_datapack_sync(recipe_types);
+    /// After admission, collect once before building and sending this player's recipes.
+    /// Reload asks once per online player before their recipes are re-sent; none when empty.
+    pub(in crate::game) fn native_datapack_sync(
+        &mut self,
+        call: mod_api::__private::DatapackSyncCall<'_>,
+    ) {
+        self.fire_datapack_sync(call);
     }
     /// The server's recipes of `recipe_types` arrived (NeoForge's
     /// `RecipesReceivedEvent`): from now on the recipe helpers
@@ -3740,23 +3733,6 @@ impl Game<'_> {
     ) {
         self.fire_attack_entity(entity, kind, pos, canceled);
     }
-    /// A message from `player`'s client on `channel` (`mod_id:name`), within
-    /// the caps (`native_net.rs`): check `channel`, and treat `data` as the
-    /// player's own bytes, checked by nothing. Runs in the tick after it
-    /// arrives, with no player's state swapped in. Server-side.
-    pub(in crate::game) fn native_net_from_client(
-        &mut self,
-        player: u128,
-        channel: &str,
-        data: &[u8],
-    ) {
-        self.fire_net_from_client(player, channel, data);
-    }
-    /// A message from the server on `channel` (`mod_id:name`), whose `data`
-    /// is the sender's own bytes. The window's game only.
-    pub(in crate::game) fn native_net_from_server(&mut self, channel: &str, data: &[u8]) {
-        self.fire_net_from_server(channel, data);
-    }
     /// `dimension`'s level opened on the server (NeoForge's `LevelEvent.Load`,
     /// posted in `MinecraftServer.createLevels`): before any of its chunks
     /// (`native_chunk_load`), so a mod sets up what it keeps for the level
@@ -3817,7 +3793,7 @@ impl Game<'_> {
     }
     /// `player` (`name`) joined the game (NeoForge's
     /// `PlayerLoggedInEvent`): placed in the world and listed in
-    /// `native_server_players`, so `net_send_to_player` reaches them.
+    /// `host.players().server_players()`, so `PlayerRef::send_payload` can reach them.
     /// Once a join, with no player's state swapped in. Server-side.
     pub(in crate::game) fn native_player_logged_in(&mut self, player: u128, name: &str) {
         self.fire_player_logged_in(player, name);
@@ -3886,17 +3862,17 @@ impl Game<'_> {
     /// A player's data was copied to their new player (NeoForge's
     /// `PlayerEvent.Clone`, from `ServerPlayer.restoreFrom`): `was_death` is
     /// true after a death, false when they left the End after the credits
-    /// (`respawn` with `keepAllPlayerData`). The uuid stays the same, so the
-    /// old and the new player share `player`. Heard before the new player is
-    /// placed, on a server, with no player's state swapped in. Not
-    /// cancellable.
+    /// (`respawn` with `keepAllPlayerData`). `original` reads the old player's
+    /// complete data until this hook returns; `player` names the replacement.
+    /// Heard before the new player is placed, on a server. Not cancellable.
     pub(in crate::game) fn native_player_clone(
         &mut self,
         player: u128,
         name: &str,
         was_death: bool,
+        original: mod_api::OriginalPlayerRef,
     ) {
-        self.fire_player_clone(player, name, was_death);
+        self.fire_player_clone(player, name, was_death, original);
     }
     /// The number of players with the mod container at `pos` of `dimension`
     /// open went from `previous` to `viewers` (vanilla's
@@ -3983,7 +3959,7 @@ impl Game<'_> {
     /// changes. It comes into range, its client's chunks reach it, or it is
     /// put in the level; another player is an entity too, and a player never
     /// tracks their own. A mod sends the player what they need to show it
-    /// (`net_send_to_player`). The entity is as it was last tick: it
+    /// (`PlayerRef::send_payload`). The entity is as it was last tick: it
     /// may be gone by now. Heard after the tick's players and entities have
     /// moved, in order, with no player's state swapped in. Server-side.
     pub(in crate::game) fn native_player_start_tracking(
@@ -4261,18 +4237,6 @@ impl Game<'_> {
         drops: &mut Vec<ItemStack>,
     ) {
         self.fire_loot_drops(context, drops);
-    }
-    /// `player` is about to take `count` of `item` from the ground
-    /// (`ItemEntity.playerTouch`). Set `canceled` to leave it there: the
-    /// stack isn't offered again for 10 ticks. Server-side.
-    pub(in crate::game) fn native_item_picked_up(
-        &mut self,
-        player: u128,
-        item: &str,
-        count: u32,
-        canceled: &mut bool,
-    ) {
-        self.fire_item_picked_up(player, item, count, canceled);
     }
     /// A dropped item reaches its lifetime on the server (`ItemEntity.tick`,
     /// NeoForge's `ItemExpireEvent`). Every mod may set or add to `extra_life`,

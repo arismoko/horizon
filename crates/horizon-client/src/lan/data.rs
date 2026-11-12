@@ -5,6 +5,7 @@
 use crate::chunk::LevelShapes;
 use horizon_core::nbt::{JavaString, Tag};
 use horizon_protocol::{
+    entity_data,
     packets::configuration::{RegistryData, RegistryEntry, RegistryTags, TagEntry, UpdateTags},
     registry::{Builtin, Dynamic},
 };
@@ -458,7 +459,7 @@ impl SyncData {
                         .transpose()
                         .map_err(|e| format!("damage type {id}: {e}"))?;
                     let conditions = serde_json::json!({ "neoforge:conditions": conditions.unwrap_or(Value::Null) });
-                    if !overlay.conditions.allows(&conditions) {
+                    if !overlay.conditions.allows_id(&conditions, path, &id) {
                         continue;
                     }
                     let definition =
@@ -488,7 +489,12 @@ impl SyncData {
                     entries.push(((ns.to_owned(), p.to_owned()), v, true));
                 }
             }
-            entries.retain(|(_, value, _)| overlay.conditions.allows(value));
+            condition_filter::filter(
+                &mut entries,
+                damage_entries.is_some(),
+                overlay.conditions,
+                path,
+            );
             // A biome the mods' modifiers changed is not the client's own file any more:
             // its data is sent, as a pack's biome is.
             let modified = match *key == BIOME_REGISTRY {
@@ -618,6 +624,58 @@ impl SyncData {
         self.registries
             .iter()
             .any(|(_, e)| e.from_pack.contains(&true))
+    }
+
+    /// `LivingEntity.updateSynchronizedMobEffectParticles`: DATA_EFFECT_PARTICLES
+    /// (10) and DATA_EFFECT_AMBIENCE_ID (11) for the visible `effects`, as
+    /// (effect, ambient). The entries are left out when there is nothing to
+    /// show, which is their default.
+    pub fn effect_meta<'a>(
+        &self,
+        effects: impl IntoIterator<Item = (&'a str, bool)>,
+    ) -> Vec<(u8, i32, entity_data::Value)> {
+        let mut particles = Vec::new();
+        let mut all_ambient = true;
+        for (effect, ambient) in effects {
+            let effect = effect.trim_start_matches("minecraft:");
+            // MobEffect.particleFactory: the omens have their own particles,
+            // the others an entity effect in their colour (faint if ambient).
+            let (name, data) = match effect {
+                "trial_omen" | "raid_omen" => (effect, None),
+                _ => {
+                    let Some(def) = crate::brewing::effect(effect) else {
+                        continue;
+                    };
+                    let alpha = if ambient { 38 } else { 255 };
+                    let argb = (alpha << 24) | def.shown_color() as i32;
+                    (
+                        "entity_effect",
+                        Some(entity_data::ParticleData::Color(argb)),
+                    )
+                }
+            };
+            let Some(id) = self.id("minecraft:particle_type", &format!("minecraft:{name}")) else {
+                continue;
+            };
+            particles.push(entity_data::Particle { id, data });
+            all_ambient &= ambient;
+        }
+        if particles.is_empty() {
+            return Vec::new();
+        }
+        let mut meta = vec![(
+            10,
+            entity_data::serializer::PARTICLES,
+            entity_data::Value::Particles(particles),
+        )];
+        if all_ambient {
+            meta.push((
+                11,
+                entity_data::serializer::BOOLEAN,
+                entity_data::Value::Bool(true),
+            ));
+        }
+        meta
     }
 
     /// The id of a name in a built-in or synchronized registry.
@@ -753,7 +811,7 @@ impl SyncData {
         let mut own = BTreeMap::new();
         walk(&root.join("tags").join(kind), &mut own);
         for (name, value) in own {
-            if !overlay.conditions.allows(&value) {
+            if !overlay.conditions.allows_tag(&value, kind, &name) {
                 continue;
             }
             Self::add_tag_values(files.entry(qualified(&name)).or_default(), &value);
@@ -761,7 +819,7 @@ impl SyncData {
         for (id, packs) in overlay.tag_kind(kind) {
             for bytes in packs {
                 if let Ok(value) = serde_json::from_slice::<Value>(bytes) {
-                    if !overlay.conditions.allows(&value) {
+                    if !overlay.conditions.allows_tag(&value, kind, &id) {
                         continue;
                     }
                     Self::add_tag_values(files.entry(id.clone()).or_default(), &value);
@@ -871,7 +929,7 @@ impl SyncData {
             }
             let mut files = BTreeMap::new();
             walk(&dir, &mut files);
-            files.retain(|_, value| conditions.allows(value));
+            files.retain(|id, value| conditions.allows_path(value, &dir, id));
             if files.is_empty() {
                 continue;
             }
@@ -1408,3 +1466,6 @@ mod component_tests {
         assert_eq!(read_network(&bytes, Limits::default()).unwrap().0, tag);
     }
 }
+
+#[path = "data_condition_filter.rs"]
+mod condition_filter;

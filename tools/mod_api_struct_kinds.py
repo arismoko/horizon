@@ -1,7 +1,7 @@
 """Census of the mod API's public structs by construction kind (#2862).
 
-Every public struct in `horizon-mod-api` and `horizon-mod-vocab` is one of two
-kinds:
+Every mod-facing public struct in `horizon-mod-api` and `horizon-mod-vocab` is
+one of two kinds:
 
 1. built by mods: public fields and `Default`, or a constructor taking the
    required fields;
@@ -12,6 +12,9 @@ not `#[non_exhaustive]`) but that has neither `Default` nor a constructor is
 "neither": adding a field to it breaks every mod that builds it. This script
 lists those from source, with no hand-kept list. `NEITHER_LIMIT` in
 `tests/test_mod_api_struct_kinds.py` is how many may remain; it only goes down.
+Engine socket records are excluded only with both `#[doc(hidden)]` and the
+explicit platform-owned-plumbing marker, inside the closed engine socket file
+set. Neither annotation alone, nor both outside those files, changes the census.
 
 Run: `python tools/mod_api_struct_kinds.py` (lists the "neither" structs),
 `--summary` (counts only).
@@ -25,6 +28,19 @@ sys.path.insert(0, str(ROOT))
 from tools.check_mod_api_wire import code_tokens  # noqa: E402
 
 CRATES = ('horizon-mod-api', 'horizon-mod-vocab')
+
+# Closed engine socket boundaries, not arbitrary mod-authoring modules. A file
+# match alone never exempts a declaration: both annotations below are required.
+PLATFORM_SOCKET_FILES = frozenset(
+    'crates/horizon-mod-vocab/src/' + file for file in (
+        'dispatch_scope.rs',
+        'parts/registration_access.rs',
+        'content/crash.rs',
+        'wire/wire_resources.rs',
+        'world/phase.rs',
+        'block/unresolved_fluid.rs',
+    )
+)
 
 
 def _tokens(source):
@@ -123,6 +139,25 @@ def _fields_public(body):
     return public
 
 
+def _platform_plumbing(source, offset, attrs, file):
+    """Exclude an explicitly hidden record only inside an engine socket file."""
+    if file not in PLATFORM_SOCKET_FILES:
+        return False
+    if not any(attrs[i:i + 4] == ['doc', '(', 'hidden', ')']
+               for i in range(len(attrs) - 3)):
+        return False
+    marker = '// hidden: platform-owned instrumentation plumbing, not a mod authoring surface.'
+    for line in reversed(source[:offset].splitlines()):
+        line = line.strip()
+        if line == marker:
+            return True
+        if line and not line.startswith(('//', '#[')):
+            break
+        if not line:
+            break
+    return False
+
+
 def structs(source, file=""):
     """(name, token offset, non_exhaustive, derives_default, literal) per struct."""
     pairs = _tokens(source)
@@ -137,6 +172,8 @@ def structs(source, file=""):
         if not re.match(r'^[A-Za-z_]\w*$', name):
             continue  # a macro template, not a declaration
         attrs = _attributes(ts, i)
+        if _platform_plumbing(source, pairs[i][1], attrs, file):
+            continue
         non_exhaustive = 'non_exhaustive' in attrs
         derives_default = any(
             attrs[k] == 'derive' and 'Default' in attrs[k:_skip_group(attrs, k + 1, '(', ')')]

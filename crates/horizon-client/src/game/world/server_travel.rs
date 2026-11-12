@@ -504,7 +504,7 @@ impl Game<'_> {
     }
 
     /// `Entity.handlePortal` for one player, whose portal state is in place.
-    fn handle_server_portal(&mut self, conn: u32) {
+    pub(super) fn handle_server_portal(&mut self, conn: u32) {
         let Some(host) = self.lan.as_ref() else {
             return;
         };
@@ -554,7 +554,11 @@ impl Game<'_> {
                 // PlayerEvent.Clone with `wasDeath` false.
                 if let Some(g) = host.hub.guest(conn) {
                     let (uuid, name) = (g.uuid, g.name.clone());
-                    self.native_player_clone(uuid, &name, false);
+                    if let Some(original) = self.capture_original_player(conn) {
+                        self.with_original_player(original, |game, original| {
+                            game.native_player_clone(uuid, &name, false, original);
+                        });
+                    }
                 }
                 self.start_server_trip(conn, Dim::Overworld, None, true);
                 self.portals.player.cooldown = 10;
@@ -771,7 +775,10 @@ impl Game<'_> {
         let scale = if end {
             1.0
         } else {
-            Dim::teleportation_scale(source, target)
+            horizon_world::dimension_type::DimensionFacts::teleportation_scale(
+                self.dimension_type_of(source),
+                self.dimension_type_of(target),
+            )
         };
         self.end_portal_travel = end;
         // Leaving the End: the player's own respawn point.

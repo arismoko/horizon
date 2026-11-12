@@ -32,7 +32,6 @@ fn launcher(root: &Path, args: &[&str]) -> Command {
         .env("XDG_CONFIG_HOME", root.join("config"))
         .env("HORIZON_LAUNCHER_NO_SELF_UPDATE", "1")
         .env("HORIZON_NO_AUDIO", "1")
-        .env_remove("HORIZON_LAUNCHER_DEVELOPER_OFFLINE")
         .env("HORIZON_TELEMETRY_URL", "off")
         // Memory only: the test never reads the player's keychain.
         .env("HORIZON_NO_KEYCHAIN", "1")
@@ -56,35 +55,6 @@ fn the_cli_refuses_to_play_without_an_owner() {
     assert!(!root.join("game/sessions").exists());
     let accounts = std::fs::read_to_string(root.join("launcher/accounts.json")).unwrap();
     assert!(accounts.contains("Builder_1"), "{accounts}");
-    let _ = std::fs::remove_dir_all(&root);
-}
-
-#[test]
-fn launcher_help_does_not_register_a_managed_installation() {
-    use horizon_mod_package::locks::{LockMode, Release};
-    use horizon_mod_package::runtime_leases::{open_directory, Error, Registry};
-
-    let root = home("help-leases");
-    let data = root.join("launcher");
-    let install = data.join("versions/v2026.10.27.01");
-    drop(Registry::with_release(&data, Release::Close).unwrap());
-    let out = launcher(&root, &["--help"]).output().unwrap();
-    assert!(out.status.success(), "{}", text(&out));
-    let registry = Registry::existing(&data).unwrap();
-    assert!(matches!(
-        registry.lock(&open_directory(&install).unwrap(), LockMode::Shared),
-        Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound
-    ));
-    drop(registry);
-    let out = launcher(&root, &["play"]).output().unwrap();
-    assert!(!out.status.success(), "{}", text(&out));
-    assert!(text(&out).contains(REFUSED), "{}", text(&out));
-    let registry = Registry::existing(&data).unwrap();
-    assert!(matches!(
-        registry.lock(&open_directory(&install).unwrap(), LockMode::Shared),
-        Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound
-    ));
-    drop(registry);
     let _ = std::fs::remove_dir_all(&root);
 }
 

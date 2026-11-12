@@ -199,16 +199,11 @@ impl Game<'_> {
             // Player.tick: a different main-hand item resets the attack
             // strength, and detectEquipmentUpdates gives the guest its modifiers.
             let g = &host.hub.guests[gi];
-            let held = g
-                .inventory
-                .get(g.selected)
-                .cloned()
-                .flatten()
-                .map(|s| s.item);
+            let held = crate::game::held::held_attack_item(&g.inventory, g.selected);
             let play = host.play.entry(conn).or_default();
-            if play.attack_item != held {
+            if play.attack_item.as_ref() != held {
                 play.attack_ticks = 0;
-                play.attack_item = held;
+                play.attack_item = held.cloned();
             }
             self.guest_delayed_destroy(conn);
             self.guest_server_tick(conn);
@@ -547,20 +542,23 @@ impl Game<'_> {
                 w.server_player_pose_tick()
             };
             let mut events = std::mem::take(&mut w.player.events);
-            // LayeredCauldronBlock.handleEntityOnFireInside along those moves.
-            for event in &events {
-                match event {
-                    MotionEvent::CauldronExtinguish { pos } => game.cauldron_extinguish(*pos),
-                    MotionEvent::PowderSnowMelt { pos } => game.powder_snow_melt(*pos),
-                    _ => {}
-                }
-            }
+            // Powder snow and cauldrons put the fire out along those moves.
+            game.block_extinguish_player(&events);
             // Entity.baseTick: rain puts out a burning player.
             game.rain_extinguish_player();
-            // WitherRoseBlock.entityInside along those moves.
+            // WitherRoseBlock.entityInside along those moves, and an
+            // `entity_inside` part's typed effect writes.
             for event in &events {
-                if matches!(event, MotionEvent::InsideWitherRose) {
-                    game.wither_rose_contact();
+                match event {
+                    MotionEvent::InsideWitherRose => game.wither_rose_contact(),
+                    MotionEvent::InsideEffect {
+                        id,
+                        duration,
+                        amplifier,
+                    } if game.remote.is_none() && game.ui.difficulty != 0 => {
+                        game.give_player_effect(id, *duration, i32::from(*amplifier));
+                    }
+                    _ => {}
                 }
             }
             // ServerGamePacketListenerImpl.handleMovePlayer:

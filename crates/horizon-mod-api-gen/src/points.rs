@@ -1,21 +1,18 @@
 //! Injection points (#589): every function of the game module that [`point_shape::eligible`]
-//! admits is a point, and so is each function `slots/*.txt` lists in the crates below it. The staging
-//! pass ([`stage`]) puts `#[point]` on each in a staged copy of the game's source, the copy the
-//! prebuilt game builds compile, with each raw form's types beside it;
+//! admits and the API can carry is a point, and so is each such function marked `#[horizon_mod_api_macros::replaceable]` in
+//! the crates below it. The staging pass ([`stage`]) puts `#[point]` on each in a staged copy of the
+//! game's source, the copy the prebuilt game builds compile;
 //! the generator lists the same points from any copy, staged or not, as `mod_points` (each point's
 //! record, typed function slots, `PointId`) and as `points.json`, the compiled slot catalog. All of them are build outputs, never committed.
 
+use crate::replace::marked;
+use crate::source::{crate_files, crate_root, game_files, gated, offset, owner, plain_path, unraw};
 use quote::{ToTokens, quote};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 use syn::{ImplItem, Item, Type};
-
-pub mod mod_crate;
-
-#[cfg(test)]
-mod target_tests;
 
 /// One point, as `points.json` lists it.
 #[derive(Debug, serde::Serialize)]
@@ -42,24 +39,6 @@ pub struct GamePoint {
     pub return_ty: String,
     /// Whether its API listeners run at the return: not when the value returned borrows.
     pub at_return: bool,
-    /// Whether it has a raw form: native listeners with the receiver and every parameter by its
-    /// own type (`access = "internals"`).
-    pub raw: bool,
-    /// Full raw listener contract, including engine-typed parameters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_shape: Option<point_shape::RawShape>,
-    /// Its raw listeners' function type, by path: a mod's raw listener has this type.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub listener: Option<String>,
-    /// Its raw return listeners' function type, by path: they get the value returned.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub return_listener: Option<String>,
-    /// A mod point's signature hash (#2339): what an addon's declaration pins, checked at load.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hash: Option<String>,
-    /// A mod point's signature as hashed: its path, receiver, parameters and return type.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signature: Option<String>,
     #[serde(skip)]
     record_item: String,
     /// Its typed function constructors, place ids and dispatch functions
@@ -97,17 +76,7 @@ impl GamePoint {
                 api.dispatch.to_string(),
             ],
             at_return: shape.api() && shape.has_return(),
-            raw: shape.raw,
             api_refusal: shape.api_refusal.clone(),
-            raw_shape: shape
-                .raw
-                .then(|| point_shape::raw_shape(&shape, found.sig, found.owner.map(|(ty, _)| ty))),
-            listener: shape
-                .raw
-                .then(|| format!("{}::{}", found.module, shape.raw_listener())),
-            return_listener: shape
-                .raw
-                .then(|| format!("{}::{}", found.module, shape.raw_return_listener())),
             target,
             side: shape.side.map_or("none", point_shape::Side::name),
             host: match (shape.receiver, shape.side) {
@@ -137,252 +106,8 @@ impl GamePoint {
                 syn::ReturnType::Type(_, ty) => point_shape::spelling(ty),
             },
             name: shape.name,
-            hash: None,
-            signature: None,
         }
     }
-}
-
-/// A source file of the game's crates, with its module path and the `cfg`s it is compiled under.
-pub(crate) struct GameFile {
-    pub(crate) module: String,
-    pub(crate) path: PathBuf,
-    /// The conditions of the `mod` declarations that lead to it, outermost first.
-    pub(crate) cfg: Vec<String>,
-}
-
-/// The `cfg` conditions in `attrs`, as written, except `cfg(test)`.
-pub(crate) fn conditions(attrs: &[syn::Attribute]) -> Vec<String> {
-    attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("cfg") && !test_only(std::slice::from_ref(attr)))
-        .filter_map(|attr| attr.parse_args::<syn::Meta>().ok())
-        .map(|meta| meta.to_token_stream().to_string())
-        .collect()
-}
-
-/// Whether an item is compiled only into tests, explicitly or by `#[test]`/`#[bench]`.
-pub(crate) fn test_only(attrs: &[syn::Attribute]) -> bool {
-    attrs.iter().any(|attr| {
-        attr.path().is_ident("test")
-            || attr.path().is_ident("bench")
-            || (attr.path().is_ident("cfg")
-                && matches!(attr.parse_args::<syn::Meta>(), Ok(syn::Meta::Path(path)) if path.is_ident("test")))
-    })
-}
-
-/// A module file still to read: its module path, file, children's folder and conditions.
-type Pending = (String, PathBuf, PathBuf, Vec<String>);
-
-/// The files of the module `module`, read from `path` (its children in `dir`), following `mod`
-/// declarations (and `#[path]`s, and inline modules that declare files). With `every_build`, a
-/// module behind a `cfg` is left out with everything under it (the points: functions every build
-/// compiles); without, it is kept with its conditions (the internals, listed with the builds they
-/// exist in). Test-only modules are always left out, including files gated by inner attributes.
-pub(crate) fn module_files(
-    module: String,
-    path: PathBuf,
-    dir: PathBuf,
-    every_build: bool,
-) -> Result<Vec<GameFile>, String> {
-    let mut files = Vec::new();
-    let mut pending = vec![(module, path, dir, Vec::new())];
-    while let Some((module, path, dir, cfg)) = pending.pop() {
-        // A declared module with no file is one another target builds (its file named by a
-        // `cfg_attr` path this walk already followed): nothing here compiles from it.
-        if !path.is_file() {
-            continue;
-        }
-        let source = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let file = crate::game_modules::parse(&path, &source)?;
-        if test_only(&file.attrs) || (every_build && gated(&file.attrs)) {
-            continue;
-        }
-        let cfg = cfg
-            .into_iter()
-            .chain(conditions(&file.attrs))
-            .collect::<Vec<_>>();
-        let here = path
-            .parent()
-            .expect("a source file has a folder")
-            .to_owned();
-        children(
-            &module,
-            &file.items,
-            &here,
-            &dir,
-            &cfg,
-            every_build,
-            &mut pending,
-        );
-        files.push(GameFile { module, path, cfg });
-    }
-    files.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(files)
-}
-
-/// Queues the module files `items` declare, looking inside inline modules too: a file module
-/// declared in `mod a { mod b; }` lives in `dir/a/b.rs`. A `#[path]` is relative to `here`.
-fn children(
-    module: &str,
-    items: &[Item],
-    here: &Path,
-    dir: &Path,
-    cfg: &[String],
-    every_build: bool,
-    pending: &mut Vec<Pending>,
-) {
-    for item in items {
-        if let Item::Macro(included) = item
-            && included.mac.path.is_ident("include")
-            && !test_only(&included.attrs)
-            && !(every_build && gated(&included.attrs))
-            && let Ok(relative) = syn::parse2::<syn::LitStr>(included.mac.tokens.clone())
-        {
-            pending.push((
-                module.to_owned(),
-                here.join(relative.value()),
-                dir.to_owned(),
-                cfg.to_vec(),
-            ));
-        }
-        let Item::Mod(declared) = item else { continue };
-        if test_only(&declared.attrs) || (every_build && gated(&declared.attrs)) {
-            continue;
-        }
-        let name = declared.ident.to_string();
-        let child = format!("{module}::{name}");
-        let cfg: Vec<String> = cfg
-            .iter()
-            .cloned()
-            .chain(conditions(&declared.attrs))
-            .collect();
-        let explicit = declared.attrs.iter().find_map(|attr| match &attr.meta {
-            syn::Meta::NameValue(value) if attr.path().is_ident("path") => match &value.value {
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(path),
-                    ..
-                }) => Some(path.value()),
-                _ => None,
-            },
-            _ => None,
-        });
-        // `#[cfg_attr(unix, path = "a/unix.rs")]`: each target's file, under its condition.
-        let per_target: Vec<(String, String)> = declared
-            .attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("cfg_attr"))
-            .filter_map(|attr| {
-                let args = attr
-                    .parse_args_with(
-                        syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
-                    )
-                    .ok()?;
-                let mut args = args.into_iter();
-                let condition = args.next()?;
-                let path = args.find_map(|meta| match meta {
-                    syn::Meta::NameValue(value) if value.path.is_ident("path") => {
-                        match value.value {
-                            syn::Expr::Lit(syn::ExprLit {
-                                lit: syn::Lit::Str(path),
-                                ..
-                            }) => Some(path.value()),
-                            _ => None,
-                        }
-                    }
-                    _ => None,
-                })?;
-                Some((condition.to_token_stream().to_string(), path))
-            })
-            .collect();
-        if declared.content.is_none() && explicit.is_none() && !per_target.is_empty() {
-            for (condition, relative) in per_target {
-                let file = here.join(relative);
-                let dir = file
-                    .parent()
-                    .expect("a module file has a folder")
-                    .to_owned();
-                let cfg = cfg.iter().cloned().chain([condition]).collect();
-                pending.push((child.clone(), file, dir, cfg));
-            }
-            continue;
-        }
-        if let Some((_, inner)) = &declared.content {
-            // An inline module's children live in its folder, named by its own `#[path]` if any.
-            let inner_dir = dir.join(explicit.as_deref().unwrap_or(&name));
-            children(
-                &child,
-                inner,
-                &inner_dir,
-                &inner_dir,
-                &cfg,
-                every_build,
-                pending,
-            );
-            continue;
-        }
-        let (file, child_dir) = match explicit {
-            Some(relative) => {
-                let file = here.join(relative);
-                let dir = file
-                    .parent()
-                    .expect("a module file has a folder")
-                    .to_owned();
-                (file, dir)
-            }
-            None if dir.join(format!("{name}.rs")).is_file() => {
-                (dir.join(format!("{name}.rs")), dir.join(&name))
-            }
-            None => (dir.join(&name).join("mod.rs"), dir.join(&name)),
-        };
-        pending.push((child, file, child_dir, cfg));
-    }
-}
-
-/// The files of `horizon_client::game`; see [`module_files`] for `every_build`.
-pub(crate) fn game_files(src: &Path, every_build: bool) -> Result<Vec<GameFile>, String> {
-    let files = module_files(
-        "horizon_client::game".to_owned(),
-        src.join("game.rs"),
-        src.join("game"),
-        every_build,
-    )?;
-    #[cfg(feature = "listener-fixture")]
-    let files = {
-        let mut files = files;
-        let path = src.join("../../horizon-mod-wasm/tests/fixture/src/points.rs");
-        if path.is_file() {
-            files.push(GameFile {
-                module: "listener_fixture".into(),
-                path,
-                cfg: Vec::new(),
-            });
-        }
-        files
-    };
-    Ok(files)
-}
-
-/// The crate `krate`'s package folder and library root, from its manifest.
-pub(crate) fn crate_root(root: &Path, krate: &str) -> Result<(PathBuf, PathBuf), String> {
-    let package = root.join("crates").join(krate.replace('_', "-"));
-    let manifest = package.join("Cargo.toml");
-    let text = fs::read_to_string(&manifest).map_err(|e| format!("{}: {e}", manifest.display()))?;
-    let manifest: toml::Value = toml::from_str(&text).map_err(|e| e.to_string())?;
-    let lib = manifest
-        .get("lib")
-        .and_then(|lib| lib.get("path"))
-        .and_then(toml::Value::as_str)
-        .unwrap_or("src/lib.rs");
-    let lib = package.join(lib);
-    Ok((package, lib))
-}
-
-/// The files of the crate `krate` that every build compiles.
-fn crate_files(root: &Path, krate: &str) -> Result<Vec<GameFile>, String> {
-    let (_, lib) = crate_root(root, krate)?;
-    let dir = lib.parent().expect("a source file has a folder").to_owned();
-    module_files(krate.to_owned(), lib, dir, true)
 }
 
 /// The crates the points' own crate is built on (`horizon-mod-points` and everything under it), by
@@ -415,49 +140,13 @@ pub(crate) fn below_points(root: &Path) -> Result<std::collections::BTreeSet<Str
     Ok(seen)
 }
 
-/// Listed lower-crate functions and their diagnostic locations.
-fn listed(root: &Path) -> Result<Vec<(String, String)>, String> {
-    Ok(crate::sites::slots(&root.join(crate::sites::DIRECTORY))
-        .map_err(|e| e.to_string())?
-        .functions
-        .into_iter()
-        .map(|(path, origin)| (origin, path))
-        .collect())
-}
-
-/// A path without generic arguments or spaces, as listed paths and found ones are compared.
-pub(crate) fn plain_path(path: &str) -> String {
-    let mut out = String::new();
-    let mut depth = 0;
-    for c in path.chars() {
-        match c {
-            '<' => depth += 1,
-            '>' => depth -= 1,
-            c if depth == 0 && !c.is_whitespace() => out.push(c),
-            _ => {}
-        }
-    }
-    out
-}
-
-/// The game module's files, slot lists and listed crates' files, for a build script to track.
+/// The game module's files, slot lists and marked crates' files, for a build script to track.
 pub fn tracked(root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut files: Vec<_> = game_files(&root.join("crates/horizon-client/src"), true)?
         .into_iter()
         .map(|file| file.path)
         .collect();
-    let directory = root.join(crate::sites::DIRECTORY);
-    files.push(directory.clone());
-    if directory.exists() {
-        files.extend(
-            fs::read_dir(directory)
-                .map_err(|e| e.to_string())?
-                .map(|e| e.map(|e| e.path()))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?,
-        );
-    }
-    let crates: std::collections::BTreeSet<_> = listed(root)?
+    let crates: std::collections::BTreeSet<_> = marked(root)?
         .into_iter()
         .filter_map(|(_, path)| path.split("::").next().map(str::to_owned))
         .collect();
@@ -467,27 +156,20 @@ pub fn tracked(root: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
-/// Whether `attrs` hold a `cfg` (or `cfg_attr`): the item is compiled only in some builds.
-fn gated(attrs: &[syn::Attribute]) -> bool {
-    attrs
-        .iter()
-        .any(|attr| attr.path().is_ident("cfg") || attr.path().is_ident("cfg_attr"))
-}
-
 /// A point's function, as found in a parsed file.
+#[derive(Clone)]
 pub(crate) struct Found<'a> {
     pub(crate) module: String,
     attrs: &'a [syn::Attribute],
     vis: &'a syn::Visibility,
     pub(crate) sig: &'a syn::Signature,
-    pub(crate) body: &'a syn::Block,
     /// The `impl`'s type and generics; none for a free function.
     owner: Option<(&'a Type, &'a syn::Generics)>,
-    /// Where the item that holds it ends: the `impl` block, or the function. Its raw types go there.
-    pub(crate) end: proc_macro2::LineColumn,
     /// The types its signature names that cross as `mod_api` types, as written, with the API
     /// type's path and whether it converts (an engine type's [`MIRRORS`] entry).
     mirrors: Vec<(String, String, bool)>,
+    /// The replacement rule that leaves it without a cell, and so without a point site.
+    unreplaceable: Option<&'static str>,
 }
 
 impl Found<'_> {
@@ -544,9 +226,6 @@ impl Found<'_> {
         } else {
             parts.push(format!("name = \"{}\"", self.name()));
         }
-        if self.raw() {
-            parts.push("raw".into());
-        }
         if self.owner.is_none() {
             parts.push("free".into());
         }
@@ -564,19 +243,19 @@ impl Found<'_> {
         parts.join(", ")
     }
 
-    fn raw(&self) -> bool {
-        point_shape::raw_able(self.sig, self.owner.map(|(_, generics)| generics))
-    }
-
+    /// Its shape. A function without a replacement cell has no site a listener could run at:
+    /// its API listeners are refused, naming the rule.
     fn shape(&self) -> Result<point_shape::Shape, String> {
-        point_shape::shape(self.attribute().parse().expect("the attribute"), self.sig)
-            .map_err(|e| format!("{}: {e}", self.target()))
+        let mut shape =
+            point_shape::shape(self.attribute().parse().expect("the attribute"), self.sig)
+                .map_err(|e| format!("{}: {e}", self.target()))?;
+        if let Some(rule) = self.unreplaceable {
+            shape.api_refusal = Some(format!(
+                "the function has no point site: it takes no replacement ({rule})"
+            ));
+        }
+        Ok(shape)
     }
-}
-
-/// `r#type` as `type`.
-pub(crate) fn unraw(ident: &syn::Ident) -> String {
-    ident.to_string().trim_start_matches("r#").to_owned()
 }
 
 /// `MapData` as `map_data`.
@@ -593,19 +272,6 @@ fn snake(name: &str) -> String {
         }
     }
     out
-}
-
-/// A type as a target names it: lifetimes as `'_`, no spaces.
-fn owner(ty: &Type) -> String {
-    struct EraseLifetimes;
-    impl syn::visit_mut::VisitMut for EraseLifetimes {
-        fn visit_lifetime_mut(&mut self, lifetime: &mut syn::Lifetime) {
-            *lifetime = syn::Lifetime::new("'_", lifetime.span());
-        }
-    }
-    let mut ty = ty.clone();
-    syn::visit_mut::VisitMut::visit_type_mut(&mut EraseLifetimes, &mut ty);
-    ty.to_token_stream().to_string().replace(' ', "")
 }
 
 /// The point functions of one parsed file, with their module paths: in the game module, every
@@ -649,10 +315,9 @@ pub(crate) fn file_functions<'a>(
                     attrs: &function.attrs,
                     vis: &function.vis,
                     sig: &function.sig,
-                    body: &function.block,
                     owner: None,
-                    end: function.block.brace_token.span.close().end(),
                     mirrors: Vec::new(),
+                    unreplaceable: None,
                 };
                 if keep(&found) {
                     out.push(found);
@@ -674,10 +339,9 @@ pub(crate) fn file_functions<'a>(
                             attrs: &method.attrs,
                             vis: &method.vis,
                             sig: &method.sig,
-                            body: &method.block,
                             owner: Some((&block.self_ty, &block.generics)),
-                            end: block.brace_token.span.close().end(),
                             mirrors: Vec::new(),
+                            unreplaceable: None,
                         };
                         if keep(&found) {
                             out.push(found);
@@ -703,24 +367,38 @@ struct Scanned {
 /// The `mod_api` types a record may hold ([`crate::build::wire_types`]), by path.
 pub type WireTypes = std::collections::BTreeSet<String>;
 
-/// Every file with points: the game module's, then each listed lower crate's. Fails on a listed
-/// path that names no point function, or a crate the points' own crate is built on.
+/// Every file with points: the game module's, then each marked lower crate's that is not built
+/// under the points' own crate.
 fn scan(root: &Path) -> Result<(Vec<Scanned>, Vec<(String, String)>), String> {
     let mut files = Vec::new();
     for file in game_files(&root.join("crates/horizon-client/src"), true)? {
         files.push((file, None));
     }
-    let list = listed(root)?;
-    let below = below_points(root)?;
-    let mut crates = std::collections::BTreeSet::new();
-    for (origin, path) in &list {
-        let krate = path.split("::").next().unwrap_or_default();
-        if below.contains(krate) || krate == "horizon_client" {
-            return Err(format!(
-                "{origin}: {path}: {krate} is built under the points' own crate (or is the game's): its functions can't be listed points"
+    // The wasm host's listener tests listen at points of their own fixture file.
+    #[cfg(feature = "listener-fixture")]
+    {
+        let path = root.join("crates/horizon-mod-wasm/tests/fixture/src/points.rs");
+        if path.is_file() {
+            files.push((
+                crate::source::GameFile {
+                    module: "listener_fixture".into(),
+                    path,
+                    cfg: Vec::new(),
+                },
+                None,
             ));
         }
-        crates.insert(krate.to_owned());
+    }
+    let list = marked(root)?;
+    let below = below_points(root)?;
+    let mut crates = std::collections::BTreeSet::new();
+    for (_, path) in &list {
+        let krate = path.split("::").next().unwrap_or_default();
+        // A crate the points' own crate is built on has replaceable functions and no points:
+        // its slots would have to reach up to the table.
+        if !below.contains(krate) {
+            crates.insert(krate.to_owned());
+        }
     }
     for krate in &crates {
         let (package, _) = crate_root(root, krate)?;
@@ -744,33 +422,41 @@ fn scan(root: &Path) -> Result<(Vec<Scanned>, Vec<(String, String)>), String> {
 }
 
 impl Scanned {
-    /// This file's points: all of a game-module file's, or the listed ones of a lower crate's.
-    fn points<'a>(
-        &'a self,
-        list: &[(String, String)],
-        wire: &WireTypes,
-        used: &mut Vec<bool>,
-    ) -> Vec<Found<'a>> {
+    /// This file's points: all of a game-module file's, or the marked ones of a lower crate's.
+    fn points<'a>(&'a self, list: &[(String, String)], wire: &WireTypes) -> Vec<Found<'a>> {
         let mut out = Vec::new();
-        let used = std::cell::RefCell::new(used);
         let keep = |found: &Found<'_>| {
+            // A staged copy also holds what the replacement pass wrote beside each function.
+            if found.sig.ident.to_string().starts_with("__fnr_") {
+                return false;
+            }
             if self.package.is_none() {
                 return true;
             }
             let target = plain_path(&found.target());
-            match list.iter().position(|(_, path)| *path == target) {
-                Some(index) => {
-                    used.borrow_mut()[index] = true;
-                    true
-                }
-                None => false,
-            }
+            list.iter().any(|(_, path)| *path == target)
         };
         file_points(&self.module, &self.parsed.items, &keep, &mut out);
         let uses = imports(&self.parsed.items, "horizon_client");
+        // A point is installed through its function's replacement cell: only a replaceable
+        // function has one.
+        let none = std::collections::BTreeSet::new();
+        let replaceable = crate::replace::targets(&self.module, &self.parsed, &none, &none);
         for found in &mut out {
             // Only the game's own crate has the conversions a mirror goes through.
             found.mirrors = mirrors(found.sig, &uses, wire, self.package.is_none());
+            if !replaceable.contains(&found.target()) {
+                found.unreplaceable = Some(
+                    crate::replace::signature_exclusion(found.attrs, found.sig).unwrap_or(
+                        match found.owner {
+                            Some((_, generics)) if !crate::replace::lifetimes_only(generics) => {
+                                "impl type/const generics"
+                            }
+                            _ => "no replacement cell",
+                        },
+                    ),
+                );
+            }
         }
         out
     }
@@ -887,19 +573,13 @@ fn all_points<'a>(
     list: &[(String, String)],
     wire: &WireTypes,
 ) -> Result<Vec<(usize, Found<'a>)>, String> {
-    let mut used = vec![false; list.len()];
     let mut points = Vec::new();
     for (index, file) in scanned.iter().enumerate() {
         points.extend(
-            file.points(list, wire, &mut used)
+            file.points(list, wire)
                 .into_iter()
                 .map(|found| (index, found)),
         );
-    }
-    if let Some(((origin, path), _)) = list.iter().zip(&used).find(|(_, used)| !**used) {
-        return Err(format!(
-            "{origin}: {path}: no function every build compiles that can be a point"
-        ));
     }
     let mut names = std::collections::BTreeMap::new();
     for (_, found) in &points {
@@ -917,8 +597,8 @@ fn all_points<'a>(
     Ok(points)
 }
 
-/// The game's points, by name: every point function of the game module, and the listed ones of
-/// the crates below it. Unlisted targets have no compiled slot.
+/// The game's points, by name: every point function of the game module, and the marked ones of
+/// the crates below it. Unmarked targets have no compiled slot.
 pub fn game_points(root: &Path) -> Result<Vec<GamePoint>, String> {
     points_with(root, &crate::build::wire_types(root)?)
 }
@@ -926,15 +606,49 @@ pub fn game_points(root: &Path) -> Result<Vec<GamePoint>, String> {
 /// [`game_points`] with the `mod_api` types a record may hold.
 pub(crate) fn points_with(root: &Path, wire: &WireTypes) -> Result<Vec<GamePoint>, String> {
     let (scanned, list) = scan(root)?;
-    let mut points = Vec::new();
-    for (_, found) in all_points(&scanned, &list, wire)? {
-        let target = found.target();
-
-        let shape = found.shape()?;
-        points.push(GamePoint::new(shape, &found, target));
-    }
+    let mut points = all_points(&scanned, &list, wire)?
+        .into_iter()
+        .map(|(_, found)| point_record(found))
+        .collect::<Result<Vec<_>, _>>()?;
     points.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(points)
+}
+
+// Both standalone discovery and source staging retain the original API signature.
+fn point_record(found: Found<'_>) -> Result<GamePoint, String> {
+    let target = found.target();
+
+    // Replacement normalizes parameter patterns. Keep the API contract of the original
+    // signature, including refusals, rather than promoting a staged function into a point.
+    let original = found
+        .attrs
+        .iter()
+        .find_map(|attr| {
+            if !attr.path().is_ident("doc") {
+                return None;
+            }
+            let syn::Meta::NameValue(value) = &attr.meta else {
+                return None;
+            };
+            let syn::Expr::Lit(value) = &value.value else {
+                return None;
+            };
+            let syn::Lit::Str(value) = &value.lit else {
+                return None;
+            };
+            value
+                .value()
+                .strip_prefix("horizon-point-signature: ")
+                .map(str::to_owned)
+        })
+        .map(|text| syn::parse_str::<syn::Signature>(&text).map_err(|e| e.to_string()))
+        .transpose()?;
+    let found = Found {
+        sig: original.as_ref().unwrap_or(found.sig),
+        ..found
+    };
+    let shape = found.shape()?;
+    Ok(GamePoint::new(shape, &found, target))
 }
 
 /// What [`stage`] did.
@@ -944,24 +658,14 @@ pub struct Staged {
     pub points: usize,
     /// Of those, the ones whose API listeners get no return place (their value borrows).
     pub head_only: usize,
-    /// Of those, the ones with a raw form.
-    pub raw: usize,
+    /// Eligible functions left without a point: a parameter has no API type.
+    pub refused: usize,
     /// Files rewritten.
     pub files: usize,
 }
 
-/// The byte offset of `at` in `source`, whose line starts are `lines`.
-pub(crate) fn offset(source: &str, lines: &[usize], at: proc_macro2::LineColumn) -> usize {
-    let line = lines[at.line - 1];
-    source[line..]
-        .char_indices()
-        .nth(at.column)
-        .map_or(source.len(), |(i, _)| line + i)
-}
-
 /// The staging pass: puts `#[point]` on every point function of the staged copy at `root`, in
-/// place, declares each raw form's record and listener types after the item that holds the
-/// function, and gives each lower crate with points the points' dependencies. Run on a copy, never
+/// place, and gives each lower crate with points the points' dependencies. Run on a copy, never
 /// on a working tree: the source tree carries no `#[point]`.
 pub fn stage(root: &Path) -> Result<Staged, String> {
     stage_with(root, &crate::build::wire_types(root)?)
@@ -969,19 +673,30 @@ pub fn stage(root: &Path) -> Result<Staged, String> {
 
 /// [`stage`] with the `mod_api` types a record may hold.
 pub(crate) fn stage_with(root: &Path, wire: &WireTypes) -> Result<Staged, String> {
+    stage_with_manifest(root, wire).map(|(staged, _)| staged)
+}
+
+/// Rewrite points and collect their unchanged API records from the same source scan.
+pub(crate) fn stage_with_manifest(
+    root: &Path,
+    wire: &WireTypes,
+) -> Result<(Staged, Vec<GamePoint>), String> {
     let (scanned, list) = scan(root)?;
     let points = all_points(&scanned, &list, wire)?;
+    let mut records = points
+        .iter()
+        .map(|(_, found)| point_record(found.clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+    records.sort_by(|a, b| a.name.cmp(&b.name));
     let mut staged = Staged::default();
     let mut packages = std::collections::BTreeSet::new();
     for (index, file) in scanned.iter().enumerate() {
+        let points_before = staged.points;
         let here: Vec<_> = points
             .iter()
             .filter(|(i, _)| *i == index)
             .map(|(_, found)| found)
             .collect();
-        if here.is_empty() {
-            continue;
-        }
         let source = &file.source;
         let lines: Vec<usize> = std::iter::once(0)
             .chain(source.match_indices('\n').map(|(i, _)| i + 1))
@@ -1011,22 +726,29 @@ pub(crate) fn stage_with(root: &Path, wire: &WireTypes) -> Result<Staged, String
                     .start(),
                 vis => syn::spanned::Spanned::span(vis).start(),
             };
+            // A function with no API record has no listeners: it is not marked, and costs nothing.
+            let shape = found.shape()?;
+            let original = syn::LitStr::new(
+                &format!("horizon-point-signature: {}", found.sig.to_token_stream()),
+                proc_macro2::Span::call_site(),
+            );
+            edits.push((
+                offset(source, &lines, start),
+                format!("{} ", quote!(#[doc = #original])),
+            ));
+            if !shape.api() {
+                staged.refused += 1;
+                continue;
+            }
             edits.push((
                 offset(source, &lines, start),
                 format!("#[horizon_mod_api_macros::point({})] ", found.attribute()),
             ));
-            let shape = found.shape()?;
             staged.points += 1;
             staged.head_only += usize::from(!shape.has_return());
-            if shape.raw {
-                staged.raw += 1;
-                let items = shape.raw_items(
-                    found.sig,
-                    found.owner.map(|(ty, _)| ty),
-                    found.owner.map(|(_, generics)| generics),
-                );
-                edits.push((offset(source, &lines, found.end), format!("\n{items}\n")));
-            }
+        }
+        if edits.is_empty() {
+            continue;
         }
         edits.sort_by_key(|(at, _)| *at);
         let mut out = String::with_capacity(
@@ -1041,21 +763,17 @@ pub(crate) fn stage_with(root: &Path, wire: &WireTypes) -> Result<Staged, String
         out.push_str(&source[from..]);
         fs::write(&file.path, out).map_err(|e| format!("{}: {e}", file.path.display()))?;
         staged.files += 1;
-        if let Some(package) = &file.package {
+        if staged.points != points_before
+            && let Some(package) = &file.package
+        {
             packages.insert(package.clone());
         }
     }
     dependencies(root, packages)?;
-    fs::create_dir_all(root.join("crates/horizon-mod-points")).map_err(|e| e.to_string())?;
-    fs::write(
-        root.join("crates/horizon-mod-points/point-sites-staged"),
-        "staged\n",
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(staged)
+    Ok((staged, records))
 }
 
-/// Give listed lower-crate points and sites their staged dependencies, including the lock file.
+/// Give marked lower-crate points and sites their staged dependencies, including the lock file.
 pub(crate) fn dependencies(
     root: &Path,
     packages: std::collections::BTreeSet<PathBuf>,
@@ -1210,6 +928,7 @@ pub(crate) fn records_selected(
         })
         .collect();
     let mut api_places = proc_macro2::TokenStream::new();
+    let mut api_refusals = proc_macro2::TokenStream::new();
     let mut layout = 0xcbf29ce484222325u64;
     for point in points {
         for byte in format!(
@@ -1220,7 +939,9 @@ pub(crate) fn records_selected(
         {
             layout = (layout ^ u64::from(byte)).wrapping_mul(0x100000001b3);
         }
-        if point.api_refusal.is_some() {
+        if let Some(reason) = &point.api_refusal {
+            let target = &point.target;
+            api_refusals.extend(quote! { (#target, #reason), });
             continue;
         }
         let record = quote::format_ident!("{}", point.record);
@@ -1292,6 +1013,10 @@ pub(crate) fn records_selected(
         /// can't produce), for manifest validation: a head whose return is neither `()` nor an
         /// API value refuses a replacement when a module loads.
         #[doc(hidden)]
+        /// Targets whose arguments cannot cross the API/Wire boundary, with the named type.
+        #[doc(hidden)]
+        pub const API_REFUSALS: &[(&str, &str)] = &[#api_refusals];
+        #[doc(hidden)]
         pub const API_PLACES: &[(PointId, &str, bool, Option<&str>)] = &[#api_places];
         #[cfg(any(target_arch = "wasm32", feature = "wasm-guest"))]
         #[doc(hidden)]
@@ -1306,7 +1031,7 @@ pub(crate) fn records_selected(
         mod guest_exports {
             use super::*;
             type Dispatch = fn(PointId, &mut ::mod_api::wire::Reader<'_>, &mut ::mod_api::wire::Writer) -> Result<(), ::mod_api::wire::WireError>;
-            pub(super) const TABLE: [Option<(PointId, Dispatch)>; POINT_COUNT] = {
+            pub(super) static TABLE: [Option<(PointId, Dispatch)>; POINT_COUNT] = {
                 let mut table = [None; POINT_COUNT];
                 #guest_entries
                 table
@@ -1360,12 +1085,6 @@ mod tests {
                 returns: "cancel",
                 return_ty: "()".into(),
                 at_return: true,
-                raw: false,
-                raw_shape: None,
-                listener: None,
-                return_listener: None,
-                hash: None,
-                signature: None,
                 record_item: shape.record_item(name).to_string(),
                 api: [
                     api.listeners.to_string(),
@@ -1401,90 +1120,6 @@ mod tests {
         assert!(!selected.contains("table [PointId :: First as usize]"));
     }
 
-    #[test]
-    fn point_id_debug_preserves_every_declared_variant() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let source = records(&game_points(&root).unwrap());
-        let file = syn::parse_file(&source).unwrap();
-        let ids = file
-            .items
-            .iter()
-            .find_map(|item| match item {
-                syn::Item::Enum(ids) if ids.ident == "PointId" => Some(ids),
-                _ => None,
-            })
-            .unwrap();
-        let debug = file
-            .items
-            .iter()
-            .find_map(|item| match item {
-                syn::Item::Impl(item)
-                    if item.trait_.as_ref().is_some_and(|(_, path, _)| {
-                        path.segments.last().unwrap().ident == "Debug"
-                    }) =>
-                {
-                    Some(item)
-                }
-                _ => None,
-            })
-            .unwrap();
-        // Expected names and discriminant order come from the enum declarations,
-        // independently of the implementation's name table.
-        let variants: Vec<_> = ids.variants.iter().map(|variant| &variant.ident).collect();
-        let names: Vec<_> = variants.iter().map(|variant| variant.to_string()).collect();
-        let samples: Vec<_> = [
-            0,
-            variants.len() / 4,
-            variants.len() / 2,
-            variants.len() - 2,
-            variants.len() - 1,
-        ]
-        .into_iter()
-        .map(|index| variants[index])
-        .collect();
-        let program = quote! {
-            #ids
-            #debug
-            #[derive(Debug)]
-            enum Reference { #(#samples),* }
-            fn main() {
-                let cases = [#((PointId::#variants, #names)),*];
-                assert_eq!(cases.len(), PointId::__Count as usize + 1);
-                for (index, (place, expected)) in cases.into_iter().enumerate() {
-                    assert_eq!(place as usize, index);
-                    assert_eq!(format!("{place:?}"), expected);
-                    assert_eq!(format!("{place:#?}"), expected);
-                }
-                #(assert_eq!(format!("{:?}", PointId::#samples), format!("{:?}", Reference::#samples));)*
-            }
-        };
-        let directory = root
-            .join("target")
-            .join(format!("point-debug-{}", std::process::id()));
-        fs::create_dir_all(&directory).unwrap();
-        let source = directory.join("main.rs");
-        let binary = directory.join("point-debug");
-        fs::write(&source, program.to_string()).unwrap();
-        let output = std::process::Command::new("rustc")
-            .args(["--edition=2024", "-o"])
-            .arg(&binary)
-            .arg(&source)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert!(
-            std::process::Command::new(&binary)
-                .status()
-                .unwrap()
-                .success()
-        );
-        fs::remove_dir_all(directory).unwrap();
-    }
-
     /// The census: how many points have an API record, and why the others refuse.
     /// `POINT_INVENTORY=path` writes every point's name, target and refusal.
     #[test]
@@ -1499,7 +1134,6 @@ mod tests {
                         "name": point.name,
                         "target": point.target,
                         "api_refusal": point.api_refusal,
-                        "raw": point.raw,
                     })
                 })
                 .collect();
@@ -1785,6 +1419,51 @@ name = 'horizon-mod-api-gen'
     }
 
     #[test]
+    fn replacement_keeps_destructured_parameter_point_layout() {
+        let root =
+            std::env::temp_dir().join(format!("horizon-point-pattern-{}", std::process::id()));
+        let put = |name: &str, text: &str| {
+            let path = root.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        };
+        for name in [
+            "horizon-client",
+            "horizon-mod-points",
+            "horizon-mod-api-gen",
+        ] {
+            put(
+                &format!("crates/{name}/Cargo.toml"),
+                &format!("[package]\nname = '{name}'\n"),
+            );
+        }
+        put("crates/horizon-mod-api-gen/internals.txt", "");
+        put("crates/horizon-mod-api-gen/replaceable.txt", "");
+        put("crates/horizon-client/src/lib.rs", "mod game;");
+        put(
+            "crates/horizon-client/src/game.rs",
+            "impl Game<'_> { fn connect_cancel(&self, (w, h): (f32, f32)) -> Option<(f32, f32)> { None } }",
+        );
+        let before = points_with(&root, &WireTypes::new()).unwrap();
+        assert!(before[0].api_refusal.is_some());
+        let layout = records(&before);
+        let (_, combined) = stage_with_manifest(&root, &WireTypes::new()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&before).unwrap(),
+            serde_json::to_value(&combined).unwrap()
+        );
+        assert_eq!(layout, records(&combined));
+        crate::replace::stage(&root).unwrap();
+        let after = points_with(&root, &WireTypes::new()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&before).unwrap(),
+            serde_json::to_value(&after).unwrap()
+        );
+        assert_eq!(layout, records(&after));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn the_pass_marks_the_functions_the_generator_lists() {
         let root = std::env::temp_dir().join(format!("horizon-points-{}", std::process::id()));
         let put = |path: &str, text: &str| {
@@ -1851,16 +1530,19 @@ name = 'horizon-mod-api-gen'
         );
         put(
             "crates/horizon-client-render/src/mesher.rs",
-            "pub struct Mesher<'a>(&'a u8);\nimpl Mesher<'_> { pub fn mesh(&mut self, chunk: &Chunk) -> usize { 0 } fn face(&self) {} }\n",
-        );
-        put(
-            "crates/horizon-mod-api-gen/slots/horizon.txt",
-            "# lower points\nhorizon_client_render::mesher::Mesher<'_>::mesh\n",
+            "pub struct Mesher<'a>(&'a u8);\nimpl Mesher<'_> { #[horizon_mod_api_macros::replaceable] pub fn mesh(&mut self, chunk: &Chunk) -> usize { 0 } fn face(&self) {} }\n",
         );
         let points = points_with(&root, &WireTypes::new()).unwrap();
         let named: Vec<_> = points
             .iter()
-            .map(|p| (p.name.as_str(), p.target.as_str(), p.side, p.raw))
+            .map(|p| {
+                (
+                    p.name.as_str(),
+                    p.target.as_str(),
+                    p.side,
+                    p.api_refusal.is_none(),
+                )
+            })
             .collect();
         assert_eq!(
             named,
@@ -1869,7 +1551,7 @@ name = 'horizon-mod-api-gen'
                     "client_render_mesher_mesher_mesh",
                     "horizon_client_render::mesher::Mesher<'_>::mesh",
                     "none",
-                    true
+                    false
                 ),
                 (
                     "dive",
@@ -1899,7 +1581,7 @@ name = 'horizon-mod-api-gen'
                     "game_remote_other_send",
                     "horizon_client::game::remote::Other::send",
                     "none",
-                    true
+                    false
                 ),
                 (
                     "join",
@@ -1920,118 +1602,77 @@ name = 'horizon-mod-api-gen'
         let api = records(&points);
         assert!(
             api.contains("fn tick_return")
-                // A borrowed return has a raw return place only.
+                // A borrowed return has no return place.
                 && !api.contains("fn slot_return")
-                && api.contains("SlotReturn")
-                // `Other` has no API handle: its point keeps only its raw places.
-                && !api.contains("fn game_remote_other_send (")
-                && api.contains("GameRemoteOtherSendReturn"),
+                // `Other` has no API handle: it has no point.
+                && !api.contains("fn game_remote_other_send ("),
             "{api}"
         );
+        // A generic function takes no replacement, so it has no site: refused, naming the rule.
+        let decode = points.iter().find(|p| p.name == "game_remote_decode");
         assert_eq!(
-            stage_with(&root, &WireTypes::new()).unwrap(),
-            Staged {
-                points: 10,
-                head_only: 1,
-                raw: 9,
-                files: 6
-            }
+            decode.unwrap().api_refusal.as_deref(),
+            Some(
+                "the function has no point site: it takes no replacement (function type/const generics)"
+            )
         );
+        let (staged, combined) = stage_with_manifest(&root, &WireTypes::new()).unwrap();
+        let after = points_with(&root, &WireTypes::new()).unwrap();
+        // Compare every manifest field and the nonserialized API layout, not just counts.
+        for actual in [&combined, &after] {
+            assert_eq!(
+                serde_json::to_value(&points).unwrap(),
+                serde_json::to_value(actual).unwrap()
+            );
+            assert_eq!(api, records(actual));
+            for (expected, actual) in points.iter().zip(actual) {
+                assert_eq!(expected.record_item, actual.record_item);
+                assert_eq!(expected.api, actual.api);
+            }
+        }
+        assert_eq!((staged.points, staged.head_only, staged.refused), (7, 1, 3));
         let generated = root.join("staged-generated");
         std::fs::create_dir_all(&generated).unwrap();
-        crate::build::generate_points_inner(&root, &generated).unwrap();
-        let code = std::fs::read_to_string(generated.join("points_generated.rs")).unwrap();
-        assert!(code.contains("pub const STAGED : bool = true"));
-        let game = std::fs::read_to_string(root.join("crates/horizon-client/src/game.rs")).unwrap();
-        let parsed = syn::parse_file(&game).unwrap();
-        for name in ["tick", "slot"] {
-            let method = parsed
-                .items
-                .iter()
-                .filter_map(|item| match item {
-                    syn::Item::Impl(item) => Some(&item.items),
-                    _ => None,
-                })
-                .flatten()
-                .find_map(|item| match item {
-                    syn::ImplItem::Fn(method) if method.sig.ident == name => Some(method),
-                    _ => None,
-                })
-                .unwrap();
-            assert!(
-                method
-                    .attrs
-                    .iter()
-                    .any(|attr| attr.to_token_stream().to_string()
-                        == "# [horizon_mod_api_macros :: point (side = \"both\" , raw)]")
+        // Only the stager's stamp on the source copy makes a build one with point sites.
+        for staged in [false, true] {
+            if staged {
+                std::fs::write(root.join(".horizon-source-staged"), "").unwrap();
+            }
+            crate::build::generate_points_inner(&root, &generated).unwrap();
+            let code = std::fs::read_to_string(generated.join("points_generated.rs")).unwrap();
+            assert_eq!(
+                code.contains("pub const STAGED : bool = true"),
+                staged || cfg!(feature = "listener-fixture")
             );
         }
+        let game = std::fs::read_to_string(root.join("crates/horizon-client/src/game.rs")).unwrap();
         assert!(
-            game.contains("fn tick(")
-                && game.contains("pub(super) fn slot(")
-                && !game.contains("raw)] fn native_tick")
+            game.contains("#[horizon_mod_api_macros::point(side = \"both\")] fn tick(")
+                && game.contains("#[horizon_mod_api_macros::point(side = \"both\")] pub(super) fn slot(")
+                && !game.contains(")] fn native_tick")
                 // `Game`'s associated functions are named and hosted like any other type's.
-                && game.contains("point(name = \"game_game_new\"")
-                && game.contains("pub type __TickListener")
-                && game.contains("pub type __SlotReturnListener"),
+                && game.contains("point(name = \"game_game_new\""),
             "{game}"
         );
+        // A function the API can't carry, or that takes no replacement, is not marked.
         let remote =
             std::fs::read_to_string(root.join("crates/horizon-client/src/game/remote.rs")).unwrap();
         assert!(
-            remote.contains("point(name = \"game_remote_decode\", free)] fn decode")
-                && remote.contains("pub type __GameRemoteOtherSendListener"),
+            !remote.contains("game_remote_decode") && !remote.contains("game_remote_other_send"),
             "{remote}"
         );
+        // A lower crate with no marked function keeps its manifest.
         let render = root.join("crates/horizon-client-render");
         let mesher = std::fs::read_to_string(render.join("src/mesher.rs")).unwrap();
-        assert!(
-            mesher.contains("point(name = \"client_render_mesher_mesher_mesh\", raw)]")
-                && mesher.contains("pub fn mesh")
-                && !mesher.contains("client_render_mesher_mesher_face")
-                && mesher.contains("& 'r mut Mesher < '__self0 >"),
-            "{mesher}"
-        );
+        assert!(!mesher.contains("point("), "{mesher}");
         let manifest = std::fs::read_to_string(render.join("Cargo.toml")).unwrap();
-        assert!(
-            manifest.contains("horizon-mod-points") && manifest.contains("../horizon-mod-points"),
-            "{manifest}"
-        );
-        // The lock file lists them too, in order, so a `--locked` build accepts the manifest.
-        let lock = std::fs::read_to_string(root.join("Cargo.lock")).unwrap();
-        assert!(
-            lock.contains("name = \"horizon-client-render\"\nversion = \"0.1.0\"\ndependencies = [\n \"horizon-mod-api\",\n \"horizon-mod-api-macros\",\n \"horizon-mod-points\",\n \"log\",\n]\n\n[[package]]\nname = \"log\""),
-            "{lock}"
-        );
+        assert!(!manifest.contains("horizon-mod-points"), "{manifest}");
         // A second pass finds the attribute and refuses: the source tree never carries one.
         assert!(
             stage_with(&root, &WireTypes::new())
                 .unwrap_err()
                 .contains("already has")
         );
-        // A crate the points' own crate is built on can't be listed.
-        put(
-            "crates/horizon-mod-api-gen/slots/horizon.txt",
-            "horizon_world::level::tick\n",
-        );
-        assert!(
-            points_with(&root, &WireTypes::new())
-                .unwrap_err()
-                .contains("built under")
-        );
-        // Nor one it builds with (the generator), nor the points' own crate.
-        for listed in [
-            "horizon_mod_api_gen::points::stage\n",
-            "horizon_mod_points::register\n",
-        ] {
-            put("crates/horizon-mod-api-gen/slots/horizon.txt", listed);
-            assert!(
-                points_with(&root, &WireTypes::new())
-                    .unwrap_err()
-                    .contains("built under"),
-                "{listed}"
-            );
-        }
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -2049,7 +1690,8 @@ name = 'horizon-mod-api-gen'
         .unwrap();
         std::fs::write(src.join("control/unix.rs"), "pub fn a() {}").unwrap();
         std::fs::write(src.join("control/windows.rs"), "pub fn b() {}").unwrap();
-        let files = module_files("k".into(), src.join("lib.rs"), src.clone(), false).unwrap();
+        let files = crate::source::module_files("k".into(), src.join("lib.rs"), src.clone(), false)
+            .unwrap();
         let mut found: Vec<_> = files
             .iter()
             .map(|f| {
@@ -2078,7 +1720,7 @@ name = 'horizon-mod-api-gen'
             ]
         );
         // Every build compiles neither, so the point walk leaves the module out.
-        let every = module_files("k".into(), src.join("lib.rs"), src, true).unwrap();
+        let every = crate::source::module_files("k".into(), src.join("lib.rs"), src, true).unwrap();
         assert_eq!(every.len(), 1);
         std::fs::remove_dir_all(dir).unwrap();
     }

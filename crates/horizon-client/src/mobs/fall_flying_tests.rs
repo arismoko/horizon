@@ -3,7 +3,7 @@
 //! The expected flags are vanilla 26.3's, measured on loaded husks summoned
 //! with `FallFlying:1b` (tools/test_mob_glide_state_parity.py).
 use super::*;
-use horizon_core::{nbt::Tag, random::LegacyRandom};
+use horizon_core::nbt::Tag;
 use std::sync::Arc;
 
 fn husk(types: &crate::mobs::MobTypes, no_ai: bool, chest_damage: Option<u32>) -> Mob {
@@ -11,7 +11,7 @@ fn husk(types: &crate::mobs::MobTypes, no_ai: bool, chest_damage: Option<u32>) -
     let mut m = Mob::new(1, kind, Vec3::new(8.5, 300.0, 8.5), 0.0);
     m.no_ai = no_ai;
     m.persistent = true;
-    m.random = LegacyRandom::new(1);
+    m.random.set_seed(1);
     m.extra.fall_flying = true;
     if let Some(damage) = chest_damage {
         let mut stack = crate::items::ItemStack::new("minecraft:elytra", 1);
@@ -225,7 +225,7 @@ fn the_wear_draws_once_from_the_mobs_own_random() {
             ] {
                 let mut m = husk(types, true, Some(0));
                 m.extra.fall_fly_ticks = ticks;
-                m.random = LegacyRandom::new(seed);
+                m.random.set_seed(seed);
                 let mut expected = m.random.clone();
                 let mut events = Vec::new();
                 update_fall_flying(&mut m, w, &mut events);

@@ -38,6 +38,3 @@
 
 # Release-only compiled original exporter bundle.
 /exporters/
-
-# Written only into the point stager's source copy.
-/crates/horizon-mod-points/point-sites-staged

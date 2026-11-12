@@ -23,6 +23,9 @@ glam = "0.30"
 [build-dependencies]
 horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
 
+[dev-dependencies]
+horizon-mod-vocab = { path = "../horizon-mod-vocab", features = ["testing"] }
+
 [features]
 # Scoped mod installation for other crates' tests (`mod_api::testing`).
 testing = ["horizon-mod-vocab/testing"]

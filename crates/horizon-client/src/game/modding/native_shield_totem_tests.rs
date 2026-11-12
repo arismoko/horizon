@@ -192,7 +192,7 @@ fn the_shield_hook_draws_from_the_hits_random() {
                 ..Heard::default()
             },
             |game| {
-                game.world.random = horizon_core::random::LegacyRandom::new(5);
+                *game.world.random = horizon_core::random::LegacyRandom::new(5);
                 let mut hit = zombie(game, 226007);
                 hit.damage(damage_level_of!(game), 1.0, Damage::of(DamageKind::Generic));
                 *next.lock().unwrap() = game.world.random.next_int();

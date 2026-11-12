@@ -110,6 +110,8 @@ struct Frame<T> {
     slots: Vec<Slot<T>>,
     order: Vec<usize>,
     cancelled: bool,
+    /// The listener count of the hook this frame serves when its lease was last issued.
+    listener: u64,
 }
 
 impl<T> Frame<T> {
@@ -267,6 +269,7 @@ impl<T> PendingChildren<T> {
             slots,
             order,
             cancelled: false,
+            listener: 0,
         });
         Ok(action)
     }
@@ -322,6 +325,22 @@ impl<T> PendingChildren<T> {
                 })
             }
         }
+    }
+
+    /// Tell the innermost frame how many listeners of its hook have been entered. When the
+    /// count moved since the lease was issued, a new listener (or a nested dispatch of the same
+    /// hook) has begun: end the previous listener's leases, as [`next_listener`](Self::next_listener)
+    /// does. The same count leaves the lease alone.
+    pub fn sync_listener(&mut self, serial: u64) -> Result<(), Error> {
+        let Some(frame) = self.frames.last_mut() else {
+            return Ok(());
+        };
+        if frame.listener == serial {
+            return Ok(());
+        }
+        frame.renew()?;
+        frame.listener = serial;
+        Ok(())
     }
 
     /// End the previous listener's leases while preserving its attached edits.

@@ -8,9 +8,9 @@ description = "Downloads, prepares and starts Horizon builds"
 [workspace]
 
 [dependencies]
+horizon-mod-point-emit = { path = "../crates/horizon-mod-point-emit" }
 horizon-addresses = { path = "../crates/horizon-addresses" }
 # The catalog and mod-owned trait injections share their generation rules.
-horizon-mod-point-emit = { path = "../crates/horizon-mod-point-emit" }
 # GPUI Fast (longbridge/gpui-fast): Zed's GPUI with retained views and cached scroll layers, under
 # its own name. wgpu renders on Linux, not blade (#3812).
 gpui = { package = "gpui-fast", version = "0.1.13" }
@@ -117,6 +117,7 @@ winreg = "0.56"
 winresource = "0.1"
 
 [dev-dependencies]
+horizon-mod-api-gen = { path = "../crates/horizon-mod-api-gen", features = ["listener-fixture"] }
 libc = "0.2"
 # Tokenize source strings for the translation completeness test, including multiline calls.
 syn = "2"

@@ -23,6 +23,7 @@ payloads: the prepared data is Mojang's. Compile/list failures expose bounded co
 """
 
 import os
+import errno
 import io
 from functools import lru_cache
 import re
@@ -181,6 +182,37 @@ def tracked_rust_paths():
     return paths
 
 
+# What an `Err` names, never what it says: only a std::io::Error Debug value (`Os { code, kind, .. }`,
+# `Kind(..)`, `Custom { kind, .. }`) names anything here: its shape, an io::ErrorKind from std's list and an OS
+# error code. Quoted strings inside it are removed before any field is read; any other payload (a string, an
+# unquoted message, another error type) names nothing. Messages, values and paths stay withheld.
+IO_ERROR_SHAPE = re.compile(r"^(Os|Simple|SimpleMessage|Custom|Kind)\s*[({]")
+IO_ERROR_KINDS = frozenset("""
+    NotFound PermissionDenied ConnectionRefused ConnectionReset HostUnreachable NetworkUnreachable
+    ConnectionAborted NotConnected AddrInUse AddrNotAvailable NetworkDown BrokenPipe AlreadyExists WouldBlock
+    NotADirectory IsADirectory DirectoryNotEmpty ReadOnlyFilesystem StaleNetworkFileHandle InvalidInput
+    InvalidData TimedOut WriteZero StorageFull NotSeekable QuotaExceeded FileTooLarge ResourceBusy
+    ExecutableFileBusy Deadlock CrossesDevices TooManyLinks InvalidFilename ArgumentListTooLong Interrupted
+    Unsupported UnexpectedEof OutOfMemory InProgress Other Uncategorized
+""".split())
+QUOTED = re.compile(r'"(?:[^"\\]|\\.)*"')
+ERROR_KIND = re.compile(r"(?:\bkind: |^Kind\()([A-Z][A-Za-z]{0,63})\b")
+OS_ERROR = re.compile(r"^Os \{ code: (\d{1,5})\b")
+
+
+def unwrap_error_shape(value):
+    """`kind ...` for a std::io::Error Debug value, or None when the payload is anything else."""
+    if not (shape := IO_ERROR_SHAPE.match(value)):
+        return None
+    fields = QUOTED.sub('""', value)
+    kinds = [shape[1]]
+    if (kind := ERROR_KIND.search(fields)) and kind[1] in IO_ERROR_KINDS:
+        kinds.append(kind[1])
+    if code := OS_ERROR.match(fields):
+        kinds.append(f"os error {int(code[1])} {errno.errorcode.get(int(code[1]), 'unknown')}")
+    return "kind " + ", ".join(kinds)
+
+
 def bounded_record(record, remaining):
     raw = record.encode("utf-8")
     shortened = len(raw) > FAILURE_BYTES
@@ -230,9 +262,14 @@ def failure_diagnostics(output):
                 ("index out of bounds", "index out of bounds"),
                 ("attempt to", "arithmetic failure"),
             ) if line.strip().startswith(prefix)), "custom panic")
+            withheld_text = "payload withheld (resource privacy)"
+            if reason == "Result::unwrap on an error":
+                if shape := unwrap_error_shape(line.strip().split(" value: ", 1)[-1]):
+                    reason += f" ({shape})"
+                    withheld_text = "rest of payload withheld (resource privacy)"
             if arithmetic := re.fullmatch(r"attempt to ((?:add|subtract|multiply|divide|negate|shift left|shift right) with overflow|(?:divide|calculate the remainder) by zero)", line.strip()):
                 reason = "attempt to " + arithmetic[1]
-            context.append(f"  panic reason: {reason}; payload withheld (resource privacy)")
+            context.append(f"  panic reason: {reason}; {withheld_text}")
             panic_reason_pending = False
             continue
         if found := RESULT.match(line):
@@ -338,7 +375,8 @@ def listed_result_records(line, expected, max_name_length):
 
     Prefix output is ignored, but every matching listed result is counted:
     a second prefixed record must not escape duplicate detection. Ambiguous
-    suffixes are reported to the caller, never guessed or printed.
+    suffixes are reported to the caller, never guessed or printed. A slow-test
+    notice or other mention without a result status is not a result record.
     """
     cursor = line.find("test ")
     while cursor >= 0:

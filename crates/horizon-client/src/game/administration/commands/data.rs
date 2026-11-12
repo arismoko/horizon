@@ -107,6 +107,8 @@ impl Game<'_> {
             // Neither is saved: `FishingHook.shouldBeSaved` and
             // `EnderDragonPart.shouldBeSaved` are false.
             Target::Hook(_) | Target::DragonPart(_) => return None,
+            // Stage 3's save owns the general record; none is saved here.
+            Target::General(_) => return None,
             Target::Guest(_) => {
                 return self
                     .for_player(t, |g| g.command_target_nbt(Target::Player))
@@ -137,12 +139,14 @@ impl Game<'_> {
             Target::Item(id) => {
                 let uuid = self.uuid_for(id);
                 let e = self.dropped.iter().find(|e| e.id == id)?;
-                entity_nbt::item_entity_to_nbt_with_items(
+                let mut tag = entity_nbt::item_entity_to_nbt_with_items(
                     e,
                     uuid,
                     self.persist.raw.get(&id),
                     self.items(),
-                )
+                );
+                self.save_portal_cooldown(id, &mut tag);
+                tag
             }
             Target::Stand(id) => {
                 let uuid = self.uuid_for(id);
@@ -168,6 +172,7 @@ impl Game<'_> {
                 self.put_mob_passengers(&mut tag, id);
                 // AbstractBoat.addAdditionalSaveData: the live or pending leash.
                 self.write_boat_leash(&mut tag, i);
+                self.save_portal_cooldown(id, &mut tag);
                 tag
             }
             Target::Cart(id) => {
@@ -175,6 +180,7 @@ impl Game<'_> {
                 let c = self.carts.iter().find(|c| c.id == id)?;
                 let mut tag = c.to_nbt(uuid, self.persist.raw.get(&id));
                 self.put_mob_passengers(&mut tag, id);
+                self.save_portal_cooldown(id, &mut tag);
                 tag
             }
             Target::Fangs(id) => {
@@ -581,9 +587,11 @@ impl Game<'_> {
                     new.join = old.join;
                     // ItemFrame.readAdditionalSaveData: ItemStack.matches includes
                     // count, item and components, before adopting the new stack.
+                    // It compares the stack as read; setItem keeps one of it
+                    // only after, as `new.item` already does.
+                    let read = tag.get("Item").and_then(save::item_from_nbt);
                     if old.item.as_ref().is_some_and(|a| {
-                        new.item
-                            .as_ref()
+                        read.as_ref()
                             .is_none_or(|b| a.count != b.count || !a.same_item_same_components(b))
                     }) {
                         let old = old.clone();
@@ -615,6 +623,7 @@ impl Game<'_> {
                     b.no_gravity = entity_nbt::flag(&tag, "NoGravity");
                     b.on_ground = entity_nbt::flag(&tag, "OnGround");
                     b.fire_ticks = crate::game::boats::saved_fire(&tag);
+                    b.ticks_frozen = crate::game::boats::saved_ticks_frozen(&tag);
                     if b.chest {
                         b.items =
                             save::decode_items(tag.get("Items"), crate::game::boats::CHEST_SLOTS);
@@ -829,6 +838,13 @@ impl Game<'_> {
         if self.pot_data(pos).is_some() {
             return self.set_pot_data(pos, &tag).unwrap_or(false);
         }
+        if let Some(changed) = self.load_comparator_output(pos, &tag) {
+            let changed = changed.unwrap_or(false);
+            if changed {
+                self.world.modified.insert((pos[0] >> 4, pos[2] >> 4));
+            }
+            return changed;
+        }
         let key = (pos[0], pos[1], pos[2]);
         let was_auto = self.command_block_auto(key);
         let Some(e) = self.world.block_entities.get(&key) else {
@@ -947,6 +963,29 @@ impl Game<'_> {
             .collect();
         set_key(raw, "Tags", Tag::List(list));
         true
+    }
+
+    /// `ComparatorBlockEntity.loadAdditional` (`getIntOr("OutputSignal", 0)`)
+    /// for a comparator at `p`: None for any other block; else whether the
+    /// loaded output differs from the one it had (None inside when the tag
+    /// does not decode). The block's own metadata comes from `comparator_data`.
+    fn load_comparator_output(&mut self, p: [i32; 3], tag: &Tag) -> Option<Option<bool>> {
+        let mut input = self.comparator_data(p)?;
+        let before = input.get("OutputSignal").cloned();
+        if let Some(value) = tag.get("OutputSignal") {
+            set_key(&mut input, "OutputSignal", value.clone());
+        } else if let Tag::Compound(map) = &mut input {
+            map.remove(&"OutputSignal".into());
+        }
+        let Some(normalized) = horizon_client::block_entity_nbt::canonical(&input) else {
+            return Some(None);
+        };
+        let output = normalized.get("OutputSignal").cloned();
+        if let Some(Tag::Int(value)) = output {
+            let pos = horizon_core::position::BlockPos::new(p[0], p[1], p[2]);
+            self.block_ticks.comparator_outputs.insert(pos, value);
+        }
+        Some(Some(output != before))
     }
 
     /// `ComparatorBlockEntity.saveAdditional`: expose the circuit's live output,
@@ -1132,22 +1171,8 @@ impl Game<'_> {
                     return Ok(());
                 }
                 let key = (p[0], p[1], p[2]);
-                if let Some(mut input) = self.comparator_data(*p) {
-                    // ComparatorBlockEntity.loadAdditional reads getIntOr(0).
-                    // Reuse the existing codec, with the block's own metadata.
-                    if let Some(value) = tag.get("OutputSignal") {
-                        set_key(&mut input, "OutputSignal", value.clone());
-                    } else if let Tag::Compound(map) = &mut input {
-                        map.remove(&"OutputSignal".into());
-                    }
-                    let normalized = horizon_client::block_entity_nbt::canonical(&input)
-                        .ok_or_else(|| err("commands.data.block.invalid", &[]))?;
-                    if let Some(Tag::Int(output)) = normalized.get("OutputSignal") {
-                        self.block_ticks.comparator_outputs.insert(
-                            horizon_core::position::BlockPos::new(p[0], p[1], p[2]),
-                            *output,
-                        );
-                    }
+                if let Some(changed) = self.load_comparator_output(*p, &tag) {
+                    changed.ok_or_else(|| err("commands.data.block.invalid", &[]))?;
                     self.mark_block_entity_updated(key);
                     return Ok(());
                 }
@@ -1641,7 +1666,15 @@ impl Game<'_> {
         }
         // The root of the stack is the first entity spawned.
         let id = before + 1;
-        if self.mobs.iter().any(|m| m.id == id) {
+        if self
+            .resident_entities
+            .general
+            .rows
+            .iter()
+            .any(|row| row.id == id)
+        {
+            Some(Target::General(id))
+        } else if self.mobs.iter().any(|m| m.id == id) {
             Some(Target::Mob(id))
         } else if self.dropped.iter().any(|e| e.id == id) {
             Some(Target::Item(id))

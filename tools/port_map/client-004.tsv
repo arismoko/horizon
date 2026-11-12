@@ -1,13 +1,13 @@
 DolphinRenderer.extractRenderState	port	crates/horizon-client/src/game/mobs/mob_blocks.rs::Game::held_item_geometry	gap: minor: isMoving (dolphin motion flag) is not read
-DragonFireballRenderer.submit	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_fireball_geometry	
+DragonFireballRenderer.submit	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_fireball_geometry
 DragonFireballRenderer.buildQuad	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_fireball_geometry	quad built inline
 DragonFireballRenderer.vertex	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_fireball_geometry	vertex built inline
 EndCrystalRenderer.submit	port	crates/horizon-client/src/game/world/end.rs::Game::end_crystal_geometry	model at scale 2 and the beam to the target
 EndCrystalRenderer.extractRenderState	inline	crates/horizon-client/src/game/world/end.rs::Game::end_crystal_geometry	age, show-bottom and beam target read from the crystal there
 EndCrystalRenderer.shouldRender	inline	crates/horizon-client/src/game/world/end.rs::Game::end_crystal_geometry	gap: minor: no frustum test; crystals within 256 blocks always draw, beam included
-EnderDragonRenderer.submit	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_geometry	
-EnderDragonRenderer.submitRays	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_rays	
-EnderDragonRenderer.submitCrystalBeams	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::crystal_beam	
+EnderDragonRenderer.submit	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_geometry
+EnderDragonRenderer.submitRays	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_rays
+EnderDragonRenderer.submitCrystalBeams	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::crystal_beam
 EnderDragonRenderer.extractRenderState	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::dragon_geometry	flap, death fade, hurt overlay, nearest-crystal beam and egg distance read there
 EndermanRenderer.getRenderOffset	port	crates/horizon-client/src/mobs/render.rs::enderman_render_offset	EndermanRenderer.getRenderOffset's random side offset for a creepy enderman, 0.02 * minecraft:scale per axis
 EndermanRenderer.extractRenderState	inline	crates/horizon-client/src/mobs/enderman.rs::anim	gap: minor: carried block is drawn by game/mobs/mob_blocks.rs, not from this pose
@@ -22,7 +22,7 @@ EntityRenderer.getBoundingBoxForCulling	port	crates/horizon-client/src/game/inte
 EntityRenderer.getBlockLightLevel	port	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::mob_geometry	burning mobs, projectiles and dropped items drawn at full block light (game/mobs/creatures/mod.rs::Game::mob_geometry, game/interface/item_draw.rs::Game::dropped_item_geometry); other entities use world light
 EntityRenderer.submit	inline	crates/horizon-client/src/game.rs::Game::entity_geometry	leash ropes and name tags drawn in their own passes from there
 EntityRenderer.shouldShowName	port	crates/horizon-client/src/game/interface/names.rs::Game::name_tags	named mob under the crosshair
-EntityRenderer.submitNameDisplay	port	crates/horizon-client/src/game/interface/names.rs::Game::name_tag_geometry	
+EntityRenderer.submitNameDisplay	port	crates/horizon-client/src/game/interface/names.rs::Game::name_tag_geometry
 EntityRenderer.createRenderState	skip:java		allocates the render-state object
 EntityRenderer.extractRenderState	inline	crates/horizon-client/src/game.rs::Game::entity_geometry	positions, invisibility, leash state, outline colour and light read there
 EntityRenderer.finalizeRenderState	inline	crates/horizon-client/src/game.rs::Game::entity_geometry	shadow pass after the entities
@@ -93,7 +93,7 @@ NautilusRenderer.extractRenderState	port	crates/horizon-client/src/mobs/render.r
 OcelotRenderer.extractRenderState	port	crates/horizon-client/src/mobs/tame.rs::cat_anim	isCrouching and isSprinting are read (feline poses, shared with cats; tame::feline_server_ai_step sets them)
 OminousItemSpawnerRenderer.extractRenderState	inline	crates/horizon-client/src/game/mobs/ominous_item_spawner/mod.rs::Game::ominous_item_spawner_geometry	item and age read there
 OminousItemSpawnerRenderer.submit	port	crates/horizon-client/src/game/mobs/ominous_item_spawner/mod.rs::Game::ominous_item_spawner_geometry	spinning item cluster, scaled in during the first 50 ticks
-PaintingRenderer.submit	port	crates/horizon-client/src/game/entities/paintings.rs::Game::painting_geometry	
+PaintingRenderer.submit	port	crates/horizon-client/src/game/entities/paintings.rs::Game::painting_geometry
 PaintingRenderer.extractRenderState	inline	crates/horizon-client/src/game/entities/paintings.rs::Game::painting_geometry	per-segment light read there
 PaintingRenderer.renderPainting	port	crates/horizon-client/src/game/entities/paintings.rs::Game::painting_geometry	front, back and edge quads
 PaintingRenderer.vertex	inline	crates/horizon-client/src/game/entities/paintings.rs::Game::painting_geometry	vertex built inline

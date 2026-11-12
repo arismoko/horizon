@@ -4,6 +4,16 @@
 use super::*;
 use storage::ActiveAction;
 
+// Fixture adapter keeps resource-free planners focused on their MenuState.
+fn run(
+    host: &mut Harness,
+    menu: &Menu,
+    decide: impl FnOnce(&MenuState) -> Plan,
+    fire: impl FnOnce(&mut Harness) -> Reply,
+) -> Result<Outcome, Admission> {
+    super::run(host, menu, |_, state| decide(state), fire)
+}
+
 // Observable root-publication labels, independent of the plan representation.
 #[derive(Debug, PartialEq, Eq)]
 enum Published {
@@ -536,7 +546,7 @@ fn no_subscriber_zero_decision_allocations_same_baseline_effect_order() {
             host.defer(packet());
             Outcome::Applied
         },
-        |_| panic!("allocated subscribed plan"),
+        |_, _| panic!("allocated subscribed plan"),
         |_| panic!("dispatch"),
     );
     assert_eq!(outcome, Ok(Outcome::Applied));

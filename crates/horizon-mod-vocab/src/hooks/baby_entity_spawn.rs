@@ -9,7 +9,7 @@ pub trait Hooks {
     /// player who fed them into love (`getCausedByPlayer`, None when none).
     /// The baby (a mule for a horse and a donkey) is already constructed,
     /// with its inheritance drawn, but not finalized or in any level: it is
-    /// the single entry of the engine-owned list `children` names, which
+    /// the single entry of the engine-owned list `edits.children()` names, which
     /// `edits` changes. Edit the baby in place (`edits.set_position`,
     /// `edits.set_yaw`), replace it with another baby (`edits.construct` a
     /// baby `PendingMobSpec`, then `edits.replace`), or remove it (`edits.remove`)
@@ -18,12 +18,12 @@ pub trait Hooks {
     /// ages were already set to 6000), but there is no baby, no experience, no
     /// `animals_bred` statistic, no advancement and no heart particles. The
     /// inheritance draws the construction made stay spent. Every handle is
-    /// borrowed for this call only. Not fired for turtles, frogs and sniffers
+    /// borrowed for one listener only. Not fired for turtles, frogs and sniffers
     /// (an egg, no baby), their hatching, or villagers' own path; armadillos
     /// take the ordinary animal path and are included. On the server.
     #[notes = r#"## Baby entity spawn
 
-- **`baby_entity_spawn(dimension, parent, partner, player, player_entity_id, children, edits, cancel)`** (NeoForge's `BabyEntitySpawnEvent`): fires after breeding has constructed the baby (`Animal.spawnChildFromBreeding`: `getBreedOffspring`, baby flag and position) and before breeding is finalized and the baby inserted. `children` (`PendingChildrenRef`) names a list of at most one engine-owned, fully constructed baby and `edits` (`&dyn PendingChildrenEdits`) changes it; see [Design: pending children](../concepts/pending-children.md). Replace the baby with `edits.construct(children, PendingMobSpec::new(kind, dimension, position, yaw, true))` then `edits.replace(children, 0, baby)`; remove it with `edits.remove`. A second baby answers `Capacity` and a non-baby replacement `Invalid`; each handle is valid for the callback only.
+- **`baby_entity_spawn(dimension, parent, partner, player, player_entity_id, edits, cancel)`** (NeoForge's `BabyEntitySpawnEvent`): fires after breeding has constructed the baby (`Animal.spawnChildFromBreeding`: `getBreedOffspring`, baby flag and position) and before breeding is finalized and the baby inserted. `edits` (`&dyn PendingChildrenEdits`) changes a list of at most one engine-owned, fully constructed baby, whose lease (`PendingChildrenRef`) `edits.children()` returns; see [Design: pending children](../concepts/pending-children.md). Replace the baby with `edits.construct(children, PendingMobSpec::new(kind, dimension, position, yaw, true))` then `edits.replace(children, 0, baby)` (with `children = edits.children()?`); remove it with `edits.remove`. A second baby answers `Capacity` and a non-baby replacement `Invalid`; each handle is valid for one listener only.
 - Cancelling, or removing the baby, breeds no child: both parents keep age 6000 and love 0, and nothing awards experience, the `animals_bred` statistic, an advancement or hearts. The inheritance draws already made stay spent. A replacement is inserted exactly once at the original insertion point, and breeding's own finalization (credit, statistics, experience, the parent's cooldown) reads it as the child.
 - Turtle and frog breeding, sniffer egg laying and turtle hatching make eggs, not babies, and do not fire it. Armadillos breed through the ordinary animal path and do. Villagers breed through their own behavior and do not (a separate moment)."#]
     #[hook(
@@ -39,7 +39,6 @@ pub trait Hooks {
         partner: u32,
         player: Option<u128>,
         player_entity_id: Option<i32>,
-        children: PendingChildrenRef,
         edits: &dyn PendingChildrenEdits,
         cancel: &mut bool,
     );

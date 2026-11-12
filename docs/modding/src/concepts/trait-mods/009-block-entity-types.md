@@ -19,7 +19,7 @@ refused at load. Refused native block, item or block entity declarations stop st
 known-components input; the game does not fall back to vanilla content. An explicitly declared mod
 template block uses its declared type; undeclared template blocks retain their vanilla behavior. Adding mod blocks to vanilla types is not supported by this builder.
 The hooks about the entity (`block_entity_tick`, `block_entity_update_tag`, `pre_remove_side_effects`,
-`menu_button`, `menu_quick_move`) find it by that declared type; the others (`block_entity`, `screen`, the
+`on_chunk_unloaded`, `menu_button`, `menu_quick_move`) find it by that declared type; the others (`block_entity`, `screen`, the
 block hooks) by block. The factory is a `BlockEntityPart` method, not a global `Hooks` method.
 
 `r.block_entity_type_key("other:press")` looks up another mod's type, and
@@ -38,3 +38,61 @@ load or an unchanged result.
 Lookup keys may answer capabilities for vanilla and native types. `block_entity_part` accepts only
 native types and returns `BlockEntityPartError::VanillaType` immediately for a vanilla key. Native
 Parts are expanded after every mod has registered, so a Part can target a type declared later.
+
+## Transform saved data with a structure
+
+Add an optional `.transform(...)` step to the declaration when the saved payload contains a facing
+or relative positions that must turn with a structure. The same declaration works for native and
+wasm mods:
+
+```rust,ignore
+use mod_api::{Compound, StructureMirror, StructureRotation, StructureTransform, Tag, TransformRefusal};
+
+let press = r.block_entity_type("press")
+    .blocks(&["mymod:press"])
+    .transform(|data: &Compound, transform: StructureTransform| {
+        let facing = match data.get(&"facing".into()) {
+            Some(Tag::String(value)) => value.to_string()
+                .map_err(|_| TransformRefusal::new("invalid facing text"))?,
+            _ => return Err(TransformRefusal::new("missing facing")),
+        };
+        let mirrored = match (transform.mirror, facing.as_str()) {
+            (StructureMirror::LeftRight, "north") => "south",
+            (StructureMirror::LeftRight, "south") => "north",
+            (StructureMirror::FrontBack, "east") => "west",
+            (StructureMirror::FrontBack, "west") => "east",
+            (_, facing) => facing,
+        };
+        let directions = ["north", "east", "south", "west"];
+        let index = directions.iter().position(|facing| *facing == mirrored)
+            .ok_or_else(|| TransformRefusal::new("unknown facing"))?;
+        let turns = match transform.rotation {
+            StructureRotation::None => 0,
+            StructureRotation::Clockwise90 => 1,
+            StructureRotation::Clockwise180 => 2,
+            StructureRotation::Counterclockwise90 => 3,
+            _ => return Err(TransformRefusal::new("unknown rotation")),
+        };
+        let mut result = data.clone();
+        result.insert("facing".into(), Tag::String(directions[(index + turns) % 4].into()));
+        Ok(result)
+    })
+    .build();
+```
+
+The step runs on the authoritative server during structure-template placement and worldgen,
+possibly on worldgen worker threads. The block state has already been mirrored and rotated; the
+step returns the saved data to store. Mirror applies before rotation. Its only inputs are the data,
+rotation and mirror: it gets no `Host` or world access. Determinism is the mod's obligation, not
+something the engine enforces; any matching `Send + Sync + 'static` closure is accepted. Avoid
+randomness, clocks and mutable external state when calculating the result.
+
+The engine restores the original `id` and any original `x`, `y`, `z` fields over the result, so a
+payload transform cannot change the saved entity's identity or original coordinates. With no step,
+data is unchanged. A `TransformRefusal` logs the type and position and keeps the original data;
+placement still succeeds. Invalid output exceeding standard NBT limits (64 MiB, one million nodes,
+depth 512), native unwinding panics and wasm traps also keep the original data.
+
+Callbacks are registered at startup and frozen with the block registry snapshot. A data-pack
+`/reload` keeps that registry and its existing callbacks; it does not register replacement code.
+A newly prepared registry receives its own callback snapshot.

@@ -86,6 +86,43 @@ class BoatHealthTests(unittest.TestCase):
         sample["steps"] = [dict(name="Run tests", started_at="2026-11-10T11:51:00Z")]
         self.assertEqual(boat.previous_attempt_reason([sample], NOW), "")
 
+    def test_each_recovery_target_recognizes_outages_but_not_user_failures(self):
+        for name in ("lint", "verify", "verify-static"):
+            with self.subTest(name=name):
+                sample = job(name=name)
+                self.assertIn("queued", boat.recovery_reason([sample], NOW))
+                sample.update(status="completed", conclusion="failure")
+                self.assertIn("first step", boat.recovery_reason([sample], NOW))
+                sample.update(conclusion="cancelled", completed_at="2026-11-10T12:00:01Z")
+                self.assertIn("previous attempt", boat.previous_attempt_reason([sample], NOW))
+                sample.update(conclusion="failure", steps=[dict(name="Run checks", started_at="2026-11-10T11:51:00Z")])
+                for conclusion in ("failure", "timed_out"):
+                    sample["conclusion"] = conclusion
+                    queued = job(name="verify")
+                    self.assertEqual(boat.recovery_reason([sample, queued], NOW), "")
+                    self.assertEqual(boat.previous_attempt_reason([sample, queued], NOW), "")
+
+    def test_watcher_waits_for_static_then_recovers_its_outage(self):
+        done = [dict(job(name=name), status="completed", conclusion="success")
+                for name in ("lint", "verify")]
+        waiting = dict(job(name="verify-static"), created_at="2026-11-10T11:59:00Z")
+        stale = job(name="verify-static")
+        with tempfile.TemporaryDirectory() as directory:
+            env = dict(GITHUB_REPOSITORY="repo", GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="1",
+                       RECOVERY_REF="topic", GITHUB_STEP_SUMMARY=str(Path(directory) / "summary"))
+            with patch.dict(os.environ, env), patch.object(watch, "api", side_effect=[
+                    {"jobs": done + [waiting]}, {"jobs": done + [stale]}]) as api, \
+                    patch.object(watch.time, "monotonic", return_value=0), \
+                    patch.object(watch.time, "sleep") as sleep, \
+                    patch.object(watch, "datetime") as clock, patch.object(watch.subprocess, "run") as run:
+                clock.now.return_value = NOW
+                watch.main()
+            self.assertEqual(api.call_count, 2)
+            sleep.assert_called_once_with(30)
+            self.assertEqual(len(run.call_args_list), 2)
+            self.assertTrue(run.call_args_list[0].args[0][4].endswith("/dispatches"))
+            self.assertTrue(run.call_args_list[1].args[0][4].endswith("/cancel"))
+
     def test_controller_limits_to_first_fork_attempt(self):
         run = dict(workflow_id=123, event="pull_request", run_attempt=1, status="queued", head_repository=dict(full_name="other/horizon"))
         self.assertTrue(controller.eligible(run, "arismoko/horizon", 123))

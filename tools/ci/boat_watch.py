@@ -15,7 +15,7 @@ def main():
     deadline = time.monotonic() + 900
     while time.monotonic() < deadline:
         jobs = api(f"repos/{repo}/actions/runs/{run}/attempts/{attempt}/jobs?per_page=100")["jobs"]
-        targets = [job for job in jobs if job["name"] in ("lint", "verify")]
+        targets = [job for job in jobs if job["name"] in ("lint", "verify", "verify-static")]
         reason = recovery_reason(jobs, datetime.now(timezone.utc))
         if reason:
             # Dispatch before cancelling: a refused dispatch must not destroy this run.
@@ -29,7 +29,7 @@ def main():
                 summary.write(f"### Boat fallback\n\n{reason}. Dispatched GitHub-hosted recovery on the source branch; cancelling this run.\n")
             subprocess.run(["gh", "api", "--method", "POST", f"repos/{repo}/actions/runs/{run}/cancel"], check=True)
             return
-        if len(targets) == 2 and all(
+        if len(targets) == 3 and all(
             job["status"] == "completed" or user_step_started(job) for job in targets
         ):
             return

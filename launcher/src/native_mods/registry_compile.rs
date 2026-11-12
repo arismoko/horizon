@@ -74,8 +74,7 @@ pub(super) fn compile(
         }
     }
     let links = sdk.native_links.as_ref().ok_or_else(|| tr("The prebuilt SDK does not declare native library providers; registry-bearing mods cannot be linked safely").to_string())?;
-    let catalog =
-        internals::Catalog::read(game)?.with_mods(projects.iter().map(|project| project.bundle))?;
+    let catalog = internals::Catalog::read(game)?;
     let generated = catalog
         .prepare(projects.iter().map(|project| &project.bundle.manifest))
         .map_err(|e| e.to_string())?;
@@ -106,7 +105,6 @@ pub(super) fn compile(
         let relative = format!("native-api/{id}");
         let dest = out.join(&relative);
         super::copy_bundle(bundle, &dest)?;
-        super::mod_points::stage(&dest, &catalog.wire)?;
         let mut todo = vec![PathBuf::new()];
         let mut seen = std::collections::BTreeSet::new();
         while let Some(local) = todo.pop() {
@@ -188,7 +186,7 @@ pub(super) fn compile(
                 .crates
                 .iter()
                 .map(String::as_str)
-                .chain(["horizon_client", "mod_points"])
+                .chain(["horizon_client"])
             {
                 facade_externs.insert(
                     name.to_owned(),
@@ -236,6 +234,61 @@ pub(super) fn compile(
         );
         members.push(relative);
     }
+    // `[[native.mixin]]` rows: the patched crates join the workspace beside the mods, whose
+    // crates their helpers call, and compile against the SDK like a mod.
+    let patch = super::patch::prepare(rust, game, &out.join("fnr"), projects, &sdk)?;
+    if let Some(patch) = &patch {
+        for name in &patch.names {
+            let dir = patch.dir.join(name);
+            let mut manifest = toml::toml! { [package] name = (name.clone()) version = "0.0.0" edition = "2024" [lib] path = "src/lib.rs" };
+            let mut dependencies = toml::Table::new();
+            for bundle in &patch.bundles {
+                let id = &bundle.manifest.id;
+                let project = projects
+                    .iter()
+                    .find(|project| project.bundle.manifest.id == *id)
+                    .expect("a prepared mod is a project");
+                let krate = project.crate_name();
+                dependencies.insert(
+                    krate,
+                    toml::toml! { path = (out.join("native-api").join(id).display().to_string()) package = (project.package.clone()) }
+                        .into(),
+                );
+            }
+            manifest.insert("dependencies".into(), dependencies.into());
+            let features: toml::Table = sdk
+                .game_features()
+                .iter()
+                .map(|feature| (feature.clone(), toml::Value::Array(Vec::new())))
+                .collect();
+            manifest.insert("features".into(), features.into());
+            fs::write(dir.join("Cargo.toml"), manifest.to_string()).map_err(|e| e.to_string())?;
+            bindings.insert(
+                dir,
+                registry_rustc::Bindings {
+                    externs: super::patch::sdk_externs(game, &sdk)?.into_iter().collect(),
+                    link_args: Vec::new(),
+                },
+            );
+            let relative = format!(
+                "fnr/{}/{name}",
+                patch
+                    .dir
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default()
+            );
+            members.push(relative.clone());
+            wrapper_deps.insert(
+                name.clone(),
+                toml::toml! { path = (relative) features = (sdk.game_features().iter().cloned().map(toml::Value::String).collect::<Vec<_>>()) }.into(),
+            );
+        }
+        // The tool's workspace files would make the crates a second workspace inside this one.
+        for file in ["Cargo.toml", "Cargo.lock"] {
+            let _ = fs::remove_file(patch.dir.join(file));
+        }
+    }
     let manifests: Vec<_> = resolution
         .order
         .iter()
@@ -243,11 +296,16 @@ pub(super) fn compile(
         .collect();
     fs::create_dir_all(out.join("src")).map_err(|e| e.to_string())?;
     let template = api::template(&game.join(prebuilt::TEMPLATE))?;
-    fs::write(
-        out.join("src/main.rs"),
-        api::main_rs(&template, &manifests, &catalog),
-    )
-    .map_err(|e| e.to_string())?;
+    let mut main = api::main_rs(&template, &manifests, &catalog);
+    if let Some(patch) = &patch {
+        let installs: String = patch
+            .installs
+            .iter()
+            .map(|install| format!("        {install},\n"))
+            .collect();
+        main = main.replace("/* MOD_REDIRECTS */", installs.trim_end());
+    }
+    fs::write(out.join("src/main.rs"), main).map_err(|e| e.to_string())?;
     let mut manifest = toml::toml! { [package] name = "horizon-native-registry-game" version = "0.0.0" edition = "2024" [workspace] resolver = "2" };
     manifest
         .get_mut("workspace")
@@ -341,10 +399,12 @@ pub(super) fn compile(
         command,
         "Compiling registry mods and linking the prebuilt game",
         |_| {},
-        None,
         Some(fs::File::create(&messages).map_err(|e| e.to_string())?),
     );
     let outputs = super::registry_runtime::Outputs::read(&messages)?;
+    if let Some(patch) = &patch {
+        patch.log()?;
+    }
     super::append_log(&fs::read_to_string(&messages).map_err(|e| e.to_string())?)?;
     if let Err(failure) = result {
         let mut error = format!("{}\n{}", failure.error, outputs.errors.join("\n"));
@@ -500,7 +560,9 @@ mod tests {
             "-o".into(),
             scratch.path().join("facade.rmeta").into_os_string(),
         ];
-        let (program, arguments) = plan.arguments(args.clone(), Some(facade.clone())).unwrap();
+        let (program, arguments) = plan
+            .arguments(args.clone(), Some(facade.clone()), scratch.path())
+            .unwrap();
         let result = Command::new(program).args(arguments).output().unwrap();
         assert!(
             result.status.success(),
@@ -584,7 +646,7 @@ mod tests {
         wrapper_args[5] = "bin".into();
         *wrapper_args.last_mut().unwrap() = scratch.path().join("wrapper.rmeta").into_os_string();
         let (program, arguments) = wrapper_plan
-            .arguments(wrapper_args.clone(), Some(wrapper.clone()))
+            .arguments(wrapper_args.clone(), Some(wrapper.clone()), scratch.path())
             .unwrap();
         let result = Command::new(program).args(arguments).output().unwrap();
         assert!(
@@ -598,13 +660,15 @@ mod tests {
             .unwrap()
             .externs
             .remove("horizon_mod_host");
-        let (program, arguments) = wrapper_plan.arguments(wrapper_args, Some(wrapper)).unwrap();
+        let (program, arguments) = wrapper_plan
+            .arguments(wrapper_args, Some(wrapper), scratch.path())
+            .unwrap();
         let result = Command::new(program).args(arguments).output().unwrap();
         assert!(!result.status.success());
         assert!(String::from_utf8_lossy(&result.stderr).contains("E0433"));
         // The old registry route supplied deps alone, unlike the direct SDK route.
         plan.search = vec![game.join("deps")];
-        let (program, arguments) = plan.arguments(args, Some(facade)).unwrap();
+        let (program, arguments) = plan.arguments(args, Some(facade), scratch.path()).unwrap();
         let result = Command::new(program).args(arguments).output().unwrap();
         assert!(!result.status.success());
         assert!(String::from_utf8_lossy(&result.stderr).contains("E0463"));

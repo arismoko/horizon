@@ -88,7 +88,7 @@ impl Title {
                         y + 72.0,
                         20.0,
                         &lang::get_or(key, plain),
-                        true,
+                        id != 5 || crate::net::joins_friends(),
                         id,
                     );
                     button.icon = Some((icon, 15.0));

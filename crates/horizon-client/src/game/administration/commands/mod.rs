@@ -9,15 +9,18 @@ pub(super) use data::place_summoned;
 mod effects;
 pub(super) mod execute;
 pub(super) mod extra;
+mod item_count;
 pub(in crate::game) mod items;
 mod misc;
 mod modprofile;
 mod place;
 mod players;
+mod position_args;
 pub(super) mod pregen;
 mod profiles;
 mod raid;
 mod selector_bounds;
+mod targets;
 mod terrain_cmds;
 mod test_locate;
 mod test_runs;
@@ -87,6 +90,8 @@ pub(super) enum Target {
     Spawner(u32),
     /// A simulated lingering, creeper or dragon area-effect cloud.
     Cloud(u32),
+    /// A general entity row, by its entity id (#792).
+    General(u32),
     /// A cast fishing hook (`minecraft:fishing_bobber`), which lives with the
     /// player who cast it. Only a mod's handle names one.
     Hook(u32),
@@ -217,36 +222,6 @@ fn wrap_degrees(angle: f32) -> f32 {
     }
 }
 
-/// The network id of a target that is no player: its entity id.
-fn non_player_entity_id(t: Target) -> Option<i32> {
-    let (Target::Mob(id)
-    | Target::Item(id)
-    | Target::Orb(id)
-    | Target::Projectile(id)
-    | Target::Stand(id)
-    | Target::Frame(id)
-    | Target::Painting(id)
-    | Target::Boat(id)
-    | Target::Cart(id)
-    | Target::Other(id)
-    | Target::Fangs(id)
-    | Target::Crystal(id)
-    | Target::Dragon(id)
-    | Target::DragonPart(id)
-    | Target::Tnt(id)
-    | Target::Cushion(id)
-    | Target::Falling(id)
-    | Target::Rocket(id)
-    | Target::Trident(id)
-    | Target::Spawner(id)
-    | Target::Cloud(id)
-    | Target::Hook(id)
-    | Target::Knot(id)) = t
-    else {
-        return None;
-    };
-    i32::try_from(id).ok()
-}
 impl Game<'_> {
     /// `native_player_level_change` for a level that was `from` before an experience change.
     pub(super) fn native_player_level_changed(&mut self, from: i32) {
@@ -540,22 +515,6 @@ impl Game<'_> {
     pub(super) fn position_arg(&self, ctx: &Context, name: &str) -> Option<[f64; 3]> {
         self.coords(ctx, name).map(|c| self.resolve_coords(&c))
     }
-    /// BlockPosArgument.getLoadedBlockPos.
-    pub(super) fn block_pos_arg(&self, ctx: &Context, name: &str) -> R<[i32; 3]> {
-        let c = self
-            .coords(ctx, name)
-            .ok_or_else(|| err("argument.pos.missing.int", &[]))?;
-        // BlockPos.containing(getPosition)
-        let p = self.resolve_coords(&c).map(|v| v.floor() as i32);
-        let dimension = self.command_source.map_or(self.dim, |s| s.dimension);
-        if dimension != self.dim || !self.world.chunks.contains_key(&(p[0] >> 4, p[2] >> 4)) {
-            return Err(err("argument.pos.unloaded", &[]));
-        }
-        if p[1] < self.world.bottom_y() || p[1] >= self.world.top_y() {
-            return Err(err("argument.pos.outofworld", &[]));
-        }
-        Ok(p)
-    }
     fn int(ctx: &Context, name: &str) -> Option<i32> {
         match ctx.get(name) {
             Some(Arg::Int(v)) => Some(*v),
@@ -564,195 +523,6 @@ impl Game<'_> {
     }
     // ---- entities -------------------------------------------------------
 
-    /// The level `t` is in (`Entity.level`): a server's players have their
-    /// own, which need not be the one in place; everything else is in the
-    /// level in place.
-    pub(super) fn target_level(&self, t: Target) -> Dim {
-        let conn = match t {
-            Target::Player => self.lan_acting,
-            Target::Guest(conn) => Some(conn),
-            _ => None,
-        };
-        conn.and_then(|c| self.command_guest(c))
-            .map_or(self.dim, |g| Dim::from_id(&g.dimension))
-    }
-    pub(super) fn target_position(&self, t: Target) -> Option<[f64; 3]> {
-        match t {
-            Target::Player => self
-                .player
-                .as_ref()
-                .map(|p| [p.position.x, p.position.y, p.position.z]),
-            Target::Guest(conn) => self.command_guest(conn).map(|g| g.position),
-            Target::Mob(id) => self
-                .mobs
-                .iter()
-                .find(|m| m.id == id)
-                .map(|m| [m.position.x, m.position.y, m.position.z]),
-            Target::Item(id) => self
-                .dropped
-                .iter()
-                .find(|i| i.id == id)
-                .map(|i| [i.position.x, i.position.y, i.position.z]),
-            Target::Orb(id) => self
-                .orbs
-                .iter()
-                .find(|o| o.id == id)
-                .map(|o| [o.position.x, o.position.y, o.position.z]),
-            Target::Projectile(id) => self
-                .creatures
-                .projectiles
-                .iter()
-                .find(|a| a.id == id)
-                .map(|a| [a.position.x, a.position.y, a.position.z]),
-            Target::Stand(id) => self
-                .armor_stands
-                .iter()
-                .find(|a| a.id == id)
-                .map(|a| [a.position.x, a.position.y, a.position.z]),
-            Target::Frame(id) => self.item_frames.iter().find(|f| f.id == id).map(|f| {
-                let (lo, hi) = f.bounds();
-                [
-                    (lo[0] + hi[0]) / 2.0,
-                    (lo[1] + hi[1]) / 2.0,
-                    (lo[2] + hi[2]) / 2.0,
-                ]
-            }),
-            Target::Painting(id) => self.paintings.iter().find(|p| p.id == id).map(|p| {
-                let (lo, hi) = p.bounds();
-                [
-                    (lo[0] + hi[0]) / 2.0,
-                    (lo[1] + hi[1]) / 2.0,
-                    (lo[2] + hi[2]) / 2.0,
-                ]
-            }),
-            Target::Boat(id) => self
-                .boats
-                .iter()
-                .find(|b| b.id == id)
-                .map(|b| [b.position.x, b.position.y, b.position.z]),
-            Target::Cart(id) => self
-                .carts
-                .iter()
-                .find(|c| c.id == id)
-                .map(|c| [c.position.x, c.position.y, c.position.z]),
-            Target::Other(id) => self
-                .others
-                .iter()
-                .find(|o| o.id == id)
-                .map(|o| [o.position.x, o.position.y, o.position.z]),
-            Target::Crystal(id) => self
-                .crystals
-                .iter()
-                .find(|c| c.id == id)
-                .map(|c| [c.position.x, c.position.y, c.position.z]),
-            Target::Dragon(id) => self
-                .dragon
-                .as_ref()
-                .filter(|d| d.id == id)
-                .map(|d| [d.position.x, d.position.y, d.position.z]),
-            Target::Cushion(id) => self
-                .cushions
-                .iter()
-                .find(|c| c.id == id)
-                .map(|c| [c.position.x, c.position.y, c.position.z]),
-            Target::DragonPart(id) => self.resident_dragon_part(id).map(|(d, i)| {
-                let p = d.parts[i].0;
-                [p.x, p.y, p.z]
-            }),
-            Target::Tnt(id) => self
-                .tnts
-                .iter()
-                .find(|t| t.id == id)
-                .map(|t| [t.position.x, t.position.y, t.position.z]),
-            Target::Falling(id) => self
-                .falling
-                .iter()
-                .find(|f| f.id == id)
-                .map(|f| [f.position.x, f.position.y, f.position.z]),
-            Target::Rocket(id) => self
-                .rockets
-                .iter()
-                .find(|r| r.id == id)
-                .map(|r| [r.position.x, r.position.y, r.position.z]),
-            Target::Cloud(id) => self.breath_clouds.iter().find(|c| c.id == id).map(|c| c.at),
-            Target::Hook(id) => self.fishing_hook_by_id(id).map(|(h, _)| {
-                let p = h.position;
-                [p.x, p.y, p.z]
-            }),
-            Target::Trident(id) => self
-                .tridents
-                .iter()
-                .find(|t| t.id == id)
-                .map(|t| [t.position.x, t.position.y, t.position.z]),
-            Target::Fangs(id) => self.fangs.list.iter().find(|f| f.id == id).map(|f| f.pos),
-            Target::Spawner(id) => self
-                .ominous_spawners
-                .iter()
-                .find(|s| s.id == id)
-                .map(|s| s.position),
-            Target::Knot(id) => self.natural_knot(id).map(|fence| {
-                let p = horizon_client::mobs::leash::knot_state(fence).position;
-                [p.x, p.y, p.z]
-            }),
-        }
-    }
-    pub(super) fn target_type(&self, t: Target) -> String {
-        match t {
-            Target::Player | Target::Guest(_) => "minecraft:player".into(),
-            Target::Mob(id) => self
-                .mobs
-                .iter()
-                .find(|m| m.id == id)
-                .map_or_else(String::new, |m| {
-                    horizon_client::command::args::normalize(&m.kind.id)
-                }),
-            Target::Item(_) => "minecraft:item".into(),
-            Target::Orb(_) => "minecraft:experience_orb".into(),
-            Target::Projectile(id) => self
-                .creatures
-                .projectiles
-                .iter()
-                .find(|p| p.id == id)
-                .map_or_else(String::new, |p| p.entity_type().into()),
-            Target::Stand(_) => "minecraft:armor_stand".into(),
-            Target::Frame(id) => {
-                if self.item_frames.iter().any(|f| f.id == id && f.glow) {
-                    "minecraft:glow_item_frame".into()
-                } else {
-                    "minecraft:item_frame".into()
-                }
-            }
-            Target::Painting(_) => "minecraft:painting".into(),
-            Target::Boat(id) => self
-                .boats
-                .iter()
-                .find(|b| b.id == id)
-                .map_or_else(|| "minecraft:oak_boat".into(), |b| b.entity_type()),
-            Target::Cart(id) => self
-                .carts
-                .iter()
-                .find(|c| c.id == id)
-                .map_or_else(|| "minecraft:minecart".into(), |c| c.kind.id().into()),
-            Target::Other(id) => self
-                .others
-                .iter()
-                .find(|o| o.id == id)
-                .map_or_else(String::new, |o| o.kind.clone()),
-            Target::Crystal(_) => "minecraft:end_crystal".into(),
-            // `EnderDragonPart` takes its parent's type.
-            Target::Dragon(_) | Target::DragonPart(_) => "minecraft:ender_dragon".into(),
-            Target::Tnt(_) => "minecraft:tnt".into(),
-            Target::Cushion(_) => "minecraft:cushion".into(),
-            Target::Falling(_) => "minecraft:falling_block".into(),
-            Target::Rocket(_) => "minecraft:firework_rocket".into(),
-            Target::Trident(_) => "minecraft:trident".into(),
-            Target::Fangs(_) => "minecraft:evoker_fangs".into(),
-            Target::Spawner(_) => "minecraft:ominous_item_spawner".into(),
-            Target::Cloud(_) => "minecraft:area_effect_cloud".into(),
-            Target::Hook(_) => "minecraft:fishing_bobber".into(),
-            Target::Knot(_) => "minecraft:leash_knot".into(),
-        }
-    }
     /// The name of the player the game acts for: a guest's own while their
     /// command or action runs (`Player.getName`).
     pub(super) fn acting_player_name(&self) -> &str {
@@ -1759,6 +1529,8 @@ impl Game<'_> {
         // PositionMoveRotation.calculateAbsolute clamps pitch before setXRot.
         let rotation = rotation.map(|[yaw, pitch]| [yaw, pitch.clamp(-90.0, 90.0)]);
         match t {
+            // Stage 3's insertion joins live rows; there is nothing to place.
+            Target::General(_) => {}
             Target::Guest(_) => {
                 self.for_player(t, |g| {
                     g.teleport_to_relative(Target::Player, pos, rotation, relative, turn_riders)
@@ -2071,9 +1843,9 @@ impl Game<'_> {
         rotation: Option<[f32; 2]>,
         turn_riders: bool,
     ) -> R<bool> {
-        match self.teleport_vehicle_across(t, level, pos, rotation, turn_riders) {
-            Ok(true) => return Ok(true),
-            Ok(false) => {}
+        match self.teleport_target_across(t, level, pos, rotation, turn_riders) {
+            Ok(Some(moved)) => return Ok(moved),
+            Ok(None) => {}
             Err(error) => {
                 log::error!("entity teleport into {}: {error}", level.id());
                 return Err(err("commands.generic.exception", &[]));
@@ -2126,7 +1898,7 @@ impl Game<'_> {
         match t {
             Target::Player => host?.hub.guest(self.lan_acting?).map(|g| g.entity_id),
             Target::Guest(conn) => host?.hub.guest(conn).map(|g| g.entity_id),
-            other => non_player_entity_id(other),
+            other => targets::non_player_entity_id(other),
         }
     }
     pub(super) fn send_player_look_at(
@@ -2569,6 +2341,8 @@ impl Game<'_> {
             });
         }
         match t {
+            // Stage 3's insertion joins live rows; there is nothing to kill.
+            Target::General(_) => {}
             Target::Guest(_) => {
                 self.for_player(t, |g| g.kill_target(Target::Player));
             }
@@ -2747,8 +2521,7 @@ impl Game<'_> {
                     return Err(err("commands.summon.failed", &[]));
                 }
                 "experience_orb" => {
-                    // `new ExperienceOrb(level, pos, Vec3.ZERO, 0)`, unstuck
-                    // like any other orb spawn.
+                    // `new ExperienceOrb(level, pos, Vec3.ZERO, 0)`, unstuck like any orb spawn.
                     let at = self.unstuck_orb(pos);
                     self.next_entity += 1;
                     self.orbs.push(horizon_client::entities::ExperienceOrb {
@@ -2766,6 +2539,7 @@ impl Game<'_> {
                         count: 1,
                         ticks: 0,
                         health: 5,
+                        air: 300,
                         following: None,
                     });
                     // tryAddFreshEntityWithPassengers refused: ERROR_DUPLICATE_UUID.
@@ -3877,7 +3651,7 @@ impl Game<'_> {
             vec![Target::Player]
         };
         let pos = if ctx.get("pos").is_some() {
-            self.block_pos_arg(ctx, "pos")?
+            self.spawnable_pos_arg(ctx, "pos")?
         } else {
             let p = self.source_position();
             [
@@ -4028,6 +3802,12 @@ impl Game<'_> {
             };
             let present = components.get(&id.as_str().into());
             let result = match term[split..].chars().next() {
+                // Both count wrappers in `ItemPredicateArgument` use the live
+                // stack count and the same integer bounds matcher.
+                Some('=' | '~') if id == "minecraft:count" => {
+                    let value = horizon_core::nbt::parse_snbt(term[split + 1..].trim());
+                    value.is_ok_and(|(v, _)| item_count::matches(stack.count, &v))
+                }
                 Some('=') => {
                     let value = horizon_core::nbt::parse_snbt(term[split + 1..].trim())
                         .ok()
@@ -4041,26 +3821,11 @@ impl Game<'_> {
                     }
                 }
                 Some('~') => {
-                    // Sub-predicates: `count` and component predicates.
+                    // Component sub-predicates.
                     let value = horizon_core::nbt::parse_snbt(term[split + 1..].trim())
                         .ok()
                         .map(|(t, _)| t);
                     match (id.as_str(), value) {
-                        ("minecraft:count", Some(v)) => {
-                            let n = i64::from(stack.count);
-                            match &v {
-                                horizon_core::nbt::Tag::Compound(_) => {
-                                    let get = |k: &str| match v.get(k) {
-                                        Some(horizon_core::nbt::Tag::Int(i)) => Some(i64::from(*i)),
-                                        _ => None,
-                                    };
-                                    get("min").is_none_or(|m| n >= m)
-                                        && get("max").is_none_or(|m| n <= m)
-                                }
-                                horizon_core::nbt::Tag::Int(i) => n == i64::from(*i),
-                                _ => false,
-                            }
-                        }
                         // `MinMaxBounds.Ints.matches`: DamagePredicate's damage-only
                         // Int bounds shape; effective DAMAGE presence is required.
                         // Other fields keep the entire existing predicate path.
@@ -4876,7 +4641,8 @@ mod summon_tests {
 
 #[cfg(test)]
 mod look_at_tests {
-    use super::{Target, non_player_entity_id};
+    use super::Target;
+    use super::targets::non_player_entity_id;
 
     #[test]
     fn look_at_entity_form_names_any_entity_by_its_id() {
@@ -6368,3 +6134,7 @@ mod knot_identity_tests;
 
 #[cfg(test)]
 mod mob_display_name_tests;
+
+#[cfg(test)]
+#[path = "item_count_predicate_tests.rs"]
+mod item_count_predicate_tests;

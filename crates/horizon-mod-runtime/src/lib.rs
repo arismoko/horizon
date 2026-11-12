@@ -1,5 +1,6 @@
 //! Engine-independent storage and registration machinery shared by the game and mod API.
 pub mod attachments;
+pub mod byte_channel;
 pub mod dispatch_failures;
 /// Action-local ownership and ordered consumption of pending spawn outputs.
 pub mod pending_children;

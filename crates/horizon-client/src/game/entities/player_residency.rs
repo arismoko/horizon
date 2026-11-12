@@ -89,7 +89,7 @@ impl Game<'_> {
     pub(super) fn remove_local_player_body(&mut self) {
         self.hook.discard();
         self.resident_entities.local_player.retire();
-        self.player_attachments.retire();
+        self.player_state.attachments.retire();
         self.player = None;
     }
 
@@ -116,6 +116,17 @@ impl Game<'_> {
                 .map(|remote| horizon_client::lan::playerdata::uuid_ints(remote.profile()))
                 .or(self.level.player_uuid),
         );
+        if let Some(remote) = self.remote.as_ref().filter(|remote| remote.logged_in)
+            && let Some(epoch) = self.native_lifecycle.epoch()
+        {
+            remote
+                .session
+                .payload_transport()
+                .bind_player(mod_api::__private::game::player_ref(
+                    mod_api::EntityRef::new(epoch, remote.entity_id as u32),
+                    remote.profile(),
+                ));
+        }
     }
 
     pub(super) fn bind_current_hook_residency(&mut self) {
@@ -320,11 +331,13 @@ impl Game<'_> {
         use horizon_mod_runtime::attachments::HasAttachmentLifetime;
         match at.source {
             Source::LocalPlayer => {
-                SlotAccess::Done(visit(self.player_attachments.attachment_lifetime()))
+                SlotAccess::Done(visit(self.player_state.attachments.attachment_lifetime()))
             }
             Source::Guest(conn) => {
                 if self.lan_acting == Some(conn) {
-                    return SlotAccess::Done(visit(self.player_attachments.attachment_lifetime()));
+                    return SlotAccess::Done(visit(
+                        self.player_state.attachments.attachment_lifetime(),
+                    ));
                 }
                 let Some(attachments) = self
                     .lan

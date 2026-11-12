@@ -387,3 +387,37 @@ impl FallOnEvent<'_> {
         self.writes.push(write);
     }
 }
+
+/// Which client synchronization route supplied a block entity's data.
+// exhaustive: the protocol supplies block entity tags through these two routes
+#[derive(Clone, Copy, Debug, PartialEq, Eq, horizon_mod_api_macros::Wire)]
+pub enum BlockEntityDataSource {
+    /// Initial synchronization in a chunk packet; empty tags send no notice.
+    Chunk,
+    /// A later block entity data packet; even an empty compound sends a notice.
+    UpdatePacket,
+}
+
+impl EntityInsideEvent<'_> {
+    /// Queue one of the five inside-block effect types (`InsideBlockEffectApplier.apply`).
+    /// It applies to the swept entity inside its own tick, once per step, in the
+    /// collector's step and type order.
+    pub fn apply(&mut self, effect: InsideEffect) {
+        self.effects.apply(effect);
+    }
+    /// Queue a typed write to the swept entity that applies just before `effect` in the
+    /// flush order (`InsideBlockEffectApplier.runBefore`).
+    pub fn run_before(&mut self, effect: InsideEffect, write: EntityWrite) {
+        self.effects.run_before(effect, write);
+    }
+    /// Queue a typed write to the swept entity that applies just after `effect` in the
+    /// flush order (`InsideBlockEffectApplier.runAfter`).
+    pub fn run_after(&mut self, effect: InsideEffect, write: EntityWrite) {
+        self.effects.run_after(effect, write);
+    }
+    /// Ask for a write at the touched block. It is applied once the entity's batch has
+    /// ticked, in the order asked, if the block is still the state the entity touched.
+    pub fn request(&mut self, write: InsideWrite) {
+        self.writes.push(write);
+    }
+}

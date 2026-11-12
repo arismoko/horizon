@@ -1,6 +1,18 @@
 //! Block-attached hanging entities: paintings and item frames.
 use super::*;
 
+/// The pitch `Entity.load` leaves on a hanging entity: `setXRot` ignores a
+/// non-finite value and otherwise clamps `xRot % 360` to +-90. `Painting` and
+/// `HangingEntity.setDirection` only write the yaw, so the loaded pitch is
+/// kept and `Entity.saveWithoutId` writes it back.
+pub(super) fn loaded_pitch(raw: Option<&Tag>) -> f32 {
+    let pitch = raw.map_or(0.0, |tag| rotation(tag)[1]);
+    if pitch.is_finite() {
+        (pitch % 360.0).clamp(-90.0, 90.0)
+    } else {
+        0.0
+    }
+}
 /// Painting.addAdditionalSaveData: `facing`, `variant` and `block_pos`.
 pub fn painting_to_nbt(p: &Painting, uuid: [i32; 4], raw: Option<&Tag>) -> Tag {
     let (lo, hi) = p.bounds();
@@ -13,7 +25,7 @@ pub fn painting_to_nbt(p: &Painting, uuid: [i32; 4], raw: Option<&Tag>) -> Tag {
             (lo[2] + hi[2]) / 2.0,
         ),
         motion: Vec3::ZERO,
-        rotation: [f32::from(p.facing) * 90.0, 0.0],
+        rotation: [f32::from(p.facing) * 90.0, loaded_pitch(raw)],
         on_ground: false,
         fall_distance: 0.0,
     };
@@ -39,9 +51,15 @@ pub(super) fn attached_block_pos(tag: &Tag) -> Option<[i32; 3]> {
         }
     }
 }
+/// `Direction.from3DDataValue` / `from2DDataValue`: the byte read by
+/// `LEGACY_ID_CODEC` indexes the table as `abs(data % modulus)`, never clamped.
+pub(super) fn wrap_data_value(raw: impl TryInto<i64> + Copy, modulus: i64) -> u8 {
+    let byte = raw.try_into().unwrap_or(0) as i8;
+    (i64::from(byte) % modulus).unsigned_abs() as u8
+}
 /// The block position, facing and variant (if saved) of a painting.
 pub fn painting_from_nbt(tag: &Tag) -> Option<([i32; 3], u8, Option<String>)> {
     let pos = attached_block_pos(tag)?;
-    let facing = (number(tag.get("facing")).unwrap_or(0) & 3) as u8;
+    let facing = wrap_data_value(number(tag.get("facing")).unwrap_or(0), 4);
     Some((pos, facing, text(tag.get("variant"))))
 }

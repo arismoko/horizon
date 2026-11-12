@@ -19,7 +19,7 @@ GroundPathNavigation.createPath	port	crates/horizon-client/src/mobs/nav.rs::Mob:
 GroundPathNavigation.getSurfaceY	port	crates/horizon-client/src/mobs/nav.rs::Mob::surface_y	floats up through water up to 16 blocks when the mob can float, else floor(y + 0.5)
 GroundPathNavigation.trimPath	port	crates/horizon-client/src/mobs/nav.rs::Mob::trim_path	with avoid_sun on a ground or wall-climbing mob: the mob standing under sky keeps its path, otherwise the nodes are cut at the first one that can see the sky
 PathNavigation.getGroundY	inline	crates/horizon-client/src/mobs/nav.rs::Mob::nav_tick	target y is the floor level under the node unless the block below is air
-PathNavigation.shouldTargetNextNodeInDirection	port	crates/horizon-client/src/mobs/nav.rs::Mob::should_target_next_node	
+PathNavigation.shouldTargetNextNodeInDirection	port	crates/horizon-client/src/mobs/nav.rs::Mob::should_target_next_node
 PathNavigation.trimPath	port	crates/horizon-client/src/mobs/path.rs::Path::raise_cauldron_nodes	the cauldron node moves onto the rim and the node after it follows when it is not above it; Mob::trim_path runs it from nav_move_to_path
 PathNavigation.isClearForMovementBetween	port	crates/horizon-client/src/mobs/world.rs::MobWorld::clear_between	collider clip from start to the target raised by half the height, optionally stopped by fluids
 PathNavigation.shouldRecomputePath	inline	crates/horizon-client/src/mobs/nav.rs::Mob::should_recompute_path	called for every block write that changes a collision shape (`mobs.rs::blocks_changed`, `World::path_writes`); the recompute happens at the start of the mob's next navigation tick, not inside sendBlockUpdated
@@ -71,8 +71,8 @@ GoalUtils.hasMalus	inline	crates/horizon-client/src/mobs/goals.rs::Mob::default_
 LandRandomPos.getPosTowards	port	crates/horizon-client/src/mobs/goals.rs::Mob::land_random_pos_towards	the direction from the mob to the point, then the ten tries within a quarter turn of it; gap: player: the golem goals that call it (GolemRandomStrollInVillageGoal, MoveBackToVillageGoal) are not registered, so a golem still wanders anywhere
 LandRandomPos.getPosInDirection	inline	crates/horizon-client/src/mobs/goals.rs::Mob::land_random_pos_away	only the away direction is wired; the toward call has no user
 LandRandomPos.movePosUpOutOfSolid	port	crates/horizon-client/src/mobs/goals.rs::Mob::land_up_out_of_solid	up out of solid, then no water and no malus
-RandomPos.generateRandomDirection	port	crates/horizon-client/src/mobs/goals.rs::Mob::random_direction	
-RandomPos.generateRandomDirectionWithinRadians	port	crates/horizon-client/src/mobs/goals.rs::Mob::random_direction_within	
+RandomPos.generateRandomDirection	port	crates/horizon-client/src/mobs/goals.rs::Mob::random_direction
+RandomPos.generateRandomDirectionWithinRadians	port	crates/horizon-client/src/mobs/goals.rs::Mob::random_direction_within
 RandomPos.generateRandomPos	port	crates/horizon-client/src/mobs/goals.rs::Mob::pick_best	best of ten by walk target value
 PoiManager.remove	inline	crates/horizon-client-render/src/poi_sections.rs::PoiSections::get	no stored records: a section's POI list is rebuilt from its blocks after an edit
 PoiManager.findAll	port	crates/horizon-client/src/mobs/villager_brain.rs::pois_in_range	square then sphere filter over the sections' POI blocks, nearest first, with a caller filter
@@ -105,7 +105,7 @@ PoiTypes.bootstrap	port	crates/horizon-client/src/save.rs::poi_type	every POI ty
 Bat.isFlapping	port	crates/horizon-client/src/game/blocks/sculk.rs::flaps	an awake bat flaps every tenth tick, and the movement pass posts minecraft:flap when the block below is air (a bee, every other tick in the air, shares the same fn)
 Bat.getMovementEmission	port	crates/horizon-client/src/mobs/ai.rs::movement_sounds	EVENTS
 Bat.getAmbientSound	inline	crates/horizon-client/src/mobs/ai.rs::play_ambient	Species::Bat arm: a resting bat is silent three times in four
-Bat.isResting	port	crates/horizon-client/src/mobs/bat.rs::resting	
+Bat.isResting	port	crates/horizon-client/src/mobs/bat.rs::resting
 Bat.addAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_to_nbt	BatFlags byte, bit 0 resting
 Bat.checkBatSpawnRules	inline	crates/horizon-client/src/mobs/spawn_rules.rs::check_spawn_rules	S::Bat arm: below the surface, coin flip, light against nextInt(4), bats_spawnable_on, mob rules
 Dolphin.finalizeSpawn	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::finalize	S::Dolphin arm: full air, pitch 0, baby chance 0.1

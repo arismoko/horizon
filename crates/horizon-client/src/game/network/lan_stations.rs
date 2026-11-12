@@ -18,6 +18,7 @@ use horizon_core::random::RandomSource;
 use horizon_protocol::packets::play::{self, Clientbound as C};
 
 /// A guest's open workstation menu.
+#[derive(Clone)]
 pub(super) struct GuestStation {
     pub(super) window: i32,
     state: i32,
@@ -107,7 +108,7 @@ impl Game<'_> {
             menu.data = self.beacon_data(station.pos).to_vec();
         }
         if let Some(host) = self.lan.as_mut() {
-            host.play.entry(conn).or_default().station = Some(GuestStation {
+            *host.play.entry(conn).or_default().station = Some(GuestStation {
                 window,
                 state: 0,
                 kind: station.kind,
@@ -293,7 +294,7 @@ impl Game<'_> {
             }
         }
         if let Some(host) = self.lan.as_mut() {
-            host.play.entry(conn).or_default().station = Some(gs);
+            *host.play.entry(conn).or_default().station = Some(gs);
         }
         self.lan_send_station(conn);
         true

@@ -56,6 +56,21 @@ fn profession_mod_missing_refused_before_pairing() {
     loop {
         let (id, payload) = c.recv().unwrap();
         match cfg::Clientbound::decode(id, &payload).unwrap() {
+            cfg::Clientbound::CustomPayload(p)
+                if p.channel == horizon_protocol::payload_negotiation::CHANNEL =>
+            {
+                use horizon_protocol::payload_negotiation::{CHANNEL, Control, Manifest};
+                if Control::decode(&p.data).unwrap() == Control::Query {
+                    c.send(
+                        &cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                            channel: CHANNEL.into(),
+                            data: Control::Offer(Manifest::default()).encode().unwrap(),
+                        })
+                        .encode(),
+                    )
+                    .unwrap();
+                }
+            }
             cfg::Clientbound::SelectKnownPacks(p) => c
                 .send(&cfg::Serverbound::SelectKnownPacks(p).encode())
                 .unwrap(),

@@ -69,14 +69,17 @@ impl Game<'_> {
         })?;
         let inventory = horizon_mod_package::enabled::EnabledMods::read(resources)
             .map_err(|error| ReloadStageError::DataSource(error.to_string()))?;
-        let conditions = horizon_world::conditions::LoadConditions::new(inventory.server_ids());
+        let conditions = self
+            .registered_load_conditions(&inventory)
+            .map_err(ReloadStageError::DataSource)?;
         // Nobody listens: no registration graph, only the vanilla function library.
         if !mod_api::__private::listened(mod_api::HookId::AddServerReloadListeners) {
+            let store = functions_store(stack, &conditions);
+            conditions
+                .check_errors()
+                .map_err(ReloadStageError::DataSource)?;
             return Ok(PreparedServerReload {
-                steps: vec![PreparedStep::Vanilla(Box::new(functions_store(
-                    stack,
-                    &conditions,
-                )))],
+                steps: vec![PreparedStep::Vanilla(Box::new(store))],
                 resources: mod_api::RetainedListeners::default(),
             });
         }
@@ -95,6 +98,9 @@ impl Game<'_> {
             |id, converter| stack.reload_context(id, converter),
             ServerReloadListener::prepare,
         )?;
+        conditions
+            .check_errors()
+            .map_err(ReloadStageError::DataSource)?;
         Ok(PreparedServerReload { steps, resources })
     }
     pub(super) fn apply_server_reload_callbacks(

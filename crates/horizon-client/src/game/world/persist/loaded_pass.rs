@@ -113,7 +113,12 @@ impl Game<'_> {
                 return;
             }
             if !kind.is_empty() && entity_nbt::position(&tag).is_some() {
-                self.load_other(tag, &kind);
+                // A record no listed family claimed: the missing-mod gate
+                // decides whether the unknown-kind path may keep it.
+                let at = entity_nbt::position(&tag).unwrap();
+                if self.general_quarantine_admits(&tag, &kind, at) {
+                    self.load_other(tag, &kind);
+                }
             } else {
                 self.persist.unknown.entry(key).or_default().push(tag);
             }

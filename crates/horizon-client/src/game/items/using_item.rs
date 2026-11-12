@@ -11,7 +11,7 @@ impl Game<'_> {
         let Some(stack) = self.held().cloned() else {
             return false;
         };
-        let Some(consumable) = stack.consumable(Some(info)) else {
+        let Some(consumable) = self.consumable(&stack) else {
             return false;
         };
         if info.food.is_some()
@@ -25,7 +25,7 @@ impl Game<'_> {
             if self.remote.is_none() {
                 // the cooldown of ItemStack.use's applyAfterUseComponentSideEffects.
                 self.apply_use_cooldown(&stack);
-                self.finish_consuming(info, consumable, &stack);
+                self.finish_consuming(info, &consumable, &stack);
             }
             return true;
         }
@@ -57,13 +57,14 @@ impl Game<'_> {
         if self.creative {
             return;
         }
-        let cell = self.held_mut();
-        if let Some(s) = cell.as_mut() {
-            s.count -= 1;
-            if s.count == 0 {
-                *cell = None;
+        self.edit_block_use_stack(|cell| {
+            if let Some(s) = cell.as_mut() {
+                s.count = s.count.saturating_sub(1);
+                if s.count == 0 {
+                    *cell = None;
+                }
             }
-        }
+        });
     }
     pub(super) fn tick_using(&mut self) {
         let Some(hand) = self.used_hand() else {
@@ -172,7 +173,7 @@ impl Game<'_> {
             self.tick_mod_use(slot, ticks, &stack);
             return;
         }
-        let Some(consumable) = stack.consumable(Some(&info)) else {
+        let Some(consumable) = self.consumable(&stack) else {
             self.using = None;
             return;
         };
@@ -182,7 +183,7 @@ impl Game<'_> {
         // Start and Tick left it.
         let remaining = self.use_duration - ticks as i32;
         if consumable.should_emit(remaining) {
-            self.emit_consume(consumable, &stack, 5);
+            self.emit_consume(&consumable, &stack, 5);
         }
         if !self.item_on_use_tick(&stack, ticks) {
             return;

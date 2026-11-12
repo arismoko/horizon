@@ -53,10 +53,10 @@ refuse the manifest. Native mods may declare top-level `internals`, an array of 
 | `mixins` | string | the exact horizon-mixins commit, 40 lowercase hex characters |
 | `module` | array of tables | optional support modules, written as `[[native.module]]` |
 
-Both access modes use the same top-level declarations.
+API points use top-level declarations.
 API function listeners use top-level `[[inject]]`: `id`, `at`, lowercase `kind`, `with`, and optional `hash`,
-with optional `access` (default `api`) and `priority` (default 0). `head`, `return` and `replace` are supported
-for API slots; internals slots also accept the listed call kinds with `call`, `nth` and `ctx`.
+with optional `priority` (default 0). `head`, `return` and `replace` are supported.
+The removed `access` key is refused by name. Use `[[native.mixin]]` for game internals.
 Unknown fields are refused by the schema. API function declarations use only `[[inject]]`.
 See [Injections](../injections.md) for the fields and point injections, and
 [Native mods](../how-to/native-mods.md#named-hook-points) for the named hook contracts.
@@ -64,13 +64,11 @@ See [Injections](../injections.md) for the fields and point injections, and
 A module has a unique, nonempty `id` (one id space with the injections), a `file` naming the game source
 file that receives it, a `name` that is a Rust module identifier, and a `source` payload file under
 `src/`, holding the module's items without an outer wrapper. An optional `visibility` is exactly
-`"pub"` or `"pub(crate)"`, the default. It is forwarded to horizon-mixins as `[[module]]`; see
-[Mixins](../mixins.md).
+`"pub"` or `"pub(crate)"`, the default. See [Support modules](../support-modules.md).
 
 `[[inject]]` only fills compiled slots and never compiles game code. Native source edits
 use `[[native.mixin]]` with `id`, `target`, uppercase `kind`, `helper` and upstream
-options. `[[native.bridge]]` and `[[native.state]]` forward upstream bridge and state
-tables unchanged. See [Mixins](../mixins.md) for the vocabulary and trust boundary.
+options. `[[native.loop]]`, `[[native.bridge]]` and `[[native.module]]` complete the route; `[[native.state]]` is refused. See [The native route](../native-route.md) for every table, its fields and its refusals.
 
 A wasm mod adds `[wasm]` instead, written by `cargo horizon-mod build --wasm`
 ([Building to `mod.wasm`](../how-to/wasm-mods.md)):

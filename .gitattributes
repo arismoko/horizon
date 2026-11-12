@@ -8,3 +8,6 @@ crates/horizon-mod-api-gen/crossing-foreign.json text eol=lf
 
 launcher/lang/*.json merge=horizon-lang
 crates/horizon-client/assets/horizon/lang/*.json merge=horizon-lang
+
+# The carried horizon-mixins patch is hashed into its tool's release tag: the same bytes on every OS.
+tools/mixins/*.patch text eol=lf

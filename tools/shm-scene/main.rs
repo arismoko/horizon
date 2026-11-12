@@ -15,6 +15,7 @@ struct Quiet;
 impl mod_api::Host for Quiet {}
 mod_api::impl_host_areas!(Quiet);
 fn main() {
+    horizon_mod_host::exit_if_compile_child();
     if let Some(path) = std::env::var_os("SCENE_PROBE") {
         use mod_api::__private::game::Fields;
         let path = std::path::Path::new(&path);

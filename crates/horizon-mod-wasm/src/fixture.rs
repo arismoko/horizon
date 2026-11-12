@@ -23,3 +23,35 @@ pub fn module(bytes: &[u8]) -> Result<WasmMod, String> {
 pub fn import_id(owner: &str, name: &str) -> Option<u32> {
     crate::boundary::import_id(owner, name)
 }
+
+/// Load through the shipped compiler command, substituting the downstream game executable.
+#[cfg(unix)]
+pub fn cached_answer(
+    root: &std::path::Path,
+    executable: &std::path::Path,
+    bytes: &[u8],
+) -> Result<(i32, bool), String> {
+    let engine = runtime::engine().map_err(|e| e.to_string())?;
+    let cache = crate::module_cache::ModuleCache::new(root.to_owned());
+    let command = |input: &std::path::Path, key: &str| {
+        let production = crate::module_cache::production_command(input, key);
+        let mut command = std::process::Command::new(executable);
+        command.env_clear().args(production.get_args());
+        command
+    };
+    let (module, source) = cache
+        .load_with_child_command(
+            &engine,
+            bytes,
+            Some((command, std::time::Duration::from_secs(60))),
+        )
+        .map_err(|e| e.to_string())?;
+    let mut store = wasmtime::Store::new(&engine, ());
+    store.set_epoch_deadline(u64::MAX / 2);
+    let instance = wasmtime::Instance::new(&mut store, &module, &[]).map_err(|e| e.to_string())?;
+    let answer = instance
+        .get_typed_func::<(), i32>(&mut store, "answer")
+        .and_then(|f| f.call(&mut store, ()))
+        .map_err(|e| e.to_string())?;
+    Ok((answer, source == crate::module_cache::Source::Cached))
+}

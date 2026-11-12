@@ -6,8 +6,10 @@ pub trait Hooks {
     /// [`RenderPipeline`] for each into `event.pipelines`. The game builds them with its own at
     /// startup and again on every resource reload. An id outside the mod's namespaces, one an
     /// earlier registration took are logged with the mod and
-    /// dropped. A pipeline whose shader is missing or doesn't compile is logged and resolves to
-    /// [`RenderPipelineError::Invalid`]; the game starts either way.
+    /// dropped. A required pipeline whose shader is missing or doesn't build fails the load: the
+    /// game does not start, and a reload fails and keeps the previous resources. An
+    /// [optional](RenderPipeline::optional()) one is logged and resolves to
+    /// [`RenderPipelineError::Invalid`].
     #[notes = r#"## Render pipelines
 
 `Hooks::register_render_pipelines` is the client registration-phase counterpart of NeoForge's
@@ -52,7 +54,15 @@ Resolve the pipeline with `host.render_assets().render_pipeline(&id)` in `client
 in `client_resources_reloaded`, then draw with `WorldDrawContext::pipeline_quads` from
 `submit_custom_geometry` or `render_level_stage`. A resource reload builds every registered
 pipeline again, so a resource pack can replace a shader; a handle from before the reload is
-`Stale`. Pipeline quads share the view's 4,096 quads with `WorldDrawContext::quads`, and in each
+`Stale`.
+
+A pipeline is required unless it is registered with `.optional()` (NeoForge's
+`registerPipeline` and `registerOptionalPipeline`). When a load cannot build a required pipeline,
+because its file is missing, refused or turned down by the GPU, the whole load fails and names it:
+the game does not start, and a reload keeps the previous resources and handles, then drops the
+selected resource packs and tries again, as vanilla does with any failed reload. An optional
+pipeline that cannot be built is logged once with its id and resolves to `Invalid`, and the other
+pipelines draw. Pipeline quads share the view's 4,096 quads with `WorldDrawContext::quads`, and in each
 stage they draw after that stage's plain quads and lines, in the order submitted. Under a shader
 pack they follow the plain quads: a stage the pack draws itself is drawn with the next stage the
 game reaches."#]

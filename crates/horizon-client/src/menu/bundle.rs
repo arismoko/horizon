@@ -1,12 +1,13 @@
 //! `BundleItem`'s click overrides in a PICKUP click
 //! (`tryItemClickBehaviourOverride`).
-use super::{Env, Menu, tidy};
+use super::{Env, ItemStack, Menu, tidy};
 use crate::bundle::{Contents, INSERT, INSERT_FAIL, REMOVE_ONE, can_be_in_bundle, toggle_selected};
 
 impl Menu {
     /// The carried stack's `overrideStackedOnOther`, then the clicked
     /// one's `overrideOtherStackedOnMe`. True when a bundle took the click.
     pub(super) fn bundle_click(&mut self, env: &Env, s: usize, primary: bool) -> bool {
+        self.touch();
         let took = self.carried_bundle_click(env, s, primary)
             || self.clicked_bundle_click(env, s, primary);
         if took {
@@ -19,6 +20,7 @@ impl Menu {
 
     /// `BundleItem.overrideStackedOnOther`: the carried bundle on a slot.
     fn carried_bundle_click(&mut self, env: &Env, s: usize, primary: bool) -> bool {
+        self.touch();
         let Some(mut contents) = self
             .carried
             .as_ref()
@@ -36,7 +38,8 @@ impl Menu {
                         moved = contents.try_insert(env.items, &mut taken);
                     }
                 }
-                self.player_sounds
+                self.state
+                    .player_sounds
                     .push(if moved > 0 { INSERT } else { INSERT_FAIL });
             }
             (None, false) => {
@@ -48,13 +51,13 @@ impl Menu {
                         Some(mut rest) => {
                             contents.try_insert(env.items, &mut rest);
                         }
-                        None => self.player_sounds.push(REMOVE_ONE),
+                        None => self.state.player_sounds.push(REMOVE_ONE),
                     }
                 }
             }
             _ => return false,
         }
-        if let Some(carried) = self.carried.as_mut() {
+        if let Some(carried) = self.state.carried.as_mut() {
             contents.store(carried);
         }
         true
@@ -62,6 +65,7 @@ impl Menu {
 
     /// `BundleItem.overrideOtherStackedOnMe`: a click on a bundle in a slot.
     fn clicked_bundle_click(&mut self, env: &Env, s: usize, primary: bool) -> bool {
+        self.touch();
         let Some(mut bundle) = self.slot(s).cloned() else {
             return false;
         };
@@ -69,37 +73,44 @@ impl Menu {
             return false;
         };
         let allowed = self.allow_modification(env, s);
-        match (self.carried.take(), primary) {
+        match (self.state.carried.take(), primary) {
             (Some(mut other), true) => {
                 let moved = if allowed {
                     contents.try_insert(env.items, &mut other)
                 } else {
                     0
                 };
-                self.player_sounds
+                self.state
+                    .player_sounds
                     .push(if moved > 0 { INSERT } else { INSERT_FAIL });
-                self.carried = Some(other);
-                tidy(&mut self.carried);
+                self.state.carried = Some(other);
+                tidy(&mut self.state.carried);
             }
             (None, false) => {
                 if allowed && let Some(removed) = contents.remove_one(env.items) {
-                    self.player_sounds.push(REMOVE_ONE);
-                    self.carried = Some(removed);
+                    self.state.player_sounds.push(REMOVE_ONE);
+                    self.state.carried = Some(removed);
                 }
             }
             (carried, _) => {
                 // toggleSelectedItem(-1), then the click goes on.
-                self.carried = carried;
+                self.state.carried = carried;
                 toggle_selected(&mut bundle, -1);
-                let slot = self.slots[s];
-                self.containers[slot.container][slot.index] = Some(bundle);
+                let slot = self.state.slots[s];
+                self.state.containers[slot.container][slot.index] = Some(bundle);
                 return false;
             }
         }
         // `self.set(BUNDLE_CONTENTS, ...)` changes the slot's stack in place.
         contents.store(&mut bundle);
-        let slot = self.slots[s];
-        self.containers[slot.container][slot.index] = Some(bundle);
+        let slot = self.state.slots[s];
+        self.state.containers[slot.container][slot.index] = Some(bundle);
         true
     }
+}
+
+/// `Item.canFitInsideContainerItems` (`ShulkerBoxSlot.mayPlace`): shulker
+/// boxes cannot nest.
+pub fn fits_inside_container_items(stack: &ItemStack) -> bool {
+    !stack.item.ends_with("shulker_box")
 }

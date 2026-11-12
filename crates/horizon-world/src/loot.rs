@@ -630,18 +630,9 @@ fn int_value(v: &Value) -> Option<i64> {
 /// `data/<ns>/<kind>/` of every namespace, as `ns:path`: vanilla's, and in
 /// a content mods' root theirs (docs/modpacks.md), whose chests name their
 /// own loot tables.
-/// A kind's overlay files over what the resource root provided: the top
-/// pack's file for each id replaces the rest (`SimpleJsonResourceReloadListener`
-/// sees one resource per id).
-fn overlay_map(overlay: &PackOverlay, kind: &str, out: &mut HashMap<String, Value>) {
-    for (id, files) in overlay.kind(kind) {
-        let Ok(v) = serde_json::from_slice::<Value>(PackOverlay::top(files)) else {
-            continue;
-        };
-        out.insert(id.to_owned(), v);
-    }
-    out.retain(|_, value| overlay.conditions.allows(value));
-}
+#[path = "loot_conditions.rs"]
+mod loot_conditions;
+use loot_conditions::overlay_map;
 
 /// Loot tables by id. Each is kept as its JSON text and read into a [`Value`]
 /// the first time it is rolled: of vanilla's ~1,450 tables a game rolls a
@@ -900,7 +891,7 @@ impl LootData {
             let mut raw = HashMap::new();
             load_kind(&all, &format!("tags/{registry}"), &mut raw)?;
             for (name, value) in raw {
-                if !overlay.conditions.allows(&value) {
+                if !overlay.conditions.allows_tag(&value, registry, &name) {
                     continue;
                 }
                 let values = value["values"].as_array().cloned().unwrap_or_default();
@@ -914,7 +905,7 @@ impl LootData {
                     let Ok(v) = serde_json::from_slice::<Value>(bytes) else {
                         continue;
                     };
-                    if !overlay.conditions.allows(&v) {
+                    if !overlay.conditions.allows_tag(&v, registry, &id) {
                         continue;
                     }
                     let slot = tags.entry((registry.to_owned(), id.clone())).or_default();

@@ -92,6 +92,11 @@ impl Game<'_> {
     /// the action bar names the container and one chest-locked sound plays.
     /// True when the open is refused.
     pub(super) fn refuse_locked_container(&mut self, key: (i32, i32, i32), name: &str) -> bool {
+        // A carrier transfer fence holds this cell: its block entity's
+        // container does not open while the operation runs.
+        if self.world.carrier_fences.locks_cell(&[key.0, key.1, key.2]) {
+            return true;
+        }
         let Some(default_key) = horizon_client::containers::default_name_key(name) else {
             return false;
         };
@@ -174,28 +179,7 @@ impl Game<'_> {
     /// `ChestBlock.isChestBlockedAt`: a redstone conductor above the chest or
     /// a cat sitting on it.
     fn chest_blocked_at(&self, key: (i32, i32, i32)) -> bool {
-        if self.conductor_above(key) {
-            return true;
-        }
-        // isCatSittingOnChest: a cat whose box meets the block above.
-        let area = horizon_core::geometry::Aabb::new(
-            horizon_core::geometry::Vec3::new(
-                f64::from(key.0),
-                f64::from(key.1 + 1),
-                f64::from(key.2),
-            ),
-            horizon_core::geometry::Vec3::new(
-                f64::from(key.0 + 1),
-                f64::from(key.1 + 2),
-                f64::from(key.2 + 1),
-            ),
-        );
-        self.mobs.iter().any(|m| {
-            m.species() == horizon_client::mobs::Species::Cat
-                && m.alive()
-                && horizon_client::mobs::tame::cat_sitting(m)
-                && m.bounds().intersects(area)
-        })
+        self.conductor_above(key) || super::machines::cat_sitting_above(&self.mobs, key)
     }
     /// `ChestBlock.getMenuProvider` (`combine(.., false)`) and
     /// `EnderChestBlock.useWithoutItem`: a blocked chest, or a double chest
@@ -341,11 +325,7 @@ impl Game<'_> {
                 "minecraft:block.ender_chest.close"
             }
         } else if name.contains("chest") {
-            if open {
-                "minecraft:block.chest.open"
-            } else {
-                "minecraft:block.chest.close"
-            }
+            horizon_client::mobs::transport_items::chest_hinge_sound(&name, open)
         } else if &*name == "minecraft:barrel" {
             if open {
                 "minecraft:block.barrel.open"
@@ -602,6 +582,38 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `ChestBlockEntity`'s opener counter plays the block's own hinge
+    /// sound: a copper chest's, by weather state, not the wooden chest's.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_player_opens_and_closes_a_chest_with_its_own_hinge_sound() {
+        let mut resources = None;
+        let mut game = super::super::game_tests::tests::server_game(&mut resources);
+        for (block, sound) in [
+            ("minecraft:chest", "minecraft:block.chest"),
+            (
+                "minecraft:exposed_copper_chest",
+                "minecraft:block.copper_chest",
+            ),
+            (
+                "minecraft:waxed_oxidized_copper_chest",
+                "minecraft:block.copper_chest_oxidized",
+            ),
+        ] {
+            let state = game.pack.assets.registry.default_state(block).unwrap();
+            game.world.set(8, 64, 8, state).unwrap();
+            game.audio.heard.clear();
+            game.container_edge_sound((8, 64, 8), true);
+            game.container_edge_sound((8, 64, 8), false);
+            let heard: Vec<_> = game.audio.heard.keys().cloned().collect();
+            assert_eq!(
+                heard,
+                [format!("{sound}.close"), format!("{sound}.open")],
+                "{block}"
+            );
+        }
+    }
 
     #[test]
     fn double_chest_halves_connect_around_the_facing() {

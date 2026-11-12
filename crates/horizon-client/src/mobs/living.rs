@@ -23,6 +23,31 @@ use horizon_world::{
     registry::BlockStateId,
 };
 
+/// `DeathProtection.TOTEM_EFFECTS`: clear, then regeneration II, absorption II
+/// and fire resistance.
+pub(super) fn totem_death_effects() -> Vec<crate::items::ConsumeEffect> {
+    use crate::items::{ConsumeEffect, ConsumeEffectSpec};
+    let spec = |id: &str, duration, amplifier| ConsumeEffectSpec {
+        id: id.to_owned(),
+        duration,
+        amplifier,
+        ambient: false,
+        show_particles: true,
+        show_icon: true,
+    };
+    vec![
+        ConsumeEffect::ClearAllEffects,
+        ConsumeEffect::ApplyEffects {
+            effects: vec![
+                spec("minecraft:regeneration", 900, 1),
+                spec("minecraft:absorption", 100, 1),
+                spec("minecraft:fire_resistance", 800, 0),
+            ],
+            probability: 1.0,
+        },
+    ]
+}
+
 /// How many block particles a landing throws up
 /// (`(int)(min(0.2F + power / 15, 2.5) * 150)`), none when the fall is within
 /// `safe_fall_distance` (`power = max(floor(fall + 1.0E-6 - safe), 0)`).
@@ -69,6 +94,8 @@ impl Default for Steps {
 }
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Fluids {
+    /// The boat whose fluid interaction box last seated this passenger.
+    pub boat: Option<(u32, crate::motion::RiddenBoat)>,
     pub water: f64,
     pub lava: f64,
     pub in_water: bool,
@@ -265,6 +292,25 @@ impl MobWorld<'_> {
         }
         (water, lava)
     }
+    /// `Entity.updateFluidInteraction`'s pushes for an entity fluids push
+    /// (`isPushedByFluid`) with the box `bounds`: its `velocity` after the
+    /// water's and the lava's currents (`EntityFluidInteraction.applyCurrentTo`).
+    pub fn pushed_by_currents(&self, bounds: Aabb, mut velocity: Vec3) -> Vec3 {
+        let (water, lava) = self.fluid_currents(bounds);
+        let lava_scale = if self.dimension_type.fast_lava {
+            0.007
+        } else {
+            0.0023333333333333335
+        };
+        let mut pushed = Pushed(&mut velocity);
+        if water.height > 0.0 {
+            let _ = water.apply_to(&mut pushed, 0.014);
+        }
+        if lava.height > 0.0 {
+            let _ = lava.apply_to(&mut pushed, lava_scale);
+        }
+        velocity
+    }
     /// `BlockState.getCollisionShape(level, pos)` (the empty collision
     /// context) as boxes in the world.
     pub fn block_collision_boxes(&self, x: i32, y: i32, z: i32) -> Vec<Aabb> {
@@ -426,6 +472,19 @@ impl Mob {
     pub fn on_climbable(&self, w: &MobWorld) -> bool {
         if self.kind.flags.climber {
             return self.climbing;
+        }
+        // `AbstractHorse.onClimbable`, `Ghast.onClimbable`, `Phantom.onClimbable`
+        // and `HappyGhast.onClimbable` are a plain false: no horse, donkey,
+        // mule, undead horse, llama, trader llama, camel or camel husk (nor
+        // those flying monsters) is ever on a climbable block, whatever it
+        // stands in.
+        if super::equine::is_equine(self.species())
+            || matches!(
+                self.species(),
+                super::Species::Ghast | super::Species::Phantom | super::Species::HappyGhast
+            )
+        {
+            return false;
         }
         let (x, y, z) = (
             self.position.x.floor() as i32,
@@ -653,6 +712,12 @@ impl Mob {
     /// nautiluses keep their own course.
     fn pushed_by_fluid(&self) -> bool {
         use super::Species as S;
+        // Drowned.isPushedByFluid: a drowned swimming after its target is not
+        // pushed by the current, one walking the bottom is (`extra.flag` holds
+        // the `isSwimming` that `Drowned.updateSwimming` sets).
+        if self.species() == S::Drowned && self.extra.flag {
+            return false;
+        }
         !matches!(
             self.species(),
             S::Tadpole
@@ -984,26 +1049,39 @@ impl Mob {
             speed: f64::from(0.15_f32),
         });
     }
+    /// `Entity.getFluidInteractionBox` and the fluids in it: the box less 0.001,
+    /// then the ridden boat's say (`AbstractBoat.modifyPassengerFluidInteractionBox`).
+    /// A boat that isn't underwater keeps only what lies above its top, and
+    /// all of a passenger it reaches the head of, so a mob sitting in a boat
+    /// on a lake is neither in the water (it burns in daylight, isn't pushed
+    /// by the flow) nor splashes.
+    fn fluid_interaction(&self, w: &MobWorld, boat: Option<crate::motion::RiddenBoat>) -> Fluids {
+        let b = self.bounds();
+        let Some(boat) = boat.filter(|boat| !boat.under_water) else {
+            return w.fluids(b, self.eye_y());
+        };
+        // `fluids` deflates the box by 0.001 itself: the deflated top against
+        // the boat's, and the deflated bottom raised to it, as vanilla does.
+        let (lo, hi) = (b.min_position(), b.max_position());
+        if boat.max_y >= hi.y - 0.001 {
+            return Fluids::default();
+        }
+        let lo = Vec3::new(lo.x, lo.y.max(boat.max_y - 0.001), lo.z);
+        w.fluids(Aabb::new(lo, hi), self.eye_y())
+    }
     /// Entity.updateFluidInteraction: the fluid state, then touching water
     /// resets the fall and entering it (after the first tick) splashes.
     pub(super) fn update_fluids(&mut self, w: &MobWorld, events: &mut Vec<MobEvent>) {
         let was_touching_water = self.fluids.in_water;
-        self.fluids = w.fluids(self.bounds(), self.eye_y());
+        let boat = self
+            .fluids
+            .boat
+            .filter(|(id, _)| self.extra.mount == Some(*id));
+        self.fluids = self.fluid_interaction(w, boat.map(|(_, b)| b));
+        self.fluids.boat = boat;
         // EntityFluidInteraction.applyCurrentTo: the flow pushes the mob.
         if (self.fluids.in_water || self.fluids.in_lava) && self.pushed_by_fluid() {
-            let (water, lava) = w.fluid_currents(self.bounds());
-            let lava_scale = if w.dimension_type.fast_lava {
-                0.007
-            } else {
-                0.0023333333333333335
-            };
-            let mut pushed = Pushed(&mut self.velocity);
-            if water.height > 0.0 {
-                let _ = water.apply_to(&mut pushed, 0.014);
-            }
-            if lava.height > 0.0 {
-                let _ = lava.apply_to(&mut pushed, lava_scale);
-            }
+            self.velocity = w.pushed_by_currents(self.bounds(), self.velocity);
         }
         if self.fluids.in_water {
             self.fall_distance = 0.0;
@@ -1060,7 +1138,12 @@ impl Mob {
                     && !self.silent
                 {
                     let at = [self.position.x, self.position.y, self.position.z];
-                    events.push(MobEvent::Sound(sound, at, volume, pitch));
+                    events.push(match sound {
+                        std::borrow::Cow::Borrowed(name) => {
+                            MobEvent::Sound(name, at, volume, pitch)
+                        }
+                        std::borrow::Cow::Owned(name) => MobEvent::SoundId(name, at, volume, pitch),
+                    });
                 }
                 // Entity.vibrationAndSoundEffectsFromBlock: the step's game
                 // event, with the supporting block's state when the effect
@@ -1426,7 +1509,7 @@ impl Mob {
             let pos = self.on_pos(0.2);
             let state = w.world.block(pos[0], pos[1], pos[2]);
             if !w.facts.is_air(state) {
-                let sounds = &w.facts.get(state).sounds;
+                let sounds = w.block_sound_type(self, pos, state, mod_api::BlockSoundCause::Fall);
                 let at = [self.position.x, self.position.y, self.position.z];
                 events.push(MobEvent::SoundId(
                     sounds.fall.to_string(),
@@ -2568,6 +2651,7 @@ mod tests {
                 dragon: None,
                 leash_boats: &[],
                 who_lookup: None,
+                foreign: None,
                 others_grid: None,
                 others_index: None,
                 passenger_objects: &[],
@@ -2709,6 +2793,7 @@ mod tests {
             dragon: None,
             leash_boats: &[],
             who_lookup: None,
+            foreign: None,
             others_grid: None,
             others_index: None,
             passenger_objects: &[],
@@ -2846,6 +2931,7 @@ mod tests {
                 nearest_player: None,
                 others: &others,
                 who_lookup: None,
+                foreign: None,
                 dragon: None,
                 leash_boats: &[],
                 others_grid: None,
@@ -3658,31 +3744,9 @@ mod farmland_event_tests {
     }
 }
 
-/// `DeathProtection.TOTEM_EFFECTS`: clear, then regeneration II, absorption II
-/// and fire resistance.
-pub(super) fn totem_death_effects() -> Vec<crate::items::ConsumeEffect> {
-    use crate::items::{ConsumeEffect, ConsumeEffectSpec};
-    let spec = |id: &str, duration, amplifier| ConsumeEffectSpec {
-        id: id.to_owned(),
-        duration,
-        amplifier,
-        ambient: false,
-        show_particles: true,
-        show_icon: true,
-    };
-    vec![
-        ConsumeEffect::ClearAllEffects,
-        ConsumeEffect::ApplyEffects {
-            effects: vec![
-                spec("minecraft:regeneration", 900, 1),
-                spec("minecraft:absorption", 100, 1),
-                spec("minecraft:fire_resistance", 800, 0),
-            ],
-            probability: 1.0,
-        },
-    ]
-}
-
+#[cfg(test)]
+#[path = "living_climbable_tests.rs"]
+mod climbable_tests;
 fn fall_reset_hit(w: &MobWorld, from: Vec3, moved: Vec3) -> bool {
     let reset = w.block_tags.get("minecraft:fall_damage_resetting");
     crate::entities::fall_reset_hit(

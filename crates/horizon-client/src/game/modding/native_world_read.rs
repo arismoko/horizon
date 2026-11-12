@@ -339,6 +339,13 @@ impl Game<'_> {
         horizon_world::level::fluid_pickup_sound(fluid_kind(fluid)?)
     }
 
+    /// The sound event a bucket plays as it empties `fluid` (`BucketItem.playEmptySound`),
+    /// `minecraft:item.bucket.empty_lava` for lava and flowing lava. None for
+    /// `minecraft:empty`, for a tank-only fluid and for a name no fluid has.
+    pub(super) fn fluid_empty_sound(&self, fluid: &str) -> Option<&'static str> {
+        horizon_world::level::fluid_empty_sound(fluid_kind(fluid)?)
+    }
+
     /// Read a loaded block in a server tick hook, without loading a chunk.
     /// The returned name and properties are owned and remain valid after the hook.
     #[allow(dead_code)]
@@ -923,7 +930,7 @@ mod tests {
     /// pickup sound, and a name no fluid has answers nothing, through a mod's `Host`.
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-    fn fluid_sameness_buckets_and_pickup_sounds_follow_vanilla() {
+    fn fluid_sameness_buckets_and_bucket_sounds_follow_vanilla() {
         with_game(|game| {
             let host: &dyn mod_api::Host = game;
             assert!(host.fluid_is_same("minecraft:water", "minecraft:flowing_water"));
@@ -956,6 +963,17 @@ mod tests {
             );
             assert_eq!(host.fluid_pickup_sound("minecraft:empty"), None);
             assert_eq!(host.fluid_pickup_sound("nope:missing"), None);
+
+            assert_eq!(
+                host.fluid_empty_sound("flowing_water"),
+                Some("minecraft:item.bucket.empty")
+            );
+            assert_eq!(
+                host.fluid_empty_sound("minecraft:lava"),
+                Some("minecraft:item.bucket.empty_lava")
+            );
+            assert_eq!(host.fluid_empty_sound("minecraft:empty"), None);
+            assert_eq!(host.fluid_empty_sound("nope:missing"), None);
         });
     }
 }

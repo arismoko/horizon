@@ -91,6 +91,8 @@ jobs:
         run: python3 tools/check_addresses.py ${BASE_SHA:+--base "$BASE_SHA"}
       - name: Check the mod API type boundary (including negative control)
         run: python3 tools/ci/check_api_boundary.py --source-only
+      - name: Vocabulary state has explicit ownership
+        run: python3 tools/check_mod_vocabulary_state.py
       - name: Test offline research tooling
         run: python -m unittest discover -s tests -v
       - name: Install Rust toolchain and the ALSA and udev headers the client links against

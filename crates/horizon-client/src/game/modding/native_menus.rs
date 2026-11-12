@@ -144,9 +144,9 @@ pub(super) fn open_menu_of(host: &LanHost, conn: u32) -> Option<(i32, &str, Opti
     let play = play?;
     let (window, menu, pos) = if let Some(gm) = &play.merchant {
         (gm.window, "minecraft:merchant", None)
-    } else if let Some((window, _, _, pos)) = &play.crafting.table {
+    } else if let Some((window, _, _, pos)) = play.crafting.table.as_ref() {
         (*window, "minecraft:crafting", Some(*pos))
-    } else if let Some(st) = &play.station {
+    } else if let Some(st) = play.station.as_ref() {
         (
             st.window,
             super::lan_stations::menu_of(st.kind)?.0,

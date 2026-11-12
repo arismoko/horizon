@@ -73,10 +73,12 @@ impl Game<'_> {
     }
 
     /// The holders players started seeing are sent whole to them, in the pass
-    /// of the level they are in (another's stay queued), then the synced
-    /// changes of the holders lent to mods since the last pass to the players
-    /// who see them.
+    /// of the level they are in (another's stay queued), then the block
+    /// entities a piston landed whole to the players who see them, then the
+    /// synced changes of the holders lent to mods since the last pass to the
+    /// players who see them.
     pub(super) fn flush_attachment_sync(&mut self) {
+        let landings = std::mem::take(&mut self.world.attachment_landings);
         let Some(host) = self.lan.as_mut() else {
             return;
         };
@@ -114,6 +116,18 @@ impl Game<'_> {
             {
                 for message in messages {
                     guest.send_attachment_sync(&message);
+                }
+            }
+        }
+        // A landed block entity is a new holder: what its clients held of it
+        // went with their moving piston's copy.
+        for holder in landings {
+            let messages = self.attachment_snapshot(holder);
+            if let Some(host) = self.lan.as_ref() {
+                for guest in recipients(&host.hub, holder) {
+                    for message in &messages {
+                        guest.send_attachment_sync(message);
+                    }
                 }
             }
         }

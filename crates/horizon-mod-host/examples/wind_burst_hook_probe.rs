@@ -19,6 +19,7 @@ impl Hooks for Protect {
     }
 }
 fn main() {
+    horizon_mod_host::exit_if_compile_child();
     let startup = horizon_client::entry::prepare();
     let mods: Vec<ModEntry> = if std::env::var_os("HORIZON_WIND_NO_MOD").is_some() {
         Vec::new()

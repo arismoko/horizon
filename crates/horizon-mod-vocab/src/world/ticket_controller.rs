@@ -25,9 +25,6 @@ pub struct TicketController {
     pub(crate) slot: u32,
 }
 
-/// The slot of a handle whose registration was refused: no table has it.
-const REFUSED: u32 = u32::MAX;
-
 impl TicketController {
     /// The controller's namespaced id (`mymod:quarry`), as its tickets are saved under it; empty
     /// for a registration that was refused.
@@ -70,45 +67,9 @@ impl TicketController {
     }
 }
 
-/// Adds controller `name` of mod `mod_id` to `table`. A name in another mod's namespace, an empty
-/// one and a repeated id are written to `refused` and give a handle no table resolves.
-pub(crate) fn register(
-    table: &mut Vec<ControllerInfo>,
-    refused: &mut Vec<String>,
-    mod_id: &'static str,
-    name: &str,
-    validates: bool,
-) -> TicketController {
-    let id = match crate::parts::owned_declaration_id(mod_id, name) {
-        Ok(id) => id,
-        Err(reason) => {
-            refused.push(reason);
-            return TicketController { slot: REFUSED };
-        }
-    };
-    let refusal = {
-        table
-            .iter()
-            .any(|info| *info.id == *id)
-            .then(|| format!("{mod_id} registered ticket controller {id} twice"))
-    };
-    if let Some(refusal) = refusal {
-        refused.push(refusal);
-        return TicketController { slot: REFUSED };
-    }
-    table.push(ControllerInfo {
-        id: id.into(),
-        mod_id,
-        validates,
-    });
-    TicketController {
-        slot: (table.len() - 1) as u32,
-    }
-}
-
 #[cfg(any(test, feature = "testing"))]
 thread_local! {
-    /// The controllers a test's mods registered (`testing::with_mods`), in place of the
+    /// The controllers a test's mods registered (`testing::with_dispatch`), in place of the
     /// process-wide table.
     pub(crate) static TEST_CONTROLLERS: std::cell::Cell<Option<&'static [ControllerInfo]>> =
         const { std::cell::Cell::new(None) };

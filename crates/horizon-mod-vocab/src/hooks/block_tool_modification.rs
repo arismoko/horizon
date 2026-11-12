@@ -2,7 +2,8 @@
 
 pub trait Hooks {
     /// A tool is about to transform a block. Cancel or replace the final state;
-    /// `None` suppresses the transformation.
+    /// `None` suppresses the transformation. The block's own `tool_modified_state` part answers
+    /// first, and a block whose part cancelled the action never reaches this hook.
     #[hook(
         side = "both",
         contract = "cancel",

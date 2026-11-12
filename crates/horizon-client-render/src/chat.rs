@@ -360,6 +360,7 @@ impl Chat {
     }
     /// ChatComponent.addMessage: wrap, prepend and trim to 100 lines. A
     /// message the Chat option hides is dropped, unlogged.
+    #[horizon_mod_api_macros::replaceable]
     pub fn add(
         &mut self,
         atlas: &HudAtlas,
@@ -568,6 +569,8 @@ impl Chat {
     pub fn set_qol(&mut self, atlas: &HudAtlas, qol: ChatQol) {
         if self.qol != qol {
             self.qol = qol;
+            self.scroll = 0;
+            self.new_since_scroll = false;
             self.rewrap(&atlas.font);
         }
     }
@@ -593,20 +596,25 @@ impl Chat {
             .filter(|q| !q.trim().is_empty());
         if self.search != query {
             self.search = query;
+            self.scroll = 0;
+            self.new_since_scroll = false;
             self.rewrap(font);
         }
     }
     pub fn searching(&self) -> bool {
         self.search.is_some()
     }
-    /// Re-wrap after a width or scale change (ChatComponent.rescaleChat),
-    /// keeping only the messages the Chat option shows.
+    /// Re-wrap after a width or scale change (`ChatComponent.rescaleChat`):
+    /// `resetChatScroll`, then the messages the Chat option shows.
     pub fn rescale(&mut self, atlas: &HudAtlas) {
-        self.rewrap(&atlas.font);
-    }
-    fn rewrap(&mut self, font: &crate::font::Font) {
         self.scroll = 0;
         self.new_since_scroll = false;
+        self.rewrap(&atlas.font);
+    }
+    /// `ChatComponent.refreshTrimmedMessages`: the lines are laid out again
+    /// where the reader was (`chatScrollbarPos` survives a filter change);
+    /// `rescale` resets the scroll itself, as `rescaleChat` does.
+    fn rewrap(&mut self, font: &crate::font::Font) {
         self.lines.clear();
         let mut messages = std::mem::take(&mut self.messages);
         for m in messages.iter_mut().rev() {
@@ -1543,6 +1551,7 @@ impl ChatScreen {
         }
     }
     /// `CommandSuggestions.updateCommandInfo`.
+    #[horizon_mod_api_macros::replaceable]
     fn update_command_info(&mut self, m: &Measure, c: &Commands) {
         let command = self.input.value.clone();
         if self.parse.as_ref().is_some_and(|p| p.input != command) {
@@ -1993,7 +2002,11 @@ impl ChatScreen {
             return false;
         }
         let max = l.list.len().saturating_sub(self.layout.line_limit) as i32;
-        l.offset = ((l.offset as f64 - amount.clamp(-1.0, 1.0)) as i32).clamp(0, max) as usize;
+        // Round instead of truncating: touchpad/PixelDelta produces fractional
+        // amounts and truncation drops movement in one direction (#14338).
+        l.offset = (l.offset as f64 - amount.clamp(-1.0, 1.0))
+            .round()
+            .clamp(0.0, max as f64) as usize;
         true
     }
     /// `CommandSuggestions.formatText`: argument colours over the input. The

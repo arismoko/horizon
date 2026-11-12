@@ -26,3 +26,15 @@ game answers it for vanilla's buckets: one tank of 1000 mB, filled and
 drained whole, an empty bucket taking plain water or lava and becoming its full bucket, a full one becoming an empty
 bucket. `move_resources` moves between an item and a block as between two blocks: a full cauldron fills a bucket in a
 player's slot, and two thirds of one fill none.
+
+A tank that a player right-clicks with a bucket or a mod's canister does it in one call, NeoForge's
+`FluidUtil.interactWithFluidHandler`: `fluid_util::interact_with_fluid_handler(host, player, hand, level, pos, side)`
+from the block's `use_item_on` part, answering a success when it is true. It finds the block's `FLUIDS` at `side` and
+the held item's `ITEM_FLUIDS` at `ItemPlace::PlayerHand`, fills the item from the tank and, when nothing goes in,
+empties the item into the tank. It moves the first fluid that moves, as much as fits in one go, so a stack of three
+buckets on a lava tank has one filled and split off; a creative player keeps the hand's stack. When something moved
+it plays the bucket's sound and game event at the block's centre: `minecraft:fluid_pickup` and the fluid's
+`fluid_pickup_sound` for a fill, `minecraft:fluid_place` and its `fluid_empty_sound` for an empty (a tank-only fluid
+has no sound, only the event). `fluid_util::interact_with_handler` does the same against a handler the mod already
+holds, and `fluid_util::trigger_sound_and_game_event` plays the sound and event alone. The sound goes out as the call
+returns, so call them outside a transaction the mod may still abort.

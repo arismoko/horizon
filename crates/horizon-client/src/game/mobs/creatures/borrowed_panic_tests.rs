@@ -487,7 +487,8 @@ fn run_output(family: Family, output: Output) {
                         }
                     }
                     let writes = game.world.path_writes.clone();
-                    game.world.random = LegacyRandom::new(0x5eed);
+                    game.world.random =
+                        horizon_core::random::LevelRandom::for_level(LegacyRandom::new(0x5eed));
                     let guest_health = if matches!(output, Output::Guest | Output::Mixed) {
                         game.lan.as_ref().unwrap().hub.guests[0].health
                     } else {

@@ -106,15 +106,33 @@ fn matrix(mods: mod_api::Mods) {
     });
 }
 
+/// A guest that edits and then traps: the failed call commits nothing, whatever it changed
+/// first. A trapped guest is stopped, so each trap runs against a freshly loaded module.
+fn trap(mods: mod_api::Mods, baby: bool) {
+    mod_api::testing::with_mods(mods, || {
+        with_game(|game| {
+            if baby {
+                let (mobs, child) = breed(game, 6);
+                assert_eq!(child, None, "a trapped baby listener's edit never commits");
+                assert!(
+                    mobs.iter().all(|m| m.extra.age >= 0),
+                    "no baby after a trap"
+                );
+            } else {
+                assert!(split(game, 6).is_empty(), "a trapped split spawns nothing");
+            }
+        });
+    });
+}
+
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn native_pending_children_shared_matrix() {
     matrix(vec![mod_api::ModEntry::new("wasm_fixture", Box::new(Native))].into());
 }
 
-#[test]
-#[ignore = "needs HORIZON_TEST_RESOURCES, HORIZON_WASM_FIXTURE and HORIZON_WASM_STD; build with horizon-mod-wasm/listener-fixture"]
-fn wasm_pending_children_shared_matrix() {
+/// The fixture module, loaded and initialized as the game does.
+fn load_wasm() -> mod_api::Mods {
     use horizon_mod_package::manifest::Package;
     use horizon_mod_wasm::{WasmPackage, load};
     let path = std::path::PathBuf::from(std::env::var_os("HORIZON_WASM_FIXTURE").unwrap());
@@ -137,5 +155,23 @@ fn wasm_pending_children_shared_matrix() {
     assert!(loaded.refused.is_empty(), "{:?}", loaded.refused);
     assert_eq!(loaded.mods.len(), 1);
     loaded.initialize(&[info]).unwrap();
-    matrix(loaded.mods.into());
+    loaded.mods.into()
+}
+
+#[test]
+#[ignore = "needs HORIZON_TEST_RESOURCES, HORIZON_WASM_FIXTURE and HORIZON_WASM_STD; build with horizon-mod-wasm/listener-fixture"]
+fn wasm_pending_children_shared_matrix() {
+    matrix(load_wasm());
+}
+
+#[test]
+#[ignore = "needs HORIZON_TEST_RESOURCES, HORIZON_WASM_FIXTURE and HORIZON_WASM_STD; build with horizon-mod-wasm/listener-fixture"]
+fn wasm_trapped_split_listener_commits_nothing() {
+    trap(load_wasm(), false);
+}
+
+#[test]
+#[ignore = "needs HORIZON_TEST_RESOURCES, HORIZON_WASM_FIXTURE and HORIZON_WASM_STD; build with horizon-mod-wasm/listener-fixture"]
+fn wasm_trapped_baby_listener_commits_nothing() {
+    trap(load_wasm(), true);
 }

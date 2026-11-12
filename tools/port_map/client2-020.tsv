@@ -4,7 +4,7 @@ WorldSelectionList.handleNewLevels	inline	crates/horizon-client/src/title.rs::Ti
 WorldSelectionList.updateFilter	inline	crates/horizon-client/src/title.rs::Title::visible_worlds	the search text is applied at each draw; there is no refill step
 WorldSelectionList.loadLevels	inline	crates/horizon-client/src/title.rs::list_worlds	gap: minor: an unreadable saves folder shows no worlds instead of the Unable to load error screen
 WorldSelectionList.fillLevels	inline	crates/horizon-client/src/title.rs::Title::search_changed	gap: minor: any search edit clears the selection; vanilla keeps it while its world still matches the filter
-WorldSelectionList.filterAccepts	port	crates/horizon-client/src/title.rs::Title::matches_search	
+WorldSelectionList.filterAccepts	port	crates/horizon-client/src/title.rs::Title::matches_search
 WorldSelectionList.handleLevelLoadFailure	inline	crates/horizon-client/src/title.rs::Title::failed	gap: minor: list_worlds never fails, so the Unable to load screen never shows
 WorldSelectionList.setSelected	inline	crates/horizon-client/src/title.rs::Title::click_action	selection is set on the row click path and cleared by search edits
 WorldSelectionList.getSelectedOpt	inline	crates/horizon-client/src/title.rs::Title::click_action	the selected world is looked up by index in the Select arms

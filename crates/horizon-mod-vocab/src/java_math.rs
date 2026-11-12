@@ -64,5 +64,4 @@ mod unavailable {
     }
 }
 #[cfg(target_arch = "wasm32")]
-#[allow(missing_docs)]
 pub use unavailable::*;

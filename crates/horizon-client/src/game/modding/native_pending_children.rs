@@ -34,10 +34,26 @@ pub(super) fn pending_error(error: Error) -> UnspawnedMobError {
     }
 }
 
+/// Ends the previous listener's leases when a new listener of the dispatching hook has begun.
+pub(super) fn sync_listener(
+    arena: &RefCell<PendingChildren<PendingMob>>,
+    hook: &std::cell::Cell<Option<mod_api::HookId>>,
+) {
+    if let Some(hook) = hook.get() {
+        let _ = arena
+            .borrow_mut()
+            .sync_listener(mod_api::__private::listener_serial(hook));
+    }
+}
+
 pub(super) fn pending_key(
     game: &Game<'_>,
     mob: UnspawnedMobRef,
 ) -> Result<Option<Borrow>, UnspawnedMobError> {
+    sync_listener(
+        &game.lent_mobs.borrow().pending,
+        &game.lent_mobs.borrow().hook,
+    );
     if game.native_lifecycle.epoch() != Some(mob.epoch()) {
         return Err(UnspawnedMobError::Expired);
     }
@@ -60,6 +76,7 @@ pub(super) struct Children {
     epoch: WorldEpoch,
     dimension: super::Dim,
     breeding: bool,
+    hook: Rc<std::cell::Cell<Option<mod_api::HookId>>>,
 }
 
 impl Children {
@@ -75,10 +92,12 @@ impl Children {
             epoch: game.lend_epoch(),
             dimension: game.dim,
             breeding,
+            hook: game.lent_mobs.borrow().hook.clone(),
         }
     }
 
     pub(super) fn receiver(&self) -> Result<PendingChildrenRef, UnspawnedMobError> {
+        sync_listener(&self.arena, &self.hook);
         let (world, lease) = self
             .arena
             .borrow()
@@ -92,6 +111,7 @@ impl Children {
     }
 
     fn check(&self, receiver: PendingChildrenRef) -> Result<(), UnspawnedMobError> {
+        sync_listener(&self.arena, &self.hook);
         let (world, action, lease) = receiver.parts();
         if world != self.epoch || action != self.action.id() {
             return Err(UnspawnedMobError::Expired);
@@ -144,6 +164,10 @@ impl Children {
 }
 
 impl PendingChildrenEdits for Children {
+    fn children(&self) -> Result<PendingChildrenRef, UnspawnedMobError> {
+        self.receiver()
+    }
+
     fn len(&self, children: PendingChildrenRef) -> Result<u32, UnspawnedMobError> {
         self.check(children)?;
         self.arena

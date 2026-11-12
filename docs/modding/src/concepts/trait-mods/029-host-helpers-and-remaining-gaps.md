@@ -69,9 +69,13 @@ right-click or before-block cancellation. A mod may explicitly fire the inner
 criterion when handling such a cancellation without duplicating the outer one.
 A consuming item phase fires `item_used_on_block` first with the pre-block copy,
 including a forced empty-hand consume, then the engine fires `any_block_use` once.
-The outer criterion sees the hand after the use; a replacement stack is visible,
-unlike vanilla's original object. Single player uses the same integrated-server
-packet path as LAN. PASS and FAIL do not fire the outer criterion. Items such as
+The outer criterion sees the stack the hand held when block use started, with
+the action's own in-place changes applied: consuming one, damage, a component
+edit, or the creative-mode count restore. If the action used the stack up, the
+criterion sees it empty. It does not see a stack a listener swapped into the hand,
+or a whole replacement by the action itself, such as a bucket becoming a water
+bucket. This matches vanilla, which passes the same stack object it read before
+the action. Single player uses the same integrated-server packet path as LAN. PASS and FAIL do not fire the outer criterion. Items such as
 shears, honeycomb and block-transforming items can legitimately fire
 `item_used_on_block` twice: once inside the item and once from the game mode. This follows
 `ServerPlayerGameMode.useItemOn` and `ServerGamePacketListenerImpl.handleUseItemOn`;

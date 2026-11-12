@@ -71,6 +71,7 @@ impl Hooks for Probe {
 }
 
 fn main() {
+    horizon_mod_host::exit_if_compile_child();
     let startup = horizon_client::entry::prepare();
     horizon_mod_host::main_with(
         vec![ModEntry::new(

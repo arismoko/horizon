@@ -197,8 +197,6 @@ jobs:
     env:
       # dyna (Dyna's pool: persistent build folder, no sudo), boat (a fresh VM like GitHub's, 16 GiB) or github.
       RUNNER_KIND: ${{ needs.changes.outputs.self_hosted == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'dyna' || startsWith(needs.changes.outputs.hosted_label, 'boat') && 'boat' || 'github' }}
-      # Like verify, avoid scheduling eight large rustc processes inside a 16 GiB slot.
-      JOBS: ${{ (needs.changes.outputs.self_hosted == 'true' || startsWith(needs.changes.outputs.hosted_label, 'boat')) && '-j4' || '' }}
     steps:
       - name: Require successful check selection
         if: needs.changes.result != 'success'
@@ -277,6 +275,18 @@ jobs:
             echo "$STATUS"
             printf '\nRequested: `%s`\n\nRestored: `%s`\n\n' "$REQUESTED_KEY" "${MATCHED_KEY:-none}"
           } >> "$GITHUB_STEP_SUMMARY"
+      # A Dyna runner builds as many crates at once as its CPU quota allows within its memory, about 3 GiB
+      # per large rustc (tools/ci/cargo_jobs.py); boat's 16 GiB VM keeps four. A cargo flag, not
+      # CARGO_BUILD_JOBS: sccache hashes CARGO_* variables, which would split the runners' cache from the boxes'.
+      - name: Choose build parallelism
+        if: needs.changes.outputs.rust_required != 'false'
+        run: |
+          case "$RUNNER_KIND" in
+            dyna) jobs="-j$(python3 tools/ci/cargo_jobs.py --job-mib 3072)" ;;
+            boat) jobs=-j4 ;;
+            *) jobs= ;;
+          esac
+          echo "JOBS=$jobs" | tee -a "$GITHUB_ENV"
       # A fresh checkout otherwise makes every workspace source newer than the cached artifacts.
       # Only byte-identical Git objects regain their cached mtimes; changed inputs stay new.
       - name: Restore unchanged source timestamps
@@ -312,7 +322,11 @@ jobs:
           exit 1
       - name: Report lint compiler cache
         if: ${{ !cancelled() && needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true' }}
-        run: sccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          sccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+          # The runner's CPU time and peak memory: what the build parallelism above has to fit.
+          grep usage_usec /sys/fs/cgroup/cpu.stat || true
+          echo "memory.peak $(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo unavailable)"
       # Publish native work even if the independent wasm check fails. Pull requests only read
       # main's snapshots; they can never replace a cache subsequently consumed by main.
       - uses: actions/cache/save@v4
@@ -339,15 +353,152 @@ jobs:
       # With Vulkan hidden, a runner with Mesa's GL software adapter (boat's image) would still run the GPU tests,
       # on GL, and fail (#2841); Vulkan only leaves every runner with no adapter, so GPU tests skip here everywhere.
       WGPU_BACKEND: vulkan
-      JOBS: ${{ (needs.changes.outputs.self_hosted == 'true' || startsWith(needs.changes.outputs.hosted_label, 'boat')) && '-j4' || '' }}
       RUNNER_KIND: ${{ needs.changes.outputs.self_hosted == 'true' && 'dyna' || !inputs.github-fallback && needs.changes.outputs.forced_github != 'true' && vars.SELF_HOSTED_CI == 'all' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'other' || startsWith(needs.changes.outputs.hosted_label, 'boat') && 'boat' || 'github' }}
     steps:
       - name: Require successful check selection
         if: needs.changes.result != 'success'
         run: exit 1
       - uses: actions/checkout@v4
-      # Only this commit's own history (rust_changes.py's merge base, check_public_tree.py's range and HEAD
-      # ancestry), not every branch and tag: a full checkout fetched them all and took over a minute.
+      - uses: actions/setup-python@v5
+        if: needs.changes.outputs.tooling_required != 'false' && (env.RUNNER_KIND == 'github' || env.RUNNER_KIND == 'boat')
+        with:
+          python-version: '3.12'
+      - name: Check Dyna dependencies (install fallback without root)
+        if: needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true'
+        run: bash tools/ci/dyna_ci_deps.sh
+      - name: Install Rust toolchain and the runner image's packages
+        if: needs.changes.outputs.rust_required != 'false'
+        env:
+          HOSTED: ${{ env.RUNNER_KIND == 'github' || env.RUNNER_KIND == 'boat' }}
+          DYNA: ${{ needs.changes.outputs.self_hosted }}
+        run: |
+          if [ "$HOSTED" = true ]; then
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends $(grep -v '^#' tools/ci/runner-packages.txt)
+          elif [ "$DYNA" = true ]; then
+            if [ ! -x "$CARGO_HOME/bin/rustup" ]; then
+              curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
+            fi
+            export PATH="$CARGO_HOME/bin:$PATH"
+          fi
+          bash tools/ci/rustup_install.sh stable --profile minimal --component rustfmt --component clippy
+      # Workspace crates too: GitHub-hosted verify (outside contributors) otherwise rebuilt every workspace crate.
+      # ci-cache.yml publishes this snapshot from main every 6 hours; pull requests only read it.
+      # Profile overrides in Cargo.toml are part of rust-cache's key; unchanged dependencies still restore.
+      - uses: Swatinem/rust-cache@v2
+        if: needs.changes.outputs.rust_required != 'false' && (env.RUNNER_KIND == 'github' || env.RUNNER_KIND == 'boat')
+        with:
+          # A new key: the dependency-only snapshot under the old one blocked saving this one.
+          shared-key: verify-workspace
+          cache-workspace-crates: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Use persistent verify build artifacts
+        if: needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true'
+        run: |
+          mkdir -p "${CARGO_TARGET_DIR:?}"
+          if [ ! -e target ] && [ ! -L target ]; then
+            ln -s "$CARGO_TARGET_DIR" target
+          elif [ ! target -ef "$CARGO_TARGET_DIR" ]; then
+            echo '::error::Existing target path does not point to CARGO_TARGET_DIR; refusing to replace it.'
+            exit 1
+          fi
+      # Same rule as lint: the runner's CPU quota within its memory on Dyna, four on boat, Cargo's default elsewhere.
+      - name: Choose build parallelism
+        if: needs.changes.outputs.rust_required != 'false'
+        run: |
+          case "$RUNNER_KIND" in
+            dyna) jobs="-j$(python3 tools/ci/cargo_jobs.py --job-mib 3072)" ;;
+            boat) jobs=-j4 ;;
+            *) jobs= ;;
+          esac
+          echo "JOBS=$jobs" | tee -a "$GITHUB_ENV"
+      # Pair the retained artifacts with lint's input snapshot. Cargo still decides freshness;
+      # only byte-identical Git objects regain their previous source timestamps.
+      - name: Restore unchanged source timestamps
+        if: needs.changes.outputs.rust_required != 'false'
+        run: python3 tools/ci/source_mtimes.py target/ci-source-mtimes.json | tee -a "$GITHUB_STEP_SUMMARY"
+      # horizon-client rustc processes take about 2.6 GB each; $JOBS (chosen above) fits them in the runner's
+      # memory. Formatting and lint run in parallel (the lint job), so this job only tests.
+      # Libraries, binaries and integration tests, then doc tests: not the ~275 examples, which the lint job already
+      # type-checks and the parity job builds and runs (they were most of this step's build and link time).
+      # cargo test, not nextest: nextest's process per test reloads each binary's shared tables for every test, and on
+      # these 4-core runners it was no faster (#4978).
+      - name: Build the runtime holder test actor
+        if: needs.changes.outputs.rust_required != 'false'
+        run: cargo +stable build $JOBS --profile test -p horizon-mod-package --features runtime-process --example holder_actor
+      - name: Test Rust core and voxel kernel correctness
+        if: needs.changes.outputs.rust_required != 'false'
+        run: cargo +stable test $JOBS --no-fail-fast --profile test --workspace --lib --bins --tests
+      # Prepared-data content-root tests stay in the existing client-lib data leg.
+      # Running them again here without the data only rebuilds targets before they return early.
+      # One genuine pinned export also validates source staging and listed slots.
+      # Outside tests/ discovery: the later offline suite must not stage it again.
+      # Keep this before doc tests so their failures cannot hide stale slots.
+      - name: Build the source stage generator (test profile)
+        if: needs.changes.outputs.rust_required != 'false'
+        run: |
+          started=$SECONDS
+          cargo +stable build $JOBS --locked --profile test -p horizon-mod-api-gen --bin horizon-stage --message-format=json-render-diagnostics > "$RUNNER_TEMP/stage-artifacts.jsonl"
+          echo "Stage generator build: $((SECONDS - started))s"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          artifacts = [json.loads(line) for line in Path(os.environ["RUNNER_TEMP"], "stage-artifacts.jsonl").read_text().splitlines()]
+          executables = {item["executable"] for item in artifacts
+                         if item.get("reason") == "compiler-artifact"
+                         and item["target"]["name"] == "horizon-stage"
+                         and "bin" in item["target"]["kind"]
+                         and not item["profile"]["test"] and item.get("executable")}
+          if len(executables) != 1:
+              raise SystemExit(f"expected one normal horizon-stage executable, got {executables}")
+          executable = str(Path(executables.pop()).resolve(strict=True))
+          if "\r" in executable or "\n" in executable:
+              raise SystemExit("horizon-stage executable path must not contain CR or LF")
+          with open(os.environ["GITHUB_ENV"], "a") as environment:
+              environment.write(f"HORIZON_STAGE_TOOL={executable}\n")
+          PY
+      - name: Validate prebuilt source stage and listed slots
+        if: needs.changes.outputs.rust_required != 'false'
+        run: python3 tools/ci/test_stage_catalog.py -v
+      - name: Test Rust documentation examples
+        if: needs.changes.outputs.rust_required != 'false'
+        run: cargo +stable test $JOBS --no-fail-fast --profile test --workspace --doc
+      - name: No Rust work selected
+        if: needs.changes.outputs.rust_required == 'false'
+        run: echo 'No Rust work selected; static checks report independently.'
+      - name: Report test compiler cache
+        if: ${{ !cancelled() && needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true' }}
+        run: |
+          sccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+          # The runner's CPU time and peak memory: what the build parallelism above has to fit.
+          grep usage_usec /sys/fs/cgroup/cpu.stat || true
+          echo "memory.peak $(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo unavailable)"
+
+  # Source checks and isolated compiler fixtures, never a second game build or game target cache.
+  verify-static:
+    needs: changes
+    if: ${{ always() && !cancelled() && needs.changes.result != 'skipped' }}
+    runs-on: ${{ needs.changes.outputs.rust_required == 'false' && 'ubuntu-latest' || needs.changes.outputs.self_hosted == 'true' && 'dyna-large' || !inputs.github-fallback && needs.changes.outputs.forced_github != 'true' && vars.SELF_HOSTED_CI == 'all' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "linux", "playhorizon-ci"]') || needs.changes.outputs.hosted_label || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    # Dyna's runner image now carries lavapipe, Mesa's software Vulkan driver, for ignored-tests' `gpu` tests.
+    # verify's tests were written to skip GPU work when no adapter exists, and one of them
+    # (gfx::frame_gen::optical_flow, horizon-rust/horizon#8627) fails on lavapipe, so verify hides the driver and runs
+    # exactly as before. ignored-tests is where the GPU tests run.
+    env:
+      VK_ICD_FILENAMES: /nonexistent/no-vulkan-in-verify.json
+      VK_DRIVER_FILES: /nonexistent/no-vulkan-in-verify.json
+      # With Vulkan hidden, a runner with Mesa's GL software adapter (boat's image) would still run the GPU tests,
+      # on GL, and fail (#2841); Vulkan only leaves every runner with no adapter, so GPU tests skip here everywhere.
+      WGPU_BACKEND: vulkan
+      RUNNER_KIND: ${{ needs.changes.outputs.self_hosted == 'true' && 'dyna' || !inputs.github-fallback && needs.changes.outputs.forced_github != 'true' && vars.SELF_HOSTED_CI == 'all' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'other' || startsWith(needs.changes.outputs.hosted_label, 'boat') && 'boat' || 'github' }}
+    steps:
+      - name: Require successful check selection
+        if: needs.changes.result != 'success'
+        run: exit 1
+      - uses: actions/checkout@v4
+      # Public-tree ranges and file-size ancestry need full history of this exact commit,
+      # not every branch and tag. The Rust job only needs its checkout's HEAD and tracked files.
       - name: Fetch this commit's history
         run: git fetch -q --no-tags --unshallow origin "$(git rev-parse HEAD)"
       - uses: actions/setup-python@v5
@@ -381,82 +532,31 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python3 tools/check_file_size.py ${BASE_SHA:+--base "$BASE_SHA"}
-      - name: Check Dyna dependencies (install fallback without root)
-        if: needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true'
-        run: bash tools/ci/dyna_ci_deps.sh
-      - name: Install Rust toolchain and the runner image's packages
-        if: needs.changes.outputs.rust_required != 'false'
+      # Offline tooling compiles tiny standalone fixtures even when no game Rust changed.
+      # Install their tools explicitly rather than making missing compilers turn cases into skips.
+      - name: Install Rust tools for isolated tooling fixtures
+        if: needs.changes.outputs.rust_required != 'false' || needs.changes.outputs.tooling_required != 'false'
         env:
-          HOSTED: ${{ env.RUNNER_KIND == 'github' || env.RUNNER_KIND == 'boat' }}
           DYNA: ${{ needs.changes.outputs.self_hosted }}
         run: |
-          if [ "$HOSTED" = true ]; then
-            sudo apt-get update && sudo apt-get install -y --no-install-recommends $(grep -v '^#' tools/ci/runner-packages.txt)
-          elif [ "$DYNA" = true ]; then
+          if [ "$DYNA" = true ]; then
             if [ ! -x "$CARGO_HOME/bin/rustup" ]; then
               curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
             fi
             export PATH="$CARGO_HOME/bin:$PATH"
+            echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
           fi
           bash tools/ci/rustup_install.sh stable --profile minimal --component rustfmt --component clippy
+      - name: Vocabulary state has explicit ownership
+        run: python3 tools/check_mod_vocabulary_state.py
       # docs/layers.md: a crate depends only on its own layer or a lower one; today's exceptions only shrink.
       - name: Crates follow the layers
         if: needs.changes.outputs.rust_required != 'false'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python3 tools/check_layers.py ${BASE_SHA:+--base "$BASE_SHA"}
-      # Workspace crates too: GitHub-hosted verify (outside contributors) otherwise rebuilt every workspace crate.
-      # ci-cache.yml publishes this snapshot from main every 6 hours; pull requests only read it.
-      # Profile overrides in Cargo.toml are part of rust-cache's key; unchanged dependencies still restore.
-      - uses: Swatinem/rust-cache@v2
-        if: needs.changes.outputs.rust_required != 'false' && (env.RUNNER_KIND == 'github' || env.RUNNER_KIND == 'boat')
-        with:
-          # A new key: the dependency-only snapshot under the old one blocked saving this one.
-          shared-key: verify-workspace
-          cache-workspace-crates: true
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      # A dyna-large runner has a hard 16 GiB limit and 8 CPUs; horizon-client rustc processes take about 2.6 GB
-      # each, so Dyna runs build four crates at a time. Formatting and lint run in parallel on GitHub's
-      # runners (the lint job), so this job only tests. A cargo flag, not CARGO_BUILD_JOBS: sccache hashes
-      # CARGO_* variables, and that would split the runners' cache from the boxes'.
-      # Libraries, binaries and integration tests, then doc tests: not the ~275 examples, which the lint job already
-      # type-checks and the parity job builds and runs (they were most of this step's build and link time).
-      # cargo test, not nextest: nextest's process per test reloads each binary's shared tables for every test, and on
-      # these 4-core runners it was no faster (#4978).
-      - name: Build the runtime holder test actor
-        if: needs.changes.outputs.rust_required != 'false'
-        run: cargo +stable build $JOBS -p horizon-mod-package --features runtime-process --example holder_actor
-      - name: Test Rust core and voxel kernel correctness
-        if: needs.changes.outputs.rust_required != 'false'
-        run: cargo +stable test $JOBS --workspace --lib --bins --tests
-      # Separate timings make rebuilds between Cargo invocations visible without changing the test selection.
-      # The full content-root tests (#[ignore]d: minutes each on a laptop). The same build as above; they need the
-      # prepared vanilla data, so without it they pass at once. Keep the target selection identical to avoid
-      # recompiling the workspace with a different dependency graph.
-      - name: Test ignored mod content roots
-        if: needs.changes.outputs.rust_required != 'false'
-        run: |
-          cargo +stable test $JOBS --workspace --lib --bins --tests mod_content::tests:: -- --ignored
-      # One genuine pinned export also validates source staging and listed slots.
-      # Outside tests/ discovery: the later offline suite must not stage it again.
-      # Keep this before doc tests so their failures cannot hide stale slots.
-      - name: Validate prebuilt source stage and listed slots
-        if: needs.changes.outputs.rust_required != 'false'
-        run: python3 tools/ci/test_stage_catalog.py -v
-      - name: Test Rust documentation examples
-        if: needs.changes.outputs.rust_required != 'false'
-        run: cargo +stable test $JOBS --workspace --doc
-      - name: Test listed call production export and real registry
-        if: needs.changes.outputs.rust_required != 'false'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python3 tools/ci/listed_calls.py --base "${BASE_SHA:-HEAD^}"
-      - name: Report test compiler cache
-        if: ${{ !cancelled() && needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true' }}
-        run: sccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
-      # Last, so a tooling failure never skips the Rust tests. Only after every earlier step succeeded (success(),
-      # not !cancelled()): after a failure the Rust install was skipped, and tests that launch rustc would add a
-      # second, misleading failure.
+      # Independent of the Rust job. Only after earlier static setup/checks succeeded:
+      # compiler fixtures after failed setup would add a second, misleading failure.
       - name: Test offline research tooling
         if: ${{ success() && needs.changes.result == 'success' && needs.changes.outputs.tooling_required != 'false' }}
         run: |
@@ -469,12 +569,20 @@ jobs:
         if: ${{ !cancelled() && github.event_name == 'push' }}
         run: python3 tools/layering/scan_engine_mod_edges.py --map target/layering/mod-host-map-tables.md
       - name: Upload the mod-host map tables
+        id: mod_host_map_upload
         if: ${{ !cancelled() && github.event_name == 'push' }}
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: mod-host-map
           path: target/layering/mod-host-map-tables.md
           if-no-files-found: error
+      - name: Report optional mod-host map upload failure
+        if: ${{ !cancelled() && steps.mod_host_map_upload.outcome == 'failure' }}
+        run: |
+          echo '::warning::Optional mod-host-map artifact upload failed; inspect the upload step for details.'
+          echo '### Optional mod-host-map artifact unavailable' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The upload failed. Map generation remains a required step; the optional download is unavailable.' >> "$GITHUB_STEP_SUMMARY"
   # The #[ignore]d library tests that need the prepared vanilla data, which verify doesn't have. Main pushes and
   # dispatches only, on Dyna's large runner where that data lives. Every shard runs, with one package per shard
   # (the plan lives in tools/ci/ignored_shards.py). tools/ci/ignored_tests.py fails on a new failure and on a known
@@ -645,10 +753,10 @@ jobs:
         run: |
           cargo +stable fmt --check
           cargo +stable clippy $JOBS --all-targets --locked -- -D warnings
-          cargo +stable test $JOBS --locked --lib --bins
-          cargo +stable test $JOBS --locked --test storage
+          cargo +stable test $JOBS --no-fail-fast --locked --lib --bins
+          cargo +stable test $JOBS --no-fail-fast --locked --test storage
           cargo +stable build $JOBS --manifest-path ../Cargo.toml --locked -p horizon-mod-package --features runtime-process --example holder_actor
-          cargo +stable test $JOBS --manifest-path ../Cargo.toml --locked -p horizon-mod-package --features runtime-process --lib
+          cargo +stable test $JOBS --no-fail-fast --manifest-path ../Cargo.toml --locked -p horizon-mod-package --features runtime-process --lib
   # The fork's Dyna runners have the owner's prepared vanilla data in a read-only cache.
   prepared-output-check:
     if: github.event_name == 'workflow_dispatch' && inputs.prepare-output-check && github.repository == 'arismoko/horizon'

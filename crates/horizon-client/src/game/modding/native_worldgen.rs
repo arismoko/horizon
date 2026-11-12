@@ -89,6 +89,7 @@ fn retain_or_prepare(
     if !std::ptr::eq(resource.metadata, metadata) {
         return Err("worker block registry belongs to a different metadata snapshot".to_owned());
     }
+    super::native_block_entity_transform::prepare(registry);
     Ok(resource.index.clone())
 }
 

@@ -26,9 +26,14 @@ pub trait Hooks {
     /// the mod explicitly triggers them; the helpers fire only their named criterion.
     /// A consuming item phase fires `item_used_on_block` with the pre-block
     /// snapshot (including an empty hand) before the outer criterion.
-    /// The outer criterion sees the hand after the use; a replacement stack is
-    /// visible, unlike vanilla's original object. Single player uses this same
-    /// server contract. Item-internal triggers (such as shears) can legitimately
+    /// The outer criterion sees the stack held when block use started, with the
+    /// action's own in-place changes: consumption, damage, component edits, and
+    /// the creative-mode count restore. It sees an empty stack if the action
+    /// used it up. Neither a listener's hand replacement nor the action's whole
+    /// replacement (such as a bucket becoming a water bucket) changes this original.
+    /// This matches vanilla, which passes the same stack object it read before
+    /// the action. Single player uses this same server contract.
+    /// Item-internal triggers (such as shears) can legitimately
     /// fire `item_used_on_block` in addition to the game mode's trigger.
     #[hook(
         side = "both",

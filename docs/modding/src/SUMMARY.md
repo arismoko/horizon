@@ -32,7 +32,13 @@
 - [Making a content mod](how-to/content-mods.md)
 - [Native mods](how-to/native-mods.md)
 - [Injections](injections.md)
-- [Mixins](mixins.md)
+- [The native route](native-route.md)
+  - [Mixins: `[[native.mixin]]`](mixins.md)
+  - [Published loops: `[[native.loop]]`](loops.md)
+  - [Bridges: `[[native.bridge]]`](bridges.md)
+  - [Support modules: `[[native.module]]`](support-modules.md)
+  - [Native state: refused](native-state.md)
+  - [How the native route works](native-how-it-works.md)
 
 # Reference
 

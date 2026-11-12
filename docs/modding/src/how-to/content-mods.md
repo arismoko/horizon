@@ -13,8 +13,10 @@ refuses registration with a diagnostic naming both the mod and namespace. This
 is identical for native and wasm mods. Attaching a Part to an existing vanilla or
 foreign block or item is a reference, not a new declaration, and remains allowed.
 
-Code declarations carry component patches as ordered `Vec<(String, Option<Tag>)>`:
+Code declarations carry component patches as `Vec<(String, Option<Tag>)>`:
 `Some(tag)` sets the named component and `None` removes it (without a `!` prefix).
+Repeated component IDs, including a set and removal of the same ID, are refused; `lore` and `minecraft:lore`
+count as the same ID, and an ID may not start with the removal prefix `!`.
 The game converts this opaque NBT data at load; file declarations below still use JSON.
 No declaration conversion runs per tick.
 
@@ -215,6 +217,17 @@ Unset or `true` preserves the template's ability to occlude, using the declared 
 is skipped: the mining progress, the server's progress and the destroy-progress packets other players see stay
 vanilla's. Unset or `true`, the crack is drawn. It stands where a mod once had a mixin on
 `LevelRenderer.renderBlockDestroyAnimation`, which has no NeoForge event.
+
+`dynamic_light: true` makes a block's light depend on where it is, not only on its state
+(`IBlockExtension.hasDynamicLightEmission`): a lamp that glows only on a powered rail, a crystal brighter deeper
+down. Its parts answer `BlockPart::light_emission` with the light a cell emits, and `light` (or `state_light`) is
+what a cell emits without an answer. The game asks on the thread that owns the level, the server's and each
+client's, as a chunk holding the block comes in and as an edit sets it, and keeps the answer until the cell's state
+changes; the light engine never asks on its own. A part whose answer reads more than the state (the block below
+it) calls `LevelRef::check_light(host, pos)` when that changes (`LevelLightEngine.checkBlock`): the server asks
+again and relights, and clients ask their own parts again as its light update reaches them. The flag is per block,
+as it sits on the block's row: every state of the block is asked, so a block with only some states that vary pays
+the ask for all of them. Light that depends only on the state needs no part: use `light` or `state_light`.
 
 A block copies its template's states. It can also declare state properties of
 its own, which its template does not have — how a pipe says which sides it
@@ -895,9 +908,8 @@ order, declarations in registration order). An id outside the mod's namespace or
 id, an empty list, a name that is not namespaced, an unknown generation step, a spawner of weight 0 or with its
 smallest group above its largest, a spawn cost that is not finite, a climate number that is not finite, a colour above
 0xFFFFFF and a temperature modifier other than `none` or `frozen` refuse the mods at startup, naming the mod.
-Declared modifiers are
-read by the API today; the game does not apply them until it feeds them through the content loader (tracked on
-arismoko/horizon#2732).
+Declared modifiers apply when the world loads, through the same content loader as file modifiers, to both the
+generator and the game's biome table, including when no data pack is enabled.
 
 The modifiers rewrite the biomes when the content root builds, and the generator orders every biome's features as
 vanilla's `FeatureSorter` does, so an added feature takes its place in that order (its random seed follows from it). A
@@ -907,8 +919,8 @@ naming a biome, biome tag, feature, feature tag, entity type or entity type tag 
 naming the mod and file; the mods still load. A malformed modifier of a type
 that is read (an unknown step, a missing field, `minCount > maxCount`) stops the build, and the game starts without
 content mods ("content mods not loaded: ..." in the log). Feature tags are vanilla's for now (`#tag` in `features`
-doesn't read a mod's `placed_feature` tags yet); a world's data pack that replaces a biome replaces the mods' changes to
-it too.
+doesn't read a mod's `placed_feature` tags yet). Modifiers are reapplied after the world's data packs, so a pack
+that replaces a biome keeps the mods' changes too.
 
 **A biome of your own.** A mod's `data/<ns>/worldgen/biome/<path>.json` (any namespace but `minecraft`) adds a biome.
 The game loads it into its biome table after vanilla's biomes, sorted by path and then namespace, so vanilla's biome ids
@@ -964,3 +976,13 @@ otherwise it draws no model. Pack layers bind independently. An unknown type,
 explicit refusal, invalid model, out-of-range state, duplicate state or answer
 with no picks rejects the whole layer with a diagnostic, leaving lower layers
 available. Vanilla `variants` and `multipart` remain available for ordinary files.
+
+## Per-state light
+
+Blocks in JSON and code can set `state_light`, which overrides `properties.light`.
+Use `properties` for an ordered list of state property names, `values` for
+comma-separated value tuples mapped to emission (0 to 15), and `default` for
+unmatched states. Without a default, every state must match a tuple.
+For example, `"state_light":{"properties":["lit"],"values":{"true":15},"default":0}`
+makes a lamp dark when unlit and emit 15 when lit. Code uses `mod_api::StateLight`
+with the same `properties`, `values` and `default` fields on `Block::state_light`.

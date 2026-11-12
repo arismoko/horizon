@@ -57,19 +57,19 @@ Panda.PandaAvoidGoal.canUse	port	crates/horizon-client/src/mobs/panda.rs::When::
 Parrot.finalizeSpawn	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::finalize	random one of five variants, ageable group without babies
 Parrot.createAttributes	skip:data		attributes (health 6, flying speed 0.4) come from the entity type table
 Parrot.createNavigation	port	crates/horizon-client/src/mobs/parrot.rs::register	flying navigation and a flying move control, no doors, floats
-Parrot.calculateFlapping	port	crates/horizon-client/src/mobs/parrot.rs::calculate_flapping	
+Parrot.calculateFlapping	port	crates/horizon-client/src/mobs/parrot.rs::calculate_flapping
 Parrot.checkParrotSpawnRules	port	crates/horizon-client/src/mobs/spawn_rules.rs::check_spawn_rules	S::Parrot arm: parrots_spawnable_on below and bright enough
 Parrot.isFlapping	port	crates/horizon-client/src/mobs/parrot.rs::process_flapping	strict flyDist > nextFlap, used by air movement and live Game flap dispatch
 Parrot.onFlap	port	crates/horizon-client/src/mobs/parrot.rs::process_flapping	the wing-beat sound at 0.15 and nextFlap
-Parrot.hurtServer	port	crates/horizon-client/src/mobs/tame.rs::stand_when_hurt	
+Parrot.hurtServer	port	crates/horizon-client/src/mobs/tame.rs::stand_when_hurt
 Parrot.getVoicePitch	port	crates/horizon-client/src/mobs.rs::voice_pitch	getPitch(random): 1.0 +- 0.2 with no baby bump, where LivingEntity raises a baby to 1.5
 Parrot.get	skip:other		reads the variant as a data component for predicates; Horizon has no entity component view
 Parrot.applyImplicitComponent	missing		minor: a spawn egg's parrot_variant component is not applied (only bucketed mobs read item components)
 Parrot.defineSynchedData	skip:other		synched variant id; Horizon keeps it in extra.variant (remote_mob_data.rs reads index 20)
 Parrot.readAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::read_variant	Variant clamped to 0 to 4, red and blue when absent
 Parrot.getLeashOffset	port	crates/horizon-client/src/mobs/leash.rs::leash_offset	half of the eye height, the default width/2 forwards
-Parrot.ParrotWanderGoal.getPosition	port	crates/horizon-client/src/mobs/parrot.rs::wander_pos	
-Parrot.ParrotWanderGoal.getTreePos	port	crates/horizon-client/src/mobs/parrot.rs::tree_pos	
+Parrot.ParrotWanderGoal.getPosition	port	crates/horizon-client/src/mobs/parrot.rs::wander_pos
+Parrot.ParrotWanderGoal.getTreePos	port	crates/horizon-client/src/mobs/parrot.rs::tree_pos
 ShoulderRidingEntity.setEntityOnShoulder	port	crates/horizon-client/src/game/mobs/shoulders.rs::Game::parrot_to_shoulder	saved into the first free ShoulderEntityLeft or ShoulderEntityRight slot, the parrot removed from the world
 Pig.registerGoals	port	crates/horizon-client/src/mobs/farm.rs::register	Species::Pig arm: float, panic 1.25, breed, two temptations (stick and food), follow parent, stroll, look
 Pig.getControllingPassenger	port	crates/horizon-client/src/mobs/equine.rs::controlled	saddled and the rider holds the carrot on a stick (r.steer)
@@ -120,6 +120,7 @@ Rabbit.RaidGardenGoal.canUse	port	crates/horizon-client/src/mobs/rabbit.rs::Raid
 Rabbit.RaidGardenGoal.tick	port	crates/horizon-client/src/mobs/rabbit.rs::RaidGarden::tick	looks at the crop, one age off the carrot (air at age 0), then 40 moreCarrotTicks and a 10-tick delay
 Rabbit.RaidGardenGoal.isValidTarget	port	crates/horizon-client/src/mobs/rabbit.rs::raid_target	a crop-supporting block under a carrot at its maximum age, while the rabbit wants more food and found none
 Sheep.registerGoals	port	crates/horizon-client/src/mobs/farm.rs::register	Species::Sheep arm: float, panic, breed, tempt, follow parent, eat block, stroll, look
+Sheep.readAdditionalSaveData	inline	crates/horizon-client/src/mobs/farm.rs::saved_color	Color uses DyeColor.LEGACY_ID_CODEC: an id outside 0..=15 is white; Sheared through entity_nbt::mob_from_nbt
 Sheep.aiStep	inline	crates/horizon-client/src/mobs/ai.rs::species_ai_step	the eat animation counter (anim_ticks) counts down each tick
 Sheep.handleEntityEvent	port	crates/horizon-client/src/mobs/sync.rs::entity_event	ticked in #3512; `Sheep.handleEntityEvent` is cited at crates/horizon-client/src/mobs/sync.rs:132 (in a comment, so `where` names the enclosing fn)
 Sheep.getHeadEatPositionScale	inline	crates/horizon-client/src/mobs/anim.rs::setup	Anim::Sheep arm: head drops by 9 times the scale (halved for a lamb)

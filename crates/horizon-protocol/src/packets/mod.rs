@@ -24,7 +24,16 @@ macro_rules! packet_enum {
             /// A packet Horizon does not model: id and raw payload.
             Unknown(i32, Vec<u8>),
         }
+        impl $crate::retained::OwnedHeap for $name {
+            fn owned_heap_bytes(&self) -> usize { match self {
+                $(Self::$variant(value) => $crate::retained::OwnedHeap::owned_heap_bytes(value),)*
+                Self::Unknown(_, bytes) => bytes.capacity(),
+            } }
+        }
         impl $name {
+            /// Retained heap charge; opaque map storage uses conservative std-layout bounds.
+            pub fn owned_heap_bytes(&self) -> usize { $crate::retained::OwnedHeap::owned_heap_bytes(self) }
+
             pub fn id(&self) -> i32 {
                 use $ids as ids;
                 match self {
@@ -41,11 +50,17 @@ macro_rules! packet_enum {
             }
             /// Decode a packet body (after the id).
             pub fn decode(id: i32, payload: &[u8]) -> $crate::Result<Self> {
+                Self::decode_reader(id, $crate::buf::Reader::new(payload))
+            }
+            /// Decode with the local receiving codecs frozen at mod load.
+            pub fn decode_with_payload_codecs(id: i32, payload: &[u8], codecs: &$crate::packets::custom_payload::PayloadCodecs) -> $crate::Result<Self> {
+                Self::decode_reader(id, $crate::buf::Reader::with_payload_codecs(payload, codecs))
+            }
+            fn decode_reader(id: i32, mut r: $crate::buf::Reader<'_>) -> $crate::Result<Self> {
                 use $ids as ids;
-                let mut r = $crate::buf::Reader::new(payload);
                 let packet = match id {
                     $(ids::$id => Self::$variant(<$crate::packet_codec!($ty $(, $codec)?) as $crate::buf::Codec<$ty>>::read(&mut r)?),)*
-                    _ => return Ok(Self::Unknown(id, payload.to_vec())),
+                    _ => return Ok(Self::Unknown(id, r.rest().to_vec())),
                 };
                 if r.remaining() != 0 {
                     return Err($crate::Error::new(format!(
@@ -61,6 +76,14 @@ macro_rules! packet_enum {
             pub fn try_encode(&self) -> $crate::Result<Vec<u8>> {
                 match self {
                     $(Self::$variant(p) => <$crate::packet_codec!($ty $(, $codec)?) as $crate::buf::Codec<$ty>>::validate(p)?,)*
+                    Self::Unknown(_, _) => {}
+                }
+                Ok(self.encode())
+            }
+            /// Validate registered custom payloads in this connection's codec context.
+            pub fn try_encode_with_payload_codecs(&self, codecs: &$crate::packets::custom_payload::PayloadCodecs) -> $crate::Result<Vec<u8>> {
+                match self {
+                    $(Self::$variant(p) => <$crate::packet_codec!($ty $(, $codec)?) as $crate::buf::Codec<$ty>>::validate_with_payload_codecs(p, codecs)?,)*
                     Self::Unknown(_, _) => {}
                 }
                 Ok(self.encode())
@@ -101,6 +124,15 @@ impl Codec<Empty> for Empty {
     }
     fn write(_: &Empty, _: &mut Writer) {}
 }
+
+// Generated retained-allocation traversals; regenerate with protocol-retained-gen.
+impl crate::retained::OwnedHeap for Empty {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self = self;
+        0usize
+    }
+}
+// End generated retained traversals.
 
 #[cfg(test)]
 pub(crate) fn round_trip<T: Clone + PartialEq + std::fmt::Debug>(

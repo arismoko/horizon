@@ -28,6 +28,7 @@ struct KeptMenu {
 #[derive(Default)]
 pub(in crate::game) struct Journal {
     menus: HashMap<MenuId, KeptMenu>,
+    pub(super) owners: HashMap<MenuId, engine::KeptOwner>,
     // The harness has no Game::After queue. Production uses that existing queue
     // directly through GameHost::defer, preserving listener/apply effect order.
     #[cfg(test)]
@@ -52,11 +53,15 @@ impl Journal {
         for (id, kept) in child.menus {
             self.menus.entry(id).or_insert(kept);
         }
+        for (id, kept) in child.owners {
+            self.owners.entry(id).or_insert(kept);
+        }
         #[cfg(test)]
         self.after.extend(child.after);
     }
 
     pub(in crate::game) fn rollback(self) {
+        assert!(self.owners.is_empty(), "game menu undo needs its owner");
         // No success effect, drop, or retirement escapes an aborted action.
         #[cfg(test)]
         drop(self.after);
@@ -65,6 +70,13 @@ impl Journal {
             inner.epoch.advance();
             inner.state = kept.state;
         }
+    }
+
+    pub(in crate::game) fn rollback_in(mut self, game: &mut crate::game::Game<'_>) {
+        for kept in std::mem::take(&mut self.owners).into_values() {
+            kept.rollback(game);
+        }
+        self.rollback();
     }
 
     /// Only the root commit owner may take the queued effects.

@@ -597,17 +597,19 @@ mod tests {
         // The declared types are frozen once per process: install them in a fresh one.
         const CHILD: &str = "HORIZON_TEST_MOD_BLOCK_ENTITY_ITEM";
         if std::env::var_os(CHILD).is_none() {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "block_entity_item::tests::a_mod_block_entity_rides_its_item",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .output()
+                .unwrap();
             assert!(
-                std::process::Command::new(std::env::current_exe().unwrap())
-                    .args([
-                        "--exact",
-                        "block_entity_item::tests::a_mod_block_entity_rides_its_item",
-                        "--nocapture"
-                    ])
-                    .env(CHILD, "1")
-                    .status()
-                    .unwrap()
-                    .success()
+                output.status.success(),
+                "test=block_entity_item::tests::a_mod_block_entity_rides_its_item exit_code={:?} category=fixture-child-failed",
+                output.status.code()
             );
             return;
         }

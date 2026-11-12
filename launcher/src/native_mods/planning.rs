@@ -23,8 +23,11 @@ pub(super) fn classify(
     for bundle in &found {
         let route = match api::Project::read(bundle) {
             Ok(project) => {
-                let route = prebuilt::project_refusal(&project)
-                    .map_or(Route::Prebuilt, |reason| Route::Game { reason });
+                let route = prebuilt::project_refusal(&project).map_or(Route::Prebuilt, |reason| {
+                    Route::Invalid {
+                        reason: reason.to_string(),
+                    }
+                });
                 projects.push(project);
                 route
             }
@@ -42,24 +45,23 @@ pub(super) fn classify(
     if let Some(list) = mismatch(&found, &revision) {
         return Err(mismatch_error(&list).into());
     }
-    // Trait mods need only the release listing; compiled slots need a checked SDK catalog.
+    result.unavailable = prebuilt::prebuilt_availability(&revision, Target::Client);
     if projects
         .iter()
-        .all(|project| project.bundle.manifest.inject.is_empty())
+        .any(|p| !p.bundle.manifest.inject.is_empty())
     {
-        result.unavailable = prebuilt::prebuilt_availability(&revision, Target::Client);
-    } else {
         match prebuilt::planning_catalog(lease, &revision) {
             Ok(catalog) => {
-                let catalog = catalog.with_mods(projects.iter().map(|project| project.bundle))?;
-                for (id, route) in prebuilt::slot_routes(&catalog, &projects) {
-                    if route != Route::Prebuilt {
-                        let entry = result
+                for project in &projects {
+                    if let Err(error) = catalog.check(&project.bundle.manifest) {
+                        let (_, route) = result
                             .mods
                             .iter_mut()
-                            .find(|(mod_id, _)| *mod_id == id)
-                            .expect("slot decisions cover the parsed projects");
-                        entry.1 = route;
+                            .find(|(id, _)| id == &project.bundle.manifest.id)
+                            .expect("parsed project has a route");
+                        *route = Route::Invalid {
+                            reason: error.to_string(),
+                        };
                     }
                 }
             }

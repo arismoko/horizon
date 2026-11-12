@@ -72,6 +72,10 @@ pub(super) struct CodeSwitches {
 
 #[derive(Clone, Default)]
 pub(super) struct ModsState {
+    pub(super) active_condition_root: Option<Arc<()>>,
+    pub(super) load_condition_candidate: Option<horizon_world::conditions::LoadConditions>,
+    pub(super) load_conditions:
+        Arc<std::sync::OnceLock<Result<crate::game::load_conditions::ConditionTable, String>>>,
     pub(super) profession_declarations:
         Arc<std::sync::OnceLock<Vec<(String, mod_api::ProfessionDefinition)>>>,
     /// Saved switches gate the first data inventory while registration keeps
@@ -128,6 +132,15 @@ impl ModsState {
         }
     }
 
+    pub(super) fn code_owner_enabled(&self, owner: &str) -> bool {
+        let initially_disabled = self.code_switches.as_ref().is_some_and(|switches| {
+            !switches.applied.load(std::sync::atomic::Ordering::Acquire)
+                && switches.disabled.contains(owner)
+        });
+        !initially_disabled
+            && mod_api::__private::mod_index(owner).is_some_and(mod_api::__private::mod_index_on)
+    }
+
     /// One admission rule for initial composition and later code-only toggles.
     /// Content acceptance belongs to the generation; code admission belongs to
     /// the installed dispatch entries, including their live enabled switches.
@@ -149,13 +162,7 @@ impl ModsState {
         horizon_mod_package::enabled::EnabledMods::new(native.chain(selected).filter_map(
             |(manifest, code)| {
                 let enabled = if code {
-                    let initially_disabled = self.code_switches.as_ref().is_some_and(|switches| {
-                        !switches.applied.load(std::sync::atomic::Ordering::Acquire)
-                            && switches.disabled.contains(&manifest.id)
-                    });
-                    !initially_disabled
-                        && mod_api::__private::mod_index(&manifest.id)
-                            .is_some_and(mod_api::__private::mod_index_on)
+                    self.code_owner_enabled(&manifest.id)
                 } else {
                     accepted_content(&manifest.id)
                 };
@@ -244,14 +251,16 @@ pub(super) fn install_registration_data(root: &Path) -> horizon_client::Result<(
         use std::os::windows::ffi::OsStrExt;
         mod_api::InstanceDirectory::Windows(directory.as_os_str().encode_wide().collect())
     };
-    mod_api::__private::install_registration_data(mod_api::__private::RegistrationData::new(
-        builtin_registry_names(root)?,
-        horizon_world::native_load_context::capture_settings(
-            &Game::mod_data_root(),
-            packages.ids(),
+    (horizon_engine_slots::platform()?.install_registration_data)(
+        mod_api::__private::RegistrationData::new(
+            builtin_registry_names(root)?,
+            horizon_world::native_load_context::capture_settings(
+                &Game::mod_data_root(),
+                packages.ids(),
+            ),
+            directory,
         ),
-        directory,
-    ));
+    );
     Ok(())
 }
 
@@ -809,7 +818,9 @@ pub(super) fn content_overlay(
     // Content admission and the live code-dispatch boundary jointly determine
     // what loaded. Namespaces and raw startup metadata cannot answer this.
     let inventory = sources.enabled_inventory(|id| mods.iter().any(|loaded| loaded.id == id));
-    let prepared = mod_content::resource_root(root, jar_store, &mods, &cache, &inventory)?;
+    let prepared = super::load_conditions::content_root_with_conditions(
+        root, jar_store, &mods, &cache, &inventory, sources,
+    )?;
     let root = mod_content::resolved_resources(root, prepared, jar_store, &mods, cache)?;
     let _ = sources.content_base.set(original_base);
     Ok(ContentOverlay {
@@ -1340,6 +1351,23 @@ pub(super) struct PreparedLoopContext {
 }
 
 impl Game<'_> {
+    /// Observe the platform phase at construction, after bootstrapping the real test runtime.
+    pub(super) fn mod_phase_for_construction() -> mod_api::__private::ModPhase {
+        #[cfg(test)]
+        Self::initialize_mod_runtime_for_tests();
+        mod_api::__private::current_phase()
+    }
+
+    #[cfg(test)]
+    pub(super) fn initialize_mod_runtime_for_tests() {
+        static INITIALIZED: std::sync::Once = std::sync::Once::new();
+        INITIALIZED.call_once(|| {
+            super::api_values::install_test_platform();
+            mod_api::__private::initialize()
+                .expect("engine test runtime initializes before mod dispatch");
+        });
+    }
+
     /// Build this game's loop context over the loaded registries and the mods'
     /// current settings. Called where a resource generation starts or reloads: a
     /// client at window start and after a resource reload, a server when it starts
@@ -1379,6 +1407,7 @@ impl Game<'_> {
     }
 
     pub(super) fn install_loop_context(&mut self, context: PreparedLoopContext) {
+        self.protect_condition_root();
         self.loop_context = context.game;
         self.refresh_recipe_property_context();
         self.setting_overrides.borrow_mut().clear();
@@ -1390,7 +1419,7 @@ impl Game<'_> {
         }
     }
 
-    /// Stage a fresh root only when live code admission changes the inventory.
+    /// Stage a fresh root when admission changes or registered conditions need reevaluation.
     /// The caller publishes it after every server reload listener prepared.
     pub(super) fn stage_enabled_inventory(
         &self,
@@ -1399,7 +1428,7 @@ impl Game<'_> {
         let next = self
             .mods
             .enabled_inventory(|id| previous.client_ids().any(|loaded| loaded == id));
-        if previous == next {
+        if previous == next && !self.condition_root_needs_reload() {
             return Ok(None);
         }
         let base = self

@@ -129,7 +129,7 @@ fn size_four_slime_and_magma_split_three_children_and_draw_the_vanilla_yaws() {
         let record = seen.clone();
         with_split(
             move |_, event| {
-                let len = event.edits.len(event.children).unwrap();
+                let len = event.edits.len(event.edits.children().unwrap()).unwrap();
                 record.lock().unwrap().push((
                     event.dimension.to_owned(),
                     event.kind.to_owned(),
@@ -244,7 +244,7 @@ fn edit_remove_append_commits_a_c_d_once_and_b_goes_stale() {
     let record = stale.clone();
     with_split(
         move |host, event| {
-            let (edits, children) = (event.edits, event.children);
+            let (edits, children) = (event.edits, event.edits.children().unwrap());
             let a = edits.child(children, 0).unwrap();
             let b = edits.child(children, 1).unwrap();
             edits.set_yaw(a, 90.0).unwrap();
@@ -300,7 +300,7 @@ fn replace_c_with_e_commits_a_b_e_and_a_second_append_of_e_is_an_ownership_error
     let record = outcome.clone();
     with_split(
         move |host, event| {
-            let (edits, children) = (event.edits, event.children);
+            let (edits, children) = (event.edits, event.edits.children().unwrap());
             let c = edits.child(children, 2).unwrap();
             let e = edits
                 .construct(
@@ -347,7 +347,7 @@ fn invalid_input_fails_before_mutation_and_the_valid_list_stands() {
     let record = errors.clone();
     with_split(
         move |_, event| {
-            let (edits, children) = (event.edits, event.children);
+            let (edits, children) = (event.edits, event.edits.children().unwrap());
             let dim = event.dimension;
             let mut out = Vec::new();
             out.push(
@@ -441,8 +441,11 @@ fn retained_native_tokens_fail_after_the_callback_returns() {
     let record = kept.clone();
     with_split(
         move |_, event| {
-            let child = event.edits.child(event.children, 0).unwrap();
-            *record.lock().unwrap() = Some((event.children, child));
+            let child = event
+                .edits
+                .child(event.edits.children().unwrap(), 0)
+                .unwrap();
+            *record.lock().unwrap() = Some((event.edits.children().unwrap(), child));
             Flow::Continue
         },
         |game| {
@@ -472,7 +475,10 @@ fn a_panicking_listener_spawns_nothing_and_leaves_the_arena_usable() {
     let flag = panic_now.clone();
     with_split(
         move |_, event| {
-            let child = event.edits.child(event.children, 0).unwrap();
+            let child = event
+                .edits
+                .child(event.edits.children().unwrap(), 0)
+                .unwrap();
             event.edits.set_yaw(child, 1.0).unwrap();
             if *flag.lock().unwrap() {
                 panic!("a listener fails before commit");
@@ -505,6 +511,16 @@ fn a_panicking_listener_spawns_nothing_and_leaves_the_arena_usable() {
 /// Two cows bred directly, as `breeding_announces_the_orb_before_the_lower_id_child` does: the
 /// parents' ages are 6000 as the goal leaves them, the partner is in love.
 pub(super) fn breed_pair(game: &mut Game<'_>, kind: &str) -> (u32, u32, Option<u32>) {
+    breed_pair_credited(game, kind, false)
+}
+
+/// [`breed_pair`] with the host player credited for feeding the parents into love (what the
+/// goal records in `love_cause`), when `credited`.
+pub(super) fn breed_pair_credited(
+    game: &mut Game<'_>,
+    kind: &str,
+    credited: bool,
+) -> (u32, u32, Option<u32>) {
     let kind = game.res.mob_types().get(kind).unwrap().clone();
     let base = game.next_entity;
     game.next_entity += 2;
@@ -517,6 +533,9 @@ pub(super) fn breed_pair(game: &mut Game<'_>, kind: &str) -> (u32, u32, Option<u
     game.mobs
         .push(Mob::new(base + 2, kind, Vec3::new(1.0, 64.0, 0.0), 0.0));
     game.native_joins_skip();
+    if credited {
+        game.love_cause.insert(base + 1, None);
+    }
     let parent = game.mobs.iter_mut().find(|m| m.id == base + 1).unwrap();
     parent.random = LegacyRandom::new(0);
     parent.extra.age = 6000;
@@ -543,7 +562,7 @@ fn breeding_replaces_the_cow_baby_with_a_pig_baby() {
     let record = seen.clone();
     with_baby(
         move |host, event| {
-            let (edits, children) = (event.edits, event.children);
+            let (edits, children) = (event.edits, event.edits.children().unwrap());
             record.lock().unwrap().push((
                 event.dimension.to_owned(),
                 edits.len(children).unwrap(),
@@ -645,7 +664,10 @@ fn breeding_veto_leaves_no_baby_orb_or_statistic_and_the_parents_resting() {
 fn removing_the_baby_is_the_same_outcome_as_a_veto() {
     with_baby(
         |_, event| {
-            event.edits.remove(event.children, 0).unwrap();
+            event
+                .edits
+                .remove(event.edits.children().unwrap(), 0)
+                .unwrap();
             Flow::Continue
         },
         |game| {
@@ -727,4 +749,220 @@ fn turtle_hatching_spawns_its_turtle_without_asking_baby_entity_spawn() {
         },
     );
     assert_eq!(*calls.lock().unwrap(), 0);
+}
+
+fn with_splits(listeners: Vec<SplitFn>, run: impl FnOnce(&mut Game<'_>)) {
+    let entries: Vec<_> = listeners
+        .into_iter()
+        .enumerate()
+        .map(|(i, listener)| {
+            mod_api::ModEntry::new(
+                Box::leak(format!("split{i}").into_boxed_str()),
+                Box::new(Split(listener)),
+            )
+        })
+        .collect();
+    mod_api::testing::with_mods(entries.into(), || with_game(run));
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_token_kept_from_one_listener_is_expired_in_the_next() {
+    type Kept = (
+        mod_api::PendingChildrenRef,
+        mod_api::UnspawnedMobRef,
+        mod_api::UnattachedMob,
+    );
+    let kept: Arc<Mutex<Option<Kept>>> = Arc::default();
+    let results = Arc::new(Mutex::new(Vec::new()));
+    let (first, second, out) = (kept.clone(), kept.clone(), results.clone());
+    with_splits(
+        vec![
+            Box::new(move |_, event| {
+                let edits = event.edits;
+                let children = edits.children().unwrap();
+                let child = edits.child(children, 0).unwrap();
+                let token = edits
+                    .construct(
+                        children,
+                        spec(
+                            "minecraft:slime",
+                            [1.0, 64.0, 1.0],
+                            0.0,
+                            Some(2),
+                            event.dimension,
+                        ),
+                    )
+                    .unwrap();
+                *first.lock().unwrap() = Some((children, child, token));
+                Flow::Continue
+            }),
+            Box::new(move |host, event| {
+                let edits = event.edits;
+                let (old_children, old_child, old_token) = second.lock().unwrap().unwrap();
+                let fresh = edits.children().unwrap();
+                *out.lock().unwrap() = vec![
+                    edits.len(old_children).map(|_| ()),
+                    edits.set_yaw(old_child, 1.0),
+                    edits.append(fresh, old_token),
+                    old_child.kind(&*host).map(|_| ()),
+                    edits.len(fresh).map(|_| ()),
+                ];
+                Flow::Continue
+            }),
+        ],
+        |game| {
+            let mut dying = cube(game, "minecraft:slime", 4, SEED);
+            game.split_cube_children(&mut dying);
+            // Nothing the first listener kept reached the list: the vanilla three.
+            assert_eq!(game.mobs.len(), 3);
+            assert_eq!(game.mobs[0].yaw, YAWS[0]);
+        },
+    );
+    assert_eq!(
+        *results.lock().unwrap(),
+        [
+            Err(UnspawnedMobError::Expired),
+            Err(UnspawnedMobError::Expired),
+            Err(UnspawnedMobError::Expired),
+            Err(UnspawnedMobError::Expired),
+            Ok(()),
+        ]
+    );
+}
+
+fn animals_bred(game: &Game<'_>) -> i32 {
+    game.stats.get("custom", "minecraft:animals_bred")
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn credit_goes_to_the_player_only_when_the_baby_is_accepted() {
+    with_baby(
+        |_, _| Flow::Continue,
+        |game| {
+            let (parent, partner, child) = breed_pair_credited(game, "minecraft:cow", true);
+            assert!(child.is_some());
+            assert_eq!(animals_bred(game), 1, "an accepted baby is credited once");
+            assert!(!game.love_cause.contains_key(&parent));
+            assert!(!game.love_cause.contains_key(&partner));
+        },
+    );
+    with_baby(
+        |_, _| Flow::Cancel,
+        |game| {
+            let (parent, partner, child) = breed_pair_credited(game, "minecraft:cow", true);
+            assert_eq!(child, None);
+            assert_eq!(animals_bred(game), 0, "a vetoed baby earns no statistic");
+            assert!(
+                !game.love_cause.contains_key(&parent),
+                "the credit is spent"
+            );
+            assert!(!game.love_cause.contains_key(&partner));
+        },
+    );
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_waiting_baby_publishes_its_uuid_only_when_it_joins() {
+    with_baby(
+        |_, _| Flow::Continue,
+        |game| {
+            let (parent, _, child) = breed_pair(game, "minecraft:cow");
+            let baby = child.unwrap();
+            assert_eq!(baby, parent + 2);
+            assert!(game.persist.uuids.contains_key(&baby), "published at join");
+        },
+    );
+    with_baby(
+        |_, event| {
+            event
+                .edits
+                .remove(event.edits.children().unwrap(), 0)
+                .unwrap();
+            Flow::Continue
+        },
+        |game| {
+            let (parent, _, child) = breed_pair(game, "minecraft:cow");
+            assert_eq!(child, None);
+            assert!(
+                !game.persist.uuids.contains_key(&(parent + 2)),
+                "a removed baby never published one"
+            );
+        },
+    );
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_panicking_baby_listener_leaves_no_reserved_state_behind() {
+    with_baby(
+        |_, _| panic!("a listener fails"),
+        |game| {
+            let (uuids, attachments) = (game.persist.uuids.len(), game.entity_attachments.len());
+            let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                breed_pair(game, "minecraft:cow")
+            }));
+            assert!(unwound.is_err());
+            assert_eq!(game.persist.uuids.len(), uuids, "the baby's UUID is gone");
+            assert_eq!(game.entity_attachments.len(), attachments);
+            assert!(game.mobs.iter().all(|m| m.extra.age >= 0), "no baby joined");
+        },
+    );
+}
+
+/// What a listener's host write does to a parent, stood in for by a closure the production
+/// dispatch runs where the listeners run (the host methods that move a mob are not reachable
+/// from a hook's `ServerHost` in the fixture world).
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_parent_changed_during_dispatch_refuses_the_baby_and_nothing_is_rebuilt() {
+    with_game(|game| {
+        let kind = game.res.mob_types().get("minecraft:cow").unwrap().clone();
+        let base = game.next_entity;
+        game.next_entity += 3;
+        for (i, x) in [0.0, 1.0].into_iter().enumerate() {
+            game.mobs.push(Mob::new(
+                base + 1 + i as u32,
+                kind.clone(),
+                Vec3::new(x, 64.0, 0.0),
+                0.0,
+            ));
+        }
+        game.native_joins_skip();
+        let run = |game: &mut Game<'_>, change: bool| {
+            let mut baby = Mob::new(base + 3, kind.clone(), Vec3::new(0.5, 64.0, 0.0), 0.0);
+            horizon_client::mobs::finalize::set_baby(&mut baby, true);
+            game.dispatch_pending_children(
+                mod_api::HookId::BabyEntitySpawn,
+                true,
+                vec![baby],
+                &[base + 1, base + 2],
+                move |game, _, _| {
+                    if change {
+                        let parent = game.mobs.iter_mut().find(|m| m.id == base + 1).unwrap();
+                        parent.extra.in_love = 600;
+                    }
+                },
+            )
+        };
+        // Unchanged parents: the baby is accepted.
+        assert_eq!(run(game, false).len(), 1);
+        // The id is still live but the parent is not what the baby was built from: refused,
+        // and the dispatch never rebuilds or draws again.
+        let draws = game
+            .mobs
+            .iter()
+            .map(|m| m.random.state())
+            .collect::<Vec<_>>();
+        assert!(run(game, true).is_empty());
+        assert_eq!(
+            game.mobs
+                .iter()
+                .map(|m| m.random.state())
+                .collect::<Vec<_>>(),
+            draws
+        );
+    });
 }

@@ -686,6 +686,7 @@ impl HandSway {
     /// The degrees the hands turn about X, then Y, before either is drawn:
     /// `(viewXRot - xBob) * 0.1` and `(viewYRot - yBob) * 0.1`, the bobs
     /// interpolated as `extractRenderState` does.
+    #[horizon_mod_api_macros::replaceable]
     pub fn rotation(&self, partial: f32, view_x_rot: f32, view_y_rot: f32) -> [f32; 2] {
         let x_bob = crate::camera::lerp(partial, self.x_bob_o, self.x_bob);
         let y_bob = crate::camera::lerp(partial, self.y_bob_o, self.y_bob);

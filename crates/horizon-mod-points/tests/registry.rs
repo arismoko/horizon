@@ -3,7 +3,7 @@
 // Generated fixtures exercise every shape; TODO(#2273): make the generator emit clippy-clean code.
 #![allow(clippy::all, unused_comparisons, unreachable_patterns, dead_code)]
 use mod_api::__private::points::register;
-use mod_points::__private::{POINTS, RawKind, SlotListener, seal};
+use mod_points::__private::POINTS;
 use mod_points::{PointId, RegisterError, stop};
 use std::sync::atomic::Ordering;
 
@@ -24,19 +24,6 @@ mod_api::impl_server_host_areas!(Quiet);
 #[mod_api::__subscriptions]
 impl mod_api::Hooks for Quiet {}
 
-fn raw_listener() {}
-
-unsafe fn erased_listener(place: usize, receiver: *mut (), raw: *mut ()) {
-    assert_eq!(place, PointId::Tick as usize);
-    assert!(receiver.is_null() && raw.is_null());
-}
-
-/// `raw_listener` at `place`: the test's slots never call it.
-fn raw_at(id: &'static str, place: PointId) -> SlotListener {
-    // SAFETY: nothing fires a raw place here with a call into the function.
-    unsafe { SlotListener::new(id, place.place(), raw_listener as *const ()) }
-}
-
 /// Stopping from the mod's subscription callback still applies to slots registered later.
 struct SelfStop;
 impl mod_api::Hooks for SelfStop {
@@ -49,7 +36,7 @@ impl mod_api::Hooks for SelfStop {
 #[test]
 fn one_list_registered_sealed_and_stopped() {
     mod_api::__private::install(
-        ["tick_mod", "raw_mod", "stopped_early", "self_stopping"]
+        ["tick_mod", "stopped_early", "self_stopping"]
             .into_iter()
             .map(|id| {
                 mod_api::ModEntry::new(
@@ -64,7 +51,6 @@ fn one_list_registered_sealed_and_stopped() {
             .collect(),
     );
     assert!(mod_api::__private::set_mod_enabled("tick_mod", false));
-    assert!(mod_api::__private::set_mod_enabled("raw_mod", false));
     assert_eq!(
         register(&mod_points::listeners::tick("tick_mod", 0, "head", tick)),
         Ok(())
@@ -94,49 +80,28 @@ fn one_list_registered_sealed_and_stopped() {
         )),
         Ok(())
     );
-    let raw = PointId::Tick as usize + 2;
-    let place = PointId::Tick;
-    assert_eq!(register(&raw_at("raw_mod", place)), Ok(()));
-    // SAFETY: the callback checks its place and never dereferences the pointers.
-    let erased = unsafe { SlotListener::erased("raw_mod", place.place(), erased_listener) };
-    assert_eq!(register(&erased), Ok(()));
-    assert_eq!(register(&raw_at("raw_mod", place)), Ok(()));
     assert!(
         !POINTS[PointId::Tick as usize].load(Ordering::Acquire),
         "nothing listens before the seal"
     );
-    seal();
-    assert_eq!(register(&raw_at("late", place)), Err(RegisterError::Sealed));
+    horizon_engine_slots::install_seal(mod_points::__private::seal).unwrap();
+    horizon_engine_slots::seal().unwrap();
+    assert_eq!(
+        horizon_engine_slots::seal(),
+        Err(horizon_engine_slots::Refusal::Sealed)
+    );
     assert_eq!(
         register(&mod_points::listeners::tick("late", 0, "head", tick)),
         Err(RegisterError::Sealed)
     );
     assert!(POINTS[PointId::Tick as usize].load(Ordering::Acquire));
     assert!(POINTS[PointId::TickReturn as usize].load(Ordering::Acquire));
-    assert!(!POINTS[raw].load(Ordering::Acquire));
-    let (mut heard, mut raw_heard) = (0, 0);
+    let mut heard = 0;
     mod_points::__private::fire_api(PointId::Tick, &mut |_| heard += 1);
-    mod_points::__private::fire_raw(PointId::Tick, &mut |_| raw_heard += 1);
-    assert_eq!((heard, raw_heard), (0, 0), "disabled before sealing");
+    assert_eq!(heard, 0, "disabled before sealing");
     assert!(mod_api::__private::set_mod_enabled("tick_mod", true));
-    assert!(mod_api::__private::set_mod_enabled("raw_mod", true));
     mod_points::__private::fire_api(PointId::Tick, &mut |_| heard += 1);
-    let mut order = Vec::new();
-    mod_points::__private::fire_raw(PointId::Tick, &mut |kind| {
-        match kind {
-            RawKind::Typed(function) => {
-                assert_eq!(function, raw_listener as *const ());
-                order.push("typed");
-            }
-            RawKind::Erased(function) => {
-                assert_eq!(function as usize, erased_listener as *const () as usize);
-                order.push("erased");
-            }
-        }
-        raw_heard += 1;
-    });
-    assert_eq!(order, ["typed", "erased", "typed"]);
-    assert_eq!((heard, raw_heard), (1, 3));
+    assert_eq!(heard, 1);
     let mut args = mod_points::TickArgs::__new();
     mod_points::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
     assert!(
@@ -146,40 +111,13 @@ fn one_list_registered_sealed_and_stopped() {
     assert_eq!(mod_api::content::crash::current_native_mod(), None);
     assert!(mod_api::__private::set_mod_enabled("tick_mod", false));
     mod_points::__private::fire_api(PointId::Tick, &mut |_| heard += 1);
-    mod_points::__private::fire_raw(PointId::Tick, &mut |_| raw_heard += 1);
-    assert_eq!(
-        (heard, raw_heard),
-        (1, 6),
-        "only the API listener is disabled"
-    );
-    assert!(mod_api::__private::set_mod_enabled("raw_mod", false));
-    mod_points::__private::fire_api(PointId::Tick, &mut |_| heard += 1);
-    mod_points::__private::fire_raw(PointId::Tick, &mut |_| raw_heard += 1);
-    assert_eq!(
-        (heard, raw_heard),
-        (1, 6),
-        "all raw listener kinds are disabled"
-    );
+    assert_eq!(heard, 1);
     assert!(mod_api::__private::set_mod_enabled("tick_mod", true));
-    assert!(mod_api::__private::set_mod_enabled("raw_mod", true));
     mod_points::__private::fire_api(PointId::Tick, &mut |_| heard += 1);
-    mod_points::__private::fire_raw(PointId::Tick, &mut |_| raw_heard += 1);
-    assert_eq!(
-        (heard, raw_heard),
-        (2, 9),
-        "listeners resume without resealing"
-    );
+    assert_eq!(heard, 2);
     stop("tick_mod");
-    stop("raw_mod");
-    for id in ["tick_mod", "raw_mod", "stopped_early", "self_stopping"] {
-        assert!(mod_api::__private::set_mod_enabled(id, false));
-        assert!(mod_api::__private::set_mod_enabled(id, true));
-    }
+    assert!(mod_api::__private::set_mod_enabled("tick_mod", false));
+    assert!(mod_api::__private::set_mod_enabled("tick_mod", true));
     mod_points::__private::fire_api(PointId::Tick, &mut |_| heard += 1);
-    mod_points::__private::fire_raw(PointId::Tick, &mut |_| raw_heard += 1);
-    assert_eq!(
-        (heard, raw_heard),
-        (2, 9),
-        "an enable switch cannot undo a stop"
-    );
+    assert_eq!(heard, 2, "an enable switch cannot undo a stop");
 }

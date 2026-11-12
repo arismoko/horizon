@@ -51,7 +51,7 @@ impl Report {
 }
 
 // Cross-platform relative names: archive paths must mean the same thing on Windows and Unix.
-fn check_path(name: &str) -> Result<(), String> {
+pub(crate) fn check_path(name: &str) -> Result<(), String> {
     if name.len() > 4096 || name.split('/').count() > 64 {
         return Err("resource-pack path is too deep or long".into());
     }
@@ -320,7 +320,10 @@ fn publish(root: &Path, name: &str, files: &Files) -> Result<Outcome, String> {
 }
 
 // zip 2.x silently collapses duplicate names. Count central records before extracting anything.
-fn reject_duplicate_entries(source: &Path, zip: &zip::ZipArchive<fs::File>) -> Result<(), String> {
+pub(crate) fn reject_duplicate_entries(
+    source: &Path,
+    zip: &zip::ZipArchive<fs::File>,
+) -> Result<(), String> {
     let mut reader = fs::File::open(source).map_err(|e| e.to_string())?;
     reader
         .seek(SeekFrom::Start(zip.central_directory_start()))
@@ -373,13 +376,21 @@ pub fn stage(source: &Path, work: &Path, pack: &import::Pack) -> Result<Report, 
                 "shader-pack conversion is pending",
             );
         }
-    } else if pack.format == "mrpack" || pack.format == "curseforge" {
+    } else if matches!(pack.format.as_str(), "mrpack" | "curseforge" | "prism") {
         regular(source)?;
         let mut zip = zip::ZipArchive::new(fs::File::open(source).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         reject_duplicate_entries(source, &zip)?;
         let roots = if pack.format == "mrpack" {
-            vec!["overrides".to_owned(), "client-overrides".to_owned()]
+            vec!["overrides/".to_owned(), "client-overrides/".to_owned()]
+        } else if pack.format == "prism" {
+            let names = zip
+                .file_names()
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            let (_, game) =
+                import::prism_archive_layout(&names)?.ok_or("missing Prism instance")?;
+            vec![game]
         } else {
             let manifest: serde_json::Value =
                 serde_json::from_reader(zip.by_name("manifest.json").map_err(|e| e.to_string())?)
@@ -389,15 +400,15 @@ pub fn stage(source: &Path, work: &Path, pack: &import::Pack) -> Result<Report, 
                 .unwrap_or("overrides")
                 .to_owned();
             check_path(&root)?;
-            vec![root]
+            vec![format!("{root}/")]
         };
         for root in roots {
-            let prefix = format!("{root}/resourcepacks/");
+            let prefix = format!("{root}resourcepacks/");
             let mut layer = Files::new();
             for i in 0..zip.len() {
                 let entry = zip.by_index(i).map_err(|e| e.to_string())?;
                 let raw = entry.name().map_err(|e| e.to_string())?.into_owned();
-                if !entry.is_dir() && raw.starts_with(&format!("{root}/shaderpacks/")) {
+                if !entry.is_dir() && raw.starts_with(&format!("{root}shaderpacks/")) {
                     report.set(
                         "shaderpacks/",
                         State::Unsupported,

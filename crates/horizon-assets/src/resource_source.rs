@@ -266,6 +266,12 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<String>, active: &mut BTreeSet<Pa
 }
 
 impl ResourceSource {
+    /// Observe whether any reader still owns this resource generation, without retaining it.
+    pub fn liveness(&self) -> impl Fn() -> bool + Send + Sync + use<> {
+        let weak = Arc::downgrade(&self.0);
+        move || weak.strong_count() != 0
+    }
+
     /// Whether both readers belong to the same opened resource generation.
     pub fn same_generation(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)

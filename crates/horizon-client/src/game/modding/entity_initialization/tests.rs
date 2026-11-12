@@ -697,7 +697,7 @@ fn cancelled_mob_creation_forgets_constructor_payload_and_identity() {
                     .is_none()
                 );
                 assert_eq!(calls.lock().unwrap().len(), 1);
-                assert_eq!(game.persist.uuids, before);
+                assert_eq!(*game.persist.uuids, before);
                 assert!(game.entity_attachments.is_empty());
                 assert!(game.entity_initialization.initialized.is_empty());
             });

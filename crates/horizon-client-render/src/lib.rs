@@ -24,6 +24,7 @@ pub mod border_render;
 pub mod breaking;
 pub mod brewing;
 pub mod camera;
+pub mod carrier_fences;
 pub mod chat;
 pub mod chunk;
 pub mod chunk_map;
@@ -43,6 +44,7 @@ pub mod crash;
 pub mod custom_sky;
 pub mod datapack;
 pub mod dynamic_light;
+pub mod dynamic_resolution;
 pub mod effects;
 pub mod environment;
 pub mod extras;
@@ -196,3 +198,8 @@ pub use horizon_items::enchant;
 pub use horizon_items::item_data;
 pub use horizon_items::items;
 pub use horizon_items::random_sequences;
+
+pub mod render_geometry;
+pub mod render_slots;
+
+pub mod render_views;

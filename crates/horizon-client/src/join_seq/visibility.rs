@@ -117,12 +117,16 @@ mod tests {
         // tests legitimately lifting owners concurrently in the same runner.
         const CHILD: &str = "HORIZON_SAVE_LEASE_TEST_CHILD";
         if std::env::var_os(CHILD).is_none() {
-            let status = std::process::Command::new(std::env::current_exe().unwrap())
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args(["--exact", "join_seq::visibility::tests::unbound_passes_block_until_restore_consumption_and_unwind"])
                 .env(CHILD, "1")
-                .status()
+                .output()
                 .unwrap();
-            assert!(status.success());
+            assert!(
+                output.status.success(),
+                "test=join_seq::visibility::tests::unbound_passes_block_until_restore_consumption_and_unwind exit_code={:?} category=fixture-child-failed",
+                output.status.code()
+            );
             return;
         }
         assert!(passes_settled());

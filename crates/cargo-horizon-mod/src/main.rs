@@ -6,7 +6,7 @@
 //!   newest prebuilt game unless `--horizon` names a commit.
 //! - `update [--horizon <commit>]`: repin this native mod and diff/refresh declared internals.
 //! - `inject update [--accept <id>]…`: refresh declarations without repinning.
-//! - `inject sync --repo <game checkout>`: publish missing slots to a per-mod list.
+//! - `inject sync --repo <game checkout>`: validate API injection pins against a game catalog.
 //! - `inject add <at> --kind <kind> [--call <callee>] [--nth N] [--with <fn>]`: pin an inject.
 //! - `internals sync [--repo <path>]`: sync declarations for native or wasm mods.
 //! - `internals add <path>… [--kind <kind>]`: declare internals from the prebuilt catalog.
@@ -318,7 +318,7 @@ fn new_native(
     let manifest = format!(
         "{}\n[native]\ngame = \"26.3\"\nhorizon = \"{horizon}\"\nmixins = \"{}\"\n",
         include_str!("../template/content/horizon-mod.toml"),
-        native::MIXINS_REV,
+        horizon_mod_package::mixins_tool::REV,
     );
     let files = [
         ("Cargo.toml", include_str!("../template/native/api.toml")),

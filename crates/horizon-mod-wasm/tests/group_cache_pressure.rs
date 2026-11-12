@@ -8,6 +8,7 @@ use mod_api::wire::{Writer, guest};
 
 #[test]
 fn full_group_budget_leaves_static_replies_usable_without_acknowledging_unknown_ids() {
+    mod_api::__private::initialize().unwrap();
     fn decode(tag: u8, text: Option<&str>) -> Result<&'static str, mod_api::wire::WireError> {
         let mut encoded = Writer::new();
         encoded.put(&tag);

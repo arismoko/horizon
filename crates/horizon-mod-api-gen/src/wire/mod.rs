@@ -6,6 +6,7 @@ mod borrowed;
 mod calls;
 mod host;
 pub use host::{generate_coverage, generate_host};
+mod trait_roles;
 mod ty;
 
 use crate::capability_providers::key_shapes;
@@ -64,6 +65,7 @@ pub(super) const IMPORTS: &[&str] = &[
     "EnchantmentDamageEffects",
     "PoiTypeExtensions",
     "VillagerProfessions",
+    "LoadConditions",
     "CauldronFluidContents",
     "BlockAndTintGetter",
     "GroundLevel",
@@ -122,6 +124,7 @@ pub(super) const REACHED: &[(&str, &str, &str)] = &[
 const EXPORTS: &[&str] = &[
     "Hooks",
     "ReloadApply",
+    "BlockEntityTransform",
     "StructureType",
     "StructurePiece",
     "BlockPart",
@@ -130,6 +133,7 @@ const EXPORTS: &[&str] = &[
     "MenuPart",
     "FluidPart",
     "ServerReloadListener",
+    "LoadCondition",
     "GameTestFunction",
     "ClientReloadListener",
     "BiomeColorResolver",
@@ -149,7 +153,12 @@ const EXPORTS: &[&str] = &[
 /// (`ResourceHandler<ItemResource>`), each instance of a generic one its own export. Set once,
 /// by `surface`.
 pub(super) fn exports() -> &'static [&'static str] {
-    EXPORTED.get().map_or(EXPORTS, Vec::as_slice)
+    trait_roles::exports()
+}
+
+/// All imported traits, including discovered per-item declarations.
+pub(super) fn imports() -> &'static [&'static str] {
+    trait_roles::imports()
 }
 
 /// Whether the game also hands a mod objects of exported trait `owner` (a capability's handler,
@@ -173,6 +182,7 @@ const LOAD_CONTEXTS: &[&str] = &[
 /// the worldgen workers, its block tint sources, colour resolvers and section geometry on the
 /// meshing workers. They keep no mutable state and get no `Host`.
 const WORKERS: &[&str] = &[
+    "BlockEntityTransform",
     "StructureType",
     "StructurePiece",
     "BlockTintSource",
@@ -211,8 +221,6 @@ fn loads(types: &ty::Types<'_>, method: &Method) -> bool {
 /// A trait object that crosses without methods: a provider of a mod's own handler type,
 /// erased (`Arc<dyn Any + Send + Sync>`), which only mods of its group take back.
 pub(super) const ERASED: &str = "Any";
-
-static EXPORTED: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
 
 /// An owner as written (`ResourceHandler<ItemResource>`): the trait's path, and its type arguments.
 fn owner_parts(owner: &str) -> Result<(Vec<String>, Vec<syn::Type>), String> {
@@ -321,21 +329,22 @@ pub(super) fn surface<'a>(
 ) -> Result<Surface<'a>, String> {
     let mut types = Types::new(Index::new(root, included))?;
     let api = types.index.module("mod_api", &[])?;
-    let mut exported: Vec<&'static str> = EXPORTS.to_vec();
+    let (imported, mut exported, paths) = trait_roles::declared(root)?;
+    types.index.read.borrow_mut().extend(paths);
     for shape in key_shapes(&mut types.index)? {
         for owner in [shape.handler.clone(), shape.provider()] {
-            if !exported.iter().any(|e| *e == owner) {
-                exported.push(Box::leak(owner.into_boxed_str()));
+            if !exported.contains(&owner) {
+                exported.push(owner);
             }
         }
     }
-    let _ = EXPORTED.set(exported);
+    trait_roles::select(imported, exported);
     let mut methods = Vec::new();
     let mut unbound = Vec::new();
     let mut excused = Vec::new();
     let mut parts = Vec::new();
     let hooks = hook_ids(&mut types)?;
-    for owner in IMPORTS.iter().chain(exports()) {
+    for owner in imports().iter().chain(exports()) {
         let (path, args) = owner_parts(owner)?;
         let Found::Item(id) = types.index.resolve_path(api, &path)? else {
             return Err(format!("{owner} is not a mod_api trait"));
@@ -449,8 +458,26 @@ pub(super) fn surface<'a>(
 /// guest needs no wire call. Its trait methods are the actual imports.
 pub(super) fn frame_accessor(method: &Method) -> bool {
     method.params.is_empty()
-        && IMPORTS.contains(&method.owner)
-        && matches!(&method.ret, Ty::Dyn(name, _) if IMPORTS.iter().any(|owner| owner.rsplit("::").next() == Some(name.as_str())))
+        && imports().contains(&method.owner)
+        && matches!(&method.ret, Ty::Dyn(name, _) if imports().iter().any(|owner| owner.rsplit("::").next() == Some(name.as_str())))
+}
+
+/// A fallible borrowed frame getter sends only its availability result across
+/// Wire. The actual borrowed host remains in the synchronous native call frame.
+pub(super) fn fallible_frame_accessor(method: &Method) -> Option<(&str, bool, &Ty)> {
+    if !method.params.is_empty() || !imports().contains(&method.owner) {
+        return None;
+    }
+    let Ty::Result(ok, error) = &method.ret else {
+        return None;
+    };
+    let Ty::Dyn(name, mutable) = &**ok else {
+        return None;
+    };
+    imports()
+        .iter()
+        .any(|owner| owner.rsplit("::").next() == Some(name.as_str()))
+        .then_some((name.as_str(), *mutable, &**error))
 }
 
 /// The coverage check: every method of the bound traits crosses to wasm, or its doc says why

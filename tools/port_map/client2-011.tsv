@@ -2,16 +2,16 @@ MultilineTextField.setCharacterLimit	port	crates/horizon-client/src/game/interfa
 MultilineTextField.setLineLimit	inline	crates/horizon-client/src/game/interface/books.rs::Game::page_keep	the 14-line limit (LINES) is checked in page_keep; there is no limit field
 MultilineTextField.setValue	port	crates/horizon-client-render/src/ui.rs::EditBox::set_value	gap: minor: no line-limit check when the text is set (allowOverflowLineLimit path)
 MultilineTextField.insertText	port	crates/horizon-client-render/src/ui.rs::EditBox::insert_text	the line limit is checked by Game::page_keep, not here
-MultilineTextField.deleteText	port	crates/horizon-client-render/src/ui.rs::EditBox::delete_chars	
-MultilineTextField.getSelected	port	crates/horizon-client-render/src/ui.rs::EditBox::selected	
+MultilineTextField.deleteText	port	crates/horizon-client-render/src/ui.rs::EditBox::delete_chars
+MultilineTextField.getSelected	port	crates/horizon-client-render/src/ui.rs::EditBox::selected
 MultilineTextField.getLineAtCursor	port	crates/horizon-client/src/game/interface/books.rs::Game::caret_on	the visual row holding the caret, with its x
 MultilineTextField.getLineView	port	crates/horizon-client/src/game/interface/books.rs::Game::page_rows	visual rows as character ranges
-MultilineTextField.seekCursor	port	crates/horizon-client-render/src/ui.rs::EditBox::set_cursor	
-MultilineTextField.seekCursorLine	port	crates/horizon-client/src/game/interface/books.rs::Game::book_move_line	
-MultilineTextField.seekCursorToPoint	port	crates/horizon-client/src/game/interface/books.rs::Game::page_index_at	
+MultilineTextField.seekCursor	port	crates/horizon-client-render/src/ui.rs::EditBox::set_cursor
+MultilineTextField.seekCursorLine	port	crates/horizon-client/src/game/interface/books.rs::Game::book_move_line
+MultilineTextField.seekCursorToPoint	port	crates/horizon-client/src/game/interface/books.rs::Game::page_index_at
 MultilineTextField.selectWordAtCursor	port	crates/horizon-client-render/src/ui.rs::EditBox::select_word_at_cursor	double click on a book page selects the word before the caret (Game::book_page_click)
 MultilineTextField.keyPressed	port	crates/horizon-client/src/game/interface/books.rs::Game::book_input	gap: player: Home and End go to the start and end of the whole page, not of the visual line (EditBox::key); Enter, arrows and Ctrl keys are handled
-MultilineTextField.getSelectedText	port	crates/horizon-client-render/src/ui.rs::EditBox::selected_text	
+MultilineTextField.getSelectedText	port	crates/horizon-client-render/src/ui.rs::EditBox::selected_text
 MultilineTextField.getCursorLineView	inline	crates/horizon-client/src/game/interface/books.rs::Game::book_move_line	gap: player: Home and End do not use the caret's line range (see keyPressed)
 MultilineTextField.getNextWord	port	crates/horizon-client-render/src/ui.rs::multiline_word_position	start of the next word; Ctrl+Right and Ctrl+Delete reach it through EditBox::word_position
 MultilineTextField.getWordEndPosition	inline	crates/horizon-client-render/src/ui.rs::EditBox::select_word_at_cursor	the end of the word is found there; MultiLineEdit::word_end serves signs
@@ -126,19 +126,19 @@ DebugScreenEntryList.rebuildCurrentList	inline	crates/horizon-client/src/debug_e
 DebugScreenEntryList.save	port	crates/horizon-client/src/debug_entries.rs::DebugEntries::save	the profile's name while it is unchanged, else every status, with the codec's DataVersion; the F3+F6 DebugOptionsScreen changes profiles and statuses
 AbstractDebugChart.extractSampleBars	port	crates/horizon-client/src/debug_chart.rs::Chart::bars	one bar per sample
 AbstractDebugChart.extractMainSampleBar	port	crates/horizon-client/src/debug_chart.rs::Chart::bars	the main value's bar (dimension 0)
-BandwidthDebugChart.extractLabeledLineAtValue	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels	
-BandwidthDebugChart.extractLineWithLabel	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels	
-FpsDebugChart.extractAdditionalLinesAndLabels	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels	
-FpsDebugChart.toDisplayString	port	crates/horizon-client/src/debug_chart.rs::Chart::display	
-FpsDebugChart.getSampleColor	port	crates/horizon-client/src/debug_chart.rs::Chart::color	
-PingDebugChart.extractAdditionalLinesAndLabels	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels	
-PingDebugChart.toDisplayString	port	crates/horizon-client/src/debug_chart.rs::Chart::display	
-PingDebugChart.getSampleColor	port	crates/horizon-client/src/debug_chart.rs::Chart::color	
+BandwidthDebugChart.extractLabeledLineAtValue	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels
+BandwidthDebugChart.extractLineWithLabel	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels
+FpsDebugChart.extractAdditionalLinesAndLabels	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels
+FpsDebugChart.toDisplayString	port	crates/horizon-client/src/debug_chart.rs::Chart::display
+FpsDebugChart.getSampleColor	port	crates/horizon-client/src/debug_chart.rs::Chart::color
+PingDebugChart.extractAdditionalLinesAndLabels	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels
+PingDebugChart.toDisplayString	port	crates/horizon-client/src/debug_chart.rs::Chart::display
+PingDebugChart.getSampleColor	port	crates/horizon-client/src/debug_chart.rs::Chart::color
 ProfilerPieChart.extractRenderState	missing		minor: F3+1 profiler pie chart is not drawn; the chart toggle always reads hidden
 ProfilerPieChart.splitNodeName	missing		minor: profiler node names for the pie chart not ported
 ProfilerPieChart.profilerPieChartKeyPress	missing		minor: profiler pie keys are not handled
-TpsDebugChart.extractAdditionalLinesAndLabels	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels	
+TpsDebugChart.extractAdditionalLinesAndLabels	port	crates/horizon-client/src/debug_chart.rs::Chart::lines_and_labels
 TpsDebugChart.getValueForAggregation	port	crates/horizon-client/src/debug_chart.rs::Chart::aggregated	tick time without its idle part
-TpsDebugChart.toDisplayString	port	crates/horizon-client/src/debug_chart.rs::Chart::display	
-TpsDebugChart.getSampleHeight	port	crates/horizon-client/src/debug_chart.rs::Chart::height	
-TpsDebugChart.getSampleColor	port	crates/horizon-client/src/debug_chart.rs::Chart::color	
+TpsDebugChart.toDisplayString	port	crates/horizon-client/src/debug_chart.rs::Chart::display
+TpsDebugChart.getSampleHeight	port	crates/horizon-client/src/debug_chart.rs::Chart::height
+TpsDebugChart.getSampleColor	port	crates/horizon-client/src/debug_chart.rs::Chart::color

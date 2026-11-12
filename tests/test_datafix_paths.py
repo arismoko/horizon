@@ -90,7 +90,7 @@ class DatafixPaths(unittest.TestCase):
         self.assertEqual(os.environ['HORIZON_DATAFIX_ROOT'], 'private-datafix')
 
     def test_unknown_dependencies_still_preflight_opt_in(self):
-        args = argparse.Namespace(host='local', quick=False, datafix=True)
+        args = argparse.Namespace(host='local', quick=False, harnesses=True, datafix=True)
         with mock.patch.object(pr_ready, 'affected_here', return_value=None):
             step = next(s for s in pr_ready.plan(args, 'origin/main', set(), {}, set(), {}) if s.name == 'Parity')
         self.assertTrue(step.datafix_selected)
@@ -129,7 +129,7 @@ class DatafixPaths(unittest.TestCase):
         (self.checkout / '.local/minecraft').mkdir(parents=True)
         (self.checkout / '.local/horizon-client').mkdir()
         for opt_in in (False, True):
-            args = argparse.Namespace(host='local', quick=False, datafix=opt_in)
+            args = argparse.Namespace(host='local', quick=False, harnesses=True, datafix=opt_in)
             output = io.StringIO()
             with mock.patch.object(pr_ready, 'ROOT', self.checkout), mock.patch.object(pr_ready, 'affected_here', return_value=['datafix']), contextlib.redirect_stderr(output):
                 steps = pr_ready.plan(args, 'origin/main', set(), {}, set(), {})

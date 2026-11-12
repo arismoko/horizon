@@ -12,13 +12,13 @@ SlotProvider.getSlotsFromRange	inline	crates/horizon-client/src/game/administrat
 SpawnPlacements.register	skip:data		placements and heightmaps are read from tables (MobData)
 SpawnPlacements.getPlacementType	port	crates/horizon-client/src/mobs/data.rs::placement	on ground when unregistered
 SteppedInterpolationHandler.create	port	crates/horizon-world/src/stepped_interpolation.rs::new	client branch only: remote.rs builds one per living entity with its type's update interval; the server tracker is not created (see SteppedInterpolationTracker)
-SteppedInterpolationHandler.InterpolationData.advance	port	crates/horizon-world/src/stepped_interpolation.rs::advance	
+SteppedInterpolationHandler.InterpolationData.advance	port	crates/horizon-world/src/stepped_interpolation.rs::advance
 SteppedInterpolationHandler.InterpolationData.addDelta	skip:other		remote mobs are only moved by interpolation here, so there is no predicted movement to fold in (see SteppedInterpolation::interpolate)
 SteppedInterpolationHandler.InterpolationData.addRotation	skip:other		same: no client-side movement of remote mobs to adjust the target for
-SteppedInterpolationHandler.InterpolationData.addStep	port	crates/horizon-world/src/stepped_interpolation.rs::add_step	
-SteppedInterpolationHandler.InterpolationData.addSteps	port	crates/horizon-world/src/stepped_interpolation.rs::add_steps	
+SteppedInterpolationHandler.InterpolationData.addStep	port	crates/horizon-world/src/stepped_interpolation.rs::add_step
+SteppedInterpolationHandler.InterpolationData.addSteps	port	crates/horizon-world/src/stepped_interpolation.rs::add_steps
 SteppedInterpolationHandler.InterpolationData.getInterpolationTicks	inline	crates/horizon-world/src/stepped_interpolation.rs::add_steps	the sum of the steps' ticks
-SteppedInterpolationHandler.InterpolationData.getNewPositionAndRotation	port	crates/horizon-world/src/stepped_interpolation.rs::new_position	
+SteppedInterpolationHandler.InterpolationData.getNewPositionAndRotation	port	crates/horizon-world/src/stepped_interpolation.rs::new_position
 SteppedInterpolationTracker.addStep	missing		minor: a LAN host never builds stepped paths; lan/entity.rs always sends a linear position, so guests interpolate each move over the update interval instead of replaying the host's step timing
 SteppedInterpolationTracker.updateTracking	missing		minor: same, the host keeps no tracked steps
 SteppedInterpolationTracker.getPositionPath	missing		minor: same, only PositionPath::Linear is sent
@@ -60,19 +60,19 @@ Brain.isEmptyCollection	port	crates/horizon-client/src/mobs/villager_brain.rs::s
 Brain.isBrainDead	skip:other		mobs without a brain are told apart by species (monster_brain::has_brain) or an empty brain Option
 Attribute.Sentiment.getStyle	port	crates/horizon-client/src/item_tooltip.rs::attribute_color	burning time and fall damage are negative, gravity, scale and waypoint ranges neutral, the rest positive
 AttributeInstance.getModifiers	port	crates/horizon-world/src/attributes/mod.rs::modifiers	player and LAN attribute maps; a mob's own attributes (mobs/finalize.rs) keep a plain list
-AttributeInstance.addOrUpdateTransientModifier	port	crates/horizon-world/src/attributes/mod.rs::add_or_update_transient	
+AttributeInstance.addOrUpdateTransientModifier	port	crates/horizon-world/src/attributes/mod.rs::add_or_update_transient
 AttributeInstance.addOrReplacePermanentModifier	port	crates/horizon-world/src/attributes/mod.rs::add_or_replace_permanent	mobs: mobs/finalize.rs add_modifier
-AttributeInstance.addPermanentModifier	port	crates/horizon-world/src/attributes/mod.rs::add_permanent	
-AttributeInstance.addPermanentModifiers	port	crates/horizon-world/src/attributes/mod.rs::add_permanent_many	
+AttributeInstance.addPermanentModifier	port	crates/horizon-world/src/attributes/mod.rs::add_permanent
+AttributeInstance.addPermanentModifiers	port	crates/horizon-world/src/attributes/mod.rs::add_permanent_many
 AttributeInstance.removeModifier	port	crates/horizon-world/src/attributes/mod.rs::remove	a mob's own attributes (mobs/finalize.rs) have no remove
-AttributeInstance.removeModifiers	port	crates/horizon-world/src/attributes/mod.rs::remove_all	
-AttributeInstance.replaceFrom	port	crates/horizon-world/src/attributes/mod.rs::replace_from	
-AttributeInstance.pack	port	crates/horizon-world/src/attributes/mod.rs::pack	
-AttributeInstance.apply	port	crates/horizon-world/src/attributes/mod.rs::apply	
+AttributeInstance.removeModifiers	port	crates/horizon-world/src/attributes/mod.rs::remove_all
+AttributeInstance.replaceFrom	port	crates/horizon-world/src/attributes/mod.rs::replace_from
+AttributeInstance.pack	port	crates/horizon-world/src/attributes/mod.rs::pack
+AttributeInstance.apply	port	crates/horizon-world/src/attributes/mod.rs::apply
 AttributeMap.onAttributeModified	port	crates/horizon-world/src/attribute_map.rs::modified	Dirty::dirty in attributes/live.rs calls it
 AttributeMap.getBaseValue	port	crates/horizon-world/src/attribute_map.rs::value	ValueKind::Base
 AttributeMap.addTransientAttributeModifiers	port	crates/horizon-world/src/attributes/live.rs::add_effect_modifiers	effect modifiers: remove the old one by id, then add transient
-AttributeMap.removeAttributeModifiers	port	crates/horizon-world/src/attributes/live.rs::remove_effect_modifiers	
+AttributeMap.removeAttributeModifiers	port	crates/horizon-world/src/attributes/live.rs::remove_effect_modifiers
 AttributeMap.assignAllValues	missing		minor: the player is rebuilt from default attributes when respawning out of the End (PlayerMotion::new), so values and modifiers carried by keepAll are lost
 AttributeMap.assignBaseValues	missing		minor: base values changed by /attribute (max_health, speed) reset on respawn because the player's attributes are rebuilt
 AttributeMap.assignPermanentModifiers	missing		minor: permanent modifiers added by /attribute are lost on respawn out of the End
@@ -86,11 +86,11 @@ DefaultAttributes.validate	skip:debug		logs entity types without attributes in a
 RangedAttribute.sanitizeValue	port	crates/horizon-world/src/attributes/mod.rs::sanitize	Definition::sanitize clamps and gives the minimum for NaN
 AcquirePoi.create	port	crates/horizon-client/src/mobs/villager_brain.rs::acquire	the behaviour runs in B::try_start; POI tickets are counted from other villagers' memories
 AcquirePoi.findPathToPois	inline	crates/horizon-client/src/mobs/villager_brain.rs::try_start	create_path_to_any over the found POIs with the largest valid range
-AcquirePoi.JitteredLinearRetry.markAttempt	port	crates/horizon-client/src/mobs/villager_brain.rs::mark	
+AcquirePoi.JitteredLinearRetry.markAttempt	port	crates/horizon-client/src/mobs/villager_brain.rs::mark
 AcquirePoi.JitteredLinearRetry.isStillValid	inline	crates/horizon-client/src/mobs/villager_brain.rs::try_start	retries.retain(now - previous < 400)
 AnimalMakeLove.checkExtraStartConditions	inline	crates/horizon-client/src/mobs/animal_brain.rs::try_start	in love and a partner from breed_partner
 AnimalMakeLove.canStillUse	inline	crates/horizon-client/src/mobs/animal_brain.rs::tick_or_stop	gap: minor: partner_panicking is stubbed to false, so a partner that starts panicking does not end the pairing
-AnimalMakeLove.stop	port	crates/horizon-client/src/mobs/animal_brain.rs::do_stop	
+AnimalMakeLove.stop	port	crates/horizon-client/src/mobs/animal_brain.rs::do_stop
 AnimalMakeLove.hasBreedTargetOfRightType	inline	crates/horizon-client/src/mobs/animal_brain.rs::can_mate_with	same-species test on the remembered partner
 AnimalPanic.checkExtraStartConditions	inline	crates/horizon-client/src/mobs/animal_brain.rs::try_start	hurt by a panic cause, or already panicking
 AnimalPanic.start	port	crates/horizon-client/src/mobs/animal_brain.rs::try_start	panic memory set, walk target cleared, navigation stopped
@@ -117,7 +117,7 @@ ChargeAttack.dealKnockBack	inline	crates/horizon-client/src/mobs/nautilus.rs::ti
 CopyMemoryWithExpiry.create	inline	crates/horizon-client/src/mobs/piglin.rs::register_piglin	gap: minor: zombified avoidance is the AvoidEntity goal; baby piglins do not run from wither skeletons or the wither and never ride baby hoglins
 CountDownCooldownTicks.canStillUse	inline	crates/horizon-client/src/mobs/animal_brain.rs::tick_or_stop	the CountDown arms run while the cooldown is above 0; the goat's ram cooldown is ram_cooldown in goat.rs
 CrossbowAttack.checkExtraStartConditions	port	crates/horizon-client/src/mobs/illager.rs::can_use	gap: minor: the piglin uses RangedCrossbowAttackGoal's check (holding a crossbow, live target), with no line of sight or attack range test
-CrossbowAttack.canStillUse	port	crates/horizon-client/src/mobs/illager.rs::can_continue	
+CrossbowAttack.canStillUse	port	crates/horizon-client/src/mobs/illager.rs::can_continue
 CrossbowAttack.crossbowAttack	port	crates/horizon-client/src/mobs/illager.rs::tick	gap: minor: the goal's state machine; piglins also walk to within 8 blocks and move at half speed while charged, the brain behaviour stands and shoots
 DismountOrSkipMounting.create	port	crates/horizon-client/src/mobs/piglin.rs::dismount_or_skip_mounting	run in the ride activity: the vehicle or ride target stays while it is alive, closer than 8 blocks and not wanted off, else the piglin gets off and forgets the ride target; a vehicle gone from the level counts as dead
 DismountOrSkipMounting.isVehicleValid	inline	crates/horizon-client/src/mobs/piglin.rs::dismount_or_skip_mounting	the alive, closerThan(8) and wantsToStopRiding test the same fn makes
@@ -125,13 +125,13 @@ DoNothing.tryStart	port	crates/horizon-client/src/mobs/warden_brain.rs::try_star
 DoNothing.tickOrStop	port	crates/horizon-client/src/mobs/warden_brain.rs::tick_or_stop	stops when the timer ends
 EntityTracker.currentPosition	port	crates/horizon-client/src/mobs/villager_brain.rs::position	Tracker::position, eyes or feet
 EntityTracker.currentBlockPosition	port	crates/horizon-client/src/mobs/villager_brain.rs::block	Tracker::block
-EntityTracker.isVisibleBy	port	crates/horizon-client/src/mobs/villager_brain.rs::tracker_visible	
+EntityTracker.isVisibleBy	port	crates/horizon-client/src/mobs/villager_brain.rs::tracker_visible
 EraseMemoryIf.create	skip:other		generic builder; its uses (breeding hoglins and axolotls drop their target, piglins near zombified drop theirs) are only approximated by goal priorities
 FollowTemptation.canStillUse	inline	crates/horizon-client/src/mobs/animal_brain.rs::tick_or_stop	tempting player present, no breed target, not panicking
 FollowTemptation.stop	port	crates/horizon-client/src/mobs/animal_brain.rs::do_stop	cooldown 100, walk and look targets cleared
 GateBehavior.getRequiredMemories	skip:java		memory registration, memories are fields
 GateBehavior.hasRequiredMemories	inline	crates/horizon-client/src/mobs/villager_brain.rs::try_start	Gate::try_start checks its absent memory and each child's
-GateBehavior.debugString	skip:debug		
+GateBehavior.debugString	skip:debug
 GiveGiftToHero.checkExtraStartConditions	inline	crates/horizon-client/src/mobs/villager_brain.rs::try_start	hero visible, countdown to the next gift
 GiveGiftToHero.start	inline	crates/horizon-client/src/mobs/villager_brain.rs::try_start	interaction target set, look at the hero
 GiveGiftToHero.canStillUse	inline	crates/horizon-client/src/mobs/villager_brain.rs::tick_or_stop	hero visible and no gift given yet

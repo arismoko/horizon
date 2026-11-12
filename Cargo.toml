@@ -23,6 +23,7 @@ members = [
     "crates/horizon-hdr",
     "crates/horizon-world",
     "crates/horizon-client",
+    "crates/horizon-engine-slots",
     "crates/horizon-mod-points",
     "crates/horizon-internals",
     "crates/horizon-client-lib",

@@ -7,11 +7,17 @@ on:
     branches: [main]
     paths:
       - 'launcher/**'
+      - 'crates/horizon-server-files/**'
+      - 'crates/horizon-client/src/carrier_store.rs'
+      - 'crates/horizon-client/src/carrier_store_tests.rs'
       - '.github/workflows/launcher-windows-check.yml'
   pull_request:
     paths:
       - 'launcher/**'
       - 'crates/horizon-mod-package/**'
+      - 'crates/horizon-server-files/**'
+      - 'crates/horizon-client/src/carrier_store.rs'
+      - 'crates/horizon-client/src/carrier_store_tests.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/launcher-windows-check.yml'
@@ -44,10 +50,10 @@ jobs:
           shared-key: launcher-windows-check
           # One cache from main, read by every pull request: per-PR caches filled the 10 GB budget and evicted main's.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: "cargo test --release --locked -p horizon-mod-package --features runtime-process --lib output::"
+      - run: "cargo test --no-fail-fast --release --locked -p horizon-mod-package --features runtime-process --lib output::"
         working-directory: .
       # Every test target (the library, the binary, tests/), as launcher.yml runs them.
-      - run: cargo test --release --locked
+      - run: cargo test --no-fail-fast --release --locked
 
   runtime-leases:
     runs-on: windows-latest
@@ -65,6 +71,6 @@ jobs:
       - run: cargo build --release --locked -p horizon-mod-package --features runtime-process --example holder_actor
         working-directory: .
         shell: bash
-      - run: cargo test --release --locked -p horizon-mod-package --features runtime-process --lib
+      - run: cargo test --no-fail-fast --release --locked -p horizon-mod-package --features runtime-process --lib
         working-directory: .
         shell: bash

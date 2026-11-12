@@ -1,5 +1,5 @@
 //! Test support, enabled by the `testing` feature: scoped trait-mod installation
-//! ([`with_mods`]), and [`FakeHost`], a host built from small fakes so that a mod's tests run
+//! ([`with_dispatch`]), and [`FakeHost`], a host built from small fakes so that a mod's tests run
 //! without starting the game.
 //!
 //! ```
@@ -40,7 +40,10 @@ mod services;
 /// An item forward reference missing from a fake's load-owned catalog.
 pub use crate::parts::ItemKeyError;
 pub use journal::FakeJournal;
-pub use level::{FakeBattery, FakeBlockEntity, FakeContainer, FakeEntity, FakeLevel, FakeTank};
+pub use level::{
+    FakeBattery, FakeBlockEntity, FakeContainer, FakeEntity, FakeGameEvent, FakeLevel, FakeSound,
+    FakeTank,
+};
 pub use players::{FakePlayer, FakePlayers};
 pub use registries::FakeRegistries;
 pub use services::{FakeCommands, FakeMessages};
@@ -61,19 +64,17 @@ const FAKE_EPOCH: u64 = 1;
 ///
 /// The test allocation is leaked because dispatch exposes a static slice. Nested scopes and
 /// panic unwinding restore the preceding list; other threads are unaffected.
-pub fn with_mods<R>(mods: Mods, f: impl FnOnce() -> R) -> R {
+// hidden: API-owned test setup uses this vocabulary fixture, not mod authoring code.
+#[doc(hidden)]
+pub fn with_dispatch<R>(mods: Mods, f: impl FnOnce() -> R) -> R {
     struct Restore(Option<&'static Installed>);
     impl Drop for Restore {
         fn drop(&mut self) {
             TEST_MODS.set(self.0);
         }
     }
-    let (controllers, poses) = crate::parts::registered_controllers(&mods);
-    let controllers: &'static [_] = Box::leak(controllers.into_boxed_slice());
-    let _poses = crate::client::arm_pose::test_table(poses);
     let installed = Box::leak(Box::new(Installed::new(mods)));
     let _restore = Restore(TEST_MODS.replace(Some(installed)));
-    let _controllers = RestoreControllers(TEST_CONTROLLERS.replace(Some(controllers)));
     f()
 }
 
@@ -139,6 +140,11 @@ pub struct FakeHost {
     pub messages: FakeMessages,
     /// The transaction journal over the players and the level.
     pub journal: FakeJournal<(FakePlayers, FakeLevel)>,
+    /// The sounds played in the level, in order. Like the game's, they are sent as they are
+    /// played: an aborted transaction does not take them back.
+    pub sounds: Vec<FakeSound>,
+    /// The game events sent in the level, in order, kept as the sounds are.
+    pub game_events: Vec<FakeGameEvent>,
 }
 
 impl FakeHost {
@@ -220,6 +226,17 @@ impl crate::prelude::TagsHost for FakeHost {
     fn tags(&self) -> &dyn crate::Tags {
         &self.registries
     }
+    fn fluid_pickup_sound(&self, fluid: &str) -> Option<&'static str> {
+        self.registries.fluid_sound(fluid, true)
+    }
+    fn fluid_empty_sound(&self, fluid: &str) -> Option<&'static str> {
+        self.registries.fluid_sound(fluid, false)
+    }
+}
+impl crate::prelude::BlockStatesHost for FakeHost {
+    fn fluid_key(&self, id: &str) -> Option<crate::FluidKey> {
+        crate::content::registry_keys::fluid_key(id)
+    }
 }
 impl crate::prelude::LevelsHost for FakeHost {
     fn is_loaded(&self, id: &str) -> bool {
@@ -228,7 +245,15 @@ impl crate::prelude::LevelsHost for FakeHost {
 }
 crate::impl_host_areas!(
     FakeHost,
-    except(block_entities, entities, items, levels, players, tags)
+    except(
+        block_entities,
+        block_states,
+        entities,
+        items,
+        levels,
+        players,
+        tags
+    )
 );
 
 impl ServerHost for FakeHost {
@@ -508,89 +533,97 @@ impl crate::prelude::PlayersBackendMut for FakeHost {
         Ok(true)
     }
 }
-crate::impl_backend_mut_areas!(FakeHost, except(entities, fluids_energy, items, players));
+impl crate::prelude::LevelsBackendMut for FakeHost {
+    fn level_play_sound(
+        &mut self,
+        level: LevelRef,
+        sound: &str,
+        at: [f64; 3],
+        source: crate::SoundSource,
+        volume: f32,
+        pitch: f32,
+    ) -> bool {
+        if level != self.level.level() {
+            return false;
+        }
+        self.sounds.push(FakeSound {
+            sound: sound.to_owned(),
+            at,
+            source,
+            volume,
+            pitch,
+        });
+        true
+    }
+    fn level_game_event(
+        &mut self,
+        level: LevelRef,
+        event: &str,
+        at: [f64; 3],
+        context: crate::GameEventContext,
+    ) -> bool {
+        if level != self.level.level() {
+            return false;
+        }
+        self.game_events.push(FakeGameEvent {
+            event: event.to_owned(),
+            at,
+            context,
+        });
+        true
+    }
+}
+crate::impl_backend_mut_areas!(
+    FakeHost,
+    except(entities, fluids_energy, items, levels, players)
+);
 
 impl crate::prelude::PlayersClientBackend for FakeHost {}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::prelude::ItemsHost;
-    use crate::{FLUIDS, FluidResource, Hand, HostTransaction, ItemResource, move_resources};
+/// Scope the controller lookup rows prepared by the API-owned registration fixture.
+// hidden: API-owned test setup uses this vocabulary fixture, not mod authoring code.
+#[doc(hidden)]
+pub fn with_controller_tables<R>(
+    controllers: Vec<crate::__private::parts_installation::ControllerInfoInput>,
+    poses: Vec<crate::__private::parts_installation::PoseInfoInput>,
+    f: impl FnOnce() -> R,
+) -> R {
+    let controllers: Vec<ControllerInfo> = controllers.into_iter().map(Into::into).collect();
+    let controllers: &'static [_] = Box::leak(controllers.into_boxed_slice());
+    let _poses = crate::client::arm_pose::test_table(poses.into_iter().map(Into::into).collect());
+    let _controllers = RestoreControllers(TEST_CONTROLLERS.replace(Some(controllers)));
+    f()
+}
 
-    fn water(amount: u32) -> FluidStack {
-        FluidStack::new(
-            crate::content::registry_keys::fluid_key("minecraft:water").unwrap(),
-            amount,
-        )
+// no wire: read-only in-process phase fixture metadata.
+#[derive(Default)]
+// hidden: API-owned test setup uses this vocabulary fixture, not mod authoring code.
+#[doc(hidden)]
+// exhaustive: the platform or fixture constructs this process-local record as a complete unit.
+pub struct TestReader {
+    pub registries: std::collections::BTreeMap<String, std::sync::Arc<[String]>>,
+    pub tags: std::sync::Arc<[(String, std::sync::Arc<[String]>)]>,
+}
+impl crate::LoadReader for TestReader {
+    fn registry(&self, name: &str) -> Option<std::sync::Arc<[String]>> {
+        self.registries.get(name).cloned()
     }
-
-    #[test]
-    fn a_fluid_moves_between_tanks_of_the_same_fluid_and_an_abort_puts_both_back() {
-        crate::parts::tests::game_thread();
-        let mut host = FakeHost::new();
-        let level = host.level.level();
-        host.level.block_entity([0, 64, 0]).tanks = vec![FakeTank {
-            held: Some(water(800)),
-            capacity: 1000,
-        }];
-        host.level.block_entity([1, 64, 0]).tanks = vec![FakeTank {
-            held: Some(water(700)),
-            capacity: 1000,
-        }];
-        host.level.block_entity([2, 64, 0]).tanks = vec![FakeTank {
-            held: Some(FluidStack::new(
-                crate::content::registry_keys::fluid_key("minecraft:lava").unwrap(),
-                100,
-            )),
-            capacity: 1000,
-        }];
-        let server: &mut dyn ServerHost = &mut host;
-        let tank = |host: &mut dyn ServerHost, x| {
-            level.capability(host, &FLUIDS, [x, 64, 0], None).unwrap()
-        };
-        let (from, into, lava) = (tank(server, 0), tank(server, 1), tank(server, 2));
-        let any = |_: &FluidResource| true;
-        let aborted = server.transaction(|host, tx| {
-            let moved = move_resources(host, &from, &into, any, 1000, tx);
-            Err::<(), _>(moved)
-        });
-        assert_eq!(aborted, Err(Ok(300)));
-        // Lava takes no water; water fills only up to the target's room.
-        let refused =
-            server.transaction(|host, tx| move_resources(host, &from, &lava, any, 1000, tx));
-        assert_eq!(refused, Ok(0));
-        let moved =
-            server.transaction(|host, tx| move_resources(host, &from, &into, any, 1000, tx));
-        assert_eq!(moved, Ok(300));
-        let amount = |x| host.level.block_entity_at([x, 64, 0]).unwrap().tanks[0].amount();
-        assert_eq!([amount(0), amount(1), amount(2)], [500, 1000, 100]);
+    fn fluid_tags(&self) -> std::sync::Arc<[(String, std::sync::Arc<[String]>)]> {
+        self.tags.clone()
     }
-
-    #[test]
-    fn what_a_players_hand_cannot_hold_is_given_to_them_and_an_abort_takes_it_back() {
-        let mut host = FakeHost::new();
-        host.join(7, 41).selected_slot = 2;
-        host.registries
-            .item_component("minecraft:egg", "minecraft:max_stack_size", Tag::Int(16));
-        let hand = ItemPlace::PlayerHand {
-            player: 7,
-            hand: Hand::Main,
-        };
-        let egg = crate::Identifier::parse("minecraft:egg").unwrap();
-        host.registries.resolve_items([egg.clone()]).unwrap();
-        let eggs = ItemResource::of(&ItemStack::of(host.item_key(&egg).unwrap()));
-        let server: &mut dyn ServerHost = &mut host;
-        let aborted = server.transaction(|host, tx| Err::<(), _>(hand.insert(host, tx, &eggs, 20)));
-        assert_eq!(aborted, Err(20));
-        assert!(host.players.get(7).unwrap().slots.is_empty());
-        let server: &mut dyn ServerHost = &mut host;
-        let went = server.transaction(|host, tx| Ok::<_, ()>(hand.insert(host, tx, &eggs, 20)));
-        assert_eq!(went, Ok(20));
-        let player = host.players.get(7).unwrap();
-        assert_eq!(player.main_hand().map(ItemStack::count), Some(16));
-        assert_eq!(player.slots.keys().collect::<Vec<_>>(), [&2]);
-        let given: Vec<u32> = player.given.iter().map(ItemStack::count).collect();
-        assert_eq!(given, [4]);
+    fn setting(&self, _: &str, _: &str) -> Option<String> {
+        None
     }
 }
+impl crate::LoopReader for TestReader {
+    fn registry(&self, name: &str) -> Option<std::sync::Arc<[String]>> {
+        self.registries.get(name).cloned()
+    }
+    fn setting(&self, _: &str, _: &str) -> Option<String> {
+        None
+    }
+}
+
+#[cfg(test)]
+#[path = "testing/handle_level_tests.rs"]
+mod handle_level_tests;

@@ -59,6 +59,11 @@ let into = host.level.block_entity_at([1, 64, 0]).unwrap().items.as_ref().unwrap
 assert_eq!(into.count("minecraft:stone"), 3);
 ```
 
+Sounds and game events a hook plays in the level are kept in `host.sounds` and `host.game_events`, in order and
+outside the journal, as the game sends them at once. Fluids a test uses are resolved with
+`host.registries.resolve_fluids([...])`, and `host.registries.fluid_sounds(fluid, fill, empty)` gives one the
+bucket sounds `fluid_pickup_sound` and `fluid_empty_sound` answer.
+
 A `Host` method no fake answers panics naming it, as every `Host` method defaults to, so an unexpected call
 fails loudly. A test can still write its own double for what the fakes don't model, implementing only what its
 hook calls; `testing::FakeJournal` gives such a host the same transaction journal over its own state.

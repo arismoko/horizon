@@ -23,7 +23,7 @@ pub fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, Strin
 
 /// Step 1: the pack at `pack` to `<work>/pack.json`.
 pub fn import(source: &Path, work: &Path, log: Log) -> Result<import::Pack, String> {
-    let pack = import::import(source)?;
+    let pack = import::import_with_jars(source, Some(work))?;
     fs::create_dir_all(work).map_err(|e| format!("{}: {e}", work.display()))?;
     // A bad resource-pack entry must not stop the pack's mods from importing.
     match crate::resourcepacks::stage(source, work, &pack).and_then(|r| r.save(work)) {

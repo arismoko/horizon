@@ -29,7 +29,7 @@ mod tests {
     }
     #[test]
     fn preset_editor_registration_uses_the_generated_dispatch() {
-        testing::with_mods(
+        testing::with_dispatch(
             vec![ModEntry::new("example", Box::new(EditorMod))].into(),
             || {
                 let mut editors = Vec::new();
@@ -43,7 +43,7 @@ mod tests {
                 );
             },
         );
-        testing::with_mods(Vec::new().into(), || {
+        testing::with_dispatch(Vec::new().into(), || {
             let mut editors = Vec::new();
             dispatch_register_preset_editors(&RegistrationContext::new(), &mut editors);
             assert!(editors.is_empty());

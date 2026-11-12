@@ -1,8 +1,22 @@
 """Bounded fresh dedicated worlds, same sample source native and wasm.
 Run only after the standalone optimized production-feature runner has built. No real user data.
+
+Environment, all required:
+  BENCH_BINARY        the game executable to run (its folder gets the native mod and the wasm std)
+  BENCH_BINARY_HEAD   the Horizon commit that executable was built from
+  BENCH_SAMPLE        the machine sample's source folder
+  BENCH_SAMPLE_HEAD   the sample's commit
+  BENCH_PACKAGE       the sample's wasm package (.hmod)
+  BENCH_STD           the matching horizon-wasm-std.wasm
+Optional: BENCH_WORLD_OUTPUT, where results are written (default /box/shared/wasm-bench).
 """
-import os, pathlib, shutil, subprocess, sys, tempfile, time, threading, json
+import argparse, os, pathlib, shutil, subprocess, sys, tempfile, time, threading, json, tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+REQUIRED = ['BENCH_BINARY', 'BENCH_BINARY_HEAD', 'BENCH_SAMPLE', 'BENCH_SAMPLE_HEAD', 'BENCH_PACKAGE', 'BENCH_STD']
+argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+missing = [name for name in REQUIRED if name not in os.environ]
+if missing:
+    sys.exit('run-world.py: set ' + ', '.join(missing) + ' (see --help)')
 sys.path.insert(0, str(ROOT / 'tools'))
 import lab  # noqa: E402
 OUT = pathlib.Path(os.environ.get('BENCH_WORLD_OUTPUT', '/box/shared/wasm-bench'))
@@ -19,7 +33,9 @@ shutil.copy(SAMPLE / 'Cargo.toml', adj / 'Cargo.toml')
 manifest = (SAMPLE/'horizon-mod.toml').read_text().split('\n[wasm]')[0]
 # The sample's native-only demo injection has no wasm guest export. Neither
 # benchmark installs it; machine logic and the rest of the source remain unchanged.
-manifest += '\n[native]\ngame = "26.3"\nhorizon = "' + os.environ['BENCH_BINARY_HEAD'] + '"\nmixins = "5a64af938ec86b00d53d16a408aabc0038fb3e57"\n'
+# A sample that already declares [native] keeps its own table: a second one is not a manifest.
+if 'native' not in tomllib.loads(manifest):
+    manifest += '\n[native]\ngame = "26.3"\nhorizon = "' + os.environ['BENCH_BINARY_HEAD'] + '"\nmixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"\n'
 manifest = manifest.replace('b5d6f467dc78deda3b072e700f767adb456cd349', '1975cf5a9033a3057e439c62b07af0683254e6fb')
 (adj / 'horizon-mod.toml').write_text(manifest)
 shutil.copy(pathlib.Path(os.environ['BENCH_STD']), BIN.parent / 'horizon-wasm-std.wasm')

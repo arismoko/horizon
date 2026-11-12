@@ -5,7 +5,7 @@ use crate::{
     fast_hash::{FxHashMap, FxHashSet},
     section_mask::SectionMask,
 };
-use horizon_core::random::LegacyRandom;
+use horizon_core::random::{LegacyRandom, LevelRandom};
 use horizon_world::registry::BlockStateId;
 use std::sync::Arc;
 
@@ -64,12 +64,15 @@ pub struct World {
     /// The holders lent to mods since the last flush, whose synced changes
     /// `flush_attachment_sync` sends.
     pub attachment_syncs: FxHashSet<horizon_mod_runtime::attachments::Holder>,
+    /// Block entities a moving piston landed since the last flush, whose
+    /// synced attachments `flush_attachment_sync` sends whole (#3184).
+    pub attachment_landings: FxHashSet<horizon_mod_runtime::attachments::Holder>,
     /// The level's build range and skylight (its dimension type); its
     /// chunks hold `shape.column()`.
     pub shape: LevelShape,
     pub fast_lava: bool,
     pub chunks: crate::chunk_map::ChunkMap,
-    pub random: LegacyRandom,
+    pub random: LevelRandom,
     pub revision: u64,
     pub health_rules: HealthRules,
     pub air: BlockStateId,
@@ -80,6 +83,10 @@ pub struct World {
     /// Edits on lit chunks (position, old state, new state), relit
     /// incrementally by streaming.
     pub light_edits: Vec<((i32, i32, i32), u32, u32)>,
+    /// Where each light check queued since the last ask sits in `light_edits`, so a repeated
+    /// check at the same position queues nothing, as `LevelLightEngine.checkBlock` queues into a
+    /// set. An index that no longer holds its position (drained, rolled back) is ignored.
+    pub light_checks: crate::fast_hash::FxHashMap<(i32, i32, i32), usize>,
     /// Saved entities of chunks that just loaded, spawned by the game.
     pub loaded_entities: Vec<((i32, i32), Vec<horizon_core::nbt::Tag>)>,
     /// Chunks loaded since the level's last pass, their entity sections not
@@ -93,6 +100,16 @@ pub struct World {
     pub modified: ModifiedChunks,
     /// Block entities, and the order they tick in.
     pub block_entities: crate::block_entities::BlockEntities,
+    /// Carrier transfer fences: the world cells and carriers locked
+    /// while a carrier operation runs between prepared and committed
+    /// (the game's carrier transfers). Empty, one load, when no
+    /// operation is in flight.
+    pub carrier_fences: crate::carrier_fences::Fences,
+    /// Whether the world's `data/` folder already existed when the
+    /// world opened — the carrier store's first-use gate. Captured at
+    /// open, not at transfer time, so a folder created this session
+    /// (by the first save, say) cannot pass for an old one.
+    pub carrier_data_existed_at_open: bool,
     /// Each chest's `ContainerOpenersCounter`: opener count and largest
     /// interaction range.
     pub chest_openers: FxHashMap<(i32, i32, i32), (i32, f64)>,
@@ -237,7 +254,7 @@ impl World {
         Self {
             shape: LevelShape::OVERWORLD,
             chunks: Default::default(),
-            random: LegacyRandom::new(seed),
+            random: LevelRandom::for_level(LegacyRandom::new(seed)),
             revision: 0,
             health_rules: HealthRules::default(),
             air,
@@ -245,13 +262,17 @@ impl World {
             dirty_sections: Default::default(),
             dirty_light: Default::default(),
             light_edits: Vec::new(),
+            light_checks: Default::default(),
             loaded_entities: Vec::new(),
             entities_pending: FxHashSet::default(),
             loaded_chunks: Vec::new(),
             modified: ModifiedChunks::default(),
             attachments: Default::default(),
             attachment_syncs: FxHashSet::default(),
+            attachment_landings: FxHashSet::default(),
             block_entities: Default::default(),
+            carrier_fences: Default::default(),
+            carrier_data_existed_at_open: false,
             chest_openers: FxHashMap::default(),
             block_names: FxHashMap::default(),
             watched: Vec::new(),
@@ -336,6 +357,12 @@ impl World {
     /// The lowest block Y the level's chunks hold.
     pub fn bottom_y(&self) -> i32 {
         self.layout().min_y()
+    }
+    /// `Entity.checkBelowWorld`'s floor, `Level.getMinY() - 64`: the level's own
+    /// lowest Y (0 in the Nether and the End), not the chunks' widened column.
+    /// An entity below it is out of the world.
+    pub fn below_world_y(&self) -> f64 {
+        f64::from(self.shape.min_y - 64)
     }
     /// One above the highest block Y the level's chunks hold.
     pub fn top_y(&self) -> i32 {

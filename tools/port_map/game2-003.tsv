@@ -40,7 +40,7 @@ Zoglin.updateActivity	port	crates/horizon-client/src/mobs/piglin.rs::zoglin_step
 Zoglin.customServerAiStep	inline	crates/horizon-client/src/mobs/piglin.rs::ai_step	gap: minor: the brain tick is not run; the zoglin goal set runs in the general AI loop
 Zoglin.setBaby	port	crates/horizon-client/src/mobs/finalize.rs::set_baby	Zoglin arm: non-ageable baby age and 0.5 attack damage
 Zoglin.handleEntityEvent	port	crates/horizon-client/src/mobs/piglin.rs::client_event	event 4 starts the headbutt; the attack sound comes from hoglin_hurt_target
-Zoglin.getAmbientSound	port	crates/horizon-client/src/mobs/ai.rs::play_ambient	
+Zoglin.getAmbientSound	port	crates/horizon-client/src/mobs/ai.rs::play_ambient
 Breeze.createAttributes	skip:data		attribute defaults come from the data tables (mobs.rs attr lookup)
 Breeze.makeBrain	port	crates/horizon-client/src/mobs/monster_brain.rs::init	breezes get the fight default activity
 Breeze.onSyncedDataUpdated	port	crates/horizon-client/src/mobs/breeze.rs::ai_step	client pose change restarts the matching animation
@@ -74,7 +74,7 @@ Creaking.creakingDeathEffects	port	crates/horizon-client/src/mobs/creaking_heart
 Creaking.canUsePortal	port	crates/horizon-client/src/mobs/creaking.rs::can_use_portal	`mob_can_use_portal` also asks it: isHeartBound() refuses the portal
 Creaking.readAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_from_nbt	home_pos is read back as the transient home
 Creaking.checkEyeBlink	inline	crates/horizon-client/src/mobs/creaking.rs::animate	eye flicker timing on the dying creaking
-Creaking.knockback	port	crates/horizon-client/src/mobs.rs::Mob::knockback	
+Creaking.knockback	port	crates/horizon-client/src/mobs.rs::Mob::knockback
 Creaking.CreakingPathNavigation.createPathFinder	missing		no home-distance node evaluator: `m.extra.home` is read for damage, tearing down and the save, never by the pathfinder
 Creaking.HomeNodeEvaluator.getPathType	missing		no node is marked blocked for being more than 32 blocks from the heart
 Creaking.getHurtSound	port	crates/horizon-client/src/mobs/ai.rs::voice_sounds	the sway while it is bound to a heart, `Monster.getHurtSound` (the hostile hurt) otherwise
@@ -97,11 +97,12 @@ Slime.addTargetingGoals	port	crates/horizon-client/src/mobs/cube.rs::register	sa
 Slime.finalizeSpawn	port	crates/horizon-client/src/mobs/cube.rs::finalize	same spawn size roll as the other cubes
 SulfurCube.defineSynchedData	skip:java		SynchedEntityData builder; the synced values are Mob fields (extra.counter2, flags)
 SulfurCube.playStepSound	port	crates/horizon-client/src/mobs/ai/step.rs::step_sound	a cube carrying a block in its body returns before the block's step and walks silently
+SulfurCube.canBreatheUnderwater	port	crates/horizon-client/src/mobs/ai/air.rs::can_breathe_under_water	true while it has a body item
 SulfurCube.addBehaviourGoals	port	crates/horizon-client/src/mobs/sulfur_cube.rs::register	temptation goal at 2 and search-for-items at 3
 SulfurCube.onSyncedDataUpdated	skip:other		client copy of the fuse sync; the fuse is mob state (sulfur_cube::fuse)
 SulfurCube.saveToBucketTag	inline	crates/horizon-client/src/mobs/sulfur_cube.rs::to_nbt	the bucket keeps the mob NBT, including Age and AgeLocked
 SulfurCube.travelInFluid	inline	crates/horizon-client/src/mobs/sulfur_cube.rs::ai_step	buoyancy bob runs in the tick, not in the fluid travel
-SulfurCube.loadFromBucketTag	inline	crates/horizon-client/src/mobs/sulfur_cube.rs::from_nbt	reads Age and AgeLocked back
+SulfurCube.loadFromBucketTag	inline	crates/horizon-client/src/game/dispenser.rs::Game::mob_placed	the bucket's lowercase age and age_locked, 0 and false when absent
 SulfurCube.requiresCustomPersistence	port	crates/horizon-client/src/mobs/ai.rs::requires_custom_persistence	holding a block or let out of a bucket
 SulfurCube.hurtServer	port	crates/horizon-client/src/mobs/sulfur_cube.rs::accepts_damage	fire or explosion primes; a held block shrugs off blows and only knocks back
 SulfurCube.matchingArchetypes	port	crates/horizon-client/src/mobs/sulfur_cube.rs::archetype_of	one archetype per item, not a list
@@ -140,7 +141,7 @@ Hoglin.getBreedOffspring	port	crates/horizon-client/src/game/mobs/creatures/mod.
 HoglinAi.initCoreActivity	inline	crates/horizon-client/src/mobs/piglin.rs::register_hoglin	gap: minor: look-at-target and move-to-target sinks are not separate; the goal set stands in for them
 HoglinAi.initIdleActivity	inline	crates/horizon-client/src/mobs/piglin.rs::register_hoglin	gap: player: hoglins do not walk away from adult piglins within 8 blocks; the rest of the idle is there
 HoglinAi.initFightActivity	inline	crates/horizon-client/src/mobs/piglin.rs::register_hoglin	MeleeAttack.create(40) for adults and create(15) for babies (`MeleeAttack::intervals(40, 15)`); the brain's own order has no tick parity here (the probe has no hoglin brain)
-HoglinAi.initRetreatActivity	port	crates/horizon-client/src/mobs/piglin.rs::register_hoglin	
+HoglinAi.initRetreatActivity	port	crates/horizon-client/src/mobs/piglin.rs::register_hoglin
 HoglinAi.createIdleMovementBehaviors	inline	crates/horizon-client/src/mobs/piglin.rs::register_hoglin	gap: minor: no look-target walk or do-nothing pauses; a plain stroll only
 HoglinAi.updateActivity	port	crates/horizon-client/src/mobs/piglin.rs::update_activity	takes the first valid activity and voices the one it changed to (`hoglin_sound`: angry in a fight, retreat when avoiding or converting, else ambient); the same fn covers PiglinAi and PiglinBruteAi
 HoglinAi.onHitTarget	inline	crates/horizon-client/src/mobs/piglin.rs::hoglin_hurt_target	gap: player: no retreat when piglins outnumber hoglins; the hit only attacks
@@ -156,3 +157,5 @@ Evoker.EvokerAttackSpellGoal.createSpellEntity	port	crates/horizon-client/src/mo
 SulfurCube.doPush	inline	crates/horizon-client/src/mobs/sulfur_cube.rs::mob_contacts	mob contact stage only; ordinary AI push impulse remains in ai::push_entities
 Slime.canBeABaby	port	crates/horizon-client/src/mobs/species.rs::can_be_a_baby	the false arm: an AbstractCubeMob that is ageable but never a baby
 MagmaCube.canBeABaby	port	crates/horizon-client/src/mobs/species.rs::can_be_a_baby	the false arm: same as the slime
+Vex.VexCopyOwnerTargetGoal.canUse	port	crates/horizon-client/src/mobs/vex.rs::CopyOwnerTarget::can_use	owner target must be alive and not a spectator
+SulfurCube.SulfurCubeTemptGoal.canUse	port	crates/horizon-client/src/mobs/sulfur_cube.rs::SulfurTempt::can_use	range scaled by visibility, floor 2

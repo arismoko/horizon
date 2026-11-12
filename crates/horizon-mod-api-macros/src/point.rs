@@ -1,5 +1,5 @@
-//! `#[point]`: an injection point's slot check, record copy-in and copy-out, and raw listeners.
-use point_shape::{Arg, Pass, RawOutcome, Receiver, Returns, Side};
+//! `#[point]`: an injection point's head check, record copy-in and copy-out.
+use point_shape::{Arg, Pass, Receiver, Returns, Side};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::ImplItemFn;
@@ -105,7 +105,6 @@ fn copy_out(arg: &Arg, input: usize, point: &str) -> TokenStream {
         quote!(#target = #converted;)
     }
 }
-
 /// `#[point]` on a function: see the attribute's documentation in the crate root.
 pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
     if let Some(inline) = function.attrs.iter().find(|attr| {
@@ -125,7 +124,7 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         Err(e) => return e.to_compile_error(),
     };
     let name = shape.name.clone();
-    let table = shape.table.clone();
+    let table = quote!(mod_points);
     // The body moves to an inlined inner function, so the return listeners run however it
     // returns; the outer function takes each parameter by a plain, mutable name.
     let inner = syn::Ident::new(
@@ -145,12 +144,24 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
             inputs.push(i);
         }
     }
-    let api = shape.api();
-    let args: Vec<(&Arg, usize)> = if api {
-        shape.args.iter().zip(inputs.iter().copied()).collect()
-    } else {
-        Vec::new()
+    if !shape.api() {
+        return syn::Error::new_spanned(
+            &function.sig.ident,
+            format!("point {} has no API record", function.sig.ident),
+        )
+        .to_compile_error();
+    }
+    let Some(slot) = shape.slot else {
+        return syn::Error::new_spanned(
+            &function.sig.ident,
+            format!(
+                "point {} has no replacement cell: the staging pass writes `slot = N`",
+                function.sig.ident
+            ),
+        )
+        .to_compile_error();
     };
+    let args: Vec<(&Arg, usize)> = shape.args.iter().zip(inputs.iter().copied()).collect();
     // What the body gets: a `&T` the listeners may have replaced, a `&mut` reborrowed so the
     // return listeners can still copy it.
     let call: Vec<TokenStream> = inputs
@@ -193,11 +204,6 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         (Receiver::Shared, _) => (quote!(self,), quote!(self.#inner)),
         (Receiver::Mut, _) => (quote!(&mut *self,), quote!(self.#inner)),
     };
-    let erased_receiver = match shape.receiver {
-        Receiver::None => quote!(::std::ptr::null_mut()),
-        Receiver::Shared => quote!(self as *const Self as *mut ()),
-        Receiver::Mut => quote!(&mut *self as *mut Self as *mut ()),
-    };
     // What the API listeners get before their record: the shape's host, if it has one.
     let host = match (shape.receiver, shape.side) {
         (_, None) => quote!(),
@@ -208,17 +214,15 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         (_, Some(_)) => quote!(self,),
     };
     let record = shape.record();
-    let outcome = shape.raw_outcome(&function.sig);
     let api_value = match &shape.returns {
-        Returns::Value(value) if api => Some(value),
+        Returns::Value(value) => Some(value),
         _ => None,
     };
-    let cancels =
-        matches!(shape.returns, Returns::Unit | Returns::UnitResult) && (api || shape.raw);
-    let results = (shape.raw && matches!(outcome, RawOutcome::Result(_))) || api_value.is_some();
+    let cancels = matches!(shape.returns, Returns::Unit | Returns::UnitResult);
+    let results = api_value.is_some();
     let listened = |variant: &syn::Ident| quote!(#table::__private::POINTS[#table::PointId::#variant as usize].load(::std::sync::atomic::Ordering::Acquire));
 
-    // The head: copy in, the API listeners, copy out; then the raw listeners on the same places.
+    // The head: copy in, the API listeners, copy out.
     let shared_locals =
         args.iter()
             .filter(|(arg, _)| arg.pass == Pass::Shared)
@@ -244,7 +248,7 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         let (names, values): (Vec<_>, Vec<_>) = mirrored.iter().cloned().unzip();
         (made, names, values)
     };
-    let head_api = api.then(|| {
+    let head_api = {
         let mirrored: Vec<_> = args
             .iter()
             .filter_map(|(arg, input)| mirror_in(arg, *input, false))
@@ -272,71 +276,7 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
             #outcome
         };
         guarded(&names, &values, body, &name)
-    });
-    let raw_places = |at_return: bool| {
-        let fields = point_shape::raw_fields(&function.sig)
-            .into_iter()
-            .map(|field| {
-                let (name, place) = (field.name, local(field.input));
-                quote!(#name: &mut #place)
-            });
-        let outcome = match (&outcome, at_return) {
-            (RawOutcome::Cancel, _) => quote!(cancel: &mut __cancel,),
-            (RawOutcome::Result(_), _) => quote!(result: &mut __result_slot,),
-            (RawOutcome::None, _) => quote!(),
-        };
-        let ty = shape.raw_record();
-        quote!(#ty { #(#fields,)* #outcome })
     };
-    let head_raw = shape.raw.then(|| {
-        let listener = shape.raw_listener();
-        let variant = shape.variant();
-        let raw_record = raw_places(false);
-        let fire = quote! {
-            #table::__private::fire_raw(
-                #table::PointId::#variant,
-                &mut |__kind| match __kind {
-                    #table::__private::RawKind::Typed(__function) => {
-                        // SAFETY: registration guarantees this point's listener type.
-                        unsafe {
-                            ::std::mem::transmute::<*const (), #listener>(__function)(
-                                #receiver &mut #raw_record,
-                            )
-                        }
-                    }
-                    #table::__private::RawKind::Erased(__function) => {
-                        // SAFETY: this slot supplies its exact receiver and raw record types.
-                        unsafe {
-                            __function(
-                                #table::PointId::#variant as usize,
-                                #erased_receiver,
-                                &mut #raw_record as *mut _ as *mut (),
-                            )
-                        }
-                    }
-                },
-            );
-        };
-        // A `replace` listener (the last API one) owns the outcome: the internals listeners
-        // after it run, but its cancel and value stand whatever they leave.
-        if !api || !(cancels || results) {
-            return fire;
-        }
-        let keep = results.then(|| {
-            quote!(let __owned = if __replaced { __result_slot.take() } else { ::std::option::Option::None };)
-        });
-        let force = cancels.then(|| quote!(if __replaced { __cancel = true; }));
-        let restore = results.then(|| {
-            quote!(if let ::std::option::Option::Some(__value) = __owned { __result_slot = ::std::option::Option::Some(__value); })
-        });
-        quote! {
-            let __replaced = #table::__private::replaced(#table::PointId::#variant);
-            #keep
-            #fire
-            #force
-            #restore
-        }
-    });
     let stop = {
         let cancel = match (&shape.returns, cancels) {
             (Returns::Unit, true) => quote!(if __cancel {
@@ -360,8 +300,8 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
     let head_listened = listened(&head_variant);
 
     // The return: the API listeners get the value returned and copies of the arguments (written
-    // back only for `&mut` ones); then the raw listeners get the value returned itself.
-    let has_api_return = api && shape.has_return();
+    // back only for `&mut` ones).
+    let has_api_return = shape.has_return();
     let back = has_api_return.then(|| {
         // A by-value argument is spent by the body: it is copied (or converted) before.
         let before: Vec<_> = args
@@ -449,51 +389,11 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
                 }
             }
         });
-        let raw_part = shape.raw.then(|| {
-            let variant = shape.return_variant();
-            let listener = shape.raw_return_listener();
-            let (receiver, erased_receiver) = if shape.borrowed_return {
-                (quote!(), quote!(::std::ptr::null_mut()))
-            } else {
-                (receiver.clone(), erased_receiver.clone())
-            };
-            let value = match &function.sig.output {
-                syn::ReturnType::Type(..) => quote!(&mut __result),
-                syn::ReturnType::Default => quote!(),
-            };
-            quote! {
-                {
-                    #table::__private::fire_raw(
-                        #table::PointId::#variant,
-                        &mut |__kind| match __kind {
-                            #table::__private::RawKind::Typed(__function) => {
-                                // SAFETY: registration guarantees this place's return listener type.
-                                unsafe {
-                                    ::std::mem::transmute::<*const (), #listener>(__function)(
-                                        #receiver #value
-                                    )
-                                }
-                            }
-                            #table::__private::RawKind::Erased(__function) => {
-                                // SAFETY: this slot supplies its exact receiver and return types.
-                                unsafe {
-                                    __function(
-                                        #table::PointId::#variant as usize,
-                                        #erased_receiver,
-                                        &mut __result as *mut _ as *mut (),
-                                    )
-                                }
-                            }
-                        },
-                    );
-                }
-            }
-        });
         // One check of the return's slot, before the body: the return path runs out of line.
-        (api_part.is_some() || raw_part.is_some()).then(|| {
+        api_part.is_some().then(|| {
             quote! {
                 if __returned {
-                    ::mod_api::__private::points::cold(|| { #api_part #raw_part });
+                    ::mod_api::__private::points::cold(|| { #api_part });
                 }
             }
         })
@@ -511,35 +411,96 @@ pub fn expand(attribute: TokenStream, mut function: ImplItemFn) -> TokenStream {
         .map(|(_, input)| local(*input))
         .collect();
     let cancel_local = cancels.then(|| quote!(let mut __cancel = false;));
+    let listeners_path = quote! {
+        (#(#owned,)*) = ::mod_api::__private::points::cold(|| { #head_api (#(#owned,)*) });
+        #stop
+    };
     let result_local =
         results.then(|| quote!(let mut __result_slot = ::std::option::Option::None;));
-    outer.block = syn::parse_quote!({
+    // The body, or the copy a mixin build installed in its place: the listeners run around either.
+    let reader = |kind: &str| {
+        let reader = format_ident!("__fnr_read_{kind}_{slot}");
+        if shape.free {
+            quote!(#reader())
+        } else {
+            quote!(Self::#reader())
+        }
+    };
+    let installed = reader("body");
+    // The dispatcher: what the function's cell holds while a mod listens here. Its listened
+    // paths stay out of line.
+    let stem = function.sig.ident.to_string();
+    let stem = stem.trim_start_matches("r#");
+    let dispatcher = format_ident!("__pointd_{stem}");
+    let armer = format_ident!("__pointa_{stem}");
+    let mut dispatch = outer.clone();
+    dispatch.sig.ident = dispatcher.clone();
+    dispatch.vis = syn::Visibility::Inherited;
+    dispatch.attrs = vec![
+        syn::parse_quote!(#[doc(hidden)]),
+        syn::parse_quote!(#[allow(clippy::all)]),
+    ];
+    dispatch.block = syn::parse_quote!({
         #cancel_local
         #result_local
         #(#shared_locals)*
-        // The listened path stays out of line, so a point nothing listens at keeps the function
-        // small enough to inline: one load and a branch.
         if #head_listened {
-            (#(#owned,)*) = ::mod_api::__private::points::cold(|| { #head_api #head_raw (#(#owned,)*) });
-            #stop
+            #listeners_path
         }
         #(#shared_refs)*
         #returned_local
         #back
         #[allow(unused_mut)]
-        let mut __result = #callee #turbofish(#(#call),*);
+        let mut __result = match #installed {
+            ::std::option::Option::Some(__fnr) => __fnr(#receiver #(#call),*),
+            ::std::option::Option::None => #callee #turbofish(#(#call),*),
+        };
         #returned
         __result
     });
-    // The outer function keeps the function's own `#[inline]`: a small accessor in a lower crate
-    // (`Chunk::get`) stays inlinable into its callers, slot check and all.
+    // The function itself: its one head check, then the body. It keeps the function's own
+    // `#[inline]`, so a small accessor stays inlinable into its callers, check and all.
+    let entry = reader("slot");
+    let own = match shape.receiver {
+        Receiver::None => quote!(),
+        _ => quote!(self,),
+    };
+    let plain: Vec<_> = inputs.iter().map(|&input| local(input)).collect();
+    outer.attrs.push(syn::parse_quote!(#[allow(unused_mut)]));
+    outer.block = syn::parse_quote!({
+        if let ::std::option::Option::Some(__fnr) = #entry {
+            return __fnr(#own #(#plain),*);
+        }
+        #callee #turbofish(#(#plain),*)
+    });
+    let dispatcher_path = if shape.free {
+        quote!(#dispatcher)
+    } else {
+        quote!(Self::#dispatcher)
+    };
+    let places = std::iter::once(shape.variant())
+        .chain(shape.has_return().then(|| shape.return_variant()))
+        .map(|variant| listened(&variant));
+    let arm = quote! {
+        /// Installs this point's dispatcher as the function's entry while a mod listens at its
+        /// head or return. Called once, after the points are sealed.
+        #[allow(dead_code, clippy::all)]
+        fn #armer() {
+            if #(#places)||* {
+                crate::__REPLACE[#slot].store(
+                    #dispatcher_path as *mut (),
+                    ::std::sync::atomic::Ordering::Release,
+                );
+            }
+        }
+    };
     function.sig.ident = inner;
     function.vis = syn::Visibility::Inherited;
     function
         .attrs
         .retain(|attr| !attr.path().is_ident("doc") && !attr.path().is_ident("inline"));
     function.attrs.push(syn::parse_quote!(#[inline(always)]));
-    quote!(#outer #function)
+    quote!(#outer #function #dispatch #arm)
 }
 
 /// `body`, run only when every mirror converted; a value the API can't carry skips the listeners
@@ -583,5 +544,23 @@ fn result_out(value: &point_shape::Value, point: &str) -> TokenStream {
         quote!(::std::option::Option::Some(__value as #ty))
     } else {
         quote!(::std::option::Option::Some(__value))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn refuses_missing_api_record_and_removed_raw_argument() {
+        let function: ImplItemFn = syn::parse_quote!(
+            fn opaque(value: Unknown) {}
+        );
+        let error = expand(quote!(free), function.clone()).to_string();
+        assert!(error.contains("point opaque has no API record"), "{error}");
+        assert!(
+            expand(quote!(raw, free), function)
+                .to_string()
+                .contains("compile_error")
+        );
     }
 }

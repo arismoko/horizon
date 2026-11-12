@@ -306,8 +306,9 @@ mod tests {
         edited.highlight = 1;
         edited.max_length = 100;
         let state = visit_box(&mut field, Some(&edited));
-        assert_eq!(state.value, "a\u{1f600}bc");
-        assert_eq!((state.cursor, state.highlight), (4, 1));
+        // The limit counts UTF-16 units, while selection positions count scalars.
+        assert_eq!(state.value, "a\u{1f600}b");
+        assert_eq!((state.cursor, state.highlight), (3, 1));
         assert_eq!(state.max_length, 4);
     }
 

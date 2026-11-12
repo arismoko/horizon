@@ -77,7 +77,7 @@ impl TryIntoApi for engine::LootStack {
             .names
             .iter()
             .map(|(id, name)| {
-                super::text_boundary::captured_text(name)
+                horizon_client_lib::api_text::captured_text(name)
                     .map(|name| (id.clone(), name))
                     .map_err(|_| LootValueError::InvalidName)
             })

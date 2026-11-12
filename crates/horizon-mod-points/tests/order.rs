@@ -2,12 +2,13 @@
 #![allow(clippy::all, unused_comparisons, unreachable_patterns, dead_code)]
 use mod_api::__private::points::register;
 use mod_points::{
-    __private::{RawKind, SlotListener, fire_raw, seal},
+    __private::{ApiKind, Forward, PointHost, SlotListener, fire_api, seal},
     PointId,
 };
 
 #[test]
 fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
+    mod_api::__private::initialize().expect("the point fixture initializes its platform runtime");
     struct Row {
         place: PointId,
         priorities: [i32; 4],
@@ -35,7 +36,11 @@ fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
         },
     ];
     fn native() {}
-    unsafe fn wasm(_: usize, _: *mut (), _: *mut ()) {}
+    struct Endpoint;
+    impl Forward for Endpoint {
+        fn forward(&self, _: u32, _: PointHost<'_>, _: &mut dyn mod_api::wire::Record) {}
+    }
+    static ENDPOINT: Endpoint = Endpoint;
     for row in &rows {
         for (index, (owner, inject)) in [
             ("z_native", "z"),
@@ -50,9 +55,9 @@ fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
             // SAFETY: these synthetic slots inspect kind and identity; they never invoke the pointers.
             let listener = unsafe {
                 if index % 2 == 0 {
-                    SlotListener::new(owner, row.place.place(), native as *const ())
+                    SlotListener::api(owner, row.place.place(), native as *const ())
                 } else {
-                    SlotListener::erased(owner, row.place.place(), wasm)
+                    SlotListener::forwarded(owner, row.place.place(), &ENDPOINT, 0)
                 }
             };
             register(&listener.ordered(row.priorities[index], inject)).unwrap();
@@ -62,12 +67,12 @@ fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
         let id = Box::leak(format!("owner_{owner}").into_boxed_str());
         // SAFETY: this fixture inspects identity without invoking the pointer.
         let listener =
-            unsafe { SlotListener::new(id, PointId::TickWorldReturn.place(), native as *const ()) };
+            unsafe { SlotListener::api(id, PointId::TickWorldReturn.place(), native as *const ()) };
         register(&listener.ordered(owner % 3, "large")).unwrap();
     }
     seal();
     let mut owners = Vec::new();
-    fire_raw(PointId::TickWorldReturn, &mut |_| {
+    fire_api(PointId::TickWorldReturn, &mut |_| {
         owners.push(
             mod_api::content::crash::current_native_mod()
                 .unwrap()
@@ -88,11 +93,11 @@ fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
     );
     for row in rows {
         let mut heard = Vec::new();
-        fire_raw(row.place, &mut |kind| {
+        fire_api(row.place, &mut |kind| {
             heard.push(if row.one_owner {
                 match kind {
-                    RawKind::Typed(_) => "native",
-                    RawKind::Erased(_) => "wasm",
+                    ApiKind::Typed(_) => "native",
+                    ApiKind::Forwarded(..) => "wasm",
                 }
             } else {
                 mod_api::content::crash::current_native_mod().unwrap()

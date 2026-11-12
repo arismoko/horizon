@@ -110,7 +110,28 @@ fn every_ordinary_resident_family_binds_its_actual_owned_slot() {
         game.lan_assign_ids();
         let id = game.dragon.as_ref().unwrap().id;
         bind(game, id, Kind::Dragon);
-        assert_eq!(maps.len(), 21);
-        assert_eq!(index.lock().unwrap().snapshot(&key).len(), 21);
+        // #792: a general row joins its own family's list; the lookup is the
+        // same table path every family takes.
+        game.resident_entities
+            .general
+            .rows
+            .push(super::super::general::GeneralRow {
+                id: 4242,
+                uuid: [11, 12, 13, 14],
+                join: horizon_client::join_seq::JoinSeq::UNJOINED,
+                type_slot: 0,
+                position: horizon_core::geometry::Vec3::ZERO,
+                previous: horizon_core::geometry::Vec3::ZERO,
+                velocity: horizon_core::geometry::Vec3::ZERO,
+                rotation: [0.0, 0.0],
+                fall_distance: 0.0,
+                payload_version: 1,
+                payload_bytes: Vec::new(),
+                mount: None,
+                attachment_lifetime: Default::default(),
+            });
+        bind(game, 4242, Kind::General);
+        assert_eq!(maps.len(), 22);
+        assert_eq!(index.lock().unwrap().snapshot(&key).len(), 22);
     });
 }

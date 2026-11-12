@@ -57,4 +57,12 @@ pub trait TagsHost {
     /// `minecraft:empty`, which has none, and for a name no fluid has.
     #[access(Metadata)]
     fn fluid_pickup_sound(&self, fluid: &str) -> Option<&'static str>;
+    /// Side: both.
+    /// The sound event a bucket plays as it empties `fluid` (`BucketItem.playEmptySound`, the
+    /// `BUCKET_EMPTY` sound of NeoForge's `FluidType`), `minecraft:item.bucket.empty_lava` for
+    /// lava and flowing lava and `minecraft:item.bucket.empty` for water and a mod's world
+    /// fluid. None for `minecraft:empty`, for a tank-only fluid, which has no world form, and
+    /// for a name no fluid has.
+    #[access(Metadata)]
+    fn fluid_empty_sound(&self, fluid: &str) -> Option<&'static str>;
 }

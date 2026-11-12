@@ -70,6 +70,8 @@ horizon-bots: load-test bots for a Minecraft Java Edition 26.3 server (offline m
                          other one 30 000 characters long), flood-book (100 pages of 1024 characters
                          into a writable book), flood-sign (four 384-character lines on the block
                          below), flood-recipe (recipe book placements)
+  --ack-mode MODE        chunk batch feedback: vanilla (default) or 64 (fixed chunks per tick);
+                         one ACK per completed batch; use explore for a controlled pacing test
   --flood N              packets a tick for the flood behaviours; default 100
   --attack NAME          attack the player NAME twice a second, from wherever the bot is (a reach test),
                          swinging after each attack as vanilla's client does. NAME,NAME...: each of them
@@ -175,6 +177,8 @@ struct Options {
     /// --crits: fight bots alternate jumped critical hits and sweeps at a sword's cooldown.
     crits: bool,
     flood: usize,
+    /// None uses vanilla estimation; --ack-mode 64 requests a fixed rate.
+    ack_rate: Option<f32>,
     no_read: bool,
     no_loaded: bool,
     height: f64,
@@ -214,6 +218,7 @@ fn options() -> Result<Options, String> {
         no_swing: false,
         crits: false,
         flood: 100,
+        ack_rate: None,
         no_read: false,
         no_loaded: false,
         height: 24.0,
@@ -277,6 +282,13 @@ fn options() -> Result<Options, String> {
                 }
             }
             "--pvp" => o.pvp = value.parse().map_err(|_| number("true or false"))?,
+            "--ack-mode" => {
+                o.ack_rate = match value.as_str() {
+                    "vanilla" => None,
+                    "64" => Some(64.0),
+                    _ => return Err(format!("--ack-mode {value}: use vanilla or 64")),
+                };
+            }
             "--flood" => o.flood = value.parse().map_err(|_| number("packets a tick"))?,
             "--attack" => o.attack = Some(value),
             "--attack-after" => o.attack_after = value.parse().map_err(|_| number("seconds"))?,
@@ -847,6 +859,7 @@ fn join(o: &Options, name: &str) -> Result<Connection, String> {
         let (id, body) = c.recv().map_err(err)?;
         let reply = match id {
             cb::SELECT_KNOWN_PACKS
+            | cb::CUSTOM_PAYLOAD
             | cb::KEEP_ALIVE
             | cb::PING
             | cb::CODE_OF_CONDUCT
@@ -854,6 +867,12 @@ fn join(o: &Options, name: &str) -> Result<Connection, String> {
             | cb::DISCONNECT
             | cb::FINISH_CONFIGURATION => {
                 match configuration::Clientbound::decode(id, &body).map_err(err)? {
+                    configuration::Clientbound::CustomPayload(p) => {
+                        let Some(answer) = raw_protocol_answer(o.brand.as_deref(), &p)? else {
+                            continue;
+                        };
+                        configuration::Serverbound::CustomPayload(answer)
+                    }
                     configuration::Clientbound::SelectKnownPacks(p) => {
                         configuration::Serverbound::SelectKnownPacks(p)
                     }
@@ -885,6 +904,24 @@ fn join(o: &Options, name: &str) -> Result<Connection, String> {
             _ => continue,
         };
         c.send(&reply.encode()).map_err(err)?;
+    }
+}
+
+/// Only a bot claiming Horizon support answers the fork's raw-protocol Query.
+fn raw_protocol_answer(
+    brand: Option<&str>,
+    payload: &configuration::CustomPayload,
+) -> Result<Option<configuration::CustomPayload>, String> {
+    use horizon_protocol::payload_negotiation::{CHANNEL, Control, Manifest};
+    if brand != Some("horizon") || payload.channel != CHANNEL {
+        return Ok(None);
+    }
+    match Control::decode(&payload.data).map_err(err)? {
+        Control::Query => Ok(Some(configuration::CustomPayload {
+            channel: CHANNEL.into(),
+            data: Control::Offer(Manifest::default()).encode().map_err(err)?,
+        })),
+        Control::Offer(_) => Ok(None),
     }
 }
 
@@ -964,6 +1001,7 @@ fn read(
     writer: Arc<Mutex<ConnWriter>>,
     bot: Arc<Bot>,
     track: bool,
+    ack_rate: Option<f32>,
     mut capture: Option<Capture>,
 ) {
     use ids::play::clientbound as cb;
@@ -1053,7 +1091,8 @@ fn read(
                 batch.finished(r.varint().unwrap_or(0));
                 send(
                     play::Serverbound::ChunkBatchReceived(play::ChunkBatchReceived {
-                        chunks_per_tick: batch.desired_chunks_per_tick(),
+                        chunks_per_tick: ack_rate
+                            .unwrap_or_else(|| batch.desired_chunks_per_tick()),
                     })
                     .encode(),
                 )
@@ -1157,7 +1196,8 @@ fn run_bot(
         let capture = (index == 0)
             .then(|| o.capture.as_deref().and_then(Capture::create))
             .flatten();
-        thread::spawn(move || read(reader, writer, bot, track, capture));
+        let ack_rate = o.ack_rate;
+        thread::spawn(move || read(reader, writer, bot, track, ack_rate, capture));
     }
     use ids::play::serverbound as sb;
     // Wait for the spawn position.
@@ -1558,6 +1598,7 @@ fn main() {
         "behaviour": o.behaviour,
         "seed": o.seed,
         "explore_speed": o.explore_speed,
+        "ack_mode": o.ack_rate.map_or("vanilla", |_| "64"),
         "pvp": o.pvp,
         "view_distance": o.view_distance,
         "seconds": o.seconds,
@@ -1623,6 +1664,114 @@ mod tests {
     use play::{
         AddEntity, Clientbound, MoveEntity, MoveEntityPos, RemoveEntities, SetEntityData, VecDelta,
     };
+
+    #[test]
+    fn horizon_bot_answers_only_a_marked_query_with_an_empty_offer() {
+        use horizon_protocol::payload_negotiation::CHANNEL;
+        let mut payload = configuration::CustomPayload {
+            channel: CHANNEL.into(),
+            data: vec![0, 1],
+        };
+        let answer = raw_protocol_answer(Some("horizon"), &payload)
+            .unwrap()
+            .unwrap();
+        assert_eq!(answer.channel, CHANNEL);
+        assert_eq!(answer.data, [1, 1, 0]);
+        for brand in [None, Some("vanilla")] {
+            assert!(raw_protocol_answer(brand, &payload).unwrap().is_none());
+        }
+        payload.data = vec![1, 1, 0];
+        assert!(
+            raw_protocol_answer(Some("horizon"), &payload)
+                .unwrap()
+                .is_none()
+        );
+        payload.data = vec![0, 2];
+        assert!(raw_protocol_answer(Some("horizon"), &payload).is_err());
+        payload.channel = "other:plugin".into();
+        assert!(
+            raw_protocol_answer(Some("horizon"), &payload)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    /// Exercise the production reader over framed connections. Pings are barriers
+    /// so extra ACKs are observable without sleeps or timing guesses.
+    fn check_chunk_acks(ack_rate: Option<f32>) {
+        use horizon_protocol::connection::Pipe;
+        let (client, server) = Pipe::pair();
+        let (reader, writer) = Connection::local(client).split();
+        let mut server = Connection::local(server);
+        server
+            .reader
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let bot = Arc::new(Bot::default());
+        bot.online.store(true, Ordering::SeqCst);
+        let handle = thread::spawn(move || {
+            read(
+                reader,
+                Arc::new(Mutex::new(writer)),
+                bot,
+                false,
+                ack_rate,
+                None,
+            )
+        });
+        for (nonce, size) in [0, 1, 5].into_iter().enumerate() {
+            server
+                .send(&raw(ids::play::clientbound::CHUNK_BATCH_START, |_| {}))
+                .unwrap();
+            server
+                .send(&raw(ids::play::clientbound::PING, |w| w.i32(nonce as i32)))
+                .unwrap();
+            let (id, body) = server.recv().unwrap();
+            assert_eq!(
+                id,
+                ids::play::serverbound::PONG,
+                "batch start must not send an ACK"
+            );
+            assert_eq!(Reader::new(&body).i32().unwrap(), nonce as i32);
+            server
+                .send(&raw(ids::play::clientbound::CHUNK_BATCH_FINISHED, |w| {
+                    w.varint(size)
+                }))
+                .unwrap();
+            server
+                .send(&raw(ids::play::clientbound::PING, |w| w.i32(nonce as i32)))
+                .unwrap();
+            let (id, body) = server.recv().unwrap();
+            assert_eq!(id, ids::play::serverbound::CHUNK_BATCH_RECEIVED);
+            let rate = Reader::new(&body).f32().unwrap();
+            if let Some(fixed) = ack_rate {
+                assert_eq!(rate, fixed);
+            } else if size == 0 {
+                assert_eq!(rate, 3.5, "vanilla initial rate must remain the default");
+            } else {
+                assert!(rate.is_finite() && rate > 0.0);
+            }
+            let (id, body) = server.recv().unwrap();
+            assert_eq!(
+                id,
+                ids::play::serverbound::PONG,
+                "exactly one ACK per finished batch"
+            );
+            assert_eq!(Reader::new(&body).i32().unwrap(), nonce as i32);
+        }
+        server.writer.shutdown();
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn fixed_64_ack_is_sent_once_per_finished_batch() {
+        check_chunk_acks(Some(64.0));
+    }
+
+    #[test]
+    fn vanilla_acks_remain_once_per_finished_batch() {
+        check_chunk_acks(None);
+    }
 
     fn feed(entities: &mut Entities, packet: &Clientbound) {
         let bytes = packet.encode();

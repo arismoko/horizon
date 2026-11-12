@@ -25,7 +25,7 @@ that player's packet would run it:
   player to answer;
 - `PlayerAction::BreakBlock { pos }` breaks the block at once (`ServerPlayerGameMode.destroyBlock`): reach, the build
   height, spawn protection and the border, then the game mode's and the held tool's rules (adventure mode can't, a
-  sword in creative can't, and outside creative a block no digging breaks, destroy time -1 such as bedrock, stays), the native mods' `break_block`, the tool's wear and the drops. There is no digging time:
+  sword in creative can't, and outside creative a block no digging breaks, destroy time -1 such as bedrock, stays), the native mods' `break_block`, `player_destroyed_block` once the block is out (its `state` is read just before the removal, so a sheared tripwire reads disarmed where vanilla passes `Block.destroy` the armed state), the tool's wear and the drops. There is no digging time:
   a machine that digs over time counts its own progress and breaks the block when it is done.
 
 Its items are its own inventory: set the stack in its hand first (through `ENTITY_ITEMS` or an `ItemPlace`), and

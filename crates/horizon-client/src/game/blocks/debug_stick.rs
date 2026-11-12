@@ -145,11 +145,12 @@ impl Game<'_> {
 
     /// `DebugStickState.withProperty(block, property)` on the acting hand.
     fn set_debug_stick_property(&mut self, block: &str, property: &str) {
-        let Some(stack) = self.held_mut().as_mut() else {
-            return;
-        };
-        stack.data_mut().set_debug_stick_property(block, property);
-        stack.tidy();
+        self.edit_block_use_stack(|slot| {
+            if let Some(stack) = slot.as_mut() {
+                stack.data_mut().set_debug_stick_property(block, property);
+                stack.tidy();
+            }
+        });
     }
 }
 

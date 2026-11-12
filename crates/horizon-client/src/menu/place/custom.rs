@@ -44,6 +44,7 @@ impl Menu {
         allow_drop: bool,
         guard: impl Fn() -> bool,
     ) -> Result<PostPlace, Refused> {
+        self.touch();
         if !guard() {
             return Err(Refused::Changed);
         }
@@ -89,10 +90,10 @@ impl Menu {
                 }
                 Ok(())
             };
-            for stack in self.containers[PLAYER][..36].iter().flatten() {
+            for stack in self.state.containers[PLAYER][..36].iter().flatten() {
                 account(stack, true)?;
             }
-            for stack in self.sources.iter().flatten().flatten() {
+            for stack in self.state.sources.iter().flatten().flatten() {
                 account(stack, true)?;
             }
             for &slot in &plan.inputs {
@@ -124,7 +125,7 @@ impl Menu {
                     })
                 })?;
         let mut next = self.clone();
-        let dropped = next.dropped.len();
+        let dropped = next.state.dropped.len();
         for &slot in &plan.clear {
             if let Some(mut stack) = next.slot(slot).cloned() {
                 next.load_slot(slot, None);
@@ -134,7 +135,7 @@ impl Menu {
         if !guard() {
             return Err(Refused::Changed);
         }
-        if !allow_drop && next.dropped.len() != dropped {
+        if !allow_drop && next.state.dropped.len() != dropped {
             return Err(Refused::NoRoom);
         }
         if let Some(result) = plan.virtual_result {
@@ -177,7 +178,7 @@ impl Menu {
             if !guard() {
                 return Err(Refused::Changed);
             }
-            *self = next;
+            self.install_state(next);
             return Ok(PostPlace::Ghost);
         }
         let mut picker = Picker::new(&mut amounts, ingredients.len(), |candidate, ingredient| {
@@ -200,9 +201,9 @@ impl Menu {
         for (ingredient, candidate) in selected.into_iter().enumerate() {
             let prototype = &prototypes[candidate];
             let mut remaining = amount as u32;
-            for stack in next.containers[PLAYER][..36]
+            for stack in next.state.containers[PLAYER][..36]
                 .iter_mut()
-                .chain(next.sources.iter_mut().flatten())
+                .chain(next.state.sources.iter_mut().flatten())
             {
                 if let Some(have) = stack
                     // Only eligible stock contributed to this exact prototype's
@@ -236,7 +237,7 @@ impl Menu {
         if !guard() {
             return Err(Refused::Changed);
         }
-        *self = next;
+        self.install_state(next);
         Ok(PostPlace::Nothing)
     }
 }

@@ -58,6 +58,20 @@ pub fn fluid_pickup_sound(fluid: FluidKind) -> Option<&'static str> {
     }
 }
 
+/// `BucketItem.playEmptySound` for a bucket of `fluid`, flowing or not: lava's own sound, and
+/// the plain one for water and a mod's world fluid. None for the empty fluid, which no bucket
+/// holds.
+pub fn fluid_empty_sound(fluid: FluidKind) -> Option<&'static str> {
+    match fluid {
+        FluidKind::Water
+        | FluidKind::FlowingWater
+        | FluidKind::Mod(_)
+        | FluidKind::ModFlowing(_) => Some("minecraft:item.bucket.empty"),
+        FluidKind::Lava | FluidKind::FlowingLava => Some("minecraft:item.bucket.empty_lava"),
+        FluidKind::Empty => None,
+    }
+}
+
 impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     /// `BucketPickup.pickupBlock(user, level, pos, state)`: the filled bucket
     /// that results, None when the block gives nothing. `creative` is whether

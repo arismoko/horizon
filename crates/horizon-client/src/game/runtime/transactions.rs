@@ -21,6 +21,9 @@
 //! empty, until the root commit removes it. A guest's menu storage (ender chest, crafting grid,
 //! a mod's chest menu) is kept whole on its first write through a menu slot; a crafting grid
 //! changed by the transaction has its result made again at the root commit.
+//! `LivingRef::set_health` keeps the player's synced float storage and unpublished update
+//! events, or the mob's health and sync dirtiness. This does not journal other health,
+//! damage, death or attribute operations.
 use super::{BlockEntity, BlockStateId, Game, machines::HopperState};
 use horizon_client::{items::ItemStack, world::BlockEntityExtras};
 use horizon_mod_runtime::attachments::{Attachments, Holder};
@@ -44,10 +47,18 @@ pub(super) struct Level {
     dimension: Option<super::Dim>,
     /// Each block entity as it was before this transaction first wrote it.
     block_entities: HashMap<Pos, Kept>,
+    /// Each item slot (block entity, slot) a slot-only write changed, as it was before this
+    /// transaction first wrote it, for a block entity not kept whole in `block_entities`: a
+    /// move through a container keeps the slot it touches, not the entity's whole saved data.
+    slots: HashMap<(Pos, usize), KeptSlot>,
     /// Each block's state before this transaction first wrote it.
     blocks: HashMap<Pos, BlockStateId>,
     /// Each player's inventory before this transaction first wrote it, by UUID.
     players: HashMap<u128, KeptPlayer>,
+    /// Synced player health and its unpublished update events before set_health.
+    player_health: HashMap<u128, KeptPlayerHealth>,
+    /// Mob health and synchronization dirtiness before set_health.
+    mob_health: HashMap<u32, (f32, bool)>,
     /// Each entity's inventory (`entity_slots`) before this transaction first wrote it.
     entities: HashMap<u32, Vec<Option<ItemStack>>>,
     /// Each mob's or armor stand's equipment before this transaction first
@@ -68,6 +79,14 @@ pub(super) struct Level {
     /// Internal decide/fire/apply state. No menu route uses this yet.
     actions: decision::Journal,
     action: Option<decision::ActiveAction>,
+}
+
+/// A slot's stack before a transaction first wrote it, and the generation of the block entity
+/// it belongs to: an abort puts it back only into that same block entity, never into one that
+/// replaced it.
+struct KeptSlot {
+    stack: Option<ItemStack>,
+    generation: Option<u64>,
 }
 
 struct KeptAttachments {
@@ -104,6 +123,11 @@ impl Kept {
     }
 }
 
+struct KeptPlayerHealth {
+    data: horizon_world::synced_floats::SyncedFloats,
+    events_len: usize,
+}
+
 #[derive(Clone)]
 struct KeptPlayer {
     inventory: Vec<Option<ItemStack>>,
@@ -130,6 +154,10 @@ struct KeptMenus {
 
 /// What a write tells the world, at the root commit.
 pub(super) enum After {
+    /// Reserved raw bytes publish only when their connection incarnation is still live.
+    Payload(super::payload_transport::Deferred),
+    /// A mod's validated vanilla packet, bound to its physical protocol incarnation.
+    Packet(horizon_client::net::PreparedPacket),
     Cauldron(super::cauldron_interactions::Effects),
     /// `BlockEntity.setChanged`.
     Changed(Pos),
@@ -267,6 +295,14 @@ impl Game<'_> {
         match (commit, self.transactions.last_mut()) {
             (true, Some(outer)) => {
                 outer.actions.merge(level.actions);
+                // Slots before whole entities: a slot the outer transaction already kept the
+                // whole entity of is older there, but one kept whole only by this child is not,
+                // so the child's slot entries go up beside its capture.
+                for ((pos, slot), kept) in level.slots {
+                    if !outer.block_entities.contains_key(&pos) {
+                        outer.slots.entry((pos, slot)).or_insert(kept);
+                    }
+                }
                 for (pos, kept) in level.block_entities {
                     outer.block_entities.entry(pos).or_insert(kept);
                 }
@@ -275,6 +311,12 @@ impl Game<'_> {
                 }
                 for (uuid, kept) in level.players {
                     outer.players.entry(uuid).or_insert(kept);
+                }
+                for (uuid, kept) in level.player_health {
+                    outer.player_health.entry(uuid).or_insert(kept);
+                }
+                for (id, kept) in level.mob_health {
+                    outer.mob_health.entry(id).or_insert(kept);
                 }
                 for (id, kept) in level.entities {
                     outer.entities.entry(id).or_insert(kept);
@@ -318,6 +360,49 @@ impl Game<'_> {
             .block_entities
             .entry(pos)
             .or_insert_with(|| Kept::capture(&self.world, &self.hoppers, pos));
+    }
+    /// How many block entities the open transactions keep whole, and how many single slots:
+    /// what a test reads to tell a slot journal from a whole capture without timing it.
+    #[cfg(test)]
+    pub(in crate::game) fn journal_kept(&self) -> (usize, usize) {
+        self.transactions
+            .iter()
+            .fold((0, 0), |(whole, slots), level| {
+                (
+                    whole + level.block_entities.len(),
+                    slots + level.slots.len(),
+                )
+            })
+    }
+    /// Keeps item slot `slot` of the block entity at `pos` as it is, if a transaction is open
+    /// and keeps neither it nor the whole entity yet. Only for a write that changes that slot
+    /// and nothing else of the entity (no cooldown, cooking or saved data beside it), so the
+    /// journal holds one stack however large the entity's saved data is. A slot past the end of
+    /// the entity's slot list (a mod's list shorter than its container) is a write that grows
+    /// the list: the entity is kept whole instead, length and all.
+    pub(super) fn journal_block_entity_slot(&mut self, pos: Pos, slot: usize) {
+        let exists = self
+            .world
+            .block_entities
+            .get(&pos)
+            .is_some_and(|entity| slot < entity.slots().len());
+        if !exists {
+            return self.journal_block_entity(pos);
+        }
+        let Some(level) = self.transactions.last_mut() else {
+            return;
+        };
+        if level.block_entities.contains_key(&pos) {
+            return;
+        }
+        level.slots.entry((pos, slot)).or_insert_with(|| KeptSlot {
+            stack: self
+                .world
+                .block_entities
+                .get(&pos)
+                .and_then(|entity| entity.slots().get(slot).cloned().flatten()),
+            generation: self.world.block_entities.generation(&pos),
+        });
     }
     /// Keeps `holder`'s attachment map as it is, if a transaction is open and hasn't yet: a
     /// block entity's with the rest of it, any other's alone.
@@ -367,6 +452,34 @@ impl Game<'_> {
             equipment: self.equipment.clone(),
             carried: self.carried.clone(),
         });
+    }
+    /// Called with the target player's body swapped in, before set_health changes it.
+    pub(super) fn journal_player_health(&mut self) {
+        let uuid = self.native_acting_id();
+        let Some(level) = self.transactions.last_mut() else {
+            return;
+        };
+        let Some(player) = self.player.as_ref() else {
+            return;
+        };
+        level
+            .player_health
+            .entry(uuid)
+            .or_insert_with(|| KeptPlayerHealth {
+                data: player.health.data.clone(),
+                events_len: player.events.len(),
+            });
+    }
+    pub(super) fn journal_mob_health(&mut self, id: u32) {
+        let Some(level) = self.transactions.last_mut() else {
+            return;
+        };
+        if let Some(mob) = self.mobs.iter().find(|m| m.id == id && !m.removed) {
+            level
+                .mob_health
+                .entry(id)
+                .or_insert((mob.health, mob.needs_sync));
+        }
     }
     /// Keeps `player`'s menu storage as it is, if a transaction is open and hasn't yet.
     pub(super) fn journal_menus(&mut self, player: mod_api::PlayerRef) {
@@ -456,6 +569,8 @@ impl Game<'_> {
     }
     fn run_after(&mut self, after: After) {
         match after {
+            After::Payload(payload) => payload.publish(),
+            After::Packet(packet) => packet.publish(),
             After::Cauldron(effects) => self.commit_cauldron_effects(effects),
             After::Changed(pos) => self.container_changed(pos),
             After::Updated(pos) => self.block_entity_updated(pos),
@@ -612,6 +727,22 @@ impl Game<'_> {
                 None => self.hoppers.remove(&pos),
             };
         }
+        // After the whole entities: a slot kept here was kept before any whole capture of its
+        // entity at this depth, so its stack is the older one. Only into the block entity it
+        // was taken from: one a write replaced (a `set_block` in the transaction) is left as is.
+        for ((pos, slot), kept) in level.slots {
+            if self.world.block_entities.generation(&pos) != kept.generation {
+                continue;
+            }
+            if let Some(target) = self
+                .world
+                .block_entities
+                .get_mut(&pos)
+                .and_then(|entity| entity.slots_mut().get_mut(slot))
+            {
+                *target = kept.stack;
+            }
+        }
         for (pos, state) in level.blocks {
             self.world.set_stored(pos.0, pos.1, pos.2, state);
         }
@@ -657,7 +788,33 @@ impl Game<'_> {
                 });
             }
         }
-        level.actions.rollback();
+        for (id, (health, needs_sync)) in level.mob_health {
+            if let Some(mob) = self.mobs.iter_mut().find(|m| m.id == id) {
+                mob.health = health;
+                mob.needs_sync = needs_sync;
+            }
+        }
+        for (uuid, kept) in level.player_health {
+            // Restoration must also reach a body tentatively set to zero health:
+            // native_as_player deliberately refuses dead bodies for public writes.
+            let target = if uuid == self.native_acting_id() {
+                Some(super::commands::Target::Player)
+            } else {
+                self.lan
+                    .as_ref()
+                    .and_then(|host| host.hub.holder_guest(uuid, self.dim.id()))
+                    .map(|guest| super::commands::Target::Guest(guest.conn))
+            };
+            if let Some(target) = target {
+                self.for_player(target, |g| {
+                    if let Some(player) = g.player.as_mut() {
+                        player.health.data = kept.data;
+                        player.events.truncate(kept.events_len);
+                    }
+                });
+            }
+        }
+        level.actions.rollback_in(self);
         for (uuid, kept) in level.players {
             self.native_as_player(uuid, |g| {
                 g.inventory = kept.inventory;
@@ -1947,7 +2104,7 @@ mod mod_capability_tests {
             game.open_storage_transaction();
             game.lan_acting_uuid = Some(guest);
             std::mem::swap(
-                &mut game.player_attachments,
+                &mut game.player_state.attachments,
                 game.lan
                     .as_mut()
                     .unwrap()
@@ -1959,7 +2116,7 @@ mod mod_capability_tests {
             let host: &mut dyn ServerHost = game;
             ENERGY.set(host, player, 70).unwrap();
             std::mem::swap(
-                &mut game.player_attachments,
+                &mut game.player_state.attachments,
                 game.lan
                     .as_mut()
                     .unwrap()

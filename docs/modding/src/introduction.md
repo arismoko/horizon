@@ -19,6 +19,10 @@ The book follows [Diátaxis](https://diataxis.fr): each page is one of four kind
 
 An [agents page](agents.md) and `llms.txt` give a coding agent the rules in one place.
 
+A native mod that has to change the game's own code, beyond what hooks and [injections](injections.md) reach,
+uses [the native route](native-route.md): `[[native.mixin]]`, `[[native.loop]]`, `[[native.bridge]]` and
+`[[native.module]]`, each with its own page.
+
 ## Where things are
 
 - The API reference is `cargo doc -p horizon-mod-api`: every hook, event and `Host` method, with its side,

@@ -586,6 +586,7 @@ impl Game<'_> {
             ..last
         });
         let mut mob = self.mobs.remove(i);
+        mob.extra.client_side = true;
         let mut lent = horizon_client::health::LentLevel::take(&mut self.world);
         let mut events = Vec::new();
         {
@@ -835,7 +836,7 @@ mod tests {
                 let mut server_mount = game.mobs[0].clone();
                 let before = server_mount.position;
                 let mut test_level = horizon_client::health::TestLevel::new(0);
-                *test_level.random() = game.world.random.clone();
+                *test_level.random() = (*game.world.random).clone();
                 let mut events = Vec::new();
                 server_mount.tick(
                     &game.mob_world_base(&[]),

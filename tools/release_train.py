@@ -555,7 +555,7 @@ def green_main_head(parity=False, eligible=None):
                 seen.add(sha)
                 if eligible is not None and not eligible(sha):
                     continue
-                if not gate_jobs_passed(entry["id"], {"lint", "verify", "launcher", "pool-watch"}):
+                if not gate_jobs_passed(entry["id"], {"lint", "verify", "verify-static", "launcher", "pool-watch"}):
                     continue
                 fixtures = gh_json("api", "--paginate", "--slurp",
                                    f"repos/{REPO}/actions/workflows/wasm-mods.yml/runs"

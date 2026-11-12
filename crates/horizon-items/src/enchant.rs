@@ -206,7 +206,7 @@ fn read_tag_dir(
         .iter()
         .filter_map(|file| {
             let v = serde_json::from_slice::<Value>(file.bytes().ok()?).ok()?;
-            if !conditions.allows(&v) {
+            if !conditions.allows_path(&v, dir, &file.name) {
                 return None;
             }
             let values = v["values"]
@@ -337,7 +337,7 @@ impl Enchantments {
                 let Ok(v) = serde_json::from_slice::<Value>(bytes) else {
                     continue;
                 };
-                if !overlay.conditions.allows(&v) {
+                if !overlay.conditions.allows_id(&v, "tags/enchantment", &id) {
                     continue;
                 }
                 let slot = raw_tags.entry(id.clone()).or_default();

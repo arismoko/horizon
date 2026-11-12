@@ -218,7 +218,7 @@ impl Tree {
             }
         }
         for (id, v) in json {
-            if !overlay.conditions.allows(&v) {
+            if !overlay.conditions.allows_id(&v, "advancement", &id) {
                 continue;
             }
             if let Some(a) = parse(&id, &v) {

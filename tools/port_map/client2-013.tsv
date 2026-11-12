@@ -96,8 +96,8 @@ PictureInPictureRenderer.prepareTexturesAndProjection	skip:other		GPU texture al
 PictureInPictureRenderer.close	skip:other		GPU texture release
 AccessibilityOnboardingScreen.init	port	crates/horizon-client/src/title/onboarding.rs::Title::onboarding_buttons	gap: minor: the Narrator button is drawn disabled and labelled Narrator: Not Available where vanilla builds it from Options.narrator's own button and enables it while the narrator can speak, so the narrator cannot be turned on here; handleInitialNarrationDelay's accessibility.onboarding.screen.narrator line is not said
 AccessibilityOnboardingScreen.setInitialFocus	missing		minor: the onboarding screen itself is ported (title/onboarding.rs); the focus starting on the Narrator button is not
-AccessibilityOnboardingScreen.closeAndSetScreen	port	crates/horizon-client/src/title.rs::Title::click_action	
-AccessibilityOnboardingScreen.extractRenderState	port	crates/horizon-client/src/title/onboarding.rs::Title::draw_onboarding	
+AccessibilityOnboardingScreen.closeAndSetScreen	port	crates/horizon-client/src/title.rs::Title::click_action
+AccessibilityOnboardingScreen.extractRenderState	port	crates/horizon-client/src/title/onboarding.rs::Title::draw_onboarding
 AccessibilityOnboardingScreen.handleInitialNarrationDelay	skip:other		screen-reader narration; Horizon has no narration output
 AlertScreen	home	crates/horizon-client/src/title.rs	Alert::Incompatible and Alert::Recreate are the two alerts (title at 70, text at 90): their OK and Cancel buttons in Title::buttons, their drawing in Title::draw_with_items, their narration in Title::narration
 BackupConfirmScreen	home	crates/horizon-client/src/title.rs	the backup question before opening a world whose file fixes are due, and Edit World's Optimize World with the Erase Cached Data box; drawn in Title::draw_with_items, Escape runs its cancel in Title::escape

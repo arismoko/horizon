@@ -476,6 +476,7 @@ pub fn view_rotation_matrix(yaw: f32, pitch: f32) -> (glam::Mat4, glam::Mat4) {
 }
 
 /// Camera-relative world view used by terrain, sky and the first-person hand.
+#[horizon_mod_api_macros::replaceable]
 pub fn view_matrix(yaw: f32, pitch: f32) -> glam::Mat4 {
     // Vanilla uses the conjugate of Camera.rotation, not a world-up look-at.
     let q = Quat::rotation_yxz(PI - yaw * DEG_TO_RAD, -pitch * DEG_TO_RAD, 0.0);

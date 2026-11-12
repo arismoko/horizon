@@ -28,7 +28,7 @@ def recovery_reason(jobs, now):
     """An outage must not hide any genuine failure in the original run."""
     if genuine_failure(jobs):
         return ""
-    return health_reason([job for job in jobs if job["name"] in ("lint", "verify")], now)
+    return health_reason([job for job in jobs if job["name"] in ("lint", "verify", "verify-static")], now)
 
 
 def previous_attempt_reason(jobs, now):
@@ -39,7 +39,7 @@ def previous_attempt_reason(jobs, now):
     if genuine_failure(jobs):
         return ""
     for job in jobs:
-        if (job["name"] in ("lint", "verify") and "boat-large" in job.get("labels", [])
+        if (job["name"] in ("lint", "verify", "verify-static") and "boat-large" in job.get("labels", [])
                 and job.get("conclusion") == "cancelled" and not user_step_started(job)):
             created = datetime.fromisoformat(job["created_at"].replace("Z", "+00:00"))
             completed = datetime.fromisoformat(job["completed_at"].replace("Z", "+00:00"))

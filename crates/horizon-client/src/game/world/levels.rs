@@ -82,6 +82,7 @@ pub(super) struct Parked {
     ominous_spawners:
         horizon_client::join_seq::ResidentList<ominous_item_spawner::OminousItemSpawner>,
     tnts: horizon_client::join_seq::JoinList<tnt::PrimedTnt>,
+    general: super::general::GeneralStore,
     hoppers: HashMap<(i32, i32, i32), machines::HopperState>,
     pub(super) mobs: horizon_client::join_seq::JoinList<Mob>,
     /// The entity ids of the level's fence knots (`knot_ids`).
@@ -116,7 +117,13 @@ pub(super) struct Parked {
 }
 
 impl Parked {
-    resident_owners!(define_resident_access, self, projectiles, knots);
+    resident_owners!(
+        define_resident_access,
+        self,
+        projectiles,
+        knots,
+        general.rows
+    );
 }
 
 impl Game<'_> {
@@ -273,10 +280,10 @@ impl Game<'_> {
         let table = self.resident_entities.table.get_mut();
         table.reset();
         let journal = table.producer();
-        self.bind_resident_owners(&journal, self.dim.key());
+        self.bind_resident_owners(&journal, self.dim.key(), self.is_logical_server());
         self.bind_specialized_resident_owners(&journal);
         for (dim, parked) in &mut self.levels.parked {
-            parked.bind_resident_owners(&journal, dim.key());
+            parked.bind_resident_owners(&journal, dim.key(), true);
         }
     }
 }
@@ -309,7 +316,7 @@ impl Default for Pass {
 /// The levels not in place, by dimension.
 #[derive(Default)]
 pub(super) struct Levels {
-    parked: HashMap<Dim, Parked>,
+    pub(super) parked: HashMap<Dim, Parked>,
     /// The levels whose open the mods heard (`native_level_load`), each to
     /// be told closed once.
     heard_open: Vec<Dim>,
@@ -325,6 +332,13 @@ impl Levels {
         if !self.requested_saves.contains(&dim) {
             self.requested_saves.push(dim);
         }
+    }
+
+    /// Whether a save of `dim` is still waiting for a tick that admits
+    /// saves (the #2488 gate holds it back).
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(in crate::game) fn save_pending(&self, dim: Dim) -> bool {
+        self.requested_saves.contains(&dim)
     }
 
     /// Clear every parked level and dimensions recorded as heard open.
@@ -440,6 +454,23 @@ impl Levels {
             .map(|(_, level)| level)
     }
 
+    /// Whether a parked level's general rows hold any of these UUIDs (#792's
+    /// dimension-transfer check: a destination may not already hold a row
+    /// of the travelling tree's UUIDs).
+    pub(in crate::game) fn parked_general_holds_any_uuid(
+        &self,
+        dim: Dim,
+        uuids: &std::collections::HashSet<[i32; 4]>,
+    ) -> bool {
+        self.parked.get(&dim).is_some_and(|parked| {
+            parked
+                .general
+                .rows
+                .iter()
+                .any(|row| uuids.contains(&row.uuid))
+        })
+    }
+
     /// The entities of a parked level, counted as `Game::entity_count` counts the one in place.
     pub(super) fn parked_entity_count(&self, dim: Dim) -> Option<usize> {
         let l = self.parked.get(&dim)?;
@@ -509,7 +540,7 @@ impl Game<'_> {
             self.server_loot.clone(),
         )?;
         save.install_profession_snapshot(self.stations().professions.clone());
-        let mut world = World::new(self.res.facts().air, self.level.seed);
+        let mut world = Game::world_for_mods(self.res.facts().air, self.level.seed);
         world.attachments = save.load_attachments();
         world.shape = self.level_shapes.get(dim.id());
         world.fast_lava = self.dimension_type_of(dim).fast_lava;
@@ -543,6 +574,7 @@ impl Game<'_> {
             rockets: Default::default(),
             ominous_spawners: Default::default(),
             tnts: Default::default(),
+            general: Default::default(),
             hoppers: HashMap::new(),
             mobs: Default::default(),
             knot_ids: HashMap::new(),
@@ -663,6 +695,9 @@ impl Game<'_> {
     fn swap_level(&mut self, p: &mut Parked) {
         use std::mem::swap;
         swap(&mut self.world, &mut p.world);
+        // The carrier first-use gate belongs to the world, not the
+        // level: a level swap keeps it.
+        self.world.carrier_data_existed_at_open = p.world.carrier_data_existed_at_open;
         swap(&mut self.streaming, &mut p.streaming);
         let mut locator = self.end.locator();
         swap(&mut locator, &mut p.locator);
@@ -697,6 +732,7 @@ impl Game<'_> {
         swap(&mut self.mobs, &mut p.mobs);
         swap(&mut self.knot_ids, &mut p.knot_ids);
         swap(&mut self.resident_entities.knots, &mut p.knots);
+        swap(&mut self.resident_entities.general, &mut p.general);
         swap(&mut self.creatures.projectiles, &mut p.projectiles);
         swap(&mut self.dropped, &mut p.dropped);
         swap(&mut self.orbs, &mut p.orbs);
@@ -1014,8 +1050,11 @@ impl Game<'_> {
             if observe_level && let Some(level) = self.level(dim.id()) {
                 self.native_level_tick_pre(level);
             }
-            self.update_dedicated_streaming();
-            self.update_world();
+            horizon_client::spans::time("dedicated_streaming", || {
+                self.update_dedicated_streaming();
+            });
+            horizon_client::spans::time("update_world", || self.update_world());
+            let tick_span = horizon_client::spans::guard("level_tick");
             result = horizon_client::block_contact::in_level(
                 (self.serving.is_some() || self.options.dedicated.is_some()).then_some(dim.id()),
                 || {
@@ -1032,6 +1071,7 @@ impl Game<'_> {
                     }
                 },
             );
+            drop(tick_span);
             self.drain_entity_inside();
             if result.is_err() {
                 break;
@@ -1039,10 +1079,11 @@ impl Game<'_> {
             if observe_level && let Some(level) = self.level(dim.id()) {
                 self.native_level_tick_post(level);
             }
-            self.publish_server_debug(dim);
+            horizon_client::spans::time("server_debug", || self.publish_server_debug(dim));
             // An entity that crossed into a level that already ticked this
             // server tick is in it when the tick ends (`addDuringTeleport`).
             if running == Some(true) {
+                let _span = horizon_client::spans::guard("late_portal_arrivals");
                 let mut moved = false;
                 for &earlier in &order[..k] {
                     if !self.arrival_chunks(earlier).is_empty() && self.enter_level(earlier).is_ok()
@@ -1297,9 +1338,9 @@ impl Game<'_> {
         }
         let journal = self.resident_entities.table.borrow().producer();
         if dim == self.dim {
-            self.bind_resident_owners(&journal, dim.key());
+            self.bind_resident_owners(&journal, dim.key(), true);
         } else if let Some(parked) = self.levels.parked.get_mut(&dim) {
-            parked.bind_resident_owners(&journal, dim.key());
+            parked.bind_resident_owners(&journal, dim.key(), true);
         }
         self.bind_dimension_attachments(dim);
         self.levels.heard_open.push(dim);
@@ -1538,6 +1579,8 @@ mod tests {
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let home = std::path::PathBuf::from(std::env::var_os("HORIZON_HOME").unwrap()).join("h260");
         let world = home.join("saves/h260");
+        // A new world each run: a border saved by the last one would already be 50.
+        let _ = std::fs::remove_dir_all(&home);
         {
             let mut resources = None;
             let mut game = open_game(&mut resources, &root, &home, &world);
@@ -1577,6 +1620,8 @@ mod tests {
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let home = std::path::PathBuf::from(std::env::var_os("HORIZON_HOME").unwrap())
             .join("h260-controls");
+        // A new world each run, as the first open expects.
+        let _ = std::fs::remove_dir_all(&home);
         let world = home.join("saves/h260");
         let sizes = |game: &mut Game<'_>| {
             assert!(game.run_command("execute in minecraft:overworld run worldborder get"));

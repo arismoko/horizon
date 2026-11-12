@@ -9,7 +9,7 @@ cannot call the original twice without inventing another stack.
 
 ## Ownership contract
 
-Only native source `access = "internals"` gains this path. Argument expressions are
+This proposal applies only to native `[[native.mixin]]` source transformations, not API injection points. Argument expressions are
 evaluated once, in their original order, and their values **move** into one record.
 Neither lowering nor dispatch clones a stack, implicitly or explicitly.
 
@@ -42,8 +42,8 @@ let result = wrap(args, original); // original is FnOnce, not repeatable FnMut
 ```
 
 This requires a distinct **single-use continuation contract**, not a compatibility shim
-for repeatable wraps. Typed registration must distinguish it from the existing repeatable
-listener type. A generated move-only `Original` capability can consume `self` and `Args`
+for repeatable wraps. Mixin lowering must distinguish it from a repeatable
+continuation type. A generated move-only `Original` capability can consume `self` and `Args`
 when invoking a private stack-borrowed dispatch continuation; it must not be Clone, leak a
 repeatable callable, allocate a box per call, or offer a second-call panic/fallback.
 Nested wrappers each receive one forwarding capability. Repeated-original wraps remain
@@ -59,7 +59,7 @@ not referents. Engine-type lifetimes remain separate from the record borrow life
 A record with any owned non-Copy field always selects the single-use contract.
 
 Mutable-reference arguments still refuse: preserving exclusive reborrows is not covered.
-Owned arguments on listed/prebuilt slots, and `access = "api"`, retain the existing refusal
+API injection points retain the existing refusal
 rather than changing a prebuilt interface or introducing an API source adapter. Unresolved
 or unrepresentable types retain the existing named record refusal. Borrowed results and
 alias-dependent receiver arguments retain their existing signature/alias refusals. Before

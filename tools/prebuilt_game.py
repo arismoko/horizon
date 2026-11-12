@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,6 +44,8 @@ POINTS = "points.json"
 CATALOG = "mod-catalog.json"
 # The staged internals signatures, checked against a mod's declared access list.
 INTERNALS = "internals.json"
+# The published loops (`#[horizon_loop]`), which a mod's `[[native.loop]]` rows name.
+LOOPS = "loops.json"
 
 
 def run(command: list[str], **kwargs) -> str:
@@ -72,9 +75,10 @@ def api_version(root: Path) -> str:
     return json.loads(matches[0])
 
 
-def stage(target_dir: Path) -> Path:
+def stage(target_dir: Path, stage_tool: Path | None = None) -> Path:
     """A copy of the tracked source with the staging pass run over it (#589): every point method gets its
     `#[point]`, internals become public, and both manifests are written. The working tree is never rewritten."""
+    setup_started = time.monotonic()
     staged = target_dir / "stage"
     if staged.exists():
         shutil.rmtree(staged)
@@ -84,9 +88,16 @@ def stage(target_dir: Path) -> Path:
         if source.is_file():
             (staged / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, staged / name)
-    print(run(["cargo", "run", "--locked", "--release", "-q", "-p", "horizon-mod-api-gen", "--bin", "horizon-stage",
-               "--", str(staged), str(staged / POINTS), str(staged / INTERNALS), api_version(staged)],
-              cwd=staged, env={**os.environ, "CARGO_TARGET_DIR": str(target_dir / "tools")}), end="")
+    arguments = [str(staged), str(staged / POINTS), str(staged / INTERNALS), api_version(staged)]
+    command = ([str(stage_tool.resolve())] if stage_tool is not None else
+               ["cargo", "run", "--locked", "--release", "-q", "-p", "horizon-mod-api-gen", "--bin", "horizon-stage", "--"])
+    print(f"stage_phase=copy_setup seconds={time.monotonic() - setup_started:.3f}", flush=True)
+    started = time.monotonic()
+    print(run(command + arguments, cwd=staged,
+              env=None if stage_tool is not None else
+              {**os.environ, "CARGO_TARGET_DIR": str(target_dir / "tools")}), end="")
+    label = "Stage binary execution" if stage_tool is not None else "Stage release build and execution"
+    print(f"{label}: {time.monotonic() - started:.3f}s (source copy/setup excluded)", flush=True)
     # Only the prebuilt game splits the wasm runtime out: normal source builds stay static. With
     # prefer-dynamic, rustc picks this dylib for the game rather than folding its runtime stack into it.
     for crate in ("horizon-mod-wasm",):
@@ -237,7 +248,7 @@ def build(out: Path, server: bool) -> None:
             shutil.copy2(source, out / name)
     patches = carry_patches(staged, out)
     game = next(script for script in scripts if script["package_id"].split("#")[0].endswith("/horizon-client"))
-    for manifest in (POINTS, INTERNALS, CATALOG):
+    for manifest in (POINTS, INTERNALS, CATALOG, LOOPS):
         shutil.copy2(staged / manifest, out / manifest)
     output = Path(game["out_dir"]).parent / "output"
     link_args = executable_link_args(output)
@@ -252,6 +263,14 @@ def build(out: Path, server: bool) -> None:
         "rustflags": rustflags,
         "link_args": link_args,
         "facade_crates": eligible,
+        # The game crate's features: a `[[native.mixin]]` build compiles functions copied out of its source
+        # under the same cfgs (function replacement).
+        "game_features": sorted(next(
+            message["features"] for message in artifacts
+            if message["reason"] == "compiler-artifact"
+            and message["package_id"].split("#")[0].endswith("/horizon-client")
+            and "lib" in message["target"]["kind"]
+        )),
         "registry_patches": patches,
         "patch_files": {name: digest for name, digest in files.items() if name.startswith("patches/")},
         "registry_lock": (staged / "Cargo.lock").read_text(),
@@ -323,7 +342,7 @@ def check(out: Path) -> None:
             sys.exit(f"prebuilt patch inventory mismatch: {name}")
     stray = [
         path for path in out.rglob("*")
-        if path.is_file() and not (path.parent == out and (path.name in CARRIED or path.name in (POINTS, INTERNALS, CATALOG)))
+        if path.is_file() and not (path.parent == out and (path.name in CARRIED or path.name in (POINTS, INTERNALS, CATALOG, LOOPS)))
         and str(path.relative_to(out).as_posix()) not in patch_files
         and not (path.parent == out / "deps" and path.name.endswith(SUFFIXES))
         and not (path.parent == out / "host" and path.name.endswith((".so", ".dll", ".dylib", ".dll.a")))

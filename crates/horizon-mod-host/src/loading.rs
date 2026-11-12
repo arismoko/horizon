@@ -4,10 +4,30 @@ use mod_api::__private::game::Fields;
 /// and start the engine. Keep the validated startup lease alive for the whole run.
 pub fn main_with(
     mods: Vec<mod_api::ModEntry>,
-    slots: &[horizon_client::entry::NativeSlot],
+    slots: &[crate::SlotListener],
     built: &'static [horizon_mod_package::runtime::BuiltMod],
     startup: horizon_client::entry::Startup,
 ) {
+    horizon_engine_slots::install_seal(mod_points::__private::seal)
+        .expect("engine seal provider must be installed once before startup");
+    // Platform instrumentation must precede registration and the first mod guard.
+    if let Err(error) = mod_api::__private::initialize() {
+        eprintln!("Horizon: refusing startup because mod instrumentation is unavailable: {error}");
+        std::process::exit(1);
+    }
+    if let Err(error) = horizon_engine_slots::install_platform(horizon_engine_slots::Platform {
+        install_packages: mod_api::__private::install_packages,
+        install_registration_data: mod_api::__private::install_registration_data,
+        install_parts: mod_api::__private::install_parts,
+        profiler_is_enabled: mod_api::__private::profiler::is_enabled,
+        profiler_start: mod_api::__private::profiler::start,
+        profiler_stop: mod_api::__private::profiler::stop,
+        profiler_summary: mod_api::__private::profiler::summary,
+        profiler_firefox_profile: mod_api::__private::profiler::firefox_profile,
+    }) {
+        eprintln!("Horizon: {error}");
+        std::process::exit(1);
+    }
     let exe = std::env::current_exe();
     let native: Result<_, Box<dyn std::error::Error + Send + Sync>> = exe
         .as_ref()
@@ -22,6 +42,7 @@ pub fn main_with(
             std::process::exit(1);
         }
     };
+    mod_render::render::install();
     horizon_client::entry::start(
         native,
         |native, launch| {
@@ -82,6 +103,15 @@ pub fn main_with(
                 .collect();
             let ids: Vec<_> = mods.iter().map(|entry| entry.fields().id).collect();
             mod_api::__private::install(mods.into());
+            for &id in &ids {
+                for slot in slots.iter().filter(|slot| slot.id() == id) {
+                    if let Err(error) = mod_points::register(slot) {
+                        log::error!("Horizon: {id}: {error}");
+                        horizon_client::logging::flush();
+                        std::process::exit(1);
+                    }
+                }
+            }
             (ids, wasm)
         },
         horizon_client::entry::CodeRuntime {
@@ -93,7 +123,6 @@ pub fn main_with(
                     .any(|(owner, _)| owner == id)
             },
         },
-        slots,
         startup,
     );
 }

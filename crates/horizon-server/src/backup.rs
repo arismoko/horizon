@@ -91,7 +91,15 @@ pub fn create(dir: &Path, config: &Config, file_name: &str) -> Result<PathBuf, S
     let path = backups.join(file_name);
     let part = backups.join(format!("{file_name}.part"));
     let result = (|| {
-        let file = File::create(&part).map_err(|e| format!("{}: {e}", part.display()))?;
+        // Owner only: a backup holds server.toml and server.properties, with the API token, the
+        // RCON password and the management secret.
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let file = options
+            .open(&part)
+            .map_err(|e| format!("{}: {e}", part.display()))?;
         let mut zip = ZipWriter::new(BufWriter::new(file));
         let world = dir.join(&config.world.name);
         if world.is_dir() {
@@ -147,11 +155,15 @@ pub fn list(dir: &Path) -> Vec<Backup> {
 }
 
 /// Deletes the oldest automatic backups beyond `keep`. Backups made by hand are never deleted.
+/// The length of a backup name's time stamp, `2026-11-11_13-15-00`.
+const STAMP_LEN: usize = "0000-00-00_00-00-00".len();
+
 pub fn prune(dir: &Path, keep: usize) -> Vec<String> {
     let auto_suffix = format!("-{AUTO}.zip");
     list(dir)
         .into_iter()
-        .filter(|b| b.name.ends_with(&auto_suffix))
+        // Only `<stamp>-auto.zip`: a backup labelled by hand `nightly-auto` is not automatic.
+        .filter(|b| b.name.len() == STAMP_LEN + auto_suffix.len() && b.name.ends_with(&auto_suffix))
         .skip(keep)
         .filter(|b| std::fs::remove_file(dir.join(DIR).join(&b.name)).is_ok())
         .map(|b| b.name)
@@ -224,8 +236,15 @@ pub fn restore(dir: &Path, config: &Config, name: &str) -> Result<Option<PathBuf
     } else {
         None
     };
-    std::fs::rename(&restored, &current)
-        .map_err(|e| format!("putting the backup in place: {e}"))?;
+    if let Err(e) = std::fs::rename(&restored, &current) {
+        // The world goes back where it was: the game must not start on an empty folder and
+        // make a new world.
+        if let Some(old) = &moved {
+            let _ = std::fs::rename(old, &current);
+        }
+        let _ = std::fs::remove_dir_all(&scratch);
+        return Err(format!("putting the backup in place: {e}"));
+    }
     let _ = std::fs::remove_dir_all(&scratch);
     Ok(moved)
 }
@@ -464,5 +483,38 @@ mod tests {
         );
         assert_eq!(std::fs::read(&nether).unwrap(), b"nether-before");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+    #[test]
+    fn prune_keeps_backups_labelled_by_hand_whatever_their_label() {
+        let dir = std::env::temp_dir().join(format!("horizon-server-prune-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(DIR)).unwrap();
+        let t = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        let names = [
+            auto_name(t),
+            auto_name(t + std::time::Duration::from_secs(60)),
+            file_name(t, Some("nightly-auto")).unwrap(),
+        ];
+        for name in &names {
+            std::fs::write(dir.join(DIR).join(name), b"zip").unwrap();
+        }
+        assert_eq!(prune(&dir, 0).len(), 2);
+        assert!(dir.join(DIR).join(&names[2]).exists(), "kept: made by hand");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_backup_is_readable_by_its_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("horizon-server-mode-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("world")).unwrap();
+        std::fs::write(dir.join("world/level.dat"), b"x").unwrap();
+        std::fs::write(dir.join("server.toml"), crate::config::TEMPLATE).unwrap();
+        let path = create(&dir, &Config::default(), "b.zip").unwrap();
+        let mode = std::fs::metadata(path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0, "{mode:o}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

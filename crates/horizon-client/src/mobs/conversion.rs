@@ -235,4 +235,28 @@ mod tests {
             assert_eq!(bare.custom_name.as_deref(), Some("Frosty"));
         });
     }
+    /// `ConversionType.convertCommon` copies absorption through the target's
+    /// setter, so it survives when the target's max absorption permits it.
+    #[test]
+    fn a_converting_mob_keeps_its_absorption() {
+        with_test_world(&[], |_, types| {
+            let mob = |id, kind: &str| {
+                Mob::new(
+                    id,
+                    Arc::new(types.types[kind].clone()),
+                    Vec3::new(3.5, 70.0, -2.5),
+                    0.0,
+                )
+            };
+            let mut z = mob(1, "minecraft:zombie");
+            z.absorption = 3.0;
+            let mut d = mob(2, "minecraft:drowned");
+            // LivingEntity.setAbsorptionAmount clamps to the new mob's maximum
+            // before effects are copied. An unmodified drowned has maximum 0.
+            Arc::make_mut(&mut Arc::make_mut(&mut d.kind).attributes)
+                .insert("minecraft:max_absorption".into(), 3.0);
+            single(&z, &mut d, Params::KEEP_ALL);
+            assert_eq!(d.absorption, 3.0, "the absorption crosses the conversion");
+        });
+    }
 }

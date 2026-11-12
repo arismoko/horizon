@@ -3345,6 +3345,7 @@ mod crafting_remainder_tests {
             title: "Original".into(),
             author: "Author".into(),
             generation: 1,
+            resolved: false,
             pages: vec!["page".into()],
             page_tags: Vec::new(),
         });

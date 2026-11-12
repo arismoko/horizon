@@ -197,7 +197,7 @@ pub(crate) struct WeakWasmMod {
     subscriptions: Arc<Mutex<std::collections::HashMap<(Id, u32), &'static [Option<HookId>]>>>,
 }
 impl WeakWasmMod {
-    /// The module-owned plan for a raw point's head call, until the module is dropped.
+    /// Whether the module's group has stopped or the module has been dropped.
     pub(crate) fn is_stopped(&self) -> bool {
         self.running
             .upgrade()
@@ -360,6 +360,8 @@ fn host(
             .get(ptr as usize..end)
             .ok_or_else(|| wasmtime::Error::msg("input outside memory"))?,
     );
+    #[cfg(feature = "test-copy-probe")]
+    crate::copy_probe::record(false, input.len());
     let mut reply = std::mem::take(&mut caller.data_mut().replies[depth]);
     reply.clear();
     let cx = &mut *caller.data_mut().cx as *mut Cx;
@@ -414,6 +416,8 @@ fn host(
     let size = u32::try_from(reply.bytes().len())?;
     if size != 0 && size <= cap {
         memory.write(&mut caller, out as usize, reply.bytes())?;
+        #[cfg(feature = "test-copy-probe")]
+        crate::copy_probe::record(true, reply.bytes().len());
     }
     caller.data_mut().replies[depth] = reply;
     Ok(size)
@@ -431,6 +435,8 @@ fn host_reply(mut caller: Caller<'_, State>, ptr: u32) -> wasmtime::Result<()> {
     let result = memory.write(&mut caller, ptr as usize, reply.bytes());
     caller.data_mut().replies[depth] = reply;
     result?;
+    #[cfg(feature = "test-copy-probe")]
+    crate::copy_probe::record(true, caller.data().replies[depth].bytes().len());
     Ok(())
 }
 
@@ -468,7 +474,7 @@ impl WasmMod {
     }
     pub(crate) fn instantiate(
         engine: &Engine,
-        manifests: &[(&str, &horizon_mod_package::Manifest)],
+        _manifests: &[(&str, &horizon_mod_package::Manifest)],
         members: &[Member<'_>],
         cache: Option<&crate::module_cache::ModuleCache>,
     ) -> Result<Vec<Self>, Refusal> {
@@ -537,88 +543,6 @@ impl WasmMod {
                 .get_typed_func(&mut group.store, "horizon_hook")
                 .map_err(load)?;
             exports.push((name, input, hook));
-        }
-        // Register through the library's exported bridge, then seal every member's private
-        // registry. No hook or mod initialization runs until the entire group is ready.
-        for (name, instance) in group.members.clone() {
-            if instance
-                .get_func(&mut group.store, "horizon_mod_points_register")
-                .is_some()
-            {
-                let refused = instance
-                    .get_typed_func::<(), u32>(&mut group.store, "horizon_mod_points_register")
-                    .and_then(|function| function.call(&mut group.store, ()))
-                    .map_err(|e| Refusal::Runtime(format!("mod point registration: {e:#}")))?;
-                if refused != 0 {
-                    let injection = manifests
-                        .iter()
-                        .find(|(member, _)| *member == name)
-                        .and_then(|(_, manifest)| {
-                            manifest
-                                .inject
-                                .iter()
-                                .filter(|injection| {
-                                    manifest.mod_point_dependency(&injection.at).is_some()
-                                })
-                                .nth((refused - 1) as usize)
-                                .map(|injection| format!("{}:{}", manifest.id, injection.id))
-                        })
-                        .ok_or_else(|| {
-                            Refusal::Runtime(format!(
-                                "{name}: invalid mod point registration refusal index {refused}"
-                            ))
-                        })?;
-                    return Err(Refusal::Runtime(format!(
-                        "{injection}: refused by library registry"
-                    )));
-                }
-            }
-        }
-        // A member whose manifest listens at a library's points was built with the bridge that
-        // registers them, and the library with the seal: a module missing either is refused, not
-        // left silently unregistered.
-        for (name, manifest) in manifests {
-            for injection in &manifest.inject {
-                let Some(library) = manifest.mod_point_dependency(&injection.at) else {
-                    continue;
-                };
-                let mut exports = |member: &str, export: &str| {
-                    let instance = group.members.iter().find(|(m, _)| m == member);
-                    instance
-                        .map(|(_, instance)| *instance)
-                        .is_some_and(|instance| {
-                            instance.get_func(&mut group.store, export).is_some()
-                        })
-                };
-                let id = format!("{}:{}", manifest.id, injection.id);
-                if !exports(name, "horizon_mod_points_register") {
-                    return Err(Refusal::Runtime(format!(
-                        "{id}: {name} has no mod point registration; rebuild it with `cargo \
-                         horizon-mod build --wasm`"
-                    )));
-                }
-                let sealed = manifests
-                    .iter()
-                    .find(|(_, other)| other.id == library)
-                    .is_some_and(|(member, _)| exports(member, "horizon_mod_points_seal"));
-                if !sealed {
-                    return Err(Refusal::Runtime(format!(
-                        "{id}: library {library} has no mod point seal in this group; rebuild it \
-                         with `cargo horizon-mod build --wasm`"
-                    )));
-                }
-            }
-        }
-        for (_, instance) in group.members.clone() {
-            if instance
-                .get_func(&mut group.store, "horizon_mod_points_seal")
-                .is_some()
-            {
-                instance
-                    .get_typed_func::<(), ()>(&mut group.store, "horizon_mod_points_seal")
-                    .and_then(|function| function.call(&mut group.store, ()))
-                    .map_err(|e| Refusal::Runtime(format!("mod point seal: {e:#}")))?;
-            }
         }
         let lending = group.store.data().lending.clone();
         let running = Arc::new(Running {
@@ -831,6 +755,8 @@ impl WasmMod {
         memory
             .write(&mut *store, ptr as usize, input.bytes())
             .map_err(|e| CallError::Fault(e.into()))?;
+        #[cfg(feature = "test-copy-probe")]
+        crate::copy_probe::record(true, input.bytes().len());
         let result = self.hook.call(&mut *store, id).map_err(CallError::Fault)?;
         let ptr = (result >> 32) as usize;
         let len = result as u32;
@@ -851,6 +777,8 @@ impl WasmMod {
                 .get(ptr..end)
                 .ok_or_else(|| CallError::Refused(wasmtime::Error::msg("reply outside memory")))?,
         );
+        #[cfg(feature = "test-copy-probe")]
+        crate::copy_probe::record(false, output.len());
         Ok(())
     }
 }

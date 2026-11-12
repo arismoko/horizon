@@ -30,6 +30,11 @@ mod content {
                 _ => None,
             }
         }
+        pub(in crate::tests) fn block_entity_type_name(
+            _: super::super::BlockEntityTypeKey,
+        ) -> Option<&'static str> {
+            Some("test:counter")
+        }
         pub(in crate::tests) fn item_id(key: super::super::ItemKey<'_>) -> Option<&str> {
             Some(key.0)
         }
@@ -184,6 +189,21 @@ fn listening(hook_id: HookId) -> impl Iterator<Item = (bool, &'static ModEntry)>
                 )
             })
     })
+}
+mod runtime {
+    pub(super) struct ListenerScope;
+    impl ListenerScope {
+        pub(super) fn new() -> Self {
+            Self
+        }
+        pub(super) fn enter(
+            &mut self,
+            entry: &'static super::ModEntry,
+            hook: &'static str,
+        ) -> &'static dyn super::Hooks {
+            super::enter_listener(entry, hook).1
+        }
+    }
 }
 fn enter_listener(entry: &'static ModEntry, hook: &'static str) -> ((), &'static dyn Hooks) {
     let index = MODS
@@ -665,6 +685,8 @@ mod api {
     pub struct DamageContainer(pub f32);
     #[derive(Clone, Copy)]
     pub struct LivingRef;
+    #[derive(Clone, Copy)]
+    pub struct OriginalPlayerRef;
 
     #[derive(Clone, Copy)]
     pub struct FluidKey;

@@ -532,3 +532,50 @@ fn a_crafter_notices_its_source_but_not_a_vehicles_placeholder() {
         },
     );
 }
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn notices_come_in_first_write_order_once_each_whatever_the_journal_keeps() {
+    with_changes(
+        "game::machines::contents_changed_tests::notices_come_in_first_write_order_once_each_whatever_the_journal_keeps",
+        NoticeAction::Observe,
+        |game, level, changes| {
+            let (a, b) = ([0, 64, 0], [2, 64, 0]);
+            for pos in [a, b] {
+                place(game, level, pos, "minecraft:chest");
+            }
+            let first = level.capability(game, &ITEMS, a, None).unwrap();
+            let second = level.capability(game, &ITEMS, b, None).unwrap();
+            let sticks = ItemResource::of(
+                &mod_api::ItemStack::new(
+                    mod_api::__private::item_key("minecraft:stick").unwrap(),
+                    1,
+                )
+                .unwrap(),
+            );
+            changes.0.lock().unwrap().clear();
+            let committed = game.transaction(|host, tx| {
+                assert_eq!(first.insert(host, tx, 0, &sticks, 2), 2);
+                host.transaction(|host, inner| {
+                    assert_eq!(second.insert(host, inner, 3, &sticks, 5), 5);
+                    Ok::<_, ()>(())
+                })?;
+                assert_eq!(first.insert(host, tx, 1, &sticks, 1), 1);
+                assert!(
+                    changes.0.lock().unwrap().is_empty(),
+                    "nothing told before the commit"
+                );
+                Ok::<_, ()>(())
+            });
+            assert_eq!(committed, Ok(()));
+            let told: Vec<([i32; 3], u32)> = changes
+                .0
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|notice| (notice.pos, notice.amount))
+                .collect();
+            assert_eq!(told, [(a, 3), (b, 5)]);
+        },
+    );
+}

@@ -184,7 +184,8 @@ fn mob_despawn_listener_panic_preserves_owned_rows_and_lent_random() {
                         .unwrap();
                     game.world.set(4, 80, 4, stone).unwrap();
                     let expected_writes = game.world.path_writes.clone();
-                    game.world.random = LegacyRandom::new(0x5eed);
+                    game.world.random =
+                        horizon_core::random::LevelRandom::for_level(LegacyRandom::new(0x5eed));
                     let expected_draw = game.world.random.clone().next_long();
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         game.tick_creature_entities()

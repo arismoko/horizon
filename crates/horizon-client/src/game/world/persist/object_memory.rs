@@ -143,7 +143,8 @@ impl Game<'_> {
             if let Some(state) = transferred {
                 self.adopt_transferred_entity_state(p.id, state);
             }
-            self.remember_uuid(p.id, uuid, &tag);
+            let own_uuid = p.own_uuid(uuid);
+            self.remember_uuid(p.id, Some(own_uuid), &tag);
             self.bind_saved_entity_attachments(p.id, &mut p.attachment_lifetime);
             self.add_projectile(p);
         }
@@ -165,7 +166,8 @@ impl Game<'_> {
             if let Some(state) = transferred {
                 self.adopt_transferred_entity_state(p.id, state);
             }
-            self.remember_uuid(p.id, uuid, &tag);
+            let own_uuid = p.own_uuid(uuid);
+            self.remember_uuid(p.id, Some(own_uuid), &tag);
             self.bind_saved_entity_attachments(p.id, &mut p.attachment_lifetime);
             self.add_projectile(p);
             self.remember_last_projectile_tags(&tag);
@@ -188,7 +190,8 @@ impl Game<'_> {
             if let Some(state) = transferred {
                 self.adopt_transferred_entity_state(p.id, state);
             }
-            self.remember_uuid(p.id, uuid, &tag);
+            let own_uuid = p.own_uuid(uuid);
+            self.remember_uuid(p.id, Some(own_uuid), &tag);
             self.bind_saved_entity_attachments(p.id, &mut p.attachment_lifetime);
             self.add_projectile(p);
             self.remember_last_projectile_tags(&tag);
@@ -211,7 +214,8 @@ impl Game<'_> {
             if let Some(state) = transferred {
                 self.adopt_transferred_entity_state(p.id, state);
             }
-            self.remember_uuid(p.id, uuid, &tag);
+            let own_uuid = p.own_uuid(uuid);
+            self.remember_uuid(p.id, Some(own_uuid), &tag);
             self.bind_saved_entity_attachments(p.id, &mut p.attachment_lifetime);
             self.add_projectile(p);
             self.remember_last_projectile_tags(&tag);
@@ -385,6 +389,7 @@ impl Game<'_> {
             b.no_gravity = entity_nbt::flag(&tag, "NoGravity");
             b.on_ground = entity_nbt::flag(&tag, "OnGround");
             b.fire_ticks = crate::game::boats::saved_fire(&tag);
+            b.ticks_frozen = crate::game::boats::saved_ticks_frozen(&tag);
             b.pitch = entity_nbt::rotation(&tag)[1];
             // Entity.load: OnGround and fall_distance, as saved.
             (b.on_ground, b.fall_distance) = entity_nbt::ground_from_nbt(&tag);

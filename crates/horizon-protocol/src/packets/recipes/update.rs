@@ -52,6 +52,20 @@ impl Codec<UpdateRecipes> for UpdateRecipes {
     }
 }
 
+// Generated retained-allocation traversals; regenerate with protocol-retained-gen.
+impl crate::retained::OwnedHeap for UpdateRecipes {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self {
+            properties,
+            stonecutter,
+        } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(properties))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(stonecutter))
+    }
+}
+// End generated retained traversals.
+
 #[cfg(test)]
 mod tests {
     use super::*;

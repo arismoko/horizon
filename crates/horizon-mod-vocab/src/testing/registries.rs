@@ -11,6 +11,7 @@ pub struct FakeRegistries {
     components: HashMap<(String, String), Tag>,
     containers: HashMap<String, usize>,
     loaded: HashSet<String>,
+    fluid_sounds: HashMap<String, (&'static str, &'static str)>,
 }
 
 impl FakeRegistries {
@@ -21,11 +22,26 @@ impl FakeRegistries {
         ids: impl IntoIterator<Item = crate::Identifier>,
     ) -> Result<(), Vec<super::ItemKeyError>> {
         if crate::parts::installed().is_none() {
-            crate::parts::tests::install_parts_fixture(&[])
-                .expect("empty fake registration has no errors");
+            crate::parts::install_input(
+                crate::__private::parts_installation::InstalledInput::default(),
+            );
         }
         let ids: Vec<_> = ids.into_iter().map(|id| id.to_string()).collect();
         crate::content::registry_keys::resolve_items(ids.iter().map(String::as_str))
+    }
+    /// Complete the current load's fluid table with `ids`, as the game does once the fluid
+    /// registry loads, so `host.fluid_key` and stacks of them work.
+    pub fn resolve_fluids<'a>(
+        &mut self,
+        ids: impl IntoIterator<Item = &'a str>,
+    ) -> Result<(), Vec<crate::UnknownFluid>> {
+        if crate::parts::installed().is_none() {
+            crate::parts::install_input(
+                crate::__private::parts_installation::InstalledInput::default(),
+            );
+        }
+        let ids: Vec<_> = ids.into_iter().collect();
+        crate::content::registry_keys::resolve_fluids(&ids, &[])
     }
     pub(super) fn resolved_item_id(key: crate::ItemKey) -> Option<&'static str> {
         crate::parts::installed()?.resolved_items.get()?.id(key.0)
@@ -41,6 +57,18 @@ impl FakeRegistries {
     /// mod's backpack; they read empty.
     pub fn item_slots(&mut self, item: &str, slots: usize) -> &mut Self {
         self.containers.insert(item.to_owned(), slots);
+        self
+    }
+    /// Gives fluid `fluid` the sounds a bucket plays as it fills with it (`pickup`) and empties
+    /// it (`empty`), as `fluid_pickup_sound` and `fluid_empty_sound` answer; a fluid not given
+    /// any has none, as a tank-only fluid has none in the game.
+    pub fn fluid_sounds(
+        &mut self,
+        fluid: &str,
+        pickup: &'static str,
+        empty: &'static str,
+    ) -> &mut Self {
+        self.fluid_sounds.insert(fluid.to_owned(), (pickup, empty));
         self
     }
     /// Marks mod `id` as loaded.
@@ -70,6 +98,11 @@ impl FakeRegistries {
         self.containers
             .get(Self::resolved_item_id(stack.item())?)
             .map(|&slots| vec![None; slots])
+    }
+    /// The sound a bucket plays filling with `fluid` (`pickup`) or emptying it, if given.
+    pub(super) fn fluid_sound(&self, fluid: &str, pickup: bool) -> Option<&'static str> {
+        let (fill, empty) = self.fluid_sounds.get(fluid)?;
+        Some(if pickup { fill } else { empty })
     }
     pub(super) fn is_loaded(&self, id: &str) -> bool {
         self.loaded.contains(id)

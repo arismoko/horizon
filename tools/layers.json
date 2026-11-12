@@ -86,7 +86,8 @@
     "horizon-telemetry-server": "horizon",
     "horizon-discord": "horizon",
     "horizon-official-servers": "horizon",
-    "horizon-mod-vocab": "engine"
+    "horizon-mod-vocab": "engine",
+    "horizon-engine-slots": "engine"
   },
   "portable": {
     "_doc": "docs/layers.md#engine: vanilla's rules and data with no desktop in them, which a port builds on. They depend only on each other, and never on a forbidden library.",
@@ -104,7 +105,8 @@
       "horizon-mod-vocab",
       "horizon-mod-api-gen",
       "horizon-mod-api-macros",
-      "horizon-game-discovery"
+      "horizon-game-discovery",
+      "horizon-engine-slots"
     ],
     "forbidden": [
       "arboard",
@@ -146,6 +148,7 @@
     "horizon-client-lib -> horizon-shader-api",
     "horizon-client-lib -> horizon-shaders",
     "horizon-client-lib -> horizon-theme",
+    "horizon-client-lib -> horizon-telemetry",
     "horizon-client-render -> horizon-hdr",
     "horizon-client-render -> horizon-optifine",
     "horizon-client-render -> horizon-polytone",
@@ -161,19 +164,15 @@
     "horizon-server -> horizon-world",
     "horizon-client -> horizon-mod-api",
     "horizon-client -> horizon-mod-api-macros",
-    "horizon-client -> horizon-mod-points",
-    "horizon-client -> horizon-mod-render",
     "horizon-bench -> horizon-system",
     "horizon-client-lib -> horizon-mod-api",
     "horizon-client-render -> horizon-mod-api",
     "horizon-client-render -> horizon-mod-api-macros",
-    "horizon-client-render -> horizon-mod-render",
     "horizon-launcher -> horizon-mod-package",
     "horizon-launcher -> horizon-system",
     "horizon-mod-registry -> horizon-mod-package",
     "horizon-client -> horizon-cosmetics",
     "horizon-client -> horizon-telemetry",
-    "horizon-client-lib -> horizon-telemetry",
     "horizon-client-render -> horizon-cosmetics"
   ],
   "_fork_baselines": {
@@ -192,13 +191,10 @@
     "horizon-modding-examples": "Workspace development fixtures, not a shipped runtime dependency.",
     "horizon-client -> horizon-mod-api": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
     "horizon-client -> horizon-mod-api-macros": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
-    "horizon-client -> horizon-mod-points": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
-    "horizon-client -> horizon-mod-render": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
     "horizon-bench -> horizon-system": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
     "horizon-client-lib -> horizon-mod-api": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
     "horizon-client-render -> horizon-mod-api": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
     "horizon-client-render -> horizon-mod-api-macros": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
-    "horizon-client-render -> horizon-mod-render": "Existing fork dependency across the upstream layer split; recorded baseline, not a new dependency.",
     "horizon-launcher -> horizon-mod-package": "Separate launcher workspace: reads and installs mod packages and modpacks (features index, prebuilt, runtime-process); recorded baseline, not a new dependency.",
     "horizon-launcher -> horizon-system": "Separate launcher workspace: bug reports use the game's machine probes and path scrubber; recorded baseline, not a new dependency.",
     "horizon-mod-registry -> horizon-mod-package": "Separate registry workspace: reads and writes the registry index format (feature index only); recorded baseline, not a new dependency.",

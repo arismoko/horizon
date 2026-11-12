@@ -316,7 +316,7 @@ impl WorldRequest {
         )?;
         drop(streaming_step);
         streaming.radius = settings.render_distance;
-        let mut world = World::new(res.facts().air, level.seed);
+        let mut world = Game::world_for_mods(res.facts().air, level.seed);
         world.attachments = save.load_attachments();
         world.shape = shape;
         world.fast_lava = horizon_world::dimension_type::DimensionFacts::of_level(
@@ -1172,6 +1172,11 @@ pub(super) fn make_streaming(
         inner.add_mod_signs(res.facts());
         register_sea_level(inner.sea_level());
         let inner = Arc::new(inner);
+        // The first mob a fresh chunk generates needs the mob data: read it now,
+        // off the server's tick (#13857). The End's chunks generate none.
+        if dim != Dim::End {
+            inner.load_structure_mobs_behind();
+        }
         if dim == Dim::Overworld && structures {
             inner.search_rings_behind();
         }
@@ -1226,8 +1231,12 @@ pub(super) fn make_streaming(
         .horizon
         .leaf_culling_effective(&settings.resource_packs);
     streaming.biome_zoom = BiomeZoom::new(obfuscate_seed(seed));
-    streaming.sky_light = dim != Dim::Nether;
-    streaming.nether_shading = dim == Dim::Nether;
+    let facts = horizon_world::dimension_type::DimensionFacts::of_builtin_level(
+        horizon_core::LevelKey::builtin_or_overworld(dim.id()),
+    );
+    streaming.sky_light = facts.height.has_skylight;
+    streaming.nether_shading =
+        facts.cardinal_light == horizon_world::dimension_type::CardinalLight::Nether;
     // A server draws nothing: neither the integrated server nor the
     // dedicated one meshes sections.
     streaming.mesh = options.execution_role.is_client();

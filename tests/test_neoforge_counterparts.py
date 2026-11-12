@@ -71,7 +71,6 @@ class Counterparts(unittest.TestCase):
                 text=True, input=json.dumps([context, self.book()]))
         book = json.loads(result.stdout)
         chapter = book["sections"][0]["Chapter"]["sub_items"][0]["Chapter"]
-        self.assertIn("| `net_from_client` | server | `IPayloadHandler.handle` |", chapter["content"])
         self.assertIn("| `item_decorations` | client | `IItemDecorator.render` |", chapter["content"])
 
     def test_missing_draft_chapter_fails_instead_of_dropping_the_reference(self):

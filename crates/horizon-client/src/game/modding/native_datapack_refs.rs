@@ -93,7 +93,7 @@ mod tests {
                             mod_api::__private::datapack_registry_declarations(),
                             &[(
                                 "data/addon/example/spell/fire.json".into(),
-                                vec![br#"{"power":7}"#.to_vec()],
+                                vec![("pack".to_owned(), br#"{"power":7}"#.to_vec())],
                             )],
                         )
                         .unwrap()

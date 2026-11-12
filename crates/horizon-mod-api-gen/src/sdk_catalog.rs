@@ -7,7 +7,23 @@ use std::{collections::BTreeMap, path::Path};
 /// Serialize the same API event types and point shapes used by code generation.
 pub fn sdk_catalog(root: &Path, api_version: &str) -> Result<String, String> {
     let catalog = Catalog::load(root)?;
-    let mut code = crate::sources(root, FillMode::Ignore)?.hooks;
+    // With an API, point discovery already requires completed hook bodies through
+    // wire_types. Fixtures without one must retain the original Ignore contract.
+    let has_api = root.join("crates/horizon-mod-vocab/src/hooks").is_dir();
+    let generated = crate::sources(
+        root,
+        if has_api {
+            FillMode::Require
+        } else {
+            FillMode::Ignore
+        },
+    )?;
+    let wire = if has_api {
+        crate::build::wire_types_from_sources(root, &generated)?
+    } else {
+        Default::default()
+    };
+    let mut code = generated.hooks;
     let render = crate::dispatch::render(root, &catalog)?;
     code.push_str(&render.render_dispatch);
     let file = syn::parse_file(&code).map_err(|e| e.to_string())?;
@@ -50,19 +66,9 @@ pub fn sdk_catalog(root: &Path, api_version: &str) -> Result<String, String> {
             "scope": hook.scope.map(|scope| json!({"kind": match scope.kind { crate::catalog::PartKind::Block => "block", crate::catalog::PartKind::BlockEntity => "blockentity", crate::catalog::PartKind::Item => "item", crate::catalog::PartKind::Menu => "menu", crate::catalog::PartKind::Fluid => "fluid" }, "key": scope.key})),
             "contract": match hook.contract { crate::Contract::Listen => "listen", crate::Contract::Cancel => "cancel", crate::Contract::Collect => "collect", crate::Contract::Replace => "replace" }, "arguments": arguments, "output": output}));
     }
-    let points = crate::points::game_points(root)?
+    let points = crate::points::points_with(root, &wire)?
         .into_iter()
-        .map(|point| {
-            let access = match (point.api_refusal.is_none(), point.raw) {
-                (true, true) => vec!["api", "internals"],
-                (true, false) => vec!["api"],
-                (false, true) => vec!["internals"],
-                (false, false) => vec![],
-            };
-            let mut value = serde_json::to_value(point).map_err(|e| e.to_string())?;
-            value["access"] = json!(access);
-            Ok(value)
-        })
+        .map(|point| serde_json::to_value(point).map_err(|e| e.to_string()))
         .collect::<Result<Vec<_>, String>>()?;
     serialize(api_version, hooks, points)
 }

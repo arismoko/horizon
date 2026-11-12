@@ -206,6 +206,7 @@ impl ScreenEffects {
             self.spinning_speed = 0.0;
         }
     }
+    #[horizon_mod_api_macros::replaceable]
     pub fn build(&self, input: &ScreenInputs) -> Vec<ScreenQuad> {
         let mut out = Vec::new();
         let sprite = |name: &str| input.sprites.get(name).map(|r| [r.u0, r.v0, r.u1, r.v1]);

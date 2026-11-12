@@ -35,6 +35,16 @@ class AuditTests(unittest.TestCase):
     def test_audit_of_a_moved_tree_passes_and_moves_nothing(self):
         self.run_audit(['lib.rs', 'wire/wire_guest.rs'])
 
+    def test_audit_accepts_platform_owned_dispatch_instrumentation_and_resource_access(self):
+        self.run_audit([
+            'lib.rs', '__private.rs', 'wire/wire_guest.rs', 'content/crash.rs',
+            'profiler.rs', 'profiler/firefox.rs', 'wire/wire_resources.rs', 'wire/static_strings.rs', 'load_state.rs', 'fluid_state.rs',
+        ])
+
+    def test_audit_rejects_unlisted_platform_neighbors(self):
+        with self.assertRaises(SystemExit):
+            self.run_audit(['lib.rs', 'content/registry_keys.rs'])
+
     def test_audit_rejects_vocabulary_left_in_the_facade(self):
         with self.assertRaises(SystemExit) as raised:
             self.run_audit(['lib.rs', 'wire/wire_guest.rs', 'hooks/model_layers.rs'])

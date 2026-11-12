@@ -38,6 +38,8 @@ static NEXT_LEND: AtomicU64 = AtomicU64::new(1);
 pub(in crate::game) struct LentMobs {
     lends: Vec<Lent>,
     pub(super) pending: Rc<RefCell<PendingChildren<super::native_pending_children::PendingMob>>>,
+    /// The hook whose listeners the innermost pending action is dispatching to, if any.
+    pub(super) hook: Rc<std::cell::Cell<Option<mod_api::HookId>>>,
 }
 
 #[cfg(test)]

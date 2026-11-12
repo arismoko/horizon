@@ -4,7 +4,7 @@
 //! guest's inventory, with vanilla's packets: OpenScreen, container clicks
 //! and their corrections, and the grid back into the inventory when the menu
 //! closes (`AbstractContainerMenu.clearContainer`).
-use super::Game;
+use super::{Game, transactions::decision::MenuOwner};
 use horizon_client::lan::recipes;
 use horizon_client::{
     containers::{BlockEntity, ModMenuType},
@@ -34,13 +34,13 @@ pub(super) enum MenuRemoval {
 #[derive(Default)]
 pub(super) struct GuestCrafting {
     /// The inventory menu; its grid lives in the hub's guest.
-    inventory: Option<Box<Menu>>,
+    pub(super) inventory: MenuOwner<Option<Box<Menu>>>,
     /// The open crafting table: its window, state id, menu and block.
-    pub(super) table: Option<(i32, i32, Box<Menu>, [i32; 3])>,
+    pub(super) table: MenuOwner<Option<(i32, i32, Box<Menu>, [i32; 3])>>,
     /// The open furnace's or brewing stand's window and menu (`AbstractFurnaceMenu`,
     /// `BrewingStandMenu`); its slots live in the block entity and the hub's
     /// container menu keeps the client in sync.
-    pub(super) machine: Option<(i32, Box<Menu>)>,
+    pub(super) machine: MenuOwner<Option<(i32, Box<Menu>)>>,
 }
 
 /// The most containers `native_recipe_sources` adds to one placement.
@@ -264,6 +264,8 @@ impl Game<'_> {
             self.as_guest(conn, |g| {
                 let player = g.native_acting_id();
                 for (recipe, stack) in &item_crafted {
+                    // ItemStack.onCraftedBy awards Stats.ITEM_CRAFTED.
+                    g.award_stat("crafted", &stack.item, stack.count as i32);
                     g.native_item_crafted(player, recipe, stack);
                 }
             });
@@ -317,7 +319,7 @@ impl Game<'_> {
         if let Some(mut menu) = menu {
             menu.set_slot(&self.menu_env(), 0, result);
             if let Some(play) = self.lan.as_mut().and_then(|host| host.play.get_mut(&conn)) {
-                play.crafting.inventory = Some(menu);
+                *play.crafting.inventory = Some(menu);
             }
         }
     }
@@ -376,7 +378,7 @@ impl Game<'_> {
             }
             g.craft_result = menu.slot(0).cloned();
         });
-        host.play.entry(conn).or_default().crafting.inventory = Some(menu);
+        *host.play.entry(conn).or_default().crafting.inventory = Some(menu);
         host.hub.inventory_clicked(conn, p, &self.world, &changed);
         true
     }
@@ -589,7 +591,7 @@ impl Game<'_> {
             changed.push(slot);
         }
         if let Some(host) = self.lan.as_mut() {
-            host.play.entry(conn).or_default().crafting.machine = Some((p.container, menu));
+            *host.play.entry(conn).or_default().crafting.machine = Some((p.container, menu));
             host.hub.inventory_clicked(conn, p, &self.world, &changed);
         }
         true
@@ -734,7 +736,8 @@ impl Game<'_> {
             if changed {
                 self.container_changed(pos);
             }
-            self.lan
+            *self
+                .lan
                 .as_mut()
                 .unwrap()
                 .play
@@ -948,7 +951,7 @@ impl Game<'_> {
                 }
                 g.craft_result = menu.slot(0).cloned();
             });
-            host.play.entry(conn).or_default().crafting.inventory = Some(menu);
+            *host.play.entry(conn).or_default().crafting.inventory = Some(menu);
             host.hub.send_inventory(gi);
             placed
         } else {
@@ -958,7 +961,7 @@ impl Game<'_> {
                 .and_then(|play| play.crafting.table.take_if(|(w, ..)| *w == container))?;
             let placed = self.guest_menu_op(gi, &mut menu, apply)?;
             let host = self.lan.as_mut()?;
-            host.play.entry(conn).or_default().crafting.table = Some((window, state, menu, pos));
+            *host.play.entry(conn).or_default().crafting.table = Some((window, state, menu, pos));
             self.lan_send_table_content(conn);
             placed
         };
@@ -981,7 +984,7 @@ impl Game<'_> {
         };
         let mut menu = Box::new(Menu::new(Kind::Crafting));
         menu.set_registry_id(Some("minecraft:crafting"));
-        host.play.entry(conn).or_default().crafting.table = Some((window, 0, menu, pos));
+        *host.play.entry(conn).or_default().crafting.table = Some((window, 0, menu, pos));
         self.lan_send_table_content(conn);
     }
 
@@ -1059,7 +1062,7 @@ impl Game<'_> {
         let Some(host) = self.lan.as_mut() else {
             return true;
         };
-        host.play.entry(conn).or_default().crafting.table = Some((window, state, menu, pos));
+        *host.play.entry(conn).or_default().crafting.table = Some((window, state, menu, pos));
         if !agreed {
             self.lan_send_table_content(conn);
         }
@@ -1163,7 +1166,8 @@ impl Game<'_> {
             self.container_changed(pos);
         }
         self.lan_mod_craft_settle(gi, pos, &mut menu);
-        self.lan
+        *self
+            .lan
             .as_mut()?
             .play
             .entry(conn)
@@ -1451,7 +1455,7 @@ impl Game<'_> {
         };
         let crafting = &mut host.play.entry(conn).or_default().crafting;
         let grid: Vec<ItemStack> = if window == Some(0) {
-            crafting.inventory = None;
+            *crafting.inventory = None;
             host.hub.guests.update(gi, |g| {
                 g.craft_result = None;
                 g.craft_grid.iter_mut().filter_map(Option::take).collect()

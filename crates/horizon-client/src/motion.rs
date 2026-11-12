@@ -8,7 +8,7 @@ use crate::{
     world::World,
 };
 use horizon_core::{
-    geometry::{Aabb, Axis, Direction, Vec3, VoxelShape, traverse_blocks, trig},
+    geometry::{Aabb, Direction, Vec3, VoxelShape, traverse_blocks, trig},
     position::BlockPos,
     random::RandomSource,
 };
@@ -156,6 +156,7 @@ pub(crate) fn pushing_flow<W: horizon_world::fluid_flow::FluidFlowWorld>(
 }
 
 pub(crate) mod environment;
+use environment::fly_into_wall_damage;
 mod fluids;
 mod ladder;
 pub use fluids::{
@@ -358,6 +359,13 @@ pub enum MotionEvent {
     /// `WitherRoseBlock.entityInside`: the player's box swept through a
     /// wither rose; the server adds its Wither unless peaceful.
     InsideWitherRose,
+    /// An `entity_inside` part's `EntityWrite::AddEffect`: the server adds the
+    /// effect, unless peaceful.
+    InsideEffect {
+        id: &'static str,
+        duration: i32,
+        amplifier: u8,
+    },
     /// `ServerPlayer.checkFallDamage` after a mace smash: block particles
     /// from the landing block, more the further the fall.
     SmashLanding {
@@ -400,6 +408,10 @@ pub enum MotionEvent {
 }
 #[derive(Clone)]
 pub struct PlayerMotion {
+    /// Entity-owned random stream, independent of the level. Like mobs, a new
+    /// body seeds it from its initial identity/position without drawing from the
+    /// level. It lives with this body (including guest turns), not player NBT.
+    pub random: horizon_core::random::EntityRandom,
     pub swimming: bool,
     /// `Entity.isPassenger()`: this body rides a vehicle. `Entity.updateSwimming`
     /// needs it false, so the server's copy of a guest who boards a boat while
@@ -1275,6 +1287,7 @@ impl MotionWorld<'_, '_, '_> {
         self.controlled_simulation_tick_with_sprint_window(keys, 7)
     }
     /// Local simulation with the configured double-tap sprint window.
+    #[horizon_mod_api_macros::replaceable]
     pub fn controlled_simulation_tick_with_sprint_window(
         &mut self,
         keys: crate::sprint::Keys,
@@ -1632,88 +1645,36 @@ impl MotionWorld<'_, '_, '_> {
             }
         }
         let mut visited = crate::fast_hash::FxHashSet::default();
-        let mut entered = Vec::new();
-        for movement in &movements {
-            let mut from = movement.from;
-            let delta = movement.to.subtract(movement.from);
-            let mut budget = 16;
-            match movement.original {
-                Some(original) if delta.length_squared() > 0.0 => {
-                    for axis in Axis::step_order(original) {
-                        let step = delta.component(axis);
-                        if step != 0.0 {
-                            let to = from.relative(
-                                match axis {
-                                    Axis::X => Direction::East,
-                                    Axis::Y => Direction::Up,
-                                    Axis::Z => Direction::South,
-                                },
-                                step,
-                            );
-                            budget -= self.check_inside_blocks(
-                                from,
-                                to,
-                                &mut visited,
-                                &mut entered,
-                                budget,
-                                pass,
-                            )?;
-                            from = to;
-                        }
-                    }
-                }
-                _ => {
-                    budget -= self.check_inside_blocks(
-                        movement.from,
-                        movement.to,
-                        &mut visited,
-                        &mut entered,
-                        16,
-                        pass,
-                    )?;
-                }
-            }
-            if budget <= 0 {
-                self.check_inside_blocks(
-                    movement.to,
-                    movement.to,
-                    &mut visited,
-                    &mut entered,
-                    1,
-                    pass,
-                )?;
-            }
-        }
-        // InsideBlockEffectApplier.StepBasedCollector: the blocks entered
-        // at one step (a sweep iteration differing from the last) form a
-        // group whose EXTINGUISH callbacks (the game destroys those blocks if
-        // the player burns), FREEZE and EXTINGUISH apply once, in order.
-        let mut last_step = -1;
-        let mut groups = 0;
-        for (index, &(step, p)) in entered.iter().enumerate() {
-            if index == 0 || step != last_step {
-                groups += 1;
-                last_step = step;
-            }
-            // A later group finds the fire already out.
-            if groups == 1 && self.player.fire_ticks > 0 && !self.player.spectator {
-                self.player
-                    .events
-                    .push(MotionEvent::PowderSnowMelt { pos: p });
-            }
-        }
-        if groups > 0 {
-            // InsideBlockEffectType.EXTINGUISH: Entity.clearFire.
-            self.player.fire_ticks = self.player.fire_ticks.min(0);
-        }
-        for _ in 0..groups {
+        let mut effects = mod_api::InsideEffects::default();
+        let mut inside = PlayerInside {
+            m: self,
+            pass,
+            melt_step: None,
+        };
+        crate::block_contact::sweep_movements(&mut inside, &movements, &mut visited, &mut effects)?;
+        // `applyAndClear`: the plan applies in order, in this tick, until the
+        // player dies. The engine's own effects (the powder snow's freeze and
+        // extinguish) and the parts' typed writes flush together.
+        for planned in effects.take_planned() {
             if self.player.health.dead_or_dying() {
                 break;
             }
-            self.player.in_powder_snow = true;
-            if self.player.can_freeze() {
-                self.player.ticks_frozen =
-                    (self.player.ticks_frozen + 1).min(PlayerMotion::TICKS_REQUIRED_TO_FREEZE);
+            use mod_api::{InsideEffect, PlannedInside};
+            match planned {
+                PlannedInside::Effect(InsideEffect::Freeze) => {
+                    self.player.in_powder_snow = true;
+                    if self.player.can_freeze() {
+                        self.player.ticks_frozen = (self.player.ticks_frozen + 1)
+                            .min(PlayerMotion::TICKS_REQUIRED_TO_FREEZE);
+                    }
+                }
+                PlannedInside::Effect(InsideEffect::Extinguish) => {
+                    self.player.fire_ticks = self.player.fire_ticks.min(0);
+                }
+                // The player's own ignition paths (the lava cauldron's arm) run in
+                // the walk; no engine block queues the other types for it.
+                PlannedInside::Effect(_) => {}
+                PlannedInside::Write(write) => self.apply_entity_write(write)?,
             }
         }
         Ok(())
@@ -1738,192 +1699,91 @@ impl MotionWorld<'_, '_, '_> {
         self.player.old_position = self.player.position;
         Ok(())
     }
-    /// `Entity.checkInsideBlocks(from, to, ...)`: the blocks the box at `to`
-    /// sweeps through from `from`; returns the iterations used plus one.
-    fn check_inside_blocks(
+    /// The player's view of the shared inside walk: its box, its life, its
+    /// blocks and shapes, and its own `entityInside` moments, which keep their
+    /// existing code and queue into the shared collector instead of the
+    /// hand-written group flush this replaces.
+    fn mod_block_inside(
         &mut self,
-        from: Vec3,
-        to: Vec3,
-        visited: &mut crate::fast_hash::FxHashSet<i64>,
-        entered: &mut Vec<(i32, BlockPos)>,
-        max_iterations: i32,
-        pass: BlockPass,
-    ) -> Result<i32> {
-        let damage_only = pass != BlockPass::Client;
-        let deflated = self.player.dimensions.bounds(to).deflate(Vec3::new(
-            f64::from(1.0e-5_f32),
-            f64::from(1.0e-5_f32),
-            f64::from(1.0e-5_f32),
-        ));
-        // Mth.square(0.9999900000002526): a long move counts every block it
-        // crosses as precise.
-        let far = 0.999_990_000_000_252_6_f64;
-        let moved_far = from.distance_squared(to) > far * far;
-        let mut hits = Vec::new();
-        let mut iterations = 0;
-        let alive = !self.player.health.dead_or_dying();
-        // Nothing below changes a block, so each is read once, as the sweep
-        // visits it, and air (`state.isAir()`, the most of a path) is
-        // passed over there instead of being kept for the loop.
-        let (scene, registry) = (&*self.scene, self.assets.registry);
-        horizon_core::geometry::sweep_intersected_blocks(
-            from,
-            to,
-            deflated,
-            1_000_000,
-            |p, iteration| {
-                if !alive || iteration >= max_iterations {
-                    return false;
-                }
-                iterations = iteration;
-                let state = scene.block(p.x, p.y, p.z);
-                let air = registry.state(state).is_none_or(|d| {
-                    matches!(
-                        d.name.as_str(),
-                        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-                    )
-                });
-                if !air {
-                    hits.push((iteration, p, state));
-                }
-                true
-            },
-        )
-        .map_err(|e| format!("block sweep: {e:?}"))?;
-        for (step, p, state) in hits {
-            let Some(definition) = self.assets.registry.state(state) else {
-                continue;
-            };
-            let name = definition.name.as_str();
-            let powder_snow = name == "minecraft:powder_snow";
-            // A filled cauldron's content top in blocks: the lava's 15/16
-            // (LavaCauldronBlock.FILLED_SHAPE), or a layered cauldron's
-            // getPixelContentHeight, 6 + 3 per level (FILLED_SHAPES).
-            let content_top = match name {
-                "minecraft:lava_cauldron" => Some(15.0 / 16.0),
-                "minecraft:water_cauldron" | "minecraft:powder_snow_cauldron" => {
-                    let level = self
-                        .assets
-                        .registry
-                        .state(state)
-                        .and_then(|s| s.properties.get("level"))
-                        .and_then(|l| l.parse::<u8>().ok())
-                        .unwrap_or(1);
-                    Some((6.0 + 3.0 * f64::from(level)) / 16.0)
-                }
-                _ => None,
-            };
-            // getEntityInsideCollisionShape is the whole block but for powder
-            // snow (its collision shape, the whole block when it is empty),
-            // filled cauldrons, end portals and tripwires; Horizon doesn't
-            // follow the player into those last two.
-            if matches!(name, "minecraft:end_portal" | "minecraft:tripwire") {
-                continue;
+        state: BlockStateId,
+        p: BlockPos,
+        precise: bool,
+        effects: &mut mod_api::InsideEffects,
+    ) {
+        let entity = self.player.entity_id;
+        let Some(dimension) = crate::block_contact::current_level() else {
+            return;
+        };
+        if !crate::block_contact::HOOKS
+            .get()
+            .is_some_and(|hooks| (hooks.inside_listens)(state))
+        {
+            return;
+        }
+        // The part is told mid-walk, on the level random host, its whole callback
+        // staged into a fresh collector and write list by the fire: only an
+        // answering callback's writes join the walk, and a panic there is
+        // contained, leaving the player's tick as it was.
+        let mut staged = mod_api::InsideEffects::default();
+        let mut writes = Vec::new();
+        let mut level = crate::health::DamageLevel::of(
+            &mut *self.scene,
+            self.assets.registry,
+            self.tag_items,
+            self.block_registries,
+            self.damage_hooks,
+        );
+        if let Some(hooks) = crate::block_contact::HOOKS.get() {
+            (hooks.inside_fire)(
+                &mut level,
+                dimension,
+                entity,
+                "minecraft:player",
+                state,
+                p,
+                precise,
+                &mut staged,
+                &mut writes,
+            );
+            effects.absorb_step(staged);
+            crate::block_contact::inside_written(state, p, writes);
+        }
+    }
+
+    /// A typed entity write an `entity_inside` part queued, applied to this
+    /// player inside its own tick, in the collector's flush order.
+    fn apply_entity_write(&mut self, write: mod_api::EntityWrite) -> Result<()> {
+        let triple = |v: [f64; 3]| Vec3::new(v[0], v[1], v[2]);
+        match write {
+            mod_api::EntityWrite::Push(v) => {
+                self.player.velocity = self.player.velocity.add_vector(triple(v));
             }
-            let inside = !(powder_snow || content_top.is_some()) || {
-                let context = self.context();
-                let binding = self.collision_binding;
-                let shape = binding.collision_shape_with_context(
-                    &mut self.collisions(),
-                    state,
-                    p,
-                    &context,
-                )?;
-                powder_snow && (shape.is_empty() || shape.boxes() == VoxelShape::block().boxes())
-                    || {
-                        let offset = Vec3::new(f64::from(p.x), f64::from(p.y), f64::from(p.z));
-                        let mut boxes: Vec<_> = shape.moved(offset).boxes().to_vec();
-                        if let Some(top) = content_top {
-                            // The cauldron's shape or its content,
-                            // Block.column(12, 4, top).
-                            boxes.push(Aabb::new(
-                                Vec3::new(2.0 / 16.0, 4.0 / 16.0, 2.0 / 16.0).add_vector(offset),
-                                Vec3::new(14.0 / 16.0, top, 14.0 / 16.0).add_vector(offset),
-                            ));
-                        }
-                        self.player
-                            .dimensions
-                            .bounds(from)
-                            .collided_along_vector(to.subtract(from), &boxes)
-                    }
-            };
-            if inside && visited.insert(p.pack()) {
-                // The server's early pass: only what `makeStuckInBlock` does
-                // there, before the landing is checked.
-                if pass == BlockPass::ServerStuck {
-                    if matches!(name, "minecraft:cobweb" | "minecraft:sweet_berry_bush") {
-                        self.server_stuck_in_block();
-                    }
-                    continue;
-                }
-                let precise = moved_far || deflated.intersects(Aabb::block(p));
-                crate::block_contact::inside(self.player.entity_id, state, p, precise);
-                // CactusBlock, CampfireBlock and the cauldrons' entityInside
-                // (`entity.hurt`, the fire and the fill level), and
-                // WitherRoseBlock's server-side effect.
-                match name {
-                    "minecraft:cactus" => self.environment_hurt("minecraft:cactus", 1.0)?,
-                    "minecraft:lava_cauldron" => self.lava_cauldron_inside()?,
-                    "minecraft:water_cauldron" | "minecraft:powder_snow_cauldron" => {
-                        self.layered_cauldron_inside(p);
-                    }
-                    "minecraft:wither_rose" => {
-                        self.player.events.push(MotionEvent::InsideWitherRose);
-                    }
-                    "minecraft:campfire" | "minecraft:soul_campfire" => {
-                        let lit = self
-                            .assets
-                            .registry
-                            .state(state)
-                            .and_then(|s| s.properties.get("lit"))
-                            .is_some_and(|v| v == "true");
-                        let damage = if name == "minecraft:campfire" {
-                            1.0
-                        } else {
-                            2.0
-                        };
-                        if lit {
-                            self.environment_hurt("minecraft:campfire", damage)?;
-                        }
-                    }
-                    "minecraft:sweet_berry_bush" if damage_only => {
-                        self.sweet_berry_bush_damage(state)?;
-                    }
-                    // HoneyBlock.entityInside: a server's player slides too, so
-                    // its fall distance resets (its client moves it).
-                    "minecraft:honey_block" => self.honey_block_inside(p)?,
-                    // PowderSnowBlock.entityInside's FREEZE and its server
-                    // snowflake (`ServerLevel.sendParticles`). The slowing is
-                    // the client's (`makeStuckInBlock`).
-                    "minecraft:powder_snow" if damage_only => {
-                        self.powder_snow_snowflake(p);
-                        entered.push((step, p));
-                    }
-                    _ => {}
-                }
-                // ServerPlayer.onInsideBlock: the server's pass reports it too,
-                // as the enter_block trigger is the server's to fire.
-                self.player.events.push(MotionEvent::EnterBlock { state });
-                if damage_only {
-                    continue;
-                }
-                match name {
-                    "minecraft:powder_snow" => {
-                        self.powder_snow_inside(p)?;
-                        entered.push((step, p));
-                    }
-                    "minecraft:cobweb" => self.web_inside(),
-                    "minecraft:sweet_berry_bush" => self.sweet_berry_bush_inside(state)?,
-                    "minecraft:bubble_column" => self.bubble_column_inside(state, p, precise)?,
-                    "minecraft:nether_portal" => self
-                        .player
-                        .events
-                        .push(MotionEvent::InsidePortal { pos: p }),
-                    _ => {}
+            mod_api::EntityWrite::SetMovement(v) => self.player.velocity = triple(v),
+            mod_api::EntityWrite::StuckIn(v) => {
+                self.make_stuck_in_block(triple(v));
+            }
+            // The damage source's entity row is the game's to resolve when the
+            // write applies; the player's own hurt takes the amount.
+            mod_api::EntityWrite::Hurt { amount, .. } => {
+                self.environment_hurt("minecraft:generic", amount)?;
+            }
+            mod_api::EntityWrite::ResetFallDistance => self.player.fall_distance = 0.0,
+            mod_api::EntityWrite::SetFireTicks(ticks) => self.player.fire_ticks = ticks,
+            mod_api::EntityWrite::AddEffect {
+                effect,
+                duration,
+                amplifier,
+            } => {
+                if let Some(id) = mod_api::__private::effect_key_id(effect) {
+                    self.player.events.push(MotionEvent::InsideEffect {
+                        id,
+                        duration,
+                        amplifier,
+                    });
                 }
             }
         }
-        Ok(iterations + 1)
+        Ok(())
     }
     /// `HoneyBlock.entityInside`: a falling player touching a side of the block
     /// slides down it (`isSlidingDown`, `doSlideMovement`, `maybeDoSlideEffects`).
@@ -2852,127 +2712,6 @@ impl RestitutionWorld for MotionWorld<'_, '_, '_> {
         Ok(())
     }
 }
-impl LivingAirWorld for MotionWorld<'_, '_, '_> {
-    type Error = Box<dyn std::error::Error>;
-    fn movement_support_position(&mut self) -> Result<BlockPos> {
-        self.support(movement_support::MOVEMENT_SUPPORT_OFFSET)
-    }
-    fn on_ground(&mut self) -> Result<bool> {
-        Ok(self.player.ground.on_ground)
-    }
-    fn block_friction(&mut self, p: BlockPos) -> Result<f32> {
-        Ok(self
-            .resources
-            .blocks
-            .get(self.block(p))?
-            .coefficients
-            .friction)
-    }
-    fn friction_modifier(&mut self) -> Result<f64> {
-        self.player.attribute("minecraft:friction_modifier")
-    }
-    fn speed(&mut self) -> Result<f32> {
-        let mut speed = self.player.attribute("minecraft:movement_speed")? as f32;
-        native_living_speed(
-            self.loop_context,
-            self.player.entity_id as u32,
-            "minecraft:player",
-            &mut speed,
-        );
-        Ok(speed)
-    }
-    fn flying_speed(&mut self) -> Result<f32> {
-        let mut speed = if self.player.flying {
-            // Player.getFlyingSpeed: abilities speed, doubled when sprinting.
-            self.player.flying_speed * if self.player.sprinting { 2.0 } else { 1.0 }
-        } else if self.player.sprinting {
-            0.025999999
-        } else {
-            0.02
-        };
-        native_living_flying_speed(
-            self.loop_context,
-            self.player.entity_id as u32,
-            "minecraft:player",
-            &mut speed,
-        );
-        Ok(speed)
-    }
-    fn yaw(&mut self) -> Result<f32> {
-        Ok(self.player.yaw)
-    }
-    fn velocity(&self) -> Vec3 {
-        self.player.velocity
-    }
-    fn set_velocity(&mut self, v: Vec3) -> Result<()> {
-        self.player.velocity = v;
-        Ok(())
-    }
-    fn on_climbable(&mut self) -> Result<bool> {
-        self.climbable()
-    }
-    fn reset_fall_distance(&mut self) -> Result<()> {
-        self.player.fall_distance = 0.0;
-        Ok(())
-    }
-    fn in_scaffolding(&mut self) -> Result<bool> {
-        Ok(self
-            .assets
-            .registry
-            .state(self.block(BlockPos::containing(self.player.position)))
-            .unwrap()
-            .name
-            == "minecraft:scaffolding")
-    }
-    fn suppressing_ladder_slide(&mut self) -> Result<bool> {
-        Ok(self.player.shift_key_down)
-    }
-    fn is_player_class(&self) -> bool {
-        true
-    }
-    fn move_self(&mut self, v: Vec3) -> Result<()> {
-        MotionWorld::move_self(self, v)
-    }
-    fn horizontal_collision(&self) -> bool {
-        self.player.collision.horizontal
-    }
-    fn jumping(&self) -> bool {
-        self.player.jumping
-    }
-    fn was_in_powder_snow(&self) -> bool {
-        self.player.was_in_powder_snow
-    }
-    fn can_walk_powder_snow(&mut self) -> Result<bool> {
-        Ok(self.player.leather_boots)
-    }
-    fn levitation_amplifier(&mut self) -> Result<Option<i32>> {
-        Ok(self.player.status.levitation)
-    }
-    fn is_client_side(&mut self) -> Result<bool> {
-        Ok(self.player.client_side)
-    }
-    fn has_chunk_at(&mut self, p: BlockPos) -> Result<bool> {
-        Ok(self.scene.chunks.contains_key(&(p.x >> 4, p.z >> 4)))
-    }
-    fn effective_gravity(&mut self) -> Result<f64> {
-        living_motion::effective_gravity(self)
-    }
-    fn y(&self) -> f64 {
-        self.player.position.y
-    }
-    fn minimum_y(&mut self) -> Result<i32> {
-        Ok(self.scene.shape.min_y)
-    }
-    fn discard_friction(&mut self) -> Result<bool> {
-        Ok(false)
-    }
-    fn air_drag_modifier(&mut self) -> Result<f64> {
-        self.player.attribute("minecraft:air_drag_modifier")
-    }
-    fn omnidirectional_air_mover(&mut self) -> Result<bool> {
-        Ok(false)
-    }
-}
 impl LivingMotionWorld for MotionWorld<'_, '_, '_> {
     type Error = Box<dyn std::error::Error>;
     fn velocity(&self) -> Vec3 {
@@ -3106,12 +2845,6 @@ pub(crate) fn fall_flying_movement(v: Vec3, pitch: f32, yaw: f32, gravity: f64) 
     )
 }
 
-/// `LivingEntity.handleFallFlyingCollisions`: a glide a block stopped takes
-/// `(before - after) * 10 - 3`, and nothing when that is not positive.
-fn fly_into_wall_damage(before: f64, after: f64) -> f32 {
-    ((before - after) * 10.0 - 3.0) as f32
-}
-
 /// The block factors an entity reads for a kind that keeps no motion world of its own (mobs,
 /// boats, minecarts): the block at `position`, else the one below it, through the same port the
 /// player's move uses, with the `block_jump_factor` and `block_speed_factor` parts applied.
@@ -3214,6 +2947,218 @@ pub(crate) fn legacy_block_support_at(
             position.z.floor() as i32,
         )
     })
+}
+
+/// The player's `Entity.checkInsideBlocks` moments on the shared walk: the
+/// per-block effects keep their existing code, the powder snow queues the
+/// collector's FREEZE and EXTINGUISH where the hand-written group flush was, and
+/// the part's contact fires mid-walk with its writes staged.
+struct PlayerInside<'a, 'p, 'w, 'r> {
+    m: &'a mut MotionWorld<'p, 'w, 'r>,
+    pass: BlockPass,
+    /// The sweep step that first reached powder snow: its blocks are the melt
+    /// group, the ones a burning player melts (`PowderSnowBlock.entityInside`
+    /// destroys them while the entity is on fire, per contact).
+    melt_step: Option<i32>,
+}
+
+impl PlayerInside<'_, '_, '_, '_> {
+    /// The client's own player moves itself: the passes a server walks for it
+    /// apply the damage and the freezing only.
+    fn damage_only(&self) -> bool {
+        self.pass != BlockPass::Client
+    }
+}
+
+impl crate::block_contact::InsideWalk for PlayerInside<'_, '_, '_, '_> {
+    type Error = Box<dyn std::error::Error>;
+    fn bounds_at(&self, at: Vec3) -> Aabb {
+        self.m.player.dimensions.bounds(at)
+    }
+    fn is_alive(&self) -> bool {
+        !self.m.player.health.dead_or_dying()
+    }
+    fn block(&self, at: BlockPos) -> BlockStateId {
+        self.m.scene.block(at.x, at.y, at.z)
+    }
+    fn is_air(&self, state: BlockStateId) -> bool {
+        self.m.assets.registry.state(state).is_none_or(|d| {
+            matches!(
+                d.name.as_str(),
+                "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+            )
+        })
+    }
+    /// `getEntityInsideCollisionShape` for the player: the whole block but for
+    /// powder snow (its own collision shape), the filled cauldrons (their content
+    /// column) and the end portals and tripwires Horizon doesn't follow it into.
+    fn inside_shape(
+        &mut self,
+        state: BlockStateId,
+        p: BlockPos,
+    ) -> crate::block_contact::InsideShape {
+        use crate::block_contact::InsideShape;
+        let Some(definition) = self.m.assets.registry.state(state) else {
+            return InsideShape::Full;
+        };
+        let name = definition.name.as_str();
+        if matches!(name, "minecraft:end_portal" | "minecraft:tripwire") {
+            return InsideShape::Empty;
+        }
+        let powder_snow = name == "minecraft:powder_snow";
+        // A filled cauldron's content top in blocks: the lava's 15/16
+        // (`LavaCauldronBlock.FILLED_SHAPE`), or a layered cauldron's
+        // `getPixelContentHeight`, 6 + 3 per level (`FILLED_SHAPES`).
+        let content_top = match name {
+            "minecraft:lava_cauldron" => Some(15.0 / 16.0),
+            "minecraft:water_cauldron" | "minecraft:powder_snow_cauldron" => {
+                let level = self
+                    .m
+                    .assets
+                    .registry
+                    .state(state)
+                    .and_then(|s| s.properties.get("level"))
+                    .and_then(|l| l.parse::<u8>().ok())
+                    .unwrap_or(1);
+                Some((6.0 + 3.0 * f64::from(level)) / 16.0)
+            }
+            _ => None,
+        };
+        if !(powder_snow || content_top.is_some()) {
+            return InsideShape::Full;
+        }
+        // The powder snow's own collision shape (the whole block when it is
+        // empty), or the cauldron's shape with its content on top.
+        let context = self.m.context();
+        let binding = self.m.collision_binding;
+        let Ok(shape) =
+            binding.collision_shape_with_context(&mut self.m.collisions(), state, p, &context)
+        else {
+            // A shape the query cannot answer is a block the walk cannot
+            // test: not inside.
+            return InsideShape::Empty;
+        };
+        if powder_snow && (shape.is_empty() || shape.boxes() == VoxelShape::block().boxes()) {
+            return InsideShape::Full;
+        }
+        let offset = Vec3::new(f64::from(p.x), f64::from(p.y), f64::from(p.z));
+        let mut boxes: Vec<_> = shape.moved(offset).boxes().to_vec();
+        if let Some(top) = content_top {
+            // The cauldron's shape or its content, `Block.column(12, 4, top)`.
+            boxes.push(Aabb::new(
+                Vec3::new(2.0 / 16.0, 4.0 / 16.0, 2.0 / 16.0).add_vector(offset),
+                Vec3::new(14.0 / 16.0, top, 14.0 / 16.0).add_vector(offset),
+            ));
+        }
+        InsideShape::Boxes(boxes)
+    }
+    fn entity_inside(
+        &mut self,
+        p: BlockPos,
+        state: BlockStateId,
+        step: i32,
+        precise: bool,
+        effects: &mut mod_api::InsideEffects,
+    ) -> std::result::Result<(), Self::Error> {
+        let Some(definition) = self.m.assets.registry.state(state) else {
+            return Ok(());
+        };
+        let name = definition.name.as_str();
+        // The server's early pass: only what `makeStuckInBlock` does there,
+        // before the landing is checked. `server_stuck_in_blocks` keeps the
+        // history for `server_block_damage`, so the part is NOT told here —
+        // its one contact a tick, vanilla's `entityInside` count, comes from
+        // the passes that follow.
+        if self.pass == BlockPass::ServerStuck {
+            if matches!(name, "minecraft:cobweb" | "minecraft:sweet_berry_bush") {
+                self.m.server_stuck_in_block();
+            }
+            return Ok(());
+        }
+        // The part's contact, mid-walk, where vanilla runs the block's own
+        // `entityInside`; its writes join this step only when it answered.
+        // Client and ServerDamage only: those passes each consume the moves
+        // they walk, so no pass pair tells the part twice.
+        self.m.mod_block_inside(state, p, precise, effects);
+        // CactusBlock, CampfireBlock and the cauldrons' entityInside
+        // (`entity.hurt`, the fire and the fill level), and WitherRoseBlock's
+        // server-side effect.
+        match name {
+            "minecraft:cactus" => self.m.environment_hurt("minecraft:cactus", 1.0)?,
+            "minecraft:lava_cauldron" => self.m.lava_cauldron_inside()?,
+            "minecraft:water_cauldron" | "minecraft:powder_snow_cauldron" => {
+                self.m.layered_cauldron_inside(p);
+            }
+            "minecraft:wither_rose" => {
+                self.m.player.events.push(MotionEvent::InsideWitherRose);
+            }
+            "minecraft:campfire" | "minecraft:soul_campfire" => {
+                let lit = self
+                    .m
+                    .assets
+                    .registry
+                    .state(state)
+                    .and_then(|s| s.properties.get("lit"))
+                    .is_some_and(|v| v == "true");
+                let damage = if name == "minecraft:campfire" {
+                    1.0
+                } else {
+                    2.0
+                };
+                if lit {
+                    self.m.environment_hurt("minecraft:campfire", damage)?;
+                }
+            }
+            "minecraft:sweet_berry_bush" if self.damage_only() => {
+                self.m.sweet_berry_bush_damage(state)?;
+            }
+            // HoneyBlock.entityInside: a server's player slides too, so its
+            // fall distance resets (its client moves it).
+            "minecraft:honey_block" => self.m.honey_block_inside(p)?,
+            // PowderSnowBlock.entityInside's FREEZE and its server snowflake
+            // (`ServerLevel.sendParticles`); EXTINGUISH joins it, as the block's
+            // own burn-out does. The slowing is the client's
+            // (`makeStuckInBlock`).
+            "minecraft:powder_snow" => {
+                if self.damage_only() {
+                    self.m.powder_snow_snowflake(p);
+                } else {
+                    self.m.powder_snow_inside(p)?;
+                }
+                effects.apply(mod_api::InsideEffect::Freeze);
+                effects.apply(mod_api::InsideEffect::Extinguish);
+                // The burning player melts the snow it is told about, at the
+                // contact, as vanilla destroys it there; the collector's
+                // extinguish applies at the flush, after every contact.
+                if self.m.player.fire_ticks > 0 && self.melt_step.is_none_or(|s| s == step) {
+                    self.melt_step.get_or_insert(step);
+                    self.m
+                        .player
+                        .events
+                        .push(MotionEvent::PowderSnowMelt { pos: p });
+                }
+            }
+            _ => {}
+        }
+        // ServerPlayer.onInsideBlock: the server's pass reports it too, as the
+        // enter_block trigger is the server's to fire.
+        self.m.player.events.push(MotionEvent::EnterBlock { state });
+        if self.damage_only() {
+            return Ok(());
+        }
+        match name {
+            "minecraft:cobweb" => self.m.web_inside(),
+            "minecraft:sweet_berry_bush" => self.m.sweet_berry_bush_inside(state)?,
+            "minecraft:bubble_column" => self.m.bubble_column_inside(state, p, precise)?,
+            "minecraft:nether_portal" => self
+                .m
+                .player
+                .events
+                .push(MotionEvent::InsidePortal { pos: p }),
+            _ => {}
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -4148,7 +4093,7 @@ mod tests {
         let mut player = PlayerMotion::new(&resources, at).unwrap();
         let mut found = 0;
         for seed in 0..64 {
-            scene.random = horizon_core::random::LegacyRandom::new(seed);
+            scene.random.set_seed(seed);
             player.events.clear();
             MotionWorld {
                 tag_items: None,
@@ -4184,7 +4129,7 @@ mod tests {
             assert_eq!(velocity.y, f64::from(0.05_f32));
         }
         player.events.clear();
-        scene.random = horizon_core::random::LegacyRandom::new(1);
+        scene.random.set_seed(1);
         MotionWorld {
             tag_items: None,
             block_registries: None,
@@ -6753,6 +6698,61 @@ mod tests {
             .controlled_simulation_tick(Default::default())
             .unwrap();
             assert_eq!(player.velocity.y, want, "client_side={client_side}");
+        }
+    }
+    /// `LocalPlayer.isSuppressingSlidingDownLadder` is `!abilities.flying && super...()`, where
+    /// `LivingEntity`'s is `isShiftKeyDown()`: a flying player on the client keeps sliding down a
+    /// ladder whether it sneaks or not. The server's player (`ServerPlayer` has no override) only
+    /// looks at the sneak.
+    #[test]
+    fn a_flying_client_does_not_stop_sliding_down_a_ladder_by_sneaking() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.local/horizon-client")
+            .join(horizon_core::VANILLA_VERSION);
+        if !root.join("movement-properties.nbt").exists() {
+            return;
+        }
+        let assets = Assets::load(&root).unwrap();
+        let render = assets
+            .reload(&horizon_assets::resource_source::ResourceRoot::directory(
+                root.to_path_buf(),
+            ))
+            .unwrap();
+        let binding = crate::collisions::load(&root, assets.registry).unwrap();
+        let resources = MotionResources::load(&root, &assets).unwrap();
+        // (client_side, flying, sneaking, suppressing)
+        for (client_side, flying, sneaking, want) in [
+            (true, false, true, true),
+            (true, false, false, false),
+            (true, true, true, false),
+            (true, true, false, false),
+            (false, false, true, true),
+            (false, true, true, true),
+            (false, true, false, false),
+        ] {
+            let mut scene = World::test_scene(&assets, &render, 2).unwrap();
+            let mut player = PlayerMotion::new(&resources, Vec3::new(0.5, 64.0, 0.5)).unwrap();
+            player.client_side = client_side;
+            player.flying = flying;
+            player.shift_key_down = sneaking;
+            let mut w = MotionWorld {
+                tag_items: None,
+                block_registries: None,
+                loop_context: crate::test_resources::server_loop_context(),
+                damage_hooks: &crate::health::DamageHooks::NONE,
+                entities: &[],
+                player: &mut player,
+                scene: &mut scene,
+                assets: &assets,
+                collision_binding: &binding,
+                resources: &resources,
+                health: &resources.health,
+            };
+            assert_eq!(
+                w.suppressing_ladder_slide().unwrap(),
+                want,
+                "client_side={client_side} flying={flying} sneaking={sneaking}"
+            );
         }
     }
 }

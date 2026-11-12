@@ -41,6 +41,10 @@ pub(super) struct RecipeTables {
     /// recipe_content`) over the window's own: what `Game::recipes` reads on
     /// a client once they came.
     synced: Option<horizon_client::crafting::Recipes>,
+    /// The display numbers of those recipes: the server numbers its book's
+    /// displays over its own recipe set, a world's data pack recipes
+    /// included, so the book numbers them the same (`Game::display_index`).
+    pub(super) synced_index: Option<horizon_client::recipe_book::RecipeIndex>,
     /// The recipe content's parts so far, until its last.
     incoming: Vec<(String, serde_json::Value)>,
     /// The types that came before the player did: the mods hear of them
@@ -510,9 +514,18 @@ impl Game<'_> {
     pub(super) fn synced_recipes(&self) -> Option<&horizon_client::crafting::Recipes> {
         self.recipe_tables.synced.as_ref()
     }
+    /// The display numbers the recipe book reads: the server's recipes',
+    /// once a server sent them, else the world's own.
+    pub(super) fn display_index(&self) -> &horizon_client::recipe_book::RecipeIndex {
+        match &self.recipe_tables.synced_index {
+            Some(index) => index,
+            None => &self.stations().recipe_index,
+        }
+    }
     /// A new play session (`Login`): what the last server sent is gone.
     pub(super) fn forget_synced_recipes(&mut self) {
         self.recipe_tables.synced = None;
+        self.recipe_tables.synced_index = None;
         self.recipe_tables.incoming.clear();
         self.recipe_tables.received = None;
         self.recipe_tables.tables = None;
@@ -528,31 +541,6 @@ impl Game<'_> {
             self.native_recipes_received(&types);
             self.build_screen();
         }
-    }
-    /// `OnDatapackSyncEvent.sendRecipes`: the recipe types the native mods
-    /// want their clients to have, from this load's tables, become what the
-    /// server sends its Horizon clients at a join and after `/reload`. Called
-    /// once a load's tables are built, before any player hears of them.
-    pub(super) fn sync_recipe_content(&mut self) {
-        use horizon_client::lan::recipes;
-        let mut types = Vec::new();
-        self.native_datapack_sync(&mut types);
-        types.sort();
-        types.dedup();
-        let sources = if types.is_empty() {
-            Vec::new()
-        } else {
-            horizon_items::recipe_sources::sources(&self.options.resources, &self.pack_files())
-                .unwrap_or_else(|e| {
-                    log::warn!("Horizon: the recipes for the clients were not read: {e}");
-                    Vec::new()
-                })
-        };
-        recipes::set_content(recipes::encode_content(
-            &types,
-            &sources,
-            recipes::sent_before(),
-        ));
     }
     /// A `horizon:recipe_content` part the server sent the window. On the
     /// last, the window's tables take the server's recipes of those types in
@@ -579,6 +567,7 @@ impl Game<'_> {
         let received = std::mem::take(&mut self.recipe_tables.incoming);
         // No type any more: back on the window's own recipes.
         if types.is_empty() {
+            self.recipe_tables.synced_index = None;
             if self.recipe_tables.synced.take().is_some() {
                 self.recipe_tables.tables = None;
                 self.forget_book();
@@ -593,6 +582,7 @@ impl Game<'_> {
             let of = |v: &serde_json::Value| types.iter().any(|t| v["type"].as_str() == Some(t));
             let mut all: Vec<_> = own.into_iter().filter(|(_, v)| !of(v)).collect();
             all.extend(received);
+            let index = horizon_client::recipe_book::RecipeIndex::load_from_sources(&all);
             horizon_client::crafting::Recipes::from_sources(
                 root,
                 self.items(),
@@ -600,10 +590,12 @@ impl Game<'_> {
                 all,
                 self.res.core.item_data.context(),
             )
+            .map(|recipes| (recipes, index))
         });
         match built {
-            Ok(recipes) => {
+            Ok((recipes, index)) => {
                 self.recipe_tables.synced = Some(recipes);
+                self.recipe_tables.synced_index = Some(index);
                 // What was made of the window's own recipes is made again.
                 self.recipe_tables.tables = None;
                 self.forget_book();

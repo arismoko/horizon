@@ -21,6 +21,7 @@ pub struct MinimapLook {
     pub arrow: f32,
     pub north: Option<(f32, f32)>,
 }
+#[horizon_mod_api_macros::replaceable]
 pub fn draw_minimap(
     batch: &mut HudBatch,
     atlas: &HudAtlas,

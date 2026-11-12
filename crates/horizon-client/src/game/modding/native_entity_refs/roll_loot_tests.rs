@@ -198,12 +198,12 @@ fn a_roll_is_the_engines_own_roll_for_the_same_seed_and_tool() {
         (ItemStack::new("minecraft:stick", 1), "minecraft:stick"),
     ] {
         for seed in 0..64 {
-            game.world.random = LegacyRandom::new(seed);
+            *game.world.random = LegacyRandom::new(seed);
             let rolled = game
                 .level_roll_loot(level, "test:sift", ORIGIN, Some(&tool), None)
                 .unwrap();
             let after = game.world.random.next_long();
-            game.world.random = LegacyRandom::new(seed);
+            *game.world.random = LegacyRandom::new(seed);
             let by_command = command_roll(&mut game, "test:sift", command_tool);
             assert_eq!(
                 game.world.random.next_long(),
@@ -233,7 +233,7 @@ fn weighted_pools_conditions_and_functions_roll_as_the_table_says() {
     let (mut extra_pool, mut picks, mut flint_picks) = (0, 0, 0);
     let mut gravel_counts = std::collections::BTreeSet::new();
     for seed in 0..400 {
-        game.world.random = LegacyRandom::new(seed);
+        *game.world.random = LegacyRandom::new(seed);
         let with_shovel = game
             .level_roll_loot(level, "test:sift", ORIGIN, Some(&shovel), None)
             .unwrap();
@@ -287,7 +287,7 @@ fn a_table_with_a_random_sequence_draws_from_it_not_the_level() {
     let mut resources = None;
     let (mut game, level) = game(&mut resources, "sequence");
     let sequences = game.rand_sequences.clone();
-    game.world.random = LegacyRandom::new(7);
+    *game.world.random = LegacyRandom::new(7);
     let rolled = game
         .level_roll_loot(level, "test:sequence", ORIGIN, None, None)
         .unwrap();

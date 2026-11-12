@@ -413,6 +413,57 @@ pub fn nibble(layer: &[u8], i: usize) -> u8 {
         .map_or(0, |b| if i & 1 == 0 { b & 15 } else { b >> 4 })
 }
 
+// Generated retained-allocation traversals; regenerate with protocol-retained-gen.
+impl crate::retained::OwnedHeap for Strategy {
+    fn owned_heap_bytes(&self) -> usize {
+        match self {
+            Self::Blocks => 0usize,
+            Self::Biomes => 0usize,
+        }
+    }
+}
+impl crate::retained::OwnedHeap for Paletted {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self {
+            bits,
+            palette,
+            data,
+        } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(bits))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(palette))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(data))
+    }
+}
+impl crate::retained::OwnedHeap for Section {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self {
+            non_empty,
+            fluids,
+            states,
+            biomes,
+        } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(non_empty))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(fluids))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(states))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(biomes))
+    }
+}
+impl crate::retained::OwnedHeap for Heightmaps {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self = self;
+        0usize
+    }
+}
+impl crate::retained::OwnedHeap for Layers {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self = self;
+        0usize
+    }
+}
+// End generated retained traversals.
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -193,6 +193,7 @@ impl MenuBlur {
     /// Blur `frame` (the swapchain texture) in place through `target`, its
     /// non-sRGB view, by `radius` pixels (`menuBackgroundBlurriness`).
     #[allow(clippy::too_many_arguments)]
+    #[horizon_mod_api_macros::replaceable]
     pub fn apply(
         &mut self,
         device: &wgpu::Device,

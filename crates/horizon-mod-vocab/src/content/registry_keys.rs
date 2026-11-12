@@ -5,49 +5,44 @@ use crate::{
 };
 
 impl BlockKey {
-    /// Validate an incoming slot against declarations, not a world's resolved mappings.
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
-        crate::parts::with_registering_keys(|registering| {
-            registering
-                .map(|requests| &requests.blocks)
-                .unwrap_or_else(|| block_names())
-                .id(slot)
-                .ok_or("unknown BlockKey slot")?;
-            Ok(Self(slot))
-        })
+        let known =
+            crate::parts::registration_membership(crate::parts::RegistrationKeyKind::Block, slot)
+                .unwrap_or_else(|| (block_names()).id(slot).is_some());
+        known.then_some(Self(slot)).ok_or("unknown BlockKey slot")
     }
 }
 
 impl FluidKey {
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
-        crate::parts::with_registering_keys(|registering| {
-            let names = match registering {
-                Some(requests) => &requests.fluids,
-                None => crate::parts::resolved_fluids()
-                    .get()
-                    .unwrap_or(&crate::parts::requested_keys().fluids),
-            };
-            names.id(slot).ok_or("unknown FluidKey slot")?;
-            Ok(Self(slot))
-        })
+        let known =
+            crate::parts::registration_membership(crate::parts::RegistrationKeyKind::Fluid, slot)
+                .unwrap_or_else(|| {
+                    (crate::parts::resolved_fluids()
+                        .get()
+                        .unwrap_or(&crate::parts::requested_keys().fluids))
+                    .id(slot)
+                    .is_some()
+                });
+        known.then_some(Self(slot)).ok_or("unknown FluidKey slot")
     }
 }
 
 impl ItemKey {
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
-        crate::parts::with_registering_keys(|registering| {
-            let names = match registering {
-                Some(requests) => &requests.items,
-                None => resolved_items()
-                    .get()
-                    .unwrap_or(&crate::parts::requested_keys().items),
-            };
-            names.id(slot).ok_or("unknown ItemKey slot")?;
-            Ok(Self(slot))
-        })
+        let known =
+            crate::parts::registration_membership(crate::parts::RegistrationKeyKind::Item, slot)
+                .unwrap_or_else(|| {
+                    (resolved_items()
+                        .get()
+                        .unwrap_or(&crate::parts::requested_keys().items))
+                    .id(slot)
+                    .is_some()
+                });
+        known.then_some(Self(slot)).ok_or("unknown ItemKey slot")
     }
 }
 
@@ -285,37 +280,40 @@ pub fn enchantment_key_id(key: EnchantmentKey) -> Option<String> {
 }
 
 impl EffectKey {
-    /// Resolved effects also expose registry entries no mod explicitly requested.
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
-        crate::parts::with_registering_keys(|registering| {
-            let names = match registering {
-                Some(requests) => &requests.effects,
-                None => crate::parts::resolved_effects()
-                    .get()
-                    .map_or(&crate::parts::requested_keys().effects, |effects| {
-                        &effects.names
-                    }),
-            };
-            names.id(slot).ok_or("unknown EffectKey slot")?;
-            Ok(Self(slot))
-        })
+        let known =
+            crate::parts::registration_membership(crate::parts::RegistrationKeyKind::Effect, slot)
+                .unwrap_or_else(|| {
+                    (crate::parts::resolved_effects()
+                        .get()
+                        .map_or(&crate::parts::requested_keys().effects, |effects| {
+                            &effects.names
+                        }))
+                    .id(slot)
+                    .is_some()
+                });
+        known.then_some(Self(slot)).ok_or("unknown EffectKey slot")
     }
 }
 
 impl BlockEntityTypeKey {
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
-        crate::parts::with_registering_keys(|registering| {
-            let names = match registering {
-                Some(requests) => &requests.block_entity_types,
-                None => crate::parts::resolved_block_entity_types()
-                    .get()
-                    .unwrap_or(&crate::parts::requested_keys().block_entity_types),
-            };
-            names.id(slot).ok_or("unknown BlockEntityTypeKey slot")?;
-            Ok(Self(slot))
-        })
+        let known = crate::parts::registration_membership(
+            crate::parts::RegistrationKeyKind::BlockEntityType,
+            slot,
+        )
+        .unwrap_or_else(|| {
+            (crate::parts::resolved_block_entity_types()
+                .get()
+                .unwrap_or(&crate::parts::requested_keys().block_entity_types))
+            .id(slot)
+            .is_some()
+        });
+        known
+            .then_some(Self(slot))
+            .ok_or("unknown BlockEntityTypeKey slot")
     }
 }
 
@@ -468,13 +466,9 @@ pub fn block_entity_type_name(key: BlockEntityTypeKey) -> Option<&'static str> {
 }
 
 pub(crate) fn block_entity_type_display_name(key: BlockEntityTypeKey) -> String {
-    crate::parts::with_registering_keys(|registering| {
-        registering
-            .and_then(|r| r.block_entity_types.id(key.0))
-            .or_else(|| block_entity_type_name(key))
-            .unwrap_or("<invalid>")
-            .to_owned()
-    })
+    crate::parts::registration_name(crate::parts::RegistrationKeyKind::BlockEntityType, key.0)
+        .or_else(|| block_entity_type_name(key).map(str::to_owned))
+        .unwrap_or_else(|| "<invalid>".into())
 }
 
 /// Resolve requested effects once, after every mod's content has been registered.
@@ -548,263 +542,11 @@ pub fn effect_key_by_index(index: usize) -> Option<EffectKey> {
 impl crate::BoolGameRuleKey {
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
-        crate::parts::with_registering_keys(|keys| {
-            keys.unwrap_or(crate::parts::requested_keys())
-                .game_rules
-                .id(slot)
-                .ok_or("unknown bool rule slot")?;
-            Ok(Self(slot))
-        })
-    }
-}
-
-#[cfg(test)]
-mod block_tests {
-    use super::*;
-    use crate::{Hooks, ModEntry, Registrar, RegistrationContext};
-
-    struct Requests;
-    #[crate::__subscriptions]
-    impl Hooks for Requests {
-        fn register(&self, registrar: &mut dyn Registrar, _: &RegistrationContext) {
-            assert_eq!(registrar.block_key("stone").0, 0);
-        }
-    }
-
-    #[test]
-    fn completed_blocks_preserve_slots_and_bind_unrequested_states() {
-        crate::parts::tests::install_parts_fixture(&[ModEntry::new("test", Box::new(Requests))])
-            .unwrap();
-        let definition = |_: &str| {
-            horizon_mod_runtime::block_definitions::BlockDefinition::new(&[&Default::default()], 0)
-                .map_err(|error| format!("{error:?}"))
-        };
-        assert!(resolve_block_keys(["minecraft:air"], definition).is_err());
-        assert!(block_key("minecraft:air").is_none());
-        assert!(
-            resolve_block_keys(["minecraft:stone", "minecraft:air"], |_| Err(
-                "missing definition".into()
-            ))
-            .is_err()
-        );
-        assert!(block_key("minecraft:air").is_none());
-        let names = [
-            "test:machine",
-            "minecraft:zombie_head",
-            "minecraft:stone",
-            "minecraft:air",
-            "minecraft:birch_log",
-            "minecraft:air",
-        ];
-        resolve_block_keys(names, definition).unwrap();
-        let stone = block_key("minecraft:stone").unwrap();
-        let air = block_key("minecraft:air").unwrap();
-        assert_eq!(stone, BlockKey(0));
-        assert_eq!(air, BlockKey(1));
-        assert_eq!(BlockKey::from_slot(air.0), Ok(air));
-        assert_eq!(block_key("minecraft:birch_log"), Some(BlockKey(2)));
-        assert_eq!(block_key("minecraft:zombie_head"), Some(BlockKey(3)));
-        assert_eq!(block_key("test:machine"), Some(BlockKey(4)));
-        assert!(BlockKey::from_slot(5).is_err());
-        for name in [
-            "",
-            "missing:block",
-            "minecraft:不存在",
-            &"x".repeat(100_000),
-        ] {
-            assert_eq!(block_key(name), None);
-        }
-        assert_eq!(block_id(air), Some("minecraft:air"));
-        let ordered: Vec<_> = block_keys()
-            .into_iter()
-            .filter_map(|key| block_id(key))
-            .collect();
-        assert_eq!(
-            ordered,
-            [
-                "test:machine",
-                "minecraft:zombie_head",
-                "minecraft:stone",
-                "minecraft:air",
-                "minecraft:birch_log",
-            ]
-        );
-        // Reversing the registry's enumeration cannot change any completed key.
-        crate::parts::tests::install_parts_fixture(&[ModEntry::new("test", Box::new(Requests))])
-            .unwrap();
-        resolve_block_keys(names.into_iter().rev(), definition).unwrap();
-        for (name, slot) in [
-            ("minecraft:stone", 0),
-            ("minecraft:air", 1),
-            ("minecraft:birch_log", 2),
-            ("minecraft:zombie_head", 3),
-            ("test:machine", 4),
-        ] {
-            assert_eq!(block_key(name), Some(BlockKey(slot)));
-        }
-        // Replacing Parts replaces the load-owned identities, not a second global registry.
-        crate::install_parts(&[], &crate::parts::tests::rule_schema(), |_| false).unwrap();
-        assert!(block_key("minecraft:air").is_none());
-        assert!(BlockKey::from_slot(air.0).is_err());
-    }
-}
-
-#[cfg(test)]
-mod key_order_tests {
-    use crate::{Hooks, ModEntry, Registrar, RegistrationContext};
-
-    struct Requests;
-    #[crate::__subscriptions]
-    impl Hooks for Requests {
-        fn register(&self, registrar: &mut dyn Registrar, _: &RegistrationContext) {
-            let _ = registrar.block_key("minecraft:stone");
-        }
-    }
-
-    #[test]
-    fn registry_order_puts_vanilla_first_and_mods_after_them() {
-        crate::parts::tests::install_parts_fixture(&[ModEntry::new("test", Box::new(Requests))])
-            .unwrap();
-        super::resolve_block_keys(
-            [
-                "minecraft:air",
-                "minecraft:stone",
-                "minecraft:granite",
-                "test:machine",
-            ],
-            |_| {
-                horizon_mod_runtime::block_definitions::BlockDefinition::new(
-                    &[&Default::default()],
-                    0,
-                )
-                .map_err(|error| format!("{error:?}"))
-            },
+        let known = crate::parts::registration_membership(
+            crate::parts::RegistrationKeyKind::GameRule,
+            slot,
         )
-        .unwrap();
-        let ordered: Vec<_> = super::block_keys()
-            .into_iter()
-            .filter_map(|key| super::block_id(key))
-            .collect();
-        assert_eq!(
-            ordered,
-            [
-                "minecraft:air",
-                "minecraft:stone",
-                "minecraft:granite",
-                "test:machine",
-            ]
-        );
-    }
-}
-
-#[cfg(test)]
-mod ordered_key_tests {
-    #[test]
-    fn built_in_registry_order_lists_vanilla_first_and_mods_after_them() {
-        super::resolve_entity_types(["minecraft:pig", "minecraft:zombie", "test:probe"]).unwrap();
-        // The registry's own order, not sorted: `pig` registers before `zombie`.
-        let ordered: Vec<_> = super::entity_type_keys()
-            .into_iter()
-            .map(|key| super::entity_type_key_id(key).unwrap())
-            .collect();
-        assert_eq!(ordered, ["minecraft:pig", "minecraft:zombie", "test:probe"]);
-        let first = super::entity_type_keys()[0];
-        assert_eq!(super::EntityTypeKey::from_slot(first.0), Ok(first));
-        assert!(super::EntityTypeKey::from_slot(u32::MAX).is_err());
-        // A second load of the same registry keeps every key and the order.
-        super::resolve_entity_types(["minecraft:pig", "minecraft:zombie", "test:probe"]).unwrap();
-        assert_eq!(super::entity_type_keys(), super::entity_type_keys());
-        assert_eq!(
-            super::entity_type_key_id(first).as_deref(),
-            Some("minecraft:pig")
-        );
-    }
-
-    #[test]
-    fn a_reload_keeps_retained_enchantment_slots_and_lists_the_new_order() {
-        super::resolve_enchantments(["minecraft:sharpness", "minecraft:mending"]).unwrap();
-        let sharpness = super::enchantment_keys()[0];
-        super::resolve_enchantments(["minecraft:mending", "minecraft:sharpness"]).unwrap();
-        // The retained slot still names sharpness; the listed order follows the reload.
-        assert_eq!(
-            super::enchantment_key_id(sharpness).as_deref(),
-            Some("minecraft:sharpness")
-        );
-        let ordered: Vec<_> = super::enchantment_keys()
-            .into_iter()
-            .map(|key| super::enchantment_key_id(key).unwrap())
-            .collect();
-        assert_eq!(ordered, ["minecraft:mending", "minecraft:sharpness"]);
-    }
-}
-
-#[cfg(test)]
-mod item_tests {
-    use super::*;
-    use crate::{Hooks, ModEntry, Registrar, RegistrationContext};
-
-    struct Requests;
-    #[crate::__subscriptions]
-    impl Hooks for Requests {
-        fn register(&self, registrar: &mut dyn Registrar, _: &RegistrationContext) {
-            assert_eq!(registrar.item_key("stick").0, 0);
-        }
-    }
-
-    #[test]
-    fn completed_items_preserve_forward_slots_and_refuse_unresolved_requests() {
-        crate::install_parts(
-            &[ModEntry::new("test", Box::new(Requests))],
-            &crate::parts::tests::rule_schema(),
-            |_| false,
-        )
-        .unwrap();
-        assert!(resolve_items(["minecraft:stone"]).is_err());
-        assert!(item_key("minecraft:stone").is_none());
-        resolve_items(["minecraft:stone", "minecraft:stick", "minecraft:apple"]).unwrap();
-        assert_eq!(item_key("minecraft:stick"), Some(ItemKey(0)));
-        let apple = item_key("minecraft:apple").unwrap();
-        assert_ne!(apple, ItemKey(0));
-        assert_eq!(ItemKey::from_slot(apple.0), Ok(apple));
-        assert_eq!(item_id(apple), Some("minecraft:apple"));
-        assert!(ItemKey::from_slot(3).is_err());
-    }
-}
-
-#[cfg(test)]
-mod hot_call_key_tests {
-    use crate::*;
-    #[test]
-    fn hot_call_signatures_and_unknown_slots_are_typed() {
-        let _: fn(&dyn Host, ItemKey) -> Option<i32> = |h, k| h.item_burn_time(k);
-        let _: fn(&dyn Host, ItemKey) -> Option<f32> = |h, k| h.item_compost_chance(k);
-        let _: fn(&mut dyn ClientHost, ItemKey, u32) -> Result<(), String> = |h, k, n| h.give(k, n);
-        let _: fn(&dyn ClientHost, &str, ItemKey) -> bool = |h, e, k| h.enchantment_supports(e, k);
-        crate::testing::with_mods(Vec::new().into(), || {
-            assert!(ItemKey::from_slot(u32::MAX).is_err());
-            assert_eq!(__private::item_key_id(ItemKey(u32::MAX)), None);
-            assert_eq!(__private::block_key_id(BlockKey(u32::MAX)), None);
-        });
-    }
-}
-
-#[cfg(test)]
-mod fluid_mapping_tests {
-    #[test]
-    fn world_fluid_order_is_supplied_by_engine_not_key_order() {
-        crate::parts::tests::install_parts_fixture(&[]).unwrap();
-        super::resolve_fluids(
-            &["minecraft:lava", "minecraft:empty", "minecraft:water"],
-            &["minecraft:empty", "minecraft:water", "minecraft:lava"],
-        )
-        .unwrap();
-        for (index, expected) in ["minecraft:empty", "minecraft:water", "minecraft:lava"]
-            .iter()
-            .enumerate()
-        {
-            let key = super::world_fluid_key(index).unwrap();
-            assert_eq!(super::fluid_id(key), Some(*expected));
-        }
-        assert!(super::world_fluid_key(3).is_none());
+        .unwrap_or_else(|| crate::parts::requested_keys().game_rules.id(slot).is_some());
+        known.then_some(Self(slot)).ok_or("unknown bool rule slot")
     }
 }

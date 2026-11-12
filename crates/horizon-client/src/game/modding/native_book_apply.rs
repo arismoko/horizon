@@ -252,7 +252,7 @@ impl Game<'_> {
                 opened.craft = craft;
             }
         });
-        host.play.entry(before.conn).or_default().crafting.machine = Some((before.window, menu));
+        *host.play.entry(before.conn).or_default().crafting.machine = Some((before.window, menu));
         Ok(post)
     }
 }

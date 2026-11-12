@@ -144,7 +144,7 @@ fn block_parts_xp_and_explosion_contract() {
                 .experience
             };
             let emerald = registry.default_state("minecraft:emerald_ore").unwrap();
-            game.world.random = LegacyRandom::new(7);
+            game.world.random = horizon_core::random::LevelRandom::for_level(LegacyRandom::new(7));
             assert_eq!(drop(game, emerald, None, None), 4);
             assert_eq!(drop(game, ore, None, None), 7);
             assert_eq!(drop(game, stone, None, None), 0);

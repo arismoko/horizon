@@ -405,6 +405,7 @@ pub fn view_vector(x_rot: f32, y_rot: f32) -> [f64; 3] {
 
 /// `GizmoFeatureRenderer.buildLines`: camera-relative ends, clipped at the
 /// near plane in view space (z = -0.05), as (start, end, colour, width).
+#[horizon_mod_api_macros::replaceable]
 pub fn camera_relative(lines: &[Line], camera: [f64; 3], view: glam::Mat4) -> Vec<[f32; 8]> {
     let mut out = Vec::with_capacity(lines.len());
     camera_relative_to(lines, camera, view, |line| out.push(line));

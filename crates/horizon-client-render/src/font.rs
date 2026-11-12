@@ -591,6 +591,7 @@ fn next_generation() -> u64 {
 impl Font {
     /// Build from the atlas holding the bitmap font sheets (`sprites`, of
     /// `atlas` size) with `region` the reserved rows.
+    #[horizon_mod_api_macros::replaceable]
     pub fn load(
         source: &ResourceSource,
         sprites: &HashMap<String, Rect>,
@@ -1069,6 +1070,7 @@ impl Font {
         None
     }
     /// Atlas pixels rasterized since the last call.
+    #[horizon_mod_api_macros::replaceable]
     pub fn take_patches(&self) -> Vec<Patch> {
         std::mem::take(&mut self.cache.borrow_mut().region.pending)
     }

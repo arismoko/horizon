@@ -68,6 +68,7 @@ pub(super) fn first_join<T: Joined>(list: &[T]) -> Option<JoinSeq> {
 impl Game<'_> {
     /// A level tick starts: what has joined so far ticks this tick.
     pub(super) fn begin_ordered_ticks(&mut self) {
+        let _span = horizon_client::spans::guard("ordered_ticks");
         let pending_buf = std::mem::take(&mut self.ordered.pending_buf);
         let firsts = [
             first_join(&self.armor_stands),
@@ -100,6 +101,7 @@ impl Game<'_> {
     /// Ticks, one at a time in join order, every orb, primed TNT and falling
     /// block that joined before `cut` and has not ticked this tick.
     pub(super) fn run_ordered_ticks(&mut self, cut: JoinSeq, late: bool) -> Result<()> {
+        let _span = horizon_client::spans::guard("ordered_ticks");
         let mut first_error = None;
         let mut followed = None;
         let mut events = false;

@@ -38,7 +38,7 @@ to `crates/horizon-client/src/`. These are current owners, not existing hook sit
 | Dropped items | `entities.rs:960`, `ItemEntity::environment_tick` and `ItemEntity::stuck_multiplier` | Replace subscription-only admission and separate block-effect scans with shared geometry |
 | Other projectiles / game entity batches | `game/mobs/creatures/mod.rs:205` | Same sweep adapter, bound to the actual entity |
 | Generic sweep | `block_contact.rs:240`, visitation `block_contact.rs:257` | Shared geometry decision before recording contacts |
-| Existing server callback | `game/native_hooks/entity_inside.rs:8`; catalog `crates/horizon-mod-vocab/src/hooks/entity_inside.rs:3` | Retain existing notification moment; do not use it as a shape filter |
+| Existing server callback | `game/native_hooks/entity_inside.rs:8`; catalog `crates/horizon-mod-vocab/src/hooks/entity_inside.rs:3` | The mid-walk notification moment is the one path now; the shape decision extends it, never filters after it |
 
 Lower geometry prepares one candidate at a time in existing traversal order.
 The game adapter fires the Part query with typed HostSide, then lower geometry

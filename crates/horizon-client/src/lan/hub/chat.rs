@@ -2,7 +2,7 @@
 //! handle it: chat sessions validated against the services' keys, signed
 //! messages checked link by link, the acknowledged window, and messages
 //! relayed with each connection's numbering and signature cache.
-use super::{HostEvent, Hub};
+use super::{HostEvent, Hub, string};
 use crate::text::Text;
 use horizon_core::nbt::{JavaString, Tag};
 use horizon_protocol::{
@@ -616,6 +616,15 @@ impl Hub {
             .id("minecraft:chat_type", &format!("minecraft:{name}"))
             .unwrap_or(self.chat_type)
     }
+}
+
+/// A yellow translation of player names (`multiplayer.player.joined`).
+pub(super) fn yellow_names(key: &str, names: Vec<Tag>) -> Tag {
+    Tag::compound([
+        ("translate", string(key)),
+        ("with", Tag::List(names)),
+        ("color", string("yellow")),
+    ])
 }
 
 #[cfg(test)]

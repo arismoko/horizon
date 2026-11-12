@@ -231,15 +231,10 @@ impl adv::World for View<'_, '_> {
             _ => None,
         }
     }
+    /// `Level.canSeeSky`: sky light 15 at the position, whatever stands
+    /// above it, as `MobWorld` reads it for the spawn rules.
     fn can_see_sky(&self, p: [i32; 3]) -> bool {
-        (p[1] + 1..p[1] + 200).all(|y| {
-            !self
-                .0
-                .res
-                .facts()
-                .get(self.0.world.block(p[0], y, p[2]))
-                .full_collision
-        })
+        self.0.mob_world_base(&[]).can_see_sky(p[0], p[1], p[2])
     }
     fn light(&self, p: [i32; 3]) -> i32 {
         let l = self.0.world.light(p[0], p[1], p[2]);
@@ -2059,8 +2054,8 @@ impl Game<'_> {
         self.trigger_block_use("minecraft:default_block_use", pos, None);
     }
     /// `AnyBlockInteractionTrigger` (any_block_use): the player, and the
-    /// block's `ADVANCEMENT_LOCATION` context at its centre with the stack in
-    /// hand as the use left it.
+    /// block's `ADVANCEMENT_LOCATION` context at its centre with the original
+    /// stack and its in-place edits, as documented on `Game::finish_block_use`.
     pub(super) fn trigger_any_block_use(&mut self, pos: [i32; 3], stack: &ItemStack) {
         self.trigger_block_use("minecraft:any_block_use", pos, Some(stack));
     }

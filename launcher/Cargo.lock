@@ -2815,6 +2815,7 @@ dependencies = [
  "horizon-cosmetics",
  "horizon-friends",
  "horizon-mcp",
+ "horizon-mod-api-gen",
  "horizon-mod-package",
  "horizon-mod-point-emit",
  "horizon-platform",
@@ -3040,11 +3041,13 @@ name = "horizon-server-files"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "getrandom 0.3.4",
  "horizon-core",
  "horizon-protocol",
  "horizon-world",
  "log",
  "ureq",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

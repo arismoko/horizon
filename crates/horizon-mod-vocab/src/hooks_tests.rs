@@ -131,7 +131,7 @@ fn eager_subscribers_are_shared_across_dispatch_threads() {
 #[test]
 fn scoped_mods_dispatch_and_restore_after_panic() {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use testing::with_mods;
+    use testing::with_dispatch;
 
     struct Counter(Arc<AtomicUsize>);
     #[mod_api::__subscriptions]
@@ -143,7 +143,7 @@ fn scoped_mods_dispatch_and_restore_after_panic() {
 
     let outer = Arc::new(AtomicUsize::new(0));
     let inner = Arc::new(AtomicUsize::new(0));
-    with_mods(
+    with_dispatch(
         vec![ModEntry::new(
             "outer-counter",
             Box::new(Counter(outer.clone())),
@@ -152,7 +152,7 @@ fn scoped_mods_dispatch_and_restore_after_panic() {
         || {
             dispatch_client_tick_pre(&mut FakeHost::new());
             let result = std::panic::catch_unwind(|| {
-                with_mods(
+                with_dispatch(
                     vec![ModEntry::new(
                         "inner-counter",
                         Box::new(Counter(inner.clone())),
@@ -185,7 +185,7 @@ fn native_switch_skips_and_resumes_subscribed_hooks() {
         }
     }
     let count = Arc::new(AtomicUsize::new(0));
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new("counter", Box::new(Counter(count.clone())))].into(),
         || {
             assert_eq!(__private::mod_index("counter"), Some(0));
@@ -275,7 +275,7 @@ fn client_tick_pre_and_post_hear_their_own_moment() {
         }
     }
     let heard = Arc::new(Mutex::new(Vec::new()));
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new("ticks", Box::new(Ticks(heard.clone())))].into(),
         || {
             dispatch_client_tick_pre(&mut FakeHost::new());
@@ -300,7 +300,7 @@ fn level_tick_pre_and_post_hear_the_level_in_their_own_moment() {
     }
     let heard = Arc::new(Mutex::new(Vec::new()));
     let level = LevelRef::new(WorldEpoch::new(4), DimensionKey::OVERWORLD);
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new("ticks", Box::new(Ticks(heard.clone())))].into(),
         || {
             dispatch_level_tick_pre(HostSide::Client(&mut FakeHost::new()), level);
@@ -325,7 +325,7 @@ fn living_death_post_hears_the_entity_the_blow_and_the_attacker() {
         }
     }
     let heard = Arc::new(Mutex::new(Vec::new()));
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new("post", Box::new(Post(heard.clone())))].into(),
         || dispatch_living_death_post(&mut FakeHost::new(), 7, "minecraft:fall", 0),
     );
@@ -349,7 +349,7 @@ fn render_frame_pre_and_post_hear_their_own_moment_with_the_frames_time() {
         }
     }
     let heard = Arc::new(Mutex::new(Vec::new()));
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new("frames", Box::new(Frames(heard.clone())))].into(),
         || {
             let frame = Duration::from_millis(16);
@@ -374,7 +374,7 @@ fn render_gui_pre_cancel_reaches_the_game() {
     }
     let heard = Arc::new(Mutex::new(Vec::new()));
     let mut canceled = false;
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new("gui", Box::new(Gui(heard.clone(), true)))].into(),
         || dispatch_render_gui_pre(&FakeHost::new(), &mut canceled),
     );
@@ -406,7 +406,7 @@ fn gui_dispatch(
         .map(|(id, make)| ModEntry::new(id, make(heard.clone())))
         .collect();
     let mut cancelled = cancelled;
-    testing::with_mods(mods.into(), || {
+    testing::with_dispatch(mods.into(), || {
         dispatch_render_gui_pre(&FakeHost::new(), &mut cancelled)
     });
     let heard = heard.lock().unwrap().clone();
@@ -570,7 +570,7 @@ fn window_resize_delivers_physical_and_gui_dimensions() {
         }
     }
     let heard = Arc::new(Mutex::new(Vec::new()));
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new("resize", Box::new(Listener(heard.clone())))].into(),
         || {
             dispatch_window_resize(&mut FakeHost::new(), 1200, 900, 400, 300);

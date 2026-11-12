@@ -28,7 +28,7 @@ use crate::{ClientHost, DrawContext, SoundPlay, Text};
 mod text_edit;
 pub use text_edit::{
     EditKey, TextEdit, byte_index, char_len, filter_text, is_allowed_chat_character,
-    java_whitespace, multiline_word_position, word_position,
+    java_whitespace, multiline_word_position, utf16_len, utf16_prefix, word_position,
 };
 
 /// GLFW's Shift bit in the screen hooks' `modifiers`.

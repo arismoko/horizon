@@ -32,6 +32,9 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
+mod carry;
+pub use carry::Carried;
+
 static NEXT_TOKEN: AtomicU64 = AtomicU64::new(1);
 
 fn next_token() -> u64 {
@@ -75,6 +78,8 @@ pub enum Ticking {
 pub struct BlockEntities {
     map: HashMap<Pos, BlockEntity>,
     generations: FxHashMap<Pos, u64>,
+    on_load: std::collections::VecDeque<(Pos, u64)>,
+    on_load_enabled: bool,
     attachments: HashMap<Pos, Attachments>,
     attachment_observer: Option<Arc<dyn AttachmentObserver<BlockEntityIdentity>>>,
     /// `Level.blockEntityTickers`: positions and the slot each was given.
@@ -122,7 +127,13 @@ pub struct BlockEntities {
     /// instance blocks, `shows_box`), so a frame looks at them without scanning the map.
     /// Like `mods`, one taken out stays listed until `put` or `remove`.
     boxes: FxHashSet<Pos>,
+    /// The signs a player's editor is on (`SignBlockEntity.playerWhoMayEdit`
+    /// set), so the level's tick checks those alone instead of every sign.
+    sign_editors: FxHashSet<Pos>,
     asleep: FxHashSet<Pos>,
+    /// The block entities moving pistons carry, by the moving piston's
+    /// position (`carry`): out of the map until they land.
+    carried: FxHashMap<Pos, carry::Carried>,
 }
 
 /// Storage-owned identity passed to attachment residency observers.
@@ -253,6 +264,41 @@ pub fn chunk_map_order(positions: impl IntoIterator<Item = Pos>) -> Vec<Pos> {
 }
 
 impl BlockEntities {
+    /// Gameplay supplies its subscription decision; storage knows no hook identifiers.
+    pub fn set_on_load_enabled(&mut self, enabled: bool) {
+        self.on_load_enabled = enabled;
+        if !enabled {
+            self.on_load.clear();
+        }
+    }
+    /// Whether any attachment notices remain, including possibly retired identities.
+    pub fn has_pending_on_load(&self) -> bool {
+        !self.on_load.is_empty()
+    }
+    /// Number of queued notices, including retired entries, at a drain boundary.
+    pub fn pending_on_load_len(&self) -> usize {
+        self.on_load.len()
+    }
+    /// Take a live notice from a bounded prefix, counting stale entries too.
+    pub fn next_on_load_in_batch(&mut self, remaining: &mut usize) -> Option<(Pos, u64)> {
+        while *remaining > 0 {
+            *remaining -= 1;
+            let (pos, generation) = self.on_load.pop_front()?;
+            if self.generation(&pos) == Some(generation)
+                && matches!(self.map.get(&pos), Some(BlockEntity::Mod(_)))
+            {
+                return Some((pos, generation));
+            }
+        }
+        None
+    }
+    /// Take the next newly attached mod identity. Removed or replaced entries
+    /// are stale and skipped; payload rewrites retain the queued generation.
+    pub fn next_on_load(&mut self) -> Option<(Pos, u64)> {
+        let mut remaining = self.on_load.len();
+        self.next_on_load_in_batch(&mut remaining)
+    }
+
     /// Runtime identity, retained while an entity is temporarily taken for its tick.
     pub fn generation(&self, pos: &Pos) -> Option<u64> {
         self.generations.get(pos).copied()
@@ -459,6 +505,49 @@ impl BlockEntities {
             .filter(move |((cx, cz), _)| !far(*cx, x) && !far(*cz, z))
             .flat_map(|(_, set)| set)
     }
+    /// The mod block entities of chunk `chunk`, in no order; one taken out is
+    /// listed too.
+    pub fn mods_in(&self, chunk: (i32, i32)) -> impl Iterator<Item = &Pos> {
+        self.mods.get(&chunk).into_iter().flatten()
+    }
+    /// `SignBlockEntity.playerWhoMayEdit` of the sign at `pos`.
+    pub fn sign_editor(&self, pos: &Pos) -> Option<u128> {
+        match self.map.get(pos) {
+            Some(BlockEntity::Sign(sign)) => sign.allowed_editor,
+            _ => None,
+        }
+    }
+    /// `SignBlockEntity.setAllowedPlayerEditor`: the one player whose editor
+    /// is on the sign at `pos`, or `None` for nobody's.
+    pub fn set_sign_editor(&mut self, pos: Pos, who: Option<u128>) {
+        let Some(BlockEntity::Sign(sign)) = self.map.get_mut(&pos) else {
+            return;
+        };
+        sign.allowed_editor = who;
+        if who.is_some() {
+            self.sign_editors.insert(pos);
+        } else {
+            self.sign_editors.remove(&pos);
+        }
+    }
+    /// The positions of the signs a player's editor is on, in no order.
+    pub fn sign_editors(&self) -> impl Iterator<Item = &Pos> {
+        self.sign_editors.iter()
+    }
+    /// Drops `pos` from the signs an editor is on, for a sign that is gone or
+    /// no longer holds one. `set_sign_editor` keeps the list itself.
+    pub fn forget_sign_editor(&mut self, pos: Pos) {
+        self.sign_editors.remove(&pos);
+    }
+    /// Keeps `pos` listed in `sign_editors` exactly while `entity` holds an
+    /// editor, as `note_box` does for the boxes.
+    fn note_sign_editor(&mut self, pos: Pos, entity: &BlockEntity) {
+        if matches!(entity, BlockEntity::Sign(sign) if sign.allowed_editor.is_some()) {
+            self.sign_editors.insert(pos);
+        } else {
+            self.sign_editors.remove(&pos);
+        }
+    }
     /// `LevelChunk.getBlockEntity`: the block entity at `pos`, if any.
     pub fn get(&self, pos: &Pos) -> Option<&BlockEntity> {
         self.map.get(pos)
@@ -494,12 +583,26 @@ impl BlockEntities {
     /// `/data merge block`), where vanilla keeps the object, so its
     /// attachments stay; any other replacement starts them over.
     pub fn insert(&mut self, pos: Pos, entity: BlockEntity) -> Option<BlockEntity> {
+        self.insert_impl(pos, entity, false)
+    }
+    /// Attach a different instance, even when its type matches the old instance.
+    /// Payload-only writes use `insert` and retain their identity instead.
+    pub fn replace(&mut self, pos: Pos, entity: BlockEntity) -> Option<BlockEntity> {
+        self.insert_impl(pos, entity, true)
+    }
+    fn insert_impl(
+        &mut self,
+        pos: Pos,
+        entity: BlockEntity,
+        replace_identity: bool,
+    ) -> Option<BlockEntity> {
         let new_is_mod = matches!(entity, BlockEntity::Mod(_));
         let same_type = |old: &BlockEntity| match (old, &entity) {
             (BlockEntity::Mod(old), BlockEntity::Mod(new)) => old.id() == new.id(),
             (old, new) => std::mem::discriminant(old) == std::mem::discriminant(new),
         };
-        if !self.map.get(&pos).is_some_and(same_type) {
+        let new_identity = replace_identity || !self.map.get(&pos).is_some_and(same_type);
+        if new_identity {
             retire_attachments(
                 &mut self.attachments,
                 self.attachment_observer.as_ref(),
@@ -510,8 +613,12 @@ impl BlockEntities {
         }
         self.replace_taken(pos);
         let new_box = shows_box(&entity);
+        self.note_sign_editor(pos, &entity);
         self.asleep.remove(&pos);
         let old = self.map.insert(pos, entity);
+        if self.on_load_enabled && new_identity && new_is_mod {
+            self.on_load.push_back((pos, self.generations[&pos]));
+        }
         if old.is_none() {
             self.add(pos);
         }
@@ -550,6 +657,9 @@ impl BlockEntities {
         self.asleep.remove(&pos);
         let entity = self.map.entry(pos).or_insert_with(make);
         if absent && matches!(entity, BlockEntity::Mod(_)) {
+            if self.on_load_enabled {
+                self.on_load.push_back((pos, self.generations[&pos]));
+            }
             self.mods.entry(chunk_of(pos)).or_default().insert(pos);
         }
         if absent && shows_box(entity) {
@@ -572,6 +682,7 @@ impl BlockEntities {
         let removed = self.map.remove(pos);
         forget_mod(&mut self.mods, *pos);
         self.boxes.remove(pos);
+        self.sign_editors.remove(pos);
         removed
     }
     /// The block entity at `pos`, out of the map for a while: its slot stays
@@ -618,6 +729,7 @@ impl BlockEntities {
             self.mods.entry(chunk_of(pos)).or_default().insert(pos);
         }
         self.note_box(pos, Some(&entity));
+        self.note_sign_editor(pos, &entity);
         if self.map.insert(pos, entity).is_none()
             && !self.live.contains_key(&pos)
             && !self.pending.contains_key(&pos)
@@ -642,6 +754,7 @@ impl BlockEntities {
     /// the positions `gone` names and changes none it keeps, so those that
     /// sleep stay asleep (a moving player unloads chunks most ticks).
     pub fn unload(&mut self, mut gone: impl FnMut(&Pos) -> bool) {
+        self.carried.retain(|p, _| !gone(p));
         let asleep = std::mem::take(&mut self.asleep);
         self.retain(|p, _| !gone(p));
         self.retire_taken(gone);
@@ -661,6 +774,7 @@ impl BlockEntities {
         let (mods, boxes) = (&mut self.mods, &mut self.boxes);
         let generations = &mut self.generations;
         let observer = self.attachment_observer.as_ref();
+        let sign_editors = &mut self.sign_editors;
         self.asleep.clear();
         self.map.retain(|p, e| {
             let kept = keep(p, e);
@@ -671,6 +785,7 @@ impl BlockEntities {
                 pending.remove(p);
                 forget_mod(mods, *p);
                 boxes.remove(p);
+                sign_editors.remove(p);
             }
             kept
         });
@@ -678,10 +793,12 @@ impl BlockEntities {
     pub fn clear(&mut self) {
         self.unload_attachments();
         self.generations.clear();
+        self.on_load.clear();
         self.attachments.clear();
         self.map.clear();
         self.mods.clear();
         self.boxes.clear();
+        self.sign_editors.clear();
         self.asleep.clear();
         self.tickers = Arc::default();
         self.live.clear();
@@ -689,6 +806,7 @@ impl BlockEntities {
         self.pending.clear();
         self.out.clear();
         self.replaced.clear();
+        self.carried.clear();
         self.freed = false;
     }
     /// A loaded or generated chunk's block entities, in the order the chunk
@@ -710,6 +828,7 @@ impl BlockEntities {
             self.asleep.remove(&p);
             let new_is_mod = matches!(e, BlockEntity::Mod(_));
             self.note_box(p, Some(&e));
+            self.note_sign_editor(p, &e);
             let old = self.map.insert(p, e);
             if old.is_some() {
                 self.replaced.insert(p);
@@ -721,6 +840,9 @@ impl BlockEntities {
             }
         }
         for p in order {
+            if self.on_load_enabled && matches!(self.map.get(&p), Some(BlockEntity::Mod(_))) {
+                self.on_load.push_back((p, self.generations[&p]));
+            }
             self.add(p);
         }
     }
@@ -1150,3 +1272,7 @@ mod tests {
         assert!(b.boxes.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "block_entities/on_load_tests.rs"]
+mod on_load_tests;

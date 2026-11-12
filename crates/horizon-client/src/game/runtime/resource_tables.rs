@@ -29,6 +29,14 @@ impl Resources {
     pub(super) fn environment(&self) -> &Environment {
         &self.core.environment
     }
+    /// The environment of a dimension type id; a type with no table of its own gets the overworld's.
+    pub(super) fn environment_of(&self, dimension_type: &str) -> &Environment {
+        match dimension_type {
+            "minecraft:the_nether" => self.nether_environment(),
+            "minecraft:the_end" => self.end_environment(),
+            _ => self.environment(),
+        }
+    }
     pub(super) fn mob_types(&self) -> &HashMap<String, Arc<MobType>> {
         &self.rest().mob_types
     }
@@ -109,7 +117,7 @@ impl UiResources {
                     horizon_client::gfx::panorama::Faces::load(root, root)
                 })
             });
-            let mod_image = horizon_client::gfx::native_render::world_drawn_hooked();
+            let mod_image = horizon_client_render::render_slots::world_drawn_hooked();
             let atlas = startup::time("ui.atlas", || {
                 HudAtlas::build_over_with_image(root, root, mod_image)
             });

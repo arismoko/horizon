@@ -122,7 +122,7 @@ mod tests {
         gravel: BlockStateId,
         tool: Option<&ItemStack>,
     ) -> (usize, i32, i32) {
-        game.world.random = LegacyRandom::new(7);
+        *game.world.random = LegacyRandom::new(7);
         game.rand_sequences = Default::default();
         let flint = (0..ROLLS)
             .flat_map(|_| game.block_loot_at(POS, gravel, tool, None))

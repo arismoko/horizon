@@ -92,6 +92,33 @@ impl Game<'_> {
         let slot = *view.slots_for_face(at.side).get(slot)?;
         self.containers().get(&view, slot).cloned()
     }
+    /// Keeps what a capability write to slot `slot` of `view` changes: that slot alone where a
+    /// write there changes nothing else, else each block entity of the view whole.
+    fn journal_view_slot(&mut self, view: &View, slot: usize) {
+        let slot_only = match view.kind {
+            // A chest's, barrel's, dispenser's, dropper's or shelf's slot, a shulker box's, a
+            // mod container's: the slot is all a write changes (setChanged waits for the root
+            // commit).
+            Kind::Generic | Kind::Shulker | Kind::Mod => true,
+            // State beside the slot: filling an empty input restarts a furnace's cooking; an
+            // insert into an empty hopper sets its cooldown; a jukebox's disc starts its song;
+            // a bookshelf's books are in its block state and last slot.
+            Kind::Furnace | Kind::Hopper | Kind::Jukebox | Kind::Bookshelf => false,
+            // Not shown to change only the slot (a crafter's disabled slots, a brewing stand's
+            // brew), so kept whole as before.
+            Kind::Crafter | Kind::Brewing => false,
+            // A pot's item lives in its saved data, written through its own insertion view, not
+            // its slots; a composter has no block entity (its level is its block state) and the
+            // capability never reaches it. Listed so a new kind has to say where it goes.
+            Kind::Pot | Kind::Composter(_) => false,
+        };
+        if slot_only && let Some((pos, slot)) = view.locate(slot) {
+            return self.journal_block_entity_slot(pos, slot);
+        }
+        for &(part, _) in &view.parts {
+            self.journal_block_entity(part);
+        }
+    }
     /// `view_changed` of a capability write, at the root commit of its transaction.
     fn view_told(&mut self, view: &View) {
         if let Kind::Composter(_) = view.kind {
@@ -131,9 +158,7 @@ impl Game<'_> {
                 count: fits,
                 ..stack.clone()
             };
-            for &(part, _) in &view.parts {
-                self.journal_block_entity(part);
-            }
+            self.journal_view_slot(&view, slot);
             // A jukebox's disc starts at the root commit (`JukeboxBlockEntity.setTheItem`).
             if self.move_in_item(None, &view, some, slot).1 {
                 self.view_told(&view);
@@ -183,9 +208,7 @@ impl Game<'_> {
         {
             return None;
         }
-        for &(part, _) in &view.parts {
-            self.journal_block_entity(part);
-        }
+        self.journal_view_slot(&view, slot);
         let out = self.take_up_to(&view, slot, max)?;
         // A jukebox's song stops at the root commit (`JukeboxBlockEntity.removeItem`).
         self.view_told(&view);

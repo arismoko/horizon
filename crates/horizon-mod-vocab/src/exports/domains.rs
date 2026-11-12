@@ -14,10 +14,10 @@ pub use backend::{
     backend_mut_of, backend_of, client_backend_mut_of,
 };
 pub use block::types::{
-    BlockClick, BlockEntityError, BlockEntityRef, BlockEntityTypeKey, BlockFace, BlockHit,
-    BlockInteraction, BlockKey, BlockPlacement, BlockRim, BlockShapeKind, BlockStateId,
-    BlockTransformPreview, BlockUpdateFlags, BonemealSource, FakeEffect, ModBlockEntityView,
-    Placement, SupportType,
+    BlockClick, BlockEntityDataSource, BlockEntityError, BlockEntityRef, BlockEntityTypeKey,
+    BlockFace, BlockHit, BlockInteraction, BlockKey, BlockPlacement, BlockRim, BlockShapeKind,
+    BlockStateId, BlockTransformPreview, BlockUpdateFlags, BonemealSource, FakeEffect,
+    ModBlockEntityView, Placement, SupportType,
 };
 pub use client::types::{
     Answered, BossBarColor, BossBarOverlay, BossBarRef, Camera, ClientAudioOptions, ClientBossBar,
@@ -35,9 +35,9 @@ pub use entity::types::{
     DragonRef, EffectApplicable, EffectKey, EffectTickChange, EntityAttributeError, EntityRef,
     EntityTypeKey, FishingHookRef, GoalSpec, ItemEntityRef, LeashHolder, LivingRef, MainHand,
     MerchantRef, MinecartKind, MinecartRef, MobFilter, MobGoalEntry, MobRef, ModifierLifetime,
-    PierceLevelError, PlayerAbilities, PlayerAction, PlayerActionSetup, PlayerExperience,
-    PlayerFood, PlayerRef, ProjectileRef, RemovalReason, ServerPlayer, TextAlignment,
-    Transformation, UnspawnedMobRef,
+    OriginalPlayerRef, PierceLevelError, PlayerAbilities, PlayerAction, PlayerActionSetup,
+    PlayerExperience, PlayerFood, PlayerRef, ProjectileRef, RemovalReason, ServerPlayer,
+    TextAlignment, Transformation, UnspawnedMobRef,
 };
 pub use item::types::{
     ArmorHurt, ArrowPickup, ClientMiningPrediction, Dispensed, EnchantmentInfo, EnchantmentKey,
@@ -50,14 +50,14 @@ pub use item::types::{
 pub(crate) use runtime::TEST_MODS;
 pub use runtime::{Flow, ModEntry, Mods, subscribed_by};
 pub(crate) use runtime::{
-    entered, entered_parts, entered_registration, entered_with_id, install, listened, mark_mod,
-    mod_index_on, mods, set_mod_enabled,
+    entered, entered_parts, entered_with_id, install, listened, mark_mod, mod_index_on, mods,
+    set_mod_enabled,
 };
 pub use world::types::{
-    BiomeSearch, BiomeSearchResult, BlockSoundType, BoolGameRuleKey, ChunkRef, ChunkStatus,
-    ChunkTicketLevel, ClipBlock, ClipFluid, ClipHit, DataMapsUpdateCause, Despawn, Difficulty,
-    DimensionKey, EntityRayHit, ExplosionInteraction, ExplosionStart, FeatureFlags, FluidKey,
-    FluidState, GameRuleActor, GameRuleError, GlobalPos, LevelDimensionShape, LevelHost,
+    BiomeSearch, BiomeSearchResult, BlockSoundCause, BlockSoundType, BoolGameRuleKey, ChunkRef,
+    ChunkStatus, ChunkTicketLevel, ClipBlock, ClipFluid, ClipHit, DataMapsUpdateCause, Despawn,
+    Difficulty, DimensionKey, EntityRayHit, ExplosionInteraction, ExplosionStart, FeatureFlags,
+    FluidKey, FluidState, GameRuleActor, GameRuleError, GlobalPos, LevelDimensionShape, LevelHost,
     LevelRandomHost, LevelRef, LevelTicksHost, LevelWriteHost, LifecycleContext, LightLayer,
     MapState, MobCategory, PlayerRespawnConfig, PortalShape, ProgressType, RaidRef, RaidStatus,
     RespawnData, ServerTickPhase, SpawnCheck, SpawnFlags, SpawnLight, SpawnLimits,
@@ -66,9 +66,7 @@ pub use world::types::{
 };
 #[doc(hidden)]
 pub(crate) mod built;
-#[cfg(test)]
-mod unit_tests;
 
 pub use entity::types::Sentiment;
-pub(crate) use runtime::{enter_listener, listening, receives_cancelled};
+pub(crate) use runtime::{listening, receives_cancelled};
 pub use world::types::{StructureSearch, StructureSearchResult};

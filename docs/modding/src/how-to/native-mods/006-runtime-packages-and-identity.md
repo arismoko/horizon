@@ -25,3 +25,24 @@ Its SHA-256 values and revision describe the built binary's inputs, not the runn
 The launcher prepares jar data from canonical manifests as non-authoritative candidates; the engine
 validates identity against its embedded inventory. Original-jar pack order and
 whole-package refusal rules are in [Original Java jar layers](../../reference/manifest.md#original-java-jar-layers).
+
+### Resolve an entity by UUID
+
+In a server hook, wrap a saved `u128` in `EntityUuid` and pass it to the host.
+The lookup returns `None` if the entity is unloaded or belongs to a different
+level than the hook. Try again from a hook running in the entity's level.
+
+```rust
+use mod_api::{EntityRef, EntityUuid, ServerHost};
+
+fn find_saved_entity(host: &dyn ServerHost, saved_uuid: u128) -> Option<EntityRef> {
+    host.entity_by_uuid(EntityUuid(saved_uuid))
+}
+
+fn entity_identity(host: &mut dyn ServerHost, entity: EntityRef) -> Option<EntityUuid> {
+    entity.uuid(host).map(EntityUuid)
+}
+```
+
+`EntityRef::uuid` returns the raw `u128`. Use `EntityUuid(raw_uuid)` to pass
+that value back into the lookup.

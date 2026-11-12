@@ -1,7 +1,7 @@
 # Structs a mod builds and structs a mod receives
 
 Contract for [#2862](https://github.com/arismoko/horizon/issues/2862). Every public struct in `horizon-mod-api`
-and its vocabulary crate is exactly one of two kinds.
+and its vocabulary crate that forms the mod-authoring surface is exactly one of two kinds.
 
 1. **A type a mod builds** (definitions, options, screens, declarations): public fields and `Default`. Write a
    literal with `..Default::default()` at the end, so a field added later never breaks the mod:
@@ -30,7 +30,10 @@ The ceiling is a regression budget, not proof that every newly added struct has 
 
 This source scanner cannot expand `macro_rules!` or build scripts, can count fixed-name declarations
 inside unused macro templates, and does not follow `pub use` reachability. Mirrors are excluded only
-at the crate's private built-mirror paths.
+at the crate's private built-mirror paths. Engine socket records are also excluded only when they carry both
+`#[doc(hidden)]` and the explicit `// hidden: platform-owned instrumentation plumbing, not a mod authoring surface.`
+marker, inside the closed engine socket file set in the tool. Neither a hidden attribute alone,
+that marker alone, nor both annotations outside those socket files exclude a mod-facing struct.
 
 The batches go by module. Kind 2 is applied mechanically; which fields of a kind 1 type are required is decided by
 hand. Each batch updates the samples and this book in the same PR, with no aliases or shims.

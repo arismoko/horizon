@@ -10,8 +10,8 @@ description = "Unstable native-only raw rendering places for mods"
 name = "mod_render"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+horizon-client-render = { path = "../horizon-client-render", default-features = false }
 horizon-mod-api = { path = "../horizon-mod-api" }
-horizon-mod-points = { path = "../horizon-mod-points" }
 wgpu = { version = "30.0.1", default-features = false, features = ["std"] }
 glam = "0.30"
 bytemuck = { version = "1.24", features = ["derive"] }
@@ -21,3 +21,6 @@ horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
 
 [lints]
 workspace = true
+
+[dependencies]
+horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }

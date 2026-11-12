@@ -12,11 +12,16 @@ import net.minecraft.client.StringSplitter;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.InputType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.Hud;
 import net.minecraft.client.gui.components.AbstractButton;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.screens.InBedChatScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.*;
@@ -24,6 +29,8 @@ import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.ClientRecipeContainer;
+import net.minecraft.client.multiplayer.ClientSuggestionProvider;
+import net.minecraft.client.multiplayer.chat.ChatAbilities;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.SimpleContainer;
@@ -33,6 +40,8 @@ import net.minecraft.world.entity.player.Abilities;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
+import net.minecraft.world.entity.vehicle.minecart.MinecartCommandBlock;
+import net.minecraft.world.level.block.entity.CommandBlockEntity;
 
 /**
  * Original oracle for the container screens' built layout: the real
@@ -42,7 +51,10 @@ import net.minecraft.world.inventory.*;
  * ShulkerBoxScreen at that size, with or without the recipe book offset.
  * Reports the panel (`leftPos`/`topPos`/`imageWidth`/`imageHeight`), the
  * slots' screen positions, and which slot `AbstractContainerScreen`'s hover
- * test answers for each cursor point the case names.
+ * test answers for each cursor point the case names. For InBedChatScreen,
+ * CommandBlockEditScreen and MinecartCommandBlockEditScreen it reports every
+ * child widget's rectangle after `init` at another size and `resize` to the
+ * case's.
  */
 public final class VanillaScreenBuildOracle {
     static Object unsafe;
@@ -132,6 +144,56 @@ public final class VanillaScreenBuildOracle {
         return screen;
     }
 
+    /** A text box taking focus asks for no window's text input. */
+    static final class NoTextInput extends com.mojang.blaze3d.platform.TextInputManager {
+        NoTextInput() {
+            super(null);
+        }
+
+        @Override
+        public void onTextInputFocusChange(Object owner, boolean focused) {}
+    }
+
+    /**
+     * Chat in bed, or a command block's or a minecart's edit screen, on a
+     * player with no chat history, no restrictions and an empty command tree.
+     */
+    static Screen textScreen(String kind) throws Exception {
+        var gui = alloc(Gui.class);
+        var hud = alloc(Hud.class);
+        var chat = alloc(ChatComponent.class);
+        put(chat, ChatComponent.class, "recentChat", new net.minecraft.util.ArrayListDeque<String>(100));
+        put(hud, Hud.class, "chat", chat);
+        put(gui, Gui.class, "hud", hud);
+        put(mc, Minecraft.class, "gui", gui);
+        put(mc, Minecraft.class, "fontFilterFishy", mc.font);
+        put(mc, Minecraft.class, "textInputManager", alloc(NoTextInput.class));
+        put(mc.player, LocalPlayer.class, "chatAbilities", ChatAbilities.NO_RESTRICTIONS);
+        var connection = alloc(ClientPacketListener.class);
+        put(connection, ClientPacketListener.class, "commands", new com.mojang.brigadier.CommandDispatcher<ClientSuggestionProvider>());
+        put(connection, ClientPacketListener.class, "suggestionsProvider", alloc(ClientSuggestionProvider.class));
+        put(mc.player, LocalPlayer.class, "connection", connection);
+        Screen screen = switch (kind) {
+            case "chat" -> new InBedChatScreen("", false);
+            case "command_block" -> {
+                var entity = alloc(CommandBlockEntity.class);
+                var base = Class.forName("net.minecraft.world.level.block.entity.CommandBlockEntity$1");
+                put(entity, CommandBlockEntity.class, "commandBlock", alloc(base));
+                yield new CommandBlockEditScreen(entity);
+            }
+            default -> {
+                var cart = alloc(MinecartCommandBlock.class);
+                var base = Class.forName("net.minecraft.world.entity.vehicle.minecart.MinecartCommandBlock$MinecartCommandBase");
+                var block = alloc(base);
+                put(block, net.minecraft.world.level.BaseCommandBlock.class, "command", "");
+                put(cart, MinecartCommandBlock.class, "commandBlock", block);
+                yield new MinecartCommandBlockEditScreen(cart);
+            }
+        };
+        put(screen, Screen.class, "minecraft", mc);
+        return screen;
+    }
+
     static AbstractContainerScreen<?> screen(String kind, int rows, Inventory inventory, LocalPlayer player) throws Exception {
         return switch (kind) {
             case "inventory" -> new InventoryScreen(player);
@@ -196,7 +258,25 @@ public final class VanillaScreenBuildOracle {
                 g.add(height);
                 result.add("gui", g);
 
-                if (c.get("kind").getAsString().equals("pause")) {
+                String kind = c.get("kind").getAsString();
+                if (kind.equals("chat") || kind.endsWith("command_block")) {
+                    var screen = textScreen(kind);
+                    // Opened at another size, then Minecraft.resizeGui's resize.
+                    screen.init(width + 7, height + 3);
+                    screen.resize(width, height);
+                    var widgets = new JsonArray();
+                    for (var child : screen.children()) {
+                        if (!(child instanceof AbstractWidget widget)) continue;
+                        var rect = pair(widget.getX(), widget.getY());
+                        rect.add(widget.getWidth());
+                        rect.add(widget.getHeight());
+                        widgets.add(rect);
+                    }
+                    result.add("widgets", widgets);
+                    out.append(result).append('\n');
+                    continue;
+                }
+                if (kind.equals("pause")) {
                     var pause = pauseScreen();
                     pause.init(width, height);
                     var buttons = new JsonArray();

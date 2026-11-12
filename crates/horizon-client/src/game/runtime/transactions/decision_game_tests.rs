@@ -39,15 +39,20 @@ fn cancel_action_undoes_real_game_listener_block_and_deferred_drop() {
         let root = game.transaction_open();
         let mut host = GameHost { game, identity };
         assert_eq!(
-            run(&mut host, &menu, tests::placement, |host| {
-                host.game.journal_set_block([0, 64, 0], stone);
-                host.game
-                    .drop_after_commit(1, ItemStack::new("minecraft:dirt", 2));
-                menu.edit(host, |s| {
-                    s.slots[2] = Some(ItemStack::new("minecraft:dirt", 2))
-                });
-                Reply::Cancel
-            }),
+            run(
+                &mut host,
+                &menu,
+                |_, s| tests::placement(s),
+                |host| {
+                    host.game.journal_set_block([0, 64, 0], stone);
+                    host.game
+                        .drop_after_commit(1, ItemStack::new("minecraft:dirt", 2));
+                    menu.edit(host, |s| {
+                        s.slots[2] = Some(ItemStack::new("minecraft:dirt", 2))
+                    });
+                    Reply::Cancel
+                }
+            ),
             Ok(Outcome::Canceled)
         );
         assert_eq!(menu.read(Clone::clone), tests::state());
@@ -78,15 +83,20 @@ fn nested_real_game_commit_then_trap_rolls_back_next_placement_succeeds() {
         let root = game.transaction_open();
         let mut host = GameHost { game, identity };
         assert_eq!(
-            run(&mut host, &menu, tests::placement, |host| {
-                let child = host.game.transaction_open();
-                host.game.journal_set_block([0, 64, 0], dirt);
-                menu.edit(host, |s| {
-                    s.slots[2] = Some(ItemStack::new("minecraft:dirt", 2))
-                });
-                host.game.transaction_close(&child, true);
-                panic!("listener trap after nested commit");
-            }),
+            run(
+                &mut host,
+                &menu,
+                |_, s| tests::placement(s),
+                |host| {
+                    let child = host.game.transaction_open();
+                    host.game.journal_set_block([0, 64, 0], dirt);
+                    menu.edit(host, |s| {
+                        s.slots[2] = Some(ItemStack::new("minecraft:dirt", 2))
+                    });
+                    host.game.transaction_close(&child, true);
+                    panic!("listener trap after nested commit");
+                }
+            ),
             Ok(Outcome::ListenerFailed)
         );
         assert_eq!(host.game.world.block(0, 64, 0), before);
@@ -94,7 +104,12 @@ fn nested_real_game_commit_then_trap_rolls_back_next_placement_succeeds() {
         assert_eq!(host.game.transactions.len(), 1);
         assert!(!host.menu_busy(menu.id));
         assert_eq!(
-            run(&mut host, &menu, tests::placement, |_| Reply::Allow),
+            run(
+                &mut host,
+                &menu,
+                |_, s| tests::placement(s),
+                |_| Reply::Allow
+            ),
             Ok(Outcome::Applied)
         );
         assert_eq!(menu.read(|s| s.cursor.clone()), None);
@@ -127,7 +142,7 @@ fn outer_real_game_abort_undoes_applied_menu_block_cost_rng_and_drops() {
             run(
                 &mut host,
                 &menu,
-                |s| {
+                |_, s| {
                     let mut plan = tests::placement(s);
                     plan.steps.extend([
                         Step::Write(Mutation::Cost(2)),
@@ -163,14 +178,19 @@ fn real_save_gate_and_save_all_refuse_action_savepoint() {
         let root = game.transaction_open();
         let mut host = GameHost { game, identity };
         assert_eq!(
-            run(&mut host, &menu, tests::placement, |host| {
-                assert!(Game::admit_entity_save().is_err());
-                assert_eq!(
-                    host.game.save_all_reply().translation_key(),
-                    Some("commands.save.failed")
-                );
-                Reply::Cancel
-            }),
+            run(
+                &mut host,
+                &menu,
+                |_, s| tests::placement(s),
+                |host| {
+                    assert!(Game::admit_entity_save().is_err());
+                    assert_eq!(
+                        host.game.save_all_reply().translation_key(),
+                        Some("commands.save.failed")
+                    );
+                    Reply::Cancel
+                }
+            ),
             Ok(Outcome::Canceled)
         );
         assert_eq!(menu.read(Clone::clone), tests::state());
@@ -192,7 +212,7 @@ fn only_root_commit_publishes_real_listener_and_plan_drops_in_order() {
             run(
                 &mut host,
                 &menu,
-                |s| {
+                |_, s| {
                     let mut plan = tests::placement(s);
                     plan.steps.push(Step::Effect(Effect::Drop(
                         [0, 64, 0],
@@ -253,12 +273,17 @@ fn abandoned_token_releases_real_save_gate_and_publishes_nothing() {
         let root = game.transaction_open();
         let mut host = GameHost { game, identity };
         assert_eq!(
-            run(&mut host, &menu, tests::placement, |host| {
-                assert!(Game::admit_entity_save().is_err());
-                host.game
-                    .drop_after_commit(1, ItemStack::new("minecraft:dirt", 2));
-                panic!("listener trap with a live decision");
-            }),
+            run(
+                &mut host,
+                &menu,
+                |_, view| tests::placement(view),
+                |host| {
+                    assert!(Game::admit_entity_save().is_err());
+                    host.game
+                        .drop_after_commit(1, ItemStack::new("minecraft:dirt", 2));
+                    panic!("listener trap with a live decision");
+                }
+            ),
             Ok(Outcome::ListenerFailed)
         );
         assert!(Game::admit_entity_save().is_ok());

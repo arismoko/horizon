@@ -138,6 +138,31 @@ impl Game<'_> {
             || self.native_client_tracked(entity).is_some())
         .then_some(entity)
     }
+    pub(super) fn entity_by_uuid(&self, uuid: mod_api::EntityUuid) -> Option<EntityRef> {
+        if !self.is_logical_server() {
+            return None;
+        }
+        let epoch = self.native_lifecycle.epoch()?;
+        let dimension = self.dim.key();
+        let uuid = horizon_client::lan::playerdata::uuid_ints(uuid.0);
+        let mut after = None;
+        loop {
+            let id = self
+                .resident_entities
+                .table
+                .borrow_mut()
+                .level_uuid_candidate(dimension, uuid, after)?;
+            let entity = EntityRef::new(epoch, id.get());
+            if self
+                .native_entity_target(entity)
+                .is_some_and(|target| self.resident_source_target_visible(dimension, target))
+            {
+                return Some(entity);
+            }
+            // A queued departure can overlap a replacement with the same UUID.
+            after = Some(id);
+        }
+    }
     /// Whether the entity is made of parts that are entities of their own
     /// (`Entity.isMultipartEntity`): the dragon, not one of its parts.
     pub(super) fn entity_is_multipart(&self, entity: EntityRef) -> Option<bool> {
@@ -614,10 +639,15 @@ impl Game<'_> {
         if self.dim.key() != level.dimension() {
             return Err(mod_api::LevelWriteError::Unavailable);
         }
-        Ok(world.loaded(pos[0], pos[2]) && world.shape.contains_y(pos[1]))
+        Ok(!self.world.carrier_fences.locks_cell(&pos)
+            && world.loaded(pos[0], pos[2])
+            && world.shape.contains_y(pos[1]))
     }
-    fn native_level_write_allowed(&self, level: LevelRef, pos: [i32; 3]) -> bool {
-        self.is_logical_server()
+    pub(crate) fn native_level_write_allowed(&self, level: LevelRef, pos: [i32; 3]) -> bool {
+        // A carrier transfer fence holds this cell: every mod write
+        // through the level gate refuses while the operation runs.
+        !self.world.carrier_fences.locks_cell(&pos)
+            && self.is_logical_server()
             && self.native_lifecycle.epoch() == Some(level.epoch())
             && self.world.loaded(pos[0], pos[2])
             && self.world.shape.contains_y(pos[1])
@@ -1100,7 +1130,7 @@ pub(super) mod tests {
         );
     }
 
-    fn with_game_role(
+    pub(in crate::game) fn with_game_role(
         root: std::path::PathBuf,
         role: super::super::execution_role::ExecutionRole,
         test: impl FnOnce(&mut super::Game<'_>),
@@ -1170,6 +1200,43 @@ pub(super) mod tests {
         ));
         test(&mut game);
         let _ = std::fs::remove_dir_all(saves);
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn typed_uuid_and_nbt_reads_follow_the_entity_level() {
+        with_game(|game| {
+            game.options.dedicated = Some(Vec::new());
+            let words = [7, 0, 0, 3];
+            let uuid = (7u128 << 96) | 3;
+            assert!(game.run_command(
+                "execute in minecraft:the_nether run summon cow 8.5 70 8.5 {UUID:[I;7,0,0,3],NoAI:1b}"
+            ));
+            let original = game.dim;
+            game.enter_command_level(super::super::Dim::Nether).unwrap();
+            let id = *game
+                .persist
+                .uuids
+                .iter()
+                .find(|(_, value)| **value == words)
+                .unwrap()
+                .0;
+            let entity = game.entity(id).unwrap();
+            assert_eq!(game.entity_uuid(entity), Some(uuid));
+            let nbt = game.entity_nbt(entity).unwrap();
+            assert_eq!(
+                nbt.get(&"NoAI".into()),
+                Some(&horizon_core::nbt::Tag::Byte(1))
+            );
+            assert!(!nbt.contains_key(&"id".into()));
+            game.enter_command_level(original).unwrap();
+            assert_eq!(game.entity_nbt(entity), None);
+            game.enter_command_level(super::super::Dim::Nether).unwrap();
+            assert_eq!(game.entity_uuid(entity), Some(uuid));
+            assert_eq!(game.entity_nbt(entity), Some(nbt));
+            game.enter_command_level(original).unwrap();
+            assert_eq!(game.dim, original);
+        });
     }
 
     #[test]

@@ -3,6 +3,7 @@ use super::*;
 
 impl Game<'_> {
     pub(super) fn bind_guest_residency(&self, hub: &mut Hub) {
+        hub.payload_player_epoch = self.native_lifecycle.epoch();
         hub.guests
             .bind_residency(&self.resident_entities.table.borrow().producer(), |id| {
                 crate::game::Dim::from_id(id).key()

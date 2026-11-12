@@ -8,7 +8,6 @@ use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
-    sync::{Arc, Mutex},
 };
 
 /// RecipeManager.RECIPE_PROPERTY_SETS: each set and the ingredients it takes
@@ -388,33 +387,26 @@ pub fn encode_content(types: &[String], sources: &[(String, Value)], reset: bool
     out
 }
 
-/// What the server sends its Horizon clients now (`set_content`).
-static CONTENT: Mutex<Option<Arc<Vec<Vec<u8>>>>> = Mutex::new(None);
+/// One connection's selected recipe types and encoded response. Dropped on disconnect.
+#[derive(Default)]
+pub struct PlayerRecipeSync {
+    pub types: Vec<String>,
+    pub payloads: Vec<Vec<u8>>,
+    sent: bool,
+}
 
-/// The recipe content the server sends from now on, at a join and after a
-/// `/reload` (one server per process, as `lan::sync_data`).
-pub fn set_content(payloads: Vec<Vec<u8>>) {
-    if !payloads.is_empty() {
-        SENT.store(true, std::sync::atomic::Ordering::Relaxed);
+impl PlayerRecipeSync {
+    pub fn replace(&mut self, horizon: bool, mut types: Vec<String>, sources: &[(String, Value)]) {
+        types.sort();
+        types.dedup();
+        self.payloads = if horizon {
+            encode_content(&types, sources, self.sent)
+        } else {
+            Vec::new()
+        };
+        self.sent |= !self.payloads.is_empty();
+        self.types = types;
     }
-    *CONTENT.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(payloads));
-}
-
-/// Whether this server sent its clients recipes before: a later load that
-/// asks for none must put them back on their own (`encode_content`'s reset).
-static SENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-pub fn sent_before() -> bool {
-    SENT.load(std::sync::atomic::Ordering::Relaxed)
-}
-
-/// The payloads to send a Horizon client; none when no mod asked.
-pub fn content() -> Arc<Vec<Vec<u8>>> {
-    CONTENT
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .unwrap_or_default()
 }
 
 /// Horizon recipe viewer transfer channel.
@@ -516,6 +508,24 @@ pub fn byte_result(byte: u8) -> Option<mod_api::RecipeTransferResult> {
         3 => R::NotIntoMenu,
         _ => return None,
     })
+}
+
+/// The recipe content the native mods asked for (stored on this guest),
+/// to one Horizon client: none when no mod asked.
+pub fn send_content(g: &super::guest::Guest) {
+    if g.brand != "horizon" {
+        return;
+    }
+    for data in &g.recipe_sync.payloads {
+        g.send(
+            &horizon_protocol::packets::play::Clientbound::CustomPayload(
+                horizon_protocol::packets::configuration::CustomPayload {
+                    channel: CONTENT_CHANNEL.into(),
+                    data: data.clone(),
+                },
+            ),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -818,5 +828,41 @@ mod content_tests {
         let last: ContentPart = serde_json::from_slice(&parts[1]).unwrap();
         assert!(last.recipes.is_empty());
         assert_eq!(last.last.map(|t| t.len()), Some(5000));
+    }
+}
+
+#[cfg(test)]
+mod per_player_tests {
+    use super::*;
+
+    #[test]
+    fn per_player_content_keeps_grinding_private_and_resets_only_its_owner() {
+        let sources = vec![(
+            "testmod:ore".into(),
+            serde_json::json!({"type":"testmod:grinding", "result":"minecraft:iron_ingot"}),
+        )];
+        let mut a = PlayerRecipeSync::default();
+        let mut b = PlayerRecipeSync::default();
+        let mut vanilla = PlayerRecipeSync::default();
+        a.replace(true, vec!["testmod:grinding".into()], &sources);
+        b.replace(true, vec![], &sources);
+        vanilla.replace(false, vec!["testmod:grinding".into()], &sources);
+        let part = ContentPart::decode(&a.payloads[0]).unwrap();
+        assert_eq!(part.recipes, sources);
+        assert_eq!(part.last, Some(vec!["testmod:grinding".into()]));
+        assert!(b.payloads.is_empty());
+        assert!(vanilla.payloads.is_empty());
+        a.replace(true, vec![], &sources);
+        b.replace(true, vec!["testmod:grinding".into()], &sources);
+        vanilla.replace(false, vec!["testmod:grinding".into()], &sources);
+        assert_eq!(
+            ContentPart::decode(&a.payloads[0]).unwrap().last,
+            Some(vec![])
+        );
+        assert_eq!(
+            ContentPart::decode(&b.payloads[0]).unwrap().recipes,
+            sources
+        );
+        assert!(vanilla.payloads.is_empty());
     }
 }

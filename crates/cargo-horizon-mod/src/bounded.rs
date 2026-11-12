@@ -9,7 +9,6 @@ use std::{
 pub const MAX_CATALOG: u64 = 256 << 20;
 // The largest checked-in slot list is horizon.txt (2,839 bytes). Lists contain
 // declarations, not source; 4 MiB leaves substantial room for mod declarations.
-pub const MAX_SLOTS: u64 = 4 << 20;
 
 #[derive(Debug)]
 pub enum ReadError {

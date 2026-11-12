@@ -2,10 +2,13 @@
 
 use crate::{Identifier, UnspawnedMobError, UnspawnedMobRef, WorldEpoch};
 
-/// A callback lease of an ordered child collection. Retaining this value does not extend
-/// its lifetime: the next listener, nested action or callback return expires it.
+/// A listener-scoped lease of an ordered child collection, acquired with
+/// [`PendingChildrenEdits::children`]. Retaining this value does not extend its lifetime: the
+/// next listener, a nested dispatch or the callback's return expires it. Acquire it again in each
+/// callback.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, horizon_mod_api_macros::Wire)]
 #[wire(internal_field_layouts)]
+#[non_exhaustive]
 pub struct PendingChildrenRef {
     pub(crate) epoch: WorldEpoch,
     pub(crate) action: u64,
@@ -14,6 +17,7 @@ pub struct PendingChildrenRef {
 
 impl PendingChildrenRef {
     /// Engine transport constructor. Every operation validates the complete lease.
+    // hidden: engine transport only; arena validation grants authority
     #[doc(hidden)]
     pub fn new(epoch: WorldEpoch, action: u64, lease: u64) -> Self {
         Self {
@@ -24,6 +28,7 @@ impl PendingChildrenRef {
     }
 
     /// Engine transport components.
+    // hidden: engine transport only; arena validation grants authority
     #[doc(hidden)]
     pub fn parts(self) -> (WorldEpoch, u64, u64) {
         (self.epoch, self.action, self.lease)
@@ -34,12 +39,14 @@ impl PendingChildrenRef {
 /// once, even if a mod retained a copy of this token. It cannot name a resident entity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, horizon_mod_api_macros::Wire)]
 #[wire(internal_field_layouts)]
+#[non_exhaustive]
 pub struct UnattachedMob {
     pub(crate) mob: UnspawnedMobRef,
 }
 
 impl UnattachedMob {
     /// Engine transport constructor; the arena checks that the child is detached.
+    // hidden: engine transport only; arena validation grants authority
     #[doc(hidden)]
     pub fn new(mob: UnspawnedMobRef) -> Self {
         Self { mob }
@@ -95,6 +102,9 @@ impl PendingMobSpec {
 /// edits are visible to the next listener; unattached children die when this lease ends.
 /// This edits only nonresident objects; the action's transaction controls eventual insertion.
 pub trait PendingChildrenEdits {
+    /// The collection for this listener. Call it in every callback: a lease from an earlier
+    /// listener, or from before a nested dispatch, answers `Expired`.
+    fn children(&self) -> Result<PendingChildrenRef, UnspawnedMobError>;
     /// Number of attached children, in insertion order.
     fn len(&self, children: PendingChildrenRef) -> Result<u32, UnspawnedMobError>;
     /// Whether the collection is empty.

@@ -671,6 +671,17 @@ impl MapData {
         Some(map)
     }
 }
+/// What a read of a map gives: from the cache when the map is loaded, else from its saved file.
+fn map_read<T>(
+    cached: Option<&MapData>,
+    saved: impl FnOnce() -> Option<MapData>,
+    read: impl FnOnce(&MapData) -> T,
+) -> Option<T> {
+    match cached {
+        Some(map) => Some(read(map)),
+        None => saved().map(|map| read(&map)),
+    }
+}
 pub(super) struct Maps {
     pub data: HashMap<i32, MapData>,
     /// The highest map id handed out (`maps/last_id.dat`), loaded on first use.
@@ -903,14 +914,17 @@ impl Game<'_> {
     /// `f` of map `id`'s data: the loaded map, else its `.dat` read without keeping it, so a
     /// read needs no `&mut`. None for a map id nothing made.
     pub(super) fn with_map<R>(&self, id: i32, f: impl FnOnce(&MapData) -> R) -> Option<R> {
-        if let Some(map) = self.maps.data.get(&id) {
-            return Some(f(map));
-        }
-        if self.maps.missing.contains(&id) {
-            return None;
-        }
-        let saved = horizon_client::save::read_dat(&self.map_path(&format!("{id}.dat")))?;
-        Some(f(&MapData::from_nbt(&saved)?))
+        map_read(
+            self.maps.data.get(&id),
+            || {
+                if self.maps.missing.contains(&id) {
+                    return None;
+                }
+                horizon_client::save::read_dat(&self.map_path(&format!("{id}.dat")))
+                    .and_then(|saved| MapData::from_nbt(&saved))
+            },
+            f,
+        )
     }
     /// The map's data, loaded from `data/minecraft/maps/<id>.dat` on first use.
     pub(super) fn map(&mut self, id: i32) -> Option<&mut MapData> {
@@ -1289,18 +1303,23 @@ impl Game<'_> {
         self.trigger_block("minecraft:item_used_on_block", hit.pos, before);
         self.audio
             .play("minecraft:item.lodestone_compass.lock", Some(at), 1.0, 1.0);
-        let target = Tag::compound([(
-            "target",
-            Tag::compound([
-                ("dimension", Tag::String(self.dimension_id().into())),
-                ("pos", Tag::IntArray(vec![x, y, z])),
-            ]),
-        )]);
+        let target = Tag::compound([
+            (
+                "target",
+                Tag::compound([
+                    ("dimension", Tag::String(self.dimension_id().into())),
+                    ("pos", Tag::IntArray(vec![x, y, z])),
+                ]),
+            ),
+            ("tracked", Tag::Byte(1)),
+        ]);
         if !self.creative && stack.count == 1 {
-            if let Some(held) = self.held_mut() {
-                held.data_mut()
-                    .set_other("minecraft:lodestone_tracker", Some(target));
-            }
+            self.edit_block_use_stack(|cell| {
+                if let Some(held) = cell {
+                    held.data_mut()
+                        .set_other("minecraft:lodestone_tracker", Some(target.clone()));
+                }
+            });
         } else {
             let mut locked = stack.clone();
             locked.count = 1;
@@ -1977,6 +1996,8 @@ impl Game<'_> {
 
 #[cfg(test)]
 mod live_frame_tests;
+#[cfg(test)]
+mod native_read_tests;
 #[cfg(test)]
 mod save_tests;
 

@@ -31,7 +31,7 @@ const HOSTS: [&str; 4] = [
     "https://gitlab.com/",
 ];
 /// No mod jar is this large; a bigger answer is not one.
-const MAX_JAR: u64 = 512 << 20;
+pub(crate) const MAX_JAR: u64 = 512 << 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -170,8 +170,14 @@ pub fn fetch(
         match made
             .unwrap_or(Ok(()))
             .map_err(|e| e.to_string())
-            .and_then(|()| download(&url, sha1.as_deref(), &dest, true))
-        {
+            .and_then(|()| {
+                // Maven's `.sha1` or nothing: a jar whose checksum couldn't be read isn't taken.
+                let sha1 = sha1
+                    .as_deref()
+                    .filter(|s| s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+                    .ok_or_else(|| format!("{checksum}: no SHA-1"))?;
+                download(&url, Some(sha1), &dest, true)
+            }) {
             Ok(()) => log(format!("loader: {}", dest.display())),
             Err(e) => log(format!(
                 "loader: {e} (structures keep only vanilla biome tags)"

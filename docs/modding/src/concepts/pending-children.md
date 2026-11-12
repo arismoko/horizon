@@ -1,42 +1,12 @@
 # Design: pending children
 
-Provisional answer to [#825](https://github.com/arismoko/horizon/issues/825): the engine owns an action-local ordered collection of fully constructed, unspawned children. Listeners borrow editors; the engine validates and consumes the final collection exactly once at the original insertion boundary. The contract below is implemented; see [Implementation status](#implementation-status) for what is narrower than the design.
+Provisional answer to [#825](https://github.com/arismoko/horizon/issues/825): the engine owns an action-local ordered collection of fully constructed, unspawned children. Listeners borrow editors; the engine validates and consumes the final collection exactly once at the original insertion boundary. This is a proposal, not an implemented API or an issue decision. Ari's side posts the decision on the issue. No implementation stages have been filed.
 
 ## Evidence and limits
 
 Vanilla 26.3 was queried from `/workspace/horizon` using `python3 tools/rea_vanilla.py method net.minecraft.world.entity.animal.Animal spawnChildFromBreeding`. The returned method calls getBreedOffspring, returns for null, sets the baby flag and position, calls finalizeSpawnChildFromBreeding, then addFreshEntityWithPassengers. Thus the proposed callback observes a constructed child before finalization and insertion. Queries for Slime and AbstractCubeMob in the monster package failed class resolution; exact vanilla split method contents and species overrides remain unverified. Horizon's inspected owners below identify AbstractCubeMob.remove as their reference; those comments are not independent vanilla verification.
 
 The issue names NeoForge 26.3 MobSplitEvent.getChildren and BabyEntitySpawnEvent.setChild. Requests to the public [MobSplitEvent Javadoc](https://aldak.netlify.app/javadoc/26.3.x/net/neoforged/neoforge/event/entity/living/MobSplitEvent.html) and [BabyEntitySpawnEvent Javadoc](https://aldak.netlify.app/javadoc/26.3.x/net/neoforged/neoforge/event/entity/living/BabyEntitySpawnEvent.html) failed in the web reader. Exact mutability, null-child, cancellation, parent side effects and supported breeding routes are **unverified**. The issue establishes the desired capability, not proof of NeoForge behavior. No NeoForge source, patches or other project's source was read. Public-contract and remaining vanilla verification gate implementation.
-
-### Implementation verification (2026-11-11)
-
-The public 26.3 Javadoc is reachable at its lowercase, extensionless URLs:
-[MobSplitEvent](https://aldak.netlify.app/javadoc/26.3.x/net/neoforged/neoforge/event/entity/living/mobsplitevent)
-and [BabyEntitySpawnEvent](https://aldak.netlify.app/javadoc/26.3.x/net/neoforged/neoforge/event/entity/living/babyentityspawnevent).
-The former documents a server-side callback during removal with an editable child list:
-listeners may alter children, remove entries or add entries; cancellation prevents child
-spawning. The latter documents replacement of the proposed child, nullable proposed-child
-and getter values, and cancellation preventing insertion and further mating. It names
-Animal's breeding method as its call site. Neither page specifies numeric parent ages,
-construction RNG preservation, statistics, XP or transaction recovery; those remain the
-explicit Horizon policy below, rather than independently established NeoForge details.
-The setter's parameter is not annotated nullable, so the nullable getter alone does not
-establish a null-setting contract. No NeoForge implementation source was read.
-
-Additional vanilla bytecode verification uses the pinned 26.3 client jar via
-`rea_vanilla.py method net.minecraft.world.entity.animal.armadillo.Armadillo getBreedOffspring`.
-Armadillo constructs its offspring with the breeding creation reason and inherits Animal's
-live-birth path. Horizon's ordinary Breed goal emits the common `MobEvent::Breed`, whose
-owner is `creatures::breed`; the old hook prose claiming an armadillo exclusion was
-stale and is removed by this migration. Villagers instead use
-`VillagerMakeLove.breed`, which constructs a villager, sets both parent cooldown ages and
-the child's baby age, positions and inserts it, then emits the child entity event.
-Horizon owns that separate route in `game/mobs/villagers.rs::villager_birth`. These are
-distinct vanilla moments: Animal's callback should include armadillos, while a villager
-callback requires a separately established public counterpart, not a silent expansion of
-this hook. The villager route was independently checked with
-`rea_vanilla.py method net.minecraft.world.entity.ai.behavior.VillagerMakeLove breed`.
-Executed hook fixtures for both route decisions remain required before claiming coverage.
 
 ## Ownership and callback contract
 
@@ -105,47 +75,47 @@ Expected implementation outcomes below are fixtures to write, not tests already 
 
 ## Implementation status
 
-`mob_split` and `baby_entity_spawn` now hand their listeners the engine-owned list described here:
-`children` (`PendingChildrenRef`) and `edits` (`&dyn PendingChildrenEdits`), with the action's `dimension`,
-for native and wasm mods alike (the wasm bindings are generated from the same declarations). The old
-count and kind-string transport is gone, and nothing else keeps the old hook shapes alive.
+**This is staged work.** `mob_split` and `baby_entity_spawn` now hand their listeners the engine-owned
+list described here, natively and through wasm. The pieces that need a transaction coordinator wait for
+[#784](https://github.com/arismoko/horizon/issues/784), which is not in main: outer rollback of a vetoed
+listener's Host writes and per-child join recovery. Until it lands, a veto or a stale refusal spawns no
+child but cannot undo what a listener wrote through the host. #825 stays open for that stage.
 
 What is built:
 
+- **Hooks.** `edits` (`&dyn PendingChildrenEdits`) and the action's `dimension` replace the old count and
+  kind string; each callback gets its list with `edits.children()`. The wasm bindings are generated from
+  the same declarations.
 - **Construction first.** A split constructs every child, with its yaw draw, before the hook; breeding
   calls the hook after the baby is built and has inherited, before finalization and insertion.
 - **Operations.** `len`, `child`, `construct`, `append`, `replace` and `remove`, plus `set_position`,
-  `set_yaw`, `set_baby` and `set_size` on a child, with the refusals above (`Expired`, `Ownership`,
-  `Capacity`, `Invalid`). A split holds at most 64 children, breeding one baby that must stay a baby.
-- **Consumed once.** After dispatch the list is frozen, every child is validated (kind, dimension,
-  finite position and yaw, baby state, species size), and the survivors join in order. A cancel, an
-  emptied list, a parent or world that changed under the listener, or an invalid final child spawns
-  nothing and replays nothing. Cancelling keeps the construction draws and the parent's death;
-  breeding's veto leaves both parents at age 6000 and love 0 with no experience, statistic or hearts.
+  `set_yaw`, `set_baby` and `set_size` on a child, with `Expired`, `Ownership`, `Capacity` and `Invalid`
+  refusals. A split holds at most 64 children, breeding one baby that must stay a baby.
+- **One listener per lease.** Entering the next listener of the hook (or a nested dispatch of it) ends the
+  previous listener's leases, so a list, child or ownership token kept from an earlier listener answers
+  `Expired`. This holds for native and wasm listeners alike.
+- **Consumed once.** After dispatch the list is frozen and validated (kind, dimension, finite position and
+  yaw, baby state, species size), and the survivors join in order. A cancel, an emptied list, a trapped wasm
+  listener, a parent or world that changed under the listener (a parent's position, kind, age, love,
+  variant, colour or tameness differs from what the baby was built from), or an invalid final child spawns
+  nothing and replays nothing. Cancelling keeps the construction draws and the parent's death; breeding's
+  veto leaves both parents at age 6000 and love 0 with no experience, statistic or hearts.
+- **Unpublished while waiting.** A baby breeding hands over keeps its UUID, and its constructor
+  attachments when nothing is bound to them, outside the game's tables until it joins; a split child
+  has none before it joins. A removed or replaced baby, and a panicking listener, leave no state behind.
 - **No listener.** The vanilla loop and the vanilla breeding path run as before, with no list.
-- **Eggs.** Turtle and frog breeding, sniffer egg laying and turtle hatching still make no baby and
-  never fire the hook; armadillos use the ordinary animal path and do. Villagers keep their own path
-  and fire nothing.
+- **Eggs.** Turtle and frog breeding, sniffer egg laying and turtle hatching still make no baby and never
+  fire the hook; armadillos use the ordinary animal path and do. Villagers keep their own path
+  (`villager_birth`, `VillagerMakeLove.breed`), a separate vanilla moment, and fire nothing.
 
-What is deliberately narrower than the design above, and tracked for follow-up:
+Not done, and why:
 
-- A handle lasts the whole dispatch, not one listener: `next_listener` rotation needs the generated
-  dispatch to call it between listeners.
-- A baby breeding hands over is built through the engine's existing constructor, so its UUID and any
-  constructor attachments are published under its reserved entity number while it waits; they are
-  forgotten if a listener removes or replaces it. A child a listener constructs gets its number, UUID
-  and constructor attachments only when it joins.
-- The "outer abort" row (a surrounding transaction restoring parent state, RNG and attachment values) and the
-  per-child join-veto recovery depend on the transaction coordinator of
-  [#784](https://github.com/arismoko/horizon/issues/784), which is not in main yet: there is no action
-  savepoint to join, so this change cannot restore the parent or the RNG, and a listener's Host writes are
-  not rolled back when it vetoes. It supplies what that coordinator consumes: a frozen, validated list
-  consumed exactly once, with no retry of an entered consumer. The outer-abort fixture is not written for
-  that reason.
-- Villagers keep their own birth path (`villager_birth`), a separate vanilla moment with no public
-  counterpart named by the issue; armadillos use the ordinary animal path and are covered by the common hook.
-- Equipment and attribute edits of a pending child go through `PendingChildrenEdits` only for position,
-  yaw, baby state and size today; `UnspawnedMobEdits`' equipment and attribute editor is not lent here.
+- Outer abort (a surrounding transaction restoring parent state, RNG and attachment values) and per-child
+  join-veto recovery: #784. This change supplies what that coordinator consumes, a frozen, validated list
+  consumed exactly once with no retry of an entered consumer, but no outer-abort fixture exists.
+- A native listener's constructor attachments that are bound to an index stay published while the baby
+  waits (they cannot be withheld without the coordinator's rollback).
+- Equipment and attribute edits of a pending child: only position, yaw, baby state and size are editable.
 
 ## Proposed stages
 
@@ -153,8 +123,8 @@ File none. First verify the public counterpart and remaining vanilla routes and 
 
 ## Open questions
 
-- Exact NeoForge 26.3 cancellation side effects and null-child behavior? The public Javadoc verification above establishes replacement and child suppression, but not numeric parent/RNG effects or a nullable setter. Retain the explicit proposed parent/RNG policy.
-- Armadillos inherit Animal's live-birth moment and belong in the common hook. Villagers use a separate behavior method; establish its public counterpart before adding a callback there. Execute fixtures for both route decisions; do not inherit the old declaration's exclusions as proof.
+- Exact NeoForge 26.3 cancellation and null-child behavior? Recommend verify public Javadoc before implementation; retain the explicit proposed parent/RNG policy until Ari decides.
+- Are all live births in scope, including villager and armadillo paths? Recommend trace exact owners and counterpart call moments first; do not quietly inherit today's exclusions as proven parity.
 - How does a downstream residency veto affect a multi-child list? Recommend preserve the existing per-child join refusal contract and record each completion once, while buffering externally visible effects until root commit.
 - Which recovery foundation is ready? Recommend coordinate #2285/#2227/#2112 before activating pending producers; require real nested and partial-consumer tests, not an inferred blanket unwind guarantee.
 - Limits and child type restrictions? Recommend 64 split children, one baby, same dimension, registered mob kinds and species-valid state; permit cross-species replacement with an explicitly baby-initialized breeding child.

@@ -276,8 +276,8 @@ impl ArrowState {
     /// `Arrow.getColor` of the server's own arrow: the colour of the potion on
     /// its pickup item, None for a plain arrow (`PotionContents.EMPTY`).
     pub fn potion_color(&self) -> Option<u32> {
-        let potion = self.pickup_item.potion()?;
-        Some(crate::brewing::potion_color(Some(potion)))
+        (!crate::brewing::contents_empty(&self.pickup_item))
+            .then(|| crate::brewing::contents_color(&self.pickup_item))
     }
     /// The `AbstractArrow` constructor's `pickupItemStack`: the drawn ammo
     /// (one item). Ammo drawn without being used up (`INTANGIBLE_PROJECTILE`)
@@ -873,7 +873,7 @@ impl Ticker<'_, '_, '_, '_> {
         if !self.st.first_tick && self.st.fluids.is_in_fluid(&Tags, LAVA) {
             self.st.fall_distance *= 0.5;
         }
-        if self.position().y < f64::from(self.scene.world.bottom_y() - 64) {
+        if self.position().y < self.scene.world.below_world_y() {
             self.st.removed = true;
         }
         self.st.first_tick = false;
@@ -1143,8 +1143,11 @@ impl Ticker<'_, '_, '_, '_> {
             _ => None,
         }
     }
-    /// `Entity.applyEffectsFromBlocks`: the shared sweep keeps the arrow's
-    /// contact hooks and bubble-column pushes before applying the fire effects.
+    /// `Entity.applyEffectsFromBlocks`: the sweep keeps the arrow's
+    /// bubble-column pushes and applies the fire effects; the part's contact
+    /// fires at the batch that ticks it (Game::sweep_projectile_inside), on
+    /// the shared walk, as items' and the other projectiles' do — this own
+    /// walk no longer records it for the drain.
     fn apply_effects_from_blocks(&mut self, from: Vec3, to: Vec3) {
         if self.st.removed || self.st.no_physics {
             return;
@@ -1153,7 +1156,6 @@ impl Ticker<'_, '_, '_, '_> {
         let (fire_ticks, extinguished) =
             scene.apply_block_effects(from, to, self.st.fire_ticks, |state, p, precise| {
                 let name = &*scene.facts.get(state).name;
-                crate::block_contact::inside(self.p.id as i32, state, p, precise);
                 if name == "minecraft:bubble_column" && precise {
                     self.bubble_column(state, p);
                 }

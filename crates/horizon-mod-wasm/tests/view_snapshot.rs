@@ -46,6 +46,7 @@ fn count(f: impl FnOnce()) -> usize {
 }
 #[test]
 fn borrowed_snapshot_matches_owned_without_clone_allocations() {
+    mod_api::__private::initialize().unwrap();
     use horizon_core::nbt::Tag;
     let mut entity = api::ModBlockEntity::default();
     entity.nbt.insert("progress".into(), Tag::Int(7));
@@ -112,6 +113,7 @@ fn borrowed_snapshot_matches_owned_without_clone_allocations() {
 }
 #[test]
 fn static_string_id_reply_decodes_without_allocating() {
+    mod_api::__private::initialize().unwrap();
     use api::wire::{Reader, guest};
     use std::rc::Rc;
     guest::reset_static_strings();

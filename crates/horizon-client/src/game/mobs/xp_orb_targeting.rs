@@ -98,6 +98,7 @@ mod tests {
             on_ground: false,
             count: 1,
             ticks: 0,
+            air: 300,
             health: 5,
             following: None,
         }

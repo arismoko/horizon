@@ -52,41 +52,38 @@ class MixinsScratchTests(unittest.TestCase):
             self.assertEqual(len(set(allocated)), 2)
 
     def test_self_hosted_scratch_is_private_unique_and_off_tmpfs(self):
-        """Run the actual step twice and record its build-script arguments."""
-        workflow = yaml.load((ROOT / ".github/workflows/mixins-check.yml").read_text(), Loader=yaml.BaseLoader)
-        script = next(step["run"] for step in workflow["jobs"]["mixins-check"]["steps"]
-                      if step.get("name") == "Build the mod through the launcher at this commit")
+        """Run the workflow's own allocation and cleanup steps twice."""
+        workflow = yaml.load((ROOT / ".github/workflows/fn-replace-check.yml").read_text(), Loader=yaml.BaseLoader)
+        steps = {step.get("name"): step for step in workflow["jobs"]["fn-replace-check"]["steps"]}
+        allocate = steps["Allocate private scratch"]["run"]
+        cleanup = steps["Clean private scratch"]
+        self.assertEqual(cleanup["if"], "always()")
+        for name, step in steps.items():
+            if name not in ("Allocate private scratch", "Clean private scratch"):
+                self.assertNotIn("RUNNER_TEMP", step.get("run", ""), name)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            workspace = root / "checkout"
             persistent_target = root / "persistent-target"
-            stub = workspace / "tools/ci/mixins_check.sh"
-            stub.parent.mkdir(parents=True)
-            stub.write_text('#!/bin/bash\nset -eu\n'
-                            'printf "%s\\n" "$2" >> "$RECEIPT"\n'
-                            'if [ "$RUNNER_ENVIRONMENT" = self-hosted ]; then\n'
-                            '  test -d "$2" && test -O "$2"\n'
-                            '  test "$(stat -c %a "$2")" = 700\n'
-                            '  rm -rf "$2" && mkdir -p "$2/sdk-target"\n'
-                            '  test "$(stat -c %a "$2")" = 700\n'
-                            'fi\n')
-            stub.chmod(0o755)
-            receipt = root / "receipt"
-            env = dict(os.environ, GITHUB_WORKSPACE=str(workspace),
-                       CARGO_TARGET_DIR=str(persistent_target), RUNNER_TEMP=str(root / "tmpfs"),
-                       RUNNER_ENVIRONMENT="self-hosted", RECEIPT=str(receipt))
+            receipt = root / "env"
+            env = dict(os.environ, CARGO_TARGET_DIR=str(persistent_target), RUNNER_TEMP=str(root / "tmpfs"),
+                       RUNNER_ENVIRONMENT="self-hosted", GITHUB_ENV=str(receipt))
+            paths = []
             for _ in range(2):
-                subprocess.run(["bash", "-e", "-c", script], cwd=workspace, env=env, check=True)
-            paths = [Path(p) for p in receipt.read_text().splitlines()]
+                receipt.write_text("")
+                subprocess.run(["bash", "-eu", "-c", allocate], env=env, check=True)
+                exports = dict(line.split("=", 1) for line in receipt.read_text().splitlines())
+                scratch = Path(exports["FNR_SCRATCH"])
+                paths.append(scratch)
+                self.assertEqual(scratch.parent, persistent_target)
+                self.assertFalse(scratch.is_relative_to(root / "tmpfs"))
+                self.assertEqual(scratch.stat().st_mode & 0o777, 0o700)
+                (scratch / "prebuilt").mkdir()
+                subprocess.run(["bash", "-eu", "-c", cleanup["run"]], env=dict(env, **exports), check=True)
+                self.assertFalse(scratch.exists(), "scratch is cleaned even on a persistent build volume")
             self.assertEqual(len(set(paths)), 2)
-            for path in paths:
-                self.assertEqual(path.parent, persistent_target)
-                self.assertFalse(path.is_relative_to(workspace))
-                self.assertFalse(path.is_relative_to(root / "tmpfs"))
-                self.assertFalse(path.exists(), "scratch is cleaned even on a persistent build volume")
-            subprocess.run(["bash", "-e", "-c", script], cwd=workspace,
-                           env=dict(env, RUNNER_ENVIRONMENT="github-hosted"), check=True)
-            self.assertEqual(receipt.read_text().splitlines()[-1], str(root / "tmpfs/mixins-check"))
+            receipt.write_text("")
+            subprocess.run(["bash", "-eu", "-c", allocate], env=dict(env, RUNNER_ENVIRONMENT="github-hosted"), check=True)
+            self.assertEqual(receipt.read_text().strip(), f"FNR_SCRATCH={root / 'tmpfs/fn-replace-check'}")
 
 
 if __name__ == "__main__":

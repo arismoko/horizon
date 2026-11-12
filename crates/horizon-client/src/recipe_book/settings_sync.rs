@@ -3,7 +3,7 @@ use super::{BookFlags, CustomBooks};
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
-pub const CHANNEL: &str = "horizon:recipe_book_settings";
+pub use horizon_protocol::custom_book::CHANNEL;
 pub const MAX_BYTES: usize = 512 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

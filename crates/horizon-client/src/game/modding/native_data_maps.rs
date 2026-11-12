@@ -170,7 +170,7 @@ impl DataMaps {
                     let file = serde_json::from_slice::<Value>(bytes).ok();
                     if file
                         .as_ref()
-                        .is_some_and(|file| !overlay.conditions.allows(file))
+                        .is_some_and(|file| !overlay.conditions.allows_file(file, &wanted))
                     {
                         continue;
                     }

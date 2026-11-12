@@ -1,0 +1,25 @@
+id = "fnr_lower"
+name = "Function replacement check: a function below the game crate"
+version = "0.1.0"
+description = "fn-replace: HEAD on a listed horizon-client-lib function, copied into its own patch crate"
+authors = []
+api = "0.2"
+side = "both"
+capabilities = ["registries"]
+
+[native]
+game = "26.3"
+horizon = "HEAD"
+mixins = "MIXINS"
+
+[[native.mixin]]
+id = "commands"
+target = "horizon_client_lib::lan::hub::Hub::set_mod_commands"
+kind = "HEAD"
+helper = "src/mixins/commands.rs"
+
+[[native.mixin]]
+id = "worldgen"
+target = "horizon_client_lib::vanillagen::shared_data_with"
+kind = "HEAD"
+helper = "src/mixins/worldgen.rs"

@@ -150,7 +150,7 @@ pub struct Meta {
     /// launcher's own version, which follows updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    /// This instance's saved native build choice; missing or unknown starts at Balanced.
+    /// This instance's saved native build choice; missing or unknown starts at Optimized.
     #[serde(
         default,
         deserialize_with = "saved_profile",
@@ -259,7 +259,7 @@ pub struct Instance {
     pub group: Option<String>,
     /// Its pinned Horizon version, if any (`Meta::version`).
     pub version: Option<String>,
-    /// Its saved native build choice, or Balanced before the player chooses one.
+    /// Its saved native build choice, or Optimized before the player chooses one.
     pub native_profile: crate::native_mods::Profile,
     pub played: Duration,
     pub last_played: Option<SystemTime>,
@@ -365,7 +365,7 @@ fn list_in(game_home: &Path, data: &Path) -> Vec<Instance> {
                 version: meta.version,
                 native_profile: meta
                     .native_profile
-                    .unwrap_or(crate::native_mods::Profile::Balanced),
+                    .unwrap_or(crate::native_mods::Profile::Optimized),
                 played: Duration::from_secs(meta.played_secs),
                 last_played: meta
                     .last_played

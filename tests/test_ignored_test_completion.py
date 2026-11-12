@@ -237,6 +237,23 @@ class Legs(unittest.TestCase):
         with patch.object(ignored_tests.subprocess, "run", side_effect=fake), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(ignored_tests.run("example", [], 1, 2), {first: True, second: True})
 
+    def test_slow_notices_are_not_results_even_when_interleaved(self):
+        name = "join_seq::visibility::tests::unbound_passes_block_until_restore_consumption_and_unwind"
+        notice = f"test {name} has been running for over 60 seconds"
+        expected = {name}
+        for text in (
+            f"{notice}\ntest {name} ... ok",
+            f"test fixture_peer ... {notice}\ntest {name} ... ok",
+            f"{notice} test {name} ... ok",
+        ):
+            with self.subTest(text=text):
+                records = [record for line in text.splitlines()
+                           for record in ignored_tests.listed_result_records(line, expected, len(name))]
+                self.assertEqual(records, [(name, "ok")])
+        for text in (notice, f"failures: {name}", f"test fixture_peer ... {notice}"):
+            with self.subTest(text=text):
+                self.assertEqual(list(ignored_tests.listed_result_records(text, expected, len(name))), [])
+
     def test_duplicate_and_ambiguous_listed_results_fail_closed(self):
         name = leg_names()[1][0]
         cases = [

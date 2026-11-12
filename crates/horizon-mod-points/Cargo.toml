@@ -24,9 +24,23 @@ syn = "2"
 quote = "1"
 
 [dev-dependencies]
+horizon-engine-slots = { path = "../horizon-engine-slots" }
 horizon-mod-api = { path = "../horizon-mod-api", features = ["testing"] }
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
 serde_json = "1"
+
+# These call the places' dispatch themselves, so they need a build whose table has sites.
+[[test]]
+name = "registry"
+required-features = ["listener-fixture"]
+
+[[test]]
+name = "replace"
+required-features = ["listener-fixture"]
+
+[[test]]
+name = "order"
+required-features = ["listener-fixture"]
 
 [lints]
 workspace = true

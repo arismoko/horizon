@@ -65,32 +65,6 @@ def routed():
 
 
 class OwnRunnerTests(unittest.TestCase):
-    def test_wasm_fixture_routes_by_repository_identity(self):
-        workflow = (WORKFLOWS / "wasm-mods.yml").read_text()
-        expression = runs_on(dict(jobs(workflow))["fixture"])
-        self.assertTrue(expression.startswith("${{ "))
-        self.assertTrue(expression.endswith(" }}"))
-        expression = expression[4:-3]
-        # Evaluate the actual workflow expression, not a duplicate routing rule.
-        # These operators have the same precedence and truthy-string behavior
-        # in Python and Actions. Missing PR properties evaluate to empty strings.
-        for event, head, expected in (
-            ("pull_request", "arismoko/horizon", "dyna-large"),
-            ("pull_request", "contributor/horizon", "ubuntu-latest"),
-            ("push", "", "dyna-large"),
-            ("workflow_dispatch", "", "dyna-large"),
-        ):
-            with self.subTest(event=event, head=head):
-                values = {
-                    "github.event_name": event,
-                    "github.event.pull_request.head.repo.full_name": head,
-                    "github.repository": "arismoko/horizon",
-                }
-                evaluated = re.sub(
-                    r"github\.[a-z_.]+", lambda match: repr(values[match[0]]), expression
-                ).replace("&&", " and ").replace("||", " or ")
-                self.assertEqual(eval(evaluated, {"__builtins__": {}}), expected)
-
     def test_workflows_do_not_classify_pull_requests_by_fork_flag(self):
         for path in sorted(WORKFLOWS.glob("*.y*ml")):
             with self.subTest(workflow=path.name):
@@ -110,7 +84,8 @@ class OwnRunnerTests(unittest.TestCase):
                 self.assertIn(FORK_GUARD, value, where)
             else:
                 self.assertIn("vars.SELF_HOSTED_CI != 'off'", value, where)
-            self.assertTrue(value.endswith("|| 'ubuntu-latest' }}"), where)
+            # Both labels select a GitHub-hosted Ubuntu runner when our pools are disabled.
+            self.assertRegex(value, r"\|\| 'ubuntu-(?:latest|24\.04)' \}\}$", where)
             if "checks" in pools:
                 # The desktop paused: every checks job back to GitHub, the bots stay.
                 self.assertIn("vars.SELF_HOSTED_CI != 'light'", value, where)
@@ -134,7 +109,6 @@ class OwnRunnerTests(unittest.TestCase):
     def test_no_secret_or_writing_token_on_our_runners(self):
         for where, _, text, block, _, pools in routed():
             self.assertNotIn("secrets.", block, where)
-            self.assertNotIn("environment:", block, where)
             head = text.split("\njobs:\n", 1)[0]
             for part in (block, head):
                 writes = {m.group(1) for m in TRUSTED_WRITES.finditer(part)}
@@ -146,6 +120,53 @@ class OwnRunnerTests(unittest.TestCase):
                 # A checks runner keeps what a fork's job left: its jobs' tokens write nothing at all.
                 self.assertNotRegex(block, r":\s*write", where)
                 self.assertNotRegex(head, r":\s*write", where)
+
+    def test_no_deployment_environment_on_our_runners(self):
+        import hashlib
+        import sys
+        from unittest.mock import patch
+
+        # Reuse the repository's pinned offline parser, including YAML merge semantics.
+        archive = ROOT / "tools/ci/vendor/pyyaml-6.0.3.zip"
+        self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(),
+                         "94ac21b4343e15647b3b5b5bd594aab5b7d3cd8d2ce17db15acb7260d489b6fc")
+        with patch.object(sys, "path", [str(archive), *sys.path]):
+            import yaml
+        for path in sorted(WORKFLOWS.glob("*.y*ml")):
+            document = yaml.safe_load(path.read_text())
+            for name, job in document["jobs"].items():
+                value = job.get("runs-on", "")
+                if isinstance(value, dict):
+                    value = value.get("labels", [])
+                routes = value if isinstance(value, list) else [value]
+                if any(route == label or f'"{label}"' in route or f"'{label}'" in route
+                       for route in routes for label in LIGHT + CHECKS):
+                    self.assertNotIn("environment", job, f"{path.name} {name}")
+
+    def test_deployment_environment_guard_distinguishes_script_variables(self):
+        import tempfile
+        from unittest.mock import patch
+
+        safe = ("jobs:\n  verify:\n    runs-on: horizon-checks\n    steps:\n"
+                "      - run: |\n          with open('output') as environment:\n              pass\n")
+        forbidden = [
+            safe.replace("    steps:", f"    {key} deployment\n    steps:")
+            for key in ("environment:", "\"environment\":", "'environment' :")
+        ] + [
+            "jobs:\n    verify:\n        runs-on: horizon-checks\n        environment: deployment\n",
+            "jobs:\n  verify: {runs-on: horizon-checks, environment: deployment}\n",
+            "env: &defaults {environment: deployment}\njobs:\n  verify:\n"
+            "    <<: *defaults\n    runs-on: horizon-checks\n",
+        ]
+        with tempfile.TemporaryDirectory() as directory, patch(f"{__name__}.WORKFLOWS", Path(directory)):
+            workflow = Path(directory) / "fixture.yml"
+            workflow.write_text(safe)
+            self.test_no_deployment_environment_on_our_runners()
+            for text in forbidden:
+                with self.subTest(workflow=text):
+                    workflow.write_text(text)
+                    with self.assertRaises(AssertionError):
+                        self.test_no_deployment_environment_on_our_runners()
 
     def test_checks_split_between_both_pools(self):
         ci = (WORKFLOWS / "ci.yml").read_text()

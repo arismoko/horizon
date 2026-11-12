@@ -343,6 +343,7 @@ impl RenderAssets {
     pub fn load(root: &crate::resource_source::ResourceRoot, assets: &Assets) -> Result<Self> {
         Self::load_with(root, assets, true)
     }
+    #[horizon_mod_api_macros::replaceable]
     fn load_with(
         root: &crate::resource_source::ResourceRoot,
         assets: &Assets,
@@ -378,6 +379,16 @@ impl RenderAssets {
             }
             None => crate::model_library::ParsedModels::default(),
         };
+        // Connected-texture rules find their faces by sprite layer: what they match by name keeps a
+        // layer of its own, decided before the models insert their textures.
+        let ctm_rules = if draws {
+            horizon_optifine::ctm::load(root.source())
+        } else {
+            Vec::new()
+        };
+        sprites.keep_apart(crate::connected::ConnectedTextures::matched_sprites(
+            &ctm_rules,
+        ));
         let mut models = if draws {
             let _step = crate::spans::startup::step("core.models_bake");
             crate::models::prepare_with_models(root, registry, &mut sprites, &parsed)?
@@ -434,6 +445,7 @@ impl RenderAssets {
             let mut found = Vec::new();
             crate::connected::ConnectedTextures::load(
                 root.source(),
+                ctm_rules,
                 registry,
                 &mut sprites,
                 |state, face| {
@@ -489,7 +501,8 @@ impl RenderAssets {
             connected,
             fusion,
             mod_animations: crate::mod_animations::Animations::load(root.source()),
-            mod_pipelines: crate::mod_pipelines::Pipelines::load(root.source(), generation),
+            // A required pipeline that doesn't build fails the load: nothing of it is published.
+            mod_pipelines: crate::mod_pipelines::Pipelines::load(root.source(), generation)?,
             generation,
         })
     }

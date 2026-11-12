@@ -37,10 +37,10 @@ macro_rules! assign_resident_ids {
 }
 pub(crate) use assign_resident_ids;
 
-// Projectiles and knots have distinct Game/Parked field paths; keep binding
-// and resolution on this one family list.
+// Projectiles, knots and general rows have distinct Game/Parked field paths;
+// keep binding and resolution on this one family list.
 macro_rules! resident_owners {
-    ($then:ident, $this:ident, $($projectiles:ident).+, $($knots:ident).+) => {
+    ($then:ident, $this:ident, $($projectiles:ident).+, $($knots:ident).+, $($general:ident).+) => {
         $then! {
             ($this, $($projectiles).+)
             Mob => Mob: mobs,
@@ -62,6 +62,7 @@ macro_rules! resident_owners {
             Trident => Trident: tridents,
             Spawner => Spawner: ominous_spawners,
             Cloud => Cloud: breath_clouds,
+            General => General: $($general).+,
         }
     };
 }
@@ -164,7 +165,10 @@ pub(crate) use resident_lifetime_slot;
 
 macro_rules! define_resident_access {
     (($this:ident, $($projectiles:ident).+) $($kind:ident => $target:ident: $($field:ident).+,)*) => {
-        pub(super) fn bind_resident_owners(&mut $this, journal: &Journal, dimension: DimensionKey) {
+        pub(super) fn bind_resident_owners(&mut $this, journal: &Journal, dimension: DimensionKey, track_saved_uuids: bool) {
+            if track_saved_uuids {
+                $this.persist.uuids.bind(journal, dimension);
+            }
             $($crate::game::entity_residency::bind_resident_list!($kind, $this$(.$field)+, journal, Owner { dimension, kind: Kind::$kind });)*
             $this$(.$projectiles)+.bind_residency(journal, Owner { dimension, kind: Kind::Projectile }, |entity| (entity.id, entity.join_seq()));
             $this.dragon.bind_residency_specialized(journal, Owner { dimension, kind: Kind::Dragon }, |entity| (entity.id, entity.join_seq()), horizon_client::join_seq::residency::Source::Ordinary, Some((Kind::DragonPart, 8, |dragon, offset| dragon.parts.get(usize::from(offset)).map(|part| part.3))), None);
@@ -195,7 +199,7 @@ macro_rules! define_resident_access {
                 Kind::Player | Kind::Hook => SlotAccess::UnsupportedKind(at.owner.kind),
             }
         }
-        pub(super) fn locate_resident_owner(&$this, at: Location) -> Option<SourceEntity<(Target, bool)>> {
+        pub(super) fn locate_resident_attachment_owner(&$this, at: Location) -> Option<SourceEntity<(Target, bool)>> {
             let source = match at.owner.kind {
                 $(Kind::$kind => {
                     let index = $this$(.$field)+.locate(at.join)?;
@@ -221,11 +225,20 @@ macro_rules! define_resident_access {
                     if dragon.id == 0 { return None; }
                     dragon.parts.get(usize::from(offset))?;
                     let id = dragon.id.checked_add(u32::from(offset) + 1)?;
-                    let visible = !$this.persist.removals.contains(&Target::Dragon(dragon.id));
+                    let visible = true;
                     Some(SourceEntity { id, value: (Target::DragonPart(id), visible) })
                 }
                 Kind::Player | Kind::Hook => None,
             };
+            source
+        }
+        pub(super) fn locate_resident_owner(&$this, at: Location) -> Option<SourceEntity<(Target, bool)>> {
+            let source = $this.locate_resident_attachment_owner(at).map(|mut source| {
+                if let Target::DragonPart(_) = source.value.0 {
+                    source.value.1 &= $this.dragon.as_ref().is_some_and(|dragon| !$this.persist.removals.contains(&Target::Dragon(dragon.id)));
+                }
+                source
+            });
             // Logical visibility is not physical absence: filtering here would
             // incorrectly evict reversible conversion rows or report Taken.
             source.map(|mut source| {
@@ -243,7 +256,8 @@ impl Game<'_> {
         define_resident_access,
         self,
         creatures.projectiles,
-        resident_entities.knots
+        resident_entities.knots,
+        resident_entities.general.rows
     );
 }
 

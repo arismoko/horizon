@@ -1,6 +1,7 @@
 // Generated fixtures exercise every shape; TODO(#2273): make the generator emit clippy-clean code.
 #![allow(clippy::all, unused_comparisons, unreachable_patterns, dead_code)]
-#![cfg(feature = "wasm-guest")]
+// It calls the places' dispatch itself, so it needs a build whose table has sites.
+#![cfg(all(feature = "wasm-guest", feature = "listener-fixture"))]
 
 use mod_api::wire::{Reader, Record, Writer};
 use mod_points::{
@@ -97,20 +98,11 @@ fn top_return(args: &mut mod_points::GameServerLinksListTopArgs) {
     args.result = Some(value + 1.0);
 }
 
-#[horizon_mod_api_macros::point(name = "game_server_links_list_top", raw, free)]
+#[horizon_mod_api_macros::point(slot = 0, name = "game_server_links_list_top", free)]
 fn fixture_list_top(h: f32, n: usize) -> f32 {
     BODY.fetch_add(1, Ordering::Relaxed);
     h + n as f32
 }
-
-pub struct __GameServerLinksListTopRaw<'r, H, N, R> {
-    pub h: &'r mut H,
-    pub n: &'r mut N,
-    pub result: &'r mut Option<R>,
-}
-pub type __GameServerLinksListTopListener =
-    for<'r> fn(&'r mut __GameServerLinksListTopRaw<'r, f32, usize, f32>);
-pub type __GameServerLinksListTopReturnListener = fn(&mut f32);
 
 static LOOPBACK_HEAD: Loopback = Loopback(0);
 static LOOPBACK_RETURN: Loopback = Loopback(1);
@@ -167,6 +159,7 @@ fn head_and_return_share_the_hook_arena_and_native_listener_list() {
         .unwrap();
     }
     mod_points::__private::seal();
+    __pointa_fixture_list_top();
     let mut args = mod_points::TickArgs::__new();
     mod_points::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
     assert!(args.cancel);
@@ -224,4 +217,23 @@ fn malformed_writeback_is_atomic() {
     assert!(!args.cancel);
     args.apply(&[1]).unwrap();
     assert!(args.cancel);
+}
+
+static __REPLACE: [std::sync::atomic::AtomicPtr<()>; 2] =
+    [const { std::sync::atomic::AtomicPtr::new(std::ptr::null_mut()) }; 2];
+fn __fnr_read_slot_0() -> Option<fn(f32, usize) -> f32> {
+    let pointer = crate::__REPLACE[0].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(f32, usize) -> f32>(pointer) })
+    }
+}
+fn __fnr_read_body_0() -> Option<fn(f32, usize) -> f32> {
+    let pointer = crate::__REPLACE[1].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(f32, usize) -> f32>(pointer) })
+    }
 }

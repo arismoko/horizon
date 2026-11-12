@@ -234,16 +234,9 @@ impl Game<'_> {
     /// stepping on, placing, hitting and falling on it. None for an unknown state.
     pub(super) fn block_state_sound(&self, state: BlockStateId) -> Option<BlockSoundType> {
         self.pack.assets.registry.state(state)?;
-        let sounds = &self.res.facts().get(state).sounds;
-        Some(BlockSoundType {
-            volume: sounds.volume,
-            pitch: sounds.pitch,
-            break_sound: Arc::clone(&sounds.break_sound),
-            step: Arc::clone(&sounds.step),
-            place: Arc::clone(&sounds.place),
-            hit: Arc::clone(&sounds.hit),
-            fall: Arc::clone(&sounds.fall),
-        })
+        Some(horizon_client::block_sounds::own(
+            &self.res.facts().get(state).sounds,
+        ))
     }
     /// `BlockState.hasBlockEntity()`. None for an unknown state.
     pub(super) fn block_state_has_block_entity(&self, state: BlockStateId) -> Option<bool> {

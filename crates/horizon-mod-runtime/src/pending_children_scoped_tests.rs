@@ -238,3 +238,46 @@ fn shared_cancel_and_stale_verdicts_never_validate_or_consume() {
     assert_eq!(drops.get(), 2);
     assert!(arena.borrow().frames.is_empty());
 }
+
+#[test]
+fn a_moved_listener_count_ends_the_previous_lease_and_an_unmoved_one_keeps_it() {
+    let arena = RefCell::new(PendingChildren::default());
+    let drops = Rc::new(Cell::new(0));
+    let frozen = PendingChildren::run_scoped(
+        &arena,
+        7,
+        64,
+        vec![Child('A', drops.clone())],
+        |action| {
+            arena.borrow_mut().sync_listener(10).unwrap();
+            // The first listener's lease and borrow.
+            let (_, first) = arena.borrow().lease(action).unwrap();
+            let kept = arena.borrow().borrow(action, 0).unwrap();
+            let token = arena
+                .borrow_mut()
+                .construct(action, Child('T', drops.clone()))
+                .unwrap();
+            let token = arena.borrow().borrow_owned(token).unwrap();
+            // The same count: nothing ends.
+            arena.borrow_mut().sync_listener(10).unwrap();
+            assert!(arena.borrow().get(kept).is_ok());
+            // A listener entered: its predecessor's lease, borrows and detached children end.
+            arena.borrow_mut().sync_listener(11).unwrap();
+            let (_, second) = arena.borrow().lease(action).unwrap();
+            assert_ne!(first, second);
+            assert_eq!(arena.borrow().get(kept).err(), Some(Error::Expired));
+            assert_eq!(arena.borrow().get(token).err(), Some(Error::Expired));
+            // The attached child survives into the new lease.
+            assert!(arena.borrow().borrow(action, 0).is_ok());
+            Decision::Accept
+        },
+        |_| true,
+    )
+    .unwrap();
+    assert_eq!(names(frozen), ['A']);
+    assert_eq!(
+        drops.get(),
+        2,
+        "the detached token, then the consumed child"
+    );
+}

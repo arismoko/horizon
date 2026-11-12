@@ -45,12 +45,24 @@ pub fn prepare() -> Startup {
     }
 }
 
-/// A native function slot, checked against its place's exact type before erasure.
-pub use mod_points::__private::SlotListener as NativeSlot;
+/// Refuse startup if any merged copy could not be installed, before loading any mod.
+/// Cells cannot roll back: each copy merges all requesting rows, so stopping the whole
+/// start is how we ensure none of a refused mod's rows run.
+pub fn installed(patched: &[(&str, &[&str], bool)]) {
+    let refusals = installation_refusals(patched);
+    for line in &refusals {
+        eprintln!("{line}");
+    }
+    if !refusals.is_empty() {
+        std::process::exit(game::exit_code::ERROR);
+    }
+}
 
-/// The places raw listeners register at, named by the generated `main`.
-#[doc(hidden)]
-pub use mod_points::PointId;
+fn installation_refusals(patched: &[(&str, &[&str], bool)]) -> Vec<String> {
+    patched.iter().filter(|(_, _, installed)| !installed).map(|(target, mods, _)| {
+        format!("Horizon: {}: {target}: a patched copy was already installed; the game was not started", mods.join(", "))
+    }).collect()
+}
 
 /// Code-runtime services supplied by the platform at startup.
 pub struct CodeRuntime {
@@ -74,7 +86,7 @@ pub(crate) fn code_refusal(id: &str) -> Option<String> {
     CODE_RUNTIME.get().and_then(|runtime| (runtime.refusal)(id))
 }
 
-/// Start with named mods and their function slots in installed dependency order.
+/// Start the engine with dependency-ordered code supplied by the host.
 pub fn start<G>(
     native: horizon_mod_package::runtime::Runtime,
     load: impl FnOnce(
@@ -82,7 +94,6 @@ pub fn start<G>(
         &LaunchArguments,
     ) -> (Vec<&'static str>, G),
     code: CodeRuntime,
-    slots: &[NativeSlot],
     startup: Startup,
 ) {
     let _ = CODE_RUNTIME.set(code);
@@ -92,6 +103,7 @@ pub fn start<G>(
         _capture,
     } = startup;
     horizon_threads::configure_allocator();
+    horizon_chat_filter::install();
     horizon_look::give();
     // OptiFine's and Polytone's pack formats (platform, docs/layers.md), before any pack loads.
     horizon_client::pack_formats::install();
@@ -107,6 +119,8 @@ pub fn start<G>(
     // then the Horizon parts still in this crate; none registers after this point.
     game::player_hooks::register();
     horizon_hooks::engine::seal();
+    // The text crates ship (`horizon_hooks::lang`), loaded with the game's own languages.
+    horizon_client::lang::install_crate_files(horizon_hooks::lang::engine::all());
     horizon_client::spans::startup::init(std::time::Instant::now());
     horizon_client::spans::trace::start_from_env();
     logging::set_game_home(launch.context.home.clone());
@@ -134,16 +148,7 @@ pub fn start<G>(
     // The log's first line names the build, so a bug report that carries the log says which one it was.
     log::info!("Horizon {}", crash::version());
     // Mod loading emits refusals; both client and dedicated logs must exist first.
-    let (ids, _loaded_code) = load(&native, &launch);
-    for id in ids {
-        for slot in slots.iter().filter(|slot| slot.id() == id) {
-            if let Err(error) = mod_points::register(slot) {
-                log::error!("Horizon: {id}: {error}");
-                logging::flush();
-                std::process::exit(game::exit_code::ERROR);
-            }
-        }
-    }
+    let (_ids, _loaded_code) = load(&native, &launch);
     crash::install(home.clone(), side);
     if horizon_world::native_load_hooks::install(
         horizon_world::native_load_hooks::NativeLoadHooks {
@@ -370,6 +375,9 @@ pub(crate) fn install_client_hooks() {
             let context = reader.context();
             mod_api::dispatch_fluid_flow(&context, fluid, pos, flow);
         },
+        sound_type: |context, pos, state, entity, cause, sound| {
+            crate::game::native_block_sounds::sound_type(context, pos, state, entity, cause, sound);
+        },
     }) {
         log::warn!("Native client hooks already installed; keeping the first callbacks");
     }
@@ -408,5 +416,22 @@ fn raise_open_file_limit() {
                 Err(e) => log::warn!("Open file limit stays at {:?}: {e}", limit.current),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod installation_tests {
+    #[test]
+    fn refused_install_names_all_mods_and_only_failed_targets() {
+        assert_eq!(
+            super::installation_refusals(&[
+                ("game::tick", &["first", "second"], false),
+                ("game::other", &["third"], true)
+            ]),
+            vec![
+                "Horizon: first, second: game::tick: a patched copy was already installed; the game was not started"
+            ]
+        );
+        assert!(super::installation_refusals(&[]).is_empty());
     }
 }

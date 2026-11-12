@@ -7,10 +7,12 @@
 //! network pays nothing.
 pub mod abilities;
 mod advancements;
+pub mod config_payloads;
 pub use advancements::ServerAdvancements;
 pub mod anticheat;
 pub mod arrivals;
 pub mod attributes;
+mod biome_resend;
 pub mod border;
 pub mod chunk_watch;
 pub mod chunks;
@@ -56,7 +58,7 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, AtomicUsize, Ordering},
-        mpsc::{Receiver, Sender, channel},
+        mpsc::{Receiver, channel},
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -67,6 +69,8 @@ pub const MAX_PLAYERS: usize = 8;
 
 /// Messages from the connection threads to the game thread.
 pub enum NetEvent {
+    /// Frozen receiver identity and credit, retained through its main root transaction.
+    RawPayload(Box<crate::raw_payloads::Delivery>),
     /// A client finished configuration and enters the play state.
     Joined(Box<Joined>),
     /// A packet and the bytes of its body on the wire.
@@ -92,6 +96,70 @@ pub struct Joined {
     /// The login used up an expectation of a proxy's (`player-expect`) when it
     /// started (`arrivals`).
     pub expected: bool,
+}
+pub(crate) fn event_channel() -> (
+    crate::net::ingress::Producer<NetEvent>,
+    crate::net::ingress::Consumer<NetEvent>,
+) {
+    crate::net::ingress::channel(96 << 20, NetEvent::ingress_charge)
+        .expect("positive incoming byte budget")
+}
+#[cfg(test)]
+pub(crate) fn event_channel_with_capacity(
+    capacity: usize,
+) -> (
+    crate::net::ingress::Producer<NetEvent>,
+    crate::net::ingress::Consumer<NetEvent>,
+) {
+    crate::net::ingress::channel(capacity, NetEvent::ingress_charge)
+        .expect("positive test incoming byte budget")
+}
+impl NetEvent {
+    fn ingress_charge(&self) -> usize {
+        use horizon_protocol::retained::OwnedHeap;
+        use std::mem::size_of;
+        let owned = match self {
+            Self::RawPayload(delivery) => size_of::<crate::raw_payloads::Delivery>()
+                .saturating_add(delivery.incoming.owned_heap_bytes()),
+            Self::Joined(joined) => {
+                let Joined {
+                    conn: _,
+                    uuid: _,
+                    name,
+                    properties,
+                    info,
+                    brand,
+                    sender: _,
+                    latency: _,
+                    address: _,
+                    expected: _,
+                } = joined.as_ref();
+                // sender/latency are shared physical provider state, not this record.
+                size_of::<Joined>()
+                    .saturating_add(name.capacity())
+                    .saturating_add(properties.owned_heap_bytes())
+                    .saturating_add(info.owned_heap_bytes())
+                    .saturating_add(brand.capacity())
+            }
+            Self::Packet(_, packet, _) => {
+                size_of::<play::Serverbound>().saturating_add(packet.as_ref().owned_heap_bytes())
+            }
+            Self::Left(_, reason) => reason.capacity(),
+            Self::Duplicate(_) => 0,
+        };
+        // Source snapshot, guest inbox, derived HostEvent batch and credit marker,
+        // with spare-capacity allowance. No wire-length proxy for owned buffers.
+        owned.saturating_add(
+            8 * size_of::<(
+                Self,
+                play::Serverbound,
+                hub::HostEvent,
+                crate::net::ingress::ReceiveLease<Self>,
+                usize,
+                usize,
+            )>(),
+        )
+    }
 }
 /// What a [`PlayerSender`] made for a test's channel gives it.
 pub enum Out {
@@ -380,9 +448,10 @@ impl SecureChat {
 
 /// State shared with the connection threads.
 pub struct Shared {
+    payload_local: Arc<crate::raw_payloads::Local>,
     /// What the next login is sent; `PlayerList.reloadResources` swaps it.
     sync: Mutex<Arc<data::SyncData>>,
-    pub events: Sender<NetEvent>,
+    pub events: crate::net::ingress::Producer<NetEvent>,
     pub config: NetConfig,
     motd: Mutex<String>,
     max_players: AtomicUsize,
@@ -445,6 +514,19 @@ impl Shared {
     ) -> Option<horizon_core::nbt::Tag> {
         if self.shutting_down.load(Ordering::Relaxed) {
             return Some(translatable("multiplayer.disconnect.server_shutdown", &[]));
+        }
+        // IntegratedPlayerList.canPlayerLogin: the owner's name (ignoring case,
+        // `isSingleplayerOwner`) is refused while a player of that name is online.
+        if let Some((owner, _)) = &self.config.singleplayer_profile
+            && owner.eq_ignore_ascii_case(name)
+            && self
+                .online
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(_, online)| online.eq_ignore_ascii_case(name))
+        {
+            return Some(translatable("multiplayer.disconnect.name_taken", &[]));
         }
         if let Some(gate) = &self.config.gate
             && let Some(reason) = gate(address, uuid, name)
@@ -623,7 +705,7 @@ pub fn base64(data: &[u8]) -> String {
 /// A running LAN server.
 pub struct Lan {
     pub shared: Arc<Shared>,
-    events: Receiver<NetEvent>,
+    events: crate::net::ingress::Consumer<NetEvent>,
     pub port: u16,
     listener: Option<JoinHandle<()>>,
     /// Stops the accept loop alone: local connections stay.
@@ -643,11 +725,13 @@ impl Lan {
     }
     /// ServerConnectionListener.startTcpServerListener with a configuration.
     pub fn start_with(sync: Arc<data::SyncData>, config: NetConfig) -> io::Result<Self> {
-        let (tx, events) = channel();
+        let (tx, events) = event_channel();
         let (listen, port, announce) = (config.listen, config.port, config.announce);
         let hide_online_players = config.hide_online_players;
         let enable_status = config.enable_status;
         let shared = Arc::new(Shared {
+            payload_local: crate::raw_payloads::Local::capture(crate::raw_payloads::Side::Server)
+                .map_err(io::Error::other)?,
             sync: Mutex::new(sync),
             events: tx,
             motd: Mutex::new(config.motd.clone()),
@@ -763,8 +847,8 @@ impl Lan {
         Ok(client)
     }
     /// Everything the connection threads reported since the last call.
-    pub fn poll(&self) -> Vec<NetEvent> {
-        self.events.try_iter().collect()
+    pub fn poll(&self) -> Vec<crate::net::ingress::OwnedReceipt<NetEvent>> {
+        self.events.take_turn()
     }
     pub fn stop(&mut self) {
         self.shared.stop.store(true, Ordering::Relaxed);
@@ -1115,6 +1199,37 @@ mod tests {
             Some(translatable("multiplayer.disconnect.server_shutdown", &[]))
         );
         assert_eq!(lan.shared.online(), 1);
+    }
+
+    /// `IntegratedPlayerList.canPlayerLogin`: a login whose name is the
+    /// singleplayer owner's (`IntegratedServer.isSingleplayerOwner`, ignoring
+    /// case) is refused with `multiplayer.disconnect.name_taken` while a player
+    /// of that name is online. The owner's own first login, and any other name,
+    /// get in; a server with no owner profile (a dedicated one) has no such rule.
+    #[test]
+    fn a_login_with_the_owners_name_is_refused_while_the_owner_is_online() {
+        let owned = NetConfig {
+            announce: false,
+            listen: false,
+            singleplayer_profile: Some(("Owner".to_owned(), 1)),
+            ..NetConfig::loopback(0, "Owned".into(), 8)
+        };
+        let lan = Lan::start_with(Arc::new(data::SyncData::empty()), owned).unwrap();
+        let taken = Some(translatable("multiplayer.disconnect.name_taken", &[]));
+        assert!(lan.shared.try_admit(MEMORY_ADDRESS, 1, "Owner").is_none());
+        assert_eq!(lan.shared.try_admit(MEMORY_ADDRESS, 2, "oWNER"), taken);
+        assert_eq!(lan.shared.try_admit(MEMORY_ADDRESS, 1, "Owner"), taken);
+        assert!(lan.shared.try_admit(MEMORY_ADDRESS, 3, "Guest").is_none());
+        assert_eq!(lan.shared.online(), 2);
+
+        let dedicated = NetConfig {
+            announce: false,
+            listen: false,
+            ..NetConfig::loopback(0, "Dedicated".into(), 8)
+        };
+        let lan = Lan::start_with(Arc::new(data::SyncData::empty()), dedicated).unwrap();
+        assert!(lan.shared.try_admit(MEMORY_ADDRESS, 1, "Owner").is_none());
+        assert!(lan.shared.try_admit(MEMORY_ADDRESS, 2, "oWNER").is_none());
     }
 
     #[test]

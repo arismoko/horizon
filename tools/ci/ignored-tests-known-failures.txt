@@ -22,6 +22,7 @@ horizon-client game::remote_mob_data::tests::raider_celebration_parity_fixture t
 horizon-client-lib item_render::glint_tests::external_item_atlas_oracle HORIZON_GLINT_ROOT harness
 horizon-client-lib mobs::dragon_contacts::parity::contact_transcript tools/test_dragon_contacts_parity.py harness
 horizon-client-lib mobs::villager_brain::farming_tests::vanilla_farming_classification_matches_the_oracle tools/test_villager_farming_parity.py harness
+horizon-client-lib mobs::villager_brain::reputation_witness_tests::witnesses_use_sensor_candidates_radius_invisibility_and_cached_results tools/test_villager_witness_parity.py harness
 horizon-client-render packs::cache::tests::benchmark_real_resource_root HORIZON_OVERLAY_BENCH_VANILLA harness
 
 # Tests that need a graphics adapter (REFERENCE is the ignore reason's word).

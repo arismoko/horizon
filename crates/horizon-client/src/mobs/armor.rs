@@ -1,5 +1,6 @@
 //! Effective mob armor and toughness at the damage boundary.
 use super::Mob;
+use super::finalize::{self, Attr};
 use horizon_world::attribute_map::ValueKind;
 use horizon_world::attributes::{
     Definition,
@@ -94,7 +95,9 @@ pub fn values(mob: &Mob) -> (f32, f32) {
         }
     }
     let map = mob.extra.armor_attributes.as_deref();
-    let armor = effective(map, "minecraft:armor", f64::from(mob.kind.armor), 0.0, 30.0);
+    let armor_base =
+        finalize::base_value_with(mob, Attr::Armor, || Some(f64::from(mob.kind.armor)));
+    let armor = effective(map, "minecraft:armor", armor_base, 0.0, 30.0);
     let toughness = effective(
         map,
         "minecraft:armor_toughness",
@@ -318,5 +321,41 @@ mod tests {
         // No map yet: the type default with the bonus, in range.
         assert_eq!(max_absorption_of(None, 0.0, 8.0), 8.0);
         assert_eq!(max_absorption_of(None, 0.0, -4.0), 0.0);
+    }
+
+    fn magma_cube(size: i32) -> Mob {
+        let mut kind = crate::mobs::sensor_scan_tests::kind();
+        let ty = Arc::make_mut(&mut kind);
+        ty.id = "minecraft:magma_cube".into();
+        ty.species = Species::MagmaCube;
+        let mut mob = Mob::new(1, kind, Vec3::ZERO, 0.0);
+        crate::mobs::cube::set_size(&mut mob, size);
+        mob
+    }
+
+    /// MagmaCube.setSize writes `size * 3` into `Attributes.ARMOR`, and
+    /// `LivingEntity.getArmorValue` reads that base back (no armor map needed).
+    #[test]
+    fn magma_cube_armor_is_its_size_times_three_and_softens_hits() {
+        for size in [2, 4] {
+            assert_eq!(
+                values(&magma_cube(size)),
+                ((size * 3) as f32, 0.0),
+                "size {size}"
+            );
+        }
+        let mut small = magma_cube(1);
+        let mut big = magma_cube(4);
+        let hit = Damage::of(DamageKind::Cactus);
+        let small_before = small.health;
+        let big_before = big.health;
+        assert!(small.damage(&mut crate::health::TestLevel::new(0).level(), 0.5, hit));
+        assert!(big.damage(&mut crate::health::TestLevel::new(0).level(), 0.5, hit));
+        assert!(
+            big_before - big.health < small_before - small.health,
+            "size 4 lost {} and size 1 lost {}",
+            big_before - big.health,
+            small_before - small.health
+        );
     }
 }

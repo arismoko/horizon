@@ -1,4 +1,5 @@
 ContainerEventHandler.getChildAt	port	crates/horizon-client-render/src/pack_screen.rs::PackScreen::button_at	gap: minor: says whether a button is under the pointer; list rows are hit-tested in PackScreen::click
+ContainerEventHandler.mouseClicked	port	crates/horizon-client/src/game/social.rs::Game::social_click	the children in order: each screen routes its own clicks, and the social screen's search box takes the click before its tabs, buttons and Done (social_screen::click_kind)
 ContainerEventHandler.mouseReleased	port	crates/horizon-client-render/src/pack_screen.rs::PackScreen::release	gap: minor: only clears list scrollbar holds; no focused child gets the release
 ContainerEventHandler.mouseDragged	port	crates/horizon-client-render/src/pack_screen.rs::PackScreen::drag	drags a held list scrollbar
 ContainerEventHandler.mouseScrolled	port	crates/horizon-client-render/src/pack_screen.rs::PackScreen::scroll	list under the pointer scrolls 18 px per notch
@@ -126,9 +127,9 @@ TextFieldHelper.removeWordsFromCursor	inline	crates/horizon-client-render/src/ui
 TextFieldHelper.removeCharsFromCursor	port	crates/horizon-client-render/src/ui.rs::EditBox::delete_chars	deletes the selection or n characters
 TextFieldHelper.cut	port	crates/horizon-client-input/src/clipboard.rs::apply	Cut arm: copy the selection, then clear it
 TextFieldHelper.paste	port	crates/horizon-client-input/src/clipboard.rs::apply	Paste arm: insert the clipboard text
-TextFieldHelper.getSelected	port	crates/horizon-client-render/src/ui.rs::EditBox::selected_text	
+TextFieldHelper.getSelected	port	crates/horizon-client-render/src/ui.rs::EditBox::selected_text
 TextFieldHelper.deleteSelection	inline	crates/horizon-client-render/src/ui.rs::EditBox::delete_chars	selection branch
-TextFieldHelper.setCursorToEnd	port	crates/horizon-client-render/src/ui.rs::EditBox::move_cursor_to_end	
+TextFieldHelper.setCursorToEnd	port	crates/horizon-client-render/src/ui.rs::EditBox::move_cursor_to_end
 TextFieldHelper.setCursorPos	port	crates/horizon-client-render/src/ui.rs::EditBox::set_cursor	no vanilla caller (callers 0)
 TextFieldHelper.setSelectionRange	skip:other		no vanilla caller; Horizon sets cursor and highlight separately (EditBox::set_cursor)
 BakedSheetGlyph.left	inline	crates/horizon-client-render/src/hud.rs::HudBatch::text_styled	glyph edge with bold thickness and italic shear

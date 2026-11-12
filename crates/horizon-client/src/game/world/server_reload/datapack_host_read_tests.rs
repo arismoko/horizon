@@ -33,11 +33,11 @@ fn native_datapack_host_reads_enforce_level_session_and_generation() {
                         &[
                             (
                                 "data/registry_test/registry_test/spell/fire.json".into(),
-                                vec![br#"{"power":7}"#.to_vec()],
+                                vec![("pack".to_owned(), br#"{"power":7}"#.to_vec())],
                             ),
                             (
                                 "data/addon/registry_test/spell/ice.json".into(),
-                                vec![br#"{"power":3}"#.to_vec()],
+                                vec![("pack".to_owned(), br#"{"power":3}"#.to_vec())],
                             ),
                         ],
                     )
@@ -100,7 +100,7 @@ fn native_datapack_host_reads_enforce_level_session_and_generation() {
                     declarations,
                     &[(
                         "data/registry_test/registry_test/spell/fire.json".into(),
-                        vec![br#"{"power":19}"#.to_vec()],
+                        vec![("pack".to_owned(), br#"{"power":19}"#.to_vec())],
                     )],
                 )
                 .unwrap();

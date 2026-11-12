@@ -37,12 +37,12 @@ impl Game<'_> {
         {
             return;
         }
+        let listens = mod_api::__private::listened(mod_api::HookId::ItemPickedUp);
         let near: Vec<_> = self
             .dropped
             .iter()
             .filter(|d| {
-                d.pickup_delay == 0
-                    && d.target.is_none_or(|t| t == uuid)
+                (listens || (d.pickup_delay == 0 && d.target.is_none_or(|t| t == uuid)))
                     && (d.position.x - position[0]).abs() < 1.5
                     && (d.position.z - position[2]).abs() < 1.5
                     && d.position.y > position[1] - 0.6
@@ -52,46 +52,87 @@ impl Game<'_> {
             .collect();
         let mut taken = Vec::new();
         for item_id in near.into_iter().rev() {
-            let Some(item) = self.dropped.iter().find(|d| d.id == item_id) else {
+            let Some(mut i) = self.dropped.iter().position(|d| d.id == item_id) else {
                 continue;
             };
-            let stack = item.stack.clone();
-            let refused = self.as_guest(conn, |g| g.native_pickup_refused(&stack)) == Some(true);
-            // The hook can remove or change any item entity.
-            let Some(i) = self.dropped.iter().position(|d| d.id == item_id) else {
-                continue;
+            let answer = if listens {
+                let stack = self.dropped[i].stack.clone();
+                let answer = self
+                    .as_guest(conn, |g| g.native_pickup_answer(&stack))
+                    .unwrap_or_default();
+                // Only a dispatched callback can invalidate the original index.
+                let Some(at) = self.dropped.iter().position(|d| d.id == item_id) else {
+                    continue;
+                };
+                i = at;
+                answer
+            } else {
+                mod_api::TriState::Default
             };
-            if refused {
-                self.dropped[i].pickup_delay = 10;
+            let d = &mut self.dropped[i];
+            if !Self::pickup_decision(&mut d.pickup_delay, d.target, uuid, answer) {
                 continue;
             }
             let stack = self.dropped[i].stack.clone();
             let before = stack.count;
+            let kind = stack.item.clone();
             let thrower = self.dropped[i].thrower;
-            let rest = self
-                .as_guest(conn, |g| g.add_stack_to_inventory(stack))
-                .flatten();
-            match rest {
-                None => {
-                    let item = self.remove_dropped(i);
-                    if let Some(thrower) = thrower {
-                        self.as_guest(conn, |g| {
-                            g.trigger_thrown_picked_up_by_player(&item.stack, thrower);
-                        });
-                    }
-                    taken.push((item_id, before));
-                }
-                Some(rest) if rest.count < before => {
+            let Some(rest) = self.as_guest(conn, |g| g.native_pickup_insert(&stack)) else {
+                continue;
+            };
+            // Where the entity is and what it holds once the pickup is told: `None` when a mod
+            // removed it.
+            let after = match rest {
+                Some(rest) if rest.count >= before => continue,
+                Some(rest) => {
                     self.dropped[i].stack = rest;
-                    if let Some(thrower) = thrower {
-                        let left = self.dropped[i].stack.clone();
-                        self.as_guest(conn, |g| {
-                            g.trigger_thrown_picked_up_by_player(&left, thrower);
-                        });
-                    }
-                    taken.push((item_id, before - self.dropped[i].stack.count));
+                    Some(i)
                 }
-                Some(_) => {}
+                // ItemEntityPickupEvent.Post, only on a whole pickup: the empty remainder is the
+                // entity's while mods hear it, and the count after comes from the entity.
+                None if mod_api::__private::listened(mod_api::HookId::ItemPickedUpPost) => {
+                    self.dropped[i].stack.count = 0;
+                    let raised = self
+                        .as_guest(conn, |g| g.native_pickup_post(&stack))
+                        .flatten();
+                    let at = self.dropped.iter().position(|d| d.id == item_id);
+                    if let (Some(at), Some(raised)) = (at, raised) {
+                        self.dropped[at].stack = raised;
+                    }
+                    at
+                }
+                None => {
+                    self.dropped[i].stack.count = 0;
+                    Some(i)
+                }
+            };
+            let left = after.map_or(0, |at| self.dropped[at].stack.count);
+            let count = before.saturating_sub(left);
+            if count == 0 {
+                continue;
+            }
+            let picked = match after {
+                Some(at) if left > 0 => self.dropped[at].stack.clone(),
+                // ItemEntity.playerTouch: an emptied stack is discarded with the count taken.
+                Some(at) => {
+                    let mut picked = self.remove_dropped(at).stack;
+                    picked.count = count;
+                    picked
+                }
+                None => {
+                    let mut picked = stack;
+                    picked.count = count;
+                    picked
+                }
+            };
+            self.as_guest(conn, |g| {
+                g.award_stat("picked_up", &kind, count as i32);
+                if let Some(thrower) = thrower {
+                    g.trigger_thrown_picked_up_by_player(&picked, thrower);
+                }
+            });
+            if after.is_some() {
+                taken.push((item_id, count));
             }
         }
         // Entity.take: the clients play the pickup sound themselves
@@ -305,3 +346,7 @@ impl Game<'_> {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "tests/pickup_post_tests.rs"]
+mod pickup_post_tests;

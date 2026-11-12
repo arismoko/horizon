@@ -4,34 +4,6 @@
 
 use crate::{ClientHost, ItemStack, Text};
 
-/// The component details a tooltip lists, in the order the game lists them after the item's own
-/// lines. `TooltipPlacement::Before` and `After` name one of these.
-pub(crate) const TOOLTIP_DETAILS: &[&str] = &[
-    "minecraft:tropical_fish/pattern",
-    "minecraft:instrument",
-    "minecraft:map_id",
-    "minecraft:bees",
-    "minecraft:container",
-    "minecraft:banner_patterns",
-    "minecraft:written_book_content",
-    "minecraft:charged_projectiles",
-    "minecraft:fireworks",
-    "minecraft:potion_contents",
-    "minecraft:jukebox_playable",
-    "minecraft:trim",
-    "minecraft:stored_enchantments",
-    "minecraft:enchantments",
-    "minecraft:dyed_color",
-    "minecraft:lore",
-    "minecraft:attribute_modifiers",
-    "minecraft:unbreakable",
-    "minecraft:ominous_bottle_amplifier",
-    "minecraft:suspicious_stew_effects",
-    "minecraft:block_state",
-    "minecraft:entity_data",
-    "minecraft:block_entity_data",
-];
-
 /// Where a component's lines go among the other components' lines (NeoForge's
 /// `registerComponentAppenderBeforeAll`, `Before`, `After` and `AfterAll`). `Before` and `After`
 /// name a component detail the game lists (`minecraft:lore`, `minecraft:enchantments`...); any

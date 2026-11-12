@@ -5027,11 +5027,13 @@ mod tests {
                         "igloo",
                         "ruined_portal",
                         "mansion",
+                        "mineshaft",
+                        "stronghold",
                     ][..],
                 ),
                 (
                     "minecraft:the_nether",
-                    &["bastion_remnant", "nether_fossil"][..],
+                    &["bastion_remnant", "nether_fossil", "fortress"][..],
                 ),
                 ("minecraft:the_end", &["end_city"][..]),
             ] {
@@ -5066,6 +5068,10 @@ mod tests {
                 }
                 let mut saved = HashMap::<(i32, i32), Compound>::new();
                 worker.forget_structure_starts();
+                // A fortress start's first piece is built through the `BridgeCrossing`
+                // constructor, so vanilla saves it as `nebcr`, which the registry reads
+                // back as a plain bridge crossing: only the kind's name differs.
+                let kinds = |s: String| s.replace("kind: Start,", "kind: BridgeCrossing,");
                 for original in &mut originals {
                     // Locating a generated start can increment its count. A nonzero value also
                     // proves that loading did not silently fall back to seed-identical generation.
@@ -5081,6 +5087,10 @@ mod tests {
                                     | "minecraft:nefos"
                                     | "minecraft:ecp"
                             )
+                            // The mineshaft, fortress and stronghold pieces read their own tags.
+                            || ["minecraft:ms", "minecraft:ne", "minecraft:sh"]
+                                .iter()
+                                .any(|prefix| p.type_name().starts_with(prefix))
                     }) {
                         Arc::get_mut(original)
                             .expect("uncached placement start")
@@ -5106,8 +5116,8 @@ mod tests {
                         original.name
                     );
                     assert_eq!(
-                        format!("{loaded:?}"),
-                        format!("{original:?}"),
+                        kinds(format!("{loaded:?}")),
+                        kinds(format!("{original:?}")),
                         "{seed} {}: every runtime field",
                         original.name
                     );

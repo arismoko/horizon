@@ -90,10 +90,10 @@ pub fn step(
     w: &super::MobWorld,
     pos: [i32; 3],
     state: horizon_world::registry::BlockStateId,
-) -> Option<(&'static str, f32, f32)> {
+) -> Option<(Cow<'static, str>, f32, f32)> {
     match m.kind.sound_overrides.step {
         Selection::Inherit => super::ai::inherited_step_sound(m, w, pos, state),
-        Selection::Id(id) => Some((id, 0.15, 1.0)),
+        Selection::Id(id) => Some((Cow::Borrowed(id), 0.15, 1.0)),
         Selection::Mute => None,
     }
 }

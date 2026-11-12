@@ -38,6 +38,11 @@ fn consumed_snapshot(stack: &ItemStack) -> Option<mod_api::ItemStack> {
 pub(super) const USE_ITEM_COMPLETE_EVENT: i8 = 9;
 
 impl Game<'_> {
+    /// `stack.get(DataComponents.CONSUMABLE)`: item prototype, data patch or wire patch.
+    pub(super) fn consumable(&self, stack: &ItemStack) -> Option<ItemConsumable> {
+        horizon_client::item_sync::consumable(stack, self.items())
+    }
+
     /// `ServerPlayer.completeUsingItem`: the player's own client is told
     /// first, and completes the use itself (eating the food there too).
     pub(super) fn send_use_item_complete(&mut self) {

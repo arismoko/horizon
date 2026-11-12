@@ -3,7 +3,7 @@
 //! pixels, 1024 characters, 100 pages), signing it into a written book,
 //! reading written books, and lecterns (placing a book, turning its pages
 //! with a redstone pulse, the comparator output and taking the book).
-use super::{Game, screen_info};
+use super::{Game, chat::PLAYER_NAME, screen_info};
 use horizon_client::{
     containers::{BlockEntity, Lectern},
     first_person::Hand,
@@ -11,10 +11,12 @@ use horizon_client::{
     item_data::{StackData, WrittenBook},
     items::ItemStack,
     menu::{Kind, Menu},
+    mobs::Who,
     text::Text,
     ui,
     widgets::{self, Narratable, ScreenInfo},
 };
+use horizon_core::nbt::Tag;
 use horizon_core::position::BlockPos;
 use horizon_protocol::packets::play::{self, Clientbound as C, Serverbound as S};
 use horizon_world::level::flags as level_flags;
@@ -225,6 +227,15 @@ impl Game<'_> {
             "minecraft:written_book" => true,
             _ => return false,
         };
+        // `ServerPlayer.openItemGui` resolves a written book for the player
+        // opening it before the screen reads it.
+        let held;
+        let stack = if written && self.resolve_held_book() {
+            held = self.held().cloned();
+            held.as_ref().unwrap_or(stack)
+        } else {
+            stack
+        };
         if self.lan_acting.is_some() {
             if written {
                 let hand = i32::from(self.hand == Hand::Off);
@@ -238,6 +249,53 @@ impl Game<'_> {
         self.award_stat("used", &stack.item, 1);
         self.swing_arm();
         true
+    }
+    /// `ServerPlayer.openItemGui` -> `WrittenBookContent.resolveForItem`: the
+    /// selectors and scores of the written book in the acting hand become
+    /// their text for the player opening it, and the book is marked resolved
+    /// (so it is never resolved again). True when the pages were rewritten.
+    fn resolve_held_book(&mut self) -> bool {
+        let Some(mut book) = self
+            .held()
+            .and_then(|s| s.data())
+            .and_then(|d| d.written.clone())
+        else {
+            return false;
+        };
+        if book.resolved {
+            return false;
+        }
+        let string = |v: &Tag| match v {
+            Tag::String(s) => Some(s.to_string_lossy()),
+            _ => None,
+        };
+        let changed = book.resolve(|tag| {
+            let Tag::Compound(c) = tag else { return None };
+            if let Some(Tag::String(selector)) = c.get(&"selector".into()) {
+                let selector = selector.to_string_lossy();
+                return Some(self.resolve_selector_text(&selector));
+            }
+            let score = c.get(&"score".into())?;
+            let name = score.get("name").and_then(string).unwrap_or_default();
+            let objective = score.get("objective").and_then(string).unwrap_or_default();
+            let name = if name == "*" {
+                PLAYER_NAME
+            } else {
+                name.as_str()
+            };
+            Some(
+                self.score
+                    .board
+                    .score(name, &objective)
+                    .map_or_else(String::new, |s| s.value.to_string()),
+            )
+        });
+        if let Some(stack) = self.held_mut() {
+            stack.data_mut().written = Some(book);
+        }
+        // The guest turn restores this inventory to the hub, whose menu
+        // synchronization sends the changed resolved stack back to the client.
+        changed
     }
     /// The screen a book in hand opens: `BookEditScreen` for a book and
     /// quill, `BookViewScreen` for a written book.
@@ -378,6 +436,7 @@ impl Game<'_> {
                 generation: 0,
                 pages,
                 page_tags: Vec::new(),
+                resolved: false,
             });
             *stack = written;
         } else {
@@ -835,6 +894,20 @@ impl Game<'_> {
             b.lectern_update_below(level, ticks, p, state);
         });
     }
+    /// `LecternBlock.resetBookState`: the property with the block change event.
+    fn set_lectern_has_book(&mut self, key: (i32, i32, i32), has_book: bool, who: Option<Who>) {
+        // `LecternBlock.resetBookState`: `setBlockAndUpdate` writes the state and
+        // the `block_change` post follows unconditionally, not only when the
+        // state differs.
+        self.set_lectern_property(key, "has_book", has_book);
+        let after = self.world.block(key.0, key.1, key.2);
+        self.post_block_game_event(
+            "minecraft:block_change",
+            [key.0, key.1, key.2],
+            who,
+            Some(after),
+        );
+    }
     fn set_lectern_property(&mut self, key: (i32, i32, i32), name: &str, value: bool) {
         let state = self.world.block(key.0, key.1, key.2);
         let registry = self.pack.assets.registry;
@@ -902,7 +975,7 @@ impl Game<'_> {
                 page: 0,
             }),
         );
-        self.set_lectern_property(key, "has_book", true);
+        self.set_lectern_has_book(key, true, self.remote.is_none().then_some(Who::Player));
         if !self.creative {
             self.consume_held();
         }
@@ -1126,7 +1199,7 @@ impl Game<'_> {
         l.page = menu.data[0];
         if had && l.book.is_none() {
             self.set_lectern_powered(key, false);
-            self.set_lectern_property(key, "has_book", false);
+            self.set_lectern_has_book(key, false, None);
             self.container_changed(key);
         } else if menu.data[0] != before {
             self.set_lectern_powered(key, true);
@@ -1851,6 +1924,117 @@ mod lectern_signal_tests {
         });
         assert_eq!(signal(&mut game, Some(written.clone()), 0), 1, "page 0");
         assert_eq!(signal(&mut game, Some(written), 1), 15, "last page");
+    }
+}
+impl BookScreen {
+    /// `BookViewScreen.isPauseScreen`: the class inherits `Screen`'s true, so
+    /// a book read in hand stops a single-player world. `LecternScreen`
+    /// overrides it false, so the same pages read on a lectern leave the
+    /// world ticking (its menu is an `AbstractContainerScreen`, which does
+    /// not pause either).
+    pub(super) fn pauses_world(&self) -> bool {
+        !matches!(
+            self,
+            Self::View {
+                lectern: Some(_),
+                ..
+            }
+        )
+    }
+}
+
+#[cfg(test)]
+mod pause_tests {
+    use super::BookScreen;
+    use horizon_client::{text::Text, ui};
+
+    fn view(lectern: Option<(i32, i32, i32)>) -> BookScreen {
+        BookScreen::View {
+            pages: Vec::<Text>::new(),
+            page: 0,
+            lectern,
+        }
+    }
+
+    #[test]
+    fn a_lecterns_book_does_not_pause_the_world() {
+        // BookViewScreen keeps Screen.isPauseScreen's true; LecternScreen
+        // overrides it false although both read the same pages.
+        assert!(view(None).pauses_world());
+        assert!(!view(Some((10, 64, -3))).pauses_world());
+    }
+
+    #[test]
+    fn a_book_being_edited_or_signed_pauses() {
+        // BookEditScreen and BookSignScreen do not override isPauseScreen.
+        let edit = |signing| BookScreen::Edit {
+            slot: 0,
+            pages: Vec::new(),
+            page: 0,
+            signing,
+            title: String::new(),
+            title_edit: ui::EditBox::new(0.0, 0.0, 0.0, 0.0),
+            page_edit: ui::EditBox::new(0.0, 0.0, 0.0, 0.0),
+        };
+        assert!(edit(false).pauses_world());
+        assert!(edit(true).pauses_world());
+    }
+}
+
+#[cfg(test)]
+mod lectern_book_removal_tests {
+    use super::*;
+    use crate::game::game_tests::tests::server_game;
+
+    /// `LecternBlock.resetBookState`: the book coming off a lectern clears
+    /// `has_book` and posts `block_change` at it.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_lectern_book_removal_posts_block_change() {
+        let mut game_resources = None;
+        let mut game = server_game(&mut game_resources);
+        let key = (2, 4, 3);
+        let state = game
+            .pack
+            .assets
+            .registry
+            .default_state("minecraft:lectern")
+            .unwrap();
+        game.world.set(key.0, key.1, key.2, state).unwrap();
+        game.world.block_entities.insert(
+            key,
+            BlockEntity::Lectern(Lectern {
+                book: Some(ItemStack::new("minecraft:written_book", 1)),
+                page: 0,
+            }),
+        );
+        game.set_lectern_property(key, "has_book", true);
+        crate::game::sculk::TEST_POSTED_EVENTS.with(|e| *e.borrow_mut() = Some(Vec::new()));
+
+        game.set_lectern_has_book(key, false, None);
+
+        let has_book = game
+            .pack
+            .assets
+            .registry
+            .state(game.world.block(key.0, key.1, key.2))
+            .and_then(|s| s.properties.get("has_book").cloned());
+        assert_eq!(
+            has_book.as_deref(),
+            Some("false"),
+            "the lectern has no book"
+        );
+        crate::game::sculk::TEST_POSTED_EVENTS.with(|e| {
+            assert!(
+                e.borrow().as_ref().unwrap().contains(&(
+                    "minecraft:block_change",
+                    [2.5, 4.5, 3.5],
+                    None
+                )),
+                "{:?}",
+                e.borrow()
+            );
+        });
     }
 }
 

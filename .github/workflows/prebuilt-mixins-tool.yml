@@ -1,0 +1,166 @@
+name: prebuilt mixins tool
+# The horizon-mixins tool the launcher runs for [[native.mixin]] builds, prebuilt for each launcher
+# platform, so a player's first mixin build downloads it instead of compiling it for a minute. The
+# tool is decided by the pinned horizon-mixins commit and the one carried patch
+# (crates/horizon-mod-package/src/mixins_tool.rs), so one prerelease per pair, tagged
+# mixins-tool-<commit>-<patch hash>, never marked latest and never deleted: older launchers keep
+# finding theirs. A run whose pair already has a release stops early, unless a dispatch forces the build. The source is patched by
+# `xtask mixins-tool patch`, the applier the launcher uses where no prebuilt exists. A dispatch on
+# another branch builds and smokes every platform and publishes nothing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/mixins/**
+      - crates/horizon-mod-package/src/mixins_tool.rs
+      - .github/workflows/prebuilt-mixins-tool.yml
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build and smoke every platform even when this pin already has a release (nothing is published then)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+# One run at a time, the newest waiting one kept: a pin replaced while its run waited gets its prebuilt
+# from a manual dispatch, and until then the launcher builds the tool from source.
+concurrency:
+  group: prebuilt-mixins-tool
+  cancel-in-progress: false
+jobs:
+  fresh:
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.release.outputs.needed }}
+      released: ${{ steps.release.outputs.released }}
+      tag: ${{ steps.release.outputs.tag }}
+      rev: ${{ steps.release.outputs.rev }}
+      source: ${{ steps.release.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: prebuilt-mixins-tool-xtask
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          cargo run --locked -p xtask -- mixins-tool release | tee -a "$GITHUB_OUTPUT"
+          tag=$(sed -n 's/^tag=//p' "$GITHUB_OUTPUT")
+          # Only "no such release" means there is none: any other answer stops the run.
+          if answer=$(gh api "repos/$GH_REPO/releases/tags/$tag" --silent 2>&1); then released=true
+          elif grep -q 'HTTP 404' <<< "$answer"; then released=false
+          else echo "$answer"; exit 1; fi
+          echo "released=$released" >> "$GITHUB_OUTPUT"
+          if [ "$released" = false ] || [ "$FORCE" = true ]; then echo needed=true; else echo needed=false; fi >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: fresh
+    if: needs.fresh.outputs.needed == 'true'
+    name: build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The platforms and runners of prebuilt-game.yml: the tool runs wherever that game builds mods.
+        include:
+          - name: linux
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - name: windows
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+          - name: macos
+            os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      ARCHIVE: horizon-mixins-${{ matrix.target }}.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: The launcher's pinned Rust
+        id: rust
+        run: |
+          echo "version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' launcher/src/rust_toolchain.rs)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}-${{ matrix.target }}
+      # The tool's source names a toolchain of its own; every cargo here is the launcher's pinned one.
+      - run: echo "RUSTUP_TOOLCHAIN=${{ steps.rust.outputs.version }}-${{ matrix.target }}" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: prebuilt-mixins-tool-${{ matrix.name }}
+      - name: Fetch the pinned source and apply the carried patch
+        run: |
+          set -euo pipefail
+          mkdir source
+          curl -fsSL --retry 3 "${{ needs.fresh.outputs.source }}" | tar -xz --strip-components=1 -C source
+          cargo run --locked -p xtask -- mixins-tool patch source
+      - name: Build
+        run: |
+          set -euo pipefail
+          cargo install --locked --path source/crates/horizon-mixins-cli --root tool
+          rm -f tool/.crates.toml tool/.crates2.json
+          cargo run --locked -p xtask -- mixins-tool identity "${{ matrix.target }}" > tool/identity.txt
+          # Information only: the launcher checks the lines above it.
+          echo "rustc = $(rustc -V)" >> tool/identity.txt
+          cat tool/identity.txt
+      - name: The built tool answers and stages its own fixture
+        run: |
+          set -euo pipefail
+          tool/bin/horizon-mixins --version
+          tool/bin/horizon-mixins apply --workspace source/fixtures/game --mods source/fixtures/mods \
+            --out "$RUNNER_TEMP/staged" > /dev/null
+          test -f "$RUNNER_TEMP/staged/Cargo.toml"
+      # The archive's flags are GNU tar's; macOS's own tar is BSD.
+      - name: GNU tar on macOS
+        if: runner.os == 'macOS'
+        run: command -v gtar > /dev/null || brew install gnu-tar
+      - name: Archive
+        run: |
+          tar=tar; if [ "$RUNNER_OS" = macOS ]; then tar=gtar; fi
+          "$tar" --sort=name --mtime="@0" --owner=0 --group=0 --numeric-owner -cf - -C tool . | gzip -n > "$ARCHIVE"
+          echo "$(du -h "$ARCHIVE" | cut -f1) $ARCHIVE" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: ${{ env.ARCHIVE }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [fresh, build]
+    # A dispatch on any other branch, or a forced one for a pin already released, builds and smokes
+    # every platform but releases nothing.
+    if: github.ref == 'refs/heads/main' && needs.fresh.outputs.released == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.fresh.outputs.tag }}
+      REV: ${{ needs.fresh.outputs.rev }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: archives
+          merge-multiple: true
+      - name: Release mixins-tool-<commit>-<patch hash>
+        run: |
+          set -euo pipefail
+          cd archives
+          sha256sum horizon-mixins-*.tar.gz > SHA256SUMS
+          gh release create "$TAG" horizon-mixins-*.tar.gz SHA256SUMS --target "$GITHUB_SHA" --prerelease \
+            --latest=false --title "horizon-mixins tool ${REV::12}" \
+            --notes "The horizon-mixins tool at horizon-rust/horizon-mixins ${REV} with the carried patch tools/mixins/narrow-reference-rule.patch, for the launcher's [[native.mixin]] builds."

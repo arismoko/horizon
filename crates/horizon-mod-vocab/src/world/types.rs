@@ -1054,6 +1054,26 @@ pub struct BlockSoundType {
     pub fall: std::sync::Arc<str>,
 }
 
+/// Why a block's sound type is read (`BlockPart::sound_type`): which of its sounds the game is
+/// about to play.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum BlockSoundCause {
+    /// An entity steps on it (`Entity.playStepSound`): the step sound at volume × 0.15.
+    Step,
+    /// A living entity lands on it hard enough to be hurt (`LivingEntity.playBlockFallSound`):
+    /// the fall sound at volume × 0.5, pitch × 0.75.
+    Fall,
+    /// It is placed (`BlockItem.place`): the place sound at `(volume + 1) / 2`, pitch × 0.8.
+    Place,
+    /// It is broken (level event 2001): the break sound at `(volume + 1) / 2`, pitch × 0.8.
+    Break,
+    /// A sniffer digs it (`Sniffer.emitDiggingParticles`): the hit sound at a fixed volume 0.5
+    /// and pitch 0.5, whatever the answer's volume and pitch.
+    Dig,
+}
+
 /// A vector of doubles, as vanilla's `Vec3`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 // exhaustive: a vector is its three components, as vanilla's `Vec3`

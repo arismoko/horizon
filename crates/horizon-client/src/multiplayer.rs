@@ -7,6 +7,7 @@ use crate::lan::discovery::Scanner;
 use crate::text::{DARK_GRAY, GRAY, Text, format_translation};
 use crate::title::confirm_top;
 use horizon_protocol::servers::{self, ServerEntry};
+pub use page::Form;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -138,6 +139,8 @@ pub enum Screen {
         relay: String,
         focus: u8,
     },
+    /// A page a crate registered at the title screen's Friends icon, as a form.
+    Page(Form),
     Disconnected {
         reason: String,
         /// Auto-reconnect's next attempt, until it is cancelled.
@@ -146,6 +149,21 @@ pub enum Screen {
         lines: std::cell::Cell<usize>,
     },
 }
+mod page;
+
+/// What the title screen's Friends icon opens: the page a crate registered there
+/// (`Place::Title`), else Join a Friend when an invite code can be joined. None: it is inactive.
+pub fn title_entry() -> Option<Screen> {
+    match page::title_page() {
+        Some(page) => Some(Screen::Page(Form::open(page))),
+        None => crate::net::joins_friends().then(|| Screen::friend(true)),
+    }
+}
+/// Whether the title screen's Friends icon opens something ([`title_entry`]).
+pub fn has_title_entry() -> bool {
+    page::title_page().is_some() || crate::net::joins_friends()
+}
+
 /// What a click asks the title screen to do.
 pub enum Outcome {
     None,
@@ -183,6 +201,7 @@ impl Screen {
             Self::Direct { .. } => "direct_connect",
             Self::ConfirmDelete { .. } => "server_delete",
             Self::Friend { .. } => "friends_join",
+            Self::Page(form) => form.id(),
             Self::Disconnected { .. } => "disconnected",
         }
     }
@@ -220,6 +239,11 @@ fn servers_file_of(player: Option<&Path>, saves: &Path) -> PathBuf {
     saves
         .parent()
         .map_or_else(|| PathBuf::from("servers.dat"), |p| p.join("servers.dat"))
+}
+/// `ServerData.validateIcon`: any PNG up to 1024x1024 is kept in
+/// servers.dat. Drawing still needs 64x64 (`FaviconTexture.upload`).
+fn valid_icon(png: &[u8]) -> bool {
+    crate::hud::decode_bytes(png).is_ok_and(|(w, h, _)| w <= 1024 && h <= 1024)
 }
 /// `FaviconTexture.upload`: a PNG of exactly 64x64 pixels, else no icon.
 fn icon_pixels(png: &[u8]) -> Option<Arc<Vec<u8>>> {
@@ -284,7 +308,9 @@ fn ping_all(servers: &[ServerEntry], pings: &Pings, icons: &Icons, file: &Path) 
                                 Some(p) => icons.lock().unwrap().insert(address.clone(), p.clone()),
                                 None => icons.lock().unwrap().remove(&address),
                             };
-                            let icon = pixels.map(|_| encoded);
+                            // ServerData.validateIcon: up to 1024x1024 is kept,
+                            // though only a 64x64 icon is drawn.
+                            let icon = valid_icon(&png).then_some(encoded);
                             if icon != saved {
                                 save_icon(&file, &address, icon);
                             }
@@ -364,7 +390,7 @@ fn save_icon(file: &Path, address: &str, icon: Option<String>) {
 /// `ClientPacketListener.handleServerData`: a valid icon the joined server
 /// sends replaces the one its list entries keep.
 pub fn save_server_icon(saves: &Path, address: &str, png: &[u8]) {
-    if icon_pixels(png).is_some() {
+    if valid_icon(png) {
         save_icon(&servers_file(saves), address, Some(crate::lan::base64(png)));
     }
 }
@@ -594,6 +620,7 @@ impl Screen {
         crate::ui::tooltip(batch, atlas, &lines, cursor);
     }
 
+    #[horizon_mod_api_macros::replaceable]
     pub fn list(saves: &Path) -> Self {
         let servers = servers::load(&servers_file(saves));
         let pings: Pings = Arc::default();
@@ -609,6 +636,7 @@ impl Screen {
             held: None,
         }
     }
+    #[horizon_mod_api_macros::replaceable]
     pub fn buttons(&self, w: f32, h: f32) -> Vec<ButtonSpec> {
         let b = |x: f32, y: f32, bw: f32, label: &str, enabled: bool, id: u8| {
             (x, y, bw, label.to_owned(), enabled, id)
@@ -751,6 +779,7 @@ impl Screen {
                     53,
                 ),
             ],
+            Self::Page(form) => form.buttons(w, h),
             Self::Friend { code, .. } => vec![
                 b(
                     half(w) - 100.0,
@@ -871,6 +900,7 @@ impl Screen {
                     ]),
                 )
             }
+            Self::Page(form) => form.narration(),
             Self::Friend { .. } => ScreenInfo::new(
                 "multiplayer/friend",
                 get("horizon.multiplayer.join_friend", "Join a Friend"),
@@ -942,6 +972,7 @@ impl Screen {
         let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
         crate::widgets::join_for_narration(&parts)
     }
+    #[horizon_mod_api_macros::replaceable]
     pub fn draw(
         &self,
         atlas: &HudAtlas,
@@ -1325,6 +1356,7 @@ impl Screen {
                     centered(batch, &line.plain(), top + 17.0 + i as f32 * 9.0, u32::MAX);
                 }
             }
+            Self::Page(form) => form.draw(atlas, batch, caret, focused_at),
             Self::Friend {
                 code, relay, focus, ..
             } => {
@@ -1390,6 +1422,7 @@ impl Screen {
     /// selected server or LAN game, as a click on it does.
     pub fn confirm(&self) -> Outcome {
         match self {
+            Self::Page(form) => form.confirm(),
             Self::Direct { address } if servers::parse_address(address).is_some() => {
                 Outcome::Connect {
                     address: direct_address(address),
@@ -1429,6 +1462,7 @@ impl Screen {
         true
     }
 
+    #[horizon_mod_api_macros::replaceable]
     pub fn click(
         &mut self,
         id: Option<u8>,
@@ -1438,6 +1472,9 @@ impl Screen {
         saves: &Path,
     ) -> Outcome {
         let (w, h) = size;
+        if let Self::Page(form) = self {
+            return form.click(id, x, y);
+        }
         match (&mut *self, id) {
             (
                 Self::List {
@@ -1613,6 +1650,8 @@ impl Screen {
                 },
                 Some(50),
             ) => {
+                // Held through the save: a ping storing an icon meanwhile would undo the edit.
+                let guard = servers::lock();
                 let (mut list, mut hidden) = servers::load_all(&servers_file(saves));
                 let mut entry = ServerEntry::new(name.trim(), address.trim());
                 entry.accept_textures = *packs;
@@ -1636,6 +1675,7 @@ impl Screen {
                     },
                 }
                 let _ = servers::save_all(&servers_file(saves), &list, &hidden);
+                drop(guard);
                 return Outcome::Open(Box::new(Self::list(saves)));
             }
             (
@@ -1818,6 +1858,7 @@ impl Screen {
             Self::Friend { focus: 0, .. } => 64.0,
             Self::Friend { focus: 1, .. } => 105.0,
             Self::Friend { .. } => return None,
+            Self::Page(form) => return form.focused_box(),
             _ => return None,
         };
         Some([(w / 2.0).floor() - 100.0, y, 200.0, 20.0])
@@ -1845,6 +1886,13 @@ impl Screen {
             },
             _ => None,
         }
+    }
+    /// Whether a press off the buttons may land on one of its text fields.
+    pub fn has_fields(&self) -> bool {
+        matches!(
+            self,
+            Self::Edit { .. } | Self::Friend { .. } | Self::Page(_)
+        )
     }
     /// Join a friend, with the relay the player set before.
     pub fn friend(from_title: bool) -> Self {
@@ -1905,6 +1953,9 @@ impl Screen {
     }
     /// The focused text field, its id and maximum length (copy and paste).
     pub fn focused_text(&mut self) -> Option<(crate::clipboard::FieldId, &mut String, usize)> {
+        if let Self::Page(form) = self {
+            return form.focused_text();
+        }
         let id = match self {
             Self::Edit { focus: 0, .. } => SERVER_NAME,
             Self::Edit { .. } => SERVER_ADDRESS,
@@ -1929,6 +1980,9 @@ impl Screen {
     /// round to the first field. `button` is the focused button, if any; a field
     /// has the focus (`focus` below 2) only while no button does.
     pub fn tab_dir(&mut self, reverse: bool, buttons: &[u8], button: &mut Option<u8>) {
+        if let Self::Page(form) = self {
+            return form.tab_dir(reverse, buttons, button);
+        }
         let (Self::Edit { focus, .. } | Self::Friend { focus, .. }) = self else {
             return;
         };
@@ -1955,6 +2009,7 @@ impl Screen {
     pub fn escape(&self, saves: &Path) -> Outcome {
         match self {
             Self::List { .. }
+            | Self::Page(_)
             | Self::Friend {
                 from_title: true, ..
             } => Outcome::Back,
@@ -2419,6 +2474,16 @@ mod tests {
         out
     }
 
+    /// `ServerData.validateIcon`: a PNG up to 1024x1024 is kept for
+    /// servers.dat, though only a 64x64 one is drawn.
+    #[test]
+    fn an_icon_up_to_1024_square_is_kept() {
+        assert!(valid_icon(&png(64)));
+        assert!(valid_icon(&png(128)));
+        assert!(valid_icon(&png(1024)));
+        assert!(!valid_icon(&png(1025)));
+        assert!(!valid_icon(b"not a png"));
+    }
     #[test]
     fn favicons_are_64_pixel_pngs_behind_the_data_url() {
         let icon = png(64);

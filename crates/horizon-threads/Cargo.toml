@@ -14,11 +14,13 @@ libmimalloc-sys = { version = "0.1.49", default-features = false, features = ["e
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Console", "Win32_System_IO", "Win32_System_ProcessStatus", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Console", "Win32_System_IO", "Win32_System_ProcessStatus", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
 # Counts live heap bytes by startup step and thread (`CensusAllocator`); for measuring only.
 alloc-census = []
+# Test-only synchronous allocation accounting; never enabled by game builds.
+test-allocation-probe = []
 # Counts allocation calls on the current thread in behavior tests only.
 test-allocation-count = []
 

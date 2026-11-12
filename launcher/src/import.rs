@@ -113,6 +113,9 @@ pub fn what(file: &Path) -> Result<Dropped, String> {
     if has("manifest.json") && !has("pack.mcmeta") {
         return Ok(Dropped::Modpack);
     }
+    if !has("pack.mcmeta") && horizon_port_pack::import::prism_archive_layout(&names)?.is_some() {
+        return Ok(Dropped::Modpack);
+    }
     if has("pack.mcmeta") {
         return Ok(match under("data/") {
             true => Dropped::DataPack,

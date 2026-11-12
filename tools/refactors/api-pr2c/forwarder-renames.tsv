@@ -528,8 +528,6 @@ native_mod_screen	mod_screen
 native_mod_screen_close	mod_screen_close
 native_mod_screen_open	mod_screen_open
 native_modifiers	modifiers
-native_net_send_to_player	net_send_to_player
-native_net_send_to_server	net_send_to_server
 native_observed_screen_id	observed_screen_id
 native_on	on
 native_open_chat	open_chat

@@ -45,6 +45,8 @@ mod transfer;
 /// What the tick loop tells `ServerWatchdog`: when the tick in progress was
 /// due (`getNextTickTime`), how long a tick is, and whether the server runs.
 struct Watchdog {
+    /// The thread running the ticks, whose stack the report carries.
+    server: horizon_threads::stack_dump::Watched,
     base: Instant,
     next_nanos: AtomicU64,
     tick_nanos: AtomicU64,
@@ -65,9 +67,11 @@ impl Drop for StopWatchdog {
 impl Watchdog {
     /// `DedicatedServer.initServer`: a thread that stops a server whose tick
     /// runs `max_tick_time` ms past its due time; none when that is 0 or less.
+    /// Started from the thread that runs the ticks.
     fn start(max_tick_time: i64) -> Option<Arc<Self>> {
         let max = Duration::from_millis(u64::try_from(max_tick_time).ok().filter(|m| *m > 0)?);
         let watchdog = Arc::new(Self {
+            server: horizon_threads::stack_dump::Watched::current(),
             base: Instant::now(),
             next_nanos: AtomicU64::new(0),
             tick_nanos: AtomicU64::new(50_000_000),
@@ -96,6 +100,8 @@ impl Watchdog {
             let now = u64::try_from(self.base.elapsed().as_nanos()).unwrap_or(u64::MAX);
             let behind = now.saturating_sub(next);
             if behind > max {
+                // ServerWatchdog: the server thread's stack first, while it is still stuck.
+                let stack = self.server.stack(Duration::from_secs(5));
                 let took = format!("{:.2}", behind as f32 / 1e9);
                 let should = format!(
                     "{:.2}",
@@ -118,6 +124,7 @@ impl Watchdog {
                     std::path::Path::new("."),
                     "server",
                     message,
+                    stack,
                 ) {
                     Some(path) => log_from(
                         "Server Watchdog",
@@ -215,35 +222,15 @@ fn load_anticheat() -> horizon_anticheat::Config {
     }
 }
 
-/// `server.toml`'s `[chat_filter]` (docs/chat-filter.md), like `[anticheat]`: on by default, off (with an
-/// error logged) when the section is wrong. The mutes are kept beside server.properties.
-fn load_chat_filter() -> Option<horizon_chat_filter::Guard> {
+/// `server.toml`'s `[chat_filter]` (docs/chat-filter.md), through the filter the executable installed
+/// (`horizon_server_files::chat_guard`): none without one.
+fn load_chat_filter() -> Option<Box<dyn horizon_server_files::chat_guard::ChatGuard>> {
     let text = std::fs::read_to_string("server.toml").unwrap_or_default();
-    let config = match horizon_chat_filter::Config::from_server_toml(&text) {
-        Ok(config) => config,
-        Err(e) => {
-            log(
-                "ERROR",
-                &format!("server.toml: {e}; the chat filter stays off"),
-            );
-            return None;
-        }
-    };
-    if !config.enabled {
-        return None;
+    let loaded = horizon_server_files::chat_guard::load(&text, std::path::Path::new("."));
+    for (level, line) in &loaded.log {
+        log(level, line);
     }
-    let (guard, problem) = horizon_chat_filter::Guard::load(config, std::path::Path::new("."));
-    if let Some(problem) = problem {
-        log("WARN", &problem);
-    }
-    log(
-        "INFO",
-        &format!(
-            "Chat filter on: {} words (server.toml [chat_filter]; enabled = false turns it off)",
-            guard.filter.len()
-        ),
-    );
-    Some(guard)
+    loaded.guard
 }
 
 /// `server.toml`'s `[combat]` (docs/pvp.md): `legacy = true` resolves melee hits by 1.8.9's rules. Off without
@@ -1249,7 +1236,7 @@ impl Game<'_> {
         self.sync_ops(&lists);
         let anticheat = load_anticheat();
         let chat_filter = load_chat_filter();
-        self.settings.extras.pvp.combat.rules = load_combat();
+        self.set_pvp_legacy_rules(load_combat());
         // Horizon's far ring (docs/hosting.md): server.toml's `max_view_distance`.
         let far = props
             .raw
@@ -2405,7 +2392,6 @@ impl Game<'_> {
         log("INFO", "Stopping server");
         self.native_players_leaving();
         log("INFO", "Saving players");
-        self.flush_native_net();
         // PlayerList.removeAll: each player's file, with the vehicle it
         // alone rides, then its records.
         if !crashed {
@@ -2467,6 +2453,49 @@ fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
 /// `overworld()`), so None when it already is.
 fn console_level(active: super::Dim) -> Option<super::Dim> {
     (active != super::Dim::Overworld).then_some(super::Dim::Overworld)
+}
+
+impl Game<'_> {
+    pub(super) fn stop_after_crash(&mut self, message: &str) -> Result<()> {
+        // Single player's server thread (`integrated.rs`) has no console: it logs to the game's log.
+        let integrated = self.serving.is_some();
+        let warn = |message: &str| {
+            if integrated {
+                log::warn!("Horizon: {message}");
+            } else {
+                log("WARN", message);
+            }
+        };
+        if integrated {
+            // `message` already says whether the tick panicked or failed.
+            log::error!("Horizon: {message}");
+        } else {
+            log("ERROR", &format!("The server thread panicked: {message}"));
+        }
+        let acting = self.lan_acting;
+        let hub_lost = self.lan.is_none();
+        if let (Some(conn), Some(host)) = (acting, self.lan.as_mut()) {
+            host.hub
+                .guests
+                .update_connection(conn, |guest| guest.placed = false);
+        }
+        if hub_lost {
+            warn("The panic interrupted the network tick: players are not saved, only the world");
+        } else if acting.is_some() {
+            warn("The panic interrupted a player's turn: that player keeps the last saved file");
+        }
+        if integrated {
+            // `IntegratedServer.stopServer`'s steps; `save_guest` skips the guest unplaced above.
+            return self.stop_integrated(true);
+        }
+        self.native_lifecycle.begin_close();
+        log("INFO", "Saving worlds");
+        self.save_game()?;
+        self.log_saved_levels();
+        self.native_lifecycle_world_closed();
+        self.lan_close(false);
+        Err(format!("the server thread panicked: {message}").into())
+    }
 }
 
 #[cfg(test)]

@@ -671,11 +671,14 @@ impl Game<'_> {
                     return Err(err("argument.dimension.invalid", &[dim]));
                 }
                 let dimension = Dim::from_id(dim);
-                let scale = Dim::teleportation_scale(s.dimension, dimension);
+                let scale = horizon_world::dimension_type::DimensionFacts::teleportation_scale(
+                    self.dimension_type_of(s.dimension),
+                    self.dimension_type_of(dimension),
+                );
                 vec![Source {
                     pos: [s.pos[0] * scale, s.pos[1], s.pos[2] * scale],
                     dimension,
-                    level: Some(super::super::Dim::from_id(dim)),
+                    level: Some(dimension),
                     ..s
                 }]
             }

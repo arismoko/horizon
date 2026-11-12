@@ -42,11 +42,11 @@ pub(super) fn github_native(
         );
     }
     println!("Build it next: horizon-launcher native-build --trust-native-code");
-    println!(
-        "{}",
-        tr(
-            "Developing a mod? Use native-build --profile developer. The choice is remembered for this instance."
-        )
-    );
     Ok(())
+}
+
+pub(super) fn registry_consent(inventory: &native_mods::RegistryInventory) -> bool {
+    eprintln!("{}\n{}", inventory.label(), inventory.detail());
+    // The headless native route has already required explicit native-code permission.
+    true
 }

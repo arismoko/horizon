@@ -242,7 +242,7 @@ impl Game<'_> {
         self.native_data_pack_files(&mut contributed);
         let files = functions::overlay_files(stack, contributed);
         let inventory = horizon_mod_package::enabled::EnabledMods::read(root)?;
-        let conditions = horizon_world::conditions::LoadConditions::new(inventory.server_ids());
+        let conditions = self.registered_load_conditions(&inventory)?;
         let overlay = horizon_world::loot::PackOverlay {
             conditions: &conditions,
             files: &files,
@@ -323,6 +323,7 @@ impl Game<'_> {
             })
             .collect();
         let datapack_candidate = self.datapack_candidate(stack, &conditions)?;
+        conditions.check_errors()?;
         self.mods.datapack_candidate = datapack_candidate;
         Ok((
             Some(WorldTables {
@@ -361,36 +362,33 @@ impl Game<'_> {
         let packs: Vec<_> = std::iter::once(&stack.content)
             .chain(stack.enabled_packs())
             .collect();
-        let files: Vec<(String, Vec<Vec<u8>>)> =
-            horizon_client::datapack::registry_files(&packs, &keys)
-                .into_iter()
-                .map(|(path, versions)| {
-                    let versions = versions
-                        .into_iter()
-                        .filter_map(|bytes| {
-                            let Ok(mut json) = serde_json::from_slice::<serde_json::Value>(&bytes)
-                            else {
-                                // Malformed: the decoder reports it, naming the file.
-                                return Some(bytes);
-                            };
-                            if !conditions.allows(&json) {
-                                return None;
-                            }
-                            if let Some(object) = json.as_object_mut() {
-                                object.remove("neoforge:conditions");
-                            }
-                            serde_json::to_vec(&json).ok()
-                        })
-                        .collect();
-                    (path, versions)
-                })
-                .collect();
+        let files: Vec<_> = horizon_client::datapack::registry_files(
+            &packs,
+            &keys,
+            !conditions.has_registered(),
+            |path, pack, bytes| {
+                !super::condition_reload_state::registry_versions(
+                    vec![(pack.to_owned(), bytes.to_vec())],
+                    conditions,
+                    path,
+                )
+                .is_empty()
+            },
+        )
+        .map_err(|error| {
+            format!(
+                "datapack registry {} entry {} (pack {}, file {}): {:?}",
+                error.registry, error.entry, error.pack, error.file, error.reason
+            )
+        })?
+        .into_iter()
+        .collect();
         mod_api::DatapackCandidate::build(declarations, &files)
             .map(Some)
             .map_err(|error| {
                 format!(
-                    "datapack registry {} entry {} ({}): {:?}",
-                    error.registry, error.entry, error.file, error.reason
+                    "datapack registry {} entry {} (pack {}, file {}): {:?}",
+                    error.registry, error.entry, error.pack, error.file, error.reason
                 )
                 .into()
             })
@@ -436,6 +434,7 @@ impl Game<'_> {
         let PreparedWorldReload {
             structure_spawns,
             tables,
+            advancements,
             health,
             parts,
             wire,
@@ -490,11 +489,7 @@ impl Game<'_> {
         {
             self.with_advancement_hub(|hub, owners| hub.reload_resources(sync, owners));
         }
-        let overlay = pack_files(&self.world_tables);
-        self.adv.tree = Arc::new(horizon_client::advancements::Tree::load_with(
-            &self.options.resources.join("data"),
-            &overlay,
-        ));
+        self.adv.tree = advancements;
         self.adv.reset_tree();
         self.native_tags_updated(mod_api::TagsUpdateCause::ServerDataLoad { reload: true });
         self.announce_data_maps_updated(mod_api::DataMapsUpdateCause::ServerReload);
@@ -660,7 +655,13 @@ impl Game<'_> {
         } else {
             None
         };
+        let advancements = Arc::new(horizon_client::advancements::Tree::load_with(
+            &root.join("data"),
+            &overlay,
+        ));
+        overlay.conditions.check_errors()?;
         Ok(PreparedWorldReload {
+            advancements,
             structure_spawns: horizon_client::mobs::spawn_selection::StructureSpawns::load(root),
             tables,
             health,

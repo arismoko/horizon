@@ -213,7 +213,7 @@ class DynaRoutingTests(unittest.TestCase):
         for item in ("vars.DYNA_CI_SELF_HOSTED", "vars.DYNA_CI_POOL_UNTIL", "github.event_name",
                      "github.event.pull_request.head.repo.full_name == github.repository", "dyna_ci_runner.sh"):
             self.assertIn(item, route)
-        for name, label in (("verify", "dyna-large"), ("launcher", "dyna-medium")):
+        for name, label in (("verify", "dyna-large"), ("verify-static", "dyna-large"), ("launcher", "dyna-medium")):
             block = blocks[name]
             self.assertIn("needs: changes", block)
             self.assertIn(f"needs.changes.outputs.self_hosted == 'true' && '{label}'", block)
@@ -221,6 +221,135 @@ class DynaRoutingTests(unittest.TestCase):
             self.assertNotIn("permissions:", block)
         self.assertIn("runs-on: ubuntu-latest", blocks["pool-watch"])
         self.assertIn("permissions:\n  contents: read", workflow)
+
+    def test_split_jobs_are_independent_fail_closed_and_share_routing(self):
+        from test_ci_runners import jobs
+        blocks = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))
+        runtime = blocks["verify"]
+        static = blocks["verify-static"]
+        for block in (runtime, static):
+            header, steps = block.split("    steps:\n", 1)
+            fields = dict(line.strip().split(":", 1) for line in header.splitlines()
+                          if line.startswith("    ") and ":" in line and not line.lstrip().startswith("#"))
+            self.assertEqual(fields["needs"].strip(), "changes")
+            self.assertEqual(fields["timeout-minutes"].strip(), "45")
+            self.assertEqual(fields["if"].strip(), "${{ always() && !cancelled() && needs.changes.result != 'skipped' }}")
+            first = steps.split("\n      - ", 1)[0]
+            guard = dict(line.strip().split(":", 1) for line in first.splitlines()
+                         if line.startswith("        ") and ":" in line)
+            self.assertEqual(guard["if"].strip(), "needs.changes.result != 'success'")
+            self.assertEqual(guard["run"].strip(), "exit 1")
+        for field in ("runs-on", "RUNNER_KIND"):
+            self.assertEqual(runtime.split(f"{field}:", 1)[1].split("\n", 1)[0],
+                             static.split(f"{field}:", 1)[1].split("\n", 1)[0])
+        self.assertIn("- name: No Rust work selected", runtime)
+        self.assertNotIn("--unshallow", runtime)
+        self.assertIn("--unshallow", static)
+        self.assertNotIn("cargo +stable test", static)
+        self.assertNotIn("Swatinem/rust-cache", static)
+        self.assertNotIn("runner-packages.txt", static)
+        self.assertIn("cargo +stable build $JOBS --profile test -p horizon-mod-package --features runtime-process --example holder_actor", runtime)
+        self.assertIn("cargo +stable test $JOBS --no-fail-fast --profile test --workspace --lib --bins --tests", runtime)
+        self.assertIn("cargo +stable test $JOBS --no-fail-fast --profile test --workspace --doc", runtime)
+        tools = static.split("- name: Install Rust tools for isolated tooling fixtures\n", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn("if: needs.changes.outputs.rust_required != 'false' || needs.changes.outputs.tooling_required != 'false'", tools)
+        self.assertIn("--component rustfmt --component clippy", tools)
+        # GITHUB_PATH, not a shell-local export, carries Cargo into later steps.
+        self.assertIn('echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"', tools)
+        self.assertLess(static.index("- name: Install Rust tools for isolated tooling fixtures"),
+                        static.index("- name: Test offline research tooling"))
+
+    @unittest.skipUnless(POSIX_BASH and os.name != "nt", "needs the runner's bash and POSIX paths")
+    def test_verify_reuses_persistent_target_without_replacing_existing_paths(self):
+        import textwrap
+        from test_ci_runners import jobs
+        runtime = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))["verify"]
+        setup = runtime.split("- name: Use persistent verify build artifacts\n", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn("if: needs.changes.outputs.rust_required != 'false' && needs.changes.outputs.self_hosted == 'true'", setup)
+        script = textwrap.dedent(setup.split("        run: |\n", 1)[1])
+        restore = runtime.split("- name: Restore unchanged source timestamps\n", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn("if: needs.changes.outputs.rust_required != 'false'", restore)
+        self.assertIn("python3 tools/ci/source_mtimes.py target/ci-source-mtimes.json", restore)
+        self.assertLess(runtime.index("- name: Use persistent verify build artifacts"),
+                        runtime.index("- name: Restore unchanged source timestamps"))
+        self.assertLess(runtime.index("- name: Restore unchanged source timestamps"),
+                        runtime.index("- name: Build the runtime holder test actor"))
+        for case in ("absent", "correct-link", "directory", "file", "wrong-link", "dangling-link"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                persistent = root / "persistent"
+                persistent.mkdir()
+                target = root / "target"
+                other = root / "other"
+                other.mkdir()
+                if case == "correct-link":
+                    target.symlink_to(persistent)
+                elif case == "directory":
+                    target.mkdir()
+                    (target / "keep").write_text("retained")
+                elif case == "file":
+                    target.write_text("retained")
+                elif case in ("wrong-link", "dangling-link"):
+                    target.symlink_to(other if case == "wrong-link" else root / "missing")
+                before = target.lstat() if case != "absent" else None
+                before_link = os.readlink(target) if case in ("wrong-link", "dangling-link") else None
+                env = dict(os.environ, CARGO_TARGET_DIR=str(persistent))
+                result = subprocess.run(["bash", "-e", "-c", script], cwd=root, env=env,
+                                        capture_output=True, text=True)
+                if case in ("absent", "correct-link"):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(target.resolve(), persistent)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    after = target.lstat()
+                    # Following a symlink may update atime without modifying it.
+                    fields = ("st_ino", "st_dev", "st_mode", "st_size", "st_mtime_ns")
+                    self.assertEqual(tuple(getattr(after, field) for field in fields),
+                                     tuple(getattr(before, field) for field in fields))
+                    if case in ("wrong-link", "dangling-link"):
+                        self.assertEqual(os.readlink(target), before_link)
+                    if case == "directory":
+                        self.assertEqual((target / "keep").read_text(), "retained")
+                    elif case == "file":
+                        self.assertEqual(target.read_text(), "retained")
+
+    @unittest.skipUnless(POSIX_BASH and os.name != "nt", "needs the runner's bash and POSIX paths")
+    def test_stage_artifact_handoff_selects_normal_binary_and_rejects_unsafe_paths(self):
+        import json
+        import textwrap
+        from test_ci_runners import jobs
+        runtime = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))["verify"]
+        build = runtime.split("- name: Build the source stage generator (test profile)\n", 1)[1].split("\n      - ", 1)[0]
+        script = textwrap.dedent(build.split("        run: |\n", 1)[1])
+        for case in ("normal-and-harness", "harness-only", "newline-path"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                stubs = root / "bin"
+                stubs.mkdir()
+                cargo = stubs / "cargo"
+                cargo.write_text("#!/usr/bin/env python3\nimport os, sys\nsys.stdout.write(os.environ['STAGE_ARTIFACTS'])\n")
+                cargo.chmod(0o755)
+                normal = root / ("line\nbreak" if case == "newline-path" else "horizon-stage")
+                normal.touch()
+                harness = root / "horizon-stage-harness"
+                harness.touch()
+                messages = [{"reason": "compiler-artifact", "target": {"name": "horizon-stage", "kind": ["bin"]},
+                             "profile": {"test": True}, "executable": str(harness)}]
+                if case != "harness-only":
+                    messages.append({"reason": "compiler-artifact", "target": {"name": "horizon-stage", "kind": ["bin"]},
+                                     "profile": {"test": False}, "executable": str(normal)})
+                environment = root / "github-env"
+                env = dict(os.environ, PATH=f"{stubs}{os.pathsep}{os.environ['PATH']}",
+                           RUNNER_TEMP=str(root), GITHUB_ENV=str(environment), JOBS="",
+                           STAGE_ARTIFACTS="".join(json.dumps(message) + "\n" for message in messages))
+                result = subprocess.run(["bash", "-e", "-c", script], cwd=ROOT, env=env,
+                                        capture_output=True, text=True)
+                if case == "normal-and-harness":
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(environment.read_text(), f"HORIZON_STAGE_TOOL={normal.resolve()}\n")
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(environment.exists())
 
     @unittest.skipUnless(POSIX_BASH, "needs a bash that is not WSL's")
     def test_prepared_data_sentinel_reports_and_rejects_missing_coverage(self):
@@ -266,6 +395,10 @@ class DynaRoutingTests(unittest.TestCase):
         self.assertNotIn("python3 tools/ci/stage_slots.py", verify)
         self.assertLess(verify.index("- name: Install Rust toolchain and the runner image's packages"), verify.index(name))
         self.assertLess(verify.index("uses: actions/setup-python@v5"), verify.index(name))
+        build = verify.split("- name: Build the source stage generator (test profile)\n", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn("cargo +stable build $JOBS --locked --profile test -p horizon-mod-api-gen --bin horizon-stage", build)
+        self.assertIn("HORIZON_STAGE_TOOL=", build)
+        self.assertLess(verify.index("- name: Build the source stage generator (test profile)"), verify.index(name))
 
     def test_positive_stage_export_runs_once_before_docs_outside_offline_discovery(self):
         from test_ci_runners import jobs
@@ -284,10 +417,25 @@ class DynaRoutingTests(unittest.TestCase):
             with self.subTest(replacement=replacement), self.assertRaises(AssertionError):
                 self.assert_positive_stage_export(verify.replace(command, replacement, 1))
 
-    def test_tooling_tests_run_only_after_every_earlier_verify_step_succeeded(self):
-        # After a failed step the Rust install is skipped, so the Python tests that launch rustc can't run (#2920).
+    def test_optional_map_upload_is_nonblocking_and_reports_its_failure(self):
         from test_ci_runners import jobs
-        verify = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))["verify"]
+        verify = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))["verify-static"]
+        upload = verify.split("        id: mod_host_map_upload\n", 1)[1].split("\n      - ", 1)[0]
+        fields = dict(line.strip().split(":", 1) for line in upload.splitlines()
+                      if line.startswith("        ") and ":" in line and not line.lstrip().startswith("#"))
+        self.assertEqual(fields["continue-on-error"].strip(), "true")
+        self.assertIn("uses: actions/upload-artifact@", upload)
+        report = verify.split("- name: Report optional mod-host map upload failure\n", 1)[1].split("\n      - ", 1)[0]
+        condition = report.split("if:", 1)[1].split("\n", 1)[0]
+        self.assertIn("!cancelled()", condition)
+        self.assertIn("steps.mod_host_map_upload.outcome == 'failure'", condition)
+        self.assertIn("::warning::", report)
+        self.assertIn('>> "$GITHUB_STEP_SUMMARY"', report)
+
+    def test_tooling_tests_run_only_after_static_setup_succeeded(self):
+        # Failed setup must not produce secondary failures from compiler fixtures (#2920).
+        from test_ci_runners import jobs
+        verify = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))["verify-static"]
         step = verify.split("- name: Test offline research tooling\n", 1)[1].split("\n      - ", 1)[0]
         condition = step.split("if:", 1)[1].split("\n", 1)[0]
         self.assertIn("success()", condition)

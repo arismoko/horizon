@@ -1554,9 +1554,9 @@ impl Def {
                     | S::ZombieNautilus
             ),
             undead,
-            // `#can_breathe_under_water`, and the iron golem, whose
-            // `decreaseAirSupply` keeps its air. Not the dolphin: it holds its
-            // breath (4800 ticks) and surfaces for air.
+            // `#can_breathe_under_water`. Not the dolphin: it holds its breath
+            // (4800 ticks) and surfaces for air; nor the iron golem, which keeps
+            // its air through its own `decreaseAirSupply` (`ai.rs`).
             breathes_water: (aquatic && s != S::Dolphin)
                 || undead
                 || matches!(
@@ -1566,7 +1566,6 @@ impl Def {
                         | S::Turtle
                         | S::Guardian
                         | S::ElderGuardian
-                        | S::IronGolem
                         | S::CopperGolem
                         | S::Nautilus
                 ),

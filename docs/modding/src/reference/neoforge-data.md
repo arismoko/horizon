@@ -19,8 +19,9 @@ The [conditional-data contract](../how-to/native-mods.md#conditional-data)
 describes these file types and their reload lifetimes.
 
 Ordinary JSON resources select the winning pack file before evaluating its
-conditions. A false or unsupported condition omits that winner without exposing
-a lower pack's file. Tag resources and data maps evaluate each layer before
+conditions. A false condition omits that winner without exposing a lower pack's
+file. [Registered conditions](../concepts/load-conditions.md) can also refuse
+reload on bad arguments or unknown names in an owned namespace. Tag resources and data maps evaluate each layer before
 merge, `replace`, or `remove`; an omitted layer cannot clear lower entries.
 Content-root composition follows the same tag rule, including block/biome tag
 bundles. The damage registry remains frozen after world open; reloads reevaluate
@@ -28,9 +29,10 @@ its tags. Generated item default components retain their prototype lifetime.
 
 Supported forms are `neoforge:mod_loaded`, `neoforge:true`, `neoforge:not`
 (`value`), and `neoforge:and` / `neoforge:or` (`values`), inside a
-`neoforge:conditions` array. Every condition must hold; an unknown kind anywhere
-in a nested tree omits the file, including beneath `not` or `or`. Files without
-the array load normally.
+`neoforge:conditions` array. Every condition must hold. An unknown kind in a
+namespace where a loaded mod registered conditions refuses reload, naming the
+file, condition and owner. Other unknown kinds omit the file with one named
+error-level log entry, including beneath `not` or `or`. Files without the array load normally.
 
 `mod_loaded` reads an immutable snapshot of the owning generation's server-enabled
 mod IDs, including code-only native and WebAssembly mods, plus `minecraft`.

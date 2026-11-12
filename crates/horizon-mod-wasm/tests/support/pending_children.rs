@@ -59,6 +59,9 @@ fn handle(key: Borrow) -> UnspawnedMobRef {
 }
 
 impl PendingChildrenEdits for Editor<'_> {
+    fn children(&self) -> Result<PendingChildrenRef, UnspawnedMobError> {
+        Ok(self.receiver())
+    }
     fn len(&self, children: PendingChildrenRef) -> Result<u32, UnspawnedMobError> {
         self.check(children)?;
         self.arena
