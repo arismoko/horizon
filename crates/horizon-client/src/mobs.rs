@@ -63,6 +63,7 @@ pub mod model_layers;
 pub mod monster_brain;
 pub mod nautilus;
 pub mod neutral_anger;
+mod type_attributes;
 pub use neutral_anger::{
     adopt_anger_end, anger_left, persistent_anger, resume_anger, settle_anger_end,
 };
@@ -201,26 +202,6 @@ pub use flags::Flags;
 #[cfg(test)]
 mod powder_snow_move_tests;
 
-/// The fields of [`MobType`] its type's attribute row gives, built by
-/// [`MobType::attribute_fields`]: the one map from an attribute to the
-/// field a mob spawns with.
-pub(crate) struct MobTypeAttributeFields {
-    pub max_health: f32,
-    pub speed: f64,
-    pub flying_speed: f64,
-    pub attack_damage: f32,
-    pub attack_knockback: f64,
-    pub follow_range: f64,
-    pub step_height: f64,
-    pub armor: f32,
-    pub armor_toughness: f32,
-    pub knockback_resistance: f64,
-    pub jump_strength: f64,
-    pub gravity: f64,
-    pub safe_fall_distance: f64,
-    pub fall_damage_multiplier: f64,
-    pub water_efficiency: f64,
-}
 #[derive(Clone, Debug)]
 pub struct MobType {
     pub id: String,
@@ -244,6 +225,8 @@ pub struct MobType {
     pub attributes: Arc<HashMap<String, f64>>,
     /// Item defaults used when loading inventory-bearing mobs before a Game exists.
     pub item_stack_limits: Arc<HashMap<String, u32>>,
+    /// The bounds `finalize`'s attribute record clamps to, from the catalog.
+    pub attribute_bounds: finalize::AttrBounds,
     pub gravity: f64,
     pub safe_fall_distance: f64,
     pub fall_damage_multiplier: f64,
@@ -293,65 +276,6 @@ impl MobType {
         self.layers.get(key)
     }
 
-    /// The spawn fields an entity type's attribute row carries (its
-    /// `entity-types.json` row): the one map from an attribute to the field
-    /// a mob of the type spawns with, over the loader's own fallback. The
-    /// json's parser and the rest loader of a declared set (#845) both take
-    /// it, so the fields cannot drift from the row they read.
-    pub(crate) fn attribute_fields(value: impl Fn(&str) -> Option<f64>) -> MobTypeAttributeFields {
-        let attr = |k: &str| value(&format!("minecraft:{k}"));
-        MobTypeAttributeFields {
-            max_health: attr("max_health").unwrap_or(10.0) as f32,
-            speed: attr("movement_speed").unwrap_or(0.25),
-            flying_speed: attr("flying_speed").unwrap_or(0.4),
-            attack_damage: attr("attack_damage").unwrap_or(0.0) as f32,
-            attack_knockback: attr("attack_knockback").unwrap_or(0.0),
-            follow_range: attr("follow_range").unwrap_or(16.0),
-            step_height: attr("step_height").unwrap_or(0.6),
-            armor: attr("armor").unwrap_or(0.0) as f32,
-            armor_toughness: attr("armor_toughness").unwrap_or(0.0) as f32,
-            knockback_resistance: attr("knockback_resistance").unwrap_or(0.0),
-            jump_strength: attr("jump_strength").unwrap_or(0.42),
-            gravity: attr("gravity").unwrap_or(0.08),
-            safe_fall_distance: attr("safe_fall_distance").unwrap_or(3.0),
-            fall_damage_multiplier: attr("fall_damage_multiplier").unwrap_or(1.0),
-            water_efficiency: attr("water_movement_efficiency").unwrap_or(0.0),
-        }
-    }
-
-    /// Takes the type's row from the live attribute map's catalog (#845):
-    /// the merged row the map itself answers (the template's with the
-    /// declared set on top), as its attribute map and its spawn fields, so
-    /// the two records cannot diverge. Bases stay raw for base-value reads;
-    /// spawn fields use the catalog's computed-value sanitizer before narrowing.
-    pub fn take_attribute_row(
-        &mut self,
-        attributes: Arc<HashMap<String, f64>>,
-        catalog: &horizon_world::attributes::entity::Catalog,
-    ) {
-        let fields = Self::attribute_fields(|name| {
-            let base = *attributes.get(name)?;
-            let id = catalog.id(name)?;
-            Some(catalog.attribute(id).definition.sanitize(base))
-        });
-        self.attributes = attributes;
-        self.max_health = fields.max_health;
-        self.speed = fields.speed;
-        self.flying_speed = fields.flying_speed;
-        self.attack_damage = fields.attack_damage;
-        self.attack_knockback = fields.attack_knockback;
-        self.follow_range = fields.follow_range;
-        self.step_height = fields.step_height;
-        self.armor = fields.armor;
-        self.armor_toughness = fields.armor_toughness;
-        self.knockback_resistance = fields.knockback_resistance;
-        self.jump_strength = fields.jump_strength;
-        self.gravity = fields.gravity;
-        self.safe_fall_distance = fields.safe_fall_distance;
-        self.fall_damage_multiplier = fields.fall_damage_multiplier;
-        self.water_efficiency = fields.water_efficiency;
-    }
-
     /// The vanilla entity type whose class this type's mobs are: the type
     /// itself, or the template a content mod's living type copies. What a
     /// class saves and syncs of its own (`Zombie.addAdditionalSaveData`, its
@@ -395,8 +319,10 @@ pub struct MobTypes {
     pub types: HashMap<String, MobType>,
 }
 impl MobTypes {
+    /// The types with the attribute catalog of the same resources
+    /// (`attributes.json`), for a caller without the game's own.
     pub fn load(root: &Path) -> crate::Result<Self> {
-        Self::load_with_models(root, true, None, None)
+        Self::load_with_models(root, true, None, None, &Self::root_catalog(root)?)
     }
 
     /// Load client mob data using defaults already decoded by the resource
@@ -405,39 +331,55 @@ impl MobTypes {
     pub fn load_with_defaults(
         root: &Path,
         defaults: &horizon_world::item_defaults::Defaults,
+        attributes: &horizon_world::attributes::entity::Catalog,
     ) -> crate::Result<Self> {
-        Self::load_with_models(root, true, None, Some(defaults))
+        Self::load_with_models(root, true, None, Some(defaults), attributes)
     }
 
     /// The dedicated server needs entity facts and AI, but never their render
     /// geometry. Keep one empty part for the fields shared with the client
     /// rather than parsing and retaining every entity-model layer.
-    pub fn load_for_server(root: &Path) -> crate::Result<Self> {
-        Self::load_with_models(root, false, None, None)
+    pub fn load_for_server(
+        root: &Path,
+        attributes: &horizon_world::attributes::entity::Catalog,
+    ) -> crate::Result<Self> {
+        Self::load_with_models(root, false, None, None, attributes)
     }
 
     /// The client startup already parsed `entity-models.json` for the handoff
     /// and the other model loaders; read the model layers from that copy.
     pub fn load_with_document(root: &Path, document: &EntityModelDocument) -> crate::Result<Self> {
-        Self::load_with_models(root, true, Some(document), None)
+        Self::load_with_models(root, true, Some(document), None, &Self::root_catalog(root)?)
     }
 
-    /// The client startup already has both the entity model document and the
-    /// item defaults. Reuse both instead of decoding either file again.
+    /// The client startup already has the entity model document, the item
+    /// defaults and the attribute catalog. Reuse them instead of decoding
+    /// their files again.
     pub fn load_with_document_and_defaults(
         root: &Path,
         document: &EntityModelDocument,
         defaults: &horizon_world::item_defaults::Defaults,
+        attributes: &horizon_world::attributes::entity::Catalog,
     ) -> crate::Result<Self> {
-        Self::load_with_models(root, true, Some(document), Some(defaults))
+        Self::load_with_models(root, true, Some(document), Some(defaults), attributes)
     }
 
+    fn root_catalog(root: &Path) -> crate::Result<horizon_world::attributes::entity::Catalog> {
+        let json = horizon_world::json_file::read(&root.join("attributes.json"))?;
+        Ok(horizon_world::attributes::entity::Catalog::from_json(
+            &json,
+        )?)
+    }
+
+    /// `attributes`: the catalog whose bounds the types' mobs clamp to.
     fn load_with_models(
         root: &Path,
         models_needed: bool,
         document: Option<&EntityModelDocument>,
         item_defaults: Option<&horizon_world::item_defaults::Defaults>,
+        attributes: &horizon_world::attributes::entity::Catalog,
     ) -> crate::Result<Self> {
+        let attribute_bounds = finalize::AttrBounds::of(attributes);
         let bytes = fs::read(root.join("entity-types.json"))?;
         let types: Value = serde_json::from_slice(&bytes)?;
         let exact = exact_attributes(&bytes);
@@ -534,7 +476,7 @@ impl MobTypes {
                 continue;
             }
             let defaults = exact.get(&id).cloned().unwrap_or_default();
-            let fields = MobType::attribute_fields(|name| defaults.get(name).copied());
+            let fields = MobType::catalog_fields(&defaults, attributes);
             let mut layers = crate::fast_hash::FxHashMap::default();
             if let Some(all) = models.as_ref().and_then(|m| m.value().as_object()) {
                 for prefix in def.layer_prefixes() {
@@ -563,6 +505,7 @@ impl MobTypes {
                 MobType {
                     species: def.species,
                     item_stack_limits: item_stack_limits.clone(),
+                    attribute_bounds,
                     width: t["width"].as_f64().unwrap_or(0.6),
                     height: t["height"].as_f64().unwrap_or(1.8),
                     eye_height: t["eye_height"].as_f64().unwrap_or(1.6),
@@ -5513,6 +5456,7 @@ pub(crate) mod sensor_scan_tests {
             jump_strength: 0.42,
             attributes: Arc::default(),
             item_stack_limits: Default::default(),
+            attribute_bounds: Default::default(),
             gravity: 0.08,
             safe_fall_distance: 3.0,
             fall_damage_multiplier: 1.0,
@@ -6834,7 +6778,8 @@ mod effect_refusal_tests {
         if !root.join("entity-types.json").exists() {
             return;
         }
-        let types = MobTypes::load_for_server(&root).unwrap();
+        let types =
+            MobTypes::load_for_server(&root, &MobTypes::root_catalog(&root).unwrap()).unwrap();
         let refused = |id: &str, effect: &'static str| {
             let mut m = mob(&types, id);
             m.add_effect(effect, 200, 0);
@@ -6918,7 +6863,8 @@ mod effect_refusal_tests {
 
     fn check_squid_damage_result(id: &str) {
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
-        let types = MobTypes::load_for_server(&root).unwrap();
+        let types =
+            MobTypes::load_for_server(&root, &MobTypes::root_catalog(&root).unwrap()).unwrap();
         let mut attacker = mob(&types, "minecraft:cow");
         attacker.id = 2;
         attacker.position = Vec3::new(4.0, 64.0, 4.0);
@@ -6992,7 +6938,8 @@ mod effect_refusal_tests {
         if !root.join("entity-types.json").exists() {
             return;
         }
-        let types = MobTypes::load_for_server(&root).unwrap();
+        let types =
+            MobTypes::load_for_server(&root, &MobTypes::root_catalog(&root).unwrap()).unwrap();
         let mut test_level = crate::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let mut burned = mob(&types, "minecraft:glow_squid");

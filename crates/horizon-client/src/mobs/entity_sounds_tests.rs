@@ -255,7 +255,14 @@ fn entity_sounds_malformed_row_reports_entity_id() {
             serde_json::to_vec(&serde_json::json!({"bird:vulture":row})).unwrap(),
         )
         .unwrap();
-        let Err(error) = MobTypes::load_for_server(dir.path()) else {
+        let attributes =
+            horizon_world::attributes::entity::Catalog::from_json(&serde_json::json!({
+                "data_version": horizon_world::DATA_VERSION,
+                "attributes": [],
+                "entities": {},
+            }))
+            .unwrap();
+        let Err(error) = MobTypes::load_for_server(dir.path(), &attributes) else {
             panic!("malformed sounds were admitted by the entity loader");
         };
         assert!(error.to_string().contains("bird:vulture"), "{error}");

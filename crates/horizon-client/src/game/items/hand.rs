@@ -832,7 +832,8 @@ impl Game<'_> {
                 || !self.applied_modifiers.is_empty()
                 || !self.potions.applied.is_empty())
         {
-            return speed.clamp(0.0, 1024.0);
+            // The computed value is already inside the attribute's bounds.
+            return speed;
         }
         let base = self
             .player
@@ -848,13 +849,22 @@ impl Game<'_> {
             + self
                 .attack_item_info()
                 .map_or(0.0, |i| f64::from(i.attack_speed));
-        self.potions
+        let value = self
+            .potions
             .effects
             .modifiers()
             .into_iter()
             .filter(|m| m.0 == "minecraft:attack_speed")
-            .fold(value, |v, m| v * (1.0 + m.2))
-            .clamp(0.0, 1024.0)
+            .fold(value, |v, m| v * (1.0 + m.2));
+        self.sanitize_attack_speed(value)
+    }
+    /// `Attributes.ATTACK_SPEED`'s sanitizer, from the attribute catalog: the
+    /// attack speed a value computed outside the attribute map takes.
+    pub(in crate::game) fn sanitize_attack_speed(&self, value: f64) -> f64 {
+        self.motion
+            .attributes
+            .definition("minecraft:attack_speed")
+            .map_or(value, |definition| definition.sanitize(value))
     }
     /// The item whose attack damage and speed modifiers the player has (`attack_item`).
     pub(super) fn attack_item_info(&self) -> Option<&horizon_client::items::ItemInfo> {

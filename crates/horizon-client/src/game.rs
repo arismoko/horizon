@@ -15624,32 +15624,28 @@ fn load_world_rest(
     };
     let load_mobs = || -> Result<_> {
         let _step = startup::step("rest.mobs");
+        let catalog = &resources.motion().attributes;
         let mut types = if draws {
             match entity_models {
                 Some(document) => MobTypes::load_with_document_and_defaults(
                     root,
                     document,
                     item_defaults.entries(),
+                    catalog,
                 )?,
-                None => MobTypes::load_with_defaults(root, item_defaults.entries())?,
+                None => MobTypes::load_with_defaults(root, item_defaults.entries(), catalog)?,
             }
         } else {
-            MobTypes::load_for_server(root)?
+            MobTypes::load_for_server(root, catalog)?
         };
         // #845: the declared sets take their types' rows — the merged rows
         // the live attribute map's catalog took in core (the template's with
         // the declared set on top) — as their attribute map and spawn
         // fields, so a mob of the type spawns with what the map answers.
         for declaration in mod_api::__private::entity_attribute_declarations() {
-            let row = resources
-                .motion()
-                .attributes
-                .entity_row(&declaration.id)
-                .map(std::sync::Arc::new);
+            let row = catalog.entity_row(&declaration.id).map(std::sync::Arc::new);
             match (types.types.get_mut(&declaration.id), row) {
-                (Some(kind), Some(row)) => {
-                    kind.take_attribute_row(row, &resources.motion().attributes)
-                }
+                (Some(kind), Some(row)) => kind.take_attribute_row(row, catalog),
                 (Some(_), None) => log::warn!(
                     "Horizon: mod entity attributes of {} never reached the catalog; ignored",
                     declaration.id
@@ -15664,7 +15660,7 @@ fn load_world_rest(
         // same way, so a new mob of the type spawns with them.
         resource_load::take_modified_attribute_rows(
             &mut types.types,
-            &resources.motion().attributes,
+            catalog,
             mod_api::__private::entity_attribute_modifications(),
         );
         let mob_types: HashMap<_, _> = types

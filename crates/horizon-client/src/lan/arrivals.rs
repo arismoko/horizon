@@ -2322,13 +2322,24 @@ mod hub_tests {
     }
 
     /// What the game does with a request (`game/interface/dedicated/transfer.rs`), without the disk: the
-    /// import, then the placing unless `"place": false`.
+    /// import, then the placing unless `"place": false`. The catalog has vanilla's bounds of the
+    /// attributes the record's values are checked against.
     fn import_player(
         hub: &mut Hub,
         uuid: u128,
         request: &serde_json::Value,
     ) -> Result<crate::lan::import::Imported, String> {
-        let done = crate::lan::import::import_player(hub, uuid, request)?;
+        let bits = |v: f64| format!("{:016x}", v.to_bits());
+        let attributes = horizon_world::attributes::entity::Catalog::from_json(&serde_json::json!({
+            "data_version": horizon_world::DATA_VERSION,
+            "attributes": [
+                {"id": "minecraft:max_health", "default": bits(20.0), "min": bits(1.0), "max": bits(1024.0), "syncable": true},
+                {"id": "minecraft:max_absorption", "default": bits(0.0), "min": bits(0.0), "max": bits(2048.0), "syncable": true},
+            ],
+            "entities": {},
+        }))
+        .unwrap();
+        let done = crate::lan::import::import_player(hub, &attributes, uuid, request)?;
         if done.place {
             hub.confirm_arrival(uuid, done.handover)?;
         }

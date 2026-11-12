@@ -206,6 +206,7 @@ fn load_player_type(models: &horizon_client::mobs::EntityModelDocument) -> Optio
             jump_strength: 0.42,
             attributes: Default::default(),
             item_stack_limits: Default::default(),
+            attribute_bounds: Default::default(),
             gravity: 0.08,
             safe_fall_distance: 3.0,
             fall_damage_multiplier: 1.0,

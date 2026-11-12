@@ -28,6 +28,7 @@ use super::{
 };
 use crate::save::Level;
 use horizon_core::nbt::{Limits, Tag, read_named};
+use horizon_world::attributes::{Definition, entity::Catalog};
 use serde_json::Value;
 
 /// The parts of a record, in the order the replies list them.
@@ -274,7 +275,7 @@ const MAX_Y: f64 = 2.0e7;
 /// Refuses a compound whose values no player can have. `Entity.load` throws on a position or
 /// rotation that is not finite; a record comes from another machine, so it is checked rather
 /// than clamped, and a health of zero or less (a dead player) is refused too.
-fn check_values(level: &Level) -> Result<(), String> {
+fn check_values(level: &Level, attributes: &Catalog) -> Result<(), String> {
     let finite = |what: &str, values: &[f64]| {
         if values.iter().all(|v| v.is_finite()) {
             Ok(())
@@ -306,12 +307,19 @@ fn check_values(level: &Level) -> Result<(), String> {
     if level.health <= 0.0 {
         return Err("the record's player is dead".into());
     }
-    // The bounds vanilla's own data keeps (26.3's bytecode): `max_health` is at most 1024
-    // (`Attributes.MAX_HEALTH`) and absorption at most 2048 (`MAX_ABSORPTION`), an effect's
+    // The bounds the attribute catalog keeps (vanilla's: `Attributes.MAX_HEALTH` at most 1024,
+    // `MAX_ABSORPTION` 0 to 2048): health is at most `max_health`'s maximum and absorption inside
+    // `max_absorption`'s bounds. The bounds vanilla's own data keeps (26.3's bytecode): an effect's
     // amplifier is 0 to 255 (`MobEffectInstance` clamps it), and food exhaustion is at most 40
     // (`FoodData.addExhaustion`). A stack's count needs nothing here: `item_from_nbt` takes one out of
     // `ItemStack`'s `intRange(1, 99)` as 1.
-    if level.health > 1024.0 || !(0.0..=2048.0).contains(&level.absorption) {
+    let bounds = |name| attributes.definition(name).and_then(Definition::bounds);
+    let health = f64::from(level.health);
+    let absorption = f64::from(level.absorption);
+    if bounds("minecraft:max_health").is_some_and(|(_, max)| health > max)
+        || bounds("minecraft:max_absorption")
+            .is_some_and(|(min, max)| !(min..=max).contains(&absorption))
+    {
         return Err("the record's health is past what a player can have".into());
     }
     if !(0.0..=40.0).contains(&level.food_exhaustion) {
@@ -495,7 +503,14 @@ impl Kept {
 /// Nothing changes when it refuses: the record is read and checked first, and the
 /// guest is touched only once everything is known to be well. It refuses everything once
 /// the server has begun to stop.
-pub fn import_player(hub: &mut Hub, uuid: u128, request: &Value) -> Result<Imported, String> {
+/// `attributes`: the game's attribute catalog, whose bounds the record's values are checked
+/// against.
+pub fn import_player(
+    hub: &mut Hub,
+    attributes: &Catalog,
+    uuid: u128,
+    request: &Value,
+) -> Result<Imported, String> {
     if hub.transfers.as_ref().is_some_and(|t| t.stopping) {
         return Err(super::arrivals::STOPPING.into());
     }
@@ -519,7 +534,7 @@ pub fn import_player(hub: &mut Hub, uuid: u128, request: &Value) -> Result<Impor
     }
     let mut level = Level::default();
     level.read_player(&tag);
-    check_values(&level)?;
+    check_values(&level, attributes)?;
     // A record with a vehicle still to restore (`RootVehicle`) puts the player back on it, at
     // the vehicle's own saved place: a position named by the request would be undone as soon
     // as the vehicle is restored, so the two cannot be taken together.

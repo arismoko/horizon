@@ -104,6 +104,11 @@ impl Definition {
     pub fn default_value(self) -> f64 {
         self.default
     }
+    /// A ranged attribute's `[min, max]` bounds (`RangedAttribute.minValue`, `maxValue`);
+    /// none for an attribute without them.
+    pub fn bounds(self) -> Option<(f64, f64)> {
+        self.range
+    }
     pub fn sanitize(self, value: f64) -> f64 {
         let Some((min, max)) = self.range else {
             return value;

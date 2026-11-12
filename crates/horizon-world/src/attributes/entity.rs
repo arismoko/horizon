@@ -304,6 +304,11 @@ impl Catalog {
     pub fn attribute(&self, id: AttributeId) -> &RegisteredAttribute {
         &self.attributes[id.0]
     }
+    /// The definition (default and bounds) of the attribute named `name`, if
+    /// the catalog has it: what every clamp and check of its value reads.
+    pub fn definition(&self, name: &str) -> Option<Definition> {
+        self.id(name).map(|id| self.attributes[id.0].definition)
+    }
     pub fn attributes(&self) -> impl Iterator<Item = (AttributeId, &RegisteredAttribute)> {
         self.attributes
             .iter()

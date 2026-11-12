@@ -1680,7 +1680,14 @@ pub(super) fn living_mod_types()
     ));
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("entity-types.json"), table).unwrap();
-    let types = horizon_client::mobs::MobTypes::load_for_server(&root).unwrap();
+    // No attribute catalog: the rows' values stay as written.
+    let attributes = &horizon_world::attributes::entity::Catalog::from_json(&serde_json::json!({
+        "data_version": horizon_world::DATA_VERSION,
+        "attributes": [],
+        "entities": {},
+    }))
+    .unwrap();
+    let types = horizon_client::mobs::MobTypes::load_for_server(&root, attributes).unwrap();
     let _ = std::fs::remove_dir_all(&root);
     types
         .types
