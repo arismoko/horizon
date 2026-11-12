@@ -3,7 +3,7 @@
 Register standalone models during `standalone_models`, then resolve their `ModelRef`
 through `RenderAssets::model` after resources are published. World render hooks receive
 `WorldDrawContext`: submit transient copies with `draw_model_instances`, or retain
-copies in a group. GUI scenes, mobs and kept/spinning renderers use their existing
+copies in a group. GUI scenes, mobs and kept/spinning renderers use their
 CPU routes; groups are a world-drawing facility, not another renderer.
 
 ## Terrain materials in a block entity
@@ -33,7 +33,7 @@ draw.terrain_model(self.belt, options)?;
   `uv_shrink_ratio` (`0.0..=1.0`, default `0.0`) pulls UVs towards each face's centre first,
   for a model baked with an older `FaceBakery`'s atlas shrink. The engine never guesses it.
 - `tint` (`0xRRGGBB`) multiplies only quads with a tint index.
-- A stale handle is `TerrainModelError::Model`. If any quad can't be drawn, the result is
+- A stale handle returns `TerrainModelError::Model(ModelError)`. If any quad can't be drawn, the result is
   `TerrainModelError::Refused` and nothing is drawn. That covers a translucent quad under
   `Model`, a missing sprite, a pose that flattens the model, a ratio out of range, and a shift
   whose numbers aren't finite, whose sprites are unknown or whose source sprite no face uses.
@@ -64,7 +64,7 @@ and at most 16,384 group submissions. Culled copies do not consume the visible-c
 budget. Refusal is atomic: no prefix of a refused submission draws.
 
 Groups cache converted records on the CPU. Unchanged groups avoid pose, normal and
-tint conversion, but still cull and stage visible copies each frame. Every visible
+tint conversion, but cull and stage visible copies each frame. Every visible
 GPU-routed copy uploads each frame; groups do not retain a private GPU buffer.
 Frequent whole-group pose changes rebuild every live record and can cost more than
 uncached transient copies. Shader-pack selection, missing prepared GPU records and
@@ -100,8 +100,9 @@ draw.fluid_box(&tank.stack, [0.125, 0.0625, 0.125, 0.875, level, 0.875], options
   and depth-writing. They draw with the block entities, before the level's translucent terrain,
   under shader packs too.
 - A stack of 0 draws nothing and returns `Ok` without checking `bounds`. Non-finite or reversed
-  bounds, a box of more than 65,536 tiled quads and a ratio out of range are
-  `FluidBoxError::InvalidBox`. A refusal draws nothing.
+  bounds, bounds beyond 1,048,576 blocks, a box of more than 65,536 tiled quads and a ratio out of range are
+  `FluidBoxError::InvalidBox`. Missing fluid sprites return
+  `FluidBoxError::MissingSprite`. A refusal draws nothing.
 
 ## A player's or humanoid's parts
 
@@ -118,7 +119,7 @@ it: `hidden.hide(HumanoidPart::Head)`, as a mod drawing its own outer skin layer
 `hidden.hide_named("nose")` leaves a villager's nose out, as a level of detail for a far crowd
 does. A frame holds at most `MAX_HIDDEN_PARTS` (8) names of at most `MAX_PART_NAME` (24) bytes;
 `hide_named` says `HideError::Full` or `HideError::BadName` past that. An unknown name refuses the draw at first use, reporting the mob type and part name.
-Typed humanoid parts have separate storage, so all twelve always fit alongside the eight names.
+Typed humanoid parts have separate storage, so all twelve fit alongside the eight names.
 
 - Hiding happens after Skin Customization, for this frame only.
 - A hidden part takes its children with it: the hat goes with the head, a sleeve with its arm.

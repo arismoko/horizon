@@ -1,6 +1,6 @@
-# Temporary client sound effects
+# Client effects and tooltips
 
-These effects change what a player hears, not the server's world. They do nothing until a mod asks for them. See the [API reference](../../reference/api.md) for the generated signatures.
+Use client services to edit tooltips, draw extra camera views and change local sound output. See the [API reference](../../reference/api.md) for the generated signatures.
 
 ## Reading the tooltip preference
 
@@ -23,7 +23,7 @@ request's `advanced` and `creative` flags on native and wasm alike.
 ## Drawing a second world camera
 
 Native internals mods can request extra world cameras through `world_views` and
-consume their textures in `world_view_drawn`. These are raw renderer places, not
+consume their textures in `world_view_drawn`. These are raw renderer callbacks, not
 portable API callbacks: wasm mods cannot use them. Construct a `WorldView` with a
 stable ID, camera, yaw, pitch, field of view and pixel size. Return the same
 requests whenever the frame asks; at most four valid, distinct IDs draw, with
@@ -34,8 +34,9 @@ target with its encoder. Copy a picture you need to preserve: targets are reused
 while requested and retired when absent. Views draw before `world_drawn`, where
 you can composite their pictures into the player's frame. Extra cameras increase
 rendering work and do not include particles, weather, hands or shader-pack passes.
-See the generated `world_views` hook notes for the full rendering contract and
-`tools/run_world_views.py` for the offscreen fixture.
+Extra views also omit the sun, moon, stars, clouds and block outline. Translucent
+terrain uses the player camera's sorting. See the generated `world_views` hook notes
+for the rendering contract.
 
 ## Muffling sounds
 
@@ -46,6 +47,6 @@ See the generated `world_views` hook notes for the full rendering contract and
 - Both effects start at full strength and fade linearly over `ticks` client ticks. The fade waits while the game is paused.
 - The sound events in `exempt` remain clear, including ones already playing. Use this for the mod's ringing sound. Other sounds already playing, music and interface clicks are muffled too.
 
-A new call replaces the current muffle; `ticks` of 0 ends it immediately. The effect belongs to the sound output, so every splitscreen player hears it. The call refuses an amount or strength outside 0 to 1, or an exempt event that is not a namespaced sound id, without changing the output. Server code cannot call this client-only service.
+A new call replaces the current muffle; `ticks` of 0 ends it immediately. The effect belongs to the sound output, so every splitscreen player hears it. The call refuses an amount or strength outside 0 to 1, more than 64 exempt events, or an exempt event that is not a namespaced sound ID, without changing the output. Server code cannot call this client-only service.
 
-Play the accompanying sound through `ClientHost::play_local_sound` with a `SoundPlay`, rather than a separate legacy sound API.
+Play the accompanying sound through `ClientHost::play_local_sound` with a `SoundPlay`.

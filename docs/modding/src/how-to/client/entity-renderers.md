@@ -1,11 +1,11 @@
 # Drawing an entity type with your own renderer
 
-A client mod can draw every entity of a type with code of its own. This is the counterpart of
+You can draw content-defined thrown entities with your own renderer. This is the counterpart of
 NeoForge 26.3's `EntityRenderersEvent.RegisterRenderers` (`registerEntityRenderer`): the mod
 registers one renderer per entity type at start, and the game hands each entity of that type in
 view to it, once a frame. Native and wasm mods register and draw the same way.
 
-## 1. Write the renderer
+## Write the renderer
 
 A renderer implements `EntityRenderer`. Its `submit` gets the entity's frame and a draw context, the
 same one a block entity or mob submit hook draws with (`quad`, `cube`, `block`, `item`,
@@ -41,12 +41,12 @@ impl EntityRenderer for Bolt {
 
 The pose stack starts at the entity's interpolated position, in blocks, and is not turned. `draw`
 also has the partial tick, the game time and the entity's light. What `submit` draws replaces the
-type's own drawing; the glowing outline still draws around it. Every entity of the type shares the
+type's own drawing; the glowing outline draws around it. Every entity of the type shares the
 one renderer, so keep per-entity values out of it: read them from the state. A renderer has no
 `Host`; one that needs the world reads it in a hook and keeps what it read. A frame is drawn afresh,
 so `draw.keep()` does nothing here.
 
-## 2. Register it
+## Register it
 
 ```rust,ignore
 fn register_entity_renderers(
@@ -73,10 +73,10 @@ scan over the mods.
 
 ## What draws through registered renderers
 
-The table covers every entity type, and each family's draw route reads it in turn. Today the content
-mods' thrown types read it: a `data/<id>/horizon/entity_type/<name>.json` with the
-`minecraft:snowball` template ([content mods](../content-mods.md)) draws its renderer's geometry instead
-of its flying item, and a thrown type with no renderer keeps its item. A registration for a type whose
-family does not read the table yet (a boat, a display, a vanilla projectile, a mob) is kept silently,
-and the type keeps its own drawing until its family does. Those families, the extra layers on living
-renderers (`AddLayers`) and a mod's general entity types follow #860; they register the same way.
+Registered renderers draw content-defined thrown types: a
+`data/<id>/horizon/entity_type/<name>.json` using the `minecraft:snowball` template
+([content mods](../content-mods.md)) draws the renderer's geometry instead of its
+flying item. Without a renderer, it draws its item.
+
+Registrations for other known entity families, including boats, displays, vanilla
+projectiles and mobs, are retained without changing their drawing.
