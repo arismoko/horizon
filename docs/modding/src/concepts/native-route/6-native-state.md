@@ -1,13 +1,13 @@
 # Native state: `[[native.state]]` is refused
 
-`[[native.state]]` would add a field to a game type. Horizon refuses it, because a new field would break the
-prebuilt game, which is never rebuilt for a mod. A mod that declares it does not build:
+Horizon refuses `[[native.state]]` at native build time: adding a field changes a game type's layout,
+which must match the prebuilt game. If you declare this table, the build reports:
 
 ```text
 E_MIXIN_STATE_LAYOUT: <mod>:<row>: native state changes the prebuilt game's layout; use an attachment instead
 ```
 
-Fix: remove the row and use an **attachment**. An attachment is a typed value the game keeps for you on an
+Remove the row and use an **attachment**. An attachment is a typed value the game keeps for you on an
 entity, block entity, chunk, level or player, and saves with it when you give it a codec. It works the same
 on native and wasm. See [server attachments](../attachments.md) and
 [querying attachment holders](../attachments/querying.md).

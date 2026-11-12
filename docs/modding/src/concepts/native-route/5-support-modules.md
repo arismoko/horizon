@@ -1,15 +1,16 @@
 # Support modules: `[[native.module]]`
 
-A support module is a file of your Rust code that the launcher adds as a module inside one of the game's
-source files. Its code can use that game module's private items, and your mixin helpers can call it.
+A support module puts shared Rust code in the function-replacement mirror of a game module. Its code
+can use that game module's private items, and your mixin helpers can call it. The launcher compiles the
+mirror against the prebuilt game; it does not edit or rebuild the original game source.
 
 Use one for code that several helpers share and that needs the game's private items. Shared code that needs
 only public items goes in your mod's own crate.
 
 ## Example
 
-The check mod `fnr_support`, which CI builds, adds the module `fnr_runtime` to the game's autosave file. Its
-full manifest and the helper that calls the module are on [Bridges](4-bridges.md#example).
+Declare `fnr_runtime` in the mirror of the autosave module. The full manifest and a helper that calls
+it are on [Bridges](4-bridges.md#example).
 
 ```toml
 [[native.module]]
@@ -38,8 +39,8 @@ helpers call `pub`. The module may call your mod's crate; your mod's crate canno
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `id` | yes | The row's name, unique in the mod. |
-| `file` | yes | The game source file that receives the module, from the repository root: `crates/horizon-client/src/…`. |
-| `name` | yes | The module's Rust name. Pick one the file does not use, with a prefix of your own, such as `fnr_`. |
+| `file` | yes | The game source file whose module is mirrored, relative to the repository root: `crates/horizon-client/src/…`. |
+| `name` | yes | The module's Rust name. Pick one the destination module does not use, with a prefix of your own, such as `fnr_`. |
 | `source` | yes | Your file under `src/` with the module's items. |
 | `visibility` | no | The module's visibility: `"pub(crate)"` (the default, enough for your helpers) or `"pub"`. |
 

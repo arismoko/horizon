@@ -1,15 +1,16 @@
 # Bridges: `[[native.bridge]]`
 
 A bridge gives your mixin helpers a getter, setter or caller for a field or method they can't see. The
-launcher adds a method to the game's struct, and your helpers call it like any other method.
+launcher generates an extension trait and its implementation in the function-replacement mirror.
+Your helpers call the trait method with ordinary method syntax.
 
 Use one when a [mixin helper](2-mixins.md#writing-a-helper) needs a field or method that Rust's privacy hides
 from the target's module. For a value a hook or `[[inject]]` listener already gets, you need no bridge.
 
 ## Example
 
-The check mod `fnr_support`, which CI builds, declares a mutable getter for `Game::ticks_until_autosave` and
-uses it from a `HEAD` mixin. The manifest's header is as on [Mixins](2-mixins.md#example). The helper also
+This example declares a mutable getter for `Game::ticks_until_autosave` and uses it from a `HEAD` mixin
+in a mod named `fnr_support`. The manifest's header is as on [Mixins](2-mixins.md#example). The helper also
 calls a [support module](5-support-modules.md) of the same mod, so the example keeps its row.
 
 ```toml
@@ -44,7 +45,7 @@ fn head(game: &mut Game<'_>) {
 ```
 
 The bridge `ticks` of the mod `fnr_support` becomes the method `__horizon_mixins_fnr_support_ticks`. It returns
-`&mut i64` because the field is an `i64`. (This field is visible from that module anyway; the check shows the shape.)
+`&mut i64` because the field is an `i64`. This field is also visible directly from the example's target module.
 
 ## The generated method
 
@@ -60,7 +61,7 @@ So use only letters, digits, `_` and `-` in a bridge id, and keep ids distinct a
 
 `T` is the field's type: read it in the game's source, since a wrong guess is a compiler error. An `INVOKE`
 bridge is called as `value.__horizon_mixins_<mod>_<id>(…)`, or `Type::__horizon_mixins_<mod>_<id>(…)` for a
-function without `self`. No check mod covers `INVOKE` yet.
+function without `self`.
 
 Name a field bridge's struct by the module that declares it, without lifetimes (`horizon_client::game::Game`).
 Mixin helpers on game-crate functions can call the method. Your mod's own crate cannot, so
@@ -80,7 +81,9 @@ Limits:
 - The struct or method is in the game crate, `horizon_client`.
 - A field bridge's struct may be generic over lifetimes, not types or consts.
 - An `INVOKE` target's type and method are not generic.
-- An `INVOKE` target's signature does not use an associated type through `Self`, such as `Self::Error`.
+- An `INVOKE` bridge qualifies associated items such as `Self::Error` through the target's trait when it
+  can resolve them. If a `Self::…` path remains unresolved, the build returns `E_MIXIN_BRIDGE_TARGET`
+  naming the item and asks you to bridge a function whose signature spells the type out.
 
 ## What you will see
 
@@ -93,11 +96,11 @@ Every bridge error reads `E_MIXIN_BRIDGE_TARGET: <mod>:<row>: <why>`.
 | Reason | Fix |
 | --- | --- |
 | `a field bridge's target is a struct path` | Write `module::Struct`. |
-| `no module <module> in the game crate` | Check the module path at your commit ([Naming the target](2-mixins.md#naming-the-target)). |
+| `no module <module> in the game crate` | Check the module path for your game build ([Naming the target](2-mixins.md#naming-the-target)). |
 | `no struct <Struct> in <module>` | Name the module the struct is declared in. |
 | `<Struct> is generic over types` | Not possible on this route. |
 | ``a field bridge names its `member` `` | Add `member`. |
-| `<Struct> has no field <member>` | Check the field's name at your commit. |
+| `<Struct> has no field <member>` | Check the field's name for your game build. |
 | `unknown bridge kind <kind>` | Use `GET`, `GET_MUT`, `SET` or `INVOKE`. |
 | `an invoker's target is a method or associated function of a type` | The target is a free function. Point `INVOKE` at a method. |
 | `an invoker's type and method are not generic` | Not possible on this route. |

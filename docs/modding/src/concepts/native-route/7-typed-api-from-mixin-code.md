@@ -1,7 +1,7 @@
 # The typed API from mixin code
 
-An `[[inject]]` listener can use the typed API: an API point's listener gets the side's `Host` and calls
-attachments and handles through it. The listener contracts are in
+Use the typed API from an `[[inject]]` listener. An API point on a `Game` method supplies the side's
+`Host`, through which you access attachments and handles. The listener contracts are in
 [Injections](../injections.md#declaration). Source-level helpers use the separate
 [Mixins](2-mixins.md) mechanism and upstream's vocabulary.
 
