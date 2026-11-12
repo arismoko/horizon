@@ -781,6 +781,11 @@ mod tests {
             unprompted: Some(body(0x21, 2)),
         };
         let served = serve(Connection::local(b), probe, Duration::from_secs(30));
+        // The queued packet and the one the session sends of its own accord
+        // are framed by different paths (`Outbox::take` and `Session::tick`
+        // in `sweep`), so which of the two goes out first is the sweep's
+        // timing, not an order the pool promises: take both, then tell them
+        // apart. The kick still has to come after the queued one.
         served.send(vec![body(3, 10)], None);
         // The first worker sweep may send the session's unsolicited packet
         // before the test queues its packet. Both must arrive before the kick,
