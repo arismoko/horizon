@@ -614,7 +614,9 @@ impl Game<'_> {
         if self.dim.key() != level.dimension() {
             return Err(mod_api::LevelWriteError::Unavailable);
         }
-        Ok(world.loaded(pos[0], pos[2]) && world.shape.contains_y(pos[1]))
+        Ok(!self.world.carrier_fences.locks_cell(&pos)
+            && world.loaded(pos[0], pos[2])
+            && world.shape.contains_y(pos[1]))
     }
     pub(crate) fn native_level_write_allowed(&self, level: LevelRef, pos: [i32; 3]) -> bool {
         // A carrier transfer fence holds this cell: every mod write
