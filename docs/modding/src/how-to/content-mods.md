@@ -1,46 +1,15 @@
 # Making a content mod
 
-Trait mods declare content through `BlocksEvent` and `ItemsEvent`, using API-owned
-`mod_api::Block` and `mod_api::Item` records. Start with `Block::new(id, template)` or
-`Item::new(id, template)`, passing identifier strings, then set the overrides. The drafts are unvalidated; admission reports malformed values with the content loader's refusal messages.
-These are load-time declaration drafts, not live registry entries. The game admits them
-with the content-file checks, atomically for each namespace, before resources load.
-A block's `item` defaults to true, in code as in a file: `Block::with_item(false)` gives it none. Each mod receives its own declaration
-batch. New identifiers from code—including block entity types and other registrar
-declarations—may use any namespace owned by that mod's manifest. Bare names use
-the mod ID; an explicit owned namespace stays unchanged. An unowned namespace
-refuses registration with a diagnostic naming both the mod and namespace. This
-is identical for native and wasm mods. Attaching a Part to an existing vanilla or
-foreign block or item is a reference, not a new declaration, and remains allowed.
+Add blocks, items, fluids, entities and world-generation data with a content package.
+Create a project, edit its JSON files, then build and run it.
 
-Code declarations carry component patches as `Vec<(String, Option<Tag>)>`:
-`Some(tag)` sets the named component and `None` removes it (without a `!` prefix).
-Repeated component IDs, including a set and removal of the same ID, are refused; `lore` and `minecraft:lore`
-count as the same ID, and an ID may not start with the removal prefix `!`.
-The game converts this opaque NBT data at load; file declarations below still use JSON.
-No declaration conversion runs per tick.
-
-## Choosing what remains after removal
-
-Implement `BlockPart::remove_block` for a block that leaves a support or another
-state behind when removed. This server-only replacement receives the dimension,
-position, removed state and `moved_by_piston`. Answer `Some(state)` to choose the
-replacement, or `None` to keep vanilla's fluid block (air when dry). Only the
-removed block's own Part is called, not the replacement block's Part.
-
-The chosen state goes through the normal `setBlock` effects with flags 3, plus
-64 for piston movement. An unknown or unregistered state is refused with a
-reason and the vanilla replacement is written. This covers `Level.removeBlock`,
-not every direct `setBlock` or the separate `destroyBlock` path. The level view
-is read-only while answering, on both native and wasm.
-
-## Making a content mod
+## Create and package your mod
 
 ```sh
-# A prebuilt binary for Linux x86_64/aarch64, macOS x86_64/arm64 or Windows x86_64 (#2120):
-cargo binstall --git https://github.com/horizon-rust/horizon cargo-horizon-mod
+# A prebuilt binary for Linux x86_64/aarch64, macOS x86_64/arm64 or Windows x86_64:
+cargo binstall --git https://github.com/arismoko/horizon cargo-horizon-mod
 # Or build it from source, without cargo-binstall:
-cargo install --git https://github.com/horizon-rust/horizon cargo-horizon-mod
+cargo install --git https://github.com/arismoko/horizon cargo-horizon-mod
 cargo horizon-mod new my-mod        # a content mod: manifest, one block with its model, loot and recipe
 cd my-mod
 cargo horizon-mod run               # build my-mod.hmod, then start the game with it turned on
@@ -56,7 +25,7 @@ cargo horizon-mod check target/horizon-mod/my_mod.hmod   # the registry's checks
   ([trait mods](../start/writing-hooks.md)). Any other `--template` is refused.
 - `build` packs the checked project into `target/horizon-mod/<id>.hmod`: `horizon-mod.toml`, `assets/`,
   `data/`, optional `icon.png` and, for code, the root Cargo project. It validates content with the same
-  checks as the game; it does not compile code. Code requires both `Cargo.toml` and `[native]`; inconsistent
+  checks as the game; without `--wasm`, it does not compile code. Native code requires both `Cargo.toml` and `[native]`; inconsistent
   declarations and a manifest without capability `registries` are refused.
 - `run` builds, then starts `horizon-client` (on `PATH`, or `--game PATH`, or `HORIZON_CLIENT`) with
   `--dev-mod target/horizon-mod/<id>.hmod`, always on. Arguments after `--` go to the game. The game reads content once
@@ -68,7 +37,43 @@ cargo horizon-mod check target/horizon-mod/my_mod.hmod   # the registry's checks
 - `use-jar <path>` records an original Java jar as an external asset/data source, without copying it into the mod
   ([Java jars as external assets](#java-jars-as-external-assets)).
 
-### The manifest
+## Declare content in code
+
+Trait mods declare content through `BlocksEvent` and `ItemsEvent`, using API-owned
+`mod_api::Block` and `mod_api::Item` records. Start with `Block::new(id, template)` or
+`Item::new(id, template)`, passing identifier strings, then set the overrides. These records are unvalidated; admission reports malformed values with the content loader's refusal messages.
+These are load-time declarations, not live registry entries. The game admits them
+with the content-file checks, atomically for each namespace, before resources load.
+A block's `item` defaults to true, in code as in a file: `Block::with_item(false)` gives it none. Each mod receives its own declaration
+batch. New identifiers from code—including block entity types and other registrar
+declarations—may use any namespace owned by that mod's manifest. Bare names use
+the mod ID; an explicit owned namespace stays unchanged. An unowned namespace
+refuses registration with a diagnostic naming both the mod and namespace. This
+is identical for native and wasm mods. Attaching a Part to an existing vanilla or
+foreign block or item is a reference, not a new declaration, and remains allowed.
+
+Code declarations carry component patches as `Vec<(String, Option<Tag>)>`:
+`Some(tag)` sets the named component and `None` removes it (without a `!` prefix).
+Repeated component IDs, including a set and removal of the same ID, are refused; `lore` and `minecraft:lore`
+count as the same ID, and an ID may not start with the removal prefix `!`.
+The game converts this opaque NBT data at load; file declarations below use JSON.
+No declaration conversion runs per tick.
+
+### Choosing what remains after removal
+
+Implement `BlockPart::remove_block` for a block that leaves a support or another
+state behind when removed. This server-only replacement receives the dimension,
+position, removed state and `moved_by_piston`. Answer `Some(state)` to choose the
+replacement, or `None` to keep vanilla's fluid block (air when dry). Only the
+removed block's own Part is called, not the replacement block's Part.
+
+The chosen state goes through the normal `setBlock` effects with flags 3, plus
+64 for piston movement. An unknown or unregistered state is refused with a
+reason and the vanilla replacement is written. This covers `Level.removeBlock`,
+not every direct `setBlock` or the separate `destroyBlock` path. The level view
+is read-only while answering, on both native and wasm.
+
+## The manifest
 
 ```toml
 id = "my_mod"                # [a-z0-9_]{1,64}: settings key, log name
@@ -97,12 +102,13 @@ characters; the others are plain text. The screen has no switch: a mod runs or n
 
 Unknown keys are refused, so a typo is an error, not a silently ignored permission. The shared manifest
 uses exactly `api = "0.2"` and `capabilities = ["registries"]`, with `side = "client"` (the default) or `"both"`.
-Code mods add `[native]` for exact build pins and optional raw injections ([Injections](../concepts/injections.md)); their id and version still come only
+Code mods add `[native]` for exact build pins and optional raw injections ([Injections](../concepts/injections.md)); their id and version come only
 from this manifest, not Cargo metadata ([Native mods](native-mods/02-the-package.md)). Both content and code mods support `[dependencies]`: use `base = "^1.2"` for a required dependency or
 `extra = { version = "^2", optional = true }` for an optional one. Missing required dependencies, incompatible installed versions and cycles refuse startup. Content layers load after their dependencies; an absent optional dependency is ignored. Both kinds may include a fixed-name `icon.png` at the top level, with no
 manifest key: a valid square PNG, at most 512 × 512 pixels and 256 KiB encoded ([Mod files](../reference/manifest.md)).
-Executable `mod.wasm` files are unsupported: a folder or archive containing one is refused, including when
-installed through a modpack. Code is never silently skipped.
+Use `cargo horizon-mod build --wasm` to build a Rust mod as `mod.wasm`. A wasm package
+requires a matching `[wasm]` declaration. Loading refuses an undeclared or missing module, a module
+over 64 MiB, invalid WebAssembly or shared-group structure, or bytes that do not match the declared SHA-512.
 
 ### Java jars as external assets
 
@@ -142,7 +148,7 @@ takes `tick_delay` (1 or more, default 5), `drop_off` (1 to 7, default 1), `slop
 swim in it or get pushed by it. In the world it draws its `sprite`, a block atlas texture such as `mymod:block/oil`, times
 its `tint`; with neither it looks like water, and a `tint` alone colours water's textures. A client mod's
 `register_fluid_models` hook collects `mod_api::FluidModel` values with separate flowing and overlay sprites.
-It is collected again before each resource bake, so a resource reload can change model identifiers as well as textures. Far terrain (LOD) doesn't draw mod fluids yet. LAN and dedicated server players play with them when they run the same mods: a client whose mods add different
+It is collected again before each resource bake, so a resource reload can change model identifiers as well as textures. Far terrain (LOD) omits mod fluids. LAN and dedicated server players play with them when they run the same mods: a client whose mods add different
 content is refused when it joins, with the reason.
 
 Every Horizon server checks loaded mods in the configuration phase (`horizon_protocol::mod_list`, channel
@@ -153,10 +159,6 @@ with no `side` line is `client`, so a mod meant for both halves must say `side =
 non-Horizon client is refused when the server needs both-side mods, with their names and versions and an English
 fallback for clients without Horizon translations. The content registry identity check remains separate; the
 mod list does not hash package bytes. Native build inventory validation is a separate server-export concern.
-
-This is the fork's compatibility policy, not NeoForge channel negotiation. **Diverges from upstream:** the wire
-contains ids and versions only, with no side/hash fields or legacy format fallback; the old six-name display cap
-is removed. Upstream syncs must keep this contract and the configuration-phase check on both endpoints.
 
 A payload that breaks the format (an oversized list, a duplicate id, trailing bytes) is refused the same way a
 mismatch is: the join ends in a translated disconnect naming the decode error, never in play, and never as a
@@ -198,7 +200,7 @@ such item exists. A sign's wall form picks its sign's item through `wall_block`,
 
 `random_ticks` makes a block tick randomly whatever its template does, as vanilla's
 `isRandomlyTicking(state)` does for its own blocks, so a crop, sapling or soil on a template that never
-ticks still grows: `"random_ticks": true` for every state (or `false`, to stop a template that ticks), or
+ticks grows: `"random_ticks": true` for every state (or `false`, to stop a template that ticks), or
 `{ "property": "grown", "values": ["false"] }` for the states whose own state property (declared in
 `state_properties`) is one of the values. The block's native `native_random_tick` hook then fires as it does
 for a vanilla block that ticks, and its sections count it.
@@ -211,15 +213,14 @@ covers stay hidden unless it also sets `occludes`.
 
 `occludes: false` makes a block occlude nothing whatever its template does, as vanilla's `noOcclusion()`: the faces
 of the blocks beside it are drawn, so a thin panel or a block drawn by its block entity on a full-cube template
-doesn't leave a hole in the floor under it. It is no longer a solid render either, so light passes it as it passes
+doesn't leave a hole in the floor under it. It is not a solid render either, so light passes it as it passes
 leaves: dampened by 1, or not at all if skylight passes down; special template light rules remain inherited.
 Unset or `true` preserves the template's ability to occlude, using the declared outline when one is supplied.
 
 `destroy_overlay: false` hides the breaking crack (`destroy_stage_0` to `9`) on the block, for one broken by use
 (a feast or a cake taken apart bite by bite). It is read once at load into the block's facts, and only the overlay
 is skipped: the mining progress, the server's progress and the destroy-progress packets other players see stay
-vanilla's. Unset or `true`, the crack is drawn. It stands where a mod once had a mixin on
-`LevelRenderer.renderBlockDestroyAnimation`, which has no NeoForge event.
+vanilla's. Unset or `true`, the crack is drawn.
 
 `dynamic_light: true` makes a block's light depend on where it is, not only on its state
 (`IBlockExtension.hasDynamicLightEmission`): a lamp that glows only on a powered rail, a crystal brighter deeper
@@ -300,7 +301,7 @@ skylight and light-dampening rules remain inherited from the template: fluid-dep
 (such as vegetation) use the resolved state's fluid, including declared waterlogging, while glass keeps
 its unconditional skylight rule and leaves keep their dampening. For example, a partial poppy-template
 outline passes skylight without attenuation when dry, but attenuates it by 1 when waterlogged.
-`occludes: false` still disables face occlusion.
+`occludes: false` disables face occlusion.
 
 Movement collision is independently selectable with `collision_shapes`; it does not change the outline,
 render solidity, occlusion or lighting. Both take the same table format. Boxes are
@@ -418,7 +419,7 @@ and the poses selected after `get_arm_pose` answers. Transformers follow vanilla
 physical-arm application order and do not run for a suppressed pose.
 Each non-finite angle leaves the base model component unchanged. The transform runs
 only for selected registered poses, on local players, remote players and humanoid mobs;
-swing and mob-specific animations still run afterward and can change those angles.
+swing and mob-specific animations run afterward and can change those angles.
 Native and wasm mods use the same registration, token and Wire angle value.
 
 ```json
@@ -439,7 +440,7 @@ An item whose template is `minecraft:fishing_rod` (and no `block`) is a fishing 
 `new FishingRodItem(...)` is: it casts, floats, bites, reels in and wears as vanilla's rod, its item model's
 `minecraft:fishing_rod/cast` is true while its bobber is out, and `native_player_fish` hears it. List it in
 `#minecraft:enchantable/fishing` for Lure and Luck of the Sea, as vanilla's rod is. Other behaviour that vanilla ties
-to an item's class, such as a bow's draw or a shield's block, still belongs to vanilla's item alone; components
+to an item's class, such as a bow's draw or a shield's block, belongs to vanilla's item alone; components
 (`minecraft:tool`, `minecraft:consumable`, `minecraft:equippable` and the others) carry over for every template.
 
 ```json
@@ -458,7 +459,7 @@ recipe uses it, as a milk bucket leaves a bucket (vanilla's
 `Item.Properties.craftRemainder`, not a data component): a vanilla item or
 one of the mod's own, refused at load otherwise. It holds on the crafting
 table, the inventory grid, the crafter and as furnace fuel (the last of the stack leaves it in
-the fuel slot, a stack with more left drops it), not yet in a brewing stand. What the item leaves once eaten
+the fuel slot, a stack with more left drops it), not in a brewing stand. What the item leaves once eaten
 or drunk is the `minecraft:use_remainder` component instead:
 
 ```json
@@ -512,10 +513,8 @@ vanilla's `minecraft:ingredients` or another mod's, a native mod listens to the
 client hook `build_creative_mode_tab_contents` (NeoForge's
 `BuildCreativeModeTabContentsEvent`) and pushes its stacks for that `tab`.
 
-A component type no vanilla item has is refused, so a misspelt one fails
-the load instead of doing nothing. Behaviour the game ties to a vanilla
-item's id doesn't come along yet: a copy of the trident doesn't throw
-([#3305](https://github.com/horizon-rust/horizon/issues/3305)).
+Unknown component types fail content loading unless a code mod registers them.
+Item-id-specific behaviour does not follow a template: a copy of the trident does not throw.
 
 A mod effect is declared in `data/<id>/horizon/mob_effect/<name>.json` with what vanilla's `MobEffect` takes: its
 category (`beneficial`, `harmful` or `neutral`) and its RGB colour (0 to `0xFFFFFF`), which its particles take:
@@ -531,8 +530,7 @@ is the colour when left out. It is fixed per effect, where NeoForge may answer p
 It is the effect `<id>:<name>`: `/effect give @s ruby:glow 30` gives it, saves and mobs keep it, and it reaches LAN and
 dedicated server players who run the same mods (its network id follows vanilla's). Its name is the translation
 `effect.<id>.<name>` from the mod's `assets/<id>/lang/`, its icon `assets/<id>/textures/mob_effect/<name>.png` (18x18,
-as vanilla's; without one it draws as the missing texture). It does nothing on its own yet: no tick behaviour and no
-attribute modifiers. A world opened without the mod drops the effect from its players and mobs. Clients join a server
+as vanilla's; without one it draws as the missing texture). The declaration supplies neither tick behaviour nor attribute modifiers. A world opened without the mod drops the effect from its players and mobs. Clients join a server
 only with the same mods' effects, as with its blocks.
 
 Code mods read a registered type's classification with `effect_key.category(host)`,
@@ -553,12 +551,10 @@ It is the entity type `<id>:<name>`, with its network id after vanilla's. Using 
 thrown: same speed, spread, sound and cooldown, and one item used outside creative. It flies as a snowball, breaks on
 what it hits with its item's crumbs, and is drawn as its item's model (`ThrownItemRenderer`), unless a client
 mod registers a renderer for it ([entity renderers](client/entity-renderers.md)). Its name is the translation
-`entity.<id>.<name>`. It works in single player and on LAN with the same mods. Dedicated servers share that code,
-untested so far. Clients join a server only with the same mods' entity types, as with its blocks. It is saved with its
+`entity.<id>.<name>`. It works in single player, on LAN and on dedicated servers with the same mods. Clients join a server only with the same mods' entity types, as with its blocks. It is saved with its
 chunk, `/summon <id>:<name>` makes one, and it has its template's row in `entity-types.json`, with `template` naming
 it. A world opened without the
-mod keeps the saved ones as they are, frozen in place. Not yet: a dispenser doesn't throw it, and a vanilla client on a
-server with it may be disconnected when one spawns.
+mod keeps the saved ones as they are, frozen in place. A dispenser does not throw it.
 
 A code mod can launch a thrown type with
 `host.spawn_projectile_from_rotation(owner, &entity_type, &stack, offset, power, inaccuracy)`.
@@ -577,8 +573,7 @@ each effect's requirements tested with the level random just before it applies, 
 own draws from the projectile's random. `ignite`, `apply_impulse`, `play_sound` and an
 `all_of` of them apply; `apply_mob_effect` and `apply_exhaustion` do nothing to a
 projectile, as in vanilla. A stack with any other `projectile_spawned` effect (blocks,
-damage, explosions, particles, summons, functions, item damage) is refused until the
-engine applies it too (#2670), so this operation never silently discards one.
+damage, explosions, particles, summons, functions, item damage) is refused before spawning, so this operation never silently discards one.
 Owner launch also refuses unsupported requirement contexts (including entity flags),
 and invalid clamped level-value ranges before insertion. Supported requirements
 are entity type predicates, random chance, and their boolean combinations.
@@ -610,7 +605,7 @@ Each omitted slot inherits the template's existing selection, including runtime 
 such as a villager's trading voice and the supporting block's footstep sound. An explicit
 full `namespace:path` id selects that sound event from the resource packs; `"none"` mutes
 only that slot. Omission and `"none"` are different: a villager with no step override
-still plays `minecraft:block.stone.step` on stone. Invalid ids stop content admission,
+plays `minecraft:block.stone.step` on stone. Invalid ids stop content admission,
 with the entity and sound slot in the error. These four slots cover ordinary ambient,
 hurt, death and footstep playback; additional events such as trading interactions or
 projectile attacks keep their existing sounds. Native and wasm packages use this same
@@ -630,7 +625,7 @@ minimum, everything else clamps), and saves, item modifiers and the sync set car
 id.
 
 A code mod can declare a datapack registry of its own with `Registrar::declare_datapack_registry(path, sync,
-fields)` (NeoForge's `DataPackRegistryEvent.NewRegistry`; [#811](https://github.com/arismoko/horizon/issues/811)).
+fields)` (NeoForge's `DataPackRegistryEvent.NewRegistry`).
 `path` lands in the mod's namespace (`spell` of `example` is `example:spell`), and `fields` is a flat record
 schema: `Bool`, `Int { min, max }`, `Float { min, max }`, `Text { max_len }`, `Identifier` or `Reference { registry }`,
 each required or given a default. Entry `addon:fire` is `data/addon/example/spell/fire.json`
@@ -638,8 +633,16 @@ each required or given a default. Entry `addon:fire` is `data/addon/example/spel
 registries have it. The game decodes entries against the schema without running mod code, so native and wasm
 mods get the same bounds: an undeclared key, a missing required key, a wrong type or an out-of-range value fails
 the entry, and a default never stands in for invalid data. The engine adds no entry-size or field-count limit
-of its own. Only both-side packages may declare registries. This slice declares and validates; loading the
-entries from packs, the duplicate check across mods and typed reads follow in the next parts of #811.
+of its own. Only both-side packages may declare registries. The game loads entries from mod content and enabled data packs.
+
+Use the host's `level_datapack_entries(level, registry)` to list sorted entry IDs,
+`level_datapack_handle(level, registry, entry)` to obtain a `DatapackHandle`, and
+`level_datapack_read(level, &handle)` to copy decoded fields in schema order as
+`Vec<(String, DatapackValue)>`. Reads do not access disk. Handles fail with
+`StaleGeneration` after a reload or `WrongSession` in another world session.
+Unknown registries and stale or parked levels return `UnknownRegistry`; absent entries return
+`MissingEntry`. Listing returns `None` for an unavailable level or registry. Clients see only
+registries declared `Required` or `Optional` that their server sends at join and reload.
 
 A code mod can also use `Registrar::declare_entity_attributes(path, template, attributes)` during registration.
 That declaration starts from the vanilla template's attribute row, replacing the content row's overrides.
@@ -665,9 +668,8 @@ behaviour, with its own attributes. It saves what its template's class saves und
 `CanBreakDoors` and conversion times) and loads back as itself. Its entity data is its template's class's. Its loot
 table is its own, `<id>:entities/<name>` (vanilla's `EntityType.getDefaultLootTable`). It is not in vanilla's entity type
 tags (`#minecraft:undead`, `#minecraft:zombies`...) unless the mod adds it. Its row in `entity-types.json` is its
-template's, with `template` added and its attributes in place of the template's. Unit tests check all this; it has
-not yet been tried in a running game. Not yet: its own model or texture (a native mod draws one with
-`mob_submit`), and its own goals.
+template's, with `template` added and its attributes in place of the template's. To draw a custom model or texture,
+use `mob_submit`; the content declaration inherits the template's goals.
 
 #### Menu types
 
@@ -688,10 +690,9 @@ container's faces and `inputs`, so leave result slots out of `inputs`. The data 
 mod's own screen (`native_screen`); without one it closes again. Clients join a server only with the same mods' menu
 types, as with its blocks, and a client that isn't Horizon's is never sent one: the block opens nothing for it. Its
 clicks run on the server's vanilla menu engine (`menu::Kind::Mod`), shift-clicks routed as `ChestMenu`'s, and a native
-mod can decide what a slot takes in code with `native_menu_slot_rules` ([hook notes](../reference/hook-notes.md#menu-slot-rules))
-and how far away the menu stays open with `native_menu_still_valid` ([hook notes](../reference/hook-notes.md#keeping-a-block-menu-open)).
-Not yet: declared per-slot rules beyond `results`, hooks for shift-click routing, opening with extra
-data, and client prediction of its clicks.
+mod can decide what a slot takes in code with `native_menu_slot_rules` ([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/menu_slot_rules.rs))
+and how far away the menu stays open with `native_menu_still_valid` ([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/menu_still_valid.rs)).
+The declaration specifies per-slot rules through `results`; clicks are handled by the server.
 
 ##### Lending ingredients and linking containers
 
@@ -757,22 +758,21 @@ recipes, names and loot. Blocks, items, creative tabs, mob effects, entity types
 For example, a package with ID `ported_farmersdelight` and
 `namespaces = ["farmersdelight"]` can declare `farmersdelight:cooking_pot`
 and its `farmersdelight:` block entity type without changing saved-world IDs.
-The namespace collision fence below still applies. `minecraft`, `c` and
+The namespace collision fence applies. `minecraft`, `c` and
 `horizon` cannot be listed. Two mods that are on may not own the same namespace (one's id or listed namespace being
 the other's): the game keeps the first in load order and leaves the other's content out, with "mods A and B both use
 the namespace N; turn one of them off" in the log. Paths use vanilla's resource characters, at most 65,536 files, 16
 MiB each and 512 MiB in all. A mod whose content is refused is left out, with the reason in the log. The game reads
 this content into its block and item tables (`horizon_client::mod_content`, [modpacks.md](https://github.com/arismoko/horizon/blob/main/docs/modpacks.md)). A tag entry
-naming an id nobody registers (a block a port left out, another mod's item) is dropped, so the rest of the tag still
+naming an id nobody registers (a block a port left out, another mod's item) is dropped, so the rest of the tag
 loads; vanilla would drop the whole tag.
 
 Tags merge as a data pack's do. Every mod's file for one tag (vanilla's `data/minecraft/tags/`, the convention
 `data/c/tags/`, or another mod's) adds its values after vanilla's and the mods' before it, in load order. A file with
 `"replace": true` first drops what came before it, vanilla's entries and the earlier mods', and the mods after it
-still add theirs, as a higher data pack does. Since the result depends on load order, the game says so in the log:
+add theirs, as a higher data pack does. Since the result depends on load order, the game says so in the log:
 "mod towns replaces data/minecraft/tags/worldgen/biome/has_structure/village_plains.json: vanilla's entries and those
-of adds are left out, ...". Tags are the only `minecraft` files a mod may hold: its other content stays in its own
-namespaces.
+of adds are left out, ...". Only tags and `assets/minecraft/atlases/` files may use the `minecraft` namespace; other content stays in owned namespaces.
 
 **Connecting a block to fences, walls or panes**
 
@@ -853,10 +853,7 @@ here, so the API names no phase for them.
 
 A `null` for `foliage_color`, `dry_foliage_color` or `grass_color` removes that override from the biome's `effects`, so the
 colormap tints it again; removing one the biome lacks changes nothing. The other colours are required or are attributes,
-so a `null` there skips the modifier with a warning. The removal form is inferred from the title of NeoForge's change
-"Add ability to remove color overrides in BiomeSpecialEffectsBuilder" (neoforged/NeoForge#3528, `26.3.0.19-beta`), whose
-field list is not public; it is not confirmed against NeoForge's code. In code, `foliage_color`, `dry_foliage_color` and
-`grass_color` are `Option<BiomeColourChange>` (`Set { rgb }` or `Remove`).
+so a `null` there skips the modifier with a warning.
 
 A modifier also sets the biome's ambient and music attributes, in an `attributes` object with the vanilla keys and
 values of a biome file (`warped_forest.json` has all of them). Each key present replaces the biome's whole value;
@@ -879,10 +876,17 @@ the keys it leaves out stay:
 }
 ```
 
-The particle list may also be written `{ "argument": [...] }`. A particle or sound is a namespaced id and a chance or
-volume is 0 to 1; the mood needs its sound, `tick_delay`, `block_search_extent` and `offset`; `additions` is one
-object or a list; a music entry (`default`, `creative` or `underwater`) needs a sound and independently nonnegative `min_delay` and
-`max_delay`. Any other attribute, or a value that is not valid, skips the modifier with a warning naming the mod,
+The particle list also accepts `{ "argument": [...] }`.
+
+| Value | Validation |
+|---|---|
+| Particle or sound | Namespaced ID |
+| Particle `probability`, music volume | 0 to 1 |
+| Ambient additions | One object or a list; any finite `tick_chance` |
+| Ambient mood | Requires sound, `tick_delay`, `block_search_extent` and `offset` |
+| Music `default`, `creative`, `underwater` | Requires sound and nonnegative `min_delay` and `max_delay`; delays need not be ordered |
+
+ Any other attribute, or a value that is not valid, skips the modifier with a warning naming the mod,
 file and attribute. A client plays these from the biome data the server sends. In code, `ModifyBiome` has
 `ambient_particles`, `ambient_loop`, `ambient_additions`, `ambient_mood`, `background_music` and `music_volume`; the
 three ambient sound fields together make the one `ambient_sounds` value, and a value out of range refuses the mods at
@@ -927,18 +931,16 @@ choose the biome there. A malformed or repeated id, an id outside the mod's name
 outside 1 to 1000, no points or an invalid point refuse the mods at startup, naming the mod. A new world records the
 declared regions in `data/horizon/biome_regions.dat`, and from then on that record decides: a changed or added region
 reaches an existing world only when its owner opts in, and a world whose region's mod is missing asks before it opens
-(a dedicated server reads `[biome_regions] missing = "refuse" | "vanilla"` in `server.toml`). The full contract is in
-[the design](https://github.com/arismoko/horizon/blob/main/docs/design/mod-api/mod-biome-regions.md).
+(a dedicated server reads `[biome_regions] missing = "refuse" | "vanilla"` in `server.toml`).
 
 The modifiers rewrite the biomes when the content root builds, and the generator orders every biome's features as
 vanilla's `FeatureSorter` does, so an added feature takes its place in that order (its random seed follows from it). A
 biome no modifier names keeps its text, and a world without mods keeps vanilla's biomes byte for byte. A modifier
 naming a biome, biome tag, feature, feature tag, entity type or entity type tag the game doesn't have (another mod's, a
-`#c:` convention tag), or of a type not read yet (a mod's own serializer), is skipped with a warning
-naming the mod and file; the mods still load. A malformed modifier of a type
+`#c:` convention tag), or of an unsupported type (a mod's own serializer), is skipped with a warning
+naming the mod and file; the mods load. A malformed modifier of a type
 that is read (an unknown step, a missing field, `minCount > maxCount`) stops the build, and the game starts without
-content mods ("content mods not loaded: ..." in the log). Feature tags are vanilla's for now (`#tag` in `features`
-doesn't read a mod's `placed_feature` tags yet). Modifiers are reapplied after the world's data packs, so a pack
+content mods ("content mods not loaded: ..." in the log). Feature selectors read vanilla feature tags, not a mod's `placed_feature` tags. Modifiers are reapplied after the world's data packs, so a pack
 that replaces a biome keeps the mods' changes too.
 
 **A biome of your own.** A mod's `data/<ns>/worldgen/biome/<path>.json` (any namespace but `minecraft`) adds a biome.
@@ -975,10 +977,6 @@ A list of exactly three plain numbers is **one** `[x, y, z]` point, not three he
 For multiple seats use nested points, for example `[[1, 2, 3], [-1, 4, 5]]`.
 Seats follow passenger order; extra passengers use the last point. Offsets scale with
 the entity and rotate with its yaw.
-
-Vanilla `FishingHook.shouldStopFishing` tests exact `Items.FISHING_ROD` identity, while the renderer chooses the holding arm using `instanceof FishingRodItem`. Broadening these checks for content rods is intentional.
-
-Ambient additions accept any finite `tick_chance`, without clamping to the unit interval. Music delays need not be ordered.
 
 ### Custom block-state definition types
 
