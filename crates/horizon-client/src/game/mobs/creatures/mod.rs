@@ -12032,6 +12032,7 @@ mod mob_pearl_hook_tests {
                 game.lan_acting_name = Some("PearlTest".into());
                 game.lan_acting_permission = Some(4);
                 game.lan_acting_entity = Some(2);
+                crate::game::native_entity_refs::tests::bind_acting_guest(game);
                 game.ui.difficulty = 0;
                 let pearl = Projectile::new(
                     ProjectileKind::EnderPearl,

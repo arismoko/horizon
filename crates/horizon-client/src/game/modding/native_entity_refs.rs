@@ -1094,12 +1094,78 @@ pub(super) mod tests {
 
     /// Bind the fixture body's canonical identity before configuring its acting context.
     pub(in crate::game) fn bind_local_player(game: &mut super::Game<'_>, id: u32, uuid: u128) {
+        game.next_entity = game.next_entity.max(id);
         game.player.as_mut().expect("fixture player body").entity_id =
             i32::try_from(id).expect("fixture entity ID fits the protocol");
         game.level.player_uuid = Some(horizon_client::lan::playerdata::uuid_ints(uuid));
         game.bind_local_player_residency();
         game.lan_acting_entity = Some(id);
         game.lan_acting_uuid = Some(uuid);
+    }
+
+    /// Install the server record backing a fixture's already configured acting body.
+    pub(in crate::game) fn bind_acting_guest(game: &mut super::Game<'_>) {
+        use horizon_client::lan::{Joined, NetConfig, PlayerSender, guest::Guest, hub::HubConfig};
+        use horizon_protocol::packets::configuration::ClientInformation;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicI32, AtomicUsize},
+        };
+        let conn = game.lan_acting.unwrap();
+        let id = game.lan_acting_entity.unwrap();
+        let uuid = game.lan_acting_uuid.unwrap();
+        let name = game.lan_acting_name.clone().unwrap();
+        let at = game.player.as_ref().unwrap().position;
+        game.next_entity = game.next_entity.max(id);
+        game.lan_host(
+            super::super::lan::LanSettings {
+                port: 0,
+                guest_commands: false,
+                force_game_mode: false,
+            },
+            NetConfig {
+                listen: false,
+                announce: false,
+                lod_distance: 0,
+                ..NetConfig::lan(0, String::new(), 2)
+            },
+            HubConfig {
+                default_game_mode: 0,
+                guest_commands: false,
+                force_game_mode: false,
+                hardcore: false,
+                view_distance: 2,
+                simulation_distance: 2,
+                dimension: game.dim.id().to_owned(),
+                allow_flight: true,
+                seed: 0,
+                max_players: 2,
+                integrated: true,
+                levels: game.level_shapes,
+            },
+        )
+        .unwrap();
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut guest = Guest::new(
+            Joined {
+                conn,
+                uuid,
+                name,
+                properties: Vec::new(),
+                info: ClientInformation::new(8),
+                brand: String::new(),
+                sender: PlayerSender::new(tx, Arc::new(AtomicUsize::new(0))),
+                latency: Arc::new(AtomicI32::new(0)),
+                address: "127.0.0.1:1".parse().unwrap(),
+                expected: false,
+            },
+            id as i32,
+            [at.x, at.y, at.z],
+            10,
+        );
+        guest.placed = true;
+        game.lan.as_mut().unwrap().hub.guests.push(guest);
+        game.reset_entity_residency();
     }
 
     pub(in crate::game) fn with_game(test: impl FnOnce(&mut super::Game<'_>)) {

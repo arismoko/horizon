@@ -853,6 +853,7 @@ mod teleport_hook_tests {
                 game.lan_acting_name = Some("ConsumedStackTest".into());
                 game.lan_acting_entity = Some(2);
                 game.lan_acting_permission = Some(4);
+                crate::game::native_entity_refs::tests::bind_acting_guest(game);
                 game.creative = false;
                 let mut consumed = ItemStack::new("minecraft:chorus_fruit", 7);
                 consumed.damage = 3;
