@@ -89,8 +89,18 @@ impl Game<'_> {
         self.dropped.retain(|d| keep(d.id));
         self.falling.retain(|f| keep(f.id));
         self.tnts.retain(|t| keep(t.id));
+        let mut camera_removed = false;
         if let Some(r) = self.remote.as_mut() {
             r.passenger_vehicles.retain(|_, v| keep(*v));
+            if r.camera.is_some_and(|id| removed.contains(&(id as u32))) {
+                r.camera = None;
+                camera_removed = true;
+            }
+        }
+        if camera_removed {
+            // Minecraft.setCameraEntity returns to the local player when the
+            // spectated entity leaves, including clearing its post chain.
+            self.check_entity_post_effect(true);
         }
     }
 }
