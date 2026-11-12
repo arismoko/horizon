@@ -56,6 +56,18 @@ impl std::ops::DerefMut for OpenTransactions {
     }
 }
 
+/// Puts the closing phase back when a close ends, however it ends.
+struct ClosingPhase<'a, 'g> {
+    game: &'a mut Game<'g>,
+    outer: Option<TransactionLifecycle>,
+}
+
+impl Drop for ClosingPhase<'_, '_> {
+    fn drop(&mut self) {
+        self.game.transactions.closing = self.outer;
+    }
+}
+
 /// One open transaction.
 #[derive(Default)]
 pub(super) struct Level {
@@ -330,8 +342,14 @@ impl Game<'_> {
             TransactionLifecycle::Closing
         };
         // Kept and put back, so a transaction a root-commit listener opens and closes doesn't
-        // end the root's phase early.
-        let outer_closing = self.transactions.closing.replace(closing);
+        // end the root's phase early. The guard puts it back on a panic too, so a listener
+        // that panics leaves the phase as it was.
+        let outer = self.transactions.closing.replace(closing);
+        let mut guard = ClosingPhase { game: self, outer };
+        guard.game.close_level(level, commit);
+    }
+    /// What closing `level` does, with the closing phase already set.
+    fn close_level(&mut self, level: Level, commit: bool) {
         if let Some(scope) = &mut self.block_entity_tick_items {
             scope.close_transaction(commit);
         }
@@ -392,7 +410,6 @@ impl Game<'_> {
             (true, None) => self.root_commit(level),
             (false, _) => self.roll_back(level),
         }
-        self.transactions.closing = outer_closing;
     }
     /// Closes every transaction left open, as aborted. Run before each tick, as a backstop:
     /// `host.transaction` is the only way in, and its drop guard closes each one it opens, so
