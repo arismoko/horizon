@@ -72,7 +72,7 @@ struct Spare;
 impl mod_api::Hooks for Spare {
     fn entity_invulnerability_check(
         &self,
-        _: &mut dyn mod_api::LevelRandomHost,
+        _: mod_api::LevelSide<'_>,
         event: &mut mod_api::EntityInvulnerabilityCheckEvent<'_>,
     ) {
         event.invulnerable = true;

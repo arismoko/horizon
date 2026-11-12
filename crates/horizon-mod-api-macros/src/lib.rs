@@ -178,8 +178,13 @@ fn expand(mut implementation: ItemImpl, export: bool) -> TokenStream {
     // (#792): the goal, behavior and spawn-size registrars are not hooks, so
     // their names subscribe nothing.
     if name == "EntityPart" {
-        const ENTITY_PART_PLAIN: [&str; 3] =
-            ["register_goals", "register_behaviors", "spawn_cluster_size"];
+        const ENTITY_PART_PLAIN: [&str; 5] = [
+            "register_goals",
+            "register_behaviors",
+            "spawn_cluster_size",
+            "is_shearable",
+            "on_sheared",
+        ];
         let plain: Vec<bool> = methods
             .iter()
             .map(|method| ENTITY_PART_PLAIN.contains(&method.to_string().as_str()))

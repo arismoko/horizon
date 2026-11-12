@@ -1456,7 +1456,7 @@ impl Game<'_> {
                 let v = if id == "attribute.get"
                     && let Some(bonus) = absorption_bonus
                 {
-                    horizon_client::mobs::armor::max_absorption_of(&map, 0.0, bonus)
+                    horizon_client::mobs::armor::max_absorption_of(map, 0.0, bonus)
                         .ok_or_else(no_attribute)?
                 } else if id == "attribute.get" {
                     map.value(key).map_err(|_| no_attribute())?
