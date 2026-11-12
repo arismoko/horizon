@@ -2318,7 +2318,7 @@ impl Game<'_> {
         if name.is_none() && custom.is_none() && data.is_none() {
             return;
         }
-        let Some(mut own) = self.entity_nbt(target) else {
+        let Some(mut own) = self.command_target_nbt(target) else {
             return;
         };
         if let Tag::Compound(map) = &mut own {
@@ -3679,8 +3679,8 @@ mod cart_push_tests {
         /// Pushes with cart `pusher` moving at `velocity`, and returns the
         /// target's velocity afterwards.
         fn push_apart(game: &mut Game<'_>, pusher: usize, target: usize, velocity: Vec3) -> Vec3 {
-            game.carts[target].velocity = Vec3::ZERO;
-            game.carts[pusher].velocity = velocity;
+            game.carts.update(target, |cart| cart.velocity = Vec3::ZERO);
+            game.carts.update(pusher, |cart| cart.velocity = velocity);
             let mut index = super::CartIndex::default();
             game.push_from_cart(pusher, &mut index);
             game.carts[target].velocity
