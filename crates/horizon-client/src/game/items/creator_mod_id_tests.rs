@@ -12,6 +12,8 @@ impl Hooks for Bucket {
     fn register(&self, r: &mut dyn Registrar, _: &RegistrationContext) {
         let key = r.item_key("minecraft:bucket");
         r.item_part(key, self.clone());
+        let stick = r.item_key("minecraft:stick");
+        r.item_part(stick, NoMod);
     }
 }
 #[mod_api::horizon_part]
@@ -23,8 +25,18 @@ impl ItemPart for Bucket {
     }
 }
 
+/// A stick's Part: its stacks stand for no mod at all.
+struct NoMod;
+
+#[mod_api::horizon_part]
+impl ItemPart for NoMod {
+    fn creator_mod_id(&self, _: &dyn mod_api::Host, event: &mut CreatorModIdEvent<'_>) {
+        *event.mod_id = None;
+    }
+}
+
 /// The Part's answer wins for its own item, the namespace stands when it leaves it, and an item
-/// without the Part reports its namespace.
+/// without the Part reports its namespace. A Part may answer no mod, and an unknown item has no answer.
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES; process-wide parts, run this test alone"]
 fn a_part_names_the_mod_that_made_the_stack() {
@@ -47,6 +59,8 @@ fn a_part_names_the_mod_that_made_the_stack() {
                 creator(game, "minecraft:stone", 1).as_deref(),
                 Some("minecraft")
             );
+            assert_eq!(creator(game, "minecraft:stick", 1), None);
+            assert_eq!(creator(game, "creator:not_an_item", 1), None);
         });
     });
 }

@@ -11,7 +11,8 @@ pub trait Hooks {
     /// asked: an item with none costs one table lookup.
     #[hook(
         side = "both",
-        contract = "listen",
+        contract = "collect",
+        out = "mod_id",
         scope = "item",
         key = "stack",
         host = "read",
