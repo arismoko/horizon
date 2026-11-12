@@ -45,8 +45,8 @@ must be converted to the fork's hook catalog before being advertised as availabl
   bound port and whether Velocity forwarding is active. They never expose the
   forwarding secret, and are unavailable before listening or on integrated/LAN
   servers. Secure-profile enforcement and hardcore are not part of this read.
-- Vehicle and passenger reads use entity handles (`entity_vehicle` and
-  `entity_passengers` on `Host`), not parallel numeric-ID helpers. Passenger order
+- Vehicle and passenger reads should use entity handles, not parallel numeric-ID
+  helpers. Passenger order
   follows vanilla, with the controlling passenger first. These are read-only.
 - UUID lookup from a read-only context must not swap levels. A mutable lookup can
   reach other loaded levels; entity NBT reads there must refuse unloaded levels,
@@ -57,7 +57,7 @@ must be converted to the fork's hook catalog before being advertised as availabl
 - Living-entity sight uses eye-to-eye COLLIDER shapes, no fluids, the source's
   collision context and vanilla's 128-block limit. Unknown entities, different
   levels and unavailable server levels must not report visibility. The typed
-  `living_has_line_of_sight` and `level_line_of_sight` reads replace raw-ID helper
-  proposals; the point-to-point form has no entity collision context.
+  reads should replace raw-ID helper proposals; the point-to-point form has no
+  entity collision context.
 
 These are contract notes, not runtime verification of the converted services.
