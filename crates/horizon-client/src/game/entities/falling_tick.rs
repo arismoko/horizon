@@ -24,7 +24,8 @@ impl Game<'_> {
             self.ordered.falling_ticked.clear();
             return;
         };
-        for (id, join) in std::mem::take(&mut self.ordered.falling_ticked) {
+        let mut ticked = std::mem::take(&mut self.ordered.falling_ticked);
+        for (id, join) in ticked.drain(..) {
             let Some(i) = self
                 .falling
                 .locate(join)
@@ -36,5 +37,6 @@ impl Game<'_> {
             let pos = BlockPos::new(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
             self.native_falling_tick(state, pos, mod_api::EntityRef::new(epoch, id));
         }
+        self.ordered.falling_ticked = ticked;
     }
 }
