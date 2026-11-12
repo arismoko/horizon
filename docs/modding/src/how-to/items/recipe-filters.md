@@ -1,8 +1,9 @@
 # Recipe filters
 
-A content mod or a data pack can remove recipes, or swap one of their inputs or outputs, without knowing
-their ids: a file `data/<ns>/recipe_filter/<name>.json` holds `{"filters": [...]}`. Each filter has match
-keys, all of which must hold (a filter with none matches every recipe), and exactly one action:
+You can remove recipes or replace inputs and outputs from a content mod or data
+pack without listing recipe IDs. Create `data/<ns>/recipe_filter/<name>.json`
+with a `{"filters": [...]}` object. Each filter requires all its match keys to
+hold and exactly one action. A filter with no match keys matches every recipe:
 
 | Key | Meaning |
 |---|---|
@@ -21,10 +22,23 @@ keys, all of which must hold (a filter with none matches every recipe), and exac
 ]}
 ```
 
-Filters run on each recipe after the packs are merged and its load conditions held, so they see the final
-set and reach every recipe type, mods' own included: they work on the recipe's JSON, every string outside
-`type`, `group`, `category` and the conditions (a `{"tag": ...}` object's tag reads as `#tag`). Every recipe
-loader applies them: crafting, the stations, brewing, the recipe book and what players are sent. Files apply
-in id order and each file's filters in order; a pack's file replaces a file of the same id, as any data file
-does. A filter with an unknown key or not exactly one action is skipped with a warning, so a typo never
-matches every recipe.
+## Application rules
+
+- Filters run after pack overrides are merged and recipe load conditions pass.
+  They operate on JSON, including recipes of mod-defined types.
+- Files apply in recipe-filter ID order; filters within a file apply in array
+  order. Later filters see earlier replacements. Removal stops processing that recipe.
+- A higher-priority pack's file replaces a file with the same ID.
+- Input and output matching walks JSON strings, excluding `type`, `group`,
+  `category` and `neoforge:conditions`. Strings under `result`, `results`,
+  `output` or `outputs` count as outputs; other strings count as inputs.
+  A `{"tag": "c:ingots/iron"}` value matches `#c:ingots/iron`.
+- Replacement changes matching strings, not JSON object keys or structure.
+  When replacing a `tag` value, the stored string omits the leading `#`.
+- Crafting, station and brewing loaders, the recipe book and recipe data sent to
+  players use the filtered recipes.
+
+An unknown filter key, invalid value type, or anything other than exactly one
+action skips that filter with a warning. `remove: false` does not count as an
+action. A replacement requires string `from` and `to` values. Invalid JSON skips
+the file with a warning.

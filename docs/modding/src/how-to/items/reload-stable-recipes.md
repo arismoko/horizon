@@ -1,9 +1,8 @@
 # Cache reload-stable recipe definitions
 
-A machine should not fetch and parse its recipe files on every block-entity tick.
-Cache the **definitions**, not the answer to whether a recipe matches. This pattern
-uses the same source and API for native and wasm mods. It needs no wasm-specific
-memoizer or polling import.
+Cache recipe **definitions** instead of fetching and parsing files on every
+block-entity tick. Match against live inputs on each tick. You can use the same
+cache pattern for native and wasm mods.
 
 ## Publish after the final server data
 
@@ -14,11 +13,11 @@ An empty table must replace the old one too: pack overrides and removals matter.
 Tag-only reloads also rebuild the ingredients. A failed engine reload does not fire
 the publication hook, so the previous definitions remain in force.
 
-A reload listener's prepare/apply phase is useful for reading your own resources,
+A reload listener's prepare/apply phase lets you read your own resources,
 but is too early to cache the final recipe table. Do not move this work into the
 first tick as a lazy initialization path.
 
-This example is a custom recipe type, whose fields live in `Recipe::json`. Use
+This example caches a custom recipe type, whose fields live in `Recipe::json`. Use
 the host's existing ingredient and result parsers rather than implementing tag,
 component or custom-ingredient semantics yourself. Invalid definitions are skipped
 in file order; the first matching valid definition wins.
@@ -35,16 +34,14 @@ cache in the tick. Until publication, the empty table means no recipe can run.
 {{#include ../../../examples/src/reload_recipes.rs:publication}}
 ```
 
-This ownership assumes **one authoritative server per process and mod group**, as
-in the current integrated, LAN and dedicated entry points. The connected client
-does not own this server table. If the engine ever supports concurrent servers in
-one group, key the cache by a server identity once the API offers one; neither a
-recipe-type key nor a dimension ID distinguishes servers. Startup/teardown clearing
-prevents reuse across sequential world opens, not concurrent ones.
+Use one cache for the authoritative server in your mod group. The integrated,
+LAN and dedicated server entry points each own a server table; the connected
+client does not own it. Startup and teardown clearing prevents definitions from
+being reused across sequential world opens.
 
 ## Keep live answers live
 
-Every tick, call `result` with the actual input. `Ingredient::test` still consults
+Every tick, call `result` with the actual input. `Ingredient::test` consults
 the host and custom matchers each time. Do not remember a match by item ID: the
 stack's components or the matcher's world-dependent answer can change without a
 reload. This example takes one read guard per selection, not one per recipe, and
@@ -56,8 +53,4 @@ does not authorize a write or reserve output capacity. A blocked machine resets
 progress according to its existing policy.
 
 The [machine sample](https://github.com/arismoko/horizon-machine-sample) demonstrates
-the full processing and transfer path. Test reload overrides, empty/removal and
-tag-only reloads, sequential worlds, replaced input (components included), and a
-custom matcher whose live answer changes. A test should fail when publication is
-mutated to keep the old table. Measure end-to-end tick time separately from reload
-cost; fewer imports alone do not prove a particular millisecond saving.
+the full processing and transfer path.
