@@ -2,7 +2,7 @@ use super::*;
 use horizon_client::{
     chunk::Chunk,
     join_seq::residency::{
-        Change, Journal, Kind, Owner,
+        Journal, Kind, Owner,
         table::{EntityLookup, EntityTable, SourceEntity},
     },
 };
@@ -86,7 +86,8 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
                     .default_state("minecraft:stone")
                     .unwrap();
                 game.world.set(2, 64, 0, stone).unwrap();
-                let journal = Journal::default();
+                // Hook handles resolve through the game's canonical residency table.
+                let journal = game.resident_entities.table.borrow().producer();
                 let owner = Owner {
                     dimension: game.dim.key(),
                     kind: Kind::Projectile,
@@ -127,22 +128,13 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
                     panicked.load(Ordering::SeqCst),
                     "did not reach the post-admission listener"
                 );
-                let mut events = Vec::new();
-                journal.drain_into(&mut events);
-                let mut depth = 0usize;
-                for event in events {
-                    assert_eq!(event.owner, owner);
-                    match event.change {
-                        Change::Lifted => depth += 1,
-                        Change::Restored => {
-                            depth = depth.checked_sub(1).expect("restore without lift")
-                        }
-                        _ => {}
-                    }
-                    // Observe the actual stream, then give that same stream to its consumer.
-                    journal.push(event);
-                }
-                assert_eq!(depth, 0, "listener panic abandoned the lifted pass");
+                // Queries in the callback may already have consumed journal entries.
+                // The canonical consumer still checks balanced lift/restore ownership.
+                game.resident_entities
+                    .table
+                    .borrow_mut()
+                    .end_tick()
+                    .expect("listener panic abandoned the lifted pass");
                 let restored: Vec<_> = game
                     .creatures
                     .projectiles
@@ -159,7 +151,7 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
                     before,
                     "panic changed survivor identity or spawn admission order"
                 );
-                let mut table = EntityTable::new(journal);
+                let mut table = game.resident_entities.table.borrow_mut();
                 for expected in restored {
                     let found = table.entity_lookup(&owner.dimension, expected.0, |at| {
                         let list = &game.creatures.projectiles;
