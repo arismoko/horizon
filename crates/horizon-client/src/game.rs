@@ -2593,8 +2593,6 @@ struct Game<'a> {
     last_device_recovery: Option<Instant>,
     /// CPU geometry storage retained across frames, including empty/title frames.
     entity_vertices: Vec<Vertex>,
-    /// Falling models by state and selected-model address list; cleared on pack/atlas replacement.
-    falling_vertices: RefCell<HashMap<BlockStateId, Vec<(Vec<usize>, Vec<Vertex>)>>>,
     /// Horizon Extras' dynamic lights this frame (`dynamic_lights.rs`), and how brightly each
     /// item glows (built the first time the extra is on).
     dynamic_lights: Vec<[f32; 4]>,
@@ -2940,6 +2938,7 @@ struct Game<'a> {
     tickets: horizon_client::ticket_levels::ChunkTickets,
     random_tick_sections: horizon_client::random_tick_sections::RandomTickSections,
     level_events: Vec<LevelEvent>,
+    /// Falling models by state and selected-model address list; cleared on pack/atlas replacement.
     falling_vertices: RefCell<HashMap<BlockStateId, Vec<(Vec<usize>, Vec<Vertex>)>>>,
     falling: horizon_client::join_seq::JoinList<FallingBlock, false>,
     /// Blocks the server shows for a moment (`ClientboundAddTransientBlockPacket`).
@@ -13919,6 +13918,7 @@ impl Game<'_> {
             None,
             self.settings.horizon.api,
             self.settings.horizon.translucent_batching,
+            self.settings.vsync,
             &self.settings.horizon,
             shader_packs::picked_pack_shape(&self.settings),
             display,
@@ -16239,7 +16239,6 @@ impl<'a> Game<'a> {
             renderer: None,
             last_device_recovery: None,
             entity_vertices: Vec::new(),
-            falling_vertices: Default::default(),
             dynamic_lights: Vec::new(),
             luminance: Default::default(),
             see_through_vertices: Vec::new(),
