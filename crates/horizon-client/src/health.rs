@@ -104,6 +104,8 @@ pub struct DamageLevel<'a> {
     hooks: Option<&'a DamageHooks>,
     /// Who attacks in this hit and what they hold: the facts of the site that built the level.
     attack: &'a Attack,
+    /// Whether this is a client's level, for a hook asked on both sides ([`Self::on_client`]).
+    client_side: bool,
 }
 impl<'a> DamageLevel<'a> {
     /// The level of `world`, whose blocks `registry` names.
@@ -135,6 +137,7 @@ impl<'a> DamageLevel<'a> {
             attachment_syncs,
             hooks: Some(hooks),
             attack: &NO_ATTACK,
+            client_side: false,
         }
     }
     /// The level of `world`, with the random and attachments `lent` took out of it.
@@ -158,6 +161,7 @@ impl<'a> DamageLevel<'a> {
             attachment_syncs: &mut lent.attachment_syncs,
             hooks: Some(hooks),
             attack: &NO_ATTACK,
+            client_side: false,
         }
     }
     /// The same level on a client predicting a mob it rides: no damage hooks fire.
@@ -181,7 +185,20 @@ impl<'a> DamageLevel<'a> {
             attachment_syncs: self.attachment_syncs,
             hooks: self.hooks,
             attack: self.attack,
+            client_side: self.client_side,
         }
+    }
+    /// The same level, on a client when `client_side`: a hook asked on both sides tells its
+    /// listener so.
+    pub fn on_client(self, client_side: bool) -> Self {
+        Self {
+            client_side,
+            ..self
+        }
+    }
+    /// Whether this is a client's level ([`Self::on_client`]).
+    pub fn client_side(&self) -> bool {
+        self.client_side
     }
     /// The same level for the hit `attack` describes.
     pub fn attacked_by(self, attack: &'a Attack) -> Self {

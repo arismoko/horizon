@@ -1350,6 +1350,15 @@ impl LevelAccess for GameLevel<'_> {
         }
         source
     }
+    fn adjust_is_slime_block(&self, state: BlockStateId, vanilla: bool) -> bool {
+        self.part_is_slime_block(state, vanilla)
+    }
+    fn adjust_is_sticky_block(&self, state: BlockStateId, vanilla: bool) -> bool {
+        self.part_is_sticky_block(state, vanilla)
+    }
+    fn adjust_can_stick_to(&self, state: BlockStateId, other: BlockStateId, vanilla: bool) -> bool {
+        self.part_can_stick_to(state, other, vanilla)
+    }
     fn has_weak_power_hook(&self) -> bool {
         self.native_authoritative
             && mod_api::__private::has_scoped_hook(mod_api::HookId::ShouldCheckWeakPower)
@@ -17335,7 +17344,7 @@ pub(crate) fn run_with(
     {
         return Ok(());
     }
-    let _ = horizon_client::block_contact::HOOKS.set(native_hooks::BLOCK_CONTACT_HOOKS);
+    native_hooks::install_block_contact_hooks();
     // Before any worker starts: on Linux they go behind the server thread
     // and the render thread.
     horizon_threads::put_helpers_behind();

@@ -202,6 +202,114 @@ pub mod tests {
         mark_game_thread();
     }
 
+    /// Install piston parts on real blocks: gold is sticky and sticks only to itself, diamond is
+    /// sticky, and emerald is a sticky slime block.
+    pub fn sticky_game_thread() {
+        struct Gold;
+        #[mod_api::horizon_part]
+        impl BlockPart for Gold {
+            fn is_sticky_block(&self, _: &dyn LevelHost, event: &mut IsStickyBlockEvent) {
+                event.sticky = true;
+            }
+            fn can_stick_to(&self, _: &dyn LevelHost, event: &mut CanStickToEvent) {
+                event.sticks = event.other == event.state;
+            }
+        }
+        struct Diamond;
+        #[mod_api::horizon_part]
+        impl BlockPart for Diamond {
+            fn is_sticky_block(&self, _: &dyn LevelHost, event: &mut IsStickyBlockEvent) {
+                event.sticky = true;
+            }
+        }
+        struct Emerald;
+        #[mod_api::horizon_part]
+        impl BlockPart for Emerald {
+            fn is_sticky_block(&self, _: &dyn LevelHost, event: &mut IsStickyBlockEvent) {
+                event.sticky = true;
+            }
+            fn is_slime_block(&self, _: &dyn LevelHost, event: &mut IsSlimeBlockEvent) {
+                event.slime = true;
+            }
+        }
+        struct StickyMod;
+        #[mod_api::__subscriptions]
+        impl Hooks for StickyMod {
+            fn register(&self, r: &mut dyn Registrar, _: &crate::RegistrationContext) {
+                let gold = r.block_key("minecraft:gold_block");
+                r.block_part(gold, Gold);
+                let diamond = r.block_key("minecraft:diamond_block");
+                r.block_part(diamond, Diamond);
+                let emerald = r.block_key("minecraft:emerald_block");
+                r.block_part(emerald, Emerald);
+            }
+        }
+        let mods: crate::Mods = vec![ModEntry::new("sticky_test", Box::new(StickyMod))].into();
+        crate::install(mods.clone());
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
+        mark_game_thread();
+    }
+
+    /// What a restitution part heard: whether its level was a client's, the entity, its type,
+    /// the block's position, and whether the level host reads the block's state there.
+    pub type RestitutionHeard =
+        std::sync::Arc<std::sync::Mutex<Vec<(bool, i32, String, BlockPos, bool)>>>;
+
+    /// Install restitution parts on real blocks: glass records what it heard and answers 0.5
+    /// on a server's level and 0.25 on a client's; stone answers not a number.
+    pub fn restitution_game_thread() -> RestitutionHeard {
+        struct Glass(RestitutionHeard);
+        #[mod_api::horizon_part]
+        impl BlockPart for Glass {
+            fn bounce_restitution(
+                &self,
+                level: LevelSide<'_>,
+                event: &mut BounceRestitutionEvent<'_>,
+            ) {
+                let (client, host) = match level {
+                    LevelSide::Server(host) => (false, host),
+                    LevelSide::Client(host) => (true, host),
+                };
+                let pos = [event.pos.x, event.pos.y, event.pos.z];
+                self.0.lock().unwrap().push((
+                    client,
+                    event.entity,
+                    event.kind.to_owned(),
+                    event.pos,
+                    host.block_state(pos) == event.state,
+                ));
+                event.factor = if client { 0.25 } else { 0.5 };
+            }
+        }
+        struct NotANumber;
+        #[mod_api::horizon_part]
+        impl BlockPart for NotANumber {
+            fn bounce_restitution(&self, _: LevelSide<'_>, event: &mut BounceRestitutionEvent<'_>) {
+                event.factor = f32::NAN;
+            }
+        }
+        struct RestitutionMod(RestitutionHeard);
+        #[mod_api::__subscriptions]
+        impl Hooks for RestitutionMod {
+            fn register(&self, r: &mut dyn Registrar, _: &crate::RegistrationContext) {
+                let glass = r.block_key("minecraft:glass");
+                r.block_part(glass, Glass(self.0.clone()));
+                let stone = r.block_key("minecraft:stone");
+                r.block_part(stone, NotANumber);
+            }
+        }
+        let heard = RestitutionHeard::default();
+        let mods: crate::Mods = vec![ModEntry::new(
+            "restitution_test",
+            Box::new(RestitutionMod(heard.clone())),
+        )]
+        .into();
+        crate::install(mods.clone());
+        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
+        mark_game_thread();
+        heard
+    }
+
     /// Install parts that change what a path may cross: glass becomes land and air, air
     /// stops being land and becomes water.
     pub fn pathfindable_game_thread() {

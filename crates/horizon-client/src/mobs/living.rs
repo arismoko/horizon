@@ -13,7 +13,7 @@ use horizon_core::{
     position::BlockPos,
     random::RandomSource,
 };
-use horizon_world::native_load_context::LoopContext;
+use horizon_world::native_load_context::{LoopContext, LoopSide};
 use horizon_world::{
     block_landing::LandingEntityKind,
     entity_fluid::{CurrentAccumulator, CurrentTarget},
@@ -920,6 +920,7 @@ impl Mob {
                     mob: self,
                     world: w,
                     level,
+                    on: BlockPos::new(on.0, on.1, on.2),
                 },
                 input,
             );
@@ -2204,6 +2205,8 @@ struct MobRestitution<'a, 'w, 'l> {
     mob: &'a mut Mob,
     world: &'a MobWorld<'w>,
     level: &'a mut DamageLevel<'l>,
+    /// `Entity.getOnPosLegacy`: the block whose bounce this move sees.
+    on: BlockPos,
 }
 impl<'a, 'w, 'l> MobRestitution<'a, 'w, 'l> {
     /// The block's movement data: its coefficients and its bounce tag.
@@ -2239,9 +2242,22 @@ impl RestitutionWorld for MobRestitution<'_, '_, '_> {
         Ok(self.movement(state)?.suppresses_bounce)
     }
     /// `Entity.getBlockBounciness`: the restitution of the block under the
-    /// entity, so a mob landing on a slime block or a bed bounces too.
+    /// entity, so a mob landing on a slime block or a bed bounces too, after
+    /// the block's parts, on the side that ticks the mob.
     fn block_bounce_restitution(&mut self, state: BlockStateId) -> Result<f32, ()> {
-        Ok(self.movement(state)?.coefficients.bounce_restitution)
+        let own = self.movement(state)?.coefficients.bounce_restitution;
+        let client_side = self.world.loop_context.side() == LoopSide::Client;
+        let contact = crate::block_contact::Contact {
+            entity: self.mob.id as i32,
+            kind: &self.mob.kind.id,
+            state,
+            position: self.on,
+        };
+        Ok(crate::block_contact::bounce_restitution(
+            &mut self.level.reborrow().on_client(client_side),
+            contact,
+            own,
+        ))
     }
     /// `LivingEntity.getAirDrag`.
     fn air_drag(&mut self) -> Result<f32, ()> {
