@@ -1,14 +1,18 @@
 # Maths and network NBT
 
+## Portable maths
+
 `mod_api::strict_math` provides the established platform-independent StrictMath
 operations: `log`, `log10`, `cbrt`, `hypot`, `atan`, `asin`, `acos` and `atan2`.
 They are pure functions with identical bits on native and wasm. It does not expose
 `sin`, `cos`, `tan`, `exp`, `pow`, or the AArch64 FMA variants.
 
-`mod_api::java_math` exposes every engine `jmath` free function for native mods,
+`mod_api::java_math` exposes the engine’s vanilla maths functions for native mods,
 including `round` and `round_f32`. These are the paths used for vanilla `Math`
 call sites; rounding can differ by machine, and universal HotSpot bit equality
 is not promised. Calling them on wasm fails to compile and points to `strict_math`.
+
+## Network NBT
 
 `Tag::to_network_bytes()` writes the engine's nameless network root, preserving
 NaN bits and modified UTF-8 (including unpaired UTF-16 surrogates).
@@ -28,5 +32,4 @@ heap quotas on reads, so writing does not impose a heap quota.
 
 The implementation follows vanilla 26.3 `NbtIo.readAnyTag`/`writeAnyTag`,
 `FriendlyByteBuf.readNbt`/`writeNbt`, `NbtAccounter`, and each `TagType.load`.
-It shares the engine reader and writer. These explicit codec calls cost time
-proportional to the encoded data and add no tick-time work or Host calls.
+Codec calls take time proportional to the encoded data.

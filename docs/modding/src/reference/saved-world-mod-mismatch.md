@@ -5,9 +5,7 @@ saved list exists, including empty and unchanged lists; newly added mods and
 `minecraft` are excluded. Both logical sides can open worlds, and singleplayer
 opens once on the integrated server.
 
-Unlike NeoForge's raw-read timing, this runs at the earliest available Host before
-world-state restoration, after preparation, because it only reports and logs and
-its resolution output does not depend on the earlier moment.
+The hook fires before world-state restoration, after world preparation.
 
 Versions use the loader's semantic version comparison, padding omitted minor and
 patch components with zero; invalid or empty versions compare as exact text.

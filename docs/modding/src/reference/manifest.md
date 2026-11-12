@@ -2,7 +2,7 @@
 
 A `.hmod` is one mod: content, native code, or both. `horizon_mod_package::Package` reads the shared manifest and
 validates the package; `horizon_mod_package::Content` reads its resources, and `horizon_mod_package::index::native::Bundle`
-reads its code. Content is preview, native code experimental ([data-formats.md](https://github.com/arismoko/horizon/blob/main/docs/api/data-formats.md)).
+reads its code.
 
 ## The zip
 
@@ -27,7 +27,7 @@ my_mod.hmod
 
 - **Content only:** no `Cargo.toml` or `[native]`. Nothing compiles.
 - **Native code:** root `Cargo.toml` and `src/`, with `[native]` in the same manifest. The launcher builds it
-  into the game. Its resources load through the same content reader as a content mod's.
+  against the pinned prebuilt game; mixins compile into a separate function-replacement patch library. The game itself does not compile. Its resources load through the same content reader as a content mod's.
 - **Wasm code:** `mod.wasm` at the top, declared by `[wasm]`, with the `Cargo.toml` and `src/` it was built from
   (a converted mod records `built_with` instead and carries no source). The game runs it with no rebuild.
 - Inconsistent code declarations and files refuse the package. `mod.wasm` anywhere else, undeclared, or
@@ -44,7 +44,7 @@ folders are unsupported.
 The shared [manifest fields](../how-to/content-mods.md#the-manifest) include `id`, `name`, `version`, `api = "0.2"`
 and `capabilities = ["registries"]`. The content API is checked for exact equality. Unknown fields
 refuse the manifest. Native mods may declare top-level `internals`, an array of tables with
-`path`, `hash`, and optional `kind` when a path names several member kinds. Native code adds `[native]`:
+`path`, optional `hash`, and `kind` when a path names several member kinds. Without `hash`, the build uses the fingerprint from the pinned game’s catalog. An explicitly empty `hash` is refused. Native code adds `[native]`:
 
 | Field | Type | Rule |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ refuse the manifest. Native mods may declare top-level `internals`, an array of 
 API points use top-level declarations.
 API function listeners use top-level `[[inject]]`: `id`, `at`, lowercase `kind`, `with`, and optional `hash`,
 with optional `priority` (default 0). `head`, `return` and `replace` are supported.
-The removed `access` key is refused by name. Use `[[native.mixin]]` for game internals.
+The `access` key is refused by name. Use `[[native.mixin]]` for game internals.
 Unknown fields are refused by the schema. API function declarations use only `[[inject]]`.
 See [Injections](../concepts/injections.md) for the fields and point injections, and
 [Native mods](../how-to/entities/named-hook-points.md) for the named hook contracts.
@@ -143,7 +143,7 @@ every owner of a shared missing file. The game never downloads jars.
 
 A code package contains root `Cargo.toml`, optional `build.rs`, `.rs` and `.toml` files under `src/`,
 and root text files named `README*`, `LICENSE*`, `LICENCE*`, `COPYING*` or `NOTICE*`.
-The marked root `impl Hooks` uses `#[mod_api::horizon_mod]`; the attribute generates the factory
+Your root `impl Hooks` uses `#[mod_api::horizon_mod]`; the attribute generates the factory
 ([Trait mods](../start/writing-hooks.md)).
 
 Folder packaging selects source and resource files, excluding `.git/` and `target/`. It validates selected
