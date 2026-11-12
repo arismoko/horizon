@@ -1,32 +1,90 @@
 # Transactions
 
-On a `ServerHost`, import `HostTransaction` to call `host.transaction(|host, tx| …)` (NeoForge 26.3's `Transaction`). It runs a closure whose `Ok` commits and whose
-`Err` aborts, nested in the open transaction if any. `tx`, a `&Transaction` (NeoForge's `TransactionContext`), is
-what every handler and place write takes, so none happens outside one. Inside, a capability write applies at once, so later steps see it,
-and the game keeps each storage as it was before the transaction first wrote it: a block entity's item slots, saved
-compound and attachments, a hopper's cooldown, a cauldron's block state, a player's inventory (slots, armour, off
-hand and cursor, whether the player is the host or a guest), an entity's inventory (a chest or hopper minecart,
-a chest boat, a chested donkey, mule or llama) and an item entity's stack (one emptied stays, empty, until the
-outermost commit removes it). A nested commit hands its changes to
-the transaction around it, and only the outermost commit makes them final. Then the world is told of each change
-once, as `SnapshotJournal.onRootCommit`: `setChanged` and comparators, a jukebox starting or stopping, a cauldron's
-block update, and an item dropped at a block, thrown by a player (what a filled bucket's split no longer fits) or
-by an entity or split off an item entity. An abort puts every storage back quietly, so nothing outside saw the
-change. A panic unwinding out of the closure aborts that transaction as it passes, and the one around it stays open. Open one with `host.transaction`. The game, not the values it hands out, holds the authority, and it keeps writing apart from ending. The closure, like any handler, is lent the `Transaction`: it names one open transaction by a token the game drew (unguessable in practice), and a write given one that names no open transaction changes nothing. Ending a transaction takes its `TransactionSeal`, which only `host.transaction`'s guard (or whoever called the raw `transaction_open`) holds; the raw `transaction_close` refuses a seal that names no open transaction. So a handler can neither commit the transaction it was lent, nor end one around it, and a value decoded from bytes or kept past its closure does nothing. A transaction left open inside another is aborted when the one around it closes, so a caught panic or an `Err` still finds the rollback done. A handler keeps no journal of its own:
-its state is the game's, so the game's journal covers it. Direct writes are not covered: an item entity's stack,
-`LivingRef::set_equipment`, and the player and armor-stand `slot_set` paths take effect and are final at once, even
-inside a transaction. Any equip/unequip event and equip sound from `set_equipment` also happen immediately; an
-abort does not undo them. This differs from writes through journaled capability handlers.
+Use `HostTransaction` on a `ServerHost` to group capability writes. The closure's
+`Ok` commits; `Err` aborts. Pass the borrowed `&Transaction` to each handler or
+place write.
 
-Code that may run inside or outside a transaction asks the host where it is (NeoForge's `Transaction.getLifecycle`,
-`getCurrentOpenedTransaction` and `TransactionContext.depth`): `host.transaction_lifecycle()` is
-`TransactionLifecycle::None`, `Open`, `Closing` (a nested transaction committing into the one around it or
-aborting) or `RootClosing` (the outermost closing, while the game tells the world of its commit: a
-`contents_changed` listener runs then, and what it writes is outside the transaction that just ended).
-`host.transaction_current()` is the innermost open `Transaction`, to write in, and none outside one; it names the
-transaction only, so ending it still takes its opener's seal. `host.transaction_depth(tx)` is 0 for the outermost,
-1 for one nested in it, and none for a transaction that is not open. Like transactions, these are server only.
+```rust,ignore
+use mod_api::{HostTransaction, ServerHost};
 
-`ItemPlace::EntitySlot { entity, slot }` is slot `slot` of such an entity's inventory (NeoForge's
-`Capabilities.Item.ENTITY`), read and written like any other place.
-Reading or writing a minecart's slots unpacks its loot table with no player, as `getChestVehicleItem` does.
+fn update(host: &mut dyn ServerHost) -> Result<(), ()> {
+    host.transaction(|host, tx| {
+        // Pass host and tx to your capability writes.
+        Ok(())
+    })
+}
+```
+
+## Commit and rollback
+
+- Writes apply immediately, so subsequent steps in the transaction see them.
+- The game snapshots each storage before its first write. Handlers use the game's
+  journal rather than keeping their own.
+- A nested commit merges into its parent. Only the outermost commit makes changes
+  final and publishes their notifications.
+- An abort restores the recorded storage without publishing commit effects.
+- A panic unwinding out of the closure aborts its transaction. The parent remains
+  open if you catch the panic inside the parent closure.
+- Closing a transaction aborts any transactions left open inside it before closing
+  the parent.
+
+The journal covers writes through capability handlers to these storages:
+
+| Storage | Recorded state |
+|---|---|
+| Block entity | Item slots, saved compound, custom name and attachments |
+| Hopper | Cooldown |
+| Cauldron | Block state |
+| Player | Inventory slots, armour, offhand and cursor, for host and guest players |
+| Entity inventory | Chest or hopper minecart, chest boat, chested donkey, mule or llama inventory |
+| Item entity | Stack; an emptied entity remains until the outermost commit removes it |
+
+At the outermost commit, the game publishes change notifications and deferred
+effects: `setChanged`, comparators, jukebox playback, cauldron block updates and
+item drops. Drops include items placed at a block, thrown by a player or entity,
+or split off an item entity.
+
+Direct writes are not journaled: direct item-entity stack writes,
+`LivingRef::set_equipment`, and the player and armor-stand `slot_set` paths take
+effect immediately, even inside a transaction. Equipment sounds and equip/unequip
+events from `LivingRef::set_equipment` also happen immediately. An abort does not
+undo these writes or effects. Use journaled capability handlers when you need rollback.
+
+## Transaction authority
+
+`Transaction` identifies an open transaction with a game-issued write token. It
+does not grant permission to close it. A write with a token that does not name an
+open transaction changes nothing, including a token retained past its closure.
+
+Closing requires a separate `TransactionSeal`. The `host.transaction` guard holds
+that seal; its closure receives only the write token. If you use the raw
+`transaction_open` method, you receive the seal and must close it with
+`transaction_close`. The game refuses a seal that does not match an open
+transaction and logs `Horizon: refused to close a transaction the seal does not end`.
+
+## Inspecting a transaction
+
+These methods are server-only:
+
+| Method | Result |
+|---|---|
+| `host.transaction_current()` | Innermost open `Transaction`, or `None`; not a closing seal |
+| `host.transaction_depth(tx)` | `Some(0)` for the outermost transaction, increasing by one per nesting level; `None` if it is not open |
+| `host.transaction_lifecycle()` | `TransactionLifecycle` describing the open or closing phase |
+
+| `TransactionLifecycle` variant | Meaning |
+|---|---|
+| `None` | No transaction is open |
+| `Open` | A transaction is open and none is closing |
+| `Closing` | A nested transaction is committing into its parent or aborting |
+| `RootClosing` | The outermost transaction is closing |
+
+On a root commit, `contents_changed` listeners run during `RootClosing`. Their
+writes are outside the transaction whose commit triggered them.
+
+## Entity inventory slots
+
+`ItemPlace::EntitySlot { entity, slot }` addresses an entity inventory slot, like
+NeoForge's `Capabilities.Item.ENTITY`. Read and write it like any other item place.
+Reading or writing a minecart's slots unpacks its loot table without a player,
+as vanilla's `getChestVehicleItem` does.

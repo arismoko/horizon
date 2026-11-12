@@ -5,7 +5,7 @@ Derive `mod_api::Wire` explicitly on a type whose values cross a target boundary
 The build never adds a derive. Types used only inside one target do not need it.
 Every field of a derived type must also implement `Wire`.
 
-```rust
+```rust,ignore
 #[derive(mod_api::Wire)]
 pub struct ChemicalAmount {
     pub chemical: String,
@@ -31,7 +31,7 @@ Vanilla trees are not restricted by that structural budget: NBT `Tag` uses an
 explicit work stack with **512** nested containers; `Text` crosses as the existing
 validated flat `TextForm` table, preserving its **512** component-depth contract.
 These encodings are identical on native and wasm. Text's layout identity is the
-flat table's identity; mods must rebuild.
+flat table's identity.
 
 JSON-backed `serde_json::Value`, JSON maps and `ModelPart` also refuse beyond
 32 JSON containers. Their encoders preflight the in-memory tree iteratively
@@ -39,21 +39,15 @@ before serde recursion; their decoders scan the JSON's nesting outside quoted
 strings before parsing. A model part's JSON includes object, children-list and
 named-child-tuple containers, so one part can consume several JSON levels.
 
-The smallest configured guest shadow stack is **256 KiB** (`horizon-mod-wasm`'s
-shared linker). Wasmtime also has its default **512 KiB** native call-stack budget.
-Native decoding runs synchronously on the calling thread: world workers use Rust's
-normal spawned-thread stack (normally **2 MiB**), while integrated server threads
-reserve at least **8 MiB**. The depth regression tests use **128 KiB**, leaving half
-the guest shadow stack for callers. An embedding that supplies smaller stacks or
-arbitrarily recursive handwritten `Wire` implementations must enforce its own
-stack contract; the reader cannot police code outside its codec.
+The wasm linker reserves a **256 KiB** guest shadow stack. Wasmtime's wasm
+call-stack limit is **128 MiB**. These are separate budgets. Hand-written recursive
+`Wire` implementations must enforce their own stack contract; the reader cannot
+police code outside its codec.
 
 Wire does not own a borrowed value's destructor. Constructing an arbitrarily deep
-Rust tree and then dropping it can still overflow a thread independently of Wire.
+Rust tree and then dropping it can overflow a thread independently of Wire.
 Use explicit work stacks when disposing of hostile trees (`discard_tag` for NBT),
-and do not transfer arbitrarily deep owned Rust trees to an encoder. The source
-scanner `tools/scan_recursive_wire.py` and its classification test require review
-of every new recursive public vocabulary type.
+and do not transfer arbitrarily deep owned Rust trees to an encoder.
 
 ## Checked representations
 
@@ -80,10 +74,8 @@ Private types without a public path and uninstantiated generic declarations are
 not listed; a public re-export can give a private module's type a public path.
 
 A mixed-target dependent with a different layout is refused naming the library
-and differing type. Even matching layouts do not enable mixed native and wasm
-dependencies yet: those edges are refused explicitly. See the
-[extension design](https://github.com/arismoko/horizon/blob/main/docs/design/mod-api/mod-extensions.md#layout-hash-and-versioning) for the
-complete layout contract.
+and differing type. Matching layouts do not enable dependencies between native
+and wasm mods: the loader refuses those edges explicitly.
 
 ## Hand-written implementations
 
