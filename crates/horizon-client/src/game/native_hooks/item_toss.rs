@@ -121,6 +121,8 @@ mod item_toss_tests {
         spawned: Mutex<Option<u32>>,
         joins: Mutex<Vec<u32>>,
         leaves: Mutex<Vec<u32>>,
+        order: Mutex<Vec<&'static str>>,
+        veto_join: bool,
     }
     struct SpawnThenCancel(Arc<SpawnSeen>);
     #[mod_api::__subscriptions]
@@ -144,8 +146,15 @@ mod item_toss_tests {
         ) -> Flow {
             if event.kind == "minecraft:item" {
                 self.0.joins.lock().unwrap().push(event.entity);
+                self.0.order.lock().unwrap().push("join");
+                if self.0.veto_join {
+                    return Flow::Cancel;
+                }
             }
             Flow::Continue
+        }
+        fn item_spawn(&self, _: &mut dyn ServerHost, _: &mut mod_api::ItemSpawnEvent<'_>) {
+            self.0.order.lock().unwrap().push("spawn");
         }
         fn entity_leave_level(
             &self,
@@ -162,7 +171,20 @@ mod item_toss_tests {
     #[test]
     #[ignore = "needs prepared resources"]
     fn a_listener_spawn_does_not_announce_the_toss_it_then_cancels() {
-        let probe = Arc::new(SpawnSeen::default());
+        check_listener_spawn(false);
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn a_deferred_join_veto_announces_no_item_spawn() {
+        check_listener_spawn(true);
+    }
+
+    fn check_listener_spawn(veto_join: bool) {
+        let probe = Arc::new(SpawnSeen {
+            veto_join,
+            ..Default::default()
+        });
         let mods = vec![ModEntry::new(
             "toss_spawn_probe",
             Box::new(SpawnThenCancel(probe.clone())),
@@ -187,6 +209,13 @@ mod item_toss_tests {
                 assert!(joins.contains(&spawned), "the listener's item joins");
                 assert!(!probe.leaves.lock().unwrap().contains(&tossed));
                 assert!(game.dropped.iter().all(|d| d.id != tossed));
+                if veto_join {
+                    assert_eq!(*probe.order.lock().unwrap(), ["join"]);
+                    assert!(game.dropped.iter().all(|d| d.id != spawned));
+                } else {
+                    assert_eq!(*probe.order.lock().unwrap(), ["join", "spawn"]);
+                    assert!(game.dropped.iter().any(|d| d.id == spawned));
+                }
             });
         });
     }

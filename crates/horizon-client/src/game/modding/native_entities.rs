@@ -211,6 +211,12 @@ impl Game<'_> {
                 loaded_from_disk,
                 &mut canceled,
             );
+            let spawn = self
+                .native_lifecycle
+                .pending_item_spawns
+                .iter()
+                .position(|entry| entry.0 == id)
+                .map(|index| self.native_lifecycle.pending_item_spawns.remove(index));
             if canceled {
                 self.persist.joins_canceled += 1;
                 self.forget_entity(id);
@@ -222,6 +228,9 @@ impl Game<'_> {
                 self.remember_join(id, kind.into_owned());
                 // `addEntity` files it under its section, untold.
                 self.entity_section_joined(id, [at.x, at.y, at.z]);
+                if let Some((id, item, count, position)) = spawn {
+                    self.native_item_spawn(id, &item, count, position);
+                }
             }
         }
         // A held toss is not past yet: the mark stays before it.

@@ -50,7 +50,12 @@ impl Game<'_> {
         else {
             return;
         };
-        if self.native_joins_flush(false, id) {
+        if self.remote.is_none() && !mod_api::__private::mods().is_empty() {
+            self.native_lifecycle
+                .pending_item_spawns
+                .push((id, item, count, position));
+            self.native_joins_flush(false, id);
+        } else if self.native_joins_flush(false, id) {
             self.native_item_spawn(id, &item, count, position);
         }
     }
