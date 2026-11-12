@@ -33,7 +33,7 @@ Point a server at it:
 Updates do not rebuild a pinned `engine.path`: build a new export folder, set `engine.path` to it, restart, and keep
 the old folder for manual rollback. The supervisor does not auto-update or rebuild a pinned engine path
 (remaining work in horizon-rust/horizon#6304). To inspect the running server, its authenticated
-[`GET /api/v1/mods`](../../../../api/server.md) queries the engine's canonical `LoadedMods` inventory:
+[`GET /api/v1/mods`](https://github.com/arismoko/horizon/blob/main/docs/api/server.md) queries the engine's canonical `LoadedMods` inventory:
 `mods` lists loaded native, wasm and content package ids and versions in inventory order.
 `provenance` separately reports the configured program's build record, which may differ and is never
 used as an inventory fallback. A stopped or unreachable engine returns HTTP 409, not an empty list.

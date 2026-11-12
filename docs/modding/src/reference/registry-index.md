@@ -2,13 +2,13 @@
 
 Horizon's registry lists what is made for Horizon and reviewed: content mods (`.hmod`), native mods (`.hmod`,
 [native mods](../how-to/native-mods.md)), modpacks (`.hpack`), resource packs, data packs, shaders-folder packs and Horizon shader packs (`.hshader`,
-[shaders.md](../../../shaders.md)). A project is listed by a reviewed pull request in
+[shaders.md](https://github.com/arismoko/horizon/blob/main/docs/shaders.md)). A project is listed by a reviewed pull request in
 [horizon-rust/horizon-mods](https://github.com/horizon-rust/horizon-mods); new versions are submitted as files and pinned by SHA-256. Legacy entries may still follow their repositories. The launcher and the
 website read one file, `index.json`, which that repository's CI builds. The Rust types and every check below are
 `horizon_mod_package::index` and `horizon_mod_package::modpack` (feature `index`); the sample is
 `crates/horizon-mod-package/tests/index/index-v1.json`, read by the tests with the files it lists.
 
-Level: preview ([API stability](../../../api/stability.md)). Schema 1.
+Level: preview ([API stability](https://github.com/arismoko/horizon/blob/main/docs/api/stability.md)). Schema 1.
 
 ## `index.json`
 
@@ -247,7 +247,7 @@ How the repository runs (its workflows are in `.github/workflows/`):
   nobody installed) fails `registry review` on purpose and needs an administrator's merge.
 
 Kinds open to submissions: `mod` (content only), `native-mod`, `modpack`, `resourcepack`, `shader`, `shaderpack`, `datapack`. A data pack contains `pack.mcmeta` and `data/`; a shaderpack contains `shaders/` and requires redistribution permission. A Horizon shader pack (`.hshader`) passes
-`horizon_shader_api::check`, the check the game runs before it loads one (`horizon-shader check`, [shaders.md](../../../shaders.md)):
+`horizon_shader_api::check`, the check the game runs before it loads one (`horizon-shader check`, [shaders.md](https://github.com/arismoko/horizon/blob/main/docs/shaders.md)):
 every stage validated by naga and translated for Vulkan, Metal and DirectX 12; its manifest's id, version and shader
 API line are its facts. A new kind gets its own check before it opens.
 

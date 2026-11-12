@@ -8,13 +8,13 @@ Two kinds of mod run in Horizon:
 | **Native mod** | `.hmod` | A flat Rust project using the typed hook API, with optional raw injections. | In a game the launcher builds for the player ([native mods](../how-to/native-mods.md)) |
 
 Fabric and NeoForge jars do **not** run as they are: they target Minecraft's Java runtime, and
-Horizon has none. What carries over is the data and assets inside a jar ([modpacks.md](../../../modpacks.md)).
+Horizon has none. What carries over is the data and assets inside a jar ([modpacks.md](https://github.com/arismoko/horizon/blob/main/docs/modpacks.md)).
 
 Mods are **off by default**. A fresh install has no `horizon-mods` folder and plays exactly like vanilla 26.3.
 
 ## Playing with mods
 
-1. Install a mod from the launcher's Mods page ([mod-browser.md](../../../mod-browser.md)) or the game's Options > Mods >
+1. Install a mod from the launcher's Mods page ([mod-browser.md](https://github.com/arismoko/horizon/blob/main/docs/mod-browser.md)) or the game's Options > Mods >
    **Browse Mods** (content-only packages, checked against the same registry), or put its files by hand in the
    game folder (the one holding `options.txt`): a content mod's `.hmod` (or a folder holding `horizon-mod.toml`) in
    `horizon-mods/`. Native mods go in `horizon-native-mods/`, and the launcher builds them
@@ -52,5 +52,5 @@ Horizon's own mods are native. They live in
 | Coordinates HUD | `native/coords-hud` | A small example mod (position and facing, `/where`, `/coords`) |
 
 The game keeps the parts that must be fast, such as drawing the minimap's map, and a native mod picks the options
-([extras.md](../../../extras.md)). Far View is not a mod any more: its distance and detail are Graphics > LOD Distance and Far
-Detail ([graphics.md](../../../graphics.md)).
+([extras.md](https://github.com/arismoko/horizon/blob/main/docs/extras.md)). Far View is not a mod any more: its distance and detail are Graphics > LOD Distance and Far
+Detail ([graphics.md](https://github.com/arismoko/horizon/blob/main/docs/graphics.md)).
