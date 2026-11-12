@@ -3242,7 +3242,19 @@ pub(in crate::game) fn register_game_keys(ids: impl IntoIterator<Item = String>)
     )
     .unwrap();
     if let Some(types) = horizon_client_core::block_entity_types::current() {
-        mod_api::__private::resolve_block_entity_types(types.names(), |id| types.key(id)).unwrap();
+        // Registration just replaced the mod snapshot, but the process-wide engine
+        // table can still belong to an earlier fixture. Include this fixture's
+        // declarations before resolving its requested keys, as content loading does.
+        let declared = mod_api::__private::block_entity_types();
+        mod_api::__private::resolve_block_entity_types(
+            types
+                .names()
+                .chain(declared.iter().map(|kind| kind.id.as_str())),
+            |id| {
+                (types.key(id).is_some() || declared.iter().any(|kind| kind.id == id)).then_some(())
+            },
+        )
+        .unwrap();
     }
 }
 
