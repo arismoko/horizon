@@ -834,6 +834,20 @@ mod tests {
             param("&mut dyn LevelRandomHost", "self")
         );
         super::host_param::validate(&hit, "test", true, Some(true), false).unwrap();
+        // On both sides a hit's level reads, and its host says which side it is.
+        let hit_both = Hook {
+            side: Side::Both,
+            ..hit.clone()
+        };
+        super::host_param::validate(&hit_both, "test", true, Some(false), false).unwrap();
+        assert_eq!(
+            host_param(&hit_both, Some(false), false),
+            param("LevelSide", "super::mod_api_host::level_side(self)")
+        );
+        assert_eq!(
+            super::host_param::validate(&hit_both, "test", true, Some(false), true).unwrap_err(),
+            "test: this entry takes no host marker"
+        );
         for (hook, mutable) in [
             (hit.clone(), Some(false)),
             (

@@ -136,7 +136,7 @@ class ModBlockEntityAnyTemplateTests(unittest.TestCase):
         update = (LEVEL / "update.rs").read_text(encoding="utf-8")
         pistons = (LEVEL / "pistons.rs").read_text(encoding="utf-8")
         removal = between(update, "} else if block_changed\n", "        {\n            // BlockEntity.preRemoveSideEffects")
-        tail = between(pistons, "        } else if b.table.bool(state, b.props.extended) {\n            return false;\n        }\n", "    }\n    fn is_slime_or_honey")
+        tail = between(pistons, "        } else if b.table.bool(state, b.props.extended) {\n            return false;\n        }\n", "    }\n    /// `IBlockExtension.isSlimeBlock`")
         fixture = (FIXTURE.replace("HAS_MOD", method(game, "has_mod_block_entity"))
                    .replace("HAS_NATIVE", method(game, "has_native_block_entity"))
                    .replace("UNTEMPLATED", method(draw.replace("pub(super) fn", "fn"), "untemplated_mod_block_entities"))

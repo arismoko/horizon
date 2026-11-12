@@ -4723,3 +4723,7 @@ fn a_shulker_lid_updates_the_shapes_and_redstone_of_its_neighbours() {
         );
     }
 }
+#[cfg(test)]
+mod sticky {
+    include!("tests/sticky.rs");
+}
