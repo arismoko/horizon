@@ -2,9 +2,9 @@
 
 A data map attaches a value to the entries of a registry (NeoForge's `DataMapType`), here
 `minecraft:item` and `minecraft:block`. Data packs and mods' files set the values; a mod reads
-what the server made of them, so a server pack can rebalance a mod's numbers without a rebuild.
+the server's merged values, so a server pack can rebalance a mod's numbers without a rebuild.
 
-Describe the map once with `DataMap`: its id, the registry its entries are in (`Entry`, an
+Define your map with `DataMap`: its id, the registry its entries are in (`Entry`, an
 `ItemKey` or a `BlockKey`), and how a value decodes. Values arrive as the NBT form of the JSON a
 file held: a whole number is an `Int`, or a `Long` past `i32`, a fraction a `Double`, a boolean a
 `Byte`, an object a `Compound` and an array a `List`. Integer tokens must fit signed
@@ -56,13 +56,13 @@ Read an entry with `item.data(host, &Emc)` or `block.data(host, &map)`, from any
 - `Err(DataMapError::UnknownType)`: no mod registered the map for that registry in this load.
 - `Err(DataMapError::Undecodable)`: the value is not one `decode` takes.
 - `Err(DataMapError::Unavailable)`: no maps are loaded here. Data maps live on the server (the
-  single player server thread included) and are not synced to clients, so a client always
-  answers this, as does a server before its world's data first loads.
+  single player server thread included) and are not synced to clients, so a client returns
+  this error, as does a server before its world's data first loads.
 
 The server merges every map when its data loads: a world's first open and every `/reload`. A
 read sees the last load whole, never part of one, and a value a reload drops is gone at once.
-`data_maps_updated` fires after each load, the place to rebuild anything computed from the
-values; reads also work in the world. A lookup reads the loaded map: it parses nothing and
+`data_maps_updated` fires after each load. Use it to rebuild anything computed from the
+values. Reads also work in world hooks. A lookup reads the loaded map: it parses nothing and
 touches no file.
 
 Wasm mods read data maps the same way, with the same answers.

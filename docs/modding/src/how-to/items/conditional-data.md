@@ -1,6 +1,7 @@
 # Conditional data
 
-Server JSON files can carry a `neoforge:conditions` array. Supported readers are
+Add a `neoforge:conditions` array to control whether a server JSON file loads.
+Supported readers are
 recipes, loot tables, item modifiers, predicates, enchantments, jukebox songs,
 instruments, damage types, advancements, synchronized registry JSON, world-table
 tags (including loot, damage, synchronized registry and function tags), and native item/block data maps.
@@ -15,7 +16,7 @@ conditions before decoding the data. If the winner is omitted, a lower pack's
 version does not return. Tags and data maps evaluate each layer before merging,
 `replace`, or `remove`, so an omitted layer leaves lower entries intact. A damage
 registry is frozen at world open; reloading reevaluates its tags, not its type
-definitions. Generated item default components retain their existing prototype
+definitions. Generated item default components retain their prototype
 lifetime and are not conditional data files.
 
 `neoforge:mod_loaded` asks the owning resource generation's captured enabled
@@ -25,11 +26,7 @@ resource namespaces are not mod IDs. Other supported forms are `neoforge:true`,
 `neoforge:not` (`value`), and `neoforge:and` / `neoforge:or` (`values`). A namespace
 is owned only when a loaded mod registered at least one condition in it. Unknown
 names there refuse reload, naming the file, condition and mod, at any depth in
-these trees. **Diverges from upstream:** refusing reload for an unknown name in
-an owned namespace is a Horizon addition. Typed-codec alignment is a later item,
-to revisit once the shared codec foundation exists
-([#811](https://github.com/arismoko/horizon/issues/811) and
-[#2332](https://github.com/arismoko/horizon/issues/2332)).
+these trees.
 Foreign unknown names leave the file
 absent and produce one ERROR-level log entry per candidate reload naming the
 file and its distinct unknown ids (the vanilla view outside a reload logs per
