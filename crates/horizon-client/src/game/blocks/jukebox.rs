@@ -566,7 +566,6 @@ mod jukebox_play_tests {
             .unwrap();
         game.world.set(0, 64, 0, jukebox).unwrap();
         let disc = ItemStack::new("minecraft:music_disc_cat", 1);
-        crate::game::dispense_fixture::start_recording();
         assert_eq!(
             game.use_jukebox(
                 [0, 64, 0],
@@ -577,6 +576,9 @@ mod jukebox_play_tests {
             Some(mod_api::InteractionResult::Success),
             "the disc goes in"
         );
+        // Disc insertion posts block_change independently of the song clock.
+        // Observe only the ticking interval these tests exercise.
+        crate::game::dispense_fixture::start_recording();
         for _ in 0..ticks {
             game.tick_jukebox((0, 64, 0));
         }
