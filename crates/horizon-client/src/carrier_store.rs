@@ -241,7 +241,7 @@ impl Store {
     pub fn open_with_capacity(world_root: &Path, capacity: usize) -> Result<Opened, Refusal> {
         let data = world_root.join("data");
         let flag = in_use_flag(world_root);
-        if read_slots(&data)?.is_none() {
+        let Some(records) = read_slots(&data)? else {
             if residual_files(&data)? {
                 // Leftover carrier files without a journal are a missing
                 // store whatever the flag says.
@@ -252,9 +252,6 @@ impl Store {
                 return Err(Refusal::MissingStore { flag: true });
             }
             return Ok(Opened::NeverUsed);
-        }
-        let Some(records) = read_slots(&data)? else {
-            unreachable!("slots were just read");
         };
         // A newer schema is reported even when the other slot is valid:
         // the newer record is what the world actually was.
