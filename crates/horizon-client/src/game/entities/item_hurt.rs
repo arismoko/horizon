@@ -3,6 +3,7 @@ use super::{Game, commands::Target};
 use horizon_client::mobs::Who;
 
 impl Game<'_> {
+    /// `ItemEntity.hurtServer`: the item branch reached by `DamageCommand.damage`.
     pub(in crate::game) fn hurt_item_entity(
         &mut self,
         id: u32,

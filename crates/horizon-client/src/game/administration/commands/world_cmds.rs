@@ -439,7 +439,6 @@ impl Game<'_> {
         }
     }
 
-    /// `ItemEntity.hurtServer`: the item branch reached by `DamageCommand.damage`.
     /// `DamageCommand.damage`: retain the accepted hit's player context and run
     /// `Zombie.hurtServer`'s reinforcement requests before the command returns.
     /// Health-changing hits also raise their damage vibration before return.
