@@ -10,4 +10,10 @@ fn is_forest(host: &dyn Host, level: LevelRef, biome: &str) -> Option<bool> {
 }
 ```
 
-The tag may also start with `#`. An undefined tag returns `Some(false)` for a known biome. An unknown biome or unavailable level returns `None`; do not confuse that with a known biome outside the tag. Data-pack biome tags participate in this query.
+The query includes data-pack biome tags and accepts a tag name with or without `#`.
+
+| Result | Meaning |
+|---|---|
+| `Some(true)` | The known biome belongs to the tag. |
+| `Some(false)` | The known biome is outside the tag, or the tag is undefined. |
+| `None` | The biome, level or live biome-tag tables are unavailable. |

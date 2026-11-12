@@ -2,13 +2,11 @@
 
 Use `Hooks::register_cauldron_interaction` with a `RegistrationContext` and
 `RegisterCauldronInteractionEvent`. Retain typed `BlockKey` and `ItemKey` values
-from registration, as described in the registry-key chapter. The hook runs on both
+from registration. The hook runs on both
 sides when preparing the resource snapshot; publication happens only after the
 complete candidate validates. Failed preparation retains the previous snapshot.
 
-The names correspond to NeoForge 26.1's documented
-`RegisterCauldronInteractionEvent`, `Dispatcher`, and `Interaction`. They remain
-**unverified for NeoForge 26.3**. See the [public cauldron documentation](https://docs.neoforged.net/docs/fluids/inworld/#cauldron-interactions).
+## Register an item
 
 Register an exact item on a block's dispatcher:
 
@@ -42,6 +40,8 @@ block or item keys refuse registration. On water cauldrons, vanilla's dye tag
 always precedes exact-item entries: even washing that returns Pass does not fall
 through to the mod's entry.
 
+## Register an item tag
+
 An item tag answers for many items at once (NeoForge's `register(id, TagKey, …)`
 and `registerToAll(TagKey, …)`):
 
@@ -58,6 +58,8 @@ always wins over a tag entry; tag entries on one block are asked in registration
 order (those `register_tag_to_all` queued come after the block's own). The same
 tag twice on one block is `Duplicate`; a string that is not a resource location
 is `InvalidTag`.
+
+## Decide and apply an interaction
 
 Implement `Interaction::decide(&dyn Host, &CauldronUse)` for eligibility. It reads
 the complete captured held stack, target state, actor, hand, dimension, creative
@@ -101,21 +103,22 @@ A transfer can carry **two distinct statistics**: for example
 statistic for the original held item's key. Each is awarded once; duplicate
 statistics and plans with more than two statistics refuse the action. A plan may
 also carry one sound and one fluid event (`minecraft:fluid_place` or
-`minecraft:fluid_pickup`). State and returned stacks are validated against the
-current resources before mutation.
+`minecraft:fluid_pickup`). The replacement state and returned stack are validated against the
+loaded resources before mutation. The sound must be a registered sound event;
+statistics must be vanilla custom-statistic identifiers or `minecraft:used`.
 
 `Interaction::fire(&mut dyn ServerHost, &CauldronUse, &CauldronPlan)` runs only on
 the server, inside the shared action transaction. Return `CauldronFire::Applied`
 to permit the plan and supported callback writes to commit. `Refused`, a panic,
 a guest trap, stale preconditions or an enclosing abort discards the action.
-Sounds, statistics, events and overflow drops wait for root commit. Uses the
-shared transaction and runtime limits; no cauldron-specific budget.
+Sounds, statistics, events and overflow drops wait for root commit. The action uses the
+shared transaction and runtime limits, with no cauldron-specific budget.
+
+## Client prediction
 
 Client prediction selects the same entry, but skips custom handlers entirely:
 it does not call `decide` or predict writes and consumes the local action while
 waiting for the server result. Vanilla handlers continue to predict normally.
-The server owns inventories, statistics, drops and game events. Matching custom
-binary builds and synchronized resource generations are not established by the
-current handshake, so custom prediction is suppressed. Native and wasm handlers
+The server owns inventories, statistics, drops and game events. Native and wasm handlers
 use the same generated registration and callback route;
 `CauldronFire` defaults to `Refused` when a generated callback cannot run.

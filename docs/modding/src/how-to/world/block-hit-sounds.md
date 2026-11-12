@@ -1,6 +1,6 @@
 # Block hit sounds
 
-A block part's `play_hit_sound` runs on the client before a mining hit sound.
+Use a block part's `play_hit_sound` to handle mining hit sounds on the client.
 The event supplies the block state, position and face. Return `Flow::Cancel` after handling the sound through the supplied `ClientHost` to skip the
 vanilla sound. Other blocks keep their normal sound.
 

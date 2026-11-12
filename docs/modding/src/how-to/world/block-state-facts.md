@@ -1,8 +1,6 @@
 # Block-state facts
 
-A `BlockState` is an API-owned value pairing a `BlockKey` with a block-local canonical ordinal, not a numeric engine state ID or a live object. Facts that need no world are a small
-read-only service on any host, both sides: `host.block_states()` (import `HostBlockStates`). Each reads the game's own
-tables through checked crossings. Fact queries and matching allocate nothing; `definition` copies the property data for the caller. Property operations on `BlockState` borrow explicit immutable block metadata; `block()` and `ordinal()` need no host:
+A `BlockState` is an API-owned value pairing a `BlockKey` with a block-local canonical ordinal, not a numeric engine state ID or a live object. Read facts without a world position on either side through `host.block_states()` (import `HostBlockStates`). The service reads the game's loaded tables. Fact queries and matching allocate nothing; `definition` copies the property data for the caller. Property operations on `BlockState` borrow explicit immutable block metadata; `block()` and `ordinal()` need no host:
 
 | Method | Vanilla |
 |---|---|
@@ -17,7 +15,7 @@ tables through checked crossings. Fact queries and matching allocate nothing; `d
 
 Use `StateConstraint` for each partial constraint; `StateMatchError` identifies an invalid property or value by index. `StateProperty` describes a property's legal values. These types are shared by state-definition services.
 
-`None` for an unknown state or block, including an invalid local ordinal, and on a host with no game behind it (a mod's test double). The ordinal order is defined by the complete canonical property constraints, not by the engine's numeric enumeration.
+Queries return `None` for an unknown state or block, including an invalid local ordinal, and on a host with no game behind it (a mod's test double). The ordinal order is defined by the complete canonical property constraints, not by the engine's numeric enumeration.
 
 ## Fluid-state facts
 
@@ -51,7 +49,7 @@ for anything but the empty fluid, or a source that isn't full.
 What depends on a position is on `LevelRef`, not in this service: `fluid_tick_delay(host, fluid, pos)`
 (water 5, lava 30 and 10 in the Nether, a mod fluid's as its `fluid_rules` parts change it there),
 `fluid_height`, `fluid_height_for_camera` and `fluid_can_be_replaced_with(host, pos, fluid, direction)`.
-`fluid_tick(server, pos)` runs a fluid's flow step now; `schedule_fluid_tick` queues one.
+`fluid_tick(server, pos)` runs a fluid's flow step immediately; `schedule_fluid_tick` queues one.
 
 `FluidState::matches(constraints)` is a pure local check of carried vanilla fields. Unknown properties
 or noncanonical serialized values return false. A falling source remains a source; a flowing state
