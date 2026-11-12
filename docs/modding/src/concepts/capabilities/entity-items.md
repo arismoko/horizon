@@ -1,19 +1,45 @@
-# An entity's items
+# Entity items
 
-`entity.capability(host, &ENTITY_ITEMS, ())` (NeoForge 26.3's `Capabilities.Item.ENTITY`) is an entity's items, None for a
-stale handle and an entity outside the level in place. The game answers it for a player with their inventory
-(`PlayerInventoryWrapper`), indices as vanilla's `Inventory` numbers them: 0..36 the main inventory (0..9 the hotbar),
-36..40 the armour from feet to head, 40 the off hand. Each index is the player's `ItemPlace::PlayerSlot` and takes only
-what fits there: an armour slot one of what its `equippable` names it for (`ArmorSlot`: its allowed entities hold the
-player by id or by tag), and bound armour comes off only in creative. `insert_any`, without an index, goes where
-`Inventory.add` puts a stack: onto the same item in the selected slot, the off hand and the main inventory in order,
-then into its empty slots, never the armour. For a chest or hopper minecart, a chest boat and a chested donkey, mule or
-llama the game answers with their container's slots (`ItemPlace::EntitySlot`). A handler kept past its entity's removal
-or its world's close reaches nothing. `r.entity_capability(&ENTITY_ITEMS,
-"mymod:robot", |host, robot, ()| …)` answers it for a mod's entity type, and `r.entity_capability_before_game` ahead of the
-game's own, asked as block entities' providers are. Giving, taking and counting a player's items go through it:
+Use `entity.capability(host, &ENTITY_ITEMS, ())` to access an entity's items as a
+`ResourceHandler<ItemResource>`. This is NeoForge's `Capabilities.Item.ENTITY`.
+A stale handle or an entity outside the active level returns `None`. A retained
+game handler cannot read or change items after its entity is removed or its world closes.
 
-```rust
+## Game providers
+
+| Entity | Inventory exposed |
+| --- | --- |
+| Player | Main inventory, armour and off hand through `ItemPlace::PlayerSlot`. |
+| Chest or hopper minecart, chest boat, chested donkey, mule or llama | Container slots through `ItemPlace::EntitySlot`. |
+| Living non-player entity without a container, including an armour stand | Equipment in `EquipmentSlot` ordinal order, through `ItemPlace::Equipment`. |
+
+Player slot indices are half-open ranges:
+
+| Indices | Slots |
+| --- | --- |
+| `0..36` | Main inventory; `0..9` is the hotbar. |
+| `36..40` | Armour, feet to head. |
+| `40` | Off hand. |
+
+An armour slot accepts one item whose `equippable` component permits that slot
+and the player's type, by ID or tag. Bound armour can be removed only in creative.
+`insert_any` merges matching stacks in the selected slot, off hand and main
+inventory, then uses empty main-inventory slots; it does not fill armour slots.
+
+For non-player equipment, hands accept a stack. Armour and body slots accept
+one item whose `equippable` permits the slot and entity type.
+
+## Custom providers and transactions
+
+Register with `r.entity_capability(&ENTITY_ITEMS, "mymod:robot", |host, robot, ()| …)`.
+Providers registered with `r.entity_capability_before_game` run before the game's
+provider; ordinary providers run after it. Within each group, registration order
+applies and the first handler returned wins.
+
+Give, take and count player items through this capability. For example, this
+trade aborts if an offer changes or either recipient lacks room:
+
+```rust,ignore
 // A trade: each offer is (index, the exact stack it must still hold). A stale offer or no
 // room for one aborts the transaction, and every move in it is put back.
 let (a, b) = (seller.capability(host, &ENTITY_ITEMS, ())?, buyer.capability(host, &ENTITY_ITEMS, ())?);
@@ -35,6 +61,7 @@ host.transaction(|host, tx| {
 })
 ```
 
-Cauldron interactions outside a transaction keep vanilla's effect order. Inside an open
-transaction, their statistic award (including `player_stat_award`), sound and overflow
-item toss/spawn wait until the outermost successful commit; an abort emits none of them.
+Cauldron interactions outside a transaction retain vanilla's effect order.
+Inside a transaction, statistics (including `player_stat_award`), sounds and
+overflow item tosses or spawns wait for the outermost successful commit. An abort
+emits none of those effects.

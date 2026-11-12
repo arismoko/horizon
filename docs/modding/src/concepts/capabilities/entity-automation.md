@@ -1,13 +1,24 @@
 # Entity automation
 
-`entity.capability(host, &ENTITY_AUTOMATION, side)` (NeoForge 26.3's `Capabilities.Item.ENTITY_AUTOMATION`, "automation-accessible
-inventory of an entity (boats, minecarts, etc)") is the items of an entity as a hopper reaches them, with the same
-`Option<Direction>` context as the energy and fluid keys. The game answers it for the container entities
-`EntitySelector.CONTAINER_ENTITY_SELECTOR` picks (chest and hopper minecarts, chest boats) with the slots their
-[`ENTITY_ITEMS`](entity-items.md) handler has; a player and a chested donkey, mule or llama answer none. A hopper
-pushing into the entity in front of it asks for the side it faces the entity from (`Up` for a hopper over it), a hopper
-pulling from the entity above it for `Down`, and a dropper for the side it drops onto. Beside the game's container
-entities, those entities at the target whose mod provider answers it join the candidates, and the hopper picks one at
-random with the draw `getEntityContainer` makes; a mod handler takes the container's place and moves one item at a time
-in a transaction, as a mod block's `ITEMS` does. `r.entity_capability(&ENTITY_AUTOMATION, "mymod:robot", |host, robot, side| …)`
-registers one, and `r.entity_capability_before_game` answers ahead of the game's own for a minecart or a boat.
+Use `entity.capability(host, &ENTITY_AUTOMATION, side)` to access the inventory an
+entity exposes to hoppers and droppers. This is NeoForge's
+`Capabilities.Item.ENTITY_AUTOMATION`, distinct from the broader
+[`ENTITY_ITEMS`](entity-items.md) capability.
+
+Register a provider with
+`r.entity_capability(&ENTITY_AUTOMATION, "mymod:robot", |host, robot, side| …)`.
+Use `r.entity_capability_before_game` to answer ahead of the game's provider for
+a minecart or boat. The context is `Option<Direction>`; `None` means no particular side.
+
+## Game providers and transfers
+
+- Chest and hopper minecarts and chest boats expose their container slots.
+- Players and chested donkeys, mules and llamas have no game-provided automation handler.
+- A pushing hopper requests the side it reaches the entity from (`Up` when the
+  hopper is above it). A pulling hopper requests `Down` from the entity above it.
+  A dropper requests the side it drops onto.
+- At a target, automation chooses randomly among the game's container entities
+  and entities whose mod providers answer this capability, using vanilla's
+  `getEntityContainer` selection draw.
+- A mod handler takes the container's place. Automation moves one item per
+  transfer in a transaction, as it does through a block's `ITEMS` handler.

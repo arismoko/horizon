@@ -1,7 +1,13 @@
 # Capability answer limits
 
-The game never trusts an answer past what it asked or offered. A handler answering more than it was asked has its
-move undone, in its transaction, and is warned once naming the mod, and `move_resources` or `move_energy` returns
-`Overanswered` naming it. Returned from the closure of `host.transaction` with `?`, it aborts the whole move, so
-neither end keeps any of it: a broken handler can't make a move overflow, duplicate or lose items, fluid or energy, or
-panic the game.
+Use `?` to propagate errors from `move_resources` and `move_energy` out of your
+`host.transaction` closure. If a handler returns more than requested or offered,
+the helper rolls back the offending subtransaction and returns `Overanswered`.
+Propagating that error aborts the enclosing transaction, including its earlier moves.
+
+- `Overanswered.owner` identifies the provider's mod, or `"the game"`.
+- The game warns once, naming the offending provider.
+- Your handler must return no more than the amount passed to `insert` or `extract`
+  and journal its writes in the supplied transaction so rollback can undo them.
+- A destination that accepts only part of a move causes a rollback and one retry
+  with that smaller amount; partial acceptance is not an overanswer.
