@@ -39,7 +39,7 @@ finite (as an f32), or a `length` of 0 or less, rejects the file with a named di
 The built-in interpolations are `minecraft:linear` and `minecraft:catmullrom`. An identifier
 without a namespace uses `minecraft:`. A target or interpolation that is neither built in nor
 registered by a mod ([below](#registered-targets-and-interpolations)) rejects that file with a
-named diagnostic; other animation files still load. Lookup returns `None` when the ID
+named diagnostic; other animation files load independently. Lookup returns `None` when the ID
 is absent or its file failed to load.
 
 ## Resolve and bake after resources are published
@@ -48,7 +48,7 @@ Resolve during `client_setup`, and resolve again during `client_resources_reload
 are published-resource reads, not per-frame work. For example, renderer-owned state can keep
 its model and baked animation together:
 
-```rust
+```rust,ignore
 use mod_api::{
     AnimationError, AnimationState, Identifier, KeyframeAnimation, ModelPart, RenderAssets,
 };
@@ -98,7 +98,7 @@ playing animation, `animate_when` starts or stops with a condition, and `stop` e
 Baking follows vanilla 26.3's `ModelPart.createPartLookup`: the name `root` always means the
 actual root, even if a child is also named `root`. Other names select the first match,
 visiting each part's immediate children before their descendants. A missing bone is logged
-and dropped at bake time; the other channels still play. Re-bake if the model hierarchy
+and dropped at bake time; the other channels play. Re-bake if the model hierarchy
 changes, not just when animation resources change.
 
 ## Apply a pose each frame
@@ -130,9 +130,10 @@ playing mod, called directly: no hook is dispatched per sample.
 An animation that names registered types is baked with `holder.bake_with(&root, types)` into a
 `TypedKeyframeAnimation`, which keeps `types` and plays with the same `apply`, `apply_scaled`,
 `apply_walk` and `apply_static`. `bake` refuses such an animation, naming it and its types, so a
-registered channel is never skipped in silence. An id one mod registered loads in any mod's
+registered channel is never skipped in silence. An ID one mod registered loads in any mod's
 file, but plays only where an `AnimationTypes` provides it: the registering mod's own, or one a
 mod depending on it supplies. `bake_with` refuses an `AnimationTypes` that lacks one of the
 animation's types, once, and the error names the animation, that type and the mod that
 registered it.
-The [hook's notes](../../reference/hook-notes.md#animation-types) show a complete example.
+See the [`register_json_animation_types` documentation](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/register_json_animation_types.rs)
+for the registration contract.

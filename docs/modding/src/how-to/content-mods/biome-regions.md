@@ -2,8 +2,7 @@
 
 A **biome region** puts a mod's biomes among vanilla's in the Overworld or the Nether. The world is split into areas,
 each area belongs to one region, and inside it the region's own climate points choose the biome. Vanilla's whole
-layout is one region of weight 10 beside the mods' ones. The design, and why it works this way, is in
-[the design note](https://github.com/arismoko/horizon/blob/main/docs/design/mod-api/mod-biome-regions.md).
+layout is one region of weight 10 alongside your regions.
 
 ## Declaring a region
 
@@ -38,9 +37,12 @@ first chunk generates. From then on that file decides, not the mods:
 
 - **A changed region** (new points or weight) or **a new mod's region** does not reach an existing world on its own.
   The game logs the difference when the world opens and keeps generating from the saved layout.
-- **Taking the installed regions** is a choice the world's owner makes: on a dedicated server, `adopt_installed = true`
-  under `[biome_regions]` in `server.toml`. New chunks then use the installed regions: a region the world already had
-  keeps its saved weight, a new one takes its declared weight, and a missing mod's region is dropped. Chunks that already exist keep their biomes. *Not built yet:* the same choice in the client's world list.
+- **Adopting the installed regions:** in the world list, select the world, open **Edit World**, choose
+  **Use Installed Biome Regions**, and confirm with **Use Installed Regions**. The option appears when the
+  installed regions differ from the saved layout. On a dedicated server, set `adopt_installed = true`
+  under `[biome_regions]` in `server.toml`. New chunks use the installed regions: a region the world already had
+  keeps its saved weight, a new one takes its declared weight, and a missing mod's region is dropped.
+  Chunks that already exist keep their biomes.
 - **Removing a mod** whose region the world saved is the case below.
 
 A world made with no region mod installed has no file and generates exactly as vanilla, and so do the End and a mod's
