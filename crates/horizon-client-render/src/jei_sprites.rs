@@ -28,6 +28,20 @@ pub(crate) const SPRITES: &[(&str, &[u8])] = &[
         include_bytes!("jei_recipes/search_background_v2.png"),
     ),
     ("slot", include_bytes!("jei_recipes/slot.png")),
+    ("icons/flame", include_bytes!("jei_recipes/icons/flame.png")),
+    ("output_slot", include_bytes!("jei_recipes/output_slot.png")),
+    (
+        "recipe_arrow",
+        include_bytes!("jei_recipes/recipe_arrow.png"),
+    ),
+    (
+        "recipe_arrow_filled",
+        include_bytes!("jei_recipes/recipe_arrow_filled.png"),
+    ),
+    (
+        "single_recipe_background_v2",
+        include_bytes!("jei_recipes/single_recipe_background_v2.png"),
+    ),
     (
         "icons/list_badge",
         include_bytes!("jei_recipes/icons/list_badge.png"),

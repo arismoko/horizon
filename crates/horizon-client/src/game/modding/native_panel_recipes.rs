@@ -111,6 +111,7 @@ pub(super) struct Shown {
     fluid_outputs: Vec<Well>,
     note: String,
     action: Option<bool>,
+    card: Option<CookingCard>,
 }
 
 /// The recipes a panel shows, and its page.
@@ -129,8 +130,14 @@ impl Pages {
         items: &horizon_client::items::Items,
         shown: &RecipePage,
         old: Option<Pages>,
+        official_recipes: bool,
     ) -> Self {
         let (title, list, tab) = (&shown.title, &shown.recipes, shown.tab as usize);
+        let card = shown
+            .tabs
+            .get(tab)
+            .and_then(|stack| mod_api::__private::item_key_id(stack.item))
+            .and_then(CookingCard::for_station);
         let kept = old.filter(|o| o.title == *title && o.tab == tab);
         let cycle = |stacks: &[BrowserStack]| -> Vec<(BrowserStack, ItemStack)> {
             stacks
@@ -157,6 +164,18 @@ impl Pages {
                     fluid_outputs: r.fluid_outputs.iter().map(Well::new).collect(),
                     note: r.note.clone(),
                     action: r.action,
+                    card: if official_recipes
+                        && r.layout == BrowserLayout::Cooking
+                        && r.slots.len() == 1
+                        && r.results.len() == 1
+                        && r.results[0].chance.is_none()
+                        && r.fluid_inputs.is_empty()
+                        && r.fluid_outputs.is_empty()
+                    {
+                        card
+                    } else {
+                        None
+                    },
                 }
             })
             .collect();
@@ -175,7 +194,55 @@ impl Pages {
     }
 }
 
+#[derive(Clone, Copy)]
+enum CookingCard {
+    Furnace,
+    Campfire,
+}
+
+impl CookingCard {
+    fn for_station(station: &str) -> Option<Self> {
+        match station {
+            "minecraft:furnace" | "minecraft:blast_furnace" | "minecraft:smoker" => {
+                Some(Self::Furnace)
+            }
+            "minecraft:campfire" => Some(Self::Campfire),
+            _ => None,
+        }
+    }
+
+    fn size(self) -> (f32, f32) {
+        match self {
+            Self::Furnace => (124.0, 62.0),
+            Self::Campfire => (90.0, 47.0),
+        }
+    }
+
+    fn positions(self) -> ((f32, f32), (f32, f32)) {
+        match self {
+            Self::Furnace => ((46.0, 17.0), (94.0, 18.0)),
+            Self::Campfire => ((26.0, 7.0), (60.0, 8.0)),
+        }
+    }
+}
+
+/// The Recipes mod writes cooking notes as "<seconds> s, <experience> XP".
+fn cooking_note(note: &str) -> Option<(&str, &str, f64)> {
+    let (time, xp) = note.split_once(", ")?;
+    let time = time.strip_suffix(" s")?;
+    let seconds = time.parse::<f64>().ok()?;
+    (seconds.is_finite() && seconds > 0.0 && xp.ends_with(" XP")).then_some((time, xp, seconds))
+}
+
+fn cooking_arrow_columns(elapsed: f64, seconds: f64) -> f32 {
+    ((elapsed % seconds / seconds) * 23.0).floor().min(22.0) as f32
+}
+
 impl Shown {
+    fn cooking_card(&self, room: f32) -> Option<CookingCard> {
+        self.card.filter(|card| room >= card.size().0)
+    }
+
     /// The inputs' block: its size and each input slot's place in it.
     fn inputs(&self) -> ((f32, f32), Vec<(f32, f32)>) {
         let row = |n: usize| (0..n).map(|i| (i as f32 * SLOT, 0.0)).collect();
@@ -202,6 +269,9 @@ impl Shown {
     /// The height of its slots, arrow and button, `room` wide; a chance is
     /// written under its result, so the results' row has room for it.
     fn block(&self, room: f32) -> f32 {
+        if let Some(card) = self.cooking_card(room) {
+            return card.size().1 - 4.0;
+        }
         let h = self.inputs().0.1;
         let (_, _, action) = self.places(room);
         let lines = self.result_step(room).1;
@@ -254,13 +324,26 @@ impl Shown {
         (inputs, outputs, used)
     }
     fn height(&self, room: f32) -> f32 {
-        let note = if self.note.is_empty() { 0.0 } else { 11.0 };
+        let note = if self.note.is_empty() || self.cooking_card(room).is_some() {
+            0.0
+        } else {
+            11.0
+        };
         self.block(room) + self.fluid_places(room).2 + note + GAP
     }
     /// Every slot's place from the recipe's corner (the results last, in a
     /// row), the arrow's and the action button's: beside the last result, or
     /// under it when the panel is `room` wide and that doesn't fit.
     fn places(&self, room: f32) -> (Vec<(f32, f32)>, (f32, f32), (f32, f32)) {
+        if let Some(card) = self.cooking_card(room) {
+            let (arrow, output) = card.positions();
+            let action = if output.0 + SLOT + 16.0 <= room {
+                (output.0 + SLOT + 4.0, output.1)
+            } else {
+                (output.0 + 3.0, output.1 + SLOT + 2.0)
+            };
+            return (vec![(0.0, 0.0), output], arrow, action);
+        }
         let ((w, h), mut at) = self.inputs();
         // The mod's slots beyond the layout's are not shown.
         let inputs = self.slots.len() - self.chances.len();
@@ -538,9 +621,10 @@ impl Game<'_> {
             batch.text(atlas, &text, x, layout.arrows_y + 5.0, u32::MAX, true);
         }
         for (i, (x, y)) in self.recipes_shown(layout) {
-            let Some(r) = self.panel.recipes.as_ref().map(|p| &p.recipes[i]) else {
+            let Some(pages) = &self.panel.recipes else {
                 break;
             };
+            let r = &pages.recipes[i];
             let (at, arrow, action) = r.places(layout.width());
             let h = r.block(layout.width());
             let (cooking, button) = (r.layout == BrowserLayout::Cooking, r.action);
@@ -548,23 +632,33 @@ impl Game<'_> {
             let staggered = r.result_step(layout.width()).1 > 1.0;
             let (wells_in, wells_out, wells_h) = r.fluid_places(layout.width());
             let atlas = &self.gui.atlas;
-            for &(sx, sy) in at.iter().filter(|p| p.0.is_finite()) {
-                batch.sprite(atlas, "gui/sprites/container/slot", x + sx, y + sy);
+            let card = r.cooking_card(layout.width());
+            if let Some(card) = card {
+                self.draw_cooking_card(batch, (x, y), card, &r.note, arrow, pages.since);
             }
-            if cooking {
+            for (slot, &(sx, sy)) in at.iter().enumerate().filter(|(_, p)| p.0.is_finite()) {
+                let (sprite, inset) = match card {
+                    Some(_) if slot == inputs => ("horizon/jei/output_slot", -4.0),
+                    Some(_) => ("horizon/jei/slot", 0.0),
+                    None => ("gui/sprites/container/slot", 0.0),
+                };
+                batch.sprite(atlas, sprite, x + sx + inset, y + sy + inset);
+            }
+            if let Some(sprite) = match card {
+                Some(CookingCard::Furnace) => Some(("horizon/jei/icons/flame", 1.0)),
+                None if cooking => Some(("gui/sprites/container/furnace/lit_progress", 2.0)),
+                _ => None,
+            } {
+                batch.sprite(atlas, sprite.0, x + sprite.1, y + SLOT + 2.0);
+            }
+            if card.is_none() {
                 batch.sprite(
                     atlas,
-                    "gui/sprites/container/furnace/lit_progress",
-                    x + 2.0,
-                    y + SLOT + 2.0,
+                    "gui/sprites/container/furnace/burn_progress",
+                    x + arrow.0,
+                    y + arrow.1,
                 );
             }
-            batch.sprite(
-                atlas,
-                "gui/sprites/container/furnace/burn_progress",
-                x + arrow.0,
-                y + arrow.1,
-            );
             if self.screen != super::Screen::Creative
                 && let Some(enabled) = button
             {
@@ -592,7 +686,7 @@ impl Game<'_> {
                 batch.text(atlas, "+", rect[0] + 3.0, rect[1] + 2.0, color, true);
                 horizon_client::widgets::record(&format!("+ {i}"), rect, enabled);
             }
-            if !r.note.is_empty() {
+            if card.is_none() && !r.note.is_empty() {
                 batch.text(
                     atlas,
                     &r.note,
@@ -661,6 +755,56 @@ impl Game<'_> {
             );
             horizon_client::widgets::record(&warning, [x, y, w, h], false);
             self.draw_tooltip_lines(batch, &lines, cursor.0, cursor.1);
+        }
+    }
+
+    fn draw_cooking_card(
+        &self,
+        batch: &mut HudBatch,
+        (x, y): (f32, f32),
+        card: CookingCard,
+        note: &str,
+        arrow: (f32, f32),
+        since: Instant,
+    ) {
+        let atlas = &self.gui.atlas;
+        let (width, height) = card.size();
+        let (left, top) = (x - 4.0, y - 4.0);
+        horizon_client::ui::nine_slice(
+            batch,
+            atlas,
+            "horizon/jei/single_recipe_background_v2",
+            left,
+            top,
+            width,
+            height,
+            u32::MAX,
+        );
+        let color = rgba(128, 128, 128, 255);
+        let parsed = cooking_note(note);
+        let time = if let Some((time, xp, _)) = parsed {
+            if matches!(card, CookingCard::Furnace) && xp != "0 XP" {
+                let xp_x = left + width - 4.0 - HudBatch::text_width(atlas, xp);
+                batch.text(atlas, xp, xp_x, y, color, false);
+            }
+            self.translate_with_fallback("horizon.recipes.cooking.seconds", "{seconds}s")
+                .replace("{seconds}", time)
+        } else {
+            note.to_owned()
+        };
+        let time_x = (left + (width - HudBatch::text_width(atlas, &time)) / 2.0).floor();
+        batch.text(atlas, &time, time_x, top + height - 12.0, color, false);
+        let (arrow_x, arrow_y) = (x + arrow.0, y + arrow.1);
+        batch.sprite(atlas, "horizon/jei/recipe_arrow", arrow_x, arrow_y);
+        if let Some((_, _, seconds)) = parsed {
+            let filled = cooking_arrow_columns(since.elapsed().as_secs_f64(), seconds);
+            batch.sprite_part(
+                atlas,
+                "horizon/jei/recipe_arrow_filled",
+                arrow_x,
+                arrow_y,
+                filled / 22.0,
+            );
         }
     }
 
@@ -823,6 +967,43 @@ impl Game<'_> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn cooking_arrow_restarts_after_the_mods_duration() {
+        let (time, xp, duration) = cooking_note("10 s, 0.35 XP").expect("Recipes cooking note");
+        assert_eq!((time, xp), ("10", "0.35 XP"));
+        assert_eq!(cooking_arrow_columns(0.0, duration), 0.0);
+        assert_eq!(cooking_arrow_columns(5.0, duration), 11.0);
+        assert_eq!(cooking_arrow_columns(9.99, duration), 22.0);
+        assert_eq!(cooking_arrow_columns(10.0, duration), 0.0);
+        assert!(cooking_note("0 s, 0.35 XP").is_none());
+        assert!(cooking_note("NaN s, 0.35 XP").is_none());
+        assert!(cooking_note("Cook until done").is_none());
+    }
+
+    #[test]
+    fn cooking_card_preserves_clickable_slots_and_narrow_layout() {
+        let mut shown = Shown {
+            layout: BrowserLayout::Cooking,
+            width: 1,
+            height: 1,
+            slots: vec![Vec::new(); 2],
+            chances: vec![None],
+            fluid_inputs: Vec::new(),
+            fluid_outputs: Vec::new(),
+            note: "10 s, 0.35 XP".into(),
+            action: Some(true),
+            card: CookingCard::for_station("minecraft:furnace"),
+        };
+        let (slots, arrow, action) = shown.places(124.0);
+        assert_eq!(slots, vec![(0.0, 0.0), (94.0, 18.0)]);
+        assert_eq!(arrow, (46.0, 17.0));
+        assert!(action.1 + 12.0 <= shown.block(124.0));
+        assert_eq!(shown.places(123.0).0[1], (50.0, 9.0));
+        shown.card = CookingCard::for_station("minecraft:campfire");
+        assert_eq!(shown.places(90.0).0[1], (60.0, 8.0));
+        assert_eq!(shown.places(89.0).0[1], (50.0, 9.0));
+    }
+
     /// Water and lava keep vanilla's colours, a look's tint wins, anything else is grey.
     #[test]
     fn a_fluid_has_a_colour() {
@@ -844,6 +1025,7 @@ mod tests {
             fluid_outputs: Vec::new(),
             note: String::new(),
             action: None,
+            card: None,
         };
         let (at, _, action) = shown.places(200.0);
         assert_eq!(at.len(), 4);
@@ -878,6 +1060,7 @@ mod tests {
             fluid_outputs: Vec::new(),
             note: String::new(),
             action: None,
+            card: None,
         };
         let (at, _, _) = shown.places(200.0);
         assert_eq!(at[9], (0.0, 3.0 * SLOT));
@@ -899,6 +1082,7 @@ mod tests {
             fluid_outputs: vec![fluid(250)],
             note: String::new(),
             action: None,
+            card: None,
         };
         let block = shown.block(200.0);
         assert!(block >= SLOT + CHANCE_TEXT);
@@ -930,6 +1114,7 @@ mod tests {
             fluid_outputs: Vec::new(),
             note: String::new(),
             action: Some(true),
+            card: None,
         };
         let (at, _, action) = shown.places(72.0);
         let result = at[1];
@@ -982,6 +1167,7 @@ mod tests {
             fluid_outputs: Vec::new(),
             note: String::new(),
             action: Some(true),
+            card: None,
         };
         assert_eq!(shown.result_step(100.0), (SLOT, 2.0));
         let (at, _, action) = shown.places(100.0);
@@ -1004,6 +1190,7 @@ mod tests {
             fluid_outputs: Vec::new(),
             note: String::new(),
             action: None,
+            card: None,
         };
         let (at, _, _) = shown.places(200.0);
         assert_eq!(at[2].0 - at[1].0, SLOT);

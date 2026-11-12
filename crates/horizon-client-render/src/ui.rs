@@ -111,7 +111,8 @@ fn scaling(sprite: &str, r: &Rect) -> NineSlice {
             | "horizon/jei/button_highlight_v2" => [6; 4],
             "horizon/jei/search_background_v2" => [6; 4],
             "horizon/jei/interactive_ingredient_tooltip_background" => [16; 4],
-            "horizon/jei/recipe_preview_background_v2" => [16; 4],
+            "horizon/jei/recipe_preview_background_v2"
+            | "horizon/jei/single_recipe_background_v2" => [16; 4],
             "horizon/jei/scrollbar_background_v2" => [6; 4],
             "horizon/jei/scrollbar_marker_v2" => [2, 2, 2, 1],
             "gui/sprites/widget/button"
