@@ -50,6 +50,8 @@ pub(super) fn game() -> Game<'static> {
         None,
     )
     .unwrap();
+    game.native_lifecycle
+        .begin_open(mod_api::Authority::IntegratedServer);
     game.build_registries();
     game.set_allow_commands(true);
     for x in 0..2 {
