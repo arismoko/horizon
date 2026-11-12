@@ -615,20 +615,13 @@ impl Game<'_> {
     ) {
         self.fire_world_lifecycle(context, phase, error_text);
     }
-    /// The server is about to send its data to the players (NeoForge's
-    /// `OnDatapackSyncEvent`, its `sendRecipes`): push the recipe types
-    /// (`minecraft:smelting`, `mymod:crusher`) whose recipes your client half
-    /// needs. Horizon sends their final recipes — the world's data packs
-    /// merged, load conditions held — to every Horizon client when it joins
-    /// and again after each `/reload`; a vanilla client is sent nothing new.
-    /// Asked once per load, when the server's data tables are built, and the
-    /// same types go to every player: unlike NeoForge, which asks again for
-    /// each joining player, it can't differ between players. Push nothing and
-    /// nothing is sent; push nothing after a load that pushed some and the
-    /// clients go back to their own recipes. Server-side (the single
-    /// player's integrated server included).
-    pub(in crate::game) fn native_datapack_sync(&mut self, recipe_types: &mut Vec<String>) {
-        self.fire_datapack_sync(recipe_types);
+    /// After admission, collect once before building and sending this player's recipes.
+    /// Reload asks once per online player before their recipes are re-sent; none when empty.
+    pub(in crate::game) fn native_datapack_sync(
+        &mut self,
+        call: mod_api::__private::DatapackSyncCall<'_>,
+    ) {
+        self.fire_datapack_sync(call);
     }
     /// The server's recipes of `recipe_types` arrived (NeoForge's
     /// `RecipesReceivedEvent`): from now on the recipe helpers

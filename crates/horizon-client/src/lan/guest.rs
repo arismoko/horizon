@@ -168,6 +168,7 @@ pub struct Guest {
     pub latency: Arc<AtomicI32>,
     pub info: ClientInformation,
     pub brand: String,
+    pub recipe_sync: super::recipes::PlayerRecipeSync,
     /// The chunk radius this client is sent.
     pub view_distance: i32,
     pub position: [f64; 3],
@@ -618,6 +619,7 @@ impl Guest {
             view_distance: i32::from(j.info.view_distance).max(2).min(view_distance),
             info: j.info,
             brand: j.brand,
+            recipe_sync: Default::default(),
             position,
             previous_position: position,
             yaw: 0.0,

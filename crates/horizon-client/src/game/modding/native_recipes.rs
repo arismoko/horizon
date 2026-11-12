@@ -529,31 +529,6 @@ impl Game<'_> {
             self.build_screen();
         }
     }
-    /// `OnDatapackSyncEvent.sendRecipes`: the recipe types the native mods
-    /// want their clients to have, from this load's tables, become what the
-    /// server sends its Horizon clients at a join and after `/reload`. Called
-    /// once a load's tables are built, before any player hears of them.
-    pub(super) fn sync_recipe_content(&mut self) {
-        use horizon_client::lan::recipes;
-        let mut types = Vec::new();
-        self.native_datapack_sync(&mut types);
-        types.sort();
-        types.dedup();
-        let sources = if types.is_empty() {
-            Vec::new()
-        } else {
-            horizon_items::recipe_sources::sources(&self.options.resources, &self.pack_files())
-                .unwrap_or_else(|e| {
-                    log::warn!("Horizon: the recipes for the clients were not read: {e}");
-                    Vec::new()
-                })
-        };
-        recipes::set_content(recipes::encode_content(
-            &types,
-            &sources,
-            recipes::sent_before(),
-        ));
-    }
     /// A `horizon:recipe_content` part the server sent the window. On the
     /// last, the window's tables take the server's recipes of those types in
     /// place of its own, and the mods hear of it (`RecipesReceivedEvent`).

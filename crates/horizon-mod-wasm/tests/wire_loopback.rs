@@ -176,6 +176,16 @@ impl LoopContext for Context {
 fn __horizon_mod_hooks() -> Box<dyn Hooks> {
     struct Mod;
     impl Hooks for Mod {
+        fn datapack_sync(
+            &self,
+            _: &mut dyn mod_api::ServerHost,
+            event: &mut mod_api::DatapackSyncEvent<'_>,
+        ) {
+            if event.player.uuid() == 12 {
+                event.recipe_types.push("testmod:grinding".into());
+            }
+        }
+
         fn loot_function(&self, event: &mut mod_api::LootFunctionEvent<'_>) {
             let tag = event
                 .tags
@@ -2045,4 +2055,42 @@ fn world_phase_messages_round_trip_returns_filter_decision() {
         Reader::decode::<Option<bool>>(out.bytes()).unwrap(),
         Some(false)
     );
+}
+
+#[test]
+fn datapack_sync_recipient_and_answer_cross_the_wire() {
+    struct World;
+    impl mod_api::Host for World {}
+    mod_api::impl_host_areas!(World);
+    impl mod_api::ServerHost for World {}
+    mod_api::impl_server_host_areas!(World);
+    install_counter();
+    let module = WasmMod {
+        group: 0,
+        subscribed: &[],
+        listeners: &[],
+        corrupt: false,
+    };
+    for uuid in [12, 13] {
+        let player = mod_api::__private::game::player_ref(
+            mod_api::EntityRef::new(mod_api::WorldEpoch::new(7), uuid as u32),
+            uuid,
+        );
+        let mut types = Vec::new();
+        module.datapack_sync(
+            &mut World,
+            &mut mod_api::DatapackSyncEvent {
+                player,
+                recipe_types: &mut types,
+            },
+        );
+        assert_eq!(
+            types,
+            if uuid == 12 {
+                vec!["testmod:grinding".to_owned()]
+            } else {
+                vec![]
+            }
+        );
+    }
 }
