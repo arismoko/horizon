@@ -1,7 +1,7 @@
 # Published loops: `[[native.loop]]`
 
 A published loop is a hot loop of the game with a **slot**: before and after it handles each item, the loop
-asks your mod's type what to do. You fill the slot with a `[[native.loop]]` row; the game publishes one loop so far,
+asks your mod's type what to do. You fill the slot with a `[[native.loop]]` row; the game publishes the loop
 `block_entities.tick`.
 
 Use a slot to change how individual block entities tick, at tick speed. To run code once around the whole
@@ -9,12 +9,12 @@ block entity tick, an [`[[inject]]` listener](../injections.md) or a `HEAD` mixi
 
 ## Example
 
-This slot makes hoppers that are cooling down lose one tick of their cooldown and skip their tick. It is the
-`throttle` row of the check mod `fnr_loop`, which CI builds. The manifest's header and `[native]` table are as
-on [Mixins](2-mixins.md#example). "Asked second" is relative to the mod's other slot, `count`, at priority 10.
+This slot reduces a hopper's cooldown by one and skips its tick when the cooldown exceeds one.
+Add the row to your native mod's manifest, keeping its header and `[native]` pins.
+Slots with a priority below 20 run before this slot.
 
 ```toml
-# Asked second: hoppers cooling down lose one tick of their real cooldown and skip their tick.
+# Reduce the cooldown and skip the tick while a hopper cools down.
 [[native.loop]]
 id = "throttle"
 loop = "block_entities.tick"
@@ -39,12 +39,8 @@ impl BlockEntityTickSlot for Throttle {
         }
         match tick.game.hoppers.get_mut(&tick.pos) {
             Some(state) if state.cooldown > 1 => {
-                let cooldown = state.cooldown;
                 state.cooldown -= 1;
                 self.skipped += 1;
-                if self.skipped % 1000 == 1 {
-                    fnr_loop::note(&format!("throttle skips #{}: cooldown {cooldown}", self.skipped));
-                }
                 LoopFlow::Skip
             }
             _ => LoopFlow::Continue,
@@ -56,7 +52,7 @@ impl BlockEntityTickSlot for Throttle {
 Unlike a mixin helper, this file may hold any Rust items, `pub` or not, with no `use` lines. It sees what the module
 `horizon_client::game::block_entity_ticks` sees: `BlockEntityTickSlot`, `BlockEntityTick`, `LoopFlow`,
 `TickedKind`, `OwnBlockEntities`, `Game`, `BlockEntity` and the rest. Like a [mixin helper](2-mixins.md#writing-a-helper), it may
-call your mod's crate (`fnr_loop::note`).
+call your mod's crate by its Rust crate name.
 
 ## Fields
 
@@ -66,7 +62,7 @@ call your mod's crate (`fnr_loop::note`).
 | `loop` | yes | A loop the game publishes: `block_entities.tick`. |
 | `helper` | yes | A `.rs` file under `src/` with the slot's code. |
 | `with` | yes | The slot type the helper defines. It implements the loop's slot trait and `Default`, and is `'static`. |
-| `priority` | no | **Lower** is asked first (the opposite of mixins); ties go by mod id. The default is 1000. |
+| `priority` | no | **Lower** is asked first (the opposite of mixins); ties go by mod id, then row id. The default is 1000. |
 
 ## What you will see
 
@@ -100,12 +96,11 @@ live and not asleep. The cursor `tick` has:
 | --- | --- |
 | `LoopFlow::Continue` | The entity ticks, once every other mod's slot also continues. |
 | `LoopFlow::Skip` | The entity does not tick this tick, and no `after` runs for it. |
-| `LoopFlow::Stop` | No further entity ticks this tick. The work after the loop still runs, such as shulker box lids. |
+| `LoopFlow::Stop` | No further entity ticks this tick. The work after the loop runs, such as shulker box lids. |
 
 **Your own mod's block entities.** `TickedKind::Mod` covers every mod's. To pick out yours, keep an
 `OwnBlockEntities` in your slot, made from the ids you registered your block entity types under, and ask it
-about each entry. This is the `own` row of the check mod `fnr_loop_second`, without its check and log lines.
-It runs beside `fnr_loop` and counts only its own counters among both mods':
+about each entry. For example, this slot counts block entities registered as `mymod:counter`:
 
 ```rust,ignore
 /// Counts this mod's counters among the block entities the loop visits, and always answers Continue.
@@ -117,7 +112,7 @@ pub struct Own {
 impl Default for Own {
     fn default() -> Self {
         Self {
-            own: OwnBlockEntities::new(&["fnr_loop_second:counter"]),
+            own: OwnBlockEntities::new(&["mymod:counter"]),
             counted: 0,
         }
     }
@@ -135,21 +130,17 @@ impl BlockEntityTickSlot for Own {
 
 | `OwnBlockEntities` | What it does |
 | --- | --- |
-| `const fn new(ids: &'static [&'static str]) -> Self` | Your types, such as `&["mymod:machine"]`. Nothing is resolved yet. |
+| `const fn new(ids: &'static [&'static str]) -> Self` | Your types, such as `&["mymod:machine"]`. Resolution happens on the first visit to a mod block entity. |
 | `fn contains(&mut self, tick: &BlockEntityTick<'_, '_>) -> bool` | Whether the visited block entity is a mod's of one of your types. |
 
 It answers for the block entity itself, whatever block it stands on: one of your types on another mod's
 block is yours, and another mod's on your block is not. Every mod block entity carries its type's numeric
-wire ID, looked up once when it is made or loaded. The first `contains` resolves your ids once into a flag
+wire ID, looked up once when it is made or loaded. The first `contains` that visits a mod block entity resolves your ids once into a flag
 for each of those IDs; every call after it reads one flag, with no string compare, no hashing and no
 allocation, so it costs the same on every tick. Vanilla block entities answer `false`.
-The IDs and flags assume the block entity types are frozen for the process, which they are once the
-game has registered them; a block entity made before that (only possible in a test that builds one without
-the type table) carries no ID and matches nothing. In the game, every mod's types are registered before any
-world loads, so no loaded or placed block entity misses its ID.
+The type table is fixed for the process. A block entity with no numeric type ID matches nothing.
 
-An id the game has no block entity type of (misspelt, or a mod that is not loaded) matches nothing. The first
-`contains` logs a warning naming it: ``Published loop block_entities.tick: OwnBlockEntities names
+An id the game has no block entity type of (misspelt, or a mod that is not loaded) matches nothing. The first resolution logs a warning naming it: ``Published loop block_entities.tick: OwnBlockEntities names
 `mymod:machin`, which is no registered block entity type; it matches nothing``.
 
 To read or change your block entity, match `tick.block_entity()` against `Some(BlockEntity::Mod(entity))`.
@@ -160,7 +151,7 @@ Its saved data is `entity.nbt`, its item slots `entity.items` and its menu data 
 - Slots are asked in priority order. The first answer that is not `Continue` wins, and later slots are not
   asked about that entity. For an entity that ticked, `after` runs for every slot.
 - Within one entry, every slot's `before` gets the same cursor: if an earlier slot replaced the entity and
-  continued, a later slot's `before` still sees the `kind` and type from before that edit (the loop then
+  continued, a later slot's `before` sees the `kind` and type from before that edit (the loop then
   rechecks and skips the replaced entity, so it doesn't tick as the old one).
 - Your slot value is made with `Default` on the loop's first run and kept. There is one per `Game`, the
   game state of one running server, which ticks every dimension in turn: read `tick.game.dim` to tell them apart.
@@ -169,9 +160,7 @@ Its saved data is `entity.nbt`, its item slots `entity.items` and its menu data 
 - Calling `tick.game.tick_block_entities()` from inside a slot runs the game's own loop, without any slots,
   as a whole pass.
 - A panic in a slot is reported naming your mod and the loop: `in native mod <id>, hook loop
-  block_entities.tick, part <id>::<Type>`. A dedicated server writes it in a crash report. Single player
-  only logs it today ([#3494](https://github.com/arismoko/horizon/issues/3494)). After a panic, that `Game`
-  runs the loop without any mod's slots.
+  block_entities.tick, part <id>::<Type>`. The panic unwinds the call. Subsequent calls on that `Game` run the loop without any mod's slots.
 
 ## Mixins on the loop
 

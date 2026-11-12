@@ -2,8 +2,8 @@
 
 Hooks, Parts and `[[inject]]` listeners cover most mods, and they work the same on native and wasm. When no hook
 fits and you need to change what a game function itself does, a native mod can take [the native route](../native-route.md):
-tables under `[native]` in `horizon-mod.toml`, applied to the prebuilt game without rebuilding it. The route is
-unstable on purpose: it sees the game's real types and is pinned to the exact game build.
+tables under `[native]` in `horizon-mod.toml`, applied to the prebuilt game without rebuilding it.
+You work with the game's real types, pinned to the exact game build.
 
 | Table | Use it to | Page |
 | --- | --- | --- |
