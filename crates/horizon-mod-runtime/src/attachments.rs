@@ -806,16 +806,27 @@ impl Attachments {
             .as_ref()
             .map(|codec| (codec.encode)(&value))
             .transpose()?;
-        self.write_entry(
-            key,
-            Some(Arc::new(AttachmentEntry {
-                state: Entry::Decoded(Decoded {
-                    value: Arc::new(value),
-                    encoded,
-                    policy: ty.policy(),
-                }),
-            })),
-        );
+        let entry = Arc::new(AttachmentEntry {
+            state: Entry::Decoded(Decoded {
+                value: Arc::new(value),
+                encoded,
+                policy: ty.policy(),
+            }),
+        });
+        if let Some(slot) = self.entries.get_mut(key) {
+            // Replacing an existing binding needs no owned key clone. Retain the
+            // old entry until publication releases its index lock, as write_entry does.
+            let previous = std::mem::replace(slot, entry);
+            if let Some(registration) = &self.registration {
+                registration.publisher.publish(&[AttachmentChange {
+                    key,
+                    entry: Some(slot),
+                }]);
+            }
+            drop(previous);
+        } else {
+            self.write_entry(key, Some(entry));
+        }
         if ty.sync {
             self.pending.insert(key.clone());
         }
