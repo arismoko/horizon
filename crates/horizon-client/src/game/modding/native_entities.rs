@@ -224,7 +224,10 @@ impl Game<'_> {
                 self.entity_section_joined(id, [at.x, at.y, at.z]);
             }
         }
-        self.persist.joined_seq = self.persist.joined_seq.max(observed);
+        // A held toss is not past yet: the mark stays before it.
+        if self.native_lifecycle.held_joins.is_empty() {
+            self.persist.joined_seq = self.persist.joined_seq.max(observed);
+        }
         kept
     }
 
@@ -282,7 +285,8 @@ impl Game<'_> {
         if let Some(d) = self.dragon.as_ref() {
             offer(Slot::Apart(Apart::Dragon), d.id, d.join);
         }
-        best
+        // A toss still being asked (`item_toss`) ends the flush: it and what joined after wait.
+        best.filter(|&(_, id, _)| !self.native_lifecycle.held_joins.contains(&id))
     }
 
     fn remember_join(&mut self, id: u32, kind: String) {

@@ -3742,32 +3742,8 @@ impl Game<'_> {
         pickup_delay: u32,
         random: Option<spill::ItemRandom>,
     ) -> [f64; 3] {
-        let random = random.unwrap_or_else(|| spill::prepare_item_random(velocity));
-        let item = stack.item.clone();
-        let count = stack.count as i32;
-        self.next_entity += 1;
-        let p = Vec3::new(position[0], position[1], position[2]);
-        self.persist.uuids.insert(self.next_entity, random.uuid);
-        let (bob, yaw) = (random.bob, random.yaw);
-        let velocity = velocity.unwrap_or(random.velocity);
-        self.dropped.push(ItemEntity {
-            attachment_lifetime: Default::default(),
-            fall_distance: 0.0,
-            rotation: [yaw, 0.0],
-            pickup_delay: i64::from(pickup_delay),
-            random: random.own.into(),
-            ..ItemEntity::new(
-                self.next_entity,
-                stack,
-                p,
-                Vec3::new(velocity[0], velocity[1], velocity[2]),
-                bob,
-            )
-        });
-        // ServerLevel.addFreshEntity.
-        if self.native_joins_flush(false, self.next_entity) {
-            self.native_item_spawn(self.next_entity, &item, count, position);
-        }
+        let velocity = self.push_item_entity(stack, position, velocity, pickup_delay, random);
+        self.join_item_entity(self.next_entity, position);
         velocity
     }
     /// The block entity at `pos` saved with its id and position
@@ -3924,20 +3900,16 @@ impl Game<'_> {
     ) -> Option<u32> {
         let r = &mut self.world.random;
         let v = horizon_client::entities::drop_motion(r, self.yaw, self.pitch, randomly);
-        let y = eye[1] - f64::from(0.3f32);
-        // ItemTossEvent: a canceled toss never enters the world; what was thrown is gone.
-        // Only `drop(.., false)` tosses fire it: a death's scatter (`randomly`) does not.
-        if !randomly {
-            let player = self.native_acting_id();
-            let mut canceled = false;
-            self.native_item_toss(player, &thrown.item, thrown.count, &mut canceled);
-            if canceled {
-                return None;
-            }
-        }
-        self.spawn_item(thrown, [eye[0], y, eye[2]], v, 40);
+        let at = [eye[0], eye[1] - f64::from(0.3f32), eye[2]];
         let uuid = thrown_from_hand.then(|| self.acting_player_uuid());
-        let item = self.just_spawned_item()?;
+        // Only `drop(.., false)` tosses ask `item_toss`: a death's scatter (`randomly`) does not.
+        let id = if randomly {
+            self.spawn_item(thrown, at, v, 40);
+            self.next_entity
+        } else {
+            self.toss_item(thrown, at, v, uuid)?
+        };
+        let item = self.dropped.iter_mut().rev().find(|d| d.id == id)?;
         item.thrower = uuid;
         Some(item.id)
     }
@@ -4288,7 +4260,7 @@ impl Game<'_> {
                 let left = match game.native_pickup_insert(&item.stack) {
                     Some(rest) => rest,
                     // ItemEntityPickupEvent.Post: `remaining` is all mods reach of the lifted item.
-                    None => match game.native_pickup_post(&item.stack) {
+                    None => match game.native_pickup_post(item.id, &item.stack) {
                         None => {
                             game.award_stat("picked_up", &kind, before as i32);
                             if let Some(thrower) = thrower {

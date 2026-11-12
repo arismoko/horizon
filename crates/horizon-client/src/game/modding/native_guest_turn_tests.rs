@@ -1136,7 +1136,7 @@ fn a_vetoed_drop_gives_the_stack_back() {
     struct Veto;
     #[mod_api::__subscriptions]
     impl Hooks for Veto {
-        fn item_toss(&self, _: &mut dyn ServerHost, _: &mut ItemTossEvent<'_>) -> Flow {
+        fn item_toss(&self, _: &mut dyn ServerHost, _: &mut ItemTossEvent) -> Flow {
             Flow::Cancel
         }
     }

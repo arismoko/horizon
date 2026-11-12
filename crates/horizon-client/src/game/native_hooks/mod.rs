@@ -74,7 +74,7 @@ use mod_api::{
     ClientGuiOptions, ClientInputOptions, ClientMiningPrediction, ClientModifiers,
     ClientReloadListeners, ColorResolvers, CommandInvocation, EnchantmentDamageEffects,
     EnchantmentInfo, EntityRef, GameRuleActor, HandRender, InsideEffects, InteractionAttempt,
-    InteractionKey, JsonAnimationType, LayerDefinition, LifecycleContext, LivingRef,
+    InteractionKey, ItemEntityRef, JsonAnimationType, LayerDefinition, LifecycleContext, LivingRef,
     LoadConditions, NoteBlockChange, ParticleProviders, PathComputationType, Placement, PlayerRef,
     PoiTypeExtensions, RecipeBookCategory, ScreenId, ScreenOpening, ScreenshotImage,
     ServerReloadListeners, ServerTickPhase, TicketController, ToolUse, VillagerProfessions,

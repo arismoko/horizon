@@ -18,14 +18,21 @@ struct State {
     kill: bool,
     /// What the notice heard: player, original count, remainder count.
     posts: Vec<(u128, u32, Option<u32>)>,
+    /// The item entity `item_picked_up` named, and its stack as the handle read it.
+    touched: Vec<(u32, Option<mod_api::ItemStack>)>,
+    /// The item entity `item_picked_up_post` named.
+    posted: Vec<u32>,
 }
 
 #[derive(Clone, Default)]
 struct Probe(Arc<Mutex<State>>);
 #[mod_api::__subscriptions]
 impl Hooks for Probe {
-    fn item_picked_up(&self, _: &mut dyn ServerHost, event: &mut ItemPickedUpEvent<'_>) {
-        *event.can_pickup = self.0.lock().unwrap().answer;
+    fn item_picked_up(&self, host: &mut dyn ServerHost, event: &mut ItemPickedUpEvent<'_>) {
+        let read = event.item.stack(host);
+        let mut state = self.0.lock().unwrap();
+        state.touched.push((event.item.entity().id(), read));
+        *event.can_pickup = state.answer;
     }
     fn item_picked_up_post(
         &self,
@@ -34,6 +41,7 @@ impl Hooks for Probe {
     ) {
         let (raise, kill) = {
             let mut state = self.0.lock().unwrap();
+            state.posted.push(event.item.entity().id());
             state.posts.push((
                 event.player,
                 event.original.count(),
@@ -344,6 +352,40 @@ fn guest_pickup_tells_only_whole_pickups_and_keeps_listener_changes() {
                 guest_case(game, &probe, &killed),
                 (vec![(12, 8, None)], None, 64)
             );
+        });
+    });
+}
+
+/// Both pickup hooks name the ground item entity, and `item_picked_up`
+/// reads its whole stack through the handle, components included.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn guest_pickup_hooks_name_the_ground_item_entity() {
+    let probe = Probe::default();
+    with_probe(&probe, || {
+        crate::game::native_guest_turn_tests::with_guests(|game| {
+            clear_ground(game);
+            game.lan
+                .as_mut()
+                .unwrap()
+                .hub
+                .update_guest(12, |guest| guest.inventory.fill(None))
+                .unwrap();
+            arm(&probe, &CASE);
+            let mut pick = ItemStack::new("minecraft:diamond_pickaxe", 1);
+            pick.damage = 17;
+            pick.data_mut().custom_name = Some(horizon_core::nbt::Tag::String("Named pick".into()));
+            game.spawn_item(pick.clone(), [3.0, 64.0, 5.0], [0.0; 3], 0);
+            let id = game.next_entity;
+            let gi = game.guest_index(12).unwrap();
+            game.guest_pickups(gi);
+            let state = probe.0.lock().unwrap();
+            assert_eq!(
+                state.touched,
+                vec![(id, Some(crate::game::api_values::test_snapshot(&pick)))]
+            );
+            assert_eq!(state.posted, vec![id]);
+            assert_eq!(ground(game, id), None, "the pickaxe was taken");
         });
     });
 }
