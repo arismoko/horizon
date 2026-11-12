@@ -105,9 +105,9 @@ fn with_lights(name: &str, test: impl FnOnce(&mut Game<'_>, LevelRef, States, De
             "the declaration gates the ask"
         );
         assert_eq!(light.emission(states.lamp.0), 4);
-        game.world
-            .chunks
-            .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+        let mut chunk = Chunk::empty(0, 0);
+        chunk.lit = true;
+        game.world.chunks.insert((0, 0), Arc::new(chunk));
         game.world.light_edits.clear();
         let level = game.level("minecraft:overworld").unwrap();
         test(game, level, states, depth);
