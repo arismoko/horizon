@@ -24,7 +24,7 @@ A native server tick hook can call `native_server_block` with its context, a dim
 
 For mods that run where the world is simulated: a dedicated server, a LAN host, single player's server thread
 (`crates/horizon-client/src/game/modding/native_server.rs`). The SMP mod of the official server is built on them
-([smp.md](../../../../docs/smp.md)).
+([smp.md](https://github.com/arismoko/horizon/blob/main/docs/smp.md)).
 
 - **`native_register_commands(commands)`**: push a `Command` per usage, asked once when a world opens to
   players. A usage is words, then arguments `<name:kind>`, optional ones last in brackets:
