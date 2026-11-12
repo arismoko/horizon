@@ -48,16 +48,15 @@ A source without selector permission receives
 `argument.entity.selector.not_allowed` before resolution. Plain online player
 names do not require selector permission.
 
-An entity that cannot currently resolve to an `EntityRef` is left out; if none
-remain, the command reports `argument.entity.notfound.entity`. There is no
-hardcoded entity-type exclusion: leash knots, item frames, paintings and tridents
-now have residency-backed handles and are delivered when resolvable. Dragon parts
+In a multi-entity selection, an entity that cannot resolve to an `EntityRef` is
+left out. If none remain, or a single target cannot resolve, the command reports `argument.entity.notfound.entity`. There is no
+entity-type exclusion: leash knots, item frames, paintings and tridents
+are delivered when resolvable. Dragon parts
 are not selector members in vanilla and are never delivered by these arguments.
 Temporarily held-out or removed entities cannot be delivered. An unbounded
 selector can reach other loaded dimensions; handle lookup uses the entity's own
 dimension. Lists are bounded only by the wire frame limits, on native and wasm;
 there is no extra count cap. A very large `@e` is the caller's cost.
-
 
 ## Custom argument types
 
@@ -119,18 +118,17 @@ completions while the player types.
 `CommandArgumentKind::Word` takes one word of ASCII letters, digits and `_ - . +`; the
 word ends at the first other character, a space included, so a value with `:` or `/`
 needs `Greedy`, which takes the rest of the line and must be the usage's last argument.
-Players whose client does not know the type still
+Players whose client does not know the type
 parse and complete the command: the server sends the argument as a Brigadier string
 of that shape with `minecraft:ask_server`, and their chat asks the server for the
-suggestions. (Fabric sends the registered argument type's id, which an unmodded
-client cannot read; Horizon's string keeps the tree valid.)
+suggestions.
 
 The namespaced id is in the registering mod's namespace; an id registered twice, a
 name in another namespace or an empty name refuses the mods at startup, naming the
 mod. A client mod registers client command argument types the same way; they are
 available to `register_client_commands`.
 
-`player_command` stays player-only pre-execution cancellation (NeoForge's `CommandEvent`), including vanilla commands.
+`player_command` provides player-only pre-execution cancellation (NeoForge's `CommandEvent`), including vanilla commands.
 
 When the usages a mod registers change at runtime, call
 `host.commands().refresh_commands()` on the server. At the start of the next

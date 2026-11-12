@@ -1,6 +1,6 @@
 # Villager professions and trades
 
-Custom professions are declared once per mod load through
+Declare custom professions once per mod load through
 `Hooks::register_villager_professions`. The callback receives a
 `RegistrationContext` and a `RegisterVillagerProfessionsEvent`; call
 `event.professions.register(definition)` on its `VillagerProfessions` registrar.
@@ -24,7 +24,7 @@ rerunning the callback. Native and wasm mods use the same declaration API.
 
 `PoiKey` and `TradeSetKey` also wrap `Identifier`. A trade-set key is independent
 of the profession key: no namespace or level suffix is inferred. Provide trade
-sets and offers through the existing `trade_set` and `villager_trade` datapack
+sets and offers through the `trade_set` and `villager_trade` datapack
 registries; trade JSON alone does not register a profession.
 
 ## Registration refusals
@@ -56,10 +56,9 @@ are runtime lookups, not save identities. Saves retain qualified profession and
 POI names. A missing profession remains unresolved without discarding its name
 or existing offers, so restoring the mod can resolve it again.
 
-This is the server half of [#1328](https://github.com/arismoko/horizon/issues/1328).
-Registration is refused until the client half (PR 2) exists; this half is not a
-standalone shipping feature. The shipping contract uses deterministic local
-tables. A client without the mod is refused at join by the existing mod-list
-handshake, rather than receiving substituted vanilla identities. Configuration
-sync is a follow-up in [#2977](https://github.com/arismoko/horizon/issues/2977),
-not an additional transport implemented by this registration API.
+Clients build the same deterministic identity table from their installed mods and
+use it for villager rendering. Install the profession mod on both the server and
+its clients, with the mod declared for both sides. The mod-list handshake refuses
+missing or mismatched both-side mods; client-only and server-only mods do not
+participate in that comparison. Missing professions are not replaced with vanilla
+identities.
