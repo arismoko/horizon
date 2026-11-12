@@ -92,6 +92,15 @@ impl Game<'_> {
         // stands at `pos`.
         let mut tag = Tag::Compound(tag);
         place_summoned(&mut tag, pos);
+        // ServerLevel.tryAddFreshEntityWithPassengers, as `/summon` checks it: a
+        // `UUID` in the stack that an entity in the level already holds refuses
+        // the whole stack, so a mod that gives its entity a UUID never duplicates one.
+        if self.summon_tree_uuids(&tag).into_iter().any(|u| {
+            self.target_with_uuid(u)
+                .is_some_and(|t| t != Target::Player)
+        }) {
+            return None;
+        }
         let from = self.mobs.len();
         let first = self.next_entity + 1;
         let deferred = (self.tnts.len(), self.falling.len(), self.rockets.len());
@@ -832,6 +841,36 @@ mod tests {
                 );
                 assert_eq!(joins.lock().unwrap().len(), 9);
             });
+        });
+    }
+
+    /// A `UUID` in the compound is the summoned entity's, and a second summon
+    /// with a UUID the level holds is refused, as `/summon` refuses it.
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn a_summon_keeps_its_uuid_and_never_duplicates_one() {
+        super::super::native_entity_refs::tests::with_game(|game| {
+            game.options.dedicated = Some(Vec::new());
+            game.world
+                .chunks
+                .insert((0, 0), std::sync::Arc::new(horizon_client::chunk::Chunk::empty(0, 0)));
+            let (Tag::Compound(tag), _) =
+                horizon_core::nbt::parse_snbt("{UUID:[I;1,2,3,4],NoAI:1b}").unwrap()
+            else {
+                unreachable!()
+            };
+            let id = game
+                .summon(game.dim.id(), "minecraft:pig", [1.0, 70.0, 1.0], tag.clone())
+                .unwrap();
+            let pig = game.entity(id).unwrap();
+            let uuid = (1u128 << 96) | (2u128 << 64) | (3u128 << 32) | 4;
+            assert_eq!(game.entity_uuid(pig), Some(uuid));
+            let mobs = game.mobs.len();
+            assert_eq!(
+                game.summon(game.dim.id(), "minecraft:pig", [1.0, 70.0, 1.0], tag),
+                None
+            );
+            assert_eq!(game.mobs.len(), mobs);
         });
     }
 

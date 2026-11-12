@@ -95,6 +95,21 @@ impl Game<'_> {
             items,
         )
     }
+    /// Replaces what the player's open native menu `window` shows, without reopening it.
+    /// False when that window isn't their open native menu.
+    pub(super) fn menu_set_items(
+        &mut self,
+        uuid: u128,
+        window: i32,
+        items: Vec<Option<ItemStack>>,
+    ) -> bool {
+        let Some(conn) = self.native_conn(uuid) else {
+            return false;
+        };
+        self.lan
+            .as_mut()
+            .is_some_and(|host| host.hub.set_native_menu_items(conn, window, items))
+    }
     /// Closes the player's native menu (a `native_menu_closed` follows).
     pub(super) fn close_menu(&mut self, uuid: u128) {
         if let Some(conn) = self.native_conn(uuid)

@@ -55,7 +55,7 @@ pub(crate) struct NativeSidebar {
 const SIDEBAR_OBJECTIVE: &str = "horizon:native_sidebar";
 
 /// The argument kinds a native usage may name, each with a [`parser`].
-const KINDS: [&str; 11] = [
+const KINDS: [&str; 12] = [
     "word",
     "text",
     "integer",
@@ -67,6 +67,7 @@ const KINDS: [&str; 11] = [
     "players",
     "item",
     "block_pos",
+    "vec3",
 ];
 
 /// The custom argument types the mods registered, by namespaced id, for the command tree being
@@ -121,6 +122,12 @@ fn parser(kind: &str) -> Option<(&'static str, Value, ArgType)> {
         }
         "item" => ("minecraft:item_stack", Value::Null, ArgType::Item),
         "block_pos" => ("minecraft:block_pos", Value::Null, ArgType::BlockPos),
+        // `Vec3Argument.vec3()`: whole x and z numbers are block centres.
+        "vec3" => (
+            "minecraft:vec3",
+            Value::Null,
+            ArgType::Vec3 { center: true },
+        ),
         _ => return None,
     })
 }
@@ -208,6 +215,92 @@ fn usage_nodes(
         return Err(format!("`{usage}`: a command starts with its name"));
     }
     Ok(out)
+}
+
+/// One literal path's permission node (`Command::with_node`): `path` is the usage's literal
+/// words (`home admin`; arguments between them are not part of it), `level` decides when no
+/// permissions mod answers (the lowest of the usages' on that path).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PathNode {
+    pub(super) path: Vec<String>,
+    pub(super) node: String,
+    pub(super) level: u8,
+}
+
+/// The permission nodes of one native command (its first word): `open` when a usage of it
+/// needs no node.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct CommandNodes {
+    pub(super) open: bool,
+    pub(super) paths: Vec<PathNode>,
+}
+
+/// A usage's literal words.
+fn literal_path(usage: &str) -> Vec<String> {
+    usage
+        .split(' ')
+        .filter(|w| !w.starts_with('<') && !w.starts_with('['))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The permission nodes native commands name (`Command::with_node`), by their first word, as
+/// Brigadier's `requires` on each literal: a usage's own node, else its command's (its first
+/// usage's), gates the usage's literal path, with the lowest level of that path's usages to
+/// decide when no permissions mod answers. A path keeps one node: a usage naming another than
+/// a usage before it on the same path, or naming one for the bare command other than its
+/// first usage's, is left out, with why. The kept usages that have a node are open to every
+/// level in the tree: the nodes decide who runs and sees them.
+pub(super) fn command_nodes(
+    commands: Vec<mod_api::Command>,
+) -> (
+    Vec<mod_api::Command>,
+    HashMap<String, CommandNodes>,
+    Vec<String>,
+) {
+    let root = |c: &mod_api::Command| c.usage.split(' ').next().unwrap_or_default().to_owned();
+    let mut first: HashMap<String, Option<String>> = HashMap::new();
+    for command in &commands {
+        first
+            .entry(root(command))
+            .or_insert_with(|| command.node.clone());
+    }
+    let mut nodes: HashMap<String, CommandNodes> = HashMap::new();
+    let mut kept = Vec::with_capacity(commands.len());
+    let mut problems = Vec::new();
+    for mut command in commands {
+        let name = root(&command);
+        let wanted = first.get(&name).cloned().flatten();
+        let Some(node) = command.node.clone().or(wanted.clone()) else {
+            nodes.entry(name).or_default().open = true;
+            kept.push(command);
+            continue;
+        };
+        let path = literal_path(&command.usage);
+        let entry = nodes.entry(name.clone()).or_default();
+        let at = entry.paths.iter().position(|p| p.path == path);
+        if path.len() == 1 && Some(&node) != wanted.as_ref()
+            || at.is_some_and(|i| entry.paths[i].node != node)
+        {
+            problems.push(format!(
+                "`{}`: /{} already needs another permission node",
+                command.usage,
+                path.join(" ")
+            ));
+            continue;
+        }
+        match at {
+            Some(i) => entry.paths[i].level = entry.paths[i].level.min(command.level),
+            None => entry.paths.push(PathNode {
+                path,
+                node,
+                level: command.level,
+            }),
+        }
+        command.level = 0;
+        kept.push(command);
+    }
+    (kept, nodes, problems)
 }
 
 /// Native mods' commands as a root in the commands report's format
@@ -1947,6 +2040,8 @@ fn system_chat(line: &Text) -> C {
 /// Native command metadata and the server dispatcher containing their parsed usages.
 pub(super) struct NativeCommands {
     levels: HashMap<String, u8>,
+    /// Each native command's permission nodes by literal path (`command_nodes`).
+    nodes: HashMap<String, CommandNodes>,
     tree: Value,
     arguments: CommandArguments,
 }
@@ -1980,13 +2075,14 @@ impl Game<'_> {
             self.server_lists.is_some(),
         );
         commands.extend(extras.iter().cloned());
+        let (commands, nodes, node_problems) = command_nodes(commands);
         let arguments = command_arguments();
         let (tree, mut levels, problems) = command_tree(
             &commands,
             |name| host.hub.vanilla_command(name) || vanilla.find(name).is_some(),
             &arguments,
         );
-        for p in problems {
+        for p in node_problems.into_iter().chain(problems) {
             log::warn!("Horizon: a native mod's command was left out: {p}");
         }
         levels.retain(|name, _| {
@@ -2003,6 +2099,7 @@ impl Game<'_> {
         };
         host.native_commands = Some(NativeCommands {
             levels,
+            nodes,
             tree: execution_tree,
             arguments,
         });
@@ -2064,7 +2161,12 @@ impl Game<'_> {
                 return;
             };
             let names = host.hub.command_names(conn);
+            let permission = host.hub.guest(conn).map_or(0, |g| g.permission);
             let mut kept = names.clone();
+            kept.retain(|root| self.native_command_root_shown(uuid, &name, permission, root));
+            let Some(host) = self.lan.as_ref() else {
+                return;
+            };
             let placed = host.hub.guest(conn).is_some_and(|g| g.placed);
             if !placed {
                 // A joining player has no world yet: nothing can be told them.
@@ -2076,9 +2178,22 @@ impl Game<'_> {
                     g.native_player_commands_sent(uuid, &name, &mut kept);
                 });
             }
+            // The subcommands a node of their own keeps from the player (`a b`, words).
+            let denied: Vec<String> = kept
+                .iter()
+                .filter_map(|root| self.native_command_nodes(root))
+                .flat_map(|nodes| nodes.paths.iter())
+                .filter(|p| p.path.len() > 1)
+                .filter(|p| !self.native_path_node_allows(uuid, &name, permission, p))
+                .map(|p| p.path.join(" "))
+                .collect();
             if let Some(host) = self.lan.as_mut() {
                 let _ = host.hub.update_guest(conn, |g| {
-                    g.hidden_commands = names.into_iter().filter(|n| !kept.contains(n)).collect();
+                    g.hidden_commands = names
+                        .into_iter()
+                        .filter(|n| !kept.contains(n))
+                        .chain(denied)
+                        .collect();
                 });
             }
         }
@@ -2093,6 +2208,64 @@ impl Game<'_> {
         self.native_filter_commands(None);
         if let Some(host) = self.lan.as_mut() {
             host.hub.resend_commands();
+        }
+    }
+
+    /// The permission nodes of the native command `root` (`command_nodes`).
+    fn native_command_nodes(&self, root: &str) -> Option<&CommandNodes> {
+        self.lan.as_ref()?.native_commands.as_ref()?.nodes.get(root)
+    }
+
+    /// Whether one literal path's node lets a player (`uuid`, `name`, at `permission`) through:
+    /// the permissions mods' answer, else its fallback level.
+    fn native_path_node_allows(
+        &self,
+        uuid: u128,
+        name: &str,
+        permission: u8,
+        path: &PathNode,
+    ) -> bool {
+        self.permission_answer(uuid, name, &path.node)
+            .unwrap_or(permission >= path.level)
+    }
+
+    /// Whether a player may run the native command with these literal words
+    /// (`CommandInvocation.literals`): every node on its path lets them through, as each
+    /// literal's `requires` in Brigadier. True for a command without nodes.
+    pub(super) fn native_command_node_allows(
+        &self,
+        uuid: u128,
+        name: &str,
+        permission: u8,
+        literals: &[String],
+    ) -> bool {
+        let Some(nodes) = literals.first().and_then(|root| self.native_command_nodes(root)) else {
+            return true;
+        };
+        nodes
+            .paths
+            .iter()
+            .filter(|p| literals.starts_with(&p.path))
+            .all(|p| self.native_path_node_allows(uuid, name, permission, p))
+    }
+
+    /// Whether a player's command tree keeps the native command `root`: its own node decides
+    /// where the bare command has one; otherwise it shows while one of its usages needs no
+    /// node or one of its nodes lets the player through.
+    pub(super) fn native_command_root_shown(
+        &self,
+        uuid: u128,
+        name: &str,
+        permission: u8,
+        root: &str,
+    ) -> bool {
+        let Some(nodes) = self.native_command_nodes(root) else {
+            return true;
+        };
+        let allows = |p: &PathNode| self.native_path_node_allows(uuid, name, permission, p);
+        match nodes.paths.iter().find(|p| p.path.len() == 1) {
+            Some(bare) => allows(bare),
+            None => nodes.open || nodes.paths.iter().any(allows),
         }
     }
 
@@ -2150,6 +2323,18 @@ impl Game<'_> {
         use super::commands::err;
         let command = self.resolve_native_command(context)?;
         let origin = self.native_command_origin(self.ui.registries.permission)?;
+        // A node-gated command asks for the nodes on its path of a player who runs it
+        // (`Command::with_node`); the console, functions and command blocks are not asked.
+        if let mod_api::CommandSource::Player { player, permission } = &origin
+            && !self.native_command_node_allows(
+                player.uuid(),
+                &self.player_name(*player).unwrap_or_default(),
+                permission.level(),
+                &command.literals,
+            )
+        {
+            return Err(err("command.unknown.command", &[]));
+        }
         let mut ran = false;
         self.native_run_mod_command(&origin, &command, &mut ran);
         if ran {
@@ -2260,7 +2445,22 @@ impl Game<'_> {
                     }
                 }
                 Arg::Coords(coordinates) => {
-                    Value::BlockPos(self.resolve_coords(&coordinates).map(|v| v.floor() as i32))
+                    let vec3 = context.nodes.iter().any(|(node, range)| {
+                        *range == argument.range
+                            && matches!(
+                                &self.ui.dispatcher.0.nodes[*node].kind,
+                                horizon_client::command::NodeKind::Argument {
+                                    ty: ArgType::Vec3 { .. },
+                                    ..
+                                }
+                            )
+                    });
+                    let at = self.resolve_coords(&coordinates);
+                    if vec3 {
+                        Value::Vec3(at)
+                    } else {
+                        Value::BlockPos(at.map(|v| v.floor() as i32))
+                    }
                 }
                 Arg::Item(input) => Value::Item(
                     self.command_item_stack(&input, 1)?
@@ -3319,6 +3519,7 @@ mod tests {
                     mod_api::Command::new("typed data <word:word> <number:number> <enabled:boolean> <item:item> <pos:block_pos>"),
                     mod_api::Command::new("typed opt [value:integer]"),
                     mod_api::Command::new("typed repeat <value:player> <value:integer>"),
+                    mod_api::Command::new("typed at <pos:vec3>"),
                     mod_api::Command::op("protected <who:player>", 4),
                 ]);
             }
@@ -3407,13 +3608,14 @@ mod tests {
                         "typed data console 3 true dirt ^0.5 ^0.5 ^0.5"
                     ));
                     assert!(game.perform_native_console_command("typed repeat guest13 3"));
+                    assert!(game.perform_native_console_command("typed at 1 64.25 ~1"));
                     assert!(game.command_source.is_none(), "console source restored");
                     game.as_guest(12, |game| {
                         assert!(game.native_run_command("execute as guest13 run typed opt 13"))
                     })
                     .unwrap();
                     let heard = heard.lock().unwrap();
-                    assert_eq!(heard.len(), 11);
+                    assert_eq!(heard.len(), 12);
                     let first = &heard[0].1;
                     assert_eq!(first.literals, ["typed", "give"]);
                     assert_eq!(first.argument("who"), Some(&Value::Player(other)));
@@ -3460,6 +3662,10 @@ mod tests {
                     );
                     assert_eq!(heard[9].1.arguments[0].value, Value::Player(other));
                     assert_eq!(heard[9].1.argument("value"), Some(&Value::Integer(3)));
+                    assert_eq!(
+                        heard[10].1.argument("pos"),
+                        Some(&Value::Vec3([1.5, 64.25, -2.0]))
+                    );
                 });
             },
         );

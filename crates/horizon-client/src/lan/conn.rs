@@ -11,6 +11,7 @@ use super::{
     Joined, NetEvent, Out, Shared,
     data::{CORE_PACK, SyncData},
     forwarding,
+    guest::LeaveCause,
     io_pool::{self, Session as _},
 };
 use crate::raw_payloads::{Side, Transport};
@@ -287,6 +288,9 @@ pub struct PlayerSender {
     wire: Option<Arc<Counters>>,
     /// Registry negotiation belongs to this live connection, never a process-wide UUID cache.
     pub datapack_offer: Option<Arc<[u8]>>,
+    /// The play packets sent and received, by id, while a mod counts them; shared with the
+    /// connection's network thread, which counts what it receives.
+    pub packet_counts: Arc<super::packet_counts::PacketCounts>,
     /// The plugin channels the client announced, in configuration and play.
     pub announced: Arc<super::announced_channels::AnnouncedChannels>,
 }
@@ -358,6 +362,7 @@ impl PlayerSender {
             wire: None,
             payload_transport: Transport::empty(),
             datapack_offer: None,
+            packet_counts: Arc::default(),
             announced: Arc::default(),
         }
     }
@@ -409,6 +414,7 @@ impl PlayerSender {
             wire: None,
             payload_transport: Transport::empty(),
             datapack_offer: None,
+            packet_counts: Arc::default(),
             announced: Arc::default(),
         }
     }
@@ -489,6 +495,7 @@ impl PlayerSender {
         if matches!(self.to, To::Disabled) {
             return;
         }
+        self.packet_counts.add_body(&body);
         if !self.reserve(io_pool::charge(&body)) {
             self.close();
             return;
@@ -530,6 +537,7 @@ impl PlayerSender {
         }
         let mut held = self.held();
         for body in bodies {
+            self.packet_counts.add_body(&body);
             if !self.reserve(io_pool::charge(&body)) {
                 self.close();
                 return;
@@ -1961,7 +1969,9 @@ fn play(
         alive: Arc::new(AtomicI64::new(-1)),
     });
     let undrained = Arc::<Undrained>::default();
+    let packet_counts = Arc::<super::packet_counts::PacketCounts>::default();
     let sender = PlayerSender {
+        packet_counts: packet_counts.clone(),
         undrained: undrained.clone(),
         pending,
         held: Arc::default(),
@@ -1992,6 +2002,8 @@ fn play(
         watch,
         counted,
         undrained,
+        packet_counts,
+        kicked: false,
     };
     let joined = Joined {
         conn,
@@ -2039,6 +2051,28 @@ struct PlayConn {
     counted: Option<super::Counted>,
     /// Shared with the player's [`PlayerSender`]: what the hub hasn't taken yet.
     undrained: Arc<Undrained>,
+    /// Shared with the player's [`PlayerSender`]: the packets counted while a mod asks.
+    packet_counts: Arc<super::packet_counts::PacketCounts>,
+    /// This connection kicked the player itself (a packet limit, a declined pack).
+    kicked: bool,
+}
+impl PlayConn {
+    /// A kick of this connection's own: the disconnect goes after what is queued.
+    fn kick(&mut self, (reason, text): (horizon_core::nbt::Tag, String)) -> io_pool::Verdict {
+        self.kicked = true;
+        let body = play::Clientbound::Disconnect(cfg::Disconnect { reason }).encode();
+        io_pool::Verdict::Kick(text, body)
+    }
+}
+/// What ended a connection the server did not kick, from the reason the network gives.
+fn leave_cause(reason: &str) -> LeaveCause {
+    if reason == "Disconnected" || reason == "server closed" {
+        LeaveCause::Quit
+    } else if reason == horizon_protocol::Error::timed_out().to_string() {
+        LeaveCause::TimedOut
+    } else {
+        LeaveCause::Error
+    }
 }
 impl PlayConn {
     /// `IntegratedServer.isSingleplayerOwner`: the integrated server's own player,
@@ -2056,6 +2090,11 @@ impl io_pool::Session for PlayConn {
     /// required resource pack declined, a rate-limit excess, a malformed packet.
     fn packet(&mut self, id: i32, payload: Vec<u8>) -> io_pool::Verdict {
         use io_pool::Verdict;
+        self.packet_counts.add(
+            false,
+            id,
+            horizon_protocol::buf::varint_size(id) + payload.len(),
+        );
         let kick = |(reason, text): (horizon_core::nbt::Tag, String)| {
             let body = play::Clientbound::Disconnect(cfg::Disconnect { reason }).encode();
             Verdict::Kick(text, body)
@@ -2065,7 +2104,7 @@ impl io_pool::Session for PlayConn {
         }
         let now = Instant::now();
         if let Some(average) = self.rate.as_mut().and_then(|r| r.received(now)) {
-            return kick(rate_exceeded(&self.shared, average));
+            return self.kick(rate_exceeded(&self.shared, average));
         }
         match play::Serverbound::decode_with_payload_codecs(
             id,
@@ -2097,7 +2136,7 @@ impl io_pool::Session for PlayConn {
             Ok(play::Serverbound::ResourcePack(r))
                 if r.action == PACK_DECLINED && self.required_pack =>
             {
-                kick(pack_rejected(&self.shared, &self.name, r.id))
+                self.kick(pack_rejected(&self.shared, &self.name, r.id))
             }
             Ok(p) => {
                 let p = match p {
@@ -2157,7 +2196,7 @@ impl io_pool::Session for PlayConn {
                 };
                 // Bounded here, where packets are made, not only where the hub drains them.
                 if !self.undrained.handed(payload.len()) {
-                    return kick(undrained_exceeded(&self.shared, &self.name));
+                    return self.kick(undrained_exceeded(&self.shared, &self.name));
                 }
                 let event = NetEvent::Packet(self.conn, Box::new(p), payload.len());
                 match self.shared.events.send(event) {
@@ -2182,7 +2221,15 @@ impl io_pool::Session for PlayConn {
         Some(play::Clientbound::KeepAlive(cfg::KeepAlive { id }).encode())
     }
     fn left(&mut self, reason: String) {
-        let _ = self.shared.events.send(NetEvent::Left(self.conn, reason));
+        let cause = if self.kicked {
+            LeaveCause::Kicked
+        } else {
+            leave_cause(&reason)
+        };
+        let _ = self
+            .shared
+            .events
+            .send(NetEvent::Left(self.conn, reason, cause));
         self.shared.closing.fetch_add(1, Ordering::AcqRel);
     }
     fn closed(&mut self) {
@@ -2405,6 +2452,18 @@ impl KeepAliveWatch {
 #[cfg(test)]
 mod tests {
     include!("profession_join_tests.rs");
+
+    #[test]
+    fn a_connection_the_server_did_not_kick_ends_for_its_network_reason() {
+        assert_eq!(leave_cause("Disconnected"), LeaveCause::Quit);
+        assert_eq!(leave_cause("server closed"), LeaveCause::Quit);
+        let timed_out = horizon_protocol::Error::timed_out().to_string();
+        assert_eq!(leave_cause(&timed_out), LeaveCause::TimedOut);
+        assert_eq!(
+            leave_cause("Invalid packet 3: unexpected end of data"),
+            LeaveCause::Error
+        );
+    }
 
     #[test]
     fn undrained_packets_stop_at_twice_the_inbox() {

@@ -1784,7 +1784,53 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     }
 }
 
+impl<L: LevelAccess + ?Sized> Sim<'_, L> {
+    /// `BlockItem.place`'s write of a state already chosen: `setBlock` with `update`, then
+    /// `Block.setPlacedBy` when the block standing there is the one written (a bed's head, a
+    /// door's upper half), except a dried ghast's, which only plays its place sound. The state
+    /// there afterwards, or None when nothing was written.
+    fn place_state(
+        &mut self,
+        pos: BlockPos,
+        state: BlockStateId,
+        update: i32,
+    ) -> Option<BlockStateId> {
+        if !self.is_in_valid_bounds(pos) || !self.set_block(pos, state, update) {
+            return None;
+        }
+        let placed = self.state(pos);
+        if self.b.block(placed) == self.b.block(state) && !self.b.data(placed).is(Class::DriedGhast)
+        {
+            self.set_placed_by(pos, placed);
+        }
+        Some(self.state(pos))
+    }
+}
+
 impl Behaviours {
+    /// A block written as a player's `BlockItem.place` writes one, from a state already chosen
+    /// (a mod's): `setBlock` with the placement's flags (`UPDATE_NEIGHBORS | UPDATE_CLIENTS |
+    /// UPDATE_IMMEDIATE`), so the neighbours hear of it and, unless `update_neighbour_shapes`
+    /// is off (`UPDATE_KNOWN_SHAPE`), their shapes update (fences, walls and stairs connect),
+    /// then `Block.setPlacedBy` (a bed's head, a door's upper half). No place sound, no game
+    /// event and no item. The state there afterwards, or None when nothing was written.
+    pub fn place_block_state<L: LevelAccess + ?Sized>(
+        &self,
+        level: &mut L,
+        ticks: &mut Ticks,
+        pos: BlockPos,
+        state: BlockStateId,
+        update_neighbour_shapes: bool,
+    ) -> Option<BlockStateId> {
+        use super::flags::{
+            UPDATE_CLIENTS, UPDATE_IMMEDIATE, UPDATE_KNOWN_SHAPE, UPDATE_NEIGHBORS,
+        };
+        let mut update = UPDATE_NEIGHBORS | UPDATE_CLIENTS | UPDATE_IMMEDIATE;
+        if !update_neighbour_shapes {
+            update |= UPDATE_KNOWN_SHAPE;
+        }
+        self.sim(level, ticks).place_state(pos, state, update)
+    }
     /// `BlockItem.place` for the item in `ctx`: resolves the replaced
     /// position, computes `getStateForPlacement`, checks survival and entity
     /// obstruction, writes the block (flags 11), runs `setPlacedBy` (second

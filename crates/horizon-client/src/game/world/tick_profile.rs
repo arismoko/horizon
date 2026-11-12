@@ -1,7 +1,8 @@
 //! What each kind of mob costs the server tick, for `horizon-report` (dedicated/report.rs): while
 //! a report records, one tick in [`SAMPLE_EVERY`] times every mob's own tick and adds it up by
 //! level and mob type. Off, a mob costs one thread-local read; sampled, two clock reads and a
-//! map update. A mob's riders tick inside its own tick, so they count for it.
+//! map update. A mob's riders tick inside its own tick, so they count for it. A server mod samples
+//! apart from the report (`mob_cost_sampling`), into costs of its own, so both can run.
 use horizon_client::{fast_hash::FxHashMap, mobs::MobType};
 use std::{
     cell::{Cell, RefCell},
@@ -22,6 +23,8 @@ struct Cost {
 thread_local! {
     static SAMPLING: Cell<bool> = const { Cell::new(false) };
     static COSTS: RefCell<FxHashMap<(&'static str, usize), Cost>> = RefCell::default();
+    static MOD_SAMPLING: Cell<bool> = const { Cell::new(false) };
+    static MOD_COSTS: RefCell<FxHashMap<(&'static str, usize), Cost>> = RefCell::default();
 }
 
 /// Who wants the tick's spans recorded besides nobody: `HORIZON_SPIKES` (the slow ring's steps),
@@ -50,10 +53,18 @@ pub(super) fn set_sampling(on: bool) {
     SAMPLING.with(|s| s.set(on));
 }
 
+/// Sample (or stop sampling) for a mod, apart from the report; off drops what it sampled.
+pub(super) fn set_mod_sampling(on: bool) {
+    MOD_SAMPLING.with(|s| s.set(on));
+    if !on {
+        MOD_COSTS.with(|c| c.borrow_mut().clear());
+    }
+}
+
 /// When this tick is sampled, the start of a mob's tick.
 #[inline]
 pub(super) fn start() -> Option<Instant> {
-    SAMPLING.with(Cell::get).then(Instant::now)
+    (SAMPLING.with(Cell::get) || MOD_SAMPLING.with(Cell::get)).then(Instant::now)
 }
 
 /// A sampled mob of type `kind` in level `dim` ticked since `started`.
@@ -79,7 +90,7 @@ pub(super) fn end_mob(dim: &'static str, sampled: Option<(Instant, MobType)>) {
 /// [`add`] for the type at address `key` named `id`.
 fn add_kind(dim: &'static str, key: usize, id: &str, started: Instant) {
     let nanos = started.elapsed().as_nanos() as u64;
-    COSTS.with(|c| {
+    let add = |c: &RefCell<FxHashMap<(&'static str, usize), Cost>>| {
         let mut costs = c.borrow_mut();
         let cost = costs.entry((dim, key)).or_insert_with(|| Cost {
             kind: id.to_owned(),
@@ -88,7 +99,13 @@ fn add_kind(dim: &'static str, key: usize, id: &str, started: Instant) {
         });
         cost.nanos += nanos;
         cost.mob_ticks += 1;
-    });
+    };
+    if SAMPLING.with(Cell::get) {
+        COSTS.with(add);
+    }
+    if MOD_SAMPLING.with(Cell::get) {
+        MOD_COSTS.with(add);
+    }
 }
 
 /// One level's mob type: its sampled time and mob ticks.
@@ -102,7 +119,16 @@ pub(super) struct MobCost {
 
 /// The costs sampled since the last call, costliest first; clears them.
 pub(super) fn take() -> Vec<MobCost> {
-    let costs = COSTS.with(|c| std::mem::take(&mut *c.borrow_mut()));
+    sorted(COSTS.with(|c| std::mem::take(&mut *c.borrow_mut())))
+}
+
+/// [`take`] of the mod's own samples.
+pub(super) fn take_mod() -> Vec<MobCost> {
+    sorted(MOD_COSTS.with(|c| std::mem::take(&mut *c.borrow_mut())))
+}
+
+/// The costs by level and type, costliest first.
+fn sorted(costs: FxHashMap<(&'static str, usize), Cost>) -> Vec<MobCost> {
     let mut out: Vec<MobCost> = costs
         .into_iter()
         .map(|((dimension, _), c)| MobCost {
@@ -173,6 +199,28 @@ mod tests {
             ("minecraft:zombie", 1)
         );
         assert!(take().is_empty());
+    }
+
+    /// A mod's sampling is kept apart from the report's: each takes only its own, and turning
+    /// the mod's off drops what it had.
+    #[test]
+    fn a_mods_sampling_is_apart_from_the_reports() {
+        let pig = (4, "minecraft:pig");
+        set_sampling(false);
+        set_mod_sampling(true);
+        add("minecraft:overworld", pig, start().expect("sampled for the mod"));
+        assert!(take().is_empty(), "the report sampled nothing");
+        set_sampling(true);
+        add("minecraft:overworld", pig, Instant::now());
+        set_sampling(false);
+        assert_eq!(take().len(), 1);
+        let costs = take_mod();
+        assert_eq!(costs.len(), 1);
+        assert_eq!((costs[0].kind.as_str(), costs[0].mob_ticks), ("minecraft:pig", 2));
+        add("minecraft:overworld", pig, Instant::now());
+        set_mod_sampling(false);
+        assert!(take_mod().is_empty());
+        assert!(start().is_none());
     }
 
     /// Calibrating leaves what was sampled, and the switch, as they were.

@@ -101,6 +101,32 @@ impl Stats {
     pub(super) fn custom(&mut self, key: &str, n: i32) {
         namespaced(key, |key| self.add("custom", key, n));
     }
+    /// `StatsCounter.setValue` for every statistic: `values` in place of the counters, those
+    /// it lacks back to 0. Each changed one is reset then raised to its value for the
+    /// scoreboard criteria to follow, and is dirty for the client's next request.
+    pub(super) fn replace(&mut self, values: BTreeMap<String, BTreeMap<String, i32>>) {
+        let old = std::mem::take(&mut self.values);
+        let value = |all: &BTreeMap<String, BTreeMap<String, i32>>, ty: &str, key: &str| {
+            all.get(ty).and_then(|m| m.get(key)).copied().unwrap_or(0)
+        };
+        let keys: BTreeSet<(String, String)> = old
+            .iter()
+            .chain(&values)
+            .flat_map(|(ty, m)| m.keys().map(move |key| (ty.clone(), key.clone())))
+            .collect();
+        for (ty, key) in keys {
+            let new = value(&values, &ty, &key);
+            if value(&old, &ty, &key) == new {
+                continue;
+            }
+            self.events.push((ty.clone(), key.clone(), None));
+            if new != 0 {
+                self.events.push((ty.clone(), key.clone(), Some(new)));
+            }
+            self.mark_dirty(&ty, &key);
+        }
+        self.values = values;
+    }
     /// `ServerStatsCounter.markAllDirty`: everything goes out on the next request.
     pub(super) fn mark_all_dirty(&mut self) {
         self.dirty = self

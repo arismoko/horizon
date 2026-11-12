@@ -846,6 +846,25 @@ pub trait LevelsBackendMut {
         pitch: f32,
     ) -> bool;
     /// Side: server.
+    /// Sets the time of the level's own clock (its dimension type's `default_clock`, the one
+    /// `level_clock_time` reads) to `time` ticks, as `/time set <time>` run in that level does:
+    /// `time_skip` (cause `mod`) fires first and a mod can keep the old time, and the clock's
+    /// fraction of a tick restarts. Players see the new time with the next time sync. A time
+    /// the clock already shows is true and changes nothing. False for a negative time, a level
+    /// without a default clock, a stale handle, a client, and when a mod kept the old time.
+    #[access(WorldOnly)]
+    fn level_set_clock_time(&mut self, level: LevelRef, time: i64) -> bool;
+    /// Side: server.
+    /// Sets game rule `rule` (`minecraft:keep_inventory` or `keep_inventory`) to `value`, as
+    /// `/gamerule <rule> <value>` does (`GameRules.set` and `MinecraftServer.onGameRuleChanged`):
+    /// the world follows it (`advance_time` freezes the clocks), `game_rule_changed` fires with
+    /// no actor, and the players' clients get the rules they show. The rules are the world's,
+    /// so any open level's handle sets them. True also when the rule already had the value.
+    /// False for an unknown rule, a value of the other kind or outside the rule's range, a
+    /// stale handle and a client.
+    #[access(WorldOnly)]
+    fn level_set_game_rule(&mut self, level: LevelRef, rule: &str, value: GameRuleValue) -> bool;
+    /// Side: server.
     /// Repaint map `id` with `colors` (128 by 128 colour ids, row by row), pixel by pixel as
     /// `MapItemSavedData.setColor` does: each changed pixel marks the map to save, to redraw and
     /// to send to the players carrying or framing it. True when a pixel changed. False for
@@ -1017,6 +1036,25 @@ pub trait LevelsBackendMut {
     /// valid: the chunk is marked changed and nothing is sent.
     #[access(WorldOnly)]
     fn level_send_block_updated(&mut self, level: LevelRef, pos: [i32; 3]) -> bool;
+    /// Side: server.
+    /// Lights the loaded chunks `chunks` (chunk coordinates) of the level in place again, whole,
+    /// from their blocks, and the loaded chunks around them, at once on the calling thread, as
+    /// the light jobs of `edit_blocks` do later on the workers: for a mod that wrote blocks by
+    /// other means and needs the light before the chunks go out (`chunk_resend`). A chunk
+    /// without all eight neighbours loaded is left out. The light that changed goes to the
+    /// players who see that chunk's border, as any relight's does. How many chunks were lit,
+    /// the ring included; None for a level not in place, a stale handle and a client. It lights
+    /// every chunk it is given, so call it for the chunks an edit changed, not every tick.
+    #[access(WorldOnly)]
+    fn level_relight_chunks(&mut self, level: LevelRef, chunks: &[[i32; 2]]) -> Option<u32>;
+    /// Side: server.
+    /// Sends the loaded chunk whole again, with its light, block entities and biomes as they are
+    /// at the end of the tick, to every player watching it (`chunk_watchers`), as a chunk
+    /// `edit_blocks` changed is sent: one packet instead of a block update per changed block.
+    /// False, with nothing queued, for a chunk not loaded, a level not in place, a stale handle
+    /// and a client; true with nothing sent when no player is in the level.
+    #[access(WorldOnly)]
+    fn chunk_resend(&mut self, chunk: ChunkRef) -> bool;
     /// Side: server.
     /// Plays sound event `sound` at `at` for the players in this level
     /// within range (16 blocks, times the volume above 1), as

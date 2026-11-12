@@ -547,6 +547,11 @@ impl FixedStep {
     pub fn average_nanos(&self) -> u64 {
         (self.aggregated / SAMPLES.min(self.tick_count.max(1) as usize) as i64).max(0) as u64
     }
+    /// `getTickTimesNanos`: the last 100 ticks' durations in nanoseconds, the tick numbered
+    /// `n` at index `n % 100` (0 where none was recorded yet).
+    pub fn tick_times(&self) -> Vec<u64> {
+        self.tick_times.iter().map(|&t| t.max(0) as u64).collect()
+    }
     /// The sorted `getTickTimesNanos` array (always 100 entries).
     pub fn sorted_samples(&self) -> Vec<u64> {
         let mut v: Vec<u64> = self.tick_times.iter().map(|&t| t.max(0) as u64).collect();

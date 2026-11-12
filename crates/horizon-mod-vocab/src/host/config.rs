@@ -51,6 +51,12 @@ pub trait ConfigHost {
     /// reads its own data and assets through reload listeners.
     #[access(WorldOnly)]
     fn instance_dir(&self) -> PathBuf;
+    /// Side: both.
+    /// The data version this game writes its saves with
+    /// (`SharedConstants.getCurrentVersion().dataVersion().version()`): the `DataVersion` of
+    /// the chunks, players and `level.dat` it saves, and of a schematic made from its blocks.
+    #[access(Metadata)]
+    fn server_data_version(&self) -> i32;
 }
 /// The server host's methods of the `config` area, implemented by the game and reached through [`ServerHost`].
 #[horizon_mod_api_macros::host_area]
@@ -62,6 +68,60 @@ pub trait ConfigServerHost {
     /// 1000 / milliseconds when that is lower.
     #[access(WorldOnly)]
     fn tick_stats(&self) -> (f32, f64);
+    /// Side: server.
+    /// The last 100 server ticks' durations in nanoseconds, as
+    /// `MinecraftServer.getTickTimesNanos` lays them out: the tick numbered `n` at index
+    /// `n % 100`, 0 where none was recorded yet. Sort a copy for percentiles; `tick_stats`
+    /// has the average.
+    #[access(WorldOnly)]
+    fn tick_times(&self) -> Vec<u64>;
+    /// Side: server.
+    /// Times every mob's own tick (its riders inside it) from now on, or no longer, summed by
+    /// level and mob type for `take_mob_costs`, as a profiler such as spark samples them:
+    /// while on, two clock reads and a map update a mob; off, one thread-local read. Apart
+    /// from the server's own performance report, so both can run. Off drops what was
+    /// sampled. For a lighter profile, turn it on for one tick in N. False on a client.
+    #[access(WorldOnly)]
+    fn mob_cost_sampling(&mut self, on: bool) -> bool;
+    /// Side: server.
+    /// The mob tick costs sampled since the last call (`mob_cost_sampling`), costliest first;
+    /// clears them. Empty while nothing was sampled and on a client.
+    #[access(WorldOnly)]
+    fn take_mob_costs(&mut self) -> Vec<MobTickCost>;
+    /// Side: server.
+    /// Counts every player's play packets by id and direction from now on, or no longer
+    /// (PacketEvents' send and receive events, summed), for `player_take_packet_counts`.
+    /// While on, each packet costs its connection a lock and a map update; off, one atomic
+    /// read. One switch for the whole server, shared by every mod. False on a client.
+    #[access(WorldOnly)]
+    fn count_packets(&mut self, on: bool) -> bool;
+    /// Side: server.
+    /// The server's view distance in chunks (`PlayerList.getViewDistance`, `view-distance`):
+    /// how far players are sent chunks at most. None off a server open to players.
+    #[access(WorldOnly)]
+    fn server_view_distance(&self) -> Option<i32>;
+    /// Side: server.
+    /// The server's simulation distance in chunks (`PlayerList.getSimulationDistance`,
+    /// `simulation-distance`): how far around each player chunks tick. None off a server open
+    /// to players.
+    #[access(WorldOnly)]
+    fn server_simulation_distance(&self) -> Option<i32>;
+    /// Side: server.
+    /// Sets the server's view distance live, as `PlayerList.setViewDistance` (and the
+    /// management protocol's `serversettings/view_distance/set`) do: every player is sent
+    /// `ClientboundSetChunkCacheRadiusPacket` and their chunks follow, each up to what their
+    /// client asked for. `server.properties` is not written, so a restart goes back to it.
+    /// False for a distance outside 2 to 32, and off a dedicated server (an integrated
+    /// server follows its window's option).
+    #[access(WorldOnly)]
+    fn server_set_view_distance(&mut self, distance: i32) -> bool;
+    /// Side: server.
+    /// Sets the server's simulation distance live, as `PlayerList.setSimulationDistance`
+    /// does: every player is sent `ClientboundSetSimulationDistancePacket`, and the chunks
+    /// around the players tick to the new distance from the next tick. `server.properties`
+    /// is not written. False for a distance outside 2 to 32, and off a dedicated server.
+    #[access(WorldOnly)]
+    fn server_set_simulation_distance(&mut self, distance: i32) -> bool;
     /// Side: server.
     /// Sets the server's tick rate, as `/tick rate` does (`ServerTickRateManager.setTickRate`):
     /// the game ticks `rate` times a second from the next tick on, an autosave wait already

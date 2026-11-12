@@ -251,8 +251,13 @@ impl Game<'_> {
             } else {
                 "emote_command"
             };
+            let (sender, name) = (host.hub.guests[i].uuid, host.hub.guests[i].name.clone());
+            let hidden = self.chat_hidden_from(sender, &name, text);
+            let Some(host) = self.lan.as_mut() else {
+                return false;
+            };
             host.hub
-                .broadcast_command_chat(i, chat_type, message, text, &mut events);
+                .broadcast_command_chat(i, chat_type, message, text, &hidden, &mut events);
         }
         for event in events {
             self.lan_log_event(event);

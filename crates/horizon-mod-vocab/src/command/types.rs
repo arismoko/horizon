@@ -5,7 +5,7 @@
 /// `pay <player:player> <amount:integer>`, `balance [player:player]`,
 /// `eco give <player:player> <amount:integer>`. Kinds: `word`, `text` (the
 /// rest of the line, last), `integer`, `number`, `boolean`, `player`, `players`,
-/// `entity`, `entities`, `item`, `block_pos`, or a command argument type a mod registered with
+/// `entity`, `entities`, `item`, `block_pos`, `vec3`, or a command argument type a mod registered with
 /// `Registrar::register_command_argument`, named by its namespaced id:
 /// `machine use <machine:mymod:machine>`. Usages of one command share their
 /// words; the server merges them into one tree. Each executable usage keeps its own level:
@@ -26,6 +26,9 @@ pub struct Command {
     /// The operator level a player needs to run this usage (0: everyone).
     /// Shared prefixes stay visible when needed to reach a lower-level usage.
     pub level: u8,
+    /// The permission node a player needs to run the command
+    /// (`Command::with_node`), None for the level alone.
+    pub node: Option<String>,
 }
 
 impl Command {
@@ -34,6 +37,7 @@ impl Command {
         Self {
             usage: usage.to_owned(),
             level: 0,
+            node: None,
         }
     }
     /// The same, for operators of `level` and above.
@@ -41,7 +45,23 @@ impl Command {
         Self {
             usage: usage.to_owned(),
             level: level.min(4),
+            node: None,
         }
+    }
+    /// The same, for players who hold permission `node`
+    /// (`PlayerRef::has_permission`, Bukkit's `Command.setPermission`): a
+    /// permissions mod's answer (`player_permission_check`) decides, and
+    /// `level` only when no mod answers. The node gates this usage's literal
+    /// path (`home admin`), as Brigadier's `requires` on that literal: a
+    /// usage without a node takes its command's (the node of the command's
+    /// first usage), and a node on the bare command (`home`) gates all of it.
+    /// A path keeps one node; a usage naming another than one before it on
+    /// the same path is left out, with why. Players without it neither run
+    /// nor see that path; the console, functions and command blocks are not
+    /// asked.
+    pub fn with_node(mut self, node: &str) -> Self {
+        self.node = Some(node.to_owned());
+        self
     }
 }
 

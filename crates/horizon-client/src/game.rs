@@ -7302,6 +7302,7 @@ impl Game<'_> {
             self.ordered_before(ordered_tick::Batch::Carts)?;
             horizon_client::spans::time("tick_carts", || self.tick_carts());
             self.tick_vehicle_watch();
+            self.tick_player_moves();
             let from = self.lan_synced_from();
             horizon_client::spans::time("tick_thunder", || self.tick_thunder());
             self.lan_synced_since(from);

@@ -1,1 +1,1 @@
-pub use content::packets::{SendPacketError, ServerboundPlayPacket};
+pub use content::packets::{ClientboundPlayPacket, SendPacketError, ServerboundPlayPacket};

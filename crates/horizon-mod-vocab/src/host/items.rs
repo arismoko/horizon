@@ -49,6 +49,13 @@ pub trait ItemsHost {
     /// type tag `tag` (`minecraft:cannot_be_pushed_onto_boats`).
     #[access(Metadata)]
     fn entity_type_in_tag(&self, entity_type: &str, tag: &str) -> bool;
+    /// Side: both.
+    /// The stack an SNBT item compound stands for, read as `ItemStack.CODEC` reads a saved
+    /// item: `{id:"minecraft:diamond_sword",count:1,components:{"minecraft:damage":5}}`
+    /// (`count` 1 when missing or outside 1 to 99, `stone` is `minecraft:stone`). None for
+    /// text that is no SNBT compound, air, and an item this world does not have.
+    #[access(WorldOnly)]
+    fn item_from_snbt(&self, snbt: &str) -> Option<ItemStack>;
 }
 /// The server host's methods of the `items` area, implemented by the game and reached through [`ServerHost`].
 #[horizon_mod_api_macros::host_area]

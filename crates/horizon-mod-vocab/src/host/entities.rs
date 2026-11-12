@@ -34,10 +34,13 @@ pub trait EntitiesServerHost {
     /// Side: server.
     /// Spawns an entity of `kind` (`minecraft:item_display`) at `pos` in the
     /// level in place, `dimension`, from `nbt` (its compound, as `/summon
-    /// <kind> <pos> <nbt>` takes it; passengers included): its id. None on a
+    /// <kind> <pos> <nbt>` takes it; passengers included): its id. A `UUID`
+    /// (`[I; a, b, c, d]`) in `nbt` is the entity's, as with `/summon`. None on a
     /// client's copy of the world, for another dimension, a position outside
     /// `/summon`'s bounds, a chunk that isn't loaded, a kind Horizon can't
-    /// load, or one a mod kept out (`native_entity_join_level`).
+    /// load, a UUID of the stack that an entity in the level already holds
+    /// (`ServerLevel.tryAddFreshEntityWithPassengers`), or one a mod kept out
+    /// (`native_entity_join_level`).
     #[access(WorldOnly)]
     fn summon(&mut self, dimension: &str, kind: &str, pos: [f64; 3], nbt: Compound) -> Option<u32>;
     /// Side: server.

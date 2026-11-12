@@ -20,6 +20,19 @@ pub trait MenusServerHost {
     /// Closes the player's native menu (a `native_menu_closed` follows).
     #[access(WorldOnly)]
     fn close_menu(&mut self, uuid: u128);
+    /// Side: server.
+    /// Replaces what the player's open `open_menu` menu `window` shows with `items` (by slot,
+    /// padded with empty ones, extra ones dropped), at once and without reopening it
+    /// (`ClientboundContainerSetContentPacket`, as `AbstractContainerMenu.sendAllDataToRemote`):
+    /// the title, the cursor and the scroll stay, as a Bukkit plugin's `Inventory.setContents`
+    /// on an open inventory. Ok(false) when that window isn't the player's open native menu.
+    #[access(WorldOnly)]
+    fn menu_set_items(
+        &mut self,
+        uuid: u128,
+        window: i32,
+        items: Vec<Option<ItemStack>>,
+    ) -> Result<bool, StackWriteError>;
 }
 /// The client host's methods of the `menus` area, implemented by the game and reached through [`crate::ClientHost`].
 #[horizon_mod_api_macros::host_area]

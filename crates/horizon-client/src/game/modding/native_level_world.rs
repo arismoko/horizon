@@ -252,6 +252,55 @@ impl Game<'_> {
         self.native_level_world_result(level)?;
         Ok(self.ui.rules.get(rule))
     }
+    /// `/gamerule <rule> <value>` from a mod: the world's rule changes, `game_rule_changed`
+    /// fires with no actor and the clients get the rules. The rule already at `value` is true
+    /// with nothing fired; an unknown rule, a value of the other kind or out of range is false.
+    pub(super) fn level_set_game_rule(
+        &mut self,
+        level: LevelRef,
+        rule: &str,
+        value: GameRuleValue,
+    ) -> bool {
+        if self.native_level_world(level).is_none() {
+            return false;
+        }
+        let Some(rule) = self.ui.rules.rule(rule).cloned() else {
+            return false;
+        };
+        let fits = match (rule.default, value) {
+            (GameRuleValue::Bool(_), GameRuleValue::Bool(_)) => true,
+            (GameRuleValue::Int(_), GameRuleValue::Int(v)) => (rule.min..=rule.max).contains(&v),
+            _ => false,
+        };
+        if fits && self.ui.rules.get(&rule.name) != Some(value) {
+            self.set_game_rule(&rule, value, None);
+        }
+        fits
+    }
+    /// `/time set <time>` in the level a handle names, on its default clock: `time_skip`
+    /// (cause `mod`) may keep the old time; the clock's partial tick restarts.
+    pub(super) fn level_set_clock_time(&mut self, level: LevelRef, time: i64) -> bool {
+        if time < 0 || self.native_level_world(level).is_none() {
+            return false;
+        }
+        let dim = Dim::from_id(level.dimension_id());
+        if self.dimension_type_of(dim).default_clock.is_none() {
+            return false;
+        }
+        let clock = self.level_clock_name(dim);
+        let total = self.command_clock_time(&clock);
+        if total == time {
+            return true;
+        }
+        let mut cancel = false;
+        self.native_time_skip(level.dimension_id(), total, time, "mod", &mut cancel);
+        if cancel {
+            return false;
+        }
+        self.set_command_clock_time(&clock, time);
+        self.command_clock_state(&clock).partial = 0.0;
+        true
+    }
     /// Every game rule the world has (`GameRules`) with its current value, by `minecraft:` id
     /// (`max_minecart_speed` only with minecart improvements): None for a stale handle and on
     /// a client.
@@ -565,6 +614,49 @@ mod tests {
                 58,
             )]
         );
+    }
+
+    /// `level_set_game_rule` writes what `/gamerule` accepts, refuses what it refuses, and
+    /// `level_set_clock_time` moves the level's clock as `/time set` does.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_mod_sets_game_rules_and_the_clock() {
+        use mod_api::WorldEpoch;
+        with_game(|game| {
+            let level = game.level(game.dim.id()).unwrap();
+            assert!(level.set_game_rule(game, "keep_inventory", GameRuleValue::Bool(true)));
+            assert_eq!(
+                game.ui.rules.get("keep_inventory"),
+                Some(gamerules::Value::Bool(true))
+            );
+            assert!(game.level_set_game_rule(
+                level,
+                "minecraft:random_tick_speed",
+                gamerules::Value::Int(9)
+            ));
+            assert_eq!(
+                game.ui.rules.get("random_tick_speed"),
+                Some(gamerules::Value::Int(9))
+            );
+            assert!(game.level_set_game_rule(level, "random_tick_speed", gamerules::Value::Int(9)));
+            assert!(!game.level_set_game_rule(level, "missing:rule", gamerules::Value::Bool(true)));
+            assert!(!game.level_set_game_rule(level, "keep_inventory", gamerules::Value::Int(1)));
+            assert!(!game.level_set_game_rule(level, "random_tick_speed", gamerules::Value::Int(-1)));
+            assert_eq!(
+                game.ui.rules.get("random_tick_speed"),
+                Some(gamerules::Value::Int(9))
+            );
+
+            assert!(game.level_set_clock_time(level, 13_000));
+            assert_eq!(game.level_clock_time(level), Some(13_000));
+            assert!(game.level_set_clock_time(level, 13_000));
+            assert!(!game.level_set_clock_time(level, -1));
+            assert_eq!(game.level_clock_time(level), Some(13_000));
+            let stale =
+                mod_api::LevelRef::new(WorldEpoch::new(level.epoch().get() + 1), level.dimension());
+            assert!(!game.level_set_clock_time(stale, 1));
+            assert!(!game.level_set_game_rule(stale, "keep_inventory", gamerules::Value::Bool(false)));
+        });
     }
 
     #[test]

@@ -379,6 +379,35 @@ impl ItemStack {
         }
         Some(stack)
     }
+    /// Sets the stack's shown name and lore (`minecraft:custom_name`, `minecraft:lore`), as
+    /// Bukkit's `ItemMeta.displayName` and `lore` do: None removes the name, an empty `lore`
+    /// removes the lore. The texts become component NBT through the host
+    /// (`TextHost::text_to_nbt`); vanilla draws a custom name in italics unless its style says
+    /// `italic: false`. Nothing changes when a text is refused.
+    pub fn set_display(
+        &mut self,
+        host: &dyn crate::Host,
+        name: Option<&crate::Text>,
+        lore: &[crate::Text],
+    ) -> Result<(), crate::TextFormError> {
+        let name = name.map(|name| host.text_to_nbt(name)).transpose()?;
+        let lore = lore
+            .iter()
+            .map(|line| host.text_to_nbt(line))
+            .collect::<Result<Vec<_>, _>>()?;
+        match name {
+            Some(name) => {
+                let _ = self.set_component_value("minecraft:custom_name", name);
+            }
+            None => self.remove_component_value("minecraft:custom_name", false),
+        }
+        if lore.is_empty() {
+            self.remove_component_value("minecraft:lore", false);
+        } else {
+            let _ = self.set_component_value("minecraft:lore", Tag::List(lore));
+        }
+        Ok(())
+    }
     /// Encode the item NBT escape using this host's canonical id, never a process-local key.
     /// Returns None when id metadata is unavailable. Only components present on the
     /// stack are written; effective defaults and maxima belong to the items host area.
@@ -423,6 +452,64 @@ mod tests {
     use super::*;
 
     include!("item_stack_damage_tests.rs");
+
+    /// A host whose text NBT is the literal string, and which refuses "bad".
+    struct TextNbt;
+    impl crate::prelude::TextHost for TextNbt {
+        fn text_to_nbt(&self, text: &crate::Text) -> Result<Tag, crate::TextFormError> {
+            match &text.content {
+                crate::text::TextContent::Literal(s) if s == "bad" => {
+                    Err(crate::TextFormError::Malformed)
+                }
+                crate::text::TextContent::Literal(s) => Ok(Tag::String(s.as_str().into())),
+                _ => Err(crate::TextFormError::Malformed),
+            }
+        }
+    }
+    impl crate::Host for TextNbt {
+        fn backend(&self) -> Option<crate::BackendRef<'_>> {
+            None
+        }
+    }
+    crate::impl_host_areas!(TextNbt, except(text));
+
+    #[test]
+    fn set_display_writes_and_clears_the_name_and_lore_components() {
+        let name = |stack: &ItemStack| {
+            stack.components().and_then(|c| {
+                c.as_nbt()
+                    .get(&JavaString::from("minecraft:custom_name"))
+                    .cloned()
+            })
+        };
+        let lore = |stack: &ItemStack| {
+            stack
+                .components()
+                .and_then(|c| c.as_nbt().get(&JavaString::from("minecraft:lore")).cloned())
+        };
+        let mut stack = ItemStack::of(ItemKey(0));
+        let lines = [crate::Text::literal("one"), crate::Text::literal("two")];
+        stack
+            .set_display(&TextNbt, Some(&crate::Text::literal("Sword")), &lines)
+            .unwrap();
+        assert_eq!(name(&stack), Some(Tag::String("Sword".into())));
+        assert_eq!(
+            lore(&stack),
+            Some(Tag::List(vec![
+                Tag::String("one".into()),
+                Tag::String("two".into())
+            ]))
+        );
+        // A refused text changes nothing.
+        let before = stack.clone();
+        assert_eq!(
+            stack.set_display(&TextNbt, None, &[crate::Text::literal("bad")]),
+            Err(crate::TextFormError::Malformed)
+        );
+        assert_eq!(stack, before);
+        stack.set_display(&TextNbt, None, &[]).unwrap();
+        assert!(stack.components().is_none(), "both components removed");
+    }
 
     struct Number;
     impl Component for Number {

@@ -11,7 +11,7 @@ use super::{
     data::SyncData,
     entity::{Entities, EntityState},
     equipment_cache,
-    guest::{Guest, InboxItem, SentEffect, stack_to_network},
+    guest::{Guest, InboxItem, LeaveCause, SentEffect, stack_to_network},
 };
 use crate::{
     chunk::Chunk,
@@ -353,6 +353,9 @@ pub struct Hub {
     /// only players of at least that permission level see them, in the
     /// player list, the world and their joining and leaving.
     pub hidden: crate::fast_hash::FxHashMap<u128, u8>,
+    /// Players `refresh_player` hid from everyone: the level a mod hid them
+    /// at before (`hidden`), and the tick it began.
+    refreshing: Vec<(u128, Option<u8>, u64)>,
     pub lan: Lan,
     pub config: HubConfig,
     /// What the hooks fired inside a click or a name format are given; the
@@ -399,6 +402,9 @@ pub struct Hub {
     /// (`native_set_nickname`), by UUID. Their real name stays everywhere
     /// else: the log, commands, the hover of the shown name.
     pub nicknames: std::collections::HashMap<u128, String>,
+    /// Names a server mod shows for players in the Tab list only (`player_set_list_name`),
+    /// by UUID, over their nickname.
+    pub list_names: std::collections::HashMap<u128, crate::text::Text>,
     /// The name the server's user cache knew a joining player by, by UUID, looked up before the
     /// cache learns the new one (PlayerList.placeNewPlayer's `oldName`); taken by the join line.
     pub former_names: std::collections::HashMap<u128, String>,
@@ -834,8 +840,10 @@ impl Hub {
             native_reload_pending: false,
             mods_loaded: false,
             hidden: Default::default(),
+            refreshing: Vec::new(),
             teams: Vec::new(),
             nicknames: std::collections::HashMap::new(),
+            list_names: std::collections::HashMap::new(),
             former_names: std::collections::HashMap::new(),
         }
     }
@@ -1203,10 +1211,24 @@ impl Hub {
     }
     /// Disconnect a guest with a reason (ServerGamePacketListenerImpl.disconnect).
     pub fn kick(&mut self, conn: u32, reason: Tag) {
+        self.disconnect_for(conn, reason, LeaveCause::Kicked);
+    }
+
+    /// keepConnectionAlive's `disconnect.timeout`: a kick whose cause is the timeout.
+    fn time_out(&mut self, conn: u32) {
+        self.disconnect_for(
+            conn,
+            translatable("disconnect.timeout", &[]),
+            LeaveCause::TimedOut,
+        );
+    }
+
+    fn disconnect_for(&mut self, conn: u32, reason: Tag, cause: LeaveCause) {
         // The log's "lost connection" line gives the reason, as vanilla's.
         let text = self.english(&reason);
         if let Some((player, name)) = self.update_guest(conn, |g| {
             g.left_reason = text.clone();
+            g.left_for(cause);
             g.sender.disconnect(reason);
             (g.uuid, g.name.clone())
         }) {
@@ -1295,7 +1317,7 @@ impl Hub {
                     g.name,
                 )));
             }
-            self.kick(conn, translatable("disconnect.timeout", &[]));
+            self.time_out(conn);
         }
         self.guests.update_all(|g| {
             let Some(h) = &g.handover else {
@@ -1413,10 +1435,14 @@ impl Hub {
             show_hat: Some(guest.is_none_or(|g| g.info.model_customisation & 0x40 != 0)),
         }
     }
-    /// ServerPlayer.getTabListDisplayName: the nickname, if any, as mods
-    /// format it.
+    /// ServerPlayer.getTabListDisplayName: a mod's list name, else the nickname, if any, as
+    /// mods format it.
     fn tab_list_name(&self, uuid: u128, name: &str) -> Option<Tag> {
-        let mut display_name = self.nicknames.get(&uuid).map(crate::text::Text::literal);
+        let mut display_name = self
+            .list_names
+            .get(&uuid)
+            .cloned()
+            .or_else(|| self.nicknames.get(&uuid).map(crate::text::Text::literal));
         native_player_tab_list_name_format(&self.loop_context, uuid, name, &mut display_name);
         display_name.map(|text| crate::scoreboard::component_tag(&text.component()))
     }
@@ -2025,6 +2051,9 @@ impl Hub {
             if let Some(root) = packet.nodes.get_mut(root) {
                 root.children.retain(|c| !hidden.contains(c));
             }
+            for path in g.hidden_commands.iter().filter(|n| n.contains(' ')) {
+                remove_literal_path(&mut packet, &path.split(' ').collect::<Vec<_>>());
+            }
         }
         g.send(&C::Commands(packet));
     }
@@ -2317,6 +2346,7 @@ impl Hub {
     /// packets queued for its own level's pass.
     pub fn poll(&mut self, ctx: &mut TickCtx) -> Vec<HostEvent> {
         self.ticks += 1;
+        self.end_refreshes();
         self.anticheat_tick(ctx.tick_rate);
         let mut events = std::mem::take(&mut self.pending_kicks);
         self.expire_arrivals(&mut events);
@@ -2339,10 +2369,11 @@ impl Hub {
                     let conn = self.admit(*j, ctx);
                     events.push(HostEvent::Joined(conn));
                 }
-                NetEvent::Left(conn, reason) => {
+                NetEvent::Left(conn, reason, cause) => {
                     credits.push(credit);
                     if let Some(i) = self.guests.iter().position(|g| g.conn == conn) {
-                        let g = self.remove_guest(i, &reason);
+                        let mut g = self.remove_guest(i, &reason);
+                        g.left_for(cause);
                         events.push(HostEvent::Left(Box::new(g)));
                     }
                 }
@@ -2389,7 +2420,7 @@ impl Hub {
                 .map(|g| g.conn)
                 .collect();
             for conn in silent {
-                self.kick(conn, translatable("disconnect.timeout", &[]));
+                self.time_out(conn);
             }
         }
         events.push(HostEvent::InputCredits(credits));
@@ -5127,10 +5158,70 @@ impl Hub {
     /// A player's nickname changed (None: their name again): kept for chat,
     /// and the Tab list shows it (PlayerInfo UPDATE_DISPLAY_NAME for
     /// everyone).
+    /// Paper's `hidePlayer` then `showPlayer` for every other player (as
+    /// SkinsRestorer refreshes a skin): the next tick takes the player out of
+    /// their Tab lists and worlds (`sync_hidden`, the entity tracker), the one
+    /// after brings them back with their profile as it is then. A level a mod
+    /// hid them at is kept.
+    pub fn refresh_player(&mut self, uuid: u128) {
+        let previous = self.hidden.insert(uuid, u8::MAX);
+        if let Some(pending) = self.refreshing.iter_mut().find(|r| r.0 == uuid) {
+            pending.2 = self.ticks;
+            return;
+        }
+        self.refreshing.push((uuid, previous, self.ticks));
+    }
+
+    /// Shows the players `refresh_player` hid a whole tick ago again, at the
+    /// level a mod hid them at before (or to everyone), unless a mod set
+    /// another meanwhile.
+    pub fn end_refreshes(&mut self) {
+        let ticks = self.ticks;
+        let (done, pending): (Vec<_>, Vec<_>) = std::mem::take(&mut self.refreshing)
+            .into_iter()
+            .partition(|r| r.2 + 1 < ticks);
+        self.refreshing = pending;
+        for (uuid, previous, _) in done {
+            if self.hidden.get(&uuid) != Some(&u8::MAX) {
+                continue;
+            }
+            match previous {
+                Some(level) => self.hidden.insert(uuid, level),
+                None => self.hidden.remove(&uuid),
+            };
+        }
+    }
+
     pub fn set_nickname(&mut self, uuid: u128, nickname: Option<String>) {
         match nickname {
             Some(n) => self.nicknames.insert(uuid, n),
             None => self.nicknames.remove(&uuid),
+        };
+        let Some(guest) = self
+            .guests
+            .iter()
+            .find(|g| g.uuid == uuid && g.participates_online())
+        else {
+            return;
+        };
+        let display_name = self.tab_list_name(uuid, &guest.name);
+        self.broadcast(&C::PlayerInfoUpdate(play::PlayerInfoUpdate {
+            actions: 0x20,
+            entries: vec![play::PlayerInfo {
+                uuid,
+                display_name: Some(display_name),
+                ..Default::default()
+            }],
+        }));
+    }
+
+    /// Paper's `Player.setPlayerListName`: `name` in place of the player's name in the Tab
+    /// list (None: the nickname or real name again), sent to everyone at once
+    /// (`ClientboundPlayerInfoUpdatePacket` `UPDATE_DISPLAY_NAME`) and kept for a rejoin.
+    pub fn set_list_name(&mut self, uuid: u128, name: Option<crate::text::Text>) {
+        match name {
+            Some(name) => self.list_names.insert(uuid, name),
+            None => self.list_names.remove(&uuid),
         };
         let Some(guest) = self
             .guests
@@ -5595,6 +5686,62 @@ fn listed_properties(
     }
 }
 
+/// Takes a subcommand out of a command tree: `path` is its literal words (`home admin`), any
+/// argument nodes between them passed through. The last word's literal leaves every node it
+/// hangs under on that path; a word not in the tree leaves the tree as it was.
+fn remove_literal_path(packet: &mut play::Commands, path: &[&str]) {
+    let mut at = vec![packet.root as usize];
+    for (depth, word) in path.iter().enumerate() {
+        // The nodes the word's literal can hang under: `at` and the arguments below them.
+        let mut parents = Vec::new();
+        let mut open = at;
+        while let Some(i) = open.pop() {
+            if parents.contains(&i) {
+                continue;
+            }
+            parents.push(i);
+            if let Some(node) = packet.nodes.get(i) {
+                open.extend(
+                    node.children
+                        .iter()
+                        .map(|&c| c as usize)
+                        .filter(|&c| packet.nodes.get(c).is_some_and(|n| n.kind == 2)),
+                );
+            }
+        }
+        let named = |c: i32| {
+            packet
+                .nodes
+                .get(c as usize)
+                .is_some_and(|n| n.kind == 1 && n.name == *word)
+        };
+        if depth + 1 == path.len() {
+            let kept: Vec<(usize, Vec<i32>)> = parents
+                .iter()
+                .map(|&p| {
+                    let children = &packet.nodes[p].children;
+                    (p, children.iter().copied().filter(|&c| !named(c)).collect())
+                })
+                .collect();
+            for (p, children) in kept {
+                packet.nodes[p].children = children;
+            }
+            return;
+        }
+        at = parents
+            .iter()
+            .flat_map(|&p| {
+                packet.nodes[p]
+                    .children
+                    .iter()
+                    .copied()
+                    .filter(|&c| named(c))
+            })
+            .map(|c| c as usize)
+            .collect();
+    }
+}
+
 /// The source in wire slot order: hands, armor feet..head, body, saddle.
 fn equipment_source(g: &Guest, index: usize) -> Option<&ItemStack> {
     match index {
@@ -5882,6 +6029,29 @@ mod tests {
         hub_with_sync(sync)
     }
 
+    /// The keep-alive timeout and a kick each keep their cause; the first one stays.
+    #[test]
+    fn a_guest_keeps_the_first_cause_that_ended_it() {
+        let (mut hub, _rx) = hub_with_a_guest();
+        let conn = hub.guests[0].conn;
+        assert_eq!(
+            hub.guests[0].leave_cause(),
+            LeaveCause::Quit,
+            "nothing ended it"
+        );
+        hub.time_out(conn);
+        hub.kick(conn, literal("Bye"));
+        assert_eq!(hub.guests[0].leave_cause(), LeaveCause::TimedOut);
+        assert_eq!(
+            hub.guests[0].left_reason, "Bye",
+            "the log keeps the last line"
+        );
+        let (mut hub, _rx) = hub_with_a_guest();
+        hub.kick(conn, literal("Bye"));
+        hub.time_out(conn);
+        assert_eq!(hub.guests[0].leave_cause(), LeaveCause::Kicked);
+    }
+
     #[test]
     fn modprofile_guest_tree_survives_refresh_with_permissions() {
         for level in 0..=4 {
@@ -6134,6 +6304,88 @@ mod tests {
         let registry = hub.rule_registry.clone();
         hub.reload_resources(hub.sync.clone(), &mut Default::default());
         assert!(Arc::ptr_eq(&registry, &hub.rule_registry));
+    }
+
+    /// Every packet the guest was sent, decoded.
+    fn sent(rx: &std::sync::mpsc::Receiver<crate::lan::Out>) -> Vec<play::Clientbound> {
+        rx.try_iter()
+            .filter_map(|out| match out {
+                crate::lan::Out::Packet(body) => {
+                    let mut reader = horizon_protocol::buf::Reader::new(&body);
+                    let id = reader.varint().ok()?;
+                    play::Clientbound::decode(id, &body[reader.position()..]).ok()
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// A mod's list name goes to every client at once, over the nickname, and None gives
+    /// the nickname back; it is kept for the next Tab list entry too.
+    #[test]
+    fn a_list_name_replaces_the_tab_list_name_and_goes_back() {
+        let (mut hub, rx) = hub_with_a_guest();
+        hub.nicknames.insert(1, "Bobby".into());
+        let shown = |packets: Vec<play::Clientbound>| {
+            packets.into_iter().find_map(|p| match p {
+                play::Clientbound::PlayerInfoUpdate(update) if update.actions == 0x20 => {
+                    update.entries[0].display_name.clone()
+                }
+                _ => None,
+            })
+        };
+        let red = crate::text::Text::legacy("\u{a7}cBob");
+        hub.set_list_name(1, Some(red.clone()));
+        let name = shown(sent(&rx)).expect("an update to everyone");
+        assert_eq!(
+            name,
+            Some(crate::scoreboard::component_tag(&red.component()))
+        );
+        assert_eq!(hub.tab_list_name(1, "Bob"), name);
+        hub.set_list_name(1, None);
+        assert_eq!(
+            shown(sent(&rx)).expect("an update to everyone"),
+            Some(crate::scoreboard::component_tag(
+                &crate::text::Text::literal("Bobby").component()
+            ))
+        );
+        // A player who is not on keeps the name for their return, and nothing is sent.
+        hub.set_list_name(7, Some(red));
+        assert!(sent(&rx).is_empty());
+        assert!(hub.list_names.contains_key(&7));
+    }
+
+    /// The open native menu's items are replaced in place: one content packet for that
+    /// window, padded to its size; another window changes nothing.
+    #[test]
+    fn a_native_menus_items_are_replaced_without_reopening() {
+        let mut sync = SyncData::empty();
+        sync.builtin.registries.insert(
+            "minecraft:menu".to_string(),
+            horizon_protocol::registry::Ids::from_names(vec!["minecraft:generic_9x1".to_string()]),
+        );
+        let (mut hub, rx) = hub_with_sync(sync);
+        let window = hub
+            .open_native_menu(1, 1, Tag::String("shop".into()), vec![])
+            .unwrap();
+        let _ = sent(&rx);
+        let stone = crate::items::ItemStack::new("minecraft:stone", 3);
+        assert!(!hub.set_native_menu_items(1, window + 1, vec![Some(stone.clone())]));
+        assert!(sent(&rx).is_empty());
+        assert!(hub.set_native_menu_items(1, window, vec![None, Some(stone.clone())]));
+        assert_eq!(hub.guests[0].native_menu.len(), 9);
+        assert_eq!(hub.guests[0].native_menu[1], Some(stone));
+        let packets = sent(&rx);
+        assert!(
+            !packets
+                .iter()
+                .any(|p| matches!(p, play::Clientbound::OpenScreen(_))),
+            "not reopened"
+        );
+        assert!(packets.iter().any(|p| matches!(
+            p,
+            play::Clientbound::ContainerSetContent(c) if c.container == window && c.items.len() == 9 + 36
+        )));
     }
 
     /// [`hub_with_a_guest`] over a sync the test built.
@@ -8132,6 +8384,43 @@ mod tests {
             "an empty queue sends nothing"
         );
     }
+
+    /// A subcommand leaves the tree under its command, through the argument before it too;
+    /// a path the tree lacks changes nothing.
+    #[test]
+    fn a_hidden_subcommand_leaves_its_command_tree() {
+        let node = |kind, name: &str, children: Vec<i32>| play::CommandNode {
+            kind,
+            executable: true,
+            restricted: false,
+            children,
+            redirect: None,
+            name: name.into(),
+            parser: None,
+            suggestions: None,
+        };
+        // home -> admin, home -> list, home -> <name> -> admin
+        let mut packet = play::Commands {
+            nodes: vec![
+                node(0, "", vec![1]),
+                node(1, "home", vec![2, 3, 5]),
+                node(1, "admin", vec![]),
+                node(2, "name", vec![4]),
+                node(1, "admin", vec![]),
+                node(1, "list", vec![]),
+            ],
+            root: 0,
+        };
+        let before = packet.clone();
+        super::remove_literal_path(&mut packet, &["home", "nothing"]);
+        super::remove_literal_path(&mut packet, &["away", "admin"]);
+        assert_eq!(packet, before);
+        super::remove_literal_path(&mut packet, &["home", "admin"]);
+        assert_eq!(packet.nodes[1].children, [3, 5]);
+        assert_eq!(packet.nodes[3].children, Vec::<i32>::new());
+        assert_eq!(packet.nodes[0].children, [1]);
+    }
+
     /// `ServerGamePacketListenerImpl.handleAcceptTeleportPacket`: an accept whose id is
     /// the last teleport's (`awaitingTeleport`) while none is awaited any more
     /// (`awaitingPositionFromClient` is null) disconnects with

@@ -2740,6 +2740,12 @@ impl Game<'_> {
             .collect();
         for (player, name) in players {
             self.native_player_logged_out(player, &name);
+            self.native_player_disconnected(
+                player,
+                &name,
+                mod_api::QuitReason::ServerStopping,
+                "Server closed",
+            );
         }
     }
     /// The mobs from index `from` on are new in the world.
