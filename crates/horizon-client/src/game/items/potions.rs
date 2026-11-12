@@ -4152,19 +4152,19 @@ mod mob_health_boost_tests {
         });
     }
 
-    /// Existing-behavior preservation, not parity: a sulfur cube's size and a
-    /// tame wolf write their maximum straight into the cache, outside the
-    /// attribute model. Health Boost leaves those caches (and Health) as they
-    /// are; the attribute model's own refresh never replaces them.
+    /// Sulfur cube sizing writes an attribute base (`set_size` -> `set_base`),
+    /// so Health Boost adds to that base without healing, as in the command
+    /// parity corpus. Taming still owns the wolf's cached maximum outside the
+    /// model; that maximum and its current health remain unchanged.
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and a scratch HORIZON_HOME"]
-    fn health_boost_keeps_a_size_or_tame_maximum_owned_outside_the_attributes() {
+    fn health_boost_adds_to_size_attributes_and_keeps_the_tame_maximum() {
         with_game(|game| {
             // tag, UUID word, summon, amplifier
             let cases = [
-                // size 3: cache 12, the attribute model 20
+                // size 3: attribute base and cache 12; Health Boost II adds 8
                 ("h205_cube", 20, "sulfur_cube 4.5 200 8.5 {Size:2", 1),
-                // size 5: cache 20 = the model's 20 by coincidence
+                // size 5: attribute base and cache 20; Health Boost II adds 8
                 ("h205_cube_equal", 22, "sulfur_cube 6.5 200 8.5 {Size:4", 1),
                 // tame: cache 40, model 8; Health Boost II
                 ("h205_wolf", 21, "wolf 8.5 200 8.5 {", 1),
@@ -4196,7 +4196,7 @@ mod mob_health_boost_tests {
             assert_eq!(
                 horizon_client::mobs::finalize::max_health(&game.mobs[ids[1]]),
                 20.0,
-                "the coincidence: the model's value equals the size cache"
+                "sizing installs the cube's actual max-health attribute base"
             );
             for (tag, _, _, amp) in cases {
                 assert!(game.run_command(&format!(
@@ -4210,8 +4210,13 @@ mod mob_health_boost_tests {
             );
             assert_eq!(
                 state(game),
-                before,
-                "the size/tame cache and Health keep their owner"
+                [
+                    (20.0, before[0].1),
+                    (28.0, before[1].1),
+                    (40.0, before[2].1),
+                    (40.0, before[3].1),
+                ],
+                "size attributes gain the modifier without healing; tame caches keep their owner"
             );
             for (tag, _, _, _) in cases {
                 assert!(game.run_command(&format!(
