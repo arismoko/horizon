@@ -2450,7 +2450,9 @@ pub fn random_teleport(
         return false;
     }
     // Entity.teleportTo -> snapTo: the old position moves too, the motion stays.
+    let from = m.position;
     teleports::snap_to(m, Vec3::new(x, ny, z));
+    super::section_writes::record(m.id, from, m.position);
     m.ai.nav.stop();
     // `randomTeleport(..., true)` broadcasts entity event 46.
     events.push(MobEvent::EntityEvent {

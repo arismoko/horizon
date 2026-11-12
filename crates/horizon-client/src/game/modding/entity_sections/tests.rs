@@ -486,7 +486,7 @@ fn a_server_entity_that_leaves_is_forgotten() {
 
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-fn a_server_mobs_own_move_is_told_at_the_end_of_its_tick() {
+fn a_server_mobs_own_move_is_not_reconstructed_after_its_post() {
     use horizon_core::geometry::Vec3;
     observe(|calls| {
         with_game(|game| {
@@ -510,10 +510,9 @@ fn a_server_mobs_own_move_is_told_at_the_end_of_its_tick() {
                 .update(i, |m| m.position = Vec3::new(1.0, 70.0, 17.0));
             assert!(calls.lock().unwrap().is_empty());
             game.native_tick_post_batch(round);
-            assert_eq!(
-                calls.lock().unwrap().as_slice(),
-                &[(false, id, [0, 4, 0], [0, 4, 1], true)]
-            );
+            // A raw field edit is not a position-write boundary. The Post hook must not
+            // synthesize a crossing after the fact; real ticks record their writes before Post.
+            assert!(calls.lock().unwrap().is_empty());
         })
     });
 }

@@ -7654,10 +7654,19 @@ impl Game<'_> {
             let mut items = self.dropped.lift();
             items.retain_mut(|item| {
                 // The server decides entity collisions. This copy predicts block movement.
-                let (_, discarded) =
+                let (alive, discarded) =
                     self.tick_item_with_block_contacts(item, None, &[], true, &mut |splash| {
                         entered.push(splash);
                     });
+                if alive && !discarded {
+                    let from = item.previous;
+                    let to = item.position;
+                    self.entity_section_step(
+                        item.id,
+                        [from.x, from.y, from.z],
+                        [to.x, to.y, to.z],
+                    );
+                }
                 !discarded
             });
             self.put_back_dropped(items);

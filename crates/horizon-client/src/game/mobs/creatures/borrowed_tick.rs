@@ -110,12 +110,11 @@ impl Game<'_> {
         let uuid = state.uuid;
         let level_id = state.level_id;
         let round = state.round;
-        // Each mob's position updates in its tick, in order, filed once the game is free: its
-        // teleports (`snapTo`, kept while this record is open), then where its tick left it.
+        // Each mob's position updates in its tick, in order, filed and told before the next mob
+        // is examined. The small record remains separate from `Mob` because teleports update
+        // the same position field as ordinary movement.
         let mut section_moves = std::mem::take(&mut self.native_lifecycle.entity_sections.ticked);
-        let teleports = round
-            .sections()
-            .then(horizon_client::mobs::living::teleports::Record::open);
+        crate::mobs::section_writes::begin(round.sections());
         let mut dispatch_panic = None;
         let mut pushes = std::mem::take(state.pushes);
         let original_len = snapshot.len();
@@ -504,11 +503,31 @@ impl Game<'_> {
                     };
                     super::super::tick_profile::end_mob(level_id, sampled);
                     let m = &mut mobs[i];
-                    // Each teleport in its tick, then where the tick left it: one position update
-                    // each (`EntityInLevelCallback.onMove` for each).
-                    if let Some(teleports) = &teleports {
-                        teleports.take_into(&mut section_moves);
-                        section_moves.push((m.id, m.position));
+                    // Its `xo` (`previous`) is where its tick began, unless a teleport in the
+                    // tick (`snapTo`) moved it along: that teleport, then where the tick left
+                    // it, are two position updates (`EntityInLevelCallback.onMove` for each).
+                    if round.sections() && kept && !m.removed {
+                        let captured = crate::mobs::section_writes::drain_for(
+                            m.id,
+                            &mut section_moves,
+                        );
+                        if captured == 0 {
+                            // A position changed before the lifted tick (or a raw test fixture)
+                            // still has the old filed section as its first write.
+                            section_moves.push(
+                                crate::mobs::section_writes::PositionWrite::baseline(
+                                    m.id,
+                                    m.previous,
+                                ),
+                            );
+                        }
+                        section_moves.push(
+                            crate::mobs::section_writes::PositionWrite::captured(
+                                m.id,
+                                m.previous,
+                                m.position,
+                            ),
+                        );
                     }
                     if let Some(selection) = &selection
                         && selection.has_switched()
@@ -725,6 +744,7 @@ impl Game<'_> {
                 horizon_client::mobs::apply_mob_pushes(m, &mut pushes);
             }
         }
+        crate::mobs::section_writes::finish();
         self.entity_sections_ticked(&mut section_moves);
         self.native_lifecycle.entity_sections.ticked = section_moves;
         *state.pushes = pushes;

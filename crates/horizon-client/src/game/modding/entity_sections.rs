@@ -4,25 +4,27 @@
 //! entity is filed under with the one its new position is in, and moves it at once when they
 //! differ. Horizon's kinds keep their positions in their own fields, so the hook is told from
 //! the places that write them: [`EntitySections`] files each entity under its section, and each
-//! position-update boundary hands it the entity's new position.
+//! position-write boundary hands it the entity's new position immediately after the write.
 //!
 //! The boundaries: an entity joining (the server's `native_joins_flush`, a client's
 //! `AddEntity`) files it untold. Each entity's own tick ends at one (its `EntityTickEvent.Post`
 //! for the mobs, items, minecarts and boats, [`Family`] for the kinds that tick without one, a
 //! client's entities after its tick). A teleport, a piston push, a mod's position write, each
 //! move a server player sent and each packet that moves an entity on a client are one each.
-//! Every boundary that sees another section queues a crossing from the section the entity was
-//! filed under, so two moves told apart are two crossings, and a move out and back is two.
+//! Every boundary that sees another section records a crossing from the section the entity was
+//! filed under and tells it before the write returns, so two moves told apart are two crossings,
+//! and a move out and back is two.
 //!
-//! The queue is told as soon as the game is free of the entity lists ([`Game::tell_entity_sections`]):
-//! after the entity's tick, the packet or the teleport. What a listener moves is filed then and
-//! told at the next boundary, never from inside its own call.
+//! A listener runs synchronously after the new section is filed. What it moves or removes is
+//! deferred by the surrounding entity write and is never re-entered from its own call; listeners
+//! should queue such work themselves until the write completes.
 //!
 //! With no listener each boundary is one subscription check and nothing is filed. With one, a
-//! boundary is a hash lookup and nothing is allocated once the table and the queue have grown.
+//! boundary is a hash lookup and the reusable crossing record is told without a per-frame scan.
 
 use super::Game;
 use super::entity::Entity as _;
+use crate::mobs::section_writes::PositionWrite;
 use horizon_core::geometry::Vec3;
 use mod_api::{DimensionKey, EntityRef, WorldEpoch};
 use std::collections::HashMap;
@@ -70,14 +72,15 @@ pub(super) struct EntitySections {
     epoch: Option<WorldEpoch>,
     /// Each entity's level and section.
     filed: HashMap<u32, (DimensionKey, [i32; 3])>,
-    /// The crossings found since the last telling, in the order they happened.
+    /// Crossings raised while a listener is already running. Ordinary writes are told
+    /// immediately; a nested write waits until the current callback returns.
     queue: Vec<Crossing>,
     /// The batch being told; kept for its capacity.
     telling: Vec<Crossing>,
     /// A telling is under way: a listener's moves wait for the next one.
     busy: bool,
     /// The mobs' position updates during their family's tick; kept for its capacity.
-    pub(super) ticked: Vec<(u32, Vec3)>,
+    pub(super) ticked: Vec<PositionWrite>,
 }
 
 impl EntitySections {
@@ -184,7 +187,7 @@ impl Game<'_> {
         }
     }
 
-    /// Entity `id` was put from `from` (when known) at `to`; told at once when the game is free.
+    /// Entity `id` was put from `from` (when known) at `to`; tell it immediately after filing.
     pub(super) fn entity_section_moved(&mut self, id: u32, from: Option<[f64; 3]>, to: [f64; 3]) {
         if let Some(scope) = self.entity_section_scope() {
             self.native_lifecycle
@@ -208,13 +211,14 @@ impl Game<'_> {
         let mut from = moves
             .clone()
             .fold(end, |p, d| [p[0] - d[0], p[1] - d[1], p[2] - d[2]]);
-        let sections = &mut self.native_lifecycle.entity_sections;
         for d in moves {
             let to = [from[0] + d[0], from[1] + d[1], from[2] + d[2]];
-            sections.moved(scope, id, Some(from), to);
+            self.native_lifecycle
+                .entity_sections
+                .moved(scope, id, Some(from), to);
+            self.tell_entity_sections();
             from = to;
         }
-        self.tell_entity_sections();
     }
 
     /// Entity `id`'s position was written: it is wherever it is now (any kind, either side).
@@ -226,6 +230,7 @@ impl Game<'_> {
             self.native_lifecycle
                 .entity_sections
                 .moved(scope, id, None, at);
+            self.tell_entity_sections();
         }
     }
 
@@ -235,7 +240,7 @@ impl Game<'_> {
     }
 
     /// The end of a family's tick for the kinds without an `EntityTickEvent` round: each one's
-    /// own move, then the crossings are told.
+    /// own move, then its crossing is told before the next entity is examined.
     pub(super) fn entity_sections_stepped(&mut self, family: Family) {
         let Some(scope) = self.entity_section_scope() else {
             return;
@@ -286,22 +291,28 @@ impl Game<'_> {
         self.tell_entity_sections();
     }
 
-    /// What a family's ticks moved, in order (`moves`: each mob's teleports in its tick, then
-    /// where its tick left it): each filed as one position update, and `moves` emptied. Told
-    /// with the family's round.
-    pub(super) fn entity_sections_ticked(&mut self, moves: &mut Vec<(u32, Vec3)>) {
+    /// What a family's ticks moved, in order (`moves`: each mob's last teleport in its tick, or
+    /// where it began, then where its tick left it): each filed and told as its own position
+    /// update, and `moves` emptied.
+    pub(super) fn entity_sections_ticked(&mut self, moves: &mut Vec<PositionWrite>) {
         if let Some(scope) = self.entity_section_scope() {
-            let sections = &mut self.native_lifecycle.entity_sections;
-            for &(id, at) in moves.iter() {
-                sections.moved(scope, id, None, [at.x, at.y, at.z]);
+            for write in moves.iter() {
+                self.native_lifecycle
+                    .entity_sections
+                    .moved(
+                        scope,
+                        write.id,
+                        write.from.map(|from| [from.x, from.y, from.z]),
+                        [write.to.x, write.to.y, write.to.z],
+                    );
+                self.tell_entity_sections();
             }
         }
         moves.clear();
     }
 
-    /// Entity `id`'s position was written from `from` to `to` (`setPosRaw`) where nothing is told
-    /// yet: inside its family's tick (so one about to be removed is filed first), or a rider
-    /// carried along by its vehicle's teleport. Filed now, told at the boundary that follows.
+    /// Entity `id`'s position was written from `from` to `to` (`setPosRaw`) inside a family tick
+    /// or while a rider is carried by a vehicle teleport. File and tell it at this write.
     pub(super) fn entity_section_step(&mut self, id: u32, from: [f64; 3], to: [f64; 3]) {
         if id != 0
             && let Some(scope) = self.entity_section_scope()
@@ -309,6 +320,7 @@ impl Game<'_> {
             self.native_lifecycle
                 .entity_sections
                 .moved(scope, id, Some(from), to);
+            self.tell_entity_sections();
         }
     }
 
@@ -417,13 +429,12 @@ impl Game<'_> {
         }
         if let Some(id) = moved.filter(|&id| id > 0) {
             self.entity_section_moved_id(id as u32);
-            self.tell_entity_sections();
         }
         result
     }
 
-    /// Tells `entity_entering_section` each queued crossing, in order. Called from inside a
-    /// listener it does nothing: what the listener moved is told at the next boundary.
+    /// Tells `entity_entering_section` each crossing queued by a nested write, in order. Called
+    /// from inside a listener it does nothing: the outer write is still in progress.
     pub(super) fn tell_entity_sections(&mut self) {
         let Some(batch) = self.native_lifecycle.entity_sections.begin_telling() else {
             return;

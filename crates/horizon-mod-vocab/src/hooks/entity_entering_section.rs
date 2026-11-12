@@ -8,9 +8,9 @@ pub trait Hooks {
     /// section differs, so the entity is in another chunk column. `host` is the side that saw
     /// the move. Nothing can be cancelled: the entity is already in its new section.
     ///
-    /// Told on each side once for every section change, from the
-    /// section the entity was in before that move: two moves told apart are two events, and a
-    /// move out and one back are two. The moves: an entity's own move in its tick (on the
+    /// Told on each side synchronously after the position write and section filing, once for
+    /// every section change, from the section the entity was in before that move: two moves told
+    /// apart are two events, and a move out and one back are two. The moves: an entity's own move in its tick (on the
     /// server every kind in the level's lists, the fishing hooks and the dragon; on a client
     /// each entity it shows, where its interpolation puts it), each move a server player sent,
     /// a teleport (`/tp`, a mod's `teleport_to`), a piston or shulker push, and on a client
@@ -19,15 +19,12 @@ pub trait Hooks {
     /// move of its own, before the walk that follows it, each one when it teleports twice; one
     /// collision-resolved walk is one move. An entity joining a level, changing level, or a
     /// player respawning starts in its section untold, as vanilla adds it to its section
-    /// without this event; one that moves before its first tick is told. What a listener moves
-    /// is told at the next move, not from inside its own call.
+    /// without this event; one that moves before its first tick is told. A listener must defer
+    /// moving or removing the entity until the write completes, because the write is still in
+    /// progress while this hook runs.
     ///
-    /// Timing differs from vanilla for an entity's moves in its own tick (mobs, items and the
-    /// other kinds that tick as a family): they are told at the end of its family's tick, the
-    /// same crossings in the same order, later than the write, so a listener reads such an
-    /// entity where the round left it, not at the destination of the crossing it is told.
-    /// Teleports outside an entity's own tick, pushes, a player's moves and a client's packets are
-    /// told at once.
+    /// Mob and item ticks capture each committed position write in a small per-tick record rather
+    /// than reconstructing one move from the tick's start and end positions.
     #[notes = r#"## Entering a section
 
 `Hooks::entity_entering_section` (NeoForge's `EntityEvent.EnteringSection`) tells a mod each time an entity's
@@ -57,13 +54,11 @@ An entity joining a level, changing level or a player respawning starts in its s
 that moves before its first tick is told. With no listener the game files nothing, so the hook costs a
 subscription check per position update.
 
-When it is told: at once for a teleport (`/tp`, `teleport_to`, `random_teleport` from outside the tick, an enderman's
-or a shulker's teleport when hurt), a piston or shulker push, a server player's sent move and, on a client, a packet
-that places an entity. A listener's own moves are told at the next update, never from inside its call.
-
-Timing differs from vanilla for an entity's moves in its own tick (mobs, items and the other kinds that tick as a
-family): they are told at the end of its family's tick, the same crossings in the same order, later than the write, so
-a listener reads such an entity where the round left it, not at the destination of the crossing it is told."#]
+The hook runs at the position write: at once for a teleport (`/tp`, `teleport_to`, `random_teleport` from outside the tick,
+an enderman's or a shulker's teleport when hurt), a piston or shulker push, a server player's sent move and, on a client,
+a packet that places an entity. Mob and item ticks use a small per-tick write record so each committed position write is
+reported in order rather than being reconstructed as one end-of-tick move. A listener's own move is deferred until the
+current write returns, never re-entered from inside its call."#]
     #[hook(
         side = "both",
         contract = "listen",

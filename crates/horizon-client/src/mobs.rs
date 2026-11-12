@@ -85,6 +85,8 @@ pub mod random_textures;
 pub mod ravager;
 pub mod render;
 pub mod riders;
+#[doc(hidden)]
+pub mod section_writes;
 pub mod seen_grid;
 pub mod sheep_dye;
 pub mod shulker;
