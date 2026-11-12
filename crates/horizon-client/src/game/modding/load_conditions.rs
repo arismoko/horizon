@@ -65,7 +65,14 @@ impl Game<'_> {
         &self,
         inventory: &horizon_mod_package::enabled::EnabledMods,
     ) -> Result<horizon_world::conditions::LoadConditions, String> {
-        conditions_for_mods(&self.mods, inventory)
+        // `ICondition.IContext`: the world's feature flags and every registry's
+        // entries. Tags join later, once this load has bound them.
+        let registries = &self.ui.registries.by_registry;
+        Ok(conditions_for_mods(&self.mods, inventory)?
+            .with_features(self.level.enabled_features.iter().map(String::as_str))
+            .with_registries(registries.iter().map(|(registry, entries)| {
+                (registry.as_str(), entries.ids.iter().map(String::as_str))
+            })))
     }
 }
 

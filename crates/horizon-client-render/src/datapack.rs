@@ -918,9 +918,9 @@ impl DataStore {
         }
         if let Some(conditions) = conditions {
             s.predicates
-                .retain(|id, value| conditions.allows_id(value, "predicate", id));
+                .retain(|id, value| conditions.admit_id(value, "predicate", id));
             s.item_modifiers
-                .retain(|id, value| conditions.allows_id(value, "item_modifier", id));
+                .retain(|id, value| conditions.admit_id(value, "item_modifier", id));
         }
         s
     }

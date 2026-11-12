@@ -25,7 +25,10 @@ lifetime and are not conditional data files.
 server-mod IDs, including active code-only native and WebAssembly mods, plus
 `minecraft` always. Client-only, disabled and refused packages are absent;
 resource namespaces are not mod IDs. Other supported forms are `neoforge:true`,
-`neoforge:not` (`value`), and `neoforge:and` / `neoforge:or` (`values`). A namespace
+`neoforge:false`, `neoforge:not` (`value`), `neoforge:and` / `neoforge:or`
+(`values`), `neoforge:feature_flags_enabled`, `neoforge:registered` and
+`neoforge:tag_empty` ([the reference](../../reference/neoforge-data.md) lists
+their fields and which readers see tags). A namespace
 is owned only when a loaded mod registered at least one condition in it. Unknown
 names there refuse reload, naming the file, condition and mod, at any depth in
 these trees. **Diverges from upstream:** refusing reload for an unknown name in

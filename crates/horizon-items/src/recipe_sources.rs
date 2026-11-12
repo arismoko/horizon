@@ -74,7 +74,7 @@ pub fn sources(root: &Path, overlay: &PackOverlay) -> Result<Vec<(String, Value)
             }
         };
         // A file whose load conditions don't hold is silently absent.
-        if !conditions.allows_id(&v, "recipe", &qualified(&name)) {
+        if !conditions.admit_id(&mut v, "recipe", &qualified(&name)) {
             continue;
         }
         // The data's recipe filters, over the final set.

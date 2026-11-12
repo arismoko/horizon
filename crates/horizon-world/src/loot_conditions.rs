@@ -9,5 +9,5 @@ pub(super) fn overlay_map(overlay: &PackOverlay, kind: &str, out: &mut HashMap<S
         };
         out.insert(id.to_owned(), v);
     }
-    out.retain(|id, value| overlay.conditions.allows_id(value, kind, id));
+    out.retain(|id, value| overlay.conditions.admit_id(value, kind, id));
 }

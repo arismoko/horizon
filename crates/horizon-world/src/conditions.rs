@@ -5,6 +5,7 @@
 //! sense to load when that mod's data is in the root.
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 /// Enabled package IDs captured by the engine for one owning data load.
 /// Readers share this immutable view; they never recover IDs from namespaces.
@@ -14,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct LoadConditions {
     mods: Vec<String>,
     registered: Option<RegisteredLookup>,
+    context: Context,
     diagnostics: Diagnostics,
 }
 
@@ -23,6 +25,11 @@ impl LoadConditions {
         Self {
             mods: Vec::new(),
             registered: None,
+            context: Context {
+                features: None,
+                registries: None,
+                tags: None,
+            },
             diagnostics: Diagnostics::new(),
         }
     }
@@ -40,6 +47,7 @@ impl LoadConditions {
         Self {
             mods,
             registered: None,
+            context: Context::default(),
             diagnostics: Diagnostics::default(),
         }
     }
@@ -73,6 +81,81 @@ impl LoadConditions {
                 .mods
                 .binary_search_by(|loaded| loaded.as_str().cmp(id))
                 .is_ok()
+    }
+
+    /// `IContext.enabledFeatures`: the world's enabled feature flag ids, which
+    /// `neoforge:feature_flags_enabled` reads. Empty is vanilla's default set.
+    pub fn with_features<'a>(mut self, flags: impl IntoIterator<Item = &'a str>) -> Self {
+        let mut flags: BTreeSet<String> = flags.into_iter().map(qualified).collect();
+        if flags.is_empty() {
+            flags.insert("minecraft:vanilla".to_owned());
+        }
+        self.context.features = Some(Arc::new(flags));
+        self
+    }
+
+    /// `IContext.registries`: every registry's entry ids (built-in and the
+    /// packs' datapack registries), which `neoforge:registered` reads.
+    pub fn with_registries<'a, I>(
+        mut self,
+        registries: impl IntoIterator<Item = (&'a str, I)>,
+    ) -> Self
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        self.context.registries = Some(Arc::new(Names::new(registries)));
+        self
+    }
+
+    /// `IContext.getTag`: the tags this load has bound, as each registry's
+    /// tags holding at least one entry. Readers that run before the tags load
+    /// never get this view, so `neoforge:tag_empty` there omits the file
+    /// instead of answering from an older load's tags.
+    pub fn with_tags<'a, I>(&self, non_empty: impl IntoIterator<Item = (&'a str, I)>) -> Self
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        let mut view = self.clone();
+        view.context.tags = Some(Arc::new(Names::new(non_empty)));
+        view
+    }
+
+    /// `ConditionalOps.decodeListWithElementConditions`: in every list of an
+    /// admitted file, drop an element whose own `neoforge:conditions` fail and
+    /// strip the key from one whose conditions hold, before the file decodes.
+    pub fn filter_elements(&self, file: &mut Value, path: &str) {
+        match file {
+            Value::Array(elements) => elements.retain_mut(|element| {
+                if element.get("neoforge:conditions").is_some() {
+                    if !self.allows_file(element, path) {
+                        return false;
+                    }
+                    if let Some(fields) = element.as_object_mut() {
+                        fields.remove("neoforge:conditions");
+                    }
+                }
+                self.filter_elements(element, path);
+                true
+            }),
+            Value::Object(fields) => {
+                for (key, value) in fields.iter_mut() {
+                    if key != "neoforge:conditions" {
+                        self.filter_elements(value, path);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// `allows_id`, then `filter_elements` on an admitted file.
+    pub fn admit_id(&self, file: &mut Value, kind: &str, id: &str) -> bool {
+        if !self.allows_id(file, kind, id) {
+            return false;
+        }
+        let (namespace, path) = id.split_once(':').unwrap_or(("minecraft", id));
+        self.filter_elements(file, &format!("data/{namespace}/{kind}/{path}.json"));
+        true
     }
 
     /// Attach the engine's immutable registration table to this candidate load.
@@ -138,30 +221,43 @@ impl LoadConditions {
         self.allows_context(file, || path.to_owned())
     }
 
-    fn allows_context(&self, file: &Value, context: impl FnOnce() -> String) -> bool {
+    fn allows_context(&self, file: &Value, path: impl FnOnce() -> String) -> bool {
         let Some(payload) = file.get("neoforge:conditions") else {
             return true;
         };
         let loaded = |id: &str| self.mod_loaded(id);
+        let context = &self.context;
         let Some(registered) = &self.registered else {
             // The ordinary path uses only borrowed nodes and a boolean. No path,
             // argument copy, name set, cache key or diagnostics lock is needed.
             let mut unknown = false;
-            let answer = evaluate(file, &loaded, &|_, _| None, &BTreeMap::new(), &mut |_| {
-                unknown = true
-            })
+            let answer = evaluate(
+                file,
+                &loaded,
+                &|_, _| None,
+                &BTreeMap::new(),
+                context,
+                &mut |_| unknown = true,
+            )
             .expect("empty lookup cannot fail");
             if !unknown {
                 return answer;
             }
             let mut names = BTreeSet::new();
-            let _ = evaluate(file, &loaded, &|_, _| None, &BTreeMap::new(), &mut |name| {
-                names.insert(name.to_owned());
-            });
-            self.report_unknown(&context(), names);
+            let _ = evaluate(
+                file,
+                &loaded,
+                &|_, _| None,
+                &BTreeMap::new(),
+                context,
+                &mut |name| {
+                    names.insert(name.to_owned());
+                },
+            );
+            self.report_unknown(&path(), names);
             return answer;
         };
-        let path = context();
+        let path = path();
         let path = path
             .rfind("/data/")
             .map_or(path.as_str(), |index| &path[index + 1..]);
@@ -174,7 +270,7 @@ impl LoadConditions {
             .lock()
             .unwrap()
             .cache
-            .entry((path.to_owned(), payload.to_string()))
+            .entry((path.to_owned(), payload.to_string(), context.key()))
             .or_default()
             .clone();
         *cell.get_or_init(|| {
@@ -184,6 +280,7 @@ impl LoadConditions {
                 &loaded,
                 &*registered.0.lookup,
                 &registered.0.owned,
+                context,
                 &mut |name| {
                     unknown.insert(name.to_owned());
                 },
@@ -255,7 +352,9 @@ impl LoadConditions {
 
 #[derive(Debug, Default)]
 struct CandidateDiagnostics {
-    cache: BTreeMap<(String, String), std::sync::Arc<std::sync::OnceLock<bool>>>,
+    // Keyed by the context too: a retained candidate's answer under one load's
+    // features, registries or tags must not serve the next load.
+    cache: BTreeMap<(String, String, u64), std::sync::Arc<std::sync::OnceLock<bool>>>,
     foreign_errors: BTreeMap<String, String>,
     errors: Vec<String>,
 }
@@ -280,6 +379,80 @@ impl PartialEq for Diagnostics {
 impl Eq for Diagnostics {}
 impl std::hash::Hash for Diagnostics {
     fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
+}
+
+/// `ICondition.IContext`: what `feature_flags_enabled`, `registered` and
+/// `tag_empty` read. A part the owning load didn't provide leaves its
+/// condition unsupported: the file is omitted with one error, never answered stale.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+struct Context {
+    features: Option<Arc<BTreeSet<String>>>,
+    registries: Option<Arc<Names>>,
+    tags: Option<Arc<Names>>,
+}
+impl Context {
+    /// The cache key of answers given under this context.
+    fn key(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::hash::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+/// Registry id -> entry ids, compared and hashed by a fingerprint taken once,
+/// so cache identity never rehashes every entry.
+#[derive(Debug)]
+struct Names {
+    by_registry: BTreeMap<String, BTreeSet<String>>,
+    fingerprint: u64,
+}
+impl Names {
+    fn new<'a, I>(registries: impl IntoIterator<Item = (&'a str, I)>) -> Self
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        use std::hash::{Hash, Hasher};
+        let mut by_registry: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (registry, ids) in registries {
+            by_registry
+                .entry(qualified(registry))
+                .or_default()
+                .extend(ids.into_iter().map(qualified));
+        }
+        let mut hasher = std::hash::DefaultHasher::new();
+        by_registry.hash(&mut hasher);
+        Self {
+            by_registry,
+            fingerprint: hasher.finish(),
+        }
+    }
+    fn contains(&self, registry: &str, id: &str) -> bool {
+        self.by_registry
+            .get(registry)
+            .is_some_and(|ids| ids.contains(id))
+    }
+}
+impl PartialEq for Names {
+    fn eq(&self, other: &Self) -> bool {
+        self.fingerprint == other.fingerprint
+    }
+}
+impl Eq for Names {}
+impl std::hash::Hash for Names {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.fingerprint.hash(state);
+    }
+}
+
+/// An identifier with vanilla's default namespace (`Identifier.parse`).
+fn qualified(id: &str) -> String {
+    let id = id.strip_prefix('#').unwrap_or(id);
+    if id.contains(':') {
+        id.to_owned()
+    } else {
+        format!("minecraft:{id}")
+    }
 }
 
 /// A lower-layer lookup over a raw condition node, including `type`.
@@ -328,7 +501,7 @@ pub fn conditions_hold_with_lookup(
     lookup: &ConditionLookup,
     owned: &BTreeMap<String, String>,
 ) -> Result<bool, String> {
-    evaluate(v, loaded, lookup, owned, &mut |_| {})
+    evaluate(v, loaded, lookup, owned, &Context::default(), &mut |_| {})
 }
 
 fn evaluate(
@@ -336,6 +509,7 @@ fn evaluate(
     loaded: &ModLoaded,
     lookup: &ConditionLookup,
     owned: &BTreeMap<String, String>,
+    context: &Context,
     unknown: &mut dyn FnMut(&str),
 ) -> Result<bool, String> {
     fn hold(
@@ -343,19 +517,57 @@ fn evaluate(
         loaded: &ModLoaded,
         lookup: &ConditionLookup,
         owned: &BTreeMap<String, String>,
+        context: &Context,
         unknown: &mut dyn FnMut(&str),
     ) -> Result<Option<bool>, String> {
+        // Both NeoForge codecs default `registry` to `minecraft:item`.
+        let registry = || qualified(c["registry"].as_str().unwrap_or("minecraft:item"));
         Ok(match c["type"].as_str() {
             Some("neoforge:mod_loaded") => Some(c["modid"].as_str().is_some_and(loaded)),
             Some("neoforge:true") => Some(true),
-            Some("neoforge:not") => hold(&c["value"], loaded, lookup, owned, unknown)?.map(|v| !v),
+            Some("neoforge:false") => Some(false),
+            Some("neoforge:feature_flags_enabled") => match &context.features {
+                Some(enabled) => Some(c["flags"].as_array().into_iter().flatten().all(|flag| {
+                    flag.as_str()
+                        .is_some_and(|flag| enabled.contains(&qualified(flag)))
+                })),
+                None => {
+                    unknown("neoforge:feature_flags_enabled (no feature flags in this load)");
+                    None
+                }
+            },
+            Some("neoforge:registered") => match &context.registries {
+                Some(registries) => Some(
+                    c["value"]
+                        .as_str()
+                        .is_some_and(|id| registries.contains(&registry(), &qualified(id))),
+                ),
+                None => {
+                    unknown("neoforge:registered (no registries in this load)");
+                    None
+                }
+            },
+            Some("neoforge:tag_empty") => match &context.tags {
+                Some(tags) => Some(
+                    !c["tag"]
+                        .as_str()
+                        .is_some_and(|tag| tags.contains(&registry(), &qualified(tag))),
+                ),
+                None => {
+                    unknown("neoforge:tag_empty (tags not loaded yet)");
+                    None
+                }
+            },
+            Some("neoforge:not") => {
+                hold(&c["value"], loaded, lookup, owned, context, unknown)?.map(|v| !v)
+            }
             Some(kind @ ("neoforge:and" | "neoforge:or")) => {
                 // Visit every child: an unknown node invalidates the whole file,
                 // including after a sibling already determines its boolean result.
                 let mut answer = kind == "neoforge:and";
                 let mut known = true;
                 for child in c["values"].as_array().into_iter().flatten() {
-                    match hold(child, loaded, lookup, owned, unknown)? {
+                    match hold(child, loaded, lookup, owned, context, unknown)? {
                         Some(value) => {
                             if kind == "neoforge:and" {
                                 answer &= value;
@@ -388,7 +600,7 @@ fn evaluate(
     }
     let mut allowed = true;
     for condition in v["neoforge:conditions"].as_array().into_iter().flatten() {
-        allowed &= hold(condition, loaded, lookup, owned, unknown)?.unwrap_or(false);
+        allowed &= hold(condition, loaded, lookup, owned, context, unknown)?.unwrap_or(false);
     }
     Ok(allowed)
 }
@@ -513,6 +725,99 @@ mod tests {
             ]
         });
         assert!(!conditions_hold(&nested_or, &loaded));
+    }
+
+    fn file(condition: Value) -> Value {
+        json!({"neoforge:conditions": [condition]})
+    }
+
+    #[test]
+    fn false_omits_the_file_and_not_false_loads_it() {
+        let conditions = LoadConditions::vanilla();
+        assert!(!conditions.allows(&file(json!({"type": "neoforge:false"}))));
+        assert!(conditions.allows(&file(
+            json!({"type": "neoforge:not", "value": {"type": "neoforge:false"}})
+        )));
+        assert!(
+            conditions.allows(&file(json!({"type": "neoforge:or", "values": [
+                {"type": "neoforge:false"}, {"type": "neoforge:true"}
+            ]})))
+        );
+    }
+
+    #[test]
+    fn registered_reads_the_loads_registries_and_defaults_to_items() {
+        let stone = file(json!({"type": "neoforge:registered", "value": "minecraft:stone"}));
+        let missing = file(
+            json!({"type": "neoforge:registered", "registry": "minecraft:item", "value": "test:missing"}),
+        );
+        let biome = file(
+            json!({"type": "neoforge:registered", "registry": "worldgen/biome", "value": "plains"}),
+        );
+        // No registries in this load: unsupported, so the file is left out.
+        assert!(!LoadConditions::vanilla().allows(&stone));
+        let conditions = LoadConditions::new([]).with_registries([
+            ("minecraft:item", vec!["minecraft:stone"]),
+            ("minecraft:worldgen/biome", vec!["minecraft:plains"]),
+        ]);
+        assert!(conditions.allows(&stone));
+        assert!(!conditions.allows(&missing));
+        assert!(conditions.allows(&biome));
+    }
+
+    #[test]
+    fn feature_flags_enabled_needs_every_flag() {
+        let both = file(json!({"type": "neoforge:feature_flags_enabled",
+            "flags": ["minecraft:vanilla", "minecraft:trade_rebalance"]}));
+        let vanilla = file(json!({"type": "neoforge:feature_flags_enabled", "flags": ["vanilla"]}));
+        assert!(!LoadConditions::vanilla().allows(&vanilla));
+        let default = LoadConditions::new([]).with_features([]);
+        assert!(default.allows(&vanilla) && !default.allows(&both));
+        let experiment = LoadConditions::new([])
+            .with_features(["minecraft:vanilla", "minecraft:trade_rebalance"]);
+        assert!(experiment.allows(&both));
+    }
+
+    #[test]
+    fn tag_empty_reads_only_the_tags_this_load_bound() {
+        let tin = file(json!({"type": "neoforge:tag_empty", "tag": "c:ingots/tin"}));
+        let before_tags = LoadConditions::new([]);
+        assert!(!before_tags.allows(&tin), "no tag view yet: left out");
+        let empty = before_tags.with_tags([("minecraft:item", vec!["minecraft:planks"])]);
+        assert!(empty.allows(&tin));
+        let with_tin = before_tags.with_tags([("minecraft:item", vec!["c:ingots/tin"])]);
+        assert!(!with_tin.allows(&tin));
+        assert_ne!(empty, with_tin, "the tag view is part of cache identity");
+    }
+
+    #[test]
+    fn a_retained_candidate_does_not_reuse_an_answer_across_tag_views() {
+        let tin = file(json!({"type": "neoforge:tag_empty", "tag": "c:ingots/tin"}));
+        let candidate = LoadConditions::new([]).with_lookup(BTreeMap::new(), |_, _| None);
+        let empty = candidate.with_tags([("minecraft:item", Vec::<&str>::new())]);
+        let with_tin = candidate.with_tags([("minecraft:item", vec!["c:ingots/tin"])]);
+        assert!(empty.allows_file(&tin, "data/a/recipe/b.json"));
+        assert!(!with_tin.allows_file(&tin, "data/a/recipe/b.json"));
+    }
+
+    #[test]
+    fn element_conditions_drop_failing_elements_and_strip_passing_keys() {
+        let mut recipe = json!({
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": [
+                "minecraft:stick",
+                {"item": "create:zinc", "neoforge:conditions": [
+                    {"type": "neoforge:mod_loaded", "modid": "create"}]},
+                {"item": "ic2:tin", "neoforge:conditions": [
+                    {"type": "neoforge:mod_loaded", "modid": "ic2"}]}
+            ],
+            "result": {"id": "minecraft:stone"}
+        });
+        LoadConditions::new(["create"]).filter_elements(&mut recipe, "data/a/recipe/b.json");
+        assert_eq!(
+            recipe["ingredients"],
+            json!(["minecraft:stick", {"item": "create:zinc"}])
+        );
     }
 
     #[test]

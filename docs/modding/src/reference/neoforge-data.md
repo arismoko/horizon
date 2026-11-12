@@ -28,9 +28,21 @@ Content-root composition follows the same tag rule, including block/biome tag
 bundles. The damage registry remains frozen after world open; reloads reevaluate
 its tags. Generated item default components retain their prototype lifetime.
 
-Supported forms are `neoforge:mod_loaded`, `neoforge:true`, `neoforge:not`
-(`value`), and `neoforge:and` / `neoforge:or` (`values`), inside a
-`neoforge:conditions` array. Every condition must hold. An unknown kind in a
+Supported forms are `neoforge:mod_loaded`, `neoforge:true`, `neoforge:false`,
+`neoforge:not` (`value`), `neoforge:and` / `neoforge:or` (`values`),
+`neoforge:feature_flags_enabled` (`flags`: every flag the world enables),
+`neoforge:registered` (`registry`, default `minecraft:item`, and `value`: the
+entry exists in that built-in or pack registry) and `neoforge:tag_empty`
+(`registry`, default `minecraft:item`, and `tag`), inside a
+`neoforge:conditions` array. Every condition must hold. `tag_empty` reads the
+tags this reload bound (block, item and fluid tags), so it holds only for
+recipes and the readers after them; earlier readers, tag files among them, omit
+the file with one error rather than answer from the previous reload's tags.
+Recipes, loot tables, item modifiers, predicates, enchantments, jukebox songs
+and instruments also honour element conditions
+(`ConditionalOps.decodeListWithElementConditions`): an element object in any
+list of the file that carries its own `neoforge:conditions` is dropped when they
+fail, and loads without the key when they hold. An unknown kind in a
 namespace where a loaded mod registered conditions refuses reload, naming the
 file, condition and owner. Other unknown kinds omit the file with one named
 error-level log entry, including beneath `not` or `or`. Files without the array load normally.
