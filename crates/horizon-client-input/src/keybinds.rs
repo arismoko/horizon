@@ -322,8 +322,8 @@ pub fn learn_layout(event: &winit::event::KeyEvent) {
 /// `layout` is the event's key without modifiers. A letter or digit names its
 /// own key, so AZERTY's key at QWERTY's W gives `key.keyboard.z`; a named key
 /// (Enter, arrows, Shift) keeps its place on every layout, so it gets the
-/// physical key's name. `None` for a dead key, a composed or other character,
-/// and a physical key vanilla doesn't name.
+/// physical key's name. `None` for any other text (a dead key's accent mark, a
+/// composed character, a symbol) and for a physical key vanilla doesn't name.
 pub fn layout_key_name(
     physical: winit::keyboard::PhysicalKey,
     layout: &winit::keyboard::Key,
