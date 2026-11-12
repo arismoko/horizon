@@ -13493,7 +13493,8 @@ mod breeding_heart_tests {
     #[test]
     #[ignore = "needs prepared resources (HORIZON_TEST_RESOURCES)"]
     fn a_bred_turtle_posts_no_heart_burst_but_a_bred_frog_does() {
-        let mut game = crate::game::native_machines::tests::server_game();
+        let mut resources = None;
+        let mut game = crate::game::game_tests::tests::server_game(&mut resources);
         game.audio.capture = Some(Vec::new());
         for (kind_id, hearts) in [("minecraft:turtle", 0), ("minecraft:frog", 1)] {
             let kind = game.res.mob_types().get(kind_id).unwrap().clone();

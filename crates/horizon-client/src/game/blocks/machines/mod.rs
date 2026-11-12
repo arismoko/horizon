@@ -2636,6 +2636,7 @@ mod capacity_tests {
             world.block_entities.insert((x, 64, 0), entity);
         }
         let c = Containers {
+            mobs: &[],
             world: &world,
             behaviours: &behaviours,
             items: &items,
@@ -3091,7 +3092,8 @@ mod pot_hopper_insertion_tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and scratch homes/cwd"]
     fn actual_hopper_pulls_from_the_saved_pot_slot() {
-        let mut game = server_game();
+        let mut resources = None;
+        let mut game = server_game(&mut resources);
         game.build_registries();
         game.set_allow_commands(true);
         game.block_ticks

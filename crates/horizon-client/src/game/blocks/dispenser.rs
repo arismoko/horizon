@@ -2608,7 +2608,8 @@ mod tests {
             });
             let key = ("test".into(), "ambient_lifetime".into());
             let before = index.lock().unwrap().snapshot(&key);
-            game.mob_placed(71).unwrap();
+            game.mob_placed(71, &ItemStack::new("minecraft:axolotl_bucket", 1))
+                .unwrap();
             assert!(game.mobs[1].extra.from_bucket);
             assert_eq!(
                 game.mobs.iter().map(|m| m.id).collect::<Vec<_>>(),
@@ -2732,8 +2733,10 @@ mod tests {
 
     /// A server with no player of its own, an open hub and one guest (conn 2)
     /// standing at (8.5, 200, 8.5) on a stone floor.
-    fn server_with_guest() -> Game<'static> {
-        let mut game = super::super::native_machines::tests::server_game();
+    fn server_with_guest(
+        resources: &mut Option<std::sync::Arc<crate::game::Resources>>,
+    ) -> Game<'_> {
+        let mut game = super::super::game_tests::tests::server_game(resources);
         game.build_registries();
         game.set_allow_commands(true);
         game.block_ticks
@@ -2779,7 +2782,6 @@ mod tests {
                 latency: Arc::new(AtomicI32::new(0)),
                 address: "127.0.0.1:25565".parse().unwrap(),
                 expected: false,
-                configured: Default::default(),
             },
             2,
             [8.5, 200.0, 8.5],
@@ -2804,7 +2806,8 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_dispenser_equips_a_server_player_in_front() {
-        let mut game = server_with_guest();
+        let mut resources = None;
+        let mut game = server_with_guest(&mut resources);
         assert!(game.player.is_none(), "the server thread has no player");
         // The guest's feet are in block (8, 200, 8): the dispenser at y 201
         // facing down targets the block under it.
@@ -2830,11 +2833,13 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_dispenser_skips_a_spectator_and_a_dead_player() {
-        let mut game = server_with_guest();
+        let mut resources = None;
+        let mut game = server_with_guest(&mut resources);
         for spectate in [true, false] {
-            let g = &mut game.lan.as_mut().unwrap().hub.guests[0];
-            g.game_mode = if spectate { 3 } else { 0 };
-            g.dead = !spectate;
+            game.lan.as_mut().unwrap().hub.guests.update(0, |g| {
+                g.game_mode = if spectate { 3 } else { 0 };
+                g.dead = !spectate;
+            });
             let mut stack = ItemStack::new("minecraft:iron_helmet", 1);
             assert!(!game.dispense_equipment((8, 201, 8), Direction::Down, &mut stack));
             assert_eq!(stack.count, 1);
@@ -2848,7 +2853,8 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_dispenser_skips_an_armor_stand_whose_slot_is_locked() {
         use horizon_client::entities::ArmorStand;
-        let mut game = server_with_guest();
+        let mut resources = None;
+        let mut game = server_with_guest(&mut resources);
         game.lan.as_mut().unwrap().hub.guests.clear();
         let at = horizon_core::geometry::Vec3::new(8.5, 200.0, 8.5);
         let mut stands = [(1, 1u32 << 4), (2, 0)].map(|(id, locked)| {
@@ -2857,7 +2863,8 @@ mod tests {
             s
         });
         stands[0].show_arms = true;
-        game.armor_stands = stands.to_vec().into();
+        game.armor_stands.clear();
+        game.armor_stands.extend(stands.iter().cloned());
         // The head-locked first stand is skipped for a helmet; the second wears it.
         let mut stack = ItemStack::new("minecraft:iron_helmet", 1);
         assert!(game.dispense_equipment((8, 201, 8), Direction::Down, &mut stack));
@@ -2888,9 +2895,11 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_dispenser_equips_a_player_whose_client_is_still_loading() {
-        let mut game = server_with_guest();
-        let g = &mut game.lan.as_mut().unwrap().hub.guests[0];
-        (g.loaded, g.loading) = (false, true);
+        let mut resources = None;
+        let mut game = server_with_guest(&mut resources);
+        game.lan.as_mut().unwrap().hub.guests.update(0, |g| {
+            (g.loaded, g.loading) = (false, true);
+        });
         let (done, left) = dispense_at_guest(&mut game, "minecraft:iron_helmet");
         assert_eq!((done, left), (true, 1));
         let guest = game.lan.as_ref().unwrap().hub.guest(2).unwrap();
@@ -2905,9 +2914,16 @@ mod tests {
     fn a_player_and_a_stand_in_front_go_in_join_order() {
         // (stand id, guest id) -> who wears the helmet: the lower id joined first.
         for (stand_id, guest_id, guest_first) in [(7, 5, true), (3, 5, false)] {
-            let mut game = server_with_guest();
-            game.lan.as_mut().unwrap().hub.guests[0].entity_id = guest_id;
-            game.armor_stands = vec![stand_at(stand_id, 8.5, 8.5)].into();
+            let mut resources = None;
+            let mut game = server_with_guest(&mut resources);
+            game.lan
+                .as_mut()
+                .unwrap()
+                .hub
+                .guests
+                .update(0, |g| g.entity_id = guest_id);
+            game.armor_stands.clear();
+            game.armor_stands.extend(vec![stand_at(stand_id, 8.5, 8.5)]);
             let (done, _) = dispense_at_guest(&mut game, "minecraft:iron_helmet");
             assert!(done);
             let guest = game.lan.as_ref().unwrap().hub.guest(2).unwrap();
@@ -2926,10 +2942,13 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_dispenser_walks_entity_sections_before_ids() {
-        let mut game = server_with_guest();
+        let mut resources = None;
+        let mut game = server_with_guest(&mut resources);
         game.lan.as_mut().unwrap().hub.guests.clear();
         // Stand boxes are 0.5 wide: x 16.2 spans 15.95..16.45.
-        game.armor_stands = vec![stand_at(1, 16.2, 8.5), stand_at(2, 15.5, 8.5)].into();
+        game.armor_stands.clear();
+        game.armor_stands
+            .extend(vec![stand_at(1, 16.2, 8.5), stand_at(2, 15.5, 8.5)]);
         let mut stack = ItemStack::new("minecraft:iron_helmet", 1);
         assert!(game.dispense_equipment((15, 201, 8), Direction::Down, &mut stack));
         assert!(game.armor_stands[0].equipment[5].is_none());

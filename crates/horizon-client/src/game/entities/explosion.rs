@@ -2313,7 +2313,7 @@ mod explosion_part_tests;
 
 #[cfg(test)]
 mod shulker_lock_drop_tests {
-    use super::super::native_machines::tests::server_game;
+    use super::super::game_tests::tests::server_game;
     use super::*;
     use horizon_client::{containers::BlockEntity, save};
     use horizon_core::nbt::Tag;
@@ -2321,7 +2321,8 @@ mod shulker_lock_drop_tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and scratch homes/cwd"]
     fn destruction_captures_the_external_shulker_lock_before_removal() {
-        let mut game = server_game();
+        let mut resources = None;
+        let mut game = server_game(&mut resources);
         game.build_registries();
         game.set_allow_commands(true);
         game.block_ticks

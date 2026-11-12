@@ -897,12 +897,14 @@ mod map_limit_tests {
 
 #[cfg(test)]
 mod game_event_tests {
-    use super::super::native_machines::tests::server_game;
+    use super::super::game_tests::tests::server_game;
     use super::*;
     use horizon_client::mobs::Who;
 
     fn frame(id: u32, pos: [i32; 3], item: Option<ItemStack>) -> ItemFrame {
         ItemFrame {
+            attachment_lifetime: Default::default(),
+            join: Default::default(),
             id,
             pos,
             facing: 3,
@@ -936,8 +938,10 @@ mod game_event_tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn putting_and_rotating_a_frame_item_posts_block_change() {
-        let mut game = server_game();
-        game.item_frames = vec![frame(1, [0, 64, 1], None)];
+        let mut resources = None;
+        let mut game = server_game(&mut resources);
+        game.item_frames.clear();
+        game.item_frames.extend(vec![frame(1, [0, 64, 1], None)]);
         let center = [0.5, 64.5, 1.03125];
         *game.held_mut() = Some(ItemStack::new("minecraft:stick", 3));
 
@@ -959,12 +963,14 @@ mod game_event_tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn taking_a_frame_item_out_posts_block_change_from_the_player() {
-        let mut game = server_game();
-        game.item_frames = vec![frame(
+        let mut resources = None;
+        let mut game = server_game(&mut resources);
+        game.item_frames.clear();
+        game.item_frames.extend(vec![frame(
             1,
             [0, 64, 1],
             Some(ItemStack::new("minecraft:stick", 1)),
-        )];
+        )]);
         let center = [0.5, 64.5, 1.03125];
         // A player looking straight at the frame's centre from two blocks away
         // (eye height 1.62 above the feet).
@@ -999,11 +1005,13 @@ mod game_event_tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_frame_that_falls_posts_block_change_without_source() {
-        let mut game = server_game();
+        let mut resources = None;
+        let mut game = server_game(&mut resources);
         let mut f = frame(1, [0, 64, 1], None);
         // BlockAttachedEntity.tick checks every 100 ticks.
         f.check_interval = 99;
-        game.item_frames = vec![f];
+        game.item_frames.clear();
+        game.item_frames.extend(vec![f]);
         let center = [0.5, 64.5, 1.03125];
 
         reset();

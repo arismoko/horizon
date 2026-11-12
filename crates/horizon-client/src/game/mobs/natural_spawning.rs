@@ -2690,7 +2690,8 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn raids_tick_before_natural_and_custom_spawning() {
-        let mut game = crate::game::native_machines::tests::server_game();
+        let mut resources = None;
+        let mut game = crate::game::game_tests::tests::server_game(&mut resources);
         horizon_client::spans::record_here(true);
         let _ = horizon_client::spans::take_raw();
         game.tick_spawners();

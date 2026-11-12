@@ -588,7 +588,8 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_player_opens_and_closes_a_chest_with_its_own_hinge_sound() {
-        let mut game = super::super::native_machines::tests::server_game();
+        let mut resources = None;
+        let mut game = super::super::game_tests::tests::server_game(&mut resources);
         for (block, sound) in [
             ("minecraft:chest", "minecraft:block.chest"),
             (

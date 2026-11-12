@@ -207,7 +207,8 @@ fn the_saved_hurt_by_mob_follows_the_live_record_only() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_loaded_hurt_by_mob_is_read_back_and_ends_after_100_ticks() {
     use horizon_client::mobs::Who;
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     let echo = index(&mut game, ECHO);
     let a_index = index(&mut game, A);
     let a = game.mobs[a_index].id;
@@ -235,7 +236,8 @@ fn a_loaded_hurt_by_mob_is_read_back_and_ends_after_100_ticks() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_loaded_hurt_by_mob_of_a_dead_attacker_ends_at_the_next_tick() {
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     step(&mut game, 1);
     let echo = index(&mut game, ECHO);
     assert!(game.mobs[echo].ai.last_hurt_by.is_some(), "resolved");
@@ -249,7 +251,8 @@ fn a_loaded_hurt_by_mob_of_a_dead_attacker_ends_at_the_next_tick() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_saved_hurt_timestamp_uses_java_integer_wrapping() {
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     let echo = index(&mut game, ECHO);
     game.mobs[echo].ai.last_hurt_by_time = (game.mobs[echo].age as i32).wrapping_sub(i32::MIN);
     step(&mut game, 1);
@@ -261,7 +264,8 @@ fn a_saved_hurt_timestamp_uses_java_integer_wrapping() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_loaded_hurt_by_mob_naming_no_entity_stays_until_it_arrives() {
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     assert!(game.run_command(
         "summon pig 8.5 100 12.5 {NoAI:1b,PersistenceRequired:1b,UUID:[I;24724,0,0,5],last_hurt_by_mob:[I;24724,0,0,99],ticks_since_last_hurt_by_mob:7}"
     ));
@@ -293,7 +297,8 @@ fn a_loaded_hurt_by_mob_naming_the_mob_itself_resolves_and_ends_after_100_ticks(
     // `EntityReference.getEntity` looks the UUID up in the level and does not
     // exclude the holder, so `baseTick` ends the record like any other.
     const SELF: &str = "00006094-0000-0000-0000-000000000006";
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     assert!(game.run_command(
         "summon pig 8.5 100 12.5 {NoAI:1b,PersistenceRequired:1b,UUID:[I;24724,0,0,6],last_hurt_by_mob:[I;24724,0,0,6],ticks_since_last_hurt_by_mob:3}"
     ));
