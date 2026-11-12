@@ -179,6 +179,7 @@ class PrReadyTests(unittest.TestCase):
             os.environ.pop("CARGO_BUILD_JOBS", None)
             popen.return_value.__enter__.return_value.stdout = []
             popen.return_value.__enter__.return_value.wait.return_value = 0
+            popen.return_value.__enter__.return_value.returncode = 0
             pr_ready.run_windows([step], False)
         self.assertEqual(popen.call_args.args[0],
                          ["cargo", "test", "--manifest-path", "a/Cargo.toml", "--locked"])
