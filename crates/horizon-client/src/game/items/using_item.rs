@@ -109,7 +109,7 @@ impl Game<'_> {
         self.tick_used_item_effects(slot, ticks, &stack, &info);
         // Re-read the counter after onUseTick: a Part can extend or shorten
         // the use through LivingRef. Never release a bow on this path.
-        if item_use::ticks_left(self.use_duration, ticks.saturating_add(1)) == 0
+        if item_use::ticks_left(self.use_duration, ticks.saturating_add(1)) <= 0
             && self.using == Some((slot, ticks.saturating_add(1)))
             && &*stack.item != "minecraft:crossbow"
         {

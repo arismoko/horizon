@@ -320,9 +320,8 @@ mod tests {
     use mod_api::client::first_person::Hand;
     use mod_api::{
         EntityRef, Flow, Hooks, HostSide, Identifier, ItemPart, LivingEntityUseItemFinishEvent,
-        LivingEntityUseItemStartEvent,
-        LivingEntityUseItemStopEvent, LivingEntityUseItemTickEvent, LivingRef, ModEntry, Mods,
-        OnUseTickEvent, Registrar, ReleaseUsingEvent, WorldEpoch,
+        LivingEntityUseItemStartEvent, LivingEntityUseItemStopEvent, LivingEntityUseItemTickEvent,
+        LivingRef, ModEntry, Mods, OnUseTickEvent, Registrar, ReleaseUsingEvent, WorldEpoch,
     };
     use std::sync::{Arc, Mutex};
 
@@ -484,7 +483,12 @@ mod tests {
     fn tick_cancel_and_nonpositive_durations_finish_without_releasing() {
         with_uses(|game, uses, player| {
             game.creative = false;
-            for (cancel, duration) in [(true, None), (false, Some(0)), (false, Some(-7)), (false, Some(1))] {
+            for (cancel, duration) in [
+                (true, None),
+                (false, Some(0)),
+                (false, Some(-7)),
+                (false, Some(1)),
+            ] {
                 for item in ["minecraft:apple", "minecraft:potion", "minecraft:bow"] {
                     *uses.lock().unwrap() = Uses {
                         cancel_tick: cancel,
@@ -505,7 +509,10 @@ mod tests {
                     assert_eq!(game.using, None, "{item} {cancel} {duration:?}");
                     assert_eq!(game.creatures.projectiles.len(), projectiles);
                     let expected_count = if item == "minecraft:bow" { 2 } else { 1 };
-                    assert_eq!(game.inventory[game.selected].as_ref().unwrap().count, expected_count);
+                    assert_eq!(
+                        game.inventory[game.selected].as_ref().unwrap().count,
+                        expected_count
+                    );
                     let uses = uses.lock().unwrap();
                     assert_eq!(uses.finishes, 1);
                     assert!(uses.stops.is_empty());
@@ -513,7 +520,10 @@ mod tests {
                     if item == "minecraft:apple" {
                         assert_eq!(uses.effects, usize::from(duration == Some(1) && !cancel));
                     } else if item == "minecraft:potion" {
-                        assert!(game.potions.effects.get("speed").is_some(), "potion effect was not applied");
+                        assert!(
+                            game.potions.effects.get("speed").is_some(),
+                            "potion effect was not applied"
+                        );
                     }
                 }
             }
@@ -531,7 +541,9 @@ mod tests {
                 (false, Some(-7), -8, -9),
             ] {
                 *uses.lock().unwrap() = Uses {
-                    cancel_tick: cancel, tick_duration: duration, ..Uses::default()
+                    cancel_tick: cancel,
+                    tick_duration: duration,
+                    ..Uses::default()
                 };
                 game.inventory[game.selected] = Some(ItemStack::new("minecraft:crossbow", 1));
                 assert!(game.living_start_using_item(player, Hand::Main));
@@ -586,7 +598,10 @@ mod tests {
             game.tick_using();
             assert_eq!(game.using, None);
             assert_eq!(uses.lock().unwrap().finishes, 1);
-            *uses.lock().unwrap() = Uses { cancel_stop: true, ..Uses::default() };
+            *uses.lock().unwrap() = Uses {
+                cancel_stop: true,
+                ..Uses::default()
+            };
             assert!(game.living_start_using_item(player, Hand::Main));
             assert!(game.living_release_using_item(player));
             assert_eq!(game.using, None);
@@ -606,7 +621,10 @@ mod tests {
             for _ in 0..10 {
                 game.tick_using();
             }
-            *uses.lock().unwrap() = Uses { tick_duration: Some(5), ..Uses::default() };
+            *uses.lock().unwrap() = Uses {
+                tick_duration: Some(5),
+                ..Uses::default()
+            };
             game.tick_using();
             uses.lock().unwrap().tick_duration = None;
             assert_eq!(game.living_item_use_remaining(player), Some(4));
@@ -629,7 +647,7 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn an_item_part_can_extend_the_last_tick_or_shorten_a_use() {
         with_uses(|game, uses, player| {
-            for (start, replacement) in [(1, 3), (20, 1)] {
+            for (start, replacement) in [(1, 3), (20, 1), (20, 0), (20, -7)] {
                 *uses.lock().unwrap() = Uses {
                     start_duration: Some(start),
                     remaining_on_use_tick: Some((player, replacement)),
@@ -648,7 +666,7 @@ mod tests {
                 }
                 assert_eq!(game.using, None);
                 let uses = uses.lock().unwrap();
-                assert_eq!(uses.effects, replacement as usize);
+                assert_eq!(uses.effects, replacement.max(1) as usize);
                 assert_eq!(uses.finishes, 1);
                 assert!(uses.stops.is_empty());
                 assert!(uses.releases.is_empty());
