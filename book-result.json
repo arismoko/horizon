@@ -1,0 +1,46 @@
+{
+  "pages": [
+    {
+      "path": "concepts/capabilities/answer-limits.md",
+      "changed": true,
+      "summary": "Clarified subtransaction rollback, error propagation and handler journaling obligations; removed the blanket safety guarantee.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "concepts/capabilities/block-energy.md",
+      "changed": true,
+      "summary": "Reorganized lookup, providers and stock handlers into a concise reference; removed the nontransactional metering sample and clarified comparator limits.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "concepts/capabilities/block-fluids.md",
+      "changed": true,
+      "summary": "Separated resources, cauldron limits, item containers and player interaction; retained quantization and immediate-effect warnings.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "concepts/capabilities/entity-automation.md",
+      "changed": true,
+      "summary": "Separated provider registration from automation selection and transfer rules; clarified the distinction from ENTITY_ITEMS.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "concepts/capabilities/entity-energy-and-fluids.md",
+      "changed": true,
+      "summary": "Tabulated handler types and NeoForge counterparts and clarified directional contexts and transactional transfers.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "concepts/capabilities/entity-items.md",
+      "changed": true,
+      "summary": "Added living-entity equipment coverage and slot tables; marked the uncompiled trade example rust,ignore and retained transaction effect rules.",
+      "unverified": [],
+      "code_wrong": []
+    }
+  ]
+}

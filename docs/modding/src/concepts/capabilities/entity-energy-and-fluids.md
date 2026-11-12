@@ -1,9 +1,19 @@
 # Entity energy and fluids
 
-`entity.capability(host, &ENTITY_ENERGY, side)` and `entity.capability(host, &ENTITY_FLUIDS, side)` reach a mod's
-entity energy and fluid handlers (NeoForge 26.3's `Capabilities.Energy.ENTITY` and `Capabilities.Fluid.ENTITY`), where
-`side` is the `Option<Direction>` of the entity the lookup reaches it from, `None` for no particular side. Vanilla
-answers neither; register a provider with `r.entity_capability(&ENTITY_ENERGY, "mymod:robot", |host, robot, side| …)`,
-which is given that side and may answer differently for each. An entity capability's context is its key's second type:
-`()` for `ENTITY_ITEMS`, `Option<Direction>` for these two and for `ENTITY_AUTOMATION`. The existing `move_energy` and `move_resources` transfer
-between these and block or item handlers inside a transaction.
+Look up an entity's handlers with `entity.capability(host, &ENTITY_ENERGY, side)`
+or `entity.capability(host, &ENTITY_FLUIDS, side)`. Register providers with
+`r.entity_capability(&ENTITY_ENERGY, "mymod:robot", |host, robot, side| …)`
+and the equivalent call for `ENTITY_FLUIDS`. Neither key has a game-provided handler.
+
+| Key | Handler | NeoForge counterpart |
+| --- | --- | --- |
+| `ENTITY_ENERGY` | `EnergyHandler` | `Capabilities.Energy.ENTITY` |
+| `ENTITY_FLUIDS` | `ResourceHandler<FluidResource>` | `Capabilities.Fluid.ENTITY` |
+
+The context is `Option<Direction>`: `Some(direction)` identifies the side reached
+by the lookup, and `None` requests no particular side. Your provider receives this
+context and can return a different handler for each side. `ENTITY_AUTOMATION`
+uses the same context; `ENTITY_ITEMS` uses `()`.
+
+Use `move_energy` or `move_resources` inside a transaction to transfer between
+entity, block and item handlers.
