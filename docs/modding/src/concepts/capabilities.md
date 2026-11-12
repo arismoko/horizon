@@ -1,40 +1,82 @@
 # Capability providers
 
-A capability is answered by providers, registered by block entity type as NeoForge's
-`RegisterCapabilitiesEvent` registers them: obtain `pipe` with the declaration builder or
-`r.block_entity_type_key("mymod:pipe")`, then `r.block_entity_capability(&ITEMS, &pipe, |host, at|
-Some(Box::new(PipeItems)))` gives a handler for the block entity and side `at` (a `BlockSide`), or none to
-leave it to the next provider. A provider may answer for a vanilla block entity type too, using its lookup key.
+Use capability providers to expose a block's storage to pipes, machines and hoppers. Register a
+provider for a block entity type, including a vanilla type, or for a block with or without a block entity.
+For example, during registration, obtain `pipe` from your declaration builder or
+`r.block_entity_type_key("mymod:pipe")`, then supply your handler:
 
-A block with no block entity answers by block instead (`RegisterCapabilitiesEvent.registerBlock`): a trash can
-that voids items, a multiblock's port block that hands a pipe on to its controller. `r.block_capability(&ITEMS,
-&bin, |host, at, state, entity| Some(Box::new(Voids)))`, with `bin` from `r.block_key("mymod:void_bin")`, is given
-the position and side, the block state there and the block entity, if one stands there (an `Option<BlockEntityRef>`);
-`r.block_capability_before_game` goes ahead of the game. A block that has a block entity may be answered both ways.
+```rust,ignore
+r.block_entity_capability(&ITEMS, &pipe, |_, at| {
+    Some(Box::new(PipeItems(at)))
+});
+```
 
-Providers add up: `level.capability(host, &ITEMS, pos, side)` (`Level.getCapability`, on a `LevelRef`) asks those
-registered `_before_game` first, then the game's own (a block entity's slots by side, by the rules hoppers follow,
-and a mod block entity's `block_entity_container`), then the others; within each group the block's providers and
-the block entity type's are one list in registration order, neither kind first, and the first to answer wins. A
-provider that answers none passes the lookup on; handlers are never merged. One capability may have at most 65,535 providers for one block or one block entity type: the next
-registration is refused at load, naming the mod, the capability and the target. Against the game's own and against
-another mod's provider at the same priority, don't count on a place: a provider that must be asked first registers
-`_before_game`. It returns a `Capability`, the handler and who answered. A handler holds
-no borrow: each call is given the host, so it may call a
-neighbour's capability, and it keeps its state in the block entity's slots, compound or attachments. A provider
-is given the block entity and side, so the handler it makes knows where its contents live. Item handlers are
-NeoForge 26.3's `ResourceHandler<ItemResource>`: indices from 0 (`size`), what each holds (`resource`, an
-`ItemResource`: an item and its components, without a count) and how much (`amount`), how much of a resource an
-index holds when it holds that (`capacity`, none where it may not go), and `insert` and `extract`, which take a
-`&Transaction` and answer how much moved. There is no `simulate`: a write happens in a transaction
-(`host.transaction(|host, tx| …)`, below), and to try one, abort it. `move_resources(host, &from, &to, filter, max,
-tx)` (NeoForge's `ResourceHandlerUtil.move`) moves what `filter` accepts, up to `max`, index by index out of `from`
-into wherever `to` takes it, each move all or nothing: what `to` won't take stays put. It answers how much moved, or
-`Overanswered` (below). Hoppers use a mod's handler
-where one is registered, by block entity type or by block, each move in a transaction of its own. A mod's own capability is a
-`CapabilityKey::new("mymod:chemicals")`, answered only by parts.
+Here, `PipeItems` is your implementation of `ResourceHandler<ItemResource>`. Its `BlockSide` context
+contains the level, position and requested side. Return `None` to let another provider answer.
+This registration corresponds to NeoForge's `RegisterCapabilitiesEvent`.
 
-A `Capability` may be held for the tick: look a neighbour's up once per tick and reuse it for
-every move that tick, as pipes and machines do. Ask again on the next tick, since the block
-entity behind it may be gone by then. For a wasm mod each lookup crosses the sandbox (about
-2.5 µs, see [Building a mod to `mod.wasm`](../how-to/wasm-mods.md)), so holding it matters more there.
+## Register and look up providers
+
+| Operation | Behaviour |
+|---|---|
+| `r.block_entity_capability(&ITEMS, &kind, provider)` | The provider receives `&mut dyn ServerHost` and `BlockSide`. |
+| `r.block_capability(&ITEMS, &block, provider)` | The provider also receives the `BlockState` and `Option<BlockEntityRef>` at the position. Obtain `block` with `r.block_key("mymod:void_bin")`. |
+| `r.block_entity_capability_before_game(...)` / `r.block_capability_before_game(...)` | Register a provider ahead of the game's provider. |
+| `level.capability(host, &ITEMS, pos, side)` | Look up a handler on a `LevelRef`; `side` is `Option<Direction>`, with `None` meaning no particular side. The result is `Option<Capability<dyn ResourceHandler<ItemResource>>>`. |
+
+A block provider can expose a trash can that voids items or forward a multiblock port to its controller.
+A block with a block entity can have both kinds of provider.
+
+Lookup uses this order:
+
+1. Providers registered with `_before_game`.
+2. The game's provider: for `ITEMS`, container slots exposed by side using the rules hoppers follow,
+   including a mod block entity's `block_entity_container`.
+3. Other registered providers.
+
+Within each mod-provider group, block and block entity type providers form one list in registration
+order. The first `Some` wins; handlers are not merged. Use `_before_game` when you need priority over
+the game's handler, but do not assume precedence over another mod at the same priority.
+Disabled mods' providers are skipped. A stale level handle or a level that is not in place returns
+`None` without asking providers.
+
+One capability supports at most 65,535 providers per block or block entity type. The next registration
+is refused at load with a message naming the mod, capability and target and stating that the target
+already has the most providers it may have.
+
+Declare your own capability with `CapabilityKey::new("mymod:chemicals")`. Only registered providers
+answer it; it has no game-provided handler. A `Capability` wraps the handler and identifies its
+provider through `owner()`.
+
+## Read and move items
+
+`ITEMS` handlers implement `ResourceHandler<ItemResource>`, corresponding to NeoForge 26.3's
+`ResourceHandler<ItemResource>`. An `ItemResource` identifies an item and its components without a count.
+Each method receives the host; the handler holds no borrow of the game.
+
+| Method | Meaning |
+|---|---|
+| `size` | Number of indices, numbered from 0. |
+| `resource` | Resource at an index, or `None`. |
+| `amount` | Amount held at an index. |
+| `capacity` | `u32` limit for a specified resource, independent of the index's current contents. This is neither free space nor permission to insert. |
+| `is_valid` | Whether the resource is allowed at an index. The default checks for nonzero capacity; override it for separate acceptance rules and enforce those rules in `insert`. |
+| `insert` / `extract` | Insert or extract up to the requested amount at an index, using a `&Transaction`; return the amount moved. Insertion can refuse even with nonzero capacity. |
+
+Keep handler state in transaction-managed storage such as block entity slots, saved compounds or
+attachments. Your handler can look up and call a neighbour's capability through the host.
+
+Use `move_resources(host, &from, &to, filter, max, tx)` to transfer matching resources, up to `max`,
+from source indices in order into any destination index that accepts them. Each transfer uses a nested
+transaction: rejected items stay in the source, and partial acceptance is retried with the accepted
+amount. The result is `Result<u32, Overanswered>`. If a handler reports more than requested, its transfer
+is undone and `Overanswered` identifies the provider in `owner`. Propagate the error from your
+`host.transaction` closure to abort the whole operation.
+
+There is no `simulate` parameter. To try an operation without keeping its changes, run it in a
+transaction and return `Err` to abort. See [Transactions](transactions.md).
+Hoppers use registered block and block entity type handlers, with each move in its own transaction.
+
+Look up a neighbour once per tick and reuse the `Capability` for that tick's moves. Look it up again
+on the next tick because the block entity may have been removed. Reusing a lookup also avoids repeated
+sandbox crossings for wasm mods.
