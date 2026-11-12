@@ -1,0 +1,1 @@
+{"pages":[{"path":"concepts/parts.md","changed":true,"summary":"Expanded the part types to include fluids and entities, documented native entity registration and part requirements, and clarified comparator behavior. Removed the issue-as-spec link and marked the self-contained inline Rust example as ignored.","unverified":[],"code_wrong":[]}]}
