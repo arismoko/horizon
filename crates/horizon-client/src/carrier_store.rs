@@ -424,7 +424,7 @@ impl Store {
             }
             (OpKind::Disassemble, false) => {
                 return Err(StoreIoError(format!(
-                    "carrier {uuid:032x} at generation {generation} is not held:                      a stale handle refuses"
+                    "carrier {uuid:032x} at generation {generation} is not held: a stale handle refuses"
                 )));
             }
             _ => {}
