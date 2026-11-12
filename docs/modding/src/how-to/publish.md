@@ -1,21 +1,19 @@
 # Publishing your mod
 
-## Publish your mod
-
 Horizon's registry lists mods, modpacks, resource packs and shader packs made for Horizon. Players find them at
 [playhorizon.dev/mods](https://playhorizon.dev/mods) and in the launcher. Each file is checked before installation.
 
-1. Run `cargo horizon-mod check` on the file and put its source in a public repository under a suitable licence.
+1. Run `cargo horizon-mod check target/horizon-mod/<id>.hmod` on your package and put its source in a public repository under a suitable licence.
 2. Open [playhorizon.dev/mods/submit](https://playhorizon.dev/mods/submit), sign in with GitHub, and submit the page and version file. The service opens a pull request for review.
 3. Submit each new version's file through the same form. A qualifying numeric-ID owner's version-only update can merge after checks; page changes wait for review. Published versions are pinned and never replaced: submit a new version instead.
 
-Legacy entries already following a repository continue to use their existing release route; new entries cannot follow repositories. The full rules are in [the registry index](../reference/registry-index.md).
+Submit explicit version files; the registry refuses entries that follow repositories. The full rules are in [the registry index](../reference/registry-index.md).
 
 Once it is published, its page and its card in the launcher show its rating: players signed in with GitHub on its
 page give it 1 to 5 stars, one rating per account, which they can change. Its owners can't rate it, and nobody sees
 who rated.
 
-### Integrity and signing
+## Integrity and signing
 
 - **Integrity.** Every download is checked against the SHA-256 the index lists before the file reaches the game
   folder.
