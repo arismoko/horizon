@@ -14,9 +14,6 @@ use std::{
 };
 use syn::{ImplItem, Item, Type};
 
-#[cfg(test)]
-mod target_tests;
-
 /// One point, as `points.json` lists it.
 #[derive(Debug, serde::Serialize)]
 pub struct GamePoint {
