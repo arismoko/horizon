@@ -1288,6 +1288,9 @@ pub trait LevelsBackendMut {
     /// Set the biome of the 4x4x4 cell holding `pos` to `biome` (`minecraft:plains`), as
     /// `/fillbiome` does for one cell. False for a refused write, a stale or parked handle, a
     /// client, an unknown biome and an unchanged cell.
+    /// Tentative reads see the new cells inside a transaction. Abort restores the cells
+    /// without publishing. Saving, remeshing and resending wait for the outermost commit,
+    /// once per column. Outside a transaction they run immediately.
     #[access(WorldOnly)]
     fn level_set_biome(&mut self, level: LevelRef, pos: [i32; 3], biome: &str) -> bool;
 }

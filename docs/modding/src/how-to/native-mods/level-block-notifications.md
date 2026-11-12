@@ -22,3 +22,11 @@ block, including its `minecraft:tool` component rules and default speed. It does
 not include Efficiency, player attributes, effects, fluid/airborne penalties or
 block hardness. Bare hands return `1.0`; an unavailable position returns `None`.
 This read takes an immutable host and does not modify blocks or tools.
+
+## Biome writes in transactions
+
+`LevelRef::set_biome` changes a 4x4x4 cell. Reads inside the transaction see the tentative
+cells. An abort restores them without publishing changes. Saving, remeshing and resending
+wait for the outermost commit, once per column. An inner commit does not publish; its cells
+still roll back if the outer transaction aborts. Outside a transaction these effects run
+immediately.

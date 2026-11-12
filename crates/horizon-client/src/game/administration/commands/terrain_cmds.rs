@@ -330,6 +330,9 @@ impl Game<'_> {
     /// (`minecraft:plains`), as `/fillbiome` does for one cell: the chunk is saved, re-meshed and
     /// resent. False for an unknown biome, an unloaded or out-of-height position, or a cell that
     /// already has it.
+    /// Tentative reads see the new cells inside a transaction. Abort restores the cells
+    /// without publishing. Saving, remeshing and resending wait for the outermost commit,
+    /// once per column. Outside a transaction they run immediately.
     pub(in crate::game) fn set_biome_at(&mut self, pos: [i32; 3], biome: &str) -> bool {
         let Some(target) = world_biomes!(self)
             .list
