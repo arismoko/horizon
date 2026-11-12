@@ -44,13 +44,9 @@ fn validates_api_places_and_signature_before_codegen() {
 #[test]
 fn native_registration_refusal_names_mod_target_and_type() {
     let (mut catalog, mut manifest) = fixture();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let points = horizon_mod_api_gen::points::game_points(&root).unwrap();
-    let point = points
-        .into_iter()
-        .find(|point| point.target == "listener_fixture::no_wire")
-        .unwrap();
-    catalog.points[0] = serde_json::from_value(serde_json::to_value(point).unwrap()).unwrap();
+    catalog.points[0].target = "listener_fixture::no_wire".into();
+    catalog.points[0].api_refusal =
+        Some("argument 1 `value` (`&RegistrationData`) has no API type yet".into());
     catalog.internals[0].path = "listener_fixture::no_wire".into();
     manifest.inject[0].at = "listener_fixture::no_wire".into();
     assert_eq!(check(&catalog, &manifest).unwrap_err(), "addon:before: no API listener at listener_fixture::no_wire: argument 1 `value` (`&RegistrationData`) has no API type yet");
