@@ -298,12 +298,17 @@ impl LightTables {
     pub fn holds_dynamic(&self, chunk: &Chunk) -> bool {
         self.dynamic && chunk.sections.iter().any(|s| self.section_holds_dynamic(s))
     }
-    /// The cells of `chunk` holding a `dynamic_light` state, with their
-    /// [`Chunk::dynamic_emission`] key and world position: those the game asks.
-    pub fn dynamic_cells(&self, chunk: &Chunk) -> Vec<(u32, [i32; 3], u32)> {
+    /// The cells of `chunk`'s sections that `wanted` takes (by section index) holding a
+    /// `dynamic_light` state, with their [`Chunk::dynamic_emission`] key and world position:
+    /// those the game asks.
+    pub fn dynamic_cells(
+        &self,
+        chunk: &Chunk,
+        wanted: impl Fn(usize) -> bool,
+    ) -> Vec<(u32, [i32; 3], u32)> {
         let mut cells = Vec::new();
         for (s, section) in chunk.sections.iter().enumerate() {
-            if !self.section_holds_dynamic(section) {
+            if !wanted(s) || !self.section_holds_dynamic(section) {
                 continue;
             }
             for i in 0..4096 {
@@ -1614,7 +1619,11 @@ pub(crate) mod tests {
         assert!(!self::tables().holds_dynamic(&chunk), "no state is dynamic");
         let cell = chunk.dynamic_cell(3, -60, 7).unwrap();
         assert_eq!(cell, 4 << 8 | 7 << 4 | 3, "section 0, its y 4");
-        assert_eq!(tables.dynamic_cells(&chunk), [(cell, [19, -60, -9], LAMP)]);
+        assert_eq!(
+            tables.dynamic_cells(&chunk, |_| true),
+            [(cell, [19, -60, -9], LAMP)]
+        );
+        assert!(tables.dynamic_cells(&chunk, |s| s != 0).is_empty());
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! `light_emission`, the light a `dynamic_light` block emits by where it is
 //! (`IBlockExtension.getLightEmission`): asked of its parts on the thread that owns the
-//! level as a chunk holding one comes in and as an edit sets one, the answers kept in the
+//! level as a chunk holding one comes in, as an edit or `level_check_light` reaches one, and
+//! on a client as the server's light update reaches its section, the answers kept in the
 //! chunk (`Chunk::dynamic_emission`) for the light engine, which never asks on its own.
 use super::*;
 use horizon_client::fast_hash::FxHashMap;
@@ -25,7 +26,7 @@ impl Game<'_> {
             return;
         };
         let pending = chunk.dynamic_pending;
-        let cells = self.pack.context.light.dynamic_cells(chunk);
+        let cells = self.pack.context.light.dynamic_cells(chunk, |_| true);
         if cells.is_empty() && !pending {
             return;
         }
@@ -50,10 +51,12 @@ impl Game<'_> {
             }
         }
     }
-    /// The cells this update's edits left in a `dynamic_light` state, asked before the
-    /// light engine relights them (`Streaming::relight_edits`). `Chunk::set` already
-    /// dropped the answers of the states they replaced.
+    /// The cells this update's edits and light checks left in a `dynamic_light` state,
+    /// asked before the light engine relights them (`Streaming::relight_edits`).
+    /// `Chunk::set` already dropped the answers of the states they replaced.
     pub(super) fn ask_edited_light_emission(&mut self) {
+        // The checks queued so far are asked now: a later one at the same cell queues again.
+        self.world.light_checks.clear();
         if self.world.light_edits.is_empty() || !self.pack.context.light.any_dynamic() {
             return;
         }
@@ -65,21 +68,54 @@ impl Game<'_> {
                 continue;
             }
             let emission = self.ask_light_emission(dimension, x, y, z, state);
-            let Some(chunk) = self.world.chunks.get_mut(&(x >> 4, z >> 4)) else {
-                continue;
-            };
-            let Some(cell) = chunk.dynamic_cell(x, y, z) else {
-                continue;
-            };
-            if chunk.dynamic_emission.get(&cell).copied() == emission {
-                continue;
+            let key = (x >> 4, z >> 4);
+            if let Some(cell) = self
+                .world
+                .chunks
+                .get(&key)
+                .and_then(|c| c.dynamic_cell(x, y, z))
+            {
+                self.store_light_emission(key, cell, emission);
             }
-            let answers = &mut Arc::make_mut(chunk).dynamic_emission;
-            match emission {
-                Some(emission) => answers.insert(cell, emission),
-                None => answers.remove(&cell),
-            };
         }
+    }
+    /// A server's light update changed the light of `sections` of the column `key`: their
+    /// `dynamic_light` cells asked again, each once, so this copy's own relights take what the
+    /// server's took (the server asked before it relit them). A Horizon addition: the contract
+    /// reads emission again on no light packet, but a part's answer may read data the client
+    /// receives later.
+    pub(super) fn ask_updated_light_emission(&mut self, key: (i32, i32), sections: &[usize]) {
+        if sections.is_empty() || !self.pack.context.light.any_dynamic() {
+            return;
+        }
+        let Some(chunk) = self.world.chunks.get(&key) else {
+            return;
+        };
+        let cells = self
+            .pack
+            .context
+            .light
+            .dynamic_cells(chunk, |s| sections.contains(&s));
+        let dimension = self.dim.level();
+        for (cell, [x, y, z], state) in cells {
+            let emission = self.ask_light_emission(dimension, x, y, z, state);
+            self.store_light_emission(key, cell, emission);
+        }
+    }
+    /// One cell's answer stored in its chunk (`None` drops the one it had); the chunk is
+    /// copied only when the answer changes.
+    fn store_light_emission(&mut self, key: (i32, i32), cell: u32, emission: Option<u8>) {
+        let Some(chunk) = self.world.chunks.get_mut(&key) else {
+            return;
+        };
+        if chunk.dynamic_emission.get(&cell).copied() == emission {
+            return;
+        }
+        let answers = &mut Arc::make_mut(chunk).dynamic_emission;
+        match emission {
+            Some(emission) => answers.insert(cell, emission),
+            None => answers.remove(&cell),
+        };
     }
     /// One cell's answer, clamped to a light level as `LightTables` clamps a state's.
     fn ask_light_emission(

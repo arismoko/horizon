@@ -80,6 +80,10 @@ pub struct World {
     /// Edits on lit chunks (position, old state, new state), relit
     /// incrementally by streaming.
     pub light_edits: Vec<((i32, i32, i32), u32, u32)>,
+    /// Where each light check queued since the last ask sits in `light_edits`, so a repeated
+    /// check at the same position queues nothing, as `LevelLightEngine.checkBlock` queues into a
+    /// set. An index that no longer holds its position (drained, rolled back) is ignored.
+    pub light_checks: crate::fast_hash::FxHashMap<(i32, i32, i32), usize>,
     /// Saved entities of chunks that just loaded, spawned by the game.
     pub loaded_entities: Vec<((i32, i32), Vec<horizon_core::nbt::Tag>)>,
     /// Chunks loaded since the level's last pass, their entity sections not
@@ -245,6 +249,7 @@ impl World {
             dirty_sections: Default::default(),
             dirty_light: Default::default(),
             light_edits: Vec::new(),
+            light_checks: Default::default(),
             loaded_entities: Vec::new(),
             entities_pending: FxHashSet::default(),
             loaded_chunks: Vec::new(),

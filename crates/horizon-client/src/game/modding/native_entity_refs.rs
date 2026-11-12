@@ -616,7 +616,7 @@ impl Game<'_> {
         }
         Ok(world.loaded(pos[0], pos[2]) && world.shape.contains_y(pos[1]))
     }
-    fn native_level_write_allowed(&self, level: LevelRef, pos: [i32; 3]) -> bool {
+    pub(super) fn native_level_write_allowed(&self, level: LevelRef, pos: [i32; 3]) -> bool {
         self.is_logical_server()
             && self.native_lifecycle.epoch() == Some(level.epoch())
             && self.world.loaded(pos[0], pos[2])
