@@ -13,7 +13,7 @@ pub trait Hooks {
     /// spectator) and before the menu that was open closes. Set `cancel` and
     /// nothing opens: the open menu stays as it was and the click is spent.
     /// The player's state is swapped in for the call, as for
-    /// `native_run_mod_command`, so `host.players().acting_player()`, `PlayerRef::tell` and
+    /// `run_mod_command`, so `host.players().acting_player()`, `PlayerRef::tell` and
     /// the item helpers reach them. Not heard: a menu a mod opens
     /// (`native_open_menu`), the inventory screen, and the editors (sign,
     /// book, command block). Server-side, for every player of the world.

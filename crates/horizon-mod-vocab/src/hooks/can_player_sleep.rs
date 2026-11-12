@@ -9,7 +9,7 @@ pub trait Hooks {
     /// player sleep anyway, or one of those names (`other_problem` refuses
     /// without a message) to refuse. The spawn point is set before it fires,
     /// as in vanilla, only when vanilla found no problem. After it,
-    /// `native_player_bed_enter` still fires and may cancel. Server-side.
+    /// `player_bed_enter` still fires and may cancel. Server-side.
     #[hook(
         side = "server",
         contract = "listen",

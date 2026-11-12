@@ -7,7 +7,7 @@ pub trait Hooks {
     /// it is in view (`RenderPlayerEvent.Pre`), and set `drawn` to leave out its
     /// vanilla model, armour, held items, cape and the other layers. This
     /// window's player is drawn only in third person (and F5 front view); an
-    /// invisible player is not asked. `draw` is the frame of `native_mob_submit`:
+    /// invisible player is not asked. `draw` is the frame of `mob_submit`:
     /// at the player's feet, turned with the body. The name tag, shadow,
     /// flames and glowing outline draw as before. `hidden.hide(part)` (or
     /// `hidden.hide_named(name)`) leaves only that part out of the vanilla model this frame (after Skin

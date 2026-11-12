@@ -81,10 +81,10 @@ pub trait ClientSession {
 /// The commands service, reached through its host.
 pub trait Commands {
     /// Side: server.
-    /// A mod changed the commands it registers (`native_register_commands`):
+    /// A mod changed the commands it registers (`register_commands`):
     /// at the start of the next server tick every mod is asked again, the
     /// commands players may run are rebuilt, and every player on the server is
-    /// sent their tree again, after `native_player_commands_sent`. Nothing
+    /// sent their tree again, after `player_commands_sent`. Nothing
     /// happens where no world is open to players, and nothing for a server
     /// whose mods never call it. API @API:refresh_commands@.
     fn refresh_commands(&mut self) {
@@ -180,8 +180,8 @@ pub trait Players {
     }
     /// Side: server.
     /// The player whose action or command a hook hears, as their state is
-    /// swapped in (`native_run_mod_command`, `native_right_click_block`,
-    /// `native_use_on`, `native_break_block`...): None outside such a
+    /// swapped in (`run_mod_command`, `right_click_block`,
+    /// `native_use_on`, `break_block`...): None outside such a
     /// hook.
     fn acting_player(&self) -> Option<PlayerRef> {
         crate::world::phase::unprovided(

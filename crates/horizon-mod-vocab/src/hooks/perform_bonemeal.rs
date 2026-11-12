@@ -3,7 +3,7 @@
 
 pub trait Hooks {
     /// `BonemealableBlock.performBonemeal` for a block that answered
-    /// `native_is_valid_bonemeal_target` and whose `native_is_bonemeal_success`
+    /// `is_valid_bonemeal_target` and whose `is_bonemeal_success`
     /// said yes: grow it here, `state` its state at `pos`. The meal is used up
     /// either way. Change the block with the level's
     /// `native_set_block_property`, and schedule with `native_schedule_block_tick`

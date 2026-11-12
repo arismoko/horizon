@@ -4,11 +4,11 @@
 pub trait Hooks {
     /// `dimension`'s level opened on the server (NeoForge's `LevelEvent.Load`,
     /// posted in `MinecraftServer.createLevels`): before any of its chunks
-    /// (`native_chunk_load`), so a mod sets up what it keeps for the level
+    /// (`chunk_load`), so a mod sets up what it keeps for the level
     /// here. The level the world opens in comes before `server_started`; the
     /// others open when someone first goes there (a player, a portal, an
     /// `execute in` command), with the level in place. Once for each open:
-    /// `native_level_unload` follows. Server-side.
+    /// `level_unload` follows. Server-side.
     #[hook(
         side = "server",
         contract = "listen",

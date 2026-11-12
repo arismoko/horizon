@@ -7,7 +7,7 @@ pub trait Hooks {
     /// drowns at -20 air, for 2 damage and 8 bubbles. Change `is_drowning` or
     /// `damage_amount`, or cancel to skip drowning this tick. Bubble count is
     /// read-only; changes to the event field do not affect the vanilla entity
-    /// event. Asked on servers, for the entities `native_living_breathe` is.
+    /// event. Asked on servers, for the entities `living_breathe` is.
     /// It is given the loop `context` of the server that ticks the entity (its
     /// registries, settings and mod list), because it fires inside the tick's
     /// own air and damage update.

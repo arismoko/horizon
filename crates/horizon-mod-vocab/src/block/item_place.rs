@@ -21,7 +21,7 @@ use std::{fmt::Debug, marker::PhantomData};
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ItemPlace {
-    /// Slot `slot` of a player's inventory, by `native_inventory_tick`'s numbers: 0..36 (0..9
+    /// Slot `slot` of a player's inventory, by `inventory_tick`'s numbers: 0..36 (0..9
     /// the hotbar), the armour 100..=103 (feet to head), the off hand -106
     /// (`ItemAccess.forPlayerSlot`).
     PlayerSlot {

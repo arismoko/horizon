@@ -6,11 +6,11 @@ pub trait Hooks {
     /// (`mymod:machine`), on this client: once a frame while it is in view
     /// (vanilla's `BlockEntityRenderer.submit`: within its view distance, 64 blocks unless
     /// `block_entity_view_distance` says otherwise, its chunk
-    /// faded in, and its bounds, `native_block_entity_render_bounding_box`,
+    /// faded in, and its bounds, `block_entity_render_bounding_box`,
     /// in the frustum), when its `id` is yours. `state` is the block's state
     /// (`blockEntity.getBlockState()`: read its `facing` with
     /// `native_block_state_property`), `entity` holds what the server sent
-    /// (`native_block_entity_update_tag`). Add geometry with
+    /// (`block_entity_update_tag`). Add geometry with
     /// `native_draw_quad`, `native_draw_cube`, `native_draw_block` and
     /// `native_draw_item` under `draw`'s pose stack, which starts at the
     /// block's lower north-west corner, in blocks; `draw` also has the partial

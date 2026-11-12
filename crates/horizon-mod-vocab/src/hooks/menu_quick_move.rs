@@ -24,7 +24,7 @@ pub trait Hooks {
     /// Asked once per click, where vanilla asks `quickMoveStack` again while
     /// it keeps moving the same item. The player's state is swapped in, so
     /// `host.players().acting_player()` names them; `entity` is out of the world
-    /// during the call, as in `native_menu_button`.
+    /// during the call, as in `menu_button`.
     #[hook(
         side = "server",
         contract = "cancel",

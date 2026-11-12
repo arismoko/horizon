@@ -3,7 +3,7 @@
 pub trait Hooks {
     /// `dimension`'s level has loaded the saved chunk tickets of `controller`
     /// (NeoForge's `LoadingValidationCallback.validateTickets`), before its
-    /// first tick and after `native_level_load`, once for each open and each
+    /// first tick and after `level_load`, once for each open and each
     /// controller registered with a validator that has tickets in the level.
     /// `validation` holds that controller's tickets, block owners and entity
     /// owners apart; the mod that owns the controller removes the ones that no

@@ -22,7 +22,7 @@ pub trait Hooks {
     #[notes = r#"## Villager farming
 
 Farmers recognize mod blocks made from farmland and `CropBlock` templates, including declarations from
-`native_blocks`. A crop block's generated item is its seed: add that item to
+`blocks`. A crop block's generated item is its seed: add that item to
 `minecraft:villager_plantable_seeds` to let farmers plant its default block state from their inventory.
 Untagged items and tagged items without a block are skipped. Crop maturity follows the template's class:
 beetroots mature at age 3, ordinary crops at 7; torchflower crops never reach their maximum age 2 while

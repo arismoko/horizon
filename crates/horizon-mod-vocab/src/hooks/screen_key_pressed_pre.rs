@@ -23,7 +23,7 @@ pub trait Hooks {
     /// gameplay, nor while a world loads or saves: the key there stays the
     /// game's own. A cancelled press's release still runs, and its characters
     /// are GLFW's separate char callback and still come; see
-    /// `native_screen_char_typed_pre`.
+    /// `screen_char_typed_pre`.
     #[hook(
         side = "client",
         contract = "cancel",

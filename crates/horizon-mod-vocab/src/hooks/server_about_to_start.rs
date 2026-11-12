@@ -7,8 +7,8 @@ pub trait Hooks {
     /// server begins loading anything"). Vanilla's `MinecraftServer.loadLevel`
     /// start. Server-side: the single player server thread once Play is
     /// pressed, a dedicated server once its settings are read. Each is
-    /// followed by `native_server_started` or
-    /// `native_world_lifecycle`'s `WorldOpenFailed`. `dedicated` tells a dedicated server from the single
+    /// followed by `server_started` or
+    /// `world_lifecycle`'s `WorldOpenFailed`. `dedicated` tells a dedicated server from the single
     /// player one.
     #[hook(
         side = "server",

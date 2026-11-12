@@ -8,6 +8,6 @@ pub trait Hooks {
 
 /// Original upstream notes; the existing fork event above owns this moment.
 pub trait UpstreamNotes {
-    #[notes = r###"`native_block_place(player, name, stack, pos, state, cancel)`: a guest is about to place `stack` as `state` at `pos`, heard where `BlockItem.place` has found the position and state and checked survival, before anything is set (Bukkit's `BlockPlaceEvent`, NeoForge's `BlockEvent.EntityPlaceEvent`). Set `cancel` and nothing is placed or used; the client sees the blocks and its inventory as they are and `native_place_block` hears nothing. Bundles that use it need `"hooks": @API:block_place@`."###]
+    #[notes = r###"`block_place(player, name, stack, pos, state, cancel)`: a guest is about to place `stack` as `state` at `pos`, heard where `BlockItem.place` has found the position and state and checked survival, before anything is set (Bukkit's `BlockPlaceEvent`, NeoForge's `BlockEvent.EntityPlaceEvent`). Set `cancel` and nothing is placed or used; the client sees the blocks and its inventory as they are and `native_place_block` hears nothing. Bundles that use it need `"hooks": @API:block_place@`."###]
     fn block_place();
 }

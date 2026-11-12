@@ -37,7 +37,7 @@ pub trait EntitiesServerHost {
     /// <kind> <pos> <nbt>` takes it; passengers included): its id. None on a
     /// client's copy of the world, for another dimension, a position outside
     /// `/summon`'s bounds, a chunk that isn't loaded, a kind Horizon can't
-    /// load, or one a mod kept out (`native_entity_join_level`).
+    /// load, or one a mod kept out (`entity_join_level`).
     #[access(WorldOnly)]
     fn summon(&mut self, dimension: &str, kind: &str, pos: [f64; 3], nbt: Compound) -> Option<u32>;
     /// Side: server.
@@ -59,7 +59,7 @@ pub trait EntitiesServerHost {
     /// Side: server.
     /// The experience orbs of the server level `dimension` whose box meets
     /// the box `min`..`max`, in the level's order: what a mod reads before it
-    /// cancels an orb in `native_entity_join_level`, to give its points with
+    /// cancels an orb in `entity_join_level`, to give its points with
     /// `PlayerRef::give_experience_points`. Empty for a level not in place, on a
     /// client of a server and for a bound that is not finite (NaN or infinite); a
     /// minimum above its maximum is the same box with the two swapped (`AABB`).

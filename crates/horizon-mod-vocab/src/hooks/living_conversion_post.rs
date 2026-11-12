@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A mob converted into another type (NeoForge's
     /// `LivingConversionEvent.Post`): `converted` replaces `entity`. Fires
     /// after the finalized new mob joined the level and before the old mob
-    /// is removed, for the conversions `native_living_conversion_pre` tells.
+    /// is removed, for the conversions `living_conversion_pre` tells.
     #[hook(
         side = "server",
         contract = "listen",

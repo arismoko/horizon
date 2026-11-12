@@ -1127,7 +1127,7 @@ pub trait LevelsBackendMut {
     /// default pickup delay of 10 ticks. None, with nothing spawned, for an
     /// empty stack or an unknown item, with the `block_drops` rule off, on a
     /// client, for a stale handle, a level not in place, or an item a mod
-    /// kept out (`native_entity_join_level`).
+    /// kept out (`entity_join_level`).
     #[access(WorldOnly)]
     fn level_pop_resource(
         &mut self,
@@ -1144,7 +1144,7 @@ pub trait LevelsBackendMut {
     /// never). None, with nothing
     /// spawned, for an empty stack or an unknown item, a value that isn't
     /// finite, on a client, for a stale handle, a level not in place, or an
-    /// item a mod kept out (`native_entity_join_level`).
+    /// item a mod kept out (`entity_join_level`).
     #[access(WorldOnly)]
     fn level_spawn_item(
         &mut self,
@@ -1180,7 +1180,7 @@ pub trait LevelsBackendMut {
     /// around `x y z`, or else a new orb with its own random motion. The
     /// `block_drops` rule doesn't apply (vanilla's blocks check it before
     /// they award). True once the orbs are awarded, even if a mod keeps a new
-    /// one out (`native_entity_join_level`). False, with no orbs, for 0, a
+    /// one out (`entity_join_level`). False, with no orbs, for 0, a
     /// value that isn't finite, on a client, for a stale handle or a level
     /// not in place.
     #[access(WorldOnly)]

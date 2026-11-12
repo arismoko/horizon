@@ -6,7 +6,7 @@ pub trait Hooks {
     /// after startup or the tick loop failed:
     /// the start of vanilla's `MinecraftServer.stopServer`, with the worlds
     /// still loaded and the players still connected and not yet saved, so a
-    /// mod can save its own data or tell them. `native_world_lifecycle`'s
+    /// mod can save its own data or tell them. `world_lifecycle`'s
     /// `WorldCloseFinal` follows once the worlds are saved. A server whose loop
     /// fails still fires this before the final save attempt and `server_stopped`.
     #[hook(

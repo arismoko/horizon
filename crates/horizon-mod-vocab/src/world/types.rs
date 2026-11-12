@@ -958,7 +958,7 @@ impl TickId {
     }
 }
 
-/// The world phases (`native_world_lifecycle`'s `phase`).
+/// The world phases (`world_lifecycle`'s `phase`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The phase names are the hook log's stable vocabulary (the Debug text
 /// the mixins write); keep them despite the shared prefix.
@@ -1346,7 +1346,7 @@ pub trait LevelWriteHost: LevelTicksHost + LevelRandomHost {
     ) -> bool {
         unimplemented!("LevelWriteHost::set_block_property")
     }
-    /// Play a sound for nearby players through `native_play_sound`.
+    /// Play a sound for nearby players through `play_sound`.
     fn play_sound(
         &mut self,
         _sound: &str,

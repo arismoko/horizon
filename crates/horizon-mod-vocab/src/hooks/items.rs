@@ -3,7 +3,7 @@
 
 pub trait Hooks {
     /// Items this mod adds, declared in code (NeoForge's
-    /// `DeferredRegister.Items`), as `native_blocks` declares blocks: a
+    /// `DeferredRegister.Items`), as `blocks` declares blocks: a
     /// `mod_api::Item` per item, a content mod's
     /// `data/<id>/horizon/item/<path>.json` (a vanilla `template`,
     /// `max_stack_size`, `rarity`, `components`, `crafting_remainder`). A

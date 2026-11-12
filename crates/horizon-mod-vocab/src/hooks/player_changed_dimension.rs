@@ -11,7 +11,7 @@ pub trait Hooks {
     /// death's is placed for good (a bed or anchor, or the world spawn's
     /// free column, after the fallback when a respawn block was gone). The
     /// level of `to` is the one in place, and the player's state is swapped
-    /// in, as for `native_run_mod_command`: `host.players().acting_player()`,
+    /// in, as for `run_mod_command`: `host.players().acting_player()`,
     /// `PlayerRef::tell`, the item helpers and the rest reach them. Heard for:
     /// Nether and End portals (also riding a vehicle, and leaving the End as
     /// its winner), `/execute in ... run tp` and any other command that

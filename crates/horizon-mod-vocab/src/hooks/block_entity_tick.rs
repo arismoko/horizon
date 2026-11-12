@@ -10,7 +10,7 @@ pub trait Hooks {
     /// call (the block entity at `pos` reads as a `Mod` with an empty id, and
     /// a save leaves it out); if the call removes or replaces it, `entity` is
     /// dropped. Clients, the window's own in single player included, get
-    /// what `native_block_entity_update_tag` gives when its chunk is sent or
+    /// what `block_entity_update_tag` gives when its chunk is sent or
     /// its block changes.
     #[hook(
         side = "server",

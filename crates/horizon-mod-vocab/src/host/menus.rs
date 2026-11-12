@@ -17,7 +17,7 @@ pub trait MenusServerHost {
         items: Vec<Option<ItemStack>>,
     ) -> Result<Option<i32>, StackWriteError>;
     /// Side: server.
-    /// Closes the player's native menu (a `native_menu_closed` follows).
+    /// Closes the player's native menu (a `menu_closed` follows).
     #[access(WorldOnly)]
     fn close_menu(&mut self, uuid: u128);
 }

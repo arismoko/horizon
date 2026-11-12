@@ -4,7 +4,7 @@
 pub trait Hooks {
     /// A block broke or a mob died, and `drops` are the items about to drop, in
     /// the order they drop: what the loot tables rolled (after
-    /// `native_loot_table_load`'s changes), and for a mob what it wore, held or
+    /// `loot_table_load`'s changes), and for a mob what it wore, held or
     /// carried (a fox's mouth item, an allay's, piglin's or horse's inventory),
     /// but not an enderman's carried block or a copper golem's preserved
     /// equipment, which drop after. A charged creeper's head and a fox's mouth

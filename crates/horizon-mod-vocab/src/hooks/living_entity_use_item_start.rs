@@ -4,11 +4,11 @@
 pub trait Hooks {
     /// NeoForge's `LivingEntityUseItemEvent.Start`: `entity` starts using
     /// `stack` in `hand` (`LivingEntity.startUsingItem`), for `duration`
-    /// ticks (`native_use_duration`'s answer). `entity` is a mob's
+    /// ticks (`use_duration`'s answer). `entity` is a mob's
     /// `Entity.getId`, None for a player (`host.players().acting_player()` says who);
     /// a mob fires it only for `LivingRef::start_using_item`. Change `duration` (consumables, potions,
     /// spyglasses and mods' items count to it; below 0 refuses the use, and
-    /// 0 runs it out on its first tick, as `native_living_entity_use_item_tick`
+    /// 0 runs it out on its first tick, as `living_entity_use_item_tick`
     /// running it out, unless the item's own is 0 already), or set
     /// `canceled` and the use doesn't start. Both sides, as
     /// vanilla's: on the server for every player of the world, and on a

@@ -8,7 +8,7 @@ pub trait Hooks {
     /// `minecraft:`) with no `consumable`, `blocks_attacks` or kinetic
     /// weapon that answers above 0 is used over time on a right click, as an
     /// `Item.use` that calls `startUsingItem`, until it is let go or the time
-    /// runs out (`native_living_entity_use_item_finish`). A consumable's time
+    /// runs out (`living_entity_use_item_finish`). A consumable's time
     /// changes too, potions and the other vanilla items keep their own.
     /// Asked when a use starts, each tick a mod's item is in use, and each
     /// frame the hand draws one in use, on both sides. It has no user, as
