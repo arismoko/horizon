@@ -21,6 +21,7 @@ use super::{
     Game,
     commands::Target,
     entity::{Entity as _, entity_lists_of, for_each_entity},
+    transactions::After,
 };
 use horizon_core::geometry::{Aabb, Vec3};
 use horizon_items::items::ItemStack;
@@ -551,7 +552,7 @@ impl Game<'_> {
         if !self.native_level_write_allowed(level, pos) || self.dim.key() != level.dimension() {
             return false;
         }
-        self.server_destroy_block_progress(breaker, pos, progress);
+        self.after_commit(After::BreakProgress(breaker, pos, progress));
         true
     }
     /// `Level.sendBlockUpdated`: queue the block at `pos` to be sent to the clients again.
@@ -559,9 +560,7 @@ impl Game<'_> {
         if !self.native_level_write_allowed(level, pos) || self.dim.key() != level.dimension() {
             return false;
         }
-        self.after_commit(super::transactions::After::NotifyClients((
-            pos[0], pos[1], pos[2],
-        )));
+        self.after_commit(After::NotifyClients((pos[0], pos[1], pos[2])));
         true
     }
     /// `LevelRenderer.destroyBlockProgress` for this client's own view only.

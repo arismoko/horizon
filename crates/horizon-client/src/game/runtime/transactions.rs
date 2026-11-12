@@ -201,6 +201,9 @@ pub(super) enum After {
     /// A provider's answer changed here (`level_invalidate_capabilities`): the capability
     /// generation moves on.
     Capabilities(Pos),
+
+    /// `ServerLevel.destroyBlockProgress`: breaker id, position, stage. Sent once, at the root commit.
+    BreakProgress(i32, [i32; 3], i32),
     /// The block's new state, set with its updates (`Level.setBlock`, `UPDATE_ALL`).
     Block(Pos),
     /// Deferred interaction effects, replayed in the same root-commit order.
@@ -648,6 +651,10 @@ impl Game<'_> {
             After::Updated(pos) => self.block_entity_updated(pos),
             After::NotifyClients(pos) => self.notify_block_clients(pos),
             After::Capabilities(pos) => self.world.capability_generations.invalidate(pos),
+
+            After::BreakProgress(breaker, pos, progress) => {
+                self.server_destroy_block_progress(breaker, pos, progress);
+            }
             After::Effect(effect) => match effect {
                 DeferredEffect::CustomStat {
                     player,

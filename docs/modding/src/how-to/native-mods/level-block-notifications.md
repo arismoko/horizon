@@ -10,7 +10,8 @@ parked, unloaded or out-of-height write returns `false` and queues nothing.
 
 `level.set_break_progress(host, breaker, pos, stage)` broadcasts a server crack.
 Use a stable negative breaker ID for a machine. Stages `0..=9` draw a crack;
-any other stage clears it. This is distinct from
+any other stage clears it. Inside a transaction the packet waits for the outermost
+commit and aborting sends nothing. This is distinct from
 `level.set_client_break_progress(client_host, breaker, pos, stage)`, which draws
 only in the local client's view and requires `&mut dyn ClientHost`, not a server
 host. Local cracks expire after 400 ticks without an update and clear when the
