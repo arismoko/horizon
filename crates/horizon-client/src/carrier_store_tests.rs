@@ -410,17 +410,18 @@ fn hostile_slots_refuse_without_reading_their_bodies() {
         Ok(Opened::Live(store)) => assert_eq!(*store.journal(), Journal::empty()),
         other => panic!("the valid slot 0 must rule, got {other:?}"),
     }
+    let mut over = fs::read(world.slot_path(0)).unwrap();
     // A slot file past the cap is invalid without its bytes being read.
     fs::write(world.slot_path(0), vec![0_u8; 1024 * 1024 + 1]).unwrap();
     fs::write(world.slot_path(1), vec![0_u8; 1024 * 1024 + 1]).unwrap();
     assert_eq!(Store::open(&world.root).unwrap_err(), Refusal::NoValidSlot);
     // Counts over their caps make a CRC-correct body invalid too.
-    let mut over = fs::read(world.slot_path(0)).unwrap().clone();
-    over.truncate(22);
-    let body = [0_u8; 8 + 1 + 4 + 4];
-    over.extend_from_slice(&body);
-    over[18..22].copy_from_slice(&crc32fast::hash(&body).to_le_bytes());
-    over[14..18].copy_from_slice(&(body.len() as u32).to_le_bytes());
+    over[31..35].copy_from_slice(&u32::MAX.to_le_bytes());
+    let body_len = u32::from_le_bytes(over[14..18].try_into().unwrap()) as usize;
+    let mut crc_input = Vec::with_capacity(14 + body_len);
+    crc_input.extend_from_slice(&over[4..18]);
+    crc_input.extend_from_slice(&over[22..22 + body_len]);
+    over[18..22].copy_from_slice(&crc32fast::hash(&crc_input).to_le_bytes());
     fs::write(world.slot_path(1), &over).unwrap();
     fs::remove_file(world.slot_path(0)).unwrap();
     assert_eq!(Store::open(&world.root).unwrap_err(), Refusal::NoValidSlot);
