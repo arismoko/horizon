@@ -16,6 +16,9 @@ use horizon_core::{
 const SQUISH: usize = 0;
 const TARGET_SQUISH: usize = 1;
 
+/// `AbstractCubeMob.setSize`'s accepted bounds, shared with sulfur cubes.
+pub const SIZES: std::ops::RangeInclusive<i32> = 1..=127;
+
 pub fn register(m: &mut Mob) {
     if m.species() == Species::SulfurCube {
         return super::sulfur_cube::register(m);
@@ -51,7 +54,7 @@ pub fn register(m: &mut Mob) {
 /// magma cube's armor (size * 3), then the health back to the max.
 pub fn set_size(m: &mut Mob, size: i32) {
     use super::finalize::{Attr, set_base};
-    let size = size.clamp(1, 127);
+    let size = size.clamp(*SIZES.start(), *SIZES.end());
     m.extra.size = size;
     set_base(m, Attr::MaxHealth, f64::from(size * size));
     set_base(

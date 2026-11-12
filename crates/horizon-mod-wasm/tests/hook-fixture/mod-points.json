@@ -1,0 +1,63 @@
+{
+  "crate": "wasm_hook_fixture",
+  "table": "__horizon_points",
+  "opted_out": [],
+  "points": [
+    {
+      "name": "pending_children_baby_entity_spawn",
+      "target": "wasm_hook_fixture::pending_children::baby_entity_spawn",
+      "hash": "448d805b1858b997",
+      "signature": "wasm_hook_fixture::pending_children::baby_entity_spawn: fnf(_:&mutdynServerHost,event:&mutBabyEntitySpawnEvent<'_>)->Flow []",
+      "raw": true,
+      "at_return": false,
+      "api_refusal": "argument 1 is a pattern, not a name",
+      "returns": "none",
+      "host": "none",
+      "return_ty": "Flow",
+      "listener": "crate::pending_children::__PendingChildrenBabyEntitySpawnListener",
+      "return_listener": "crate::pending_children::__PendingChildrenBabyEntitySpawnReturnListener"
+    },
+    {
+      "name": "pending_children_mob_split",
+      "target": "wasm_hook_fixture::pending_children::mob_split",
+      "hash": "f854ee55e6a9a9fe",
+      "signature": "wasm_hook_fixture::pending_children::mob_split: fnf(host:&mutdynServerHost,event:&mutMobSplitEvent<'_>)->Flow []",
+      "raw": true,
+      "at_return": false,
+      "api_refusal": "argument 1 `host` (`&mutdynServerHost`) has no API type yet",
+      "returns": "none",
+      "host": "none",
+      "return_ty": "Flow",
+      "listener": "crate::pending_children::__PendingChildrenMobSplitListener",
+      "return_listener": "crate::pending_children::__PendingChildrenMobSplitReturnListener"
+    },
+    {
+      "name": "pending_children_pig_again",
+      "target": "wasm_hook_fixture::pending_children::pig_again",
+      "hash": "6ddd3dda0f5026e1",
+      "signature": "wasm_hook_fixture::pending_children::pig_again: fnf(dim:&str)->PendingMobSpec [::std::borrow::Cow<'a,str>]",
+      "raw": true,
+      "at_return": true,
+      "api_refusal": null,
+      "returns": "none",
+      "host": "none",
+      "return_ty": "PendingMobSpec",
+      "listener": "crate::pending_children::__PendingChildrenPigAgainListener",
+      "return_listener": "crate::pending_children::__PendingChildrenPigAgainReturnListener"
+    },
+    {
+      "name": "pending_children_spec",
+      "target": "wasm_hook_fixture::pending_children::spec",
+      "hash": "d4c4927b431f3861",
+      "signature": "wasm_hook_fixture::pending_children::spec: fnf(kind:&str,dim:&str,at:[f64;3],yaw:f32,size:Option<u32>,baby:bool,)->PendingMobSpec [::std::borrow::Cow<'a,str>, ::std::borrow::Cow<'a,str>, [f64;3], f32, ::std::option::Option<u32>, bool]",
+      "raw": true,
+      "at_return": true,
+      "api_refusal": null,
+      "returns": "none",
+      "host": "none",
+      "return_ty": "PendingMobSpec",
+      "listener": "crate::pending_children::__PendingChildrenSpecListener",
+      "return_listener": "crate::pending_children::__PendingChildrenSpecReturnListener"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+id = "wasm_hook_fixture"
+name = "Wasm hook fixture"
+version = "0.1.0"
+description = "The pending-children listeners as a wasm guest, with no engine injections."
+api = "0.2"
+side = "both"
+capabilities = ["registries"]
+
+[wasm]
+sha512 = "2f726f3445a79ec1c8084b1148f93498b8248ec303a3f6b0c97aef3905a143dcd623b4b80cb794e25a18511f3a3656c763028914a79fc34af339e9cd9fbb9ccb"
+toolchain = "1.99.1 58cf8f9c35b355199727627d07ae34a4e2846d67"
+points = "12d512ce22771f99320c95d46e23ccefa305ba1318a6f9dc902776252c0066681d7671ae919dc4b96bf238bb62064f897f26dea431c2402f740eb4a45175fce3"

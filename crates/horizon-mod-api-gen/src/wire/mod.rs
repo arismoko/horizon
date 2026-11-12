@@ -71,6 +71,7 @@ pub(super) const IMPORTS: &[&str] = &[
     "ServerReloadResources",
     "CriterionContext",
     "UnspawnedMobEdits",
+    "PendingChildrenEdits",
 ];
 
 /// Imported traits a call never hands over, each reached through another's method instead.

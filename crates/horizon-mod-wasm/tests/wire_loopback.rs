@@ -10,6 +10,8 @@ mod boundary {
 }
 #[path = "wire_loopback/loot_tags.rs"]
 mod loot_tags_wire;
+#[path = "wire_loopback/pending_children.rs"]
+mod pending_children;
 #[path = "wire_loopback/use_item_hand.rs"]
 mod use_item_hand;
 thread_local! {

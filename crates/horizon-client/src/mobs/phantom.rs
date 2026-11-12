@@ -39,12 +39,14 @@ pub fn register(m: &mut Mob) {
 /// drawn model grow by `1 + 0.15 * size` (the mob's dimensions, `PhantomRenderer.scale`).
 pub fn set_size(m: &mut Mob, size: i32) {
     use super::finalize::{Attr, set_base};
-    let size = size.clamp(0, 64);
+    let size = size.clamp(*SIZES.start(), *SIZES.end());
     if size != m.extra.size {
         m.extra.size = size;
         set_base(m, Attr::AttackDamage, f64::from(6 + size));
     }
 }
+/// `Phantom.setPhantomSize`'s accepted bounds.
+pub const SIZES: std::ops::RangeInclusive<i32> = 0..=64;
 fn can_attack(w: &MobWorld) -> bool {
     w.selected_player()
         .is_some_and(|p| p.alive && !p.creative && !p.spectator)

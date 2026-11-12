@@ -21,6 +21,12 @@ pub enum UnspawnedMobError {
     /// The value is refused: an unknown attribute, a non-finite number, a modifier id the
     /// attribute already has, an empty or full tag list, or invalid item data.
     Invalid,
+    /// A child is already attached, consumed, or belongs to a different collection.
+    Ownership,
+    /// The action's child capacity would be exceeded.
+    Capacity,
+    /// The bounded nesting or lifetime construction budget is exhausted.
+    Budget,
 }
 
 impl From<crate::text::TextFormError> for UnspawnedMobError {

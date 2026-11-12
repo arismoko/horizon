@@ -1,6 +1,8 @@
 //! Engine-independent storage and registration machinery shared by the game and mod API.
 pub mod attachments;
 pub mod dispatch_failures;
+/// Action-local ownership and ordered consumption of pending spawn outputs.
+pub mod pending_children;
 /// Load-owned registry names and numeric slots, without game or API key types.
 pub mod registry_keys;
 

@@ -810,7 +810,7 @@ pub fn register(m: &mut Mob) {
 /// `setSize`: health 4 per size, speed 0.2 + 0.1 * size; size 1 makes an
 /// adult a baby.
 pub fn set_size(m: &mut Mob, size: i32, update_health: bool) {
-    let size = size.clamp(1, 127);
+    let size = size.clamp(*super::cube::SIZES.start(), *super::cube::SIZES.end());
     m.extra.size = size;
     m.attrs.max_health = (4 * size) as f32;
     m.attrs.speed = f64::from(0.2f32 + 0.1f32 * size as f32);
