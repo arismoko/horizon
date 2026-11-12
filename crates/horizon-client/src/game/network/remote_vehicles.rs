@@ -589,6 +589,7 @@ impl Game<'_> {
         mob.extra.client_side = true;
         let mut lent = horizon_client::health::LentLevel::take(&mut self.world);
         let mut events = Vec::new();
+        let hooks = self.damage_hooks.client_side();
         {
             let world = self.mob_world_base(&[]);
             let mut level = horizon_client::health::DamageLevel::lent(
@@ -597,9 +598,9 @@ impl Game<'_> {
                 &mut lent,
                 None,
                 None,
-                &self.damage_hooks,
+                &hooks,
             )
-            .predicted();
+            .on_client(true);
             mob.tick(&world, &mut level, &mut events);
         }
         // Only the server's packets take the mount away.

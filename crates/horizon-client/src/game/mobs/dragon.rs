@@ -6131,7 +6131,7 @@ mod tests {
         impl mod_api::Hooks for Probe {
             fn entity_invulnerability_check(
                 &self,
-                _: &mut dyn mod_api::LevelRandomHost,
+                _: mod_api::LevelSide<'_>,
                 _: &mut mod_api::EntityInvulnerabilityCheckEvent<'_>,
             ) {
                 self.0.fetch_add(1, Ordering::SeqCst);

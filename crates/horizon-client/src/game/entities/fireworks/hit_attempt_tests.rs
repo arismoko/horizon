@@ -7,8 +7,7 @@ use horizon_client::{
     projectiles::{Hit, Projectile, ProjectileKind, ThrownType},
 };
 use mod_api::{
-    EnderPearlTeleportEvent, EntityInvulnerabilityCheckEvent, Flow, Hooks, LevelRandomHost,
-    ServerHost,
+    EnderPearlTeleportEvent, EntityInvulnerabilityCheckEvent, Flow, Hooks, LevelSide, ServerHost,
 };
 use std::sync::{
     Arc,
@@ -20,7 +19,7 @@ struct Probe(Arc<AtomicUsize>);
 impl Hooks for Probe {
     fn entity_invulnerability_check(
         &self,
-        _: &mut dyn LevelRandomHost,
+        _: LevelSide<'_>,
         _: &mut EntityInvulnerabilityCheckEvent<'_>,
     ) {
         self.0.fetch_add(1, Ordering::Relaxed);

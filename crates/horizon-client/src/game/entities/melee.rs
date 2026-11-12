@@ -177,7 +177,12 @@ impl Game<'_> {
             && self.mob_hit().is_none_or(|m| d < m.1)
             && self.before_block(d)
         {
-            self.break_painting(i, true);
+            // `BlockAttachedEntity.hurtServer` refuses first through `isInvulnerableToBase`.
+            if self.native_player_hit_invulnerable(self.paintings[i].id, "minecraft:painting") {
+                self.attack_ticks = 0;
+            } else {
+                self.break_painting(i, true);
+            }
             return true;
         }
         // A ghast's fireball or a wind charge in front: turned back.

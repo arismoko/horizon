@@ -85,6 +85,14 @@ impl DamageHooks {
         totem: None,
         shield: None,
     };
+    /// The hooks a client asks while it predicts a mob it rides: only the invulnerability
+    /// check, which fires on both sides; the others are the server's.
+    pub const fn client_side(self) -> Self {
+        Self {
+            invulnerable: self.invulnerable,
+            ..Self::NONE
+        }
+    }
 }
 /// The level a hit lands in, as damage code sees it: its blocks, its random
 /// (`Level.random`) and its own attachments, lent to the damage hooks as their level host.
@@ -100,8 +108,9 @@ pub struct DamageLevel<'a> {
     random: &'a mut horizon_core::random::LegacyRandom,
     attachments: &'a mut horizon_mod_runtime::attachments::Attachments,
     attachment_syncs: &'a mut crate::fast_hash::FxHashSet<horizon_mod_runtime::attachments::Holder>,
-    /// The game's hooks; none on a client predicting its own mount: they are the server's.
-    hooks: Option<&'a DamageHooks>,
+    /// The game's hooks; on a client predicting its own mount, only the both-side ones
+    /// ([`DamageHooks::client_side`]).
+    hooks: &'a DamageHooks,
     /// Who attacks in this hit and what they hold: the facts of the site that built the level.
     attack: &'a Attack,
     /// Whether this is a client's level, for a hook asked on both sides ([`Self::on_client`]).
@@ -135,7 +144,7 @@ impl<'a> DamageLevel<'a> {
             random,
             attachments,
             attachment_syncs,
-            hooks: Some(hooks),
+            hooks,
             attack: &NO_ATTACK,
             client_side: false,
         }
@@ -159,16 +168,9 @@ impl<'a> DamageLevel<'a> {
             random: &mut lent.random,
             attachments: &mut lent.attachments,
             attachment_syncs: &mut lent.attachment_syncs,
-            hooks: Some(hooks),
+            hooks,
             attack: &NO_ATTACK,
             client_side: false,
-        }
-    }
-    /// The same level on a client predicting a mob it rides: no damage hooks fire.
-    pub fn predicted(self) -> Self {
-        Self {
-            hooks: None,
-            ..self
         }
     }
     /// The same level, for a shorter borrow.
@@ -251,9 +253,9 @@ impl<'a> DamageLevel<'a> {
         self.attachment_syncs.insert(holder);
         Ok(self.attachments)
     }
-    /// Return the server hook's immunity decision, or vanilla's without a listener.
+    /// Return the hook's immunity decision, or vanilla's without a listener.
     pub fn invulnerability_check(&mut self, hurting: Hurting<'_>, vanilla: bool) -> bool {
-        match self.hooks.and_then(|hooks| hooks.invulnerable) {
+        match self.hooks.invulnerable {
             Some(hook) => hook(self.reborrow(), hurting, vanilla),
             None => vanilla,
         }
@@ -266,18 +268,18 @@ impl<'a> DamageLevel<'a> {
         victim: Victim,
         container: &mut DamageContainer,
     ) -> bool {
-        let hook = self.hooks.and_then(|hooks| hooks.incoming);
+        let hook = self.hooks.incoming;
         hook.is_some_and(|hook| hook(self.reborrow(), hurting, victim, container))
     }
     /// `LivingDamageEvent.Pre` of the hit on `hurting` ([`DamageHooks::pre`]; nothing without it).
     pub fn damage_pre(&mut self, hurting: Hurting<'_>, container: &mut DamageContainer) {
-        if let Some(hook) = self.hooks.and_then(|hooks| hooks.pre) {
+        if let Some(hook) = self.hooks.pre {
             hook(self.reborrow(), hurting, container);
         }
     }
     /// `LivingDamageEvent.Post` of the hit on `hurting` ([`DamageHooks::post`]; nothing without it).
     pub fn damage_post(&mut self, hurting: Hurting<'_>, container: &DamageContainer) {
-        if let Some(hook) = self.hooks.and_then(|hooks| hooks.post) {
+        if let Some(hook) = self.hooks.post {
             hook(self.reborrow(), hurting, container);
         }
     }
@@ -308,6 +310,32 @@ impl LentLevel {
         world.attachments = self.attachments;
         world.attachment_syncs = self.attachment_syncs;
     }
+}
+/// `Entity.isInvulnerableTo` asked outside a hit (a mod goal's or an entity handle's query):
+/// the hook's answer over `vanilla`, or `vanilla` without a listener. The world is only read,
+/// and the hook's level host reads no random or attachments, so the level lends empty ones.
+pub fn query_invulnerability(
+    world: &crate::world::World,
+    registry: &horizon_world::registry::BlockRegistry,
+    tags: Option<&crate::items::Items>,
+    block_registries: Option<&crate::command::args::Registries>,
+    hooks: &DamageHooks,
+    hurting: Hurting<'_>,
+    vanilla: bool,
+) -> bool {
+    let Some(hook) = hooks.invulnerable else {
+        return vanilla;
+    };
+    let mut unread = LentLevel {
+        random: horizon_core::random::LegacyRandom::new(0),
+        attachments: Default::default(),
+        attachment_syncs: Default::default(),
+    };
+    hook(
+        DamageLevel::lent(world, registry, &mut unread, tags, block_registries, hooks),
+        hurting,
+        vanilla,
+    )
 }
 /// An empty level for tests and probes of hits: an air-only world whose random is seeded
 /// with `seed`.
@@ -357,7 +385,7 @@ impl DamageLevel<'_> {
         vanilla: ShieldBlock,
     ) -> Option<ShieldBlock> {
         let mut block = vanilla;
-        if let Some(hook) = self.hooks.and_then(|hooks| hooks.shield) {
+        if let Some(hook) = self.hooks.shield {
             hook(
                 self.reborrow(),
                 hurting,
@@ -379,7 +407,7 @@ impl DamageLevel<'_> {
     }
     /// Whether [`DamageHooks::totem`] canceled the totem of `hurting` (never without it).
     pub fn totem_canceled(&mut self, hurting: Hurting<'_>, off_hand: bool) -> bool {
-        let Some(hook) = self.hooks.and_then(|hooks| hooks.totem) else {
+        let Some(hook) = self.hooks.totem else {
             return false;
         };
         hook(self.reborrow(), hurting, off_hand)
@@ -471,7 +499,7 @@ impl DamageLevel<'_> {
     /// Whether [`DamageHooks::knockback`] canceled the knockback (never without it). A
     /// value it leaves that is not a finite number is put back as it was.
     pub fn knockback_canceled(&mut self, pushed: Hurting<'_>, knock: &mut Knock) -> bool {
-        let Some(hook) = self.hooks.and_then(|hooks| hooks.knockback) else {
+        let Some(hook) = self.hooks.knockback else {
             return false;
         };
         let before = *knock;

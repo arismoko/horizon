@@ -1,6 +1,7 @@
 # Observing refused damage attempts
 
-`entity_invulnerability_check` observes an attempted server hit without changing its amount.
+`entity_invulnerability_check` observes an attempted hit without changing its amount. It fires on
+both sides (NeoForge's `EntityInvulnerabilityCheckEvent`): its level host says which one.
 It supplies the entity, damage source, original invulnerability decision and a writable decision.
 A listener that only plays a sound leaves the decision unchanged. There is no amount: vanilla's
 `isInvulnerableTo` takes the level and damage source, not damage. Amount mutation belongs on
@@ -38,12 +39,14 @@ A damage-generating precondition is not itself an invulnerability query. In part
   performing its special push and returning without entering the living invulnerability predicate.
   That path produces no observation, matching the absence of a vanilla predicate call. Ordinary
   sulfur cube damage that enters the living pipeline is observed.
-- Client-side prediction, missing targets and unknown resident damage-source identifiers do not
-  create authoritative server hit attempts.
+- Missing targets and unknown resident damage-source identifiers do not create hit attempts.
+- A client predicting the mount it rides asks the hook on the client side wherever that tick
+  evaluates the predicate; the server still asks for its own tick.
 
-The remaining selected non-living paths (armor stands, items, vehicles and experience orbs) retain
-the coverage stated in the hook's reference documentation. A separate explicit invulnerability
-query is a query, not an additional hit attempt.
+The non-living paths (armor stands, items, vehicles, experience orbs, end crystals, item frames
+and paintings) retain the coverage stated in the hook's reference documentation. An explicit
+invulnerability query (`EntityRef::invulnerable_to_damage`, a mod goal's `invulnerable_to_damage`)
+asks the hook too, once per query, with a read-only level.
 
 The native regression test `native_hit_attempt_tests` counts actual listener notifications on
 accepted and refused player and mob routes, equipment continuations, effects, explosions, and
