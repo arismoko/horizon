@@ -145,17 +145,31 @@ impl Game<'_> {
         canceled
     }
 
+    /// The entity id a projectile's hit on the reserved or ordinary `id` stands for: a dragon
+    /// part is the dragon, an End crystal its own id. Allocates nothing.
+    fn native_impact_entity_id(&self, id: u32) -> u32 {
+        if id < SPECIAL {
+            id
+        } else if id < CRYSTAL_IDS {
+            self.dragon.as_ref().map_or(0, |d| d.id)
+        } else {
+            self.crystals
+                .get((id - CRYSTAL_IDS) as usize)
+                .map_or(0, |c| c.id)
+        }
+    }
+
     /// The entity id and type a projectile's hit on the reserved or ordinary
     /// `id` stands for: a dragon part is the dragon, an End crystal its own id.
     fn native_impact_entity(&self, id: u32) -> (u32, String) {
+        let entity = self.native_impact_entity_id(id);
         if id >= SPECIAL {
-            return if id < CRYSTAL_IDS {
-                let dragon = self.dragon.as_ref().map_or(0, |d| d.id);
-                (dragon, "minecraft:ender_dragon".into())
+            let kind = if id < CRYSTAL_IDS {
+                "minecraft:ender_dragon"
             } else {
-                let crystal = self.crystals.get((id - CRYSTAL_IDS) as usize);
-                (crystal.map_or(0, |c| c.id), "minecraft:end_crystal".into())
+                "minecraft:end_crystal"
             };
+            return (entity, kind.into());
         }
         if let Some(mob) = self.mobs.iter().find(|m| m.id == id) {
             return (id, mob_kind(mob));
@@ -180,9 +194,12 @@ impl Game<'_> {
         mut damage: f32,
         hit: Hit,
     ) -> ([f64; 3], f32, bool) {
-        let (hit_entity, hit_block, hit_face, hit_at) = self.pearl_hit(hit);
         let mut target = [to.x, to.y, to.z];
         let mut cancel = false;
+        if !mod_api::__private::listened(mod_api::HookId::EnderPearlTeleport) {
+            return (target, damage, cancel);
+        }
+        let (hit_entity, hit_block, hit_face, hit_at) = self.pearl_hit(hit);
         self.native_ender_pearl_teleport(mod_api::__private::EnderPearlTeleportCall {
             owner,
             pearl,
@@ -206,7 +223,7 @@ impl Game<'_> {
             Hit::Block { pos, at, face } => (None, pos, face, [at.x, at.y, at.z]),
             Hit::Entity { who, at } => {
                 let entity = match who {
-                    Who::Mob(id) => self.native_impact_entity(id).0,
+                    Who::Mob(id) => self.native_impact_entity_id(id),
                     Who::Player => self.own_entity_id() as u32,
                 };
                 let cell = [
@@ -573,6 +590,86 @@ mod pearl_hit_tests {
                 game.pearl_hit(cow),
                 (Some(42), [1, 64, -1], [0; 3], [1.25, 64.5, -0.5])
             );
+        });
+    }
+
+    /// A dragon part is the dragon and the local player is its own entity.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_pearl_names_the_dragon_for_a_part_and_the_local_player_by_its_own_id() {
+        use crate::game::dragon::Dragon;
+        crate::game::native_entity_refs::tests::with_game(|game| {
+            let mut dragon = Dragon::new(Vec3::ZERO, 0.0, 0);
+            dragon.id = 225009;
+            game.dragon.replace(dragon);
+            let at = Vec3::new(1.5, 64.5, -0.5);
+            let part = Hit::Entity {
+                who: Who::Mob(SPECIAL + 2),
+                at,
+            };
+            assert_eq!(
+                game.pearl_hit(part),
+                (Some(225009), [1, 64, -1], [0; 3], [1.5, 64.5, -0.5])
+            );
+            let player = Hit::Entity {
+                who: Who::Player,
+                at,
+            };
+            // The local player is the entity the game gives it, here as the game reports it.
+            let own = game.own_entity_id() as u32;
+            assert_eq!(game.pearl_hit(player).0, Some(own));
+        });
+    }
+
+    /// A listener hears the hit through `native_pearl_teleport` and its write comes back.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_listening_mod_hears_the_pearls_hit_and_its_target_comes_back() {
+        use crate::game::dragon::Dragon;
+        use mod_api::{EnderPearlTeleportEvent, Flow, Hooks, ModEntry, ServerHost};
+        use std::sync::{Arc, Mutex};
+        type Heard = Arc<Mutex<Vec<(Option<u32>, [i32; 3])>>>;
+        struct Hear(Heard);
+        #[mod_api::__subscriptions]
+        impl Hooks for Hear {
+            fn ender_pearl_teleport(
+                &self,
+                _: &mut dyn ServerHost,
+                event: &mut EnderPearlTeleportEvent<'_>,
+            ) -> Flow {
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push((event.hit_entity, event.hit_block));
+                *event.target = [1.0, 2.0, 3.0];
+                Flow::Continue
+            }
+        }
+        let heard = Heard::default();
+        let mods: mod_api::Mods = vec![ModEntry::new("hear", Box::new(Hear(heard.clone())))].into();
+        mod_platform::testing::with_mods(mods, || {
+            crate::game::native_entity_refs::tests::with_game(|game| {
+                let _phase =
+                    mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
+                let mut dragon = Dragon::new(Vec3::ZERO, 0.0, 0);
+                dragon.id = 225009;
+                game.dragon.replace(dragon);
+                let owner = mod_api::EntityRef::new(mod_api::WorldEpoch::new(1), 7);
+                let hit = Hit::Entity {
+                    who: Who::Mob(SPECIAL + 2),
+                    at: Vec3::new(1.5, 64.5, -0.5),
+                };
+                let (target, damage, cancel) = game.native_pearl_teleport(
+                    owner,
+                    9,
+                    Vec3::ZERO,
+                    Vec3::new(8.0, 70.0, 8.0),
+                    0.0,
+                    hit,
+                );
+                assert_eq!((target, damage, cancel), ([1.0, 2.0, 3.0], 0.0, false));
+                assert_eq!(*heard.lock().unwrap(), [(Some(225009), [1, 64, -1])]);
+            });
         });
     }
 }
