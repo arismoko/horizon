@@ -104,7 +104,7 @@ jobs:
         run: |
           cargo test -p horizon-mod-api --features wasm-guest --lib guest_pool_
           cargo test -p horizon-mod-api --features wasm-guest --lib phase_tests
-          cargo test -p horizon-mod-wasm --features listener-fixture --test real_member --test unstaged --test self_refusal --test native_listener --test no_wire_registration -- --include-ignored --nocapture
+          cargo test -p horizon-mod-wasm --features listener-fixture --test real_member --test unstaged --test self_refusal --test native_listener --test no_wire_registration --test chunk_disk -- --include-ignored --nocapture
           cargo test -p horizon-mod-wasm --features listener-fixture --lib guest_input_pool_stays_flat_for_100k_no_import_calls -- --ignored --nocapture
       - name: Build independent library members
         run: |

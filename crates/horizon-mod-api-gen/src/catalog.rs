@@ -55,6 +55,8 @@ pub enum PhaseContext {
     Loop,
     /// A hook fired while a feature generates, on a worldgen worker or the server thread.
     Worldgen,
+    /// A chunk disk job, with no live world authority.
+    ChunkDisk,
 }
 
 /// The kind of thing whose Parts a scoped hook calls.

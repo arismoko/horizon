@@ -58,3 +58,7 @@ required-features = ["listener-fixture"]
 [[test]]
 name = "bench"
 required-features = ["listener-fixture"]
+
+[[test]]
+name = "chunk_disk"
+required-features = ["listener-fixture"]

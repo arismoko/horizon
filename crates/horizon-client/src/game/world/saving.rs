@@ -137,6 +137,16 @@ impl Game<'_> {
     /// `true` means the window can exit. The session lock stays in Game until
     /// every snapshot has been queued and every writer has synced its files.
     pub(super) fn poll_closing_save(&mut self) -> Result<bool> {
+        // A subscribed chunk save waits for an open action savepoint to close and is
+        // retried on the next poll; after 30 seconds the save runs and reports its refusal.
+        if self
+            .pending_save
+            .as_ref()
+            .is_some_and(|save| save.started.elapsed() < Duration::from_secs(30))
+            && self.defer_chunk_disk_save()
+        {
+            return Ok(false);
+        }
         let Some(mut save) = self.pending_save.take() else {
             return Ok(false);
         };

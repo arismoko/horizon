@@ -1,6 +1,6 @@
 use super::*;
 
-fn fixture() -> (BlockRegistry, Biomes) {
+pub(super) fn fixture() -> (BlockRegistry, Biomes) {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let root = std::env::temp_dir().join(format!(
         "horizon-opened-loot-{}-{}",

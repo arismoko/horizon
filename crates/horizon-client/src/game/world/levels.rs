@@ -508,6 +508,7 @@ impl Game<'_> {
             &self.level.enabled_features,
             self.server_loot.clone(),
         )?;
+        self.bind_chunk_disk_worker(&save, dim);
         save.install_profession_snapshot(self.stations().professions.clone());
         let mut world = World::new(self.res.facts().air, self.level.seed);
         world.attachments = save.load_attachments();

@@ -61,9 +61,13 @@ use {
 
 pub const VERSION_NAME: &str = horizon_core::VANILLA_VERSION;
 
+mod chunk_disk;
+#[cfg(test)]
+mod chunk_disk_tests;
 mod gateway;
 #[cfg(test)]
 mod loot_tests;
+mod writer;
 
 /// Snapshot live block entities and custom names for a save batch without
 /// mutating the world. Each map is visited once, retaining its iteration order
@@ -2291,8 +2295,7 @@ fn compress_records(
     // otherwise.
     let compression = Compression::selected();
     let compress = |record: &Record| {
-        record
-            .tag()
+        chunk_disk::encode_record(record)?
             .map(|tag| ChunkRecord::from_nbt(&tag, compression, timestamp, Limits::saved()))
             .transpose()
     };
@@ -2350,6 +2353,7 @@ fn region_path(root: &Path, folder: &str, rx: i32, rz: i32) -> PathBuf {
 /// A record waiting for the writer thread.
 #[derive(Clone)]
 enum Record {
+    Disk(Arc<chunk_disk::DiskRecord>),
     Tag(Arc<NamedTag>),
     /// A chunk to encode on the writer thread.
     /// The old chunk's calculated blending data is taken when the save is
@@ -2375,6 +2379,7 @@ struct Encoding {
 impl Record {
     fn tag(&self) -> Option<Arc<NamedTag>> {
         match self {
+            Record::Disk(record) => record.read(),
             Record::Tag(t) => Some(t.clone()),
             Record::Chunk(c, e, blending) => Some(Arc::new(encode_saved(
                 c,
@@ -2573,6 +2578,7 @@ pub struct SaveDir {
     poi_regions: Arc<RegionCache>,
     pending: Arc<PendingWrites>,
     sequence: AtomicU64,
+    disk: OnceLock<Arc<chunk_disk::DiskRuntime>>,
     writer: Mutex<Option<Writer>>,
     outstanding: Arc<Outstanding>,
     /// Set by `Persistent` before the first load.
@@ -2744,6 +2750,7 @@ impl SaveDir {
             poi_regions: Default::default(),
             pending: Default::default(),
             sequence: AtomicU64::new(0),
+            disk: OnceLock::new(),
             writer: Mutex::new(None),
             outstanding: Default::default(),
             tables: OnceLock::new(),
@@ -3095,6 +3102,8 @@ impl SaveDir {
             loot.as_deref(),
         )?;
         load_light(&root.tag, &mut chunk, self.shape.sky_light);
+        self.load_disk_attachments(&mut chunk, mod_api::ChunkDiskKind::Full)
+            .ok()?;
         Some(chunk)
     }
     /// A saved full chunk read for a player's far ring (`lan::far`), as `load` but past the gameplay
@@ -3155,7 +3164,10 @@ impl SaveDir {
     ) -> Option<SavedProto> {
         let root = self.read_record("region", x, z)?;
         let tables = self.tables.get().map(|t| &**t);
-        decode_proto(&root, registry, biomes, tables, self.shape.column())
+        let mut proto = decode_proto(&root, registry, biomes, tables, self.shape.column())?;
+        self.load_disk_attachments(&mut proto.column, mod_api::ChunkDiskKind::Proto)
+            .ok()?;
+        Some(proto)
     }
     /// Queue proto chunks for the writer thread; loads see them meanwhile.
     pub fn save_protos(
@@ -3206,116 +3218,6 @@ impl SaveDir {
             .collect();
         self.queue(Folder::of(folder), records, wait)
     }
-    fn queue(&self, folder: Folder, records: Vec<((i32, i32), Record)>, wait: bool) -> Result<()> {
-        if !records.is_empty() {
-            let mut batch = Vec::with_capacity(records.len());
-            {
-                let mut pending = self.pending.lock().map_err(|_| "pending writes poisoned")?;
-                for (key, record) in records {
-                    let seq = self.sequence.fetch_add(1, Ordering::Relaxed);
-                    pending.insert((folder, key.0, key.1), (seq, record.clone()));
-                    batch.push((key, record, seq));
-                }
-            }
-            *self
-                .outstanding
-                .count
-                .lock()
-                .map_err(|_| "writer poisoned")? += 1;
-            let mut writer = self.writer.lock().map_err(|_| "writer poisoned")?;
-            let writer = writer.get_or_insert_with(|| self.start_writer());
-            let chunks = if folder == Folder::Region {
-                batch.len()
-            } else {
-                0
-            };
-            self.outstanding.chunks.fetch_add(chunks, Ordering::Relaxed);
-            if writer.send.send((folder, batch)).is_err() {
-                self.outstanding.chunks.fetch_sub(chunks, Ordering::Relaxed);
-                *self
-                    .outstanding
-                    .error
-                    .lock()
-                    .map_err(|_| "writer poisoned")? = Some("the region writer stopped".into());
-                *self
-                    .outstanding
-                    .count
-                    .lock()
-                    .map_err(|_| "writer poisoned")? -= 1;
-                self.outstanding.done.notify_all();
-                return Err("the region writer stopped".into());
-            }
-        }
-        if wait {
-            self.flush()?;
-        }
-        Ok(())
-    }
-    fn start_writer(&self) -> Writer {
-        let (send, receive) = mpsc::channel::<WriteBatch>();
-        let root = self.root.clone();
-        let (regions, entity_regions, poi_regions) = (
-            self.regions.clone(),
-            self.entity_regions.clone(),
-            self.poi_regions.clone(),
-        );
-        let pending = self.pending.clone();
-        let outstanding = self.outstanding.clone();
-        let thread = std::thread::Builder::new()
-            .name("horizon-region-writer".into())
-            .spawn(move || {
-                for (kind, batch) in receive {
-                    let cache = match kind {
-                        Folder::Region => &regions,
-                        Folder::Entities => &entity_regions,
-                        Folder::Poi => &poi_regions,
-                    };
-                    let folder = kind.name();
-                    // IOWorker.pendingWrites: a chunk queued again since is
-                    // written once, by its newest batch.
-                    let newest = |k: &(i32, i32), seq: u64| {
-                        pending.lock().map_or(true, |p| {
-                            p.get(&(kind, k.0, k.1)).is_none_or(|p| p.0 <= seq)
-                        })
-                    };
-                    let resolved: Vec<_> = batch
-                        .iter()
-                        .filter(|(k, _, seq)| newest(k, *seq))
-                        .filter_map(|(k, r, _)| Some((*k, resolve_poi(&root, cache, *k, r)?)))
-                        .collect();
-                    let records: Vec<_> = resolved.iter().map(|(k, r)| (*k, r)).collect();
-                    let result = write_region_records(&root, cache, folder, &records);
-                    if let Err(e) = &result {
-                        let message = format!("failed to write {folder} files: {e}");
-                        log::warn!("Horizon: {message}");
-                        *outstanding.error.lock().unwrap() = Some(message);
-                        // `reportChunkSaveFailure` for each chunk of the batch.
-                        for (k, _, _) in &batch {
-                            crate::chunk_io::report_save_failure(&root, k.0, k.1, e);
-                        }
-                    }
-                    // Keep failed snapshots readable; never report them as durable.
-                    if result.is_ok()
-                        && let Ok(mut pending) = pending.lock()
-                    {
-                        for (k, _, seq) in &batch {
-                            if pending.get(&(kind, k.0, k.1)).is_some_and(|p| p.0 == *seq) {
-                                pending.remove(&(kind, k.0, k.1));
-                            }
-                        }
-                    }
-                    if kind == Folder::Region {
-                        outstanding.chunks.fetch_sub(batch.len(), Ordering::Relaxed);
-                    }
-                    if let Ok(mut count) = outstanding.count.lock() {
-                        *count -= 1;
-                        outstanding.done.notify_all();
-                    }
-                }
-            })
-            .expect("spawn region writer");
-        Writer { send, thread }
-    }
     /// Wait until every queued write is on disk.
     pub fn flush(&self) -> Result<()> {
         let mut count = self
@@ -3365,6 +3267,9 @@ impl SaveDir {
         registry: &BlockRegistry,
         biomes: &Biomes,
     ) -> Result<usize> {
+        if let Some(result) = self.save_disk_sync(chunks, registry, biomes) {
+            return result;
+        }
         let tables = self.tables.get().map(|t| &**t);
         let records = chunks
             .iter()
@@ -5465,6 +5370,9 @@ impl<G: ChunkGenerator> ChunkGenerator for Persistent<G> {
             generated,
             bake,
         })
+    }
+    fn load_refused(&self, x: i32, z: i32) -> bool {
+        self.save.chunk_disk_load_refused(x, z)
     }
     fn load(&self, x: i32, z: i32) -> Option<Chunk> {
         self.save

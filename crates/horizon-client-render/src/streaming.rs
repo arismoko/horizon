@@ -2,6 +2,7 @@
 //! around the player, closest first. The game thread owns the world and only
 //! hands immutable `Arc` snapshots to workers; results carry a sequence number
 //! so stale work is dropped.
+mod disk;
 use crate::fast_hash::{FxHashMap, FxHashSet};
 use crate::mod_chunk_tickets::{ModTicket, ModTickets};
 use crate::section_mask::SectionMask;
@@ -120,6 +121,11 @@ pub trait ChunkGenerator: Send + Sync + 'static {
     /// A previously saved final chunk, bypassing generation.
     fn load(&self, _x: i32, _z: i32) -> Option<Chunk> {
         None
+    }
+    /// A disk record refused publication. Keep generation checked out rather
+    /// than treating the refusal as a missing record and publishing defaults.
+    fn load_refused(&self, _x: i32, _z: i32) -> bool {
+        false
     }
     /// What a loaded chunk needs from the generator before the game uses it,
     /// on the worker that loaded it.
@@ -1061,17 +1067,7 @@ impl<G: ChunkGenerator> Jobs<G> {
             mesh_scratch,
         } = local;
         let done = match job {
-            Job::Generate(x, z) => match generator.load(x, z) {
-                Some(chunk) => {
-                    generator.prepare_loaded(&mut *worker, &chunk);
-                    Done::Generated(chunk)
-                }
-                None => {
-                    let proto = generator.proto(&mut *worker, x, z);
-                    let decorated = generator.is_decorated(&proto);
-                    Done::Proto(x, z, proto, decorated)
-                }
-            },
+            Job::Generate(x, z) => return disk::generate(&**generator, worker, x, z),
             Job::Decorate(x, z, mut region, finals) => {
                 // The final chunks' proto chunks, made here: a
                 // generated proto chunk holding their blocks.

@@ -47,6 +47,7 @@ pub(super) const IMPORTS: &[&str] = &[
     "DataLoadContext",
     "LoopContext",
     "WorldgenHost",
+    "ChunkDiskHost",
     "GenerationContext",
     "PieceContext",
     "StructureRandom",
@@ -181,7 +182,12 @@ const WORKERS: &[&str] = &[
 
 /// What a call of `method` is to the runtime, for its limits and its wait.
 pub(super) fn call_class(types: &ty::Types<'_>, method: &Method) -> &'static str {
-    if WORKERS.contains(&method.owner) {
+    if WORKERS.contains(&method.owner)
+        || method
+            .params
+            .iter()
+            .any(|(_, ty)| matches!(ty, ty::Ty::Dyn(name, _) if name == "ChunkDiskHost"))
+    {
         "super::Call::Worker"
     } else if loads(types, method) {
         "super::Call::Load"

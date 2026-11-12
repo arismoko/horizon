@@ -778,6 +778,13 @@ pub(super) fn emit<'a>(
                     "for (mod_id, {mod_item}) in super::entered_with_id(HookId::{hook_id}, \"{name}\") {{ let mut local = Vec::new(); {{ let mut {event} = {event_type} {{ {name}: &mut local }}; {mod_item}.{name}(context, &mut {event}); }} for declaration in &mut local {{ match super::parts::owned_declaration_id(mod_id, &declaration.id) {{ Ok(id) => declaration.id = id, Err(reason) => context.refuse_declaration(reason), }} }} {event}.{name}.extend(local); }}"
                 ),
             ),
+            None if hook.context == Some(PhaseContext::ChunkDisk) => (
+                String::new(),
+                format!(
+                    "for (mod_id, {mod_item}) in super::entered_with_id(HookId::{hook_id}, \"{name}\") {{ if {event}.data.failure().is_some() {{ break; }} let result = super::chunk_disk::invoke(mod_id, || {{ {} }}); result.unwrap_or_else(|error| {event}.data.refuse(error)); if let Some(error) = {event}.data.failure().cloned() {{ let mut error = error; if error.mod_id.is_empty() {{ error.mod_id = mod_id.into(); }} {event}.data.attribute_failure(error); break; }} }}",
+                    call(&mod_item, "break"),
+                ),
+            ),
             None if name == "setting_changed" => (
                 String::new(),
                 format!(
