@@ -1,3 +1,6 @@
+//! The world behaviour adapter, kept beside the block operations it serves.
+use super::*;
+
 impl LevelAccess for GameLevel<'_> {
     fn cake_can_eat(&self, vanilla: bool) -> bool {
         if self.cake_probe {
