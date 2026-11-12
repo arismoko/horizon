@@ -6,6 +6,82 @@ use std::sync::Arc;
 
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn crack_packets_wait_for_root_commit_and_preserve_fifo() {
+    use super::native_guest_turn_tests::with_guests;
+    use horizon_client::lan::{Out, PlayerSender};
+    use horizon_protocol::{buf::Reader, packets::play::Clientbound};
+    with_guests(|game| {
+        game.options.dedicated = Some(Vec::new());
+        game.world
+            .chunks
+            .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+        let (tx, rx) = std::sync::mpsc::channel();
+        game.lan
+            .as_mut()
+            .unwrap()
+            .hub
+            .update_guest(12, |guest| {
+                guest.sender = PlayerSender::new(tx, Arc::default());
+            })
+            .unwrap();
+        let level = game.level(game.dim.id()).unwrap();
+        let host: &mut dyn mod_api::ServerHost = game;
+        let aborted: Result<(), ()> = host.transaction(|host, _| {
+            host.transaction(|host, _| {
+                assert!(level.set_break_progress(host, -7, [1, 64, 1], 2));
+                Ok::<_, ()>(())
+            })?;
+            assert!(rx.try_recv().is_err());
+            Err(())
+        });
+        assert!(aborted.is_err());
+        assert!(rx.try_recv().is_err());
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let host: &mut dyn mod_api::ServerHost = game;
+            let _: Result<(), ()> = host.transaction(|host, _| {
+                assert!(level.set_break_progress(host, -7, [1, 64, 1], 4));
+                assert!(rx.try_recv().is_err());
+                panic!("abort crack transaction");
+            });
+        }));
+        assert!(panic.is_err());
+        assert!(rx.try_recv().is_err());
+        let host: &mut dyn mod_api::ServerHost = game;
+        host.transaction(|host, _| {
+            assert!(level.set_break_progress(host, -7, [1, 64, 1], 1));
+            host.transaction(|host, _| {
+                assert!(level.set_break_progress(host, -7, [1, 64, 1], 6));
+                Ok::<_, ()>(())
+            })?;
+            assert!(level.set_break_progress(host, -7, [1, 64, 1], -1));
+            assert!(rx.try_recv().is_err());
+            Ok::<_, ()>(())
+        })
+        .unwrap();
+        let stages: Vec<_> = rx
+            .try_iter()
+            .map(|out| {
+                let Out::Packet(body) = out else {
+                    panic!("expected packet")
+                };
+                let mut reader = Reader::new(&body);
+                let id = reader.varint().unwrap();
+                let Clientbound::BlockDestruction(packet) =
+                    Clientbound::decode(id, reader.rest()).unwrap()
+                else {
+                    panic!("expected crack packet")
+                };
+                assert_eq!(packet.id, -7);
+                assert_eq!(packet.pos, [1, 64, 1]);
+                packet.progress
+            })
+            .collect();
+        assert_eq!(stages, [1, 6, 255]);
+    });
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn break_progress_and_block_updates_wait_for_the_commit() {
     with_game(|game| {
         game.options.dedicated = Some(Vec::new());

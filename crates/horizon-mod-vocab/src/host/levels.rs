@@ -1021,6 +1021,9 @@ pub trait LevelsBackendMut {
     /// Side: server.
     /// Send `ServerLevel.destroyBlockProgress` in this level: stages 0..9 show a crack,
     /// any other stage removes it. A machine uses a stable negative breaker id.
+    /// Inside a transaction, notices wait for the root commit in call order; abort publishes
+    /// no notice. Outside a transaction this executes immediately. True means accepted or
+    /// queued, not already delivered.
     #[access(WorldOnly)]
     fn level_set_break_progress(
         &mut self,
@@ -1036,6 +1039,9 @@ pub trait LevelsBackendMut {
     /// nothing queued, for a stale or parked handle, a client, and an unloaded or out-of-height
     /// position. True with no player to notify (no one is in the level) when the position is
     /// valid: the chunk is marked changed and nothing is sent.
+    /// Inside a transaction this waits for the root commit; abort publishes no notice.
+    /// Outside a transaction this executes immediately. True means accepted or queued,
+    /// not already delivered.
     #[access(WorldOnly)]
     fn level_send_block_updated(&mut self, level: LevelRef, pos: [i32; 3]) -> bool;
     /// Side: server.
