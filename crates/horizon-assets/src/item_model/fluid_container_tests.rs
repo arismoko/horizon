@@ -19,8 +19,8 @@ struct Fluids {
     held: Option<&'static str>,
 }
 impl ItemEnv for Fluids {
-    fn stack_fluid(&self, _stack: &StackView) -> Option<String> {
-        self.held.map(str::to_owned)
+    fn stack_fluid(&self, _stack: &StackView) -> Option<&str> {
+        self.held
     }
     fn fluid_appearance(&self, fluid: &str) -> Option<FluidAppearance> {
         (fluid == "mod:gas").then(|| FluidAppearance {
@@ -198,7 +198,7 @@ struct CountedFluids {
     lookups: std::cell::Cell<usize>,
 }
 impl ItemEnv for CountedFluids {
-    fn stack_fluid(&self, stack: &StackView) -> Option<String> {
+    fn stack_fluid(&self, stack: &StackView) -> Option<&str> {
         self.fluids.stack_fluid(stack)
     }
     fn fluid_appearance(&self, fluid: &str) -> Option<FluidAppearance> {

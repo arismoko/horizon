@@ -137,8 +137,8 @@ fn a_registered_source_tints_each_stack_in_hand_and_in_the_inventory() {
 /// The host's answer for `tintdraw:gas`, and for no fluid at all.
 struct Gas(Option<&'static str>);
 impl ItemEnv for Gas {
-    fn stack_fluid(&self, _stack: &StackView) -> Option<String> {
-        self.0.map(str::to_owned)
+    fn stack_fluid(&self, _stack: &StackView) -> Option<&str> {
+        self.0
     }
     fn fluid_appearance(&self, fluid: &str) -> Option<FluidAppearance> {
         (fluid == "tintdraw:gas").then(|| FluidAppearance {

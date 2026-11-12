@@ -171,8 +171,20 @@ impl ItemEnv for Env<'_, '_> {
                 models,
             });
     }
-    fn stack_fluid(&self, stack: &StackView) -> Option<String> {
-        horizon_client::fluid_models::held_fluid(&stack.item).map(str::to_owned)
+    fn stack_fluid(&self, stack: &StackView) -> Option<&str> {
+        // Vanilla's items keep vanilla's closed set; only a mod's own item asks its parts.
+        if stack.item.starts_with("minecraft:") {
+            return horizon_client::fluid_models::held_fluid(&stack.item);
+        }
+        if !mod_api::__private::item_listens(mod_api::HookId::ContainedFluid, &stack.item) {
+            return None;
+        }
+        let Ok(snapshot) = stack.try_into_api() else {
+            return None;
+        };
+        let mut fluid = None;
+        self.game.native_contained_fluid(&snapshot, &mut fluid);
+        drawn_contained_fluid(&stack.item, fluid?)
     }
     fn fluid_appearance(&self, fluid: &str) -> Option<FluidAppearance> {
         horizon_client::fluid_models::item_appearance(fluid)
@@ -232,6 +244,29 @@ impl ItemEnv for Env<'_, '_> {
         let nanos = self.game.started.elapsed().subsec_nanos();
         (nanos % 1_000_000) as f32 / 1_000_000.0
     }
+}
+/// The fluid a mod's `contained_fluid` answer `key` draws in a stack of `item`: none (the stack
+/// draws as holding none) for a key no fluid is registered under, logged the first time an item
+/// answers so. A registered fluid with no look in an item is drawn, as the missing sprite.
+fn drawn_contained_fluid(item: &str, key: mod_api::FluidKey) -> Option<&'static str> {
+    let fluid = mod_api::__private::fluid_id(key);
+    if fluid.is_none() && first_unregistered_answer(item) {
+        log::warn!(
+            "contained_fluid for {item} answered a fluid key no fluid is registered under: drawn as holding none"
+        );
+    }
+    fluid
+}
+/// Whether `item` answers an unregistered fluid key for the first time: only that path reads the
+/// list, so a stack that draws pays nothing for it.
+fn first_unregistered_answer(item: &str) -> bool {
+    static REPORTED: std::sync::Mutex<Vec<Box<str>>> = std::sync::Mutex::new(Vec::new());
+    let mut reported = REPORTED.lock().unwrap_or_else(|poison| poison.into_inner());
+    if reported.iter().any(|seen| &**seen == item) {
+        return false;
+    }
+    reported.push(item.into());
+    true
 }
 /// The days since 1970-01-01 as a civil (year, month, day) date.
 fn civil(days: i64) -> (i64, u32, u32) {
