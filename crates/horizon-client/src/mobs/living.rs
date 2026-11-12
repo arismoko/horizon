@@ -1060,7 +1060,12 @@ impl Mob {
                     && !self.silent
                 {
                     let at = [self.position.x, self.position.y, self.position.z];
-                    events.push(MobEvent::Sound(sound, at, volume, pitch));
+                    events.push(match sound {
+                        std::borrow::Cow::Borrowed(name) => {
+                            MobEvent::Sound(name, at, volume, pitch)
+                        }
+                        std::borrow::Cow::Owned(name) => MobEvent::SoundId(name, at, volume, pitch),
+                    });
                 }
                 // Entity.vibrationAndSoundEffectsFromBlock: the step's game
                 // event, with the supporting block's state when the effect

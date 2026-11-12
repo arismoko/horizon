@@ -155,6 +155,41 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn sound_answers_validate_levels_and_names_without_requiring_loaded_events() {
+        let stone = horizon_client::blocks::Sounds {
+            volume: 1.0,
+            pitch: 1.0,
+            break_sound: "minecraft:block.stone.break".into(),
+            step: "minecraft:block.stone.step".into(),
+            place: "minecraft:block.stone.place".into(),
+            hit: "minecraft:block.stone.hit".into(),
+            fall: "minecraft:block.stone.fall".into(),
+        };
+        for value in [-1.0, f32::INFINITY, f32::NEG_INFINITY, f32::NAN] {
+            let mut sound = horizon_client::block_sounds::own(&stone);
+            sound.volume = value;
+            assert!(!playable(&sound));
+            sound.volume = 1.0;
+            sound.pitch = value;
+            assert!(!playable(&sound));
+        }
+        for value in [0.0, 1.0, 2.0, f32::MAX] {
+            let mut sound = horizon_client::block_sounds::own(&stone);
+            sound.volume = value;
+            sound.pitch = value;
+            assert!(playable(&sound));
+        }
+        for event in ["", "not_namespaced", "mod:bad path"] {
+            let mut sound = horizon_client::block_sounds::own(&stone);
+            sound.step = event.into();
+            assert!(!playable(&sound));
+        }
+        let mut sound = horizon_client::block_sounds::own(&stone);
+        sound.step = "unknown:unloaded_event".into();
+        assert!(playable(&sound));
+    }
+
+    #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_block_part_answers_the_sound_type_a_block_plays() {
         // The fixture's parts: glass answers `mymod:block.x.*` at volume 2.0 and pitch 1.5 to
@@ -232,6 +267,25 @@ mod tests {
             // none when nothing places it (a dispenser).
             let glass = registry.default_state("minecraft:glass").unwrap();
             let white_wool = registry.default_state("minecraft:white_wool").unwrap();
+            let kind = game
+                .res
+                .mob_types()
+                .get("minecraft:creeper")
+                .unwrap()
+                .clone();
+            let creeper = Mob::new(8, kind, Vec3::ZERO, 0.0);
+            let step = horizon_client::mobs::entity_sounds::step(
+                &creeper,
+                &game.mob_world_base(&[]),
+                [5, 64, 5],
+                glass,
+            )
+            .unwrap();
+            assert!(matches!(&step.0, std::borrow::Cow::Owned(_)));
+            assert_eq!(step.0, "mymod:block.x.step");
+            assert_eq!(step.1, 0.3);
+            assert_eq!(step.2, 1.5);
+
             let mut placed = Vec::new();
             for acting in [Some(7), None] {
                 game.lan_acting_entity = acting;
@@ -256,6 +310,9 @@ mod tests {
             // stone's position (`AbstractHorse.playStepSound`): volume 2.0 × 0.15, pitch 1.5.
             let stone = registry.default_state("minecraft:stone").unwrap();
             let snow = registry.default_state("minecraft:snow").unwrap();
+            game.world
+                .chunks
+                .insert((0, 0), Arc::new(horizon_client::chunk::Chunk::empty(0, 0)));
             game.world.set(5, 64, 5, stone).unwrap();
             game.world.set(5, 65, 5, snow).unwrap();
             let kind = game.res.mob_types().get("minecraft:horse").unwrap().clone();
