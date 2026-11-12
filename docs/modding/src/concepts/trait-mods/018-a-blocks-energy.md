@@ -21,6 +21,31 @@ max_extract)`, which clamps each call before forwarding it to `inner` in the sam
 `1 + floor(14 * amount / capacity)`). To pass calls through (`DelegatingEnergyHandler`), implement `EnergyHandler`
 on a struct holding the other handler and forward.
 
+```rust,ignore
+/// Passes every call to the handler it holds, and counts the energy that went in.
+struct Metered {
+    inner: Box<dyn EnergyHandler>,
+    inserted: AtomicU32,
+}
+
+impl EnergyHandler for Metered {
+    fn amount(&self, host: &mut dyn ServerHost) -> u32 {
+        self.inner.amount(host)
+    }
+    fn capacity(&self, host: &mut dyn ServerHost) -> u32 {
+        self.inner.capacity(host)
+    }
+    fn insert(&self, host: &mut dyn ServerHost, tx: &Transaction, amount: u32) -> u32 {
+        let went = self.inner.insert(host, tx, amount);
+        self.inserted.fetch_add(went, Ordering::Relaxed);
+        went
+    }
+    fn extract(&self, host: &mut dyn ServerHost, tx: &Transaction, amount: u32) -> u32 {
+        self.inner.extract(host, tx, amount)
+    }
+}
+```
+
 Energy held by an item is `ITEM_ENERGY` (NeoForge's `Capabilities.Energy.ITEM`), found where its stack lives with
 `place.capability(host, &ITEM_ENERGY)`, as `ITEM_FLUIDS` is, and moved by `move_energy` as a block's is. A mod
 answers it for its item with `r.item_capability(&ITEM_ENERGY, "mymod:cell", …)`, keeping the energy in the item's
