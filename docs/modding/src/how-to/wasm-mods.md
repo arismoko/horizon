@@ -11,6 +11,10 @@ Use the `server_tick` hook to count ticks:
 {{#include ../../examples/wasm-hello/src/lib.rs:mod}}
 ```
 
+Ordinary wasm calls refuse with busy after five seconds of contention, or
+immediately during lending. Worker calls wait instead. Same-thread reentry shares
+the enclosing call's remaining deadline rather than starting a new budget.
+
 ## Owned values and `Wire`
 
 Native and wasm use the same owned-value encoding. Choose which of your own

@@ -20,7 +20,8 @@ or supply custom biome-modifier serializers ([content mods](../content-mods.md))
 
 ## Adopt installed biome regions
 
-From the client's world list, open Edit World and confirm adoption to save the installed mods' biome regions for that world. Adoption changes generation in new chunks, not existing chunks. See [biome regions](../content-mods/biome-regions.md).
+From the client's world list, open Edit World and confirm adoption to save the installed mods' biome regions for that world. Completed chunks keep their biomes and blocks. New chunks use the adopted layout,
+and chunks still being generated may finish with it. See [biome regions](../content-mods/biome-regions.md).
 
 ## Read and write limits
 

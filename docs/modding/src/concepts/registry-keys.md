@@ -36,6 +36,10 @@ a replacement air block. Native and wasm use the same values and refusal rules.
 Tint callbacks receive immutable block metadata explicitly, without a `Host`.
 Local state ordinals retain their meaning when world numeric state IDs are reordered.
 
+Use `host.block_state_default(key)` for a block's default state and
+`host.block_in_tag(key, tag)` for membership in a string tag name. On a restricted
+level host, `schedule_block_tick(pos, key, delay)` also takes a `BlockKey`.
+
 `host.block_states().states_of(key)` returns `Option<BlockStateRange>` in immutable
 local ordinal order. It returns `None` before metadata is published, for an unknown block,
 or without a game-backed host. Its iterator yields owned `BlockState`s; it is not a span of world
@@ -222,7 +226,9 @@ not part of the boundary guarantee.
 
 `Text::new(content)` constructs any content kind without exposing an engine value.
 The content, NBT-source, object, click and hover enums are exhaustive protocol enums;
-Match every case explicitly.
+match every case explicitly. Component records such as `Text` and `TextStyle`
+are `#[non_exhaustive]`: use their constructors and accessors rather than external
+struct literals, and leave room for additional fields when destructuring.
 Typed content and style fields are authoritative; metadata retains unrecognized
 properties, not overrides of those typed fields. Game-side encoding is fallible
 and reuses the engine's translation-argument and fallback construction rules.

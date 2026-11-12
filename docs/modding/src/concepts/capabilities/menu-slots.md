@@ -125,7 +125,7 @@ furnace's fuel slot one bucket, an armour slot one piece that fits it, a shulker
 slot none), and `menu.slot_gives(host, slot)` whether it gives up what it holds (`Slot.mayPickup`: bound armour stays
 on outside creative). An insert fills that slot alone, and what doesn't fit stays out. A crafting grid a transaction
 changed has its result made again at the outermost commit, once for each player however many writes it took
-(`InventoryMenu.slotsChanged`, with `native_prepare_item_craft`); the result slot takes nothing and gives nothing,
+(`InventoryMenu.slotsChanged`, with `prepare_item_craft`); the result slot takes nothing and gives nothing,
 since taking it is a craft. A menu closed, replaced or reopened since the `MenuRef` was made, or one whose player left,
 reads and writes nothing. `menu.cursor()` is that menu's cursor (`ItemPlace::PlayerCursor { menu }`,
 `forPlayerCursor`), which reaches nothing once the menu is gone, so a kept cursor never reaches the next menu's. The player's screen follows with the tick's container sync.

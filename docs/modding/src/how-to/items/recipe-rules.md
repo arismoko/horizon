@@ -18,7 +18,7 @@ require empty slots. Trim patterns are registry references or inline definitions
 `recipes_of_type` returns recipes after pack overrides, conditions and filters,
 in file order. Read them again after a data reload. On the server, you read the
 server's table. A client reads vanilla and content-mod recipes unless the server
-sends the recipe type through `native_datapack_sync`.
+sends the recipe type through `datapack_sync`.
 
 `LevelRef::recipe_for` returns `Ok(None)` when no recipe matches. Mod-defined
 recipe types return `RecipeLookupError::NotMatchable`; use their JSON to build

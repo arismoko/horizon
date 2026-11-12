@@ -21,7 +21,8 @@ impl EntityPart for ZombieGoals {
 
 `goals.add_goal(priority, goal)` and `goals.add_target_goal(priority, goal)` are `GoalSelector.addGoal`
 on the mob's two selectors; `GoalFlags` claims `MOVE`, `LOOK`, `JUMP` and `TARGET` as vanilla's `Goal.Flag`
-does, and a higher priority (a lower number) interrupts a running goal holding the same flag. A goal
+does, and an eligible goal with a higher priority (a lower number) interrupts a running goal
+holding the same flag only when the running goal's `Goal::is_interruptable` returns true. A goal
 object is per mob, built fresh at every construction, and its state is never saved: a goal that needs
 memory across loads keeps it in attachments. The goal wrapper and read view are created only where a mod goal runs.
 

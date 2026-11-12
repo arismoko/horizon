@@ -6,6 +6,13 @@ Submit your project page and version file through the registry submission form.
 Versions are pinned by SHA-256. The launcher and website read schema 1 of `index.json`.
 The format is defined by `horizon_mod_package::index` and `horizon_mod_package::modpack`.
 
+## Repository page fields
+
+Place `horizon-registry.toml` at your repository root in the newest release tag
+to supply `name`, `summary`, `description`, `authors` and `license`. Other keys
+are refused. The registry entry takes precedence; this file fills fields the
+entry leaves out.
+
 ## `index.json`
 
 ```json
@@ -33,7 +40,7 @@ The format is defined by `horizon_mod_package::index` and `horizon_mod_package::
 | `schema` | 1. A reader refuses a higher number with "update Horizon" rather than misread it. |
 | `projects[].id` | `[a-z0-9_]{1,64}`, unique; a mod's is its manifest's `id`. |
 | `kind` | `mod` (content), `native-mod`, `modpack`, `resourcepack`, `shader` (Horizon `.hshader`), `shaderpack` (a `shaders/`-folder zip), `datapack` (a data-pack zip). Other kinds (worlds, themes) may come without a new schema: a reader keeps a kind it doesn't know and doesn't offer it. |
-| `summary`, `description` | One line for lists; Markdown for the project's page, required for a listed project and 50–10,000 characters after trimming. |
+| `summary`, `description` | Required summary of at most 160 characters for lists; Markdown for the project's page, required for a listed project and 50–10,000 characters after trimming. |
 | `owners` | GitHub logins allowed to publish updates. |
 | `license`, `source` | An SPDX expression and an `https://` address of the source code: both required. |
 | `icon` | Required for a listed project. An HTTPS URL in the generated index, from the registry's `icons/<id>.png` (not a remote image input). |

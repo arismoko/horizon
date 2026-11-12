@@ -43,12 +43,12 @@ event.categories.push(RecipeBookCategory {
 
 Build displays from your type's recipe JSON through `Host::recipes_of_type`. The hook runs lazily
 once per recipe table, not per frame. A client reads its own recipe table unless
-`native_datapack_sync` supplies the server's custom type.
+`datapack_sync` supplies the server's custom type.
 
 `host.recipe_book_category(recipe_type)` returns a validated declaration or `None` for an
 undeclared or invalid type, before resources load, or outside a world. When a type has several
-categories, it returns the first in category-id order. The native helper
-`native_recipe_book_categories(categories)` dispatches the declaration hook.
+categories, it returns the first in category-id order. Implement
+`Hooks::recipe_book_categories` to supply your declarations.
 
 ## Display and placement rules
 

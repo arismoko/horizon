@@ -101,6 +101,11 @@ file, not `level.dat`.
 
 ## Synchronization
 
+You cannot supply a holder-aware default, custom copy handler, conditional serialization,
+recipient predicate or partial synchronization updates. The default is `fn() -> T`;
+copying uses the declared policy, and synchronization uses the disk codec rather
+than a separate wire codec.
+
 A type with `sync: true` sends its value to Horizon clients when `get` creates the
 default, on `set` and `remove`, and on demand with `AttachmentType::sync_data(host,
 holder)`; changes made in one tick are sent once, at its end. The recipients are the

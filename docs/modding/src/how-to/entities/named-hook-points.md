@@ -14,6 +14,11 @@ function against the prebuilt game. Callbacks borrow the frame's GPU resources;
 `world_views` supplies additional camera views. The renderer rejects invalid,
 duplicate and oversized view requests.
 
+Use the geometry types re-exported as `horizon_mod_render::render::{Vertex, EntitySpan}`.
+Implement the `render_needs` callback to set `RenderNeeds` requests for world depth
+and entity geometry; these requests feed the engine's frame requirements so it
+retains the resources your drawing callbacks borrow.
+
 ## Teleport hooks
 
 `ender_pearl_teleport` covers player-owned and mob-owned pearls. Its `owner` is an

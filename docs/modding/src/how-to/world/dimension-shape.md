@@ -22,9 +22,8 @@ gameplay attributes) as a `LevelDimensionType`: the build range, `coordinate_sca
 `has_fixed_time`, `infiniburn`, the monster spawn light range, the sky and the gameplay switches. A
 level on a vanilla type returns that type's values, a registered dimension returns what its
 `DimensionSettings` set, and a data pack's dimension type counts the same way. It returns `None` for
-a stale handle, and on a client it reads the level that window shows; a client of another server
-reads the Overworld's values for a level that server's mods added (the game itself plays that level
-by the type the server sent).
+a stale handle. On a client, it reads the displayed level's received dimension type,
+including custom types sent by another server.
 
 ## Registering a dimension
 

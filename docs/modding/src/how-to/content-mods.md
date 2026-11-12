@@ -202,7 +202,7 @@ such item exists. A sign's wall form picks its sign's item through `wall_block`,
 `isRandomlyTicking(state)` does for its own blocks, so a crop, sapling or soil on a template that never
 ticks grows: `"random_ticks": true` for every state (or `false`, to stop a template that ticks), or
 `{ "property": "grown", "values": ["false"] }` for the states whose own state property (declared in
-`state_properties`) is one of the values. The block's native `native_random_tick` hook then fires as it does
+`state_properties`) is one of the values. The block's native `random_tick` hook then fires as it does
 for a vanilla block that ticks, and its sections count it.
 
 `render_shape` says how a block is drawn whatever its template does, as vanilla's `getRenderShape`:
@@ -438,7 +438,7 @@ what Pick Block gives.
 
 An item whose template is `minecraft:fishing_rod` (and no `block`) is a fishing rod, as a NeoForge mod's
 `new FishingRodItem(...)` is: it casts, floats, bites, reels in and wears as vanilla's rod, its item model's
-`minecraft:fishing_rod/cast` is true while its bobber is out, and `native_player_fish` hears it. List it in
+`minecraft:fishing_rod/cast` is true while its bobber is out, and `player_fish` hears it. List it in
 `#minecraft:enchantable/fishing` for Lure and Luck of the Sea, as vanilla's rod is. Other behaviour that vanilla ties
 to an item's class, such as a bow's draw or a shield's block, belongs to vanilla's item alone; components
 (`minecraft:tool`, `minecraft:consumable`, `minecraft:equippable` and the others) carry over for every template.
@@ -682,16 +682,16 @@ from (`results`, as a furnace's result slot):
 ```
 
 It is the menu type `<id>:<name>`, with its network id after vanilla's. A mod block's container opens it when its
-`menu` names it with as many slots ([native mods](native-mods.md), `native_block_entity_container`). The menu holds
+`menu` names it with as many slots ([native mods](native-mods.md), `block_entity_container`). The menu holds
 its slots, then the player's 36. A shift-click from the inventory goes to the first slots with room, never a result
 slot, and one on the container goes to the inventory, as a chest's does. `results` fence players only: hoppers follow the
 container's faces and `inputs`, so leave result slots out of `inputs`. The data slots are the block entity's `data`
 (16-bit on the network, as vanilla's), all sent when it opens, then each change. A Horizon client shows it through the
-mod's own screen (`native_screen`); without one it closes again. Clients join a server only with the same mods' menu
+mod's own screen (`screen`); without one it closes again. Clients join a server only with the same mods' menu
 types, as with its blocks, and a client that isn't Horizon's is never sent one: the block opens nothing for it. Its
 clicks run on the server's vanilla menu engine (`menu::Kind::Mod`), shift-clicks routed as `ChestMenu`'s, and a native
-mod can decide what a slot takes in code with `native_menu_slot_rules` ([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/menu_slot_rules.rs))
-and how far away the menu stays open with `native_menu_still_valid` ([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/menu_still_valid.rs)).
+mod can decide what a slot takes in code with `menu_slot_rules` ([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/menu_slot_rules.rs))
+and how far away the menu stays open with `menu_still_valid` ([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/menu_still_valid.rs)).
 The declaration specifies per-slot rules through `results`; clicks are handled by the server.
 
 ##### Lending ingredients and linking containers
@@ -854,6 +854,10 @@ here, so the API names no phase for them.
 A `null` for `foliage_color`, `dry_foliage_color` or `grass_color` removes that override from the biome's `effects`, so the
 colormap tints it again; removing one the biome lacks changes nothing. The other colours are required or are attributes,
 so a `null` there skips the modifier with a warning.
+
+In code, these three optional colour overrides are `Option<BiomeColourChange>`:
+`Some(BiomeColourChange::Set { rgb })` sets one, `Some(BiomeColourChange::Remove)`
+removes one, and `None` preserves it.
 
 A modifier also sets the biome's ambient and music attributes, in an `attributes` object with the vanilla keys and
 values of a biome file (`warped_forest.json` has all of them). Each key present replaces the biome's whole value;

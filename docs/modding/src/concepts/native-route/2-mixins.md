@@ -121,8 +121,7 @@ So `src/game/world/autosave.rs` is `horizon_client::game::autosave` (`world/` is
 `horizon_client::game::native_hooks::base`.
 
 Any function of the game crate can take a mixin. A function in a crate below it, such as `horizon_world`, needs
-the marker `#[horizon_mod_api_macros::replaceable]` in its source; ask for one in an issue on
-[arismoko/horizon](https://github.com/arismoko/horizon/issues).
+the marker `#[horizon_mod_api_macros::replaceable]` in its source. Otherwise, target a replaceable caller or callee.
 
 These functions are refused:
 
@@ -155,7 +154,7 @@ A row the build can't apply stops the build, naming the mod, the row and the rea
 | | `… invalid target; a mixin targets a game function` | The target is in a mod you depend on. Call that mod's public functions instead. |
 | `E_MIXIN_TARGET_MISSING` | ``<target>: no function `<name>` in <module> on <Type>``, or ``no crate `<crate>` in the game's source`` | Check the path against the source at your commit, module first. |
 | `E_MIXIN_TARGET_AMBIGUOUS` | `<target>: several functions have this path (a cfg-gated pair, for one)` | Target another function. |
-| `E_MIXIN_NOT_REPLACEABLE` | `<target>: a function below the game crate takes a replacement only when it carries #[horizon_mod_api_macros::replaceable]; …` | Target a game-crate function, or ask for the marker. |
+| `E_MIXIN_NOT_REPLACEABLE` | `<target>: a function below the game crate takes a replacement only when it carries #[horizon_mod_api_macros::replaceable]; …` | Target a game-crate function or a caller or callee carrying the marker. |
 | | `<target>: <reason>`, such as ``it is generic over types or takes `impl Trait` …`` | Target a caller or callee that can be copied. |
 | `E_MIXIN_SOURCE` | `<target>: <why>` | The game's source could not be read: retry the build. |
 | `E_OVERWRITE_CONFLICT` | from the tool: `OVERWRITE must be exclusive on <function>; competing injections: <mod>/<row>, …` | Keep only one of those mods installed. |

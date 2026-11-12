@@ -70,6 +70,8 @@ to public type paths and their 16-digit hexadecimal layout identities. It includ
 the mod dependencies it compiled against. A cached host probe under
 `target/horizon-mod/` computes these values, for both native and wasm builds. When
 there are no concrete crossing types, no probe is built and no file is written.
+If `layouts.json` already exists, the build refuses to discard its recorded types.
+Review the removal of the final public crossing type, then remove the file explicitly.
 Private types without a public path and uninstantiated generic declarations are
 not listed; a public re-export can give a private module's type a public path.
 

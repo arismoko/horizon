@@ -33,7 +33,8 @@ with no engine snapshot returns `RegistrationReadError::Unavailable`.
 ## Registration and setup
 
 Registration runs once: `register`, `component_types`, `blocks`, `items` and `standalone_models`
-receive only `RegistrationContext`. Its `mods()`, `registry(name)` and `setting(mod_id, key)` read
+receive no `Host` and read startup facts through `RegistrationContext`.
+`register` also receives `&mut dyn Registrar` for writing declarations. The context's `mods()`, `registry(name)` and `setting(mod_id, key)` read
 one view captured before the first of them runs, so every registration step sees the same values
 whatever the dispatch order: the loaded packages, the built-in registries as `registries.json`
 lists them (not what mods declare during registration) and the settings on disk when the snapshot is captured. A

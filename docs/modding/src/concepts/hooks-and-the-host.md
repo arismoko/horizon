@@ -88,7 +88,7 @@ the hook point's arguments as public fields: values as values and borrowed ones 
 number or `bool` a mod may change is a plain field, written back once every mod has run, even after a `Cancel`;
 anything else a mod may change, a game struct or a list, is a `&mut` field. A cancellation or replacement is
 the return value; a collection hook's list is a field (`event.lines`). One event goes through every mod, so each
-sees the changes before it. You cannot construct or exhaustively match an event struct. To exercise a hook, use its dispatch function
+sees the changes before it. To exercise dispatch behavior, use the hook's dispatch function
 ([Testing a mod](testing.md)).
 
 Hook methods take `&self` and require `Send + Sync`. The process-wide mod list is installed once, like mixin module statics. One mod instance serves both

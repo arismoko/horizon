@@ -2,7 +2,9 @@
 
 Apply one effect from an item's loaded consumable on the server with
 `living.apply_consume_effect(host, &stack, index)`. The index is zero-based in component
-order; this does not eat food, shrink the stack or run consume triggers. `Some(true)` or
+order; this does not eat food, shrink the stack or run consume triggers. The return
+type is `Result<Option<bool>, StackWriteError>`; handle stack-validation errors
+from `Err`. The following outcomes are inside `Ok`: `Some(true)` or
 `Some(false)` is the effect's result; `None` means the item, index or target is unavailable
 or the effect is unsupported. Mob random teleport, armor stands and dragons are not
 supported. Player random teleport uses the level random as normal.

@@ -128,7 +128,7 @@ impl mod_api::BlockEntityPart for Node {
 just saved with, on a client its copy as the server last sent it. On a server the chunk is saved before
 the call, so a change made in it is not kept, and the chunk may already have left the level, so its
 handle's reads find nothing there. It is not called when the world closes, nor on a client when its whole
-level goes, and never for a vanilla block entity. The chunk-wide notice is `native_chunk_unload`, a
+level goes, and never for a vanilla block entity. The chunk-wide notice is `chunk_unload`, a
 server hook told after the chunk's block entities; a client is told of the block entities alone
 ([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/on_chunk_unloaded.rs)).
 

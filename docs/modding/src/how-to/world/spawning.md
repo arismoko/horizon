@@ -37,7 +37,12 @@ A remote client, stale handle or parked level returns `None`, never a partial
 client-side list. Outside a scoped hook query, an unavailable lookup member makes the query return `None`.
 Inside a scoped hook query, unavailable members are omitted.
 
-The walk follows the level's entity lookup order, not spatial order. Cache the returned list
+The walk follows the level's entity lookup admission order, not spatial order.
+Removal and re-admission moves an entity to the end. Chunk entities join section
+by section, each in stored admission order. Entities that move sections retain
+their admission place rather than moving to that section's end. Zero runtime IDs
+use stable storage join order; unregistered entity kinds have no authoritative
+lookup handle and are omitted. Cache the returned list
 when you need several passes in one hook rather than repeating the host query.
 
 ## Checking a spawn

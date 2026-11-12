@@ -14,7 +14,7 @@ folder of them) is required. The export does not select, edit or launch an insta
 It uses the pinned prebuilt dedicated-server SDK and builds only the mods and native
 function-replacement libraries, never the game. `--version` pins the Horizon release/Nightly
 for reproducibility. The export holds the engine executable, prepared resources,
-`horizon-native-mods/<id>/` projects and provenance `native-mods.json`, and prints its path.
+`horizon-native-mods/<id>/` projects and provenance `native-mods.json`, and prints the exported engine executable's path. Use that value for `engine.path`.
 It runs on the same OS/architecture as the host and requires an installed launcher base.
 It is copied outside managed cache folders. On Windows use `horizon-engine.exe`.
 

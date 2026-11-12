@@ -8,7 +8,9 @@ horizon-launcher mods add-github URL --trust-native-code
 
 `--trust-native-code` records your consent to run native code. You can omit it after the launcher
 has saved your consent. Native mods run with full access to your computer; read the source before
-installing. GitHub installs are not reviewed by the Horizon registry.
+installing. Before downloading the package or source, the launcher presents the
+exact resolved source commit link with its warning so you can review that revision.
+GitHub installs are not reviewed by the Horizon registry.
 
 ## Choose a source
 
