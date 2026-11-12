@@ -1249,6 +1249,9 @@ mod nested_vehicle_discard_tests {
             child.extra.mount = Some(72);
             child.age = 19;
             game.mobs.push(child);
+            // These manually installed owners bypass the normal allocator.
+            // Destruction drops must not reuse the removed vehicle's ID.
+            game.next_entity = game.next_entity.max(73);
             test(game);
         });
     }
