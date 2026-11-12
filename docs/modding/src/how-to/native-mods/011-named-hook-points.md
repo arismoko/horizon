@@ -24,3 +24,22 @@ attempts, not consumption. Fox callbacks run before that fox's living AI/movemen
 and before the next mob ticks, with the full server host. Listener changes to an
 actor's item, position or eligibility survive rather than being overwritten by a
 stale teleport decision. Command and Ender-entity teleport hooks are unchanged.
+#### Item use lifecycle (native and wasm)
+
+`living_entity_use_item_tick` runs after the may-still-use check. Its `duration`
+replaces the remaining-ticks counter. Next come per-tick effects only above zero,
+the decrement, and server completion at zero or below.
+
+On the server, canceling Tick or setting duration to zero or below **finishes**
+the use: food is eaten or a potion applied, Finish fires, and use state clears.
+Setting one runs the effects and finishes in that same tick. This never calls
+release-using, so a bow fires nothing. A use-on-release item such as a crossbow
+does not finish here: its counter goes negative until release.
+
+On a client, cancellation skips only that tick's effects. The countdown continues;
+the use remains active until server completion or release, so releasing still
+notifies the server.
+
+The neighbouring events differ: canceling Start prevents the use beginning,
+but duration zero does begin it. Canceling Stop skips only release-using, not
+clearing the use. Finish is not cancellable; its result stack can be replaced.
