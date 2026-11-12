@@ -138,8 +138,7 @@ struct BuildPlatform {
 impl BuildPlatform {
     fn cache_key(self) -> Option<&'static str> {
         match self.target {
-            // A rebuild must publish a new version instead of reusing an older build that
-            // was marked complete without its GNU runtime libraries.
+            // Rebuild rather than reuse a build published without its GNU runtime libraries.
             Some(rust_toolchain::WINDOWS_X64_TARGET) => Some("windows-x64-gnu-runtime-v1"),
             target => target,
         }

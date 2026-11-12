@@ -1002,7 +1002,7 @@ pub(super) mod tests {
                 std::fs::create_dir(&home).unwrap();
                 command.env(key, home);
             }
-            let output = command.output().unwrap();
+            let output = output_within(&mut command, name, case);
             std::fs::remove_dir_all(scratch).unwrap();
             let stdout = String::from_utf8_lossy(&output.stdout);
             // The child's log, captured with this test's own output.
@@ -1015,6 +1015,54 @@ pub(super) mod tests {
             );
         }
         true
+    }
+
+    /// The longest a fresh child may run: a hang in its startup or shutdown fails the parent
+    /// with the child killed, instead of waiting for the whole test run's own limit.
+    const FRESH_CASE_LIMIT: std::time::Duration = std::time::Duration::from_secs(900);
+
+    /// `command`'s output, killing the child if it outlives [`FRESH_CASE_LIMIT`].
+    fn output_within(
+        command: &mut std::process::Command,
+        name: &str,
+        case: &str,
+    ) -> std::process::Output {
+        use std::io::Read;
+        use std::process::Stdio;
+        let mut child = command
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut stdout = child.stdout.take().unwrap();
+        let mut stderr = child.stderr.take().unwrap();
+        let out = std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = stdout.read_to_end(&mut bytes);
+            bytes
+        });
+        let err = std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = stderr.read_to_end(&mut bytes);
+            bytes
+        });
+        let deadline = std::time::Instant::now() + FRESH_CASE_LIMIT;
+        let status = loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                break status;
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("{name}: {case}: the child did not finish within {FRESH_CASE_LIMIT:?}");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        };
+        std::process::Output {
+            status,
+            stdout: out.join().unwrap(),
+            stderr: err.join().unwrap(),
+        }
     }
 
     /// Whether libtest's summary says exactly one test passed: `--exact` with a name no test
