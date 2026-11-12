@@ -347,13 +347,15 @@ impl Game<'_> {
         {
             return false;
         }
+        let old = chunk.biome(pos[0], pos[1], pos[2]);
+        self.journal_biome(pos, old);
         let qy =
             ((pos[1] - self.world.bottom_y()) >> 2).clamp(0, self.world.layout().height() / 4 - 1);
         if let Some(chunk) = self.world.chunks.get_mut(&key) {
             let chunk = std::sync::Arc::make_mut(chunk);
             chunk.set_biome_cell((pos[0] & 15) >> 2, qy, (pos[2] & 15) >> 2, target as u16);
         }
-        self.commit_biome_columns(&std::collections::HashSet::from([key]), &[key]);
+        self.after_commit(super::super::transactions::After::Biome(key));
         true
     }
 

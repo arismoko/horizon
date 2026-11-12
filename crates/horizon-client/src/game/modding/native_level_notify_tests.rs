@@ -66,3 +66,79 @@ fn bone_meal_on_an_invalid_block_changes_nothing() {
         assert!(game.world.modified.is_empty());
     });
 }
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn biome_writes_roll_back_and_only_the_root_commit_notifies_clients() {
+    use super::native_guest_turn_tests::with_guests;
+    use horizon_client::lan::PlayerSender;
+
+    with_guests(|game| {
+        game.options.dedicated = Some(Vec::new());
+        game.world
+            .chunks
+            .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+        game.world.modified.clear();
+        game.world.dirty_sections.clear();
+        let (tx, rx) = std::sync::mpsc::channel();
+        game.lan
+            .as_mut()
+            .unwrap()
+            .hub
+            .update_guest(12, |guest| {
+                guest.sender = PlayerSender::new(tx, Arc::default());
+                guest.sent_chunks.insert((0, 0));
+            })
+            .unwrap();
+        let level = game.level(game.dim.id()).unwrap();
+        let pos = [0, 64, 0];
+        let old = game.world.chunks[&(0, 0)].biome(0, 64, 0);
+        let target = u16::from(old == 0);
+        let name = world_biomes!(game).list[usize::from(target)].name.clone();
+        let old_name = world_biomes!(game).list[usize::from(old)].name.clone();
+        let host: &mut dyn mod_api::ServerHost = game;
+        let aborted: Result<(), ()> = host.transaction(|host, _| {
+            assert!(level.set_biome(host, pos, &name));
+            assert!(rx.try_recv().is_err());
+            host.transaction(|host, _| {
+                assert!(level.set_biome(host, [3, 67, 3], &old_name));
+                Ok::<_, ()>(())
+            })?;
+            assert!(level.set_biome(host, pos, &name));
+            Err(())
+        });
+        assert!(aborted.is_err());
+        assert_eq!(game.world.chunks[&(0, 0)].biome(0, 64, 0), old);
+        assert!(game.world.modified.is_empty());
+        assert!(game.world.dirty_sections.is_empty());
+        assert!(rx.try_recv().is_err());
+
+        let host: &mut dyn mod_api::ServerHost = game;
+        host.transaction(|host, _| {
+            assert!(level.set_biome(host, pos, &name));
+            host.transaction(|host, _| {
+                assert!(level.set_biome(host, pos, &old_name));
+                assert!(level.set_biome(host, [3, 67, 3], &name));
+                Ok::<_, ()>(())
+            })?;
+            assert!(rx.try_recv().is_err());
+            Ok::<_, ()>(())
+        })
+        .unwrap();
+        assert_eq!(game.world.chunks[&(0, 0)].biome(3, 67, 3), target);
+        assert!(game.world.modified.contains(&(0, 0)));
+        assert!(!game.world.dirty_sections.is_empty());
+        let horizon_client::lan::Out::Packet(body) = rx.try_recv().unwrap() else {
+            panic!("expected a biome packet");
+        };
+        let mut reader = horizon_protocol::buf::Reader::new(&body);
+        let id = reader.varint().unwrap();
+        let packet =
+            horizon_protocol::packets::play::Clientbound::decode(id, reader.rest()).unwrap();
+        assert!(matches!(
+            packet,
+            horizon_protocol::packets::play::Clientbound::ChunksBiomes(_)
+        ));
+        assert!(rx.try_recv().is_err(), "one biome notification per column");
+    });
+}
