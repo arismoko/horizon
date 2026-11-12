@@ -1949,7 +1949,11 @@ impl LevelAccess for GameLevel<'_> {
                 Some(BlockEntity::Mod(_))
             )
     }
-    fn adjust_piston_carries_block_entity(&self, pos: BlockPos, state: BlockStateId) -> Option<bool> {
+    fn adjust_piston_carries_block_entity(
+        &self,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) -> Option<bool> {
         self.piston_carries_block_entity(pos, state)
     }
     fn carry_block_entity(&mut self, from: BlockPos, to: BlockPos) {
