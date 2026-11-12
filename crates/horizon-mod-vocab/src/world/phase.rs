@@ -945,3 +945,49 @@ fn phase_authority_advances_without_a_platform_backend() {
         })
     );
 }
+
+#[test]
+fn the_registration_context_lists_installed_packages_with_their_details() {
+    let details = crate::PackageDetails {
+        name: "Machines".to_owned(),
+        runtime: Some(crate::PackageRuntime::Native),
+        ..Default::default()
+    };
+    let packages = vec![
+        PackageInfo::new(
+            "machines".to_owned(),
+            "2".to_owned(),
+            PackageKind::Code,
+            crate::Side::Both,
+            vec!["machines".to_owned()],
+            vec![crate::PackageDependency::new(
+                "base".to_owned(),
+                "^1".to_owned(),
+                false,
+            )],
+        )
+        .with_details(details),
+        PackageInfo::new(
+            "base".to_owned(),
+            "1".to_owned(),
+            PackageKind::Content,
+            crate::Side::Client,
+            vec!["base".to_owned()],
+            vec![],
+        ),
+    ];
+    with_test_package_inventory(packages, || {
+        let context = RegistrationContext::new();
+        assert_eq!(
+            context.mods().ids().collect::<Vec<_>>(),
+            ["machines", "base"]
+        );
+        let machines = context.mods().get("machines").unwrap();
+        assert_eq!(machines.name(), "Machines");
+        assert_eq!(machines.runtime(), Some(crate::PackageRuntime::Native));
+        assert!(machines.depends_on("base"));
+        let base = context.mods().get("base").unwrap();
+        assert_eq!(base.runtime(), None);
+        assert!(context.mods().get("missing").is_none());
+    });
+}

@@ -7,7 +7,8 @@ use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PackageRuntime {
-    /// Compiled into the game build it was made for.
+    /// Native code, built against the game build it was made for and loaded beside it, not
+    /// compiled into the game.
     Native,
     /// A `mod.wasm` run by the wasm runtime.
     Wasm,

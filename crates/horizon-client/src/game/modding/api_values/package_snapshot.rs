@@ -152,4 +152,30 @@ mod tests {
         );
         assert_eq!(info.property("missing"), None);
     }
+
+    #[test]
+    fn a_native_package_and_a_content_package_convert_with_their_runtime() {
+        let native = horizon_mod_package::packages::AdjacentManifest {
+            path: std::path::PathBuf::from("horizon-native-mods/test"),
+            manifest: manifest("[properties]\ntier = 3\n"),
+            has_icon: true,
+        };
+        let info = native.try_into_api().unwrap();
+        assert_eq!(info.kind(), mod_api::PackageKind::Code);
+        assert_eq!(info.runtime(), Some(mod_api::PackageRuntime::Native));
+        assert_eq!(info.icon_path(), Some("icon.png"));
+        assert_eq!(
+            info.property("tier"),
+            Some(&mod_api::PropertyValue::Integer(3))
+        );
+        let content = horizon_mod_package::manifest::Package {
+            manifest: manifest(""),
+            icon: None,
+            layouts: Default::default(),
+        };
+        let info = content.try_into_api().unwrap();
+        assert_eq!(info.kind(), mod_api::PackageKind::Content);
+        assert_eq!(info.runtime(), None);
+        assert_eq!(info.icon_path(), None);
+    }
 }
