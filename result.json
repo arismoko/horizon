@@ -1,0 +1,46 @@
+{
+  "pages": [
+    {
+      "path": "docs/modding/src/how-to/native-mods/01-the-mods-crate.md",
+      "changed": true,
+      "summary": "Clarified registry lock staging and SDK inventory requirements, and grouped build restrictions without historical wording.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/02-the-package.md",
+      "changed": true,
+      "summary": "Qualified Cargo source requirements as native-only, documented wasm packages and included Cargo.lock in the layout.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/03-data-files.md",
+      "changed": true,
+      "summary": "Replaced build-script generation advice with packaged Rust source, corrected wasm support and the source inventory, and repaired reload documentation links.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/04-what-the-launcher-does.md",
+      "changed": true,
+      "summary": "Organized the implemented launcher route under build steps while retaining refusal diagnostics.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/05-build-log.md",
+      "changed": true,
+      "summary": "Removed an internal function reference and tightened instructions for opening and refreshing the local log.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/06-rebuilds.md",
+      "changed": true,
+      "summary": "Organized base updates and toolchain isolation under task-oriented headings.",
+      "unverified": [],
+      "code_wrong": []
+    }
+  ]
+}
