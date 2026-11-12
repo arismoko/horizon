@@ -51,7 +51,41 @@ fn attachment_instruction_count() {
                 .len(),
             700
         );
-        attachment_measured_passes(game, &holders, passes);
+        if std::env::var("ATTACHMENT_HANDLE").is_ok() {
+            let mut handles = ResolvedHandles::resolve(game, &holders);
+            let valid = handles.token(0);
+            for forged in [
+                ResolvedHandle {
+                    slot: usize::MAX,
+                    ..valid
+                },
+                ResolvedHandle { column: 1, ..valid },
+                ResolvedHandle {
+                    generation: 0,
+                    ..valid
+                },
+            ] {
+                assert_eq!(handles.get(game, forged), Err(Refusal::InvalidHandle));
+                assert_eq!(handles.set(game, forged, 99), Err(Refusal::InvalidHandle));
+            }
+            handles.server = !handles.server;
+            assert_eq!(handles.get(game, valid), Err(Refusal::WrongSide));
+            assert_eq!(handles.set(game, valid, 99), Err(Refusal::WrongSide));
+            handles.server = !handles.server;
+            attachment_handle_measured_passes(game, &handles, passes);
+            // Retirement must refuse even though the physical map remains reachable.
+            handles.records[0].registration.unregister();
+            assert_eq!(
+                handles.get(game, valid),
+                Err(Refusal::Attachment(mod_api::AttachmentError::MissingHolder))
+            );
+            assert_eq!(
+                handles.set(game, valid, 99),
+                Err(Refusal::Attachment(mod_api::AttachmentError::MissingHolder))
+            );
+        } else {
+            attachment_measured_passes(game, &holders, passes);
+        }
         for &holder in &holders {
             assert_eq!(VALUE.get(game, holder).unwrap(), passes as u32);
         }
@@ -69,6 +103,137 @@ fn attachment_measured_passes(
             let value = VALUE.get(game, holder).unwrap();
             VALUE
                 .set(game, holder, std::hint::black_box(value.wrapping_add(1)))
+                .unwrap();
+        }
+    }
+}
+
+// Measurement-only handle table. This is not the public native/wasm API.
+// The integers are checked before any physical map is accessed.
+#[derive(Clone, Copy)]
+struct ResolvedHandle {
+    slot: usize,
+    column: usize,
+    generation: u64,
+}
+struct ResolvedRecord {
+    holder: mod_api::Holder,
+    registration: horizon_mod_runtime::attachments::AttachmentRegistration,
+    generation: u64,
+}
+struct ResolvedHandles {
+    records: Vec<ResolvedRecord>,
+    key: horizon_mod_runtime::attachments::index::AttachmentKey,
+    server: bool,
+}
+#[derive(Debug, PartialEq)]
+enum Refusal {
+    WrongSide,
+    InvalidHandle,
+    Attachment(mod_api::AttachmentError),
+}
+impl ResolvedHandles {
+    fn resolve(game: &mut crate::game::Game<'_>, holders: &[mod_api::Holder]) -> Self {
+        use mod_api::AttachmentHost;
+        let server = game.native_authoritative();
+        let records = holders
+            .iter()
+            .enumerate()
+            .map(|(slot, &holder)| {
+                let map = game
+                    .attachments(holder, mod_api::AttachmentAccess::Existing)
+                    .unwrap();
+                ResolvedRecord {
+                    holder,
+                    registration: map
+                        .resolved_registration()
+                        .expect("warm-up bound residency"),
+                    generation: slot as u64 + 1,
+                }
+            })
+            .collect();
+        Self {
+            records,
+            key: ("bench".into(), "tick_state".into()),
+            server,
+        }
+    }
+    fn token(&self, slot: usize) -> ResolvedHandle {
+        ResolvedHandle {
+            slot,
+            column: 0,
+            generation: self.records[slot].generation,
+        }
+    }
+    fn map<'a>(
+        &self,
+        game: &'a mut crate::game::Game<'_>,
+        handle: ResolvedHandle,
+    ) -> Result<&'a mut mod_api::Attachments, Refusal> {
+        if game.native_authoritative() != self.server {
+            return Err(Refusal::WrongSide);
+        }
+        let record = self
+            .records
+            .get(handle.slot)
+            .filter(|record| handle.column == 0 && handle.generation == record.generation)
+            .ok_or(Refusal::InvalidHandle)?;
+        if !record.registration.is_current() {
+            return Err(Refusal::Attachment(mod_api::AttachmentError::MissingHolder));
+        }
+        // Same transaction and dirty/sync bookkeeping as the old access path;
+        // physical map lookup does not consult the entity residency table.
+        game.journal_attachments(record.holder);
+        game.world.attachment_syncs.insert(record.holder);
+        let map = match record.holder {
+            mod_api::Holder::Entity(id) => game.entity_attachments.get_mut(&id),
+            mod_api::Holder::BlockEntity([x, y, z]) => {
+                game.world.modified.insert((x >> 4, z >> 4));
+                game.world.block_entities.attachments_mut((x, y, z))
+            }
+            _ => None,
+        }
+        .ok_or(Refusal::Attachment(mod_api::AttachmentError::MissingHolder))?;
+        if !map
+            .resolved_registration()
+            .is_some_and(|current| current.same_registration(&record.registration))
+        {
+            return Err(Refusal::Attachment(mod_api::AttachmentError::MissingHolder));
+        }
+        Ok(map)
+    }
+    fn get(
+        &self,
+        game: &mut crate::game::Game<'_>,
+        handle: ResolvedHandle,
+    ) -> Result<u32, Refusal> {
+        self.map(game, handle)?
+            .resolved_read(&self.key, &VALUE)
+            .map_err(Refusal::Attachment)
+    }
+    fn set(
+        &self,
+        game: &mut crate::game::Game<'_>,
+        handle: ResolvedHandle,
+        value: u32,
+    ) -> Result<(), Refusal> {
+        self.map(game, handle)?
+            .resolved_write(&self.key, &VALUE, value)
+            .map_err(Refusal::Attachment)
+    }
+}
+#[inline(never)]
+fn attachment_handle_measured_passes(
+    game: &mut crate::game::Game<'_>,
+    handles: &ResolvedHandles,
+    passes: usize,
+) {
+    for _ in 0..passes {
+        for slot in 0..handles.records.len() {
+            let handle = handles.token(slot);
+            let value = handles.get(game, handle).unwrap();
+            handles
+                .set(game, handle, std::hint::black_box(value.wrapping_add(1)))
                 .unwrap();
         }
     }

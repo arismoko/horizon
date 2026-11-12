@@ -651,6 +651,7 @@ struct AttachmentChange<'a> {
 trait AttachmentPublisher: Send + Sync {
     fn publish(&self, changes: &[AttachmentChange<'_>]);
     fn unregister(&self) -> bool;
+    fn is_current(&self) -> bool;
 }
 
 struct IndexedAttachments<H> {
@@ -659,6 +660,11 @@ struct IndexedAttachments<H> {
 }
 
 impl<H: Copy + Eq + Hash + Send + Sync> AttachmentPublisher for IndexedAttachments<H> {
+    fn is_current(&self) -> bool {
+        self.index
+            .upgrade()
+            .is_some_and(|index| index.lock().unwrap().validate_owner(&self.owner).is_ok())
+    }
     fn publish(&self, changes: &[AttachmentChange<'_>]) {
         if let Some(index) = self.index.upgrade() {
             let retired = {
@@ -701,6 +707,12 @@ impl AttachmentRegistration {
     /// and subsequent writes through the retired map cannot restore membership.
     pub fn unregister(&self) -> bool {
         self.publisher.unregister()
+    }
+
+    /// Whether the owning index still accepts this residency generation.
+    #[doc(hidden)]
+    pub fn is_current(&self) -> bool {
+        self.publisher.is_current()
     }
 
     /// Whether two handles refer to the same registration.
@@ -754,6 +766,63 @@ impl AttachmentHost for Attachments {
 }
 
 impl Attachments {
+    /// Capture residency authority without retaining the physical owner.
+    #[doc(hidden)]
+    pub fn resolved_registration(&self) -> Option<AttachmentRegistration> {
+        self.registration.clone()
+    }
+
+    /// Read a pre-resolved key for the instruction-count experiment.
+    #[doc(hidden)]
+    pub fn resolved_read<T: Clone + Send + Sync + 'static>(
+        &self,
+        key: &index::AttachmentKey,
+        ty: &AttachmentType<T>,
+    ) -> Result<T, AttachmentError> {
+        let entry = self
+            .entries
+            .get(key)
+            .ok_or(AttachmentError::MissingHolder)?;
+        entry.read(ty).cloned()
+    }
+
+    /// Replace through the canonical publication path using a pre-resolved key.
+    #[doc(hidden)]
+    pub fn resolved_write<T: Clone + Send + Sync + 'static>(
+        &mut self,
+        key: &index::AttachmentKey,
+        ty: &AttachmentType<T>,
+        value: T,
+    ) -> Result<(), AttachmentError> {
+        ty.validate_policy()?;
+        if let Some(entry) = self.entries.get(key)
+            && let Entry::Decoded(old) = &entry.state
+            && !old.value.is::<T>()
+        {
+            return Err(AttachmentError::TypeMismatch);
+        }
+        let encoded = ty
+            .codec
+            .as_ref()
+            .map(|codec| (codec.encode)(&value))
+            .transpose()?;
+        self.write_entry(
+            key,
+            Some(Arc::new(AttachmentEntry {
+                state: Entry::Decoded(Decoded {
+                    value: Arc::new(value),
+                    encoded,
+                    policy: ty.policy(),
+                }),
+            })),
+        );
+        if ty.sync {
+            self.pending.insert(key.clone());
+        }
+        self.remove_saved(ty.namespace, ty.name);
+        Ok(())
+    }
+
     /// Whether stored attachment memberships exist, excluding preserved unknown NBT.
     #[doc(hidden)]
     pub fn has_index_entries(&self) -> bool {
