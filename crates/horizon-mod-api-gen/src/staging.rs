@@ -74,7 +74,7 @@ fn stage_with_catalog(
         .extend(crate::crossing::foreign_internals());
     write(internals_json, &internals.entries)?;
     let wire = crate::build::wire_types(root)?;
-    let points = points::stage_with(root, &wire)?;
+    let (points, records) = points::stage_with_manifest(root, &wire)?;
     #[derive(serde::Serialize)]
     struct Manifest {
         points: Vec<points::GamePoint>,
@@ -84,7 +84,7 @@ fn stage_with_catalog(
     write(
         points_json,
         &Manifest {
-            points: points::points_with(root, &wire)?,
+            points: records,
             wire,
         },
     )?;

@@ -157,6 +157,7 @@ pub fn tracked(root: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 /// A point's function, as found in a parsed file.
+#[derive(Clone)]
 pub(crate) struct Found<'a> {
     pub(crate) module: String,
     attrs: &'a [syn::Attribute],
@@ -605,44 +606,49 @@ pub fn game_points(root: &Path) -> Result<Vec<GamePoint>, String> {
 /// [`game_points`] with the `mod_api` types a record may hold.
 pub(crate) fn points_with(root: &Path, wire: &WireTypes) -> Result<Vec<GamePoint>, String> {
     let (scanned, list) = scan(root)?;
-    let mut points = Vec::new();
-    for (_, found) in all_points(&scanned, &list, wire)? {
-        let target = found.target();
-
-        // Replacement normalizes parameter patterns. Keep the API contract of the original
-        // signature, including refusals, rather than promoting a staged function into a point.
-        let original = found
-            .attrs
-            .iter()
-            .find_map(|attr| {
-                if !attr.path().is_ident("doc") {
-                    return None;
-                }
-                let syn::Meta::NameValue(value) = &attr.meta else {
-                    return None;
-                };
-                let syn::Expr::Lit(value) = &value.value else {
-                    return None;
-                };
-                let syn::Lit::Str(value) = &value.lit else {
-                    return None;
-                };
-                value
-                    .value()
-                    .strip_prefix("horizon-point-signature: ")
-                    .map(str::to_owned)
-            })
-            .map(|text| syn::parse_str::<syn::Signature>(&text).map_err(|e| e.to_string()))
-            .transpose()?;
-        let found = Found {
-            sig: original.as_ref().unwrap_or(found.sig),
-            ..found
-        };
-        let shape = found.shape()?;
-        points.push(GamePoint::new(shape, &found, target));
-    }
+    let mut points = all_points(&scanned, &list, wire)?
+        .into_iter()
+        .map(|(_, found)| point_record(found))
+        .collect::<Result<Vec<_>, _>>()?;
     points.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(points)
+}
+
+// Both standalone discovery and source staging retain the original API signature.
+fn point_record(found: Found<'_>) -> Result<GamePoint, String> {
+    let target = found.target();
+
+    // Replacement normalizes parameter patterns. Keep the API contract of the original
+    // signature, including refusals, rather than promoting a staged function into a point.
+    let original = found
+        .attrs
+        .iter()
+        .find_map(|attr| {
+            if !attr.path().is_ident("doc") {
+                return None;
+            }
+            let syn::Meta::NameValue(value) = &attr.meta else {
+                return None;
+            };
+            let syn::Expr::Lit(value) = &value.value else {
+                return None;
+            };
+            let syn::Lit::Str(value) = &value.lit else {
+                return None;
+            };
+            value
+                .value()
+                .strip_prefix("horizon-point-signature: ")
+                .map(str::to_owned)
+        })
+        .map(|text| syn::parse_str::<syn::Signature>(&text).map_err(|e| e.to_string()))
+        .transpose()?;
+    let found = Found {
+        sig: original.as_ref().unwrap_or(found.sig),
+        ..found
+    };
+    let shape = found.shape()?;
+    Ok(GamePoint::new(shape, &found, target))
 }
 
 /// What [`stage`] did.
@@ -667,8 +673,21 @@ pub fn stage(root: &Path) -> Result<Staged, String> {
 
 /// [`stage`] with the `mod_api` types a record may hold.
 pub(crate) fn stage_with(root: &Path, wire: &WireTypes) -> Result<Staged, String> {
+    stage_with_manifest(root, wire).map(|(staged, _)| staged)
+}
+
+/// Rewrite points and collect their unchanged API records from the same source scan.
+pub(crate) fn stage_with_manifest(
+    root: &Path,
+    wire: &WireTypes,
+) -> Result<(Staged, Vec<GamePoint>), String> {
     let (scanned, list) = scan(root)?;
     let points = all_points(&scanned, &list, wire)?;
+    let mut records = points
+        .iter()
+        .map(|(_, found)| point_record(found.clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+    records.sort_by(|a, b| a.name.cmp(&b.name));
     let mut staged = Staged::default();
     let mut packages = std::collections::BTreeSet::new();
     for (index, file) in scanned.iter().enumerate() {
@@ -751,7 +770,7 @@ pub(crate) fn stage_with(root: &Path, wire: &WireTypes) -> Result<Staged, String
         }
     }
     dependencies(root, packages)?;
-    Ok(staged)
+    Ok((staged, records))
 }
 
 /// Give marked lower-crate points and sites their staged dependencies, including the lock file.
@@ -1428,7 +1447,12 @@ name = 'horizon-mod-api-gen'
         let before = points_with(&root, &WireTypes::new()).unwrap();
         assert!(before[0].api_refusal.is_some());
         let layout = records(&before);
-        stage_with(&root, &WireTypes::new()).unwrap();
+        let (_, combined) = stage_with_manifest(&root, &WireTypes::new()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&before).unwrap(),
+            serde_json::to_value(&combined).unwrap()
+        );
+        assert_eq!(layout, records(&combined));
         crate::replace::stage(&root).unwrap();
         let after = points_with(&root, &WireTypes::new()).unwrap();
         assert_eq!(
@@ -1592,7 +1616,20 @@ name = 'horizon-mod-api-gen'
                 "the function has no point site: it takes no replacement (function type/const generics)"
             )
         );
-        let staged = stage_with(&root, &WireTypes::new()).unwrap();
+        let (staged, combined) = stage_with_manifest(&root, &WireTypes::new()).unwrap();
+        let after = points_with(&root, &WireTypes::new()).unwrap();
+        // Compare every manifest field and the nonserialized API layout, not just counts.
+        for actual in [&combined, &after] {
+            assert_eq!(
+                serde_json::to_value(&points).unwrap(),
+                serde_json::to_value(actual).unwrap()
+            );
+            assert_eq!(api, records(actual));
+            for (expected, actual) in points.iter().zip(actual) {
+                assert_eq!(expected.record_item, actual.record_item);
+                assert_eq!(expected.api, actual.api);
+            }
+        }
         assert_eq!((staged.points, staged.head_only, staged.refused), (7, 1, 3));
         let generated = root.join("staged-generated");
         std::fs::create_dir_all(&generated).unwrap();
