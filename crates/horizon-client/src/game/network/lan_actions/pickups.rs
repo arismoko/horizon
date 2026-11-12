@@ -37,11 +37,13 @@ impl Game<'_> {
         {
             return;
         }
+        let listens = mod_api::__private::listened(mod_api::HookId::ItemPickedUp);
         let near: Vec<_> = self
             .dropped
             .iter()
             .filter(|d| {
-                (d.position.x - position[0]).abs() < 1.5
+                (listens || (d.pickup_delay == 0 && d.target.is_none_or(|t| t == uuid)))
+                    && (d.position.x - position[0]).abs() < 1.5
                     && (d.position.z - position[2]).abs() < 1.5
                     && d.position.y > position[1] - 0.6
                     && d.position.y < position[1] + 2.4
@@ -50,16 +52,22 @@ impl Game<'_> {
             .collect();
         let mut taken = Vec::new();
         for item_id in near.into_iter().rev() {
-            let Some(item) = self.dropped.iter().find(|d| d.id == item_id) else {
+            let Some(mut i) = self.dropped.iter().position(|d| d.id == item_id) else {
                 continue;
             };
-            let stack = item.stack.clone();
-            let answer = self
-                .as_guest(conn, |g| g.native_pickup_answer(&stack))
-                .unwrap_or_default();
-            // The hook can remove or change any item entity.
-            let Some(i) = self.dropped.iter().position(|d| d.id == item_id) else {
-                continue;
+            let answer = if listens {
+                let stack = self.dropped[i].stack.clone();
+                let answer = self
+                    .as_guest(conn, |g| g.native_pickup_answer(&stack))
+                    .unwrap_or_default();
+                // Only a dispatched callback can invalidate the original index.
+                let Some(at) = self.dropped.iter().position(|d| d.id == item_id) else {
+                    continue;
+                };
+                i = at;
+                answer
+            } else {
+                TriState::Default
             };
             let d = &mut self.dropped[i];
             if !Self::pickup_decision(&mut d.pickup_delay, d.target, uuid, answer) {

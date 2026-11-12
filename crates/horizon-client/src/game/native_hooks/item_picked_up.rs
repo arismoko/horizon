@@ -8,7 +8,8 @@ impl Game<'_> {
     /// can't be taken. Leave `can_pickup` at `Default` for vanilla's rule,
     /// set `True` to take it despite its delay or another player's target
     /// (a full inventory still leaves it), or `False` to leave it there: the
-    /// stack isn't offered again for 10 ticks. The last mod to set it
+    /// fork sets a vanilla eligibility delay of at least 10 ticks. The hook
+    /// still runs on each touch, and a later `True` overrides that delay. The last mod to set it
     /// decides. Server-side.
     pub(in crate::game) fn native_item_picked_up(
         &mut self,
@@ -89,8 +90,8 @@ impl Game<'_> {
 
     /// `ItemEntity.playerTouch`'s rule for `player`: no pickup delay, and no
     /// target or `player` as the target, unless `answer` forces it either
-    /// way. A refusal waits at least 10 ticks before the item is offered
-    /// again.
+    /// way. A refusal sets a vanilla eligibility delay of at least 10 ticks;
+    /// later touches still dispatch the hook, and `True` overrides the delay.
     pub(in crate::game) fn pickup_decision(
         pickup_delay: &mut i64,
         target: Option<[i32; 4]>,

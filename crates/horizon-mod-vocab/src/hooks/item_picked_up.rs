@@ -8,7 +8,8 @@ pub trait Hooks {
     /// can't be taken. Leave `can_pickup` at `Default` for vanilla's rule,
     /// set `True` to take it despite its delay or another player's target
     /// (a full inventory still leaves it), or `False` to leave it there: the
-    /// stack isn't offered again for 10 ticks. The last mod to set it
+    /// fork sets a vanilla eligibility delay of at least 10 ticks. The hook
+    /// still runs on each touch, and a later `True` overrides that delay. The last mod to set it
     /// decides. Server-side.
     #[hook(
         side = "server",
