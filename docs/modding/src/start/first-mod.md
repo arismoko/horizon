@@ -22,7 +22,7 @@ in. You need the launcher and a Horizon commit to build against.
 3. Build and run it in the launcher: `horizon-launcher native-build . --instance <instance> --trust-native-code`.
    Add `--profile developer` while developing for an unoptimized game crate. The choice is remembered for that instance.
 
-Next: [Native mods](../how-to/native-mods.md) for what the launcher does, [Trait mods](../concepts/trait-mods.md)
-for Parts and attachments, and [Injections](../injections.md) for the moment no hook covers. To change the
+Next: [Native mods](../how-to/native-mods.md) for what the launcher does, [Trait mods](../concepts/parts.md)
+for Parts and attachments, and [Injections](../concepts/injections.md) for the moment no hook covers. To change the
 game's own code, with mixins, published loops, bridges and support modules, see
-[the native route](../native-route.md).
+[the native route](../concepts/native-route.md).

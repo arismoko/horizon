@@ -112,7 +112,7 @@ enabled = true               # false pauses it and keeps the webhook
 # [combat]
 # legacy = true
 
-# A world's biome regions from mods are fixed when it is made (docs/modding/src/concepts/mod-biome-regions.md).
+# A world's biome regions from mods are fixed when it is made (docs/design/mod-api/mod-biome-regions.md).
 # When a mod with one is gone, the server refuses to start until you choose. To change it:
 # [biome_regions]
 # missing = "vanilla"        # generate vanilla's biomes where the missing mods' regions were; "refuse": don't start

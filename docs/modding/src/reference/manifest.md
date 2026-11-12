@@ -2,7 +2,7 @@
 
 A `.hmod` is one mod: content, native code, or both. `horizon_mod_package::Package` reads the shared manifest and
 validates the package; `horizon_mod_package::Content` reads its resources, and `horizon_mod_package::index::native::Bundle`
-reads its code. Content is preview, native code experimental ([data-formats.md](../../../api/data-formats.md)).
+reads its code. Content is preview, native code experimental ([data-formats.md](https://github.com/arismoko/horizon/blob/main/docs/api/data-formats.md)).
 
 ## The zip
 
@@ -58,17 +58,17 @@ API function listeners use top-level `[[inject]]`: `id`, `at`, lowercase `kind`,
 with optional `priority` (default 0). `head`, `return` and `replace` are supported.
 The removed `access` key is refused by name. Use `[[native.mixin]]` for game internals.
 Unknown fields are refused by the schema. API function declarations use only `[[inject]]`.
-See [Injections](../injections.md) for the fields and point injections, and
-[Native mods](../how-to/native-mods.md#named-hook-points) for the named hook contracts.
+See [Injections](../concepts/injections.md) for the fields and point injections, and
+[Native mods](../how-to/entities/named-hook-points.md) for the named hook contracts.
 
 A module has a unique, nonempty `id` (one id space with the injections), a `file` naming the game source
 file that receives it, a `name` that is a Rust module identifier, and a `source` payload file under
 `src/`, holding the module's items without an outer wrapper. An optional `visibility` is exactly
-`"pub"` or `"pub(crate)"`, the default. See [Support modules](../support-modules.md).
+`"pub"` or `"pub(crate)"`, the default. See [Support modules](../concepts/native-route/5-support-modules.md).
 
 `[[inject]]` only fills compiled slots and never compiles game code. Native source edits
 use `[[native.mixin]]` with `id`, `target`, uppercase `kind`, `helper` and upstream
-options. `[[native.loop]]`, `[[native.bridge]]` and `[[native.module]]` complete the route; `[[native.state]]` is refused. See [The native route](../native-route.md) for every table, its fields and its refusals.
+options. `[[native.loop]]`, `[[native.bridge]]` and `[[native.module]]` complete the route; `[[native.state]]` is refused. See [The native route](../concepts/native-route.md) for every table, its fields and its refusals.
 
 A wasm mod adds `[wasm]` instead, written by `cargo horizon-mod build --wasm`
 ([Building to `mod.wasm`](../how-to/wasm-mods.md)):
@@ -93,7 +93,7 @@ and the key means nothing to them. See [Memory](../how-to/wasm-mods.md#memory).
 Top-level `[dependencies]` declares other mods by id: a semver requirement string, or
 `{ version = "^1", optional = true }`. These versions refer to `horizon-mod.toml`, not Cargo metadata.
 Content layers load in dependency order. A missing required dependency, incompatible installed version or dependency cycle refuses startup; an absent optional dependency is ignored. Native code dependencies additionally require API packages
-([Dependencies between trait mods](../concepts/trait-mods.md#dependencies-between-trait-mods)).
+([Dependencies between trait mods](../concepts/dependencies.md)).
 
 Top-level `[properties]` holds free-form values other mods read: strings, integers, floats and booleans only,
 at most 64 keys and 8 KiB (keys and strings by length, 8 bytes per number, 1 per boolean); a table, an array
@@ -144,7 +144,7 @@ every owner of a shared missing file. The game never downloads jars.
 A code package contains root `Cargo.toml`, optional `build.rs`, `.rs` and `.toml` files under `src/`,
 and root text files named `README*`, `LICENSE*`, `LICENCE*`, `COPYING*` or `NOTICE*`.
 The marked root `impl Hooks` uses `#[mod_api::horizon_mod]`; the attribute generates the factory
-([Trait mods](../concepts/trait-mods.md#trait-mods-draft)).
+([Trait mods](../start/writing-hooks.md)).
 
 Folder packaging selects source and resource files, excluding `.git/` and `target/`. It validates selected
 files before copying them. Whole archives are checked, not treated as source folders with ignored extra entries.

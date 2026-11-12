@@ -3,7 +3,7 @@
 //! as a whole, then published as a set with a session and a generation, and read through
 //! handles that check both. Nothing here touches the world; the game builds a candidate before
 //! it commits any table and keeps the old set when building fails. See
-//! `docs/modding/src/concepts/mod-datapack-registries.md`.
+//! `docs/design/mod-api/mod-datapack-registries.md`.
 use super::datapack_registry::{
     DatapackDecodeError, DatapackEntry, DatapackFieldKind, DatapackRegistryDeclaration,
     DatapackValue, valid_namespaced,

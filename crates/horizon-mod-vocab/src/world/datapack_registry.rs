@@ -2,7 +2,7 @@
 //! of the mod's own, whose entries are JSON files in data packs. The mod
 //! declares a flat record schema once at startup; the game decodes every
 //! entry against it, so a decoder never runs mod code and a native and a wasm
-//! mod see the same bounds. See `docs/modding/src/concepts/mod-datapack-registries.md`.
+//! mod see the same bounds. See `docs/design/mod-api/mod-datapack-registries.md`.
 use horizon_core::identifier::Identifier;
 use serde_json::Value;
 

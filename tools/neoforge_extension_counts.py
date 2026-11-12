@@ -1,8 +1,10 @@
-"""Render extension verdict totals from method rows at book-build time."""
+"""Print the NeoForge extension coverage totals from the method rows of
+docs/design/mod-api/neoforge-extensions.md: `python3 tools/neoforge_extension_counts.py`."""
 from collections import Counter
+from pathlib import Path
 import re
 
-PAGE = 'reference/neoforge-extensions.md'
+PAGE = Path(__file__).resolve().parents[1] / 'docs/design/mod-api/neoforge-extensions.md'
 
 
 def counts(content):
@@ -29,13 +31,5 @@ def render(content):
     return content.replace('<!-- extension-counts -->', '\n'.join(table))
 
 
-def preprocess(context, book):
-    def visit(items):
-        for item in items:
-            chapter = item.get('Chapter')
-            if chapter:
-                if chapter.get('source_path') == PAGE:
-                    chapter['content'] = render(chapter['content'])
-                visit(chapter['sub_items'])
-    visit(book['sections'])
-    return book
+if __name__ == '__main__':
+    print(render('<!-- extension-counts -->\n\n' + PAGE.read_text()).split('\n\n', 1)[0])

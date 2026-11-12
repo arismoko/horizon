@@ -6,7 +6,7 @@
 //! checked before anything is reserved or copied, and nothing here panics on
 //! any input. The codec touches no `Host` and no world, so it runs the same
 //! in a native mod and in a wasm guest. Registration and delivery are the
-//! later stages. See `docs/modding/src/concepts/typed-payloads.md`.
+//! later stages. See `docs/design/mod-api/typed-payloads.md`.
 
 /// The deepest a payload value nests: each box, each list, each present option and
 /// each [`PayloadReader::nested`] level counts one.

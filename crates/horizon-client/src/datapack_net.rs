@@ -10,7 +10,7 @@
 //! A `/reload` that publishes the next generation sends each joined Horizon client a new snapshot
 //! on the same channel, built from the offer owned by its live connection. The
 //! client checks it as at the join and swaps its set in one step, or ends the connection. See
-//! `docs/modding/src/concepts/mod-datapack-registries.md`.
+//! `docs/design/mod-api/mod-datapack-registries.md`.
 use std::sync::{Arc, Mutex, atomic::AtomicU64};
 
 /// The snapshot, server to client.

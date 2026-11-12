@@ -6,7 +6,7 @@
 //! only ever handed WGSL that compiles. A required pipeline the load cannot build fails the load;
 //! an optional one is logged and left out. A frame reads none of this by name.
 //!
-//! Colour follows the mod render colour rule (docs/modding/src/concepts/mod-render-colour.md):
+//! Colour follows the mod render colour rule (docs/design/mod-api/mod-render-colour.md):
 //! the mod's function reads and returns linear light, and the generated entry points convert
 //! from the quad's vanilla-space colour and to the frame, which stores vanilla's 2.2 encoding
 //! in every format the renderer draws today.

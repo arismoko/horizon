@@ -1,5 +1,5 @@
 //! Weighted biome regions inside a multi-noise preset (Overworld, Nether): the layout a world
-//! saved, which the region selector reads. Design: `docs/modding/src/concepts/mod-biome-regions.md`.
+//! saved, which the region selector reads. Design: `docs/design/mod-api/mod-biome-regions.md`.
 use crate::worldgen::climate::{IndexError, Parameter, ParameterPoint};
 
 /// The salt of the region selector's random stream (`from_hash_of`), in selector version 1.

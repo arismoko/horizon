@@ -53,7 +53,7 @@ cargo horizon-mod check target/horizon-mod/my_mod.hmod   # the registry's checks
   `--horizon <commit>`'s) so the launcher downloads the game instead of building it, root `Cargo.toml`
   and `src/lib.rs`, and empty `assets/` and `data/` directories. `update` repins it the same way. Its root `impl Hooks` uses
   `#[mod_api::horizon_mod]`. Compile it with `horizon-launcher native-build <path> --trust-native-code`
-  ([trait mods](../concepts/trait-mods.md#trait-mods-draft)). Any other `--template` is refused.
+  ([trait mods](../start/writing-hooks.md)). Any other `--template` is refused.
 - `build` packs the checked project into `target/horizon-mod/<id>.hmod`: `horizon-mod.toml`, `assets/`,
   `data/`, optional `icon.png` and, for code, the root Cargo project. It validates content with the same
   checks as the game; it does not compile code. Code requires both `Cargo.toml` and `[native]`; inconsistent
@@ -97,8 +97,8 @@ characters; the others are plain text. The screen has no switch: a mod runs or n
 
 Unknown keys are refused, so a typo is an error, not a silently ignored permission. The shared manifest
 uses exactly `api = "0.2"` and `capabilities = ["registries"]`, with `side = "client"` (the default) or `"both"`.
-Code mods add `[native]` for exact build pins and optional raw injections ([Injections](../injections.md)); their id and version still come only
-from this manifest, not Cargo metadata ([Native mods](native-mods.md#a-bundle)). Both content and code mods support `[dependencies]`: use `base = "^1.2"` for a required dependency or
+Code mods add `[native]` for exact build pins and optional raw injections ([Injections](../concepts/injections.md)); their id and version still come only
+from this manifest, not Cargo metadata ([Native mods](native-mods/02-the-package.md)). Both content and code mods support `[dependencies]`: use `base = "^1.2"` for a required dependency or
 `extra = { version = "^2", optional = true }` for an optional one. Missing required dependencies, incompatible installed versions and cycles refuse startup. Content layers load after their dependencies; an absent optional dependency is ignored. Both kinds may include a fixed-name `icon.png` at the top level, with no
 manifest key: a valid square PNG, at most 512 × 512 pixels and 256 KiB encoded ([Mod files](../reference/manifest.md)).
 Executable `mod.wasm` files are unsupported: a folder or archive containing one is refused, including when
@@ -131,7 +131,7 @@ A jar reference supplies assets and data, not the original Java behavior: port t
 
 A content mod has capability `registries` and carries `assets/` and `data/` in the `.hmod`. It adds blocks and items
 by declaring them in `data/<id>/horizon/block/*.json` and `data/<id>/horizon/item/*.json`, each copying a vanilla
-template ([modpacks.md](../../../modpacks.md#registries-02-data-driven-blocks-items-and-mob-effects)), and creative tabs, mob
+template ([modpacks.md](https://github.com/arismoko/horizon/blob/main/docs/modpacks.md#registries-02-data-driven-blocks-items-and-mob-effects)), and creative tabs, mob
 effects, entity types and menu types (each below) in `creative_tab/`, `mob_effect/`, `entity_type/` and `menu/` beside
 them. `fluid/` gives a fluid a client look (`sprite`, an atlas sprite id, and `tint`, `0xAARRGGBB`, both optional), as
 NeoForge's `IClientFluidTypeExtensions`; the fluid needs no block, and a recipe page draws its well from it. Its `world`
@@ -552,7 +552,7 @@ the thrower (the snowball's 3 to blazes is not copied):
 It is the entity type `<id>:<name>`, with its network id after vanilla's. Using its item throws it as a snowball is
 thrown: same speed, spread, sound and cooldown, and one item used outside creative. It flies as a snowball, breaks on
 what it hits with its item's crumbs, and is drawn as its item's model (`ThrownItemRenderer`), unless a client
-mod registers a renderer for it ([entity renderers](entity-renderers.md)). Its name is the translation
+mod registers a renderer for it ([entity renderers](client/entity-renderers.md)). Its name is the translation
 `entity.<id>.<name>`. It works in single player and on LAN with the same mods. Dedicated servers share that code,
 untested so far. Clients join a server only with the same mods' entity types, as with its blocks. It is saved with its
 chunk, `/summon <id>:<name>` makes one, and it has its template's row in `entity-types.json`, with `template` naming
@@ -762,7 +762,7 @@ The namespace collision fence below still applies. `minecraft`, `c` and
 the other's): the game keeps the first in load order and leaves the other's content out, with "mods A and B both use
 the namespace N; turn one of them off" in the log. Paths use vanilla's resource characters, at most 65,536 files, 16
 MiB each and 512 MiB in all. A mod whose content is refused is left out, with the reason in the log. The game reads
-this content into its block and item tables (`horizon_client::mod_content`, [modpacks.md](../../../modpacks.md)). A tag entry
+this content into its block and item tables (`horizon_client::mod_content`, [modpacks.md](https://github.com/arismoko/horizon/blob/main/docs/modpacks.md)). A tag entry
 naming an id nobody registers (a block a port left out, another mod's item) is dropped, so the rest of the tag still
 loads; vanilla would drop the whole tag.
 
@@ -888,7 +888,7 @@ file and attribute. A client plays these from the biome data the server sends. I
 three ambient sound fields together make the one `ambient_sounds` value, and a value out of range refuses the mods at
 startup.
 
-**When they apply.** Modifiers are applied while the world's worldgen data is loaded, before any chunk is generated: the content build writes the modified biomes into the content root, and when a world opens, `horizon_client::vanillagen::biome_modifiers_over_packs` applies them again over the world's data packs (`shared_data_with` for the generator, `packed_biomes` for the game's biome table), so a pack that replaces a vanilla biome keeps the mods' changes and a pack's own biome a tag selects gets them. Modifiers a mod declares in code (`Registrar::declare_biome_modifier`) register before any world opens and are read at the same moment. The generator's data is loaded once per bundle and set of packs and shared by the world's dimensions, so a modifier never applies halfway through a world. The dedicated server is the same game run headless (`horizon-client --dedicated`, [server.md](../../../server.md)), so it takes this path too; `horizon-server` only supervises it.
+**When they apply.** Modifiers are applied while the world's worldgen data is loaded, before any chunk is generated: the content build writes the modified biomes into the content root, and when a world opens, `horizon_client::vanillagen::biome_modifiers_over_packs` applies them again over the world's data packs (`shared_data_with` for the generator, `packed_biomes` for the game's biome table), so a pack that replaces a vanilla biome keeps the mods' changes and a pack's own biome a tag selects gets them. Modifiers a mod declares in code (`Registrar::declare_biome_modifier`) register before any world opens and are read at the same moment. The generator's data is loaded once per bundle and set of packs and shared by the world's dimensions, so a modifier never applies halfway through a world. The dedicated server is the same game run headless (`horizon-client --dedicated`, [server.md](https://github.com/arismoko/horizon/blob/main/docs/server.md)), so it takes this path too; `horizon-server` only supervises it.
 
 A biome holder set can also use Horizon's own `horizon:climate` type, alone or nested in those boolean sets; it is not
 a NeoForge format. It filters each biome's base `temperature` and `downfall` (the names in
@@ -928,7 +928,7 @@ outside 1 to 1000, no points or an invalid point refuse the mods at startup, nam
 declared regions in `data/horizon/biome_regions.dat`, and from then on that record decides: a changed or added region
 reaches an existing world only when its owner opts in, and a world whose region's mod is missing asks before it opens
 (a dedicated server reads `[biome_regions] missing = "refuse" | "vanilla"` in `server.toml`). The full contract is in
-[the design](../concepts/mod-biome-regions.md).
+[the design](https://github.com/arismoko/horizon/blob/main/docs/design/mod-api/mod-biome-regions.md).
 
 The modifiers rewrite the biomes when the content root builds, and the generator orders every biome's features as
 vanilla's `FeatureSorter` does, so an added feature takes its place in that order (its random seed follows from it). A
