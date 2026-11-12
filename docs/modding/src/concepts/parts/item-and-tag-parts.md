@@ -1,11 +1,10 @@
-# Item and tag Parts
+# Item and tag parts
 
 For an item-specific Part, request its canonical registry key once in `register`:
 `let stick = r.item_key("minecraft:stick"); r.item_part(stick, Sharp);`. Bare names use the
 `minecraft:` namespace. Requests may refer to content declared later; the final item registry refuses
 unknown IDs with the requesting mod. `ItemKey` equality uses its load-owned slot, and `key.id(host)`
-reads its canonical diagnostic name. Item capability registration and item helpers still use strings;
-their migration is a separate change.
+reads its canonical diagnostic name. Item capability registration and item helpers use strings.
 
 `r.block_part_tag("minecraft:logs", Rotates)` and `r.item_part_tag("minecraft:axes", Sharp)` attach a part to
 every member of a tag (its name without `#`). Each game resolves them against its own tags when its world
@@ -25,10 +24,9 @@ identical switches for native and wasm mods:
 
 - `use_block = TriState::True` allows block use even while sneaking with an item
   in either hand. `Default` skips while sneaking with either hand full; `False` skips block use.
-  The both-stacks `doesSneakBypassUse` exception remains open in #2934.
 - `use_item = TriState::True` enters the item's `useOn` phase even with an empty
   hand or an item on cooldown. `Default` requires a held stack off cooldown;
-  `False` skips this phase. Adventure placement restrictions still apply.
+  `False` skips this phase. Adventure placement restrictions apply.
 
 A consuming block result ends the click before the item phase. For forced empty-hand
 use, `use_item_on_block` fires with `phase = UsePhase::ItemAfterBlock` and
@@ -74,7 +72,7 @@ using `*event.cancellation_result` (initially `TryWithEmptyHand`) as its result.
 
 Canceling `ItemBeforeBlock` skips the item's `on_item_use_first` Part. `Pass`
 continues to the block phase; any non-`Pass` result ends the block interaction. Cancellation alone does not suppress the later phases when its answer is `Pass`. A block-phase `TryWithEmptyHand`
-can still run the block's empty-hand behaviour on the main hand.
+can run the block's empty-hand behaviour on the main hand.
 
 ## Item wear
 
@@ -85,10 +83,9 @@ runs on every wear path: a player's tools, armour, shield and mace, a tool a dis
 not asked when Unbreaking already saved the item or for a creative player's tools, and an item with no part costs
 one table lookup. With no part, the vanilla amount applies.
 
-The global `item_damaged` hook is gone: this method is its one moment, and a part acts only on its own item. What the
-global hook could do and a part cannot is change the wear of another mod's or vanilla's items, which no part is
-attached to. Do that with an enchantment effect in data (a `minecraft:item_damage` effect on the enchantment, the
-component Unbreaking uses), or with an injection. A part does not get the wearing entity;
+To change wear without attaching a Part to an item, use an enchantment's
+`minecraft:item_damage` effect (the component Unbreaking uses), or an injection.
+A part does not get the wearing entity;
 `host.players().acting_player()` names the player on the paths a player takes.
 
 ## Mending repair

@@ -1,11 +1,13 @@
 # Entity parts and mob goals
 
+Use entity Parts in native mods. `r.entity_part` is absent from wasm builds.
+
 `r.entity_part("minecraft:zombie", ZombieGoals)` attaches an `EntityPart` to one entity type, a mod's
 own or vanilla's. Its method `register_goals` runs at every `Mob` construction of that type —
 spawned or loaded, the moment vanilla's `registerGoals` fan-out ends — and the goals it adds join the
 mob's two selectors beside the species' own, with the same priorities, flag locks and interruption:
 
-```rust
+```rust,ignore
 struct ZombieGoals;
 #[mod_api::horizon_part]
 impl EntityPart for ZombieGoals {
@@ -18,11 +20,10 @@ impl EntityPart for ZombieGoals {
 ```
 
 `goals.add_goal(priority, goal)` and `goals.add_target_goal(priority, goal)` are `GoalSelector.addGoal`
-on the mob's two selectors; `GoalFlags` claims MOVE, LOOK, JUMP and TARGET as vanilla's `Goal.Flag`
+on the mob's two selectors; `GoalFlags` claims `MOVE`, `LOOK`, `JUMP` and `TARGET` as vanilla's `Goal.Flag`
 does, and a higher priority (a lower number) interrupts a running goal holding the same flag. A goal
 object is per mob, built fresh at every construction, and its state is never saved: a goal that needs
-memory across loads keeps it in attachments. A mob whose type has no part, or a game with no entity
-parts at all, pays nothing — the wrapper and the tick's read view exist only where a mod goal runs.
+memory across loads keeps it in attachments. The goal wrapper and read view are created only where a mod goal runs.
 
 A `Goal` reads and writes through its `GoalContext`: `mob()` is a fresh handle of the mob it runs on,
 `host()` the tick's read view, `random()` the mob's own random (`mob.getRandom()`, so a mod's draws
@@ -44,11 +45,11 @@ from none, not when switching between targets. Targeting a player does not count
 
 ## Brain behaviors
 
-Native mods only: entity parts do not cross to wasm yet.
-
 `EntityPart::register_behaviors` receives a `BehaviorRegistrar` whenever a brain-driven species builds or rebuilds its brain. Use `add(activity, priority, min_duration, max_duration, requirements, behavior)` to join a fresh `Behavior` to the species' supported activity. Registration returns a `BehaviorRefusal` for an unsupported activity or invalid duration. Behaviors start and stop in vanilla `Brain.tick` order: priority, activity bucket, then insertion order, with mod behaviors after vanilla behaviors in the same bucket. Their state is not saved. `BehaviorCx` provides the mob, host, random source and typed brain memory access; each species refuses memories it does not support.
 
-The part's `spawn_cluster_size`, changes how large a natural spawn group of the type grows
+## Spawn groups and shearing
+
+The part's `spawn_cluster_size` changes how large a natural spawn group of the type grows
 (`Mob.getMaxSpawnClusterSize`); [controlling spawns](../../how-to/world/spawning.md#changing-how-large-a-spawn-group-grows)
 shows it.
 
@@ -57,5 +58,9 @@ hand and a dispenser's ask `is_shearable` first, and the part that says `Some(tr
 `on_sheared` and returns the drops, which the game spawns before damaging the shears. `Some(false)` keeps the
 entity unsheared, and `None` leaves it to the species (a sheep keeps shearing as vanilla's does).
 
-Entity parts are a native mod's for now: the goal surface does not cross to wasm (see the
-`attach_entity_part` note), so `r.entity_part` is absent from a wasm build.
+## Equipped durability
+
+`living.hurt_and_break(host, slot, amount)` changes equipped durability on the server;
+negative amounts repair. It returns the pre-shrink stack only on break, and `None` when
+nothing breaks or the entity or slot is unavailable. Creative players' equipment is
+exempt. The operation does not fire equip effects.
