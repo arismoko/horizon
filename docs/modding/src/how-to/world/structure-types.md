@@ -1,69 +1,93 @@
 # Structure types
 
-A structure type is a mod's code where a data pack names one: a structure JSON whose `"type"` is
-`"mymod:tower"` instead of a vanilla type generates by the mod's `StructureType` (vanilla's
-`StructureType`, whose `find_generation_point` returns the start and whose pieces are
-`StructurePiece`s, loaded by the `StructurePieceType` that `load_piece` is — NeoForge registers
-these in the registries `STRUCTURE_TYPE` and `STRUCTURE_PIECE`). Register it once, at startup, in
-`Hooks::register`; the id is in the mod's namespace, and a duplicate id, an id in another mod's
-namespace or an empty name stops the game at startup with a message naming the mod:
+Register a `StructureType` in `Hooks::register` to generate structures named by a data pack's
+`"type"` field. For example, a structure JSON with `"type": "mymod:tower"` uses your registered
+`mymod:tower` implementation:
 
 ```rust,ignore
 {{#include ../../../examples/src/worldgen.rs:structure}}
 ```
 
-There is no `Host` in world generation: starts build on worker threads and pieces place per chunk,
-so the type and its pieces see only two small contexts, `Send + Sync` and deterministic. The same
-seed gives the same pieces, and a type keeps no mutable state, because two workers can build
-neighbouring chunks at once.
+Use an ID in your mod's namespace. A duplicate ID, an ID in another mod's namespace, or an empty
+name stops startup with a message naming your mod.
 
-`StructureType::find_generation_point(&self, context: &mut dyn GenerationContext)` answers
-`FoundStructure { position, pieces }` (each piece an `Arc<dyn StructurePiece>`) or `None` for "no start in this chunk". The
-`GenerationContext` is vanilla's `GenerationContext` over one chunk: the seed, the chunk, the
-random seeded as vanilla seeds it for the chunk (`setLargeFeatureSeed`), the height and
-base-column queries, opaque noise-biome identities and the valid-biome test, borrowed immutable
-`metadata()`, and the structure's config as a shared `Arc<Tag>` (`context.config()`). JSON converts
-once when the definition loads or reloads, not once per start. Nested nulls refuse at load. Both contexts are traits and the random is a
-`StructureRandom` (`next_int_bound`, `next_long`, `next_float`, `next_double`, `next_boolean`),
-so a type built to `mod.wasm` runs the same code. Generated worker calls take the dependency
-group's store lock and per-call fuel or epoch budget; a trap stops that group with a typed refusal. Everything around the type stays the game's: the structure set's
-spacing, the structure's `biomes` and `terrain_adaptation` are placed by the engine, exactly as
-for a fortress.
+## Generating a start
 
-Each piece is a `StructurePiece` (`Debug + Send + Sync`): `bounding_box`, `post_process` and
-`add_additional_save_data` are required. After all pieces of the start were placed, the type's own
-`after_place` (vanilla's `Structure.afterPlace`) runs once per chunk with every piece's current
-box; it defaults to doing nothing. The
-`PieceContext` of `post_process` and `after_place` is the chunk being placed: `set_block` writes a
-block and drops a position outside the writable box silently, as vanilla's
-`StructurePiece.placeBlock` skips it; `block` and `height` read, `state`/`state_with` resolve a
-a registered `BlockKey` into an API-owned `BlockState`, `random` is the piece's `RandomSource` as a
-`StructureRandom`, and `metadata().name(state.block())` borrows its canonical block name.
-`solid_render` asks whether
-a state draws as a solid block, and `entity` queues an entity from its saved NBT — its `id`, `Pos`
-and fields — which the generating chunk holds and the game finishes as a structure mob's
-(`Mob.finalizeSpawn` with `STRUCTURE` when the NBT keeps the `"horizon:finalize"` byte a structure
-template's entities carry). `block_entity` places a block entity from its NBT.
+`StructureType::find_generation_point(&self, context: &mut dyn GenerationContext)` returns
+`Some(FoundStructure { position, pieces })` for a start, or `None` to skip the chunk. Supply at
+least one piece, each an `Arc<dyn StructurePiece>`.
 
-Saving goes through the engine's `StructurePiece.createTag` — the type id, `BB`, `O`, `GD` —
-around the piece's `add_additional_save_data`. When the chunk loads back, the type's `load_piece`
-(the `StructurePieceType` loader) rebuilds the piece exactly as it was saved; there is no
-regeneration from the seed. `load_piece(metadata, tag)` returns a typed `StructureError` for invalid
-saved block names, properties or piece data. Its metadata is the same retained snapshot the worker
-contexts borrow. Resolve states once in piece construction or load, as the example does; keep
-canonical names and properties in saved data, never process-local ordinals. `post_process` then
-writes retained states without per-block name lookups or allocation.
+World generation has no `Host`. Starts run on worker threads, and pieces place per chunk. Your
+`StructureType` must be `Send + Sync`, stateless and deterministic: the same seed produces the
+same pieces, even when workers generate neighbouring chunks concurrently.
 
-**Open question — the saved piece's id is the structure type's, not a piece type's.** Every piece
-of a type saves with that type's id, the `STRUCTURE_TYPE` id; Horizon has no separate
-`STRUCTURE_PIECE` registry, so there is no per-piece-kind id in the tag. A mod whose type has
-several kinds of pieces tells them apart in `load_piece` by its own saved data (a tag field its
-`add_additional_save_data` writes). The `O` (orientation) and `GD` (genDepth) fields are written
-as `-1` and `0` — the adapter has no orientation or depth to record — so a piece must not read
-them back as meaningful.
+| `GenerationContext` access | Purpose |
+|---|---|
+| `seed`, `chunk`, `sea_level`, `min_y`, `max_y` | World and chunk coordinates and bounds |
+| `random` | `StructureRandom` seeded with vanilla's `setLargeFeatureSeed` for the chunk |
+| `base_height`, `base_columns`, `noise_column` | Height and base-column queries |
+| `noise_biome`, `column_has_valid_biome` | Opaque biome identities and the structure's valid-biome test |
+| `metadata` | Borrowed immutable block metadata |
+| `config` | The structure JSON converted to a shared `Arc<Tag>` |
 
-The pieces ride the one piece mechanism the game has: they are legacy pieces behind an adapter, so
-the start cache, the cross-chunk placement, the beardifier and `/locate structure` treat a tower
-piece like a fortress piece's. `StructureRegistry` reads the registered types before it falls to
-`Unsupported`, so a data pack structure whose `"type"` no installed mod registers places nothing,
-exactly as before.
+Config conversion runs when definitions load or reload, not per start. Nested JSON nulls are
+refused at load. The engine handles structure-set spacing, `biomes` and `terrain_adaptation`.
+
+Both contexts are traits. `StructureRandom` provides `next_int_bound`, `next_long`, `next_float`,
+`next_double` and `next_boolean`. These interfaces also support structures in `mod.wasm`.
+Wasm worker calls share the dependency group's store lock and use a per-call fuel or epoch
+budget; a trap stops the group with a typed refusal.
+
+## Placing pieces
+
+Implement `StructurePiece` (`Debug + Send + Sync`) with these methods:
+
+| Method | Contract |
+|---|---|
+| `bounding_box` | Return the piece's world-space `BoundingBox`. |
+| `post_process` | Place blocks and entities through `&mut dyn PieceContext`; return `Result<(), StructureError>`. |
+| `add_additional_save_data` | Write your piece's fields into its saved `Compound`. |
+
+After the start's pieces place, `StructureType::after_place` runs once per chunk with every
+piece's current bounding box. Its default implementation does nothing.
+
+Use `PieceContext` to work within the chunk:
+
+| Method | Behaviour |
+|---|---|
+| `chunk`, `chunk_box` | Identify the chunk and writable box. |
+| `set_block` | Write a `BlockState`; silently skip positions outside the writable box. |
+| `block`, `height` | Read blocks and heightmap heights. |
+| `state`, `state_with` | Resolve a registered `BlockKey` to an API-owned `BlockState`. |
+| `random` | Draw from the piece's `StructureRandom`. |
+| `metadata` | Borrow block metadata; `metadata().name(state.block())` returns the canonical name. |
+| `solid_render` | Check whether a state renders as a solid block. |
+| `entity` | Queue saved entity NBT, including its `id`, `Pos` and other fields. |
+| `block_entity` | Place block entity NBT at a position. |
+
+Entities remain in the generating chunk until it joins the world. Keep the `"horizon:finalize"`
+byte carried by structure-template entities to request `Mob.finalizeSpawn` with the `STRUCTURE`
+reason when the game loads the entity.
+
+Resolve block states once during piece construction or loading. Retain those states for
+`post_process` rather than resolving names for every placed block.
+
+## Saving and loading
+
+The engine saves the structure type ID and the fields `BB`, `O` and `GD`, then calls
+`add_additional_save_data`. On chunk load, your type's
+`load_piece(metadata, tag) -> Result<Arc<dyn StructurePiece>, StructureError>` rebuilds the piece
+from that data; the engine does not regenerate it from the seed. Return `StructureError` for
+invalid saved block names, properties or piece data. The loader receives the same retained
+metadata snapshot that worker contexts borrow.
+
+- Every piece saves with its structure type's ID. There is no separate `STRUCTURE_PIECE` registry.
+  If your type uses several piece kinds, save a discriminator in `add_additional_save_data` and
+  read it in `load_piece`.
+- The engine writes `O` as `-1` and `GD` as `0`. Save your own orientation or depth fields if you
+  need them; do not interpret these defaults as your piece's orientation or depth.
+- Save canonical block names and properties, never process-local ordinals.
+
+Mod pieces participate in start caching, cross-chunk placement, terrain blending through the
+beardifier, and `/locate structure`. A data pack structure whose `"type"` has no registered
+implementation places nothing.

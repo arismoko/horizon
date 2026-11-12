@@ -1,6 +1,6 @@
 # Controlling spawns
 
-Four hooks stand in for the checks and setup around a mob. All run on the server, get the read-only host, and fire on replayed ticks, so a listener must be a pure function of its inputs. `finalize_spawn` can also change the mob it is about to finalize, through the editor it is handed, and the pack's group data; it changes nothing else.
+Use spawn hooks to accept or reject a spawn, edit a mob before finalization, or control despawning. All four hooks run on the server with a read-only host and fire on replayed ticks. Your listeners must be pure functions of their inputs. `finalize_spawn` can also change the mob it is about to finalize, through the editor it is handed, and the pack's group data; it changes nothing else.
 
 | Moment | Hook | Answer |
 |---|---|---|
@@ -25,7 +25,7 @@ r.declare_spawn_placement("ghoul", mod_api::SpawnPlacementRule {
 
 The placement type is `SpawnPlacements.isSpawnPositionOk`'s first check, and the rule stands in for the type's spawn predicate: every field that is set must hold, and a trial spawner ignores `light`. A type with no declaration keeps its template's rules. The game resolves the declarations once at load, so a check reads one table and never walks the mods. A tag is a namespaced name written without `#`; an id outside the mod's namespace, a bad tag or a second declaration of the same type refuses the mods at startup, and a type no content file defines refuses the resource load.
 
-`mob_spawn_placement_check` is the separate per-check moment: it runs after the rule and is told its answer as `default_result`, so a listener can still overturn it for one position.
+`mob_spawn_placement_check` is the separate per-check moment: it runs after the rule and is told its answer as `default_result`, so you can override it for one position.
 
 ## Walking every entity in a level
 
@@ -34,23 +34,11 @@ The placement type is `SpawnPlacements.isSpawnPositionOk`'s first check, and the
 `level_entities_in`, it does not append the dragon's parts: vanilla's
 `ServerLevel.getAllEntities` iterates the entity lookup, not multipart hit boxes.
 A remote client, stale handle or parked level returns `None`, never a partial
-client-side list. The query also returns `None` while any lookup member is
-temporarily extracted, rather than returning an incomplete authoritative list.
+client-side list. Outside a scoped hook query, an unavailable lookup member makes the query return `None`.
+Inside a scoped hook query, unavailable members are omitted.
 
-The walk preserves lookup admission order across storage families, including
-removal and re-admission at the end. A chunk's entities join in the order the
-chunk was stored: vanilla's `storeChunkSections` order, section by section from
-section 0 upward and then the negative sections, each section in admission
-order, whatever storage family holds each entity. A vehicle comes before its
-passengers. Three limitations remain: an entity that moved into another section
-since it joined is stored at its admission place there, where vanilla moves it
-to the end of the section it entered; entities with a zero runtime ID fall back
-to stable storage join order, not runtime admission order; and unregistered
-entity kinds have no authoritative lookup handle and are omitted from this query.
-This is not complete saved-world or whole-level ordering parity (#2703).
-The call allocates buffers for the result and sorts admission keys; it does not
-allocate an object per entity. Cache the result when doing several passes in one
-hook rather than repeatedly crossing the host boundary.
+The walk follows the level's entity lookup order, not spatial order. Cache the returned list
+when you need several passes in one hook rather than repeating the host query.
 
 ## Checking a spawn
 
@@ -89,7 +77,7 @@ check, and a spawner or trial spawner whose spawn data carries entity data, whic
 
 ## Stopping a spawn or leaving a mob plain
 
-`finalize_spawn` has two cancels. Returning `Flow::Cancel` skips finalization: the mob still spawns, but with no equipment, attributes or class setup. Setting `event.spawn_cancelled = true` adds no mob at all.
+`finalize_spawn` has two cancels. Returning `Flow::Cancel` skips finalization: the mob spawns, but with no equipment, attributes or class setup. Setting `event.spawn_cancelled = true` adds no mob at all.
 
 ```rust,ignore
 fn finalize_spawn(&self, _: &dyn mod_api::Host, event: &mut mod_api::FinalizeSpawnEvent<'_>) -> mod_api::Flow {
@@ -109,7 +97,7 @@ an explicit NBT compound follows the load route without finalization.
 
 ## Changing the mob before it is finalized
 
-`event.mob` is the mob itself, an `UnspawnedMobRef`: it is in no level yet, so it is not an `EntityRef`, and only this
+`event.mob` is the mob itself, an `UnspawnedMobRef`: it is not in a level, so it is not an `EntityRef`, and only this
 hook call can use it. Read it through the host (`kind`, `position`, `equipment`, `attribute_base`, `attribute_value`,
 `tags`, `custom_name`) and change it through `event.edits`, which reaches only this mob: equipment (an API-owned `ItemStack`), an attribute's base or a permanent modifier, tags and the custom name. An edit applies at once, so the
 reads and the next listener see it. Once the hook returns, the handle answers `UnspawnedMobError::Expired`, as does a
@@ -126,25 +114,24 @@ fn finalize_spawn(&self, host: &dyn mod_api::Host, event: &mut mod_api::Finalize
 }
 ```
 
-Listeners run before finalization. Finalization's own rolls still follow them: equipment it rolls for a
+Listeners run before finalization. Finalization's own rolls follow them: equipment it rolls for a
 slot replaces what a listener put there, and the attribute bonuses it adds apply on top of a listener's base. Return
 `Flow::Cancel` to keep exactly what the listener left, since no finalization runs. Attribute edits reach the
 attributes a mob keeps itself (max health, movement speed, follow range, attack damage, knockback resistance,
 spawn reinforcements, jump strength, burning time, flying speed); the others answer `Unsupported` until the mob has
 joined, when a `LivingRef` writes them. The ender dragon's handle answers its kind and position, and `Unsupported`
-for the rest. A mob finalization itself creates (a chicken jockey's chicken, a zombie horse's rider) fires the hook
+for the rest. A mob that finalization creates (a chicken jockey's chicken, a zombie horse's rider) fires the hook
 again with a handle of its own.
 
-The hook still fires on replayed ticks with the read-only host, so the editor and `group` are the only things a
+The hook fires on replayed ticks with the read-only host, so the editor and `group` are the only things a
 listener changes, and it must change them the same way every time: a pure function of the event.
 
 `event.group` is the pack's `SpawnGroupData` as plain data (`SpawnGroup`, variants named as vanilla saves them):
-read it, change it, set it or clear it, and finalization reads what is left. Every site the hook fires at hands it
-`None` today: the game does not yet thread group data from one member of a natural spawning pack to the next, and
-chunk generation's animals share it only inside the generator, out of the hook's reach. Setting a group still reaches this
-mob's finalization; carrying it on to the pack's next member comes with that threading.
+read it, change it, set it or clear it, and finalization reads what is left. Each hook call receives `None`; group data is not passed between natural pack members.
+Chunk generation shares group data inside the generator, outside this hook. A group you set affects
+only this mob's finalization.
 
-See [the hook notes](../../reference/hook-notes.md#finalize-spawn) for what each spawn site covers and what is left out (breeding, loads, worldgen structure mobs).
+See [the `finalize_spawn` contract](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/finalize_spawn.rs) for the spawn sites that fire the hook.
 
 ## Changing how large a spawn group grows
 
@@ -167,7 +154,7 @@ impl mod_api::EntityPart for ZombiePacks {
 }
 ```
 
-Only natural spawning's packs ask it: vanilla has no group limit anywhere else. A type with no part keeps vanilla's limit and costs nothing. The mob is the same `UnspawnedMobRef` as `finalize_spawn`'s, finalized and not yet in a level, and the call runs on replayed ticks like `finalize_spawn`, so an answer must be a pure function of its inputs. Attach the part with `r.entity_part("minecraft:zombie", ZombiePacks)` as [entity parts](../../concepts/parts/entity-parts-and-mob-goals.md) describe.
+Only natural spawning's packs ask it: vanilla has no group limit anywhere else. A type with no part keeps vanilla's limit and costs nothing. The mob is the same `UnspawnedMobRef` as `finalize_spawn`'s, finalized and not in a level, and the call runs on replayed ticks like `finalize_spawn`, so an answer must be a pure function of its inputs. Attach the part with `r.entity_part("minecraft:zombie", ZombiePacks)` as [entity parts](../../concepts/parts/entity-parts-and-mob-goals.md) describe.
 
 ## Keeping or removing a mob
 
@@ -201,7 +188,7 @@ fn custom_spawner_tick(&self, host: &mut dyn mod_api::ServerHost, event: &mut mo
 }
 ```
 
-Every mod is asked about every key, so a mod ignores keys it does not own. See [the hook notes](../../reference/hook-notes.md#custom-spawners).
+Every mod is asked about every key, so a mod ignores keys it does not own. See [the custom spawner contracts](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/custom_spawners.rs).
 
 ## Spawning from a level
 
@@ -221,4 +208,4 @@ fn level_load(&self, host: &mut dyn mod_api::ServerHost, event: &mut mod_api::Le
 }
 ```
 
-Only natural spawning reads the policy: spawners, trial spawners, patrols, sieges, phantoms, a new chunk's creatures and custom spawners keep their own rules. A change counts from the level's next spawn pass, and mobs already there stay. The policy is not saved: it holds until the world closes, while the level is parked and across its closing and opening again, and the next open starts from vanilla's, so set it in `level_load`. Reads work on any host and answer `None` on a client or for a stale handle; the writes need a `ServerHost` and return `false` there.
+Only natural spawning reads the policy: spawners, trial spawners, patrols, sieges, phantoms, a new chunk's creatures and custom spawners keep their own rules. A change counts from the level's next spawn pass, and mobs already there stay. The policy is not saved. It survives parking and reopening a level within the same world session, but closing the world resets it. Set it in `level_load`. Reads work on any host and answer `None` on a client or for a stale handle; the writes need a `ServerHost` and return `false` there.
