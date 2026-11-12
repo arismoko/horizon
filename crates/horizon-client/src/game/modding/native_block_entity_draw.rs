@@ -2587,6 +2587,9 @@ mod tests {
             assert_eq!(game.animation_time(), 1.5);
             game.clock.end_frame(false);
             game.clock.set_frozen(true);
+            // Freeze requests become the frame's running decision at the
+            // tick boundary, before end_frame snapshots it for interpolation.
+            assert!(!game.clock.world_runs());
             game.clock.end_frame(false);
             assert_eq!(game.animation_time(), 2.0);
             game.clock.advance(Duration::from_millis(25), 50.0);
@@ -2602,6 +2605,7 @@ mod tests {
             .unwrap();
             assert_eq!(game.animation_time(), 2.0);
             game.clock.set_frozen(false);
+            assert!(game.clock.world_runs());
             game.clock.end_frame(false);
             game.clock.advance(Duration::from_millis(75), 50.0);
             let running = game.clock.world_runs();
