@@ -109,6 +109,9 @@ pub(super) fn game() -> Game<'static> {
     // Its view, as the client sent it: straight down.
     guest.pitch = 90.0;
     game.lan.as_mut().unwrap().hub.guests.push(guest);
+    // This fixture installs the guest without the normal login allocator.
+    // Reserve its entity ID before commands allocate the camel and sensor mob.
+    game.next_entity = game.next_entity.max(2);
     game
 }
 
