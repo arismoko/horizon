@@ -1747,8 +1747,8 @@ mod tests {
             "recipe/braid:cauldron_from_copper".to_owned(),
             vec![recipe.as_bytes().to_vec()],
         )];
-        let server = RecipeIndex::load(&root, &PackOverlay { files: &packs });
-        let own = crate::crafting::Recipes::sources(&root, &PackOverlay::NONE).unwrap();
+        let server = RecipeIndex::load(&root, &PackOverlay::new(&packs));
+        let own = horizon_items::recipe_sources::sources(&root, &PackOverlay::NONE).unwrap();
         std::fs::remove_dir_all(&root).unwrap();
         let client = RecipeIndex::load_from_sources(&own);
         let mut synced = own;

@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn scaled_draw_and_click_agree() {
-        let screen = NoResources::new(std::path::Path::new("."));
+        let screen = screen(Some(GET));
         let atlas = HudAtlas::build(&horizon_assets::resource_source::ResourceSource::directory(
             std::path::PathBuf::from("/nonexistent/horizon-test-assets"),
         ))
@@ -386,7 +386,7 @@ mod tests {
             let mut hit = HudBatch::new([960, 720], settings);
             let cursor = (physical.0 / hit.scale, physical.1 / hit.scale);
             let ui = Ui::new(&atlas, &mut hit, cursor);
-            assert_eq!(screen.click(&ui), Some(Action::Download));
+            assert_eq!(screen.click(&ui), Some(Action::Open(GET.address)));
         }
     }
 
