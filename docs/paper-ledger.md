@@ -553,7 +553,7 @@ Scope = the 20 `base-player` hooks below (join/quit, login, respawn, portal, lec
 [paper-PlayerLevelChangeEvent]: https://jd.papermc.io/paper/26.3/org/bukkit/event/player/PlayerLevelChangeEvent.html
 ## Event counterparts: base player hooks (#1015)
 
-Paper API 26.3 (paper-api `26.3.build.244-stable`), public Javadoc; Horizon cited by function name; scope = the 20 `base.rs` player hooks below.
+Paper API 26.3 (paper-api `26.3.build.244-stable`), public Javadoc; Horizon cited by function name; scope = the 20 `base.rs` player hooks below, and `player_start_spectating_entity` beside its mirror.
 Server side is assumed except for the two `both` tick hooks; a server-half counterpart could qualify, but Covered still requires moment, information and result to agree, and only Covered rows get a `paper` key.
 
 | Horizon hook | Paper event / status | Evidence and porting boundary |
@@ -563,6 +563,7 @@ Server side is assumed except for the two `both` tick hooks; a server-half count
 | `player_shear_entity` | **Partial:** [`PlayerShearEntityEvent`][paper-PlayerShearEntityEvent] | The server-side pre-shear moment, player, entity, hand and cancellation match, but Paper also exposes the shears and drops and permits replacing the drops with `setDrops()`. The hook passes neither item nor drops and only returns cancellation. No key. |
 | `player_shield_disable` | **Partial:** [`PlayerShieldDisableEvent`][paper-PlayerShieldDisableEvent] | Same server moment, just before the shield cooldown, and `getCooldown()`/`setCooldown()` expose the hook's `ticks`. The event also exposes the damager, is cancellable and lets listeners change the cooldown; the listen-only hook supplies no damager and cannot express those results. No key. |
 | `player_sprint` | **Partial:** [`PlayerToggleSprintEvent`][paper-PlayerToggleSprintEvent] | The server-side sprint toggle and the new `isSprinting()` state match. The event is cancellable, so it is the about-to-change call, while the hook hears the change after the player is already sprinting and cannot cancel. No key. |
+| `player_start_spectating_entity` | **Partial:** [`PlayerStartSpectatingEntityEvent`][paper-PlayerStartSpectatingEntityEvent] | Same start-spectating moment, player and spectated entity on the server. Diverges: the event is cancellable and precedes the camera change, while the listen-only hook is heard after the camera moved and the client was told, and cannot cancel. No key. |
 | `player_start_tracking` | **Partial:** [`PlayerTrackEntityEvent`][paper-PlayerTrackEntityEvent] | Paper exposes the player and entity about to be tracked, including its ID, UUID and type, but cancellation prevents showing it; the listen-only hook runs after pairing has started. No key. |
 | `player_stat_award` | **Partial:** [`PlayerStatisticIncrementEvent`][paper-PlayerStatisticIncrementEvent] | Paper reports cancellable statistic increments, exposing the statistic, material or entity type and previous/new counts from which the amount can be derived. Its Javadoc explicitly excludes some high-frequency statistics, while the hook covers awards including those statistics. No key. |
 | `player_stonecutter_recipe_select` | **Partial:** [`PlayerStonecutterRecipeSelectEvent`][paper-PlayerStonecutterRecipeSelectEvent] | Name and the stonecutter selection match, but the class has no Javadoc to confirm the moment, it reports a `StonecuttingRecipe` where the hook reports a button index, and it is cancellable and rewritable while the hook is listen-only. No key. |
@@ -585,6 +586,7 @@ Server side is assumed except for the two `both` tick hooks; a server-half count
 [paper-PlayerShieldDisableEvent]: https://jd.papermc.io/paper/26.3/io/papermc/paper/event/player/PlayerShieldDisableEvent.html
 [paper-PlayerToggleSprintEvent]: https://jd.papermc.io/paper/26.3/org/bukkit/event/player/PlayerToggleSprintEvent.html
 [paper-PlayerStonecutterRecipeSelectEvent]: https://jd.papermc.io/paper/26.3/io/papermc/paper/event/player/PlayerStonecutterRecipeSelectEvent.html
+[paper-PlayerStartSpectatingEntityEvent]: https://jd.papermc.io/paper/26.3/com/destroystokyo/paper/event/player/PlayerStartSpectatingEntityEvent.html
 [paper-PlayerStopSpectatingEntityEvent]: https://jd.papermc.io/paper/26.3/com/destroystokyo/paper/event/player/PlayerStopSpectatingEntityEvent.html
 [paper-PlayerSwapHandItemsEvent]: https://jd.papermc.io/paper/26.3/org/bukkit/event/player/PlayerSwapHandItemsEvent.html
 [paper-PlayerSwapWithEquipmentSlotEvent]: https://jd.papermc.io/paper/26.3/io/papermc/paper/event/player/PlayerSwapWithEquipmentSlotEvent.html
