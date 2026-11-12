@@ -968,13 +968,15 @@ impl Game<'_> {
             return;
         };
         let (id, join) = (hook.id, hook.join);
+        let from = hook.position;
         match self.tick_fishing_extracted(hook) {
             Some(hook) => {
+                let to = hook.position;
                 self.hook.put_back(hook);
+                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
             }
             None => self.hook.retire_extracted(id, join),
         }
-        self.entity_sections_stepped(super::entity_sections::Family::FishingHooks);
     }
     fn tick_fishing_extracted(&mut self, mut h: Hook) -> Option<Hook> {
         h.needs_sync = false;

@@ -7,10 +7,11 @@
 //! position-write boundary hands it the entity's new position immediately after the write.
 //!
 //! The boundaries: an entity joining (the server's `native_joins_flush`, a client's
-//! `AddEntity`) files it untold. Each entity's own tick ends at one (its `EntityTickEvent.Post`
-//! for the mobs, items, minecarts and boats, [`Family`] for the kinds that tick without one, a
-//! client's entities after its tick). A teleport, a piston push, a mod's position write, each
-//! move a server player sent and each packet that moves an entity on a client are one each.
+//! `AddEntity`) files it untold. The mob and item loops report each committed write while their
+//! rows are resident again; minecarts, boats and the remaining server entities report after each
+//! entity's own update. A client reports interpolation writes per entity. A teleport, a piston
+//! push, a mod's position write, each move a server player sent and each packet that moves an
+//! entity on a client are one each.
 //! Every boundary that sees another section records a crossing from the section the entity was
 //! filed under and tells it before the write returns, so two moves told apart are two crossings,
 //! and a move out and back is two.
@@ -133,6 +134,10 @@ impl EntitySections {
     /// again where it next appears, untold.
     pub(super) fn forget(&mut self, id: u32) {
         self.filed.remove(&id);
+        // A nested listener may have queued a crossing immediately before it
+        // removed this entity.  Do not deliver that stale write on the next
+        // boundary (the hook never fires for an entity being removed).
+        self.queue.retain(|crossing| crossing.id != id);
     }
 
     /// The crossings to tell now, or none while a telling is under way.
@@ -154,8 +159,8 @@ impl EntitySections {
     }
 }
 
-/// The kinds that tick without an `EntityTickEvent` round: each ends its family's tick with
-/// [`Game::entity_sections_stepped`].
+/// Legacy family sweep kinds retained for focused tests and compatibility with older callers.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Family {
     ArmorStands,
@@ -241,6 +246,7 @@ impl Game<'_> {
 
     /// The end of a family's tick for the kinds without an `EntityTickEvent` round: each one's
     /// own move, then its crossing is told before the next entity is examined.
+    #[allow(dead_code)]
     pub(super) fn entity_sections_stepped(&mut self, family: Family) {
         let Some(scope) = self.entity_section_scope() else {
             return;
@@ -294,6 +300,7 @@ impl Game<'_> {
     /// What a family's ticks moved, in order (`moves`: each mob's last teleport in its tick, or
     /// where it began, then where its tick left it): each filed and told as its own position
     /// update, and `moves` emptied.
+    #[allow(dead_code)]
     pub(super) fn entity_sections_ticked(&mut self, moves: &mut Vec<PositionWrite>) {
         if let Some(scope) = self.entity_section_scope() {
             for write in moves.iter() {
@@ -309,6 +316,37 @@ impl Game<'_> {
             }
         }
         moves.clear();
+    }
+
+    /// Tell the writes from one lifted mob while its owning list is resident.
+    ///
+    /// A mob tick cannot borrow `Game` while its world view is live, so the
+    /// caller restores the pass before entering here.  Put each recorded
+    /// position into the resident row before filing and telling it; a listener
+    /// therefore reads the position that caused this crossing, not the final
+    /// position of the mob's tick.  A listener that removes the mob makes later
+    /// records for that id stale and they are discarded.
+    pub(super) fn entity_sections_ticked_live(&mut self, moves: &mut Vec<PositionWrite>) {
+        let Some(scope) = self.entity_section_scope() else {
+            moves.clear();
+            return;
+        };
+        for write in moves.drain(..) {
+            let Some(index) = self.mobs.iter().position(|m| m.id == write.id && !m.removed)
+            else {
+                self.native_lifecycle.entity_sections.forget(write.id);
+                continue;
+            };
+            let to = write.to;
+            self.mobs.update(index, |mob| mob.position = to);
+            self.native_lifecycle.entity_sections.moved(
+                scope,
+                write.id,
+                write.from.map(|from| [from.x, from.y, from.z]),
+                [to.x, to.y, to.z],
+            );
+            self.tell_entity_sections();
+        }
     }
 
     /// Entity `id`'s position was written from `from` to `to` (`setPosRaw`) inside a family tick
@@ -356,9 +394,7 @@ impl Game<'_> {
 
     /// The projectiles tick ([`Game::tick_projectiles_now`]), and each one's move is filed.
     pub(super) fn tick_projectiles(&mut self) -> super::Result<()> {
-        let result = self.tick_projectiles_now();
-        self.entity_sections_stepped(Family::Projectiles);
-        result
+        self.tick_projectiles_now()
     }
 
     /// A client's entities after its tick: each one where its interpolation or its own move

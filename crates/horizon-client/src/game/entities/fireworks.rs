@@ -760,16 +760,14 @@ impl Game<'_> {
             r.life += 1;
             self.rocket_spark(&r);
             if r.life > r.lifetime {
-                // Its move this tick is filed before it goes.
-                let (from, to) = (r.previous, r.position);
-                self.entity_section_step(r.id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
                 self.explode_rocket(&r);
                 continue;
             }
+            let (id, from, to) = (r.id, r.previous, r.position);
             self.rockets.insert(i, r);
+            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
             i += 1;
         }
-        self.entity_sections_stepped(super::entity_sections::Family::Rockets);
     }
     /// `FireworkRocketEntity.explode` and `dealExplosionDamage`.
     fn explode_rocket(&mut self, r: &Rocket) {

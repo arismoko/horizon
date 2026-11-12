@@ -386,7 +386,9 @@ impl Game<'_> {
         mut turn: impl FnMut(u32, f32) -> f32,
         mut lerp_cart: impl FnMut(&mut super::minecarts::Minecart) -> bool,
     ) {
+        let mut section_steps = Vec::new();
         self.carts.for_each_mut(|c| {
+            let from = c.position;
             c.previous = c.position;
             c.previous_yaw = c.yaw;
             c.previous_pitch = c.pitch;
@@ -424,6 +426,9 @@ impl Game<'_> {
                     [0.0; 3],
                 );
             }
+            if from != c.position {
+                section_steps.push((c.id, from, c.position));
+            }
         });
         // The boat the player drives moves here, not where the server says.
         let driven = self.riding.filter(|&id| self.controls_boat(id));
@@ -431,15 +436,26 @@ impl Game<'_> {
             if Some(b.id) == driven {
                 return;
             }
+            let from = b.position;
             b.previous = b.position;
             b.previous_yaw = b.yaw;
             // `LinearInterpolationHandler.interpolate`: the rotation moves a
             // step toward the server's with the position.
             b.yaw = turn(b.id, b.yaw);
             b.position = step(b.id, b.position);
+            if from != b.position {
+                section_steps.push((b.id, from, b.position));
+            }
         });
         for a in &mut self.armor_stands {
+            let from = a.position;
             a.position = step(a.id, a.position);
+            if from != a.position {
+                section_steps.push((a.id, from, a.position));
+            }
+        }
+        for (id, from, to) in section_steps {
+            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
         }
         self.tick_remote_boat_bubbles();
     }

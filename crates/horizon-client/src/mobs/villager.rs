@@ -164,14 +164,18 @@ pub fn start_sleeping(m: &mut Mob, p: [i32; 3], w: &MobWorld, events: &mut Vec<M
         occupied: true,
     });
     m.velocity = horizon_core::geometry::Vec3::ZERO;
+    let from = m.position;
     super::living::teleports::set_pos(m, crate::bed_geometry::pos_to_bed(p, 0.5625));
+    super::section_writes::record(m.id, from, m.position);
     true
 }
 /// `LivingEntity.baseTick`: first-tick `setPosToBed` for a loaded sleeper.
 /// Reuse normal sleep positioning without its motion, memory or bed events.
 pub(super) fn refresh_sleeping_position(m: &mut Mob, w: &MobWorld) {
     if let Some(position) = sleeping_pos(m).and_then(|p| w.sleeping_position(p)) {
+        let from = m.position;
         super::living::teleports::set_pos(m, position);
+        super::section_writes::record(m.id, from, m.position);
     }
 }
 /// `LivingEntity.stopSleeping`: the bed is no longer `occupied`, and the
@@ -223,7 +227,9 @@ fn set_wake_pose(m: &mut Mob, bed: [i32; 3], stand: horizon_core::geometry::Vec3
     if yaw < -180.0 {
         yaw += 360.0;
     }
+    let from = m.position;
     super::living::teleports::set_pos(m, stand);
+    super::section_writes::record(m.id, from, m.position);
     m.yaw = yaw as f32;
     m.head_pitch = 0.0;
 }

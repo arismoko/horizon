@@ -4422,6 +4422,7 @@ impl Game<'_> {
         let mut trails = Vec::new();
         let mut bubble_tops = Vec::new();
         let mut snow_contacts = Vec::new();
+        let mut section_steps = Vec::new();
         let mut keep_flags = vec![true; projectiles.len()];
         let mut winds = std::mem::take(&mut self.creatures.pickable_projectile_targets);
         // The impacts the mods may cancel (`native_projectile_impact`), on a server.
@@ -4680,6 +4681,11 @@ impl Game<'_> {
                         super::deflect::aim_deflect(wind, look, owner, owner_uuid, guest);
                     });
                 }
+                if let Some(p) = projectiles.get(i)
+                    && p.position != at
+                {
+                    section_steps.push((p.id, at, p.position));
+                }
             }
         }
         self.creatures.pickable_projectile_targets = winds;
@@ -4751,6 +4757,13 @@ impl Game<'_> {
             projectiles,
             horizon_client::join_seq::RestoreOrder::SpawnsFirst,
         );
+        for (id, from, to) in section_steps {
+            if self.creatures.projectiles.iter().any(|p| p.id == id) {
+                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+            } else {
+                self.entity_section_forget(id);
+            }
+        }
         for (p, hit) in hits {
             let Some((p, hit)) = self.broken_vehicle_retick(p, hit, &mut vehicle_winds) else {
                 continue;
@@ -5933,6 +5946,7 @@ impl Game<'_> {
                     }
                     // ServerPlayer.teleport: removeVehicle before the placement.
                     self.stop_riding();
+                    let player_from = self.player.as_ref().map(|pl| pl.position);
                     if let Some(pl) = self.player.as_mut() {
                         pl.position = to;
                         pl.velocity = Vec3::ZERO;
@@ -5942,6 +5956,11 @@ impl Game<'_> {
                         pl.teleported_delta = [false; 3];
                     }
                     self.previous_position = to;
+                    if let (Some(from), Ok(id)) =
+                        (player_from, u32::try_from(self.own_entity_id()))
+                    {
+                        self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+                    }
                     self.hurt_player_by("minecraft:ender_pearl", damage);
                     self.audio.play(
                         "minecraft:entity.player.teleport",

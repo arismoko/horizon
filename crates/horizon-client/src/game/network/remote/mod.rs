@@ -6630,10 +6630,19 @@ impl Game<'_> {
                 .flatten()
             })
             .flatten();
+        let player_from = self.player.as_ref().map(|p| p.position);
         if let Some(player) = player {
             self.native_player_tick_pre(mod_api::__private::PlayerTickPreCall { player });
         }
         let result = self.tick_local_player(entity_collisions, pushed, sprint_window);
+        if let (Some(from), Some(to), Ok(id)) = (
+            player_from,
+            self.player.as_ref().map(|p| p.position),
+            u32::try_from(self.own_entity_id()),
+        ) && from != to
+        {
+            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+        }
         // `EntityEvent.Size` for the pose the tick set.
         self.native_local_player_size();
         if let Some(player) = player {
@@ -7361,6 +7370,7 @@ impl Game<'_> {
             let players = &r.level_players;
             let tab_players = &r.tab_players;
             let m = &mut self.mobs[i];
+            let section_from = m.position;
             if player {
                 // AvatarRenderer.extractRenderState: isSpectator, from the player list.
                 m.extra.spectator = players
@@ -7571,8 +7581,17 @@ impl Game<'_> {
                 }
                 _ => {}
             }
+            let section_id = m.id;
+            let section_to = m.position;
             if let Some(player) = player_ref {
                 self.native_player_tick_post(mod_api::__private::PlayerTickPostCall { player });
+            }
+            if section_from != section_to {
+                self.entity_section_step(
+                    section_id,
+                    [section_from.x, section_from.y, section_from.z],
+                    [section_to.x, section_to.y, section_to.z],
+                );
             }
         }
         // ExperienceOrb.tick runs on a client too (all but the merges and the
@@ -7652,6 +7671,7 @@ impl Game<'_> {
         let mut entered = Vec::new();
         if running {
             let mut items = self.dropped.lift();
+            let mut section_steps = Vec::new();
             items.retain_mut(|item| {
                 // The server decides entity collisions. This copy predicts block movement.
                 let (alive, discarded) =
@@ -7661,15 +7681,12 @@ impl Game<'_> {
                 if alive && !discarded {
                     let from = item.previous;
                     let to = item.position;
-                    self.entity_section_step(
-                        item.id,
-                        [from.x, from.y, from.z],
-                        [to.x, to.y, to.z],
-                    );
+                    section_steps.push((item.id, from, to));
                 }
                 !discarded
             });
             self.put_back_dropped(items);
+            self.tell_dropped_item_sections(section_steps);
         }
         // Entity.doWaterSplashEffect on this window: Level.addParticle draws
         // the bubbles and splashes. ClientLevel.playSeededSound drops

@@ -308,7 +308,9 @@ pub fn stop_riding(m: &mut Mob, at: Option<Vec3>) {
     m.extra.passenger = false;
     m.extra.boarding_cooldown = BOARDING_COOLDOWN;
     if let Some(at) = at {
+        let from = m.position;
         super::living::teleports::snap_to(m, at);
+        super::section_writes::record(m.id, from, at);
     }
 }
 /// `Animal.getDismountLocationForPassenger` for a standing passenger of

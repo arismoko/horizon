@@ -1494,6 +1494,32 @@ impl Game<'_> {
         relative: [bool; 3],
         turn_riders: bool,
     ) -> Option<[f64; 3]> {
+        self.place_teleport_in_level_with_section(t, pos, rotation, relative, turn_riders, true)
+    }
+
+    /// Same placement for a cross-dimension transfer.  The entity is still
+    /// filed in the source level while its destination position is written, so
+    /// the ordinary section hook must not observe this write.
+    pub(in crate::game) fn place_teleport_in_level_without_section(
+        &mut self,
+        t: Target,
+        pos: [f64; 3],
+        rotation: Option<[f32; 2]>,
+        relative: [bool; 3],
+        turn_riders: bool,
+    ) -> Option<[f64; 3]> {
+        self.place_teleport_in_level_with_section(t, pos, rotation, relative, turn_riders, false)
+    }
+
+    fn place_teleport_in_level_with_section(
+        &mut self,
+        t: Target,
+        pos: [f64; 3],
+        rotation: Option<[f32; 2]>,
+        relative: [bool; 3],
+        turn_riders: bool,
+        notify_section: bool,
+    ) -> Option<[f64; 3]> {
         use super::entity::Entity;
         let from = self.target_position(t);
         // Entity.calculatePassengerTransition compares a rider's angle with the
@@ -1778,6 +1804,11 @@ impl Game<'_> {
             {
                 dragon.teleport_motion(relative);
             }
+        }
+        if notify_section
+            && let (Some(entity), Some(to)) = (self.network_entity_id(t), self.target_position(t))
+        {
+            self.entity_section_moved(entity as u32, from, to);
         }
         // Entity.teleportSameDimension: the riders go with their vehicle at
         // once, by the offset it took and the turn it was given.

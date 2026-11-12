@@ -225,7 +225,9 @@ pub fn move_control(m: &mut Mob) {
 }
 /// `Vex` travel with `noPhysics`: straight through blocks, air friction.
 pub fn travel(m: &mut Mob) -> bool {
+    let from = m.position;
     m.position = m.position.add_vector(m.velocity);
+    super::section_writes::record(m.id, from, m.position);
     m.velocity = Vec3::new(
         m.velocity.x * 0.91,
         m.velocity.y * 0.98,
