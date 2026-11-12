@@ -45,9 +45,7 @@ records real NBT removal entries for default components; it is not an unknown-va
 
 A consume or death-protection override whose opaque native effect payload cannot be decoded
 refuses the whole stack write with `StackWriteError::InvalidEffectPayload`, before any
-resident state changes. The engine's infallible preserved-component setter remains infallible:
-invalid replacements retain its prior raw component and decoded cache rather than erasing them.
-
+resident state changes.
 The items host area owns metadata reads such as `max_stack_size(ItemKey)` and
 `max_damage(ItemKey)`. A stack does not take a host just to read a maximum, and an unavailable
 maximum never turns into a fabricated limit of 64.
@@ -57,7 +55,7 @@ accepting a resident write. An effective `max_stack_size` must be in `1..=99`, a
 presence of `max_damage` forbids a stack limit above one, even when the current count is one.
 Removing `max_stack_size` uses the absent limit of one. Invalid values produce typed errors,
 not clamped values. A transfer request is different: `ItemResource` plus a separate amount can request or
-return more than one resident stack's capacity. The resident writes it produces still have to
+return more than one resident stack's capacity. The resident writes it produces must
 pass validation.
 
 Game inventory, menus, trades and models keep their engine-owned representations. Native
@@ -74,8 +72,6 @@ before applying them. These are output guarantees, not whole-world transactions:
 `ServerHost` storage writes, commands, messages and other effects are not rolled back on a
 refused output. Carrier-form callbacks such as `bonemeal` and `item_after_vertical_collision`
 also retain their captured stack outputs on refusal but do not journal independent host writes.
-[The storage-journal follow-up](https://github.com/arismoko/horizon/issues/1770) covers that gap.
-Restricted in-write `LevelHost` callbacks keep their existing write and random-draw order.
 
 Item-model callbacks receive the owned stack and a separate `bundle_selected` number (`-1`
 means none). Runtime selection is not a persistent component. Drawing receives the API-owned

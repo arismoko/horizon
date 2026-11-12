@@ -14,7 +14,3 @@ reloads, but its members are read from the current evaluation's tables.
 The same Tags resource crosses Wire for native and wasm callbacks. Neither
 callback gains a mutable game host or an opportunity to change tags. No tag
 snapshot is copied when a loot hook has no subscribers.
-
-This is deliberately only tag access. The broader typed read-only loot-context
-contract, including which optional entity, tool, block and other parameters are
-available for each evaluation kind, is separate work tracked in #2647.

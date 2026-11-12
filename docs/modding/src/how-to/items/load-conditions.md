@@ -6,7 +6,7 @@ register it from
 `event.conditions.register(Identifier::parse("testmod:flag").unwrap(), Flag)`.
 Registration happens once per mod load, with one handler per id and a read-only
 `RegistrationContext`. The name must belong to the calling mod's namespace. Duplicate names refuse registration and name both owners;
-ignoring a registration error still refuses admission.
+a registration error refuses admission even if you ignore it.
 
 ```rust,ignore
 struct Flag;
@@ -51,23 +51,16 @@ usable recipe and resource generation stays installed.
 A namespace is owned only when a loaded mod registered at least one condition
 in it. A loaded mod ID alone does not own a condition namespace. An unknown
 name in an owned namespace refuses reload, naming the file, condition and
-registering mod. **Diverges from upstream:** this owned-namespace refusal is a
-Horizon addition. This also applies at every depth inside `not`, `and` and `or`,
+registering mod. This refusal also applies at every depth inside `not`, `and` and `or`,
 even beside an already false or true branch.
 
-Typed-codec alignment is a later item, to revisit when the shared codec
-foundation exists ([#811](https://github.com/arismoko/horizon/issues/811) and
-[#2332](https://github.com/arismoko/horizon/issues/2332)).
-
-An unknown name in any other namespace keeps the existing fail-closed behavior:
+An unknown name in any other namespace fails closed:
 the file is absent if the unknown id appears anywhere inside `not`, `and` or
 `or`, at any depth. Evaluation visits every branch, so `or(true, othermod:unknown)`
 also leaves the file absent. One ERROR-level log entry per file names that file
 and all its distinct unknown condition ids; repeated occurrences do not produce
 extra entries within one candidate reload. The vanilla view used outside a
 candidate reload has no per-file store, so it logs once per evaluation.
-Existing built-in
-conditions and files without conditions continue to use the same evaluator.
 
 The public [NeoForge data load condition documentation](https://docs.neoforged.net/docs/resources/server/conditions/)
 describes `ICondition` and the top-level `neoforge:conditions` array. Horizon's

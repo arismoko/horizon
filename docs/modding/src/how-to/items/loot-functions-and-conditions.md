@@ -1,7 +1,8 @@
-# A mod's own loot functions and conditions
+# Custom loot functions and conditions
 
-A loot table's function or condition that names a `type` in a namespace outside `minecraft:` reaches `native_loot_function(kind, data, ctx, stack)` or
-`native_loot_condition(kind, data, ctx, holds)` when the table rolls. The function changes the stack; the
+A loot table's function or condition that names a `type` in a namespace outside `minecraft:` reaches `native_loot_function(kind, data, ctx, stack, tags)` or
+`native_loot_condition(kind, data, ctx, holds, tags)` when the table rolls. `data` is a borrowed `serde_json::Value`; `tags` is the authoritative
+read-only `&dyn Tags` for that roll. See [Reading tags](loot-tags.md). The function changes the stack; the
 condition says whether it holds. The context brings the entity, the damage, the player who killed it, the
 tool, the block, the luck, the biome and a seed from the roll's random. An unclaimed function leaves the
 stack, an unclaimed condition fails, as unknown kinds do; a bare type name is minecraft's own.
