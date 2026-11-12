@@ -210,11 +210,7 @@ fn general_entity_tick_tells_each_part_of_the_row_in_order() {
         entities: vec![part(1, &calls), part(2, &calls)],
         ..Parts::default()
     });
-    dispatch_general_entity_tick(
-        &mut TestHost,
-        "mymod:robot",
-        generated::mod_api::EntityRef,
-    );
+    dispatch_general_entity_tick(&mut TestHost, "mymod:robot", generated::mod_api::EntityRef);
     assert_eq!(*calls.lock().unwrap(), [1, 2]);
 }
 
@@ -222,11 +218,7 @@ fn general_entity_tick_tells_each_part_of_the_row_in_order() {
 fn general_entity_tick_without_parts_names_no_table() {
     let calls: Arc<Mutex<Vec<u32>>> = Arc::new(Mutex::new(Vec::new()));
     install_parts(Parts::default());
-    dispatch_general_entity_tick(
-        &mut TestHost,
-        "mymod:robot",
-        generated::mod_api::EntityRef,
-    );
+    dispatch_general_entity_tick(&mut TestHost, "mymod:robot", generated::mod_api::EntityRef);
     assert!(calls.lock().unwrap().is_empty());
 }
 
