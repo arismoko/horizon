@@ -24,7 +24,7 @@ component or custom-ingredient semantics yourself. Invalid definitions are skipp
 in file order; the first matching valid definition wins.
 
 ```rust,ignore
-{{#include ../../examples/src/reload_recipes.rs:cache}}
+{{#include ../../../examples/src/reload_recipes.rs:cache}}
 ```
 
 Clear the table at server startup and after teardown. Share the listener's cache
@@ -32,7 +32,7 @@ with the machine Part (for example using `Arc<Processing>`); do not create a new
 cache in the tick. Until publication, the empty table means no recipe can run.
 
 ```rust,ignore
-{{#include ../../examples/src/reload_recipes.rs:publication}}
+{{#include ../../../examples/src/reload_recipes.rs:publication}}
 ```
 
 This ownership assumes **one authoritative server per process and mod group**, as

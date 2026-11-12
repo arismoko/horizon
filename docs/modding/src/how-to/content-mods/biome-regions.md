@@ -10,7 +10,7 @@ layout is one region of weight 10 beside the mods' ones. The design, and why it 
 In `register`, call `declare_biome_region(path, region)` once per region. This mod adds one region to each dimension:
 
 ```rust
-{{#include ../../examples/src/biome_regions.rs:regions}}
+{{#include ../../../examples/src/biome_regions.rs:regions}}
 ```
 
 - **`path`** is the region's id in the mod's namespace: `frostlands` becomes `<your mod id>:frostlands`.
