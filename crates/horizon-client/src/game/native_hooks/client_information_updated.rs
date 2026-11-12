@@ -33,9 +33,12 @@ impl Game<'_> {
         {
             let entity_id = g.entity_id;
             let new = crate::game::lan::client_info(&g.info);
-            let old = crate::game::lan::client_info(
-                &horizon_protocol::packets::configuration::ClientInformation::new(2),
-            );
+            // `createDefault`: the packet's constructor gives the join's view distance, and
+            // shows every skin layer and lists the player.
+            let mut defaults = horizon_protocol::packets::configuration::ClientInformation::new(2);
+            defaults.model_customisation = 0;
+            defaults.allows_listing = false;
+            let old = crate::game::lan::client_info(&defaults);
             self.native_client_information_updated(player, entity_id, name, &old, &new);
         }
         self.native_player_logged_in(player, name);
@@ -45,7 +48,8 @@ impl Game<'_> {
 #[cfg(test)]
 mod client_information_updated_tests {
     use mod_api::{
-        ClientInformationUpdatedEvent, Hooks, MainHand, ModEntry, PlayerLoggedInEvent, ServerHost,
+        ChatVisibility, ClientInfo, ClientInformationUpdatedEvent, Hooks, MainHand, ModEntry,
+        ParticleStatus, PlayerLoggedInEvent, ServerHost,
     };
     use std::sync::{Arc, Mutex};
 
@@ -95,6 +99,51 @@ mod client_information_updated_tests {
                 assert_eq!(
                     *heard.lock().unwrap(),
                     [Some((2, 12, MainHand::Left)), None]
+                );
+            });
+        });
+    }
+
+    /// Records the whole `old` information of each update.
+    struct Olds(Arc<Mutex<Vec<ClientInfo>>>);
+    #[mod_api::__subscriptions]
+    impl Hooks for Olds {
+        fn client_information_updated(
+            &self,
+            _: &mut dyn ServerHost,
+            event: &mut ClientInformationUpdatedEvent<'_>,
+        ) {
+            self.0.lock().unwrap().push(event.old.clone());
+        }
+    }
+
+    /// The `old` side of the join's own report is `ClientInformation.createDefault`, every field.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn the_joined_information_is_reported_against_all_the_vanilla_defaults() {
+        let heard = Arc::new(Mutex::new(Vec::new()));
+        let mods: mod_api::Mods = vec![ModEntry::new("olds", Box::new(Olds(heard.clone())))].into();
+        mod_platform::testing::with_mods(mods, || {
+            crate::game::native_guest_turn_tests::with_guests(|game| {
+                let host = game.lan.as_mut().unwrap();
+                let (uuid, name) = host
+                    .hub
+                    .update_guest(12, |g| (g.uuid, g.name.clone()))
+                    .unwrap();
+                game.announce_login(uuid, &name);
+                assert_eq!(
+                    *heard.lock().unwrap(),
+                    [ClientInfo {
+                        language: "en_us".to_owned(),
+                        view_distance: 2,
+                        chat_visibility: ChatVisibility::Full,
+                        chat_colors: true,
+                        model_customisation: 0,
+                        main_hand: MainHand::Right,
+                        text_filtering: false,
+                        allows_listing: false,
+                        particle_status: ParticleStatus::All,
+                    }]
                 );
             });
         });
