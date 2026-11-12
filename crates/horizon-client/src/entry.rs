@@ -126,6 +126,8 @@ pub fn start<G>(
     // then the Horizon parts still in this crate; none registers after this point.
     game::player_hooks::register();
     horizon_hooks::engine::seal();
+    // Crate-provided translations join the game's own languages.
+    horizon_client::lang::install_crate_files(horizon_hooks::lang::engine::all());
     horizon_client::spans::startup::init(std::time::Instant::now());
     horizon_client::spans::trace::start_from_env();
     logging::set_game_home(launch.context.home.clone());
