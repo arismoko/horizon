@@ -163,7 +163,7 @@ impl SignalAccess for ReadLevel<'_, '_> {
     fn block_entity_signal(&self, pos: BlockPos, state: BlockStateId, _: Direction) -> i32 {
         block_entity_signal(
             &self.game.world,
-            self.game.registry,
+            self.game.pack.assets.registry,
             self.game.items(),
             &self.game.lid_openers,
             pos,

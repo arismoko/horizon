@@ -963,7 +963,11 @@ impl Game<'_> {
                 }
                 // Boats, minecarts and primed TNT are pickable too (`isPickable`).
                 if !t.dealt_damage {
-                    for (who, b) in self.pickable_object_targets() {
+                    for (who, b) in self
+                        .vehicle_targets()
+                        .into_iter()
+                        .chain(self.tnts.iter().map(|t| (Who::Mob(t.id), t.bounds())))
+                    {
                         if let Who::Mob(id) = who
                             && let Some(d) = segment_box(t.position, t.velocity, b.inflate(grow))
                             && hit_mob.is_none_or(|(_, best)| d < best)

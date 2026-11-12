@@ -475,7 +475,7 @@ impl Game<'_> {
                 fishing_cast_item(
                     mob.id,
                     active.map(|hook| hook.owner),
-                    mob.extra.main_hand.as_deref() == Some("minecraft:fishing_rod"),
+                    mob.extra.main_hand_id() == Some("minecraft:fishing_rod"),
                     off_hand,
                 )
             };
