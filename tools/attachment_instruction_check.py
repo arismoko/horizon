@@ -10,6 +10,7 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 env = dict(os.environ, CARGO_INCREMENTAL="0", HORIZON_TEST_RESOURCES=str(root / ".local/resources/26.3"), VALGRIND_LIB=str(root / ".local/valgrind/usr/libexec/valgrind"))
+env.update(HORIZON_LAUNCHER_NO_SELF_UPDATE="1", HORIZON_NO_AUDIO="1")
 home = tempfile.TemporaryDirectory(prefix="attachment-bench-")
 for key in ["HORIZON_HOME", "HORIZON_LAUNCHER_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME"]:
     env[key] = home.name
