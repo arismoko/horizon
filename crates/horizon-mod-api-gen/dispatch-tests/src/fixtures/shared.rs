@@ -119,6 +119,8 @@ mod generated {
             Zoom,
         };
         pub struct FluidModel;
+        #[derive(Clone, Copy)]
+        pub struct EntityRef;
         include!(concat!(env!("OUT_DIR"), "/dispatch_fixtures_api.rs"));
     }
     include!(concat!(env!("OUT_DIR"), "/mod_api_generated.rs"));
@@ -247,6 +249,7 @@ struct Parts {
     items: Vec<&'static dyn ItemPart>,
     menus: Vec<&'static dyn MenuPart>,
     fluids: Vec<&'static dyn FluidPart>,
+    entities: Vec<&'static dyn EntityPart>,
 }
 static NO_PARTS: Parts = Parts {
     blocks: Vec::new(),
@@ -254,6 +257,7 @@ static NO_PARTS: Parts = Parts {
     items: Vec::new(),
     menus: Vec::new(),
     fluids: Vec::new(),
+    entities: Vec::new(),
 };
 thread_local! {
     static PARTS: std::cell::Cell<&'static Parts> = const { std::cell::Cell::new(&NO_PARTS) };
@@ -273,6 +277,7 @@ fn has_part_hook(_: HookId) -> bool {
         || !parts.block_entities.is_empty()
         || !parts.items.is_empty()
         || !parts.menus.is_empty()
+        || !parts.entities.is_empty()
 }
 fn parts(_: HookId, _: &'static str) -> &'static Parts {
     PARTS.get()
@@ -312,6 +317,9 @@ impl Parts {
     }
     fn fluid<'k>(&self, _: impl FnOnce() -> Option<&'k str>) -> &[&'static dyn FluidPart] {
         &self.fluids
+    }
+    fn entity<'k>(&self, _: impl FnOnce() -> Option<&'k str>) -> &[&'static dyn EntityPart] {
+        &self.entities
     }
 }
 fn entered_parts<'a, P: ?Sized>(
@@ -389,6 +397,19 @@ impl MenuPart for Mod {
         assert_eq!(context.side(), "loop");
         event.may_place = false;
         event.max_stack = self.id;
+    }
+}
+impl EntityPart for Mod {
+    fn entity_subscribed(&self) -> &'static [Option<HookId>] {
+        &[]
+    }
+    fn general_entity_tick(
+        &self,
+        _host: &mut dyn ServerHost,
+        event: &mut GeneralEntityTickEvent<'_>,
+    ) {
+        assert_eq!(event.kind, "mymod:robot");
+        self.calls.lock().unwrap().push(self.id);
     }
 }
 impl ItemPart for Mod {

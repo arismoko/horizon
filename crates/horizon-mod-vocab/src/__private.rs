@@ -41,6 +41,15 @@ pub fn enabled_listened(hook: HookId) -> bool {
     crate::runtime::enabled_listened(hook)
 }
 
+/// Whether any part subscribed to the scoped entity hook `hook` is attached to
+/// entity type `kind`, so a family's walk can resolve its rows' slots once per
+/// pass instead of naming each row's type.
+pub fn entity_part_hooked(hook: HookId, name: &'static str, kind: &str) -> bool {
+    crate::parts::parts(hook, name)
+        .for_hook(hook)
+        .is_some_and(|table| !table.entity(|| Some(kind)).is_empty())
+}
+
 /// A read backend wrapper for a host the game builds narrowed: the mob tick's
 /// goal view hands itself out as its own backend (#1077).
 pub fn backend_ref(inner: &dyn Backend) -> crate::BackendRef<'_> {

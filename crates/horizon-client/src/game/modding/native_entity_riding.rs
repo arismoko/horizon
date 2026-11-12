@@ -64,6 +64,15 @@ impl Game<'_> {
             Target::Player => self.riding,
             Target::Guest(conn) => self.command_guest(conn)?.vehicle,
             Target::Mob(id) => self.mob_object(id).filter(|m| !m.removed)?.extra.mount,
+            // A general row rides the row its tree loaded with; a row queued
+            // for removal rides nothing, as a removed mob does not.
+            Target::General(id) => self
+                .resident_entities
+                .general
+                .rows
+                .iter()
+                .find(|row| row.id == id && !self.persist.removals.contains(&Target::General(id)))
+                .and_then(|row| row.mount),
             _ => None,
         }
     }
@@ -628,6 +637,24 @@ impl Game<'_> {
             Target::Mob(id) => self.dismount_mob(id),
             Target::Player | Target::Guest(_) => {
                 self.for_player(t, |g| g.stop_riding());
+            }
+            // A general row gets off by its mount link: the row keeps its
+            // identity and place, and the level's next walk sees it as a
+            // root (`Entity.stopRiding` clears the mount and nothing else).
+            // The mount rewrite also retires the rows' rider index, which
+            // the list's own write stamp does not see.
+            Target::General(id) => {
+                let Some(row) = self
+                    .resident_entities
+                    .general
+                    .rows
+                    .iter_mut()
+                    .find(|row| row.id == id)
+                else {
+                    return false;
+                };
+                row.mount = None;
+                self.resident_entities.general.mount_writes += 1;
             }
             _ => return false,
         }

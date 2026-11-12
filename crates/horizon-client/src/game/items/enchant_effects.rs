@@ -983,7 +983,7 @@ impl Game<'_> {
         self.lan_entity_event(id as i32, event, at);
     }
     /// `ExperienceOrb.repairPlayerItems`: returns the experience left over.
-    pub(super) fn mending(&mut self, amount: u32) -> u32 {
+    pub(in crate::game) fn mending(&mut self, amount: u32) -> u32 {
         let mut amount = amount;
         loop {
             // EnchantmentHelper.getRandomItemWith(REPAIR_WITH_XP, damaged), in

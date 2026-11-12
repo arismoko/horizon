@@ -69,9 +69,9 @@ pub struct Parts {
     pub(crate) items: HashMap<Box<str>, Vec<Attached<dyn ItemPart>>>,
     pub(crate) menus: HashMap<Box<str>, Vec<Attached<dyn MenuPart>>>,
     pub(crate) fluids: HashMap<Box<str>, Vec<Attached<dyn FluidPart>>>,
-    /// Entity parts by entity type id (`minecraft:zombie`), for the goal
-    /// registration at every `Mob` construction (#1077). They carry no scoped
-    /// hook, so they never enter `hooks`.
+    /// Entity parts by entity type id (`minecraft:zombie`, `mymod:robot`), for the goal
+    /// registration at every `Mob` construction (#1077) and the scoped hooks the entity
+    /// scope owns (`general_entity_tick`, #792).
     pub(crate) entities: HashMap<Box<str>, Vec<Attached<dyn EntityPart>>>,
     /// Capability providers by capability name, then by block entity type, in registration
     /// order.
@@ -110,6 +110,7 @@ pub struct HookParts {
     pub(crate) items: HashMap<Box<str>, Vec<Attached<dyn ItemPart>>>,
     pub(crate) menus: HashMap<Box<str>, Vec<Attached<dyn MenuPart>>>,
     pub(crate) fluids: HashMap<Box<str>, Vec<Attached<dyn FluidPart>>>,
+    pub(crate) entities: HashMap<Box<str>, Vec<Attached<dyn EntityPart>>>,
 }
 
 /// Which things a capability's providers are registered by.
@@ -553,6 +554,7 @@ impl Parts {
         index!(items, item_subscribed);
         index!(menus, menu_subscribed);
         index!(fluids, fluid_subscribed);
+        index!(entities, entity_subscribed);
     }
 }
 

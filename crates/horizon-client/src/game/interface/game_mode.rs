@@ -88,7 +88,7 @@ impl Game<'_> {
         }
     }
 
-    pub(super) fn spectator(&self) -> bool {
+    pub(in crate::game) fn spectator(&self) -> bool {
         self.mode == GameMode::Spectator
     }
     /// `Abilities.mayBuild`.

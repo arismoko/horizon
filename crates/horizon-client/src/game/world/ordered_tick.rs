@@ -12,14 +12,15 @@
 use super::{Game, Result};
 use horizon_client::join_seq::{JoinSeq, Joined};
 use horizon_client::random_source;
-use horizon_core::geometry::Vec3;
+use horizon_core::geometry::{Aabb, Vec3};
 use horizon_core::random::RandomSource as _;
 
 /// What this tick has ticked of the three kinds.
 #[derive(Default, Clone)]
 pub(super) struct OrderedTicks {
     /// Joins at or above this started after the tick began; they tick next tick.
-    born: JoinSeq,
+    /// The general rows' pass (`general/tick.rs`) shares the same cutoff.
+    pub(in crate::game) born: JoinSeq,
     /// The last join number ticked, if any: later ones are still to come.
     pub(super) done: Option<JoinSeq>,
     /// Joins below this have had their spawn packet; the ones above joined
@@ -50,10 +51,15 @@ pub(super) enum Batch {
     Items,
     Mobs,
     Projectiles,
+    /// The general rows tick last of the kinds (`general/tick.rs`): a slot
+    /// of its own keeps every earlier batch's `ordered_before` draining the
+    /// orbs, TNT and falling blocks that joined before the earliest general
+    /// row, so the mobile kinds keep their join order against them.
+    General,
 }
 
 impl Batch {
-    const COUNT: usize = 8;
+    const COUNT: usize = 9;
 }
 
 #[derive(Clone, Copy)]
@@ -84,6 +90,7 @@ impl Game<'_> {
             first_join(&self.dropped),
             first_join(&self.mobs),
             first_join(&self.creatures.projectiles),
+            first_join(&self.resident_entities.general.rows),
         ];
         // A batch ticks whole, so an entity of the three kinds goes after the
         // last batch that holds anything that joined before it.
@@ -312,6 +319,99 @@ impl Game<'_> {
             return Ok(());
         }
         self.run_ordered_ticks(cut, false)
+    }
+
+    /// The orbs' tick, but for the movement: that is `run_ordered_ticks`'s,
+    /// in join order with the other kinds.
+    pub(in crate::game) fn tick_experience(&mut self) {
+        if self.xp_delay > 0 {
+            self.xp_delay -= 1;
+        }
+        let spectator = self.spectator();
+        let player = self
+            .player
+            .as_ref()
+            .filter(|p| !p.health.dead_or_dying() && !spectator);
+        // Player.aiStep: standing, the pickup area is the player's box
+        // inflated by (1, 0.5, 1); riding, the union with the vehicle's box
+        // inflated by (1, 0, 1).
+        let bounds = player.map(|p| {
+            let w = f64::from(p.dimensions.width) / 2.0;
+            let own = Aabb::new(
+                Vec3::new(p.position.x - w, p.position.y, p.position.z - w),
+                Vec3::new(
+                    p.position.x + w,
+                    p.position.y + f64::from(p.dimensions.height),
+                    p.position.z + w,
+                ),
+            );
+            let area = match self.riding_box() {
+                Some(vehicle) => own.union_bounds(vehicle).inflate(Vec3::new(1.0, 0.0, 1.0)),
+                None => own.inflate(Vec3::new(1.0, 0.5, 1.0)),
+            };
+            (
+                [
+                    area.min_position().x,
+                    area.min_position().y,
+                    area.min_position().z,
+                ],
+                [
+                    area.max_position().x,
+                    area.max_position().y,
+                    area.max_position().z,
+                ],
+            )
+        });
+        let mut orbs = self.orbs.lift();
+        #[cfg(test)]
+        crate::game::entity::taken_pass_tests::after_take(self);
+        let mut gained = 0;
+        let mut taken = Vec::new();
+        if let Some((min, max)) = bounds {
+            orbs.retain_mut(|o| {
+                let touching = o.position.x + 0.25 > min[0]
+                    && o.position.x - 0.25 < max[0]
+                    && o.position.y + 0.5 > min[1]
+                    && o.position.y < max[1]
+                    && o.position.z + 0.25 > min[2]
+                    && o.position.z - 0.25 < max[2];
+                if touching && self.xp_delay == 0 {
+                    // ExperienceOrb.playerTouch: one orb every 2 ticks; a
+                    // merged orb gives its value once per count.
+                    self.xp_delay = 2;
+                    gained += o.points();
+                    taken.push(o.clone());
+                    o.count -= 1;
+                    return o.count > 0;
+                }
+                true
+            });
+        }
+        self.orbs
+            .restore(orbs, horizon_client::join_seq::RestoreOrder::SurvivorsFirst);
+        if gained > 0 {
+            gained = self.mending(gained);
+        }
+        for o in taken {
+            // ClientPacketListener.handleTakeItemEntity: every orb taken sounds
+            // at the orb, whether mending took its points or not.
+            let pitch =
+                (self.world.random.next_float() - self.world.random.next_float()) * 0.35 + 0.9;
+            let at = [o.position.x, o.position.y, o.position.z];
+            self.audio.play(
+                "minecraft:entity.experience_orb.pickup",
+                Some(at),
+                0.1,
+                pitch,
+            );
+            self.add_pickup(
+                crate::game::pickups::Taken::Orb(Box::new(o)),
+                crate::game::pickups::Collector::Player,
+            );
+        }
+        if gained > 0 {
+            self.give_experience_points(gained as i32);
+        }
     }
 }
 

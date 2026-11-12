@@ -41,8 +41,11 @@ impl mod_api::Hooks for Declare {
 /// A fixture game whose frozen registry holds the two declared types. The
 /// registration phase is scoped around the whole fixture: the game harness
 /// re-runs the installed mods' `register`, and a general type is only
-/// declared while that phase is current.
+/// declared while that phase is current. The runtime initializes first: a
+/// scope entered before the platform installs its instrumentation writes a
+/// fallback nobody reads, and the declaration then refuses as frozen.
 fn with_types(test: impl FnOnce(&mut Game<'_>)) {
+    mod_platform::__private::initialize().expect("test registration requires the mod API runtime");
     let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::Registration);
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("mymod", Box::new(Declare))].into();
     mod_platform::testing::with_mods(mods, || with_game(test));

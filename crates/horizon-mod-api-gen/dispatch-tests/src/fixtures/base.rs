@@ -204,6 +204,33 @@ fn menu_button_mutates_entity_and_cursor_once() {
 }
 
 #[test]
+fn general_entity_tick_tells_each_part_of_the_row_in_order() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    install_parts(Parts {
+        entities: vec![part(1, &calls), part(2, &calls)],
+        ..Parts::default()
+    });
+    dispatch_general_entity_tick(
+        &mut TestHost,
+        "mymod:robot",
+        generated::mod_api::EntityRef,
+    );
+    assert_eq!(*calls.lock().unwrap(), [1, 2]);
+}
+
+#[test]
+fn general_entity_tick_without_parts_names_no_table() {
+    let calls: Arc<Mutex<Vec<u32>>> = Arc::new(Mutex::new(Vec::new()));
+    install_parts(Parts::default());
+    dispatch_general_entity_tick(
+        &mut TestHost,
+        "mymod:robot",
+        generated::mod_api::EntityRef,
+    );
+    assert!(calls.lock().unwrap().is_empty());
+}
+
+#[test]
 fn block_entity_submit_dispatches_in_order_with_shared_draw() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     install_parts(Parts {
