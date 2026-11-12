@@ -2,7 +2,8 @@
 """Compare chunk entity lookup and save order with the real vanilla manager.
 
 Mixed storage families loaded with two chunks, one chunk's unload (its stored
-roots) and reload, a dimension round trip and a save, against
+roots) and reload, a dimension round trip, an arrow spawned during play, an
+entity crossing into another section and a save, against
 PersistentEntitySectionManager and its EntityLookup.
 """
 import json
@@ -65,9 +66,9 @@ def main():
         print(json.dumps(expected))
         return
     actual = observed(engine())
-    if len(expected['lookup']) != 5 or actual != expected:
+    if len(expected['lookup']) != 6 or actual != expected:
         raise AssertionError(f'vanilla {expected!r} != engine {actual!r}')
-    print('5 lookup snapshots, the unload store and the save match vanilla chunk entity order')
+    print('6 lookup snapshots, the unload store and the save match vanilla chunk entity order')
 
 
 if __name__ == '__main__':

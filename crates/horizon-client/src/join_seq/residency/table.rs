@@ -47,6 +47,10 @@ struct ResidentRow {
     location: Location,
     details: IdentityDetails,
     admission: JoinSeq,
+    /// When it entered the section it is in: its admission (it joins the
+    /// section it is filed in), or its last crossing (`Callback.onMove` adds it
+    /// at the end of the section it entered).
+    entry: JoinSeq,
 }
 
 /// One game's index, shared by active and parked dimensions through the journal.
@@ -143,15 +147,25 @@ impl EntityTable {
                 source: identity.source,
             };
             match event.change {
-                Change::Install(identity) | Change::PutBack(identity) => {
+                Change::Install(identity)
+                | Change::Spawned(identity)
+                | Change::PutBack(identity) => {
                     let location = location(identity);
+                    let old = self.rows.get(&identity.id).copied();
+                    // A new member joins the lookup now, or, given its id
+                    // after it spawned, when it joined its storage.
+                    let admission = old.map_or_else(
+                        || match event.change {
+                            Change::Spawned(_) => identity.join,
+                            _ => JoinSeq::next(),
+                        },
+                        |row| row.admission,
+                    );
                     let row = ResidentRow {
                         location,
                         details: identity.details,
-                        admission: self
-                            .rows
-                            .get(&identity.id)
-                            .map_or_else(JoinSeq::next, |row| row.admission),
+                        admission,
+                        entry: old.map_or(admission, |row| row.entry),
                     };
                     if let Some(old) = self.rows.insert(identity.id, row) {
                         debug_assert_eq!(old.location, location, "duplicate loaded entity id");
@@ -265,11 +279,25 @@ impl EntityTable {
         rows.into_iter().map(|(_, id)| id).collect()
     }
 
-    /// Each admitted id's lookup admission: what an `EntitySection` keeps its
-    /// entities in, so a chunk saved in this order loads back in it.
-    pub fn admission_order(&mut self) -> impl Fn(u32) -> Option<JoinSeq> + '_ {
+    /// `Callback.onMove`: member `id` crossed into another section, so it is
+    /// at the end of that section now; its lookup place does not change. The
+    /// section authority calls this at the movement boundary, as each move
+    /// happens, so the order of the calls is the order of the moves: a move out
+    /// and back is two entries, and a passenger moved after its vehicle enters
+    /// after it.
+    pub fn entered_section(&mut self, id: u32) {
         self.drain();
-        |id| Some(self.rows.get(&NonZeroU32::new(id)?)?.admission)
+        if let Some(row) = NonZeroU32::new(id).and_then(|id| self.rows.get_mut(&id)) {
+            row.entry = JoinSeq::next();
+        }
+    }
+
+    /// Each admitted id's place in its section (`EntitySection` keeps its
+    /// entities in the order they entered it), so a chunk saved section by
+    /// section in this order loads back in it.
+    pub fn section_entry_order(&mut self) -> impl Fn(u32) -> Option<JoinSeq> + '_ {
+        self.drain();
+        |id| Some(self.rows.get(&NonZeroU32::new(id)?)?.entry)
     }
 
     /// Clone the current producer authority when binding storage.
@@ -312,6 +340,9 @@ mod completion_tests;
 #[cfg(test)]
 #[path = "table/metadata_tests.rs"]
 mod metadata_tests;
+#[cfg(test)]
+#[path = "table/section_tests.rs"]
+mod section_tests;
 
 #[cfg(test)]
 mod tests {

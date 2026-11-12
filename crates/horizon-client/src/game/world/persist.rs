@@ -1733,15 +1733,15 @@ impl Game<'_> {
             }
         }
         // `PersistentEntitySectionManager.storeChunkSections`: section by
-        // section, each in the order its entities joined it. An entity not
+        // section, each in the order its entities entered it. An entity not
         // yet given an id is not a lookup member: its join stands in.
         let mut out: HashMap<(i32, i32), Vec<Tag>> =
             keys.iter().map(|k| (*k, Vec::new())).collect();
         {
-            let admission = self.resident_entities.table.get_mut().admission_order();
+            let entry = self.resident_entities.table.get_mut().section_entry_order();
             for (key, mut tags) in roots {
                 tags.sort_by_cached_key(|(id, join, tag)| {
-                    (section_order(tag), admission(*id).unwrap_or(*join))
+                    (section_order(tag), entry(*id).unwrap_or(*join))
                 });
                 out.entry(key)
                     .or_default()

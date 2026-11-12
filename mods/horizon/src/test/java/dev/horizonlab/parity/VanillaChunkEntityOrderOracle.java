@@ -25,7 +25,9 @@ import net.minecraft.world.phys.Vec3;
 /**
  * The real PersistentEntitySectionManager and its EntityLookup: chunk loads,
  * an unload that stores the chunk (storeChunkSections), its reload from what
- * was stored, and a round trip through another level. Entities are named by
+ * was stored, a round trip through another level, an entity spawned during
+ * play (addFreshEntity) and one crossing into another section (Callback.onMove).
+ * Entities are named by
  * the last int of their UUID, as the engine test names its saved records.
  */
 public final class VanillaChunkEntityOrderOracle {
@@ -49,6 +51,7 @@ public final class VanillaChunkEntityOrderOracle {
         field(entity, "uuid", new UUID(2703L << 32, n));
         field(entity, "position", new Vec3(at[0], at[1], at[2]));
         field(entity, "blockPosition", BlockPos.containing(at[0], at[1], at[2]));
+        field(entity, "chunkPosition", ChunkPos.containing(BlockPos.containing(at[0], at[1], at[2])));
         field(entity, "bb", new AABB(at[0] - 0.5, at[1], at[2] - 0.5, at[0] + 0.5, at[1] + 1, at[2] + 0.5));
         field(entity, "passengers", ImmutableList.of());
         return entity;
@@ -147,6 +150,8 @@ public final class VanillaChunkEntityOrderOracle {
         record(11, 20.5, 70, 2.5, 0);
         record(12, 21.5, 70, 2.5, 0);
         record(13, 22.5, 70, 2.5, 0);
+        // An arrow fired in chunk (1, 0) while the pig is away.
+        record(14, 21.5, 70, 2.5, 0);
         var a = new ChunkPos(0, 0);
         var b = new ChunkPos(1, 0);
         var store = new Storage();
@@ -174,8 +179,16 @@ public final class VanillaChunkEntityOrderOracle {
         find(overworld, 2).setRemoved(Entity.RemovalReason.CHANGED_DIMENSION);
         if (!nether.addNewEntity(entity(2))) throw new AssertionError("nether add");
         snapshot(overworld);
+        // ServerLevel.addFreshEntity: the arrow joins the lookup as it spawns,
+        // before the pig comes back.
+        if (!overworld.addNewEntity(entity(14))) throw new AssertionError("arrow add");
         find(nether, 2).setRemoved(Entity.RemovalReason.CHANGED_DIMENSION);
         if (!overworld.addNewEntity(entity(2))) throw new AssertionError("overworld add");
+        snapshot(overworld);
+        // The TNT falls from section 4 into section -2, behind the armor stand
+        // already there (Entity.setPosRaw -> Callback.onMove). The lookup keeps
+        // its order; the sections do not.
+        find(overworld, 1).setPosRaw(2.5, -20, 2.5);
         snapshot(overworld);
         // The level saves: the chunk's roots in section, then lookup, order.
         overworld.autoSave();
