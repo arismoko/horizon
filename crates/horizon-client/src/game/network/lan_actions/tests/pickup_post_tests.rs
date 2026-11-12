@@ -232,6 +232,18 @@ fn host_pickup_tells_only_whole_pickups_and_keeps_listener_changes() {
             assert_eq!(host_animations(game), animations + 1);
             assert_eq!(host_stat(game), stat + 5);
 
+            // Creative takes the whole ground stack even with no inventory room.
+            game.creative = true;
+            let full = Case { room: 0, ..CASE };
+            let (animations, stat) = (host_animations(game), host_stat(game));
+            assert_eq!(
+                host_case(game, &probe, &full),
+                (vec![(7, 8, None)], None, 0)
+            );
+            assert_eq!(host_animations(game), animations + 1);
+            assert_eq!(host_stat(game), stat + 8);
+            game.creative = false;
+
             // The host's pass lifts its items out of the level, so a kill in the
             // notice cannot reach the one being picked up: no panic, the 3 put back stay.
             let killed = Case {
