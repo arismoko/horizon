@@ -11,6 +11,7 @@ pub trait Hooks {
     #[hook(
         side = "client",
         contract = "listen",
+        version = 2,
         neoforge = "RenderFrameEvent.Post"
     )]
     fn render_frame_post();

@@ -701,7 +701,12 @@ mod tests {
             .iter()
             .find(|p| p.name == "render_frame_pre")
             .unwrap();
-        assert_eq!(frame.version, 1);
+        assert_eq!(frame.version, 2);
+        let post = points
+            .iter()
+            .find(|p| p.name == "render_frame_post")
+            .unwrap();
+        assert_eq!(post.version, 2);
         assert_eq!(
             frame.target,
             "horizon_client::game::native_hooks::render_frame_pre::Game<'_>::native_render_frame_pre"

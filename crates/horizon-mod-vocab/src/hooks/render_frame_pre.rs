@@ -10,6 +10,7 @@ pub trait Hooks {
     #[hook(
         side = "client",
         contract = "listen",
+        version = 2,
         neoforge = "RenderFrameEvent.Pre"
     )]
     fn render_frame_pre();
