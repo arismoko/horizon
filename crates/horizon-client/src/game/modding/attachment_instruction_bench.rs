@@ -72,6 +72,8 @@ fn attachment_instruction_count() {
             assert_eq!(handles.get(game, valid), Err(Refusal::WrongSide));
             assert_eq!(handles.set(game, valid, 99), Err(Refusal::WrongSide));
             handles.server = !handles.server;
+            let replacement = ResolvedHandles::resolve(game, &holders);
+            assert_eq!(replacement.get(game, valid), Err(Refusal::InvalidHandle));
             attachment_handle_measured_passes(game, &handles, passes);
             // Retirement must refuse even though the physical map remains reachable.
             handles.records[0].registration.unregister();
@@ -81,6 +83,17 @@ fn attachment_instruction_count() {
             );
             assert_eq!(
                 handles.set(game, valid, 99),
+                Err(Refusal::Attachment(mod_api::AttachmentError::MissingHolder))
+            );
+            // Unload the dimension's authority while its physical maps remain.
+            game.attachment_indexes.remove(&game.dim);
+            let other = handles.token(1);
+            assert_eq!(
+                handles.get(game, other),
+                Err(Refusal::Attachment(mod_api::AttachmentError::MissingHolder))
+            );
+            assert_eq!(
+                handles.set(game, other, 99),
                 Err(Refusal::Attachment(mod_api::AttachmentError::MissingHolder))
             );
         } else {
@@ -134,21 +147,26 @@ enum Refusal {
 }
 impl ResolvedHandles {
     fn resolve(game: &mut crate::game::Game<'_>, holders: &[mod_api::Holder]) -> Self {
-        use mod_api::AttachmentHost;
         let server = game.native_authoritative();
         let records = holders
             .iter()
-            .enumerate()
-            .map(|(slot, &holder)| {
-                let map = game
-                    .attachments(holder, mod_api::AttachmentAccess::Existing)
-                    .unwrap();
+            .map(|&holder| {
+                let map = mod_api::AttachmentHost::attachments(
+                    game,
+                    holder,
+                    mod_api::AttachmentAccess::Existing,
+                )
+                .unwrap();
                 ResolvedRecord {
                     holder,
                     registration: map
                         .resolved_registration()
                         .expect("warm-up bound residency"),
-                    generation: slot as u64 + 1,
+                    generation: {
+                        static NEXT: std::sync::atomic::AtomicU64 =
+                            std::sync::atomic::AtomicU64::new(1);
+                        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                    },
                 }
             })
             .collect();
