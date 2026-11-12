@@ -861,7 +861,7 @@ pub enum ClipBlock {
     Outline,
 }
 
-/// Fluid mode for a level ray. More modes are a follow-up.
+/// Fluid mode for a level ray. Only the listed modes are supported.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, horizon_mod_api_macros::Wire)]
 pub enum ClipFluid {
@@ -993,7 +993,7 @@ pub enum ServerTickPhase {
 
 /// Context for every world lifecycle phase.
 /// `authority` is the server role. LocalAuthoritative and RemoteClient never
-/// fire today. `epoch` identifies the open attempt, including failed opens;
+/// fire. `epoch` identifies the open attempt, including failed opens;
 /// the same epoch identifies its ready, final-close, or failed-close event.
 /// `tick` counts non-paused server ticks since the world opened.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,4 +1,4 @@
-//! Custom brain behaviors (arismoko/horizon#824): code a mod attaches to one
+//! Custom brain behaviors: code a mod attaches to one
 //! entity type at startup, asked wherever the species' brain is built — its
 //! first tick, and every rebuild (a villager's profession change, growing up).
 //! A mod's behaviors join the brain's list as vanilla's own do: same

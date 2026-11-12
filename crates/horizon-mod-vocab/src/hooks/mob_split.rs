@@ -11,7 +11,7 @@ pub trait Hooks {
     /// spawn no children. Only for a parent above size 1, once the child
     /// count is drawn. NeoForge's list of child mobs is this count:
     /// changing a child or adding one of another kind needs a handle to a
-    /// mob not yet in the world, which Horizon doesn't have yet. On the
+    /// mob not yet in the world, which this hook does not expose. On the
     /// server.
     #[hook(
         side = "server",

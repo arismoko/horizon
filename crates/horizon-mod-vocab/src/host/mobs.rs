@@ -7,7 +7,7 @@ pub trait MobsHost {
     /// Side: both.
     /// The entity as a vanilla Mob: a mob or the ender dragon. Players, armor
     /// stands, stale handles and clients are rejected. Mobs taken out for
-    /// ticking are unavailable (a #29 follow-up).
+    /// ticking are unavailable.
     #[access(WorldOnly)]
     fn mob(&self, entity: EntityRef) -> Option<MobRef>;
 }
@@ -285,7 +285,7 @@ pub trait MobsBackendMut {
     /// can be stored in the current level are supported; armor stands are
     /// refused. The dragon stores a mob or a player, which its flight ignores
     /// and its save does not keep (vanilla keeps no target either). Brain-backed mobs refuse writes: vanilla's setter
-    /// does not update their brain memory (#934). A fox, an enderman or a
+    /// does not update their brain memory. A fox, an enderman or a
     /// zombified piglin stores the target with its own `setTarget` side
     /// effects (`Mob::set_target`).
     /// Invalid targets are refused (false, mob unchanged); vanilla instead
@@ -378,7 +378,7 @@ pub trait MobsBackendMut {
     /// `Brain.setMemory(ATTACK_TARGET, target)`, or `eraseMemory` for None:
     /// the target a brain-driven mob — an axolotl, a breeze, a creaking, a
     /// hoglin, a piglin or piglin brute, a warden or a zoglin — reads instead
-    /// of `Mob.setTarget`'s (#934). A plain, non-expiring memory write: the
+    /// of `Mob.setTarget`'s. A plain, non-expiring memory write: the
     /// brain's own behaviours act on it from the next tick (a target the
     /// species may not attack is dropped there, as vanilla's
     /// `StopAttackingIfTargetInvalid` drops it), and none of a species' own

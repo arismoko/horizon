@@ -50,13 +50,13 @@ impl Command {
 #[non_exhaustive]
 #[derive(horizon_mod_api_macros::Wire)]
 pub enum Authority {
-    /// A single-player game with no server thread; never fires today.
+    /// A single-player game with no server thread; does not fire.
     LocalAuthoritative,
     /// The server thread of a single-player or LAN world.
     IntegratedServer,
     /// A dedicated server.
     DedicatedServer,
-    /// A client of someone else's server; never fires today.
+    /// A client of someone else's server; does not fire.
     RemoteClient,
 }
 

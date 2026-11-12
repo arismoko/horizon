@@ -61,7 +61,7 @@ pub mod tests {
         );
     }
 
-    /// Additions to existing types (#846, `EntityAttributeModificationEvent`)
+    /// Additions to existing types (`EntityAttributeModificationEvent`)
     /// reach any namespace, may repeat a type, and validate each call's set.
     #[test]
     pub(crate) fn entity_attribute_modifications_validate_each_set() {

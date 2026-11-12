@@ -52,7 +52,7 @@ pub trait EntityAttributesRegistrar {
     /// `Zombie.createAttributes` builds on the template's): each attribute's
     /// id (`minecraft:max_health`) and the base value that differs from the
     /// template's. The values reach the type's own fields, its live attribute
-    /// map and the attribute sync, so the reads of #1469 and #1493 answer the
+    /// map and the attribute sync, so attribute reads answer the
     /// same defaults with no second copy.
     ///
     /// Resolved once, at load: an id outside the mod's manifest-owned namespaces, a duplicate

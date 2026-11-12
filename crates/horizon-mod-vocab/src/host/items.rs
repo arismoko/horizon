@@ -271,7 +271,7 @@ pub trait ItemsBackend {
     fn entity_automation_size(&self, entity: u32) -> Option<usize>;
     /// Side: server.
     /// How many equipment slots living entity `entity`'s [`ENTITY_ITEMS`](crate::ENTITY_ITEMS)
-    /// answers (#932, NeoForge's `LivingEntityEquipmentWrapper`): a mob's or an armor stand's
+    /// answers (NeoForge's `LivingEntityEquipmentWrapper`): a mob's or an armor stand's
     /// seven (main hand, off hand, feet, legs, chest, head and body, by `EquipmentSlot`'s
     /// ordinal; the saddle is not automation's to move), none for any other entity, and on a
     /// client.

@@ -14,7 +14,7 @@ pub trait Hooks {
     /// and after every `/reload`. `ItemKey::data` and `BlockKey::data` read the
     /// new values.
     ///
-    /// `ClientSync`: data maps are server-side and not synced to clients yet, so
+    /// `ClientSync`: data maps are server-side and not synced to clients, so
     /// this cause does not fire; it comes with the sync.
     ///
     /// Runs in Reloading: published asset/data queries can rebind caches,

@@ -7,8 +7,7 @@ pub trait Hooks {
     /// the UUID and entity id of the player who fed them into love
     /// (`getCausedByPlayer`, None when none), `kind` the baby's type (a horse
     /// and a donkey have a mule). NeoForge's `setChild` (another baby)
-    /// needs a handle to a mob not yet in the world, which Horizon doesn't
-    /// have yet. Set `cancel` for no baby: the
+    /// needs a handle to a mob not yet in the world, which this hook does not expose. Set `cancel` for no baby: the
     /// parents still rest and lose their love (their ages were already set
     /// to 6000), but there is no baby, no experience, no `animals_bred`
     /// statistic, no advancement and no heart particles. Not fired for

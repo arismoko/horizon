@@ -5,7 +5,7 @@ pub trait Hooks {
     /// A player's hit landed on the mob `entity` of type `kind`
     /// (`minecraft:zombie`), holding `stack`: where `Item.hurtEnemy` is called,
     /// before the post-attack enchantments and the weapon's wear. It only
-    /// hears. Another player as the target isn't told yet. Server-side, for
+    /// hears. Another player as the target is not told. Server-side, for
     /// every player of the world (the helpers read the acting one).
     #[hook(
         side = "server",

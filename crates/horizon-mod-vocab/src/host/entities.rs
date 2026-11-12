@@ -151,14 +151,14 @@ pub trait EntitiesBackend {
     /// `Entity.isPermanentlyInvulnerable`: the `Invulnerable` flag, which
     /// only damage that bypasses invulnerability (the void, `/kill`) or a
     /// creative player gets past. Mobs keep it on themselves (saved with
-    /// them), players on their body (#916, not saved: Horizon's player save
-    /// keeps no such field yet), the other kinds in the saved `Invulnerable`
-    /// tag of their entity data (#916) — the tag the item damage path
+    /// them), players on their body (not saved: Horizon's player save
+    /// keeps no such field), the other kinds in the saved `Invulnerable`
+    /// tag of their entity data — the tag the item damage path
     /// already refuses by.
     #[access(WorldOnly)]
     fn entity_permanently_invulnerable(&self, entity: EntityRef) -> Option<bool>;
     /// Side: server.
-    /// `Entity.invulnerableTime` (#916): the entity-level invulnerability
+    /// `Entity.invulnerableTime`: the entity-level invulnerability
     /// window, its own field on a mob and a player — never the living damage
     /// cooldown — and the saved `invulnerable_time` tag for the other kinds.
     /// Counted down by the base tick; `isTemporarilyInvulnerable` is it above
@@ -172,12 +172,12 @@ pub trait EntitiesBackend {
     #[access(WorldOnly)]
     fn entity_damage_cooldown_time(&self, entity: EntityRef) -> Option<i32>;
     /// Side: server.
-    /// `Entity.isInvulnerableTo` for a source of `damage_type`: #842's own
+    /// `Entity.isInvulnerableTo` for a source of `damage_type`: the entity's own
     /// decision, the guard every mob damage hook runs after — dead or
     /// removed, fire immunity, or the `Invulnerable` flag nothing but
     /// `#bypasses_invulnerability` gets past. None for a stale handle or a
     /// kind with no such decision (the player's paths answer their refusals
-    /// at hurt time). #924.
+    /// at hurt time).
     #[access(WorldOnly)]
     fn entity_invulnerable_to_damage(&self, entity: EntityRef, damage_type: &str) -> Option<bool>;
     /// Side: server.
@@ -185,7 +185,7 @@ pub trait EntitiesBackend {
     /// (`Player.canHarmPlayer`, `Team.allowFriendlyFire`,
     /// `DamageSource.doTeamsAllowDamage`): allies without friendly fire
     /// cannot. Entities without a team always can. None for a stale handle.
-    /// #924.
+    ///
     #[access(WorldOnly)]
     fn entity_entities_team_damage_allowed(
         &self,
@@ -195,8 +195,8 @@ pub trait EntitiesBackend {
     /// Side: server.
     /// `Entity.isInvulnerableToPiercingWeapon` (`isInvulnerable`): the
     /// `Invulnerable` flag; the temporary window `Entity.invulnerableTime`
-    /// opens does not exist yet (#916), so no hit answers through it. None
-    /// for a stale handle or a kind without the flag. #924.
+    /// opens is not represented, so no hit answers through it. None
+    /// for a stale handle or a kind without the flag.
     #[access(WorldOnly)]
     fn entity_invulnerable_to_piercing_weapon(&self, entity: EntityRef) -> Option<bool>;
 
@@ -369,7 +369,7 @@ pub trait EntitiesBackend {
     /// of it, a cart beside or on top of it, a strider by vanilla's search, a happy ghast on
     /// top, and any other mob beside or on top of it. A mob leaves a boat as a player does, a
     /// cart by vanilla's search, a horse, camel or llama at its side or feet, and any other mob
-    /// on top: vanilla's searches for `Animal` and the strider don't reach mobs yet, and those
+    /// on top: vanilla's searches for `Animal` and the strider do not reach mobs, and those
     /// for horses, `Animal` and the cart don't reach players. Nothing rides anything else, so
     /// there it is the top of the box. Reads only: no `mob_ride` or dismount veto is asked and
     /// the passenger's pose stays. `None` for a stale handle, a passenger other than a player
@@ -499,14 +499,14 @@ pub trait EntitiesBackendMut {
     /// Merges `nbt` into the entity's data and loads the entity from it, as
     /// `/data merge entity` does (`EntityDataAccessor.setData`): true when it
     /// changed. False for a player (vanilla refuses them too), a kind Horizon
-    /// can't reload yet (only mobs, dropped items, armor stands and item
+    /// cannot reload (only mobs, dropped items, armor stands and item
     /// frames), data nested too deep, or data that changes nothing. API
     /// 386.
     #[access(WorldOnly)]
     fn entity_merge_nbt(&mut self, entity: EntityRef, nbt: Compound) -> bool;
     /// Side: server.
     /// Adds tag `tag` (`Entity.addTag`): false when it has it already, holds
-    /// 1024, its kind can't store tags yet, or the handle is stale. API 386.
+    /// 1024, its kind cannot store tags, or the handle is stale. API 386.
     #[access(WorldOnly)]
     fn entity_add_tag(&mut self, entity: EntityRef, tag: &str) -> bool;
     /// Side: server.
@@ -518,7 +518,7 @@ pub trait EntitiesBackendMut {
     /// Names the entity (`Entity.setCustomName`), or takes its name away
     /// with `None`: its name, its saved `CustomName` and, for a mob or an
     /// armor stand, what the players tracking it are sent. False for a
-    /// player, a kind whose name Horizon keeps nowhere yet (projectiles, the
+    /// player, a kind whose name Horizon does not retain (projectiles, the
     /// dragon and crystals, primed TNT, falling blocks, experience orbs,
     /// ominous item spawners), a stale handle or on a client.
     #[access(WorldOnly)]
@@ -559,7 +559,7 @@ pub trait EntitiesBackendMut {
     #[access(WorldOnly)]
     fn entity_set_damage_cooldown_time(&mut self, entity: EntityRef, ticks: i32) -> bool;
     /// Side: server.
-    /// `Entity.setInvulnerableTime` (#916): the write side of
+    /// `Entity.setInvulnerableTime`: the write side of
     /// `entity_invulnerable_time`. False where the entity is gone or keeps
     /// no such field.
     #[access(WorldOnly)]
@@ -574,7 +574,7 @@ pub trait EntitiesBackendMut {
     /// dragon and crystal branches for the damageable rest. True when the
     /// damage was taken. None for a stale handle, false for a kind that
     /// cannot be hurt or an unregistered damage type. Stale direct/causing
-    /// handles are treated as absent sources. #924.
+    /// handles are treated as absent sources.
     #[access(WorldOnly)]
     fn entity_hurt(
         &mut self,
@@ -695,7 +695,7 @@ pub trait EntitiesBackendMut {
     /// mob and up to two passengers in total. Generic seats admit one passenger unless forced.
     /// `force` bypasses normal admission checks, not these storage limits.
     /// Player boarding cooldown and the strider's
-    /// eye-in-lava admission check are not yet represented by the game.
+    /// eye-in-lava admission check are not represented by the game.
     #[access(WorldOnly)]
     fn entity_start_riding(&mut self, entity: EntityRef, vehicle: EntityRef, force: bool) -> bool;
     /// Side: server.

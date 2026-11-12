@@ -137,7 +137,6 @@ pub struct TextStyle {
 ///
 /// File-opening actions are intentionally absent: mods can neither produce nor
 /// round-trip `OpenFile`. Capture drops untrusted file-opening action metadata.
-/// Part of the [per-node origin tracking follow-up](https://github.com/arismoko/horizon/issues/1738).
 #[derive(Clone, Debug, PartialEq, Eq)]
 // exhaustive: closed serialized component vocabulary; new cases change the link contract
 #[derive(horizon_mod_api_macros::Wire)]

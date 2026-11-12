@@ -1,5 +1,5 @@
-//! The entries of the datapack registries mods declared, as one world loads them
-//! (arismoko/horizon#811, stage 3): a candidate built from the winning pack files and checked
+//! The entries of the datapack registries mods declared, as one world loads them:
+//! a candidate built from the winning pack files and checked
 //! as a whole, then published as a set with a session and a generation, and read through
 //! handles that check both. Nothing here touches the world; the game builds a candidate before
 //! it commits any table and keeps the old set when building fails. See
