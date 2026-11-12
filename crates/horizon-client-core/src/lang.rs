@@ -617,13 +617,86 @@ pub fn available(sources: &[&dyn ResourceSource]) -> Vec<LanguageInfo> {
     found.into_values().collect()
 }
 
+#[cfg(feature = "test-language-publication")]
+thread_local! {
+    static PUBLICATION: RefCell<Option<Arc<Language>>> = const { RefCell::new(None) };
+}
+
+/// Isolate language reload publication on this fixture thread, including nested scopes.
+/// Unlike `scoped`, subsequent `set` calls replace the visible language.
+#[cfg(feature = "test-language-publication")]
+pub fn isolate_publication(language: Language) -> impl Drop {
+    struct Restore(
+        Option<Arc<Language>>,
+        std::marker::PhantomData<std::rc::Rc<()>>,
+    );
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            PUBLICATION.with(|slot| *slot.borrow_mut() = self.0.take());
+            scope_changed();
+        }
+    }
+    let previous = PUBLICATION.with(|slot| slot.replace(Some(Arc::new(language))));
+    scope_changed();
+    Restore(previous, std::marker::PhantomData)
+}
+
+#[cfg(all(test, feature = "test-language-publication"))]
+#[test]
+fn isolated_reload_publications_are_mutable_nested_and_thread_local() {
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    std::thread::scope(|scope| {
+        for value in ["first", "second"] {
+            let barrier = barrier.clone();
+            scope.spawn(move || {
+                let _outer = isolate_publication(Language::of("en_us", []));
+                set(Language::of(
+                    "en_us",
+                    [("fixture.key".into(), value.into())],
+                ));
+                barrier.wait();
+                assert_eq!(get("fixture.key"), value);
+                {
+                    let _inner = isolate_publication(Language::of("en_us", []));
+                    set(Language::of(
+                        "en_us",
+                        [("fixture.key".into(), "nested".into())],
+                    ));
+                    assert_eq!(get("fixture.key"), "nested");
+                }
+                assert_eq!(get("fixture.key"), value);
+            });
+        }
+    });
+}
+
 pub fn set(language: Language) {
+    #[cfg(feature = "test-language-publication")]
+    let language = match PUBLICATION.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot.is_some() {
+            *slot = Some(Arc::new(language));
+            None
+        } else {
+            Some(language)
+        }
+    }) {
+        Some(language) => language,
+        None => {
+            scope_changed();
+            return;
+        }
+    };
     BIDIRECTIONAL.store(language.bidirectional, Ordering::Relaxed);
     *CURRENT.write().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(language));
     GENERATION.fetch_add(1, Ordering::Relaxed);
 }
 pub fn current() -> Option<Arc<Language>> {
     if let Some(language) = SCOPE.with(|s| s.borrow().as_ref().map(|s| s.language.clone())) {
+        return Some(language);
+    }
+    #[cfg(feature = "test-language-publication")]
+    if let Some(language) = PUBLICATION.with(|slot| slot.borrow().clone()) {
         return Some(language);
     }
     CURRENT.read().unwrap_or_else(|e| e.into_inner()).clone()
@@ -671,6 +744,10 @@ fn missed(key: &str) {
 }
 /// `ClientLanguage.defaultRightToLeft` of the current language.
 pub fn bidirectional() -> bool {
+    #[cfg(feature = "test-language-publication")]
+    if let Some(language) = PUBLICATION.with(|slot| slot.borrow().clone()) {
+        return language.bidirectional;
+    }
     BIDIRECTIONAL.load(Ordering::Relaxed)
 }
 pub fn code() -> String {

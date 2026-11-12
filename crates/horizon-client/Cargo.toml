@@ -174,6 +174,7 @@ path = "tests/mod_api_hooks.rs"
 workspace = true
 
 [dev-dependencies]
+horizon-client-core = { path = "../horizon-client-core", features = ["test-language-publication"] }
 horizon-client-lib = { path = "../horizon-client-lib", default-features = false, features = ["test-payload-probe", "test-publication-scope", "test-residency-observer"] }
 horizon-mod-wasm = { path = "../horizon-mod-wasm", features = ["runtime-fixture", "listener-fixture", "test-copy-probe"] }
 wat = "1.261"
