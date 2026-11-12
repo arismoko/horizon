@@ -1630,7 +1630,9 @@ mod tests {
 
     /// A server-side game with nothing in it but an empty chunk, or None when
     /// the prepared resources are missing (CI has no vanilla data).
-    fn server_game() -> Option<Game<'static>> {
+    fn server_game(
+        resources: &mut Option<std::sync::Arc<crate::game::Resources>>,
+    ) -> Option<Game<'_>> {
         use crate::game::{Audio, Options, Progress, Settings, load_resources};
         let root = std::env::var_os("HORIZON_TEST_RESOURCES")
             .map(std::path::PathBuf::from)
@@ -1644,13 +1646,14 @@ mod tests {
         }
         let settings = Settings::default();
         let loaded = load_resources(
-            root.clone(),
+            horizon_assets::resource_source::ResourceRoot::directory(root.clone()),
+            Vec::new(),
             None,
             &root,
             &settings,
             std::time::Instant::now(),
             false,
-            true,
+            crate::game::execution_role::ExecutionRole::IntegratedServer,
             &Progress::new(),
             &mut |_, _| unreachable!(),
         )
@@ -1658,14 +1661,16 @@ mod tests {
         let mut options = Options::parse(std::iter::empty()).ok()??;
         options.resources = root.clone();
         options.execution_role = crate::game::execution_role::ExecutionRole::IntegratedServer;
-        let res: &'static _ = Box::leak(Box::new(loaded.resources));
+        let res = resources.insert(loaded.resources);
         let mut game = Game::new(
             res,
             loaded.pack,
             loaded.gui?,
             options,
             settings,
-            Audio::silent(&root),
+            Audio::silent(&horizon_assets::resource_source::ResourceSource::directory(
+                root.clone(),
+            )),
             None,
         )
         .ok()?;
@@ -1743,7 +1748,8 @@ mod tests {
     /// noiselessly, drawing no pitch, and a locked baby grows not at all.
     #[test]
     fn feeding_a_mount_draws_from_its_own_random_and_posts_eat() {
-        let Some(mut game) = server_game() else {
+        let mut resources = None;
+        let Some(mut game) = server_game(&mut resources) else {
             return;
         };
         // A silent baby horse fed wheat: the particle's draws, the growth, the
