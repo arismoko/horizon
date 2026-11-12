@@ -1,9 +1,15 @@
 # Measuring styled text outside drawing
 
-A tooltip component can determine its dimensions before it receives any draw
-context. Use `ClientHost::text_width(&Text)` and `text_split(&Text, width)`:
+Measure styled text without a draw context. Use `ClientHost::text_width(&Text)` and `text_split(&Text, width)`:
 these are reads of the client's active font in unscaled GUI pixels, also usable
 in client setup. Native and wasm mods use the same methods.
+
+| Method on `ClientHost` | Result |
+| --- | --- |
+| `text_width(&Text)` | `Result<i32, TextFormError>`: styled width in GUI pixels. |
+| `text_split(&Text, i32)` | `Result<Vec<Text>, TextFormError>`: wrapped, styled lines. |
+| `text_string(&Text)` | `Result<String, TextFormError>`: resolved plain characters. |
+| `text_visual_order(&Text)` | `Result<Vec<VisualTextCharacter>, TextFormError>`: styled characters in display order. |
 
 Construct an owned `Text` with its content, style and children. A bridge with a
 flat component representation can build a `TextForm` and call
@@ -23,6 +29,8 @@ methods. These reads use that same role—the active client font—without passi
 an engine font object or requiring a `DrawContext`. They do not draw anything
 and do not expose a full rendering context.
 
+## Resolved strings
+
 For vanilla `Component.getString()` behavior, use
 `ClientHost::text_string(&Text) -> Result<String, TextFormError>`. This client
 setup read also works outside drawing on native and wasm. It uses the same
@@ -33,6 +41,8 @@ characters; literal legacy `§` formatting codes remain in the string, unlike th
 font's formatted rendering. Invalid components return the same boundary errors
 as the other text reads. Do not cache resolved strings across language changes.
 
+## Visual order
+
 For vanilla `Component.getVisualOrderText()` behavior, use
 `ClientHost::text_visual_order(&Text) -> Result<Vec<VisualTextCharacter>, TextFormError>`.
 Each API-owned Wire record contains a Unicode scalar (`scalar`), its full
@@ -40,7 +50,7 @@ resolved `TextStyle`, and the sink's `source_index`. Characters are already in
 visual order, including Arabic shaping and mirrored punctuation; do not apply
 bidi a second time. This read uses the engine's existing language and bidi
 pipeline, is available outside drawing including client setup, and is identical
-on native and wasm. It has no documented NeoForge hook counterpart.
+on native and wasm.
 
 Sink indices are UTF-16 offsets local to a constant-style substring within a
 directional run, not global component positions. For example, `A😀B` yields

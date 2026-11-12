@@ -1,10 +1,9 @@
 # Drawing with your own render pipeline
 
-A client mod can draw world quads with its own fragment shader. The mod describes the pipeline as
-data, the game builds it, and the mod draws by handle. This is the counterpart of NeoForge 26.3's
-`RegisterRenderPipelinesEvent`, in a restricted form: the mod supplies the fragment stage and
- the host fixes the rest. Vanilla requires a vertex shader and a primitive type; this API fixes
- both rather than exposing the full pipeline description.
+Draw world quads with your own fragment shader. Register a `RenderPipeline`, resolve
+its handle, and submit quads through a `WorldDrawContext`. This is the restricted
+counterpart of NeoForge's `RegisterRenderPipelinesEvent`: you supply the fragment
+stage; the game fixes the vertex stage, primitive type and bindings.
 
 ## 1. Write the shader
 
@@ -27,8 +26,7 @@ The game puts this before your file:
 | `frame.time` | `f32` | Seconds of game time, smooth between ticks, wrapping to 0 every hour. |
 | `frame.viewport` | `vec2<f32>` | The world picture's size in pixels. |
 
-Colours follow the [mod render colour rule](https://github.com/arismoko/horizon/blob/main/docs/design/mod-api/mod-render-colour.md): the function reads
-and returns linear light, 1.0 is paper white, and more is brighter where the frame can hold it. The
+The function reads and returns linear light: 1.0 is paper white, and more is brighter where the frame can hold it. The
 alpha you return is coverage. The game supplies the vertex stage, the bindings and the conversion
 to the frame, so a file that declares a binding or an entry point is refused. Names that start with
 `horizon_` belong to the game.
@@ -55,7 +53,7 @@ scaled by its alpha. `WorldDepth::Tested` hides the quads behind nearer world su
 `ThroughWalls` draws them over everything. No pipeline writes depth.
 
 The id must be in a namespace your mod owns. There is no per-mod pipeline count cap. A registration
-that breaks either rule, or reuses an id, is logged with the mod's id and dropped.
+with an unowned namespace or a duplicate id is logged with the mod's id and dropped.
 
 ### Required or optional
 
@@ -74,7 +72,7 @@ event.pipelines.push(
 | Optional (`.optional()`) | The log has one line naming the pipeline and why. It resolves to `RenderPipelineError::Invalid`, and every other pipeline builds and draws. |
 
 A load cannot build a pipeline when its shader file is missing, the file is refused, or the GPU
-turns the built shader down. The game never panics over a pipeline's shader.
+rejects the shader. The game never panics over a pipeline's shader.
 
 ## 3. Resolve and draw
 
@@ -100,9 +98,9 @@ reload answers `Stale`.
 | Error | When |
 | --- | --- |
 | `RenderPipelineError::Unknown` | No mod registered that id. |
-| `RenderPipelineError::Invalid` | The pipeline is optional and its shader file is missing, was refused or was turned down by the GPU. The log has a line `render pipeline <id> from mod <owner> refused: <file>: <reason>`, with the file's line number for a syntax or type error, or `render pipeline <id> from mod <owner> refused by the GPU: <reason>`. |
+| `RenderPipelineError::Invalid` | The pipeline is optional and its shader file is missing, was refused or was rejected by the GPU. The log has a line `render pipeline <id> from mod <owner> refused: <file>: <reason>`, with the file's line number for a syntax or type error, or `render pipeline <id> from mod <owner> refused by the GPU: <reason>`. |
 | `RenderPipelineError::Stale` | The handle is from before a resource reload. |
-| `PipelineDrawError::NonFinite` | A corner or texture coordinate is not finite. |
+| `PipelineDrawError::NonFinite` | A corner or texture coordinate is not finite, or a camera-relative coordinate overflows `f32`. |
 | `PipelineDrawError::CapacityExceeded` | The view's 4,096 quads, shared with `WorldDrawContext::quads`, are used up. |
 
 A refused batch draws nothing. An `Invalid` pipeline never stops the game from starting; a required
@@ -116,4 +114,4 @@ lines, in the order submitted. Under a shader pack they follow the plain quads: 
 draws itself is drawn with the next stage the game reaches.
 
 A pipeline cannot sample textures, take values of its own from the mod, or replace the vertex
-stage yet.
+stage.
