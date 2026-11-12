@@ -12,6 +12,7 @@ impl TryIntoEngine<()> for mod_api::BlockProperties {
             hardness: self.hardness,
             explosion_resistance: self.explosion_resistance,
             light: self.light,
+            dynamic_light: self.dynamic_light,
             requires_tool: self.requires_tool,
             friction: self.friction,
             map_color: self.map_color,
@@ -441,6 +442,7 @@ mod tests {
                 push_reaction: Some(mod_api::PushReaction::Popped),
                 occludes: Some(false),
                 destroy_overlay: Some(false),
+                dynamic_light: Some(true),
                 ..Default::default()
             };
             draft.state_properties =
@@ -470,6 +472,7 @@ mod tests {
                 push_reaction: Some(engine::PushReaction::Popped),
                 occludes: Some(false),
                 destroy_overlay: Some(false),
+                dynamic_light: Some(true),
                 ..Default::default()
             }
         );

@@ -817,6 +817,7 @@ mod mod_spawn_rule_tests {
         StateFacts {
             name: Arc::from(name),
             emission: 0,
+            dynamic_light: false,
             dampening: 0,
             skylight_down: true,
             shape_occlusion: false,

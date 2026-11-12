@@ -15,6 +15,9 @@ pub struct BlockProperties {
     pub explosion_resistance: Option<f32>,
     /// Light emitted, 0 to 15.
     pub light: Option<u8>,
+    /// `true`: the block's parts answer `light_emission`, the light a cell emits by where it is
+    /// (`IBlockExtension.hasDynamicLightEmission`); `light` is a cell's without an answer.
+    pub dynamic_light: Option<bool>,
     /// Whether drops require the appropriate tool.
     pub requires_tool: Option<bool>,
     /// Surface friction; unset inherits the template.

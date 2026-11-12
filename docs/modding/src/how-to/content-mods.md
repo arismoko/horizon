@@ -218,6 +218,15 @@ is skipped: the mining progress, the server's progress and the destroy-progress 
 vanilla's. Unset or `true`, the crack is drawn. It stands where a mod once had a mixin on
 `LevelRenderer.renderBlockDestroyAnimation`, which has no NeoForge event.
 
+`dynamic_light: true` makes a block's light depend on where it is, not only on its state
+(`IBlockExtension.hasDynamicLightEmission`): a lamp that glows only on a powered rail, a crystal brighter deeper
+down. Its parts answer `BlockPart::light_emission` with the light a cell emits, and `light` (or `state_light`) is
+what a cell emits without an answer. The game asks on the thread that owns the level, the server's and each
+client's, as a chunk holding the block comes in and as an edit sets it, and keeps the answer until the cell's state
+changes; the light engine never asks on its own. The flag is per block, as it sits on the block's row: every state
+of the block is asked, so a block with only some states that vary pays the ask for all of them. Light that depends
+only on the state needs no part: use `light` or `state_light`.
+
 A block copies its template's states. It can also declare state properties of
 its own, which its template does not have — how a pipe says which sides it
 connects to, or a machine whether it is running. Its states then become its

@@ -15749,11 +15749,8 @@ impl Game<'_> {
                 }
             }
         }
-        if self.lod.is_some() {
-            for &((x, _, z), _, _) in &self.world.light_edits {
-                self.lod_observe.insert((x >> 4, z >> 4));
-            }
-        }
+        self.observe_light_edits();
+        self.ask_edited_light_emission();
         if let (Some(map), Some(p), Some(lod)) = (&self.lod_blue_map, &self.player, &mut self.lod) {
             map.set_center(p.position.x.floor() as i32, p.position.z.floor() as i32);
             for change in map.take_changed() {
@@ -15813,6 +15810,7 @@ impl Game<'_> {
             log::warn!("Horizon: failed to save unloaded chunks: {e}");
         }
         self.spawn_fresh_chunks();
+        self.ask_loaded_light_emission();
         // Vanilla saves the chunk before its unload hook and drops its block entities afterwards.
         self.native_chunks_loaded();
         self.native_chunks_unloaded(&unloaded);

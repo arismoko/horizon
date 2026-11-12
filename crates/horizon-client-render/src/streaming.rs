@@ -1172,9 +1172,11 @@ pub struct WorkerContext {
     pub hidden_states: Arc<[bool]>,
 }
 mod bounded;
+mod dynamic_emission;
 mod forced_cover;
 mod relight_now;
 use bounded::nearest_first;
+use dynamic_emission::light_region_ready;
 use forced_cover::ForcedCover;
 impl Streaming {
     pub fn new<G: ChunkGenerator>(
@@ -1574,6 +1576,7 @@ impl Streaming {
         let loaded = chunk.light_loaded;
         let new = self.dropped_new.remove(&key) || chunk.generated;
         world.loaded_chunks.push((key.0, key.1, new));
+        chunk.dynamic_pending = self.light_tables.holds_dynamic(&chunk);
         world.chunks.insert(key, Arc::new(chunk));
         if loaded {
             self.lit.insert(key);
@@ -3366,33 +3369,6 @@ fn release_columns(queue: &mut BinaryHeap<Queued>, gone: &FxHashSet<(i32, i32)>)
     let released = before - kept.len();
     *queue = BinaryHeap::from(kept);
     released
-}
-/// Whether the 3x3 a light job for (x, z) reads is all there: every
-/// neighbour a finished column, or a decorated proto chunk past the area
-/// (the last FULL ring lights against neighbours at FEATURES, as
-/// `Streaming::light_region` reads them).
-fn light_region_ready(
-    world: &World,
-    in_range: impl Fn(i32, i32) -> bool,
-    decorated: &FxHashSet<(i32, i32)>,
-    protos: &FxHashMap<(i32, i32), Option<Proto>>,
-    x: i32,
-    z: i32,
-) -> bool {
-    for dz in 0..3 {
-        for dx in 0..3 {
-            let n = (x + dx - 1, z + dz - 1);
-            if world.chunks.contains_key(&n)
-                || (!in_range(n.0, n.1)
-                    && decorated.contains(&n)
-                    && matches!(protos.get(&n), Some(Some(_))))
-            {
-                continue;
-            }
-            return false;
-        }
-    }
-    true
 }
 /// What `keep_unchanged_sections` found changed.
 #[derive(Debug, Default, PartialEq)]

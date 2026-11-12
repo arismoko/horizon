@@ -1033,6 +1033,7 @@ impl Plan<'_> {
 
 /// Content entity rows preserve template numbers and carry sound selections.
 mod entity_sounds;
+mod light_rows;
 use entity_sounds::mod_entity_row;
 
 impl<'a> Plan<'a> {
@@ -1677,12 +1678,7 @@ impl<'a> Plan<'a> {
         if let Some(v) = p.explosion_resistance {
             row.set("explosion_resistance", J::f64(v as f64));
         }
-        if let Some(v) = p.light {
-            row.set("emission", J::Num(v.into()));
-        }
-        if let Some(values) = &b.state_light {
-            row.set("emission", J::Num(values[state_index].into()));
-        }
+        light_rows::override_light(b, state_index, row);
         if let Some(v) = p.requires_tool {
             row.set("requires_tool", J::Bool(v));
         }

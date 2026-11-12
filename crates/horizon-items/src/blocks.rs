@@ -43,6 +43,9 @@ pub struct SignTextDefaults {
 pub struct StateFacts {
     pub name: Arc<str>,
     pub emission: u8,
+    /// The block declares `dynamic_light`: its parts' `light_emission` answers what a cell emits
+    /// (`IBlockExtension.hasDynamicLightEmission`); `emission` is the light of a cell without one.
+    pub dynamic_light: bool,
     pub dampening: u8,
     pub skylight_down: bool,
     pub shape_occlusion: bool,
@@ -492,6 +495,7 @@ impl BlockFacts {
                 outline_edges,
                 name: intern(&state.name),
                 emission: entry.emission.as_f64().unwrap_or(0.0) as u8,
+                dynamic_light: entry.dynamic_light,
                 dampening: entry.dampening.as_f64().unwrap_or(0.0) as u8,
                 skylight_down: entry.skylight_down,
                 shape_occlusion: entry.shape_occlusion,
