@@ -78,6 +78,7 @@ def api_version(root: Path) -> str:
 def stage(target_dir: Path, stage_tool: Path | None = None) -> Path:
     """A copy of the tracked source with the staging pass run over it (#589): every point method gets its
     `#[point]`, internals become public, and both manifests are written. The working tree is never rewritten."""
+    setup_started = time.monotonic()
     staged = target_dir / "stage"
     if staged.exists():
         shutil.rmtree(staged)
@@ -90,6 +91,7 @@ def stage(target_dir: Path, stage_tool: Path | None = None) -> Path:
     arguments = [str(staged), str(staged / POINTS), str(staged / INTERNALS), api_version(staged)]
     command = ([str(stage_tool.resolve())] if stage_tool is not None else
                ["cargo", "run", "--locked", "--release", "-q", "-p", "horizon-mod-api-gen", "--bin", "horizon-stage", "--"])
+    print(f"stage_phase=copy_setup seconds={time.monotonic() - setup_started:.3f}", flush=True)
     started = time.monotonic()
     print(run(command + arguments, cwd=staged,
               env=None if stage_tool is not None else

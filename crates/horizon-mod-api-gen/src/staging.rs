@@ -1,6 +1,6 @@
 //! One source staging pass for the launcher and `horizon-stage`.
 use crate::{internals, points, replace};
-use std::path::Path;
+use std::{path::Path, time::Instant};
 
 /// Discovery instrumentation must never be used to build or publish a game.
 #[derive(Clone, Copy)]
@@ -55,16 +55,27 @@ fn stage_with_catalog(
     )
     .map_err(|error| format!("{}: {error}", stamp.display()))?;
     if matches!(mode, Mode::Build) {
+        let started = Instant::now();
         let catalog = catalog()?;
         let destination = points_json.with_file_name(point_shape::SDK_CATALOG_FILE);
         std::fs::write(&destination, catalog)
             .map_err(|e| format!("{}: {e}", destination.display()))?;
+        eprintln!(
+            "stage_phase=catalog seconds={:.3}",
+            started.elapsed().as_secs_f64()
+        );
     }
     // Listed before any pass rewrites the source: the markers are the source's.
+    let started = Instant::now();
     write(
         &points_json.with_file_name(crate::loops::FILE),
         &crate::loops::collect(root)?,
     )?;
+    eprintln!(
+        "stage_phase=loops seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
+    let started = Instant::now();
     let mut internals = match mode {
         Mode::Build => internals::widen(root)?,
         Mode::Discovery => internals::discover(root)?,
@@ -73,8 +84,23 @@ fn stage_with_catalog(
         .entries
         .extend(crate::crossing::foreign_internals());
     write(internals_json, &internals.entries)?;
+    eprintln!(
+        "stage_phase=internals seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
+    let started = Instant::now();
     let wire = crate::build::wire_types(root)?;
+    eprintln!(
+        "stage_phase=wire seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
+    let started = Instant::now();
     let (points, records) = points::stage_with_manifest(root, &wire)?;
+    eprintln!(
+        "stage_phase=points seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
+    let started = Instant::now();
     #[derive(serde::Serialize)]
     struct Manifest {
         points: Vec<points::GamePoint>,
@@ -88,7 +114,16 @@ fn stage_with_catalog(
             wire,
         },
     )?;
+    eprintln!(
+        "stage_phase=point_manifest seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
+    let started = Instant::now();
     let replace = replace::stage(root)?;
+    eprintln!(
+        "stage_phase=replace seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
     Ok(Staged {
         points,
         replace,
