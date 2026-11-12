@@ -18,8 +18,8 @@ horizon-launcher native-lock path/to/mod
 horizon-launcher native-lock path/to/mod --update-lock
 ```
 
-This is the **registry dependency lock consumed by launcher staging**, not a promise that ordinary
-Cargo can resolve the original pinned SDK declaration offline. The command creates an inert copy
+The launcher consumes this **registry dependency lock** during staging. Ordinary Cargo may not
+resolve the original pinned SDK declaration offline. The command creates an inert copy
 of the manifests, removes only SDK dependencies naming the exact pinned Horizon repository and
 revision, and resolves registry metadata. It does not copy or execute mod sources, build scripts
 or proc macros. It does not modify the original manifests or Cargo configuration. Existing pins
@@ -48,12 +48,12 @@ authors as well as the mod's author.
 
 Before compiling these dependencies, the launcher shows how many registry crates the mod adds and
 names the reachable build scripts and proc macros. Declining stops before any mod dependency is
-compiled. The existing native-code permission is also required; downloading a checksummed crate
+compiled. Native-code permission is also required; downloading a checksummed crate
 does not make its code trusted.
 
 For native builds, Cargo compiles the mod's registry graph and the final wrapper
 against immutable SDK binaries. Registry dependencies never cause an automatic source rebuild.
-The SDK must include its locked graph and runtime native-library inventory; older SDKs without
+The SDK must include its locked graph and runtime native-library inventory; SDKs without
 that information refuse registry builds. The launcher preserves the compiler/cache wrapper chain
 and uses its pinned Rust compiler.
 
@@ -68,6 +68,8 @@ Cargo directories. Host-only build tools and proc macros are not packaged into t
 native providers or output filenames, escaping outputs, relative native search paths, and bundled
 framework outputs are refused explicitly. System libraries remain system dependencies. These
 restrictions do not trigger a source fallback.
+
+## Build restrictions
 
 A mod's own build script is refused with `E_NATIVE_BUILD_SCRIPT`: ship generated source instead.
 `E_NATIVE_FEATURES` refuses mod feature declarations and custom SDK feature requests; use the

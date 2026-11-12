@@ -11,7 +11,7 @@ Omit the folder to build the instance's enabled native mods. The launcher keeps 
 its pinned Horizon commit; `--update` selects a newer installed base and rebuilds the mods against
 that commit's SDK.
 
-The build has one route:
+## Build steps
 
 1. Copy the mod projects into an immutable incoming directory and validate their pins and dependencies.
 2. Download the pinned prebuilt game SDK and verify its checksums and compiler identity. Install the
