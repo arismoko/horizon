@@ -40,6 +40,7 @@ impl PartRegistrar {
         let menu_recipe_books = self.menu_recipe_books.clone();
         let recipe_book_types = self.recipe_book_types.clone();
         let registered = self.registered;
+        let block_entity_transforms = self.block_entity_transforms.clone();
         // Append-only tables retain previous mods' entries without requiring
         // Clone on runtime callback objects or their eventual frozen caches.
         macro_rules! checkpoint {
@@ -47,6 +48,7 @@ impl PartRegistrar {
                 $(let $field = self.$field.len();)*
                 move |registrar: &mut Self| {
                     $(registrar.$field.truncate($field);)*
+                    registrar.block_entity_transforms = block_entity_transforms;
                     registrar.parts = parts;
                     registrar.tags = tags;
                     *registrar.registry_keys.borrow_mut() = keys;
@@ -99,7 +101,11 @@ mod tests {
         }
         fn register(&self, r: &mut dyn Registrar, cx: &RegistrationContext) {
             r.declare_fluid("before");
-            let kind = r.block_entity_type("callback").blocks(&[]).build();
+            let kind = r
+                .block_entity_type("callback")
+                .blocks(&[])
+                .transform(|data: &crate::Compound, _: crate::StructureTransform| Ok(data.clone()))
+                .build();
             r.block_entity_part(&kind, Callback).unwrap();
             cx.refuse("bootstrap failed: café\nmissing bridge");
             cx.refuse("ignored");
@@ -129,6 +135,7 @@ mod tests {
             ["mod broken refused registration: bootstrap failed: café\nmissing bridge"]
         );
         assert!(registrar.block_entity_types.is_empty());
+        assert!(registrar.block_entity_transforms.is_empty());
         assert!(registrar.parts.block_entity_kinds.is_empty());
         let keys = registrar.registry_keys.borrow();
         assert!(keys.declared_fluids.contains_key("healthy:soup"));

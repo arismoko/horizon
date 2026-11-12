@@ -20,6 +20,22 @@ pub type BlockProvider<T> = dyn BlockCapabilityProvider<T>;
 
 pub use super::capabilities::providers_of::{BlockProviderOf, EntityProviderOf, ItemProviderOf};
 
+/// Snapshot the callbacks once at registry preparation for worldgen workers.
+pub fn block_entity_transforms()
+-> std::collections::HashMap<String, Arc<dyn crate::BlockEntityTransform>> {
+    installed().map_or_else(Default::default, |table| {
+        table.block_entity_transforms.clone()
+    })
+}
+
+/// The registered saved-data transform, looked up only during structure placement.
+pub fn block_entity_transform(id: &str) -> Option<&'static dyn crate::BlockEntityTransform> {
+    installed()?
+        .block_entity_transforms
+        .get(id)
+        .map(AsRef::as_ref)
+}
+
 /// Owned declarations of the block entity types mods registered.
 /// The game converts these snapshots to its content model when registration freezes.
 pub fn block_entity_types() -> &'static [BlockEntityTypeDecl] {
@@ -110,6 +126,7 @@ impl dyn Registrar + '_ {
         crate::BlockEntityTypeBuilder {
             id: id.to_owned(),
             registrar: self,
+            transform: None,
             blocks: Vec::new(),
         }
     }
@@ -462,6 +479,12 @@ pub mod tests {
 
 /// Registrar operations for block entities.
 pub trait BlockEntitiesRegistrar {
+    /// Set the transform of a type declared by this mod.
+    fn set_block_entity_transform(
+        &mut self,
+        key: crate::BlockEntityTypeKey,
+        step: Arc<dyn crate::BlockEntityTransform>,
+    );
     /// Look up a vanilla or another mod's type. The final registry validates it at load.
     fn block_entity_type_key(&mut self, id: &str) -> crate::BlockEntityTypeKey;
 
@@ -493,6 +516,27 @@ pub trait BlockEntitiesRegistrar {
 }
 
 impl BlockEntitiesRegistrar for PartRegistrar {
+    fn set_block_entity_transform(
+        &mut self,
+        key: crate::BlockEntityTypeKey,
+        step: Arc<dyn crate::BlockEntityTransform>,
+    ) {
+        let id = self
+            .registry_keys
+            .borrow()
+            .block_entity_types
+            .id(key.0)
+            .map(str::to_owned);
+        if let Some(id) = id.filter(|id| {
+            self.block_entity_types.iter().any(|decl| decl.id == *id)
+                && self.owned_declaration_id(id).is_ok()
+        }) {
+            self.block_entity_transforms.insert(id, step);
+        } else {
+            self.refused
+                .push("transform requires an owned block entity declaration".into());
+        }
+    }
     fn block_entity_type_key(&mut self, id: &str) -> crate::BlockEntityTypeKey {
         match self
             .registry_keys

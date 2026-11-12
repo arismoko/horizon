@@ -41,6 +41,7 @@ macro_rules! handler {
 handler!(dyn Hooks, "Hooks");
 handler!(dyn ReloadApply, "ReloadApply");
 handler!(dyn StructureType, "StructureType");
+handler!(dyn BlockEntityTransform, "BlockEntityTransform");
 handler!(dyn StructurePiece, "StructurePiece");
 handler!(dyn BlockPart, "BlockPart");
 handler!(dyn BlockEntityPart, "BlockEntityPart");

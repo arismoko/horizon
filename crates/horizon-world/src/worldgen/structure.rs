@@ -32,6 +32,8 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, OnceLock, RwLock},
 };
+pub mod block_entity_transform;
+
 pub use template::{BlockInfo, EntityInfo, JigsawInfo, StructureTemplate, save_nbt};
 use {
     crate::registry::{BlockRegistry, BlockStateId},
