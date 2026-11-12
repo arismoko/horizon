@@ -121,6 +121,8 @@ fn fire_from_damage_lights_or_burns_the_stand_though_the_command_fails() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn igniting_a_frozen_stand_clears_its_freeze_while_burning_keeps_it() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut resources = None;
     let mut game = game(&mut resources);
     summon(&mut game, ",TicksFrozen:140");
@@ -386,6 +388,8 @@ fn a_creative_player_breaks_the_stand_at_once_without_drops() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_player_who_may_not_build_cannot_hurt_the_stand() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     for mode in ["adventure", "spectator"] {
         let mut game_resources = None;
         let mut game = game(&mut game_resources);
