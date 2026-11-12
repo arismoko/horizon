@@ -1,24 +1,25 @@
 //! `RamTarget.tick`: the push a ram gives, and the shield that softens it
 //! (`applyItemBlocking`'s `blockingFactor`).
-use super::super::*;
+use crate::game::*;
 use horizon_client::chunk::Chunk;
 use horizon_client::mobs::{Damage, MobEvent, Who};
 use std::sync::Arc;
 
-fn game() -> Game<'static> {
+fn game<'a>(resources: &'a mut Option<Arc<Resources>>) -> Game<'a> {
     let root = std::path::PathBuf::from(
         std::env::var_os("HORIZON_TEST_RESOURCES")
             .expect("set HORIZON_TEST_RESOURCES to prepared resources"),
     );
     let settings = Settings::default();
     let loaded = load_resources(
-        root.clone(),
+        horizon_assets::resource_source::ResourceRoot::directory(root.clone()),
+        Vec::new(),
         None,
         &root,
         &settings,
         std::time::Instant::now(),
         false,
-        true,
+        crate::game::execution_role::ExecutionRole::IntegratedServer,
         &Progress::new(),
         &mut |_, _| unreachable!(),
     )
@@ -26,14 +27,16 @@ fn game() -> Game<'static> {
     let mut options = Options::parse(std::iter::empty()).unwrap().unwrap();
     options.resources = root.clone();
     options.execution_role = execution_role::ExecutionRole::IntegratedServer;
-    let res: &'static _ = Box::leak(Box::new(loaded.resources));
+    let res = resources.insert(loaded.resources);
     let mut game = Game::new(
         res,
         loaded.pack,
         loaded.gui.unwrap(),
         options,
         settings,
-        Audio::silent(&root),
+        Audio::silent(&horizon_assets::resource_source::ResourceSource::directory(
+            root.clone(),
+        )),
         None,
     )
     .unwrap();
@@ -54,7 +57,8 @@ fn game() -> Game<'static> {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_shield_halves_the_push_of_a_ram() {
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     let goat = game.mobs[0].id;
     let from = [0.5, 64.0, 1.5];
     let ram = |game: &mut Game<'_>| {

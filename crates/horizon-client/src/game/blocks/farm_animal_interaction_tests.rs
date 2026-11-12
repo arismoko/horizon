@@ -2,27 +2,28 @@
 //! pitch is fixed at 1.0 (`AbstractCow.mobInteract`, `Goat.mobInteract`,
 //! `MushroomCow.mobInteract`) and shearing posts `GameEvent.SHEAR` with the
 //! player (`Sheep.mobInteract`, `MushroomCow.mobInteract`).
-use super::super::*;
+use crate::game::*;
 use horizon_client::chunk::Chunk;
 use horizon_client::mobs::{Mob, Who};
 use horizon_client::motion::PlayerMotion;
 use horizon_core::{geometry::Vec3, position::ChunkPos};
 use std::sync::Arc;
 
-fn game() -> Game<'static> {
+fn game<'a>(resources: &'a mut Option<Arc<Resources>>) -> Game<'a> {
     let root = std::path::PathBuf::from(
         std::env::var_os("HORIZON_TEST_RESOURCES")
             .expect("set HORIZON_TEST_RESOURCES to prepared resources"),
     );
     let settings = Settings::default();
     let loaded = load_resources(
-        root.clone(),
+        horizon_assets::resource_source::ResourceRoot::directory(root.clone()),
+        Vec::new(),
         None,
         &root,
         &settings,
         std::time::Instant::now(),
         false,
-        true,
+        crate::game::execution_role::ExecutionRole::IntegratedServer,
         &Progress::new(),
         &mut |_, _| unreachable!(),
     )
@@ -30,14 +31,16 @@ fn game() -> Game<'static> {
     let mut options = Options::parse(std::iter::empty()).unwrap().unwrap();
     options.resources = root.clone();
     options.execution_role = execution_role::ExecutionRole::IntegratedServer;
-    let res: &'static _ = Box::leak(Box::new(loaded.resources));
+    let res = resources.insert(loaded.resources);
     let mut game = Game::new(
         res,
         loaded.pack,
         loaded.gui.unwrap(),
         options,
         settings,
-        Audio::silent(&root),
+        Audio::silent(&horizon_assets::resource_source::ResourceSource::directory(
+            root.clone(),
+        )),
         None,
     )
     .unwrap();
@@ -82,7 +85,8 @@ fn take_shear_events() -> Vec<(&'static str, [f64; 3], Option<Who>)> {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn milk_sounds_carry_pitch_one_and_draw_no_level_random() {
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     for (kind, item, sound) in [
         (
             "minecraft:cow",
@@ -120,7 +124,8 @@ fn milk_sounds_carry_pitch_one_and_draw_no_level_random() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn shearing_by_hand_posts_the_shear_game_event() {
-    let mut game = game();
+    let mut resources = None;
+    let mut game = game(&mut resources);
     game.inventory[0] = Some(ItemStack::new("minecraft:shears", 1));
     super::TEST_POSTED_EVENTS.with(|events| *events.borrow_mut() = Some(Vec::new()));
     for (kind, id, at) in [

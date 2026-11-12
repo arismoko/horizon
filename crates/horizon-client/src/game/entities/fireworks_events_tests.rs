@@ -15,13 +15,14 @@ fn with_game(test: impl FnOnce(&mut Game<'_>)) {
     let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let settings = Settings::default();
     let loaded = load_resources(
-        root.clone(),
+        horizon_assets::resource_source::ResourceRoot::directory(root.clone()),
+        Vec::new(),
         None,
         &root,
         &settings,
         std::time::Instant::now(),
         false,
-        true,
+        crate::game::execution_role::ExecutionRole::IntegratedServer,
         &Progress::new(),
         &mut |_, _| unreachable!(),
     )
@@ -35,7 +36,9 @@ fn with_game(test: impl FnOnce(&mut Game<'_>)) {
         loaded.gui.unwrap(),
         options,
         settings,
-        Audio::silent(&root),
+        Audio::silent(&horizon_assets::resource_source::ResourceSource::directory(
+            root.clone(),
+        )),
         None,
     )
     .unwrap();
@@ -226,7 +229,8 @@ fn launching_from_a_block_and_while_gliding_use_the_rocket_up() {
     with_game(|game| {
         game.creative = false;
         let stack = ItemStack::new("minecraft:firework_rocket", 1);
-        let hit = super::Hit {
+        let hit = crate::game::Hit {
+            inside: false,
             pos: [2, 199, 2],
             face: [0, 1, 0],
             point: [2.5, 200.0, 2.5],

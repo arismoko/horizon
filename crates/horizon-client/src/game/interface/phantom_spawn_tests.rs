@@ -4,7 +4,7 @@
 //! the sky light passes, so phantoms spawn under them; stone, water (which
 //! damps the light) and a bottom slab (whose up face occludes the sky-light
 //! column) do not. The world is lit by the vanilla light engine, not by hand.
-use super::super::*;
+use crate::game::*;
 use horizon_client::chunk::Chunk;
 use horizon_client::light::{LightTables, apply_lighting, light_chunk};
 use std::sync::Arc;

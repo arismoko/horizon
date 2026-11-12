@@ -37,7 +37,8 @@ fn click_sign(
 ) -> Option<Click> {
     // The prepared resources, or nothing where CI has no vanilla data.
     std::env::var_os("HORIZON_TEST_RESOURCES")?;
-    let mut game = crate::game::native_machines::tests::server_game();
+    let mut resources = None;
+    let mut game = crate::game::game_tests::tests::server_game(&mut resources);
     // A sign's click command needs the command tree's registries (`setblock`'s
     // block types).
     game.build_registries();
@@ -78,6 +79,7 @@ fn click_sign(
     game.audio.capture = Some(Vec::new());
     let hit = Hit {
         pos: [0, 70, 0],
+        inside: false,
         face,
         point: [
             0.5 + 0.5 * f64::from(face[0]),
