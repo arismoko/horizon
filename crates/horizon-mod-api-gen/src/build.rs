@@ -265,6 +265,15 @@ pub(crate) fn wire_types(root: &Path) -> Result<std::collections::BTreeSet<Strin
         return Ok(Default::default());
     }
     let generated = sources(root, super::FillMode::Require)?;
+    wire_types_from_sources(root, &generated)
+}
+
+/// Resolve Wire layouts from already validated, immutable API sources.
+/// The caller has established that the mod API directory exists.
+pub(super) fn wire_types_from_sources(
+    root: &Path,
+    generated: &super::Sources,
+) -> Result<std::collections::BTreeSet<String>, String> {
     let included = [
         (host::AREAS_OUTPUT, generated.areas.as_str()),
         ("mod_api_generated.rs", generated.hooks.as_str()),
