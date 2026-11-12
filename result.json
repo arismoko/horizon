@@ -1,0 +1,46 @@
+{
+  "pages": [
+    {
+      "path": "docs/modding/src/how-to/native-mods/07-local-developer-builds.md",
+      "changed": true,
+      "summary": "Clarified that you build a local SDK when the commit lacks a published SDK and tightened the title. Preserved exact-identity selection and installation instructions.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/08-install-from-github.md",
+      "changed": true,
+      "summary": "Corrected persisted native-code consent and conditional GitHub digest verification. Reorganized source selection, validation, origins and updates into user instructions.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/09-trust.md",
+      "changed": true,
+      "summary": "Separated saved consent and local validation from registry review. Removed review-process narrative and clarified that instance data separation is not a sandbox.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/10-cache-and-disk.md",
+      "changed": true,
+      "summary": "Tightened disk inspection wording while retaining cache paths and protected cleanup guidance.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/11-multiplayer.md",
+      "changed": true,
+      "summary": "Clarified configuration-handshake wording while preserving side matching and standalone server guidance.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/native-mods/12-standalone-server-export.md",
+      "changed": true,
+      "summary": "Corrected saved-consent behavior and removed issue narrative and agent instructions. Clarified export behavior and linked multiplayer matching guidance.",
+      "unverified": [],
+      "code_wrong": []
+    }
+  ]
+}
