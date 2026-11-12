@@ -48,7 +48,9 @@ An item tag answers for many items at once (NeoForge's `register(id, TagKey, …
 and `registerToAll(TagKey, …)`):
 
 ```rust,ignore
+// One block's dispatcher:
 event.interactions.register_tag(self.water_cauldron, "c:buckets/milk", handler.clone()).unwrap();
+// Or every dispatcher, in place of that (the same tag twice on a block is refused):
 event.interactions.register_tag_to_all("#c:buckets/milk", handler).unwrap();
 ```
 
