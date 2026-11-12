@@ -292,11 +292,8 @@ impl Game<'_> {
         if let Some(stack) = self.held_mut() {
             stack.data_mut().written = Some(book);
         }
-        // A guest's copy of the book lives in its mirrored inventory: the
-        // host sends the resolved slot back with the rest of the inventory.
-        if self.lan_acting.is_some() {
-            self.guest_inventory_resend = true;
-        }
+        // The guest turn restores this inventory to the hub, whose menu
+        // synchronization sends the changed resolved stack back to the client.
         changed
     }
     /// The screen a book in hand opens: `BookEditScreen` for a book and
