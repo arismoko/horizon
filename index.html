@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Horizon hot paths</title>
+<style>
+body { font: 14px/1.45 system-ui, sans-serif; margin: 2em auto; max-width: 1100px; padding: 0 1em; color: #1c1c1c; }
+table { border-collapse: collapse; width: 100%; margin-bottom: 2em; }
+th, td { border-bottom: 1px solid #ddd; padding: 4px 8px; text-align: left; vertical-align: middle; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.step { background: #b3261e; color: #fff; padding: 0 5px; border-radius: 3px; font-size: 12px; }
+.noisy { background: #e8e2c8; padding: 0 5px; border-radius: 3px; font-size: 12px; }
+</style></head><body>
+<h1>Horizon hot paths</h1>
+<p>Newest run: 2026-11-12T22:58:50Z, commit <code>ed38e0dabe3c</code>, host dyna-medium.
+1 runs recorded. Every value is per operation of a fixed, seeded workload, the median of the run's samples.</p>
+<p>Instructions and allocator calls do not depend on the machine's speed. Wall time does, and is noisy.
+<b>Noise</b> is the larger of the spread of the newest run's samples and the difference between runs of the same commit.
+A metric whose noise is over 1% is marked <span class="noisy">noisy</span>: read no small change from it.
+<span class="step">step</span> marks a change against the run before of more than 1% and three times the noise.
+A series starts again at one run when the workload's work changed (another checksum or operation count) or the
+runs were measured on another CPU model or with another rustc or Valgrind. Nothing here fails a build.</p>
+<h2>instructions per operation (Callgrind Ir)</h2>
+<table><tr><th>Metric</th><th>Last</th><th>vs 1 run ago</th><th>vs 7</th><th>vs 30</th><th>Noise</th><th>Runs</th><th>Trend</th></tr>
+<tr><td><code>chunk.load</code></td><td class="n">586,026</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.814%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>chunk.save</code></td><td class="n">2,929,251</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.124%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>command.selector_nearest_128</code></td><td class="n">306,618</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.376%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>command.selector_type_128</code></td><td class="n">8,429,934</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.154%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.attachment.read</code></td><td class="n">1,343</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.attachment.write</code></td><td class="n">6,020</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.099%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.hook.native_listener</code></td><td class="n">285</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.hook.no_listener</code></td><td class="n">56</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.empty</code> <span class="noisy">noisy</span></td><td class="n">112,818</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">2.185%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.hoppers_128</code></td><td class="n">5,345</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.037%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.hoppers_2048</code></td><td class="n">4,161</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.041%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.mobs_128</code></td><td class="n">43,179</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.151%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.mobs_2048</code></td><td class="n">41,663</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.050%</td><td class="n">1</td><td></td></tr>
+</table><h2>allocator calls per operation</h2>
+<table><tr><th>Metric</th><th>Last</th><th>vs 1 run ago</th><th>vs 7</th><th>vs 30</th><th>Noise</th><th>Runs</th><th>Trend</th></tr>
+<tr><td><code>chunk.load</code></td><td class="n">896</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.036%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>chunk.save</code></td><td class="n">1,358</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.027%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>command.selector_nearest_128</code></td><td class="n">495</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.008%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>command.selector_type_128</code></td><td class="n">23,591</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.005%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.attachment.read</code></td><td class="n">0</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.attachment.write</code></td><td class="n">6</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.hook.native_listener</code></td><td class="n">0</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.hook.no_listener</code></td><td class="n">0</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.empty</code></td><td class="n">86</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.hoppers_128</code></td><td class="n">2.35</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.hoppers_2048</code></td><td class="n">1.44</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.mobs_128</code></td><td class="n">9.26</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.mobs_2048</code></td><td class="n">7.47</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.000%</td><td class="n">1</td><td></td></tr>
+</table><h2>nanoseconds per operation, wall clock</h2>
+<table><tr><th>Metric</th><th>Last</th><th>vs 1 run ago</th><th>vs 7</th><th>vs 30</th><th>Noise</th><th>Runs</th><th>Trend</th></tr>
+<tr><td><code>chunk.load</code> <span class="noisy">noisy</span></td><td class="n">28,205</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">4.508%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>chunk.save</code> <span class="noisy">noisy</span></td><td class="n">106,282</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">5.522%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>command.selector_nearest_128</code> <span class="noisy">noisy</span></td><td class="n">18,032</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">5.090%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>command.selector_type_128</code> <span class="noisy">noisy</span></td><td class="n">468,922</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">6.201%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.attachment.read</code> <span class="noisy">noisy</span></td><td class="n">66.6</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">2.291%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.attachment.write</code> <span class="noisy">noisy</span></td><td class="n">312</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">1.942%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.hook.native_listener</code> <span class="noisy">noisy</span></td><td class="n">9.5</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">10.580%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>mod.hook.no_listener</code> <span class="noisy">noisy</span></td><td class="n">2.27</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">2.867%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.empty</code> <span class="noisy">noisy</span></td><td class="n">6,731</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">1.817%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.hoppers_128</code></td><td class="n">260</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">0.733%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.hoppers_2048</code> <span class="noisy">noisy</span></td><td class="n">198</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">1.708%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.mobs_128</code> <span class="noisy">noisy</span></td><td class="n">2,609</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">3.503%</td><td class="n">1</td><td></td></tr>
+<tr><td><code>server.tick.mobs_2048</code> <span class="noisy">noisy</span></td><td class="n">2,539</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">n/a</td><td class="n">1.423%</td><td class="n">1</td><td></td></tr>
+</table>
+<h2>Newest run's notes</h2><ul><li>none</li></ul>
+<h2>Recent runs</h2>
+<table><tr><th>Date</th><th>Commit</th><th>Host</th><th>CPU</th><th>Rust</th><th>Valgrind</th></tr><tr><td>2026-11-12T22:58:50Z</td><td><code>ed38e0dabe3c</code></td><td>dyna-medium</td><td>AMD Ryzen 7 9800X3D 8-Core Processor</td><td>rustc 1.99.1 (58cf8f9c3 2026-10-13)</td><td>valgrind-3.22.0</td></tr></table>
+</body></html>

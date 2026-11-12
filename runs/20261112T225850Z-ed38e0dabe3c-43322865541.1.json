@@ -1,0 +1,289 @@
+{
+ "schema": 1,
+ "commit": "ed38e0dabe3c955015c47f2c6deb9b8c12a1da50",
+ "date": "2026-11-12T22:58:50Z",
+ "run": "43322865541.1",
+ "host": "dyna-medium",
+ "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+ "kernel": "7.2.8-9-omarchy",
+ "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+ "valgrind": "valgrind-3.22.0",
+ "workloads": {
+  "chunk.load": {
+   "operations": 100,
+   "checksum": "1af586516fd46289"
+  },
+  "chunk.save": {
+   "operations": 100,
+   "checksum": "62b6ec5eee346818"
+  },
+  "command.selector_nearest_128": {
+   "operations": 200,
+   "checksum": "c36f3ae29d76033b"
+  },
+  "command.selector_type_128": {
+   "operations": 200,
+   "checksum": "c36f3ae29d76033b"
+  },
+  "mod.attachment.read": {
+   "operations": 12800,
+   "checksum": "d84c0c58762c367d"
+  },
+  "mod.attachment.write": {
+   "operations": 12800,
+   "checksum": "85f3ced136c2da78"
+  },
+  "mod.hook.native_listener": {
+   "operations": 100000,
+   "checksum": "bd60acb658c79e45"
+  },
+  "mod.hook.no_listener": {
+   "operations": 100000,
+   "checksum": "bd60acb658c79e45"
+  },
+  "server.tick.empty": {
+   "operations": 200,
+   "checksum": "76be999e3e25b2a0"
+  },
+  "server.tick.hoppers_128": {
+   "operations": 12800,
+   "checksum": "456df5eaa07257a3"
+  },
+  "server.tick.hoppers_2048": {
+   "operations": 40960,
+   "checksum": "08d0d6bc7a267427"
+  },
+  "server.tick.mobs_128": {
+   "operations": 12800,
+   "checksum": "dbaf35d9ea89d3d9"
+  },
+  "server.tick.mobs_2048": {
+   "operations": 40960,
+   "checksum": "115f428ede53b5c1"
+  }
+ },
+ "metrics": {
+  "chunk.load.allocations": [
+   896.37,
+   896.27,
+   896.05
+  ],
+  "chunk.load.instructions": [
+   586026.13,
+   588770.93,
+   583996.7
+  ],
+  "chunk.load.wall_ns": [
+   28441.56,
+   27281.2,
+   27183.4,
+   28427.34,
+   28204.72
+  ],
+  "chunk.save.allocations": [
+   1357.66,
+   1358.0,
+   1357.64
+  ],
+  "chunk.save.instructions": [
+   2929251.27,
+   2932799.68,
+   2929168.42
+  ],
+  "chunk.save.wall_ns": [
+   111415.76,
+   105745.73,
+   106282.04,
+   110125.84,
+   105463.01
+  ],
+  "command.selector_nearest_128.allocations": [
+   495.23,
+   495.27,
+   495.26
+  ],
+  "command.selector_nearest_128.instructions": [
+   306618.265,
+   306417.46,
+   307571.185
+  ],
+  "command.selector_nearest_128.wall_ns": [
+   18383.075,
+   18527.195,
+   18032.02,
+   17948.315,
+   17606.025
+  ],
+  "command.selector_type_128.allocations": [
+   23590.33,
+   23590.75,
+   23591.57
+  ],
+  "command.selector_type_128.instructions": [
+   8434029.395,
+   8429933.52,
+   8421082.55
+  ],
+  "command.selector_type_128.wall_ns": [
+   468921.635,
+   468440.13,
+   468193.77,
+   497930.01,
+   494037.52
+  ],
+  "mod.attachment.read.allocations": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "mod.attachment.read.instructions": [
+   1343.0559375,
+   1343.0559375,
+   1343.0559375
+  ],
+  "mod.attachment.read.wall_ns": [
+   67.102265625,
+   66.57625,
+   66.185703125,
+   66.706171875,
+   65.580625
+  ],
+  "mod.attachment.write.allocations": [
+   6.0,
+   6.0,
+   6.0
+  ],
+  "mod.attachment.write.instructions": [
+   6017.659140625,
+   6019.713671875,
+   6023.62140625
+  ],
+  "mod.attachment.write.wall_ns": [
+   312.37328125,
+   314.896015625,
+   310.102578125,
+   308.833828125,
+   314.730078125
+  ],
+  "mod.hook.native_listener.allocations": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "mod.hook.native_listener.instructions": [
+   285.00012,
+   285.00012,
+   285.00012
+  ],
+  "mod.hook.native_listener.wall_ns": [
+   10.49155,
+   9.49548,
+   9.46492,
+   9.58525,
+   9.48246
+  ],
+  "mod.hook.no_listener.allocations": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "mod.hook.no_listener.instructions": [
+   56.00012,
+   56.00012,
+   56.00012
+  ],
+  "mod.hook.no_listener.wall_ns": [
+   2.30942,
+   2.26734,
+   2.27025,
+   2.2473,
+   2.24441
+  ],
+  "server.tick.empty.allocations": [
+   86.0,
+   86.0,
+   86.0
+  ],
+  "server.tick.empty.instructions": [
+   115288.415,
+   112817.995,
+   112805.31
+  ],
+  "server.tick.empty.wall_ns": [
+   6799.835,
+   6734.165,
+   6677.505,
+   6730.955,
+   6722.39
+  ],
+  "server.tick.hoppers_128.allocations": [
+   2.351953125,
+   2.351953125,
+   2.351953125
+  ],
+  "server.tick.hoppers_128.instructions": [
+   5344.28109375,
+   5344.65625,
+   5346.266015625
+  ],
+  "server.tick.hoppers_128.wall_ns": [
+   260.31171875,
+   260.10046875,
+   258.40734375,
+   259.928984375,
+   259.711328125
+  ],
+  "server.tick.hoppers_2048.allocations": [
+   1.4420166015625,
+   1.4420166015625,
+   1.4420166015625
+  ],
+  "server.tick.hoppers_2048.instructions": [
+   4161.384838867188,
+   4159.7642578125,
+   4161.460595703125
+  ],
+  "server.tick.hoppers_2048.wall_ns": [
+   197.71962890625,
+   197.8617431640625,
+   198.0312744140625,
+   197.4816650390625,
+   200.8693359375
+  ],
+  "server.tick.mobs_128.allocations": [
+   9.261875,
+   9.261875,
+   9.261875
+  ],
+  "server.tick.mobs_128.instructions": [
+   43179.24515625,
+   43218.636328125,
+   43153.25078125
+  ],
+  "server.tick.mobs_128.wall_ns": [
+   2608.936796875,
+   2679.50796875,
+   2587.40265625,
+   2671.02015625,
+   2600.113203125
+  ],
+  "server.tick.mobs_2048.allocations": [
+   7.4654052734375,
+   7.4654052734375,
+   7.4654052734375
+  ],
+  "server.tick.mobs_2048.instructions": [
+   41650.42836914062,
+   41671.20390625,
+   41662.65036621094
+  ],
+  "server.tick.mobs_2048.wall_ns": [
+   2544.118310546875,
+   2540.1249755859376,
+   2508.07080078125,
+   2538.749609375,
+   2538.2144287109377
+  ]
+ },
+ "notes": []
+}
