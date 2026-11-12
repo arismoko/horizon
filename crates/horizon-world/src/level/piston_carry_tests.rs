@@ -321,3 +321,32 @@ fn a_block_stuck_to_slime_takes_its_block_entity_along() {
     assert!(w.level.carried.is_empty());
     assert!(w.level.dropped.is_empty());
 }
+
+#[test]
+fn a_block_stuck_to_honey_takes_its_block_entity_along() {
+    let mut w = carry_world!(|_| Some(true));
+    let (piston, honey, power) = (
+        BlockPos::new(0, 3, 0),
+        BlockPos::new(1, 3, 0),
+        BlockPos::new(-1, 3, 0),
+    );
+    let (stuck, landed) = (BlockPos::new(1, 4, 0), BlockPos::new(2, 4, 0));
+    let block = w.id("iron_block", &[]);
+    let (piston_state, honey_state) = (
+        w.id("piston", &[("facing", "east")]),
+        w.id("honey_block", &[]),
+    );
+    w.level.set_raw(piston, piston_state);
+    w.level.set_raw(honey, honey_state);
+    w.level.set_raw(stuck, block);
+    w.level.entities.insert(stuck, CONTENTS);
+    w.set(power, w.id("redstone_block", &[]));
+    for _ in 0..4 {
+        w.full_tick();
+    }
+    assert_eq!(w.get(landed), block);
+    assert_eq!(w.level.entities.get(&landed), Some(&CONTENTS));
+    assert_eq!(w.level.entities.len(), 1);
+    assert!(w.level.carried.is_empty());
+    assert!(w.level.dropped.is_empty());
+}
