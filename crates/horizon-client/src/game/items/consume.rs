@@ -847,6 +847,7 @@ mod teleport_hook_tests {
             with_game(|game| {
                 let at = Vec3::new(0.0, 65.0, 0.0);
                 game.player = Some(PlayerMotion::new(game.motion, at).unwrap());
+                crate::game::native_entity_refs::tests::bind_local_player(game, 2, 7);
                 game.lan_acting = Some(12);
                 game.lan_acting_uuid = Some(7);
                 game.lan_acting_name = Some("ConsumedStackTest".into());
