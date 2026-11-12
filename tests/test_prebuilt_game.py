@@ -37,6 +37,7 @@ class StageToolTests(unittest.TestCase):
                                           str(target / "stage/points.json"),
                                           str(target / "stage/internals.json"), "fixture-api"])
                 self.assertEqual(kwargs["cwd"], target / "stage")
+                self.assertIsNone(kwargs["env"])
                 self.assertEqual((target / "stage/tracked.rs").read_text(), "original")
                 self.assertFalse((target / "stage/untracked.rs").exists())
                 (target / "stage/tracked.rs").write_text("staged")

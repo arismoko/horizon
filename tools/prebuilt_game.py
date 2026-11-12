@@ -92,7 +92,8 @@ def stage(target_dir: Path, stage_tool: Path | None = None) -> Path:
                ["cargo", "run", "--locked", "--release", "-q", "-p", "horizon-mod-api-gen", "--bin", "horizon-stage", "--"])
     started = time.monotonic()
     print(run(command + arguments, cwd=staged,
-              env={**os.environ, "CARGO_TARGET_DIR": str(target_dir / "tools")}), end="")
+              env=None if stage_tool is not None else
+              {**os.environ, "CARGO_TARGET_DIR": str(target_dir / "tools")}), end="")
     label = "Stage binary execution" if stage_tool is not None else "Stage release build and execution"
     print(f"{label}: {time.monotonic() - started:.3f}s (source copy/setup excluded)", flush=True)
     # Only the prebuilt game splits the wasm runtime out: normal source builds stay static. With

@@ -453,8 +453,11 @@ jobs:
                          and not item["profile"]["test"] and item.get("executable")}
           if len(executables) != 1:
               raise SystemExit(f"expected one normal horizon-stage executable, got {executables}")
+          executable = str(Path(executables.pop()).resolve(strict=True))
+          if "\r" in executable or "\n" in executable:
+              raise SystemExit("horizon-stage executable path must not contain CR or LF")
           with open(os.environ["GITHUB_ENV"], "a") as environment:
-              environment.write(f"HORIZON_STAGE_TOOL={executables.pop()}\n")
+              environment.write(f"HORIZON_STAGE_TOOL={executable}\n")
           PY
       - name: Validate prebuilt source stage and listed slots
         if: needs.changes.outputs.rust_required != 'false'
