@@ -1,6 +1,6 @@
 //! Disk regression for saves requested by native listeners during entity passes.
 use super::*;
-use mod_api::{Flow, Hooks, ItemPickedUpEvent, ServerHost};
+use mod_api::{Hooks, ItemPickedUpEvent, ServerHost};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -13,14 +13,14 @@ struct SaveOnPickup {
 }
 #[mod_api::horizon_mod]
 impl Hooks for SaveOnPickup {
-    fn item_picked_up(&self, host: &mut dyn ServerHost, _: &mut ItemPickedUpEvent<'_>) -> Flow {
+    fn item_picked_up(&self, host: &mut dyn ServerHost, event: &mut ItemPickedUpEvent<'_>) {
         assert!(
             host.commands()
                 .run_command("summon minecraft:armor_stand 5 64 5")
         );
         assert!(!host.commands().run_command(self.line));
         self.calls.fetch_add(1, Ordering::SeqCst);
-        Flow::Cancel
+        *event.can_pickup = mod_api::TriState::False;
     }
 }
 

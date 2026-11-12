@@ -4262,18 +4262,6 @@ impl Game<'_> {
     ) {
         self.fire_loot_drops(context, drops);
     }
-    /// `player` is about to take `count` of `item` from the ground
-    /// (`ItemEntity.playerTouch`). Set `canceled` to leave it there: the
-    /// stack isn't offered again for 10 ticks. Server-side.
-    pub(in crate::game) fn native_item_picked_up(
-        &mut self,
-        player: u128,
-        item: &str,
-        count: u32,
-        canceled: &mut bool,
-    ) {
-        self.fire_item_picked_up(player, item, count, canceled);
-    }
     /// A dropped item reaches its lifetime on the server (`ItemEntity.tick`,
     /// NeoForge's `ItemExpireEvent`). Every mod may set or add to `extra_life`,
     /// in ticks, which starts at zero; a positive total keeps the item that much

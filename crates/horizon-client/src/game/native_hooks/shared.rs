@@ -2698,13 +2698,6 @@ impl Game<'_> {
         horizon_client::lan::playerdata::ints_uuid(self.acting_player_uuid())
     }
 
-    /// Whether a native mod keeps the acting player from taking `stack`.
-    pub(super) fn native_pickup_refused(&mut self, stack: &ItemStack) -> bool {
-        let player = self.native_acting_id();
-        let mut canceled = false;
-        self.native_item_picked_up(player, &stack.item, stack.count, &mut canceled);
-        canceled
-    }
     /// Tells the mods of the chunks that came into this level.
     pub(super) fn native_chunks_loaded(&mut self) {
         let loaded = std::mem::take(&mut self.world.loaded_chunks);

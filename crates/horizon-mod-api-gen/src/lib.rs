@@ -985,9 +985,9 @@ mod tests {
             without_counterparts
         );
         std::fs::write(&first, original).unwrap();
-        let hooks = root.join("crates/horizon-client/src/game/native_hooks/base.rs");
+        let hooks = root.join("crates/horizon-client/src/game/native_hooks/item_picked_up.rs");
         let shipped = std::fs::read_to_string(&hooks).unwrap();
-        let call = "self.fire_item_picked_up(player, item, count, canceled);";
+        let call = "self.fire_item_picked_up(player, item, count, can_pickup);";
         assert_eq!(shipped.matches(call).count(), 1);
         let unfinished = shipped.replace(call, "let _ = (player, item, count);");
         std::fs::write(&hooks, &unfinished).unwrap();
@@ -997,7 +997,7 @@ mod tests {
                 .starts_with("missing dispatch_item_picked_up call in native_item_picked_up: ")
         );
         assert_eq!(std::fs::read_to_string(&hooks).unwrap(), unfinished);
-        let placeholder = shipped.replace(call, "let _ = (player, item, count, canceled);");
+        let placeholder = shipped.replace(call, "let _ = (player, item, count, can_pickup);");
         std::fs::write(&hooks, &placeholder).unwrap();
         assert_eq!(
             super::sources(&root, super::FillMode::Require).unwrap_err(),

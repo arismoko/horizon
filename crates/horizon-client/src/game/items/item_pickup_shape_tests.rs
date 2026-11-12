@@ -9,8 +9,10 @@ use horizon_core::geometry::Vec3;
 use mod_api::{Flow, Hooks, ItemPickedUpEvent, ModEntry, ServerHost, testing::with_mods};
 use std::sync::{Arc, Mutex};
 
+/// What `item_picked_up_post` heard: the original count and what remained.
+type Posts = Arc<Mutex<Vec<(u32, Option<u32>)>>>;
 #[derive(Clone)]
-struct Pickups(Arc<Mutex<Vec<u32>>>, Arc<Mutex<Vec<&'static str>>>);
+struct Pickups(Arc<Mutex<Vec<u32>>>, Arc<Mutex<Vec<&'static str>>>, Posts);
 #[mod_api::__subscriptions]
 impl Hooks for Pickups {
     fn player_stat_award(
@@ -28,13 +30,21 @@ impl Hooks for Pickups {
     ) {
         self.1.lock().unwrap().push("criterion");
     }
-    fn item_picked_up(&self, _: &mut dyn ServerHost, event: &mut ItemPickedUpEvent<'_>) -> Flow {
+    fn item_picked_up(&self, _: &mut dyn ServerHost, event: &mut ItemPickedUpEvent<'_>) {
         self.0.lock().unwrap().push(event.count);
         if event.count == 2 {
-            Flow::Cancel
-        } else {
-            Flow::Continue
+            *event.can_pickup = mod_api::TriState::False;
         }
+    }
+    fn item_picked_up_post(
+        &self,
+        _: &mut dyn ServerHost,
+        event: &mut mod_api::ItemPickedUpPostEvent<'_>,
+    ) {
+        self.2.lock().unwrap().push((
+            event.original.count(),
+            event.remaining.as_ref().map(|rest| rest.count()),
+        ));
     }
 }
 
@@ -45,9 +55,10 @@ impl Hooks for Pickups {
 fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
     let heard = Arc::new(Mutex::new(Vec::new()));
     let notifications = Arc::new(Mutex::new(Vec::new()));
+    let posts = Posts::default();
     let mods: mod_api::Mods = vec![ModEntry::new(
         "pickup_shape",
-        Box::new(Pickups(heard.clone(), notifications.clone())),
+        Box::new(Pickups(heard.clone(), notifications.clone(), posts.clone())),
     )]
     .into();
     with_mods(mods, || {
@@ -119,6 +130,7 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
                 table.drain();
                 heard.lock().unwrap().clear();
                 notifications.lock().unwrap().clear();
+                posts.lock().unwrap().clear();
                 game.world.random = horizon_core::random::LegacyRandom::new(12345);
                 let mut round = game.native_tick_round();
                 game.tick_dropped_items(&mut round);
@@ -130,6 +142,11 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
                 assert_eq!(
                     *notifications.lock().unwrap(),
                     ["stat", "criterion", "stat"]
+                );
+                assert_eq!(
+                    *posts.lock().unwrap(),
+                    [(1, None)],
+                    "only the whole pickup is heard, not the partial or the refused one"
                 );
                 assert_eq!(game.inventory[0].as_ref().unwrap().count, 64);
                 assert_eq!(
@@ -185,6 +202,33 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
                     2,
                     "full and partial pickup animations"
                 );
+
+                // A pickup the full inventory refuses is not heard.
+                for item in &mut game.dropped {
+                    if item.id == ids[1] {
+                        item.stack.count = 1;
+                    }
+                }
+                heard.lock().unwrap().clear();
+                posts.lock().unwrap().clear();
+                let mut round = game.native_tick_round();
+                game.tick_dropped_items(&mut round);
+                assert_eq!(
+                    heard.lock().unwrap()[..1],
+                    [1],
+                    "the pre hook let it through"
+                );
+                assert!(posts.lock().unwrap().is_empty());
+                assert_eq!(
+                    game.dropped
+                        .iter()
+                        .find(|item| item.id == ids[1])
+                        .unwrap()
+                        .stack
+                        .count,
+                    1
+                );
+                table.end_tick().expect("full inventory pass closes");
 
                 // The same production pass must restore its binding on all early returns.
                 for mode in 0..3 {
