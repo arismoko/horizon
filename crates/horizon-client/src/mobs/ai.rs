@@ -21,6 +21,343 @@ use horizon_core::{
 use horizon_world::native_load_context::LoopContext;
 
 #[cfg(test)]
+mod inside_walk_tests {
+    use super::*;
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+
+    /// What the test's fire does, as a part's callback would: it queues a push
+    /// and a wither effect, and can kill or panic on later contacts. The
+    /// mod_api dispatch hop this stands for is the player's, the item's and the
+    /// the projectile's tests' to prove; the mob tests here prove the walk, its
+    /// arms, the flush and the containment.
+    /// The module's fire reads process-wide statics: one test at a time.
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+    static CONTACTS: Mutex<Vec<[i32; 3]>> = Mutex::new(Vec::new());
+    static KILL_AFTER: AtomicUsize = AtomicUsize::new(usize::MAX);
+    static PANIC_AFTER: AtomicUsize = AtomicUsize::new(usize::MAX);
+    static ENABLED: AtomicBool = AtomicBool::new(false);
+
+    fn reset(kill: usize, panic: usize, enabled: bool) {
+        mod_api::__private::resolve_effects(["minecraft:wither"], |_| Some(0)).unwrap();
+        CONTACTS.lock().unwrap().clear();
+        KILL_AFTER.store(kill, Ordering::SeqCst);
+        PANIC_AFTER.store(panic, Ordering::SeqCst);
+        ENABLED.store(enabled, Ordering::SeqCst);
+    }
+
+    /// What the fire's callback does, as a part's would.
+    fn fire_like_a_part(at: horizon_core::position::BlockPos, staged: &mut mod_api::InsideEffects) {
+        let mut contacts = CONTACTS.lock().unwrap();
+        contacts.push([at.x, at.y, at.z]);
+        let seen = contacts.len();
+        drop(contacts);
+        if seen > PANIC_AFTER.load(Ordering::SeqCst) {
+            panic!("an entity_inside part panics");
+        }
+        if seen > KILL_AFTER.load(Ordering::SeqCst) {
+            staged.run_after(
+                mod_api::InsideEffect::Freeze,
+                mod_api::EntityWrite::Hurt {
+                    source: None,
+                    amount: 1000.0,
+                },
+            );
+        }
+        staged.run_after(
+            mod_api::InsideEffect::Freeze,
+            mod_api::EntityWrite::Push([0.5, 0.0, 0.0]),
+        );
+        staged.run_after(
+            mod_api::InsideEffect::Freeze,
+            mod_api::EntityWrite::AddEffect {
+                effect: mod_api::__private::effect_key("minecraft:wither")
+                    .expect("an effect key resolves"),
+                duration: 40,
+                amplifier: 0,
+            },
+        );
+    }
+
+    fn install_walk_hooks() {
+        let _ = crate::block_contact::HOOKS.set(crate::block_contact::Hooks {
+            step_on: |_, _| {},
+            any_inside: || ENABLED.load(Ordering::SeqCst),
+            inside_listens: |_| ENABLED.load(Ordering::SeqCst),
+            pass_listens: |_| false,
+            fall_listens: |_| false,
+            bounce_listens: |_| false,
+            fall_on: |_, _, _, _, _, _| {},
+            bounce_on: |_, _, _, _, _| {},
+            // The production binding's own shape: the whole callback staged,
+            // a panic contained with it.
+            inside_fire: |_level,
+                          _dimension,
+                          _entity,
+                          _kind,
+                          _state,
+                          at,
+                          _precise,
+                          staged,
+                          _writes| {
+                let fired = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    fire_like_a_part(at, staged);
+                }));
+                let _ = fired;
+            },
+        });
+    }
+
+    /// The tests' mob: a zombie whose move crosses two stone blocks.
+    fn mob_at_move(types: &super::super::MobTypes) -> Mob {
+        let kind = Arc::new(types.types["minecraft:zombie"].clone());
+        let mut mob = Mob::new(1, kind, Vec3::new(2.5, 64.0, 1.5), 0.0);
+        mob.previous = Vec3::new(0.5, 64.0, 1.5);
+        mob
+    }
+
+    /// The fire's pushes and its wither effect reach the mob in its own tick,
+    /// one contact a block, in the shared walk's order.
+    #[test]
+    #[ignore = "requires prepared vanilla resources in .local/horizon-client"]
+    fn a_part_pushes_a_mob_once_a_block_in_walk_order() {
+        let _test = TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reset(usize::MAX, usize::MAX, true);
+        let ran = crate::mobs::world::with_built_test_world(
+            &[],
+            |world, registry| {
+                world.chunks.insert(
+                    (0, 0),
+                    std::sync::Arc::new(crate::chunk::Chunk::empty(0, 0)),
+                );
+                let stone = registry.default_state("minecraft:stone").unwrap();
+                for x in [1, 2] {
+                    world.set(x, 64, 1, stone).unwrap();
+                }
+                install_walk_hooks();
+            },
+            |w, types| {
+                let mut mob = mob_at_move(types);
+                let mut level = crate::health::TestLevel::new(0);
+                let mut events = Vec::new();
+                let before = mob.velocity.x;
+                crate::block_contact::in_level(Some("minecraft:overworld"), || {
+                    effects_from_blocks(&mut mob, w, &mut level.level(), &mut events);
+                });
+                assert_eq!(
+                    *CONTACTS.lock().unwrap(),
+                    vec![[1, 64, 1], [2, 64, 1]],
+                    "one contact a block, in the walk's order"
+                );
+                assert!(
+                    (mob.velocity.x - before - 1.0).abs() < 1e-9,
+                    "both pushes reached the mob"
+                );
+                assert!(
+                    mob.extra
+                        .effects
+                        .iter()
+                        .any(|effect| effect.id == "minecraft:wither" && effect.duration == 40),
+                    "the wither effect reached the mob's own list"
+                );
+                assert!(crate::block_contact::take_pending().is_empty());
+            },
+        );
+        assert!(ran, "the vanilla test resources must be available");
+    }
+
+    /// A killing write stops the mob's flush: the walk still reaches both
+    /// blocks, the writes after the death never apply.
+    #[test]
+    #[ignore = "requires prepared vanilla resources in .local/horizon-client"]
+    fn a_killing_write_stops_the_mobs_flush() {
+        let _test = TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reset(0, usize::MAX, true);
+        let ran = crate::mobs::world::with_built_test_world(
+            &[],
+            |world, registry| {
+                world.chunks.insert(
+                    (0, 0),
+                    std::sync::Arc::new(crate::chunk::Chunk::empty(0, 0)),
+                );
+                let stone = registry.default_state("minecraft:stone").unwrap();
+                for x in [1, 2] {
+                    world.set(x, 64, 1, stone).unwrap();
+                }
+                install_walk_hooks();
+            },
+            |w, types| {
+                let mut mob = mob_at_move(types);
+                let mut level = crate::health::TestLevel::new(0);
+                let mut events = Vec::new();
+                let before = mob.velocity.x;
+                crate::block_contact::in_level(Some("minecraft:overworld"), || {
+                    effects_from_blocks(&mut mob, w, &mut level.level(), &mut events);
+                });
+                assert_eq!(CONTACTS.lock().unwrap().len(), 2);
+                assert!(!mob.alive(), "the killing write applied");
+                assert!(
+                    (mob.velocity.x - before).abs() < 1e-9,
+                    "the writes after the death never apply"
+                );
+            },
+        );
+        assert!(ran, "the vanilla test resources must be available");
+    }
+
+    /// A panicking part is contained mid-walk: the mob's tick answers, its
+    /// state keeps what it had, and the level host still answers after (the
+    /// lifted rows themselves are #2285's restoration, its own tests'; the
+    /// item batch test proves the lifted pair end to end).
+    #[test]
+    #[ignore = "requires prepared vanilla resources in .local/horizon-client"]
+    fn a_panicking_part_leaves_the_mobs_tick_restored() {
+        let _test = TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reset(usize::MAX, 0, true);
+        let ran = crate::mobs::world::with_built_test_world(
+            &[],
+            |world, registry| {
+                world.chunks.insert(
+                    (0, 0),
+                    std::sync::Arc::new(crate::chunk::Chunk::empty(0, 0)),
+                );
+                let stone = registry.default_state("minecraft:stone").unwrap();
+                for x in [1, 2] {
+                    world.set(x, 64, 1, stone).unwrap();
+                }
+                install_walk_hooks();
+            },
+            |w, types| {
+                let mut mob = mob_at_move(types);
+                let mut level = crate::health::TestLevel::new(0);
+                let mut events = Vec::new();
+                let before = mob.velocity.x;
+                crate::block_contact::in_level(Some("minecraft:overworld"), || {
+                    effects_from_blocks(&mut mob, w, &mut level.level(), &mut events);
+                });
+                assert_eq!(
+                    CONTACTS.lock().unwrap().len(),
+                    2,
+                    "both contacts reached the fire; each panic was contained"
+                );
+                assert!(mob.alive(), "the mob's tick answered");
+                assert!(
+                    (mob.velocity.x - before).abs() < 1e-9,
+                    "the panicking callback's staged writes never applied"
+                );
+                assert!(
+                    level.level().random().next_int_bound(2).is_ok(),
+                    "the level host still answers"
+                );
+            },
+        );
+        assert!(ran, "the vanilla test resources must be available");
+    }
+
+    /// Without a listening part the walk runs its vanilla moments only:
+    /// nothing of the part plumbing applies, exactly what main did with no
+    /// listener.
+    #[test]
+    #[ignore = "requires prepared vanilla resources in .local/horizon-client"]
+    fn a_mob_without_a_part_keeps_vanilla_behavior() {
+        let _test = TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reset(usize::MAX, usize::MAX, false);
+        let ran = crate::mobs::world::with_built_test_world(
+            &[],
+            |world, registry| {
+                world.chunks.insert(
+                    (0, 0),
+                    std::sync::Arc::new(crate::chunk::Chunk::empty(0, 0)),
+                );
+                let stone = registry.default_state("minecraft:stone").unwrap();
+                for x in [1, 2] {
+                    world.set(x, 64, 1, stone).unwrap();
+                }
+                install_walk_hooks();
+            },
+            |w, types| {
+                let mut mob = mob_at_move(types);
+                let mut level = crate::health::TestLevel::new(0);
+                let mut events = Vec::new();
+                let before = (mob.velocity.x, mob.health, mob.extra.effects.len());
+                crate::block_contact::in_level(Some("minecraft:overworld"), || {
+                    effects_from_blocks(&mut mob, w, &mut level.level(), &mut events);
+                });
+                assert_eq!(
+                    (mob.velocity.x, mob.health, mob.extra.effects.len()),
+                    before,
+                    "no writes without a part"
+                );
+                assert!(CONTACTS.lock().unwrap().is_empty());
+                assert!(crate::block_contact::take_pending().is_empty());
+            },
+        );
+        assert!(ran, "the vanilla test resources must be available");
+    }
+
+    /// The walk's block order on a diagonal move is vanilla's own sweep: the
+    /// x cells of the move come before the z cells the box enters.
+    #[test]
+    #[ignore = "requires prepared vanilla resources in .local/horizon-client"]
+    fn a_diagonal_move_walks_blocks_in_vanillas_order() {
+        let _test = TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reset(usize::MAX, usize::MAX, true);
+        let ran = crate::mobs::world::with_built_test_world(
+            &[],
+            |world, registry| {
+                world.chunks.insert(
+                    (0, 0),
+                    std::sync::Arc::new(crate::chunk::Chunk::empty(0, 0)),
+                );
+                let stone = registry.default_state("minecraft:stone").unwrap();
+                // A diagonal path: +x crosses [1] and [2], then +z crosses the
+                // cell ahead.
+                world.set(1, 64, 1, stone).unwrap();
+                world.set(2, 64, 1, stone).unwrap();
+                world.set(2, 64, 2, stone).unwrap();
+                install_walk_hooks();
+            },
+            |w, types| {
+                let kind = Arc::new(types.types["minecraft:zombie"].clone());
+                let mut mob = Mob::new(1, kind, Vec3::new(2.5, 64.0, 2.5), 0.0);
+                mob.previous = Vec3::new(0.5, 64.0, 0.5);
+                let mut level = crate::health::TestLevel::new(0);
+                let mut events = Vec::new();
+                crate::block_contact::in_level(Some("minecraft:overworld"), || {
+                    effects_from_blocks(&mut mob, w, &mut level.level(), &mut events);
+                });
+                let contacts = CONTACTS.lock().unwrap().clone();
+                let x_first: Vec<_> = contacts.iter().filter(|p| p[2] == 1).collect();
+                let z_last: Vec<_> = contacts.iter().filter(|p| p[2] == 2).collect();
+                assert_eq!(
+                    x_first.len(),
+                    2,
+                    "the x cells of the move come first: {contacts:?}"
+                );
+                assert!(
+                    contacts.iter().position(|p| p[2] == 2)
+                        > contacts.iter().rposition(|p| p[2] == 1),
+                    "the z cell the box enters comes after the x cells: {contacts:?}"
+                );
+                let _ = z_last;
+            },
+        );
+        assert!(ran, "the vanilla test resources must be available");
+    }
+}
+#[cfg(test)]
 #[path = "fall_flying_tests.rs"]
 mod fall_flying_tests;
 #[cfg(test)]
@@ -963,19 +1300,20 @@ pub fn finish_tick(
 /// the cobweb (stuck at 0.25, 0.05, 0.25), the sweet berry bush
 /// (`SweetBerryBushBlock.entityInside`: stuck at 0.8, 0.75, 0.8, and a grown bush pricks for 1 when the mob moved at least 0.003 on X
 /// or Z this tick) and the honey block (`honey_slide`). The blocks are those
-/// the mob's box touches anywhere along its move this tick, from where it
-/// started to where it ended.
-fn effects_from_blocks(
+/// vanilla's own sweep reaches along the mob's move this tick, on the shared
+/// inside walk; a part's contact fires mid-walk there.
+pub(crate) fn effects_from_blocks(
     m: &mut Mob,
     w: &MobWorld,
     level: &mut DamageLevel<'_>,
     events: &mut Vec<MobEvent>,
 ) {
-    // Entity.applyEffectsFromBlocks fixes the tick's movements before
-    // stepOn: a hurt below that teleports an enderman or a shulker leaves
-    // the scan on the path it had.
-    let start = m.previous;
-    let travel = m.position.subtract(start);
+    // Entity.applyEffectsFromBlocks fixes the tick's movements before stepOn:
+    // a hurt below that teleports an enderman or a shulker leaves the scan on
+    // the path it had. A stepOn teleport (snapTo) has rewritten the mob's
+    // live fields by the time the walk below reads them, so the walk reads
+    // these.
+    let (tick_from, tick_to) = (m.previous, m.position);
     // Block.stepOn for the block under a mob on the ground (`getOnPosLegacy`):
     // MagmaBlock.stepOn's hot floor, 1 damage (a mob never sneaks).
     if m.on_ground && m.alive() {
@@ -1009,127 +1347,284 @@ fn effects_from_blocks(
             events.push(MobEvent::CrackTurtleEgg { pos: [x, y, z] });
         }
     }
-    let mut visited: Vec<[i32; 3]> = Vec::new();
-    let longest = travel.x.abs().max(travel.y.abs()).max(travel.z.abs());
-    let steps = ((longest / 0.2).ceil() as i32).clamp(1, 100);
-    for step in 0..=steps {
-        if !m.alive() {
-            return;
-        }
-        let at = start.add_vector(travel.scale(f64::from(step) / f64::from(steps)));
-        let b = m.bounds_at(at).deflate(Vec3::new(1e-5, 1e-5, 1e-5));
-        for x in b.min_position().x.floor() as i32..=b.max_position().x.floor() as i32 {
-            for y in b.min_position().y.floor() as i32..=b.max_position().y.floor() as i32 {
-                for z in b.min_position().z.floor() as i32..=b.max_position().z.floor() as i32 {
-                    let p = [x, y, z];
-                    if visited.contains(&p) {
-                        continue;
-                    }
-                    crate::block_contact::inside(
-                        m.id as i32,
-                        w.world.block(x, y, z),
-                        horizon_core::position::BlockPos::new(x, y, z),
-                        crate::block_contact::is_precise(
-                            m.previous,
-                            m.position,
-                            m.bounds_at(m.position).deflate(Vec3::new(1e-5, 1e-5, 1e-5)),
-                            horizon_core::position::BlockPos::new(x, y, z),
-                        ),
-                    );
-                    visited.push(p);
-                    // PowderSnowBlock.entityInside: a burning mob destroys the
-                    // block (with `mob_griefing`), then EXTINGUISH puts it out.
-                    if w.block_name(x, y, z) == "minecraft:powder_snow" {
-                        if m.is_on_fire() && w.mob_griefing {
-                            events.push(MobEvent::BreakBlock {
-                                pos: p,
-                                drop: false,
-                                by: None,
-                                breaker: None,
-                            });
-                        }
-                        m.extinguish_fire();
-                    }
-                    match w.block_name(x, y, z) {
-                        "minecraft:cactus" => {
-                            m.damage(level, 1.0, Damage::of(DamageKind::Cactus));
-                        }
-                        // CampfireBlock.entityInside: a lit campfire hurts a
-                        // living entity by its fire damage (1, soul 2).
-                        name @ ("minecraft:campfire" | "minecraft:soul_campfire")
-                            if w.prop(x, y, z, "lit") == Some("true") =>
-                        {
-                            let damage = if name == "minecraft:campfire" {
-                                1.0
-                            } else {
-                                2.0
-                            };
-                            m.damage(level, damage, Damage::of(DamageKind::Campfire));
-                        }
-                        // WebBlock.entityInside -> makeStuckInBlock, which a
-                        // spider ignores for cobwebs and a wither always.
-                        "minecraft:cobweb"
-                            if !matches!(
-                                m.species(),
-                                Species::Spider | Species::CaveSpider | Species::Wither
-                            ) =>
-                        {
-                            m.fall_distance = 0.0;
-                            m.stuck_multiplier = if m.has_effect("minecraft:weaving") {
-                                Vec3::new(0.5, 0.25, 0.5)
-                            } else {
-                                Vec3::new(0.25, f64::from(0.05_f32), 0.25)
-                            };
-                        }
-                        "minecraft:sweet_berry_bush"
-                            if !matches!(m.species(), Species::Fox | Species::Bee) =>
-                        {
-                            if m.species() != Species::Wither {
-                                m.fall_distance = 0.0;
-                                m.stuck_multiplier =
-                                    Vec3::new(f64::from(0.8_f32), 0.75, f64::from(0.8_f32));
-                            }
-                            let moved = m.previous.subtract(m.position);
-                            if w.prop(x, y, z, "age") != Some("0")
-                                && moved.horizontal_distance_squared() > 0.0
-                                && (moved.x.abs() >= f64::from(0.003_f32)
-                                    || moved.z.abs() >= f64::from(0.003_f32))
-                            {
-                                m.damage(level, 1.0, Damage::of(DamageKind::SweetBerryBush));
-                            }
-                        }
-                        // PowderSnowBlock.entityInside: a living entity is stuck
-                        // (and forgets its fall) only while the block at its
-                        // own feet is powder snow.
-                        "minecraft:powder_snow"
-                            if w.block_name(
-                                m.position.x.floor() as i32,
-                                m.position.y.floor() as i32,
-                                m.position.z.floor() as i32,
-                            ) == "minecraft:powder_snow" =>
-                        {
-                            if m.species() != Species::Wither {
-                                m.fall_distance = 0.0;
-                                m.stuck_multiplier =
-                                    Vec3::new(f64::from(0.9_f32), 1.5, f64::from(0.9_f32));
-                            }
-                            let known_movement =
-                                w.controlling_player_movement.unwrap_or(m.velocity);
-                            if let Some(velocity) =
-                                powder_snow_particle_velocity(known_movement, level.random())
-                            {
-                                events.push(MobEvent::PowderSnowParticle {
-                                    at: [m.position.x, f64::from(y + 1), m.position.z],
-                                    velocity,
-                                });
-                            }
-                        }
-                        "minecraft:honey_block" => honey_slide(m, p, level, events),
-                        _ => continue,
-                    }
-                }
+    // `Entity.checkInsideBlocks` itself, the shared walk: each axis of the
+    // move in vanilla's order, a 16-iteration budget, one visited set, the
+    // alive check. The mob's own per-block moments run mid-walk where vanilla
+    // runs them, and the part's contact fires there too, staged. (This is the
+    // parity change: the 0.2-block sampling over every box cell this replaced
+    // visited blocks in another order; the walk's own commit carries it.)
+    let mut visited = crate::fast_hash::FxHashSet::default();
+    let mut effects = mod_api::InsideEffects::default();
+    // `Entity.applyEffectsFromBlocks` walks the tick's own movements; a hurt
+    // below that teleports an enderman or a shulker has left the old position
+    // as the path's start (#9607), so the walk begins where the tick began:
+    // the box's own cells at the start are visited first, as the tick's own
+    // first movement would, then the move itself sweeps the path (the shared
+    // visited set keeps each block once).
+    let start = tick_from;
+    let movements = [horizon_world::entity_move::MovementRecord {
+        from: start,
+        to: tick_to,
+        original: None,
+    }];
+    // The box's own cells at the start, as the tick's first movement would
+    // visit them (a hurt that teleports leaves the old position as the
+    // path's start, #9607).
+    let start_box = m.bounds_at(start).deflate(Vec3::new(1e-5, 1e-5, 1e-5));
+    let mut inside = MobInside {
+        m,
+        w,
+        level,
+        events: &mut *events,
+    };
+    let lo = start_box.min_position();
+    let hi = start_box.max_position();
+    for x in lo.x.floor() as i32..=hi.x.floor() as i32 {
+        for y in lo.y.floor() as i32..=hi.y.floor() as i32 {
+            for z in lo.z.floor() as i32..=hi.z.floor() as i32 {
+                let at = horizon_core::position::BlockPos::new(x, y, z);
+                let state = w.world.block(x, y, z);
+                let solid = w.registry.state(state).is_none_or(|d| {
+                    !matches!(
+                        d.name.as_str(),
+                        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+                    )
+                });
+                if solid
+                    && visited.insert(at.pack())
+                    && let Ok(()) = crate::block_contact::InsideWalk::entity_inside(
+                        &mut inside,
+                        at,
+                        state,
+                        0,
+                        false,
+                        &mut effects,
+                    )
+                {}
             }
         }
+    }
+    let _ =
+        crate::block_contact::sweep_movements(&mut inside, &movements, &mut visited, &mut effects);
+    let MobInside { m, level, .. } = inside;
+    // `applyAndClear` for the part's queued writes, in the collector's order,
+    // in this mob's tick, until it dies.
+    for planned in effects.take_planned() {
+        if !m.alive() {
+            break;
+        }
+        if let mod_api::PlannedInside::Write(write) = planned {
+            apply_entity_write(m, level, write);
+        }
+    }
+}
+
+/// A typed entity write an `entity_inside` part queued for a mob, applied in
+/// its own tick. `Hurt` uses the generic damage kind: the block's own hurts
+/// keep their named kinds in the walk's arms above.
+fn apply_entity_write(m: &mut Mob, level: &mut DamageLevel<'_>, write: mod_api::EntityWrite) {
+    let triple = |v: [f64; 3]| Vec3::new(v[0], v[1], v[2]);
+    match write {
+        mod_api::EntityWrite::Push(v) => {
+            m.velocity = m.velocity.add_vector(triple(v));
+        }
+        mod_api::EntityWrite::SetMovement(v) => m.velocity = triple(v),
+        mod_api::EntityWrite::StuckIn(v) => {
+            m.fall_distance = 0.0;
+            m.stuck_multiplier = triple(v);
+        }
+        mod_api::EntityWrite::Hurt { amount, .. } => {
+            m.damage(level, amount, Damage::of(DamageKind::Generic));
+        }
+        mod_api::EntityWrite::ResetFallDistance => m.fall_distance = 0.0,
+        mod_api::EntityWrite::SetFireTicks(ticks) => m.fire_ticks = ticks,
+        mod_api::EntityWrite::AddEffect {
+            effect,
+            duration,
+            amplifier,
+        } => {
+            if let Some(id) = mod_api::__private::effect_key_id(effect) {
+                m.extra.effects.push(crate::mobs::StoredEffect {
+                    id,
+                    duration,
+                    amplifier: i32::from(amplifier),
+                    registry_index: None,
+                    show_icon: true,
+                });
+            }
+        }
+    }
+}
+
+/// The mob's view of the shared inside walk: its box, its life, the level's
+/// blocks, its own `entityInside` moments (kept as their own code, run
+/// mid-walk where vanilla runs them), and the part's contact, fired mid-walk
+/// over the level random host the mob's tick already holds.
+struct MobInside<'a, 'w, 'l> {
+    m: &'a mut Mob,
+    w: &'a MobWorld<'w>,
+    level: &'a mut DamageLevel<'l>,
+    events: &'a mut Vec<MobEvent>,
+}
+
+impl crate::block_contact::InsideWalk for MobInside<'_, '_, '_> {
+    type Error = ();
+    fn bounds_at(&self, at: Vec3) -> horizon_core::geometry::Aabb {
+        self.m.bounds_at(at)
+    }
+    fn is_alive(&self) -> bool {
+        self.m.alive()
+    }
+    fn block(&self, at: horizon_core::position::BlockPos) -> horizon_world::registry::BlockStateId {
+        self.w.world.block(at.x, at.y, at.z)
+    }
+    fn is_air(&self, state: horizon_world::registry::BlockStateId) -> bool {
+        self.w.registry.state(state).is_none_or(|d| {
+            matches!(
+                d.name.as_str(),
+                "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+            )
+        })
+    }
+    fn inside_shape(
+        &mut self,
+        _state: horizon_world::registry::BlockStateId,
+        _at: horizon_core::position::BlockPos,
+    ) -> crate::block_contact::InsideShape {
+        // `getEntityInsideCollisionShape` is the whole block for every block a
+        // mob meets, as the mob's own walk always treated it.
+        crate::block_contact::InsideShape::Full
+    }
+    fn entity_inside(
+        &mut self,
+        at: horizon_core::position::BlockPos,
+        state: horizon_world::registry::BlockStateId,
+        _step: i32,
+        precise: bool,
+        effects: &mut mod_api::InsideEffects,
+    ) -> std::result::Result<(), ()> {
+        let (x, y, z) = (at.x, at.y, at.z);
+        let p = [x, y, z];
+        // The part's contact, mid-walk, staged: its writes join this step only
+        // when it answered, and a panic is contained.
+        if let Some(hooks) = crate::block_contact::HOOKS.get()
+            && let Some(dimension) = crate::block_contact::current_level()
+            && (hooks.inside_listens)(state)
+        {
+            let mut staged = mod_api::InsideEffects::default();
+            let mut writes = Vec::new();
+            let kind = self.m.kind.id.clone();
+            let id = self.m.id as i32;
+            (hooks.inside_fire)(
+                self.level,
+                dimension,
+                id,
+                &kind,
+                state,
+                at,
+                precise,
+                &mut staged,
+                &mut writes,
+            );
+            effects.absorb_step(staged);
+            crate::block_contact::inside_written(state, at, writes);
+        }
+        // PowderSnowBlock.entityInside: a burning mob destroys the
+        // block (with `mob_griefing`), then EXTINGUISH puts it out.
+        if self.w.block_name(x, y, z) == "minecraft:powder_snow" {
+            if self.m.is_on_fire() && self.w.mob_griefing {
+                self.events.push(MobEvent::BreakBlock {
+                    pos: p,
+                    drop: false,
+                    by: None,
+                    breaker: None,
+                });
+            }
+            self.m.extinguish_fire();
+        }
+        match self.w.block_name(x, y, z) {
+            "minecraft:cactus" => {
+                self.m
+                    .damage(self.level, 1.0, Damage::of(DamageKind::Cactus));
+            }
+            // CampfireBlock.entityInside: a lit campfire hurts a
+            // living entity by its fire damage (1, soul 2).
+            name @ ("minecraft:campfire" | "minecraft:soul_campfire")
+                if self.w.prop(x, y, z, "lit") == Some("true") =>
+            {
+                let damage = if name == "minecraft:campfire" {
+                    1.0
+                } else {
+                    2.0
+                };
+                self.m
+                    .damage(self.level, damage, Damage::of(DamageKind::Campfire));
+            }
+            // WebBlock.entityInside -> makeStuckInBlock, which a
+            // spider ignores for cobwebs and a wither always.
+            "minecraft:cobweb"
+                if !matches!(
+                    self.m.species(),
+                    Species::Spider | Species::CaveSpider | Species::Wither
+                ) =>
+            {
+                self.m.fall_distance = 0.0;
+                self.m.stuck_multiplier = if self.m.has_effect("minecraft:weaving") {
+                    Vec3::new(0.5, 0.25, 0.5)
+                } else {
+                    Vec3::new(0.25, f64::from(0.05_f32), 0.25)
+                };
+            }
+            "minecraft:sweet_berry_bush"
+                if !matches!(self.m.species(), Species::Fox | Species::Bee) =>
+            {
+                if self.m.species() != Species::Wither {
+                    self.m.fall_distance = 0.0;
+                    self.m.stuck_multiplier =
+                        Vec3::new(f64::from(0.8_f32), 0.75, f64::from(0.8_f32));
+                }
+                let moved = self.m.previous.subtract(self.m.position);
+                if self.w.prop(x, y, z, "age") != Some("0")
+                    && moved.horizontal_distance_squared() > 0.0
+                    && (moved.x.abs() >= f64::from(0.003_f32)
+                        || moved.z.abs() >= f64::from(0.003_f32))
+                {
+                    self.m
+                        .damage(self.level, 1.0, Damage::of(DamageKind::SweetBerryBush));
+                }
+            }
+            // PowderSnowBlock.entityInside: a living entity is stuck
+            // (and forgets its fall) only while the block at its
+            // own feet is powder snow.
+            "minecraft:powder_snow"
+                if self.w.block_name(
+                    self.m.position.x.floor() as i32,
+                    self.m.position.y.floor() as i32,
+                    self.m.position.z.floor() as i32,
+                ) == "minecraft:powder_snow" =>
+            {
+                if self.m.species() != Species::Wither {
+                    self.m.fall_distance = 0.0;
+                    self.m.stuck_multiplier =
+                        Vec3::new(f64::from(0.9_f32), 1.5, f64::from(0.9_f32));
+                }
+                let known_movement = self
+                    .w
+                    .controlling_player_movement
+                    .unwrap_or(self.m.velocity);
+                if let Some(velocity) =
+                    powder_snow_particle_velocity(known_movement, self.level.random())
+                {
+                    self.events.push(MobEvent::PowderSnowParticle {
+                        at: [self.m.position.x, f64::from(y + 1), self.m.position.z],
+                        velocity,
+                    });
+                }
+            }
+            "minecraft:honey_block" => honey_slide(self.m, p, self.level, self.events),
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -3212,176 +3707,7 @@ pub fn after_hurt(m: &mut Mob, source: &Damage) {
     }
 }
 /// Mob.doHurtTarget: attack damage (+ species extras) to the target.
-pub fn do_hurt_target(m: &mut Mob, who: Who, cx: &mut Cx) {
-    if m.species() == Species::IronGolem {
-        return super::golem::iron_hurt_target(m, who, cx);
-    }
-    if m.species() == Species::Bee {
-        return super::bee::sting(m, who, cx);
-    }
-    if matches!(m.species(), Species::Hoglin | Species::Zoglin) {
-        return super::piglin::hoglin_hurt_target(m, who, cx);
-    }
-    if m.species() == Species::Ravager {
-        super::ravager::on_attack(m, cx.events);
-    }
-    if m.species() == Species::Panda {
-        super::panda::bit(m);
-    }
-    if super::creaking::is_creaking(m) {
-        super::creaking::on_attack(m, cx.events);
-    }
-    let mut amount = super::gear::attack_damage(m, cx.w.items);
-    let from = [m.position.x, m.position.y, m.position.z];
-    let source = Damage::mob(m.id, from).with_species(m.species());
-    let first_event = cx.events.len();
-    // `CaveSpider`, `Husk` and `WitherSkeleton.doHurtTarget` all test
-    // `target instanceof LivingEntity`, so the effect reaches a mob the hit
-    // lands on and not only the player.
-    match m.species() {
-        // CaveSpider.doHurtTarget: poison for 7 s on normal, 15 s on hard.
-        Species::CaveSpider if cx.w.difficulty.base >= 2 => {
-            cx.events.push(MobEvent::EffectPlayer {
-                effect: "minecraft:poison",
-                ticks: if cx.w.difficulty.base == 2 { 7 } else { 15 } * 20,
-                amplifier: 0,
-                ambient: false,
-            })
-        }
-        // Husk.doHurtTarget: hunger for 140 ticks per whole point of the
-        // local difficulty, only with an empty main hand.
-        Species::Husk if m.extra.main_hand_id().is_none() => {
-            let ticks = 140 * cx.w.difficulty.effective as i32;
-            if ticks > 0 {
-                cx.events.push(MobEvent::EffectPlayer {
-                    effect: "minecraft:hunger",
-                    ticks,
-                    amplifier: 0,
-                    ambient: false,
-                })
-            }
-        }
-        Species::WitherSkeleton => cx.events.push(MobEvent::EffectPlayer {
-            effect: "minecraft:wither",
-            ticks: 200,
-            amplifier: 0,
-            ambient: false,
-        }),
-        _ => {}
-    }
-    if amount <= 0.0 {
-        amount = 1.0;
-    }
-    // The held weapon's enchantments: Sharpness, Smite, Bane of Arthropods,
-    // Fire Aspect and Knockback.
-    let target_species = match who {
-        Who::Mob(id) => cx.w.seen(id).map(|s| s.species),
-        Who::Player => None,
-    };
-    amount += super::gear::melee_bonus(m, target_species);
-    let burn = super::gear::fire_aspect(m);
-    if burn > 0 {
-        cx.events.push(cx.w.route_player_event(MobEvent::Ignite {
-            target: who,
-            seconds: burn,
-        }));
-    }
-    // `Mob.doHurtTarget`: `causeExtraKnockback(target, getKnockback(...))`. `getKnockback` is the
-    // `attack_knockback` attribute plus the Knockback enchantment, halved; the push goes along the
-    // attacker's facing through `LivingEntity.knockback` (so the target's resistance applies), and
-    // slows the attacker.
-    let power = (m.attrs.attack_knockback as f32 + super::gear::knockback(m) as f32) / 2.0;
-    if power > 0.0 {
-        use horizon_core::geometry::trig::Mth;
-        let to_rad = std::f32::consts::PI / 180.0;
-        cx.events.push(cx.w.route_player_event(MobEvent::Knockback {
-            target: who,
-            power: f64::from(power),
-            x: f64::from((m.yaw * to_rad).msin()),
-            z: f64::from(-(m.yaw * to_rad).mcos()),
-            source,
-        }));
-        m.velocity = Vec3::new(m.velocity.x * 0.6, m.velocity.y, m.velocity.z * 0.6);
-    }
-    // Zombies set their target on fire while burning (Zombie.doHurtTarget).
-    if m.fire_ticks > 0 && matches!(m.species(), Species::Zombie) && m.random.next_float() < 0.3 {
-        cx.events.push(cx.w.route_player_event(MobEvent::Ignite {
-            target: who,
-            seconds: 2,
-        }));
-    }
-    // The effect picked above goes with the hit: it applies only when the
-    // target takes damage (a shield-blocked hit gives none), for a mob as for
-    // the player, since those `doHurtTarget`s take any `LivingEntity`.
-    let effect = cx.events[first_event..]
-        .iter()
-        .position(|e| matches!(e, MobEvent::EffectPlayer { .. }))
-        .and_then(|k| match cx.events.remove(first_event + k) {
-            MobEvent::EffectPlayer {
-                effect,
-                ticks,
-                amplifier,
-                ..
-            } => Some((effect, ticks, amplifier)),
-            _ => None,
-        });
-    match who {
-        Who::Player => cx.events.push(cx.w.route_player_event(match effect {
-            Some((effect, ticks, amplifier)) => MobEvent::AttackPlayerWithEffect {
-                amount,
-                from,
-                effect,
-                ticks,
-                amplifier,
-            },
-            None => MobEvent::AttackPlayer(amount, from),
-        })),
-        Who::Mob(id) => cx.events.push(match effect {
-            Some((effect, ticks, amplifier)) => MobEvent::AttackMobWithEffect {
-                target: id,
-                amount,
-                source,
-                effect,
-                ticks,
-                amplifier,
-            },
-            None => MobEvent::AttackMob {
-                target: id,
-                amount,
-                source,
-            },
-        }),
-    }
-    // Mob.doHurtTarget ends with playAttackSound once the hit landed.
-    if super::creaking::is_creaking(m) {
-        m.voice("entity.creaking.attack", cx.events);
-    }
-    // Rabbit.playAttackSound: only the killer bunny.
-    if m.species() == Species::Rabbit {
-        super::rabbit::attack_sound(m, cx.events);
-    }
-    // Panda.playAttackSound: playSound(PANDA_BITE, 1.0, 1.0).
-    if m.species() == Species::Panda && !m.silent {
-        let at = [m.position.x, m.position.y, m.position.z];
-        cx.events
-            .push(MobEvent::Sound("entity.panda.bite", at, 1.0, 1.0));
-    }
-    // Axolotl.playAttackSound: playSound(AXOLOTL_ATTACK, 1.0, 1.0).
-    if m.species() == Species::Axolotl && !m.silent {
-        let at = [m.position.x, m.position.y, m.position.z];
-        cx.events
-            .push(MobEvent::Sound("entity.axolotl.attack", at, 1.0, 1.0));
-    }
-    // Dolphin.playAttackSound: playSound(DOLPHIN_ATTACK, 1.0, 1.0), once
-    // the blow landed. A dolphin that is hurt takes its attacker as a target
-    // and strikes with the melee goal, so its bite is heard as it lands.
-    if m.species() == Species::Dolphin && !m.silent {
-        let at = [m.position.x, m.position.y, m.position.z];
-        cx.events
-            .push(MobEvent::Sound("entity.dolphin.attack", at, 1.0, 1.0));
-    }
-    let _ = Fluid::None;
-}
+pub use super::combat::do_hurt_target;
 /// Mob.ate: `gameEvent(GameEvent.EAT)`, then (Sheep.ate) the wool grows back and a baby
 /// grows.
 pub fn ate(m: &mut Mob, events: &mut Vec<MobEvent>) {
@@ -5746,23 +6072,29 @@ mod burn_and_rose_tests {
     /// (not 299) after its first tick, and the hit that tick starts has its
     /// full invulnerable time.
     #[test]
+    #[ignore = "requires prepared vanilla resources in .local/horizon-client"]
     fn lava_ignites_to_the_full_time_and_hits_after_the_timers_count_down() {
         let mut test_level = crate::health::TestLevel::new(0);
         let level = &mut test_level.level();
-        crate::mobs::world::with_built_test_world(&[], build_with("minecraft:lava"), |w, types| {
-            let mut m = golem(types);
-            let mut events = Vec::new();
-            let start = m.health;
-            base_tick(&mut m, w, level, &mut events);
-            assert_eq!(m.health, start - 4.0, "one lava hit");
-            assert_eq!(m.fire_ticks, 300, "fire after the first tick");
-            assert_eq!(m.invulnerable, 20, "the hit's own invulnerable time");
-            for _ in 0..10 {
+        let ran = crate::mobs::world::with_built_test_world(
+            &[],
+            build_with("minecraft:lava"),
+            |w, types| {
+                let mut m = golem(types);
+                let mut events = Vec::new();
+                let start = m.health;
                 base_tick(&mut m, w, level, &mut events);
-            }
-            assert_eq!(m.health, start - 8.0, "second hit on tick 11");
-            assert_eq!(m.fire_ticks, 300);
-        });
+                assert_eq!(m.health, start - 4.0, "one lava hit");
+                assert_eq!(m.fire_ticks, 300, "fire after the first tick");
+                assert_eq!(m.invulnerable, 20, "the hit's own invulnerable time");
+                for _ in 0..10 {
+                    base_tick(&mut m, w, level, &mut events);
+                }
+                assert_eq!(m.health, start - 8.0, "second hit on tick 11");
+                assert_eq!(m.fire_ticks, 300);
+            },
+        );
+        assert!(ran, "the vanilla test resources must be available");
     }
 }
 
@@ -5889,6 +6221,10 @@ mod wither_block_slowdown_tests {
         let ran = with_built_test_world(
             &[],
             |world, registry| {
+                world.chunks.insert(
+                    (0, 0),
+                    std::sync::Arc::new(crate::chunk::Chunk::empty(0, 0)),
+                );
                 let stone = registry.default_state("minecraft:stone").unwrap();
                 let default_bush = registry
                     .default_state("minecraft:sweet_berry_bush")

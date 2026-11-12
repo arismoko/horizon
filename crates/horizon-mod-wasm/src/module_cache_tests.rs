@@ -10,7 +10,7 @@ fn wasm(answer: i32) -> Vec<u8> {
 fn fixture() -> (tempfile::TempDir, ModuleCache, Engine, Vec<u8>) {
     let dir = tempfile::tempdir().unwrap();
     let cache = ModuleCache::new(dir.path().join(".horizon-cache/wasm"));
-    (dir, cache, Engine::default(), wasm(42))
+    (dir, cache, crate::runtime::engine().unwrap(), wasm(42))
 }
 fn entry(cache: &ModuleCache, engine: &Engine, bytes: &[u8]) -> PathBuf {
     cache
@@ -75,7 +75,7 @@ fn first_compile_then_cached_across_launches_preserves_execution() {
     assert_eq!(paths.len(), 1);
     assert_eq!(paths[0].extension().unwrap(), "cwasm");
     let next_launch = ModuleCache::new(cache.root.clone());
-    assert_cached(&next_launch, &Engine::default(), &bytes);
+    assert_cached(&next_launch, &crate::runtime::engine().unwrap(), &bytes);
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn regular_file_root_always_falls_back() {
     let cache = ModuleCache::new(root.clone());
     assert!(cache.disabled.as_ref().unwrap().contains("folder"));
     for _ in 0..2 {
-        assert_compiled(&cache, &Engine::default(), &wasm(42));
+        assert_compiled(&cache, &crate::runtime::engine().unwrap(), &wasm(42));
     }
     assert_eq!(fs::read(root).unwrap(), b"not a directory");
 }
@@ -166,7 +166,10 @@ fn stale_temporaries_are_removed_and_fresh_ones_kept() {
     drop(ModuleCache::new(root.clone()));
     let stale = root.join(".1-0.tmp");
     let fresh = root.join(".2-0.tmp");
-    let entry = root.join("kept.cwasm");
+    let entry = root.join(format!(
+        "{}.cwasm",
+        ModuleCache::key(&crate::runtime::engine().unwrap(), &wasm(42))
+    ));
     for path in [&stale, &fresh, &entry] {
         fs::write(path, b"x").unwrap();
     }
@@ -189,7 +192,7 @@ fn stale_temporaries_are_removed_and_fresh_ones_kept() {
 fn the_key_is_one_sha256_per_input() {
     let engine = Engine::default();
     let a = ModuleCache::key(&engine, &wasm(42));
-    assert_eq!(a.len(), 64);
+    assert_eq!(a.len(), 129);
     assert_eq!(a, ModuleCache::key(&engine, &wasm(42)));
     assert_ne!(a, ModuleCache::key(&engine, &wasm(43)));
 }
@@ -325,7 +328,9 @@ fn measure_compile_and_cached_load() {
 #[test]
 fn group_linker_uses_cache_and_programmatic_linking_leaves_it_empty() {
     use crate::link::{Group, Member};
-    let (_dir, cache, engine, _) = fixture();
+    let (_dir, cache, _, _) = fixture();
+    // Programmatic linking does not install a production epoch deadline.
+    let engine = Engine::default();
     let bytes = wat::parse_str(
         r#"(module
         (@custom "dylink.0" "\01\04\00\00\00\00")
@@ -503,7 +508,7 @@ fn child_failures_fall_back_to_identical_compilation() {
             .load_with_child(
                 &engine,
                 &bytes,
-                Some((command, std::time::Duration::from_secs(2))),
+                Some((command, std::time::Duration::from_secs(10))),
             )
             .unwrap();
         assert_eq!(source, Source::Compiled);
@@ -583,4 +588,112 @@ fn compiler_keeps_old_live_input_and_other_writer_temporary() {
     crate::compile_child::compile(&input.0, &ModuleCache::key(&engine, &bytes)).unwrap();
     assert!(input.0.exists());
     assert_eq!(fs::read(writer).unwrap(), b"unfinished writer");
+}
+
+/// Local measurement only: newline-separated module paths, no installed player data.
+#[test]
+#[ignore = "local size measurement; set HORIZON_CACHE_SIZE_MODULES"]
+fn measure_serialized_sizes() {
+    let engine = crate::runtime::engine().unwrap();
+    let measure = |name: &str, bytes: &[u8]| {
+        let module = Module::new(&engine, bytes).unwrap();
+        let artifact = module.serialize().unwrap();
+        eprintln!(
+            "CACHE_SIZE | {name} | {} | {} |",
+            bytes.len(),
+            artifact.len()
+        );
+    };
+    for value in [42, 43, 99] {
+        measure(&format!("answer-{value} fixture"), &wasm(value));
+    }
+    let dynamic = wat::parse_str(
+        r#"(module
+        (@custom "dylink.0" "\01\04\00\00\00\00")
+        (func (export "answer") (result i32) i32.const 42))"#,
+    )
+    .unwrap();
+    measure("dynamic-link fixture", &dynamic);
+    let paths = std::env::var("HORIZON_CACHE_SIZE_MODULES").unwrap();
+    for path in paths.lines().filter(|path| !path.is_empty()) {
+        measure(path, &fs::read(path).unwrap());
+    }
+}
+
+#[test]
+fn startup_removes_stale_and_old_format_but_keeps_current() {
+    let (_dir, cache, engine, bytes) = fixture();
+    let stale = cache
+        .root
+        .join(format!("{}-{}.cwasm", "0".repeat(64), "1".repeat(64)));
+    let old = cache.root.join(format!("{}.cwasm", "2".repeat(64)));
+    let malformed = cache.root.join("malformed.cwasm");
+    let current = entry(&cache, &engine, &bytes);
+    for path in [&stale, &old, &malformed, &current] {
+        fs::write(path, b"keep").unwrap();
+    }
+    drop(ModuleCache::new(cache.root.clone()));
+    assert!(!stale.exists());
+    assert!(!old.exists());
+    assert!(!malformed.exists());
+    assert_eq!(fs::read(current).unwrap(), b"keep");
+}
+
+#[cfg(unix)]
+#[test]
+fn startup_cleanup_preserves_symlink_targets_and_unrelated_files() {
+    let (dir, cache, _, _) = fixture();
+    let target = dir.path().join("target");
+    fs::write(&target, b"target data").unwrap();
+    let link = cache
+        .root
+        .join(format!("{}-{}.cwasm", "0".repeat(64), "1".repeat(64)));
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let unrelated = cache.root.join("notes.txt");
+    fs::write(&unrelated, b"notes").unwrap();
+    let directory = cache.root.join("directory.cwasm");
+    fs::create_dir(&directory).unwrap();
+    drop(ModuleCache::new_with_limit(cache.root.clone(), false, 0));
+    assert_eq!(fs::read(target).unwrap(), b"target data");
+    assert!(fs::symlink_metadata(link).unwrap().file_type().is_symlink());
+    assert_eq!(fs::read(unrelated).unwrap(), b"notes");
+    assert!(directory.is_dir());
+}
+
+#[test]
+fn startup_size_limit_removes_oldest_first() {
+    let (_dir, cache, engine, _) = fixture();
+    let prefix = ModuleCache::engine_part(&engine);
+    let paths = ["1", "2", "3"].map(|digit| {
+        cache
+            .root
+            .join(format!("{prefix}-{}.cwasm", digit.repeat(64)))
+    });
+    for (path, seconds) in paths.iter().zip([100, 200, 300]) {
+        fs::write(path, b"1234").unwrap();
+        File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds))
+            .unwrap();
+    }
+    let next = ModuleCache::new_with_limit(cache.root.clone(), false, 10);
+    assert!(!paths[0].exists());
+    assert_eq!(fs::read(&paths[1]).unwrap(), b"1234");
+    assert_eq!(fs::read(&paths[2]).unwrap(), b"1234");
+    // Writes after startup are retained even when they exceed this launch's budget.
+    assert_compiled(&next, &engine, &wasm(42));
+    assert_cached(&next, &engine, &wasm(42));
+}
+
+#[test]
+fn compiled_module_loads_cached_after_startup_cleanup() {
+    let (_dir, cache, engine, bytes) = fixture();
+    assert_compiled(&cache, &engine, &bytes);
+    let stale = cache.root.join(format!("{}.cwasm", "0".repeat(64)));
+    fs::write(&stale, b"obsolete").unwrap();
+    let next = ModuleCache::new(cache.root.clone());
+    assert!(!stale.exists());
+    assert_cached(&next, &engine, &bytes);
 }

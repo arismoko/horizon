@@ -2,6 +2,32 @@
 
 Provisional answer to [#792](https://github.com/arismoko/horizon/issues/792): register a type once, store each instance in a game-owned general entity row, and dispatch its catalog-generated EntityPart behavior through a resolved type slot. The row owns identity, residency, persistence and tracking. It must never create a throwable or other template entity. This is a proposal for Ari's decision on the issue, not implemented API or a closure claim.
 
+## Implemented stage 2 API
+
+`Hooks::register` receives `&mut dyn Registrar`, whose `GeneralTypesRegistrar`
+supertrait provides `declare_general_entity(path, category, width, height,
+save_policy, summonable, tracking_chunks, update_interval, payload_version,
+required_features)`. Use `GeneralEntityCategory::Misc` and
+`GeneralSavePolicy::{Save, NoSave}`. The path must belong to the declaring
+mod's namespace. Registration is only available during the registration phase,
+requires a both-side package, and refuses duplicates and unavailable required
+mods with `GeneralEntityRegistrationError` while recording a refusal.
+
+Dimensions must be finite. Tracking distance and interval use signed `i32`
+values directly, matching the vanilla builder; `i32::MAX` means no update
+interval. There is no 64-block, 32-chunk or 1200-tick ceiling.
+
+The engine freezes declarations in mod-id/type-id order into non-narrowed
+catalog indices. Stage 2 supplies record validation and a `Kind::General` row
+with residency lookup, not live entity admission. It does not yet enable
+spawning, saving/loading, tracking, rendering, or entity tick dispatch. The
+record validator preserves the general-record policies of 65,536 payload
+bytes and passenger depth 16; decoded payload nesting 32 belongs to stage 3.
+Unknown types are reported separately after structural validation; byte-preserving
+quarantine is future work, not an implemented save guarantee.
+
+The remaining sections describe the wider design, not shipped lifecycle support.
+
 ## Evidence and limits
 
 Vanilla 26.3 was queried from `/workspace/horizon` with `python3 tools/rea_vanilla.py`: `method net.minecraft.server.level.ServerLevel tickNonPassenger` runs commonTick, tick, then passenger ticking. `--overload-index 0 method net.minecraft.world.entity.EntityType loadEntityRecursive` delegates compound input through registry-aware TagValueInput and a problem reporter; this wrapper alone does not establish unknown-type recovery. `callers net.minecraft.server.level.ServerLevel addFreshEntity` reports 36 callers, including dispenser vehicles, loot drops, TNT, hatching and dragon creation. Creation is consequently wider than summon. Exact recursive-load internals, passenger tick semantics and global vanilla iteration ordering remain unverified; do not infer them from these queries.
@@ -10,7 +36,7 @@ The issue names NeoForge 26.3 RegisterEvent and Registries.ENTITY_TYPE. The perm
 
 ## Registration and ownership
 
-Freeze a namespaced entity-type registry before worlds or connections open. A declaration supplies category, finite positive dimensions, save/summon policy, bounded tracking distance and update interval, codec schema and required client features. Reject duplicate keys, unresolved required dependencies and invalid limits at registration. Resolve registry keys to compact slots, behavior subscribers and codecs once. Content declarations and code declarations use one registry, with no reserved throwable fallback or compatibility alias.
+Freeze a namespaced entity-type registry before worlds or connections open. A declaration supplies category, finite dimensions, save/summon policy, signed integer tracking distance and update interval, codec schema and required client features. Reject duplicate keys, unresolved required dependencies and invalid limits at registration. Resolve registry keys to compact slots, behavior subscribers and codecs once. Content declarations and code declarations use one registry, with no reserved throwable fallback or compatibility alias.
 
 Use one dense general-entity store per level, with constant-time identity-to-slot lookup and generation validation; removal may swap rows while updating the index. A row contains type slot, UUID, runtime network id, incarnation/join identity, dimension, pose, velocity, lifecycle flags and attachment holder. Never persist runtime slots, network ids or pointers. EntityRef validates world epoch, dimension and incarnation before exposing a row. Reusing id 42 cannot make an old handle address its replacement. UUID continuity on reload does not revive an old live handle.
 
@@ -60,7 +86,7 @@ Every creation source must reach the general insertion coordinator: summon, mod/
 
 Native and wasm use the same registry, dependencies, state model and generated contract. Native exact-build checks and wasm interface linking remain loader concerns. Existing native-only registration is not evidence of wasm parity; enable this feature only when both adapters implement registration, tick, codecs and client handoff.
 
-Treat registration, callback results, serialized input and packets as untrusted. Reject NaN/infinite positions or dimensions, negative/overflowed lengths, unknown owned type ids, duplicate UUIDs and stale handles before writes. Unrelated unknown ids retain their existing behavior. Propose payload limit 64 KiB per entity, nesting 32, passenger depth 16, positive dimensions at most 64 blocks, tracking at most 32 chunks and update interval 1–1200 ticks; confirm these provisional limits before implementation. Bound aggregate decoding and outgoing bytes per connection too.
+Treat registration, callback results, serialized input and packets as untrusted. Reject NaN/infinite positions or dimensions, negative/overflowed lengths, unknown owned type ids, duplicate UUIDs and stale handles before writes. Unrelated unknown ids retain their existing behavior. Propose payload limit 64 KiB per entity, nesting 32, passenger depth 16, positive dimensions at most 64 blocks, tracking at most 32 chunks and update interval 1–1200 ticks; confirm these provisional limits before implementation. Quarantined records of a missing mod are bounded too — 69 632 encoded bytes per record, 256 records per chunk; both provisional, with no vanilla analogue (vanilla deletes such entities rather than preserving them). Bound aggregate decoding and outgoing bytes per connection too.
 
 Catch native unwinding and wasm traps at dispatch: abort the callback transaction, discard buffered effects, restore lifts, disable the failing subscriber and report it. A native process-aborting panic cannot be recovered. No irreversible external I/O inside transactional callbacks. A subsequent built-in action must still succeed.
 

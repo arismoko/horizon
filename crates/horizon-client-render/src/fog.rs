@@ -129,6 +129,7 @@ fn camera_fluid_height(world: &World, facts: &BlockFacts, b: [i32; 3]) -> Option
 }
 /// `Camera.getFluidInCamera`: water at the camera, then lava or powder snow
 /// at the near plane's centre and corners.
+#[horizon_mod_api_macros::replaceable]
 pub fn fog_type(world: &World, facts: &BlockFacts, camera: [f64; 3], near: &NearPlane) -> FogType {
     camera_fog_type(
         camera,

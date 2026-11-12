@@ -1,6 +1,7 @@
 //! Profession-keyed additions to the vanilla secondary POI sensor.
 use super::*;
 
+#[horizon_mod_api_macros::replaceable]
 pub(super) fn sense_secondary(m: &mut Mob, w: &MobWorld) {
     let index = w.professions.state_index(&m.extra.profession);
     let custom = index

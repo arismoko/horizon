@@ -100,7 +100,7 @@ mod dimension_transition_tests {
 
     #[test]
     fn dimension_transition_registration_and_draw_carry_selection_reason_and_progress() {
-        testing::with_mods(
+        testing::with_dispatch(
             vec![ModEntry::new("test", Box::new(Arrival))].into(),
             || {
                 let mut screens = Vec::new();
@@ -148,7 +148,7 @@ mod dimension_transition_tests {
 
     #[test]
     fn dimension_transition_without_listeners_collects_and_draws_nothing() {
-        testing::with_mods(Vec::new().into(), || {
+        testing::with_dispatch(Vec::new().into(), || {
             let mut screens = Vec::new();
             dispatch_register_dimension_transition_screen(
                 &RegistrationContext::new(),

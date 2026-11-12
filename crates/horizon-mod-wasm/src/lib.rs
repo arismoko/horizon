@@ -46,7 +46,7 @@ pub(crate) fn call_refused<E: From<(mod_api::Identifier, String)>>() -> E {
 }
 
 use horizon_mod_package::dependencies;
-use horizon_mod_package::manifest::{Manifest, inject::Access};
+use horizon_mod_package::manifest::Manifest;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -70,7 +70,7 @@ pub enum Refusal {
     Toolchain { found: String, group: String },
     /// A dependency of this mod was refused, so its group can't link.
     DependencyRefused { dependency: String },
-    /// The mod declares engine internals or an engine `access = "internals"` injection.
+    /// The mod declares engine internals, which wasm cannot access.
     Internals,
     /// The package's `mod.wasm` failed its checks.
     Package(String),
@@ -111,8 +111,11 @@ impl std::fmt::Display for Refusal {
             Self::Package(why) => write!(f, "{why}"),
             Self::Runtime(why) => write!(f, "{why}"),
             Self::Layout { .. } => write!(f, "built for another version of the mod API"),
-            Self::PointLayout { .. } => {
-                write!(f, "built for another version of the mod points API")
+            Self::PointLayout { built, game } => {
+                write!(
+                    f,
+                    "built for another version of the mod points API (mod layout {built}, game layout {game})"
+                )
             }
             Self::NoStd => write!(f, "this game has no wasm standard library member"),
             Self::Stopped => write!(f, "stopped after a trap or resource limit"),
@@ -140,12 +143,7 @@ fn groups(packages: &[WasmPackage]) -> (Vec<Vec<usize>>, Vec<(String, Refusal)>)
         .collect();
     // Engine internals are native-only. A mod dependency's internals stay inside the group.
     for (i, package) in packages.iter().enumerate() {
-        if !package.manifest.internals.is_empty()
-            || package.manifest.inject.iter().any(|inject| {
-                inject.access == Access::Internals
-                    && package.manifest.mod_point_dependency(&inject.at).is_none()
-            })
-        {
+        if !package.manifest.internals.is_empty() {
             refused.insert(i, Refusal::Internals);
         }
     }
@@ -633,6 +631,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn point_layout_refusal_reports_both_layouts_to_console() {
+        let mut console = Vec::new();
+        report_refusals(
+            &[(
+                "layout_mod".into(),
+                Refusal::PointLayout {
+                    built: 123,
+                    game: 456,
+                },
+            )],
+            &mut console,
+        );
+        assert_eq!(
+            String::from_utf8(console).unwrap(),
+            "wasm mod layout_mod refused: built for another version of the mod points API (mod layout 123, game layout 456)\n"
+        );
+    }
+
+    #[test]
     fn missing_std_reports_mod_and_reason_to_console_and_logger() {
         use crate::test_log::{CAPTURE, capture_logs};
         capture_logs();
@@ -809,10 +826,7 @@ mod tests {
                 "",
                 'a',
                 "t",
-                &format!(
-                    "[[internals]]\npath = \"Game::world\"\nkind = \"field\"\nhash = \"h\"\n{}",
-                    inject("internals")
-                ),
+                "[[internals]]\npath = \"Game::world\"\nkind = \"field\"\nhash = \"h\"\n",
             ),
             package("user", "1.0.0", "deep = \"^1\"", 'b', "t", ""),
             package("typed", "1.0.0", "", 'c', "t", &inject("api")),
@@ -876,11 +890,7 @@ mod mixed_install_tests {
         assert!(why.contains("layouts.json is malformed"), "{why}");
     }
     fn refusal(hash: &str) -> String {
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!("wasm-mixed-{}-{nonce}", std::process::id()));
+        let root = tempfile::tempdir().unwrap().keep();
         let addon = root.join("addon");
         let library = root.join("lib");
         std::fs::create_dir_all(&addon).unwrap();
@@ -961,4 +971,12 @@ pub fn fixture_import_id(owner: &str, method: &str) -> Option<u32> {
 #[cfg(feature = "listener-fixture")]
 pub fn fixture_export_id(owner: &str, method: &str) -> Option<u32> {
     boundary::export_id(owner, method)
+}
+
+/// The private compiler cache key under the production engine configuration, for executable
+/// smoke tests of the hidden compiler entry.
+#[cfg(feature = "runtime-fixture")]
+pub fn compile_child_key(bytes: &[u8]) -> Result<String, String> {
+    let engine = runtime::engine().map_err(|error| error.to_string())?;
+    Ok(module_cache::ModuleCache::key(&engine, bytes))
 }

@@ -7,3 +7,4 @@
 pub mod codec;
 pub mod contact;
 pub mod model;
+pub mod region_strict;

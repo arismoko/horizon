@@ -3,7 +3,30 @@ use super::*;
 use crate::*;
 use horizon_core::nbt::{Compound, JavaString};
 
+fn install_layout_resources() {
+    let _ = crate::wire::install_resource_access(crate::wire::ResourceAccess {
+        intern: |value| {
+            if value.len() > crate::wire::MAX_STATIC_STRING_BYTES {
+                return Err(WireError::Invalid("static string too long"));
+            }
+            Ok(Box::leak(value.to_owned().into_boxed_str()))
+        },
+        store: |value| {
+            let provider = value
+                .downcast::<std::sync::Arc<dyn std::any::Any + Send + Sync>>()
+                .map_err(|_| WireError::Invalid("no resource context"))?;
+            if provider.downcast_ref::<u32>() != Some(&73) {
+                return Err(WireError::Invalid("no resource context"));
+            }
+            Ok(crate::wire::Id(0x100000007))
+        },
+        load: |_, _| Err(WireError::Invalid("no resource context")),
+        refused: |_| {},
+    });
+}
+
 fn fields<T: Wire, F: Wire + std::fmt::Debug + PartialEq>(value: T, expected: F) {
+    install_layout_resources();
     assert_eq!(decode::<T, F>(value), expected);
 }
 fn id(s: &str) -> Identifier {
@@ -500,35 +523,6 @@ fn registration_and_attribute_records_have_declared_field_bytes() {
 }
 
 #[test]
-fn erased_provider_record_uses_active_resource_scope() {
-    struct Codec;
-    impl crate::wire::ResourceCodec for Codec {
-        fn store(&self, value: Box<dyn std::any::Any>) -> Result<crate::wire::Id, WireError> {
-            let provider = value
-                .downcast::<std::sync::Arc<dyn std::any::Any + Send + Sync>>()
-                .unwrap();
-            assert_eq!(provider.downcast_ref::<u32>(), Some(&73));
-            Ok(crate::wire::Id(0x100000007))
-        }
-        fn load(
-            &self,
-            _: crate::wire::Id,
-            _: std::any::TypeId,
-        ) -> Result<Box<dyn std::any::Any>, WireError> {
-            Err(WireError::Invalid("not used by byte-field test"))
-        }
-    }
-    let _scope = crate::wire::ResourceScope::new(std::rc::Rc::new(Codec));
-    fields(
-        OwnProvider {
-            handler: "example:handler".into(),
-            provider: std::sync::Arc::new(73u32),
-        },
-        ("example:handler".to_owned(), 0x100000007u64),
-    );
-}
-
-#[test]
 fn particle_record_has_declared_field_bytes() {
     let _keys = Keys::new();
     let ty = ParticleKey::from_slot(0).unwrap();
@@ -652,8 +646,8 @@ fn newtype_widths_and_unit_enum_tags_match_their_layouts() {
     fields(BlockKey::from_slot(0).unwrap(), (0u32,));
     fields(ItemKey::from_slot(0).unwrap(), (0u32,));
     fields(FluidKey::from_slot(0).unwrap(), (0u32,));
-    let fluid = crate::block::unresolved_fluid::intern("example:unresolved").unwrap();
-    fields(fluid, (fluid.0,));
+    // Issuance is platform-owned; this layer pins the encoded 64-bit field only.
+    fields(crate::UnresolvedFluid(0x100000003), (0x100000003u64,));
     fields(WorldEpoch::new(47), (47u64,));
     fields(TickId::new(19), (19u64,));
     fields(SoundRef { id: 71 }, (71u64,));
@@ -907,4 +901,16 @@ fn every_attachment_error_and_write_case_has_declared_tag_type() {
     fields(AttachmentWrite::Decoded, (0u32,));
     fields(AttachmentWrite::Default, (1u32,));
     fields(AttachmentWrite::Set, (2u32,));
+}
+
+#[test]
+fn erased_provider_record_uses_active_resource_scope() {
+    // Pin the layout at this layer; platform tests own active codec lifetimes.
+    fields(
+        OwnProvider {
+            handler: "example:handler".into(),
+            provider: std::sync::Arc::new(73u32),
+        },
+        ("example:handler".to_owned(), 0x100000007u64),
+    );
 }

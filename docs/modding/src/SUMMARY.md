@@ -33,6 +33,7 @@
 - [Native mods](how-to/native-mods.md)
 - [Injections](injections.md)
 - [Mixins](mixins.md)
+- [Published loops](loops.md)
 
 # Reference
 

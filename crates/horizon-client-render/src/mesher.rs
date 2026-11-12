@@ -2105,6 +2105,7 @@ pub struct Mesher<'a> {
 }
 impl Mesher<'_> {
     /// `region[dz][dx]` are the chunks around the meshed column (centre 1,1).
+    #[horizon_mod_api_macros::replaceable]
     pub fn mesh(&mut self, region: &[[Option<&Chunk>; 3]; 3], sy: i32) -> SectionMesh {
         self.mesh_reusing(
             region,

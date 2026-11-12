@@ -373,13 +373,14 @@ impl Game<'_> {
             // shrink(1), then the honey bottle in the hand, the inventory or
             // on the ground.
             self.audio.play("minecraft:item.bottle.fill", at, 1.0, 1.0);
-            let cell = self.held_mut();
-            if let Some(s) = cell.as_mut() {
-                s.count -= 1;
-                if s.count == 0 {
-                    *cell = None;
+            self.edit_block_use_stack(|cell| {
+                if let Some(s) = cell.as_mut() {
+                    s.count -= 1;
+                    if s.count == 0 {
+                        *cell = None;
+                    }
                 }
-            }
+            });
             let bottle = ItemStack::new("minecraft:honey_bottle", 1);
             if self.held().is_none() {
                 *self.held_mut() = Some(bottle);

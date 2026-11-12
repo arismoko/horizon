@@ -7,12 +7,15 @@ impl Game<'_> {
         hit: &crate::game::Hit,
     ) -> horizon_client::Result<bool> {
         self.guest_use = Some(crate::game::GuestUse::OnBlock(self.hand));
-        let result = self.use_hand(Some(hit));
+        let result = self.with_block_use_original(self.hand, |g| {
+            let result = g.use_hand(Some(hit));
+            if matches!(result, Ok(true)) && !g.use_failed {
+                g.finish_block_use(hit.pos, g.hand);
+            }
+            result
+        });
         self.guest_use = None;
         if result? {
-            if !self.use_failed {
-                self.finish_block_use(hit.pos, self.hand);
-            }
             return Ok(true);
         }
         self.use_hand(None)

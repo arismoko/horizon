@@ -16,9 +16,9 @@ impl Mob {
     fn new() -> Self { Self { gear_knockback_resistance: None, attrs: Attributes { knockback_resistance: 0.0 }, needs_sync: false, random: Random, velocity: Vec3::default(), on_ground: true } }
 }
 struct Damage { attacker: Option<()>, from: Option<[f64; 3]> }
-pub struct DamageLevel<'a> { heard: &'a mut usize }
+pub struct DamageLevel<'a> { heard: &'a mut usize, scale: f64, cancel: bool }
 impl DamageLevel<'_> {
-    fn knockback_canceled(&mut self, _: health::Hurting<'_>, _: &mut health::Knock) -> bool { *self.heard += 1; false }
+    fn knockback_canceled(&mut self, _: health::Hurting<'_>, knock: &mut health::Knock) -> bool { *self.heard += 1; knock.strength *= self.scale; self.cancel }
 }
 mod health {
     pub struct Knock { pub strength: f64, pub x: f64, pub z: f64 }

@@ -343,6 +343,7 @@ impl RenderAssets {
     pub fn load(root: &crate::resource_source::ResourceRoot, assets: &Assets) -> Result<Self> {
         Self::load_with(root, assets, true)
     }
+    #[horizon_mod_api_macros::replaceable]
     fn load_with(
         root: &crate::resource_source::ResourceRoot,
         assets: &Assets,

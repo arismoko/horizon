@@ -9,7 +9,7 @@ import subprocess
 import shutil
 
 
-def export(root: Path, commit: str, output: Path) -> None:
+def export(root: Path, commit: str, output: Path, stage_tool: Path | None = None) -> None:
     actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     if actual != commit:
         raise ValueError(f"catalog checkout is {actual}, not selected Nightly commit {commit}")
@@ -19,7 +19,7 @@ def export(root: Path, commit: str, output: Path) -> None:
     spec.loader.exec_module(producer)
     # The SDK writes its catalog before widening the disposable source copy. Reuse
     # that exact staging/export path; this does not compile the game or an SDK.
-    staged = producer.stage(root / "target/nightly-catalog")
+    staged = producer.stage(root / "target/nightly-catalog", stage_tool=stage_tool)
     shutil.copy2(staged / producer.CATALOG, output)
     # Staging must not change the tracked source the catalog describes.
     subprocess.run(["git", "diff", "--quiet", "HEAD", "--"], cwd=root, check=True)
@@ -30,8 +30,9 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--stage-tool", type=Path)
     args = parser.parse_args()
-    export(args.root.resolve(), args.commit, args.output.resolve())
+    export(args.root.resolve(), args.commit, args.output.resolve(), stage_tool=args.stage_tool)
 
 
 if __name__ == "__main__":

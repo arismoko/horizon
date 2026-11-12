@@ -3491,8 +3491,8 @@ impl Game<'_> {
             return;
         };
         self.load_guest_records(conn);
-        // The mods say which commands the newcomer's tree keeps.
-        self.native_filter_commands(Some(conn));
+        // Collect the recipient's recipe types and filter their command tree.
+        self.prepare_recipe_join(conn);
         // A level that will not open, its generator gone with a mod, is one the
         // world no longer has: left in it, the player would fail the next tick.
         if elsewhere && let Err(e) = self.enter_level(level) {

@@ -70,3 +70,12 @@ impl ParticleEngine {
         }
     }
 }
+
+/// `Mth.nextDouble(random, min, max)`.
+pub(super) fn next_double_between(random: &mut impl RandomSource, min: f64, max: f64) -> f64 {
+    if min >= max {
+        min
+    } else {
+        random.next_double() * (max - min) + min
+    }
+}

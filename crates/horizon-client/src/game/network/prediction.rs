@@ -1,6 +1,7 @@
 //! The movement prediction's replay on the server (`lan::prediction`): each guest's client ticks
 //! played again with the client's own movement code, in the guest's level.
 use super::Game;
+use horizon_client::items::{ItemStack, Items};
 use horizon_client::lan::entity::EntityState;
 use horizon_client::lan::guest::Guest;
 use horizon_client::lan::prediction::{Replay, near, slack};
@@ -200,4 +201,19 @@ fn excused(g: &Guest, world: &World, entities: &[EntityState], guests: &[Guest])
         .iter()
         .any(|o| o.conn != g.conn && o.placed && o.dimension == g.dimension && close(o.position));
     unsent || pistons || unloaded || riptide || entity || player
+}
+
+/// `LivingEntity.canGlideUsing`: for each worn piece (head, chest, legs,
+/// feet), whether it is a glider (its own component, or one the server
+/// patched onto the stack) in the slot its `equippable` names, and will not
+/// break with its next point of wear (`ItemStack.nextDamageWillBreak`).
+pub(super) fn gliding_pieces(items: &Items, armor: &[Option<ItemStack>; 4]) -> [bool; 4] {
+    const SLOTS: [&str; 4] = ["head", "chest", "legs", "feet"];
+    // `canGlideUsing`: the stack's own `glider` and `equippable` (its
+    // components, a server's patch), else its item's.
+    std::array::from_fn(|i| {
+        armor[i]
+            .as_ref()
+            .is_some_and(|s| horizon_client::item_sync::can_glide_using(s, SLOTS[i], items))
+    })
 }

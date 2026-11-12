@@ -57,13 +57,14 @@ impl Game<'_> {
         if self.creative {
             return;
         }
-        let cell = self.held_mut();
-        if let Some(s) = cell.as_mut() {
-            s.count -= 1;
-            if s.count == 0 {
-                *cell = None;
+        self.edit_block_use_stack(|cell| {
+            if let Some(s) = cell.as_mut() {
+                s.count = s.count.saturating_sub(1);
+                if s.count == 0 {
+                    *cell = None;
+                }
             }
-        }
+        });
     }
     pub(super) fn tick_using(&mut self) {
         let Some(hand) = self.used_hand() else {

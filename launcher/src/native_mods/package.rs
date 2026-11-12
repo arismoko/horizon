@@ -18,8 +18,21 @@ pub(super) fn read(dir: &Path) -> Result<Option<Bundle>, String> {
         return Ok(None);
     }
     let package = Package::read(dir)?;
-    if package.manifest.native.is_none() {
+    if package.manifest.native.is_none()
+        && (package.manifest.wasm.is_none() || package.manifest.inject.is_empty())
+    {
         return Ok(None);
+    }
+    if let Some(state) = package
+        .manifest
+        .native
+        .as_ref()
+        .and_then(|native| native.state.first())
+    {
+        return Err(crate::i18n::trf(
+            "E_MIXIN_STATE_LAYOUT: {mod}:{state}: native state changes the prebuilt game's layout; use an attachment instead",
+            &[("mod", &package.manifest.id), ("state", &state.id)],
+        ));
     }
     package.directory_files(dir)?;
     Ok(Some(Bundle {
@@ -149,19 +162,7 @@ pub(super) fn checked_bundles(folder: &Path) -> Result<Vec<Bundle>, String> {
             {
                 continue;
             }
-            let points = library.points.as_ref().and_then(|catalog| {
-                dependent.manifest.inject.iter().find_map(|inject| {
-                    manifest::inject::mod_points::cross_target(
-                        &dependent.manifest.id,
-                        inject,
-                        &library.manifest.id,
-                        catalog,
-                    )
-                })
-            });
-            let reason = if let Some(refusal) = points {
-                super::mod_points::refusal(&refusal)
-            } else if let Some(name) = dependent
+            let reason = if let Some(name) = dependent
                 .layouts
                 .first_difference(&library.manifest.id, &library.layouts)
             {
@@ -187,103 +188,15 @@ mod mixed_tests {
     use super::*;
 
     #[test]
-    fn tool_rows_round_trip_and_helper_changes_invalidate_snapshot() {
-        let dir = super::super::tests::dir("tool-rows");
-        super::super::tests::write_bundle(&dir, "tool_rows", "pub fn run() {}");
-        let mut bundle = read(&dir).unwrap().unwrap();
-        assert!(!bundle.needs_mixins());
-        bundle.manifest.inject.push(toml::from_str("id='slot'\nat='game::run'\nkind='head'\naccess='internals'\nwith='handler'\nhash='signature'\n").unwrap());
-        assert!(
-            !bundle.needs_mixins(),
-            "injects never invoke the source tool"
-        );
-        let module: toml::Value = toml::from_str("id='module'\nfile='game.rs'\nname='support'\nsource='src/helper.rs'\nvisibility='pub(crate)'\n").unwrap();
-        bundle
-            .manifest
-            .native
-            .as_mut()
-            .unwrap()
-            .module
-            .push(module.clone().try_into().unwrap());
-        let injection: toml::Value = toml::from_str("id='edit'\ntarget='game::run'\nkind='HEAD'\nhelper='src/helper.rs'\ncancellable=true\npriority=17\nselector='call'\n").unwrap();
-        bundle
-            .manifest
-            .native
-            .as_mut()
-            .unwrap()
-            .mixin
-            .push(injection.clone().try_into().unwrap());
-        let bridge: toml::Value =
-            toml::from_str("id='bridge'\ntarget='game::Thing'\nextra='unchanged'\n").unwrap();
-        bundle
-            .manifest
-            .native
-            .as_mut()
-            .unwrap()
-            .bridge
-            .push(bridge.clone().try_into().unwrap());
-        let state: toml::Value =
-            toml::from_str("id='state'\ntarget='game::Thing'\ntype='u32'\n").unwrap();
-        bundle
-            .manifest
-            .native
-            .as_mut()
-            .unwrap()
-            .state
-            .push(state.clone().try_into().unwrap());
-        assert!(bundle.needs_mixins());
-        fs::write(dir.join("src/helper.rs"), "let a = 1;").unwrap();
-        // Persist the public manifest for the package boundary used by hashing and copying.
-        fs::write(dir.join(manifest::MANIFEST), {
-            let mut document: toml::Value =
-                toml::from_str(&fs::read_to_string(dir.join(manifest::MANIFEST)).unwrap()).unwrap();
-            document["native"].as_table_mut().unwrap().insert(
-                "mixin".into(),
-                toml::Value::try_from(&bundle.native().mixin).unwrap(),
-            );
-            toml::to_string(&document).unwrap()
-        })
-        .unwrap();
-        let key = || {
-            super::super::inject_cache::key(
-                "revision",
-                "mixins",
-                super::super::Profile::Balanced,
-                std::slice::from_ref(&bundle),
-            )
-            .unwrap()
-        };
-        let first = key();
-        fs::write(dir.join("src/helper.rs"), "let a = 2;").unwrap();
-        assert_ne!(first, key());
-        let copied = dir.join("input");
-        copy_tool_input(&bundle, &copied).unwrap();
-        assert_eq!(
-            fs::read_to_string(copied.join("src/helper.rs")).unwrap(),
-            "let a = 2;"
-        );
-        tool_manifest(&bundle).unwrap();
-        let tool: toml::Value =
-            toml::from_str(&fs::read_to_string(dir.join(MANIFEST)).unwrap()).unwrap();
-        assert_eq!(tool["injection"][0], injection);
-        assert_eq!(tool["bridge"][0], bridge);
-        assert_eq!(tool["state"][0], state);
-        assert_eq!(tool["module"][0], module);
-        fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
     fn malformed_layout_retains_identity() {
         let why = refusal("malformed");
         assert!(why.contains("lib: layouts.json is malformed"), "{why}");
     }
     fn refusal(hash: &str) -> String {
-        refusal_with(hash, "", None)
+        refusal_with(hash)
     }
 
-    /// The refusal of a native `addon` with `injects` depending on a wasm `lib` whose layout of
-    /// `T` hashes to `hash` and whose build listed `points`.
-    fn refusal_with(hash: &str, injects: &str, points: Option<&str>) -> String {
+    fn refusal_with(hash: &str) -> String {
         let home = tempfile::tempdir().unwrap();
         let addon = home.path().join("addon");
         let library = home.path().join("lib");
@@ -301,7 +214,7 @@ mod mixed_tests {
         fs::write(
             addon.join(manifest::MANIFEST),
             format!(
-                "{}{injects}[dependencies]\nlib='*'\n[native]\ngame='26.3'\nhorizon='{}'\nmixins='{}'\n",
+                "{}[dependencies]\nlib='*'\n[native]\ngame='26.3'\nhorizon='{}'\nmixins='{}'\n",
                 header("addon"),
                 "a".repeat(40),
                 "b".repeat(40)
@@ -313,15 +226,9 @@ mod mixed_tests {
         fs::write(
             library.join(manifest::MANIFEST),
             format!(
-                "{}[wasm]\nsha512='{}'\ntoolchain='t'\nbuilt_with='t'\n{}",
+                "{}[wasm]\nsha512='{}'\ntoolchain='t'\nbuilt_with='t'\n",
                 header("lib"),
                 horizon_mod_package::manifest::sha512_of(module),
-                points
-                    .map(|points| format!(
-                        "points='{}'\n",
-                        horizon_mod_package::manifest::sha512_of(points.as_bytes())
-                    ))
-                    .unwrap_or_default()
             ),
         )
         .unwrap();
@@ -335,34 +242,11 @@ mod mixed_tests {
             format!(r#"{{"lib":{{"T":"{hash}"}}}}"#),
         )
         .unwrap();
-        if let Some(points) = points {
-            fs::write(library.join(manifest::inject::mod_points::FILE), points).unwrap();
-        }
+
         if hash == "malformed" {
             fs::write(library.join("layouts.json"), b"{").unwrap();
         }
         checked_bundles(home.path()).expect_err("mixed dependency must refuse")
-    }
-
-    #[test]
-    fn a_mod_point_listener_across_targets_is_refused_by_its_reason() {
-        let points = r#"{"crate":"lib","table":"__horizon_points","points":[
-            {"name":"transfer","target":"lib::transfer","hash":"0123456789abcdef",
-             "signature":"lib::transfer: fn transfer(rate: u32) -> u32 [u32]","raw":true,
-             "at_return":true,"returns":"result","host":"none","return_ty":"u32",
-             "listener":"__horizon_points::TransferListener"}]}"#;
-        let inject = |access| {
-            format!("[[inject]]\nid='double'\nat='lib::transfer'\nkind='head'\nwith='double'\naccess='{access}'\nhash='0123456789abcdef'\n")
-        };
-        assert_eq!(
-            refusal_with("0123456789abcdef", &inject("internals"), Some(points)),
-            "addon:double: internals access to lib needs the same target: the same binary on native, the same dependency group on wasm"
-        );
-        // An api record that could cross gets the general refusal.
-        assert!(
-            refusal_with("0123456789abcdef", &inject("api"), Some(points))
-                .ends_with("mixed native and wasm dependencies aren't supported yet")
-        );
     }
 
     #[test]
@@ -376,5 +260,22 @@ mod mixed_tests {
     #[test]
     fn native_to_wasm_matching_layout_is_still_unsupported() {
         assert_eq!(refusal("0123456789abcdef"), "lib is a wasm mod; native mod addon depends on it: mixed native and wasm dependencies aren't supported yet");
+    }
+}
+
+#[cfg(test)]
+mod state_tests {
+    #[test]
+    fn native_state_is_refused_before_staging() {
+        let dir = super::super::tests::dir("state-refusal");
+        super::super::tests::write_bundle(&dir, "stateful", "");
+        let path = dir.join(horizon_mod_package::manifest::MANIFEST);
+        let mut text = std::fs::read_to_string(&path).unwrap();
+        text.push_str("\n[[native.state]]\nid='autosave'\ntarget='game::Game'\nty='u32'\ninitial='0'\nconstructor=[]\n");
+        std::fs::write(path, text).unwrap();
+        let error = super::read(&dir).err().unwrap();
+        assert!(error.contains("E_MIXIN_STATE_LAYOUT"), "{error}");
+        assert!(error.contains("attachment"), "{error}");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

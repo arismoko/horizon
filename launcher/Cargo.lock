@@ -2815,6 +2815,7 @@ dependencies = [
  "horizon-cosmetics",
  "horizon-friends",
  "horizon-mcp",
+ "horizon-mod-api-gen",
  "horizon-mod-package",
  "horizon-mod-point-emit",
  "horizon-platform",
@@ -3045,6 +3046,7 @@ dependencies = [
  "horizon-world",
  "log",
  "ureq",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

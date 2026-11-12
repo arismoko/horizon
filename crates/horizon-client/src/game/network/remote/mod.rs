@@ -11,6 +11,9 @@ mod interaction_actions;
 mod recipe_properties;
 mod use_item;
 
+mod block_entity_data;
+#[cfg(test)]
+mod block_entity_data_tests;
 use super::remote_chunks::{ChunkDecoder, ChunkFormat, Next};
 use super::render_tick::{mob_tracking_body, player_tracking_body};
 use super::{Dim, Game, Mining, Screen, level_sounds::LevelSound};
@@ -37,7 +40,6 @@ use horizon_client::{
     sprint::Keys,
     streaming::{ChunkGenerator, Proto, Streaming},
     tab_list::SPECTATOR,
-    world::World,
 };
 use horizon_core::{geometry::Vec3, random::RandomSource};
 use horizon_protocol::{
@@ -1065,7 +1067,7 @@ impl Game<'_> {
         streaming.remote = true;
         streaming.radius = self.settings.render_distance;
         self.streaming = streaming;
-        self.world = World::new(self.res.facts().air, 0);
+        self.world = Game::world_for_mods(self.res.facts().air, 0);
         self.save = Arc::new(SaveDir::new(
             std::env::temp_dir().join("horizon-remote-unused"),
             horizon_client::save::LevelShape::OVERWORLD,
@@ -1328,7 +1330,7 @@ impl Game<'_> {
         streaming.remote = true;
         streaming.radius = self.settings.render_distance;
         self.streaming = streaming;
-        self.world = World::new(self.res.facts().air, 0);
+        self.world = Game::world_for_mods(self.res.facts().air, 0);
         self.save = Arc::new(SaveDir::new(
             std::env::temp_dir().join("horizon-replay-unused"),
             horizon_client::save::LevelShape::OVERWORLD,
@@ -2879,7 +2881,7 @@ impl Game<'_> {
     }
     /// Every column goes with the client level. Returns the positions it
     /// freed (`forget_remote_columns`).
-    fn forget_all_remote_columns(&mut self) -> Vec<(i32, i32)> {
+    pub(in crate::game) fn forget_all_remote_columns(&mut self) -> Vec<(i32, i32)> {
         let mut gone = self.world.chunks.keys().copied().collect();
         self.forget_remote_columns(&mut gone, false)
     }
@@ -2889,7 +2891,7 @@ impl Game<'_> {
     /// far terrain keeps their last state (`server_terrain`). Returns the
     /// positions it freed, in `gone`'s order: only those still resident,
     /// so a later forget of the same positions frees nothing.
-    fn forget_remote_columns(
+    pub(in crate::game) fn forget_remote_columns(
         &mut self,
         gone: &mut horizon_client::fast_hash::FxHashSet<(i32, i32)>,
         keep_terrain: bool,
@@ -2905,7 +2907,7 @@ impl Game<'_> {
             .copied()
             .collect();
         for &(x, z) in &freed_at {
-            self.client_chunk_unload(x, z);
+            self.client_chunk_unload(x, z, keep_terrain);
         }
         let freed =
             horizon_client::streaming::Streaming::take_remote_columns(&mut self.world, gone);
@@ -2931,78 +2933,6 @@ impl Game<'_> {
         }
         gone.clear();
         freed_at
-    }
-    /// `handleBlockEntityData`: the block entity at `pos`, when it is of the
-    /// packet's type, loads the tag (`loadWithComponents`); an empty tag
-    /// changes nothing.
-    pub(super) fn remote_block_entity_data(&mut self, pos: [i32; 3], kind: i32, tag: &Tag) {
-        let key = (pos[0], pos[1], pos[2]);
-        let Some(name) = self
-            .remote
-            .as_ref()
-            .and_then(|r| r.builtin.get("minecraft:block_entity_type")?.name(kind))
-        else {
-            return;
-        };
-        // A decorated pot is no block entity here: its tag is kept with the chunk.
-        if name == "minecraft:decorated_pot" {
-            if let Tag::Compound(fields) = tag
-                && !fields.is_empty()
-            {
-                let mut full = fields.clone();
-                full.insert("id".into(), Tag::String(name.into()));
-                for (k, v) in ["x", "y", "z"].into_iter().zip(pos) {
-                    full.insert(k.into(), Tag::Int(v));
-                }
-                super::spill::put_saved_entity(&mut self.world, pos, Tag::Compound(full));
-                // The section is drawn again with the pot's sherds.
-                let state = self.world.block(pos[0], pos[1], pos[2]);
-                let _ = self.world.set(pos[0], pos[1], pos[2], state);
-            }
-            return;
-        }
-        let Tag::Compound(fields) = tag else {
-            return;
-        };
-        // Only the declared type on one of its valid blocks accepts an update tag.
-        // Nothing is drawn from it yet, so its section stays as it is.
-        let block = self.world.block(pos[0], pos[1], pos[2]);
-        if let Some(BlockEntity::Mod(m)) = self.world.block_entities.get_mut(&key) {
-            if m.id() == name
-                && horizon_client::block_entity_types::valid(
-                    &self.res.facts().get(block).name,
-                    name,
-                ) == Some(true)
-            {
-                m.merge_update_tag(fields);
-            }
-            return;
-        }
-        let Some(entity) = self.world.block_entities.get(&key) else {
-            return;
-        };
-        if entity.id() != name || fields.is_empty() {
-            return;
-        }
-        let mut full = fields.clone();
-        full.insert("id".into(), Tag::String(name.into()));
-        for (k, v) in ["x", "y", "z"].into_iter().zip(pos) {
-            full.insert(k.into(), Tag::Int(v));
-        }
-        if let Some((_, mut loaded)) =
-            horizon_client::save::decode_block_entity(&Tag::Compound(full))
-        {
-            keep_client_state(self.world.block_entities.get(&key), &mut loaded);
-            let command_block = matches!(loaded, BlockEntity::CommandBlock(_));
-            self.world.block_entities.insert(key, loaded);
-            self.update_spawner_display(key);
-            // The section is drawn again with what the block entity shows.
-            let state = self.world.block(pos[0], pos[1], pos[2]);
-            let _ = self.world.set(pos[0], pos[1], pos[2], state);
-            if command_block {
-                self.command_block_data_arrived(key);
-            }
-        }
     }
     /// `handleAnimate`: a player wakes up, or an entity gets the critical
     /// hit (`CRIT`) or magic critical hit (`ENCHANTED_HIT`) emitter.
@@ -3081,7 +3011,7 @@ impl Game<'_> {
                     if previous.is_some() {
                         self.forget_block_entity_attachments(pos);
                     }
-                    self.world.block_entities.insert(pos, entity);
+                    self.world.block_entities.replace(pos, entity);
                 }
             }
             None => {
@@ -3213,7 +3143,7 @@ impl Game<'_> {
             let moving = |s: BlockStateId| &*facts.get(s).name == "minecraft:moving_piston";
             if moving(previous) && !moving(state) {
                 let at = horizon_core::position::BlockPos::new(pos[0], pos[1], pos[2]);
-                self.block_ticks.moving_pistons.retain(|(p, _)| *p != at);
+                self.forget_moving_piston(at);
                 self.moving_pistons_stale = true;
             }
         }
@@ -3222,7 +3152,7 @@ impl Game<'_> {
             && target == pos
             && !self.res.facts().is_air(state)
         {
-            let s = self.res.facts().get(state).sounds.clone();
+            let s = self.own_sound_type(pos, state, mod_api::BlockSoundCause::Place);
             let at = [
                 f64::from(pos[0]) + 0.5,
                 f64::from(pos[1]) + 0.5,
@@ -5746,7 +5676,7 @@ impl Game<'_> {
                     self.drop_remote_chunks_out_of_range((p.x, p.z), distance);
                 }
             }
-            C::BlockEntityData(p) => self.remote_block_entity_data(p.pos, p.kind, &p.tag),
+            C::BlockEntityData(p) => self.remote_block_entity_packet(p),
             C::OpenSignEditor(p) => self.remote_open_sign_editor(p),
             C::OpenBook(p) => self.remote_open_book(p.hand),
             // handleSetSpawn: ClientLevel.setRespawnData, which spawn compasses point at.
@@ -7068,8 +6998,13 @@ impl Game<'_> {
         self.eye += (player.dimensions.eye_height - self.eye) * 0.5;
         for event in events {
             match event {
-                horizon_client::motion::MotionEvent::Emission { state, muffled, .. } => {
-                    let sounds = self.res.facts().get(state).sounds.clone();
+                horizon_client::motion::MotionEvent::Emission {
+                    position,
+                    state,
+                    muffled,
+                } => {
+                    let at = [position.x, position.y, position.z];
+                    let sounds = self.own_sound_type(at, state, mod_api::BlockSoundCause::Step);
                     // Player.playStepSound: muffled under the swim sound in water.
                     let (volume, pitch) = if muffled {
                         (sounds.volume * 0.05, sounds.pitch * 0.8)
@@ -8252,7 +8187,7 @@ impl Game<'_> {
             }));
         }
     }
-    fn creative_stacks(&self) -> Vec<Option<ItemStack>> {
+    pub(in crate::game) fn creative_stacks(&self) -> Vec<Option<ItemStack>> {
         creative_sync_stacks(&self.inventory, &self.offhand, &self.armor)
     }
     /// `CreativeInventoryListener.slotChanged`: `handleCreativeModeItemAdd` for every slot the
@@ -8292,7 +8227,7 @@ impl Game<'_> {
     }
     /// The slots a server packet changed since `before` are as the server has them; the
     /// others keep what was last sent, so a creative click made since still goes out.
-    fn remote_synced_since(&mut self, before: &[Option<ItemStack>]) {
+    pub(in crate::game) fn remote_synced_since(&mut self, before: &[Option<ItemStack>]) {
         let now = self.creative_stacks();
         if let Some(r) = self.remote.as_mut() {
             mark_synced(&mut r.synced, before, now);
@@ -8550,20 +8485,8 @@ impl Game<'_> {
         // Block.playerWillDestroy's destroy event (particles and the break
         // sound), which BaseFireBlock skips: the server's extinguish sound
         // is all a player hears.
-        let facts = self.res.facts().get(state);
-        if !facts.has_class("BaseFireBlock") {
-            let s = facts.sounds.clone();
-            let at = [
-                f64::from(pos[0]) + 0.5,
-                f64::from(pos[1]) + 0.5,
-                f64::from(pos[2]) + 0.5,
-            ];
-            self.audio.play(
-                &s.break_sound,
-                Some(at),
-                (s.volume + 1.0) / 2.0,
-                s.pitch * 0.8,
-            );
+        if !self.res.facts().get(state).has_class("BaseFireBlock") {
+            self.play_break_sound(pos, state);
             self.destroy_particles(pos, state);
         }
         // The server's block update follows (waterlogged blocks leave water).

@@ -116,6 +116,40 @@ pub fn horizon_label(version: &str) -> String {
     }
 }
 
+/// Enabled wasm packages that need the patchable engine, never native compilation.
+pub fn wasm_points(home: &Path) -> Vec<horizon_mod_package::index::native::Bundle> {
+    use std::io::Read;
+    wasm_hmods(home)
+        .into_iter()
+        .filter_map(|path| {
+            let file = fs::File::open(&path).ok()?;
+            let mut zip = zip::ZipArchive::new(file).ok()?;
+            let package = horizon_mod_package::Package::read_zip(&mut zip).ok()?;
+            if package.manifest.wasm.is_none()
+                || package.manifest.inject.is_empty()
+                || !java::is_enabled(home, &package.manifest.id)
+            {
+                return None;
+            }
+            let mut files = std::collections::BTreeMap::new();
+            for i in 0..zip.len() {
+                let mut entry = zip.by_index(i).ok()?;
+                if entry.is_dir() {
+                    continue;
+                }
+                let name = entry.name().ok()?.into_owned();
+                let mut bytes = Vec::new();
+                entry.read_to_end(&mut bytes).ok()?;
+                files.insert(name, bytes);
+            }
+            Some(horizon_mod_package::index::native::Bundle {
+                manifest: package.manifest,
+                files,
+            })
+        })
+        .collect()
+}
+
 /// The native mods turned on in game folder `home`, read from their `.hmod`s. One that can't be
 /// read always counts, with its file name and no version, so it needs a build (which says why):
 /// the on/off list is keyed by the manifest id, which an unreadable file can't give.
@@ -134,6 +168,10 @@ pub fn enabled(home: &Path) -> Vec<Mod> {
             Err(_) => out.push((stem(&path), String::new(), None)),
         }
     }
+    out.extend(wasm_points(home).into_iter().map(|b| {
+        let digest = native_mods::digest(b.files.iter().map(|(n, d)| (n.as_str(), d.as_slice())));
+        (b.manifest.id, b.manifest.version, Some(digest))
+    }));
     out
 }
 
@@ -271,6 +309,7 @@ pub fn fingerprint(home: &Path, version: Option<&str>) -> String {
     out += &fs::read_to_string(home.join("horizon-mods.txt")).unwrap_or_default();
     for path in hmods(home)
         .into_iter()
+        .chain(wasm_hmods(home))
         .flat_map(|p| [p.clone(), p.with_extension("origin.json")])
         .chain([home.join("mod-browser.json")])
     {
@@ -279,6 +318,18 @@ pub fn fingerprint(home: &Path, version: Option<&str>) -> String {
         out += &format!("\n{} {:?} {time:?}", path.display(), meta.map(|m| m.len()));
     }
     out
+}
+
+fn wasm_hmods(home: &Path) -> Vec<std::path::PathBuf> {
+    let mut paths: Vec<_> = fs::read_dir(home.join(horizon_mod_package::mod_list::DIR))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "hmod"))
+        .collect();
+    paths.sort();
+    paths
 }
 
 fn hmods(home: &Path) -> Vec<std::path::PathBuf> {
@@ -326,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn regular_wasm_package_changes_leave_the_build_view_cache_alone() {
+    fn wasm_package_changes_invalidate_the_build_view_cache() {
         let home = std::env::temp_dir().join(format!("wasm-build-view-{}", std::process::id()));
         fs::create_dir_all(home.join(horizon_mod_package::mod_list::DIR)).unwrap();
         let package = home
@@ -335,13 +386,11 @@ mod tests {
         fs::write(&package, b"a").unwrap();
         let before = fingerprint(&home, None);
         fs::write(&package, b"ab").unwrap();
-        // Declared internals of a wasm package do not select native build inputs: the staged
-        // game carries the whole generated catalog, and the loader resolves each wasm mod's
-        // declarations against it at load time. Only native packages are build inputs.
-        assert_eq!(
+        // Package changes must re-read the manifest to notice added or removed listeners.
+        assert_ne!(
             before,
             fingerprint(&home, None),
-            "a wasm package is not a build input: the native build never reads it"
+            "wasm packages invalidate the selection cache"
         );
         let native = home.join(native_mods::INSTALLED);
         fs::create_dir_all(&native).unwrap();
@@ -352,6 +401,54 @@ mod tests {
             "a native package is a build input"
         );
         fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn wasm_listeners_select_patchable_build_without_native_compilation() {
+        let home = tempfile::tempdir().unwrap();
+        let folder = home.path().join(horizon_mod_package::mod_list::DIR);
+        fs::create_dir_all(&folder).unwrap();
+        // A shared wasm member with the required three exports.
+        let mut module = b"\0asm\x01\0\0\0".to_vec();
+        let mut section = |id: u8, bytes: &[u8]| {
+            module.extend([id, bytes.len() as u8]);
+            module.extend(bytes);
+        };
+        section(0, b"\x08dylink.0\x01\x04\0\0\0\0");
+        section(1, &[1, 0x60, 0, 0]);
+        section(3, &[1, 0]);
+        let mut exports = vec![3];
+        for name in ["horizon_layout", "horizon_in", "horizon_hook"] {
+            exports.push(name.len() as u8);
+            exports.extend(name.as_bytes());
+            exports.extend([0, 0]);
+        }
+        section(7, &exports);
+        section(10, &[1, 2, 0, 0x0b]);
+        for inject in [false, true] {
+            let rows = if inject {
+                "[[inject]]\nid='count'\nat=\"horizon_client::game::Game<'_>::tick\"\nkind='head'\nwith='tick'\n"
+            } else {
+                ""
+            };
+            let manifest = format!("id='wasm_test'\nname='Wasm test'\nversion='1.0.0'\napi='0.2'\ncapabilities=['registries']\n{rows}[wasm]\nsha512='{}'\ntoolchain='1.99.1'\nbuilt_with='selection fixture'\n", horizon_mod_package::manifest::sha512_of(&module));
+            let bytes =
+                horizon_mod_package::Package::write_files(&manifest, &[("mod.wasm", &module)])
+                    .unwrap();
+            fs::write(folder.join("test.hmod"), bytes).unwrap();
+            java::set_enabled(home.path(), "wasm_test", true).unwrap();
+            assert_eq!(enabled(home.path()).len(), usize::from(inject));
+            if inject {
+                let staged = native_mods::stage_installed(home.path(), home.path().join("staged"))
+                    .unwrap()
+                    .unwrap();
+                let bundles = native_mods::bundles(&staged).unwrap();
+                assert_eq!(bundles.len(), 1);
+                assert!(bundles[0].manifest.native.is_none());
+            }
+            java::set_enabled(home.path(), "wasm_test", false).unwrap();
+            assert!(enabled(home.path()).is_empty());
+        }
     }
 
     #[test]
@@ -479,11 +576,7 @@ mod tests {
 
     #[test]
     fn a_build_made_in_another_mode_needs_a_build() {
-        use native_mods::Profile::{Developer, Optimized};
-        assert_eq!(
-            in_mode(State::UpToDate, Some(Developer), Optimized),
-            State::Outdated
-        );
+        use native_mods::Profile::Optimized;
         assert_eq!(in_mode(State::UpToDate, None, Optimized), State::Outdated);
         assert_eq!(
             in_mode(State::UpToDate, Some(Optimized), Optimized),

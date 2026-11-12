@@ -1289,18 +1289,23 @@ impl Game<'_> {
         self.trigger_block("minecraft:item_used_on_block", hit.pos, before);
         self.audio
             .play("minecraft:item.lodestone_compass.lock", Some(at), 1.0, 1.0);
-        let target = Tag::compound([(
-            "target",
-            Tag::compound([
-                ("dimension", Tag::String(self.dimension_id().into())),
-                ("pos", Tag::IntArray(vec![x, y, z])),
-            ]),
-        )]);
+        let target = Tag::compound([
+            (
+                "target",
+                Tag::compound([
+                    ("dimension", Tag::String(self.dimension_id().into())),
+                    ("pos", Tag::IntArray(vec![x, y, z])),
+                ]),
+            ),
+            ("tracked", Tag::Byte(1)),
+        ]);
         if !self.creative && stack.count == 1 {
-            if let Some(held) = self.held_mut() {
-                held.data_mut()
-                    .set_other("minecraft:lodestone_tracker", Some(target));
-            }
+            self.edit_block_use_stack(|cell| {
+                if let Some(held) = cell {
+                    held.data_mut()
+                        .set_other("minecraft:lodestone_tracker", Some(target.clone()));
+                }
+            });
         } else {
             let mut locked = stack.clone();
             locked.count = 1;

@@ -52,17 +52,7 @@ pub fn sdk_catalog(root: &Path, api_version: &str) -> Result<String, String> {
     }
     let points = crate::points::game_points(root)?
         .into_iter()
-        .map(|point| {
-            let access = match (point.api_refusal.is_none(), point.raw) {
-                (true, true) => vec!["api", "internals"],
-                (true, false) => vec!["api"],
-                (false, true) => vec!["internals"],
-                (false, false) => vec![],
-            };
-            let mut value = serde_json::to_value(point).map_err(|e| e.to_string())?;
-            value["access"] = json!(access);
-            Ok(value)
-        })
+        .map(|point| serde_json::to_value(point).map_err(|e| e.to_string()))
         .collect::<Result<Vec<_>, String>>()?;
     serialize(api_version, hooks, points)
 }

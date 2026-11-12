@@ -15,6 +15,17 @@ How to read the numbers:
   a private engine function counts as one.
 - Strands come from the `RULES` table in the scanner, the first matching pattern winning; correct a strand there.
 
+## Current vocabulary ownership (#2587)
+
+The [checked state inventory](mod-vocab-state.md) records every production static/TLS declaration
+and its ownership reason. The concrete Parts authoring implementation, diagnostic warning history,
+profiling, resource access and load snapshots live above the engine. Descriptor vocabulary and direct
+installed lookup reads stay below it. The unchanged points machinery is the temporary unsafe/state
+exception pending #2697; the first #2587 PR retains `deny`, not `forbid`, and is only part of that issue.
+The proposals and generated audit counts below describe the original split, not a claim that the
+current vocabulary contains no process state.
+The checker's canonical-path membership is case-sensitive by design.
+
 ## Strands and their proposals
 
 **Loading (phase 1): move.** `mod_list.rs`, package reading (`horizon-mod-package`), the wasm start
@@ -103,5 +114,5 @@ host areas by strand, and the vocabulary split) are built from the current tree,
 
 - locally: `python3 tools/layering/scan_engine_mod_edges.py --map target/layering/mod-host-map-tables.md` (or with
   no argument, to print them);
-- for main: the `mod-host-map` artifact of the `verify` job of the latest `dyna-checks` run on main. Only pushes to
+- for main: the `mod-host-map` artifact of the `verify-static` job of the latest `dyna-checks` run on main. Only pushes to
   main build it; pull request runs don't.

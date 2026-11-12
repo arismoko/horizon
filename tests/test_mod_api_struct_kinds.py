@@ -11,15 +11,44 @@ from tools.mod_api_struct_kinds import census, defaults_and_constructors, struct
 NEITHER_LIMIT = 141
 
 
-def kinds(source):
+def kinds(source, file=""):
     """Name -> (non_exhaustive, derives_default, literal) for a fixture."""
-    return {name: rest for name, _, *rest in structs(source)}
+    return {name: rest for name, _, *rest in structs(source, file)}
 
 
 class StructKindFixtures(unittest.TestCase):
     def test_a_struct_of_public_fields_is_built_by_literal(self):
         self.assertEqual(kinds('pub struct A { pub x: u8, pub y: Vec<(u8, u8)> }'),
                          {'A': [False, False, True]})
+
+    def test_only_explicitly_hidden_platform_plumbing_is_excluded(self):
+        marker = '// hidden: platform-owned instrumentation plumbing, not a mod authoring surface.\n'
+        source = (marker + '#[doc(hidden)]\npub struct EngineSocket { pub callback: fn() }\n\n'
+                  '#[doc(hidden)]\npub struct HiddenModValue { pub x: u8 }\n\n'
+                  + marker + 'pub struct MarkedModValue { pub x: u8 }\n\n'
+                  'pub struct ModValue { pub x: u8 }\n')
+        self.assertEqual(set(kinds(source, 'crates/horizon-mod-vocab/src/dispatch_scope.rs')),
+                         {'HiddenModValue', 'MarkedModValue', 'ModValue'})
+
+    def test_doc_hidden_alone_is_counted_even_inside_a_socket_file(self):
+        source = '#[doc(hidden)]\npub struct ModValue { pub x: u8 }'
+        self.assertEqual(kinds(source, 'crates/horizon-mod-vocab/src/dispatch_scope.rs'),
+                         {'ModValue': [False, False, True]})
+
+    def test_platform_marker_outside_socket_files_cannot_exempt_a_struct(self):
+        source = ('// hidden: platform-owned instrumentation plumbing, not a mod authoring surface.\n'
+                  '#[doc(hidden)]\npub struct ModValue { pub x: u8 }')
+        for file in ('crates/horizon-mod-vocab/src/item/types.rs',
+                     'crates/horizon-mod-api/src/dispatch_scope.rs', ''):
+            with self.subTest(file=file):
+                self.assertEqual(kinds(source, file), {'ModValue': [False, False, True]})
+
+    def test_platform_marker_does_not_leak_across_a_declaration(self):
+        source = ('// hidden: platform-owned instrumentation plumbing, not a mod authoring surface.\n'
+                  '#[doc(hidden)]\npub struct EngineSocket { pub callback: fn() }\n'
+                  '#[doc(hidden)]\npub struct HiddenModValue { pub x: u8 }')
+        self.assertEqual(set(kinds(source, 'crates/horizon-mod-vocab/src/dispatch_scope.rs')),
+                         {'HiddenModValue'})
 
     def test_a_private_or_crate_field_stops_a_literal(self):
         found = kinds('pub struct A { pub x: u8, y: u8 } pub struct B { pub(crate) x: u8 }')

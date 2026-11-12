@@ -304,7 +304,16 @@ pub(super) fn emit<'a>(
                     "& ItemStack" => {
                         format!("{table}(|| super::content::registry_keys::item_id({key}.item()))")
                     }
+                    "BlockEntityTypeKey" if table == "block_entity" => format!(
+                        "block_entity_kind(|| super::content::registry_keys::block_entity_type_name({key}))"
+                    ),
                     "& str" => format!("{table}(|| Some({key}))"),
+                    "BlockEntityRef" if table == "block_entity" => {
+                        let host = &host.as_ref().ok_or("block entity handle needs a Host")?.0;
+                        format!(
+                            "block_entity_kind(|| {key}.kind({host}).and_then(super::content::registry_keys::block_entity_type_name))"
+                        )
+                    }
                     // An entity's type id need not be its block's: its own table.
                     "& ModBlockEntity" | "& mut ModBlockEntity" => {
                         format!("block_entity_kind(|| Some({key}.id()))")
@@ -531,7 +540,7 @@ pub(super) fn emit<'a>(
                     ty.to_token_stream()
                         .to_string()
                         .split(|c: char| !c.is_alphanumeric())
-                        .any(|word| matches!(word, "BlockState" | "LandingWrite"))
+                        .any(|word| matches!(word, "BlockState" | "LandingWrite" | "InsideWrite"))
                 });
             if block_carrier {
                 let engine: Vec<_> = carried
@@ -548,6 +557,9 @@ pub(super) fn emit<'a>(
                                     }
                                     "LandingWrite" => {
                                         *ty = syn::parse_quote!(horizon_world::level::LandingWrite)
+                                    }
+                                    "InsideWrite" => {
+                                        *ty = syn::parse_quote!(horizon_world::level::InsideWrite)
                                     }
                                     _ => syn::visit_mut::visit_type_mut(self, ty),
                                 }
@@ -788,14 +800,14 @@ pub(super) fn emit<'a>(
             None if name == "setting_changed" => (
                 String::new(),
                 format!(
-                    "for (_, owner) in super::listening(HookId::{hook_id}) {{ if owner.id != {event}.mod_id {{ continue; }} let (_entered, {mod_item}) = super::enter_listener(owner, \"{name}\"); {} }}",
+                    "{{ let mut {entered} = super::runtime::ListenerScope::new(); for (_, owner) in super::listening(HookId::{hook_id}) {{ if owner.id != {event}.mod_id {{ continue; }} let {mod_item} = {entered}.enter(owner, \"{name}\"); {} }} }}",
                     call(&mod_item, "break"),
                 ),
             ),
             None if mod_cancel => (
                 String::new(),
                 format!(
-                    "for ({receives}, {mod_entry}) in super::listening(HookId::{hook_id}) {{ if {event}.cancelled && !{receives} {{ continue; }} let ({entered}, {mod_item}) = super::enter_listener({mod_entry}, \"{name}\"); if matches!({mod_item}.{name}({invoke}), Flow::Cancel) {{ {event}.cancelled = true; }} }} *{o} = {event}.cancelled;",
+                    "{{ let mut {entered} = super::runtime::ListenerScope::new(); for ({receives}, {mod_entry}) in super::listening(HookId::{hook_id}) {{ if {event}.cancelled && !{receives} {{ continue; }} let {mod_item} = {entered}.enter({mod_entry}, \"{name}\"); if matches!({mod_item}.{name}({invoke}), Flow::Cancel) {{ {event}.cancelled = true; }} }} }} *{o} = {event}.cancelled;",
                     o = out.unwrap()
                 ),
             ),
@@ -902,7 +914,7 @@ fn stack_crossing_routed(
         "LootContext",
         "ParticleOptions",
     ];
-    const BLOCK_VALUES: &[&str] = &["BlockState", "LandingWrite"];
+    const BLOCK_VALUES: &[&str] = &["BlockState", "LandingWrite", "InsideWrite"];
     const INFALLIBLE_VALUES: &[&str] = &["GuiDraw", "Text"];
     fn contains_boundary(ty: &Type, names: &[&str]) -> bool {
         use syn::visit::Visit;
@@ -1859,7 +1871,13 @@ struct Owner {{ id: &'static str }}
 static OWNERS: [Owner; 2] = [Owner {{ id: "a" }}, Owner {{ id: "b" }}];
 fn listened(_: generated::HookId) -> bool {{ true }}
 fn listening(_: generated::HookId) -> impl Iterator<Item=(bool, &'static Owner)> {{ OWNERS.iter().map(|m| (false, m)) }}
-fn enter_listener<'a>(owner: &'a Owner, _: &str) -> ((), &'a Owner) {{ ((), owner) }}
+mod runtime {{
+    pub struct ListenerScope;
+    impl ListenerScope {{
+        pub fn new() -> Self {{ Self }}
+        pub fn enter<'a>(&mut self, owner: &'a super::Owner, _: &str) -> &'a super::Owner {{ owner }}
+    }}
+}}
 impl Owner {{ fn setting_changed(&self, _: &mut dyn generated::ClientHost, _: &mut generated::SettingChangedEvent<'_>) {{ if self.id == "a" {{ A.fetch_add(1, Ordering::Relaxed); }} else {{ B.fetch_add(1, Ordering::Relaxed); }} }} }}
 mod generated {{
 pub trait ClientHost {{}}

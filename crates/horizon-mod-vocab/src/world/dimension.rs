@@ -6,7 +6,8 @@
 
 /// The generator every level has without a mod's own: vanilla's
 /// `NoiseBasedChunkGenerator`.
-pub(crate) const NOISE_GENERATOR: &str = "minecraft:noise";
+/// The built-in noise generator identifier shared with cold registration validation.
+pub const NOISE_GENERATOR: &str = "minecraft:noise";
 
 /// Whether `c` is `#rrggbb`.
 fn hex_color(c: &str) -> bool {

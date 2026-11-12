@@ -320,6 +320,9 @@ impl crate::light::LightWorld for ChunkMap {
     fn layout(&self) -> crate::chunk::ColumnLayout {
         self.columns.layout()
     }
+    fn dynamic_emission(&self, x: i32, y: i32, z: i32) -> Option<u8> {
+        self.columns.dynamic_emission(x, y, z)
+    }
 }
 
 #[cfg(test)]

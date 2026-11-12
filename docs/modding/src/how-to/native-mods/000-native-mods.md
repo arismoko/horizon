@@ -3,16 +3,6 @@
 
 ## Native mods
 
-Behaviour that needs code (a new key, a HUD, a tool that changes how mining works) is a native mod.
-It is one flat Rust project with `horizon-mod.toml`, `Cargo.toml` and `src/`, beside its `assets/` and `data/`.
-Start with `cargo horizon-mod new my_mod --template native` and implement the typed hooks;
-raw injections are a rare escape hatch ([Injections](../../injections.md)). How the launcher builds one, what it pins and why it is not sandboxed:
-[native mods](../native-mods.md).
-The typed hook API is generated automatically at build time, in debug and release builds alike; its generated
-Rust files are build output, not files to regenerate or commit. Engine contributors adding a hook only run
-`cargo run -p xtask -- mod-api` to fill its hand-written placeholder body
-([Adding a hook](../../concepts/trait-mods/027-adding-a-hook.md#adding-a-hook)).
-
 A native mod's config files go in the game's shared `config/` folder, beside `options.txt` (on a dedicated server,
 beside `server.properties`), as Fabric and NeoForge mods' do: the mod picks its own file names, such as
 `config/<mod id>.json` or a folder `config/<mod id>/`. It reads and writes them with `Host::config_files()`, which is
@@ -37,31 +27,9 @@ for their exact availability and frame-time semantics.
 
 The client hook `native_render_name_tag(entity_id, kind, vanilla_visible, visible, text)` runs at player and mob, armor stand, and item frame name decisions before shared geometry. Set `visible` to override vanilla and `text` to `Some` literal replacement text (NeoForge `RenderNameTagEvent`). Distance and entity availability still apply; the local player's tag is considered only when its own camera and settings gates allow it.
 
-Native mods are Rust projects that implement the game's typed hook API (`impl Hooks`). Start with
-`cargo horizon-mod new my_mod --template native` ([Trait mods](../../concepts/trait-mods/000-trait-mods-draft.md#trait-mods-draft)).
-Each project has one `horizon-mod.toml`, with exact build pins in `[native]`, and ships as one `.hmod`.
-For the rare case the API does not cover, internals injections use compiled raw slots only;
-unlisted targets are refused. Use [mixins](../../mixins.md) for supported native source edits. See [Injections](../../injections.md).
-An injection is an escape hatch; request a typed hook for the behavior it needs.
-
 Native mods are native code with the player's rights, not sandboxed. The first install shows a trust notice,
 and every build waits behind a red warning; the registry lists one only after a review (its later releases are
 checked by machine). They play in a game of their own, built for the instance they are installed in.
-
-If starting a managed native client directly reports unregistered cache directories, use Play from
-the launcher with the same data directory. Select the intended Horizon instance and installed build,
-or run `horizon-launcher play --instance <instance> --version <tag>`; `horizon-launcher versions
---installed` lists installed tags. Without `--version`, an instance's pin or the launcher's selection
-may choose another build. A Cargo `target/` executable is not itself an installed version: use the
-published native build for that instance instead. Ordinary Play requires a signed-in account that owns
-Minecraft: Java Edition. For an unsigned developer installation with persisted developer provenance,
-`HORIZON_LAUNCHER_DEVELOPER_OFFLINE=1` enables account-free, single-player-only Play if the
-installed game advertises `--developer-single-player` through `--launch-api`; rebuild and reinstall
-older developer games and their native mods. Signed builds and their native descendants still require
-the account. See [launcher commands](../../../../launcher-commands.md) for the offline restrictions.
-Starting the launcher or asking for `--help` alone does not register the
-directories. Standalone developer builds with no launcher registry among the executable's ancestors
-can still be run directly.
 
 The game's Mods screen only lists code mods (it has no switch). A code mod's settings page,
 when it has one, opens from the Config button. The launcher decides which mods are on. A browser install that

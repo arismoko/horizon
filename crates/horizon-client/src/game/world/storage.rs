@@ -92,6 +92,11 @@ impl Game<'_> {
     /// the action bar names the container and one chest-locked sound plays.
     /// True when the open is refused.
     pub(super) fn refuse_locked_container(&mut self, key: (i32, i32, i32), name: &str) -> bool {
+        // A carrier transfer fence holds this cell: its block entity's
+        // container does not open while the operation runs.
+        if self.world.carrier_fences.locks_cell(&[key.0, key.1, key.2]) {
+            return true;
+        }
         let Some(default_key) = horizon_client::containers::default_name_key(name) else {
             return false;
         };

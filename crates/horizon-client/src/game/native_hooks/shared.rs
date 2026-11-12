@@ -478,56 +478,8 @@ const SHAKE_MAX_DEGREES: f32 = 10.0;
 /// The largest offset a shake gives, in blocks, along each axis.
 const SHAKE_MAX_OFFSET: f32 = 0.5;
 
-/// The pose a native mod asks for the first-person hand, each out-of-range
-/// or non-finite component replaced by its identity.
-pub(super) fn hand_pose_matrix(values: [f32; 7]) -> glam::Mat4 {
-    let valid = |value: f32, min: f32, max: f32, default: f32| {
-        if value.is_finite() && (min..=max).contains(&value) {
-            value
-        } else {
-            default
-        }
-    };
-    let [x, y, z, pitch, yaw, roll, scale] = values;
-    glam::Mat4::from_translation(glam::Vec3::new(
-        valid(x, -16.0, 16.0, 0.0),
-        valid(y, -16.0, 16.0, 0.0),
-        valid(z, -16.0, 16.0, 0.0),
-    )) * glam::Mat4::from_rotation_x(valid(pitch, -3600.0, 3600.0, 0.0).to_radians())
-        * glam::Mat4::from_rotation_y(valid(yaw, -3600.0, 3600.0, 0.0).to_radians())
-        * glam::Mat4::from_rotation_z(valid(roll, -3600.0, 3600.0, 0.0).to_radians())
-        * glam::Mat4::from_scale(glam::Vec3::splat(valid(scale, 0.01, 100.0, 1.0)))
-}
-
-/// `shake` scaled by `scale` (Distortion Effects) and bounded on each axis;
-/// a value that isn't finite counts as none.
-fn bounded_shake(shake: Shake, scale: f32) -> Shake {
-    let scale = if scale.is_finite() {
-        scale.clamp(0.0, 1.0)
-    } else {
-        1.0
-    };
-    let turn = |v: f32| {
-        if v.is_finite() {
-            (v * scale).clamp(-SHAKE_MAX_DEGREES, SHAKE_MAX_DEGREES)
-        } else {
-            0.0
-        }
-    };
-    let shift = |v: f32| {
-        if v.is_finite() {
-            (v * scale).clamp(-SHAKE_MAX_OFFSET, SHAKE_MAX_OFFSET)
-        } else {
-            0.0
-        }
-    };
-    Shake {
-        pitch: turn(shake.pitch),
-        yaw: turn(shake.yaw),
-        roll: turn(shake.roll),
-        offset: shake.offset.map(shift),
-    }
-}
+use camera_pose::bounded_shake;
+pub(super) use camera_pose::hand_pose_matrix;
 
 /// The pose a bounded shake multiplies into the projection, after the view
 /// bobbing: the offset, then roll, pitch and yaw.
@@ -1236,16 +1188,18 @@ impl Game<'_> {
         };
         Some(LivingRef::new(EntityRef::new(epoch, id)))
     }
-    /// Deliver the contacts the batch just ticked recorded, in order: `entity_inside` and
-    /// `minecart_pass` to the parts, and the writes a landing asked for to the level. A contact is skipped when its
-    /// entity is gone (an item merged away later in the batch) or the block at its position
-    /// is no longer the state it touched, as vanilla never sees a stale one.
+    /// Deliver what the batch just ticked recorded, in order: `minecart_pass`
+    /// to the parts, and the writes a landing or a mid-walk `entity_inside`
+    /// contact asked for to the level. A write is skipped when the block at
+    /// its position is no longer the state it touched, as vanilla never sees
+    /// a stale one. The parts' own `entity_inside` contacts fire mid-walk now,
+    /// on the shared inside sweep, not here.
     pub(super) fn drain_entity_inside(&mut self) {
         for contact in horizon_client::block_contact::take_pending() {
             let (state, pos) = match &contact {
-                Pending::Inside(inside) => (inside.state, inside.position),
                 Pending::Landed(landed) => (landed.state, landed.position),
                 Pending::MinecartPass(pass) => (pass.state, pass.position),
+                Pending::InsideWritten(written) => (written.state, written.position),
             };
             let Some(level) = self.level(self.dim.id()) else {
                 continue;
@@ -1254,14 +1208,6 @@ impl Game<'_> {
                 continue;
             }
             match contact {
-                Pending::Inside(inside) => {
-                    if let Some(entity) = u32::try_from(inside.entity)
-                        .ok()
-                        .and_then(|id| self.entity(id))
-                    {
-                        self.native_entity_inside(state, pos, entity, inside.precise);
-                    }
-                }
                 Pending::MinecartPass(pass) => {
                     if let Some(entity) = u32::try_from(pass.entity)
                         .ok()
@@ -1273,6 +1219,13 @@ impl Game<'_> {
                 Pending::Landed(landed) => {
                     for write in landed.writes {
                         self.apply_landing_write(level, pos, write);
+                    }
+                }
+                // The mid-walk contacts' own level writes, guarded on the touched
+                // state above, as a landing's are.
+                Pending::InsideWritten(written) => {
+                    for write in written.writes {
+                        self.apply_inside_write(level, pos, write);
                     }
                 }
             }
@@ -1295,6 +1248,27 @@ impl Game<'_> {
                 let _ = self.level_set_block(level, at, state, flags);
             }
             horizon_world::level::LandingWrite::DestroyBlock { drop } => {
+                self.level_destroy_block(level, at, drop, None, false);
+            }
+            // A write a later API adds that this game does not know is not applied.
+            _ => {}
+        }
+    }
+    /// A write an `entity_inside` part asked for, applied as a landing write is: at the
+    /// touched block, once the entity's batch has ticked.
+    fn apply_inside_write(
+        &mut self,
+        level: mod_api::LevelRef,
+        pos: BlockPos,
+        write: horizon_world::level::InsideWrite,
+    ) {
+        let at = [pos.x, pos.y, pos.z];
+        match write {
+            horizon_world::level::InsideWrite::SetBlock(state) => {
+                let flags = BlockUpdateFlags::NEIGHBORS | BlockUpdateFlags::CLIENTS;
+                let _ = self.level_set_block(level, at, state, flags);
+            }
+            horizon_world::level::InsideWrite::DestroyBlock { drop } => {
                 self.level_destroy_block(level, at, drop, None, false);
             }
             // A write a later API adds that this game does not know is not applied.
@@ -1584,6 +1558,32 @@ pub(super) const BLOCK_CONTACT_HOOKS: horizon_client::block_contact::Hooks =
         },
         bounce_listens: |state| {
             crate::game::api_values::block_state::block_listens(mod_api::HookId::BounceOn, state)
+        },
+        inside_fire: |level, dimension, entity, kind, state, pos, precise, staged, writes| {
+            // The whole callback is staged: a panic is contained and the walk
+            // keeps the caller's collector and write list as they were (#2247's
+            // rule: a mod's panic never breaks the model).
+            let fired = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                HitLevel(level.reborrow()).native_entity_inside(
+                    crate::game::native_hooks::fire::EntityInsideCall {
+                        dimension,
+                        entity,
+                        kind,
+                        state,
+                        pos,
+                        precise,
+                        effects: staged,
+                        writes,
+                    },
+                );
+            }));
+            if let Err(payload) = fired {
+                if let Some(text) = payload.downcast_ref::<&str>() {
+                    eprintln!("an entity_inside part panicked at {text:?}");
+                } else if let Some(text) = payload.downcast_ref::<String>() {
+                    eprintln!("an entity_inside part panicked at {text:?}");
+                }
+            }
         },
         fall_on: |dimension, level, c, distance, damage, writes| {
             HitLevel(level.reborrow()).native_fall_on(
@@ -2698,13 +2698,6 @@ impl Game<'_> {
         horizon_client::lan::playerdata::ints_uuid(self.acting_player_uuid())
     }
 
-    /// Whether a native mod keeps the acting player from taking `stack`.
-    pub(super) fn native_pickup_refused(&mut self, stack: &ItemStack) -> bool {
-        let player = self.native_acting_id();
-        let mut canceled = false;
-        self.native_item_picked_up(player, &stack.item, stack.count, &mut canceled);
-        canceled
-    }
     /// Tells the mods of the chunks that came into this level.
     pub(super) fn native_chunks_loaded(&mut self) {
         let loaded = std::mem::take(&mut self.world.loaded_chunks);
@@ -2726,7 +2719,7 @@ impl Game<'_> {
         }
         let dimension = self.dim.id();
         for chunk in unloaded {
-            self.native_chunk_unload(dimension, [chunk.x, chunk.z]);
+            self.native_chunk_and_block_entities_unload(dimension, [chunk.x, chunk.z]);
         }
     }
     /// The players still here leave with the server (`PlayerList.removeAll`):
@@ -3132,7 +3125,7 @@ impl Game<'_> {
         true
     }
     /// The tick of the mod block entity at `pos`.
-    pub(super) fn tick_mod_block_entity(&mut self, pos: Pos) {
+    pub(super) fn tick_mod_block_entity_loaded(&mut self, pos: Pos) {
         let Some(BlockEntity::Mod(m)) = self.world.block_entities.get_mut(&pos) else {
             return;
         };

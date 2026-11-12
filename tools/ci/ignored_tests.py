@@ -338,7 +338,8 @@ def listed_result_records(line, expected, max_name_length):
 
     Prefix output is ignored, but every matching listed result is counted:
     a second prefixed record must not escape duplicate detection. Ambiguous
-    suffixes are reported to the caller, never guessed or printed.
+    suffixes are reported to the caller, never guessed or printed. A slow-test
+    notice or other mention without a result status is not a result record.
     """
     cursor = line.find("test ")
     while cursor >= 0:

@@ -2045,7 +2045,9 @@ impl Game<'_> {
     }
     /// `ServerClockManager.ServerClockInstance.loadFrom`: restore the existing
     /// Overworld state when a world opens; clear the other command-state cache.
-    pub(super) fn load_world_state(&mut self) {
+    /// The carrier store's open-time state settles here too, before the
+    /// first tick and any player: a refusal fails the open.
+    pub(super) fn load_world_state(&mut self) -> crate::Result<()> {
         self.ui.rules = GameRules::load_with_registry(
             &self.world_root,
             &self.level.enabled_features,
@@ -2102,6 +2104,7 @@ impl Game<'_> {
         // The world opens with its test instances (`Registries.TEST_INSTANCE`).
         self.snapshot_test_defs();
         self.sync_rules();
+        self.carrier_world_opened()
     }
     /// Save the clock beside level.dat (Level.write saves the game rules: a
     /// second writer of game_rules.dat could leave it with the rules loaded

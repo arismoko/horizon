@@ -350,7 +350,7 @@ class ReleaseTrainTests(unittest.TestCase):
                         status="completed", conclusion="failure")
         def job(name, status="completed", conclusion="success"):
             return dict(name=name, status=status, conclusion=conclusion)
-        gates = [job(name) for name in ("lint", "verify", "launcher", "pool-watch")]
+        gates = [job(name) for name in ("lint", "verify", "verify-static", "launcher", "pool-watch")]
         records = [record("pr", 1, "pull_request"), record("topic", 2, branch="topic"),
                    record("new", 3), record("good", 4), record("old", 5)]
         jobs = {3: gates + [job("client-data", conclusion="failure")],
@@ -391,6 +391,15 @@ class ReleaseTrainTests(unittest.TestCase):
                     jobs[30] = [job("fixture")]
             jobs[3] = gates[:-1]
             self.assertEqual(train.green_main_head(), "good", "missing gate is not success")
+            for name in ("verify", "verify-static"):
+                for status, conclusion in [("queued", None), ("in_progress", "success"),
+                                           ("completed", "skipped"), ("completed", "cancelled"),
+                                           ("completed", "failure"), ("completed", "timed_out")]:
+                    with self.subTest(gate=name, status=status, conclusion=conclusion):
+                        jobs[3] = [entry for entry in gates if entry["name"] != name] + [job(name, status, conclusion)]
+                        self.assertEqual(train.green_main_head(), "good")
+                jobs[3] = [entry for entry in gates if entry["name"] != name]
+                self.assertEqual(train.green_main_head(), "good", f"missing {name} is not success")
             records.insert(3, record("new", 99))
             jobs[99] = gates
             self.assertEqual(train.green_main_head(), "good", "an older run cannot override the latest run")

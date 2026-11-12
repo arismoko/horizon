@@ -59,3 +59,7 @@ pub const NATIVE_MOD_SDK_SOURCE: &str = "https://github.com/arismoko/horizon";
 
 /// Cargo's canonical source identity for the crates.io registry.
 pub const CARGO_CRATES_IO_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
+
+/// The pinned horizon-mixins archive the launcher downloads for `[[native.mixin]]` builds.
+pub const HORIZON_MIXINS_SOURCE: &str =
+    "https://codeload.github.com/horizon-rust/horizon-mixins/tar.gz";

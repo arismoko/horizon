@@ -986,6 +986,9 @@ impl ItemEntity {
         }
         if !no_physics {
             // Entity.applyEffectsFromBlocks: stepOn, then checkInsideBlocks.
+            // The block sweep itself runs at the batch that ticks the item
+            // (Game::sweep_item_inside), where the level host for a part's
+            // contact is: the item's own tick sees the world read-only.
             if self.on_ground {
                 let p = BlockPos::containing(self.position.add_vector(Vec3::new(
                     0.0,
@@ -1003,13 +1006,6 @@ impl ItemEntity {
                     },
                 );
             }
-            crate::block_contact::swept_inside(
-                self.id as i32,
-                self.previous,
-                self.position,
-                self.bounds(),
-                |p| world.block(p.x, p.y, p.z),
-            );
         }
         if self.velocity.subtract(step.old_velocity).length_squared() > 0.01 {
             self.needs_sync = true;

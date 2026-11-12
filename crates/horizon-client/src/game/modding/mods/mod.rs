@@ -1340,6 +1340,22 @@ pub(super) struct PreparedLoopContext {
 }
 
 impl Game<'_> {
+    /// Observe the platform phase at construction, after bootstrapping the real test runtime.
+    pub(super) fn mod_phase_for_construction() -> mod_api::__private::ModPhase {
+        #[cfg(test)]
+        Self::initialize_mod_runtime_for_tests();
+        mod_api::__private::current_phase()
+    }
+
+    #[cfg(test)]
+    pub(super) fn initialize_mod_runtime_for_tests() {
+        static INITIALIZED: std::sync::Once = std::sync::Once::new();
+        INITIALIZED.call_once(|| {
+            mod_api::__private::initialize()
+                .expect("engine test runtime initializes before mod dispatch");
+        });
+    }
+
     /// Build this game's loop context over the loaded registries and the mods'
     /// current settings. Called where a resource generation starts or reloads: a
     /// client at window start and after a resource reload, a server when it starts

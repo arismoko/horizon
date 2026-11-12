@@ -2,7 +2,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 static BODIES: AtomicUsize = AtomicUsize::new(0);
 
-#[horizon_mod_api_macros::point(name = "listener_fixture_sum", free)]
+#[horizon_mod_api_macros::point(slot = 6, name = "listener_fixture_sum", free)]
 fn sum(a: u32, b: &u32) -> u32 {
     BODIES.fetch_add(1, Ordering::SeqCst);
     a + *b
@@ -16,6 +16,7 @@ pub fn baseline() {
 }
 
 pub fn check() {
+    __pointa_sum();
     let borrowed = 7;
     assert_eq!(sum(3, &borrowed), 12);
     assert_eq!(borrowed, 7);
@@ -46,4 +47,21 @@ pub fn check() {
         assert_eq!(state.property(metadata, "lit"), Ok(Some(lit)));
     }
     assert_eq!(text, mod_api::Text::literal("fixture: café 水"));
+}
+
+fn __fnr_read_slot_6() -> Option<fn(u32, &u32) -> u32> {
+    let pointer = crate::__REPLACE[6].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(u32, &u32) -> u32>(pointer) })
+    }
+}
+fn __fnr_read_body_6() -> Option<fn(u32, &u32) -> u32> {
+    let pointer = crate::__REPLACE[7].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(u32, &u32) -> u32>(pointer) })
+    }
 }

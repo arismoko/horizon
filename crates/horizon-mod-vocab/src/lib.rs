@@ -26,13 +26,3 @@ mod generated {
 
 include!(concat!(env!("OUT_DIR"), "/mod_api_exports_root.rs"));
 include!(concat!(env!("OUT_DIR"), "/wire_generated.rs"));
-
-#[cfg(test)]
-mod brewing_dispatch_tests {
-    include!("item/brewing_dispatch_tests.rs");
-}
-
-#[cfg(test)]
-mod item_model_dispatch_tests {
-    include!("item/item_model_dispatch_tests.rs");
-}

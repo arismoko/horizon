@@ -78,7 +78,7 @@ fn a_test_instance_from_an_enabled_world_pack_is_found_and_runs() {
     let mut resources = None;
     let mut game = game(&mut resources, &world);
     // The world opens: its state, registries and test instances.
-    game.load_world_state();
+    game.load_world_state().unwrap();
     game.ensure_datapacks();
     let enabled = &game.ui.registries.datapacks_enabled;
     assert!(
@@ -170,7 +170,7 @@ fn a_world_keeps_the_test_instances_it_opened_with() {
     // World opening publishes its data packs before snapshotting test instances.
     game.reload_datapacks(false, &game.level.enabled_features.clone())
         .unwrap();
-    game.load_world_state();
+    game.load_world_state().unwrap();
     let ids = |game: &Game<'_>| game.ui.registries.ids("minecraft:test_instance").to_vec();
     assert_eq!(ids(&game), ["h275:broken", "minecraft:always_pass"]);
     assert!(
@@ -201,7 +201,7 @@ fn a_world_keeps_the_test_instances_it_opened_with() {
     game.world_root = b.clone();
     game.reload_datapacks(false, &game.level.enabled_features.clone())
         .unwrap();
-    game.load_world_state();
+    game.load_world_state().unwrap();
     assert_eq!(ids(&game), ["h275:other", "minecraft:always_pass"]);
     assert!(
         game.test_def("h275:broken").is_none(),

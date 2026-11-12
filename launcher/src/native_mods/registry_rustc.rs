@@ -43,6 +43,7 @@ impl Plan {
         &self,
         mut args: Vec<OsString>,
         manifest: Option<PathBuf>,
+        argfiles: &std::path::Path,
     ) -> Result<(PathBuf, Vec<OsString>), String> {
         let compiler = args.first().ok_or("rustc adapter: missing compiler")?;
         let expected = self.workspace_wrapper.as_ref().unwrap_or(&self.rustc);
@@ -65,22 +66,38 @@ impl Plan {
             && kind.as_deref() != Some(std::ffi::OsStr::new("proc-macro"))
         {
             if let Some(bindings) = manifest.as_ref().and_then(|path| self.crates.get(path)) {
+                let mut sdk = Vec::new();
                 for path in &self.search {
-                    args.push("-L".into());
-                    args.push(format!("dependency={}", path.display()).into());
+                    sdk.push(format!("-L\ndependency={}", path.display()));
                 }
-                args.push("-L".into());
-                args.push(format!("native={}", self.native.display()).into());
-                args.push("-C".into());
-                args.push("prefer-dynamic".into());
+                sdk.push(format!("-L\nnative={}", self.native.display()));
+                sdk.push("-C\nprefer-dynamic".into());
                 for (name, path) in &bindings.externs {
-                    args.push("--extern".into());
-                    args.push(format!("{name}={}", path.display()).into());
+                    sdk.push(format!("--extern\n{name}={}", path.display()));
                 }
                 for arg in &bindings.link_args {
-                    args.push("-C".into());
-                    args.push(format!("link-arg={arg}").into());
+                    sdk.push(format!("-C\nlink-arg={arg}"));
                 }
+                let text = sdk.join("\n");
+                let hash = {
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    text.hash(&mut hasher);
+                    hasher.finish()
+                };
+                let file = argfiles.join(format!("sdk-args-{hash:016x}.txt"));
+                if !file.exists() {
+                    // Crates compile in parallel: write aside, then rename into place whole.
+                    let partial = argfiles.join(format!(
+                        "sdk-args-{hash:016x}.{}.partial",
+                        std::process::id()
+                    ));
+                    std::fs::write(&partial, &text).map_err(|e| e.to_string())?;
+                    std::fs::rename(&partial, &file).map_err(|e| e.to_string())?;
+                }
+                let mut arg = OsString::from("@");
+                arg.push(&file);
+                args.push(arg);
             }
         }
         if let Some(cache) = &self.cache_wrapper {
@@ -92,13 +109,15 @@ impl Plan {
 }
 
 pub(super) fn wrapper() -> Option<i32> {
-    let path = std::env::var_os(PLAN)?;
+    let path = PathBuf::from(std::env::var_os(PLAN)?);
     let result = (|| -> Result<i32, String> {
-        let plan: Plan = serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
+        let plan: Plan = serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         let (program, args) = plan.arguments(
             std::env::args_os().skip(1).collect(),
             std::env::var_os("CARGO_MANIFEST_DIR").map(PathBuf::from),
+            path.parent()
+                .ok_or("rustc adapter: the plan has no folder")?,
         )?;
         let status = Command::new(program)
             .args(args)
@@ -139,6 +158,8 @@ mod tests {
     #[test]
     fn only_target_workspace_code_receives_sdk_bindings_and_cache_chain_survives() {
         let plan = plan();
+        let dir = std::env::temp_dir().join(format!("registry-rustc-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
         for (manifest, target, kind, inject) in [
             ("/mod", "game-target", "lib", true),
             ("/mod", "game-target", "proc-macro", false),
@@ -156,20 +177,33 @@ mod tests {
             .into_iter()
             .map(Into::into)
             .collect();
-            let (program, output) = plan.arguments(args.clone(), Some(manifest.into())).unwrap();
+            let (program, output) = plan
+                .arguments(args.clone(), Some(manifest.into()), &dir)
+                .unwrap();
             assert_eq!(program, PathBuf::from("/cache"));
             assert!(output.starts_with(&args));
-            assert_eq!(
-                output.iter().any(|arg| arg == "mod_api=/sdk/api.rmeta"),
-                inject
-            );
+            let argfile = output
+                .iter()
+                .find_map(|arg| arg.to_str()?.strip_prefix('@'));
+            assert_eq!(argfile.is_some(), inject);
+            if let Some(argfile) = argfile {
+                let text = std::fs::read_to_string(argfile).unwrap();
+                let lines: Vec<&str> = text.lines().collect();
+                assert!(lines
+                    .windows(2)
+                    .any(|pair| pair == ["--extern", "mod_api=/sdk/api.rmeta"]));
+                assert!(lines
+                    .windows(2)
+                    .any(|pair| pair == ["-L", "dependency=/sdk/deps"]));
+            }
         }
         let args = vec![OsString::from("/pinned/rustc"), "-vV".into()];
-        assert_eq!(plan.arguments(args.clone(), None).unwrap().1, args);
+        assert_eq!(plan.arguments(args.clone(), None, &dir).unwrap().1, args);
         assert!(plan
-            .arguments(vec!["/other/rustc".into()], None)
+            .arguments(vec!["/other/rustc".into()], None, &dir)
             .unwrap_err()
             .contains("pinned"));
+        std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn no_cache_invokes_workspace_wrapper_or_compiler_directly() {
@@ -183,14 +217,19 @@ mod tests {
                     "-vV".into(),
                 ],
                 None,
+                std::path::Path::new("/unused"),
             )
             .unwrap();
         assert_eq!(program, PathBuf::from("/workspace-wrapper"));
         assert_eq!(args[0], "/pinned/rustc");
         assert_eq!(
-            plan.arguments(vec!["/pinned/rustc".into(), "-vV".into()], None)
-                .unwrap()
-                .0,
+            plan.arguments(
+                vec!["/pinned/rustc".into(), "-vV".into()],
+                None,
+                std::path::Path::new("/unused")
+            )
+            .unwrap()
+            .0,
             PathBuf::from("/pinned/rustc")
         );
     }

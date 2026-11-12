@@ -360,6 +360,7 @@ impl Chat {
     }
     /// ChatComponent.addMessage: wrap, prepend and trim to 100 lines. A
     /// message the Chat option hides is dropped, unlogged.
+    #[horizon_mod_api_macros::replaceable]
     pub fn add(
         &mut self,
         atlas: &HudAtlas,
@@ -1543,6 +1544,7 @@ impl ChatScreen {
         }
     }
     /// `CommandSuggestions.updateCommandInfo`.
+    #[horizon_mod_api_macros::replaceable]
     fn update_command_info(&mut self, m: &Measure, c: &Commands) {
         let command = self.input.value.clone();
         if self.parse.as_ref().is_some_and(|p| p.input != command) {

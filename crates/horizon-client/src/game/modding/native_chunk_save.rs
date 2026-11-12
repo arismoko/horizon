@@ -102,7 +102,7 @@ impl Game<'_> {
 
     /// Save the level in place: its changed chunks, its entities and its raids.
     pub(super) fn save_level(&mut self, wait: bool) -> Result<()> {
-        Self::admit_entity_save()?;
+        self.admit_level_save()?;
         self.requeue_failed_chunk_saves();
         self.save_border();
         self.save_chunk_tickets()?;
@@ -149,7 +149,8 @@ impl Game<'_> {
     pub(super) fn save_chunks_eagerly(&mut self) {
         // No world open (`world_root` is set by `finish_open_world`): the save
         // is `Game::new`'s placeholder under the working directory.
-        if self.remote.is_some()
+        if self.world.carrier_fences.is_broken()
+            || self.remote.is_some()
             || self.world_root.as_os_str().is_empty()
             || self.agent.hold_server
             || self.clock.sprinting()

@@ -2,7 +2,7 @@
 
 <!-- Generated from launcher/src/cli.rs by cli_tools::markdown(); a test fails when this file is out of date. Update it with: HORIZON_WRITE_DOCS=1 cargo test --manifest-path launcher/Cargo.toml the_launcher_reference -->
 
-Every command of `horizon-launcher`, and the tool `horizon-launcher mcp` offers for it. A tool's arguments are the command's, in snake_case. A tool runs the command with `--json` and returns what it printed. The tools that change the player's things for good need `confirm: true`. The tools that send something or reach other people say "only when the player asks". The game's own tools, `game_*`, are in [horizon-ctl-commands.md](horizon-ctl-commands.md). For unsigned developer installations only, `HORIZON_LAUNCHER_DEVELOPER_OFFLINE=1` enables account-free Play. Only the exact value `1` enables it. The installed base must have persisted developer provenance, and the selected game must advertise `--developer-single-player` through `--launch-api`; older games must be rebuilt and reinstalled. Signed releases, Nightlies and their native descendants keep the account check. This mode supplies no session, blocks normal external connections and LAN hosting, and preserves managed launch leases, instance settings and unsigned labels. It is not a sandbox for native mods.
+Every command of `horizon-launcher`, and the tool `horizon-launcher mcp` offers for it. A tool's arguments are the command's, in snake_case. A tool runs the command with `--json` and returns what it printed. The tools that change the player's things for good need `confirm: true`. The tools that send something or reach other people say "only when the player asks". The game's own tools, `game_*`, are in [horizon-ctl-commands.md](horizon-ctl-commands.md). For unsigned developer installations only, `HORIZON_LAUNCHER_DEVELOPER_OFFLINE=1` enables account-free Play. Only the exact value `1` enables it. The installed base must have persisted developer provenance, and the selected game must advertise `--developer-single-player` through `--launch-api`; older games must be rebuilt and reinstalled. Signed releases, Nightlies and their native descendants keep the account check. This mode supplies no session, blocks normal external connections and LAN hosting, and preserves managed launch leases, instance settings and unsigned labels. It is not a sandbox for native mods. If direct execution reports unregistered cache directories, use Horizon Launcher Play from the same launcher data directory with the intended instance and installed version (`horizon-launcher play --instance <instance> --version <tag>`).
 
 With No AI on, `mcp` and `agent-config` are hidden and refuse; every other command stays. See [agent-control.md](agent-control.md#no-ai).
 
@@ -68,6 +68,7 @@ Install a game program you have, such as a horizon-client built on your fork's A
     horizon-launcher import-build <PATH>
 
 - `PATH`: The program (horizon-client, horizon-client.exe on Windows), or a zip holding it
+- `--version`: The installed base whose game files it plays with (default: the selected usable base, else the newest release or Nightly; developer bases need explicit selection)
 - `--trust-unsigned`: You picked this build yourself and trust it with full access to this computer
 
 The program must match this computer's executable format and carry the exact `horizon-game-executable;`
@@ -84,6 +85,7 @@ Prepare a version's resources from your own Minecraft install, or from Mojang.
 
 - `--minecraft`: The game folder of the official launcher, Prism Launcher, MultiMC, the Modrinth App, ATLauncher or GDLauncher (default: the launcher's, then every launcher's default)
 - `--download`: Download Minecraft from Mojang for the signed-in account that owns it, instead of using an install
+- `--version`: The installed version (default: the selected one)
 
 MCP: `prepare`.
 
@@ -94,6 +96,7 @@ Start the client (needs a signed-in Microsoft account that owns Minecraft: Java 
     horizon-launcher play
 
 - `--allow-jar-downloads`: Allow missing original Java asset/data jars to be downloaded from Modrinth
+- `--version`: Installed version to play (default: instance version)
 - `--instance`: The instance to play (its name or id; default: the selected one). A Java instance starts its Minecraft: Java Edition, downloaded with its Java the first time
 - `--world`: Open or create this world (a folder under saves) at once
 - `--creative`: Creative mode for a new world
@@ -112,6 +115,7 @@ Run a dedicated server here; type commands into its console.
 
 - `--allow-jar-downloads`: Allow missing original Java asset/data jars to be downloaded from Modrinth
 - `--dir`: The server's folder (default: the one the launcher uses)
+- `--version`
 - `--accept-eula`: Agree to the Minecraft EULA (https://aka.ms/MinecraftEULA)
 
 MCP: `server`, `server_command`, `server_log`, `server_stop`.
@@ -150,9 +154,10 @@ Native mods (docs/modding/src/how-to/native-mods.md): compile flat Rust mod proj
 - `--server-output`: Export mode: build a standalone dedicated-server engine into this folder instead of an instance's build. Needs a mod FOLDER; no instance is read or changed, and no launcher config is written
 - `--allow-jar-downloads`: Allow exact-hash jar downloads into the local cache for the server export; jar bytes are never included in the exported folder
 - `--instance`: The instance whose installed native mods to build, and which then plays the build (default: the selected one)
-- `--update`: Move to the newest installed release or Nightly instead of the Horizon the instance plays (a full rebuild)
+- `--version`: The installed version whose game files the build reuses, and whose commit it builds on when no mod pins one (default: the one the instance plays, so a rebuild stays on its Horizon)
+- `--update`: Move to the newest installed release or Nightly instead of the Horizon the instance plays (rebuilds the mods for that pinned SDK)
 - `--trust-native-code`: Allow native code for this install (remembered; revoke in Settings, Storage)
-- `--profile` (optimized, balanced, developer): This instance's build mode: optimized, balanced or developer. An explicit choice is remembered; otherwise the automatic picker uses a matching prebuilt SDK when possible.
+- `--profile` (optimized): Native mods use the pinned SDK's optimized compilation settings. The game is never rebuilt by a mod build
 
 MCP: none: the player's switch.
 
@@ -446,6 +451,7 @@ A Java instance's mod loader: fabric, quilt, forge or neoforge, or none. --list 
 
 - `INSTANCE`
 - `LOADER`
+- `--version`: The loader's version (default: its newest stable one)
 - `--list`: List the loader's versions for the instance's Minecraft instead
 
 MCP: `instance_loader`.
@@ -510,6 +516,7 @@ Keep an instance on one installed Horizon version, or "latest" to follow updates
     horizon-launcher instance version <INSTANCE> <VERSION>
 
 - `INSTANCE`
+- `VERSION`
 
 MCP: `instance_version`.
 
@@ -823,6 +830,7 @@ Get the jars of what this computer can port and carry them over.
 
 - `PACK`: The pack's folder name, as list shows it
 - `--from`: A folder with your own jars (an installed instance, a downloads folder)
+- `--version`: The installed version the ports are for (default: the selected one)
 
 MCP: `modpack_port`.
 
@@ -834,6 +842,7 @@ Play a ported pack as its own profile.
 
 - `PACK`
 - `--allow-jar-downloads`: Allow missing original Java asset/data jars to be downloaded from Modrinth
+- `--version`
 
 MCP: `modpack_play`.
 
@@ -1016,6 +1025,7 @@ Create a server; with no options it is a new world, survival, normal, 10 players
 - `--open`: Let anyone in (no whitelist)
 - `--offline`: Do not check players' Minecraft accounts (offline mode: anyone can use any name)
 - `--player`: Who may join (repeatable); the first becomes an operator
+- `--version`: The installed version whose programs and game files servers use, if none are set up yet
 - `--accept-eula`: Agree to the Minecraft EULA (https://aka.ms/MinecraftEULA)
 
 MCP: `servers_create`, only when the player asks.
@@ -1025,6 +1035,8 @@ MCP: `servers_create`, only when the player asks.
 Copy an installed, prepared version's programs and game files for the servers (again).
 
     horizon-launcher servers set-up
+
+- `--version`
 
 MCP: `servers_set_up`.
 

@@ -127,7 +127,7 @@ impl Game<'_> {
         if self.remote.is_some() {
             return Ok(());
         }
-        Self::admit_entity_save()?;
+        self.admit_level_save()?;
         // `DedicatedServer.saveAllChunks` tells the management protocol's clients when a save starts and when
         // it ends without failing, for every save: the command, the autosave, the pause.
         let dedicated = self.is_dedicated_server();
@@ -142,6 +142,24 @@ impl Game<'_> {
         if dedicated {
             dedicated::events::record_server("saved", serde_json::json!({}));
         }
+        Ok(())
+    }
+}
+
+impl Game<'_> {
+    pub(super) fn admit_level_save(&self) -> Result<()> {
+        // A carrier transfer that broke after `prepared` stopped the
+        // session (`carrier_stop_session`): its recovery replays the
+        // affected regions from the disk state the transfer itself
+        // wrote, so no later save — the autosave a later tick would
+        // run, or any exit path's — may write over them.
+        if self.world.carrier_fences.is_broken() {
+            return Err(
+                "a carrier transfer did not finish; the world is left for recovery at reopen"
+                    .into(),
+            );
+        }
+        Self::admit_entity_save()?;
         Ok(())
     }
 }

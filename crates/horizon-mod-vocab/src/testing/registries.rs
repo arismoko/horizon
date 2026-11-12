@@ -21,8 +21,9 @@ impl FakeRegistries {
         ids: impl IntoIterator<Item = crate::Identifier>,
     ) -> Result<(), Vec<super::ItemKeyError>> {
         if crate::parts::installed().is_none() {
-            crate::parts::tests::install_parts_fixture(&[])
-                .expect("empty fake registration has no errors");
+            crate::parts::install_input(
+                crate::__private::parts_installation::InstalledInput::default(),
+            );
         }
         let ids: Vec<_> = ids.into_iter().map(|id| id.to_string()).collect();
         crate::content::registry_keys::resolve_items(ids.iter().map(String::as_str))

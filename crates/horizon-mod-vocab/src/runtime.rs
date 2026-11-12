@@ -152,11 +152,15 @@ pub(crate) fn mod_index_on(index: usize) -> bool {
 
 /// `mods` in order, each marked as running `hook` until the next one is (or the loop ends), so a
 /// panic in it names the mod. The generated dispatch loops over it.
-pub(crate) fn entered_registration<'a>(mods: &'a [ModEntry], hook: &'static str) -> Entered<'a> {
+pub fn entered_registration<'a>(
+    mods: &'a [ModEntry],
+    hook: &'static str,
+) -> impl Iterator<Item = &'a dyn Hooks> + 'a {
     Entered {
         mods: mods.iter(),
         hook,
         guard: None,
+        scope: None,
     }
 }
 
@@ -182,10 +186,17 @@ pub(crate) fn entered_subscribers(
     hook_id: generated::HookId,
     hook: &'static str,
 ) -> impl Iterator<Item = &'static ModEntry> {
-    let mut crash_guard = None;
+    let mut crash_guard = crate::dispatch_scope::ModGuard::empty();
+    let scope = crate::dispatch_scope::snapshot();
     listening(hook_id).map(move |(_, entry)| {
-        drop(crash_guard.take());
-        crash_guard = Some(mark_mod(entry.id, hook));
+        scope.replace(
+            &mut crash_guard,
+            crate::content::crash::ModCall {
+                id: entry.id,
+                hook,
+                part: None,
+            },
+        );
         entry
     })
 }
@@ -204,20 +215,21 @@ pub(crate) fn entered_parts<'a, P: ?Sized>(
     parts: &'a [Attached<P>],
     hook: &'static str,
 ) -> impl Iterator<Item = &'a P> {
-    let mut guard = None;
+    let mut guard = crate::dispatch_scope::ModGuard::empty();
+    let scope = crate::dispatch_scope::snapshot();
     parts
         .iter()
         .filter(|attached| mod_index_on(attached.mod_index))
         .map(move |attached| {
             // The last part's mark goes first, as in `Entered`.
-            drop(guard.take());
-            guard = Some(crate::content::crash::enter_native_mod(
+            scope.replace(
+                &mut guard,
                 crate::content::crash::ModCall {
                     id: attached.mod_id,
                     hook,
                     part: Some(attached.type_name),
                 },
-            ));
+            );
             &*attached.part
         })
 }
@@ -226,6 +238,7 @@ pub(crate) struct Entered<'a> {
     pub(crate) mods: std::slice::Iter<'a, ModEntry>,
     pub(crate) hook: &'static str,
     pub(crate) guard: Option<crate::content::crash::ModGuard>,
+    scope: Option<crate::dispatch_scope::Scope>,
 }
 
 impl<'a> Iterator for Entered<'a> {
@@ -235,7 +248,15 @@ impl<'a> Iterator for Entered<'a> {
         // The last mod's mark goes first, so the next one's puts back what was there before.
         drop(self.guard.take());
         let entry = self.mods.next()?;
-        self.guard = Some(mark_mod(entry.id, self.hook));
+        self.guard = Some(
+            self.scope
+                .get_or_insert_with(crate::dispatch_scope::snapshot)
+                .enter(crate::content::crash::ModCall {
+                    id: entry.id,
+                    hook: self.hook,
+                    part: None,
+                }),
+        );
         Some(&*entry.hooks)
     }
 }
@@ -289,7 +310,7 @@ pub(crate) fn receives_cancelled(hook: generated::HookId) -> bool {
 
 /// A cancel hook's enabled subscribers in dispatch order, each with whether it is still told
 /// once the event is cancelled. Unlike [`entered`], nothing is marked: the dispatch enters only
-/// the mods it calls, through [`enter_listener`].
+/// the mods it calls, through [`ListenerScope::enter`].
 pub(crate) fn listening(
     hook_id: generated::HookId,
 ) -> impl Iterator<Item = (bool, &'static ModEntry)> {
@@ -310,9 +331,32 @@ pub(crate) fn listening(
 }
 
 /// Marks the thread as inside `entry`'s `hook` until the guard drops, and hands back its hooks.
-pub(crate) fn enter_listener(
-    entry: &'static ModEntry,
-    hook: &'static str,
-) -> (crate::content::crash::ModGuard, &'static dyn Hooks) {
-    (mark_mod(entry.id, hook), &*entry.hooks)
+/// One reusable instrumentation slot for loops that filter cancellation or ownership.
+pub(crate) struct ListenerScope {
+    scope: crate::dispatch_scope::Scope,
+    guard: crate::dispatch_scope::ModGuard,
+}
+impl ListenerScope {
+    pub(crate) fn new() -> Self {
+        Self {
+            scope: crate::dispatch_scope::snapshot(),
+            guard: crate::dispatch_scope::ModGuard::empty(),
+        }
+    }
+    #[inline]
+    pub(crate) fn enter(
+        &mut self,
+        entry: &'static ModEntry,
+        hook: &'static str,
+    ) -> &'static dyn Hooks {
+        self.scope.replace(
+            &mut self.guard,
+            crate::content::crash::ModCall {
+                id: entry.id,
+                hook,
+                part: None,
+            },
+        );
+        &*entry.hooks
+    }
 }

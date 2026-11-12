@@ -225,6 +225,7 @@ impl Game<'_> {
             | Target::Other(id)
             | Target::Fangs(id)
             | Target::Cloud(id)
+            | Target::General(id)
             | Target::Hook(id) => Some(uuid_text(self.uuid_for(id))),
             // It keeps its UUID with itself.
             Target::Spawner(id) => self
@@ -273,6 +274,7 @@ impl Game<'_> {
             | Target::Crystal(id)
             | Target::Dragon(id)
             | Target::Rocket(id)
+            | Target::General(id)
             | Target::Trident(id)
             | Target::Other(id)
             | Target::Fangs(id)

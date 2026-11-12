@@ -6,6 +6,7 @@ impl Mob {
     /// API access refuses the `Mob` receiver and the unmirrored `DamageLevel`/`Damage`
     /// context; wasm refuses internals at load rather than silently skipping a listener.
     /// The living hook runs once, before resistance, motion changes and random draws.
+    #[horizon_mod_api_macros::replaceable]
     pub fn knockback(
         &mut self,
         level: &mut DamageLevel<'_>,
@@ -26,6 +27,7 @@ impl Mob {
     /// The short entry delegates here once; direct full calls bypass the short entry.
     /// A sulfur cube's effect push retains its special launch, before the living hook.
     /// API access has the same receiver/context refusal as the short entry.
+    #[horizon_mod_api_macros::replaceable]
     pub fn knockback_full(
         &mut self,
         level: &mut DamageLevel<'_>,

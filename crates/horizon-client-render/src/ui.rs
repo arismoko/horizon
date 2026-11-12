@@ -816,6 +816,7 @@ pub fn slider_value(x: f32, w: f32, cx: f32) -> f32 {
 }
 /// Screen.renderMenuBackground: in a world the translucent dark texture,
 /// otherwise the dirt-like menu texture, tiled at 32 pixels.
+#[horizon_mod_api_macros::replaceable]
 pub fn menu_background(
     batch: &mut HudBatch,
     atlas: &HudAtlas,

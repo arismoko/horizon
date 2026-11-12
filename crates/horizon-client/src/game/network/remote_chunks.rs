@@ -379,9 +379,15 @@ impl Game<'_> {
     pub(in crate::game) fn client_chunk_load(&mut self, _x: i32, _z: i32) {}
 
     /// A resident column was freed, whichever route freed it — the last
-    /// event for it. The dispatch point for the client side of
-    /// `chunk_unload`; event dispatch is added separately.
-    pub(in crate::game) fn client_chunk_unload(&mut self, _x: i32, _z: i32) {}
+    /// event for it, its data still there. The dispatch point for the client
+    /// side of `chunk_unload` (added separately) and of `on_chunk_unloaded`,
+    /// told when the level stays (`level_stays`): one that goes takes its
+    /// chunks with it.
+    pub(in crate::game) fn client_chunk_unload(&mut self, x: i32, z: i32, level_stays: bool) {
+        if level_stays && let Some(level) = self.native_client_level() {
+            self.notify_chunk_block_entities_unloaded(level, (x, z));
+        }
+    }
 }
 
 impl Game<'_> {
@@ -445,7 +451,12 @@ impl Game<'_> {
             let state = self.world.block(pos.0, pos.1, pos.2);
             self.sync_block_entity(pos, None, state);
             // LevelChunk.replaceWithPacketData: the block entity loads its update tag.
-            self.remote_block_entity_data([pos.0, pos.1, pos.2], info.kind, &info.tag);
+            self.remote_block_entity_data(
+                [pos.0, pos.1, pos.2],
+                info.kind,
+                mod_api::BlockEntityDataSource::Chunk,
+                &info.tag,
+            );
             self.bind_remote_attachment(Holder::BlockEntity([pos.0, pos.1, pos.2]));
         }
         // After the column's block entities load: an attachment keeps its block entity if the
@@ -459,6 +470,9 @@ impl Game<'_> {
                 _ => true,
             });
         }
+        // Asked once the packet's block entities and attachments are in, so a part reading them
+        // sees this column's data.
+        self.ask_chunk_light_emission((x, z));
     }
 
     /// `ClientPacketListener.handleChunksBiomes`: each loaded column takes
@@ -515,6 +529,7 @@ impl Game<'_> {
             format.has_skylight,
         );
         Streaming::light_updated(&mut self.world, p.x, p.z, &changed);
+        self.ask_updated_light_emission((p.x, p.z), &changed);
     }
 }
 

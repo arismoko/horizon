@@ -12,6 +12,7 @@ impl TryIntoEngine<()> for mod_api::BlockProperties {
             hardness: self.hardness,
             explosion_resistance: self.explosion_resistance,
             light: self.light,
+            dynamic_light: self.dynamic_light,
             requires_tool: self.requires_tool,
             friction: self.friction,
             map_color: self.map_color,
@@ -71,7 +72,12 @@ impl TryIntoEngine<()> for mod_api::Block {
     type Error = String;
     fn try_into_engine(&self, _: &()) -> Result<Self::Engine, Self::Error> {
         Ok(engine::Block {
-            state_light: None,
+            state_light: self.state_light.as_ref().map(|light| engine::StateValues {
+                property: String::new(),
+                properties: light.properties.clone(),
+                values: light.values.clone(),
+                default: light.default,
+            }),
             id: self.id.clone(),
             template: self.template.clone(),
             pick_item: self.pick_item.clone(),
@@ -123,7 +129,7 @@ impl TryIntoEngine<()> for mod_api::Block {
             open_sound: self.open_sound.clone(),
             close_sound: self.close_sound.clone(),
             block_item: self.block_item.clone(),
-            components: component_patch(&self.components)?,
+            components: component_patch("block", &self.id, &self.components)?,
             connects_to: self.connects_to.clone(),
             thickness: self.thickness,
             wood_type: self.wood_type.clone(),
@@ -148,7 +154,7 @@ impl TryIntoEngine<()> for mod_api::Item {
                 mod_api::Rarity::Rare => engine::Rarity::Rare,
                 mod_api::Rarity::Epic => engine::Rarity::Epic,
             }),
-            components: component_patch(&self.components)?,
+            components: component_patch("item", &self.id, &self.components)?,
             crafting_remainder: self.crafting_remainder.clone(),
             block: self.block.clone(),
             arm_pose: self
@@ -160,17 +166,37 @@ impl TryIntoEngine<()> for mod_api::Item {
 }
 
 fn component_patch(
+    kind: &str,
+    owner: &str,
     patch: &[(String, Option<mod_api::Tag>)],
 ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
-    patch
-        .iter()
-        .map(|(id, value)| match value {
-            Some(value) => horizon_core::json_nbt::tag_to_json(value)
-                .map(|value| (id.clone(), value))
-                .map_err(|error| error.to_string()),
-            None => Ok((format!("!{id}"), serde_json::json!({}))),
-        })
-        .collect()
+    let mut seen = std::collections::BTreeSet::new();
+    let mut result = std::collections::BTreeMap::new();
+    for (id, value) in patch {
+        if id.starts_with('!') {
+            return Err(format!(
+                "{kind} {owner}: component id {id} starts with the removal prefix !"
+            ));
+        }
+        // `lore` and `minecraft:lore` name the same component; the check only, the id is kept as written.
+        let logical = if id.contains(':') {
+            id.clone()
+        } else {
+            format!("minecraft:{id}")
+        };
+        if !seen.insert(logical) {
+            return Err(format!("{kind} {owner}: duplicate component id {id}"));
+        }
+        let (key, value) = match value {
+            Some(value) => (
+                id.clone(),
+                horizon_core::json_nbt::tag_to_json(value).map_err(|error| error.to_string())?,
+            ),
+            None => (format!("!{id}"), serde_json::json!({})),
+        };
+        result.insert(key, value);
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -178,6 +204,101 @@ mod tests {
     use super::*;
     use mod_api::{Block, BlockProperties, Item, Tag};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn state_light_matches_json_and_preserves_emission() {
+        let mut draft = Block::new("test:lamp", "minecraft:stone");
+        draft
+            .state_properties
+            .insert("lit".into(), mod_api::BlockStateProperty::Boolean);
+        draft.properties.light = Some(3);
+        draft.state_light = Some(mod_api::StateLight {
+            properties: vec!["lit".into()],
+            values: BTreeMap::from([("true".into(), 15)]),
+            default: Some(0),
+        });
+        let converted = draft.try_into_engine(&()).unwrap();
+        let json: engine::StateLight =
+            serde_json::from_str(r#"{"properties":["lit"],"values":{"true":15},"default":0}"#)
+                .unwrap();
+        assert_eq!(converted.state_light.as_ref(), Some(&json));
+        let table = converted.state_light.unwrap();
+        assert_eq!(
+            table.values.get("false").copied().or(table.default),
+            Some(0)
+        );
+        assert_eq!(
+            table.values.get("true").copied().or(table.default),
+            Some(15)
+        );
+    }
+
+    #[test]
+    fn duplicate_component_ids_refuse_blocks_and_items() {
+        let set = || Some(Tag::List(vec![]));
+        // Set then set, set then removal, removal then set, removal then removal.
+        for (first, second) in [(set(), set()), (set(), None), (None, set()), (None, None)] {
+            let patch = vec![
+                ("minecraft:lore".into(), first),
+                ("minecraft:lore".into(), second),
+            ];
+            let mut block = Block::new("test:block", "minecraft:stone");
+            block.components = patch.clone();
+            let mut item = Item::new("test:item", "minecraft:stick");
+            item.components = patch;
+            assert_eq!(
+                block.try_into_engine(&()).unwrap_err(),
+                "block test:block: duplicate component id minecraft:lore"
+            );
+            assert_eq!(
+                item.try_into_engine(&()).unwrap_err(),
+                "item test:item: duplicate component id minecraft:lore"
+            );
+        }
+    }
+
+    #[test]
+    fn distinct_component_ids_convert_for_blocks_and_items() {
+        let patch = vec![
+            ("minecraft:max_stack_size".into(), Some(Tag::Int(16))),
+            ("minecraft:damage".into(), None),
+        ];
+        let expected = BTreeMap::from([
+            ("minecraft:max_stack_size".into(), serde_json::json!(16)),
+            ("!minecraft:damage".into(), serde_json::json!({})),
+        ]);
+        let mut block = Block::new("test:block", "minecraft:stone");
+        block.components = patch.clone();
+        assert_eq!(block.try_into_engine(&()).unwrap().components, expected);
+        let mut item = Item::new("test:item", "minecraft:stick");
+        item.components = patch;
+        assert_eq!(item.try_into_engine(&()).unwrap().components, expected);
+    }
+
+    #[test]
+    fn bare_and_prefixed_component_ids_refuse_blocks_and_items() {
+        let mut block = Block::new("test:block", "minecraft:stone");
+        block.components = vec![
+            ("lore".into(), Some(Tag::List(vec![]))),
+            ("minecraft:lore".into(), None),
+        ];
+        assert_eq!(
+            block.try_into_engine(&()).unwrap_err(),
+            "block test:block: duplicate component id minecraft:lore"
+        );
+        let mut item = Item::new("test:item", "minecraft:stick");
+        item.components = vec![
+            (
+                "!minecraft:lore".into(),
+                Some(Tag::Compound(BTreeMap::new())),
+            ),
+            ("minecraft:lore".into(), None),
+        ];
+        assert_eq!(
+            item.try_into_engine(&()).unwrap_err(),
+            "item test:item: component id !minecraft:lore starts with the removal prefix !"
+        );
+    }
 
     #[test]
     fn context_shape_declarations_preserve_categories_and_boxes() {
@@ -354,6 +475,7 @@ mod tests {
                 push_reaction: Some(mod_api::PushReaction::Popped),
                 occludes: Some(false),
                 destroy_overlay: Some(false),
+                dynamic_light: Some(true),
                 ..Default::default()
             };
             draft.state_properties =
@@ -362,7 +484,7 @@ mod tests {
             draft.shapes = Some(mod_api::BlockShapes {
                 properties: vec![],
                 values: BTreeMap::new(),
-                default: Some(vec![[0.0, 0.0, 0.0, 16.0, 8.0, 16.0]]),
+                default: Some(vec![[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]]),
             });
             draft
         };
@@ -383,6 +505,7 @@ mod tests {
                 push_reaction: Some(engine::PushReaction::Popped),
                 occludes: Some(false),
                 destroy_overlay: Some(false),
+                dynamic_light: Some(true),
                 ..Default::default()
             }
         );
@@ -396,7 +519,7 @@ mod tests {
         );
         assert_eq!(
             converted.shapes.unwrap().default,
-            Some(vec![[0.0, 0.0, 0.0, 16.0, 8.0, 16.0]])
+            Some(vec![[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]])
         );
     }
 }

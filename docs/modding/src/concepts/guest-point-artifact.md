@@ -86,7 +86,7 @@ header and expected identity before decoding its payload. Verify payload length
 and digest against trusted manifest data, then run structural and semantic
 validation; a self-reported checksum does not authenticate a modified payload.
 A local source edit invalidates the SDK identity even if the release name is
-unchanged. For local source builds, full regeneration establishes the new identity.
+unchanged. Regeneration establishes the new identity.
 For an SDK-only build without matching source, refuse with the mismatched field
 and rebuild/reinstall guidance. Missing, stale, unknown-schema or corrupt artifacts
 may regenerate only from the exact matching available source through the current

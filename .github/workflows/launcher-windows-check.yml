@@ -7,11 +7,17 @@ on:
     branches: [main]
     paths:
       - 'launcher/**'
+      - 'crates/horizon-server-files/**'
+      - 'crates/horizon-client/src/carrier_store.rs'
+      - 'crates/horizon-client/src/carrier_store_tests.rs'
       - '.github/workflows/launcher-windows-check.yml'
   pull_request:
     paths:
       - 'launcher/**'
       - 'crates/horizon-mod-package/**'
+      - 'crates/horizon-server-files/**'
+      - 'crates/horizon-client/src/carrier_store.rs'
+      - 'crates/horizon-client/src/carrier_store_tests.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/launcher-windows-check.yml'

@@ -99,6 +99,41 @@ printf 'gh:%s\\n' "$*" >> "$CALLS"
                 CATALOG.export(root, commit, output)
             self.assertFalse(output.exists())
 
+    def test_export_uses_producer_output_and_refuses_producer_source_mutation(self):
+        # Isolate compilation only: execute the real exporter and Git provenance checks.
+        (ROOT / "target").mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / "target") as temporary:
+            root = Path(temporary)
+            (root / "tools").mkdir()
+            producer = root / "tools/prebuilt_game.py"
+            producer.write_text('''from pathlib import Path
+CATALOG = "mod-catalog.json"
+def stage(target, stage_tool=None):
+    if stage_tool is not None:
+        assert stage_tool == Path("fixture-stage-tool")
+    root = Path(__file__).resolve().parents[1]
+    stage = target / "stage"
+    stage.mkdir(parents=True)
+    (stage / CATALOG).write_bytes(b"exact producer bytes\\n")
+    if (root / "mutate").exists():
+        (root / "source").write_text("changed")
+    return stage
+''')
+            (root / "source").write_text("committed")
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.test",
+                            "commit", "-qm", "fixture"], cwd=root, check=True)
+            commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            output = root / "export.json"
+            CATALOG.export(root, commit, output, stage_tool=Path("fixture-stage-tool"))
+            self.assertEqual(output.read_bytes(), b"exact producer bytes\n")
+            self.assertTrue((root / "target/nightly-catalog/stage/mod-catalog.json").is_file())
+            shutil.rmtree(root / "target")
+            (root / "mutate").touch()
+            with self.assertRaises(subprocess.CalledProcessError):
+                CATALOG.export(root, commit, output)
+
     def test_workflow_exports_selected_commit_and_collects_the_asset(self):
         build = (ROOT / ".github/workflows/game-build.yml").read_text()
         export = build.split("      - name: Export the pinned Nightly SDK catalog\n", 1)[1].split("      - name: Build the official game", 1)[0]
@@ -110,21 +145,6 @@ printf 'gh:%s\\n' "$*" >> "$CALLS"
         self.assertIn("path: ${{ runner.temp }}/mod-catalog.json", export)
         nightly = (ROOT / ".github/workflows/nightly-build.yml").read_text()
         self.assertIn("pattern: horizon-*", nightly)
-
-    @unittest.skipUnless(shutil.which("cargo") and shutil.which("rustc"), "requires Rust for actual pinned catalog export")
-    def test_actual_pinned_export_from_clean_checkout(self):
-        if subprocess.run(["git", "diff", "--quiet", "HEAD", "--"], cwd=ROOT).returncode:
-            self.skipTest("requires committed source for the selected-commit provenance check")
-        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "mod-catalog.json"
-            CATALOG.export(ROOT, commit, output)
-            document = json.loads(output.read_text())
-            self.assertEqual(document["schema_version"], 1)
-            hook = next(hook for hook in document["hooks"] if hook["id"] == "use_item")
-            self.assertIn("hand", [argument["name"] for argument in hook["arguments"]])
-            self.assertTrue(document["points"])
-            self.assertFalse((ROOT / ".horizon-source-staged").exists())
 
     @unittest.skipUnless(os.name == "posix" and shutil.which("bash") and shutil.which("openssl"),
                          "requires Bash and OpenSSL for real Nightly signing")

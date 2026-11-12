@@ -1,6 +1,6 @@
 //! `BundleItem`'s click overrides in a PICKUP click
 //! (`tryItemClickBehaviourOverride`).
-use super::{Env, Menu, tidy};
+use super::{Env, ItemStack, Menu, tidy};
 use crate::bundle::{Contents, INSERT, INSERT_FAIL, REMOVE_ONE, can_be_in_bundle, toggle_selected};
 
 impl Menu {
@@ -102,4 +102,10 @@ impl Menu {
         self.containers[slot.container][slot.index] = Some(bundle);
         true
     }
+}
+
+/// `Item.canFitInsideContainerItems` (`ShulkerBoxSlot.mayPlace`): shulker
+/// boxes cannot nest.
+pub fn fits_inside_container_items(stack: &ItemStack) -> bool {
+    !stack.item.ends_with("shulker_box")
 }

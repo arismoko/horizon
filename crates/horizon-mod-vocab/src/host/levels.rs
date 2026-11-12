@@ -797,6 +797,16 @@ pub trait LevelsBackendMut {
     #[access(WorldOnly)]
     fn level_remove_block(&mut self, level: LevelRef, pos: [i32; 3], moved: bool) -> bool;
     /// Side: server.
+    /// Check the block light at `pos` again (`LevelLightEngine.checkBlock`), at the level's
+    /// next light update, as an edit there is checked; checking the same position again before
+    /// then queues nothing. A block declaring `dynamic_light` is asked `light_emission` again
+    /// first: the light engine never asks on its own, so a part whose answer reads more than
+    /// the block's state (the block below, the depth) calls this when that changes. Clients take the new light from the server's light update and ask
+    /// their own parts again. False, with nothing queued, off the level in place, for a stale
+    /// handle, on a client and for a position that isn't loaded.
+    #[access(WorldOnly)]
+    fn level_check_light(&mut self, level: LevelRef, pos: [i32; 3]) -> bool;
+    /// Side: server.
     /// Destroy a block in the level in place (`Level.destroyBlock`), optionally dropping
     /// resources with `tool` (None is an empty hand). With `collect`, return the dropped
     /// stacks without spawning their item entities; otherwise return an empty list after

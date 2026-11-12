@@ -8,12 +8,8 @@ thread_local! {
 }
 
 /// Installs a typed API listener at a game point in this guest and enables the generated export
-/// table: the host registers the subscribed places in its ordinary ordered listener list. A
-/// listener at a mod's own point registers in that mod's table, in the group's own memory.
+/// table: the host registers the subscribed places in its ordinary ordered listener list.
 pub fn register(listener: &SlotListener) -> Result<(), crate::RegisterError> {
-    if !std::ptr::eq(listener.place().table(), &crate::registry::TABLE) {
-        return mod_api::__private::points::register(listener);
-    }
     if let Some(ApiKind::Typed(function)) = listener.api_kind() {
         LISTENERS.with(|slots| {
             slots.borrow_mut().push((

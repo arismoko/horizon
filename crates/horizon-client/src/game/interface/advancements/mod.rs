@@ -2059,8 +2059,8 @@ impl Game<'_> {
         self.trigger_block_use("minecraft:default_block_use", pos, None);
     }
     /// `AnyBlockInteractionTrigger` (any_block_use): the player, and the
-    /// block's `ADVANCEMENT_LOCATION` context at its centre with the stack in
-    /// hand as the use left it.
+    /// block's `ADVANCEMENT_LOCATION` context at its centre with the original
+    /// stack and its in-place edits, as documented on `Game::finish_block_use`.
     pub(super) fn trigger_any_block_use(&mut self, pos: [i32; 3], stack: &ItemStack) {
         self.trigger_block_use("minecraft:any_block_use", pos, Some(stack));
     }

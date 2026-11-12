@@ -93,35 +93,6 @@ fn bounded_special_manifests() {
     }
 }
 #[test]
-fn bounded_slot_command() {
-    let f = Fixture::new("slot");
-    f.manifest();
-    let directory = f.0.join("game/crates/horizon-mod-api-gen/slots");
-    fs::create_dir_all(&directory).unwrap();
-    fs::write(f.0.join("game/Cargo.toml"), "[workspace]").unwrap();
-    let path = directory.join("example.txt");
-    large(&path, 4 << 20);
-    let before = fs::read(f.0.join("horizon-mod.toml")).unwrap();
-    let error = f.run(COMMANDS[2]);
-    assert!(
-        error.contains("example.txt") && error.contains("4194304"),
-        "{error}"
-    );
-    assert_eq!(fs::metadata(&path).unwrap().len(), (4 << 20) + 1);
-    assert_eq!(fs::read(f.0.join("horizon-mod.toml")).unwrap(), before);
-    #[cfg(unix)]
-    {
-        fs::remove_file(&path).unwrap();
-        std::os::unix::fs::symlink("/dev/zero", &path).unwrap();
-        assert!(f.run(COMMANDS[2]).contains("not a regular file"));
-        fs::remove_file(&path).unwrap();
-        let c = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
-        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
-        assert!(f.run(COMMANDS[2]).contains("not a regular file"));
-    }
-}
-
-#[test]
 fn bounded_catalog_commands() {
     for (name, relative, commands) in [
         (

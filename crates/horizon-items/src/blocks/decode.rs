@@ -156,6 +156,7 @@ object!(Sound<'a> {
 object!(Entry<'a> {
     id: Option<u64> = None => value(unsigned),
     emission: Value = Value::Null => typed,
+    dynamic_light: bool = false => value(flag),
     dampening: Value = Value::Null => typed,
     skylight_down: bool = false => value(flag),
     shape_occlusion: bool = false => value(flag),

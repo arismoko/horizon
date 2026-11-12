@@ -269,6 +269,7 @@ impl Sprites {
     /// may ship 32x, 64x... textures, like vanilla's stitched atlas), rounded
     /// up to a power of two and limited to the texture budget (`set_texture_budget`). Smaller
     /// textures are scaled up by whole pixels, so UVs stay per layer.
+    #[horizon_mod_api_macros::replaceable]
     pub fn finish(&mut self) {
         self.lay_out(true);
     }
@@ -707,6 +708,7 @@ impl Sprites {
         })
     }
     /// Give a decoded texture its layer (or the one an identical still has).
+    #[horizon_mod_api_macros::replaceable]
     fn register(&mut self, name: &str, decoded: crate::sprite_cache::Decoded) -> Result<u32> {
         let crate::sprite_cache::Decoded {
             side,

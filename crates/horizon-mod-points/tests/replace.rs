@@ -13,7 +13,7 @@ static REPLACED: AtomicUsize = AtomicUsize::new(0);
 
 /// `horizon_client::game::server_lifecycle::remember_shutdown`, as the staging pass marks it: a
 /// unit-returning point, so its record has `cancel`.
-#[horizon_mod_api_macros::point(name = "game_server_lifecycle_remember_shutdown", free)]
+#[horizon_mod_api_macros::point(slot = 0, name = "game_server_lifecycle_remember_shutdown", free)]
 fn remember_shutdown(failure: &mut Option<String>, message: String) {
     SHUTDOWN_BODY.fetch_add(1, Ordering::Relaxed);
     if failure.is_none() {
@@ -23,7 +23,7 @@ fn remember_shutdown(failure: &mut Option<String>, message: String) {
 
 /// `horizon_client::game::blocks::beacon::average`, as the staging pass marks it: a point that
 /// returns an API value, so its record has `result`.
-#[horizon_mod_api_macros::point(name = "game_beacon_average", free)]
+#[horizon_mod_api_macros::point(slot = 2, name = "game_beacon_average", free)]
 fn average(a: u32, b: u32) -> u32 {
     AVERAGE_BODY.fetch_add(1, Ordering::Relaxed);
     (a + b) / 2
@@ -126,6 +126,8 @@ fn a_replace_owns_the_function_and_only_one_may() {
     )
     .unwrap();
     mod_points::__private::seal();
+    __pointa_remember_shutdown();
+    __pointa_average();
 
     let mut failure = None;
     remember_shutdown(&mut failure, "disk full".into());
@@ -144,4 +146,39 @@ fn a_replace_owns_the_function_and_only_one_may() {
         0,
         "the replaced body ran"
     );
+}
+
+static __REPLACE: [std::sync::atomic::AtomicPtr<()>; 4] =
+    [const { std::sync::atomic::AtomicPtr::new(std::ptr::null_mut()) }; 4];
+fn __fnr_read_slot_0() -> Option<fn(&mut Option<String>, String)> {
+    let pointer = crate::__REPLACE[0].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(&mut Option<String>, String)>(pointer) })
+    }
+}
+fn __fnr_read_body_0() -> Option<fn(&mut Option<String>, String)> {
+    let pointer = crate::__REPLACE[1].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(&mut Option<String>, String)>(pointer) })
+    }
+}
+fn __fnr_read_slot_2() -> Option<fn(u32, u32) -> u32> {
+    let pointer = crate::__REPLACE[2].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(u32, u32) -> u32>(pointer) })
+    }
+}
+fn __fnr_read_body_2() -> Option<fn(u32, u32) -> u32> {
+    let pointer = crate::__REPLACE[3].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(u32, u32) -> u32>(pointer) })
+    }
 }

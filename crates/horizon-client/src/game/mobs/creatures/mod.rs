@@ -4818,6 +4818,21 @@ impl Game<'_> {
         for (at, event) in arrow_events {
             self.arrow_event(at, event);
         }
+        // `Entity.applyEffectsFromBlocks`' checkInsideBlocks for every
+        // projectile that ticked, at the batch: the borrow block above held the
+        // world read-only, and a part's contact needs the lent level, so the
+        // sweeps run here, each still inside this batch and its own tick.
+        for i in 0..projectiles.len() {
+            if !keep_flags[i] {
+                continue;
+            }
+            let mut swept = None;
+            projectiles.update(i, |p| {
+                swept = Some((p.previous, p.position));
+            });
+            let _ = swept;
+            projectiles.update(i, |p| self.sweep_projectile_inside(p));
+        }
         self.creatures.projectiles.restore(
             projectiles,
             horizon_client::join_seq::RestoreOrder::SpawnsFirst,
@@ -7715,14 +7730,7 @@ impl Game<'_> {
         self.post_block_game_event("minecraft:entity_place", p, Some(Who::Player), None);
         self.award_stat("used", &stack.item, 1);
         self.swing_arm();
-        if !self.creative
-            && let Some(s) = self.held_mut().as_mut()
-        {
-            s.count -= 1;
-            if s.count == 0 {
-                *self.held_mut() = None;
-            }
-        }
+        self.consume_held();
         Ok(true)
     }
     /// `EntityType.updateCustomEntityTag`: the egg's `minecraft:entity_data` on
@@ -8623,58 +8631,7 @@ pub(super) fn melee(kind: horizon_client::mobs::DamageKind) -> bool {
             | K::Thorns
     )
 }
-/// The damage type id of a Horizon damage kind. `caused`: the source has a
-/// causing entity (only a blast asks).
-pub(super) fn damage_type(kind: horizon_client::mobs::DamageKind, caused: bool) -> &'static str {
-    use horizon_client::mobs::DamageKind as K;
-    match kind {
-        K::Named(named) => named.name,
-        K::PlayerAttack => "minecraft:player_attack",
-        K::MaceSmash => "minecraft:mace_smash",
-        K::Spear => "minecraft:spear",
-        K::MobAttack => "minecraft:mob_attack",
-        K::Arrow => "minecraft:arrow",
-        K::Thrown => "minecraft:thrown",
-        K::Fireball => "minecraft:fireball",
-        K::Explosion if caused => "minecraft:player_explosion",
-        K::Explosion => "minecraft:explosion",
-        K::Fall => "minecraft:fall",
-        K::FlyIntoWall => "minecraft:fly_into_wall",
-        K::FallingBlock => "minecraft:falling_block",
-        K::FallingStalactite => "minecraft:falling_stalactite",
-        K::OnFire => "minecraft:on_fire",
-        K::InFire => "minecraft:in_fire",
-        K::Campfire => "minecraft:campfire",
-        K::Lava => "minecraft:lava",
-        K::Drown => "minecraft:drown",
-        K::DryOut => "minecraft:dry_out",
-        K::Magic => "minecraft:magic",
-        K::IndirectMagic => "minecraft:indirect_magic",
-        K::Sting => "minecraft:sting",
-        K::Cactus => "minecraft:cactus",
-        K::SweetBerryBush => "minecraft:sweet_berry_bush",
-        K::Generic => "minecraft:generic",
-        K::InWall => "minecraft:in_wall",
-        K::Thorns => "minecraft:thorns",
-        K::SonicBoom => "minecraft:sonic_boom",
-        K::Freeze => "minecraft:freeze",
-        K::OutOfWorld => "minecraft:out_of_world",
-        K::Cramming => "minecraft:cramming",
-        K::FallingAnvil => "minecraft:falling_anvil",
-        K::Fireworks => "minecraft:fireworks",
-        K::GenericKill => "minecraft:generic_kill",
-        K::LightningBolt => "minecraft:lightning_bolt",
-        K::OutsideBorder => "minecraft:outside_border",
-        K::Spit => "minecraft:spit",
-        K::Stalagmite => "minecraft:stalagmite",
-        K::Starve => "minecraft:starve",
-        K::HotFloor => "minecraft:hot_floor",
-        K::SulfurCubeHot => "minecraft:sulfur_cube_hot",
-        K::WindCharge => "minecraft:wind_charge",
-        K::Wither => "minecraft:wither",
-        K::WitherSkull => "minecraft:wither_skull",
-    }
-}
+pub(super) use death_source::damage_type;
 /// A Horizon item stack as a loot stack (id, count, damage, enchantments,
 /// and its custom data as SNBT for `minecraft:custom_data` predicates).
 fn to_loot(stack: &ItemStack) -> horizon_world::loot::LootStack {

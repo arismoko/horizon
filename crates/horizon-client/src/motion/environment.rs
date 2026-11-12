@@ -398,6 +398,12 @@ pub(crate) fn ignite_contact(
     }
 }
 
+/// `LivingEntity.handleFallFlyingCollisions`: a glide a block stopped takes
+/// `(before - after) * 10 - 3`, and nothing when that is not positive.
+pub(super) fn fly_into_wall_damage(before: f64, after: f64) -> f32 {
+    ((before - after) * 10.0 - 3.0) as f32
+}
+
 #[cfg(test)]
 mod fire_ignition_tests {
     use super::*;

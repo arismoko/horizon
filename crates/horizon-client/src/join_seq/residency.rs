@@ -42,6 +42,7 @@ pub enum Kind {
     Player,
     Hook,
     DragonPart,
+    General,
 }
 
 /// The dimension and family owning a list or singleton.

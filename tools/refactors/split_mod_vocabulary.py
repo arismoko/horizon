@@ -14,7 +14,7 @@ OLD = pathlib.Path('crates/horizon-mod-api/src')
 NEW = pathlib.Path('crates/horizon-mod-vocab/src')
 BASE = 'e96c76c0b9'
 STAY = {
-    'wire/wire_guest.rs', 'wire/wire_resources.rs',
+    'wire/wire_guest.rs', 'wire/wire_resources.rs', 'wire/static_strings.rs',
     'world/phase.rs', 'world/reload.rs', 'world/server_reload.rs',
     'client/client_reload.rs', 'content/registry_keys.rs',
     'testing.rs', 'parts/shared.rs',
@@ -43,10 +43,16 @@ def main():
     if args.audit:
         remaining = [p.relative_to(ROOT / OLD).as_posix()
                      for p in (ROOT / OLD).rglob('*') if p.is_file()]
-        unexpected = set(remaining) - {'lib.rs', 'wire/wire_guest.rs'}
+        # Platform ownership returned by #2587, not engine vocabulary.
+        platform = {
+            'lib.rs', '__private.rs', 'wire/wire_guest.rs', 'load_state.rs', 'fluid_state.rs',
+            'content/crash.rs', 'profiler.rs', 'profiler/firefox.rs',
+            'wire/wire_resources.rs', 'wire/static_strings.rs',
+        }
+        unexpected = set(remaining) - platform
         if unexpected:
             raise SystemExit(f'vocabulary left in facade: {sorted(unexpected)}')
-        print('facade holds only lib.rs and wire/wire_guest.rs')
+        print('facade holds only its platform-owned implementations and re-exports')
         return
     paths = files(args.source_base)
     if args.new_since:

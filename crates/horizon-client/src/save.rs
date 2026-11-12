@@ -7201,18 +7201,20 @@ mod tests {
         const CHILD: &str = "HORIZON_TEST_NATIVE_SAVED_MEMBERSHIP";
         if std::env::var_os(CHILD).is_none() {
             for mode in ["accepted", "revoked"] {
-                assert!(
-                std::process::Command::new(std::env::current_exe().unwrap())
+                let output = std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
                         "--exact",
                         "save::tests::native_saved_ids_must_match_the_declared_block_membership",
-                        "--nocapture"
+                        "--nocapture",
                     ])
                     .env(CHILD, mode)
-                    .status()
-                    .unwrap()
-                    .success()
-            );
+                    .output()
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "test=save::tests::native_saved_ids_must_match_the_declared_block_membership exit_code={:?} category=fixture-child-failed",
+                    output.status.code()
+                );
             }
             return;
         }

@@ -208,6 +208,7 @@ impl Game<'_> {
                             Kind::Knot => "knot",
                             Kind::Player => "player",
                             Kind::Hook => "hook",
+                            Kind::General => "general",
                             Kind::DragonPart => "dragonpart",
                         };
                         return Err(AttachmentError::UnsupportedHolder(name));

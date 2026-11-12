@@ -222,6 +222,7 @@ impl RegistryLock {
 
     /// Compare resolved identities and checksums, and normalize Cargo's optional dependency
     /// qualifiers before comparing edges. Adding a second version qualifies existing edges.
+    #[cfg(test)]
     pub fn check_resolution(&self, resolved: &Self, game: &Self) -> Result<(), String> {
         self.check_resolved(resolved, game, true)
     }

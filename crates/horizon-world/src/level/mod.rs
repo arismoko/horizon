@@ -142,6 +142,8 @@ mod weather;
 #[cfg(test)]
 mod growth_tests;
 #[cfg(test)]
+mod piston_carry_tests;
+#[cfg(test)]
 mod survive_tests;
 #[cfg(test)]
 mod tests;
@@ -155,6 +157,21 @@ pub use fluids::{
     fluid_randomly_ticks, fluid_tick_delay,
 };
 
+/// A write a block's part asks for when an entity is inside it (`Block.entityInside`'s
+/// own `setBlockAndUpdate` or `destroyBlock`), at the block the entity touched. The
+/// level applies each once the entity's batch has ticked, in the order asked, if the
+/// block is still the state the entity touched: the same contract as [`LandingWrite`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum InsideWrite {
+    /// `Level.setBlockAndUpdate(pos, state)`: a pressure plate a part pressed.
+    SetBlock(BlockStateId),
+    /// `Level.destroyBlock(pos, drop)`: the block gone, with its drops or without.
+    DestroyBlock {
+        /// Whether the block drops its resources.
+        drop: bool,
+    },
+}
 /// A write a block's part asks for when an entity lands on it (`Block.fallOn`'s own
 /// `setBlockAndUpdate` or `destroyBlock`), at the block the entity landed on. The level
 /// applies each once the entity's batch has ticked, in the order asked.
@@ -537,6 +554,18 @@ pub trait LevelAccess: BlockEntityNeighbors {
     }
     fn allow_bell_ring(&self, _pos: BlockPos) -> bool {
         true
+    }
+    /// The sound type `state`, just placed at `pos`, plays its place sound from
+    /// (`IBlockExtension.getSoundType`): `sounds`, its own, unless a mod's block part answers
+    /// another (`BlockItem.place`, asked with the placing player, or none when nothing places
+    /// it, such as a dispenser). The default keeps the block's own.
+    fn place_sound_type(
+        &self,
+        _pos: BlockPos,
+        _state: BlockStateId,
+        sounds: Arc<data::Sounds>,
+    ) -> Arc<data::Sounds> {
+        sounds
     }
     fn allow_cauldron_level_change(
         &self,
@@ -1031,11 +1060,38 @@ pub trait LevelAccess: BlockEntityNeighbors {
         false
     }
     /// Whether a block entity a mod made lives at `pos` (`native_block_entity`),
-    /// whatever its block's template: it is removed with its block and no piston
-    /// moves it, as for a template that has one.
+    /// whatever its block's template: it is removed with its block, as for a
+    /// template that has one, and a piston moves it only when the block's
+    /// part answers `Some(true)` ([`Self::adjust_piston_carries_block_entity`]).
     fn has_mod_block_entity(&self, _pos: BlockPos) -> bool {
         false
     }
+    /// The `piston_carries_block_entity` hook (Horizon's own) for the block
+    /// `state` at `pos`, asked at the last step of `PistonBaseBlock.isPushable`, for a block that got
+    /// past its push reaction: `Some(false)` keeps it in place, `Some(true)`
+    /// lets a piston move it with its mod block entity, and `None` keeps
+    /// vanilla's rule (a block with a block entity does not move). The default
+    /// answers `None`.
+    fn adjust_piston_carries_block_entity(
+        &self,
+        _pos: BlockPos,
+        _state: BlockStateId,
+    ) -> Option<bool> {
+        None
+    }
+    /// Take the mod block entity at `from` out of the level with its
+    /// attachments, running none of its removal side effects, for the moving
+    /// piston `PistonBaseBlock.moveBlocks` puts at `to`, which holds it until
+    /// its block lands. Levels without block entities do nothing.
+    fn carry_block_entity(&mut self, _from: BlockPos, _to: BlockPos) {}
+    /// Install the block entity the moving piston at `pos` carried there, as
+    /// a new block entity of that position. False when it carried none.
+    fn land_block_entity(&mut self, _pos: BlockPos) -> bool {
+        false
+    }
+    /// Drop the block entity the moving piston at `pos` carried, without
+    /// installing it: a client's copy, once the server's block replaced it.
+    fn discard_carried_block_entity(&mut self, _pos: BlockPos) {}
     /// `ShulkerBoxBlockEntity.isClosed` at `pos`: whether the box's lid is
     /// still shut. None when no shulker box block entity lives there, or the
     /// level keeps none: vanilla then reads the box as closed, a full cube.

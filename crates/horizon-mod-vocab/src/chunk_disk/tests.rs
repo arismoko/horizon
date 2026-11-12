@@ -65,7 +65,7 @@ impl Hooks for Listener {
 }
 fn with_listener(mode: u8, apply: impl FnOnce(Arc<AtomicUsize>)) {
     let calls = Arc::new(AtomicUsize::new(0));
-    testing::with_mods(
+    testing::with_dispatch(
         vec![ModEntry::new(
             "disk_fixture",
             Box::new(Listener {
@@ -185,7 +185,7 @@ fn value_65537_depth_65_total_1048577_refused_without_truncation() {
 
 #[test]
 fn zero_subscribers_over_100_saves_creates_no_jobs_or_callbacks() {
-    testing::with_mods(Vec::new().into(), || {
+    testing::with_dispatch(Vec::new().into(), || {
         let snapshot = store(7);
         let context = context(ChunkDiskPhase::Save);
         for _ in 0..100 {

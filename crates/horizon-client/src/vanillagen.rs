@@ -832,6 +832,7 @@ pub fn shared_data(
 }
 /// `shared_data` with a world's data packs over the bundle: loaded once for
 /// each registry lifetime and set of packs' entries, the most recent few kept.
+#[horizon_mod_api_macros::replaceable]
 pub fn shared_data_with(
     dir: &Path,
     overrides: &WorldgenOverrides,

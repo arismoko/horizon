@@ -37,6 +37,7 @@ mod spawn;
 pub use groups::register_particle_groups;
 use mod_behaviour::{ModBehaviour, mod_curve};
 pub use native::{ParticleController, ParticleUpdate, register_particle_providers};
+use spawn::next_double_between;
 pub mod polytone;
 mod polytone_gpu;
 mod polytone_model;
@@ -520,14 +521,6 @@ pub fn item_use_particles(
     }
 }
 
-/// `Mth.nextDouble(random, min, max)`.
-fn next_double_between(random: &mut impl RandomSource, min: f64, max: f64) -> f64 {
-    if min >= max {
-        min
-    } else {
-        random.next_double() * (max - min) + min
-    }
-}
 /// `ParticleUtils.spawnParticlesOnBlockFaces(level, pos, particle, UniformInt.of(3, 5))`
 /// (level events 3002 without an axis, 3003 wax on, 3004 wax off, 3005 scrape):
 /// three to five particles on each face, in `Direction.values()` order, moving
@@ -1645,6 +1638,7 @@ impl ParticleEngine {
     }
     /// `ClientLevel.addParticle(particle, overrideLimiter, alwaysShow, ...)`
     /// (`doAddParticle`). `always_show` is `addAlwaysVisibleParticle`'s flag.
+    #[horizon_mod_api_macros::replaceable]
     pub fn add_with(
         &mut self,
         options: &ParticleOptions,

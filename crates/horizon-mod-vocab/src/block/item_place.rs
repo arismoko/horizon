@@ -14,7 +14,7 @@ use crate::{
     LevelRef, MenuRef, MenuSlotBacking, ResourceHandler, ServerHost, Transaction, backend_mut_of,
     backend_of,
 };
-use std::{collections::HashSet, fmt::Debug, marker::PhantomData, sync::Mutex};
+use std::{fmt::Debug, marker::PhantomData};
 
 /// Where a stack lives.
 // no wire: preserves stable explicit variant tags (Equipment is 9) and interns Mod.provider into a bounded static string.
@@ -267,25 +267,17 @@ impl ResourceHandler<ItemResource> for GameItemItems {
     }
 }
 
-/// The owners of item handlers that answered more than they were asked, warned once.
-static BROKEN: Mutex<Option<HashSet<String>>> = Mutex::new(None);
-
 /// `owner`'s handler at `at` answered more than it was asked: a mod bug, warned once per mod.
 pub(crate) fn warn_broken(owner: Option<&'static str>, at: &dyn Debug) {
-    let owner = owner.unwrap_or("the game").to_owned();
-    let mut warned = BROKEN.lock().unwrap_or_else(|e| e.into_inner());
-    if warned.get_or_insert_default().insert(owner.clone()) {
+    let owner = owner.unwrap_or("the game");
+    if crate::dispatch_scope::backend()
+        .is_none_or(|backend| (backend.diagnostics.first_broken_warning)(owner))
+    {
         log::warn!(
             "Horizon: {owner}'s handler at {at:?} answered more than it was asked; the move it \
              was part of is undone. A handler moves at most what it is asked."
         );
     }
-}
-
-#[cfg(test)]
-pub(crate) fn warned_about(owner: &str) -> bool {
-    let broken = BROKEN.lock().unwrap_or_else(|e| e.into_inner());
-    broken.as_ref().is_some_and(|owners| owners.contains(owner))
 }
 
 impl ItemPlace {

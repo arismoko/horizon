@@ -255,6 +255,30 @@ impl Game<'_> {
         }
     }
 
+    /// The cross-level teleport of a command's target: a general entity tree
+    /// carries itself across (identity kept, join identity new) and always
+    /// answers; a vehicle tree answers only when it moved. `None` leaves the
+    /// target to the caller's player path.
+    pub(in crate::game) fn teleport_target_across(
+        &mut self,
+        target: Target,
+        destination: super::Dim,
+        at: [f64; 3],
+        rotation: Option<[f32; 2]>,
+        turn_riders: bool,
+    ) -> horizon_client::Result<Option<bool>> {
+        if let Target::General(id) = target {
+            return Ok(Some(self.teleport_general_tree_across(
+                id,
+                destination,
+                at,
+            )?));
+        }
+        Ok(self
+            .teleport_vehicle_across(target, destination, at, rotation, turn_riders)?
+            .then_some(true))
+    }
+
     /// `Entity.teleportCrossDimension`: carry a command's entire vehicle tree
     /// into the destination level, retaining UUIDs and the passengers' mounts.
     pub(super) fn teleport_vehicle_across(

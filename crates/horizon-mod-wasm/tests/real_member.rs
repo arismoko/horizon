@@ -262,6 +262,9 @@ fn real_member() {
         return;
     }
     mod_points::__private::seal();
+    __pointa_wrap_degrees();
+    __pointa_average();
+    __pointa_remember_shutdown();
     matrix_checks::check();
     let mut args = mod_points::TickArgs::__new();
     mod_points::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
@@ -294,7 +297,7 @@ fn real_member() {
 
 /// `horizon_client::game::commands::wrap_degrees` (`Mth.wrapDegrees`), as the staging pass
 /// marks it.
-#[horizon_mod_api_macros::point(name = "game_commands_wrap_degrees", free)]
+#[horizon_mod_api_macros::point(slot = 0, name = "game_commands_wrap_degrees", free)]
 fn wrap_degrees(angle: f32) -> f32 {
     let wrapped = angle % 360.0;
     if wrapped >= 180.0 {
@@ -307,15 +310,66 @@ fn wrap_degrees(angle: f32) -> f32 {
 }
 
 /// `horizon_client::game::beacon::average`, as the staging pass marks it.
-#[horizon_mod_api_macros::point(name = "game_beacon_average", free)]
+#[horizon_mod_api_macros::point(slot = 2, name = "game_beacon_average", free)]
 fn average(a: u32, b: u32) -> u32 {
     panic!("a replaced body ran: {a} {b}")
 }
 
 /// `horizon_client::game::server_lifecycle::remember_shutdown`, as the staging pass marks it.
-#[horizon_mod_api_macros::point(name = "game_server_lifecycle_remember_shutdown", free)]
+#[horizon_mod_api_macros::point(slot = 4, name = "game_server_lifecycle_remember_shutdown", free)]
 fn remember_shutdown(failure: &mut Option<String>, message: String) {
     if failure.is_none() {
         *failure = Some(message);
+    }
+}
+
+static __REPLACE: [std::sync::atomic::AtomicPtr<()>; 8] =
+    [const { std::sync::atomic::AtomicPtr::new(std::ptr::null_mut()) }; 8];
+fn __fnr_read_slot_0() -> Option<fn(f32) -> f32> {
+    let pointer = crate::__REPLACE[0].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(f32) -> f32>(pointer) })
+    }
+}
+fn __fnr_read_body_0() -> Option<fn(f32) -> f32> {
+    let pointer = crate::__REPLACE[1].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(f32) -> f32>(pointer) })
+    }
+}
+fn __fnr_read_slot_2() -> Option<fn(u32, u32) -> u32> {
+    let pointer = crate::__REPLACE[2].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(u32, u32) -> u32>(pointer) })
+    }
+}
+fn __fnr_read_body_2() -> Option<fn(u32, u32) -> u32> {
+    let pointer = crate::__REPLACE[3].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(u32, u32) -> u32>(pointer) })
+    }
+}
+fn __fnr_read_slot_4() -> Option<fn(&mut Option<String>, String)> {
+    let pointer = crate::__REPLACE[4].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(&mut Option<String>, String)>(pointer) })
+    }
+}
+fn __fnr_read_body_4() -> Option<fn(&mut Option<String>, String)> {
+    let pointer = crate::__REPLACE[5].load(std::sync::atomic::Ordering::Relaxed);
+    if pointer.is_null() {
+        None
+    } else {
+        Some(unsafe { std::mem::transmute::<*mut (), fn(&mut Option<String>, String)>(pointer) })
     }
 }

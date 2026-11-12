@@ -4,6 +4,9 @@ pub(super) struct ResidentEntities {
     pub table: Box<RefCell<horizon_client::join_seq::residency::table::EntityTable>>,
     pub local_player: horizon_client::join_seq::residency::member::Member,
     pub knots: horizon_client::join_seq::JoinList<leads::Knot>,
+    /// The game's general entity rows (#792), beside the knots this store
+    /// already keeps for the resident table's lookups.
+    pub general: super::general::GeneralStore,
 }
 
 impl Default for ResidentEntities {
@@ -14,6 +17,7 @@ impl Default for ResidentEntities {
             )),
             local_player: Default::default(),
             knots: Default::default(),
+            general: Default::default(),
         }
     }
 }

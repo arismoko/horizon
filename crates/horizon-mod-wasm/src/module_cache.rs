@@ -7,6 +7,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use wasmtime::{Engine, Module};
 
+/// The budget for current-engine entries: 1 GiB holds 30 copies of the largest measured
+/// `.cwasm` (34,039,320 bytes, from a 12.5 MB wasm module) plus headroom. 30 modules is
+/// an allowance, not a measured pack; see #2896.
+const LIMIT: u64 = 1024 * 1024 * 1024;
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Source {
     Compiled,
@@ -37,15 +42,19 @@ impl ModuleCache {
     }
 
     fn new_for_platform(root: PathBuf, windows: bool) -> Self {
-        Self::prepare(root, windows, true)
+        Self::new_with_limit(root, windows, LIMIT)
     }
 
-    /// The parent already swept at startup. Age alone cannot prove a file is unused.
+    pub(crate) fn new_with_limit(root: PathBuf, windows: bool, limit: u64) -> Self {
+        Self::prepare(root, windows, Some(limit))
+    }
+
+    /// Child preparation must preserve live parent inputs and cache entries.
     pub(super) fn for_child(root: PathBuf) -> Self {
-        Self::prepare(root, cfg!(windows), false)
+        Self::prepare(root, cfg!(windows), None)
     }
 
-    fn prepare(root: PathBuf, windows: bool, sweep: bool) -> Self {
+    fn prepare(root: PathBuf, windows: bool, limit: Option<u64>) -> Self {
         let disabled = if windows {
             Err(io::Error::other(
                 "Windows owner/DACL/inheritance trust is not verified; compiling wasm",
@@ -55,8 +64,16 @@ impl ModuleCache {
         }
         .err()
         .map(|why| format!("folder {}: {why}", root.display()));
-        if disabled.is_none() && sweep {
+        if let Some(limit) = limit.filter(|_| disabled.is_none()) {
             remove_stale_temporaries(&root);
+            match crate::runtime::engine() {
+                Ok(engine) => {
+                    let current = Self::engine_part(&engine);
+                    remove_obsolete_entries(&root, &current);
+                    enforce_size_limit(&root, &current, limit);
+                }
+                Err(why) => log::debug!("wasm cache cleanup skipped: {why}"),
+            }
         }
         if let Some(why) = &disabled {
             log::warn!("wasm module cache disabled: {why}");
@@ -70,14 +87,14 @@ impl ModuleCache {
         }
     }
 
-    /// One sha256 over the wasm digest, our engine settings and Wasmtime's compatibility value.
-    /// The wasm digest and our settings are fixed bytes. Wasmtime's value is opaque and only
-    /// reachable through `Hash`, so a Wasmtime or toolchain update may change the key: that
-    /// costs one recompile, never a wrong hit, because Wasmtime still checks every entry it loads.
+    /// Independent sha256 digests identify the engine and module inputs.
     pub(crate) fn key(engine: &Engine, bytes: &[u8]) -> String {
+        format!("{}-{:x}", Self::engine_part(engine), Sha256::digest(bytes))
+    }
+
+    fn engine_part(engine: &Engine) -> String {
         let (setting, enabled) = crate::runtime::ENGINE_CONFIG;
         let mut digest = KeyDigest(Sha256::new());
-        digest.0.update(Sha256::digest(bytes));
         digest.0.update((setting.len() as u64).to_le_bytes());
         digest.0.update(setting.as_bytes());
         digest.0.update([u8::from(enabled)]);
@@ -263,6 +280,82 @@ fn remove_stale_temporaries(root: &Path) {
             .is_some_and(|age| age > STALE);
         if old {
             let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// Names carry both digests so obsolete artifacts need never be opened.
+fn remove_obsolete_entries(root: &Path, current_engine: &str) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path
+            .extension()
+            .is_none_or(|extension| extension != "cwasm")
+        {
+            continue;
+        }
+        let current = current_entry(&path, current_engine);
+        if !current && fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file()) {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn current_entry(path: &Path, current_engine: &str) -> bool {
+    path.extension()
+        .is_some_and(|extension| extension == "cwasm")
+        && path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .is_some_and(|stem| {
+                let Some((engine, module)) = stem.split_once('-') else {
+                    return false;
+                };
+                let hex_digest = |part: &str| {
+                    part.len() == 64 && part.bytes().all(|byte| byte.is_ascii_hexdigit())
+                };
+                hex_digest(engine) && hex_digest(module) && engine == current_engine
+            })
+}
+
+/// Only runs in the constructor, before this launch can write any entries.
+fn enforce_size_limit(root: &Path, current_engine: &str, limit: u64) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    let mut total = 0u128;
+    let mut candidates = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !current_entry(&path, current_engine) {
+            continue;
+        }
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        total += u128::from(metadata.len());
+        if let Ok(modified) = metadata.modified() {
+            candidates.push((modified, path, metadata.len()));
+        }
+    }
+    if total <= u128::from(limit) {
+        return;
+    }
+    candidates.sort_unstable();
+    for (_, path, size) in candidates {
+        if total <= u128::from(limit) {
+            break;
+        }
+        if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file())
+            && fs::remove_file(path).is_ok()
+        {
+            total -= u128::from(size);
         }
     }
 }

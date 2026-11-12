@@ -1135,9 +1135,9 @@ pub trait ItemEnv {
         -1
     }
     /// The fluid `stack` holds (`FluidUtil.getFirstStackContained`), or `None` when it
-    /// holds none. The game answers for vanilla's buckets; it has no per-stack fluid
-    /// contents beyond them, so any other container draws its declared fluid.
-    fn stack_fluid(&self, _stack: &StackView) -> Option<String> {
+    /// holds none. The game answers for vanilla's buckets and asks a mod's own items
+    /// (`contained_fluid`); a container nothing answers for draws its declared fluid.
+    fn stack_fluid(&self, _stack: &StackView) -> Option<&str> {
         None
     }
     /// What `fluid` draws with in an item: its still sprite and the tint
@@ -1540,7 +1540,7 @@ impl Resolve<'_> {
         let textures = &container.textures;
         // `update`: the fluid the stack holds, else the model's own (offsets 0-29).
         let held = self.env.stack_fluid(self.stack);
-        let drawn = held.as_deref().unwrap_or(&container.fluid);
+        let drawn = held.unwrap_or(&container.fluid);
         if let Some(base) = &textures.base {
             self.sprite_layer(out, base, None, Vec::new(), parent);
         }

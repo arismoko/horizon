@@ -7,11 +7,7 @@ use crate::{backend, instances, native_mods};
 use serde::Serialize;
 use std::sync::Arc;
 
-const BUILD_CACHES: [BuildCache; 13] = [
-    BuildCache::Stage,
-    BuildCache::PendingStage,
-    BuildCache::NewStage,
-    BuildCache::Patched,
+const BUILD_CACHES: [BuildCache; 9] = [
     BuildCache::Source,
     BuildCache::Tools,
     BuildCache::PrebuiltOutput,
@@ -267,7 +263,6 @@ impl Storage {
                     | BuildCache::Tools
                     | BuildCache::Prebuilt
                     | BuildCache::InternalsSync
-                    | BuildCache::Patched
             ) {
                 let parent = self.root.join(cache.relative());
                 if checked(&parent, true)?.is_some() {
@@ -295,7 +290,7 @@ impl Storage {
         let build_files = Category::BuildFiles;
         for name in [
             "built.json",
-            "points.json",
+            "mod-catalog.json",
             "internals.json",
             "build.log",
             "catalog.partial",

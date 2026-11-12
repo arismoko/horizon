@@ -15,6 +15,9 @@ pub struct BlockProperties {
     pub explosion_resistance: Option<f32>,
     /// Light emitted, 0 to 15.
     pub light: Option<u8>,
+    /// `true`: the block's parts answer `light_emission`, the light a cell emits by where it is
+    /// (`IBlockExtension.hasDynamicLightEmission`); `light` is a cell's without an answer.
+    pub dynamic_light: Option<bool>,
     /// Whether drops require the appropriate tool.
     pub requires_tool: Option<bool>,
     /// Surface friction; unset inherits the template.
@@ -91,10 +94,23 @@ pub enum RandomTicks {
 pub struct BlockShapes {
     /// State property names selecting a shape, in tuple order.
     pub properties: Vec<String>,
-    /// Comma-separated property-value tuples mapped to boxes in block pixels.
+    /// Comma-separated property-value tuples mapped to boxes in block units (one block is 1).
     pub values: BTreeMap<String, Vec<[f64; 6]>>,
     /// Boxes used when no tuple matches.
     pub default: Option<Vec<[f64; 6]>>,
+}
+
+/// Per-state light emission, overriding `BlockProperties::light`.
+#[derive(Clone, Debug, PartialEq, Default)]
+// exhaustive: declaration drafts mirror the closed content schema.
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct StateLight {
+    /// State property names selecting emission, in tuple order.
+    pub properties: Vec<String>,
+    /// Comma-separated property-value tuples mapped to emission from 0 to 15.
+    pub values: BTreeMap<String, u8>,
+    /// Emission for unmatched states; without it every state must match a tuple.
+    pub default: Option<u8>,
 }
 
 /// Entity category selecting a load-time shape override.
@@ -139,6 +155,9 @@ pub struct Block {
     pub template: String,
     /// properties.
     pub properties: BlockProperties,
+    /// Per-state emission, taking precedence over `properties.light`.
+    /// Defaults to `None`, leaving uniform or template light unchanged.
+    pub state_light: Option<StateLight>,
     /// shapes.
     pub shapes: Option<BlockShapes>,
     /// collision shapes.
@@ -168,8 +187,8 @@ pub struct Block {
     /// the block's item: a mature crop picks its seed. An item of this mod or a vanilla
     /// one, checked to exist when the content loads. Absent is the block's item.
     pub pick_item: Option<String>,
-    /// Its item's ordered component patch: `Some(tag)` sets a component, `None` removes it.
-    /// Component names do not include the removal prefix `!`.
+    /// Its item's component patch: `Some(tag)` sets a component, `None` removes it.
+    /// Component names do not include the removal prefix `!`; repeated IDs are refused.
     pub components: Vec<(String, Option<crate::Tag>)>,
     /// A connecting block (template `minecraft:chorus_plant`, a `PipeBlock`
     /// without the chorus plant's rules): the block tag, without `#`, whose
@@ -226,8 +245,8 @@ pub struct Item {
     pub max_stack_size: Option<u8>,
     /// Rarity overriding the template's.
     pub rarity: Option<Rarity>,
-    /// An ordered component patch over the template: `Some(tag)` sets, `None` removes.
-    /// Component names are namespaced identifiers, without a removal prefix `!`.
+    /// A component patch over the template: `Some(tag)` sets, `None` removes.
+    /// Component names are namespaced identifiers, without a removal prefix `!`; repeated IDs are refused.
     pub components: Vec<(String, Option<crate::Tag>)>,
     /// What it leaves in the crafting grid (`Item.Properties.craftRemainder`):
     /// a vanilla item or one of the mod's own.

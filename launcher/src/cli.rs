@@ -744,7 +744,7 @@ enum Cmd {
         /// Allow missing original Java asset/data jars to be downloaded from Modrinth
         #[arg(long)]
         allow_jar_downloads: bool,
-        #[arg(long)]
+        #[arg(long, help = "Installed version to play (default: instance version)")]
         version: Option<String>,
         /// The instance to play (its name or id; default: the selected one). A Java instance
         /// starts its Minecraft: Java Edition, downloaded with its Java the first time
@@ -846,17 +846,15 @@ enum Cmd {
         #[arg(long)]
         version: Option<String>,
         /// Move to the newest installed release or Nightly instead of the Horizon the instance
-        /// plays (a full rebuild)
+        /// plays (rebuilds the mods for that pinned SDK)
         #[arg(long, conflicts_with = "version")]
         update: bool,
         /// Allow native code for this install (remembered; revoke in Settings, Storage)
         #[arg(long)]
         trust_native_code: bool,
-        #[arg(
-            long,
-            value_enum,
-            help = tr("This instance's build mode: optimized, balanced or developer. An explicit choice is remembered; otherwise the automatic picker uses a matching prebuilt SDK when possible.")
-        )]
+        /// Native mods use the pinned SDK's optimized compilation settings.
+        /// The game is never rebuilt by a mod build.
+        #[arg(long, value_enum)]
         profile: Option<native_mods::Profile>,
     },
     /// Show a release's patch notes (default: the newest)
@@ -1415,10 +1413,12 @@ fn execute(command: Cmd, as_json: bool) -> Result<i32, String> {
                         .ok_or_else(backend::no_version_installed)?
                 }
             };
+            let explicit = folder.is_some() || profile.is_some();
             let folder = match folder {
                 Some(folder) => folder,
                 None => native_mods::installed_mods(&target.home)?,
             };
+            let profile = explicit.then_some(target.native_profile);
             let built =
                 native_mods::build(&base, &folder, &target, profile, steps, registry_consent).map_err(|error| {
                     let error = String::from(error);

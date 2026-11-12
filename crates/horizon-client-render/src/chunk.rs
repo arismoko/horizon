@@ -643,6 +643,14 @@ pub struct Chunk {
     /// The starts generation made in this chunk (`structures.starts`), saved
     /// with the state their placement has reached by then.
     pub structure_starts: Vec<Arc<horizon_world::worldgen::structure::start::StructureStart>>,
+    /// What the cells of `dynamic_light` blocks emit where a part answered `light_emission`
+    /// (`IBlockExtension.getLightEmission`), by [`Self::dynamic_cell`]: the light engine seeds them
+    /// from here, and a cell without an entry emits its state's own light. Asked on the thread that
+    /// owns the level, dropped with the chunk, never saved.
+    pub dynamic_emission: crate::fast_hash::FxHashMap<u32, u8>,
+    /// The chunk came in holding a `dynamic_light` state and its cells are not asked yet: no light
+    /// job reads it until they are (`streaming::light_region_ready`).
+    pub dynamic_pending: bool,
 }
 impl Chunk {
     /// An all-air chunk in the current `layout`.
@@ -672,7 +680,14 @@ impl Chunk {
             saved: None,
             container_stack_limits: Default::default(),
             entities: Vec::new(),
+            dynamic_emission: Default::default(),
+            dynamic_pending: false,
         }
+    }
+    /// The [`Self::dynamic_emission`] key of the cell at `y` (chunk-local `x`, `z`):
+    /// `section << 12 | y << 8 | z << 4 | x`; `None` outside the column.
+    pub fn dynamic_cell(&self, x: i32, y: i32, z: i32) -> Option<u32> {
+        Some((self.section_index(y)? as u32) << 12 | index(x, y, z) as u32)
     }
     /// The original `structures.starts`, including starts with unknown pieces.
     pub fn saved_structure_starts(&self) -> Option<&horizon_core::nbt::Compound> {
@@ -738,6 +753,11 @@ impl Chunk {
         // `Heightmap.update`: a write two or more below a map's height can't
         // move it. Any other change rebuilds that map on the next read.
         if previous != v {
+            // A part's answer was for the state the cell held.
+            if !self.dynamic_emission.is_empty() {
+                self.dynamic_emission
+                    .remove(&((s as u32) << 12 | index(x, y, z) as u32));
+            }
             for map in [&mut self.surface, &mut self.motion_blocking] {
                 if map
                     .get()
@@ -752,6 +772,12 @@ impl Chunk {
     /// Section `s`'s block states replaced whole (a bulk edit): its storage
     /// compacted, and the heightmaps built again on their next read.
     pub fn replace_blocks(&mut self, s: usize, values: &[u32; 4096]) {
+        // The parts' answers of the cells whose state changes go with it.
+        let old = &self.sections[s];
+        self.dynamic_emission.retain(|&cell, _| {
+            let i = (cell & 4095) as usize;
+            cell >> 12 != s as u32 || old.get(i) == values[i]
+        });
         let section = Arc::make_mut(&mut self.sections[s]);
         section.blocks = Section::from_blocks(values);
         section.compact();

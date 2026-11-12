@@ -594,6 +594,7 @@ impl Screen {
         crate::ui::tooltip(batch, atlas, &lines, cursor);
     }
 
+    #[horizon_mod_api_macros::replaceable]
     pub fn list(saves: &Path) -> Self {
         let servers = servers::load(&servers_file(saves));
         let pings: Pings = Arc::default();
@@ -609,6 +610,7 @@ impl Screen {
             held: None,
         }
     }
+    #[horizon_mod_api_macros::replaceable]
     pub fn buttons(&self, w: f32, h: f32) -> Vec<ButtonSpec> {
         let b = |x: f32, y: f32, bw: f32, label: &str, enabled: bool, id: u8| {
             (x, y, bw, label.to_owned(), enabled, id)
@@ -942,6 +944,7 @@ impl Screen {
         let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
         crate::widgets::join_for_narration(&parts)
     }
+    #[horizon_mod_api_macros::replaceable]
     pub fn draw(
         &self,
         atlas: &HudAtlas,
@@ -1429,6 +1432,7 @@ impl Screen {
         true
     }
 
+    #[horizon_mod_api_macros::replaceable]
     pub fn click(
         &mut self,
         id: Option<u8>,

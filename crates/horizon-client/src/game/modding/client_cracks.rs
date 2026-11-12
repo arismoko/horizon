@@ -21,7 +21,7 @@ impl Game<'_> {
 
     pub(super) fn reset_client_world(&mut self, seed: i64) {
         self.destroying.clear();
-        self.world = horizon_client::world::World::new(self.res.facts().air, seed);
+        self.world = Game::world_for_mods(self.res.facts().air, seed);
     }
 }
 

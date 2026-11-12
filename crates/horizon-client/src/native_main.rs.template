@@ -10,12 +10,12 @@ macro_rules! native_mods {
 const BUILT_MODS: &[horizon_mod_package::runtime::BuiltMod] = &[
 /* BUILT_MODS */
 ];
-const _: () = assert!(
-    !BUILT_MODS.is_empty(),
-    "The native inventory must be generated from mod manifests"
-);
 fn main() {
+    horizon_mod_host::exit_if_compile_child();
     let startup = horizon_client::entry::prepare();
+    horizon_client::entry::installed(&[
+/* MOD_REDIRECTS */
+    ]);
     std::hint::black_box(&horizon_mod_package::holder::CAPABILITY);
     std::hint::black_box(&GAME_IDENTITY);
     let mods: Vec<mod_api::ModEntry> = native_mods! {

@@ -276,9 +276,10 @@ fn registrations(
         let points: Vec<horizon_mod_point_emit::Point> =
             serde_json::from_value(json["points"].clone())
                 .map_err(|e| format!("{}: {e}", path.display()))?;
-        wasm_route(&parsed.inject)?;
-        let expressions = horizon_mod_point_emit::api(&parsed, &points, "crate::")?;
-        let names = horizon_mod_point_emit::places(&parsed, &points)?;
+        let expressions = horizon_mod_point_emit::api(&parsed, &points, "crate::")
+            .map_err(|e| format!("{}:{e}", parsed.id))?;
+        let names = horizon_mod_point_emit::places(&parsed, &points)
+            .map_err(|e| format!("{}:{e}", parsed.id))?;
         let registrations = expressions
             .iter()
             .map(|e| {
@@ -293,40 +294,10 @@ fn registrations(
     Ok((registrations, point_names))
 }
 
-/// A wasm module gets a guest listener for each API head, return and `replace`
-/// injection, which the shared emitter builds; `access = "internals"` and the call-site kinds
-/// exist only natively. The first that can't be built is refused, named with its reason.
-fn wasm_route(injects: &[horizon_mod_package::manifest::inject::Inject]) -> Result<(), String> {
-    use horizon_mod_package::manifest::inject::Access;
-    let Some(entry) = injects
-        .iter()
-        .find(|entry| entry.access != Access::Api || entry.call.is_some())
-    else {
-        return Ok(());
-    };
-    let kind = serde_json::to_value(entry.kind)
-        .ok()
-        .and_then(|kind| kind.as_str().map(str::to_owned))
-        .unwrap_or_default();
-
-    let why = if entry.access != Access::Api {
-        "`access = \"internals\"` is native-only".to_owned()
-    } else {
-        format!("the call-site kind `{kind}` is native-only")
-    };
-    Err(format!(
-        "{}: wasm takes API head, return and replace injections; {why}",
-        entry.id
-    ))
-}
-
-/// `build --wasm`: builds `mod.wasm` beside `horizon-mod.toml` and records it in `[wasm]`.
 pub fn build(root: &Path, catalog: Option<&Path>, additional: &[PathBuf]) -> Result<(), String> {
     group::build(root, catalog, additional)
 }
 
-/// rustc emits a synthetic allocator-shim object for every final root. Its compiler-private
-/// symbols are local implementation details, not another copy of the library API.
 fn member_export(name: &str) -> bool {
     !matches!(name, "__horizon_mod_hooks" | "__dso_handle" | "__tls_base")
         && !rustc_demangle::try_demangle(name)
@@ -625,48 +596,6 @@ mod response_file_tests {
 }
 
 #[cfg(test)]
-mod route_tests {
-    use super::wasm_route;
-    use horizon_mod_package::manifest::inject::{Access, Inject, Kind};
-
-    fn inject(id: &str, kind: Kind, access: Access, call: Option<&str>) -> Inject {
-        Inject {
-            id: id.into(),
-            at: "game::tick".into(),
-            kind,
-            with: "listen".into(),
-            access,
-            priority: 0,
-            hash: Some("pin".into()),
-            call: call.map(Into::into),
-            nth: call.map(|_| 0),
-            ctx: call.map(|_| "context".into()),
-        }
-    }
-
-    #[test]
-    fn wasm_takes_the_api_head_kinds_and_names_the_first_it_cant() {
-        let head_kinds = [Kind::Head, Kind::Return, Kind::Replace]
-            .map(|kind| inject("ok", kind, Access::Api, None));
-        assert_eq!(wasm_route(&head_kinds), Ok(()));
-        let internals = inject("raw", Kind::Head, Access::Internals, None);
-        assert_eq!(
-            wasm_route(&[head_kinds[0].clone(), internals]),
-            Err("raw: wasm takes API head, return and replace injections; \
-                 `access = \"internals\"` is native-only"
-                .into())
-        );
-        let site = inject("site", Kind::BeforeCall, Access::Api, Some("game::step"));
-        assert_eq!(
-            wasm_route(&[site]),
-            Err("site: wasm takes API head, return and replace injections; \
-                 the call-site kind `before_call` is native-only"
-                .into())
-        );
-    }
-}
-
-#[cfg(test)]
 mod export_tests {
     use super::{group_export, member_export};
     #[test]
@@ -693,5 +622,21 @@ mod export_tests {
         let upstream = "_RNvMs2_NtNtCscdi4KFDYmTw_7mod_api5parts14block_entitiesDNtB7_9RegistrarEL_17block_entity_type";
         assert!(!group_export(upstream, "wasm_test_observer"));
         assert!(group_export("horizon_hook", "wasm_test_observer"));
+    }
+}
+
+#[cfg(test)]
+mod refusal_tests {
+    #[test]
+    fn wasm_registration_refusal_names_mod_target_and_type() {
+        let dir = std::env::temp_dir().join(format!("horizon-wire-refusal-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let catalog = dir.join("points.json");
+        std::fs::write(&catalog, r#"{"points":[{"target":"game::tick","name":"tick","at_return":true,"api_refusal":"argument 1 `value` (`&RegistrationData`) has no API type yet"}]}"#).unwrap();
+        let manifest = "id = 'addon'\nname = 'Addon'\nversion = '1.0.0'\napi = '0.2'\ncapabilities = ['registries']\n[[inject]]\nid = 'before'\nat = 'game::tick'\nkind = 'head'\nwith = 'before'\nhash = 'pin'\n".parse().unwrap();
+        assert_eq!(
+            super::registrations(&manifest, Some(&catalog)).unwrap_err(),
+            "addon:before: no API listener at game::tick: argument 1 `value` (`&RegistrationData`) has no API type yet"
+        );
     }
 }

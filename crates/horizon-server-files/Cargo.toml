@@ -18,3 +18,7 @@ ureq = { version = "2", default-features = false, features = ["tls"] }
 
 [lints]
 workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# Durable file publication (durable.rs): MoveFileExW with MOVEFILE_WRITE_THROUGH.
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }

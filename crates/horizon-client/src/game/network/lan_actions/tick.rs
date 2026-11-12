@@ -557,10 +557,19 @@ impl Game<'_> {
             }
             // Entity.baseTick: rain puts out a burning player.
             game.rain_extinguish_player();
-            // WitherRoseBlock.entityInside along those moves.
+            // WitherRoseBlock.entityInside along those moves, and an
+            // `entity_inside` part's typed effect writes.
             for event in &events {
-                if matches!(event, MotionEvent::InsideWitherRose) {
-                    game.wither_rose_contact();
+                match event {
+                    MotionEvent::InsideWitherRose => game.wither_rose_contact(),
+                    MotionEvent::InsideEffect {
+                        id,
+                        duration,
+                        amplifier,
+                    } if game.remote.is_none() && game.ui.difficulty != 0 => {
+                        game.give_player_effect(id, *duration, i32::from(*amplifier));
+                    }
+                    _ => {}
                 }
             }
             // ServerGamePacketListenerImpl.handleMovePlayer:

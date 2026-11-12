@@ -26,6 +26,7 @@ pub use models::{
 use std::sync::Arc;
 
 mod bundle;
+pub use bundle::fits_inside_container_items;
 mod equippable;
 pub mod place;
 mod remainder;
@@ -411,12 +412,6 @@ pub fn beacon_required_levels(effect: Option<&str>) -> i32 {
         .iter()
         .position(|tier| tier.contains(&effect))
         .map_or(i32::MAX, |i| i as i32 + 1)
-}
-
-/// `Item.canFitInsideContainerItems` (`ShulkerBoxSlot.mayPlace`): shulker
-/// boxes cannot nest.
-pub fn fits_inside_container_items(stack: &ItemStack) -> bool {
-    !stack.item.ends_with("shulker_box")
 }
 
 /// The containers a menu spans.
@@ -2118,6 +2113,7 @@ impl Menu {
     }
 
     /// `CraftingMenu.slotChangedCraftingGrid`.
+    #[horizon_mod_api_macros::replaceable]
     fn recompute(&mut self, env: &Env) {
         if self.grid_size == 0 {
             return;
@@ -5000,6 +4996,15 @@ pub(crate) mod tests {
                 fluid_flow: |context, _, _, flow| {
                     flow[0] += context.setting("rules_mod", "stack").map_or(0.0, |_| 1.0);
                 },
+                sound_type: |context, _, _, entity, cause, sound| {
+                    if context.setting("rules_mod", "stack").is_some()
+                        && entity.is_some_and(|(_, kind)| kind == "minecraft:player")
+                        && cause == mod_api::BlockSoundCause::Step
+                    {
+                        sound.step = "rules_mod:block.rules.step".into();
+                        sound.volume = 2.0;
+                    }
+                },
             });
         assert!(installed);
         let kind = Kind::Mod(Box::leak(Box::new(crate::containers::ModMenuType {
@@ -5164,6 +5169,37 @@ pub(crate) mod tests {
         };
         assert_eq!(movement(&before), (false, 0.25));
         assert_eq!(movement(&after), (true, 1.25));
+        // A block's sound type reads it too, with the entity and the cause it was asked for.
+        let stone = crate::blocks::Sounds {
+            volume: 1.0,
+            pitch: 1.0,
+            break_sound: "minecraft:block.stone.break".into(),
+            step: "minecraft:block.stone.step".into(),
+            place: "minecraft:block.stone.place".into(),
+            hit: "minecraft:block.stone.hit".into(),
+            fall: "minecraft:block.stone.fall".into(),
+        };
+        let step = |context: &LoopContext, kind: &str, cause| {
+            let mut sound = crate::block_sounds::own(&stone);
+            crate::block_sounds::native_sound_type(
+                context,
+                horizon_core::position::BlockPos::new(0, 0, 0),
+                horizon_world::registry::BlockStateId(0),
+                Some((1, kind)),
+                cause,
+                &mut sound,
+            );
+            (sound.step.to_string(), sound.volume)
+        };
+        let (own, answered) = (
+            ("minecraft:block.stone.step".to_owned(), 1.0),
+            ("rules_mod:block.rules.step".to_owned(), 2.0),
+        );
+        use mod_api::BlockSoundCause::{Place, Step};
+        assert_eq!(step(&before, "minecraft:player", Step), own);
+        assert_eq!(step(&after, "minecraft:player", Step), answered);
+        assert_eq!(step(&after, "minecraft:cow", Step), own);
+        assert_eq!(step(&after, "minecraft:player", Place), own);
         // Fall, trample, jump and the ender teleport read it as well.
         let landing = |context: &LoopContext| {
             let (mut distance, mut multiplier, mut cancel) = (3.0, 1.0, false);

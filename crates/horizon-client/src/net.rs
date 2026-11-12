@@ -355,6 +355,7 @@ impl Session {
         }
     }
     /// Everything received since the last poll.
+    #[horizon_mod_api_macros::replaceable]
     pub fn poll(&self) -> Vec<Event> {
         self.events.try_iter().collect()
     }
@@ -1280,6 +1281,7 @@ fn fill_known_entries(r: &mut cfg::RegistryData, resources: &Path) {
     }
 }
 
+#[horizon_mod_api_macros::replaceable]
 fn receive_brand(payload: &cfg::CustomPayload, send: &Sender<Event>) {
     if payload.channel == "minecraft:brand"
         && let Ok(brand) = horizon_protocol::buf::Reader::new(&payload.data).string(32767)

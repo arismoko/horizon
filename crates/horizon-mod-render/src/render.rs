@@ -1,6 +1,6 @@
-//! Render hook points for native mods (docs/modding/src/how-to/native-mods.md): empty functions the renderer calls at
-//! fixed places of a frame, which a mod's mixins hook like those of
-//! `horizon-client/src/game/native_hooks.rs`, and declared with them in `hooks/`.
+//! Render functions for native mods (docs/modding/src/how-to/native-mods.md): empty functions the
+//! renderer calls at fixed places of a frame, which a mod's mixins replace, declared with the
+//! hooks in `hooks/`.
 
 use glam::{DVec3, Mat4};
 mod generated {
@@ -11,13 +11,18 @@ pub use generated::{
 };
 pub use wgpu;
 
-/// Whether the raw world draw place has an installed listener.
+/// Whether a mixin build installed a patched copy of the free function `$function` of this
+/// module. The prebuilt game's staging pass answers it from the function's replacement slot; a
+/// build without replacement slots has no patched functions.
+macro_rules! replaced {
+    ($function:ident) => {
+        false
+    };
+}
+
+/// Whether a mixin replaced the raw world draw function.
 pub fn world_drawn_hooked() -> bool {
-    mod_points::__private::POINTS[mod_points::PointId::ModRenderRenderWorldDrawn as usize]
-        .load(std::sync::atomic::Ordering::Relaxed)
-        || mod_points::__private::POINTS
-            [mod_points::PointId::ModRenderRenderWorldDrawnReturn as usize]
-            .load(std::sync::atomic::Ordering::Relaxed)
+    replaced!(world_drawn)
 }
 
 /// What a mod can draw with once the world is drawn: after the sky, terrain, entities,
@@ -128,6 +133,7 @@ pub struct RenderNeeds {
 
 /// The world is drawn (see [`WorldDrawn`]). Not called on the title screen's panorama.
 #[inline(never)]
+#[horizon_mod_api_macros::replaceable]
 pub fn world_drawn(world: &mut WorldDrawn<'_>) {
     let _ = world;
 }
@@ -135,12 +141,14 @@ pub fn world_drawn(world: &mut WorldDrawn<'_>) {
 /// The first-person hand is drawn (see [`HandDrawn`]), on every frame [`world_drawn`]
 /// runs, with no hand too.
 #[inline(never)]
+#[horizon_mod_api_macros::replaceable]
 pub fn hand_drawn(hand: &mut HandDrawn<'_>) {
     let _ = hand;
 }
 
 /// Asked as a frame is built and drawn: set what your mod needs.
 #[inline(never)]
+#[horizon_mod_api_macros::replaceable]
 pub fn render_needs(needs: &mut RenderNeeds) {
     let _ = needs;
 }
@@ -248,24 +256,22 @@ pub struct WorldViewDrawn<'a> {
 /// [`MAX_WORLD_VIEWS`] valid ones draw; one with a value out of range, or an `id` already asked
 /// for, is left out. Keep it cheap.
 #[inline(never)]
+#[horizon_mod_api_macros::replaceable]
 pub fn world_views(views: &mut Vec<WorldView>) {
     let _ = views;
 }
 
 /// A world view is drawn (see [`WorldViewDrawn`]): once per view asked for this frame.
 #[inline(never)]
+#[horizon_mod_api_macros::replaceable]
 pub fn world_view_drawn(view: &mut WorldViewDrawn<'_>) {
     let _ = view;
 }
 
-/// Whether the world views place has an installed listener: while none has, the renderer does
-/// not ask.
+/// Whether a mixin replaced the world views function: while none has, the renderer does not
+/// ask.
 pub fn world_views_hooked() -> bool {
-    mod_points::__private::POINTS[mod_points::PointId::ModRenderRenderWorldViews as usize]
-        .load(std::sync::atomic::Ordering::Relaxed)
-        || mod_points::__private::POINTS
-            [mod_points::PointId::ModRenderRenderWorldViewsReturn as usize]
-            .load(std::sync::atomic::Ordering::Relaxed)
+    replaced!(world_views)
 }
 
 /// The views of those asked for ([`world_views`]) that can be drawn on a device whose textures

@@ -228,7 +228,10 @@ impl Game<'_> {
     /// `completeUsingItem` (`handleEntityEvent(9)`) ran for `stack` in `slot`.
     /// `ItemStack.finishUsingItem` runs first, as on the client: the use
     /// cooldown, then the hand holds `finish_result`. A mod's result is put in
-    /// the slot; the server's inventory update replaces either.
+    /// the slot; the server's inventory update replaces either. Finishing a use
+    /// sends no creative packet in vanilla (its inventory-slot edits go out
+    /// through the open creative screen's `CreativeInventoryListener`), so the
+    /// slot counts as synced for this client's creative sync.
     pub(super) fn remote_use_item_finished(
         &mut self,
         slot: usize,
@@ -239,7 +242,9 @@ impl Game<'_> {
         let mut result = self.finish_result(stack, info);
         let hand = hand_of(Some((slot, 0))).unwrap_or(self.hand);
         self.native_living_entity_use_item_finish(stack, None, hand, 0, &mut result);
+        let before = self.creative_stacks();
         *self.stack_in_mut(slot) = result.filter(|s| s.count > 0);
+        self.remote_synced_since(&before);
     }
     /// What `Item.finishUsingItem` leaves in the hand on a server's client: a
     /// stack that is not a consumable stays as it is (a spyglass); a

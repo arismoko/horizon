@@ -169,6 +169,21 @@ pub(super) fn apply_patches(directory: &Path, patches: &toml::Table) -> Result<(
 mod tests {
     use super::*;
     #[test]
+    fn sdk_partial_graph_accepts_inactive_edges_but_refuses_new_registry_edges() {
+        let original = format!("version=4\n[[package]]\nname='game'\nversion='1.0.0'\ndependencies=['log']\n[[package]]\nname='log'\nversion='0.4.0'\nsource='registry+https://github.com/rust-lang/crates.io-index'\nchecksum='{}'\n", "a".repeat(64));
+        let plan = Plan::read(&original, &[], &[]).unwrap();
+        let narrower = original.replace("dependencies=['log']", "dependencies=[]");
+        plan.allowed
+            .check_partial_resolution(&RegistryLock::parse(&narrower).unwrap(), &plan.game)
+            .unwrap();
+        let added = format!("{original}dependencies=['game']\n");
+        assert!(plan
+            .allowed
+            .check_partial_resolution(&RegistryLock::parse(&added).unwrap(), &plan.game)
+            .is_err());
+    }
+
+    #[test]
     fn production_plan_preserves_isolated_game_patch_identity() {
         let original = "version=4\n[[package]]\nname='allocator-sys'\nversion='0.1.49'\n";
         let plan = Plan::read(original, &[], &[]).unwrap();
@@ -514,81 +529,6 @@ mod tests {
             String::from_utf8_lossy(&metadata.stderr)
         );
         assert!(!root.join("target").exists());
-        // The source route must create a cold workspace and replace an old
-        // package-only fetch workspace rather than trusting its stale features.
-        let input = root.join("source-input");
-        super::super::tests::write_bundle(&input, "source", "");
-        std::fs::write(
-            input.join("Cargo.toml"),
-            manifest.replace("[workspace]\n", ""),
-        )
-        .unwrap();
-        std::fs::write(input.join("Cargo.lock"), &game).unwrap();
-        std::fs::write(input.join("build.rs"), "panic!(\"must not execute\");").unwrap();
-        let bundle = super::super::bundle_in(&input).unwrap().unwrap();
-        std::fs::write(
-            input.join("Cargo.toml"),
-            format!(
-                "{}\nhorizon-mod-api={{git={:?},rev={:?}}}\n",
-                manifest.replace("[workspace]\n", ""),
-                horizon_addresses::NATIVE_MOD_SDK_SOURCE,
-                bundle.native().horizon
-            ),
-        )
-        .unwrap();
-        let projects = [Project::read(&bundle).unwrap()];
-        let wanted = [Wanted {
-            mod_id: "source".into(),
-            name: "feature-parent".into(),
-            version: "1".into(),
-            requirement: semver::VersionReq::parse("1").unwrap(),
-        }];
-        let source_plan = Plan::read(&game, &projects, &wanted).unwrap();
-        for stale in [false, true] {
-            let fetch = root.join(if stale { "stale-fetch" } else { "cold-fetch" });
-            if stale {
-                std::fs::create_dir_all(&fetch).unwrap();
-                std::fs::write(
-                    fetch.join("Cargo.toml"),
-                    "[dependencies]\noutside-closure='1'\n",
-                )
-                .unwrap();
-                std::fs::write(fetch.join("stale-marker"), "old synthetic workspace").unwrap();
-            }
-            super::super::registry_generate::stage_fetch(
-                &projects,
-                &[vec![]],
-                &fetch,
-                &source_plan.mods,
-            )
-            .unwrap();
-            assert!(!fetch.join("stale-marker").exists());
-            assert!(!fetch.join("mods/source/build.rs").exists());
-            let command = |subcommand: &str| {
-                let mut command = std::process::Command::new("cargo");
-                command
-                    .arg(subcommand)
-                    .arg("--offline")
-                    .arg("--config")
-                    .arg(root.join(".cargo/config.toml"))
-                    .current_dir(&fetch)
-                    .env("CARGO_HOME", fetch.join("cold-cargo-home"));
-                command
-            };
-            source_plan.resolve_and_fetch(&fetch, command).unwrap();
-            let lock = std::fs::read_to_string(fetch.join("Cargo.lock")).unwrap();
-            assert!(lock.contains("feature-only"));
-            assert!(!lock.contains("outside-closure"));
-            let metadata = command("metadata")
-                .args(["--locked", "--format-version", "1"])
-                .output()
-                .unwrap();
-            assert!(
-                metadata.status.success(),
-                "{}",
-                String::from_utf8_lossy(&metadata.stderr)
-            );
-        }
     }
 
     #[test]

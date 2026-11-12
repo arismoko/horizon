@@ -362,16 +362,18 @@ mod tests {
     fn declared_structure_entities_keep_template_payload_not_template_type() {
         const CHILD: &str = "HORIZON_TEST_DECLARED_STRUCTURE_ENTITY";
         if std::env::var_os(CHILD).is_none() {
-            assert!(
-                std::process::Command::new(std::env::current_exe().unwrap())
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
                         "--exact",
                         "structure_blocks::tests::declared_structure_entities_keep_template_payload_not_template_type",
                     ])
                     .env(CHILD, "1")
-                    .status()
-                    .unwrap()
-                    .success()
+                    .output()
+                    .unwrap();
+            assert!(
+                output.status.success(),
+                "test=structure_blocks::tests::declared_structure_entities_keep_template_payload_not_template_type exit_code={:?} category=fixture-child-failed",
+                output.status.code()
             );
             return;
         }

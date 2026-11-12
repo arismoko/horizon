@@ -1,12 +1,5 @@
-//! Slot tables for injection points: the game's (in `mod_points`) and each mod crate's own (#2339),
-//! one registry for all of them. A table is its slots, one `AtomicBool` per place, set once at the
-//! seal where a mod listens. Registering a listener records its table, so the one [`seal`] after
-//! the mods load sets every table that has listeners; a table nobody listens at is never touched,
-//! and each of its points costs one load of a slot that stays `false`.
-//!
-//! Sealing orders each place's listeners: API ones before internals ones, a `replace` last among
-//! the API ones, then priority descending, then registration order (the mods register in
-//! dependency order), then inject id within a mod. Call sites keep mod-id tie ordering.
+//! The engine API point registry, shared by native and wasm listeners.
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
@@ -18,36 +11,43 @@ pub fn cold<R>(path: impl FnOnce() -> R) -> R {
     path()
 }
 
-/// One injection point table: its point slots, then its call-site slots.
+/// One injection point table: its API point slots.
 // no wire: point registry machinery runs in its owning process; listeners cross through their records, never this.
 // exhaustive: generated point code builds and matches it in full.
 pub struct Table {
     points: &'static [AtomicBool],
-    sites: &'static [AtomicBool],
     sealed: OnceLock<Sealed>,
+    /// Each place's target function, when this build compiled no sites for the places: a
+    /// listener there would never run, so [`register`] refuses it by this name.
+    unsited: Option<&'static [&'static str]>,
 }
 
 impl Table {
-    /// A table over `points` and `sites` (a mod crate's table has no sites).
-    pub const fn new(points: &'static [AtomicBool], sites: &'static [AtomicBool]) -> Self {
+    /// A table over its API point slots, whose sites are compiled into this build.
+    pub const fn new(points: &'static [AtomicBool]) -> Self {
         Self {
             points,
-            sites,
             sealed: OnceLock::new(),
+            unsited: None,
         }
     }
 
-    /// Whether an active `replace` listener owns point `place`: the seal puts it last among the
-    /// place's API listeners. A stopped or disabled owner no longer replaces, and the function
-    /// runs as written.
-    pub fn replaced(&self, place: usize) -> bool {
-        let Some(sealed) = self.sealed.get() else {
-            return false;
-        };
-        let slot = &sealed.slots[place];
-        slot.entries[..slot.api_end].last().is_some_and(|entry| {
-            entry.replace && sealed.listeners[entry.listener as usize].active()
-        })
+    /// A table whose places have no site in this build: `targets` names each place's function,
+    /// and [`register`] refuses every listener.
+    pub const fn without_sites(
+        points: &'static [AtomicBool],
+        targets: &'static [&'static str],
+    ) -> Self {
+        Self {
+            points,
+            sealed: OnceLock::new(),
+            unsited: Some(targets),
+        }
+    }
+
+    /// Whether this build compiled the places' sites, so a listener registered here can run.
+    pub fn has_sites(&self) -> bool {
+        self.unsited.is_none()
     }
 
     /// Runs the API functions and forwarding endpoints at point `place`, each under its owner's
@@ -55,36 +55,11 @@ impl Table {
     #[cold]
     #[inline(never)]
     pub fn fire_api(&self, place: usize, call: &mut dyn FnMut(ApiKind)) {
-        self.fire(place, true, &mut |kind| {
-            if let Kind::Api(api) = kind {
-                call(api);
-            }
-        });
-    }
-
-    /// Runs the internals listeners at point `place`, each through `call` with its kind and
-    /// function. The slot casts a typed function back to the place's listener type, or calls an
-    /// erased one with the place index and its receiver and raw record or return value pointers.
-    #[cold]
-    #[inline(never)]
-    pub fn fire_raw(&self, place: usize, call: &mut dyn FnMut(RawKind)) {
-        self.fire(place, false, &mut |kind| {
-            if let Kind::Raw(raw) = kind {
-                call(raw);
-            }
-        });
-    }
-
-    fn fire(&self, place: usize, api: bool, call: &mut dyn FnMut(Kind)) {
         let Some(sealed) = self.sealed.get() else {
             return;
         };
         let slot = &sealed.slots[place];
-        let entries = if api {
-            &slot.entries[..slot.api_end]
-        } else {
-            &slot.entries[slot.api_end..]
-        };
+        let entries = &slot.entries;
         for entry in entries {
             let listener = &sealed.listeners[entry.listener as usize];
             if listener.active() {
@@ -92,36 +67,6 @@ impl Table {
                 call(entry.kind);
             }
         }
-    }
-
-    /// Invokes the next enabled listener of call site `site` under its mod guard. The generated
-    /// typed slot recurses from the returned index, so the first listener is outermost, without
-    /// allocating a chain.
-    pub fn wrap<O>(
-        &self,
-        site: usize,
-        from: usize,
-        call: impl FnOnce(Option<(*const (), usize)>) -> O,
-    ) -> O {
-        if let Some(sealed) = self.sealed.get() {
-            for (index, raw) in sealed.slots[self.points.len() + site]
-                .entries
-                .iter()
-                .enumerate()
-                .skip(from)
-            {
-                let listener = &sealed.listeners[raw.listener as usize];
-                if !listener.active() {
-                    continue;
-                }
-                let Kind::Raw(RawKind::Typed(function)) = raw.kind else {
-                    unreachable!("only typed listeners register at sites")
-                };
-                let _guard = super::enter(listener.id, raw.injection);
-                return call(Some((function, index + 1)));
-            }
-        }
-        call(None)
     }
 
     /// Sets the table's slots from its registrations: each place's listeners in order.
@@ -133,59 +78,34 @@ impl Table {
             }
         }
         let points = self.points.len();
-        let mut lists = vec![Vec::new(); points + self.sites.len()];
+        let mut lists = vec![Vec::new(); points];
         for (place, slot) in slots {
             lists[place].push(slot);
         }
-        for (place, list) in lists.iter_mut().enumerate() {
-            if place < points {
-                // A place's one `replace` listener runs after its other API listeners, so its
-                // outcome is the one the function takes ([`Table::replaced`] reads it there).
-                list.sort_by_key(|entry| {
-                    (
-                        std::cmp::Reverse(entry.kind.is_api()),
-                        entry.replace,
-                        std::cmp::Reverse(entry.priority),
-                    )
-                });
-                for group in list.chunk_by_mut(|a, b| {
-                    a.kind.is_api() == b.kind.is_api()
-                        && a.replace == b.replace
-                        && a.priority == b.priority
-                        && a.listener == b.listener
-                }) {
-                    group.sort_by_key(|entry| entry.injection);
-                }
-                continue;
+        for list in &mut lists {
+            list.sort_by_key(|entry| (entry.replace, std::cmp::Reverse(entry.priority)));
+            for group in list.chunk_by_mut(|a, b| {
+                a.replace == b.replace && a.priority == b.priority && a.listener == b.listener
+            }) {
+                group.sort_by_key(|entry| entry.injection);
             }
-            list.sort_by(|a, b| {
-                b.priority
-                    .cmp(&a.priority)
-                    .then_with(|| {
-                        listeners[a.listener as usize]
-                            .id
-                            .cmp(listeners[b.listener as usize].id)
-                    })
-                    .then_with(|| a.injection.cmp(b.injection))
-            });
         }
         let sealed = self.sealed.get_or_init(|| Sealed {
             listeners: listeners.into(),
             slots: lists
                 .into_iter()
                 .map(|entries| SlotList {
-                    api_end: entries.partition_point(|entry| entry.kind.is_api()),
                     entries: entries.into_boxed_slice(),
                 })
                 .collect(),
         });
-        for (slot, list) in self.points.iter().chain(self.sites).zip(&sealed.slots) {
+        for (slot, list) in self.points.iter().zip(&sealed.slots) {
             slot.store(!list.entries.is_empty(), Ordering::Release);
         }
     }
 }
 
-/// A place in a table: a point's head or return, or a call site after the table's points.
+/// A place in a table: a point's head or return, only.
 #[derive(Clone, Copy)]
 // no wire: point registry machinery runs in its owning process; listeners cross through their records, never this.
 // exhaustive: generated point code builds and matches it in full.
@@ -195,7 +115,7 @@ pub struct Place {
 }
 
 impl Place {
-    /// Place `index` of `table`; a call site's index counts after the table's points.
+    /// Place `index` of `table`.
     pub const fn new(table: &'static Table, index: usize) -> Self {
         Self { table, index }
     }
@@ -225,37 +145,6 @@ impl Owner {
         !self.stopped.load(Ordering::Acquire) && self.mod_index.is_none_or(super::mod_index_on)
     }
 }
-
-/// How a slot calls an internals listener.
-#[derive(Clone, Copy)]
-// no wire: point registry machinery runs in its owning process; listeners cross through their records, never this.
-// exhaustive: generated point code builds and matches it in full.
-pub enum RawKind {
-    /// A function of the place's listener type, cast back by the slot before calling it.
-    Typed(*const ()),
-    /// A runtime listener receiving the place index, receiver and raw record or return value.
-    ///
-    /// # Safety
-    ///
-    /// The caller must pass the registered place's index and valid pointers of that place's exact
-    /// receiver and raw record or return types, respecting their mutability, aliasing, ownership
-    /// and lifetime requirements for the call's duration. The receiver is null for a free or
-    /// associated function, and at a borrowed-return place. A shared receiver must not be written
-    /// to; its mutable pointer only erases the type, not its mutability.
-    Erased(unsafe fn(usize, *mut (), *mut ())),
-}
-
-// Function pointers: no data behind them, so they move between threads.
-#[allow(
-    unsafe_code,
-    reason = "Carried point-registry function-pointer erasure; ownership cleanup is tracked in #2587"
-)]
-unsafe impl Send for RawKind {}
-#[allow(
-    unsafe_code,
-    reason = "Carried point-registry function-pointer erasure; ownership cleanup is tracked in #2587"
-)]
-unsafe impl Sync for RawKind {}
 
 /// The host available to a point's hook call; frame objects never cross as data.
 // no wire: point registry machinery runs in its owning process; listeners cross through their records, never this.
@@ -302,23 +191,11 @@ unsafe impl Send for ApiKind {}
 )]
 unsafe impl Sync for ApiKind {}
 
-#[derive(Clone, Copy)]
-enum Kind {
-    Api(ApiKind),
-    Raw(RawKind),
-}
-
-impl Kind {
-    fn is_api(self) -> bool {
-        matches!(self, Self::Api(_))
-    }
-}
-
 /// A listener in its place's list.
 #[derive(Clone, Copy)]
 struct Slot {
     listener: u32,
-    kind: Kind,
+    kind: ApiKind,
     priority: i32,
     injection: &'static str,
     replace: bool,
@@ -326,7 +203,6 @@ struct Slot {
 
 struct SlotList {
     entries: Box<[Slot]>,
-    api_end: usize,
 }
 
 struct Sealed {
@@ -341,19 +217,19 @@ struct OpenTable {
     slots: Vec<(usize, Slot)>,
 }
 
-/// Every table's registrations while mods load, and stops that came before the seal.
+/// Engine point registrations while mods load, and stops that came before the seal.
 struct Open {
-    tables: Vec<OpenTable>,
+    table: Option<OpenTable>,
     stopped: Vec<String>,
     /// Set once [`seal`] has run: registering is refused from then on, and stops go to the
-    /// sealed tables in `tables`.
+    /// sealed engine table.
     sealed: bool,
 }
 
 /// Registering, stopping and sealing all hold this lock, so a registration either lands in the
 /// sealed lists or is refused, and a stop before the seal still holds after it.
 static OPEN: Mutex<Open> = Mutex::new(Open {
-    tables: Vec::new(),
+    table: None,
     stopped: Vec::new(),
     sealed: false,
 });
@@ -376,6 +252,13 @@ pub enum RegisterError {
         /// Target function.
         target: &'static str,
     },
+    /// The place is outside its table.
+    NoPlace {
+        /// Owning mod.
+        id: &'static str,
+        /// The place's index.
+        index: usize,
+    },
     /// The guest table requires a typed API listener.
     Unsupported,
     /// A second `replace` listener at a place that already has one: two overwrites can't both win,
@@ -395,6 +278,9 @@ impl std::fmt::Display for RegisterError {
                 f,
                 "{id}: {target}: this build has no point sites; start the game through the launcher's mod build"
             ),
+            Self::NoPlace { id, index } => {
+                write!(f, "{id}: place {index} is outside its point table")
+            }
             Self::Sealed => f.write_str("the game's points were already set"),
             Self::Unsupported => f.write_str("the guest table requires a typed API listener"),
             Self::Replaced { first, second } => write!(
@@ -409,13 +295,13 @@ impl std::fmt::Display for RegisterError {
 
 impl std::error::Error for RegisterError {}
 
-/// A function or checked endpoint at an API, internals or site slot.
+/// A function or checked endpoint at an API slot.
 // no wire: point registry machinery runs in its owning process; listeners cross through their records, never this.
 // exhaustive: generated point code builds and matches it in full.
 pub struct SlotListener {
     id: &'static str,
     place: Place,
-    kind: Kind,
+    kind: ApiKind,
     priority: i32,
     injection: &'static str,
     /// A `replace` listener: the function is its, so a second one at the place is refused.
@@ -423,68 +309,6 @@ pub struct SlotListener {
 }
 
 impl SlotListener {
-    /// Mod `id`'s internals listener `function` at `place`.
-    ///
-    /// # Safety
-    ///
-    /// `function` is a function of `place`'s raw listener type: `__<Point>Listener` at a head,
-    /// `__<Point>ReturnListener` at a return. The place's slot casts it back to that type and calls
-    /// it. The generated constructors check the type with a typed parameter before erasing it.
-    #[allow(
-        unsafe_code,
-        reason = "Carried typed point registration contract; ownership cleanup is tracked in #2587"
-    )]
-    pub const unsafe fn new(id: &'static str, place: Place, function: *const ()) -> Self {
-        Self::of(id, place, Kind::Raw(RawKind::Typed(function)))
-    }
-
-    /// Mod `id`'s erased runtime listener `function` at `place`.
-    ///
-    /// The callback gets the place's index, the receiver and the raw record at a head or the
-    /// return value's place at a return (including `()` for a function with no explicit return
-    /// type). The receiver is null for a free or associated function. At a borrowed-return place
-    /// it is also null: only the value's place is passed, since the value may borrow the receiver.
-    /// A shared receiver is passed as a mutable pointer only to erase its type, not its mutability.
-    ///
-    /// # Safety
-    ///
-    /// Given the pointers guaranteed by [`RawKind::Erased`], `function` must interpret them using
-    /// `place`'s exact receiver and raw record or return types, respecting their mutability,
-    /// aliasing, ownership and lifetime requirements. The pointers and any references derived
-    /// from them must not escape the callback. In particular, a shared receiver must not be
-    /// written to.
-    #[allow(
-        unsafe_code,
-        reason = "Carried typed point registration contract; ownership cleanup is tracked in #2587"
-    )]
-    pub const unsafe fn erased(
-        id: &'static str,
-        place: Place,
-        function: unsafe fn(usize, *mut (), *mut ()),
-    ) -> Self {
-        Self::of(id, place, Kind::Raw(RawKind::Erased(function)))
-    }
-
-    /// A typed call-site wrap listener, sorted by priority, mod id and injection id.
-    ///
-    /// # Safety
-    ///
-    /// `function` must have this site's exact generated listener type. Erased point callbacks
-    /// cannot register as site listeners: their signature has no original continuation.
-    #[allow(
-        unsafe_code,
-        reason = "Carried typed point registration contract; ownership cleanup is tracked in #2587"
-    )]
-    pub const unsafe fn site(
-        id: &'static str,
-        place: Place,
-        priority: i32,
-        injection: &'static str,
-        function: *const (),
-    ) -> Self {
-        Self::of(id, place, Kind::Raw(RawKind::Typed(function))).ordered(priority, injection)
-    }
-
     /// An API listener whose function has the place's exact generated function type.
     ///
     /// # Safety
@@ -494,7 +318,7 @@ impl SlotListener {
         reason = "Carried typed point registration contract; ownership cleanup is tracked in #2587"
     )]
     pub const unsafe fn api(id: &'static str, place: Place, function: *const ()) -> Self {
-        Self::of(id, place, Kind::Api(ApiKind::Typed(function)))
+        Self::of(id, place, ApiKind::Typed(function))
     }
 
     /// A checked runtime endpoint at an API place, dispatched through the hook machinery.
@@ -504,10 +328,10 @@ impl SlotListener {
         endpoint: &'static dyn Forward,
         export: u32,
     ) -> Self {
-        Self::of(id, place, Kind::Api(ApiKind::Forwarded(endpoint, export)))
+        Self::of(id, place, ApiKind::Forwarded(endpoint, export))
     }
 
-    const fn of(id: &'static str, place: Place, kind: Kind) -> Self {
+    const fn of(id: &'static str, place: Place, kind: ApiKind) -> Self {
         Self {
             id,
             place,
@@ -534,10 +358,7 @@ impl SlotListener {
 
     /// The function, when it is a typed API listener.
     pub fn api_kind(&self) -> Option<ApiKind> {
-        match self.kind {
-            Kind::Api(kind) => Some(kind),
-            Kind::Raw(_) => None,
-        }
+        Some(self.kind)
     }
 
     /// Where it listens.
@@ -557,27 +378,39 @@ impl SlotListener {
 }
 
 /// Registers a function or checked endpoint in its place's table, in the same order for native
-/// and wasm owners.
+/// and wasm owners. The one boundary every listener passes: a table whose places have no site in
+/// this build refuses here, naming the mod and the target, so no listener registers and never runs.
 pub fn register(slot: &SlotListener) -> Result<(), RegisterError> {
+    // A place is built from any table and index: one outside its table is refused, not indexed.
+    let table = slot.place.table;
+    let outside = RegisterError::NoPlace {
+        id: slot.id,
+        index: slot.place.index,
+    };
+    if slot.place.index >= table.points.len() {
+        return Err(outside);
+    }
+    if let Some(targets) = table.unsited {
+        let Some(target) = targets.get(slot.place.index) else {
+            return Err(outside);
+        };
+        return Err(RegisterError::Unstaged {
+            id: slot.id,
+            target,
+        });
+    }
     let mut open = lock();
     if open.sealed {
         return Err(RegisterError::Sealed);
     }
-    let table = match open
-        .tables
-        .iter()
-        .position(|open| std::ptr::eq(open.table, slot.place.table))
-    {
-        Some(index) => &mut open.tables[index],
-        None => {
-            open.tables.push(OpenTable {
-                table: slot.place.table,
-                listeners: Vec::new(),
-                slots: Vec::new(),
-            });
-            open.tables.last_mut().expect("just pushed")
-        }
-    };
+    let table = open.table.get_or_insert_with(|| OpenTable {
+        table: slot.place.table,
+        listeners: Vec::new(),
+        slots: Vec::new(),
+    });
+    if !std::ptr::eq(table.table, slot.place.table) {
+        return Err(RegisterError::Unsupported);
+    }
     let place = slot.place.index;
     if slot.replace
         && let Some((_, first)) = table
@@ -614,7 +447,7 @@ pub fn register(slot: &SlotListener) -> Result<(), RegisterError> {
     Ok(())
 }
 
-/// Stops mod `id`'s listeners in every table: none of them runs again, whether the tables are
+/// Stops mod `id`'s engine listeners: none of them runs again, whether the slots are
 /// sealed yet or not. A trap that stops a wasm group and the game giving up on a native mod both
 /// end here.
 pub fn stop(id: &str) {
@@ -623,7 +456,7 @@ pub fn stop(id: &str) {
         open.stopped.push(id.to_owned());
         return;
     }
-    for table in &open.tables {
+    for table in open.table.iter() {
         let Some(sealed) = table.table.sealed.get() else {
             continue;
         };
@@ -633,7 +466,7 @@ pub fn stop(id: &str) {
     }
 }
 
-/// Seals every table, so no listener registers after it, and sets each slot a mod listens at. The
+/// Seals the engine table, refusing later registrations, and sets listened slots. The
 /// game calls it once, after the mods load.
 pub fn seal() {
     let mut open = lock();
@@ -642,7 +475,7 @@ pub fn seal() {
     }
     open.sealed = true;
     let stopped = std::mem::take(&mut open.stopped);
-    for table in &mut open.tables {
+    for table in open.table.iter_mut() {
         let (listeners, slots) = (
             std::mem::take(&mut table.listeners),
             std::mem::take(&mut table.slots),
@@ -652,7 +485,7 @@ pub fn seal() {
 }
 
 /// Adapts a replacement listener to a point's ordinary typed listener without registry values.
-// hidden: generated mod-point adapters share replacement semantics without exposing registry types.
+// hidden: generated engine point adapters share replacement semantics.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! replacement_listener {

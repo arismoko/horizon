@@ -94,7 +94,55 @@ return `Result<bool, BlockEntityError>`: handle `Err(BlockEntityError::Stale)` b
 or reacquiring the handle. `Ok(false)` means unchanged data or an unsupported operation,
 not a stale identity. Existing item and data-vector methods retain their specialized errors.
 
+## When its chunk unloads
+
+A machine that keeps something outside its saved data (a running job, an open handle, its place in an
+energy or pipe network) lets go of it in `on_chunk_unloaded`, NeoForge's `onChunkUnloaded`: a
+`BlockEntityPart` on the type is told once for each of its block entities in a chunk that unloads, on each
+side that holds a copy, before the copy is dropped.
+
+```rust,ignore
+struct Node;
+#[mod_api::horizon_part]
+impl mod_api::BlockEntityPart for Node {
+    fn on_chunk_unloaded(
+        &self,
+        host: mod_api::HostSide<'_>,
+        event: &mut mod_api::OnChunkUnloadedEvent<'_>,
+    ) {
+        if let mod_api::HostSide::Server(_) = host {
+            // The handle equals the one `host.block_entity` gave while it was loaded.
+            NETWORK.lock().unwrap().remove(&event.block_entity);
+        }
+    }
+}
+// In Hooks::register:
+// registrar.block_entity_part(&node_type, Node)?;
+```
+
+`event.pos` is where it stands and `event.entity` its data at the call: on a server what the chunk was
+just saved with, on a client its copy as the server last sent it. On a server the chunk is saved before
+the call, so a change made in it is not kept, and the chunk may already have left the level, so its
+handle's reads find nothing there. It is not called when the world closes, nor on a client when its whole
+level goes, and never for a vanilla block entity. The chunk-wide notice is still `native_chunk_unload`, a
+server hook told after the chunk's block entities; a client is told of the block entities alone
+([hook notes](../reference/hook-notes.md#when-a-block-entitys-chunk-unloads)).
+
 `player.open_menu(host, entity)` also returns `Result<bool, BlockEntityError>`:
 `Ok(true)` means opened, `Ok(false)` means a non-provider, cancelled open or
 unconnected/wrong-level player, and `Err(BlockEntityError::Stale)` means the entity
 no longer resolves. It never opens a replacement through an old handle.
+
+### Receiving synchronized data
+
+Implement `block_entity_data_received` on the block entity's part to react on the
+client after its synchronized tag has merged. It receives a `BlockEntityRef` and
+the arriving compound; reads through the handle already see the new data. This
+listen notice carries `BlockEntityDataSource::Chunk` or `UpdatePacket`. A chunk
+with an empty compound sends no notice. An update packet with an empty compound
+sends one notice; a packet with no tag sends none. Repeated identical packets
+each notify, and the event contains only the arriving fields, while handle reads
+see the merged copy.
+It cannot change the arriving tag. Vanilla entities, missing tags, missing client
+entities and mismatched types do not call it. Server tag production still uses
+`block_entity_update_tag`.

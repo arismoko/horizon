@@ -5,7 +5,7 @@
 //! also indexes the block parts by state, so the state-keyed hooks look theirs up without the
 //! block's name.
 use crate::BlockEntityTypeDecl;
-use crate::world::ticket_controller::{self, ControllerInfo};
+use crate::world::ticket_controller::ControllerInfo;
 use crate::{
     BlockEntityPart, BlockPart, BlockSide, Capability, CapabilityKey, EntityCapabilityKey,
     EntityPart, EntityRef, FluidPart, HOOK_COUNT, HookId, Host, ItemCapabilityKey, ItemPart,
@@ -13,18 +13,19 @@ use crate::{
 };
 use std::{
     any::{Any, type_name},
-    cell::{Cell, RefCell},
+    cell::RefCell,
     collections::{HashMap, HashSet},
     marker::PhantomData,
     rc::Rc,
-    sync::{
-        Arc, LazyLock, OnceLock,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, LazyLock, OnceLock, atomic::Ordering},
 };
 
 include!(concat!(env!("OUT_DIR"), "/parts_modules.rs"));
 
-impl Registrar for PartRegistrar {}
-
 impl CapabilityProviders for InstalledProviders {}
+
+#[cfg(any(test, feature = "testing"))]
+use std::cell::Cell;
+
+#[cfg(test)]
+use std::sync::atomic::AtomicBool;

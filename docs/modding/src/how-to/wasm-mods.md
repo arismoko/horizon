@@ -161,9 +161,7 @@ owner enable flag and stop behavior as native listeners. Mixins remain native-on
 
 A point's record is a copy of every parameter as an API value, `&mut` parameters copied back
 after the listener, exactly as for a native listener; a point with a parameter that has no API type
-yet refuses an `api` listener at registration, naming it. `access = "internals"` (raw records,
-call kinds, support modules) is native-only: a `mod.wasm` declaring `[[internals]]` or an internals
-injection is refused at load with "internals access is native-only".
+yet refuses an `api` listener at registration, naming it. `access = "internals"` on `[[inject]]` is refused by name on both targets. Native code needing game internals uses `[[native.mixin]]`; wasm cannot declare `[[internals]]` or native transformations.
 
 ## ABI reference
 
@@ -253,6 +251,15 @@ current user, not writable by group or others, and has only one hard link. Symli
 refused. On Windows, persistent caching is disabled until owner, DACL and inheritance trust
 can be verified for the cache folder and opened entries. Modules compile from wasm instead,
 with one warning explaining the fallback. The player's account is the trust boundary.
+
+At startup, the game removes regular `.cwasm` files from other engine configurations or
+Wasmtime versions, along with malformed and old-format cache names. It never follows symlinks
+for cleanup. Current-engine entries have a 1 GiB startup budget: when their combined size
+exceeds it, entries are removed oldest first by modification time until within the budget.
+Current entries are not removed just because they are old. Entries written during this launch
+are retained until a later startup. The proposed budget allows 30 copies of the largest
+measured compiled module (34,039,320 bytes) plus headroom; the 30-module allowance awaits
+maintainer confirmation and does not represent a measured pack.
 
 A failed check logs the reason once per launch. Unavailable, corrupt or incompatible entries
 fall back to compiling the wasm. Writes replace entries atomically without changing files that

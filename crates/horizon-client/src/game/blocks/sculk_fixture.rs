@@ -13,7 +13,6 @@ use horizon_client::{
     mobs::{Mob, Who},
     motion::PlayerMotion,
     sculk::{Info, SculkKind, WardenSpawnTracker},
-    world::World,
 };
 use horizon_core::{
     geometry::{Direction, Vec3},
@@ -316,7 +315,7 @@ impl Game<'_> {
     }
 
     fn sculk_fixture_reset(&mut self, s: &Scenario) -> Result<()> {
-        self.world = World::new(self.res.facts().air, 0);
+        self.world = Game::world_for_mods(self.res.facts().air, 0);
         let plains = u32::from(world_biomes!(self).id("minecraft:plains"));
         let layers = [
             self.fixture_state("minecraft:bedrock")?,

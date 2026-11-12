@@ -481,15 +481,54 @@ class PrReadyTests(unittest.TestCase):
     def test_affected_harnesses_come_from_the_parity_runner(self):
         found = {"food": "tools/test_food_parity.py", "datafix#1": "tools/test_datafix_parity.py",
                  "datafix#2": "tools/test_datafix_parity.py"}
-        with mock.patch.object(pr_ready.parity, "harnesses", return_value=found), \
-                mock.patch.object(pr_ready.parity, "load_state", return_value={"harnesses": {
-                    "food": {"dependencies": ["crates/horizon-world/src/food.rs"]},
-                    "datafix#1": {"dependencies": ["crates/horizon-world/src/datafix.rs"]},
-                    "datafix#2": {"dependencies": ["crates/horizon-world/src/datafix.rs"]}}}), \
-                mock.patch.object(pr_ready.parity, "ROOT", pr_ready.parity.Path(".")):
-            self.assertEqual(pr_ready.affected_here({"crates/horizon-world/src/datafix.rs"}), ["datafix"])
-            self.assertEqual(pr_ready.affected_here({"README.md"}), [])
-            self.assertEqual(pr_ready.affected_here({"Cargo.lock"}), ["food", "datafix"])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # Exercise the real selector/SourceGraph on the records' tiny workspace, not
+            # every crate in this checkout. All three selection cases share this input.
+            (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/horizon-world"]\n')
+            crate = root / "crates/horizon-world"
+            (crate / "src").mkdir(parents=True)
+            (crate / "Cargo.toml").write_text(
+                '[package]\nname = "horizon-world"\nversion = "0.0.0"\n')
+            (crate / "src/lib.rs").write_text('pub mod food;\npub mod datafix;\n')
+            for module in ("food", "datafix"):
+                (crate / f"src/{module}.rs").write_text('pub fn run() {}\n')
+            found = {name: str(root / script) for name, script in found.items()}
+            with mock.patch.object(pr_ready.parity, "harnesses", return_value=found), \
+                    mock.patch.object(pr_ready.parity, "load_state", return_value={"harnesses": {
+                        "food": {"dependencies": ["crates/horizon-world/src/food.rs"]},
+                        "datafix#1": {"dependencies": ["crates/horizon-world/src/datafix.rs"]},
+                        "datafix#2": {"dependencies": ["crates/horizon-world/src/datafix.rs"]}}}), \
+                    mock.patch.object(pr_ready.parity, "ROOT", root), \
+                    mock.patch.object(pr_ready.parity, "SHARED", root / "cache"), \
+                    mock.patch.object(pr_ready.parity, "STATE_DIR", root / "cache"):
+                self.assertEqual(pr_ready.affected_here({"crates/horizon-world/src/datafix.rs"}), ["datafix"])
+                self.assertEqual(pr_ready.affected_here({"README.md"}), [])
+                self.assertEqual(pr_ready.affected_here({"Cargo.lock"}), ["food", "datafix"])
+
+    def test_actual_sources_place_food_probe_and_select_reached_source(self):
+        # Parse the checkout's actual manifest, probe and reached implementation,
+        # not another synthetic Rust program. A narrow root avoids rebuilding the
+        # whole-workspace graph whose cost this test-only change removes.
+        parity = pr_ready.parity
+        probe = "crates/horizon-world/examples/probe/food_fixture.rs"
+        source = "crates/horizon-world/src/food.rs"
+        dependencies = {
+            "crates/horizon-world/examples/probe/main.rs", probe,
+            "crates/horizon-world/src/lib.rs", source,
+        }
+        artifacts = [("example", "probe", None, ["-p", "horizon-world"])]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for path in dependencies | {"crates/horizon-world/Cargo.toml"}:
+                destination = root / path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(pr_ready.ROOT / path, destination)
+            graph = parity.parity_reach.SourceGraph(root, parity.rust_code)
+            entries = graph.entries(artifacts, dependencies)
+            self.assertIn(probe, entries or (), "the actual probe must be placed, not fallback-selected")
+            self.assertIn(source, graph.reachable(entries, dependencies),
+                          "the actual food probe must reach its food implementation")
 
     def test_harnesses_are_listed_when_they_cannot_run(self):
         changed = {"crates/horizon-world/src/food.rs"}

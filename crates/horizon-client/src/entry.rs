@@ -48,7 +48,26 @@ pub fn prepare() -> Startup {
 /// A native function slot, checked against its place's exact type before erasure.
 pub use mod_points::__private::SlotListener as NativeSlot;
 
-/// The places raw listeners register at, named by the generated `main`.
+/// Refuse startup if any merged copy could not be installed, before loading any mod.
+/// Cells cannot roll back: each copy merges all requesting rows, so stopping the whole
+/// start is how we ensure none of a refused mod's rows run.
+pub fn installed(patched: &[(&str, &[&str], bool)]) {
+    let refusals = installation_refusals(patched);
+    for line in &refusals {
+        eprintln!("{line}");
+    }
+    if !refusals.is_empty() {
+        std::process::exit(game::exit_code::ERROR);
+    }
+}
+
+fn installation_refusals(patched: &[(&str, &[&str], bool)]) -> Vec<String> {
+    patched.iter().filter(|(_, _, installed)| !installed).map(|(target, mods, _)| {
+        format!("Horizon: {}: {target}: a patched copy was already installed; the game was not started", mods.join(", "))
+    }).collect()
+}
+
+/// The places listeners register at, named by the generated `main`.
 #[doc(hidden)]
 pub use mod_points::PointId;
 
@@ -85,6 +104,11 @@ pub fn start<G>(
     slots: &[NativeSlot],
     startup: Startup,
 ) {
+    // Platform instrumentation must precede registration and the first mod guard.
+    if let Err(error) = mod_api::__private::initialize() {
+        eprintln!("Horizon: refusing startup because mod instrumentation is unavailable: {error}");
+        std::process::exit(game::exit_code::ERROR);
+    }
     let _ = CODE_RUNTIME.set(code);
     let Startup {
         launch,
@@ -370,6 +394,9 @@ pub(crate) fn install_client_hooks() {
             let context = reader.context();
             mod_api::dispatch_fluid_flow(&context, fluid, pos, flow);
         },
+        sound_type: |context, pos, state, entity, cause, sound| {
+            crate::game::native_block_sounds::sound_type(context, pos, state, entity, cause, sound);
+        },
     }) {
         log::warn!("Native client hooks already installed; keeping the first callbacks");
     }
@@ -408,5 +435,22 @@ fn raise_open_file_limit() {
                 Err(e) => log::warn!("Open file limit stays at {:?}: {e}", limit.current),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod installation_tests {
+    #[test]
+    fn refused_install_names_all_mods_and_only_failed_targets() {
+        assert_eq!(
+            super::installation_refusals(&[
+                ("game::tick", &["first", "second"], false),
+                ("game::other", &["third"], true)
+            ]),
+            vec![
+                "Horizon: first, second: game::tick: a patched copy was already installed; the game was not started"
+            ]
+        );
+        assert!(super::installation_refusals(&[]).is_empty());
     }
 }

@@ -1570,6 +1570,9 @@ pub fn place_in_world<W: FeatureWorld + PlacementContext>(
                 };
                 nbt.insert("LootTableSeed".into(), Tag::Long(seed));
             }
+            if let Some(transform) = resources.registry.structure_block_entity_transform.get() {
+                transform.transform(info.pos, &mut nbt, settings.rotation, settings.mirror);
+            }
             world.set_block_entity(info.pos, *nbt)?;
         }
         if let Some(previous) = previous {

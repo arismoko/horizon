@@ -3,6 +3,7 @@ fn main() {
         std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("../..");
     let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     println!("cargo:rerun-if-changed=../horizon-mod-api/src");
+    println!("cargo:rerun-if-changed=../horizon-mod-vocab/src");
     println!("cargo:rerun-if-changed=../horizon-mod-api-gen/src");
     let code = std::thread::Builder::new()
         .stack_size(64 << 20)

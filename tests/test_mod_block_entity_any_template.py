@@ -41,10 +41,11 @@ struct DVec3 { x: f64, z: f64 }
 const VIEW_DISTANCE: f64 = 64.0;
 struct World { block_entities: Entities }
 impl World { fn block(&self, x: i32, y: i32, z: i32) -> BlockStateId { BlockStateId((x != 0) as u32) } }
-struct GameLevel { world: World }
+struct GameLevel { world: World, carries: Option<bool> }
 impl GameLevel {
     HAS_MOD
     HAS_NATIVE
+    fn adjust_piston_carries_block_entity(&self, _pos: BlockPos, _state: BlockStateId) -> Option<bool> { self.carries }
 }
 struct ViewDistances { furthest: f64 }
 struct Game { world: World, res: Res }
@@ -69,7 +70,7 @@ fn at(x: i32) -> BlockPos { BlockPos { x, y: 64, z: 0 } }
 fn level(entities: &[(i32, BlockEntity)]) -> GameLevel {
     GameLevel { world: World { block_entities: Entities(entities.iter()
         .map(|(x, e)| ((*x, 64, 0), match e { BlockEntity::Mod(_) => BlockEntity::Mod(0), BlockEntity::Chest(_) => BlockEntity::Chest(0) }))
-        .collect()) } }
+        .collect()) }, carries: None }
 }
 #[test]
 fn a_mod_block_entity_on_a_template_without_one_is_removed_and_not_pushed() {
@@ -92,6 +93,25 @@ fn a_mod_block_entity_on_a_template_without_one_is_removed_and_not_pushed() {
     // a vanilla entity on a template without the flag is not a mod's
     let sim = Sim { b: Blocks { templated: vec![] }, level: level(&[(5, BlockEntity::Chest(0))]) };
     assert!(!sim.removes(true, stone, BlockStateId(9), at(5)));
+}
+#[test]
+fn a_part_lets_a_mod_block_entity_move_but_never_a_vanilla_one() {
+    let stone = BlockStateId(0);
+    let mut sim = Sim { b: Blocks { templated: vec![BlockStateId(1)] },
+                        level: level(&[(5, BlockEntity::Mod(0)), (6, BlockEntity::Chest(0))]) };
+    sim.level.carries = Some(true);
+    // a mod entity moves, whatever its template
+    assert!(sim.pushable_tail(stone, at(5)));
+    assert!(sim.pushable_tail(BlockStateId(1), at(5)));
+    // a vanilla one stays, and so does a template with one before it loaded
+    assert!(!sim.pushable_tail(BlockStateId(1), at(6)));
+    assert!(!sim.pushable_tail(BlockStateId(1), at(7)));
+    // a native factory's state whose entity has not loaded is the mod's own
+    assert!(sim.pushable_tail(BlockStateId(2), at(7)));
+    // a refusal holds even a block without one
+    sim.level.carries = Some(false);
+    assert!(!sim.pushable_tail(stone, at(7)));
+    assert!(!sim.pushable_tail(stone, at(5)));
 }
 #[test]
 fn the_render_list_holds_mod_entities_of_templates_without_one() {

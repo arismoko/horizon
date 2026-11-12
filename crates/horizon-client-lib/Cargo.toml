@@ -13,6 +13,7 @@ description = "Reusable client systems, control tool and parity probes"
 path = "../horizon-client/src/client_lib.rs"
 
 [dependencies]
+horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
 horizon-hooks = { path = "../horizon-hooks" }
 horizon-mod-runtime = { path = "../horizon-mod-runtime" }
 horizon-mod-api = { path = "../horizon-mod-api" }
