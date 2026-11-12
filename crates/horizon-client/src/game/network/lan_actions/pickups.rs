@@ -67,7 +67,7 @@ impl Game<'_> {
                 i = at;
                 answer
             } else {
-                TriState::Default
+                mod_api::TriState::Default
             };
             let d = &mut self.dropped[i];
             if !Self::pickup_decision(&mut d.pickup_delay, d.target, uuid, answer) {
