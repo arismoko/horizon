@@ -1027,6 +1027,54 @@ pub mod tests {
     }
 
     #[test]
+    pub(crate) fn a_canteen_holding_an_unknown_fluid_refuses_an_insert_and_keeps_it() {
+        game_thread();
+        let content = crate::ComponentId::new("test:fluid").unwrap();
+        let canteen = crate::ItemComponentFluidTank::new(HAND, content, 4000);
+        let water = crate::FluidResource::of(&crate::FluidStack::new(
+            mod_vocab::__private::fluid_key("minecraft:water").unwrap(),
+            1,
+        ));
+        let mut unknown = crate::Compound::new();
+        unknown.insert("id".into(), Tag::String("test:unknown_fluid".into()));
+        unknown.insert("amount".into(), Tag::Int(500));
+        let mut player = player_world(Some(stack("test:case", 1, 0)));
+        player
+            .registries
+            .item_component("test:case", "test:fluid", Tag::Compound(unknown));
+        let host: &mut dyn ServerHost = &mut player;
+        let went =
+            host.transaction(|host, tx| Ok::<_, ()>(canteen.insert(host, tx, 0, &water, 1000)));
+        assert_eq!(went, Ok(0));
+        assert_eq!(main_hand(&player), Some(stack("test:case", 1, 0)));
+        assert!(player_of(&player).given.is_empty());
+    }
+
+    #[test]
+    pub(crate) fn a_zero_extract_from_a_canteen_changes_nothing() {
+        game_thread();
+        let content = crate::ComponentId::new("test:fluid").unwrap();
+        let canteen = crate::ItemComponentFluidTank::new(HAND, content, 4000);
+        let water = crate::FluidResource::of(&crate::FluidStack::new(
+            mod_vocab::__private::fluid_key("minecraft:water").unwrap(),
+            1,
+        ));
+        let mut full = crate::Compound::new();
+        full.insert("id".into(), Tag::String("minecraft:water".into()));
+        full.insert("amount".into(), Tag::Int(1000));
+        let mut player = player_world(Some(stack("test:case", 2, 0)));
+        player
+            .registries
+            .item_component("test:case", "test:fluid", Tag::Compound(full));
+        let host: &mut dyn ServerHost = &mut player;
+        let came =
+            host.transaction(|host, tx| Ok::<_, ()>(canteen.extract(host, tx, 0, &water, 0)));
+        assert_eq!(came, Ok(0));
+        assert_eq!(main_hand(&player), Some(stack("test:case", 2, 0)));
+        assert!(player_of(&player).given.is_empty());
+    }
+
+    #[test]
     pub(crate) fn a_stack_inside_an_item_and_a_mods_place_are_reached_through_their_handlers() {
         install_parts(&[], &crate::parts::tests::rule_schema(), |_| false).unwrap();
         game_thread();

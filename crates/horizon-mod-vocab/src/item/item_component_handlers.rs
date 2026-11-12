@@ -119,6 +119,14 @@ impl EnergyHandler for ItemComponentEnergy {
     }
 }
 
+/// What a tank's component holds.
+enum TankContent {
+    Empty,
+    Fluid(FluidStack),
+    /// A positive amount of a fluid the registry doesn't have: kept as it is, never overwritten.
+    Unresolved,
+}
+
 /// One tank of fluid kept in a compound component of the item (`ItemAccessFluidHandler` over
 /// `SimpleFluidContent`): `{id: "minecraft:water", amount: 1000, components: {…}}`, the
 /// `components` only where the fluid has some, and the component removed when the tank empties.
@@ -137,27 +145,40 @@ impl ItemComponentFluidTank {
             capacity: capacity.min(i32::MAX as u32),
         }
     }
-    /// What the tank holds; none for an empty one or a fluid the registry doesn't have.
-    fn held(&self, host: &mut dyn ServerHost) -> Option<FluidStack> {
+    /// What the tank holds, told apart from an empty one and from content of a fluid the
+    /// registry doesn't have, which a write must keep and not overwrite.
+    fn content(&self, host: &mut dyn ServerHost) -> TankContent {
         let Some(Tag::Compound(content)) = self.item.read(host) else {
-            return None;
+            return TankContent::Empty;
         };
         let Some(Tag::String(id)) = content.get(&"id".into()) else {
-            return None;
+            return TankContent::Empty;
         };
         let Some(&Tag::Int(amount)) = content.get(&"amount".into()) else {
-            return None;
+            return TankContent::Empty;
         };
-        let amount = u32::try_from(amount).ok().filter(|&amount| amount > 0)?;
+        let Some(amount) = u32::try_from(amount).ok().filter(|&amount| amount > 0) else {
+            return TankContent::Empty;
+        };
         let components = match content.get(&"components".into()) {
             Some(Tag::Compound(patch)) => Some(Box::new(Components::from(patch.clone()))),
             _ => None,
         };
-        Some(FluidStack {
-            fluid: FluidIdentity::Resolved(fluid_key(&id.to_string_lossy())?),
-            amount,
-            components,
-        })
+        match fluid_key(&id.to_string_lossy()) {
+            Some(key) => TankContent::Fluid(FluidStack {
+                fluid: FluidIdentity::Resolved(key),
+                amount,
+                components,
+            }),
+            None => TankContent::Unresolved,
+        }
+    }
+    /// What the tank holds; none for an empty one or a fluid the registry doesn't have.
+    fn held(&self, host: &mut dyn ServerHost) -> Option<FluidStack> {
+        match self.content(host) {
+            TankContent::Fluid(held) => Some(held),
+            TankContent::Empty | TankContent::Unresolved => None,
+        }
     }
     /// The tank rewritten as holding `stack`, emptied for none: `moved` when that goes through,
     /// else 0.
@@ -222,7 +243,11 @@ impl ResourceHandler<FluidResource> for ItemComponentFluidTank {
         if index != 0 {
             return 0;
         }
-        let held = self.held(host);
+        let held = match self.content(host) {
+            TankContent::Unresolved => return 0,
+            TankContent::Fluid(held) => Some(held),
+            TankContent::Empty => None,
+        };
         if held.as_ref().is_some_and(|held| !resource.matches(held)) {
             return 0;
         }
@@ -247,6 +272,9 @@ impl ResourceHandler<FluidResource> for ItemComponentFluidTank {
             return 0;
         };
         let came = amount.min(held.amount);
+        if came == 0 {
+            return 0;
+        }
         let left = (held.amount > came).then(|| held.with_amount(held.amount - came));
         self.rewrite(host, tx, left, came)
     }
