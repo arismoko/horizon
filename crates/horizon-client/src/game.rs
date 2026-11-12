@@ -1323,20 +1323,7 @@ impl LevelAccess for GameLevel<'_> {
         push: &[BlockPos],
         destroy: &[BlockPos],
     ) -> bool {
-        let mut canceled = false;
-        if self.native_authoritative {
-            let step = direction.normal();
-            self.native_piston_pre(mod_api::__private::PistonPreCall {
-                dimension: self.dimension,
-                piston,
-                direction: step,
-                extending,
-                push,
-                destroy,
-                canceled: &mut canceled,
-            });
-        }
-        !canceled
+        self.piston_move_allowed(piston, direction, extending, push, destroy)
     }
     fn observe_piston_moved(
         &self,
@@ -1346,10 +1333,7 @@ impl LevelAccess for GameLevel<'_> {
         push: &[BlockPos],
         destroy: &[BlockPos],
     ) {
-        if self.native_authoritative {
-            let step = direction.normal();
-            self.native_piston_post(self.dimension, piston, step, extending, push, destroy);
-        }
+        self.piston_moved(piston, direction, extending, push, destroy);
     }
     fn adjust_signal_source(&self, state: BlockStateId, vanilla: bool) -> bool {
         let mut source = vanilla;
@@ -1955,6 +1939,20 @@ impl LevelAccess for GameLevel<'_> {
                 self.world.block_entities.get(&(pos.x, pos.y, pos.z)),
                 Some(BlockEntity::Mod(_))
             )
+    }
+    fn adjust_piston_carries_block_entity(&self, pos: BlockPos, state: BlockStateId) -> Option<bool> {
+        self.piston_carries_block_entity(pos, state)
+    }
+    fn carry_block_entity(&mut self, from: BlockPos, to: BlockPos) {
+        self.carry_mod_block_entity(from, to);
+    }
+    fn land_block_entity(&mut self, pos: BlockPos) -> bool {
+        self.land_carried_block_entity(pos)
+    }
+    fn discard_carried_block_entity(&mut self, pos: BlockPos) {
+        self.world
+            .block_entities
+            .discard_carried(&(pos.x, pos.y, pos.z));
     }
     /// `ShulkerBoxBlockEntity.isClosed`: the lid state the block-entity tick
     /// copied from `be_anims` (`ShulkerBoxBlock.getBlockSupportShape`).

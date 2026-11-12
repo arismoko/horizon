@@ -142,6 +142,8 @@ mod weather;
 #[cfg(test)]
 mod growth_tests;
 #[cfg(test)]
+mod piston_carry_tests;
+#[cfg(test)]
 mod survive_tests;
 #[cfg(test)]
 mod tests;
@@ -1031,11 +1033,38 @@ pub trait LevelAccess: BlockEntityNeighbors {
         false
     }
     /// Whether a block entity a mod made lives at `pos` (`native_block_entity`),
-    /// whatever its block's template: it is removed with its block and no piston
-    /// moves it, as for a template that has one.
+    /// whatever its block's template: it is removed with its block, as for a
+    /// template that has one, and a piston moves it only when the block's
+    /// part answers `Some(true)` ([`Self::adjust_piston_carries_block_entity`]).
     fn has_mod_block_entity(&self, _pos: BlockPos) -> bool {
         false
     }
+    /// The `piston_carries_block_entity` hook (Horizon's own) for the block
+    /// `state` at `pos`, asked at the last step of `PistonBaseBlock.isPushable`, for a block that got
+    /// past its push reaction: `Some(false)` keeps it in place, `Some(true)`
+    /// lets a piston move it with its mod block entity, and `None` keeps
+    /// vanilla's rule (a block with a block entity does not move). The default
+    /// answers `None`.
+    fn adjust_piston_carries_block_entity(
+        &self,
+        _pos: BlockPos,
+        _state: BlockStateId,
+    ) -> Option<bool> {
+        None
+    }
+    /// Take the mod block entity at `from` out of the level with its
+    /// attachments, running none of its removal side effects, for the moving
+    /// piston `PistonBaseBlock.moveBlocks` puts at `to`, which holds it until
+    /// its block lands. Levels without block entities do nothing.
+    fn carry_block_entity(&mut self, _from: BlockPos, _to: BlockPos) {}
+    /// Install the block entity the moving piston at `pos` carried there, as
+    /// a new block entity of that position. False when it carried none.
+    fn land_block_entity(&mut self, _pos: BlockPos) -> bool {
+        false
+    }
+    /// Drop the block entity the moving piston at `pos` carried, without
+    /// installing it: a client's copy, once the server's block replaced it.
+    fn discard_carried_block_entity(&mut self, _pos: BlockPos) {}
     /// `ShulkerBoxBlockEntity.isClosed` at `pos`: whether the box's lid is
     /// still shut. None when no shulker box block entity lives there, or the
     /// level keeps none: vanilla then reads the box as closed, a full cube.

@@ -3213,7 +3213,7 @@ impl Game<'_> {
             let moving = |s: BlockStateId| &*facts.get(s).name == "minecraft:moving_piston";
             if moving(previous) && !moving(state) {
                 let at = horizon_core::position::BlockPos::new(pos[0], pos[1], pos[2]);
-                self.block_ticks.moving_pistons.retain(|(p, _)| *p != at);
+                self.forget_moving_piston(at);
                 self.moving_pistons_stale = true;
             }
         }

@@ -115,7 +115,7 @@ same facts is `StateFacts` in `crates/horizon-items/src/blocks.rs`.
 | `getBubbleColumnDirection(state)` | Missing | — | Bubble-column rules are engine-owned. |
 | `shouldHideAdjacentFluidFace(state, direction, fluid)` | Missing | — | Fluid-face culling is engine-owned. |
 | `getBounceRestitution(level, pos, state, entity)` | Partial | `BlockPart::bounce_on` (`hooks/block_landing.rs`) | Edits the entity's movement after it bounced; the restitution factor is not exposed. [#1038](https://github.com/arismoko/horizon/issues/1038). |
-| `getRelocability(level, pos, state)` | Missing | — | No relocation query (pistons, structure blocks). |
+| `getRelocability(level, pos, state)` | Missing | — | A region-copy query (cut or copy blocks, paste them elsewhere) that nothing in the engine asks; pistons do not. Horizon's `BlockPart::piston_carries_block_entity` (`hooks/piston_carries_block_entity.rs`) is a different question with no NeoForge counterpart: whether a piston carries a block with its mod block entity ([#3184](https://github.com/arismoko/horizon/issues/3184)). |
 | `canBeConnectedTo(state, direction, neighborBlock)` | Partial | `BlockPart::connects_to` (`hooks/connects_to.rs`) | Asks the connecting fence, wall, bars or pane (your block), not the block being connected to: a modded target cannot answer for a vanilla fence, and only those shapes ask at all. |
 | `getModelData(state, level, pos)` | Missing | — | No `ModelData`; block-entity drawing takes a `block_entity_submit` part with its own model path. |
 

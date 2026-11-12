@@ -32,6 +32,9 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
+mod carry;
+pub use carry::Carried;
+
 static NEXT_TOKEN: AtomicU64 = AtomicU64::new(1);
 
 fn next_token() -> u64 {
@@ -123,6 +126,9 @@ pub struct BlockEntities {
     /// Like `mods`, one taken out stays listed until `put` or `remove`.
     boxes: FxHashSet<Pos>,
     asleep: FxHashSet<Pos>,
+    /// The block entities moving pistons carry, by the moving piston's
+    /// position (`carry`): out of the map until they land.
+    carried: FxHashMap<Pos, carry::Carried>,
 }
 
 /// Storage-owned identity passed to attachment residency observers.
@@ -647,6 +653,7 @@ impl BlockEntities {
     /// the positions `gone` names and changes none it keeps, so those that
     /// sleep stay asleep (a moving player unloads chunks most ticks).
     pub fn unload(&mut self, mut gone: impl FnMut(&Pos) -> bool) {
+        self.carried.retain(|p, _| !gone(p));
         let asleep = std::mem::take(&mut self.asleep);
         self.retain(|p, _| !gone(p));
         self.retire_taken(gone);
@@ -694,6 +701,7 @@ impl BlockEntities {
         self.pending.clear();
         self.out.clear();
         self.replaced.clear();
+        self.carried.clear();
         self.freed = false;
     }
     /// A loaded or generated chunk's block entities, in the order the chunk

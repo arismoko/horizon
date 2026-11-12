@@ -426,7 +426,7 @@ fn painting_center(p: &horizon_client::entities::Painting) -> Vec3 {
         (lo[2] + hi[2]) / 2.0,
     )
 }
-fn block_entity_pos(tag: &Tag) -> [i32; 3] {
+pub(in crate::game) fn block_entity_pos(tag: &Tag) -> [i32; 3] {
     [tag.get("x"), tag.get("y"), tag.get("z")]
         .map(|v| horizon_client::save::number(v).unwrap_or(0) as i32)
 }
@@ -630,7 +630,7 @@ impl Game<'_> {
                 .retain(|tag| block_entity_pos(tag) != [p.x, p.y, p.z]);
             extras
                 .block_entities
-                .push(self.moving_piston_to_nbt(*p, piston));
+                .push(self.saved_moving_piston(*p, piston));
         }
         // TheEndGatewayBlockEntity saves its Age (the server copy's).
         for tag in &mut extras.block_entities {
@@ -724,7 +724,7 @@ impl Game<'_> {
             return;
         }
         for &(pos, piston) in &pistons {
-            self.block_ticks.load_moving_piston(pos, piston);
+            self.restore_moving_piston(pos, piston, saved.as_deref());
         }
         if let Some(c) = self.world.chunks.get_mut(&key) {
             let c = Arc::make_mut(c);
