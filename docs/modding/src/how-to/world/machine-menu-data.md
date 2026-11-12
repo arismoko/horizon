@@ -4,13 +4,13 @@ A mod block entity has two different kinds of storage: external item access uses
 transactional Parts, while internal slots use the handle methods below; integer menu data is read with
 `BlockEntityRef::data_slots` and changed on a server Host. Menu data is transient:
 creation and loading both start with an empty data vector, even when the saved
-payload still contains the machine's progress.
+payload contains the machine's progress.
 
 ## State-aware creation
 
 Declare the block entity type and its owning blocks during registration. To make
-creation depend on block properties, answer `stateful_block_entity` with true for
-that block. The existing `block_entity` hook then receives the actual placed
+creation depend on block properties, answer `stateful_block_entity` with `true` for
+that block. The `block_entity` hook then receives the actual placed
 state, not just the block identity. Read its properties through the Host's state
 registry and supply the initial saved compound. The registered declaration owns
 the entity type; an unanswered state-aware creation makes no entity.
@@ -23,15 +23,14 @@ entity even when a fresh instance of the new state would have no entity.
 
 Call `entity.set_data_slots(host, initial_values)` with the complete initial
 vector when preparing a newly created or loaded machine. For a progress display,
-use one element initialized from the progress value in its saved payload. This is
-the live-handle replacement for assigning a mutable tick payload's `data` field.
+use one element initialized from the progress value in its saved payload.
 Do not reset the vector to its initial values on every tick.
 
-The method accepts at most the game's mod-menu data-slot limit (currently 256).
+The method accepts at most the game's mod-menu data-slot limit (256).
 It returns `Ok(true)` when it changes the vector, `Ok(false)` for identical values,
 or `BlockEntityDataError::TooManySlots` with the submitted count and limit. It
 never silently clamps a vector. `BlockEntityDataError::Unavailable` means the
-handle cannot reach a writable mod holder in the server level currently in place.
+handle cannot reach a writable mod holder in the server level in place.
 
 ## Update individual values
 
@@ -54,11 +53,11 @@ transaction. Any held mod block-entity handle can be used; there is no caller
 ownership check. This deliberately bypasses inputs, outputs and face policy, so a
 recipe can consume its input and produce its output atomically, including output
 slots that automation cannot insert into. Use the `ITEMS` capability for external
-insertion; its policy is unchanged. Vanilla containers are unavailable here.
+insertion; it enforces automation policy. Vanilla containers are unavailable here.
 
 Indices use the current container's declared count. Lazy slots read empty; saved
-excess slots are neither exposed nor truncated. None clears, identical values
-return `Ok(false)`, and real changes send Changed at root commit. Nested abort
+excess slots are neither exposed nor truncated. `None` clears, identical values
+return `Ok(false)`, and real changes send `Changed` at root commit. Nested abort
 restores ordinary before-images, including committed-child writes. Invalid
 indices, unknown/air/zero-count stacks and counts above the registered or
 component-overridden maximum return `BlockEntityItemError`, never a partial write
@@ -75,10 +74,14 @@ A later call replaces the batch; an empty compound clears it.
 
 The next block change that reaches a viewer puts the fields over what
 `block_entity_update_tag` gives, or sends them alone without one, in one packet for every
-current viewer, and the batch is gone. A change nobody sees leaves it waiting, and neither a
+current viewer, and consumes the batch. A change nobody sees leaves it waiting, and neither a
 chunk sent to a player nor a resend of the blocks under a single player takes it. Removing
 or unloading the block entity drops it. It is never saved, cloned or compared, and it does
 not change the entity's revision.
+
+If the merged tag exceeds the 2 MiB network-NBT limit, the game drops the fields,
+logs a warning, and sends the original update tag instead. A transaction that rolls
+the block entity back also drops any batch queued before it.
 
 A client merges the fields into its copy's `nbt` as any update field, and they stay there
 until sent again: put a counter in them to tell one effect from the next.
@@ -92,7 +95,8 @@ stale handles; writes return their error's `Stale` variant, never writing to a r
 `set_lock`, `set_name`, `merge_data`, `replace_data`, `set_changed` and `set_data_slot`
 return `Result<bool, BlockEntityError>`: handle `Err(BlockEntityError::Stale)` by dropping
 or reacquiring the handle. `Ok(false)` means unchanged data or an unsupported operation,
-not a stale identity. Existing item and data-vector methods retain their specialized errors.
+not a stale identity. Item and data-vector methods return `BlockEntityItemError` and
+`BlockEntityDataError`, respectively.
 
 ## When its chunk unloads
 
@@ -124,16 +128,16 @@ impl mod_api::BlockEntityPart for Node {
 just saved with, on a client its copy as the server last sent it. On a server the chunk is saved before
 the call, so a change made in it is not kept, and the chunk may already have left the level, so its
 handle's reads find nothing there. It is not called when the world closes, nor on a client when its whole
-level goes, and never for a vanilla block entity. The chunk-wide notice is still `native_chunk_unload`, a
+level goes, and never for a vanilla block entity. The chunk-wide notice is `native_chunk_unload`, a
 server hook told after the chunk's block entities; a client is told of the block entities alone
-([hook notes](../../reference/hook-notes.md#when-a-block-entitys-chunk-unloads)).
+([hook notes](https://github.com/arismoko/horizon/blob/main/crates/horizon-mod-vocab/src/hooks/on_chunk_unloaded.rs)).
 
 `player.open_menu(host, entity)` also returns `Result<bool, BlockEntityError>`:
 `Ok(true)` means opened, `Ok(false)` means a non-provider, cancelled open or
 unconnected/wrong-level player, and `Err(BlockEntityError::Stale)` means the entity
-no longer resolves. It never opens a replacement through an old handle.
+does not resolve. It never opens a replacement through an old handle.
 
-### Receiving synchronized data
+## Receiving synchronized data
 
 Implement `block_entity_data_received` on the block entity's part to react on the
 client after its synchronized tag has merged. It receives a `BlockEntityRef` and
@@ -144,5 +148,5 @@ sends one notice; a packet with no tag sends none. Repeated identical packets
 each notify, and the event contains only the arriving fields, while handle reads
 see the merged copy.
 It cannot change the arriving tag. Vanilla entities, missing tags, missing client
-entities and mismatched types do not call it. Server tag production still uses
+entities and mismatched types do not call it. Server tag production uses
 `block_entity_update_tag`.
