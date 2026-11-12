@@ -274,11 +274,6 @@ impl Game<'_> {
         let (mut remaining, mut canceled) = (before, false);
         let hand = self.used_hand().unwrap_or(self.hand);
         self.native_living_entity_use_item_tick(stack, None, hand, &mut remaining, &mut canceled);
-        if canceled && self.options.execution_role.is_client() {
-            // A client cancellation suppresses only this tick's effects. The
-            // existing countdown continues, so a later tick can run effects.
-            return false;
-        }
         let (left, set) = tick_left(before, remaining, canceled, self.use_ticks_set);
         self.use_ticks_set = set;
         self.use_duration = duration_leaving(ticks, left);

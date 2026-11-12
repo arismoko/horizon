@@ -14,8 +14,8 @@ pub trait Hooks {
     /// Setting 1 runs the effects and finishes in this same tick. This path
     /// never calls release-using: a bow fires nothing. A use-on-release item
     /// (a crossbow) does not finish here; its counter goes negative until release.
-    /// On the client cancellation skips this tick's effects and ignores its duration
-    /// replacement; the existing counter decrements until server completion or release.
+    /// On the client cancellation also sets -1 before the decrement and skips effects.
+    /// The negative countdown continues until server completion or release.
     ///
     /// In contrast, canceling Start prevents the use beginning (duration 0
     /// does begin it); canceling Stop skips only release-using. Finish is not

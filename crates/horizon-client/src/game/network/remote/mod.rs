@@ -16603,13 +16603,18 @@ mod item_use_tick_tests {
         let effects = Arc::new(Mutex::new(Vec::new()));
         let mods: Mods = vec![ModEntry::new(
             "client_tick",
-            Box::new(Tick { answer: answer.clone(), heard: heard.clone(), effects: effects.clone() }),
-        )].into();
+            Box::new(Tick {
+                answer: answer.clone(),
+                heard: heard.clone(),
+                effects: effects.clone(),
+            }),
+        )]
+        .into();
         crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_client_game(|game| {
                 for (cancel, replacement, after_first, after_second) in [
-                    (true, 5, 31, 30),
+                    (true, 5, -2, -3),
                     (false, 0, -1, -2),
                     (false, 1, 0, -1),
                     (false, -7, -8, -9),
@@ -16624,12 +16629,24 @@ mod item_use_tick_tests {
                     game.right = true;
                     game.remote_tick_using();
                     assert_eq!(game.using, Some((game.selected, 1)));
-                    assert_eq!(crate::game::item_use::ticks_left(game.use_duration, 1), after_first);
+                    assert_eq!(
+                        crate::game::item_use::ticks_left(game.use_duration, 1),
+                        after_first
+                    );
                     game.remote_tick_using();
                     assert_eq!(game.using, Some((game.selected, 2)));
-                    assert_eq!(crate::game::item_use::ticks_left(game.use_duration, 2), after_second);
+                    assert_eq!(
+                        crate::game::item_use::ticks_left(game.use_duration, 2),
+                        after_second
+                    );
                     assert_eq!(*heard.lock().unwrap(), [32, after_first]);
-                    let expected_effects = if cancel { vec![31] } else if replacement == 1 { vec![1] } else { vec![] };
+                    let expected_effects = if cancel {
+                        vec![]
+                    } else if replacement == 1 {
+                        vec![1]
+                    } else {
+                        vec![]
+                    };
                     assert_eq!(*effects.lock().unwrap(), expected_effects);
                     // No client-side completion or consumption.
                     assert_eq!(game.inventory[game.selected].as_ref().unwrap().count, 2);

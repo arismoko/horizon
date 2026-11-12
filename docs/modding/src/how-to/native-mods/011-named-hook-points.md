@@ -36,7 +36,8 @@ Setting one runs the effects and finishes in that same tick. This never calls
 release-using, so a bow fires nothing. A use-on-release item such as a crossbow
 does not finish here: its counter goes negative until release.
 
-On a client, cancellation skips only that tick's effects. The countdown continues;
+On a client, cancellation sets the counter to -1 before decrement and skips effects.
+The negative countdown continues;
 the use remains active until server completion or release, so releasing still
 notifies the server.
 
