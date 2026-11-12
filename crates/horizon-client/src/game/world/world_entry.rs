@@ -362,7 +362,7 @@ impl Game<'_> {
         let packs: Vec<_> = std::iter::once(&stack.content)
             .chain(stack.enabled_packs())
             .collect();
-        let files: Vec<(String, Vec<Vec<u8>>)> =
+        let files: Vec<(String, Vec<(String, Vec<u8>)>)> =
             horizon_client::datapack::registry_files(&packs, &keys)
                 .into_iter()
                 .map(|(path, versions)| {
@@ -376,8 +376,8 @@ impl Game<'_> {
             .map(Some)
             .map_err(|error| {
                 format!(
-                    "datapack registry {} entry {} ({}): {:?}",
-                    error.registry, error.entry, error.file, error.reason
+                    "datapack registry {} entry {} (pack {}, file {}): {:?}",
+                    error.registry, error.entry, error.pack, error.file, error.reason
                 )
                 .into()
             })

@@ -114,11 +114,11 @@ fn real_wasm_datapack_reads_preserve_values_and_ordering() {
         &[
             (
                 "data/wasm_fixture/wasm_fixture/spell/fire.json".into(),
-                vec![br#"{"power":7}"#.to_vec()],
+                vec![("pack".to_owned(), br#"{"power":7}"#.to_vec())],
             ),
             (
                 "data/addon/wasm_fixture/spell/ice.json".into(),
-                vec![br#"{"power":3}"#.to_vec()],
+                vec![("pack".to_owned(), br#"{"power":3}"#.to_vec())],
             ),
         ],
     )

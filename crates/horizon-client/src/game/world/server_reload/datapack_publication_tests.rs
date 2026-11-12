@@ -201,6 +201,66 @@ fn remote_reload_never_decodes_local_registry_files() {
         },
     );
 }
+/// A reload over a decode limit, or with a bad winning file, is refused naming the pack and
+/// file; the old generation stays live and the next valid reload publishes.
+#[test]
+#[ignore = "needs prepared resources and isolated homes"]
+fn refused_reload_names_the_pack_and_keeps_the_old_generation() {
+    let scratch = tempfile::tempdir().unwrap();
+    let root = scratch.path();
+    let pack = root.join("datapacks/override");
+    write(
+        &pack.join("pack.mcmeta"),
+        r#"{"pack":{"description":"fixture","min_format":94,"max_format":94}}"#,
+    );
+    let winning = pack.join("data/registry_test/registry_test/spell/fire.json");
+    write(&winning, r#"{"power":7}"#);
+    write(
+        &root.join("datapacks.json"),
+        r#"{"enabled":["vanilla","file/override"],"disabled":[]}"#,
+    );
+    mod_api::testing::with_mods(
+        vec![ModEntry::new("registry_test", Box::new(RegistryMod))].into(),
+        || {
+            with_game(|game| {
+                game.load_world(request(root)).unwrap();
+                let features = game.level.enabled_features.clone();
+                let generation = |game: &crate::game::Game<'_>| {
+                    game.mods.datapack_registries.as_ref().unwrap().generation()
+                };
+                assert_eq!(generation(game), 1);
+                let over = format!(
+                    r#"{{"power":7{}}}"#,
+                    " ".repeat(mod_api::MAX_DATAPACK_ENTRY_BYTES)
+                );
+                for (text, reason) in [(over.as_str(), "EntryTooLarge"), ("{bad", "Malformed")] {
+                    write(&winning, text);
+                    let Err(mod_api::__private::reload::ReloadStageError::DataSource(message)) =
+                        game.reload_datapacks(true, &features)
+                    else {
+                        panic!("the reload is refused");
+                    };
+                    assert!(
+                        message.contains(
+                            "pack file/override, file data/registry_test/registry_test/spell/fire.json"
+                        ) && message.contains(reason),
+                        "{message}"
+                    );
+                    assert_eq!(power(game), DatapackValue::Int(7));
+                    assert_eq!(generation(game), 1);
+                    assert_eq!(
+                        horizon_client::datapack_net::served(),
+                        game.mods.datapack_registries
+                    );
+                }
+                write(&winning, r#"{"power":9}"#);
+                assert!(game.run_command("reload"));
+                assert_eq!(power(game), DatapackValue::Int(9));
+                assert_eq!(generation(game), 2);
+            });
+        },
+    );
+}
 #[path = "datapack_host_read_tests.rs"]
 mod datapack_host_read_tests;
 

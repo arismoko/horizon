@@ -728,16 +728,16 @@ fn resource_id(file: &str, kind: &str, ext: &str) -> Option<String> {
 /// The entry files of mods' datapack registries in `packs`, lowest pack first: each file
 /// `data/<entry namespace>/<registry namespace>/<registry path>/<entry>.json` of a registry
 /// in `registries` (`(namespace, path)` of its key), by that path, each path's versions in
-/// pack order. The folders are the mods' own, so the fixed kinds `DataStore` lists never
-/// cover them.
+/// pack order, each with its pack's id. The folders are the mods' own, so the fixed kinds
+/// `DataStore` lists never cover them.
 pub fn registry_files(
     packs: &[&DataPack],
     registries: &[(&str, &str)],
-) -> BTreeMap<String, Vec<Vec<u8>>> {
+) -> BTreeMap<String, Vec<(String, Vec<u8>)>> {
     let mut kinds: Vec<&str> = registries.iter().map(|(namespace, _)| *namespace).collect();
     kinds.sort_unstable();
     kinds.dedup();
-    let mut files: BTreeMap<String, Vec<Vec<u8>>> = BTreeMap::new();
+    let mut files: BTreeMap<String, Vec<(String, Vec<u8>)>> = BTreeMap::new();
     for pack in packs {
         for file in pack.list_kinds(&kinds) {
             let in_registry = file
@@ -753,7 +753,10 @@ pub fn registry_files(
                         })
                 });
             if in_registry && let Some(bytes) = pack.read(&file) {
-                files.entry(file).or_default().push(bytes);
+                files
+                    .entry(file)
+                    .or_default()
+                    .push((pack.id.clone(), bytes));
             }
         }
     }
@@ -1970,7 +1973,10 @@ mod tests {
         );
         assert_eq!(
             files["data/example/example/spell/fire.json"],
-            vec![b"low".to_vec(), b"high".to_vec()]
+            vec![
+                ("low".to_owned(), b"low".to_vec()),
+                ("high".to_owned(), b"high".to_vec())
+            ]
         );
         assert!(registry_files(&refs, &[]).is_empty());
         let _ = std::fs::remove_dir_all(&root);

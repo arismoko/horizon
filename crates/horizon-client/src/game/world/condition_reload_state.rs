@@ -10,10 +10,10 @@ pub(super) struct PreparedWorldReload {
 }
 
 pub(super) fn registry_versions(
-    versions: Vec<Vec<u8>>,
+    versions: Vec<(String, Vec<u8>)>,
     conditions: &horizon_world::conditions::LoadConditions,
     path: &str,
-) -> Vec<Vec<u8>> {
+) -> Vec<(String, Vec<u8>)> {
     // Keep the existing built-in-only selection behavior. Registered callbacks
     // must never run on losing ordinary registry definitions.
     let versions = if conditions.has_registered() {
@@ -23,9 +23,13 @@ pub(super) fn registry_versions(
     };
     versions
         .into_iter()
-        .filter_map(|bytes| {
+        .filter_map(|(pack, bytes)| {
+            // The candidate refuses oversized entries without parsing them.
+            if bytes.len() > mod_api::MAX_DATAPACK_ENTRY_BYTES {
+                return Some((pack, bytes));
+            }
             let Ok(mut json) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-                return Some(bytes);
+                return Some((pack, bytes));
             };
             if !conditions.allows_file(&json, path) {
                 return None;
@@ -33,7 +37,7 @@ pub(super) fn registry_versions(
             if let Some(object) = json.as_object_mut() {
                 object.remove("neoforge:conditions");
             }
-            serde_json::to_vec(&json).ok()
+            serde_json::to_vec(&json).ok().map(|bytes| (pack, bytes))
         })
         .collect()
 }
@@ -50,19 +54,26 @@ mod tests {
         let upper = br#"{"value":2}"#.to_vec();
         assert_eq!(
             registry_versions(
-                vec![lower, upper.clone()],
+                vec![("lower".into(), lower), ("upper".into(), upper.clone())],
                 &conditions,
                 "data/testmod/registry/value.json"
             ),
-            vec![upper]
+            vec![("upper".into(), upper)]
         );
         assert_eq!(conditions.check_errors(), Ok(()));
         let builtins = horizon_world::conditions::LoadConditions::vanilla();
         let first = br#"{"value":1}"#.to_vec();
         let disabled = br#"{"neoforge:conditions":[{"type":"neoforge:mod_loaded","modid":"absent"}],"value":2}"#.to_vec();
         assert_eq!(
-            registry_versions(vec![first.clone(), disabled], &builtins, "builtin.json"),
-            vec![first]
+            registry_versions(
+                vec![
+                    ("first".into(), first.clone()),
+                    ("disabled".into(), disabled)
+                ],
+                &builtins,
+                "builtin.json"
+            ),
+            vec![("first".into(), first)]
         );
     }
 }

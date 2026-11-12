@@ -8,7 +8,13 @@ use super::datapack_registry::{
     DatapackDecodeError, DatapackEntry, DatapackFieldKind, DatapackRegistryDeclaration,
     DatapackValue, valid_namespaced,
 };
+use super::datapack_snapshot::{
+    MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_ENTRIES, MAX_SNAPSHOT_REGISTRIES, snapshot_fits,
+};
 use std::collections::BTreeMap;
+
+/// The most bytes one entry's winning file may take.
+pub const MAX_DATAPACK_ENTRY_BYTES: usize = 1 << 20;
 
 /// Why a candidate was refused. The whole candidate fails, never one entry.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -17,6 +23,20 @@ use std::collections::BTreeMap;
 pub enum DatapackLoadReason {
     /// The winning file is not UTF-8 text.
     NotUtf8,
+    /// More registries are declared than [`MAX_SNAPSHOT_REGISTRIES`]; `registry` is the first
+    /// one over.
+    TooManyRegistries,
+    /// The winning file is more than [`MAX_DATAPACK_ENTRY_BYTES`].
+    EntryTooLarge,
+    /// The registry has more entries than [`MAX_SNAPSHOT_ENTRIES`]; `entry` is the first one over.
+    TooManyEntries,
+    /// The winning files of the whole candidate are more than [`MAX_SNAPSHOT_BYTES`]; `entry` is
+    /// the first one over.
+    CandidateTooLarge,
+    /// The snapshot of every synchronized registry would encode to more than
+    /// [`MAX_SNAPSHOT_BYTES`] (field defaults and entry ids are not in the files); it names no
+    /// registry, entry or file.
+    SnapshotTooLarge,
     /// The entry's id (from its namespace and file name) is not a lowercase `namespace:path`.
     InvalidEntryId,
     /// The file did not decode against the registry's schema.
@@ -43,6 +63,9 @@ pub struct DatapackLoadError {
     pub entry: String,
     /// The file the entry came from.
     pub file: String,
+    /// The id of the pack whose version of `file` won (`file/override`); empty when no pack is
+    /// involved, as for a registry over the limit or a snapshot a server sent.
+    pub pack: String,
     /// What was wrong.
     pub reason: DatapackLoadReason,
 }
@@ -77,22 +100,38 @@ impl DatapackCandidate {
     /// resolves every reference to a declared registry against the whole candidate, so a
     /// forward reference works and an absent target refuses everything. A reference to a
     /// registry no declaration here covers (a vanilla one) is not checked. The caller has
-    /// already dropped files whose pack conditions do not hold. The error is boxed: it is
-    /// large, and a refused candidate is rare.
+    /// already dropped files whose pack conditions do not hold. Each version is its pack's id
+    /// and its bytes, so a refusal names the pack. A candidate over a limit is refused whole:
+    /// [`MAX_SNAPSHOT_REGISTRIES`] registries, [`MAX_DATAPACK_ENTRY_BYTES`] per entry,
+    /// [`MAX_SNAPSHOT_ENTRIES`] entries per registry and [`MAX_SNAPSHOT_BYTES`] of winning files
+    /// in all, the bounds its snapshot must also fit, and a trial encode refuses a candidate whose
+    /// snapshot of every synchronized registry would be over [`MAX_SNAPSHOT_BYTES`]. The error is boxed: it is large, and a
+    /// refused candidate is rare.
     pub fn build(
         declarations: &[DatapackRegistryDeclaration],
-        files: &[(String, Vec<Vec<u8>>)],
+        files: &[(String, Vec<(String, Vec<u8>)>)],
     ) -> Result<Self, Box<DatapackLoadError>> {
+        if let Some(over) = declarations.get(MAX_SNAPSHOT_REGISTRIES) {
+            return Err(Box::new(DatapackLoadError {
+                registry: over.key.clone(),
+                entry: String::new(),
+                file: String::new(),
+                pack: String::new(),
+                reason: DatapackLoadReason::TooManyRegistries,
+            }));
+        }
         let mut registries: BTreeMap<String, BTreeMap<String, DatapackEntry>> = declarations
             .iter()
             .map(|declaration| (declaration.key.clone(), BTreeMap::new()))
             .collect();
+        let mut total = 0usize;
         for declaration in declarations {
-            let fail = |entry: &str, file: &str, reason| {
+            let fail = |entry: &str, file: &str, pack: &str, reason| {
                 Box::new(DatapackLoadError {
                     registry: declaration.key.clone(),
                     entry: entry.to_owned(),
                     file: file.to_owned(),
+                    pack: pack.to_owned(),
                     reason,
                 })
             };
@@ -100,24 +139,54 @@ impl DatapackCandidate {
                 let Some(entry) = entry_of(declaration, file) else {
                     continue;
                 };
+                let winner = versions.last();
+                let pack = winner.map_or("", |(pack, _)| pack.as_str());
+                let fail = |reason| fail(&entry, file, pack, reason);
                 if !valid_namespaced(&entry) {
-                    return Err(fail(&entry, file, DatapackLoadReason::InvalidEntryId));
+                    return Err(fail(DatapackLoadReason::InvalidEntryId));
                 }
-                let Some(text) = versions.last() else {
+                let Some((_, bytes)) = winner else {
                     continue;
                 };
-                let text = std::str::from_utf8(text)
-                    .map_err(|_| fail(&entry, file, DatapackLoadReason::NotUtf8))?;
+                if bytes.len() > MAX_DATAPACK_ENTRY_BYTES {
+                    return Err(fail(DatapackLoadReason::EntryTooLarge));
+                }
+                total += bytes.len();
+                if total > MAX_SNAPSHOT_BYTES {
+                    return Err(fail(DatapackLoadReason::CandidateTooLarge));
+                }
+                let entries = registries
+                    .get_mut(&declaration.key)
+                    .expect("every declaration has a registry");
+                if entries.len() >= MAX_SNAPSHOT_ENTRIES {
+                    return Err(fail(DatapackLoadReason::TooManyEntries));
+                }
+                let text =
+                    std::str::from_utf8(bytes).map_err(|_| fail(DatapackLoadReason::NotUtf8))?;
                 let decoded = declaration
                     .decode_entry(text)
-                    .map_err(|error| fail(&entry, file, DatapackLoadReason::Decode(error)))?;
-                registries
-                    .get_mut(&declaration.key)
-                    .expect("every declaration has a registry")
-                    .insert(entry, decoded);
+                    .map_err(|error| fail(DatapackLoadReason::Decode(error)))?;
+                entries.insert(entry, decoded);
             }
         }
-        resolve_references(declarations, &registries)?;
+        resolve_references(declarations, &registries).map_err(|mut error| {
+            // The referring entry's winning pack.
+            if let Some((_, versions)) = files.iter().find(|(file, _)| *file == error.file) {
+                error.pack = versions
+                    .last()
+                    .map_or_else(String::new, |(pack, _)| pack.clone());
+            }
+            error
+        })?;
+        if !snapshot_fits(declarations, &registries) {
+            return Err(Box::new(DatapackLoadError {
+                registry: String::new(),
+                entry: String::new(),
+                file: String::new(),
+                pack: String::new(),
+                reason: DatapackLoadReason::SnapshotTooLarge,
+            }));
+        }
         Ok(Self { registries })
     }
 }
@@ -192,6 +261,7 @@ pub(super) fn resolve_references(
                         registry: declaration.key.clone(),
                         entry: entry.clone(),
                         file: declaration.entry_file(entry).unwrap_or_default(),
+                        pack: String::new(),
                         reason: DatapackLoadReason::UnresolvedReference {
                             field: field.name.clone(),
                             registry: registry.clone(),
@@ -321,10 +391,15 @@ mod tests {
         }
     }
 
-    fn file(path: &str, versions: &[&str]) -> (String, Vec<Vec<u8>>) {
+    /// A file whose version `n` is in the pack `pack/<n>`.
+    fn file(path: &str, versions: &[&str]) -> (String, Vec<(String, Vec<u8>)>) {
         (
             path.to_owned(),
-            versions.iter().map(|v| v.as_bytes().to_vec()).collect(),
+            versions
+                .iter()
+                .enumerate()
+                .map(|(n, v)| (format!("pack/{n}"), v.as_bytes().to_vec()))
+                .collect(),
         )
     }
 
@@ -333,7 +408,7 @@ mod tests {
         set.get(&handle).unwrap().get("power").unwrap().clone()
     }
 
-    fn candidate(files: &[(String, Vec<Vec<u8>>)]) -> DatapackCandidate {
+    fn candidate(files: &[(String, Vec<(String, Vec<u8>)>)]) -> DatapackCandidate {
         DatapackCandidate::build(&[spell()], files).unwrap()
     }
 
@@ -451,6 +526,7 @@ mod tests {
                 registry: "example:spell".into(),
                 entry: "example:fire".into(),
                 file: "data/example/example/spell/fire.json".into(),
+                pack: "pack/1".into(),
                 reason: DatapackLoadReason::Decode(DatapackDecodeError::OutOfRange {
                     field: "power".into()
                 }),
@@ -496,6 +572,7 @@ mod tests {
                 registry: "example:spell".into(),
                 entry: "example:fire".into(),
                 file: "data/example/example/spell/fire.json".into(),
+                pack: "pack/0".into(),
                 reason: DatapackLoadReason::UnresolvedReference {
                     field: "next".into(),
                     registry: "example:spell".into(),
@@ -524,7 +601,7 @@ mod tests {
     /// the candidate.
     #[test]
     fn an_unusable_entry_file_refuses_the_candidate() {
-        let reason = |files: &[(String, Vec<Vec<u8>>)]| {
+        let reason = |files: &[(String, Vec<(String, Vec<u8>)>)]| {
             DatapackCandidate::build(&[spell()], files)
                 .unwrap_err()
                 .reason
@@ -539,7 +616,7 @@ mod tests {
         assert_eq!(
             reason(&[(
                 "data/example/example/spell/fire.json".to_owned(),
-                vec![vec![0xff, 0xfe]]
+                vec![("pack/0".to_owned(), vec![0xff, 0xfe])]
             )]),
             DatapackLoadReason::NotUtf8
         );
@@ -569,6 +646,170 @@ mod tests {
             set.reload(candidate(&[])),
             Err(DatapackGenerationExhausted::Exhausted)
         );
+    }
+
+    /// `{"power": 7}` padded with spaces to exactly `len` bytes.
+    fn padded(len: usize) -> String {
+        let head = r#"{"power": 7"#;
+        format!("{head}{}}}", " ".repeat(len - head.len() - 1))
+    }
+
+    fn entry_path(name: &str) -> String {
+        format!("data/example/example/spell/{name}.json")
+    }
+
+    /// The refusal of `files`, which must name `entry` and the winning pack.
+    fn refusal(files: &[(String, Vec<(String, Vec<u8>)>)], entry: &str) -> DatapackLoadReason {
+        let error = DatapackCandidate::build(&[spell()], files).unwrap_err();
+        assert_eq!(error.registry, "example:spell");
+        assert_eq!(error.entry, format!("example:{entry}"));
+        assert_eq!(error.file, entry_path(entry));
+        assert_eq!(error.pack, "pack/0");
+        error.reason
+    }
+
+    /// An entry of exactly 1 MiB decodes; one byte more refuses the candidate, the old set
+    /// stays at its generation and the next valid reload still publishes.
+    #[test]
+    fn an_entry_over_one_mib_refuses_the_candidate() {
+        let at = [file(
+            &entry_path("fire"),
+            &[padded(MAX_DATAPACK_ENTRY_BYTES).as_str()],
+        )];
+        let old = DatapackRegistrySet::first(candidate(&at), 1);
+        assert_eq!(power(&old, "example:fire"), DatapackValue::Int(7));
+        let over = [file(
+            &entry_path("fire"),
+            &[padded(MAX_DATAPACK_ENTRY_BYTES + 1).as_str()],
+        )];
+        assert_eq!(refusal(&over, "fire"), DatapackLoadReason::EntryTooLarge);
+        assert_eq!(old.generation(), 1);
+        assert_eq!(power(&old, "example:fire"), DatapackValue::Int(7));
+        assert_eq!(old.reload(candidate(&at)).unwrap().generation(), 2);
+    }
+
+    /// 65,536 entries in a registry are accepted; one more refuses the candidate.
+    #[test]
+    fn a_registry_over_65536_entries_refuses_the_candidate() {
+        let mut files: Vec<_> = (0..MAX_SNAPSHOT_ENTRIES)
+            .map(|n| match n {
+                0 => file(&entry_path("fire"), &[r#"{"power": 1}"#]),
+                n => file(&entry_path(&format!("e{n}")), &[r#"{"power": 1}"#]),
+            })
+            .collect();
+        let old = DatapackRegistrySet::first(candidate(&files), 1);
+        assert_eq!(
+            old.entries("example:spell").unwrap().len(),
+            MAX_SNAPSHOT_ENTRIES
+        );
+        let over = format!("e{MAX_SNAPSHOT_ENTRIES}");
+        files.push(file(&entry_path(&over), &[r#"{"power": 1}"#]));
+        assert_eq!(refusal(&files, &over), DatapackLoadReason::TooManyEntries);
+        files.pop();
+        assert_eq!(old.reload(candidate(&files)).unwrap().generation(), 2);
+    }
+
+    /// 64 MiB of winning files in all are accepted; one more entry refuses the candidate.
+    #[test]
+    fn a_candidate_over_64_mib_refuses_the_candidate() {
+        let full = padded(MAX_DATAPACK_ENTRY_BYTES);
+        let mut files: Vec<_> = (0..MAX_SNAPSHOT_BYTES / MAX_DATAPACK_ENTRY_BYTES)
+            .map(|n| match n {
+                0 => file(&entry_path("fire"), &[full.as_str()]),
+                n => file(&entry_path(&format!("e{n}")), &[full.as_str()]),
+            })
+            .collect();
+        let old = DatapackRegistrySet::first(candidate(&files), 1);
+        files.push(file(&entry_path("last"), &[r#"{"power": 1}"#]));
+        assert_eq!(
+            refusal(&files, "last"),
+            DatapackLoadReason::CandidateTooLarge
+        );
+        files.pop();
+        assert_eq!(old.reload(candidate(&files)).unwrap().generation(), 2);
+    }
+
+    /// `example:spell`, synchronized, with a 64 KiB text default that no file spells out.
+    fn padded_spell() -> DatapackRegistryDeclaration {
+        DatapackRegistryDeclaration {
+            fields: vec![
+                DatapackField::required("power", DatapackFieldKind::Int { min: 0, max: 100 }),
+                DatapackField::with_default(
+                    "lore",
+                    DatapackFieldKind::Text { max_len: 1 << 16 },
+                    DatapackValue::Text("x".repeat(1 << 16)),
+                ),
+            ],
+            sync: DatapackRegistrySync::Optional,
+            ..spell()
+        }
+    }
+
+    /// `count` small entries, the first `example:fire`.
+    fn small_entries(count: usize) -> Vec<(String, Vec<(String, Vec<u8>)>)> {
+        (0..count)
+            .map(|n| match n {
+                0 => file(&entry_path("fire"), &[r#"{"power": 1}"#]),
+                n => file(&entry_path(&format!("e{n}")), &[r#"{"power": 1}"#]),
+            })
+            .collect()
+    }
+
+    /// A candidate whose files are small but whose snapshot, defaults filled in, would encode to
+    /// more than 64 MiB is refused before it commits, with a named reason; the old generation
+    /// stays and the next candidate that fits still publishes. A server-only registry is never
+    /// sent, so the same entries there are accepted.
+    #[test]
+    fn a_candidate_whose_snapshot_is_over_64_mib_is_refused_before_commit() {
+        let declarations = [padded_spell()];
+        let fits = small_entries(1000);
+        let old =
+            DatapackRegistrySet::first(DatapackCandidate::build(&declarations, &fits).unwrap(), 1);
+        let over = small_entries(MAX_SNAPSHOT_BYTES / (1 << 16) + 1);
+        let error = DatapackCandidate::build(&declarations, &over).unwrap_err();
+        assert_eq!(error.reason, DatapackLoadReason::SnapshotTooLarge);
+        assert_eq!(error.registry, "");
+        assert_eq!(old.generation(), 1);
+        let next = DatapackCandidate::build(&declarations, &fits).unwrap();
+        assert_eq!(old.reload(next).unwrap().generation(), 2);
+        let server_only = DatapackRegistryDeclaration {
+            sync: DatapackRegistrySync::ServerOnly,
+            ..padded_spell()
+        };
+        assert!(DatapackCandidate::build(&[server_only], &over).is_ok());
+    }
+
+    /// A file nested 65 deep refuses the candidate (the schema has no nested field, so it is a
+    /// decode error), and the old generation stays.
+    #[test]
+    fn an_entry_nested_65_deep_refuses_the_candidate() {
+        let old = DatapackRegistrySet::first(candidate(&small_entries(1)), 1);
+        let deep = format!(r#"{{"power": {}7{}}}"#, "[".repeat(64), "]".repeat(64));
+        let error =
+            DatapackCandidate::build(&[spell()], &[file(&entry_path("fire"), &[deep.as_str()])])
+                .unwrap_err();
+        assert!(matches!(error.reason, DatapackLoadReason::Decode(_)));
+        assert_eq!(old.generation(), 1);
+        assert_eq!(power(&old, "example:fire"), DatapackValue::Int(1));
+    }
+
+    /// 256 declared registries are accepted; the 257th refuses every candidate, naming it.
+    #[test]
+    fn more_than_256_registries_refuse_the_candidate() {
+        let mut declarations: Vec<_> = (0..MAX_SNAPSHOT_REGISTRIES)
+            .map(|n| DatapackRegistryDeclaration {
+                key: format!("example:spell_{n}"),
+                ..spell()
+            })
+            .collect();
+        assert!(DatapackCandidate::build(&declarations, &[]).is_ok());
+        declarations.push(DatapackRegistryDeclaration {
+            key: "example:over".into(),
+            ..spell()
+        });
+        let error = DatapackCandidate::build(&declarations, &[]).unwrap_err();
+        assert_eq!(error.registry, "example:over");
+        assert_eq!(error.reason, DatapackLoadReason::TooManyRegistries);
     }
 }
 

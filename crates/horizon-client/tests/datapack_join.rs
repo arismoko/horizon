@@ -71,7 +71,10 @@ fn candidate(power: i64) -> DatapackCandidate {
     let file = format!(r#"{{"power": {power}}}"#).into_bytes();
     DatapackCandidate::build(
         &declarations(),
-        &[("data/addon/example/spell/fire.json".to_owned(), vec![file])],
+        &[(
+            "data/addon/example/spell/fire.json".to_owned(),
+            vec![("pack".to_owned(), file)],
+        )],
     )
     .unwrap()
 }

@@ -4,7 +4,7 @@ pub use world::datapack_registry::{
 };
 pub use world::datapack_registry_set::{
     DatapackCandidate, DatapackGenerationExhausted, DatapackHandle, DatapackLoadError,
-    DatapackLoadReason, DatapackReadError, DatapackRegistrySet,
+    DatapackLoadReason, DatapackReadError, DatapackRegistrySet, MAX_DATAPACK_ENTRY_BYTES,
 };
 pub use world::datapack_snapshot::{
     DatapackNegotiationError, DatapackSnapshot, DatapackSnapshotEntry, DatapackSnapshotError,

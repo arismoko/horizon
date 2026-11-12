@@ -190,7 +190,7 @@ mod tests {
     fn set(declaration: &DatapackRegistryDeclaration) -> DatapackRegistrySet {
         let files = vec![(
             "data/addon/example/spell/fire.json".to_owned(),
-            vec![br#"{"power": 7}"#.to_vec()],
+            vec![("pack".to_owned(), br#"{"power": 7}"#.to_vec())],
         )];
         DatapackRegistrySet::first(
             DatapackCandidate::build(std::slice::from_ref(declaration), &files).unwrap(),
@@ -237,7 +237,7 @@ mod tests {
                     declarations,
                     &[(
                         "data/addon/example/spell/fire.json".to_owned(),
-                        vec![br#"{"power": 9}"#.to_vec()],
+                        vec![("pack".to_owned(), br#"{"power": 9}"#.to_vec())],
                     )],
                 )
                 .unwrap(),
