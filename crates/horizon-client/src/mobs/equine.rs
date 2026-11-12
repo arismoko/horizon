@@ -694,12 +694,15 @@ pub fn play_step(
     ) {
         return;
     }
+    // The snow layer on the block, if any, steps for it; its parts answer, asked at the block
+    // below as NeoForge's `getSoundType(snow, level, pos, horse)` is.
     let above = w.world.block(pos[0], pos[1] + 1, pos[2]);
-    let sound_type = if &*w.facts.get(above).name == "minecraft:snow" {
-        &w.facts.get(above).sounds
+    let state = if &*w.facts.get(above).name == "minecraft:snow" {
+        above
     } else {
-        &w.facts.get(state).sounds
+        state
     };
+    let sound_type = &w.block_sound_type(m, pos, state, mod_api::BlockSoundCause::Step);
     let (volume, pitch) = (sound_type.volume, sound_type.pitch);
     let at = [m.position.x, m.position.y, m.position.z];
     let baby = m.is_baby();
@@ -749,7 +752,7 @@ pub fn play_step(
 }
 /// `AbstractHorse.isWoodSoundType`: WOOD, NETHER_WOOD, STEM, CHERRY_WOOD and
 /// BAMBOO_WOOD (not HARD_CROP, which only shares WOOD's step).
-fn is_wood_sound_type(sounds: &horizon_items::blocks::Sounds) -> bool {
+fn is_wood_sound_type(sounds: &mod_api::BlockSoundType) -> bool {
     let step = sounds
         .step
         .strip_prefix("minecraft:")

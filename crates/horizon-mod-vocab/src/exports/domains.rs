@@ -54,10 +54,10 @@ pub(crate) use runtime::{
     mod_index_on, mods, set_mod_enabled,
 };
 pub use world::types::{
-    BiomeSearch, BiomeSearchResult, BlockSoundType, BoolGameRuleKey, ChunkRef, ChunkStatus,
-    ChunkTicketLevel, ClipBlock, ClipFluid, ClipHit, DataMapsUpdateCause, Despawn, Difficulty,
-    DimensionKey, EntityRayHit, ExplosionInteraction, ExplosionStart, FeatureFlags, FluidKey,
-    FluidState, GameRuleActor, GameRuleError, GlobalPos, LevelDimensionShape, LevelHost,
+    BiomeSearch, BiomeSearchResult, BlockSoundCause, BlockSoundType, BoolGameRuleKey, ChunkRef,
+    ChunkStatus, ChunkTicketLevel, ClipBlock, ClipFluid, ClipHit, DataMapsUpdateCause, Despawn,
+    Difficulty, DimensionKey, EntityRayHit, ExplosionInteraction, ExplosionStart, FeatureFlags,
+    FluidKey, FluidState, GameRuleActor, GameRuleError, GlobalPos, LevelDimensionShape, LevelHost,
     LevelRandomHost, LevelRef, LevelTicksHost, LevelWriteHost, LifecycleContext, LightLayer,
     MapState, MobCategory, PlayerRespawnConfig, PortalShape, ProgressType, RaidRef, RaidStatus,
     RespawnData, ServerTickPhase, SpawnCheck, SpawnFlags, SpawnLight, SpawnLimits,

@@ -1426,7 +1426,7 @@ impl Mob {
             let pos = self.on_pos(0.2);
             let state = w.world.block(pos[0], pos[1], pos[2]);
             if !w.facts.is_air(state) {
-                let sounds = &w.facts.get(state).sounds;
+                let sounds = w.block_sound_type(self, pos, state, mod_api::BlockSoundCause::Fall);
                 let at = [self.position.x, self.position.y, self.position.z];
                 events.push(MobEvent::SoundId(
                     sounds.fall.to_string(),

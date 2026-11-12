@@ -389,6 +389,9 @@ pub(crate) fn install_client_hooks() {
             let context = reader.context();
             mod_api::dispatch_fluid_flow(&context, fluid, pos, flow);
         },
+        sound_type: |context, pos, state, entity, cause, sound| {
+            crate::game::native_block_sounds::sound_type(context, pos, state, entity, cause, sound);
+        },
     }) {
         log::warn!("Native client hooks already installed; keeping the first callbacks");
     }

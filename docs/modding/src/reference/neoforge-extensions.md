@@ -31,8 +31,8 @@ It does not answer `IEntityExtension` methods; those are covered only where a gl
 
 | Interface | Public methods | Covered | Partial | Missing | n/a |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `IBlockExtension` | 60 | 8 | 20 | 32 | 0 |
-| `IBlockStateExtension` | 57 | 7 | 19 | 31 | 0 |
+| `IBlockExtension` | 60 | 9 | 19 | 32 | 0 |
+| `IBlockStateExtension` | 57 | 8 | 18 | 31 | 0 |
 | `IItemExtension` | 46 | 9 | 15 | 22 | 0 |
 | `IEntityExtension` | 33 | 1 | 16 | 16 | 0 |
 | `ILivingEntityExtension` | 6 | 0 | 3 | 3 | 0 |
@@ -73,8 +73,8 @@ same facts is `StateFacts` in `crates/horizon-items/src/blocks.rs`.
 | `getCloneItemStack(level, pos, state, includeData, player)` | Covered | `BlockPart::clone_item_stack` (`hooks/clone_item_stack.rs`) | `include_data` and the player are passed; leaving the stack unset keeps the game's item. |
 | `addLandingEffects(state, level, pos, stateBelow, entity, count)` | Missing | — | `fall_on` edits fall damage, not the landing particle/sound burst. |
 | `addRunningEffects(state, level, pos, entity)` | Missing | — | No hook for the running dust burst. |
-| `playFallSound(state, level, pos, entity)` | Partial | `BlockProperties.sounds` | Picks a vanilla sound type; no custom event, volume or pitch. |
-| `playStepSound(state, level, pos, entity, volume, pitch)` | Partial | `BlockProperties.sounds` | Same static sound type; step volume and pitch are not settable. |
+| `playFallSound(state, level, pos, entity)` | Partial | `BlockPart::sound_type` (`hooks/sound_type.rs`, `cause` `Fall`) | Picks the event, volume and pitch of the one fall sound the game plays; the part can't play or suppress its own. Asked for mobs; a player's block fall sound is not played yet ([#3178](https://github.com/arismoko/horizon/issues/3178)). |
+| `playStepSound(state, level, pos, entity, volume, pitch)` | Partial | `BlockPart::sound_type` (`hooks/sound_type.rs`, `cause` `Step`) | Picks the event, volume and pitch of the one step sound the game plays; the part can't play or suppress its own. |
 | `canSustainPlant(state, level, pos, direction, plantState)` | Covered | `BlockPart::can_sustain_plant` (`hooks/can_sustain_plant.rs`) | The soil's answer for the plant above it (allow, deny or none), asked before the plant's `may_place_on`, which still answers for your plant. The direction is always up. |
 | `onTreeGrow(state, level, posConsumer, random, pos, feature)` | Missing | — | `block_grow_feature` observes or edits the feature a sapling grows into; it does not let a block run its own tree growth. |
 | `isFertile(state, level, pos)` | Missing | — | No fertile-block query; bonemeal hooks fire later. |
@@ -84,7 +84,7 @@ same facts is `StateFacts` in `crates/horizon-items/src/blocks.rs`.
 | `onNeighborChange(state, level, pos, fromPos)` | Missing | — | `neighbor_changed` is `Block.neighborChanged`, a different callback. [#1038](https://github.com/arismoko/horizon/issues/1038). |
 | `shouldCheckWeakPower(state, level, pos, direction)` | Covered | `BlockPart::should_check_weak_power` (`hooks/should_check_weak_power.rs`) | The argument direction is the input side, as NeoForge's. |
 | `getWeakChanges(state, level, pos)` | Missing | — | No weak-change observer query. [#1038](https://github.com/arismoko/horizon/issues/1038). |
-| `getSoundType(state, level, pos, entity)` | Partial | `BlockProperties.sounds`, `host.block_states().sound(state)` | Static set of break/step/place/hit/fall sounds; no per-position or per-entity choice. |
+| `getSoundType(state, level, pos, entity)` | Covered | `BlockPart::sound_type` (`hooks/sound_type.rs`) | Asked with the position, the entity (nullable: the stepping, landing, placing or digging one, none for a break or a dispenser's placement) and the sound about to play, on NeoForge's paths only: the step and combination step, a horse's step (at the block below a snow layer), a mob's fall, a block item's placement, the break event and a sniffer's digging. Not for the mining hit sound (its own client hook upstream) or sculk growth; an answer with a volume or pitch that is not finite and at least 0, or an event that is not a `namespace:path` id, is dropped. The part answers from its inputs, without the level; `host.block_states().sound(state)` still reads the static type. |
 | `getBeaconColorMultiplier(state, level, pos, beaconPos)` | Missing | — | Beacon beam colour is engine-owned. |
 | `getStateAtViewpoint(state, level, pos, viewpoint)` | Missing | — | No viewpoint-state query. |
 | `getBlockPathType(state, level, pos, mob)` | Partial | `BlockPart::is_pathfindable` (`hooks/is_pathfindable.rs`) | Answers whether a `PathComputationType` may pass, once per state and type; not a `PathType` per mob or position. [#1038](https://github.com/arismoko/horizon/issues/1038). |
@@ -131,7 +131,7 @@ the parameters shifted by one. Three block methods have no state-receiver form:
 | `getMapColor(state, level, pos, defaultColor)` | Partial (content `map_color`) |
 | `makesOpenTrapdoorAboveClimbable(state, level, pos, stateAbove)` | Missing |
 
-Counts: 7 covered, 19 partial, 31 missing among the 57. The handful of signature differences (`canStickTo` takes
+Counts: 8 covered, 18 partial, 31 missing among the 57. The handful of signature differences (`canStickTo` takes
 the neighbour state; `getCloneItemStack` reorders its arguments; `getEnchantPowerBonus` takes a `LevelReader`)
 do not change any verdict.
 

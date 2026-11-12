@@ -82,11 +82,9 @@ impl Game<'_> {
                 continue;
             }
             let head = sniffer::head_block(&self.mobs[i]);
-            let below = self.world.block(head[0], head[1] - 1, head[2]);
-            if self
-                .particle_sprite(below, [head[0], head[1] - 1, head[2]])
-                .is_none()
-            {
+            let ground = [head[0], head[1] - 1, head[2]];
+            let below = self.world.block(ground[0], ground[1], ground[2]);
+            if self.particle_sprite(below, ground).is_none() {
                 continue;
             }
             let dust = [
@@ -98,7 +96,9 @@ impl Game<'_> {
             // within 32 blocks (the server thread's window is one of them).
             self.landing_dust(below, Vec3::new(dust[0], dust[1], dust[2]), 30, 0.0);
             if !self.mobs[i].silent && self.mobs[i].age.is_multiple_of(10) {
-                let hit = self.res.facts().get(below).sounds.hit.clone();
+                let sniffer = Some((self.mobs[i].id, self.mobs[i].kind.id.as_str()));
+                let dig = mod_api::BlockSoundCause::Dig;
+                let hit = self.block_sound_type(ground, below, sniffer, dig).hit;
                 self.audio.play(&hit, Some(at), 0.5, 0.5);
             }
         }

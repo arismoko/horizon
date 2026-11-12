@@ -3,6 +3,7 @@ use crate::items::ItemStack;
 use horizon_core::position::BlockPos;
 use horizon_world::native_load_context::LoopContext;
 use horizon_world::registry::BlockStateId;
+use mod_api::{BlockSoundCause, BlockSoundType};
 use std::sync::OnceLock;
 
 /// Client-library hooks, installed before any menu, entity or recipe is used.
@@ -29,6 +30,14 @@ pub struct NativeClientHooks {
     pub player_stays_on_ground_surface: fn(&LoopContext, u32, &mut bool),
     pub ender_entity_teleport: fn(&LoopContext, u32, &str, [f64; 3], &mut [f64; 3], &mut bool),
     pub fluid_flow: fn(&LoopContext, &str, BlockPos, &mut [f64; 3]),
+    pub sound_type: fn(
+        &LoopContext,
+        BlockPos,
+        BlockStateId,
+        Option<(u32, &str)>,
+        BlockSoundCause,
+        &mut BlockSoundType,
+    ),
 }
 
 static HOOKS: OnceLock<NativeClientHooks> = OnceLock::new();
@@ -249,5 +258,18 @@ pub(crate) fn ender_entity_teleport(
 pub(crate) fn fluid_flow(context: &LoopContext, fluid: &str, pos: BlockPos, flow: &mut [f64; 3]) {
     if let Some(hooks) = HOOKS.get() {
         (hooks.fluid_flow)(context, fluid, pos, flow);
+    }
+}
+
+pub(crate) fn sound_type(
+    context: &LoopContext,
+    pos: BlockPos,
+    state: BlockStateId,
+    entity: Option<(u32, &str)>,
+    cause: BlockSoundCause,
+    sound: &mut BlockSoundType,
+) {
+    if let Some(hooks) = HOOKS.get() {
+        (hooks.sound_type)(context, pos, state, entity, cause, sound);
     }
 }

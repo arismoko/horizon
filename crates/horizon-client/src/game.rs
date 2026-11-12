@@ -808,6 +808,7 @@ struct GameLevel<'w> {
     /// `Level.isDebug`: `setBlock` changes nothing.
     debug: bool,
     native_sounds: &'w mut Vec<creatures::NativeSound>,
+    loop_context: &'w horizon_world::native_load_context::LoopContext,
     native_particles: &'w mut Vec<lan_particles::QueuedParticle>,
     sound_seeds: Option<&'w horizon_client::lan::hub::Hub>,
     drop_entity: Option<mod_api::EntityRef>,
@@ -991,6 +992,14 @@ impl LevelAccess for GameLevel<'_> {
     }
     fn redstone_experiments(&self) -> bool {
         self.redstone_experiments
+    }
+    fn place_sound_type(
+        &self,
+        pos: BlockPos,
+        state: BlockStateId,
+        sounds: Arc<horizon_world::level::data::Sounds>,
+    ) -> Arc<horizon_world::level::data::Sounds> {
+        self.part_place_sound_type(pos, state, sounds)
     }
     fn allow_hopper_pickup_item(&self, pos: BlockPos, item: &str, count: u32) -> bool {
         let mut cancel = false;
@@ -5566,6 +5575,7 @@ impl Game<'_> {
             native_player_entity: self.lan_acting_entity.map(|id| id as i32),
             debug: self.world_debug,
             native_sounds: &mut self.creatures.lan_sounds,
+            loop_context: &self.loop_context,
             native_particles: &mut self.creatures.lan_particles,
             sound_seeds: self.lan.as_ref().map(|host| &host.hub),
             drop_tool: None,
@@ -5873,21 +5883,7 @@ impl Game<'_> {
                     let state = BlockStateId(data as u32);
                     let p = [pos.x, pos.y, pos.z];
                     self.destroy_particles(p, state);
-                    if self.res.facts().is_air(state) {
-                        continue;
-                    }
-                    let sounds = self.res.facts().get(state).sounds.clone();
-                    let c = [
-                        f64::from(pos.x) + 0.5,
-                        f64::from(pos.y) + 0.5,
-                        f64::from(pos.z) + 0.5,
-                    ];
-                    self.audio.play(
-                        &sounds.break_sound,
-                        Some(c),
-                        (sounds.volume + 1.0) / 2.0,
-                        sounds.pitch * 0.8,
-                    );
+                    self.play_break_sound(p, state);
                 }
                 LevelEvent::LevelEvent {
                     id: 3006,

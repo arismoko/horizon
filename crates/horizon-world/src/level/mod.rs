@@ -540,6 +540,18 @@ pub trait LevelAccess: BlockEntityNeighbors {
     fn allow_bell_ring(&self, _pos: BlockPos) -> bool {
         true
     }
+    /// The sound type `state`, just placed at `pos`, plays its place sound from
+    /// (`IBlockExtension.getSoundType`): `sounds`, its own, unless a mod's block part answers
+    /// another (`BlockItem.place`, asked with the placing player, or none when nothing places
+    /// it, such as a dispenser). The default keeps the block's own.
+    fn place_sound_type(
+        &self,
+        _pos: BlockPos,
+        _state: BlockStateId,
+        sounds: Arc<data::Sounds>,
+    ) -> Arc<data::Sounds> {
+        sounds
+    }
     fn allow_cauldron_level_change(
         &self,
         _pos: BlockPos,

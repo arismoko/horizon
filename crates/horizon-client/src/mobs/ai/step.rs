@@ -86,9 +86,8 @@ pub fn inherited_step_sound(
         S::Strider => Some(("entity.strider.step", 1.0, 1.0)),
         S::Warden => Some(("entity.warden.step", 10.0, 1.0)),
         _ => {
-            // Entity.playStepSound: the block's sound type.
-            let _ = pos;
-            let sounds = &w.facts.get(state).sounds;
+            // Entity.playStepSound: the block's sound type, as its parts answer.
+            let sounds = w.block_sound_type(m, pos, state, mod_api::BlockSoundCause::Step);
             let step: &'static str = intern_sound(&sounds.step);
             Some((step, sounds.volume * 0.15, sounds.pitch))
         }

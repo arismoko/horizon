@@ -3222,7 +3222,7 @@ impl Game<'_> {
             && target == pos
             && !self.res.facts().is_air(state)
         {
-            let s = self.res.facts().get(state).sounds.clone();
+            let s = self.own_sound_type(pos, state, mod_api::BlockSoundCause::Place);
             let at = [
                 f64::from(pos[0]) + 0.5,
                 f64::from(pos[1]) + 0.5,
@@ -7068,8 +7068,13 @@ impl Game<'_> {
         self.eye += (player.dimensions.eye_height - self.eye) * 0.5;
         for event in events {
             match event {
-                horizon_client::motion::MotionEvent::Emission { state, muffled, .. } => {
-                    let sounds = self.res.facts().get(state).sounds.clone();
+                horizon_client::motion::MotionEvent::Emission {
+                    position,
+                    state,
+                    muffled,
+                } => {
+                    let at = [position.x, position.y, position.z];
+                    let sounds = self.own_sound_type(at, state, mod_api::BlockSoundCause::Step);
                     // Player.playStepSound: muffled under the swim sound in water.
                     let (volume, pitch) = if muffled {
                         (sounds.volume * 0.05, sounds.pitch * 0.8)
@@ -8550,20 +8555,8 @@ impl Game<'_> {
         // Block.playerWillDestroy's destroy event (particles and the break
         // sound), which BaseFireBlock skips: the server's extinguish sound
         // is all a player hears.
-        let facts = self.res.facts().get(state);
-        if !facts.has_class("BaseFireBlock") {
-            let s = facts.sounds.clone();
-            let at = [
-                f64::from(pos[0]) + 0.5,
-                f64::from(pos[1]) + 0.5,
-                f64::from(pos[2]) + 0.5,
-            ];
-            self.audio.play(
-                &s.break_sound,
-                Some(at),
-                (s.volume + 1.0) / 2.0,
-                s.pitch * 0.8,
-            );
+        if !self.res.facts().get(state).has_class("BaseFireBlock") {
+            self.play_break_sound(pos, state);
             self.destroy_particles(pos, state);
         }
         // The server's block update follows (waterlogged blocks leave water).
