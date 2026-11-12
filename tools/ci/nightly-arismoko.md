@@ -6,6 +6,6 @@ The fork launcher has separate settings, game data, accounts and updates. Micros
 
 The game archives below are not launcher installers. They include CI-tested game builds, a dedicated Linux server and the exact source pin for native mods. Compiled SDKs are separate `prebuilt-<full source SHA>` releases and must match the installed game's source revision; the source archive and `mod-catalog.json` are not compiled SDKs.
 
-For client development without sign-in, [build an unsigned developer base from source](https://github.com/arismoko/horizon/blob/main/docs/modding/src/how-to/native-mods/042-local-developer-builds.md) and opt into single-player-only Play with `HORIZON_LAUNCHER_DEVELOPER_OFFLINE=1`. This does not enable signed Nightly Play or account features.
+For client development without sign-in, [build an unsigned developer base from source](https://github.com/arismoko/horizon/blob/main/docs/modding/src/how-to/native-mods/07-local-developer-builds.md) and opt into single-player-only Play with `HORIZON_LAUNCHER_DEVELOPER_OFFLINE=1`. This does not enable signed Nightly Play or account features.
 
 Report bugs to this fork with the exact Nightly date and commit. You need your own copy of Minecraft: Java Edition.

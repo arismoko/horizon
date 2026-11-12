@@ -249,7 +249,7 @@ keep vanilla's names and formats, so going back to vanilla works too.
 
 A native-mods build exports a standalone engine
 (`horizon-launcher native-build FOLDER --server-output DIR --version TAG --trust-native-code`;
-see [Native mods](modding/src/how-to/native-mods.md#standalone-server-export)). Point the server at it:
+see [Native mods](modding/src/how-to/native-mods/12-standalone-server-export.md)). Point the server at it:
 
     horizon-server --dir SERVER config set engine.path=/absolute/export/horizon-engine
     horizon-server --dir SERVER restart
@@ -639,7 +639,7 @@ Players join with any vanilla 26.3 client: only the server decides the damage.
 
 ### Mods' biome regions: `[biome_regions]`
 
-A world made with a mod that adds a [biome region](modding/src/how-to/biome-regions.md) saves that region with the
+A world made with a mod that adds a [biome region](modding/src/how-to/content-mods/biome-regions.md) saves that region with the
 world. If the mod is later removed, the server refuses to start and names the mod and region. To start anyway with
 vanilla's biomes where that region was (chunks that already exist stay as they are), add to `server.toml`, then
 restart:

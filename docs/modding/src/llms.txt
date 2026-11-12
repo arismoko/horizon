@@ -7,7 +7,7 @@ Prefer a hook or Part method; otherwise use an API `[[inject]]` on native or was
 ## Rules
 
 - [Rules for agents](https://github.com/arismoko/horizon/blob/main/docs/mod-api/agent-rules.md): the rules in order and the manifest fields.
-- [Injections](injections.md): the decision ladder, convertible injections, the hook-request template, ordering.
+- [Injections](concepts/injections.md): the decision ladder, convertible injections, the hook-request template, ordering.
 
 ## Guide
 
@@ -15,8 +15,8 @@ Prefer a hook or Part method; otherwise use an API `[[inject]]` on native or was
 - [Installing and using mods](start/installing.md)
 - [Making a content mod](how-to/content-mods.md)
 - [Native mods](how-to/native-mods.md)
-- [Query attachment holders](how-to/attachments.md): snapshots, explicit server writes, scope and costs.
-- [Trait mods, Parts and attachments](concepts/trait-mods.md)
+- [Query attachment holders](concepts/attachments/querying.md): snapshots, explicit server writes, scope and costs.
+- [Trait mods, Parts and attachments](concepts/parts.md)
 - [Publishing your mod](how-to/publish.md)
 
 ## Per-concept sources

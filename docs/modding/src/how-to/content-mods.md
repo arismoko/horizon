@@ -53,7 +53,7 @@ cargo horizon-mod check target/horizon-mod/my_mod.hmod   # the registry's checks
   `--horizon <commit>`'s) so the launcher downloads the game instead of building it, root `Cargo.toml`
   and `src/lib.rs`, and empty `assets/` and `data/` directories. `update` repins it the same way. Its root `impl Hooks` uses
   `#[mod_api::horizon_mod]`. Compile it with `horizon-launcher native-build <path> --trust-native-code`
-  ([trait mods](../concepts/trait-mods.md#writing-a-trait-mod)). Any other `--template` is refused.
+  ([trait mods](../start/writing-hooks.md)). Any other `--template` is refused.
 - `build` packs the checked project into `target/horizon-mod/<id>.hmod`: `horizon-mod.toml`, `assets/`,
   `data/`, optional `icon.png` and, for code, the root Cargo project. It validates content with the same
   checks as the game; it does not compile code. Code requires both `Cargo.toml` and `[native]`; inconsistent
@@ -97,8 +97,8 @@ characters; the others are plain text. The screen has no switch: a mod runs or n
 
 Unknown keys are refused, so a typo is an error, not a silently ignored permission. The shared manifest
 uses exactly `api = "0.2"` and `capabilities = ["registries"]`, with `side = "client"` (the default) or `"both"`.
-Code mods add `[native]` for exact build pins and optional raw injections ([Injections](../injections.md)); their id and version still come only
-from this manifest, not Cargo metadata ([Native mods](native-mods.md#a-bundle)). Both content and code mods support `[dependencies]`: use `base = "^1.2"` for a required dependency or
+Code mods add `[native]` for exact build pins and optional raw injections ([Injections](../concepts/injections.md)); their id and version still come only
+from this manifest, not Cargo metadata ([Native mods](native-mods/02-the-package.md)). Both content and code mods support `[dependencies]`: use `base = "^1.2"` for a required dependency or
 `extra = { version = "^2", optional = true }` for an optional one. Missing required dependencies, incompatible installed versions and cycles refuse startup. Content layers load after their dependencies; an absent optional dependency is ignored. Both kinds may include a fixed-name `icon.png` at the top level, with no
 manifest key: a valid square PNG, at most 512 × 512 pixels and 256 KiB encoded ([Mod files](../reference/manifest.md)).
 Executable `mod.wasm` files are unsupported: a folder or archive containing one is refused, including when
@@ -552,7 +552,7 @@ the thrower (the snowball's 3 to blazes is not copied):
 It is the entity type `<id>:<name>`, with its network id after vanilla's. Using its item throws it as a snowball is
 thrown: same speed, spread, sound and cooldown, and one item used outside creative. It flies as a snowball, breaks on
 what it hits with its item's crumbs, and is drawn as its item's model (`ThrownItemRenderer`), unless a client
-mod registers a renderer for it ([entity renderers](entity-renderers.md)). Its name is the translation
+mod registers a renderer for it ([entity renderers](client/entity-renderers.md)). Its name is the translation
 `entity.<id>.<name>`. It works in single player and on LAN with the same mods. Dedicated servers share that code,
 untested so far. Clients join a server only with the same mods' entity types, as with its blocks. It is saved with its
 chunk, `/summon <id>:<name>` makes one, and it has its template's row in `entity-types.json`, with `template` naming

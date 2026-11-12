@@ -19,8 +19,8 @@ The book follows [Diátaxis](https://diataxis.fr): each page is one of four kind
 
 An [agents page](https://github.com/arismoko/horizon/blob/main/docs/mod-api/agent-rules.md) and `llms.txt` give a coding agent the rules in one place.
 
-A native mod that has to change the game's own code, beyond what hooks and [injections](injections.md) reach,
-uses [the native route](native-route.md): `[[native.mixin]]`, `[[native.loop]]`, `[[native.bridge]]` and
+A native mod that has to change the game's own code, beyond what hooks and [injections](concepts/injections.md) reach,
+uses [the native route](concepts/native-route.md): `[[native.mixin]]`, `[[native.loop]]`, `[[native.bridge]]` and
 `[[native.module]]`, each with its own page.
 
 ## Where things are
