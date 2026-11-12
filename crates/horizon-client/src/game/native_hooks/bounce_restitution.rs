@@ -20,9 +20,8 @@ impl HitLevel<'_> {
 const RESTITUTION_HOOKS: horizon_client::block_contact::RestitutionHooks =
     horizon_client::block_contact::RestitutionHooks {
         listens: |state| {
-            mod_api::__private::block_listens(
+            crate::game::api_values::block_state::block_listens(
                 mod_api::HookId::BounceRestitution,
-                "bounce_restitution",
                 state,
             )
         },

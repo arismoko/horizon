@@ -10,6 +10,7 @@ struct StickyLevel {
     /// The (state, other) pairs a part of `state` refuses to stick to (`adjust_can_stick_to`).
     refused: HashSet<(BlockStateId, BlockStateId)>,
 }
+impl crate::level::BlockEntityNeighbors for StickyLevel {}
 impl LevelAccess for StickyLevel {
     fn block_state(&self, pos: BlockPos) -> BlockStateId {
         self.inner.block_state(pos)

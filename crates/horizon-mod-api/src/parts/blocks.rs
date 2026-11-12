@@ -245,8 +245,8 @@ pub mod tests {
             }
         }
         let mods: crate::Mods = vec![ModEntry::new("sticky_test", Box::new(StickyMod))].into();
-        crate::install(mods.clone());
-        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
+        crate::__private::install(mods.clone());
+        install_parts(&mods, &crate::parts::tests::rule_schema(), |_| false).unwrap();
         mark_game_thread();
     }
 
@@ -277,7 +277,7 @@ pub mod tests {
                     event.entity,
                     event.kind.to_owned(),
                     event.pos,
-                    host.block_state(pos) == event.state,
+                    host.block_state(pos) == Some(event.state),
                 ));
                 event.factor = if client { 0.25 } else { 0.5 };
             }
@@ -305,8 +305,8 @@ pub mod tests {
             Box::new(RestitutionMod(heard.clone())),
         )]
         .into();
-        crate::install(mods.clone());
-        install_parts(&mods, &crate::parts::tests::rule_schema()).unwrap();
+        crate::__private::install(mods.clone());
+        install_parts(&mods, &crate::parts::tests::rule_schema(), |_| false).unwrap();
         mark_game_thread();
         heard
     }

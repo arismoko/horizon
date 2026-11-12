@@ -131,7 +131,8 @@ fn the_render_list_holds_mod_entities_of_templates_without_one() {
 class ModBlockEntityAnyTemplateTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("rustc"), "requires Rust")
     def test_removal_piston_and_render_list(self):
-        game = (CLIENT / "game.rs").read_text(encoding="utf-8")
+        game = ((CLIENT / "game.rs").read_text(encoding="utf-8")
+                + (CLIENT / "game/blocks/level_access.rs").read_text(encoding="utf-8"))
         draw = (next(CLIENT.glob('game/*/native_block_entity_draw.rs'))).read_text(encoding="utf-8")
         update = (LEVEL / "update.rs").read_text(encoding="utf-8")
         pistons = (LEVEL / "pistons.rs").read_text(encoding="utf-8")
