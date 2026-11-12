@@ -871,9 +871,16 @@ impl Game<'_> {
         self.carrier_retention_snapshot = match Store::open(&self.world_root) {
             Ok(crate::carrier_store::Opened::Live(store)) => store.retention_snapshot(),
             Ok(crate::carrier_store::Opened::NeverUsed) => Vec::new(),
-            Err(error) => return Err(format!("world load refused: {error}").into()),
+            Err(error) => {
+                self.world.carrier_fences.mark_broken();
+                return Err(format!("world load refused: {error}").into());
+            }
         };
-        self.carrier_recover_all_levels()
+        let result = self.carrier_recover_all_levels();
+        if result.is_err() {
+            self.world.carrier_fences.mark_broken();
+        }
+        result
     }
 
     /// `Game::break_block` behind the carrier fence: a cell held
@@ -2211,7 +2218,7 @@ mod tests {
             drop(store);
 
             let back = game.dim;
-            let refused = game.carrier_recover_all_levels();
+            let refused = game.carrier_world_opened();
             match refused {
                 Err(error) => {
                     let text = error.to_string();
@@ -2223,6 +2230,7 @@ mod tests {
                 }
                 Ok(()) => panic!("an unknown dimension must refuse the load"),
             }
+            assert!(game.admit_level_save().is_err());
             // No level was touched: the game still holds the level it
             // opened in, with nothing parked.
             assert_eq!(game.dim, back);
