@@ -14,8 +14,7 @@ such as sculk sensors and wardens hear the event through the normal game path.
   not necessarily the state currently at the position. Wool, for example, dampens
   the vibration when supplied as the affected state.
 
-Use `GameEventContext::default()` when neither field applies. Both fields cross
-the same Wire boundary on native and wasm. An unknown event, invalid position,
+Use `GameEventContext::default()` when neither field applies. Both fields are available to native and wasm mods. An unknown event, invalid position,
 stale or foreign source, invalid state or inactive level returns `false` without
 emitting an event. A source must belong to the level in place.
 

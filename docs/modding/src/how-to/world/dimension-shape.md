@@ -51,8 +51,8 @@ the dimension type the game reads: `has_fixed_time`, `has_ender_dragon_fight`, `
 the `cardinal_light` and the gameplay switches (`water_evaporates`, `fast_lava`,
 `respawn_anchor_works`, `nether_portal_spawns_piglin`, `piglins_zombify`, `snow_golem_melts`,
 `can_start_raid`, `sky_light_level`) and the bed rule (`bed_can_sleep`, `bed_can_set_spawn`,
-`bed_destroy_on_use`, `bed_destroy_on_leave`: `always`, `when_dark` or `never`, and whether a bed
-explodes or breaks; the same four with `straw_bed_` for the straw bed). A field left at its default is the Overworld's, and the game
+`bed_destroy_on_use`, `bed_destroy_on_leave`: the first two accept `always`, `when_dark` or `never`;
+the last two are boolean flags controlling destruction on use or leave; the same four with `straw_bed_` for the straw bed). A field left at its default is the Overworld's, and the game
 refuses a value out of range (a `coordinate_scale` outside 0.00001 to 30000000, an `ambient_light` that is not a number, an unknown
 `skybox`, a bed rule that is none of the three) at startup with a message naming the mod. The
 `coordinate_scale` is what `execute in mymod:pocket` scales a position by, and what a portal
@@ -71,7 +71,7 @@ level of a mod or a pack with the sky the server's type gives it, as the host do
 cycles, the villagers' schedule and the Overworld's clock, the default), `nether` (the schedule only,
 no clock), `end` or `none`. It sets how the level's sky and light change over the day in the host's
 world, whether monsters burn in daylight, and which clock `/time` reads there. `level.dimension_type(host)`
-gives the timelines and `default_clock` back. The day time itself is the world's one clock.
+gives the timelines and `default_clock` back. Use `level.clock_time(host)` for the dimension's default clock and `level.day_time(host)` for the Overworld clock.
 
 The level's biomes are the one `biome` everywhere unless `biome_source` says otherwise:
 `BiomeSourceKind::Checkerboard` alternates the `biomes` in cells `2^biome_scale` chunks wide,
@@ -84,7 +84,7 @@ the biomes can be the mod's own or vanilla's. A mod's points shape its own level
 among vanilla's in the Overworld or the Nether is a [biome region](../content-mods/biome-regions.md). Only `Fixed` suits a chunk
 generator of the mod's own, which writes terrain only.
 
-A dimension in another mod's namespace, an empty name, a name that is not a folder of the world
+A dimension in an unowned namespace, an empty name, a name that is not a folder of the world
 (lowercase letters, digits and `_ . -` only, with `/` between segments that are not empty, `.` or
 `..`), a vanilla level's id, an id registered twice, a build height the dimension type codec refuses
 (`min_y` and `height` are multiples of 16, and the level stays between -2032 and 2031) and a
@@ -143,8 +143,8 @@ Each level goes by its dimension type's `default_clock`: the Overworld by `minec
 `minecraft:the_end`, a level without one (the Nether) by the Overworld's. Every clock the world has met runs at its
 own rate and keeps its own total, saved in `world_clocks.dat`, so a level with a clock of its own has its own day:
 its sky, its spawning and its beds follow that clock, and `/time` in the level sets it.
-`level.clock_time(host)` reads the level's own clock in ticks (None for a level without a default clock);
-`level.day_time(host)` stays the Overworld's, whichever level is asked.
+`level.clock_time(host)` reads the level's own clock in ticks (`None` on a client, for a stale handle or for a level without a default clock);
+`level.day_time(host)` reads the Overworld's clock, whichever level you ask.
 
 ## Which level a hook is in
 
@@ -159,7 +159,7 @@ a `Custom` level.
 
 `level.online_players(host)` lists the real online players in that server level, including
 when it is parked. Obtain a chunk with `host.chunk(level, pos)`, then call
-`chunk.watchers(host)` to ask which players were sent it and still have it inside their
+`chunk.watchers(host)` to ask which players were sent it and have it inside their
 view distance; fake players watch nothing.
 
 `level.find_nearest_structure(host, structure, StructureSearch::new(origin, radius))` searches
@@ -204,11 +204,9 @@ it wrote. The chunk starts as air; invalid state ordinals are refused rather tha
 The generator gives terrain only. The level has no surface, carvers or features, and every chunk
 has the stem's one biome. `noise_settings` means nothing to it.
 
-A generator in another mod's namespace, an empty name, a name that is not a folder of the world (as
+A generator in an unowned namespace, an empty name, a name that is not a folder of the world (as
 for a dimension), an id registered twice and `minecraft:noise` stop the game at startup with a
-message naming the mod. ChunkGenerator and ChunkAccess are not yet bound by the generated wasm worker interface; a wasm
-mod can register dimensions naming an already installed generator, but cannot register its own
-chunk generator. Structure types use the existing generated worker binding instead.
+message naming the mod. Wasm mods can register dimensions using `minecraft:noise`, but cannot register a chunk generator.
 
 A level stem naming a generator nobody registered, say after its mod was removed, is an error for
 whoever opens that level, not for the world: a teleport there fails and is logged, and a player
