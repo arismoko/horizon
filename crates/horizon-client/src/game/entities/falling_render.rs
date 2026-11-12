@@ -78,7 +78,7 @@ impl Game<'_> {
             }
             f.fall_distance = 0.0;
         }
-        self.falling[i] = f;
+        self.falling.update(i, |block| *block = f);
     }
 }
 
