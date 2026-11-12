@@ -1,9 +1,10 @@
-# State flags on the living handles
+# Living entity state
 
-`host.living(entity)` and `host.mob(entity)` make the handles of [#7387](../../reference/hook-notes.md)'s handle design, and
-the state flags sit where vanilla keeps them: the ones `LivingEntity` owns read and write through `LivingRef`, the ones
+`host.living(entity)` and `host.mob(entity)` give you handles for living entities and mobs. State flags follow vanilla ownership: the ones `LivingEntity` owns read and write through `LivingRef`, the ones
 `Mob` owns through `MobRef`. Reads take the shared host, writes the server one; a stale handle or a kind the game keeps
 no such state for reads `None` and writes `false`, as every handle does.
+
+## Living flags
 
 Through `LivingRef`: the glide (`is_gliding`, `gliding_ticks`, `stop_gliding`), the sleep of a server player or a
 villager (`is_sleeping`, `sleeping_pos`, `start_sleeping`, `stop_sleeping`, `set_sleeping_pos`, `clear_sleeping_pos`),
@@ -23,6 +24,8 @@ beside the bed with the normal wake animation, teleport and pose sync; the usual
 occupying a bed or playing a wake animation. The next entity sync publishes the changed pose and bed to clients.
 Villagers use `start_sleeping`/`stop_sleeping`, not the raw player position setters.
 
+## Portals and leashes
+
 `EntityRef::portal_cooldown` takes `&dyn Host` and reads the remaining portal cooldown in ticks from the
 server's portal state: a player's own (the acting player inside its turn and other players outside it), and the
 level's for mobs, items, experience orbs, boats, minecarts, primed TNT, falling blocks, arrows and the thrown items
@@ -41,6 +44,8 @@ level is parked, or that a saved holder has not resolved; this read neither load
 fence as `Leashable.setLeashedTo` does: the entity lets go of any other holder and gets off its vehicle, and neither
 `canBeLeashed` nor the distance is asked, so a holder too far away snaps the lead on the next tick. `detach_leash`
 drops the lead as an item or removes it; a mob's removal fires `entity_unleash`.
+
+## Mob flags
 
 Through `MobRef`: `no_ai`/`set_no_ai` (`Mob.isNoAi` and `setNoAi`: the mob stands, saved as `NoAI`) and
 `set_baby` (`Mob.setBaby` through the canonical species-specific setup). Ageable mobs start at their species'
@@ -71,7 +76,7 @@ returns an empty list. Dying passengers keep their place until removed.
 `passengers` returns only resident direct passengers in boarding order.
 `indirect_passengers` walks the full tree depth-first, through retained objects,
 and omits only unrepresentable handles: a resident grandchild below an off-level
-passenger still appears. `root_vehicle` also traverses retained intermediaries,
+passenger appears. `root_vehicle` also traverses retained intermediaries,
 but returns `None` if the actual root is off-level; it never returns a resident
 descendant in its place. `is_passenger_of_same_vehicle` compares the actual roots,
 so two resident entities can share an off-level root even though neither can
@@ -82,10 +87,8 @@ its handle can be returned. An off-level first passenger means `None`, not a lat
 resident rider. All these reads refuse stale input handles; none loads a retained
 object into the level or exposes a handle for it.
 
-During actual boat or cart destruction, Mob dismount notification still runs,
-but remaining edges are forcibly unlinked even when a listener cancels. This
-safe interim prevents references to dropped vehicles and preserves each Mob's
-resident or off-level classification and the frozen state of descendants.
-Retaining removed vehicles to preserve canceled relationships is deferred to
-[#2446](https://github.com/arismoko/horizon/issues/2446). Cancellation while the
-vehicle remains live, including underwater or activator ejection, still works.
+During boat or cart destruction, mob dismount notifications run, but remaining
+riding relationships are unlinked even when a listener cancels. Each mob keeps its
+resident or off-level classification, and descendant state remains frozen.
+Cancellation can prevent ejection while the vehicle remains live, including
+underwater or activator ejection.
