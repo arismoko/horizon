@@ -788,7 +788,7 @@ impl Attachments {
 
     /// Replace through the canonical publication path using a pre-resolved key.
     #[doc(hidden)]
-    pub fn resolved_write<T: Clone + Send + Sync + 'static>(
+    pub fn resolved_write<const REUSE: bool, T: Clone + Send + Sync + 'static>(
         &mut self,
         key: &index::AttachmentKey,
         ty: &AttachmentType<T>,
@@ -806,13 +806,30 @@ impl Attachments {
             .as_ref()
             .map(|codec| (codec.encode)(&value))
             .transpose()?;
-        let entry = Arc::new(AttachmentEntry {
-            state: Entry::Decoded(Decoded {
-                value: Arc::new(value),
-                encoded,
-                policy: ty.policy(),
-            }),
+        let state = Entry::Decoded(Decoded {
+            value: Arc::new(value),
+            encoded,
+            policy: ty.policy(),
         });
+        if REUSE
+            && let Some(slot) = self.entries.get_mut(key)
+            && let Some(unique) = Arc::get_mut(slot)
+        {
+            let previous = std::mem::replace(&mut unique.state, state);
+            if let Some(registration) = &self.registration {
+                registration.publisher.publish(&[AttachmentChange {
+                    key,
+                    entry: Some(slot),
+                }]);
+            }
+            drop(previous);
+            if ty.sync {
+                self.pending.insert(key.clone());
+            }
+            self.remove_saved(ty.namespace, ty.name);
+            return Ok(());
+        }
+        let entry = Arc::new(AttachmentEntry { state });
         if let Some(slot) = self.entries.get_mut(key) {
             // Replacing an existing binding needs no owned key clone. Retain the
             // old entry until publication releases its index lock, as write_entry does.
@@ -1176,13 +1193,15 @@ mod tests {
         };
         let key = ("test".into(), "resolved".into());
         let mut map = Attachments::default();
-        ty.set(&mut map, Holder::Level, 3).unwrap();
+        ty.set(&mut map, Holder::Level, 2).unwrap();
+        map.resolved_write::<true, _>(&key, &ty, 3).unwrap();
+        assert_eq!(ty.get(&mut map, Holder::Level), Ok(3));
         let index = Arc::new(Mutex::new(index::AttachmentIndex::<u32>::default()));
         let registration = map.bind_index(&index, 1);
         let detached = map.clone();
         let snapshot = index.lock().unwrap().snapshot(&key);
         assert!(registration.is_current());
-        map.resolved_write(&key, &ty, 7).unwrap();
+        map.resolved_write::<true, _>(&key, &ty, 7).unwrap();
         assert_eq!(ty.get(&mut map, Holder::Level), Ok(7));
         assert_eq!(detached.resolved_read(&key, &ty), Ok(3));
         assert_eq!(snapshot[0].entry.read(&ty), Ok(&3));

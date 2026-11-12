@@ -31,7 +31,7 @@ if old.get("source") != h.hexdigest() or not Path(binary).is_file() or old.get("
     cache.write_text(json.dumps(dict(source=h.hexdigest(), binary=binary, executable=hashlib.sha256(Path(binary).read_bytes()).hexdigest())))
 counts = []
 for passes in [10, 20]:
-    mode = "handle" if os.environ.get("ATTACHMENT_HANDLE") else "holder"
+    mode = ("reuse" if os.environ.get("ATTACHMENT_ARC_REUSE") else "handle") if os.environ.get("ATTACHMENT_HANDLE") else "holder"
     output = root / f".local/{mode}-{passes}.callgrind"
     run = subprocess.run([str(root / ".local/valgrind/usr/bin/valgrind"), "--tool=callgrind", "--collect-atstart=no", f"--toggle-collect=*{'attachment_handle_measured_passes' if os.environ.get('ATTACHMENT_HANDLE') else 'attachment_measured_passes'}*", f"--callgrind-out-file={output}", binary, "game::attachment_instruction_bench::attachment_instruction_count", "--ignored", "--exact", "--nocapture"], env=dict(env, ATTACHMENT_PASSES=str(passes)), check=True, text=True, stdout=subprocess.PIPE)
     assert "1 passed" in run.stdout, run.stdout

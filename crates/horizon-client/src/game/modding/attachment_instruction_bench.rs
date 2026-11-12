@@ -138,6 +138,7 @@ struct ResolvedHandles {
     records: Vec<ResolvedRecord>,
     key: horizon_mod_runtime::attachments::index::AttachmentKey,
     server: bool,
+    reuse_entry: bool,
 }
 #[derive(Debug, PartialEq)]
 enum Refusal {
@@ -174,6 +175,7 @@ impl ResolvedHandles {
             records,
             key: ("bench".into(), "tick_state".into()),
             server,
+            reuse_entry: std::env::var_os("ATTACHMENT_ARC_REUSE").is_some(),
         }
     }
     fn token(&self, slot: usize) -> ResolvedHandle {
@@ -235,9 +237,13 @@ impl ResolvedHandles {
         handle: ResolvedHandle,
         value: u32,
     ) -> Result<(), Refusal> {
-        self.map(game, handle)?
-            .resolved_write(&self.key, &VALUE, value)
-            .map_err(Refusal::Attachment)
+        let map = self.map(game, handle)?;
+        if self.reuse_entry {
+            map.resolved_write::<true, _>(&self.key, &VALUE, value)
+        } else {
+            map.resolved_write::<false, _>(&self.key, &VALUE, value)
+        }
+        .map_err(Refusal::Attachment)
     }
 }
 #[inline(never)]
