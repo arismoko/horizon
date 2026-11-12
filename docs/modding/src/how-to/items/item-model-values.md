@@ -20,12 +20,15 @@ sources the mod owns; unanswered callbacks retain their existing defaults.
 
 `ItemTintSourceEvent.config` is a borrowed `Tag`, converted once from the tint's JSON definition at load. Read fields with `Tag::get` and match tag variants. Invalid payloads refuse model loading; resolving a tint does not convert or clone its payload.
 
-| Former resolver-view access | Owned API access |
+## Read the stack
+
+| Accessor | Value |
 | --- | --- |
-| `event.stack.item` | `event.stack.item()` returns `ItemKey`; retain keys for comparisons |
-| `event.stack.count` | `event.stack.count()` |
-| `event.stack.patch` | `event.stack.components()` returns an optional owned NBT patch; use `event.stack.get(&descriptor)` for a typed component |
-| `event.stack.bundle_selected` | `event.bundle_selected` |
+| `event.stack.item()` | `ItemKey`; retain keys for comparisons. |
+| `event.stack.count()` | Stack count. |
+| `event.stack.components()` | Optional borrowed component patch owned by the snapshot. |
+| `event.stack.get(&descriptor)` | Typed component value. |
+| `event.bundle_selected` | Runtime bundle selection, separate from the stack's components. |
 
 A native or wasm listener sees the same owned values. Snapshot construction occurs
 only after the subscription check, so a model resolution with no listeners does

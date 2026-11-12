@@ -1,16 +1,28 @@
 # Fluid ingredients
 
-A mod's own recipe type that drinks from a tank reads its fluid inputs as a `FluidIngredient`, the
-fluid analogue of an item ingredient: `FluidIngredient::from_json(json, context)` parses a fluid
-(`"minecraft:water"`), a `#tag` (the fluid tags the load's `DataLoadContext` holds), a list of
-them, or NeoForge's `compound`, `intersection` and `difference` shapes, with the same walk the item
-ingredient parses its own JSON with — call it where a data load hook hands you the context, as the
-`ingredient` hook does while the game resolves recipes. `test(&FluidStack)` asks whether a tank's
-fluid answers, and `fluids()` lists the fluids it accepts, in tag order, for a recipe book. A kind
-outside the standard shapes fails the parse: fluids have no custom ingredient hook, and components
-are not checked — any stack of a named fluid answers.
+Use `FluidIngredient::from_json(json, context)` to parse fluid inputs for your recipe type. Pass the `DataLoadContext` supplied to your data-load hook.
 
-`SizedFluidIngredient` adds the amount, as NeoForge's `SizedFluidIngredient`:
-`{"ingredient": <fluid ingredient>, "amount": 500}` in millibuckets, `"amount"` defaulting to a
-bucket (1000) and always positive. Its `test(&FluidStack)` asks that the stack matches the
-ingredient *and* carries at least that much.
+| JSON input | Matches |
+| --- | --- |
+| `"minecraft:water"` | The named fluid. |
+| `"#my_mod:coolants"` | Fluids in the load context's tag. |
+| A list of ingredients | Any listed ingredient. |
+| `neoforge:compound` | Any child. |
+| `neoforge:intersection` | Every child. |
+| `neoforge:difference` | The base, excluding the subtracted ingredient. |
+
+Call `test(&FluidStack)` to match a tank's contents. Components are not checked. Use `fluids()` to list accepted fluid keys in source order, including tag order, for a recipe book.
+
+Parsing returns `Result<FluidIngredient, FluidIngredientError>`. Invalid shapes and custom kinds return `FluidIngredientError::Invalid`; unknown fluid names return `FluidIngredientError::UnknownFluid`. Fluid ingredients do not dispatch a custom ingredient hook.
+
+## Required amounts
+
+`SizedFluidIngredient::from_json` parses an ingredient and a positive amount in millibuckets:
+
+```json
+{"ingredient": "minecraft:water", "amount": 500}
+```
+
+- Omit `amount` to require one bucket (1000 millibuckets).
+- Invalid input, including zero or a negative amount, returns `None`.
+- `test(&FluidStack)` requires both a matching fluid and at least the requested amount.

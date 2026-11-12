@@ -13,4 +13,14 @@ impl ItemPart for CarvingTool {
 }
 ```
 
-Attach this Part to your item with the registrar's `item_part` method. This grants pumpkin carving only: `minecraft:shears_harvest` is a separate ability for mob and dispenser shearing. `minecraft:shield_block` permits blocking and uses the stack's blocking component, or the default component when absent. Leave unknown abilities unchanged. Tool abilities and other excluded consumers are not implemented; this is partial coverage, not a promise that every item-kind check is an ability query.
+Attach this Part to your item with the registrar's `item_part` method. This grants pumpkin carving only: `minecraft:shears_harvest` is a separate ability for mob and dispenser shearing. `minecraft:shield_block` permits blocking and uses the stack's blocking component, or the default component when absent. Leave unknown abilities unchanged.
+
+The game asks these abilities at the following action sites:
+
+| Ability | Consumers |
+| --- | --- |
+| `minecraft:shears_carve` | Pumpkin carving. |
+| `minecraft:shears_harvest` | Shearing sheep, mooshrooms, snow golems and bogged; dispenser shearing; harvesting bee nest honeycombs. |
+| `minecraft:shield_block` | Raising a blocking item and blocking attacks. |
+
+`event.can_perform` starts with vanilla's answer. Set it to `true` to grant an ability or `false` to deny it. The answer controls permission, not the action's world effects or item wear.

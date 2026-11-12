@@ -1,16 +1,14 @@
-# A mod's own ingredient kinds, matching at craft time
+# Match custom ingredients
 
-The load-time list only names items. Matching a concrete stack — its components, usually —
-uses `Hooks::ingredient_test(context, event)`: the ingredient's `test(host, stack)` reaches it with the loop `context` of the side `host` runs on, the
-kind and NBT compound the load-time hook saw, the stack being matched and the verdict, already `true`
-(the list named the item). Set `accept` to `false` to refuse the stack (`ICustomIngredient.test`).
-The hook may be called many times a craft; the answer must be the same for the same stack.
+Implement `Hooks::ingredient_test(context, event)` to check a concrete stack's components for your [custom ingredient kind](ingredient-kinds.md). Calling `Ingredient::test(host, stack)` reaches this hook after the load-time item list accepts the stack's item.
 
-`data` is an API `Compound`, not a JSON object. Match its fields as typed `Tag`
-variants (`Int`, `Long`, `List`, `Compound`, and so on); the game converts the
-recipe metadata once at load with vanilla JsonOps-to-NbtOps rules. Numeric JSON
-arrays remain lists. Nested null refuses the ingredient and fails the recipe
-like an unclaimed kind; matching retains the same compound without reconversion.
-For an end-to-end mod test, use [horizon-machine-sample](https://github.com/arismoko/horizon-machine-sample)
-and implement `Hooks::ingredient` / `Hooks::ingredient_test` with the typed
-compound contract; no JSON signature is needed in a mod.
+Set `event.accept` to `false` to reject the stack. It starts as `true`.
+
+## Callback contract
+
+- `context` is the loop context of the side performing the match. The hook itself takes no `Host`.
+- The event supplies the ingredient kind, its retained NBT compound and the stack being matched.
+- The callback can run many times during crafting. Give the same answer for the same stack and ingredient.
+- An item absent from the load-time list fails without this callback.
+
+Read `event.data` as an API `Compound` with typed `Tag` variants (`Int`, `Long`, `List`, `Compound`, and others). The loader converts recipe metadata once using vanilla JsonOps-to-NbtOps rules; matching does not reconvert it. Numeric JSON arrays remain lists. Nested null values refuse the ingredient and fail the recipe during loading.
