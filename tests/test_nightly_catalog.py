@@ -108,7 +108,9 @@ printf 'gh:%s\\n' "$*" >> "$CALLS"
             producer = root / "tools/prebuilt_game.py"
             producer.write_text('''from pathlib import Path
 CATALOG = "mod-catalog.json"
-def stage(target):
+def stage(target, stage_tool=None):
+    if stage_tool is not None:
+        assert stage_tool == Path("fixture-stage-tool")
     root = Path(__file__).resolve().parents[1]
     stage = target / "stage"
     stage.mkdir(parents=True)
@@ -124,7 +126,7 @@ def stage(target):
                             "commit", "-qm", "fixture"], cwd=root, check=True)
             commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
             output = root / "export.json"
-            CATALOG.export(root, commit, output)
+            CATALOG.export(root, commit, output, stage_tool=Path("fixture-stage-tool"))
             self.assertEqual(output.read_bytes(), b"exact producer bytes\n")
             self.assertTrue((root / "target/nightly-catalog/stage/mod-catalog.json").is_file())
             shutil.rmtree(root / "target")

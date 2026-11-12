@@ -14,6 +14,44 @@ from pathlib import Path
 from tools import prebuilt_game
 
 
+class StageToolTests(unittest.TestCase):
+    def test_prebuilt_tool_stages_fresh_tracked_copy_without_cargo(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            (source / "tracked.rs").write_text("original")
+            (source / "untracked.rs").write_text("not copied")
+            manifest = source / "crates/horizon-mod-wasm/Cargo.toml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text("[package]\nname = 'fixture'\n")
+            target = root / "output"
+            tool = root / "horizon-stage"
+            calls = []
+
+            def capture(command, **kwargs):
+                calls.append(command)
+                if command[0] == "git":
+                    return "tracked.rs\0crates/horizon-mod-wasm/Cargo.toml\0"
+                self.assertEqual(command, [str(tool), str(target / "stage"),
+                                          str(target / "stage/points.json"),
+                                          str(target / "stage/internals.json"), "fixture-api"])
+                self.assertEqual(kwargs["cwd"], target / "stage")
+                self.assertEqual((target / "stage/tracked.rs").read_text(), "original")
+                self.assertFalse((target / "stage/untracked.rs").exists())
+                (target / "stage/tracked.rs").write_text("staged")
+                return "staged fixture\n"
+
+            with patch.object(prebuilt_game, "ROOT", source), \
+                 patch.object(prebuilt_game, "api_version", return_value="fixture-api"), \
+                 patch.object(prebuilt_game, "run", side_effect=capture):
+                prebuilt_game.stage(target, stage_tool=tool)
+                # A second call must replace the mutated stage with fresh tracked source.
+                prebuilt_game.stage(target, stage_tool=tool)
+            self.assertEqual([call[0] for call in calls], ["git", str(tool), "git", str(tool)])
+            self.assertEqual((source / "tracked.rs").read_text(), "original")
+
+
 class RegistryPatchTests(unittest.TestCase):
     def test_sdk_carries_only_patched_crate_and_resolution_manifest(self):
         with tempfile.TemporaryDirectory() as directory:

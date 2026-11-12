@@ -4,6 +4,7 @@ Kept outside tests/ discovery so the later offline suite cannot stage twice.
 """
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -24,7 +25,8 @@ class StageCatalog(unittest.TestCase):
         (ROOT / "target").mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT / "target") as temporary:
             output = Path(temporary) / "mod-catalog.json"
-            CATALOG.export(ROOT, commit, output)
+            stage_tool = os.environ.get("HORIZON_STAGE_TOOL")
+            CATALOG.export(ROOT, commit, output, stage_tool=Path(stage_tool) if stage_tool else None)
             document = json.loads(output.read_text())
             self.assertEqual(document["schema_version"], 1)
             hook = next(hook for hook in document["hooks"] if hook["id"] == "use_item")

@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -74,7 +75,7 @@ def api_version(root: Path) -> str:
     return json.loads(matches[0])
 
 
-def stage(target_dir: Path) -> Path:
+def stage(target_dir: Path, stage_tool: Path | None = None) -> Path:
     """A copy of the tracked source with the staging pass run over it (#589): every point method gets its
     `#[point]`, internals become public, and both manifests are written. The working tree is never rewritten."""
     staged = target_dir / "stage"
@@ -86,9 +87,14 @@ def stage(target_dir: Path) -> Path:
         if source.is_file():
             (staged / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, staged / name)
-    print(run(["cargo", "run", "--locked", "--release", "-q", "-p", "horizon-mod-api-gen", "--bin", "horizon-stage",
-               "--", str(staged), str(staged / POINTS), str(staged / INTERNALS), api_version(staged)],
-              cwd=staged, env={**os.environ, "CARGO_TARGET_DIR": str(target_dir / "tools")}), end="")
+    arguments = [str(staged), str(staged / POINTS), str(staged / INTERNALS), api_version(staged)]
+    command = ([str(stage_tool.resolve())] if stage_tool is not None else
+               ["cargo", "run", "--locked", "--release", "-q", "-p", "horizon-mod-api-gen", "--bin", "horizon-stage", "--"])
+    started = time.monotonic()
+    print(run(command + arguments, cwd=staged,
+              env={**os.environ, "CARGO_TARGET_DIR": str(target_dir / "tools")}), end="")
+    label = "Stage binary execution" if stage_tool is not None else "Stage release build and execution"
+    print(f"{label}: {time.monotonic() - started:.3f}s (source copy/setup excluded)", flush=True)
     # Only the prebuilt game splits the wasm runtime out: normal source builds stay static. With
     # prefer-dynamic, rustc picks this dylib for the game rather than folding its runtime stack into it.
     for crate in ("horizon-mod-wasm",):

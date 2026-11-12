@@ -434,6 +434,28 @@ jobs:
       # One genuine pinned export also validates source staging and listed slots.
       # Outside tests/ discovery: the later offline suite must not stage it again.
       # Keep this before doc tests so their failures cannot hide stale slots.
+      - name: Build the source stage generator (test profile)
+        if: needs.changes.outputs.rust_required != 'false'
+        run: |
+          started=$SECONDS
+          cargo +stable build $JOBS --locked --profile test -p horizon-mod-api-gen --bin horizon-stage --message-format=json-render-diagnostics > "$RUNNER_TEMP/stage-artifacts.jsonl"
+          echo "Stage generator build: $((SECONDS - started))s"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          artifacts = [json.loads(line) for line in Path(os.environ["RUNNER_TEMP"], "stage-artifacts.jsonl").read_text().splitlines()]
+          executables = {item["executable"] for item in artifacts
+                         if item.get("reason") == "compiler-artifact"
+                         and item["target"]["name"] == "horizon-stage"
+                         and "bin" in item["target"]["kind"]
+                         and not item["profile"]["test"] and item.get("executable")}
+          if len(executables) != 1:
+              raise SystemExit(f"expected one normal horizon-stage executable, got {executables}")
+          with open(os.environ["GITHUB_ENV"], "a") as environment:
+              environment.write(f"HORIZON_STAGE_TOOL={executables.pop()}\n")
+          PY
       - name: Validate prebuilt source stage and listed slots
         if: needs.changes.outputs.rust_required != 'false'
         run: python3 tools/ci/test_stage_catalog.py -v
