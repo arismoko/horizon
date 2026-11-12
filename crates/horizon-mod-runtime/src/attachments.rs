@@ -1153,6 +1153,41 @@ impl Attachments {
 mod tests {
     use super::*;
 
+    #[test]
+    fn resolved_key_writes_preserve_holder_and_snapshot_values() {
+        let ty = AttachmentType {
+            namespace: "test",
+            name: "resolved",
+            default: || 0u32,
+            codec: None,
+            copy_on_death: false,
+            sync: false,
+        };
+        let key = ("test".into(), "resolved".into());
+        let mut map = Attachments::default();
+        ty.set(&mut map, Holder::Level, 3).unwrap();
+        let index = Arc::new(Mutex::new(index::AttachmentIndex::<u32>::default()));
+        let registration = map.bind_index(&index, 1);
+        let detached = map.clone();
+        let snapshot = index.lock().unwrap().snapshot(&key);
+        assert!(registration.is_current());
+        map.resolved_write(&key, &ty, 7).unwrap();
+        assert_eq!(ty.get(&mut map, Holder::Level), Ok(7));
+        assert_eq!(detached.resolved_read(&key, &ty), Ok(3));
+        assert_eq!(snapshot[0].entry.read(&ty), Ok(&3));
+        assert_eq!(
+            index.lock().unwrap().snapshot(&key)[0].entry.read(&ty),
+            Ok(&7)
+        );
+        ty.set(&mut map, Holder::Level, 11).unwrap();
+        assert_eq!(map.resolved_read(&key, &ty), Ok(11));
+        registration.unregister();
+        assert!(!registration.is_current());
+        let replacement = map.bind_index(&index, 1);
+        assert!(replacement.is_current());
+        assert!(!registration.is_current());
+    }
+
     fn encode(n: &i32) -> Result<Compound, AttachmentError> {
         Ok([(JavaString::from("value"), Tag::Int(*n))].into())
     }
