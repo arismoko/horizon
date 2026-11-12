@@ -2417,6 +2417,7 @@ dependencies = [
  "horizon-mod-point-emit",
  "horizon-mod-points",
  "horizon-mod-runtime",
+ "horizon-server-files",
  "horizon-threads",
  "horizon-world",
  "libc",

@@ -253,10 +253,38 @@ compiler memory to the operating system when the child exits. The internal entry
 game initialization, with closed standard streams and an empty environment. It receives a
 private input file and the expected cache key, refuses changed input, and writes through the
 same atomic cache writer. The parent accepts only its expected entry through the verified
-opened-file loader. Startup failure, a crash, a non-zero exit, an invalid entry or a timeout
-falls back to in-process compilation with a log message. A timed-out child is killed and
-reaped before fallback; its input and unfinished writer files are removed. This child path
-is Unix-only; Windows continues to compile in process with persistent caching disabled.
+opened-file loader. Startup failure, a crash, a non-zero exit or an invalid entry
+refuses the module with an actionable compiler/cache diagnostic: the game never
+retries without the applied budget. A timeout names the exceeded limit (not a
+crash), kills and reaps the child, and removes its private input and unfinished
+writer files. It never records a permanent failure: restarting with a larger
+limit can compile the same module. This child path is Unix-only; Windows continues
+to compile in process with persistent caching disabled. An unavailable or untrusted
+Unix cache refuses compilation until its private writable directory is restored.
+
+### Compilation time setting
+
+Set `wasm.compile_timeout_secs:120` in the client's `options.txt` (under the resolved
+`--player-dir` when supplied, otherwise the game directory), or
+`wasm.compile_timeout_secs=120` in the dedicated game directory's `server.properties`.
+With the server supervisor, put `"wasm.compile_timeout_secs" = "120"` in
+`server.toml`'s existing `[properties]` table instead. Restart to apply the setting.
+The value is positive finite seconds (fractions allowed), representable as a duration.
+Zero, non-numeric and out-of-range values refuse wasm loading, naming the setting
+and the exact value in the log, console and Mods-page refusal registry; the refused
+package's content is excluded too. They never silently select a default. Remove
+the line to restore automatic sizing. The client preserves this startup setting
+when saving its options; no launcher rebuild or game argument is needed.
+
+The unset default is `5 + 300 / available_threads` seconds (at least one thread):
+**1 → 305 s; 2 → 155 s; 8 → 42.5 s; 64 → 9.6875 s**.
+Issue #3673 measured a 30 MB module at roughly 30 s on one thread and 3 s on eight.
+The 300 s single-thread allowance is ten times the former, plus 5 s fixed headroom.
+The eight-thread default remains above the previous 37.743749290 s limit, which
+was ten times a 3.774374929 s compile of a 67,998,240-byte module on a Ryzen 7 5700X.
+These are conservative budgets, not promised compile times. A timeout names the
+package/module file, applied limit, whether it was configured or the default for
+N threads, and the setting to increase.
 
 On Unix, the game creates the cache folder with mode 0700 and entries with mode 0600. It checks
 folder ownership and permissions, then checks each opened entry is a regular file owned by the
@@ -274,8 +302,9 @@ are retained until a later startup. The proposed budget allows 30 copies of the 
 measured compiled module (34,039,320 bytes) plus headroom; the 30-module allowance awaits
 maintainer confirmation and does not represent a measured pack.
 
-A failed check logs the reason once per launch. Unavailable, corrupt or incompatible entries
-fall back to compiling the wasm. Writes replace entries atomically without changing files that
+A failed entry check logs the reason once per launch. Missing, corrupt or incompatible
+entries trigger a budgeted compiler child on Unix, provided the cache directory is
+trusted and writable. Writes replace entries atomically without changing files that
 running modules have mapped. Deleting the cache is always safe: the next launch rebuilds it.
 
 ## Guest stack

@@ -533,6 +533,17 @@ The owner edits only `server.toml`. The supervisor writes `server.properties` fr
 start, so the engine stays exactly vanilla. The file is short: typed sections for what owners change, and
 a `[properties]` table that passes any other vanilla key through unchanged.
 
+For Unix wasm compilation, add `"wasm.compile_timeout_secs" = "120"` under
+`[properties]` to allow 120 seconds per uncached module. The engine reads this
+runtime setting from the dedicated game directory's `server.properties`; edit the
+TOML when using the supervisor. Zero or non-numeric values publish a refusal naming
+the setting and value, excluding the affected package's code and content. Unix cache
+trust/write failures and compiler failures refuse compilation rather than drop the
+deadline; restore a private writable `.horizon-cache/wasm` and working executable.
+Removing the key restores the available-thread default; see the
+[wasm compilation settings](modding/src/how-to/wasm-mods.md#compilation-time-setting)
+for the exact formula and platform limitations.
+
 ```toml
 # Horizon server settings (docs/server.md). The server writes them into server.properties before
 # every start: edit this file, not that one.

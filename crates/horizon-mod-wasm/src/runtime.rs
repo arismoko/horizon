@@ -612,7 +612,7 @@ impl WasmMod {
                 _ => None,
             }
         })
-        .map_err(|e| Refusal::Runtime(e.to_string()))?;
+        .map_err(Refusal::from_link)?;
         group.store.data_mut().memory = Some(group.memory);
         let mut exports = Vec::new();
         for (name, instance) in group.members.clone() {
