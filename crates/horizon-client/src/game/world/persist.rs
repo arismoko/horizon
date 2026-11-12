@@ -1431,30 +1431,6 @@ impl Game<'_> {
     pub(super) fn persist_raw(&self, id: u32) -> Option<&Tag> {
         self.persist.raw.get(&id)
     }
-    /// A loaded chest minecart with a loot table and no items: the table
-    /// rolled now, as generated containers are (Horizon does not unpack on
-    /// first open), and kept to save it again while unchanged.
-    pub(in crate::game) fn roll_cart_loot(&self, cart: &mut super::minecarts::Minecart, tag: &Tag) {
-        let Some(table) = horizon_client::save::text(tag.get("LootTable")) else {
-            return;
-        };
-        if cart.items.is_empty() || cart.items.iter().any(Option::is_some) {
-            return;
-        }
-        let loot = self.server_loot.get();
-        let p = cart.position;
-        let pos = (p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
-        let biome = self.biome_name_at(p).unwrap_or_default();
-        let seed = horizon_client::structure_blocks::loot_seed(tag);
-        cart.loot = Some(horizon_client::structure_blocks::roll_container(
-            &mut cart.items,
-            loot.as_deref(),
-            table,
-            seed,
-            pos,
-            &biome,
-        ));
-    }
     /// An entity Horizon keeps no compound for (orbs, projectiles, the
     /// crystals and the dragon) still keeps its `Tags`, by entity id, so
     /// `@e[tag=]`, `/tag` and `/data get` see them, and the `Item` a

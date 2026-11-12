@@ -60,7 +60,7 @@ impl Game<'_> {
             .chunks
             .get(&(key.0 >> 4, key.2 >> 4))
             .and_then(|c| c.saved.as_ref())
-            .is_some_and(|s| s.rolled_loot.iter().any(|r| r.pos == key))
+            .is_some_and(|s| s.pending_loot.contains_key(&key))
         {
             self.send_overlay_message(
                 Text::translate("container.spectatorCantOpen", &[])

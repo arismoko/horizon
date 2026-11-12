@@ -550,7 +550,7 @@ pub fn roll_death(m: &mut Mob, d: &Death, rolls: &mut dyn DeathRolls) -> Rolled 
             player: d.player.clone().filter(|_| killed_by_player),
             luck: if killed_by_player { d.luck } else { 0.0 },
         };
-        let items = roll(d, &table, &params, rolls, m.extra.death_loot_seed);
+        let items = roll(d, &table, &params, rolls, m.extra.death_table_seed);
         out.extend(items.into_iter().filter(|i| !i.is_empty()).map(Drop::Item));
         table_rolled = true;
     }
@@ -874,7 +874,7 @@ mod death_loot_table_tests {
             if own {
                 m.extra.death_loot_table = Some("pack:boss".into());
             }
-            m.extra.death_loot_seed = seed;
+            m.extra.death_table_seed = seed;
             let mut sequences = RandomSequences::default();
             let (out, _) = die(&mut m, &death, &mut sequences, &mut LegacyRandom::new(7));
             out.into_iter()

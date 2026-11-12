@@ -12,6 +12,7 @@ mod death_tail;
 mod hoglin_target;
 #[cfg(test)]
 mod mob_dispatch_panic_tests;
+mod player_loot_entity;
 mod projectile_targets;
 mod projectile_world;
 mod pufferfish_player;
@@ -1800,35 +1801,6 @@ impl Game<'_> {
     /// `dropAllDeathLoot` through `mobs::drops`: the entity loot table from the
     /// world's random sequence, equipment by drop chance, species extras and
     /// the experience orbs, spawned in order.
-    /// The killing player as a loot entity: their worn and held items, read
-    /// from the guest who struck the last blow when a server's player did
-    /// (on the server thread that is every player, the window's too), so
-    /// Looting on their weapon counts.
-    fn killer_loot_entity(&mut self, guest: Option<u32>) -> horizon_world::loot::LootEntity {
-        let own = |g: &Self| {
-            let mut e = horizon_world::loot::LootEntity::new("minecraft:player");
-            let slots = [
-                ("mainhand", g.stack_in(g.selected)),
-                ("offhand", g.stack_in(super::shield::OFFHAND_SLOT)),
-                ("head", g.armor[0].as_ref()),
-                ("chest", g.armor[1].as_ref()),
-                ("legs", g.armor[2].as_ref()),
-                ("feet", g.armor[3].as_ref()),
-            ];
-            for (slot, stack) in slots {
-                if let Some(stack) = stack {
-                    e.equipment.push((slot.into(), to_loot(stack)));
-                }
-            }
-            e
-        };
-        if let Some(conn) = guest.filter(|_| self.lan_acting.is_none())
-            && let Some(entity) = self.as_guest(conn, |g| own(g))
-        {
-            return entity;
-        }
-        own(self)
-    }
     /// The UUID of the player `last_hurt_by_player` keeps: the guest on
     /// connection `conn` (None once they left), else the player in place
     /// (None on a server, which has none of its own).

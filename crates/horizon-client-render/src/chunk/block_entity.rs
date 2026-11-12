@@ -149,7 +149,7 @@ impl Default for PotentSulfur {
 #[derive(Clone, Debug, Default)]
 pub struct Brushable {
     pub loot_table: Option<horizon_core::nbt::Tag>,
-    pub loot_seed: Option<horizon_core::nbt::Tag>,
+    pub table_seed_tag: Option<horizon_core::nbt::Tag>,
     pub item: Option<ItemStack>,
     /// Direction's legacy network id; not saved to disk by vanilla.
     pub hit_direction: Option<i32>,

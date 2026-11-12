@@ -625,11 +625,11 @@ pub fn mob_to_nbt(
     if let Some(table) = &m.extra.death_loot_table {
         put(&mut tag, "DeathLootTable", string(table));
     }
-    if m.extra.death_loot_seed != 0 {
+    if m.extra.death_table_seed != 0 {
         put(
             &mut tag,
             "DeathLootTableSeed",
-            Tag::Long(m.extra.death_loot_seed),
+            Tag::Long(m.extra.death_table_seed),
         );
     }
     // `NeutralMob.addPersistentAngerSaveData`: the anger ends at an
@@ -1917,7 +1917,7 @@ fn mob_from_nbt_at(
     m.persistent = flag(tag, "PersistenceRequired");
     m.extra.death_loot_table = text(tag.get("DeathLootTable"))
         .and_then(|t| horizon_client_core::identifier::normalize_id(&t));
-    m.extra.death_loot_seed = number(tag.get("DeathLootTableSeed")).unwrap_or(0);
+    m.extra.death_table_seed = number(tag.get("DeathLootTableSeed")).unwrap_or(0);
     refs::read_last_hurt_by(&mut m, tag);
     // `NeutralMob.readPersistentAngerSaveData`: the anger end time and the
     // target come back with the mob.
@@ -7176,7 +7176,7 @@ mod sheep_nbt_tests {
             m.extra.death_loot_table.as_deref(),
             Some("mymod:entities/boss")
         );
-        assert_eq!(m.extra.death_loot_seed, 42);
+        assert_eq!(m.extra.death_table_seed, 42);
         let tag = mob_to_nbt(&m, [1, 2, 3, 4], None, None, |_| None);
         assert_eq!(
             text(tag.get("DeathLootTable")).as_deref(),

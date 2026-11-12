@@ -438,14 +438,7 @@ impl Game<'_> {
             Slot::Cart(id, i) => self
                 .edit_cart_slots(*id, |slots| slots.get(*i).cloned().flatten())
                 .flatten(),
-            Slot::Block(p, i) => self
-                .world
-                .block_entities
-                .get(&(p[0], p[1], p[2]))?
-                .slots()
-                .get(*i)
-                .cloned()
-                .flatten(),
+            Slot::Block(p, i) => self.loot_inventory_item((p[0], p[1], p[2]), *i),
         }
     }
     pub(in crate::game) fn slot_accepts(&self, s: &Slot, stack: Option<&ItemStack>) -> bool {
@@ -477,6 +470,7 @@ impl Game<'_> {
         let Some(size) = self.block_container_size(p).filter(|&size| i < size) else {
             return false;
         };
+        self.unpack_loot(crate::game::container_loot::LootTarget::Block(key), None);
         let book = stack.as_ref().is_none_or(|s| {
             self.items()
                 .item_tags

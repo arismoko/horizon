@@ -1885,70 +1885,15 @@ impl Game<'_> {
         )
     }
 
-    /// `ContainerEntity.unpackChestVehicleLootTable`: slot access rolls once;
-    /// only a player opening the menu fires `CriteriaTriggers.GENERATE_LOOT`, before filling.
+    /// Existing boat access routes all use the shared unpack operation.
     pub(super) fn unpack_boat_loot(&mut self, i: usize, player: bool) {
-        use horizon_core::nbt::Tag;
-        let id = self.boats[i].id;
-        let (table, seed) = {
-            let Some(Tag::Compound(map)) = self.persist.raw.get(&id) else {
-                return;
-            };
-            let Some(table) = crate::save::text(map.get(&"LootTable".into()))
-                .and_then(|id| horizon_client_core::identifier::normalize_id(&id))
-            else {
-                return;
-            };
-            let seed = match map.get(&"LootTableSeed".into()) {
-                Some(Tag::Long(seed)) => Some(*seed),
-                _ => None,
-            };
-            (table, seed)
-        };
-        if player {
-            self.trigger_loot_table(&table);
-        }
-        // Advancement rewards can remove the boat or shift its index.
-        let Some(i) = self.boats.iter().position(|b| b.id == id) else {
-            return;
-        };
-        if let Some(Tag::Compound(map)) = self.persist.raw.get_mut(&id) {
-            map.remove(&"LootTable".into());
-            map.remove(&"LootTableSeed".into());
-        }
-        let key = (i32::MAX - 15, super::minecarts::CART_KEY_Y, id as i32);
-        self.store_cart_items(key);
-        let loot = crate::structure_blocks::loot_data(
-            &self.options.resources,
-            &self.pack_files(),
-            self.res.item_defaults(),
+        let player = player.then(|| self.native_acting_player()).flatten();
+        self.unpack_loot(
+            super::container_loot::LootTarget::Boat(self.boats[i].id),
+            player,
         );
-        let b = &self.boats[i];
-        let at = Vec3::new(b.position.x, b.position.y, b.position.z);
-        let biome = self.biome_name_at(at).unwrap_or_default();
-        let pos = (
-            b.position.x.floor() as i32,
-            b.position.y.floor() as i32,
-            b.position.z.floor() as i32,
-        );
-        self.boats.update(i, |b| {
-            crate::structure_blocks::roll_container(
-                &mut b.items,
-                loot.as_deref(),
-                table,
-                seed,
-                pos,
-                &biome,
-            );
-        });
-        if let Some(horizon_client::containers::BlockEntity::Chest(items)) =
-            self.world.block_entities.get_mut(&key)
-        {
-            items.clone_from(&self.boats[i].items);
-        }
     }
 
-    /// None means a canceled hit; Some records whether an accepted hit destroyed it.
     pub(super) fn hurt_boat_result(
         &mut self,
         i: usize,

@@ -1041,7 +1041,7 @@ pub struct Extra {
     /// (saved as `DeathLootTable`).
     pub death_loot_table: Option<String>,
     /// `Mob.lootTableSeed` (`DeathLootTableSeed`): 0 for none.
-    pub death_loot_seed: i64,
+    pub death_table_seed: i64,
     /// `Rabbit.moreCarrotTicks`: how long it is full of carrots (saved as `MoreCarrotTicks`).
     pub more_carrot_ticks: i32,
     /// `Ocelot.DATA_TRUSTING`: it no longer runs from players.

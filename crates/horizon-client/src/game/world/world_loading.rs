@@ -85,9 +85,9 @@ impl WorldRequest {
         upgrade: &horizon_world::datafix::progress::UpgradeProgress,
     ) -> Result<PreparedWorld> {
         let _prepare_step = startup::step("world.prepare");
-        // Before any chunk is read: a loaded container with a loot table is rolled as its chunk
-        // is decoded (`save::roll_loaded_loot`), and the spawn chunks are read while the world
-        // opens. Every world opens here: on the server thread, on a dedicated server.
+        // Prepare the shared loot snapshot before spawn chunks and server gameplay start.
+        // Container loading only installs pending tags; first inventory access uses this data.
+        // Every world opens here: on the server thread, on a dedicated server.
         let loot = || {
             horizon_client::structure_blocks::loot_data(
                 &options.resources,
@@ -323,7 +323,6 @@ impl WorldRequest {
             shape,
             level.seed,
             &level.enabled_features,
-            loot.clone(),
         )?;
         drop(streaming_step);
         streaming.radius = settings.render_distance;
@@ -960,14 +959,12 @@ pub(super) fn make_streaming(
     shape: horizon_client::chunk::LevelShape,
     seed: i64,
     enabled_features: &[String],
-    loot: horizon_client::structure_blocks::LootSnapshot,
 ) -> Result<(Streaming, Arc<SaveDir>, Option<Arc<VanillaTerrain>>)> {
     let mut save = SaveDir::new(
         horizon_client::save::dimension_dir(world_root, dim.id()),
         shape,
     );
     save.enable_trusted_fluid_load();
-    save.set_loot_source(loot.clone());
     let save = Arc::new(save);
     if dim == Dim::End {
         // Migrate before any chunk reader can cache the old block entities. A side file it
@@ -1049,7 +1046,6 @@ pub(super) fn make_streaming(
             automatic_structures,
         ) {
             Ok(mut terrain) => {
-                terrain.set_loot_source(loot.clone());
                 terrain.add_mod_signs(res.facts());
                 Some(Arc::new(terrain))
             }
@@ -1181,7 +1177,6 @@ pub(super) fn make_streaming(
                     format!("{e}\nThe world's data packs change its world generation: one of them may not be made for this version")
                 }
             })?;
-        inner.set_loot_source(loot);
         inner.add_mod_signs(res.facts());
         register_sea_level(inner.sea_level());
         let inner = Arc::new(inner);

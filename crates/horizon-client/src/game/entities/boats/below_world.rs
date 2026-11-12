@@ -24,6 +24,7 @@ impl Game<'_> {
         self.eject_boat_mobs(i, true);
         let id = self.boats[i].id;
         self.release_vehicle_container(id);
+        self.unpack_loot(super::super::container_loot::LootTarget::Boat(id), None);
         let b = self.boats.remove(i);
         self.drop_vehicle_contents(b.position.components(), &b.items);
         self.boat_removed(&b);
@@ -46,6 +47,7 @@ impl Game<'_> {
         }
         self.eject_cart_mobs(i);
         self.release_vehicle_container(id);
+        self.unpack_loot(super::super::container_loot::LootTarget::Cart(id), None);
         let c = self.carts.remove(i);
         self.drop_vehicle_contents(c.position.components(), &c.items);
         self.native_tick_post_one(round, id, kind);

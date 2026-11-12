@@ -650,7 +650,6 @@ impl Game<'_> {
             self.level_shapes.get(dim.id()),
             self.level.seed,
             &self.level.enabled_features,
-            self.server_loot.clone(),
         )?;
         save.install_profession_snapshot(self.stations().professions.clone());
         let mut world = Game::world_for_mods(self.res.facts().air, self.level.seed);

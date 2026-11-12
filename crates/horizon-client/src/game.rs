@@ -757,11 +757,11 @@ struct GameLevel<'w> {
     /// The item frames a comparator reads through a conductor.
     item_frames: &'w [horizon_client::entities::ItemFrame],
     /// The minecarts, in `cart_boxes` order, for a detector rail's comparator.
-    carts: &'w [minecarts::Minecart],
+    carts: &'w mut horizon_client::join_seq::JoinList<minecarts::Minecart, false>,
     /// Arrow and thrown trident boxes (wooden buttons).
     arrow_boxes: Vec<([f64; 3], [f64; 3])>,
     /// Every entity on the walk; see `entity::for_each_entity`.
-    entities: entity::EntityLists<'w>,
+    other_entities: entity::EntityLists<'w>,
     /// End crystals, which aren't on the walk yet.
     crystals: &'w [dragon::Crystal],
     /// The fishing hooks here, which aren't on the walk either. None ignores
@@ -886,7 +886,7 @@ fn server_only_block_use(
 impl GameLevel<'_> {
     /// `LilyPadBlock.entityInside`: the boxes of the boats that can break a pad.
     fn boat_trigger_boxes(&self) -> impl Iterator<Item = Aabb> + '_ {
-        self.entities.boats.iter().map(boats::Boat::bounds)
+        self.entities().boats.iter().map(boats::Boat::bounds)
     }
     /// How many entities in `area` press plates and tripwires, or with
     /// `LIVING` only the living ones; a constant so a list of other kinds
@@ -894,7 +894,7 @@ impl GameLevel<'_> {
     fn count_triggers<const LIVING: bool>(&self, area: Aabb) -> usize {
         use entity::{Entity as _, for_each_entity};
         let mut count = 0;
-        for_each_entity!(self.entities, entity => {
+        for_each_entity!(self.entities(), entity => {
             if (!LIVING || entity.is_living())
                 && entity.triggers_blocks()
                 && area.intersects(entity.bounds())
@@ -903,48 +903,6 @@ impl GameLevel<'_> {
             }
         });
         count
-    }
-    /// `DetectorRailBlock.getAnalogOutputSignal`: a powered rail reads the
-    /// minecart on it, a command block cart first (its success count), else the first container cart's fullness.
-    fn detector_rail_signal(&self, pos: BlockPos, powered: bool) -> i32 {
-        if !powered {
-            return 0;
-        }
-        let (x, y, z) = (f64::from(pos.x), f64::from(pos.y), f64::from(pos.z));
-        let area = Aabb::new(
-            Vec3::new(x + 0.2, y, z + 0.2),
-            Vec3::new(x + 0.8, y + 0.8, z + 0.8),
-        );
-        let mut container = None;
-        for ((lo, hi), cart) in self.cart_boxes.iter().zip(self.carts) {
-            let bounds = Aabb::new(
-                Vec3::new(lo[0], lo[1], lo[2]),
-                Vec3::new(hi[0], hi[1], hi[2]),
-            );
-            if !area.intersects(bounds) {
-                continue;
-            }
-            match cart.kind {
-                minecarts::CartKind::CommandBlock => return cart.command.success_count,
-                minecarts::CartKind::Chest | minecarts::CartKind::Hopper => {
-                    // Counted here, for the cart a comparator reads, not for
-                    // every cart on every block tick.
-                    container = container.or_else(|| Some(self.cart_signal(cart)));
-                }
-                _ => {}
-            }
-        }
-        container.unwrap_or(0)
-    }
-    /// A container minecart's comparator signal: its open menu's slots while
-    /// someone has it open, else its own.
-    fn cart_signal(&self, cart: &minecarts::Minecart) -> i32 {
-        let key = (i32::MAX - 15, minecarts::CART_KEY_Y, cart.id as i32);
-        let slots = match self.world.block_entities.get(&key) {
-            Some(BlockEntity::Chest(open)) => open,
-            _ => &cart.items,
-        };
-        minecarts::Minecart::container_signal(slots, self.items)
     }
     /// Every entity box that blocks building: the players who aren't
     /// spectators, the minecarts and the `Blockers` (a removed mob or a marker
@@ -956,7 +914,7 @@ impl GameLevel<'_> {
                 Vec3::new(hi[0], hi[1], hi[2]),
             )
         };
-        let b = self.entities;
+        let b = self.entities();
         self.player_box
             .iter()
             .chain(
@@ -2805,7 +2763,7 @@ impl Game<'_> {
                     }
                 }
             };
-            for_each_entity!(level.entities, entity => {
+            for_each_entity!(level.entities(), entity => {
                 if entity.triggers_blocks() && entity.sweeps_blocks_inside() {
                     let at = entity.position();
                     if entity_ticking(at.x.floor() as i32, at.z.floor() as i32) {
@@ -4410,6 +4368,7 @@ impl Game<'_> {
         }
         let native_authoritative = self.native_authoritative();
         let environment = self.res.environment_of(&self.dimension_type().id);
+        let other_entities = entity::entity_lists_of!(self, without_carts);
         let mut level = GameLevel {
             cake_probe: false,
             cake_requested: std::cell::Cell::new(false),
@@ -4428,9 +4387,9 @@ impl Game<'_> {
                 .any(|feature| feature == "minecraft:redstone_experiments"),
             cart_boxes,
             item_frames: &self.item_frames,
-            carts: &self.carts,
+            carts: &mut self.carts,
             arrow_boxes,
-            entities: entity::entity_lists_of!(self),
+            other_entities,
             crystals: &self.crystals,
             trigger_hooks,
             trigger_extras,
@@ -5792,8 +5751,8 @@ impl Game<'_> {
         let broken = state;
         let facts = self.res.facts().get(state).clone();
         let held = self.held().cloned();
-        // The block entity as it was, for what the drops copy from it.
         let key = (pos[0], pos[1], pos[2]);
+        self.unpack_loot(container_loot::LootTarget::Block(key), None);
         let loot_entity = if self.creative {
             None
         } else {
@@ -10515,8 +10474,8 @@ impl Game<'_> {
             &self.health_resources.damage,
         )
         .map_err(|e| format!("world registries: {e}"))?;
-        // Warm the loot data with this world's packs before chunks decode
-        // (`save::roll_loaded_loot` reads the cached copy).
+        // Warm this world's pack-aware loot data before gameplay can unpack
+        // a container's pending table on its first inventory access.
         self.load_server_loot();
         // MinecraftServer's constructor reads CustomBossEvents before any
         // server event.

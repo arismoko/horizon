@@ -1262,22 +1262,10 @@ macro_rules! with_entity {
 }
 pub(super) use with_entity;
 
-macro_rules! borrow_lists {
-    (($game:expr) $($kind:ident($ty:ty) $field:ident: $($list:ident).+,)*) => {
-        $crate::game::entity::EntityLists {
-            $($field: &$game$(.$list)+,)*
-        }
-    };
-}
-pub(crate) use borrow_lists;
-
-/// `$game`'s [`EntityLists`]; a macro so the borrow stays field by field.
-macro_rules! entity_lists_of {
-    ($game:expr) => {
-        $crate::game::entity::entity_lists!(borrow_lists, $game)
-    };
-}
-pub(super) use entity_lists_of;
+#[path = "entity/list_borrows.rs"]
+mod list_borrows;
+pub(super) use list_borrows::entity_lists_of;
+pub(crate) use list_borrows::{borrow_level_list, borrow_lists};
 /// The level `$game` ticks, lent to a hit's damage hooks with its block registry and merged
 /// tag tables, so a mob or the player beside them can take the hit. With `$attack` (an
 /// [`Attack`](horizon_client::health::Attack) the site took first), the level of that attack.

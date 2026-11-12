@@ -66,5 +66,12 @@ Harness normalisations (not generation differences): sections above the noise he
 absent in Horizon; structure templates keep their stored NBT integer width; a vanilla block entity left as a `DUMMY` default is equal to no
 Horizon entry; `LootTableSeed` without a `LootTable` and a vault's default reward table are ignored.
 
+Generated containers keep their original `LootTable` and optional `LootTableSeed` tags
+in position-keyed chunk extras until inventory access. Generation, loading and raw
+`/data get block` reads do not roll them; absent seeds and explicit zero seeds stay
+unchanged on disk. Horizon-only: if a runtime inventory holds both items and a
+pending table, its first inventory access drops the table without rolling it,
+so emptying the inventory later cannot resurrect the table.
+
 Remaining known differences: a handful of single blocks near structure pieces in full generation (abandoned camps, shipwreck, villages) that
 need per-feature tracing, and tree features only through `tools/test_tree_feature_parity.py` (8,898 fixtures, all equal).

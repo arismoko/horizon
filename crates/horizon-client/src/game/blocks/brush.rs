@@ -210,7 +210,7 @@ impl Game<'_> {
         );
         if let Some(BlockEntity::Brushable(b)) = self.world.block_entities.get_mut(&key) {
             b.loot_table = tag.get("LootTable").cloned();
-            b.loot_seed = tag.get("LootTableSeed").cloned();
+            b.table_seed_tag = tag.get("LootTableSeed").cloned();
             b.item = tag.get("item").and_then(save::item_from_nbt);
         }
         self.world.modified.insert((pos[0] >> 4, pos[2] >> 4));

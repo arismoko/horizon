@@ -1,6 +1,7 @@
 //! Command execution (the `execute` side of each vanilla command class):
 //! entity selectors resolved against the game, vanilla feedback and errors.
 mod admin;
+mod clone_payload;
 pub(super) mod compute;
 mod data;
 mod difficulty;
@@ -2857,128 +2858,65 @@ impl Game<'_> {
     /// container: a roll the container still holds fires
     /// `player_generates_container_loot` for its table, and from then on the
     /// container saves its items, not the table.
-    pub(super) fn unpack_opened_loot(&mut self, key: (i32, i32, i32), name: &str) {
-        let Some(rolled) = self
-            .world
-            .chunks
-            .get(&(key.0 >> 4, key.2 >> 4))
-            .and_then(|c| c.saved.as_ref())
-            .and_then(|s| s.rolled_loot.iter().find(|r| r.pos == key))
-            .cloned()
-        else {
-            return;
-        };
-        // The roll is still there only while the container holds exactly its items.
-        let still_rolled = self
-            .world
-            .block_entities
-            .get_mut(&key)
-            .is_some_and(|entity| {
-                let mut tag = horizon_client::save::encode_block_entity(key, entity, name);
-                match &mut tag {
-                    horizon_core::nbt::Tag::Compound(map) => rolled.restore(map),
-                    _ => false,
-                }
-            });
-        if still_rolled {
-            self.trigger_loot_table(&rolled.table);
-        }
-        let Some(chunk) = self.world.chunks.get_mut(&(key.0 >> 4, key.2 >> 4)) else {
-            return;
-        };
-        let chunk = std::sync::Arc::make_mut(chunk);
-        let mut extras = chunk
-            .saved
-            .take()
-            .map(std::sync::Arc::unwrap_or_clone)
-            .unwrap_or_default();
-        horizon_client::save::consume_container_loot(&mut extras, key);
-        chunk.saved = Some(std::sync::Arc::new(extras));
-        self.world.modified.insert((key.0 >> 4, key.2 >> 4));
-        // `ChestBlock.getMenuProvider` unpacks both halves of a double chest:
-        // the other half's table, if it still holds one, rolls too. The own roll
-        // is consumed above, so the partner's call does not come back here.
+    pub(super) fn unpack_opened_loot(&mut self, key: (i32, i32, i32), _name: &str) {
+        let player = self.native_acting_player();
+        self.unpack_loot(crate::game::container_loot::LootTarget::Block(key), player);
         if let Some((other, _)) = self.chest_partner(key) {
-            let other_name = self
-                .res
-                .facts()
-                .get(self.world.block(other.0, other.1, other.2))
-                .name
-                .to_string();
-            self.unpack_opened_loot(other, &other_name);
+            self.unpack_loot(
+                crate::game::container_loot::LootTarget::Block(other),
+                player,
+            );
         }
     }
-    /// RandomizableContainer.tryLoadLootTable for a tag a command gives a
-    /// container (`setblock`, `data`): an empty container with a `LootTable`
-    /// is rolled now, as a loaded chunk's are (`save::roll_loaded_loot`), and
-    /// the roll is kept with its chunk, so that the container saves, and
-    /// `data get` shows, its table and seed until its items change. A tag
-    /// without one drops what the container had. True when it had a table.
+    /// Install a command's table without rolling. Raw NBT reads keep it pending.
     pub(super) fn take_loot_table(
         &mut self,
         key: (i32, i32, i32),
         tag: &horizon_core::nbt::Tag,
         entity: &mut horizon_client::containers::BlockEntity,
     ) -> bool {
-        use horizon_client::{containers::BlockEntity, save, structure_blocks};
-        let table = save::text(tag.get("LootTable"))
-            .and_then(|id| horizon_client_core::identifier::normalize_id(&id));
-        let rolled = match (table, entity) {
-            (Some(table), BlockEntity::Chest(slots)) if slots.iter().all(Option::is_none) => {
-                let loot = self.server_loot.get();
-                let at = Vec3::new(f64::from(key.0), f64::from(key.1), f64::from(key.2));
-                let biome = self.biome_name_at(at).unwrap_or_default();
-                Some(structure_blocks::roll_container(
-                    slots,
-                    loot.as_deref(),
-                    table,
-                    structure_blocks::loot_seed(tag),
-                    key,
-                    &biome,
-                ))
-            }
-            _ => None,
-        };
-        let Some(chunk) = self.world.chunks.get_mut(&(key.0 >> 4, key.2 >> 4)) else {
-            return false;
-        };
-        let held = |c: &horizon_client::chunk::Chunk| {
-            c.saved
-                .as_ref()
-                .is_some_and(|s| s.rolled_loot.iter().any(|r| r.pos == key))
-        };
-        if rolled.is_none() && !held(chunk) {
-            return false;
-        }
-        let chunk = std::sync::Arc::make_mut(chunk);
-        let mut extras = chunk
-            .saved
-            .take()
-            .map(std::sync::Arc::unwrap_or_clone)
-            .unwrap_or_default();
-        save::consume_container_loot(&mut extras, key);
-        let taken = rolled.is_some();
-        extras.rolled_loot.extend(rolled);
-        chunk.saved = Some(std::sync::Arc::new(extras));
-        taken
+        let pending = matches!(entity, horizon_client::containers::BlockEntity::Chest(_))
+            .then(|| horizon_client::save::PendingContainerLoot::from_tag(tag))
+            .flatten();
+        let mut changed = false;
+        self.world.with_chunk_extras(key, |extras| {
+            changed = extras.pending_loot.get(&key) != pending.as_ref();
+            extras.pending_loot.remove(&key);
+            extras.pending_loot.extend(pending.map(|p| (key, p)));
+        });
+        changed
     }
-    /// The loot table and seed a container still holding its roll saves
-    /// (`RolledLoot::restore`), in place of its items.
-    pub(super) fn restore_loot_table(
+    /// Raw NBT inspection overlays metadata without unpacking the inventory.
+    pub(super) fn write_pending_loot(
         world: &horizon_client::world::World,
         key: (i32, i32, i32),
         tag: &mut horizon_core::nbt::Tag,
     ) {
-        let horizon_core::nbt::Tag::Compound(map) = tag else {
+        if !matches!(
+            world.block_entities.get(&key),
+            Some(horizon_client::containers::BlockEntity::Chest(_))
+        ) {
             return;
-        };
-        let rolled = world
-            .chunks
-            .get(&(key.0 >> 4, key.2 >> 4))
-            .and_then(|c| c.saved.as_ref())
-            .and_then(|s| s.rolled_loot.iter().find(|r| r.pos == key));
-        if let Some(r) = rolled {
-            r.restore(map);
+        }
+        if let horizon_core::nbt::Tag::Compound(map) = tag {
+            map.remove(&"LootTable".into());
+            map.remove(&"LootTableSeed".into());
+            if let Some(pending) = world
+                .chunks
+                .get(&(key.0 >> 4, key.2 >> 4))
+                .and_then(|c| c.saved.as_ref())
+                .and_then(|s| s.pending_loot.get(&key))
+            {
+                let items = map.get(&"Items".into()).cloned();
+                pending.write_tags(map);
+                if world
+                    .block_entities
+                    .get(&key)
+                    .is_some_and(|e| e.slots().iter().any(Option::is_some))
+                {
+                    map.extend(items.map(|items| ("Items".into(), items)));
+                }
+            }
         }
     }
     fn cmd_fill(&mut self, ctx: &Context) -> R<i32> {
@@ -3286,14 +3224,14 @@ impl Game<'_> {
                             dest[2] + z - min[2],
                         ],
                         s,
-                        self.world.block_entities.get(&(x, y, z)).cloned(),
-                        self.world.block_names.get(&(x, y, z)).cloned(),
+                        self.clone_block_payload((x, y, z)),
                     ));
                 }
             }
         }
         if moving {
             for (from, ..) in &copies {
+                self.discard_clone_loot(*from);
                 self.place_state(*from, air, true, false)?;
             }
         }
@@ -3303,20 +3241,13 @@ impl Game<'_> {
         // each copied state but a barrier counts as placed.
         let barrier = self.pack.assets.registry.default_state("minecraft:barrier");
         let mut count = 0;
-        for (_, to, s, entity, name) in copies {
+        for (_, to, s, payload) in copies {
+            self.discard_clone_loot(to);
             self.place_state(to, s, strict, false)?;
             if Some(s) != barrier {
                 count += 1;
             }
-            if let Some(e) = entity {
-                let key = (to[0], to[1], to[2]);
-                self.world.block_entities.insert(key, e);
-                // The copied tag carries the custom name.
-                match name {
-                    Some(name) => self.world.block_names.insert(key, name),
-                    None => self.world.block_names.remove(&key),
-                };
-            }
+            self.apply_clone_payload(to, payload);
         }
         // LevelTicks.copyAreaFrom: the block ticks pending anywhere in the
         // source box go to the same offset in the destination, before the

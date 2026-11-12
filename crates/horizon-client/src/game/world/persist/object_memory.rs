@@ -441,7 +441,6 @@ impl Game<'_> {
             crate::game::minecarts::forget_unreadable_display(&mut c, |t| {
                 self.state_from_nbt(t).is_some()
             });
-            self.roll_cart_loot(&mut c, &tag);
             self.next_entity = id;
             if let Some(state) = transferred {
                 self.adopt_transferred_entity_state(id, state);
