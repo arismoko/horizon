@@ -1,4 +1,4 @@
-# A menu's slots
+# Menu slots
 
 ## Mod-created recipe input sets
 
@@ -40,7 +40,6 @@ The server reads its owning load; the client reads local preload sets before its
 `UpdateRecipes`, then the authoritative server generation. A packet replaces the entire
 generation, including an empty one. Closing a screen or changing dimension retains it;
 disconnecting discards it. Reads allocate nothing and do not rescan recipes or registries.
-There is no second hook and no per-slot load callback.
 
 ## Keeping a block menu open
 
@@ -72,9 +71,10 @@ impl mod_api::MenuPart for ShellReach {
 
 It is asked each tick the menu is open and before each click on it, on the server only, and only for a mod
 menu type: vanilla menu types keep their own check. A part that leaves `valid` alone keeps the game's answer,
-and a menu whose block entity is gone closes without asking. [Hook notes](../../reference/hook-notes.md#keeping-a-block-menu-open)
-has the details.
+and a menu whose block entity is gone closes without asking. Answer from the event and `LoopContext` alone; this callback has no `Host`.
 
+
+## Reading and clicking
 
 Client hooks can read the local player's menu with `host.local_player()?.container_menu(host)`,
 including the inventory when no container is open. `MenuRef::slot_count`, `slot` and `carried`
@@ -100,10 +100,10 @@ Every action in a batch is validated before any prediction or sending; out-of-ra
 indices, creative-only actions in survival and empty batches refuse without effects.
 Stale/replaced/respawned menus, spectators, non-client hosts and the creative inventory screen refuse with `false`.
 `true` means submitted, not server acceptance: prediction uses the normal menu engine and sends
-`ContainerClick` with its state id, changed slots and carried item. Server corrections still win.
+`ContainerClick` with its state id, changed slots and carried item. Server corrections take precedence.
 Inventory reads and direct server-side item transactions keep their existing contracts; a click does
 not expose direct client inventory writes or enforce a mod's locked-slot policy. Call from an explicit
-input action rather than submitting every render/tick. Diverges from upstream: new helper.
+input action rather than submitting every render/tick.
 
 `menu.close(host)` closes the menu's screen as Escape does and tells the server (`ContainerClose`);
 it returns `false` while that screen is not open, so the inventory menu closes only while the inventory
@@ -111,8 +111,9 @@ screen shows. `menu.click_button(host, button)` presses one of the open menu's b
 (`ContainerButtonClick`, as a loom's pattern list does), for input the screen's own
 buttons don't take; the server's menu decides what it does, and the inventory menu has none.
 
-`ItemPlace::MenuSlot { menu, slot }` is slot `slot` of a player's open menu, a `MenuRef` (`player.container_menu(host)`). It is
-a fork addition: NeoForge 26.3's `ItemAccess` reaches a player's inventory slot (`forPlayerSlot`) and cursor
+## Writing slot storage
+
+`ItemPlace::MenuSlot { menu, slot }` is slot `slot` of a player's open menu, a `MenuRef` (`player.container_menu(host)`). NeoForge 26.3's `ItemAccess` reaches a player's inventory slot (`forPlayerSlot`) and cursor
 (`forPlayerCursor`), not a menu's slot. It is the storage the slot shows, named by `menu.slot_backing(host, slot)`
 (`MenuSlotBacking`), and a write goes to that storage through its own handler, so it is kept once by the transaction
 and the storage's rules hold: the player's inventory, armour and off hand by their
@@ -129,7 +130,7 @@ since taking it is a craft. A menu closed, replaced or reopened since the `MenuR
 reads and writes nothing. `menu.cursor()` is that menu's cursor (`ItemPlace::PlayerCursor { menu }`,
 `forPlayerCursor`), which reaches nothing once the menu is gone, so a kept cursor never reaches the next menu's. The player's screen follows with the tick's container sync.
 
-```rust
+```rust,ignore
 // Put four of the menu's offered emeralds into slot 0 of the open chest, or nothing.
 let (slot, cursor) = (ItemPlace::MenuSlot { menu, slot: 0 }, menu.cursor());
 host.transaction(|host, tx| {

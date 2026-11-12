@@ -5,11 +5,9 @@ tick. `BlockCapabilityCache` keeps what one lookup found and gives it back while
 depends on has changed. It is the caching half of NeoForge's `BlockCapabilityCache`, without the
 listener: the cache is polled, never told.
 
-Diverges from upstream: Horizon addition. horizon-rust/horizon has no `BlockCapabilityCache`.
-
 ## Making one
 
-```rust
+```rust,ignore
 let mut west = BlockCapabilityCache::new(&ITEMS, level, [x - 1, y, z], Some(Direction::East));
 ```
 
@@ -19,14 +17,14 @@ keeps is bounded by the number of caches you make.
 
 ## Polling it
 
-```rust
+```rust,ignore
 // Each tick, inside a transaction `tx`, with `own` your own handler.
 if let Some(items) = west.get(host) {
     move_resources(host, items, own, |_| true, 8, tx)?;
 }
 ```
 
-`get` gives the kept handler while all of these still hold, compared in constant time with what
+`get` gives the kept handler while all of these hold, compared in constant time with what
 they were at the lookup:
 
 - **The level is as in place as it was** (`LevelRef::in_place`). A parked level lends nothing, as a

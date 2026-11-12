@@ -1,16 +1,16 @@
 # A mod's own capability
 
-A mod can define a capability of its own, as Mekanism defines chemicals: a resource type and a key, published from
-its root crate ([Dependencies between trait mods](../dependencies.md)) for other mods to use.
+You define your own capability, as Mekanism defines chemicals: a resource type and a key, published from
+its root crate ([Dependencies between mods](../dependencies.md)) for other mods to use.
 
-```rust
+```rust,ignore
 // The chemistry mod's root crate
 #[derive(Clone, PartialEq)]
 pub struct Chemical(pub String);
 pub const CHEMICALS: CapabilityKey<dyn ResourceHandler<Chemical>> = CapabilityKey::new("chem_api:chemical");
 ```
 
-A mod that names it under `[dependencies]` builds against the same `Chemical` and `CHEMICALS`, so its providers,
+Declare the defining mod under `[dependencies]` to build against the same `Chemical` and `CHEMICALS`. Your providers,
 `r.block_entity_capability(&chem_api::CHEMICALS, &vat, …)` (where `vat` is a declared type key or
 `r.block_entity_type_key("chem_pipe:vat")`), answer the same capability, and
 `level.capability(host, &chem_api::CHEMICALS, pos, side)` finds either mod's handler. `move_resources` moves a
