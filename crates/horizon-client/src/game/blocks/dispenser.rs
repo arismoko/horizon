@@ -2025,7 +2025,7 @@ impl Game<'_> {
         );
     }
     /// `ShearsDispenseItemBehavior.tryShearEntity`: the first live, ready
-    /// `Shearable` in the block is sheared.
+    /// `Shearable` in the block is sheared (an entity part's `IShearable` answer comes first).
     pub(super) fn shear_entity(&mut self, target: Pos) -> Result<bool> {
         let shears = ItemStack::new("minecraft:shears", 1);
         for t in self.targets_at(target) {
@@ -2046,7 +2046,6 @@ impl Game<'_> {
                 LevelSound::new(name, [at.x, at.y, at.z], 1.0, 1.0).in_source(SoundSource::Blocks)
             };
             match m.species() {
-                // An entity part said yes (`IShearable`): it shears in the species' place.
                 _ if let Some((part, _)) = part => self.part_shear(i, part, None, &shears),
                 Species::SulfurCube if sulfur_cube::has_body(m) => {
                     // SulfurCube.shear: the swallowed block comes out at the
