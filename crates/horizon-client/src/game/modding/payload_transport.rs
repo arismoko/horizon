@@ -267,5 +267,8 @@ mod sender_tests;
 #[path = "payload_transport/tests.rs"]
 mod tests;
 #[cfg(test)]
+#[path = "payload_transport/wasm_config_tests.rs"]
+mod wasm_config_tests;
+#[cfg(test)]
 #[path = "payload_transport/wasm_tests.rs"]
 mod wasm_tests;
