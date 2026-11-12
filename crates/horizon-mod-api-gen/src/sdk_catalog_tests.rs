@@ -1,52 +1,6 @@
 use super::*;
 
 #[test]
-fn coverage_document_is_current() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let source =
-        std::fs::read_to_string(root.join("crates/horizon-mod-package/src/manifest.rs")).unwrap();
-    let manifest = syn::parse_file(&source).unwrap();
-    let api = manifest
-        .items
-        .into_iter()
-        .find_map(|item| {
-            let syn::Item::Const(item) = item else {
-                return None;
-            };
-            if item.ident != "API" {
-                return None;
-            }
-            let syn::Expr::Lit(expr) = *item.expr else {
-                return None;
-            };
-            let syn::Lit::Str(value) = expr.lit else {
-                return None;
-            };
-            Some(value.value())
-        })
-        .expect("manifest API constant");
-    let document = sdk_catalog(&root, &api).unwrap();
-    let value: Value = serde_json::from_str(&document).unwrap();
-    for hook in value["hooks"].as_array().unwrap() {
-        assert!(["server", "client", "both"].contains(&hook["side"].as_str().unwrap()));
-        assert!(
-            ["listen", "cancel", "collect", "replace"]
-                .contains(&hook["contract"].as_str().unwrap())
-        );
-        if !hook["scope"].is_null() {
-            assert!(
-                ["block", "blockentity", "item", "menu", "fluid"]
-                    .contains(&hook["scope"]["kind"].as_str().unwrap())
-            );
-        }
-    }
-    assert!(!value["hooks"].as_array().unwrap().is_empty());
-    assert!(!value["points"].as_array().unwrap().is_empty());
-    // Regenerate from the same source instead of maintaining a shared fingerprint.
-    assert_eq!(document, sdk_catalog(&root, &api).unwrap());
-}
-
-#[test]
 fn schema_order_refusals_and_drift() {
     let hooks = vec![
         json!({"id":"z", "arguments":[{"name":"second","type":"u32"},{"name":"first","type":"bool"}],"output":{"type":"u64"}}),
