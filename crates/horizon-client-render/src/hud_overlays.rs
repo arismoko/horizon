@@ -1624,3 +1624,62 @@ mod backdrop_tests {
         assert_eq!((*x0, *y0, *x1, *y1), (9, 19, 16, 29));
     }
 }
+
+#[cfg(test)]
+mod effect_order_tests {
+    use super::*;
+
+    fn icon(sort_order: i32, ambient: bool, duration: i32) -> EffectIcon {
+        EffectIcon {
+            id: "speed".to_owned(),
+            beneficial: true,
+            sort_order,
+            ambient,
+            duration,
+            show_icon: true,
+        }
+    }
+
+    /// Short effects order by their time left first and the sort order last; two long ones, or two
+    /// ambient ones, order by the sort order alone.
+    #[test]
+    fn both_comparator_branches_use_the_sort_order() {
+        assert_eq!(
+            compare_effects(&icon(9, false, 100), &icon(1, false, 200)),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_effects(&icon(9, false, 100), &icon(1, false, 100)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            compare_effects(&icon(9, false, 40_000), &icon(1, false, 50_000)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            compare_effects(&icon(9, true, 100), &icon(1, true, 200)),
+            Ordering::Greater
+        );
+    }
+
+    /// The HUD lists the highest sort order nearest the corner, and the extremes of `i32` compare
+    /// without wrapping.
+    #[test]
+    fn the_hud_lists_the_highest_sort_order_first() {
+        let icons = [
+            icon(i32::MIN, false, -1),
+            icon(i32::MAX, false, -1),
+            icon(0, false, -1),
+        ];
+        let corners: Vec<(i32, i32)> = effects(200, false, &icons)
+            .iter()
+            .filter_map(|d| match d {
+                GuiDraw::Sprite { sprite, x, y, .. } if sprite == "hud/effect_background" => {
+                    Some((*x, *y))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(corners, [(175, 1), (150, 1), (125, 1)]);
+    }
+}

@@ -2960,6 +2960,7 @@ mod tests {
             "test:effect".into(),
             0,
             brewing::Category::Neutral,
+            None,
         )]));
     }
 
