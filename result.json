@@ -1,0 +1,46 @@
+{
+  "pages": [
+    {
+      "path": "docs/modding/src/how-to/world/delayed-tasks.md",
+      "changed": true,
+      "summary": "Corrected hook samples to use generated event arguments and tightened scheduling instructions.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/world/dimension-shape.md",
+      "changed": true,
+      "summary": "Corrected the clock distinction and client clock limits, clarified bed field types and namespace ownership, and removed worker-binding status language.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/world/extinguishing-fire.md",
+      "changed": true,
+      "summary": "Kept the verified extinguish and silent-clear behavior while removing internal sound routing details.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/world/game-events.md",
+      "changed": true,
+      "summary": "Kept verified contextual emission rules and described native and wasm availability without boundary implementation detail.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/world/game-rule-categories.md",
+      "changed": true,
+      "summary": "Documented both registration Result types, error handling and screen behavior; removed roadmap language.",
+      "unverified": [],
+      "code_wrong": []
+    },
+    {
+      "path": "docs/modding/src/how-to/world/level-sounds.md",
+      "changed": true,
+      "summary": "Clarified loop-replay playback flags and removed internal implementation commentary and the incorrect claim that no separate sound_play hook exists.",
+      "unverified": [],
+      "code_wrong": []
+    }
+  ]
+}
