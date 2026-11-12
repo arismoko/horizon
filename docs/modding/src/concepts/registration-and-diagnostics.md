@@ -1,52 +1,67 @@
-# Native entry point and diagnostics
+# Registration and diagnostics
 
-The generated executable uses the installed game's `crates/horizon-client/src/native_main.rs.template`.
-The launcher supplies only ordered literal mod IDs and hook factory paths. The template owns entry
-construction, the allocator and the canonical game identity. Source without this template is refused
-before staging trait mods: update the game first.
+Use `Hooks::register` to declare content and crash-report callbacks. If your bootstrap cannot
+complete, call `cx.refuse("reason")` and return. Native and wasm mods report the refusal through
+the registration error path without panicking or exiting the process.
 
-A mod whose bootstrap cannot complete should call `cx.refuse("reason")` inside
-`Hooks::register`, then return. This refuses only the calling mod's registration:
-there is no mod ID argument. Its declarations from that registration (before or
-after the call) are discarded. Later declarations do not add secondary validation
-errors, and another mod's declarations are unchanged. Native and wasm report the
-same diagnostic through the normal registration error path. This does not panic
-or exit the process. The first reason wins, including an empty reason. Reasons
-are preserved verbatim up to 4096 UTF-8 bytes; longer strings are truncated at the
-last character boundary within that limit.
+## Registration refusal
 
-A panic in a trait mod's hook adds `in native mod <id>, hook <hook>` to the panic's message, in the crash report
-and in the server thread's log line, with the `horizon-mod.toml` id. Each entry passed to
-`entry::main_with` must bind its id and hooks together: `ModEntry::new("example", example::hooks())`.
-The ordered list is `Mods = Arc<[ModEntry]>`; there is no separate naming step or unnamed entry.
-Before installation, `mod_api::mods()` still returns an empty list. Parts retain their registering mod's
-id for startup errors and hook panics. The game stops. A point listener's panic names its mod and
-method; render hooks are not named yet.
+- `refuse` applies only to the calling mod; it takes no mod ID.
+- All declarations from that registration are discarded, including declarations made before
+  or after the call. Later declarations do not add secondary validation errors.
+- Other mods' declarations are unchanged.
+- The first reason wins, including an empty reason. Reasons are preserved verbatim up to
+  4096 UTF-8 bytes; longer reasons are truncated at a character boundary.
 
-A mod adds its own lines to every crash report from `Hooks::register` (NeoForge's `CrashReportCallables`):
-`r.crash_section("caches", Arc::new(Caches))` lists `<mod id>: caches: <value>` in the report's system details,
-after Horizon's own, and `r.crash_header(Arc::new(Banner))` puts `<mod id>: <value>` under the report's title.
-Both take a `CrashSection`, whose `value()` is asked once when a report is written, not when it was
-registered; `None` leaves the line out of that report. Lines come in registration order, on native and wasm
-mods alike, on the client and the dedicated server. The report asks them on a thread of its own and waits at
-most two seconds for the headers and another two for the system-detail sections: a line that panics, traps or doesn't answer in time reads `~~ERROR~~`, and the
-report is still written. The lines of the mod the crash is attributed to are not asked. Each value is kept on one
-line, control characters as spaces, cut to 4096 bytes.
+## Native startup and hook panics
 
-A native runtime that hosts converted packages (Portizon's wasm packages, a Java interpreter's jars)
-declares the packages it loaded with `mod_api::content::crash::ConvertedPackages::new(runtime_id, ids)` and
-marks a guest call with `mod_api::content::crash::ConvertedPackage::enter(export, site)`. The scope nests,
-restores the previous one on return and while a panic unwinds, and adds `in converted package <id>,
-export <export>, call site <site>` below the runtime's `in native mod` line in the report. A package
-id the runtime did not declare is refused, as is a scope entered while another mod's call is the
-current one, so guest code cannot impersonate a mod the runtime did not load.
+The launcher supplies ordered mod IDs and hook factories to the installed game's
+[native entry template](https://github.com/arismoko/horizon/blob/main/crates/horizon-client/src/native_main.rs.template).
+The template constructs `ModEntry::new("example", example::hooks())` entries and passes them to
+`horizon_mod_host::main_with`. `Mods` is `Arc<[ModEntry]>`: each entry binds its ID to its hooks.
+Before installation, `mod_api::mods()` returns an empty list.
 
-The guard is thread-affine (not Send or Sync), and attribution ends when the native frame
-that entered it exits, even if the converted guard is retained. A nested native frame hides the
-outer frame's package until it returns. Worker threads have no scope unless the runtime enters
-a native call and package scope there. Registry ids are stored, not interned: entering a package
-clones an owned id on every call (borrowed static ids do not allocate).
+Game source without the required template is refused before mod staging with:
+“This game source has no native inventory entry template. Update Horizon and rebuild the mods
+against this game.”
 
-A code mod may listen at the game's injection points as a rare escape hatch, through a crate-root function
-named by `[[inject]].with`, taking a `mod_points` record; the form
-and its limits are in [Injections](injections.md).
+A native hook panic stops the game. Its crash report and server-thread log identify
+`in native mod <id>, hook <hook>`, using the `horizon-mod.toml` ID. Parts retain their registering
+mod's ID for startup errors and hook panics. A point listener's panic identifies its mod and method.
+See [Injections](injections.md) for injection declarations and their limits.
+
+## Crash-report callbacks
+
+Register callbacks inside `Hooks::register` (the counterpart to NeoForge's `CrashReportCallables`):
+
+| Registration | Report output |
+| --- | --- |
+| `r.crash_section("caches", Arc::new(Caches))` | `<mod id>: caches: <value>` after Horizon's system details |
+| `r.crash_header(Arc::new(Banner))` | `<mod id>: <value>` under the report title |
+
+Both callbacks implement `CrashSection`. The report calls `value()` once when it is written,
+not during registration. Return `None` to omit a line.
+
+- Lines follow registration order on native and wasm, on clients and dedicated servers.
+- Callbacks run on a separate thread. The report waits at most two seconds for headers and
+  another two seconds for system-detail sections.
+- A callback that panics, traps or times out produces `~~ERROR~~`; the report is written.
+- Callbacks belonging to the mod blamed for the crash are not called.
+- Control characters become spaces, and each value is limited to 4096 bytes on one line.
+
+## Converted-package attribution
+
+If your native runtime hosts other packages, declare their IDs with
+`mod_api::content::crash::ConvertedPackages::new(runtime_id, ids)`. Obtain a handle with
+`packages.package(id)`, then call its `enter(export, site)` method around the guest call.
+
+The scope adds `in converted package <id>, export <export>, call site <site>` below the runtime's
+`in native mod` line. Nested scopes restore the previous attribution on return and panic unwind.
+
+- `package(id)` returns `None` for an undeclared ID.
+- `enter` returns `None` unless the thread is executing a native call owned by that runtime.
+- The guard is neither `Send` nor `Sync`. Attribution ends when the native frame that entered
+  it exits, even if you retain the converted-package guard.
+- A nested native frame hides the outer frame's package until it returns.
+- Worker threads need their own native call and package scope.
+- Entering a package clones its stored ID on each call; borrowed static IDs do not allocate.
