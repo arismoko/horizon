@@ -930,6 +930,27 @@ pub trait LevelAccess: BlockEntityNeighbors {
     ) -> bool {
         vanilla
     }
+    /// `PistonStructureResolver`'s slime test (`IBlockExtension.isSlimeBlock`) of `state`
+    /// once vanilla answered `vanilla` (a slime block): the answer to use. The default keeps it.
+    fn adjust_is_slime_block(&self, _state: BlockStateId, vanilla: bool) -> bool {
+        vanilla
+    }
+    /// `PistonStructureResolver.isSticky` (`IBlockExtension.isStickyBlock`) of `state` once
+    /// vanilla answered `vanilla` (a slime or honey block): the answer to use. The default
+    /// keeps it.
+    fn adjust_is_sticky_block(&self, _state: BlockStateId, vanilla: bool) -> bool {
+        vanilla
+    }
+    /// `IBlockExtension.canStickTo`: whether `state` sticks to the `other` beside it once the
+    /// library answered `vanilla`: the answer to use. The default keeps it.
+    fn adjust_can_stick_to(
+        &self,
+        _state: BlockStateId,
+        _other: BlockStateId,
+        vanilla: bool,
+    ) -> bool {
+        vanilla
+    }
     /// Whether redstone wire connection queries need the level hook.
     fn has_redstone_wire_connection_hook(&self) -> bool {
         false

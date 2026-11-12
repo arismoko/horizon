@@ -1858,6 +1858,151 @@ pub(super) mod tests {
         });
     }
 
+    /// A plain piston pushing east at (5, `y`, 5) with `block` at (6, `y`, 5) and `above` on top
+    /// of it, powered from (4, `y`, 5): whether the block above moved with the one below. Moved,
+    /// its old cell is air once the push started. Each scenario has its own `y`, so none meets
+    /// the moving blocks of another.
+    fn piston_pulls_above(game: &mut super::Game<'_>, y: i32, block: &str, above: &str) -> bool {
+        use horizon_core::position::BlockPos;
+        let registry = game.pack.assets.registry;
+        let state = |name: &str| registry.default_state(name).unwrap();
+        let air = state("minecraft:air");
+        game.with_level(|b, level, ticks| {
+            let piston = |extended: &str| {
+                registry
+                    .resolve(&horizon_world::chunk::BlockState {
+                        name: "minecraft:piston".into(),
+                        properties: [
+                            ("facing".into(), "east".into()),
+                            ("extended".into(), extended.into()),
+                        ]
+                        .into_iter()
+                        .collect(),
+                    })
+                    .unwrap()
+            };
+            let mut place = |pos: [i32; 3], s| {
+                let flags = horizon_world::level::flags::UPDATE_ALL;
+                b.set_block(
+                    level,
+                    ticks,
+                    BlockPos::new(pos[0], pos[1], pos[2]),
+                    s,
+                    flags,
+                );
+            };
+            place([5, y, 5], piston("false"));
+            place([6, y, 5], state(block));
+            place([6, y + 1, 5], state(above));
+            place([4, y, 5], state("minecraft:redstone_block"));
+            b.run_block_events(level, ticks);
+            assert_eq!(
+                horizon_world::level::LevelAccess::block_state(level, BlockPos::new(5, y, 5)),
+                piston("true"),
+                "{block}: the piston extended"
+            );
+            horizon_world::level::LevelAccess::block_state(level, BlockPos::new(6, y + 1, 5)) == air
+        })
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn block_parts_decide_what_a_piston_pulls_along() {
+        use horizon_client::chunk::Chunk;
+        use std::sync::Arc;
+
+        mod_api::__private::part_tests::sticky_game_thread();
+        with_game(|game| {
+            game.options.dedicated = Some(Vec::new());
+            game.world
+                .chunks
+                .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+            // The block below, the block on top of it, and whether the top one moves.
+            for ((block, above, pulled), y) in [
+                // No part: vanilla's slime and honey, and nothing else sticks.
+                ("minecraft:slime_block", "minecraft:stone", true),
+                ("minecraft:honey_block", "minecraft:stone", true),
+                ("minecraft:slime_block", "minecraft:honey_block", false),
+                ("minecraft:stone", "minecraft:stone", false),
+                // A sticky part pulls whatever its `can_stick_to` allows: diamond all of it,
+                // gold only gold.
+                ("minecraft:diamond_block", "minecraft:stone", true),
+                ("minecraft:diamond_block", "minecraft:honey_block", true),
+                ("minecraft:gold_block", "minecraft:gold_block", true),
+                ("minecraft:gold_block", "minecraft:stone", false),
+                ("minecraft:gold_block", "minecraft:honey_block", false),
+                // Either side may refuse: honey is held back by gold's rule though it is sticky.
+                ("minecraft:honey_block", "minecraft:gold_block", false),
+                // A slime part is kept apart from honey as slime is.
+                ("minecraft:emerald_block", "minecraft:honey_block", false),
+                ("minecraft:emerald_block", "minecraft:stone", true),
+            ]
+            .into_iter()
+            .zip((8..).step_by(4))
+            {
+                assert_eq!(
+                    piston_pulls_above(game, y, block, above),
+                    pulled,
+                    "{above} on {block}"
+                );
+            }
+        });
+    }
+
+    /// The restitution an entity landing on a block reads is asked of the block's parts in the
+    /// entity's level, on the side that ticks it, with the entity and the block's position; a
+    /// block without a part is not asked, and a non-finite answer is ignored.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_block_part_changes_the_bounce_restitution_an_entity_reads() {
+        use horizon_client::block_contact::{Contact, bounce_restitution};
+        use horizon_core::position::BlockPos;
+
+        let heard = mod_api::__private::part_tests::restitution_game_thread();
+        crate::game::native_hooks::install_block_contact_hooks();
+        with_game(|game| {
+            game.world.chunks.insert(
+                (0, 0),
+                std::sync::Arc::new(horizon_client::chunk::Chunk::empty(0, 0)),
+            );
+            let registry = game.pack.assets.registry;
+            let state = |name: &str| registry.default_state(name).unwrap();
+            let (glass, stone, slime) = (
+                state("minecraft:glass"),
+                state("minecraft:stone"),
+                state("minecraft:slime_block"),
+            );
+            let pos = BlockPos::new(3, 64, 5);
+            let mut read = |block, own, client_side| {
+                game.world.set(pos.x, pos.y, pos.z, block).unwrap();
+                let contact = Contact {
+                    entity: 7,
+                    kind: "minecraft:pig",
+                    state: block,
+                    position: pos,
+                };
+                let level = horizon_client::health::DamageLevel::of(
+                    &mut game.world,
+                    registry,
+                    None,
+                    Some(&game.pack.block_registries),
+                    &game.damage_hooks,
+                );
+                bounce_restitution(&mut level.on_client(client_side), contact, own)
+            };
+            // Glass's part answers whatever the block's own value: 0.5 on a server, 0.25 on a
+            // client predicting its own bounce.
+            assert_eq!(read(glass, 0.0, false), 0.5);
+            assert_eq!(read(glass, 1.0, true), 0.25);
+            // A block with no part keeps its own: slime bounces fully.
+            assert_eq!(read(slime, 1.0, false), 1.0);
+            // Stone's part answers not a number, which is ignored.
+            assert_eq!(read(stone, 0.0, false), 0.0);
+            let pig = |client| (client, 7, "minecraft:pig".to_owned(), pos, true);
+            assert_eq!(*heard.lock().unwrap(), [pig(false), pig(true)]);
+        });
+    }
+
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn block_part_connects_wire_in_a_real_game_level() {
