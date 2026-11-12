@@ -155,6 +155,17 @@ fn chest_items(root: &NamedTag, pos: [i32; 3]) -> Option<usize> {
     })?;
     match entity.get("Items") {
         Some(Tag::ByteArray(bytes)) => Some(bytes.len()),
+        Some(Tag::List(_)) => {
+            let (_, chest) = crate::save::decode_block_entity(entity).expect("chest");
+            Some(
+                chest
+                    .slots()
+                    .iter()
+                    .flatten()
+                    .map(|item| item.count as usize)
+                    .sum(),
+            )
+        }
         _ => Some(0),
     }
 }
@@ -536,7 +547,13 @@ fn a_disassembly_places_its_after_image_with_the_entity() {
             after: CellImage {
                 name: "minecraft:chest".to_string(),
                 properties: vec![("facing".to_string(), "north".to_string())],
-                entity: Some(Tag::compound([("Items", Tag::ByteArray(vec![5, 5, 5]))])),
+                entity: Some(
+                    horizon_core::nbt::parse_snbt(
+                        r#"{id:"minecraft:chest",x:4,y:0,z:4,Items:[{Slot:3b,id:"minecraft:diamond",count:7}]}"#,
+                    )
+                    .unwrap()
+                    .0,
+                ),
             },
         }],
     };
@@ -556,7 +573,7 @@ fn a_disassembly_places_its_after_image_with_the_entity() {
         "minecraft:chest"
     );
     // One owner: the chunk holds the items, and only the chunk.
-    assert_eq!(chest_items(&root, target), Some(3));
+    assert_eq!(chest_items(&root, target), Some(7));
 }
 
 #[test]
