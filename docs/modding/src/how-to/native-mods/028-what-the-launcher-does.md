@@ -28,6 +28,9 @@ The build has one route:
 5. Link the native executable, install it as `native-<commit>-<key>`, and select it for the instance.
    `native-mods.json` records the base, pins, mods and build tools. Client builds share their base's
    prepared resources; server exports include their resources.
+   On Windows x64 the launcher also places the two GNU runtime libraries of its managed toolchain
+   (`libgcc_s_seh-1.dll` and `libwinpthread-1.dll`) beside the executable, so it starts without a
+   separate compiler installation.
 
 A matching installed build is reused. A failed build stops with its diagnostic; it never compiles
 the game as a fallback. The build log is `native/build.log`. The Mods page shows the running step
