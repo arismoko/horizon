@@ -2077,6 +2077,11 @@ impl Mob {
         }
     }
 }
+impl crate::entity_rules::EntityRules for Mob {
+    fn is_no_gravity(&self) -> bool {
+        self.no_gravity
+    }
+}
 /// LivingEntity.getFluidFallingAdjustedMovement.
 fn fluid_falling(gravity: f64, falling: bool, sprinting: bool, m: Vec3) -> Vec3 {
     if gravity != 0.0 && !sprinting {

@@ -4,7 +4,9 @@
 //! kinds whose flag has one value between ticks; an item recomputes its own
 //! inside its tick, so it reads None, as do the other kinds, a stale handle
 //! and a client. The write is refused for the three kinds whose own tick
-//! rewrites the flag.
+//! rewrites the flag; the ender dragon, an area-effect cloud, an ominous item
+//! spawner and a shulker bullet take it, starting from the true value their
+//! constructors set.
 use super::{Game, commands::Target};
 use horizon_client::mobs::Species;
 use horizon_client::projectiles::ProjectileKind;
@@ -17,25 +19,31 @@ impl Game<'_> {
     /// arrow's or a trident's is its `AbstractArrow.noPhysics`, set once a
     /// loyal trident turns back. The ender dragon, an area-effect cloud, an
     /// ominous item spawner and a shulker bullet set it in their constructors
-    /// and never clear it. An armor stand's is recomputed on load, so it keeps
-    /// a written value only until then; a kind Horizon does not simulate keeps
-    /// it in its saved compound.
+    /// and never clear it, so theirs is the value a mod wrote, or that
+    /// constructor default (`true`) until then. An armor stand's is recomputed
+    /// on load, so it keeps a written value only until then; a kind Horizon
+    /// does not simulate keeps it in its saved compound.
     pub(super) fn entity_no_physics(&self, entity: EntityRef) -> Option<bool> {
         match self.native_entity_target(entity)? {
             Target::Player => Some(self.player.as_ref()?.spectator),
             Target::Guest(conn) => Some(self.command_guest(conn)?.motion.as_deref()?.spectator),
             Target::Mob(id) => Some(self.mobs.iter().find(|m| m.id == id)?.no_physics),
-            Target::Dragon(_) | Target::Cloud(_) | Target::Spawner(_) => Some(true),
+            Target::Dragon(id) | Target::Cloud(id) | Target::Spawner(id) => {
+                Some(self.stored_no_physics(id))
+            }
             Target::Projectile(id) => {
                 let p = self.creatures.projectiles.iter().find(|p| p.id == id)?;
                 match (&p.kind, &p.arrow) {
-                    (ProjectileKind::ShulkerBullet { .. }, _) => Some(true),
+                    (ProjectileKind::ShulkerBullet { .. }, _) => Some(self.stored_no_physics(id)),
                     (_, Some(arrow)) => Some(arrow.no_physics),
                     _ => None,
                 }
             }
             Target::Trident(id) => Some(self.tridents.iter().find(|t| t.id == id)?.no_physics),
-            Target::Stand(id) => Some(self.armor_stands.iter().find(|s| s.id == id)?.no_physics),
+            Target::Stand(id) => {
+                let stand = self.armor_stands.iter().find(|s| s.id == id)?;
+                Some(stand.no_physics.unwrap_or(stand.marker || stand.no_gravity))
+            }
             Target::Other(id) => Some(
                 self.persist
                     .raw
@@ -46,13 +54,22 @@ impl Game<'_> {
         }
     }
 
+    /// `Entity.noPhysics` for a kind that keeps no field of its own: the value
+    /// a mod wrote, or the kind's constructor default (`true` for the dragon,
+    /// an area-effect cloud, an ominous item spawner and a shulker bullet).
+    fn stored_no_physics(&self, id: u32) -> bool {
+        self.persist.no_physics.get(&id).copied().unwrap_or(true)
+    }
+
     /// `Entity.noPhysics` for a native server mod: the value
     /// `entity_no_physics` reads. Server-only; a player, an item entity and a
     /// vex rewrite the flag every tick (`Player.tick`, `ItemEntity.tick`,
     /// `Vex.tick`), so they are refused by kind, and so is a client's write.
     /// An arrow's or a trident's write carries the synced flag clients read.
     /// An armor stand recomputes the flag on load, so its write is not
-    /// persisted; an unsimulated kind keeps it in its saved compound.
+    /// persisted; an unsimulated kind keeps it in its saved compound. The
+    /// dragon, an area-effect cloud, an ominous item spawner and a shulker
+    /// bullet take the write, which replaces their constructor's `true`.
     pub(super) fn entity_set_no_physics(&mut self, entity: EntityRef, no_physics: bool) -> bool {
         if !self.is_logical_server() {
             return false;
@@ -68,10 +85,21 @@ impl Game<'_> {
                 mob.no_physics = no_physics;
                 true
             }
+            Some(Target::Dragon(id) | Target::Cloud(id) | Target::Spawner(id)) => {
+                self.persist.no_physics.insert(id, no_physics);
+                true
+            }
             Some(Target::Projectile(id)) => {
                 let Some(index) = self.creatures.projectiles.iter().position(|p| p.id == id) else {
                     return false;
                 };
+                if matches!(
+                    self.creatures.projectiles[index].kind,
+                    ProjectileKind::ShulkerBullet { .. }
+                ) {
+                    self.persist.no_physics.insert(id, no_physics);
+                    return true;
+                }
                 self.creatures
                     .projectiles
                     .update(index, |p| p.set_no_physics(no_physics))
@@ -89,7 +117,7 @@ impl Game<'_> {
                 .iter_mut()
                 .find(|s| s.id == id)
                 .is_some_and(|s| {
-                    s.no_physics = no_physics;
+                    s.no_physics = Some(no_physics);
                     true
                 }),
             Some(Target::Other(id)) => {
@@ -217,10 +245,11 @@ mod tests {
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-    fn no_physics_write_holds_for_a_marker_and_refuses_the_three_kinds() {
+    fn no_physics_write_holds_and_covers_the_four_constant_kinds() {
         use super::super::native_entity_refs::tests::with_game;
         use super::super::trident::ThrownTrident;
         use crate::game::commands::OtherEntity;
+        use crate::game::entity::Entity as _;
         use horizon_client::entities::ArmorStand;
         use horizon_client::items::ItemStack;
         use horizon_client::mobs::Mob;
@@ -347,9 +376,41 @@ mod tests {
             );
             let loaded = horizon_client::entity_nbt::armor_stand_from_nbt(&saved, 44).unwrap();
             assert!(
-                !loaded.no_physics,
+                !loaded.no_physics(),
                 "a stand recomputes the flag on load"
             );
+
+            // A shulker bullet and the dragon read a constant `true` before;
+            // now their write lands and the read answers it.
+            let mut bullet = Projectile::new(
+                ProjectileKind::ShulkerBullet {
+                    target: None,
+                    dir: None,
+                    steps: 0,
+                    delta: [0.0; 3],
+                    seed: 0,
+                },
+                Vec3::ZERO,
+                None,
+            );
+            bullet.id = game.take_entity_id();
+            let bullet_id = bullet.id;
+            game.creatures.projectiles.push(bullet);
+            let bullet = game.entity(bullet_id).unwrap();
+            assert_eq!(bullet.no_physics(game), Some(true));
+            assert!(bullet.set_no_physics(game, false));
+            assert_eq!(bullet.no_physics(game), Some(false));
+            assert!(bullet.set_no_physics(game, true));
+            assert_eq!(bullet.no_physics(game), Some(true));
+
+            let mut dragon = super::super::dragon::Dragon::new(Vec3::ZERO, 0.0, 0);
+            dragon.id = game.take_entity_id();
+            let dragon_id = dragon.id;
+            game.dragon.replace(dragon);
+            let dragon = game.entity(dragon_id).unwrap();
+            assert_eq!(dragon.no_physics(game), Some(true));
+            assert!(dragon.set_no_physics(game, false));
+            assert_eq!(dragon.no_physics(game), Some(false));
         });
     }
 

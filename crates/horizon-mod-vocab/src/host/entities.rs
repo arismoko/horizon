@@ -880,7 +880,9 @@ pub trait EntitiesBackendMut {
     /// write also updates the synced flag clients read. An armor stand
     /// recomputes the flag on load (`ArmorStand.readAdditionalSaveData`:
     /// `noPhysics = !hasPhysics()`), so its write is not persisted: it lasts
-    /// only until the stand is saved and loaded again. An entity Horizon keeps
+    /// only until the stand is saved and loaded again. The ender dragon, an
+    /// area-effect cloud, an ominous item spawner and a shulker bullet take it
+    /// too, from the `true` their constructors set. An entity Horizon keeps
     /// unsimulated keeps the flag in its saved compound. False for those three
     /// kinds, a kind with no writable flag, a stale handle, or on a client.
     #[access(WorldOnly)]

@@ -1621,11 +1621,6 @@ pub struct Mob {
     /// `dims` uses it while it holds.
     pub size_answer: Option<crate::pose::SizeAnswer>,
 }
-impl crate::entity_rules::EntityRules for Mob {
-    fn is_no_gravity(&self) -> bool {
-        self.no_gravity
-    }
-}
 /// A mannequin's `description` and `hide_description` (`Mannequin.updateDescription`):
 /// the default `entity.minecraft.mannequin.label`, none at all, or a component.
 #[derive(Clone, Debug, Default, PartialEq)]

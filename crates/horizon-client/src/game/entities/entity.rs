@@ -2149,10 +2149,10 @@ impl Entity for ArmorStand {
     fn pushed_by_explosion(&self) -> bool {
         false
     }
-    /// `Entity.noPhysics`: worth its own field beside `Marker` and `NoGravity`,
-    /// which it is recomputed from on load, because a mod may write it.
+    /// `Entity.noPhysics`: `Marker` or `NoGravity` unless a mod wrote it,
+    /// recomputed from them on load because `readAdditionalSaveData` does.
     fn no_physics(&self) -> bool {
-        self.no_physics
+        self.no_physics.unwrap_or(self.marker || self.no_gravity)
     }
     /// `ArmorStand.getPistonPushReaction`: a marker is ignored.
     fn get_piston_push_reaction(&self) -> PushReaction {
