@@ -169,18 +169,18 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
 /// `MapId.CODEC`: compare the borrowed boxed-number value or the modelled id.
 fn map_id(stack: &ItemStack) -> Option<i32> {
     let data = stack.data()?;
-    match data.other("minecraft:map_id") {
-        Some(value) => crate::properties::component_int(value),
-        None => data.map_id,
-    }
+    data.map_id.or_else(|| {
+        data.other("minecraft:map_id")
+            .and_then(crate::properties::component_int)
+    })
 }
 
 fn dyed_color(stack: &ItemStack) -> Option<i32> {
     let data = stack.data()?;
-    match data.other("minecraft:dyed_color") {
-        Some(raw) => horizon_core::color::rgb_color_from_tag(raw),
-        None => data.dyed_color,
-    }
+    data.dyed_color.or_else(|| {
+        data.other("minecraft:dyed_color")
+            .and_then(horizon_core::color::rgb_color_from_tag)
+    })
 }
 
 /// Exact stored-value comparison, including the fields removed from `other` by decoding.
@@ -338,13 +338,13 @@ fn rarity(stack: &ItemStack) -> Option<u8> {
     }
 }
 
-/// `OminousBottleAmplifier.CODEC`: borrow the effective raw override or modelled value.
+/// `OminousBottleAmplifier.CODEC`: borrow the modelled value, falling back to retained raw data.
 fn ominous_amplifier(stack: &ItemStack) -> Option<i32> {
     let data = stack.data()?;
-    let value = match data.other("minecraft:ominous_bottle_amplifier") {
-        Some(raw) => crate::properties::component_int(raw)?,
-        None => i32::from(data.ominous_amplifier?),
-    };
+    let value = data.ominous_amplifier.map(i32::from).or_else(|| {
+        data.other("minecraft:ominous_bottle_amplifier")
+            .and_then(crate::properties::component_int)
+    })?;
     (0..=4).contains(&value).then_some(value)
 }
 /// `Identifier.bySeparator`/`equals`: default namespaces, borrowing Java UTF-16.
@@ -422,6 +422,36 @@ fn text_value(tag: &Tag) -> &Tag {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn modelled_component_precedence_survives_round_trip() {
+        for id in [
+            "minecraft:map_id",
+            "minecraft:dyed_color",
+            "minecraft:ominous_bottle_amplifier",
+        ] {
+            let mut candidate = ItemStack::new("minecraft:stone", 1);
+            candidate
+                .data_mut()
+                .set_loot_component(id, &Some(Tag::Int(3)));
+            match id {
+                "minecraft:map_id" => candidate.data_mut().map_id = Some(4),
+                "minecraft:dyed_color" => candidate.data_mut().dyed_color = Some(4),
+                _ => candidate.data_mut().ominous_amplifier = Some(4),
+            }
+            assert_eq!(candidate.data().unwrap().other(id), Some(&Tag::Int(3)));
+            let mut expected = ItemStack::new("minecraft:stone", 1);
+            expected
+                .data_mut()
+                .set_loot_component(id, &Some(Tag::Int(4)));
+            assert!(component_equal(id, &candidate, &expected), "{id}");
+            let encoded = crate::item_data::components_tag(candidate.damage, candidate.data());
+            let mut restored = ItemStack::new("minecraft:stone", 1);
+            (restored.damage, restored.extra) =
+                crate::item_data::decode_components(encoded.as_ref());
+            assert!(component_equal(id, &restored, &expected), "{id}");
+        }
+    }
+
     #[test]
     fn intangible_projectile_equality_borrows_unit_maps() {
         let id = "minecraft:intangible_projectile";
