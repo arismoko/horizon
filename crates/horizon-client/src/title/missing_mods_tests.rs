@@ -15,6 +15,31 @@ fn gone() -> MissingMod {
     }
 }
 
+#[test]
+fn entries_preserve_affected_kinds_and_known_or_unknown_versions() {
+    crate::lang::scoped(crate::lang::Language::load(&[], "en_us"), || {
+        assert_eq!(entry(&gone()), "gone, version 1.0.0 (code mod, its blocks)");
+        assert_eq!(
+            entry(&MissingMod {
+                code: false,
+                blocks: false,
+                ..gone()
+            }),
+            "gone, version 1.0.0"
+        );
+        assert_eq!(
+            entry(&MissingMod {
+                saved_version: String::new(),
+                code: false,
+                content: true,
+                blocks: false,
+                ..gone()
+            }),
+            "gone, version unknown (content mod)"
+        );
+    });
+}
+
 /// Every file under `dir`, by its path relative to `dir`, with its bytes.
 fn files(dir: &Path) -> BTreeMap<String, Vec<u8>> {
     fn walk(root: &Path, dir: &Path, out: &mut BTreeMap<String, Vec<u8>>) {

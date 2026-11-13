@@ -470,6 +470,12 @@ pub fn describe(m: &MissingMod) -> String {
     } else {
         m.saved_version.clone()
     };
+    let kinds = affected_kinds(m);
+    crate::lang::tr("horizon.missing_mods.mod", &[&m.id, &version, &kinds])
+}
+
+/// The translated kinds of saved mod state affected by opening without this mod.
+pub fn affected_kinds(m: &MissingMod) -> String {
     let kinds: Vec<String> = [
         (m.code, "horizon.missing_mods.kind.code"),
         (m.content, "horizon.missing_mods.kind.content"),
@@ -479,10 +485,7 @@ pub fn describe(m: &MissingMod) -> String {
     .filter(|(on, _)| *on)
     .map(|(_, key)| crate::lang::get(key))
     .collect();
-    crate::lang::tr(
-        "horizon.missing_mods.mod",
-        &[&m.id, &version, &kinds.join(", ")],
-    )
+    kinds.join(", ")
 }
 
 /// The command-line flag that lets a dedicated server open a world with missing mods.

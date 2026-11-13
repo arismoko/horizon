@@ -12,10 +12,16 @@ mod tests;
 
 /// The same player-facing entry for visible text and narration.
 fn entry(m: &MissingMod) -> String {
-    if m.saved_version.is_empty() {
+    let label = if m.saved_version.is_empty() {
         lang::tr("horizon.missing_mods.entry_unknown", &[&m.id])
     } else {
         lang::tr("horizon.missing_mods.entry", &[&m.id, &m.saved_version])
+    };
+    let kinds = level_mods::affected_kinds(m);
+    if kinds.is_empty() {
+        label
+    } else {
+        lang::tr("horizon.missing_mods.entry_kinds", &[&label, &kinds])
     }
 }
 
@@ -63,7 +69,7 @@ impl Title {
         }
         self.scroll_worlds(delta, cursor, size);
     }
-    fn drag_missing_mods(&mut self, cursor: (f32, f32), size: (f32, f32)) -> bool {
+    pub(super) fn drag_missing_mods(&mut self, cursor: (f32, f32), size: (f32, f32)) -> bool {
         if !matches!(self.mode, Mode::MissingMods { .. }) {
             return false;
         }
@@ -73,7 +79,7 @@ impl Title {
         self.scroll.set(scroll);
         true
     }
-    fn wheel_missing_mods(&mut self, delta: f32, size: (f32, f32)) -> bool {
+    pub(super) fn wheel_missing_mods(&mut self, delta: f32, size: (f32, f32)) -> bool {
         if !matches!(self.mode, Mode::MissingMods { .. }) {
             return false;
         }
@@ -89,7 +95,7 @@ impl Title {
         self.scroll.set(scroll);
         true
     }
-    fn press_missing_mods(&mut self, cursor: (f32, f32), size: (f32, f32)) -> Action {
+    pub(super) fn press_missing_mods(&mut self, cursor: (f32, f32), size: (f32, f32)) -> Action {
         let (top, bottom, _) = layout(size.0, size.1);
         self.scroll.get_mut().press(
             cursor,
@@ -100,7 +106,7 @@ impl Title {
         );
         Action::None
     }
-    fn confirm_missing_mods(&mut self) -> Option<(Action, bool)> {
+    pub(super) fn confirm_missing_mods(&mut self) -> Option<(Action, bool)> {
         let Mode::MissingMods { world, .. } = &self.mode else {
             return None;
         };
