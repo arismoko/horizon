@@ -1280,7 +1280,7 @@ impl Game<'_> {
         self.adv.last_inventory = key;
         // Native mods hear the change before any criterion is looked at, so
         // they do with no `inventory_changed` advancement in the tree too
-        // (`native_player_inventory_changed`, API @API:player_inventory_changed@).
+        // (`native_player_inventory_changed`, API 579).
         if self.remote.is_none()
             && !self.no_player_here()
             && mod_api::__private::listened(mod_api::HookId::PlayerInventoryChanged)

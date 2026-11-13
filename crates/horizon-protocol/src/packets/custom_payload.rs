@@ -79,7 +79,8 @@ fn uses_registered_payload_codec(channel: &str, play: bool, clientbound: bool) -
         crate::attachment_sync::CHANNEL
         | crate::anvil_cost::CHANNEL
         | crate::passage_sync::CHANNEL
-        | "horizon:recipe_content" => play && clientbound,
+        | "horizon:recipe_content"
+        | "horizon:selector_tokens" => play && clientbound,
         // Configuration both ways (the capability), play clientbound only.
         crate::menu_extra::CHANNEL => !play || clientbound,
         "horizon:recipe_transfer" => play,

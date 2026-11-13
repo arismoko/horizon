@@ -92,7 +92,7 @@ game_hash=$(sha256sum "$(game_library)" | cut -d' ' -f1)
 env_vars=(HORIZON_HOME="$scratch/home" HORIZON_LAUNCHER_HOME="$data" XDG_DATA_HOME="$scratch/data"
   XDG_CONFIG_HOME="$scratch/config" HORIZON_LAUNCHER_NO_SELF_UPDATE=1 HORIZON_NO_AUDIO=1
   HORIZON_LAUNCHER_TRASH="$scratch/trash" HORIZON_LAUNCHER_CLIPBOARD="$scratch/clipboard"
-  HORIZON_LAUNCHER_DESKTOP="$scratch/desktop")
+  HORIZON_LAUNCHER_DESKTOP="$scratch/desktop" HORIZON_NATIVE_CARGO_TIMINGS=1)
 started=$(date +%s.%N)
 output_args=()
 if [ -n "${FNR_MIXINS_FROM_SOURCE:-}" ]; then
@@ -130,6 +130,23 @@ log=$data/native/build.log
 # Where the build's time went: each command's time and the whole prebuilt compile.
 grep -E ': [0-9]+ ms$|^Mods compiled against the prebuilt game in ' "$log" || true
 echo "Runner load: $(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null) on $(nproc 2>/dev/null) CPUs"
+# What the kept build folders weigh on the Storage page's Build files row.
+for kept in "$data"/native/prebuilt-build/*-*/; do
+  [ -d "$kept" ] && echo "Kept build folder $(basename "$kept"): $(du -sk "$kept" | cut -f1) kB"
+done
+# The registry route's one cargo command, split by crate (cargo's own timings), longest first.
+timings=$(find "$data/native" -path '*cargo-timings/cargo-timing.html' 2>/dev/null | head -1)
+if [ -n "$timings" ]; then
+  python3 - "$timings" <<'PY'
+import json, re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+match = re.search(r"UNIT_DATA = (\[.*?\]);", text, re.S)
+units = json.loads(match.group(1)) if match else []
+for unit in sorted(units, key=lambda u: -u.get("duration", 0)):
+    label = f"{unit['name']}{unit.get('target', '')}".replace('"', "")
+    print(f"cargo unit {label}: {round(unit.get('duration', 0) * 1000)} ms")
+PY
+fi
 # Only a `[[native.*]]` row patches a function; a mod of hooks alone must not say it did.
 if grep -qs '^\[\[native\.' "$mods"/*/horizon-mod.toml; then
   grep -F 'Function replacement:' "$log"

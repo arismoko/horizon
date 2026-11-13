@@ -100,6 +100,24 @@ pub fn command_argument_types() -> Vec<(String, std::sync::Arc<dyn crate::Comman
         .collect()
 }
 
+/// The selector tokens mods registered at startup, by name, for the game's command
+/// registries. Not part of the mod surface.
+pub fn entity_selector_types() -> impl Iterator<Item = (&'static str, &'static crate::SelectorBase)>
+{
+    crate::parts::installed_entity_selectors()
+        .iter()
+        .map(|info| (info.name.as_ref(), &info.base))
+}
+
+/// Resolve an installed selector's handler by reference, without allocating or cloning a resource.
+pub fn entity_selector_type(name: &str) -> Option<&'static dyn crate::EntitySelectorType> {
+    let selectors = crate::parts::installed_entity_selectors();
+    selectors
+        .binary_search_by(|info| info.name.as_ref().cmp(name))
+        .ok()
+        .map(|index| selectors[index].selector.as_ref())
+}
+
 /// The startup package inventory at an owning engine load boundary.
 pub fn loaded_mods() -> LoadedMods {
     LoadedMods::new()

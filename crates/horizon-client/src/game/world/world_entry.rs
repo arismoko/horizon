@@ -607,7 +607,11 @@ impl Game<'_> {
                             return;
                         }
                     };
-                    loot.apply_native_table_loads(&context);
+                    if let Err(error) = loot.apply_native_table_loads(&context) {
+                        log::warn!("Horizon: native loot tables refused: {error}");
+                        self.server_loot.set(None);
+                        return;
+                    }
                     Some(Arc::new(loot))
                 }
                 Err(e) => {

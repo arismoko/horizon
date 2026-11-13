@@ -519,8 +519,8 @@ For mods that run where the world is simulated: a dedicated server, a LAN host, 
   key, value, flags)`; set `handled` to skip the block's own random tick.
 - **`tick_block(ticks, dimension, pos, state, handled)`** (on `GameLevel`): a due scheduled tick of a block
   that is still there (`ServerLevel.tickBlock`), before its own `tick`; the same contract as `random_tick`.
-- **`explosion_detonate(dimension, center, blocks)`**: the positions an explosion is about to break,
-  before any is hit; take out the ones to spare. Entity damage is unchanged.
+- **`explosion_detonate(dimension, center, blocks, entities)`**: the positions an explosion is about to
+  break and the entities in its box, before any is hit; take out the ones to spare (not hurt, not pushed).
 - **`explosion_knockback(dimension, center, blocks, entity, knockback_velocity)`**: a server explosion's
   calculated velocity, before it is added to the entity. Replace `knockback_velocity` to change the push;
   `entity` is None for a player, whom `host.players().acting_player` names. The player packet uses the same replacement. Wind bursts are heard too.

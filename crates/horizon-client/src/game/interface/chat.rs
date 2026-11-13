@@ -763,25 +763,6 @@ impl Game<'_> {
         self.ui.registries.permission = level;
         out
     }
-    /// Active enchantment registry snapshot for command codecs and completions.
-    /// Replace both ID views; keep the existing registry tags intact.
-    pub(super) fn sync_enchantment_registries(&mut self) {
-        let mut ids: Vec<String> = self
-            .active_enchantment_definitions()
-            .list
-            .iter()
-            .map(|entry| entry.id.to_string())
-            .collect();
-        ids.sort();
-        ids.dedup();
-        self.ui.registries.enchantments = ids.clone();
-        self.ui
-            .registries
-            .by_registry
-            .entry("minecraft:enchantment".into())
-            .or_default()
-            .ids = ids;
-    }
     /// `ResourceOrIdArgument`'s loot tables are the server's: every table the
     /// world plays with, the game's, the content mods' and its packs'.
     pub(in crate::game) fn sync_loot_table_ids(&mut self) {
@@ -933,6 +914,9 @@ impl Game<'_> {
             .map(|(k, _)| k.clone())
             .collect();
         self.sync_enchantment_registries();
+        if self.remote.is_none() {
+            self.ui.registries.selector_tokens = super::native_entity_selectors::selector_tokens();
+        }
         // After the export, which keys the registry with vanilla's tags.
         self.sync_stat_registries();
     }

@@ -86,4 +86,43 @@ Reads accept `Host`; writes accept `ServerHost`.
 
 A second disconnect on a guest already leaving is a no-op and keeps the first reason.
 
+## Text conversions
+
+`host.text_from_json(json)` reads one JSON or SNBT component the way `/tellraw`
+does and returns `Result<Option<Text>, TextFormError>`: `Ok(None)` when it does
+not parse as a single component, `Err` when the text is over the size or
+nesting limits. An object needs one content key (`text`, `translate`, `keybind`,
+`score`, `selector`, `nbt` with a source, or an inline object); a `type`
+binds alone and the other content keys are ignored, a null `type` counts as
+absent. `text` must be a string, `extra` a non-empty list (null counts as
+absent), `selector` a selector and `nbt` an NBT path that parse, and a style
+field that is present and wrong (`color`, `shadow_color`, the format flags,
+`click_event`, `hover_event`, `insertion`, `font`) refuses the whole component.
+A translation's `fallback` and an `nbt` component's `interpret`, `plain` and
+`separator` of the wrong kind are dropped instead. An object whose only content
+key is `index` is refused, as in vanilla; Horizon follows vanilla there. JSON
+escapes such as `\u0041` are decoded.
+
+`host.text_from_legacy("§cRed")` reads `§` formatting codes as
+the font draws them; `&` codes are not read, so replace `&` with `§` first.
+Both work on either side.
+
+## Server clock, rules and distances
+
+`level.set_clock_time(host, ticks)` does what `/time set` does in that level's
+default clock; `time_skip` fires with cause `mod` and a mod can keep the old
+time. `level.set_game_rule(host, "keep_inventory", GameRuleValue::Bool(true))`
+does what `/gamerule` does and fires `game_rule_changed` with no actor. Both
+return `false` for a stale handle, a client, or a value the rule refuses.
+
+On a server, `host.tick_times()` returns the last 100 tick durations in
+nanoseconds (the tick numbered `n` at index `n % 100`; `tick_stats()` has the
+average). `host.server_view_distance()` and `host.server_simulation_distance()`
+read the distances in chunks; `host.server_set_view_distance(d)` and
+`host.server_set_simulation_distance(d)` change them live for 2 to 32 on a
+dedicated server and return `false` otherwise. `server.properties` is not
+written.
+
+## Player movement vetoes
+
 Vetoing a player's movement: the `player_move` hook hears each validated movement report whose position or rotation differs from the last validated connection report, after the server's own checks and before the report is committed, with the exact `from`, `to` and both rotations. Set `cancel` and the report is not applied; the client is sent back to the accepted position and rotation. The veto adds no anticheat violation of its own, but the report was already seen by the server's own checks and by the anticheat's record of the client's ticks before the hook, so what a violation of those would have done still happens. The engine applies no threshold, so a mod that wants to ignore small moves compares the two positions itself (`(to - from).length() < 1.0 / 16.0` skips anything under 1/16 of a block). A held report is ruled on in the same tick; that player's later packets (further reports, the end of the client tick, pongs) wait in order behind it and are read from the next tick on. A report is out of time at its 21st tick, counting the tick it was held at as the first: it is dropped with the correction, never committed, even when a ruling arrives after that; a disconnect, teleport or level change drops it cleanly. Not heard: the first tick in a level (the tick after a join or a level change; the second is heard), a player riding something (`vehicle_moved` hears the vehicle) and any teleport: its confirmation is validated and committed without the hook, and so is the veto's own correction. Passage crossings are not heard. A wasm fault or epoch timeout answers nothing, not a veto: the report commits if no other listener vetoes. The pending deadline applies across ticks only; a non-returning native listener is out of scope and blocks the game thread. With no listener nothing is held or copied; with one, the cost is a held report for each moving player a tick.

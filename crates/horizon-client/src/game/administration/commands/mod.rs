@@ -656,7 +656,7 @@ impl Game<'_> {
                     candidates.extend(self.level_candidates());
                 }
             }
-            out.extend(self.select_in_level(candidates, s, origin));
+            out.extend(self.native_selector_kept(s, candidates, origin));
             if let Some(back) = back {
                 self.enter_command_level(back);
             }
@@ -690,7 +690,7 @@ impl Game<'_> {
     }
     /// The candidates of the level in place that pass the selector
     /// (EntitySelector.getPredicate).
-    fn select_in_level(
+    pub(super) fn select_in_level(
         &mut self,
         candidates: Vec<Target>,
         s: &Selector,
@@ -1521,7 +1521,7 @@ impl Game<'_> {
                 // there at once: the arrival they were waiting for elsewhere
                 // in it (whose chunks lose their tickets) is abandoned.
                 if let Some(conn) = self.lan_acting {
-                    self.server_trips.retain(|trip| !trip.is(conn));
+                    self.hold_for_chunks(conn, v);
                 }
                 let from = self
                     .player

@@ -948,6 +948,25 @@ pub trait LevelsBackendMut {
         pitch: f32,
     ) -> bool;
     /// Side: server.
+    /// Sets the time of the level's own clock (its dimension type's `default_clock`, the one
+    /// `level_clock_time` reads) to `time` ticks, as `/time set <time>` run in that level does:
+    /// `time_skip` (cause `mod`) fires first and a mod can keep the old time, and the clock's
+    /// fraction of a tick restarts. Players see the new time with the next time sync. A time
+    /// the clock already shows is true and changes nothing. False for a negative time, a level
+    /// without a default clock, a stale handle, a client, and when a mod kept the old time.
+    #[access(WorldOnly)]
+    fn level_set_clock_time(&mut self, level: LevelRef, time: i64) -> bool;
+    /// Side: server.
+    /// Sets game rule `rule` (`minecraft:keep_inventory` or `keep_inventory`) to `value`, as
+    /// `/gamerule <rule> <value>` does (`GameRules.set` and `MinecraftServer.onGameRuleChanged`):
+    /// the world follows it (`advance_time` freezes the clocks), `game_rule_changed` fires with
+    /// no actor, and the players' clients get the rules they show. The rules are the world's,
+    /// so any open level's handle sets them. True also when the rule already had the value.
+    /// False for an unknown rule, a value of the other kind or outside the rule's range, a
+    /// stale handle and a client.
+    #[access(WorldOnly)]
+    fn level_set_game_rule(&mut self, level: LevelRef, rule: &str, value: GameRuleValue) -> bool;
+    /// Side: server.
     /// Repaint map `id` with `colors` (128 by 128 colour ids, row by row), pixel by pixel as
     /// `MapItemSavedData.setColor` does: each changed pixel marks the map to save, to redraw and
     /// to send to the players carrying or framing it. True when a pixel changed. False for

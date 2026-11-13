@@ -226,26 +226,8 @@ fn empty_ingredient_recipes_retain_predicates_but_not_placement() {
 }
 
 #[test]
-#[ignore = "isolated logger fixture; run this selector alone"]
 fn empty_ingredient_load_diagnostics_distinguish_errors_and_warnings() {
-    struct Capture(std::sync::Mutex<Vec<(log::Level, String)>>);
-    impl log::Log for Capture {
-        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-            true
-        }
-        fn log(&self, record: &log::Record<'_>) {
-            if record.target().contains("::crafting") {
-                self.0
-                    .lock()
-                    .unwrap()
-                    .push((record.level(), record.args().to_string()));
-            }
-        }
-        fn flush(&self) {}
-    }
-    static LOG: Capture = Capture(std::sync::Mutex::new(Vec::new()));
-    log::set_logger(&LOG).unwrap();
-    log::set_max_level(log::LevelFilter::Warn);
+    crate::test_log::install();
     use crate::crafting::Recipes;
     use horizon_world::loot::PackOverlay;
     use serde_json::json;
@@ -262,7 +244,7 @@ fn empty_ingredient_load_diagnostics_distinguish_errors_and_warnings() {
         (json!("#fixture:empty"), log::Level::Warn),
         (json!({"type":"fixture:predicate"}), log::Level::Error),
     ] {
-        LOG.0.lock().unwrap().clear();
+        crate::test_log::clear();
         let recipes = Recipes::from_sources(
             &std::env::temp_dir(),
             &items,
@@ -275,7 +257,7 @@ fn empty_ingredient_load_diagnostics_distinguish_errors_and_warnings() {
             &load,
         )
         .unwrap();
-        let levels = LOG.0.lock().unwrap();
+        let levels = crate::test_log::records();
         assert!(levels.iter().any(|(level, _)| *level == expected));
         if ingredient == json!("#fixture:missing") {
             assert!(
@@ -307,26 +289,8 @@ impl mod_api::Hooks for ListenerIngredient {
 }
 
 #[test]
-#[ignore = "isolated logger fixture; run this selector alone"]
 fn unclaimed_custom_kind_fails_the_file_but_an_empty_answer_only_warns() {
-    struct Capture(std::sync::Mutex<Vec<(log::Level, String)>>);
-    impl log::Log for Capture {
-        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-            true
-        }
-        fn log(&self, record: &log::Record<'_>) {
-            if record.target().contains("::crafting") {
-                self.0
-                    .lock()
-                    .unwrap()
-                    .push((record.level(), record.args().to_string()));
-            }
-        }
-        fn flush(&self) {}
-    }
-    static LOG: Capture = Capture(std::sync::Mutex::new(Vec::new()));
-    log::set_logger(&LOG).unwrap();
-    log::set_max_level(log::LevelFilter::Warn);
+    crate::test_log::install();
     use crate::crafting::Recipes;
     use horizon_world::loot::PackOverlay;
     use serde_json::json;
@@ -346,7 +310,7 @@ fn unclaimed_custom_kind_fails_the_file_but_an_empty_answer_only_warns() {
         )
     };
     let run = |mods: Vec<mod_api::ModEntry>| {
-        LOG.0.lock().unwrap().clear();
+        crate::test_log::clear();
         let mut loaded = None;
         mod_platform::testing::with_mods(mods.into(), || {
             loaded = Some(
@@ -360,7 +324,7 @@ fn unclaimed_custom_kind_fails_the_file_but_an_empty_answer_only_warns() {
                 .unwrap(),
             );
         });
-        let logs = LOG.0.lock().unwrap().clone();
+        let logs = crate::test_log::records();
         (loaded.unwrap(), logs)
     };
     // No listener: the file fails at error level, naming file and kind.

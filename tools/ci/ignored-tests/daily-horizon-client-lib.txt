@@ -12,11 +12,15 @@ horizon-client-lib datapack_net::transport::tests::incompressible_large_registry
 horizon-client-lib lan::hub::tests::requeue_matches_the_scan lib daily slow
 horizon-client-lib lan::viewed_levels::tests::a_viewed_sound_reaches_a_viewer_holding_its_chunk_within_its_distance lib daily network
 horizon-client-lib lan::viewed_levels::tests::with_no_viewer_no_copy_is_built lib daily network
+horizon-client-lib lan::waypoints::tests::moves_by_receiver_match_the_loop lib daily slow
+horizon-client-lib mod_content::tests::registered_conditions_tests::failed_condition_build_removes_generated_staging lib daily resources
+horizon-client-lib mod_content::tests::registered_conditions_tests::registered_conditions_select_content_root_tags_and_structure_modifiers lib daily resources
 horizon-client-lib multiplayer::tests::an_icon_up_to_1024_square_is_kept lib daily slow
 horizon-client-lib net::tests::lan_login_continues_after_authentication_failure lib daily slow
 horizon-client-lib pregen::tests::sweeps_every_chunk_of_the_area_once lib daily slow
 horizon-client-lib save::biome_tests::an_exhausted_biome_table_refuses_every_save_before_touching_the_world lib daily slow
 horizon-client-lib save::tests::saved_light_matches_reference_for_layers_and_metadata lib daily slow
+horizon-client-lib save::writes::saved_portals::tests::saved_portal_blocks_follow_each_save_of_their_chunk lib daily resources
 horizon-client-lib server_perf::tests::sampled::a_sampled_capture_reads_back_with_the_entity_shares_of_the_work lib daily slow
 horizon-client-lib ticket_levels::tests::grid_matches_the_map lib daily slow
 horizon-client-lib ticket_levels::tiled_tests::tiles_match_scalar_levels_with_overlaps_and_portals lib daily slow

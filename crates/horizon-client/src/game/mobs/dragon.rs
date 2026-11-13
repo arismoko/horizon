@@ -4043,8 +4043,8 @@ impl Game<'_> {
         let amount = super::fireworks::blast_damage(damage, from, p);
         self.hurt_dragon(2, amount, true, by, DamageKind::Fireworks);
     }
-    /// `ServerExplosion.hurtEntities`: crystals in reach are removed without
-    /// another blast; explosions always hurt dragons.
+    /// `ServerExplosion.hurtEntities`: crystals in reach are removed without another
+    /// blast; explosions always hurt dragons, except one `explosion_detonate` spared.
     pub(super) fn explosion_hits_special(
         &mut self,
         center: [f64; 3],
@@ -4062,7 +4062,7 @@ impl Game<'_> {
         let crystals: Vec<Vec3> = self
             .crystals
             .iter()
-            .filter(|c| in_reach(c.position))
+            .filter(|c| in_reach(c.position) && self.combat.visits(c.id))
             .map(|c| c.position)
             .collect();
         // The blast's source carries the player who set it off, if any.
@@ -4092,7 +4092,7 @@ impl Game<'_> {
                 self.destroy_crystal(i, by, CrystalDamage::Explosion);
             }
         }
-        let Some(d) = self.dragon.as_ref() else {
+        let Some(d) = self.dragon.as_ref().filter(|d| self.combat.visits(d.id)) else {
             return;
         };
         let hits = d.explosion_hits(center, radius, |b| {

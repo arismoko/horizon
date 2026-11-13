@@ -149,6 +149,8 @@ pub fn start<G>(
     );
     // The log's first line names the build, so a bug report that carries the log says which one it was.
     log::info!("Horizon {}", crash::version());
+    // Mods' startup bars and lines (`RegistrationContext::progress`), before they register.
+    game::startup_progress::install(side == "server");
     // Mod loading emits refusals; both client and dedicated logs must exist first.
     let (_ids, _loaded_code) = load(&native, &launch);
     crash::install(home.clone(), side);

@@ -171,5 +171,6 @@ impl CommandInvocation {
 }
 
 pub(crate) mod command_argument;
+pub(crate) mod entity_selector;
 pub(crate) mod suggestion;
 pub(crate) mod types;
