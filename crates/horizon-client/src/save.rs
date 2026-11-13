@@ -6238,8 +6238,10 @@ mod tests {
             root.clone(),
         ))
         .expect("biomes");
+        // The destination must contain a chest: the fork validates saved block
+        // entity membership before loading, independently of position repair.
         let tag = horizon_core::nbt::parse_snbt(
-            r#"{xPos:0,zPos:0,yPos:-4,Status:"minecraft:full",sections:[],block_entities:[{id:"minecraft:chest",x:37,y:70,z:-3,Items:[]}]}"#,
+            r#"{xPos:0,zPos:0,yPos:-4,Status:"minecraft:full",sections:[{Y:4b,block_states:{palette:[{Name:"minecraft:chest"}]}}],block_entities:[{id:"minecraft:chest",x:37,y:70,z:-3,Items:[]}]}"#,
         )
         .unwrap()
         .0;
