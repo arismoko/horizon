@@ -104,7 +104,12 @@ fn present<'a>(fields: &'a Map<String, Value>, key: &str) -> Option<&'a Value> {
 
 /// `HoverEvent.CODEC`'s three actions; a `show_text` value is itself a component.
 fn hover(event: &Map<String, Value>, reg: &Registries, snbt: bool) -> Option<Value> {
-    let mut out = event.clone();
+    // Recursive component slots are rebuilt below, never cloned before checking.
+    let mut out: Map<String, Value> = event
+        .iter()
+        .filter(|(key, _)| !matches!(key.as_str(), "value" | "name"))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
     match event.get("action")?.as_str()? {
         "show_text" => {
             out.insert("value".into(), build(event.get("value")?, reg, snbt)?);
@@ -113,7 +118,6 @@ fn hover(event: &Map<String, Value>, reg: &Registries, snbt: bool) -> Option<Val
             event.get("id")?.as_str()?;
         }
         "show_entity" => {
-            event.get("id")?.as_str()?;
             mod_api::Identifier::parse(event.get("id")?.as_str()?).ok()?;
             match event.get("uuid")? {
                 Value::String(id) => {
