@@ -36,6 +36,7 @@ fn fit(description: Vec<String>, mods: Vec<Vec<String>>, max: usize) -> Vec<Stri
         lines.extend(mods.into_iter().flatten());
         return lines;
     }
+    lines.truncate(max.saturating_sub(1));
     let mut shown = 0;
     for m in &mods {
         if lines.len() + m.len() + 1 > max {
@@ -88,7 +89,8 @@ impl Title {
             .iter()
             .map(|m| wrapped(atlas, &level_mods::describe(m), width))
             .collect();
-        let lines = fit(description, mods, max_lines(h));
+        let budget = max_lines(h - if w < 324.0 { 24.0 } else { 0.0 });
+        let lines = fit(description, mods, budget);
         self.message_lines.set(lines.len());
         let top = confirm_top(h, lines.len());
         centered(

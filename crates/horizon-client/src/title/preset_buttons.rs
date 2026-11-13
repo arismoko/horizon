@@ -338,32 +338,44 @@ impl Title {
                 ]
             }
             Mode::MissingMods { .. } => {
+                let narrow = w < 324.0;
+                let button_width = if narrow { (w - 20.0).min(300.0) } else { 150.0 };
+                let center = (w - button_width) / 2.0;
                 let y = confirm_top(h, self.message_lines.get())
                     + 41.0
-                    + self.message_lines.get() as f32 * 9.0;
+                    + self.message_lines.get() as f32 * 9.0
+                    - if narrow { 12.0 } else { 0.0 };
                 vec![
                     // Don't Open is the default: first, and what Escape does.
                     b(
-                        (w / 2.0).floor() - 75.0,
+                        center,
                         y,
-                        150.0,
+                        button_width,
                         &lang::get("horizon.missing_mods.dont_open"),
                         true,
                         101,
                     )
                     .does(crate::widgets::Action::Cancel),
                     b(
-                        (w / 2.0).floor() - 152.0,
+                        if narrow {
+                            center
+                        } else {
+                            (w / 2.0).floor() - 152.0
+                        },
                         y + 24.0,
-                        150.0,
+                        button_width,
                         &lang::get("horizon.missing_mods.backup_open"),
                         true,
                         102,
                     ),
                     b(
-                        (w / 2.0).floor() + 2.0,
-                        y + 24.0,
-                        150.0,
+                        if narrow {
+                            center
+                        } else {
+                            (w / 2.0).floor() + 2.0
+                        },
+                        y + if narrow { 48.0 } else { 24.0 },
+                        button_width,
                         &lang::get("horizon.missing_mods.open"),
                         true,
                         103,
