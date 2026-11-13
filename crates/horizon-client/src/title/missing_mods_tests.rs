@@ -291,8 +291,11 @@ fn controller_rows_group_wrapped_mods_and_exclude_the_description() {
     let Mode::MissingMods { missing, .. } = &f.title.mode else {
         unreachable!()
     };
-    f.title
-        .draw_missing_mods(&atlas, &mut batch, (240.0, 480.0), missing);
+    let english = crate::lang::Language::load(&[], "en_us");
+    crate::lang::scoped(english, || {
+        f.title
+            .draw_missing_mods(&atlas, &mut batch, (240.0, 480.0), missing);
+    });
     crate::widgets::end_frame(101);
     let rows: Vec<_> = crate::widgets::last_targets()
         .into_iter()

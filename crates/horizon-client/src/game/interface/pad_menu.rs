@@ -1284,9 +1284,7 @@ impl Game<'_> {
         let target = self.pad_reveal(target);
         self.pad.menu.shortcut_focus = None;
         let left = self.pad.menu.focus.replace(target);
-        if !self.pad.menu.keyboard
-            && let Some(title) = self.title.as_mut()
-        {
+        if let Some(title) = self.title.as_mut() {
             title.missing_mods_pad_focus();
         }
         if left.is_some_and(|l| l.rect != target.rect) {
