@@ -85,3 +85,40 @@ Reads accept `Host`; writes accept `ServerHost`.
 | `sleep_timer(host)` / `set_sleep_timer(host, ticks)` | Reads or writes `Player.sleepCounter`, from 0 to 109; 100 means slept long enough. The write refuses larger values, fake players, guests in another level and stale players. |
 
 A second disconnect on a guest already leaving is a no-op and keeps the first reason.
+
+## Text conversions
+
+`host.text_from_json(json)` reads one JSON or SNBT component the way `/tellraw`
+does and returns `Result<Option<Text>, TextFormError>`: `Ok(None)` when it does
+not parse as a single component, `Err` when the text is over the size or
+nesting limits. An object needs one content key (`text`, `translate`, `keybind`,
+`score`, `selector`, `nbt` with a source, or an inline object); a `type`
+binds alone and the other content keys are ignored, a null `type` counts as
+absent. `text` must be a string, `extra` a non-empty list (null counts as
+absent), `selector` a selector and `nbt` an NBT path that parse, and a style
+field that is present and wrong (`color`, `shadow_color`, the format flags,
+`click_event`, `hover_event`, `insertion`, `font`) refuses the whole component.
+A translation's `fallback` and an `nbt` component's `interpret`, `plain` and
+`separator` of the wrong kind are dropped instead. An object whose only content
+key is `index` is refused, as in vanilla; Horizon follows vanilla there. JSON
+escapes such as `\u0041` are decoded.
+
+`host.text_from_legacy("§cRed")` reads `§` formatting codes as
+the font draws them; `&` codes are not read, so replace `&` with `§` first.
+Both work on either side.
+
+## Server clock, rules and distances
+
+`level.set_clock_time(host, ticks)` does what `/time set` does in that level's
+default clock; `time_skip` fires with cause `mod` and a mod can keep the old
+time. `level.set_game_rule(host, "keep_inventory", GameRuleValue::Bool(true))`
+does what `/gamerule` does and fires `game_rule_changed` with no actor. Both
+return `false` for a stale handle, a client, or a value the rule refuses.
+
+On a server, `host.tick_times()` returns the last 100 tick durations in
+nanoseconds (the tick numbered `n` at index `n % 100`; `tick_stats()` has the
+average). `host.server_view_distance()` and `host.server_simulation_distance()`
+read the distances in chunks; `host.server_set_view_distance(d)` and
+`host.server_set_simulation_distance(d)` change them live for 2 to 32 on a
+dedicated server and return `false` otherwise. `server.properties` is not
+written.
