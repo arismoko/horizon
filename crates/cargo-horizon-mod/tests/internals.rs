@@ -251,6 +251,7 @@ fn table_declarations_keep_their_format_when_adding_and_refreshing() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn internals_add_requires_kind_for_ambiguous_paths_and_update_keeps_it() {
     let path = "horizon_client::game::Round::listening";
     for kind in ["fn", "method"] {
