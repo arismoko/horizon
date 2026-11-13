@@ -130,7 +130,7 @@ impl Game<'_> {
                         world.block_entity_data(p, entity_block);
                         continue;
                     }
-                    world.apply(packet)?;
+                    world.apply(packet, |state| block_entity_block(facts, state))?;
                 }
                 Ok(())
             }

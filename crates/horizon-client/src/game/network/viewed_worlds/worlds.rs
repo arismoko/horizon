@@ -59,7 +59,11 @@ impl ViewedWorld {
     /// entities. Block events, destruction progress and level events change nothing yet: what
     /// they show is drawn, and drawing a viewed level is gap 13. A chunk of a new column past
     /// [`MAX_COLUMNS`] is refused before it is decoded.
-    pub(in crate::game) fn apply(&mut self, packet: C) -> Result<(), RouteError> {
+    pub(in crate::game) fn apply(
+        &mut self,
+        packet: C,
+        entity_block: impl Fn(BlockStateId) -> bool,
+    ) -> Result<(), RouteError> {
         match packet {
             // `handleLevelChunkWithLight`: the column replaces any it held, with the light the
             // server sent.
@@ -103,10 +107,10 @@ impl ViewedWorld {
                     }
                 }
             }
-            C::BlockUpdate(p) => self.set_block(p.pos, p.state),
+            C::BlockUpdate(p) => self.set_block(p.pos, p.state, &entity_block),
             C::SectionBlocksUpdate(p) => {
                 for (pos, state) in section_blocks(&p) {
-                    self.set_block(pos, state);
+                    self.set_block(pos, state, &entity_block);
                 }
             }
             // `handleSetTime` / `ClientClockManager.handleUpdates`: the clock it follows moves on
@@ -143,10 +147,22 @@ impl ViewedWorld {
 
     /// A server's block: a state the client lacks (a server with mods it lacks) reads as air,
     /// as in its chunks.
-    fn set_block(&mut self, [x, y, z]: [i32; 3], state: i32) {
+    fn set_block(
+        &mut self,
+        [x, y, z]: [i32; 3],
+        state: i32,
+        entity_block: &impl Fn(BlockStateId) -> bool,
+    ) {
         let state = state.max(0) as u32;
         let state = BlockStateId(if known_block_state(state) { state } else { 0 });
-        self.world.set_stored(x, y, z, state);
+        if self.world.set_stored(x, y, z, state)
+            && !entity_block(self.world.block(x, y, z))
+            && let Some(infos) = self.block_entities.get_mut(&(x >> 4, z >> 4))
+        {
+            // Only this position lost its block entity; its neighbours retain their data.
+            let packed_xz = ((x & 15) << 4 | (z & 15)) as i8;
+            infos.retain(|info| info.packed_xz != packed_xz || i32::from(info.y) != y);
+        }
     }
 
     /// The column `key` goes, or is sent again: so do its block entities.
@@ -278,6 +294,74 @@ mod tests {
         })
     }
 
+    /// Placement and removal at one position must not erase a neighbour's retained data.
+    #[test]
+    fn block_updates_prune_only_the_removed_block_entity() {
+        let overworld = DimensionType::vanilla("minecraft:overworld");
+        let format = Arc::new(ChunkFormat::new(&overworld, vec![0, 7, 9], 2));
+        let mut viewed = ViewedWorld::new(
+            "minecraft:the_nether".into(),
+            format,
+            None,
+            World::new(BlockStateId(0), 1),
+        );
+        // Supply the owning registry's classification independently of the packet state:
+        // this fixture uses state 1 for a block with an entity, and air for removal.
+        let entity_block = |state: BlockStateId| state.0 == 1;
+        viewed.apply(column(0), entity_block).unwrap();
+        for pos in [[1, 0, 2], [3, 0, 4]] {
+            viewed
+                .apply(
+                    C::BlockUpdate(play::BlockUpdate { pos, state: 1 }),
+                    entity_block,
+                )
+                .unwrap();
+            viewed.block_entity_data(
+                play::BlockEntityData {
+                    pos,
+                    kind: 1,
+                    tag: horizon_core::nbt::Tag::End,
+                },
+                entity_block(viewed.world.block(pos[0], pos[1], pos[2])),
+            );
+        }
+        assert_eq!(viewed.block_entities[&(0, 0)].len(), 2);
+        viewed
+            .apply(
+                C::BlockUpdate(play::BlockUpdate {
+                    pos: [1, 0, 2],
+                    state: 0,
+                }),
+                entity_block,
+            )
+            .unwrap();
+        assert_eq!(viewed.world.block(1, 0, 2), BlockStateId(0));
+        let infos = &viewed.block_entities[&(0, 0)];
+        assert_eq!(infos.len(), 1);
+        assert_eq!((infos[0].packed_xz, infos[0].y), (0x34, 0));
+        // A late data packet cannot resurrect the removed entry.
+        viewed.block_entity_data(
+            play::BlockEntityData {
+                pos: [1, 0, 2],
+                kind: 1,
+                tag: horizon_core::nbt::Tag::End,
+            },
+            entity_block(viewed.world.block(1, 0, 2)),
+        );
+        assert_eq!(viewed.block_entities[&(0, 0)].len(), 1);
+        viewed
+            .apply(
+                C::SectionBlocksUpdate(play::SectionBlocksUpdate {
+                    section: [0, 0, 0],
+                    changes: vec![0x340],
+                }),
+                entity_block,
+            )
+            .unwrap();
+        assert_eq!(viewed.world.block(3, 0, 4), BlockStateId(0));
+        assert!(viewed.block_entities[&(0, 0)].is_empty());
+    }
+
     /// A world full at 2048 columns takes a column it holds again, refuses a new one, and takes
     /// it once the server forgot another.
     #[test]
@@ -291,17 +375,20 @@ mod tests {
             World::new(BlockStateId(0), 1),
         );
         for x in 0..2048 {
-            viewed.apply(column(x)).unwrap();
+            viewed.apply(column(x), |_| false).unwrap();
         }
         assert_eq!(viewed.world.chunks.len(), 2048);
         // A replacement is no new column.
-        assert_eq!(viewed.apply(column(17)), Ok(()));
+        assert_eq!(viewed.apply(column(17), |_| false), Ok(()));
         assert_eq!(viewed.world.chunks.len(), 2048);
-        assert_eq!(viewed.apply(column(2048)), Err(RouteError::TooManyColumns));
+        assert_eq!(
+            viewed.apply(column(2048), |_| false),
+            Err(RouteError::TooManyColumns)
+        );
         assert!(!viewed.world.chunks.contains_key(&(2048, 0)));
         let forget = C::ForgetLevelChunk(play::ForgetLevelChunk { pos: [5, 0] });
-        viewed.apply(forget).unwrap();
-        assert_eq!(viewed.apply(column(2048)), Ok(()));
+        viewed.apply(forget, |_| false).unwrap();
+        assert_eq!(viewed.apply(column(2048), |_| false), Ok(()));
         assert!(viewed.world.chunks.contains_key(&(2048, 0)));
         assert_eq!(viewed.world.chunks.len(), 2048);
     }
@@ -327,16 +414,21 @@ mod tests {
             rate,
         };
         viewed
-            .apply(time(100, vec![clock(0, 7, 1.0), clock(3, 1000, 1.0)]))
+            .apply(
+                time(100, vec![clock(0, 7, 1.0), clock(3, 1000, 1.0)]),
+                |_| false,
+            )
             .unwrap();
         assert_eq!(viewed.world.day_time, 1000);
-        viewed.apply(time(120, Vec::new())).unwrap();
+        viewed.apply(time(120, Vec::new()), |_| false).unwrap();
         assert_eq!(viewed.world.day_time, 1020);
         assert_eq!(viewed.world.game_time, 120);
-        viewed.apply(time(120, vec![clock(3, 2000, 0.5)])).unwrap();
-        viewed.apply(time(123, Vec::new())).unwrap();
+        viewed
+            .apply(time(120, vec![clock(3, 2000, 0.5)]), |_| false)
+            .unwrap();
+        viewed.apply(time(123, Vec::new()), |_| false).unwrap();
         assert_eq!(viewed.world.day_time, 2001);
-        viewed.apply(time(124, Vec::new())).unwrap();
+        viewed.apply(time(124, Vec::new()), |_| false).unwrap();
         assert_eq!(viewed.world.day_time, 2002);
     }
 
@@ -357,9 +449,9 @@ mod tests {
         };
         let mut viewed = fresh();
         let time = |game_time, clocks| C::SetTime(play::SetTime { game_time, clocks });
-        viewed.apply(time(i64::MIN, Vec::new())).unwrap();
+        viewed.apply(time(i64::MIN, Vec::new()), |_| false).unwrap();
         assert_eq!(
-            viewed.apply(time(i64::MAX, Vec::new())),
+            viewed.apply(time(i64::MAX, Vec::new()), |_| false),
             Err(RouteError::ClockOverflow)
         );
         assert_eq!(viewed.world.game_time, i64::MIN);
@@ -374,10 +466,10 @@ mod tests {
             rate: 1.0,
         };
         let mut viewed = fresh();
-        viewed.apply(time(100, vec![full])).unwrap();
+        viewed.apply(time(100, vec![full]), |_| false).unwrap();
         assert_eq!(viewed.world.day_time, i64::MAX);
         assert_eq!(
-            viewed.apply(time(101, Vec::new())),
+            viewed.apply(time(101, Vec::new()), |_| false),
             Err(RouteError::ClockOverflow)
         );
         assert_eq!(

@@ -13,10 +13,14 @@
 //! so that it gives a client only what that client's revision knows. A client of an older server
 //! is not served: an older server reads a later revision's answer as none.
 //!
-//! - Revision 1: the channel, the play payloads below.
-//! - Revision 2 ([`REVISION_2`]): a travel's Respawn (keep 3) into a level the client views swaps
-//!   that level's world with the player's, on both sides, and the level left stays viewed
-//!   ([`Answer::switches`]). The pending viewed-level sounds (#3983) belong to it too.
+//! | Revision | Feature | Introduced by |
+//! |---|---|---|
+//! | 1 | Viewed levels, stages 9a–9d: channel and play payloads below | #3716 |
+//! | 2 ([`REVISION_2`]) | Switch into a viewed level on Respawn (keep 3), retaining the level left as viewed ([`Answer::switches`]) | #4004 |
+//!
+//! Pending sounds (#3983) and acts (#3982) each need their own next revision (3 and 4,
+//! in actual merge order), not revision 2. A new message kind is accepted only at its
+//! own revision or later; its decoder must land before any sender enables it.
 //!
 //! **Play** (clientbound only): the payload after the channel is a kind byte, then:
 //!
