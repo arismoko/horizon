@@ -188,10 +188,7 @@ impl Hooks for Deathwatch {
 /// source's entity id) kills a zombie on one health beside it: what the
 /// zombie's death names, and whether a player is credited with the kill
 /// (`last_hurt_by_player`). The player in place is entity 11, out of reach.
-fn kill(
-    via: Via,
-    source: impl Fn(&mut Game<'_>) -> u32,
-) -> (Vec<(u32, String, i32)>, bool) {
+fn kill(via: Via, source: impl Fn(&mut Game<'_>) -> u32) -> (Vec<(u32, String, i32)>, bool) {
     crate::entry::install_client_hooks();
     let deaths = Deaths::default();
     let mut credited = false;
@@ -266,7 +263,7 @@ fn summoned(game: &mut Game<'_>, kind: &str, nbt: &str) -> u32 {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn player_lit_tnt_as_the_source_credits_the_player_with_the_kill() {
     kills(
         "player_lit_tnt_as_the_source_credits_the_player_with_the_kill",
@@ -276,7 +273,7 @@ fn player_lit_tnt_as_the_source_credits_the_player_with_the_kill() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn unowned_tnt_as_the_source_credits_no_one() {
     kills(
         "unowned_tnt_as_the_source_credits_no_one",
@@ -286,7 +283,7 @@ fn unowned_tnt_as_the_source_credits_no_one() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_player_as_the_source_is_credited_as_a_player() {
     kills(
         "a_player_as_the_source_is_credited_as_a_player",
@@ -296,7 +293,7 @@ fn a_player_as_the_source_is_credited_as_a_player() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_living_entity_outside_the_mob_list_causes_its_own_blast() {
     kills(
         "a_living_entity_outside_the_mob_list_causes_its_own_blast",
@@ -306,7 +303,7 @@ fn a_living_entity_outside_the_mob_list_causes_its_own_blast() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_players_thrown_trident_credits_the_player() {
     kills(
         "a_players_thrown_trident_credits_the_player",
@@ -320,7 +317,7 @@ fn a_players_thrown_trident_credits_the_player() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_players_firework_rocket_credits_the_player() {
     kills(
         "a_players_firework_rocket_credits_the_player",
@@ -334,12 +331,13 @@ fn a_players_firework_rocket_credits_the_player() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_players_fishing_bobber_credits_the_player() {
     kills(
         "a_players_fishing_bobber_credits_the_player",
         |game| {
-            let hook = crate::game::fishing::Hook::remote(900, Vec3::new(4.5, 81.0, 4.5), [1, 2, 3, 4]);
+            let hook =
+                crate::game::fishing::Hook::remote(900, Vec3::new(4.5, 81.0, 4.5), [1, 2, 3, 4]);
             game.install_fishing_hook(hook);
             900
         },
@@ -348,7 +346,7 @@ fn a_players_fishing_bobber_credits_the_player() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_mob_blast_breaks_blocks_only_when_its_source_may_grief() {
     run_on_guest_stack(|| {
         for via in BOTH {
@@ -390,7 +388,7 @@ fn a_mob_blast_breaks_blocks_only_when_its_source_may_grief() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_trigger_blast_presses_a_button_and_breaks_nothing() {
     run_on_guest_stack(|| {
         for via in BOTH {
@@ -421,7 +419,7 @@ fn a_trigger_blast_presses_a_button_and_breaks_nothing() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn a_blast_that_keeps_blocks_still_lights_fire() {
     run_on_guest_stack(|| {
         for via in BOTH {
@@ -447,7 +445,7 @@ fn a_blast_that_keeps_blocks_still_lights_fire() {
 }
 
 #[test]
-#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+#[ignore = "daily"]
 fn an_invalid_source_explodes_nothing() {
     run_on_guest_stack(|| {
         for via in BOTH {
