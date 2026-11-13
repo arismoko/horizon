@@ -338,7 +338,7 @@ impl Title {
                 ]
             }
             Mode::MissingMods { .. } => {
-                let narrow = w < 324.0;
+                let (_, _, narrow) = missing_mods::layout(w, h);
                 let button_width = if narrow { (w - 20.0).min(300.0) } else { 150.0 };
                 let center = (w - button_width) / 2.0;
                 let y = h - if narrow { 76.0 } else { 52.0 };

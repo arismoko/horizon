@@ -40,6 +40,14 @@ pub(super) fn screen_info(missing: &[MissingMod]) -> crate::widgets::ScreenInfo 
     )
 }
 
+/// Shared viewport geometry for rendering, scrolling and action layout.
+pub(super) fn layout(w: f32, h: f32) -> (f32, f32, bool) {
+    let narrow = w < 324.0;
+    let top = 36.0;
+    let bottom = top + ((h - if narrow { 88.0 } else { 64.0 } - top) / 9.0).floor() * 9.0;
+    (top, bottom, narrow)
+}
+
 impl Title {
     /// Page keys scroll the complete warning regardless of which action has focus.
     /// Arrow keys remain available for ordinary action navigation.
@@ -48,8 +56,7 @@ impl Title {
         if !matches!(self.mode, Mode::MissingMods { .. }) {
             return false;
         }
-        let top = 36.0;
-        let bottom = top + ((h - if w < 324.0 { 88.0 } else { 64.0 } - top) / 9.0).floor() * 9.0;
+        let (top, bottom, _) = layout(w, h);
         let content = self.message_lines.get() as f32 * 9.0;
         let mut scroll = self.scroll.get();
         let page = (bottom - top).max(9.0);
@@ -75,6 +82,7 @@ impl Title {
             });
         self.set_mode(Mode::MissingMods { world, missing });
         self.focused_button = Some(101);
+        self.scroll.set(Default::default());
     }
 
     pub(super) fn draw_missing_mods(
@@ -94,8 +102,7 @@ impl Title {
             lines.push(String::new());
         }
         self.message_lines.set(lines.len());
-        let top = 36.0;
-        let bottom = top + ((h - if w < 324.0 { 88.0 } else { 64.0 } - top) / 9.0).floor() * 9.0;
+        let (top, bottom, _) = layout(w, h);
         let mut scroll = self.scroll.get();
         scroll.clamp(top, bottom, lines.len() as f32 * 9.0);
         self.scroll.set(scroll);

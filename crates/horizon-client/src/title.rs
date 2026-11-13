@@ -1302,13 +1302,13 @@ impl Title {
             return false;
         }
         if matches!(self.mode, Mode::MissingMods { .. }) {
-            let (w, h) = size;
+            let (top, bottom, _) = missing_mods::layout(size.0, size.1);
             let mut scroll = self.scroll.get();
             scroll.wheel(
                 delta,
                 18.0,
-                36.0,
-                h - if w < 324.0 { 88.0 } else { 64.0 },
+                top,
+                bottom,
                 self.message_lines.get() as f32 * 9.0,
             );
             self.scroll.set(scroll);
@@ -3841,6 +3841,12 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
     /// Returns the triggered action and whether a UI button click sound should play.
     pub fn confirm_key_size(&mut self, size: (f32, f32)) -> (Action, bool) {
         self.remember_direct_address();
+        if let Mode::MissingMods { world, .. } = &self.mode {
+            return (
+                self.answer_missing_mods(world.clone(), self.focused_button.unwrap_or(101)),
+                true,
+            );
+        }
         if self.rules.get_mut().is_some() {
             return (Action::None, false);
         }

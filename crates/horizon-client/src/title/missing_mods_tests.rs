@@ -210,8 +210,10 @@ fn opening_prompt_replaces_stale_destructive_focus_with_cancel() {
         .unwrap_or_else(|e| e.into_inner());
     let mut f = Fixture::new();
     f.title.focused_button = Some(103);
+    f.title.scroll.get_mut().amount = 400.0;
     f.title.ask_missing_mods("Gone", vec![gone()]);
     assert_eq!(f.title.focused_button, Some(101));
+    assert_eq!(f.title.scroll.get().amount, 0.0);
     for size in [(240.0, 240.0), (640.0, 360.0)] {
         f.title
             .arrow_key(winit::keyboard::KeyCode::ArrowDown, size, false);
