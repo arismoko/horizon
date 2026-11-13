@@ -1383,9 +1383,14 @@ mod shared_source_tests {
                 "assets/reader/lang/fr_fr.json".into(),
                 Resource::bytes(br#"{"reader.hello":"Bonjour"}"#.to_vec()),
             ),
+            (
+                "assets/mod_fixture/lang/fr_fr.json".into(),
+                Resource::bytes(br#"{"mod_fixture.menu":"Mod layer"}"#.to_vec()),
+            ),
         ]));
         let language = Language::load(&[&source], "fr_fr");
         assert_eq!(language.map["reader.hello"], "Bonjour");
         assert_eq!(language.map["reader.only"], "English fallback");
+        assert_eq!(language.map["mod_fixture.menu"], "Mod layer");
     }
 }
