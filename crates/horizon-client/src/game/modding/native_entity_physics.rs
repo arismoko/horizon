@@ -9,7 +9,7 @@
 //! constructors set.
 use super::{Game, commands::Target};
 use horizon_client::mobs::Species;
-use horizon_client::projectiles::ProjectileKind;
+use horizon_client::projectiles::{Projectile, ProjectileKind};
 use mod_api::EntityRef;
 
 impl Game<'_> {
@@ -148,6 +148,14 @@ impl Game<'_> {
         self.forget_entity(id);
     }
 
+    /// A player's blow takes a projectile out at `i` (`hit_shulker_bullet`):
+    /// the `noPhysics` write stored for a shulker bullet leaves with it.
+    pub(super) fn remove_projectile_at(&mut self, i: usize) -> Projectile {
+        let p = self.creatures.projectiles.remove(i);
+        self.forget_entity(p.id);
+        p
+    }
+
     /// A command drops an ominous item spawner: its stored `noPhysics` write
     /// leaves with it.
     pub(super) fn remove_ominous_spawner(&mut self, id: u32) {
@@ -184,6 +192,13 @@ impl Game<'_> {
     /// A breath cloud expiring inside a `retain_mut`: forget its stored
     /// `noPhysics` write and refuse it, in one call.
     pub(super) fn forget_expired_cloud(&mut self, id: u32) -> bool {
+        self.forget_entity(id);
+        false
+    }
+
+    /// An ominous item spawner finishing inside a `retain_mut`: forget its
+    /// stored `noPhysics` write and refuse it, in one call.
+    pub(super) fn forget_finished_spawner(&mut self, id: u32) -> bool {
         self.forget_entity(id);
         false
     }
@@ -607,6 +622,73 @@ mod tests {
             assert!(
                 !game.persist.no_physics.contains_key(&id),
                 "the entry left with the entity the command killed"
+            );
+        });
+    }
+
+    /// A player's blow removes a shulker bullet (`hit_shulker_bullet`): the
+    /// `noPhysics` write stored for it has to leave with it.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn no_physics_entry_is_cleared_when_a_players_blow_removes_a_shulker_bullet() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::projectiles::Projectile;
+        use horizon_core::geometry::Vec3;
+
+        with_game(|game| {
+            let mut bullet = Projectile::new(
+                ProjectileKind::ShulkerBullet {
+                    target: None,
+                    dir: None,
+                    steps: 0,
+                    delta: [0.0; 3],
+                    seed: 0,
+                },
+                Vec3::new(4.5, 200.0, 4.5),
+                None,
+            );
+            bullet.id = game.take_entity_id();
+            let id = bullet.id;
+            game.creatures.projectiles.push(bullet);
+            let bullet = game.entity(id).expect("the bullet handle");
+            assert!(bullet.set_no_physics(game, false));
+            assert!(game.persist.no_physics.contains_key(&id));
+
+            game.hit_shulker_bullet(0);
+            assert!(!game.creatures.projectiles.iter().any(|p| p.id == id));
+            assert!(
+                !game.persist.no_physics.contains_key(&id),
+                "the entry left with the bullet the player's blow removed"
+            );
+        });
+    }
+
+    /// An ominous item spawner that finishes its countdown is taken away by
+    /// `tick_ominous_item_spawners`: its entry goes with it.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn no_physics_entry_is_cleared_when_an_ominous_item_spawner_finishes() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::items::ItemStack;
+
+        with_game(|game| {
+            game.add_ominous_item_spawner(
+                ItemStack::new("minecraft:air", 1),
+                [4.5, 200.0, 4.5],
+                1,
+            );
+            let id = game.ominous_spawners[0].id;
+            game.persist.no_physics.insert(id, false);
+            assert!(game.persist.no_physics.contains_key(&id));
+
+            game.tick_ominous_item_spawners();
+            assert!(
+                !game.ominous_spawners.iter().any(|s| s.id == id),
+                "the spawner finished"
+            );
+            assert!(
+                !game.persist.no_physics.contains_key(&id),
+                "the entry left with the spawner that finished"
             );
         });
     }
