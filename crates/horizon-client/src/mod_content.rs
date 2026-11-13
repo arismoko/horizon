@@ -2692,17 +2692,15 @@ pub fn biome_modifiers_over_packs(
                 continue;
             }
         };
-        let values = match tag.get("values") {
-            Some(J::Arr(v)) => v.as_slice(),
-            _ => &[],
-        };
+        let (values, remove) = (tag_list(&tag, "values"), tag_list(&tag, "remove"));
         let old = match tag.get("replace") {
             Some(J::Bool(true)) => None,
             _ => biome_tags.get(id).map(String::as_str),
         };
+        let layers = [load_conditions::TagLayers { values, remove }];
         let merged = merge_tag(
             old,
-            values,
+            &layers,
             id,
             &horizon_world::conditions::LoadConditions::new(
                 saved.enabled_mods.iter().map(String::as_str),
@@ -2855,7 +2853,7 @@ mod root_lifetime;
 use root_lifetime::prune_roots;
 pub use root_lifetime::retain_root;
 mod load_conditions;
-use load_conditions::merge_tag;
+use load_conditions::{TagLayers, TagMerge, merge_tag, tag_list};
 pub use load_conditions::{build_with_conditions, resource_root_with_conditions};
 
 /// The block and item ids and tags a content root has, for tag entries.
@@ -2937,57 +2935,6 @@ impl Known {
             }
             None => ids.contains(id),
         }
-    }
-}
-
-/// What the mods do to one tag file, in load order (a data pack's
-/// TagLoader): each adds its values, and one that replaces the tag first
-/// drops vanilla's entries and the mods' before it.
-#[derive(Default)]
-struct TagMerge {
-    /// A mod replaced the tag: vanilla's entries are left out.
-    replaced: bool,
-    /// The mods whose values are in `values`.
-    mods: Vec<String>,
-    values: Vec<J>,
-}
-
-impl TagMerge {
-    /// Adds one mod's tag file. A replace that drops entries (vanilla's in a
-    /// `shared` tag, one not in the mod's namespaces, or other mods') warns.
-    fn add(
-        &mut self,
-        id: &str,
-        file: &str,
-        replace: bool,
-        shared: bool,
-        values: &[J],
-    ) -> Option<String> {
-        let mut warning = None;
-        if replace {
-            let mut dropped: Vec<String> = Vec::new();
-            if shared && !self.replaced {
-                dropped.push("vanilla's entries".into());
-            }
-            if !self.mods.is_empty() {
-                dropped.push(format!("those of {}", self.mods.join(", ")));
-            }
-            if !dropped.is_empty() {
-                warning = Some(format!(
-                    "mod {id} replaces {file}: {} are left out, as a data pack's replace \
-                     does; the mods after it in load order still add to it",
-                    dropped.join(" and ")
-                ));
-            }
-            self.replaced = true;
-            self.mods.clear();
-            self.values.clear();
-        }
-        if !self.mods.iter().any(|m| m == id) {
-            self.mods.push(id.to_owned());
-        }
-        self.values.extend(values.iter().cloned());
-        warning
     }
 }
 

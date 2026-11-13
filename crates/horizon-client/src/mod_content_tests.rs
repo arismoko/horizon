@@ -2939,14 +2939,14 @@ fn tags_merge_in_load_order_and_replace_warns() {
     );
     assert_eq!(merge.add("c", file, false, true, &v(&["c:y"])), None);
     assert!(merge.replaced);
-    assert_eq!(merge.values, v(&["minecraft:plains", "c:y"]));
+    assert_eq!(merge.values(), v(&["minecraft:plains", "c:y"]));
     // A second replace drops only the mods' entries.
     let warning = merge.add("d", file, true, true, &v(&["d:z"])).unwrap();
     assert!(
         warning.contains(": those of b, c are left out"),
         "{warning}"
     );
-    assert_eq!(merge.values, v(&["d:z"]));
+    assert_eq!(merge.values(), v(&["d:z"]));
     // A mod replacing a tag of its own that nobody added to drops nothing.
     let own = "data/a/tags/item/gems.json";
     assert_eq!(
