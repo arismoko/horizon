@@ -14,6 +14,7 @@ pub(crate) mod packets;
 pub(crate) mod payload_codec;
 pub(crate) mod registry_keys;
 pub(crate) mod resource;
+pub(crate) mod resource_util;
 
 pub(crate) mod professions;
 

@@ -532,8 +532,22 @@ pub trait ResourceHandler<R> {
         resource: &R,
         amount: u32,
     ) -> u32;
+    /// Makes index `index` hold exactly `amount` of `resource`, 0 emptying it, whatever it held,
+    /// in transaction `tx` (NeoForge's `IndexModifier`): what a menu slot or a creative screen
+    /// writes. Whether it did; refused by default, as by a handler that only fills and drains.
+    fn set(
+        &self,
+        _host: &mut dyn ServerHost,
+        _tx: &Transaction,
+        _index: usize,
+        _resource: &R,
+        _amount: u32,
+    ) -> bool {
+        false
+    }
     /// Puts up to `amount` of `resource` in wherever it goes (NeoForge's `insert` without an
-    /// index): by default index by index from 0. How much went in.
+    /// index): by default index by index from 0. How much went in; an index answering more than
+    /// it was asked makes it answer more than `amount`, or 0 when asked `u32::MAX`.
     fn insert_any(
         &self,
         host: &mut dyn ServerHost,
@@ -541,17 +555,13 @@ pub trait ResourceHandler<R> {
         resource: &R,
         amount: u32,
     ) -> u32 {
-        let mut went = 0u32;
-        for index in 0..self.size(host) {
-            if went >= amount {
-                break;
-            }
-            went = went.saturating_add(self.insert(host, tx, index, resource, amount - went));
-        }
-        went
+        in_turn(amount, 0..self.size(host), |index, left| {
+            self.insert(host, tx, index, resource, left)
+        })
     }
     /// Takes up to `amount` of `resource` out from wherever it is (`extract` without an index):
-    /// by default index by index from 0. How much came out.
+    /// by default index by index from 0. How much came out; an index answering more than it was
+    /// asked makes it answer more than `amount`, or 0 when asked `u32::MAX`.
     fn extract_any(
         &self,
         host: &mut dyn ServerHost,
@@ -559,15 +569,35 @@ pub trait ResourceHandler<R> {
         resource: &R,
         amount: u32,
     ) -> u32 {
-        let mut came = 0u32;
-        for index in 0..self.size(host) {
-            if came >= amount {
-                break;
-            }
-            came = came.saturating_add(self.extract(host, tx, index, resource, amount - came));
-        }
-        came
+        in_turn(amount, 0..self.size(host), |index, left| {
+            self.extract(host, tx, index, resource, left)
+        })
     }
+}
+
+/// Asks each of `parts` in turn, through `ask`, for what is left of `amount`, until it is all
+/// placed: the total. What adds up `insert_any`, `extract_any` and the handlers built of others.
+/// A part answering more than it was asked is a lie the total must not hide: the total is then
+/// one more than `amount`, which a move refuses as [`Overanswered`], or, asked `u32::MAX`, 0,
+/// with which a move undoes its step.
+pub(crate) fn in_turn<P>(
+    amount: u32,
+    parts: impl IntoIterator<Item = P>,
+    mut ask: impl FnMut(P, u32) -> u32,
+) -> u32 {
+    let mut done = 0;
+    for part in parts {
+        let left = amount - done;
+        if left == 0 {
+            break;
+        }
+        let answer = ask(part, left);
+        if answer > left {
+            return amount.checked_add(1).unwrap_or(0);
+        }
+        done += answer;
+    }
+    done
 }
 
 /// A handler answered more than it was asked (`move_resources`): a mod bug, warned once naming
@@ -632,9 +662,10 @@ pub(crate) struct Ends<'a, A: ?Sized, B: ?Sized> {
 
 /// One move of up to `want` by `extract` out of `ends.from` and `insert` into `ends.to`, all or
 /// nothing in a transaction of its own, nested in the caller's: how much moved. A move `to` takes
-/// only part of is undone and tried again with that part; a handler answering more than it was
-/// asked has its move undone and gives [`Overanswered`]. The one step of `move_resources`,
-/// `move_energy` and the 64-bit `transfer`.
+/// only part of is undone and tried again with that part, and one that moves nothing is undone
+/// (NeoForge's `move` commits only what moved); a handler answering more than it was asked has
+/// its move undone and gives [`Overanswered`]. The one step of `move_resources`, `move_energy`
+/// and the 64-bit `transfer`.
 pub(crate) fn move_once<A: ?Sized, B: ?Sized, N: Copy + PartialOrd + Default>(
     host: &mut dyn ServerHost,
     ends: Ends<'_, A, B>,
@@ -654,7 +685,7 @@ pub(crate) fn move_once<A: ?Sized, B: ?Sized, N: Copy + PartialOrd + Default>(
             };
             match to.checked(insert(host, tx, out), out, at) {
                 None => Err(Err(Overanswered { owner: to.owner() })),
-                Some(took) if took == out => Ok(out),
+                Some(took) if took == out && took > N::default() => Ok(out),
                 Some(took) => Err(Ok(took)),
             }
         })

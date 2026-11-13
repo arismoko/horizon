@@ -111,6 +111,22 @@ amount. The result is `Result<u32, Overanswered>`. If a handler reports more tha
 is undone and `Overanswered` identifies the provider in `owner`. Propagate the error from your
 `host.transaction` closure to abort the whole operation.
 
+`move_first` and `move_first_stacking` (NeoForge's `moveFirst` and `moveFirstStacking`) move only
+the first resource that goes, and return which and how much.
+
+NeoForge's stock handlers are ready to compose: `CombinedResourceHandler` (several handlers'
+indices one after another), `RangedResourceHandler` (indices `start..end` of one),
+`EmptyResourceHandler`, `InfiniteResourceHandler` (a creative tank) and `VoidingResourceHandler`
+(a trash can). To pass calls through to another handler (`DelegatingResourceHandler`), implement
+`ResourceHandler` on a struct holding it and forward each method; `RangedResourceHandler`'s API
+docs show one. `ResourceHandlerUtil`'s queries are methods on any handler, a `Capability`
+included: `index_of`, `contains`, `is_empty`, `is_full`, `accepts` (`isValid`),
+`comparator_signal` (vanilla's container formula, 0 to 15), `insert_stacking` (indices holding
+the resource before empty ones), `extract_first` and `find_extractable`. A handler that can be
+written whole, as a menu slot can, overrides `set` (`IndexModifier`); others refuse it.
+`KeyedResource` reads the registry key and own components of an `ItemResource` or a
+`FluidResource` alike.
+
 There is no `simulate` parameter. To try an operation without keeping its changes, run it in a
 transaction and return `Err` to abort. See [Transactions](transactions.md).
 Hoppers use registered block and block entity type handlers, with each move in its own transaction.
