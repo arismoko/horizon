@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:tooltip_style",
     "minecraft:waxed",
     "minecraft:damage",
     "minecraft:repair_cost",
@@ -59,8 +60,8 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     if id == "minecraft:potion_duration_scale" {
         return potion_duration_scale(value).map(|value| Tag::Float(value.to_bits()));
     }
-    if id == "minecraft:item_model" {
-        return item_model(value);
+    if matches!(id, "minecraft:item_model" | "minecraft:tooltip_style") {
+        return identifier_payload(value);
     }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
@@ -226,7 +227,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             .map(|_| ())
             .ok_or_else(|| "Not a number".into()),
         "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t),
-        "minecraft:item_model" => item_model(t).map(|_| ()),
+        "minecraft:item_model" | "minecraft:tooltip_style" => identifier_payload(t).map(|_| ()),
         // TypedEntityData.codec: the type is the compound's id.
         "minecraft:block_entity_data" => match t {
             Tag::Compound(c) => match c.get(&"id".into()) {
@@ -273,7 +274,7 @@ fn potion_duration_scale(t: &Tag) -> Result<f32, String> {
     }
 }
 /// `DataComponents.ITEM_MODEL`: `Identifier.CODEC`, without a resource lookup.
-fn item_model(value: &Tag) -> Result<Tag, String> {
+fn identifier_payload(value: &Tag) -> Result<Tag, String> {
     let Tag::String(value) = value else {
         return Err("Not a string".into());
     };
@@ -868,6 +869,70 @@ pub fn suggest_predicate(builder: &mut SuggestionsBuilder, reg: &Registries) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tooltip_style_identifier_codec_normalizes_and_rejects_malformed_utf16() {
+        use super::{Registries, Tag, decoded_component_value};
+        use horizon_core::nbt::JavaString;
+        let registry = Registries::default();
+        for (raw, expected) in [
+            ("", "minecraft:"),
+            (":", "minecraft:"),
+            (":style", "minecraft:style"),
+            ("style", "minecraft:style"),
+            ("fixture:", "fixture:"),
+            ("fixture:../style", "fixture:../style"),
+        ] {
+            assert_eq!(
+                decoded_component_value(
+                    "minecraft:tooltip_style",
+                    &Tag::String(raw.into()),
+                    &registry
+                ),
+                Ok(Tag::String(expected.into()))
+            );
+        }
+        for invalid in [
+            Tag::Int(1),
+            Tag::String("Upper".into()),
+            Tag::String("..:style".into()),
+            Tag::String("a:b:c".into()),
+            Tag::String("a b".into()),
+            Tag::String("é".into()),
+            Tag::String(JavaString(vec![0xd800])),
+            Tag::String(JavaString(vec![0xdc00])),
+            Tag::String(JavaString(vec![0xd800, 0xdc00])),
+        ] {
+            assert!(
+                decoded_component_value("minecraft:tooltip_style", &invalid, &registry).is_err()
+            );
+            assert!(decode_component("minecraft:tooltip_style", &invalid, &registry).is_err());
+        }
+    }
+
+    #[test]
+    fn waxed_unit_codec_requires_maps_and_discards_unknown_fields() {
+        use super::{Compound, Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        for value in [
+            Tag::Compound(Compound::new()),
+            Tag::compound([("ignored", Tag::String("anything".into()))]),
+        ] {
+            assert_eq!(
+                decoded_component_value("minecraft:waxed", &value, &registry).unwrap(),
+                Tag::Compound(Compound::new())
+            );
+        }
+        for value in [
+            Tag::Byte(1),
+            Tag::Int(0),
+            Tag::String("unit".into()),
+            Tag::List(vec![]),
+        ] {
+            assert!(decode_component("minecraft:waxed", &value, &registry).is_err());
+            assert!(decoded_component_value("minecraft:waxed", &value, &registry).is_err());
+        }
+    }
+
     use super::decode_component;
 
     #[test]
