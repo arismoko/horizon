@@ -210,6 +210,10 @@ def main() -> None:
         run(["otool", "-L", lib])
         run(["otool", "-D", lib])
         run(["codesign", "-dv", lib])
+        # Which image each library's Rust allocator calls bind to (two-level namespace).
+        for image in (lib, host_lib, wasm_lib):
+            text = run(["nm", "-m", image])
+            print(f"slice-alloc: {image.name}:", sorted({l.strip() for l in text.splitlines() if "__rust_alloc" in l or "__rust_dealloc" in l})[:6])
     else:
         run(["readelf", "-d", lib])
 
@@ -256,17 +260,21 @@ def main() -> None:
     resources = args.resources.resolve() if args.resources else home / "no-resources"
     cmd = [str(rundir / f"horizon-client{EXE}"), "--resources", str(resources), "--dedicated", "--nogui"]
     if not args.resources:
-        for exe_dir in (control, rundir):
-            cg = exe_dir / "game-control"
+        flat = [(control, {}), (rundir, {})]
+        if OS == "Darwin":
+            # Diagnosis of the allocator split: flat lookup, as ELF does, makes every image share one allocator.
+            flat += [(control, {"DYLD_FORCE_FLAT_NAMESPACE": "1"}), (rundir, {"DYLD_FORCE_FLAT_NAMESPACE": "1"})]
+        for n, (exe_dir, extra) in enumerate(flat):
+            cg = exe_dir / f"game-control{n}"
             cg.mkdir()
             (cg / "eula.txt").write_text("eula=true\n")
             ccmd = [str(exe_dir / f"horizon-client{EXE}"), *cmd[1:]]
-            cenv = {**env, "LD_LIBRARY_PATH": str(exe_dir)} if OS == "Linux" else env
+            cenv = {**env, "LD_LIBRARY_PATH": str(exe_dir)} if OS == "Linux" else {**env, **extra}
             r = subprocess.run(ccmd, cwd=cg, env=cenv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)
-            print(f"control|{exe_dir.name}| exit {r.returncode}")
+            print(f"control|{exe_dir.name}{'|flat' if extra else ''}| exit {r.returncode}")
             for line in r.stdout.splitlines()[:20]:
                 print(f"control|{exe_dir.name}| {line}")
-            if OS == "Darwin" and r.returncode < 0 and shutil.which("lldb"):
+            if OS == "Darwin" and r.returncode < 0 and not extra and shutil.which("lldb"):
                 d = subprocess.run(["lldb", "--batch", "-o", "run", "-k", "bt 40", "-k", "quit", "--", *ccmd],
                                    cwd=cg, env=cenv, capture_output=True, text=True, timeout=300)
                 for line in (d.stdout + d.stderr).splitlines()[-80:]:
