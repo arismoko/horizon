@@ -1,8 +1,8 @@
 # Runtime levels
 
 A mod opens a level of its own while the server runs and closes it again: an instanced dungeon, a
-minigame arena, a pocket dimension per player. `host.runtime_levels()` has `open`, `unload` and
-`is_open`, the same on a native and a wasm mod.
+minigame arena, a pocket dimension per player. `host.runtime_levels()` has `open`, `unload`, `delete`
+and `is_open`, the same on a native and a wasm mod.
 
 ```rust,ignore
 fn run_mod_command(&self, host: &mut dyn ServerHost, event: &mut RunModCommandEvent<'_>) -> Flow {
@@ -39,10 +39,10 @@ fn run_mod_command(&self, host: &mut dyn ServerHost, event: &mut RunModCommandEv
 
 ## When it happens
 
-`open` and `unload` check the request when they are called and return the refusal at once. The
+`open`, `unload` and `delete` check the request when they are called and return the refusal at once. The
 change itself waits: the server applies the queue after its levels have ticked in the server
 tick, never inside a level's tick, so no hook sees a level appear or vanish under it. Until then
-`is_open` is false after an `open` and true after an `unload`. A request made while the queue is
+`is_open` is false after an `open` and true after an `unload` or a `delete`. A request made while the queue is
 applied waits for the next tick. `level_load` and `level_unload` fire as for any level the game
 opens or closes, once each.
 
@@ -70,13 +70,60 @@ answer for a level that is not open (or still waiting to open). The idle close t
 every level without players applies too, as to any other level: a runtime level nobody is in and
 no forced chunk holds is saved and dropped from memory after 300 ticks (`level_unload` fires), but
 it stays open: `is_open` still says true, and the level opens again from its folder, with
-`level_load`, when a player or a mod enters it. Only `unload` closes it for good.
+`level_load`, when a player or a mod enters it. Only `unload` or `delete` closes it for good.
+
+## Deleting
+
+`delete(id)` removes a level for good: its folder `dimensions/<namespace>/<path>/` and the
+structure references the game keeps beside the world for it
+(`data/horizon_structure_references_<namespace>_<path>.json`, kept if another id would share that
+file and its level exists: `a_b:c` and `a:b_c` do), then the folders those leave empty. It works for the levels of the calling mod's namespace only, with the same refusals as
+`unload` (`InvalidId`, `OutsideNamespace`, `ReservedId`), and the folder it removes comes from
+the validated id and nothing else.
+
+- A level that is **open** is unloaded first, as by `unload` (saved, `level_unload` fires), and
+  its files are removed in the same pass. It refuses with `PlayersInside` while a player or an
+  arrival that has not landed is in the level, when called and again when applied: move the
+  players out first. `is_open` stays true until the delete is applied, which closes it.
+- A level that is **not open** is only files, the leftovers of a crash or of an earlier
+  `unload`. They are removed, and a level with no files is not an error. Nothing fires, since
+  nothing was open.
+- A level still **waiting to open** refuses with `AlreadyOpen`: its `open` comes first.
+- A level with a **level below it** refuses with `LevelsBelow`, when called and again when
+  applied. Folders nest: `mymod:instance/ab` lives inside the folder of `mymod:instance`, so
+  removing the parent would remove the child, which may be open, with players or a save waiting.
+  A level is below when its id continues the id with `/` and it is open, waiting, a level of the
+  world, or has a folder under the level's own. A folder under it is any folder other than
+  `region`, `entities`, `poi` and `data`, one of the first three holding a folder, or a folder in
+  `data` with a level's shape somewhere below it (a folder holding `region`, `entities` or `poi`,
+  or a link); the other files a mod keeps in `data` are not in the way. A folder that cannot be
+  read counts as a level below. Delete the level below first.
+
+The removal happens on the server thread, in the pass that applies the queue, after the level
+has been saved and dropped, so no save is running against the files. A request in the queue is
+applied in the order it was made. A reopen therefore waits for the removal: an `open` of a level
+that is open and being deleted is `AlreadyOpen` until the delete is applied; an `open` of a level
+that was not open, made after the `delete`, is applied after it and starts from nothing. A save a
+mod asked for with `level_request_save` is dropped with the level.
+
+A link (symbolic link, junction) on the way to the folder under `dimensions`, or to the
+references file under `data`, is never followed: the removal fails before anything is removed.
+
+If the removal fails (a link, a file another program holds), the failure is logged with the mod
+and the id, and what happened to the level depends on how far the delete got. A level that could
+not be closed, or has a level below it, stays open and `is_open` stays true; delete it again.
+A level that closed but whose files could not all be removed stays **closed**: `is_open` is
+false, its handle is stale, `open` of the id answers `Removing`, and an `open` already waiting
+behind the delete is dropped with a log line instead of starting from the files that are left.
+A second `delete` of the id finishes the removal, and only then can it be opened.
+
+A handle from before the delete reads as stale, as after an `unload`.
 
 ## The cap
 
 A server keeps at most 64 runtime levels open or waiting, whichever mods opened them: the
 65th `open` is `CapReached`. A server sets another number with `horizon-max-runtime-levels` in
 `server.properties`; a server run by `horizon-server` sets it under `[properties]` in `server.toml`
-([hosting](https://github.com/arismoko/horizon/blob/main/docs/hosting.md)). An unloaded level frees its place when the unload is applied; the idle close does not free it.
+([hosting](https://github.com/arismoko/horizon/blob/main/docs/hosting.md)). An unloaded or deleted level frees its place when the request is applied; the idle close does not free it.
 
 Every refusal is also logged with the name of the mod that asked.

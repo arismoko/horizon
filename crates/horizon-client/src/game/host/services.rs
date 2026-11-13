@@ -92,6 +92,10 @@ impl RuntimeLevels for Game<'_> {
         mod_api::__private::check_access("unload", mod_api::__private::LoadAccess::WorldOnly);
         self.runtime_level_unload(id)
     }
+    fn delete(&mut self, id: &str) -> Result<(), RuntimeLevelError> {
+        mod_api::__private::check_access("delete", mod_api::__private::LoadAccess::WorldOnly);
+        self.runtime_level_delete(id)
+    }
     fn is_open(&mut self, id: &str) -> bool {
         mod_api::__private::check_access("is_open", mod_api::__private::LoadAccess::WorldOnly);
         self.runtime_level_is_open(id)
