@@ -1284,9 +1284,6 @@ impl Game<'_> {
         let target = self.pad_reveal(target);
         self.pad.menu.shortcut_focus = None;
         let left = self.pad.menu.focus.replace(target);
-        if let Some(title) = self.title.as_mut() {
-            title.missing_mods_pad_focus();
-        }
         if left.is_some_and(|l| l.rect != target.rect) {
             self.clear_screen_click_focus();
             self.pad.menu.armed = None;
@@ -1940,6 +1937,13 @@ impl Game<'_> {
         let Some(focus) = self.pad.menu.focus else {
             return;
         };
+        // Includes focus restored or followed directly above, not only explicit
+        // pad_focus_on landings. The pad now owns the screen's focus mark.
+        if !self.pad.menu.keyboard
+            && let Some(title) = self.title.as_mut()
+        {
+            title.missing_mods_pad_focus();
+        }
         if self.pad.menu.pos.is_none() || self.pad.menu.held.iter().any(|h| *h) {
             return;
         }
