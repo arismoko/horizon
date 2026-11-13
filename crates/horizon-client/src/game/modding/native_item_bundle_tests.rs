@@ -120,6 +120,74 @@ fn bundle_items_place_handler_reads_and_rolls_back() {
     });
 }
 
+#[test]
+#[ignore = "requires prepared resources"]
+fn nested_bundle_weight_limits_arrow_capacity_and_insertion() {
+    with_game(|game| {
+        let empty = ItemStack::new("minecraft:bundle", 1);
+        let arrows = ItemStack::new("minecraft:arrow", 64);
+        for (contents, room) in [
+            (vec![], 60),
+            (vec![ItemStack::new("minecraft:ender_pearl", 1)], 56),
+        ] {
+            let mut nested = empty.clone();
+            nested.data_mut().bundle_contents = contents;
+            let mut outer = empty.clone();
+            outer.data_mut().bundle_contents = vec![nested.clone()];
+            assert_eq!(game.item_bundle_capacity(&outer, 0, &arrows), room);
+            let (moved, filled) = game.item_bundle_insert_slot(&outer, 0, &arrows).unwrap();
+            assert_eq!(moved, room);
+            assert_eq!(
+                game.item_bundle_slots(&filled).unwrap(),
+                vec![Some(ItemStack::new("minecraft:arrow", room)), Some(nested)]
+            );
+            assert_eq!(game.item_bundle_capacity(&filled, 0, &arrows), 0);
+        }
+    });
+}
+
+#[test]
+#[ignore = "requires prepared resources"]
+fn stacked_bundle_insertion_splits_one_and_restores_inventory_on_abort() {
+    use crate::game::api_values::TryIntoApi;
+    use mod_api::{HostTransaction, ITEM_ITEMS, ItemPlace};
+    with_game(|game| {
+        game.creative = false;
+        open_to_lan(game);
+        let mut player = guest(1);
+        player.inventory[0] = Some(ItemStack::new("minecraft:bundle", 2));
+        let original = player.inventory.clone();
+        game.lan.as_mut().unwrap().hub.guests.push(player);
+        let place = ItemPlace::PlayerHand {
+            player: 123,
+            hand: mod_api::Hand::Main,
+        };
+        let handler = place.capability(game, &ITEM_ITEMS).unwrap();
+        let arrow = mod_api::ItemResource::of(
+            &ItemStack::new("minecraft:arrow", 1).try_into_api().unwrap(),
+        );
+        assert_eq!(
+            game.transaction(|host, tx| {
+                assert_eq!(handler.insert(host, tx, 0, &arrow, 3), 3);
+                Err::<(), _>(())
+            }),
+            Err(())
+        );
+        assert_eq!(game.lan.as_ref().unwrap().hub.guests[0].inventory, original);
+        assert_eq!(
+            game.transaction(|host, tx| Ok::<_, ()>(handler.insert(host, tx, 0, &arrow, 3))),
+            Ok(3)
+        );
+        let mut changed = ItemStack::new("minecraft:bundle", 1);
+        changed.data_mut().bundle_contents = vec![ItemStack::new("minecraft:arrow", 3)];
+        let inventory = &game.lan.as_ref().unwrap().hub.guests[0].inventory;
+        let stacks: Vec<_> = inventory.iter().flatten().cloned().collect();
+        assert_eq!(stacks.len(), 2);
+        assert!(stacks.contains(&ItemStack::new("minecraft:bundle", 1)));
+        assert!(stacks.contains(&changed));
+    });
+}
+
 struct BundleMod;
 #[mod_api::__subscriptions]
 impl mod_api::Hooks for BundleMod {
