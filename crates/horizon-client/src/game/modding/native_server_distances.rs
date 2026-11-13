@@ -41,7 +41,7 @@ mod tests {
     /// The tick times are the clock's 100; the distances are the hub's, set live on a dedicated
     /// server only, within 2 to 32.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn a_mod_reads_and_sets_the_servers_distances() {
         with_guests(|game| {
             game.clock = crate::clock::FixedStep::default();
