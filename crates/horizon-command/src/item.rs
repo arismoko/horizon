@@ -1400,6 +1400,7 @@ mod tests {
         let surrogate = Tag::String(horizon_core::nbt::JavaString(vec![0xD800]));
         assert!(decoded_component_value("minecraft:base_color", &surrogate, &registry).is_err());
         for value in [
+            Tag::End,
             Tag::Byte(0),
             Tag::Short(0),
             Tag::Int(14),

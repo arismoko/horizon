@@ -2495,6 +2495,14 @@ fn base_color_recipe_compiles_and_matches_typed_shields() {
             "fixture:numeric_color",
             r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:shield","components":{"minecraft:base_color":14}}],"result":"minecraft:diamond"}"#,
         ),
+        (
+            "fixture:false_color",
+            r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:shield","components":{"minecraft:base_color":false}}],"result":"minecraft:diamond"}"#,
+        ),
+        (
+            "fixture:null_color",
+            r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:shield","components":{"minecraft:base_color":null}}],"result":"minecraft:diamond"}"#,
+        ),
     ]
     .into_iter()
     .map(|(id, source)| (id.into(), serde_json::from_str(source).unwrap()))
@@ -2510,6 +2518,8 @@ fn base_color_recipe_compiles_and_matches_typed_shields() {
     assert!(recipes.recipe("fixture:base_color").is_some());
     assert!(recipes.recipe("fixture:invalid_color").is_none());
     assert!(recipes.recipe("fixture:numeric_color").is_none());
+    assert!(recipes.recipe("fixture:false_color").is_none());
+    assert!(recipes.recipe("fixture:null_color").is_none());
 
     let mut shield = ItemStack::new("minecraft:shield", 1);
     assert!(recipes.find(&context, &[Some(shield.clone())], 1).is_none());
@@ -2563,6 +2573,13 @@ fn base_color_components_preserve_defaults_removals_and_banner_absence() {
     (_, shield.extra) = crate::item_data::decode_components(Some(&removal));
     assert!(!red.test_in(&context, &shield));
     assert!(absent.test_in(&context, &shield));
+    let mut plain_removed = ItemStack::new("minecraft:shield", 1);
+    plain_removed.data_mut().set_loot_component(
+        "!minecraft:base_color",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(absent.test_in(&context, &plain_removed));
+    assert!(!red.test_in(&context, &plain_removed));
 
     let no_defaults = Items::empty();
     let white = parse(
@@ -2571,6 +2588,11 @@ fn base_color_components_preserve_defaults_removals_and_banner_absence() {
     );
     let undyed = ItemStack::new("minecraft:shield", 1);
     assert!(!white.test_in(&context, &undyed));
+    let plain_absence = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:shield","components":{"!minecraft:base_color":{}}}"#,
+        &no_defaults,
+    );
+    assert!(plain_absence.test_in(&context, &undyed));
     for item in ["minecraft:red_banner", "minecraft:white_banner"] {
         let mut banner = ItemStack::new(item, 1);
         assert!(absent.test_in(&context, &banner));
@@ -2590,21 +2612,18 @@ fn base_color_component_errors_name_the_component() {
         serde_json::json!("Light_Blue"),
         serde_json::json!(14),
         serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
         serde_json::json!([]),
         serde_json::json!({}),
     ] {
-        let patch = crate::json_nbt::json_to_compound(
-            serde_json::json!({"minecraft:base_color":value})
-                .as_object()
-                .unwrap(),
-        )
-        .unwrap();
-        let rule = IngredientRule::Components {
-            patch,
-            removed: Vec::new(),
-            strict: false,
-        };
-        let error = components::validate(&rule, &items).unwrap_err();
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components",
+            "items":"minecraft:shield",
+            "components":{"minecraft:base_color":value}
+        });
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
         assert!(
             error.starts_with("component minecraft:base_color:"),
             "{error}"
