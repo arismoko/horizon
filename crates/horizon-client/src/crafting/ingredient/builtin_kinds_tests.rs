@@ -3515,7 +3515,6 @@ fn malformed_cat_collar_payloads_reject_whole_recipes_with_component_errors() {
     }
 }
 
-
 #[test]
 fn wolf_collar_components_compile_recipes_match_live_values_and_preserve_defaults() {
     let mut items = Items::empty();
@@ -3598,8 +3597,10 @@ fn wolf_collar_components_compile_recipes_match_live_values_and_preserve_default
         assert!(!loose.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     }
-    let removal = Tag::compound([("!minecraft:wolf/collar", Tag::Compound(Default::default()))]);
-    (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+    stack.data_mut().set_loot_component(
+        "!minecraft:wolf/collar",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(!ingredient.test_in(&context, &stack));
     assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     let absent = parse(
@@ -3614,6 +3615,35 @@ fn wolf_collar_components_compile_recipes_match_live_values_and_preserve_default
         &items,
     );
     assert!(!missing.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+    let mut populated = ItemStack::new("minecraft:stone", 1);
+    populated
+        .data_mut()
+        .set_loot_component("minecraft:wolf/collar", &Some(Tag::String("red".into())));
+    assert!(missing.test_in(&context, &populated));
+    assert!(!absent.test_in(&context, &populated));
+    // A removed unrelated inherited component no longer counts against strict matching.
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:wolf_spawn_egg".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({
+                "minecraft:wolf/collar":"red", "minecraft:custom_data":{"extra":1}
+            })
+            .as_object()
+            .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let strict_with_extra = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:wolf_spawn_egg","components":{"minecraft:wolf/collar":"red"},"strict":true}"#,
+        &items,
+    );
+    let mut inherited = ItemStack::new("minecraft:wolf_spawn_egg", 1);
+    assert!(!strict_with_extra.test_in(&context, &inherited));
+    inherited.data_mut().set_loot_component(
+        "!minecraft:custom_data",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(strict_with_extra.test_in(&context, &inherited));
     let mut empty = ItemStack::new("minecraft:wolf_spawn_egg", 0);
     empty
         .data_mut()
@@ -3626,47 +3656,80 @@ fn malformed_wolf_collar_payloads_reject_whole_recipes_with_component_errors() {
     let items = Items::empty();
     let load = load();
     let root = tempfile::tempdir().unwrap();
-    for value in [
-        serde_json::json!("RED"),
-        serde_json::json!("silver"),
-        serde_json::json!("minecraft:red"),
-        serde_json::json!(" red"),
-        serde_json::json!(""),
-        serde_json::json!(14),
-        serde_json::json!(true),
-        serde_json::json!({}),
-        serde_json::json!([]),
-    ] {
-        let patch = serde_json::json!({"minecraft:wolf/collar":value});
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::Byte(0), Tag::End, Tag::List(vec![])] {
         let rule = IngredientRule::Components {
-            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
+            patch: horizon_core::nbt::Compound::from([("minecraft:wolf/collar".into(), value)]),
             removed: vec![],
             strict: false,
         };
         let error = components::validate(&rule, &items).unwrap_err();
-        assert!(
-            error.contains("component minecraft:wolf/collar:"),
-            "{error}"
-        );
+        assert!(error.contains("minecraft:wolf/collar"), "{error}");
+    }
+    for value in [
+        serde_json::json!("RED"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:red"),
+        serde_json::json!("light blue"),
+        serde_json::json!(""),
+        serde_json::json!(14),
+        serde_json::json!(14.0),
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:wolf/collar":value});
         let ingredient = serde_json::json!({
             "type":"neoforge:components", "items":"minecraft:wolf_spawn_egg", "components":patch
         });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("minecraft:wolf/collar"), "{error}");
         assert!(Ingredient::parse(&ingredient, &items).is_none());
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
             &horizon_world::loot::PackOverlay::NONE,
-            vec![(
-                "fixture:invalid_wolf_collar".into(),
-                serde_json::json!({
-                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
-                    "result":{"id":"minecraft:diamond"}
-                }),
-            )],
+            vec![
+                (
+                    "fixture:invalid_wolf_collar".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_sibling".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":["minecraft:paper"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
             &load,
         )
         .unwrap();
-        assert!(recipes.crafting.is_empty());
-        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:valid_sibling",
+            &[Some(ItemStack::new("minecraft:paper", 1))],
+            1
+        ));
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:paper", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(
+                    &context,
+                    &[Some(ItemStack::new("minecraft:wolf_spawn_egg", 1))],
+                    1
+                )
+                .is_none()
+        );
     }
 }
