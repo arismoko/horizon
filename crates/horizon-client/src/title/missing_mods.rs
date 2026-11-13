@@ -74,6 +74,7 @@ impl Title {
                 WorldEntry::corrupted(folder.to_owned(), std::time::SystemTime::now())
             });
         self.set_mode(Mode::MissingMods { world, missing });
+        self.focused_button = Some(101);
     }
 
     pub(super) fn draw_missing_mods(

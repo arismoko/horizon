@@ -202,3 +202,16 @@ fn page_keys_scroll_independently_of_action_focus() {
         .arrow_key(winit::keyboard::KeyCode::ArrowDown, (240.0, 240.0), false);
     assert!(f.title.focused_button.is_some());
 }
+
+#[test]
+fn opening_prompt_replaces_stale_destructive_focus_with_cancel() {
+    let mut f = Fixture::new();
+    f.title.focused_button = Some(103);
+    f.title.ask_missing_mods("Gone", vec![gone()]);
+    assert_eq!(f.title.focused_button, Some(101));
+    for size in [(240.0, 240.0), (640.0, 360.0)] {
+        f.title
+            .arrow_key(winit::keyboard::KeyCode::ArrowDown, size, false);
+        assert_eq!(f.title.focused_button, Some(101));
+    }
+}
