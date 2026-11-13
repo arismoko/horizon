@@ -54,8 +54,8 @@ jobs:
           archive=horizon-prebuilt-v5-${{ matrix.target }}.tar.gz
           curl -sSfL -o "$RUNNER_TEMP/$archive" "https://github.com/arismoko/horizon/releases/download/prebuilt-$SHA/$archive"
           ls -l "$RUNNER_TEMP/$archive"
-          mkdir -p "$RUNNER_TEMP/sdk"
-          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/sdk"
+          # Python's tarfile: Windows' GNU tar reads "D:" as a remote host.
+          python -c "import sys,tarfile; tarfile.open(sys.argv[1]).extractall(sys.argv[2], filter='tar')" "$RUNNER_TEMP/$archive" "$RUNNER_TEMP/sdk"
       - name: Tools
         run: |
           which gcc cc ar nm objdump rustc || true
