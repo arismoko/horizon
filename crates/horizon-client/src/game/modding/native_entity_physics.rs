@@ -140,6 +140,53 @@ impl Game<'_> {
             _ => false,
         }
     }
+
+    /// `/kill` and the native discard drop a projectile from its list: the
+    /// `noPhysics` write stored for a shulker bullet leaves with it.
+    pub(super) fn remove_projectile(&mut self, id: u32) {
+        self.creatures.projectiles.retain(|p| p.id != id);
+        self.forget_entity(id);
+    }
+
+    /// A command drops an ominous item spawner: its stored `noPhysics` write
+    /// leaves with it.
+    pub(super) fn remove_ominous_spawner(&mut self, id: u32) {
+        self.ominous_spawners.retain(|s| s.id != id);
+        self.forget_entity(id);
+    }
+
+    /// A command drops one breath cloud: its stored `noPhysics` write leaves
+    /// with it.
+    pub(super) fn remove_breath_cloud(&mut self, id: u32) {
+        self.breath_clouds.retain(|c| c.id != id);
+        self.forget_entity(id);
+    }
+
+    /// Drop every breath cloud the predicate rejects and forget each one's
+    /// stored `noPhysics` write (the dragon's flame going).
+    pub(super) fn retain_breath_clouds(
+        &mut self,
+        mut keep: impl FnMut(&super::dragon::Breath) -> bool,
+    ) {
+        let mut gone = Vec::new();
+        self.breath_clouds.retain(|c| {
+            let kept = keep(c);
+            if !kept {
+                gone.push(c.id);
+            }
+            kept
+        });
+        for id in gone {
+            self.forget_entity(id);
+        }
+    }
+
+    /// A breath cloud expiring inside a `retain_mut`: forget its stored
+    /// `noPhysics` write and refuse it, in one call.
+    pub(super) fn forget_expired_cloud(&mut self, id: u32) -> bool {
+        self.forget_entity(id);
+        false
+    }
 }
 
 #[cfg(test)]

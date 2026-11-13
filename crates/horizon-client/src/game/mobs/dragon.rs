@@ -3215,18 +3215,7 @@ impl Game<'_> {
             .as_mut()
             .is_some_and(|d| std::mem::take(&mut d.flame_ended))
         {
-            let mut gone = Vec::new();
-            self.breath_clouds.retain(|c| {
-                let keep = !c.from_dragon;
-                if !keep {
-                    gone.push(c.id);
-                }
-                keep
-            });
-            // The flame cloud's `noPhysics` write leaves with it.
-            for id in gone {
-                self.forget_entity(id);
-            }
+            self.retain_breath_clouds(|c| !c.from_dragon);
         }
     }
     pub(super) fn tick_breath(&mut self) {
@@ -3257,7 +3246,6 @@ impl Game<'_> {
         let mut clouds = self.breath_clouds.lift();
         #[cfg(test)]
         super::entity::taken_pass_tests::after_take(self);
-        let mut expired: Vec<u32> = Vec::new();
         clouds.retain_mut(|c| {
             // Lingering potions' clouds tick with the potions.
             if c.potion.is_some() {
@@ -3268,8 +3256,7 @@ impl Game<'_> {
             }
             c.age += 1;
             if breath_expired(c.age, c.duration) {
-                expired.push(c.id);
-                return false;
+                return self.forget_expired_cloud(c.id);
             }
             if !c.from_dragon && c.age >= BREATH_WAIT {
                 // DragonFireball's cloud: radius per tick (7 - 3) / duration.
@@ -3315,10 +3302,6 @@ impl Game<'_> {
         });
         self.breath_clouds
             .restore(clouds, horizon_client::join_seq::RestoreOrder::SpawnsFirst);
-        // A cloud that expired on its own takes its `noPhysics` write with it.
-        for id in expired {
-            self.forget_entity(id);
-        }
         for (who, amount) in harmed {
             self.as_fight_player(who, |g| {
                 g.dragon_hurts_player("minecraft:indirect_magic", amount);
