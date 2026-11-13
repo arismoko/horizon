@@ -154,8 +154,11 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
                 && matches!(b.data().and_then(|d| d.other(id)), Some(Tag::Compound(_)))
         }
         // DyeColor.CODEC's canonical NbtOps value is its exact serialized name.
-        // Live stacks retain dye in `other`; borrow UTF-16 without palette scans.
-        "minecraft:dye" => match (
+        // Live stacks retain these colors in `other`; borrow UTF-16 without palette scans.
+        "minecraft:dye"
+        | "minecraft:sheep/color"
+        | "minecraft:shulker/color"
+        | "minecraft:cat/collar" => match (
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
         ) {
@@ -430,9 +433,7 @@ mod tests {
             "minecraft:ominous_bottle_amplifier",
         ] {
             let mut candidate = ItemStack::new("minecraft:stone", 1);
-            candidate
-                .data_mut()
-                .set_loot_component(id, &Some(Tag::Int(3)));
+            candidate.data_mut().set_other(id, Some(Tag::Int(3)));
             match id {
                 "minecraft:map_id" => candidate.data_mut().map_id = Some(4),
                 "minecraft:dyed_color" => candidate.data_mut().dyed_color = Some(4),

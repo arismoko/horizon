@@ -331,6 +331,209 @@ fn components_dyed_color_decodes_rgb_forms_and_matches_borrowed_values() {
     assert!(absence.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
 }
 #[test]
+fn sheep_color_components_compile_recipes_and_match_live_values() {
+    let items = Items::empty();
+    let ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"minecraft:sheep/color":"light_blue"},"strict":true}"#,
+        &items,
+    );
+    let loose = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"minecraft:sheep/color":"light_blue"}}"#,
+        &items,
+    );
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"!minecraft:sheep/color":{}}}"#,
+        &items,
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:sheep_color".into(),
+            serde_json::json!({
+                "type":"minecraft:crafting_shapeless",
+                "ingredients":[{
+                    "type":"neoforge:components", "items":"minecraft:sheep_spawn_egg",
+                    "components":{"minecraft:sheep/color":"light_blue"}, "strict":true
+                }],
+                "result":{"id":"minecraft:diamond"}
+            }),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut stack = ItemStack::new("minecraft:sheep_spawn_egg", 1);
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(absent.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    let patch = Tag::compound([("minecraft:sheep/color", Tag::String("light_blue".into()))]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&patch));
+    assert_eq!(
+        stack.data().unwrap().other("minecraft:sheep/color"),
+        Some(&Tag::String("light_blue".into()))
+    );
+    assert!(ingredient.test_in(&context, &stack));
+    assert!(!absent.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:custom_data", &Some(Tag::Int(1)));
+    assert!(loose.test_in(&context, &stack));
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:custom_data", &None);
+    for value in [
+        Tag::String("light_gray".into()),
+        Tag::String("LIGHT_BLUE".into()),
+        Tag::Int(3),
+    ] {
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:sheep/color", &Some(value));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    }
+    stack.data_mut().set_loot_component(
+        "!minecraft:sheep/color",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(absent.test_in(&context, &stack));
+    assert!(!ingredient.test_in(&context, &stack));
+
+    // Items.registerSpawnEgg / Item.Properties.spawnEgg set ENTITY_DATA, not SHEEP_COLOR.
+    // This explicit prototype is synthetic, exercising defaults rather than an entity's white color.
+    let mut defaults = Items::empty();
+    defaults.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:sheep_spawn_egg".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:sheep/color":"light_blue"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let default_ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"minecraft:sheep/color":"light_blue"},"strict":true}"#,
+        &defaults,
+    );
+    let default_absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"!minecraft:sheep/color":{}}}"#,
+        &defaults,
+    );
+    let plain = ItemStack::new("minecraft:sheep_spawn_egg", 1);
+    assert!(default_ingredient.test_in(&context, &plain));
+    assert!(!default_absent.test_in(&context, &plain));
+    assert!(!default_ingredient.test_in(&context, &stack));
+    assert!(default_absent.test_in(&context, &stack));
+    let mut populated = plain.clone();
+    populated
+        .data_mut()
+        .set_loot_component("minecraft:sheep/color", &Some(Tag::String("red".into())));
+    assert!(!default_absent.test_in(&context, &populated));
+    assert!(!default_ingredient.test_in(&context, &populated));
+    populated.data_mut().set_loot_component(
+        "!minecraft:sheep/color",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(default_absent.test_in(&context, &populated));
+    assert!(!default_ingredient.test_in(&context, &populated));
+}
+
+#[test]
+fn malformed_sheep_color_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::Byte(0), Tag::End, Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:sheep/color".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:sheep/color"), "{error}");
+    }
+    for value in [
+        serde_json::json!("LIGHT_BLUE"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:light_blue"),
+        serde_json::json!(3),
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:sheep/color":value});
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:sheep_spawn_egg", "components":patch
+        });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("minecraft:sheep/color"), "{error}");
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![
+                (
+                    "fixture:invalid_sheep_color".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_sibling".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":["minecraft:stick"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:valid_sibling",
+            &[Some(ItemStack::new("minecraft:stick", 1))],
+            1
+        ));
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(
+                    &context,
+                    &[Some(ItemStack::new("minecraft:sheep_spawn_egg", 1))],
+                    1
+                )
+                .is_none()
+        );
+    }
+}
+
+#[test]
 fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
     let mut items = Items::empty();
     items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
@@ -462,6 +665,258 @@ fn malformed_dye_payloads_reject_whole_recipes_with_component_errors() {
         .unwrap();
         assert!(recipes.crafting.is_empty());
         assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+}
+
+#[test]
+fn shulker_color_components_compile_match_and_distinguish_absence_from_defaults() {
+    // DataComponents.SHULKER_COLOR uses DyeColor.CODEC, not the mob's uncolored sentinel.
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:shulker_spawn_egg".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:shulker/color":"purple"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    // Literal oracle names; do not derive expected acceptance from the decoder palette.
+    for color in [
+        "white",
+        "orange",
+        "magenta",
+        "light_blue",
+        "yellow",
+        "lime",
+        "pink",
+        "gray",
+        "light_gray",
+        "cyan",
+        "purple",
+        "blue",
+        "brown",
+        "green",
+        "red",
+        "black",
+    ] {
+        let source = serde_json::json!({
+            "type":"neoforge:components",
+            "items":["minecraft:shulker_spawn_egg", "minecraft:stone"],
+            "components":{"minecraft:shulker/color":color},
+            "strict":true
+        });
+        let ingredient = Ingredient::parse(&source, &items).unwrap();
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:shulker_color".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[source],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        let mut stack = ItemStack::new("minecraft:shulker_spawn_egg", 1);
+        assert_eq!(ingredient.test_in(&context, &stack), color == "purple");
+        assert_eq!(
+            recipes.craft(&context, &[Some(stack.clone())], 1).is_some(),
+            color == "purple"
+        );
+        let mut no_default = ItemStack::new("minecraft:stone", 1);
+        assert!(!ingredient.test_in(&context, &no_default));
+        assert!(
+            recipes
+                .craft(&context, &[Some(no_default.clone())], 1)
+                .is_none()
+        );
+        let value = Tag::String(color.into());
+        // Exact lowercase names are already canonical: no ordinal or namespace normalization.
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:shulker/color",
+                &value,
+                &Default::default()
+            )
+            .unwrap(),
+            value
+        );
+        for candidate in [&mut stack, &mut no_default] {
+            candidate
+                .data_mut()
+                .set_loot_component("minecraft:shulker/color", &Some(value.clone()));
+            assert_eq!(
+                candidate.data().unwrap().other("minecraft:shulker/color"),
+                Some(&value)
+            );
+            assert!(ingredient.test_in(&context, candidate));
+            assert!(
+                recipes
+                    .craft(&context, &[Some(candidate.clone())], 1)
+                    .is_some()
+            );
+        }
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            for _ in 0..100 {
+                assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+            }
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        assert_eq!(allocations.bytes, 0);
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:repair_cost", &Some(Tag::Int(1)));
+        assert!(
+            !ingredient.test_in(&context, &stack),
+            "strict rejects extra components"
+        );
+        let mut loose_source = source.clone();
+        loose_source["strict"] = serde_json::json!(false);
+        assert!(
+            Ingredient::parse(&loose_source, &items)
+                .unwrap()
+                .test_in(&context, &stack)
+        );
+        for invalid in [Tag::String("PURPLE".into()), Tag::Int(-1), Tag::Int(10)] {
+            no_default
+                .data_mut()
+                .set_loot_component("minecraft:shulker/color", &Some(invalid));
+            assert!(!ingredient.test_in(&context, &no_default));
+            assert!(
+                recipes
+                    .craft(&context, &[Some(no_default.clone())], 1)
+                    .is_none()
+            );
+        }
+        stack = ItemStack::new("minecraft:shulker_spawn_egg", 1);
+        stack.data_mut().set_loot_component(
+            "!minecraft:shulker/color",
+            &Some(Tag::Compound(Default::default())),
+        );
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        let absent = parse(
+            r#"{"type":"neoforge:components","items":["minecraft:shulker_spawn_egg","minecraft:stone"],"components":{"!minecraft:shulker/color":{}},"strict":true}"#,
+            &items,
+        );
+        assert!(absent.test_in(&context, &stack));
+        assert!(absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+        assert!(!absent.test_in(&context, &ItemStack::new("minecraft:shulker_spawn_egg", 1)));
+    }
+}
+
+#[test]
+fn malformed_shulker_color_payloads_omit_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::Byte(0), Tag::End, Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:shulker/color".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:shulker/color"), "{error}");
+    }
+    for value in [
+        serde_json::json!("PURPLE"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:purple"),
+        serde_json::json!(" purple"),
+        serde_json::json!(""),
+        serde_json::json!(-1),
+        serde_json::json!(0),
+        serde_json::json!(10),
+        serde_json::json!(15),
+        serde_json::json!(16),
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:shulker/color":value});
+        let source = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:shulker_spawn_egg", "components":patch
+        });
+        let error = components::validate_recipe_components(&source, &items).unwrap_err();
+        assert!(error.contains("minecraft:shulker/color"), "{error}");
+        assert!(Ingredient::parse(&source, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![
+                (
+                    "fixture:invalid_shulker_color".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":[source],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_sibling".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":["minecraft:stick"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:valid_sibling",
+            &[Some(ItemStack::new("minecraft:stick", 1))],
+            1
+        ));
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(
+                    &context,
+                    &[Some(ItemStack::new("minecraft:shulker_spawn_egg", 1))],
+                    1
+                )
+                .is_none()
+        );
+    }
+    for value in [
+        Tag::End,
+        Tag::String(horizon_core::nbt::JavaString(vec![0xd800])),
+        Tag::String(horizon_core::nbt::JavaString(vec![
+            112, 117, 114, 112, 108, 101, 0xd800,
+        ])),
+        Tag::Byte(-1),
+        Tag::Short(10),
+        Tag::Long(10),
+        Tag::Float(10.0f32.to_bits()),
+        Tag::Double(10.0f64.to_bits()),
+    ] {
+        assert!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:shulker/color",
+                &value,
+                &Default::default()
+            )
+            .is_err()
+        );
     }
 }
 
@@ -2812,4 +3267,250 @@ fn villager_food_codec_compiles_recipes_and_matches_borrowed_nutrition() {
     assert!(!matches(&carrot));
     assert!(absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
     assert!(!matches(&ItemStack::new("minecraft:carrot", 0)));
+}
+
+#[test]
+fn cat_collar_components_compile_recipes_match_live_values_and_preserve_defaults() {
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    // Independent DyeColor.CODEC names, not values obtained from the decoder's palette.
+    for color in [
+        "white",
+        "orange",
+        "magenta",
+        "light_blue",
+        "yellow",
+        "lime",
+        "pink",
+        "gray",
+        "light_gray",
+        "cyan",
+        "purple",
+        "blue",
+        "brown",
+        "green",
+        "red",
+        "black",
+    ] {
+        let mut items = Items::empty();
+        items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+            "minecraft:stick".into(),
+            crate::json_nbt::json_to_compound(
+                serde_json::json!({"minecraft:cat/collar":color})
+                    .as_object()
+                    .unwrap(),
+            )
+            .unwrap(),
+        )]));
+        // Component identifiers normalize; color names themselves must remain exact.
+        let source = serde_json::json!({
+            "type":"neoforge:components", "items":["minecraft:stick","minecraft:paper"],
+            "components":{"cat/collar":color}, "strict":true
+        });
+        let ingredient = Ingredient::parse(&source, &items).unwrap();
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:cat_collar".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[source],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        let mut stack = ItemStack::new("minecraft:stick", 1);
+        assert!(
+            ingredient.test_in(&context, &stack),
+            "{color}: prototype default"
+        );
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:cat/collar", &Some(Tag::String(color.into())));
+        assert_eq!(
+            stack.data().unwrap().other("minecraft:cat/collar"),
+            Some(&Tag::String(color.into()))
+        );
+        assert!(ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            for _ in 0..100 {
+                assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+            }
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        assert_eq!(allocations.bytes, 0);
+        let other_color = if color == "red" { "blue" } else { "red" };
+        for value in [
+            Tag::String(other_color.into()),
+            Tag::String("RED".into()),
+            Tag::Int(14),
+        ] {
+            stack
+                .data_mut()
+                .set_loot_component("minecraft:cat/collar", &Some(value));
+            assert!(!ingredient.test_in(&context, &stack));
+            assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        }
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:cat/collar", &Some(Tag::String(color.into())));
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:custom_data", &Some(Tag::Int(7)));
+        assert!(
+            !ingredient.test_in(&context, &stack),
+            "strict extra component"
+        );
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        let mut relaxed_source = source.clone();
+        relaxed_source["strict"] = serde_json::json!(false);
+        let relaxed = Ingredient::parse(&relaxed_source, &items).unwrap();
+        assert!(relaxed.test_in(&context, &stack));
+
+        stack = ItemStack::new("minecraft:stick", 1);
+        stack.data_mut().set_loot_component(
+            "!minecraft:cat/collar",
+            &Some(Tag::Compound(Default::default())),
+        );
+        assert!(
+            !ingredient.test_in(&context, &stack),
+            "removal masks prototype"
+        );
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        let absent = parse(
+            r#"{"type":"neoforge:components","items":["minecraft:stick","minecraft:paper"],"components":{"!minecraft:cat/collar":{}}}"#,
+            &items,
+        );
+        assert!(absent.test_in(&context, &stack));
+        assert!(!absent.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
+        let mut paper = ItemStack::new("minecraft:paper", 1);
+        assert!(absent.test_in(&context, &paper), "true absence");
+        assert!(!ingredient.test_in(&context, &paper));
+        assert!(recipes.craft(&context, &[Some(paper.clone())], 1).is_none());
+        paper
+            .data_mut()
+            .set_loot_component("minecraft:cat/collar", &Some(Tag::String(color.into())));
+        assert!(
+            ingredient.test_in(&context, &paper),
+            "explicit value without default"
+        );
+        assert!(!absent.test_in(&context, &paper));
+        assert!(recipes.craft(&context, &[Some(paper.clone())], 1).is_some());
+        paper.count = 0;
+        assert!(!ingredient.test_in(&context, &paper));
+        assert!(!ingredient.test_in(&context, &ItemStack::new("minecraft:air", 1)));
+    }
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:stick".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({
+                "minecraft:cat/collar":"red", "minecraft:custom_data":{"extra":1}
+            })
+            .as_object()
+            .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let strict = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:cat/collar":"red"},"strict":true}"#,
+        &items,
+    );
+    let mut stack = ItemStack::new("minecraft:stick", 1);
+    assert!(
+        !strict.test_in(&context, &stack),
+        "strict counts prototype extras"
+    );
+    let removal = Tag::compound([("!minecraft:custom_data", Tag::Compound(Default::default()))]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+    assert!(
+        strict.test_in(&context, &stack),
+        "removed prototype extra is absent"
+    );
+}
+
+#[test]
+fn malformed_cat_collar_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::Byte(0), Tag::End, Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:cat/collar".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:cat/collar"), "{error}");
+    }
+    for value in [
+        serde_json::json!("RED"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:red"),
+        serde_json::json!("light blue"),
+        serde_json::json!(""),
+        serde_json::json!(14),
+        serde_json::json!(14.0),
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:cat/collar":value});
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:stick", "components":patch
+        });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("minecraft:cat/collar"), "{error}");
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![
+                (
+                    "fixture:invalid_cat_collar".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_sibling".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":["minecraft:paper"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:valid_sibling",
+            &[Some(ItemStack::new("minecraft:paper", 1))],
+            1
+        ));
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:paper", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_none()
+        );
+    }
 }
