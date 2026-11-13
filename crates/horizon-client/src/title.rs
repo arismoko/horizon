@@ -1301,6 +1301,19 @@ impl Title {
             buffet::wheel(buffet, delta, cursor, size);
             return false;
         }
+        if matches!(self.mode, Mode::MissingMods { .. }) {
+            let (w, h) = size;
+            let mut scroll = self.scroll.get();
+            scroll.wheel(
+                delta,
+                18.0,
+                36.0,
+                h - if w < 324.0 { 88.0 } else { 64.0 },
+                self.message_lines.get() as f32 * 9.0,
+            );
+            self.scroll.set(scroll);
+            return false;
+        }
         // CycleButton.mouseScrolled reads only the vertical wheel.
         if let Mode::Create {
             creative, options, ..

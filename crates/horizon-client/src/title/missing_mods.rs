@@ -23,12 +23,14 @@ fn message(missing: &[MissingMod]) -> String {
 /// The most lines of text that leave the heading and both rows of buttons on a screen `h` high.
 /// `confirm_top` centres a column of 61 plus the text, and the second row of buttons ends 85
 /// plus the text below its top, so the text may take `h - 109`, less 8 to spare.
+#[cfg(test)]
 fn max_lines(h: f32) -> usize {
     ((h - 109.0 - 8.0) / 9.0).floor().max(1.0) as usize
 }
 
 /// The description, then each mod's lines while they fit in `max` lines; when some don't, the
 /// last line says how many mods are left out. The narration reads them all (`screen_info`).
+#[cfg(test)]
 fn fit(description: Vec<String>, mods: Vec<Vec<String>>, max: usize) -> Vec<String> {
     let total = description.len() + mods.iter().map(Vec::len).sum::<usize>();
     let mut lines = description;
@@ -83,26 +85,51 @@ impl Title {
         missing: &[MissingMod],
     ) {
         crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
-        let width = w - 50.0;
-        let description = wrapped(atlas, &lang::get("horizon.missing_mods.description"), width);
-        let mods = missing
-            .iter()
-            .map(|m| wrapped(atlas, &level_mods::describe(m), width))
-            .collect();
-        let budget = max_lines(h - if w < 324.0 { 24.0 } else { 0.0 });
-        let lines = fit(description, mods, budget);
+        let width = w - 32.0;
+        let mut lines = wrapped(atlas, &lang::get("horizon.missing_mods.description"), width);
+        let description_lines = lines.len();
+        lines.push(String::new());
+        for m in missing {
+            lines.extend(wrapped(atlas, &level_mods::describe(m), width));
+            lines.push(String::new());
+        }
         self.message_lines.set(lines.len());
-        let top = confirm_top(h, lines.len());
+        let top = 36.0;
+        let bottom = h - if w < 324.0 { 88.0 } else { 64.0 };
+        let mut scroll = self.scroll.get();
+        scroll.clamp(top, bottom, lines.len() as f32 * 9.0);
+        self.scroll.set(scroll);
         centered(
             atlas,
             batch,
             &lang::get("horizon.missing_mods.title"),
-            top,
+            12.0,
             rgba(255, 85, 85, 255),
         );
+        let first = batch.vertices.len();
         for (i, line) in lines.iter().enumerate() {
-            centered(atlas, batch, line, top + 17.0 + i as f32 * 9.0, u32::MAX);
+            centered(
+                atlas,
+                batch,
+                line,
+                top + i as f32 * 9.0 - scroll.amount.trunc(),
+                if i < description_lines {
+                    u32::MAX
+                } else {
+                    rgba(170, 170, 170, 255)
+                },
+            );
         }
+        batch.clip_since(first, 0.0, top, w, bottom);
+        crate::ui::scrollbar(
+            batch,
+            atlas,
+            w - 10.0,
+            top,
+            bottom,
+            lines.len() as f32 * 9.0,
+            scroll.amount,
+        );
     }
 
     /// The question's buttons: Don't Open (101), Back Up and Open (102), Open Without a Backup

@@ -341,10 +341,7 @@ impl Title {
                 let narrow = w < 324.0;
                 let button_width = if narrow { (w - 20.0).min(300.0) } else { 150.0 };
                 let center = (w - button_width) / 2.0;
-                let y = confirm_top(h, self.message_lines.get())
-                    + 41.0
-                    + self.message_lines.get() as f32 * 9.0
-                    - if narrow { 12.0 } else { 0.0 };
+                let y = h - if narrow { 76.0 } else { 52.0 };
                 vec![
                     // Don't Open is the default: first, and what Escape does.
                     b(
