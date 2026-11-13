@@ -188,10 +188,14 @@ fn page_keys_scroll_independently_of_action_focus() {
     let mut f = Fixture::new();
     f.title.ask_missing_mods("Gone", vec![gone()]);
     f.title.message_lines.set(100);
-    f.title
-        .arrow_key(winit::keyboard::KeyCode::ArrowDown, (240.0, 240.0), false);
-    assert_eq!(f.title.scroll.get().amount, 18.0);
-    assert!(f.title.focused_button.is_none());
+    f.title.focused_button = Some(101);
+    assert!(
+        f.title
+            .page_missing_mods(winit::keyboard::KeyCode::PageDown, (240.0, 240.0))
+    );
+    assert_eq!(f.title.scroll.get().amount, 108.0);
+    assert_eq!(f.title.focused_button, Some(101));
+    f.title.focused_button = None;
     f.title.scroll.set(Default::default());
     f.title.message_lines.set(3);
     f.title
