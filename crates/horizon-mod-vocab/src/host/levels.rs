@@ -1226,16 +1226,23 @@ pub trait LevelsBackendMut {
         b: i32,
     ) -> bool;
     /// Side: server.
-    /// Explodes at `center` with no source entity, as `Level.explode(null,
-    /// x, y, z, radius, fire, interaction)` does (`native_explode`): `fire`
-    /// lights some of the air around, `interaction` says what happens to
-    /// blocks: `None`, `Block` or `Tnt` (vanilla's `Mob` and `Trigger` aren't
-    /// offered yet). False for a chunk that isn't loaded or a radius outside
-    /// `0 < radius <= 32`.
+    /// Explodes at `center` as `Level.explode(source, x, y, z, radius, fire,
+    /// interaction)` does (`native_explode`), `source` being the exploding
+    /// entity, or none. The causing entity comes from it, never from the
+    /// caller: a primed TNT's owner, a living entity itself, a projectile's
+    /// owner when that is living, else none. With both the damage is
+    /// `minecraft:player_explosion`, else `minecraft:explosion`, and a kill
+    /// credits the causing entity. `interaction` says what happens to blocks
+    /// (`Mob` asks the source's `entity_mob_griefing`, `Trigger` only works
+    /// buttons, levers, doors and the like); `fire` lights some of the air
+    /// around whatever it is. False, with nothing exploded, for a stale
+    /// `source` or one in another level, a chunk that isn't loaded or a
+    /// radius outside `0 < radius <= 32`.
     #[access(WorldOnly)]
     fn level_explode(
         &mut self,
         level: LevelRef,
+        source: Option<EntityRef>,
         center: [f64; 3],
         radius: f32,
         fire: bool,

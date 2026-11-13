@@ -1140,16 +1140,15 @@ criterion resources; the private advancement world remains solely in the native 
 
 ### Explosions
 
-`crates/horizon-client/src/game/modding/native_explosions.rs`: a helper for server mods, for the level in place, on a server only. It
-names the level it means by its `dimension` (`minecraft:overworld`), as `native_set_block` does, and is refused when another
-level is in place.
+`crates/horizon-client/src/game/modding/native_explosions.rs`: for server mods, in the level in place; the full contract,
+with the causing-entity table, is the book's "Setting off an explosion" (how-to/world/block-experience-and-explosions.md).
 
-- `LevelRef::explode(host, center, radius, fire, interaction)` sets off an explosion as `Level.explode` with no source entity
-  does: blocks break (`explosion_detonate` sees them first and can spare some), entities are hurt and pushed, `fire`
-  lights some of the surrounding air, and nearby players hear and see it. `interaction` is `ExplosionInteraction::None`
-  (no block breaks), `Block` (drops by `block_explosion_drop_decay`) or `Tnt` (by `tnt_explosion_drop_decay`). It answers false,
-  doing nothing, for an unavailable level, a chunk that isn't loaded, or a radius outside `0 < radius <= 32`
-  (TNT is 4, vanilla's largest is 7).
+- `LevelRef::explode(host, source, center, radius, fire, interaction)` is `Level.explode(source, ...)` in vanilla's order.
+  The causing entity comes from `source`, never the caller: a primed TNT's owner, a living entity itself, a projectile's
+  living owner, else none; with both the damage is `minecraft:player_explosion` and a kill credits the cause.
+  `interaction` is `None`, `Block`, `Mob` (the source's `entity_mob_griefing`), `Tnt` or `Trigger` (no breaks; buttons,
+  doors and the like react); `fire` works with any. False, doing nothing, for an unavailable level, a stale `source` or
+  one in another level, an unloaded chunk, or a radius outside `0 < radius <= 32`.
 - A blast set off inside `explosion_detonate` runs that hook again, so a mod that chains blasts keeps its own guard.
 
 ### Camera shake
@@ -1719,8 +1718,9 @@ still go on each event or registrar.
 
 - `component_types(context, types)` runs once before content loads. Append namespaced component IDs; duplicates, invalid IDs and the `minecraft` namespace stop startup. `native_component`, `native_set_component` and `native_remove_component` read, set and remove registered components, including item defaults. Values use NBT and must fit the network reader limits.
 
-- [explosions](#explosions) for server mods: `LevelRef::explode(host, center, radius, fire, interaction)` sets one off as
-  `Level.explode` does, with `ExplosionInteraction::None`, `Block` or `Tnt` for what it does to blocks.
+- [explosions](#explosions) for server mods: `LevelRef::explode(host, source, center, radius, fire, interaction)` sets one
+  off as `Level.explode` does, with an optional source entity and `ExplosionInteraction::None`, `Block`, `Mob`, `Tnt` or
+  `Trigger` for what it does to blocks.
 
 - Dispenser behaviours are chosen at `DispenserBlock.getDispenseMethod`, before any vanilla behaviour, for mod or vanilla items, on the authoritative server only (droppers are unaffected). The block the dispenser faces is asked first: `dispense_method` gives its part the dimension, dispenser position, facing, the selected stack and `state`, the block at `pos` moved by `facing` (air included), and the part is asked only for that block. Then, unless that part answered, the item's own part is asked by `dispense_item` with the same dimension, position, facing and stack. Either answer is `Some((remainder, event))`: a `None` remainder empties the slot, `Some(stack)` writes that remainder without consuming again, and `event` is the level event played with the smoke (1000 click, 1001 fail, 0 nothing, as `NOOP`). The first answer wins: the other part is not asked and vanilla's behaviour doesn't run. `host.dispense_default(dimension, pos, facing, stack)` drops one item normally, including items with a special vanilla behaviour: answer its remainder with 1000. Leave the answer `None` to let vanilla decide, as before.
 

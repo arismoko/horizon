@@ -160,6 +160,14 @@ pub(super) enum BlockInteraction {
     Keep,
     Destroy,
     DestroyWithDecay,
+    /// `TRIGGER_BLOCK`: nothing breaks; buttons, doors and the like react.
+    Trigger,
+}
+impl BlockInteraction {
+    /// `Explosion.BlockInteraction.shouldAffectBlocklikeEntities`.
+    fn affects_blocklike(self) -> bool {
+        matches!(self, Self::Destroy | Self::DestroyWithDecay)
+    }
 }
 
 /// Properties of the direct entity passed to `ServerLevel.explode`.
@@ -201,7 +209,7 @@ pub(super) fn blast_reaches(center: [f64; 3], diameter: f64, at: [f64; 3]) -> bo
 /// blast that keeps blocks; with it on, none (no wind charge goes through
 /// `server_explode`).
 fn items_ignore_explosion(mob_griefing: bool, interaction: BlockInteraction) -> bool {
-    !mob_griefing && interaction == BlockInteraction::Keep
+    !mob_griefing && !interaction.affects_blocklike()
 }
 
 /// Whether a blast leaves item frames, paintings, cushions and armour stands
@@ -218,7 +226,7 @@ pub(super) fn blast_spares_decorations(
     source_in_water: bool,
 ) -> bool {
     // `BlockAttachedEntity.ignoreExplosion`: a source in water first.
-    source_in_water || mob_refused || (!mob_griefing && interaction == BlockInteraction::Keep)
+    source_in_water || mob_refused || (!mob_griefing && !interaction.affects_blocklike())
 }
 
 /// How far the blast's `center` is from `p`.
@@ -657,6 +665,11 @@ impl Game<'_> {
         if dist > 1.0 {
             return None;
         }
+        // `getEntities(this.source, ...)`: a player that is the blast's source is spared.
+        let acting = self.lan_acting_entity.or(Some(p.entity_id as u32));
+        if self.combat.explosion_source_named && exploding == acting {
+            return None;
+        }
         // ServerPlayer.onExplosionHit: the blast that hit the player is theirs.
         self.adv.marks.blast = Some((feet, cause.cloned()));
         let w = f64::from(p.dimensions.width) / 2.0;
@@ -997,6 +1010,11 @@ impl Game<'_> {
                                 .filter(|c| c.player)
                                 .map(|_| Who::Player)
                                 .or_else(|| {
+                                    let player = self.combat.blast_owner_player
+                                        && self.combat.explicit_explosion_cause.is_none();
+                                    player.then_some(Who::Player)
+                                })
+                                .or_else(|| {
                                     attacker
                                         .as_ref()
                                         .map(|&(id, _)| id)
@@ -1172,7 +1190,8 @@ impl Game<'_> {
     pub(super) fn explosion_kill_credit(&self) -> Option<super::commands::Target> {
         use super::commands::Target;
         // A primed TNT's owner (a player) names the blast before any mob does.
-        if self.combat.blast_owner.is_some() {
+        let player = self.combat.blast_owner_player || self.combat.explicit_explosion_cause.is_some();
+        if self.combat.blast_owner.is_some() && player {
             return Some(
                 self.combat
                     .blast_guest
@@ -1399,6 +1418,12 @@ impl Game<'_> {
             g.server_explode_as_source(center, radius, interaction, fire, damage_type, None, source)
         };
         match cause {
+            // A player causes it (a lit TNT's igniter, a mod blast's source):
+            // their hits land as that player's.
+            None if self.combat.blast_owner_player => {
+                let attack = self.blast_owner_attack();
+                self.with_attack(attack, blast)
+            }
             None => blast(self),
             Some(cause) => {
                 let (id, kind) = source.entity.ok_or_else(|| {
@@ -1450,6 +1475,7 @@ impl Game<'_> {
                 BlockInteraction::Keep => mod_api::BlockInteraction::Keep,
                 BlockInteraction::Destroy => mod_api::BlockInteraction::Destroy,
                 BlockInteraction::DestroyWithDecay => mod_api::BlockInteraction::DestroyWithDecay,
+                BlockInteraction::Trigger => mod_api::BlockInteraction::TriggerBlock,
             },
             damage_type,
             source: self.combat.explosion_source,
@@ -1483,7 +1509,9 @@ impl Game<'_> {
         self.native_explosion_detonate(dimension, center, &mut targets);
         let pushed =
             self.explosion_hurt_entities(center, radius, damage_type, interaction, &targets);
-        if interaction != BlockInteraction::Keep {
+        if interaction == BlockInteraction::Trigger {
+            self.explosion_trigger_blocks(&mut targets)?;
+        } else if interaction != BlockInteraction::Keep {
             // Util.shuffle(list, level.random)
             for i in (2..=targets.len()).rev() {
                 let swap = self.world.random.next_int_bound(i as i32).unwrap_or(0) as usize;
@@ -1721,7 +1749,8 @@ impl Game<'_> {
                         (Some(Who::Player), self.combat.blast_guest)
                     }
                     Some((id, _)) => (Some(Who::Mob(*id)), None),
-                    None => (None, None),
+                    // The mob that causes it (a creeper, a mod blast's source).
+                    None => (self.blast_attacker().map(|(id, _)| Who::Mob(id)), None),
                 },
             };
             self.add_primed_tnt(
@@ -2858,6 +2887,7 @@ mod explicit_source_tests {
                     let level = game.level("minecraft:overworld").unwrap();
                     assert!(game.level_explode(
                         level,
+                        None,
                         center,
                         2.0,
                         false,
