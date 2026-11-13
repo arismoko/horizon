@@ -146,7 +146,6 @@ impl Game<'_> {
             }
             if s.tick_count >= s.spawn_item_after {
                 self.spawn_ominous_item(s);
-                self.remove_ominous_spawner(s.id);
                 return false;
             }
             if self.world.game_time % 5 == 0 {
