@@ -174,7 +174,7 @@ fn long_text_keeps_all_three_actions_inside_narrow_viewport() {
         f.title.message_lines.set(lines);
         let buttons = f.title.buttons(240.0, 240.0);
         assert_eq!(buttons.len(), 3);
-        for (button, y) in buttons.iter().zip([164.0, 188.0, 212.0]) {
+        for (button, y) in buttons.iter().zip([212.0, 164.0, 188.0]) {
             assert_eq!(button.x, 10.0);
             assert_eq!(button.w, 220.0);
             assert_eq!(button.y, y);

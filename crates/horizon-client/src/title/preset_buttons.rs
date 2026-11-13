@@ -346,7 +346,7 @@ impl Title {
                     // Don't Open is the default: first, and what Escape does.
                     b(
                         center,
-                        y,
+                        y + if narrow { 48.0 } else { 0.0 },
                         button_width,
                         &lang::get("horizon.missing_mods.dont_open"),
                         true,
@@ -359,7 +359,7 @@ impl Title {
                         } else {
                             (w / 2.0).floor() - 152.0
                         },
-                        y + 24.0,
+                        y + if narrow { 0.0 } else { 24.0 },
                         button_width,
                         &lang::get("horizon.missing_mods.backup_open"),
                         true,
@@ -371,7 +371,7 @@ impl Title {
                         } else {
                             (w / 2.0).floor() + 2.0
                         },
-                        y + if narrow { 48.0 } else { 24.0 },
+                        y + 24.0,
                         button_width,
                         &lang::get("horizon.missing_mods.open"),
                         true,

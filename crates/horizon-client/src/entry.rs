@@ -208,7 +208,9 @@ pub fn start<G>(
     if let Err(error) = game::run_with(options, native) {
         // A bad command line is the caller's mistake, not a crash: no report.
         let usage = error.is::<game::UsageError>() || error.is::<game::MissingModsRefusal>();
-        log::error!("Horizon: {error}");
+        if !error.is::<game::MissingModsRefusal>() {
+            log::error!("Horizon: {error}");
+        }
         logging::flush();
         // The report's path is the last line on stderr (crash::SAVED_LINE).
         if !usage {

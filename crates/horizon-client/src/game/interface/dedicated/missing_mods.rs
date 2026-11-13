@@ -79,7 +79,9 @@ impl Game<'_> {
         for line in &lines {
             log("ERROR", line);
         }
-        log("ERROR", &last);
+        for line in last.lines() {
+            log("ERROR", line);
+        }
         Err(crate::game::MissingModsRefusal(last).into())
     }
 }

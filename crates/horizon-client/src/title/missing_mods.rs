@@ -56,12 +56,21 @@ impl Title {
         let description_lines = lines.len();
         lines.push(String::new());
         for m in missing {
-            lines.extend(wrapped(atlas, &level_mods::describe(m), width));
+            let version = if m.saved_version.is_empty() {
+                lang::get("horizon.missing_mods.unknown_version")
+            } else {
+                m.saved_version.clone()
+            };
+            lines.extend(wrapped(
+                atlas,
+                &lang::tr("horizon.missing_mods.entry", &[&m.id, &version]),
+                width,
+            ));
             lines.push(String::new());
         }
         self.message_lines.set(lines.len());
         let top = 36.0;
-        let bottom = h - if w < 324.0 { 88.0 } else { 64.0 };
+        let bottom = top + ((h - if w < 324.0 { 88.0 } else { 64.0 } - top) / 9.0).floor() * 9.0;
         let mut scroll = self.scroll.get();
         scroll.clamp(top, bottom, lines.len() as f32 * 9.0);
         self.scroll.set(scroll);
@@ -78,7 +87,7 @@ impl Title {
                 atlas,
                 batch,
                 line,
-                top + i as f32 * 9.0 - scroll.amount.trunc(),
+                top + i as f32 * 9.0 - (scroll.amount / 9.0).floor() * 9.0,
                 if i < description_lines {
                     u32::MAX
                 } else {
