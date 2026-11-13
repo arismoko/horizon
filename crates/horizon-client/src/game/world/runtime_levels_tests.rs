@@ -1131,8 +1131,9 @@ fn a_removal_that_fails_part_way_is_finished_by_a_second_delete() {
         write_file(&locked);
         write_file(&folder.join("poi/r.0.0.mca"));
         let Some(lock) = Lock::on(&locked) else {
-            eprintln!("SKIPPED: this process is not held back by file permissions (root)");
-            return;
+            panic!(
+                "partial-removal coverage requires enforced file permissions; run as non-root on Unix or run on Windows"
+            );
         };
         assert_eq!(delete_as(game, "part", "part:a"), Ok(()));
         game.apply_runtime_levels();
