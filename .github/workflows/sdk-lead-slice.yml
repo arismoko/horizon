@@ -63,3 +63,7 @@ jobs:
           gcc --version | head -1 || true
       - name: Slice experiment
         run: python experiments/slice/slice.py "$RUNNER_TEMP/sdk" "$RUNNER_TEMP/work" --seconds 60
+      - name: Slice sizes (runtime / api / engine)
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP" && python "$GITHUB_WORKSPACE/experiments/slice/measure.py" sdk "$GITHUB_WORKSPACE/experiments/slice/api_slice.txt"

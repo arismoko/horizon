@@ -95,7 +95,10 @@ def main() -> None:
     host_lib = deps / dylib("horizon_mod_host")
     wasm_lib = deps / dylib("horizon_mod_wasm")
     sdk_flags = [*common, "-L", f"dependency={deps}", "-L", f"dependency={sdk / 'host'}", "-L", f"native={sdk / 'native'}"]
-    run(["rustc", *sdk_flags, "--crate-type", "dylib", "--crate-name", "horizon_native_mods", "-C", "metadata=nm",
+    # macOS: rustc gives a dylib its absolute output path as install name, which the executable would
+    # record; the stub must be found through the executable's rpath, where the replacement sits.
+    stub_name = ["-C", f"link-arg=-Wl,-install_name,@rpath/{dylib('horizon_native_mods')}"] if OS == "Darwin" else []
+    run(["rustc", *sdk_flags, *stub_name, "--crate-type", "dylib", "--crate-name", "horizon_native_mods", "-C", "metadata=nm",
          "--extern", f"mod_api={rmeta(deps, 'mod_api')}", "--extern", f"horizon_mod_host={host_lib}",
          "--out-dir", full, HERE / "stub.rs"], "stub library (SDK side)")
     origin = {"Linux": ["-Wl,-rpath,$ORIGIN"], "Darwin": ["-Wl,-rpath,@executable_path"], "Windows": []}[OS]
@@ -264,7 +267,20 @@ def main() -> None:
         for line in log.read_text(errors="replace").splitlines():
             if "slice" in line or "refus" in line.lower() or "error" in line.lower():
                 print(f"log|{log.name}| {line}")
-    print("slice-result:", sorted({l for l in lines if l.startswith("slice:")}))
+    for report in sorted(game.rglob("crash-reports/*.txt")):
+        print(f"crash|{report.name}|", report.read_text(errors="replace")[:3000])
+    if OS == "Darwin":
+        for report in sorted((Path.home() / "Library/Logs/DiagnosticReports").glob("horizon-client*"))[-1:]:
+            print(f"diag|{report.name}|", report.read_text(errors="replace")[:4000])
+    shown = sorted({l for l in lines if l.startswith("slice:")})
+    print("slice-result:", shown)
+    expected = ["slice: mods library gave 3 entries, 1 slots, 3 inventory rows",
+                "slice: slice_generic round trip 35 bytes, equal true", "slice: slice_smoke constructed (mods library entries)"]
+    if args.resources:
+        expected += sorted(want) + ["slice: slice_smoke hook server_started fired"]
+    missing = [e for e in expected if e not in shown]
+    if missing:
+        sys.exit(f"slice-failed: not shown: {missing}")
 
 
 if __name__ == "__main__":
