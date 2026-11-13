@@ -209,9 +209,14 @@ pub(super) fn compile(
             ("mod_api".into(), prebuilt::library(&deps, "mod_api")?),
             ("mod_vocab".into(), prebuilt::library(&deps, "mod_vocab")?),
         ]);
+        for (name, path) in &externs {
+            prebuilt::refuse_closure_rlib(id, name, path)?;
+        }
         for (name, package) in project.api_dependencies() {
             if package != "internals" {
-                externs.insert(name, prebuilt::library(&deps, package)?);
+                let path = prebuilt::library(&deps, package)?;
+                prebuilt::refuse_closure_rlib(id, package, &path)?;
+                externs.insert(name, path);
             }
         }
         if internals::needed(&bundle.manifest)
@@ -236,10 +241,9 @@ pub(super) fn compile(
                 .map(String::as_str)
                 .chain(["horizon_client"])
             {
-                facade_externs.insert(
-                    name.to_owned(),
-                    prebuilt::facade_library(&deps, name, &sdk)?,
-                );
+                let path = prebuilt::facade_library(&deps, name, &sdk)?;
+                prebuilt::refuse_closure_rlib(id, name, &path)?;
+                facade_externs.insert(name.to_owned(), path);
             }
             bindings.insert(
                 facade_dir,
@@ -313,10 +317,15 @@ pub(super) fn compile(
                 .collect();
             manifest.insert("features".into(), features.into());
             fs::write(dir.join("Cargo.toml"), manifest.to_string()).map_err(|e| e.to_string())?;
+            let externs: BTreeMap<_, _> =
+                super::patch::sdk_externs(game, &sdk)?.into_iter().collect();
+            for (krate, path) in &externs {
+                prebuilt::refuse_closure_rlib("horizon_patch", krate, path)?;
+            }
             bindings.insert(
                 dir,
                 registry_rustc::Bindings {
-                    externs: super::patch::sdk_externs(game, &sdk)?.into_iter().collect(),
+                    externs,
                     link_args: Vec::new(),
                 },
             );
@@ -416,6 +425,9 @@ pub(super) fn compile(
     }
     let mut externs = prebuilt::wrapper_externs(&deps, &template)?;
     externs.insert("mod_vocab".into(), prebuilt::library(&deps, "mod_vocab")?);
+    for (name, path) in &externs {
+        prebuilt::refuse_closure_rlib("horizon_patch", name, path)?;
+    }
     let mut link_args = sdk.link_args.clone();
     if cfg!(target_os = "linux") {
         link_args.push("-Wl,--disable-new-dtags".into());
