@@ -175,6 +175,17 @@ pub fn command(
     dir: &Path,
     low_memory: bool,
 ) -> std::io::Result<Command> {
+    command_with_transfers(program, resources, dir, low_memory, None)
+}
+
+/// The supervisor command with optional transfer settings, placed before vanilla's server arguments.
+pub fn command_with_transfers(
+    program: &Path,
+    resources: &Path,
+    dir: &Path,
+    low_memory: bool,
+    transfers: Option<&str>,
+) -> std::io::Result<Command> {
     // The game runs in the server folder, so a folder given relative to ours (`--dir srv`) would put its
     // control endpoint in `srv/srv/.horizon`, which doesn't exist.
     let dir = std::path::absolute(dir)?;
@@ -184,7 +195,11 @@ pub fn command(
         .arg("--resources")
         .arg(resources)
         .arg("--control-socket")
-        .arg(control_path(&dir))
+        .arg(control_path(&dir));
+    if let Some(transfers) = transfers {
+        command.arg("--transfers").arg(transfers);
+    }
+    command
         .args(["--dedicated", "--nogui"])
         .current_dir(&dir)
         .env("HORIZON_NO_AUDIO", "1")

@@ -3363,7 +3363,7 @@ fn play_work_sound(m: &mut Mob, cx: &mut Bx) {
     }
 }
 /// `WorkAtPoi.start`'s restock.
-fn restock_if_due(m: &mut Mob, w: &MobWorld) {
+pub(super) fn restock_if_due(m: &mut Mob, w: &MobWorld) {
     if w.professions.state_index(&m.extra.profession).is_none() {
         return;
     }

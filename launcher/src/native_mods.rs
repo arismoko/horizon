@@ -1821,6 +1821,7 @@ fn pipeline(
             &rust,
             game,
             &root().join("prebuilt-build"),
+            folder,
             route,
             &projects,
             &declared,
