@@ -40,11 +40,13 @@ def run(cmd, step=None, **kw):
     cmd = [str(c) for c in cmd]
     print("+", " ".join(cmd), flush=True)
     t = time.monotonic()
-    out = subprocess.run(cmd, check=True, text=True, capture_output=True, **kw)
+    out = subprocess.run(cmd, text=True, capture_output=True, **kw)
     if out.stdout.strip():
         print(out.stdout.rstrip())
     if out.stderr.strip():
         print(out.stderr.rstrip())
+    if out.returncode:
+        sys.exit(f"slice-failed: {step or cmd[0]}: exit {out.returncode}")
     if step:
         print(f"slice-step: {step}: {time.monotonic() - t:.2f} s", flush=True)
     return out.stdout
@@ -129,21 +131,21 @@ def main() -> None:
         src = HERE / "mods" / mod
         manifest = (src / "horizon-mod.toml").read_text()
         run(["rustc", *player, "--crate-type", "rlib", "--crate-name", f"mod_{i}", "-C", f"metadata={mod}",
-             *api, *(points_extern if "[[inject]]" in manifest else []), "--out-dir", out, src / "src/lib.rs"],
+             *api, *(points_extern if "\n[[inject]]\n" in manifest else []), "--out-dir", out, src / "src/lib.rs"],
             f"compile {mod} (API slice only)")
         rlibs.append(out / f"libmod_{i}.rlib")
         entries.append(f'mod_api::ModEntry::new("{mod}", mod_{i}::hooks())')
         built.append(f'("{mod}", "0.1.0", "Both")')
         # [[inject]] rows: the launcher's emitter (horizon_mod_point_emit::api) writes
         # `mod_points::listeners::<place>(id, priority, inject, listener)` for a head listener.
-        for block in manifest.split("[[inject]]")[1:]:
+        for block in manifest.split("\n[[inject]]\n")[1:]:
             row = dict(re.findall(r'^(\w+) = "(.*)"$', block, re.M))
             plain = lambda s: re.sub(r"<[^>]*>", "", s).replace(" ", "")
             point = next(p for p in catalog if plain(p["target"]) == plain(row["at"]))
             print(f"slice-point: {row['at']} -> {point['name']} returns={point.get('returns')} host={point.get('host')}")
             slots.append(f'mod_points::listeners::{point["name"]}("{mod}", 0, "{row["id"]}", mod_{i}::{row["with"]})')
         pkg = rundir / "horizon-native-mods" / mod
-        pkg.mkdir(parents=True)
+        shutil.copytree(src, pkg)
         (pkg / "horizon-mod.toml").write_text(manifest.replace('horizon = "HEAD"', f'horizon = "{identity["commit"]}"'))
     real = out / "real.rs"
     real.write_text(
@@ -228,11 +230,9 @@ def main() -> None:
     game = rundir / "game"
     game.mkdir()
     (game / "eula.txt").write_text("eula=true\n")
-    cmd = [str(rundir / f"horizon-client{EXE}"), "--dedicated", "--nogui", "--game-dir", str(game)]
-    if args.resources:
-        cmd += ["--resources", str(args.resources.resolve())]
-    else:
-        cmd += ["--resources", str(home / "no-resources")]
+    # Game options first: everything after --dedicated is the server's own.
+    resources = args.resources.resolve() if args.resources else home / "no-resources"
+    cmd = [str(rundir / f"horizon-client{EXE}"), "--resources", str(resources), "--dedicated", "--nogui"]
     print("+", " ".join(cmd), flush=True)
     t = time.monotonic()
     proc = subprocess.Popen(cmd, cwd=game, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,

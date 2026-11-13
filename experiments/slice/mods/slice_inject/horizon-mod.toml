@@ -5,10 +5,12 @@ description = "An API point listener at the server's tick, routed through the mo
 authors = []
 api = "0.2"
 side = "both"
+capabilities = ["registries"]
 
 [native]
 game = "26.3"
 horizon = "HEAD"
+mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
 
 [[inject]]
 id = "tick"

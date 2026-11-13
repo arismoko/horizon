@@ -27,5 +27,12 @@ fn main() {
     );
     let mods: Vec<mod_api::ModEntry> = horizon_native_mods::entries();
     let slots = horizon_native_mods::slots();
+    // Experiment evidence only: what the replaceable library handed the executable.
+    eprintln!(
+        "slice: mods library gave {} entries, {} slots, {} inventory rows",
+        mods.len(),
+        slots.len(),
+        built.len()
+    );
     horizon_mod_host::main_with(mods, &slots, built, startup);
 }

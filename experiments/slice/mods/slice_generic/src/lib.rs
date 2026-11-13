@@ -4,7 +4,7 @@ use mod_api::Hooks;
 
 #[derive(Debug, PartialEq, mod_api::PayloadCodec)]
 struct Ping {
-    count: u32,
+    count: i32,
     name: String,
     list: Vec<i64>,
 }

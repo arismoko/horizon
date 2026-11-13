@@ -5,7 +5,9 @@ description = "Instantiates generic functions and derives defined in the API"
 authors = []
 api = "0.2"
 side = "both"
+capabilities = ["registries"]
 
 [native]
 game = "26.3"
 horizon = "HEAD"
+mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
