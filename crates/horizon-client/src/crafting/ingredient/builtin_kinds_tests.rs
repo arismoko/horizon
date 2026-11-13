@@ -407,6 +407,9 @@ fn sheep_color_components_compile_recipes_and_match_live_values() {
         assert!(!ingredient.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     }
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:sheep/color", &None);
     stack.data_mut().set_loot_component(
         "!minecraft:sheep/color",
         &Some(Tag::Compound(Default::default())),
@@ -445,6 +448,9 @@ fn sheep_color_components_compile_recipes_and_match_live_values() {
         .set_loot_component("minecraft:sheep/color", &Some(Tag::String("red".into())));
     assert!(!default_absent.test_in(&context, &populated));
     assert!(!default_ingredient.test_in(&context, &populated));
+    populated
+        .data_mut()
+        .set_loot_component("minecraft:sheep/color", &None);
     populated.data_mut().set_loot_component(
         "!minecraft:sheep/color",
         &Some(Tag::Compound(Default::default())),
@@ -603,6 +609,7 @@ fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
         assert!(!ingredient.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     }
+    stack.data_mut().set_loot_component("minecraft:dye", &None);
     stack
         .data_mut()
         .set_loot_component("!minecraft:dye", &Some(Tag::Compound(Default::default())));
@@ -2720,6 +2727,9 @@ fn tooltip_style_recipe_decodes_identifiers_and_matches_borrowed_values() {
         let plain = ItemStack::new("minecraft:stone", 1);
         assert!(plain_absent.test_in(&context, &plain));
         assert!(!plain_positive.test_in(&context, &plain));
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:tooltip_style", &None);
         stack.data_mut().set_loot_component(
             "!minecraft:tooltip_style",
             &Some(Tag::Compound(Default::default())),
@@ -3259,6 +3269,9 @@ fn villager_food_codec_compiles_recipes_and_matches_borrowed_nutrition() {
     .unwrap();
     assert!(!absent.test_in(&context, &carrot));
     assert!(!absent.test_in(&context, &ItemStack::new("minecraft:carrot", 1)));
+    carrot
+        .data_mut()
+        .set_loot_component("minecraft:villager_food", &None);
     carrot.data_mut().set_loot_component(
         "!minecraft:villager_food",
         &Some(Tag::Compound(Default::default())),
@@ -3510,6 +3523,228 @@ fn malformed_cat_collar_payloads_reject_whole_recipes_with_component_errors() {
         assert!(
             recipes
                 .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn wolf_collar_components_compile_recipes_match_live_values_and_preserve_defaults() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:wolf_spawn_egg".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:wolf/collar":"red"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    // DataComponents.WOLF_COLLAR uses DyeColor.CODEC: names remain exact strings.
+    let ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:wolf_spawn_egg","components":{"wolf/collar":"red"},"strict":true}"#,
+        &items,
+    );
+    let loose = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:wolf_spawn_egg","components":{"minecraft:wolf/collar":"red"}}"#,
+        &items,
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:wolf_collar".into(),
+            serde_json::json!({
+                "type":"minecraft:crafting_shapeless",
+                "ingredients":[{
+                    "type":"neoforge:components", "items":"minecraft:wolf_spawn_egg",
+                    "components":{"wolf/collar":"red"}, "strict":true
+                }],
+                "result":{"id":"minecraft:diamond"}
+            }),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut stack = ItemStack::new("minecraft:wolf_spawn_egg", 1);
+    assert!(
+        ingredient.test_in(&context, &stack),
+        "prototype collar default"
+    );
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+    let patch = Tag::compound([("minecraft:wolf/collar", Tag::String("red".into()))]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&patch));
+    assert_eq!(
+        stack.data().unwrap().other("minecraft:wolf/collar"),
+        Some(&Tag::String("red".into()))
+    );
+    assert!(ingredient.test_in(&context, &stack));
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:repair_cost", &Some(Tag::Int(1)));
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(loose.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    (_, stack.extra) = crate::item_data::decode_components(Some(&patch));
+    for value in [
+        Tag::String("blue".into()),
+        Tag::String("RED".into()),
+        Tag::Int(14),
+    ] {
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:wolf/collar", &Some(value));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(!loose.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    }
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:wolf/collar", &None);
+    stack.data_mut().set_loot_component(
+        "!minecraft:wolf/collar",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":["minecraft:wolf_spawn_egg","minecraft:stone"],"components":{"!minecraft:wolf/collar":{}}}"#,
+        &items,
+    );
+    assert!(absent.test_in(&context, &stack));
+    assert!(!absent.test_in(&context, &ItemStack::new("minecraft:wolf_spawn_egg", 1)));
+    assert!(absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+    let missing = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:wolf/collar":"red"}}"#,
+        &items,
+    );
+    assert!(!missing.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+    let mut populated = ItemStack::new("minecraft:stone", 1);
+    populated
+        .data_mut()
+        .set_loot_component("minecraft:wolf/collar", &Some(Tag::String("red".into())));
+    assert!(missing.test_in(&context, &populated));
+    assert!(!absent.test_in(&context, &populated));
+    // A removed unrelated inherited component no longer counts against strict matching.
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:wolf_spawn_egg".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({
+                "minecraft:wolf/collar":"red", "minecraft:custom_data":{"extra":1}
+            })
+            .as_object()
+            .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let strict_with_extra = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:wolf_spawn_egg","components":{"minecraft:wolf/collar":"red"},"strict":true}"#,
+        &items,
+    );
+    let mut inherited = ItemStack::new("minecraft:wolf_spawn_egg", 1);
+    assert!(!strict_with_extra.test_in(&context, &inherited));
+    inherited.data_mut().set_loot_component(
+        "!minecraft:custom_data",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(strict_with_extra.test_in(&context, &inherited));
+    let mut empty = ItemStack::new("minecraft:wolf_spawn_egg", 0);
+    empty
+        .data_mut()
+        .set_loot_component("minecraft:wolf/collar", &Some(Tag::String("red".into())));
+    assert!(!ingredient.test_in(&context, &empty));
+}
+
+#[test]
+fn malformed_wolf_collar_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::Byte(0), Tag::End, Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:wolf/collar".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:wolf/collar"), "{error}");
+    }
+    for value in [
+        serde_json::json!("RED"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:red"),
+        serde_json::json!("light blue"),
+        serde_json::json!(""),
+        serde_json::json!(14),
+        serde_json::json!(14.0),
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:wolf/collar":value});
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:wolf_spawn_egg", "components":patch
+        });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("minecraft:wolf/collar"), "{error}");
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![
+                (
+                    "fixture:invalid_wolf_collar".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_sibling".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":["minecraft:paper"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:valid_sibling",
+            &[Some(ItemStack::new("minecraft:paper", 1))],
+            1
+        ));
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:paper", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(
+                    &context,
+                    &[Some(ItemStack::new("minecraft:wolf_spawn_egg", 1))],
+                    1
+                )
                 .is_none()
         );
     }
