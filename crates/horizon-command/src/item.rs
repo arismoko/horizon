@@ -245,7 +245,8 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         "minecraft:dye"
         | "minecraft:base_color"
         | "minecraft:sheep/color"
-        | "minecraft:shulker/color" | "minecraft:cat/collar" => dye_color(t).map(|_| ()),
+        | "minecraft:shulker/color"
+        | "minecraft:cat/collar" => dye_color(t).map(|_| ()),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
         // DataComponents.ENCHANTMENT_GLINT_OVERRIDE: Codec.BOOL through NbtOps.
         "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)

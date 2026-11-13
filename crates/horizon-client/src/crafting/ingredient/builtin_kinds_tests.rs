@@ -3374,8 +3374,11 @@ fn cat_collar_components_compile_recipes_match_live_values_and_preserve_defaults
         let relaxed = Ingredient::parse(&relaxed_source, &items).unwrap();
         assert!(relaxed.test_in(&context, &stack));
 
-        let removal = Tag::compound([("!minecraft:cat/collar", Tag::Compound(Default::default()))]);
-        (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+        stack = ItemStack::new("minecraft:stick", 1);
+        stack.data_mut().set_loot_component(
+            "!minecraft:cat/collar",
+            &Some(Tag::Compound(Default::default())),
+        );
         assert!(
             !ingredient.test_in(&context, &stack),
             "removal masks prototype"
@@ -3438,6 +3441,16 @@ fn malformed_cat_collar_payloads_reject_whole_recipes_with_component_errors() {
     let items = Items::empty();
     let load = load();
     let root = tempfile::tempdir().unwrap();
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::Byte(0), Tag::End, Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:cat/collar".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:cat/collar"), "{error}");
+    }
     for value in [
         serde_json::json!("RED"),
         serde_json::json!("silver"),
@@ -3447,37 +3460,57 @@ fn malformed_cat_collar_payloads_reject_whole_recipes_with_component_errors() {
         serde_json::json!(14),
         serde_json::json!(14.0),
         serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
         serde_json::json!({}),
         serde_json::json!([]),
     ] {
         let patch = serde_json::json!({"minecraft:cat/collar":value});
-        let rule = IngredientRule::Components {
-            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
-            removed: vec![],
-            strict: false,
-        };
-        let error = components::validate(&rule, &items).unwrap_err();
-        assert!(error.contains("component minecraft:cat/collar:"), "{error}");
         let ingredient = serde_json::json!({
             "type":"neoforge:components", "items":"minecraft:stick", "components":patch
         });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("minecraft:cat/collar"), "{error}");
         assert!(Ingredient::parse(&ingredient, &items).is_none());
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
             &horizon_world::loot::PackOverlay::NONE,
-            vec![(
-                "fixture:invalid_cat_collar".into(),
-                serde_json::json!({
-                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
-                    "result":{"id":"minecraft:diamond"}
-                }),
-            )],
+            vec![
+                (
+                    "fixture:invalid_cat_collar".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_sibling".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":["minecraft:paper"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
             &load,
         )
         .unwrap();
-        assert!(recipes.crafting.is_empty());
-        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:valid_sibling",
+            &[Some(ItemStack::new("minecraft:paper", 1))],
+            1
+        ));
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:paper", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_none()
+        );
     }
 }
-
