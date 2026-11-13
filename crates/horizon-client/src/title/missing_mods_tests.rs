@@ -225,3 +225,47 @@ fn opening_prompt_replaces_stale_destructive_focus_with_cancel() {
     assert_eq!(f.title.confirm_key_size((240.0, 240.0)).0, Action::None);
     assert!(matches!(f.title.mode, Mode::Select { .. }));
 }
+
+#[test]
+fn controller_down_past_visible_rows_scrolls_then_reaches_cancel_at_end() {
+    use crate::gamepad::{Button, ScrollArea, list_step};
+    let mut f = Fixture::new();
+    f.title.ask_missing_mods("Gone", vec![gone(); 30]);
+    f.title.message_lines.set(100);
+    let size = (240.0, 240.0);
+    let (top, bottom, _) = layout(size.0, size.1);
+    let row = [16.0, bottom - 9.0, 208.0, 9.0];
+    let buttons = f.title.buttons(size.0, size.1);
+    let targets: Vec<_> = buttons.iter().map(|b| [b.x, b.y, b.w, 20.0]).collect();
+    let mut area = ScrollArea {
+        rect: [0.0, top, 236.0, bottom - top],
+        amount: 0.0,
+        up: false,
+        down: true,
+    };
+    assert_eq!(list_step(row, Button::DPadDown, &targets, &[area]), None);
+    // The existing pad focus path emits this step-wheel when list_step returns None.
+    f.title.step_scroll(-1.0, (120.0, bottom - 4.0), size);
+    assert_eq!(f.title.scroll.get().amount, 18.0);
+    area.down = false;
+    let mut from = row;
+    for expected_id in [102, 103, 101] {
+        let next = list_step(from, Button::DPadDown, &targets, &[area]).unwrap();
+        assert_eq!(buttons[next].id, expected_id);
+        from = targets[next];
+    }
+}
+
+#[test]
+fn missing_mod_scrollbar_uses_existing_press_drag_release() {
+    let mut f = Fixture::new();
+    f.title.ask_missing_mods("Gone", vec![gone(); 30]);
+    f.title.message_lines.set(100);
+    assert_eq!(f.title.click(233.0, 40.0, (240.0, 240.0)), Action::None);
+    f.title.drag((233.0, 130.0), (240.0, 240.0));
+    assert!(f.title.scroll.get().amount > 0.0);
+    f.title.release();
+    let released = f.title.scroll.get().amount;
+    f.title.drag((233.0, 50.0), (240.0, 240.0));
+    assert_eq!(f.title.scroll.get().amount, released);
+}

@@ -1253,7 +1253,12 @@ impl Title {
             buffet::drag(buffet, cursor, size);
             return;
         }
-        if let Mode::Select { worlds, .. } = &self.mode {
+        if matches!(self.mode, Mode::MissingMods { .. }) {
+            let (top, bottom, _) = missing_mods::layout(size.0, size.1);
+            let mut scroll = self.scroll.get();
+            scroll.drag(cursor.1, top, bottom, self.message_lines.get() as f32 * 9.0);
+            self.scroll.set(scroll);
+        } else if let Mode::Select { worlds, .. } = &self.mode {
             let (top, bottom, _, content) = self.world_list(worlds, size);
             let mut scroll = self.scroll.get();
             scroll.drag(cursor.1, top, bottom, content);
@@ -3482,6 +3487,17 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             }
             (Mode::Select { .. }, Some(12)) => {
                 self.set_mode(Mode::Main);
+                Action::None
+            }
+            (Mode::MissingMods { .. }, None) => {
+                let (top, bottom, _) = missing_mods::layout(w, h);
+                self.scroll.get_mut().press(
+                    (x, y),
+                    w - 10.0,
+                    top,
+                    bottom,
+                    self.message_lines.get() as f32 * 9.0,
+                );
                 Action::None
             }
             (Mode::Select { .. }, None) => {

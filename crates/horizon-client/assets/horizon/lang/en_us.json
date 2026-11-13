@@ -361,6 +361,7 @@
   "horizon.missing_mods.backup_open": "Back Up and Open",
   "horizon.missing_mods.description": "This world was saved with mods that are not loaded now. Opening it removes their blocks, and everything those blocks hold, for good. Back it up first, or leave it closed until the mods are back.",
   "horizon.missing_mods.dont_open": "Don't Open",
+  "horizon.missing_mods.count": "%s mods are missing",
   "horizon.missing_mods.kind.blocks": "its blocks",
   "horizon.missing_mods.kind.code": "code mod",
   "horizon.missing_mods.kind.content": "content mod",

@@ -34,7 +34,7 @@ pub(super) fn screen_info(missing: &[MissingMod]) -> crate::widgets::ScreenInfo 
     crate::widgets::ScreenInfo::new(
         "missing_mods",
         crate::widgets::join_for_narration(&[
-            &lang::get("horizon.missing_mods.title"),
+            &lang::tr("horizon.missing_mods.count", &[&missing.len()]),
             &message(missing),
         ]),
     )
@@ -109,12 +109,16 @@ impl Title {
         centered(
             atlas,
             batch,
-            &lang::get("horizon.missing_mods.title"),
+            &lang::tr("horizon.missing_mods.count", &[&missing.len()]),
             12.0,
             rgba(255, 85, 85, 255),
         );
         let first = batch.vertices.len();
         for (i, line) in lines.iter().enumerate() {
+            let y = top + i as f32 * 9.0 - (scroll.amount / 9.0).floor() * 9.0;
+            if !line.is_empty() {
+                super::flat::row_target(line, [16.0, y, width, 9.0], top, bottom);
+            }
             centered(
                 atlas,
                 batch,
