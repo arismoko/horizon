@@ -43,6 +43,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:minimum_attack_charge",
     "minecraft:dyed_color",
     "minecraft:unbreakable",
+    "minecraft:glider",
 ];
 
 /// Validate and decode a component into the value representation shared with stacks.
@@ -68,7 +69,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         }
     }
     Ok(match id {
-        "minecraft:unbreakable" => Tag::Compound(Compound::new()),
+        "minecraft:unbreakable" | "minecraft:glider" => Tag::Compound(Compound::new()),
         "minecraft:damage"
         | "minecraft:repair_cost"
         | "minecraft:max_damage"
@@ -127,7 +128,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             .map(|_| ())
             .ok_or_else(|| "Expected a number or a list of three numeric RGB channels".into()),
         // `Unit.CODEC` uses MapCodec.unitCodec: a map is required, its fields are ignored.
-        "minecraft:unbreakable" => match t {
+        "minecraft:unbreakable" | "minecraft:glider" => match t {
             Tag::Compound(_) => Ok(()),
             _ => Err(not_map(t)),
         },
@@ -1045,5 +1046,30 @@ mod tests {
             check("{id:\"example:nope\"}"),
             Err("Unknown registry key in ResourceKey[minecraft:root / minecraft:block_entity_type]: example:nope".into())
         );
+    }
+    #[test]
+    fn glider_unit_codec_requires_maps_and_discards_unknown_fields() {
+        use super::{Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        let empty = Tag::Compound(Default::default());
+        for value in [
+            empty.clone(),
+            Tag::compound([("ignored", Tag::List(vec![Tag::Int(7)]))]),
+        ] {
+            assert_eq!(
+                decoded_component_value("minecraft:glider", &value, &registry).unwrap(),
+                empty
+            );
+        }
+        for value in [
+            Tag::Byte(1),
+            Tag::Int(0),
+            Tag::String("unit".into()),
+            Tag::List(vec![]),
+            Tag::ByteArray(vec![]),
+        ] {
+            assert!(decode_component("minecraft:glider", &value, &registry).is_err());
+            assert!(decoded_component_value("minecraft:glider", &value, &registry).is_err());
+        }
     }
 }
