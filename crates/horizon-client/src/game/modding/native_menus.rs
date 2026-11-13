@@ -588,6 +588,109 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs prepared resources; isolated menu registration"]
+    fn mod_menu_backend_payload_and_refusals() {
+        if super::super::native_entity_refs::tests::run_fresh_cases(
+            "game::native_menus::tests::mod_menu_backend_payload_and_refusals",
+            "HORIZON_MOD_MENU_BACKEND_CHILD",
+            &["backend"],
+        ) {
+            return;
+        }
+        // Reuse a prepared registry slot for this synthetic content-menu definition.
+        // The isolated process keeps the one-shot menu table out of other fixtures.
+        let id = "minecraft:generic_9x1";
+        assert!(horizon_client::containers::register_mod_menu_types([(
+            id.into(),
+            9,
+            0,
+            Vec::new(),
+            None,
+            None,
+        )]));
+        with_game(|game| {
+            let rx = watched_guest(game);
+            game.lan.as_mut().unwrap().hub.guests.update(0, |g| {
+                g.brand = "horizon".into();
+                g.sender.menu_extra_rev = 1;
+            });
+            let key = mod_api::__private::menu_keys()
+                .into_iter()
+                .find(|key| mod_api::__private::menu_key_id(*key).as_deref() == Some(id))
+                .unwrap();
+            let player = game.player(123).unwrap();
+            let old = open(game, 1, "old", MenuReplace::CloseFirst);
+            sent(&rx);
+            let bytes = vec![0, 255, 17];
+            let window = game
+                .player_open_mod_menu(player, key, Text::literal("new"), bytes.clone(), None)
+                .unwrap()
+                .unwrap();
+            assert_eq!(window, old + 1);
+            let packets = sent(&rx);
+            let payload_at = packets
+                .iter()
+                .position(|p| {
+                    matches!(p,
+                        C::CustomPayload(p) if p.channel == horizon_protocol::menu_extra::CHANNEL
+                    )
+                })
+                .unwrap();
+            let open_at = packets
+                .iter()
+                .position(|p| {
+                    matches!(p,
+                        C::OpenScreen(p) if p.container == window
+                    )
+                })
+                .unwrap();
+            assert!(payload_at < open_at, "extra data must precede its window");
+            let C::CustomPayload(payload) = &packets[payload_at] else {
+                unreachable!()
+            };
+            assert_eq!(
+                horizon_protocol::menu_extra::decode(&payload.data).unwrap(),
+                horizon_protocol::menu_extra::Message {
+                    window,
+                    pos: None,
+                    data: bytes
+                }
+            );
+            assert_eq!(
+                game.lan.as_ref().unwrap().hub.guests[0]
+                    .menu
+                    .as_ref()
+                    .map(|m| (m.window, m.pos)),
+                Some((window, None))
+            );
+
+            for (revision, extra, expected) in [
+                (1, vec![0; 33 * 1024], mod_api::OpenMenuError::TooLarge),
+                (0, vec![1], mod_api::OpenMenuError::PlayerUnavailable),
+            ] {
+                game.lan.as_mut().unwrap().hub.guests.update(0, |g| {
+                    g.sender.menu_extra_rev = revision;
+                });
+                game.lan.as_mut().unwrap().hub.native_menu_events.clear();
+                assert_eq!(
+                    game.player_open_mod_menu(player, key, Text::literal("refused"), extra, None,),
+                    Err(expected)
+                );
+                assert_eq!(
+                    game.lan.as_ref().unwrap().hub.guests[0]
+                        .menu
+                        .as_ref()
+                        .map(|m| m.window),
+                    Some(window),
+                    "refusal preserves the current menu"
+                );
+                assert!(game.lan.as_ref().unwrap().hub.native_menu_events.is_empty());
+                assert!(sent(&rx).is_empty(), "refusal sends neither close nor open");
+            }
+        });
+    }
+
+    #[test]
     fn menu_clicks_map_to_the_inventory_below() {
         // A 6-row chest: 54 slots, then the inventory's 27, then the hotbar.
         assert_eq!(native_menu_inventory_slot(54, 3), None);
