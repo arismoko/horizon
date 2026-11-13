@@ -54,14 +54,17 @@ Native registrations retain their persistent NBT validation contract.
 
 The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
 `max_stack_size`, `rarity`, `enchantments`, `stored_enchantments`, `custom_name`,
-`item_name`, `block_entity_data`, and `dye` in the `minecraft` namespace. The other
-111 registered built-ins use stored-value matching while their shared decoders
+`item_name`, `block_entity_data`, `dye`, and `shulker/color` in the `minecraft` namespace. The other
+110 registered built-ins use stored-value matching while their shared decoders
 are added incrementally in **#3875**. Their absence is not a load refusal.
 
-`dye` accepts exactly the 16 lowercase vanilla color names (including `light_blue`
-and `light_gray`). Unknown names, differently cased names and non-string values
-reject the recipe. Numeric dye ordinals belong to compressed dynamic operations,
-not ordinary persistent NBT; compressing an NBT file does not change this rule.
+`dye` and `shulker/color` accept exactly the 16 lowercase vanilla color names
+(including `light_blue` and `light_gray`). Unknown names, differently cased names
+and non-string values reject the recipe. Numeric dye ordinals belong to compressed
+dynamic operations, not ordinary persistent NBT; compressing an NBT file does not
+change this rule. `shulker/color` is not an optional-color payload: an uncolored
+shulker does not make `-1`, an empty value or an absent component equal to a color.
+Item defaults still participate, and an explicit removal overrides a default.
 
 Component ingredient displays contain the patch, including removals. Difference
 lists retain the base list and remove only items whose default stack passes the

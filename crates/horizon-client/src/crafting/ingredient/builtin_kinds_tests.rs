@@ -147,6 +147,227 @@ fn malformed_dye_payloads_reject_whole_recipes_with_component_errors() {
 }
 
 #[test]
+fn shulker_color_components_compile_match_and_distinguish_absence_from_defaults() {
+    // DataComponents.SHULKER_COLOR uses DyeColor.CODEC, not the mob's uncolored sentinel.
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:shulker_spawn_egg".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:shulker/color":"purple"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    // Literal oracle names; do not derive expected acceptance from the decoder palette.
+    for color in [
+        "white",
+        "orange",
+        "magenta",
+        "light_blue",
+        "yellow",
+        "lime",
+        "pink",
+        "gray",
+        "light_gray",
+        "cyan",
+        "purple",
+        "blue",
+        "brown",
+        "green",
+        "red",
+        "black",
+    ] {
+        let source = serde_json::json!({
+            "type":"neoforge:components",
+            "items":["minecraft:shulker_spawn_egg", "minecraft:stone"],
+            "components":{"minecraft:shulker/color":color},
+            "strict":true
+        });
+        let ingredient = Ingredient::parse(&source, &items).unwrap();
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:shulker_color".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[source],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        let mut stack = ItemStack::new("minecraft:shulker_spawn_egg", 1);
+        assert_eq!(ingredient.test_in(&context, &stack), color == "purple");
+        assert_eq!(
+            recipes.craft(&context, &[Some(stack.clone())], 1).is_some(),
+            color == "purple"
+        );
+        let mut no_default = ItemStack::new("minecraft:stone", 1);
+        assert!(!ingredient.test_in(&context, &no_default));
+        assert!(
+            recipes
+                .craft(&context, &[Some(no_default.clone())], 1)
+                .is_none()
+        );
+        let value = Tag::String(color.into());
+        // Exact lowercase names are already canonical: no ordinal or namespace normalization.
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:shulker/color",
+                &value,
+                &Default::default()
+            )
+            .unwrap(),
+            value
+        );
+        for candidate in [&mut stack, &mut no_default] {
+            candidate
+                .data_mut()
+                .set_loot_component("minecraft:shulker/color", &Some(value.clone()));
+            assert_eq!(
+                candidate.data().unwrap().other("minecraft:shulker/color"),
+                Some(&value)
+            );
+            assert!(ingredient.test_in(&context, candidate));
+            assert!(
+                recipes
+                    .craft(&context, &[Some(candidate.clone())], 1)
+                    .is_some()
+            );
+        }
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            for _ in 0..100 {
+                assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+            }
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        assert_eq!(allocations.bytes, 0);
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:repair_cost", &Some(Tag::Int(1)));
+        assert!(
+            !ingredient.test_in(&context, &stack),
+            "strict rejects extra components"
+        );
+        let mut loose_source = source.clone();
+        loose_source["strict"] = serde_json::json!(false);
+        assert!(
+            Ingredient::parse(&loose_source, &items)
+                .unwrap()
+                .test_in(&context, &stack)
+        );
+        for invalid in [Tag::String("PURPLE".into()), Tag::Int(-1), Tag::Int(10)] {
+            no_default
+                .data_mut()
+                .set_loot_component("minecraft:shulker/color", &Some(invalid));
+            assert!(!ingredient.test_in(&context, &no_default));
+            assert!(
+                recipes
+                    .craft(&context, &[Some(no_default.clone())], 1)
+                    .is_none()
+            );
+        }
+        let removal = Tag::compound([(
+            "!minecraft:shulker/color",
+            Tag::Compound(Default::default()),
+        )]);
+        (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        let absent = parse(
+            r#"{"type":"neoforge:components","items":["minecraft:shulker_spawn_egg","minecraft:stone"],"components":{"!minecraft:shulker/color":{}},"strict":true}"#,
+            &items,
+        );
+        assert!(absent.test_in(&context, &stack));
+        assert!(absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+        assert!(!absent.test_in(&context, &ItemStack::new("minecraft:shulker_spawn_egg", 1)));
+    }
+}
+
+#[test]
+fn malformed_shulker_color_payloads_omit_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    for value in [
+        serde_json::json!("PURPLE"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:purple"),
+        serde_json::json!(" purple"),
+        serde_json::json!(""),
+        serde_json::json!(-1),
+        serde_json::json!(0),
+        serde_json::json!(10),
+        serde_json::json!(15),
+        serde_json::json!(16),
+        serde_json::json!(true),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:shulker/color":value});
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:shulker/color:"),
+            "{error}"
+        );
+        let source = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:shulker_spawn_egg",
+            "components":patch
+        });
+        assert!(Ingredient::parse(&source, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:invalid_shulker_color".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[source],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert!(recipes.crafting.is_empty());
+        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+    for value in [
+        Tag::End,
+        Tag::String(horizon_core::nbt::JavaString(vec![0xd800])),
+        Tag::String(horizon_core::nbt::JavaString(vec![
+            112, 117, 114, 112, 108, 101, 0xd800,
+        ])),
+        Tag::Byte(-1),
+        Tag::Short(10),
+        Tag::Long(10),
+        Tag::Float(10.0f32.to_bits()),
+        Tag::Double(10.0f64.to_bits()),
+    ] {
+        assert!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:shulker/color",
+                &value,
+                &Default::default()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 #[ignore = "requires prepared resources"]
 fn components_match_damage_ignore_count_and_refuse_empty() {
     let items = resources();
