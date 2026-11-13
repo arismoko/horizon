@@ -197,6 +197,9 @@ pub trait Players {
     }
 }
 /// The runtime_levels service, reached through its host.
+/// Success from `open` or `unload` admits a queued request, not its completion.
+/// Apply failures are logged with the requesting mod and level id. A failed open
+/// leaves the id unpublished and free to retry; a failed unload keeps it open for retry.
 pub trait RuntimeLevels {
     /// Side: server.
     /// Open the level `id` (`mymod:instance/ab`), in the calling mod's namespace, as `level`

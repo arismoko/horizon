@@ -93,6 +93,7 @@ struct Opener {
     answers: Seen<Result<LevelRef, RuntimeLevelError>>,
     open_right_after: Seen<bool>,
     loads: Seen<String>,
+    load_contexts: Seen<(String, String, bool)>,
     unloads: Seen<String>,
 }
 
@@ -107,8 +108,13 @@ impl Hooks for Opener {
         let open = host.runtime_levels().is_open(self.id);
         self.open_right_after.lock().unwrap().push(open);
     }
-    fn level_load(&self, _: &mut dyn mod_api::ServerHost, event: &mut LevelLoadEvent<'_>) {
+    fn level_load(&self, host: &mut dyn mod_api::ServerHost, event: &mut LevelLoadEvent<'_>) {
         self.loads.lock().unwrap().push(event.dimension.to_owned());
+        self.load_contexts.lock().unwrap().push((
+            event.level.dimension_id().to_owned(),
+            host.dimension().to_owned(),
+            event.level.in_place(host),
+        ));
     }
     fn level_unload(&self, _: &mut dyn mod_api::ServerHost, event: &mut LevelUnloadEvent<'_>) {
         self.unloads
@@ -122,6 +128,7 @@ struct Fixture {
     answers: Seen<Result<LevelRef, RuntimeLevelError>>,
     open_right_after: Seen<bool>,
     loads: Seen<String>,
+    load_contexts: Seen<(String, String, bool)>,
     unloads: Seen<String>,
 }
 
@@ -136,6 +143,7 @@ fn with_opener(
         answers: Seen::default(),
         open_right_after: Seen::default(),
         loads: Seen::default(),
+        load_contexts: Seen::default(),
         unloads: Seen::default(),
     };
     let opener = Opener {
@@ -144,6 +152,7 @@ fn with_opener(
         answers: fixture.answers.clone(),
         open_right_after: fixture.open_right_after.clone(),
         loads: fixture.loads.clone(),
+        load_contexts: fixture.load_contexts.clone(),
         unloads: fixture.unloads.clone(),
     };
     let mods = vec![ModEntry::new(name, Box::new(opener))].into();
@@ -241,6 +250,10 @@ fn nothing_opens_inside_a_tick_and_the_queue_is_applied_after_the_levels() {
         game.tick_server(false).unwrap();
         assert!(game.runtime_level_is_open("phase:a"));
         assert_eq!(*seen.loads.lock().unwrap(), ["phase:a"]);
+        assert_eq!(
+            *seen.load_contexts.lock().unwrap(),
+            [("phase:a".into(), "minecraft:overworld".into(), false)]
+        );
     });
 }
 
@@ -309,16 +322,13 @@ fn a_failed_unload_leaves_the_level_open_for_a_retry() {
         // A broken carrier transfer refuses every save of the level (`admit_level_save`).
         game.enter_level(dim).unwrap();
         game.world.carrier_fences.mark_broken();
-        game.enter_level(super::Dim::Overworld).unwrap();
         assert_eq!(unload_as(game, "stuck", "stuck:a"), Ok(()));
         game.apply_runtime_levels();
         assert!(game.runtime_level_is_open("stuck:a"));
         assert!(super::Dim::extra("stuck:a").is_some());
-        assert_eq!(game.dim, super::Dim::Overworld);
+        assert_eq!(game.dim, dim);
         // The save can be written again: the same unload, asked again, goes through.
-        game.enter_level(dim).unwrap();
         game.world.carrier_fences = Default::default();
-        game.enter_level(super::Dim::Overworld).unwrap();
         assert_eq!(unload_as(game, "stuck", "stuck:a"), Ok(()));
         game.apply_runtime_levels();
         assert!(!game.runtime_level_is_open("stuck:a"));
@@ -425,6 +435,37 @@ fn a_reopened_level_comes_back_from_its_folder_with_its_block() {
         assert_eq!(game.world.block(1, -50, 1), stone);
         game.enter_level(super::Dim::Overworld).unwrap();
         unload_as(game, "keep", "keep:a").unwrap();
+        game.apply_runtime_levels();
+    });
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn failed_construction_rolls_back_every_published_table() {
+    with_opener("rollback", "rollback:a", flat(), |game, seen| {
+        tick_post(game);
+        let first = seen.answers.lock().unwrap()[0].unwrap();
+        game.levels.runtime.fail_open_after_publication = true;
+        game.apply_runtime_levels();
+        assert!(!game.runtime_level_is_open("rollback:a"));
+        assert!(!game.levels.runtime.holds("rollback:a"));
+        assert!(super::Dim::extra("rollback:a").is_none());
+        assert!(
+            !game
+                .level_shapes
+                .extra
+                .iter()
+                .any(|level| level.id == "rollback:a")
+        );
+        assert!(seen.loads.lock().unwrap().is_empty());
+        assert!(!game.level_handle_current(first));
+        game.levels.runtime.fail_open_after_publication = false;
+        seen.answers.lock().unwrap().clear();
+        tick_post(game);
+        game.apply_runtime_levels();
+        assert!(game.runtime_level_is_open("rollback:a"));
+        assert_ne!(seen.answers.lock().unwrap()[0].unwrap(), first);
+        unload_as(game, "rollback", "rollback:a").unwrap();
         game.apply_runtime_levels();
     });
 }

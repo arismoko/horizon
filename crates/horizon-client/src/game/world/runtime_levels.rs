@@ -51,6 +51,8 @@ pub(in crate::game) struct RuntimeTable {
     /// The last generation given; never reset, so no two opens of an id share one.
     last_generation: u32,
     cap: usize,
+    #[cfg(test)]
+    pub(super) fail_open_after_publication: bool,
 }
 
 impl Default for RuntimeTable {
@@ -60,6 +62,8 @@ impl Default for RuntimeTable {
             queue: Vec::new(),
             last_generation: 0,
             cap: DEFAULT_CAP,
+            #[cfg(test)]
+            fail_open_after_publication: false,
         }
     }
 }
@@ -472,6 +476,10 @@ impl Game<'_> {
         }
         Dim::add_extra(id);
         let dim = Dim::extra(id).ok_or("the level was not added")?;
+        #[cfg(test)]
+        if self.levels.runtime.fail_open_after_publication {
+            return Err("injected level construction failure".into());
+        }
         let mut parked = self.open_level(dim)?;
         parked.world.game_time = self.world.game_time;
         self.levels.parked.insert(dim, parked);

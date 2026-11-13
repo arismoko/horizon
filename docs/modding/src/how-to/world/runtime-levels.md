@@ -53,6 +53,14 @@ unload or a restart. Nothing reopens a runtime level by itself at the next start
 reopens what it keeps, and a player saved in a level that was not reopened keeps the usual
 fallback.
 
+Success means queue admission, not apply completion. Apply failures are logged with the
+requesting mod and level id. A failed open rolls back publication and frees the id for retry;
+a failed unload leaves the level open for another unload request. Observe `is_open` after
+the queue runs rather than treating the returned result as completion.
+
+An explicitly opened runtime level fires `level_load` while parked: `event.level` names
+the opened level, whereas the Host still names the current level.
+
 ## Closing
 
 `unload(id)` saves the level and drops it, keeping the folder. It refuses with `PlayersInside`
