@@ -72,7 +72,9 @@ jobs:
             --expanded "$CARGO_TARGET_DIR/wire-goldens/expanded.rs" --check
           cargo test --locked -p horizon-mod-vocab --lib existing_fieldless_enum_layouts_match_baseline
           cargo test --locked -p horizon-mod-api --test wire_math_profile
-          cargo test --locked -p horizon-client --lib math_profile_selection_matches_platform_and_is_stable
+          # The job's first horizon-client build: the runner's CPU quota within its memory, as the client tests below.
+          cargo test "-j$(python3 tools/ci/cargo_jobs.py --job-mib 3072)" --locked -p horizon-client --lib \
+            math_profile_selection_matches_platform_and_is_stable
       - name: Compile and test emitted point records
         run: |
           manifest=crates/horizon-mod-point-shape/tests/record-wire/Cargo.toml
