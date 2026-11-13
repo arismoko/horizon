@@ -331,6 +331,141 @@ fn components_dyed_color_decodes_rgb_forms_and_matches_borrowed_values() {
     assert!(absence.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
 }
 #[test]
+fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:red_dye".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:dye":"red"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:red_dye","components":{"minecraft:dye":"red"},"strict":true}"#,
+        &items,
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:dye".into(),
+            serde_json::json!({
+                "type":"minecraft:crafting_shapeless",
+                "ingredients":[{
+                    "type":"neoforge:components", "items":"minecraft:red_dye",
+                    "components":{"minecraft:dye":"red"}, "strict":true
+                }],
+                "result":{"id":"minecraft:diamond"}
+            }),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut stack = ItemStack::new("minecraft:red_dye", 1);
+    assert!(
+        ingredient.test_in(&context, &stack),
+        "prototype dye default"
+    );
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:dye", &Some(Tag::String("red".into())));
+    assert_eq!(
+        stack.data().unwrap().other("minecraft:dye"),
+        Some(&Tag::String("red".into()))
+    );
+    assert!(ingredient.test_in(&context, &stack));
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    for value in [
+        Tag::String("blue".into()),
+        Tag::String("RED".into()),
+        Tag::Int(14),
+    ] {
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:dye", &Some(value));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    }
+    stack
+        .data_mut()
+        .set_loot_component("!minecraft:dye", &Some(Tag::Compound(Default::default())));
+    assert!(!ingredient.test_in(&context, &stack));
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:red_dye","components":{"!minecraft:dye":{}}}"#,
+        &items,
+    );
+    assert!(absent.test_in(&context, &stack));
+    assert!(!absent.test_in(&context, &ItemStack::new("minecraft:red_dye", 1)));
+    assert!(!ingredient.test_in(&context, &ItemStack::new("minecraft:blue_dye", 1)));
+    let mut populated = ItemStack::new("minecraft:red_dye", 1);
+    populated
+        .data_mut()
+        .set_loot_component("minecraft:dye", &Some(Tag::String("red".into())));
+    assert!(!absent.test_in(&context, &populated));
+    let plain_absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:dye":{}}}"#,
+        &items,
+    );
+    assert!(plain_absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+}
+
+#[test]
+fn malformed_dye_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    for value in [
+        serde_json::json!("RED"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:red"),
+        serde_json::json!(14),
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:dye":value});
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:red_dye", "components":patch
+        });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("component minecraft:dye:"), "{error}");
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:invalid_dye".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert!(recipes.crafting.is_empty());
+        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+}
+
+#[test]
 #[ignore = "requires prepared resources"]
 fn components_match_damage_ignore_count_and_refuse_empty() {
     let items = resources();
@@ -1847,5 +1982,495 @@ fn glider_component_malformed_payloads_name_component_and_omit_recipe() {
             .map(|recipe| recipe.id.as_str())
             .collect();
         assert_eq!(indexed, ["fixture:valid_companion"], "{payload}");
+    }
+}
+
+#[test]
+fn waxed_recipe_decodes_unit_maps_and_matches_borrowed_values() {
+    let items = Items::empty();
+    let source = r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:waxed":{"ignored":{"nested":true}}}}"#;
+    let ingredient = parse(source, &items);
+    assert_eq!(
+        ingredient.shown.as_ref().unwrap()[0]
+            .data()
+            .unwrap()
+            .other("minecraft:waxed"),
+        Some(&Tag::compound([] as [(&str, Tag); 0]))
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:waxed".into(),
+            serde_json::from_str(
+                r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:waxed":{"unknown":42}}}],"result":{"id":"minecraft:diamond"}}"#,
+            )
+            .unwrap(),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut stack = ItemStack::new("minecraft:stone", 1);
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(
+        recipes
+            .craft(&context, &[Some(stack.clone()), None, None, None], 2)
+            .is_none()
+    );
+    for payload in [
+        Tag::compound([] as [(&str, Tag); 0]),
+        Tag::compound([("different", Tag::List(vec![Tag::Int(7)]))]),
+    ] {
+        stack.data_mut().set_other("minecraft:waxed", Some(payload));
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            for _ in 0..100 {
+                assert!(std::hint::black_box(ingredient.test_in(&context, &stack)));
+            }
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        assert_eq!(allocations.bytes, 0);
+        assert_eq!(
+            recipes
+                .craft(&context, &[Some(stack.clone()), None, None, None], 2)
+                .unwrap()
+                .item
+                .as_ref(),
+            "minecraft:diamond"
+        );
+    }
+    stack
+        .data_mut()
+        .set_other("minecraft:waxed", Some(Tag::Byte(1)));
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(
+        recipes
+            .craft(&context, &[Some(stack.clone()), None, None, None], 2)
+            .is_none()
+    );
+    stack.data_mut().set_other("minecraft:waxed", None);
+    stack.data_mut().set_other(
+        "!minecraft:waxed",
+        Some(Tag::compound([] as [(&str, Tag); 0])),
+    );
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(
+        recipes
+            .craft(&context, &[Some(stack), None, None, None], 2)
+            .is_none()
+    );
+}
+
+#[test]
+fn waxed_defaults_and_removal_preserve_presence() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:stone".into(),
+        horizon_core::nbt::Compound::from([(
+            "minecraft:waxed".into(),
+            Tag::compound([("ignored", Tag::Int(9))]),
+        )]),
+    )]));
+    let present = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:waxed":{}},"strict":true}"#,
+        &items,
+    );
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:waxed":{}}}"#,
+        &items,
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let mut stack = ItemStack::new("minecraft:stone", 1);
+    assert!(present.test_in(&context, &stack));
+    assert!(!absent.test_in(&context, &stack));
+    stack.data_mut().set_other(
+        "!minecraft:waxed",
+        Some(Tag::compound([] as [(&str, Tag); 0])),
+    );
+    assert!(!present.test_in(&context, &stack));
+    assert!(absent.test_in(&context, &stack));
+    let plain_absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:waxed":{}}}"#,
+        &Items::empty(),
+    );
+    let mut populated = ItemStack::new("minecraft:stone", 1);
+    assert!(plain_absent.test_in(&context, &populated));
+    populated.data_mut().set_other(
+        "minecraft:waxed",
+        Some(Tag::compound([("ignored", Tag::Int(3))])),
+    );
+    assert!(!plain_absent.test_in(&context, &populated));
+}
+
+#[test]
+fn waxed_malformed_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let root = tempfile::tempdir().unwrap();
+    let load = load();
+    for payload in [
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!(0),
+        serde_json::json!("unit"),
+        serde_json::json!([]),
+    ] {
+        let recipe = serde_json::json!({
+            "type":"minecraft:crafting_shapeless",
+            "ingredients":[{
+                "type":"neoforge:components",
+                "items":"minecraft:stone",
+                "components":{"minecraft:waxed":payload}
+            }],
+            "result":{"id":"minecraft:diamond"}
+        });
+        let error =
+            components::validate_recipe_components(&recipe["ingredients"][0], &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:waxed:"),
+            "{payload}: {error}"
+        );
+        assert!(Ingredient::parse(&recipe["ingredients"][0], &items).is_none());
+        let companion = serde_json::json!({
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": ["minecraft:stone"],
+            "result": {"id": "minecraft:diamond"}
+        });
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![
+                ("fixture:invalid_waxed".into(), recipe),
+                ("fixture:valid_companion".into(), companion),
+            ],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1, "{payload}");
+        let context = load.loop_context(LoopSide::Server, []);
+        let grid = [Some(ItemStack::new("minecraft:stone", 1))];
+        assert!(
+            recipes.recipe_matches(&context, "fixture:valid_companion", &grid, 1),
+            "{payload}"
+        );
+        assert!(
+            !recipes.recipe_matches(&context, "fixture:invalid_waxed", &grid, 1),
+            "{payload}"
+        );
+        let indexed: Vec<_> = recipes
+            .by_type
+            .values()
+            .flat_map(|recipes| recipes.iter())
+            .map(|recipe| recipe.id.as_str())
+            .collect();
+        assert_eq!(indexed, ["fixture:valid_companion"], "{payload}");
+    }
+}
+
+#[test]
+fn tooltip_style_recipe_decodes_identifiers_and_matches_borrowed_values() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:stone".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:tooltip_style":":style"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    for (value, valid) in [
+        (serde_json::json!("style"), true),
+        (serde_json::json!(":style"), true),
+        (serde_json::json!("fixture:"), true),
+        (serde_json::json!(""), true),
+        (serde_json::json!(":"), true),
+        (serde_json::json!("UPPER"), false),
+        (serde_json::json!("..:style"), false),
+        (serde_json::json!("a:b:c"), false),
+        (serde_json::json!(3), false),
+    ] {
+        let source = serde_json::json!({
+            "type":"minecraft:crafting_shapeless",
+            "ingredients":[{"type":"neoforge:components","items":"minecraft:stone",
+                "components":{"minecraft:tooltip_style":value}}],
+            "result":{"id":"minecraft:diamond"}
+        });
+        if !valid {
+            let error = components::validate_recipe_components(&source["ingredients"][0], &items)
+                .unwrap_err();
+            assert!(
+                error.contains("component minecraft:tooltip_style:"),
+                "{error}"
+            );
+        }
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![("fixture:tooltip_style".into(), source)],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), usize::from(valid), "{value}");
+        if !valid {
+            continue;
+        }
+        let crate::crafting::Recipe::Shapeless { ingredients, .. } = &recipes.crafting[0].1 else {
+            panic!("expected shapeless recipe");
+        };
+        let ingredient = &ingredients[0];
+        let mut stack = ItemStack::new("minecraft:stone", 1);
+        assert_eq!(
+            ingredient.test_in(&context, &stack),
+            value == "style" || value == ":style"
+        );
+        stack.data_mut().set_other(
+            "minecraft:tooltip_style",
+            Some(crate::crafting::json_tag(&value)),
+        );
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            assert!(ingredient.test_in(&context, &stack));
+        });
+        assert_eq!(allocations.calls, 0);
+        assert_eq!(allocations.bytes, 0);
+        stack.data_mut().set_other(
+            "minecraft:tooltip_style",
+            Some(Tag::String("fixture:different".into())),
+        );
+        assert!(!ingredient.test_in(&context, &stack));
+        let absent = parse(
+            r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:tooltip_style":{}}}"#,
+            &items,
+        );
+        assert!(!absent.test_in(&context, &stack));
+        assert!(!absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+        let plain_absent = parse(
+            r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:tooltip_style":{}}}"#,
+            &Items::empty(),
+        );
+        let plain_positive = parse(
+            r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:tooltip_style":"style"}}"#,
+            &Items::empty(),
+        );
+        let plain = ItemStack::new("minecraft:stone", 1);
+        assert!(plain_absent.test_in(&context, &plain));
+        assert!(!plain_positive.test_in(&context, &plain));
+        stack.data_mut().set_loot_component(
+            "!minecraft:tooltip_style",
+            &Some(Tag::Compound(Default::default())),
+        );
+        assert!(absent.test_in(&context, &stack));
+        assert!(!ingredient.test_in(&context, &stack));
+    }
+}
+
+#[test]
+fn note_block_sound_component_recipe_literals_validate_and_match() {
+    let items = Items::empty();
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    for source in [
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"unregistered/sound"}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"minecraft:unregistered/sound"}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":":unregistered/sound"}}],"result":{"id":"minecraft:diamond"}}"#,
+    ] {
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:note_block_sound".into(),
+                serde_json::from_str(source).unwrap(),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1, "{source}");
+        let mut stack = ItemStack::new("minecraft:stick", 1);
+        assert!(!recipes.recipe_matches(
+            &context,
+            "fixture:note_block_sound",
+            &[Some(stack.clone())],
+            1,
+        ));
+        for sound in [
+            "unregistered/sound",
+            "minecraft:unregistered/sound",
+            ":unregistered/sound",
+        ] {
+            stack.data_mut().set_loot_component(
+                "minecraft:note_block_sound",
+                &Some(Tag::String(sound.into())),
+            );
+            assert!(recipes.recipe_matches(
+                &context,
+                "fixture:note_block_sound",
+                &[Some(stack.clone())],
+                1,
+            ));
+        }
+        for sound in [
+            "minecraft:other",
+            "fixture:unregistered/sound",
+            "Minecraft:unregistered/sound",
+            "",
+        ] {
+            stack.data_mut().set_loot_component(
+                "minecraft:note_block_sound",
+                &Some(Tag::String(sound.into())),
+            );
+            assert!(!recipes.recipe_matches(
+                &context,
+                "fixture:note_block_sound",
+                &[Some(stack.clone())],
+                1,
+            ));
+        }
+    }
+    for source in [
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":false}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":null}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":42}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":{}}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"Minecraft:sound"}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"minecraft:Sound"}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"..:sound"}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"bad namespace:sound"}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"a:b:c"}}],"result":{"id":"minecraft:diamond"}}"#,
+    ] {
+        let value: Value = serde_json::from_str(source).unwrap();
+        let ingredient = &value["ingredients"][0];
+        assert!(Ingredient::parse(ingredient, &items).is_none(), "{source}");
+        let error = components::validate_recipe_components(ingredient, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:note_block_sound:"),
+            "{error}"
+        );
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![("fixture:invalid_note_block_sound".into(), value)],
+            &load,
+        )
+        .unwrap();
+        assert!(recipes.crafting.is_empty(), "{source}");
+        assert!(
+            recipes.by_type.values().all(|recipes| recipes.is_empty()),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn note_block_sound_component_defaults_removal_and_strict_matching() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:stick".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:note_block_sound":":unregistered/sound"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"unregistered/sound"},"strict":true}"#,
+        &items,
+    );
+    assert_eq!(
+        ingredient.shown.as_ref().unwrap()[0]
+            .data()
+            .unwrap()
+            .other("minecraft:note_block_sound"),
+        Some(&Tag::String("minecraft:unregistered/sound".into())),
+    );
+    let mut stack = ItemStack::new("minecraft:stick", 1);
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        assert!(ingredient.test_in(&context, &stack));
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    for sound in [
+        "unregistered/sound",
+        "minecraft:unregistered/sound",
+        ":unregistered/sound",
+    ] {
+        stack.data_mut().set_loot_component(
+            "minecraft:note_block_sound",
+            &Some(Tag::String(sound.into())),
+        );
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            assert!(ingredient.test_in(&context, &stack));
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+    }
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:custom_name", &Some(Tag::String("Named".into())));
+    assert!(!ingredient.test_in(&context, &stack));
+    stack = ItemStack::new("minecraft:stick", 1);
+    let removal = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"!minecraft:note_block_sound":{}}}"#,
+        &items,
+    );
+    assert!(!removal.test_in(&context, &stack));
+    let mut populated = ItemStack::new("minecraft:stick", 1);
+    populated.data_mut().set_loot_component(
+        "minecraft:note_block_sound",
+        &Some(Tag::String("fixture:other".into())),
+    );
+    assert!(!removal.test_in(&context, &populated));
+    let plain_removal = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"!minecraft:note_block_sound":{}}}"#,
+        &Items::empty(),
+    );
+    assert!(plain_removal.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
+    stack.data_mut().set_loot_component(
+        "!minecraft:note_block_sound",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(removal.test_in(&context, &stack));
+    stack = ItemStack::new("minecraft:stick", 1);
+
+    for source in [
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":""}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":":"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"minecraft:"}}"#,
+    ] {
+        let empty = parse(source, &items);
+        assert!(!empty.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
+        for sound in ["", ":", "minecraft:"] {
+            stack.data_mut().set_loot_component(
+                "minecraft:note_block_sound",
+                &Some(Tag::String(sound.into())),
+            );
+            assert!(empty.test_in(&context, &stack));
+        }
+        for value in [
+            Tag::Int(0),
+            Tag::String("fixture:".into()),
+            Tag::String(horizon_core::nbt::JavaString(vec![0xd800])),
+            Tag::String(horizon_core::nbt::JavaString(vec![0xdc00])),
+            Tag::String(horizon_core::nbt::JavaString(vec![0xd83d, 0xde00])),
+        ] {
+            stack
+                .data_mut()
+                .set_loot_component("minecraft:note_block_sound", &Some(value));
+            assert!(!empty.test_in(&context, &stack));
+        }
     }
 }

@@ -124,17 +124,28 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             b.data().and_then(|d| d.other(id)),
         ),
         "minecraft:item_name" => item_name_equal(a, b),
-        "minecraft:item_model" => identifier_equal(
-            a.data().and_then(|d| d.other(id)),
-            b.data().and_then(|d| d.other(id)),
-        ),
+        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => {
+            identifier_equal(
+                a.data().and_then(|d| d.other(id)),
+                b.data().and_then(|d| d.other(id)),
+            )
+        }
         "minecraft:rarity" => rarity(a) == rarity(b),
         "minecraft:ominous_bottle_amplifier" => ominous_amplifier(a) == ominous_amplifier(b),
         // Unit.CODEC ignores map fields; borrow only the map shape, not its contents.
-        "minecraft:glider" => {
+        "minecraft:glider" | "minecraft:waxed" => {
             matches!(a.data().and_then(|d| d.other(id)), Some(Tag::Compound(_)))
                 && matches!(b.data().and_then(|d| d.other(id)), Some(Tag::Compound(_)))
         }
+        // DyeColor.CODEC's canonical NbtOps value is its exact serialized name.
+        // Live stacks retain dye in `other`; borrow UTF-16 without palette scans.
+        "minecraft:dye" => match (
+            a.data().and_then(|d| d.other(id)),
+            b.data().and_then(|d| d.other(id)),
+        ) {
+            (Some(Tag::String(a)), Some(Tag::String(b))) => a == b,
+            _ => false,
+        },
         _ => stored_component_equal(id, a, b),
     }
 }
