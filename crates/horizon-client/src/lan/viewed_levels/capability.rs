@@ -261,7 +261,7 @@ mod tests {
             &self,
             _: mod_api::PayloadBytes,
             _: &mut dyn mod_api::IPayloadContext,
-        ) -> Result<(), String> {
+        ) -> Result<(), mod_api::PayloadHandleError> {
             Ok(())
         }
     }
