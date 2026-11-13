@@ -18,6 +18,8 @@ struct Plan {
     place: Option<LevelRef>,
     /// Also puts a stick in the dispenser's slot 1: a write the decision read.
     meddle: bool,
+    /// Replaces the player's hand with a stone through the living equipment write.
+    replace_hand: bool,
     /// Whether each ask named a player and a clicked block.
     asks: Vec<(bool, bool)>,
 }
@@ -58,6 +60,18 @@ impl ItemPart for Jar {
                     host.transaction(|host, tx| Ok::<_, ()>(slot.insert(host, tx, &stick, 1)));
                 assert_eq!(went, Ok(1));
             }
+        }
+        if plan.replace_hand {
+            let player = event.player.expect("a player's pour");
+            let stone = ItemStack::new("minecraft:stone", 1).try_into_api().unwrap();
+            assert_eq!(
+                host.living_set_hand_item(
+                    player.living(),
+                    mod_api::client::first_person::Hand::Main,
+                    Some(stone),
+                ),
+                Ok(true)
+            );
         }
         plan.answer
     }
@@ -168,6 +182,45 @@ fn a_part_that_changes_the_dispensers_slots_is_refused_and_undone() {
         assert_eq!(left, Some(ItemStack::new("minecraft:stick", 1)));
         assert!(!honey_at_target(game));
         assert_eq!(slots(game), before);
+    });
+}
+
+/// A stale-hand pour is refused, undoing the placement but preserving the listener's replacement.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES; process-wide parts, run this test alone"]
+fn a_player_pour_with_a_changed_hand_is_refused_and_placement_undone() {
+    let jar = Jar::default();
+    with_jar(&jar, |game, level| {
+        *jar.0.lock().unwrap() = Plan {
+            answer: Some(true),
+            place: Some(level),
+            replace_hand: true,
+            ..Plan::default()
+        };
+        game.creative = false;
+        let stick = ItemStack::new("minecraft:stick", 1);
+        let slot = game.held_slot();
+        *game.held_mut() = Some(stick.clone());
+        let hit = crate::game::Hit {
+            pos: [6, 63, 5],
+            face: [0, 1, 0],
+            point: [6.5, 64.0, 5.5],
+            inside: false,
+        };
+        let used = game.player_empty_contents(&stick, TARGET, &hit);
+        assert!(matches!(
+            used,
+            Some(horizon_client::first_person::UseResult::Fail)
+        ));
+        assert_eq!(
+            game.inventory[slot],
+            Some(ItemStack::new("minecraft:stone", 1))
+        );
+        assert_eq!(
+            Some(game.world.block(6, 64, 5)),
+            game.pack.assets.registry.default_state("minecraft:air")
+        );
+        assert!(!honey_at_target(game));
     });
 }
 

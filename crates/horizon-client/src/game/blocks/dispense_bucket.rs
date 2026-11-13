@@ -31,15 +31,18 @@ impl Game<'_> {
             let entity = game.world.block_entities.get(&pos);
             entity.map(|entity| entity.slots().to_vec())
         };
-        let before = slots(self);
         let answer = match self.empty_contents_listens(&stack.item) {
-            true => self.transaction(|game, _| {
-                let answer = game.native_empty_contents_event(Self::pos_of(target), None, &stack);
-                match answer == Some(true) && slots(game) != before {
-                    true => Err(()),
-                    false => Ok(answer),
-                }
-            }),
+            true => {
+                let before = slots(self);
+                self.transaction(|game, _| {
+                    let answer =
+                        game.native_empty_contents_event(Self::pos_of(target), None, &stack);
+                    match answer == Some(true) && slots(game) != before {
+                        true => Err(()),
+                        false => Ok(answer),
+                    }
+                })
+            }
             false => Ok(None),
         };
         let emptied = match answer {
