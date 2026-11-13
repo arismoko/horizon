@@ -3842,7 +3842,6 @@ mod tests {
     }
 }
 
-#[allow(dead_code)]
 pub mod section_writes;
 #[cfg(test)]
 #[path = "living/size_answer_tests.rs"]

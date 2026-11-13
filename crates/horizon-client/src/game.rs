@@ -3946,6 +3946,7 @@ impl Game<'_> {
             items,
             horizon_client::join_seq::RestoreOrder::SurvivorsFirst,
         );
+        self.tell_dropped_item_steps();
     }
     /// `ItemUtils.onContainerDestroyed`: spilled stacks use their own constructor
     /// motion (0.2 up and ±0.1 sideways), leaving the level random untouched.

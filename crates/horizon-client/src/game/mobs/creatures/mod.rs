@@ -4430,61 +4430,47 @@ impl Game<'_> {
         let hear = self.native_hears_impacts();
         let mut impacts: Vec<Impact> = Vec::new();
         let mut vehicle_winds = self.vehicle_winds();
-        {
-            let targets = self.projectile_targets();
-            let breezes: Vec<u32> = self
-                .mobs
+        let targets = self.projectile_targets();
+        let breezes: Vec<u32> = self
+            .mobs
+            .iter()
+            .filter(|m| m.alive() && m.species() == Species::Breeze)
+            .map(|m| m.id)
+            .collect();
+        // Mobs' projectiles also hit the guests (game/network/lan_mobs.rs).
+        let guests = self.lan_projectile_targets();
+        let has_guests = !guests.is_empty();
+        let targets_guests = if has_guests {
+            let mut targets_guests = targets.clone();
+            targets_guests.extend(guests);
+            targets_guests
+        } else {
+            Vec::new()
+        };
+        let border = Some(self.border.bounds());
+        // Every guest, not only the ones a projectile can hit: a dead or
+        // spectating guest's pearl or arrow still resolves to them.
+        let guest_entities = self.lan_guest_entities();
+        // ThrownEnderpearl.tick: a dead player's pearl is discarded in
+        // place of its tick while ender_pearls_vanish_on_death is on.
+        let vanish = self
+            .ui
+            .rules
+            .bool_at(horizon_client::gamerules::vanilla::ENDER_PEARLS_VANISH_ON_DEATH);
+        let host_dead = self.player_view().is_some_and(|p| !p.alive);
+        let dead_guests: Vec<u32> = self.lan.as_ref().map_or_else(Vec::new, |h| {
+            h.hub
+                .guests
                 .iter()
-                .filter(|m| m.alive() && m.species() == Species::Breeze)
-                .map(|m| m.id)
-                .collect();
-            let w = self.mob_world_base(&[]);
-            let rain = self.arrow_rain();
-            let scene = self.arrow_scene(&rain);
-            // Mobs' projectiles also hit the guests (game/network/lan_mobs.rs).
-            let guests = self.lan_projectile_targets();
-            let has_guests = !guests.is_empty();
-            let targets_guests = if has_guests {
-                let mut targets_guests = targets.clone();
-                targets_guests.extend(guests);
-                targets_guests
-            } else {
-                Vec::new()
-            };
-            let border = Some(self.border.bounds());
-            let pw = ProjWorld {
-                w: &w,
-                targets,
-                border,
-            };
-            let pw_guests = ProjWorld {
-                w: &w,
-                targets: targets_guests,
-                border,
-            };
-            // Every guest, not only the ones a projectile can hit: a dead or
-            // spectating guest's pearl or arrow still resolves to them.
-            let guest_entities = self.lan_guest_entities();
-            // ThrownEnderpearl.tick: a dead player's pearl is discarded in
-            // place of its tick while ender_pearls_vanish_on_death is on.
-            let vanish = self
-                .ui
-                .rules
-                .bool_at(horizon_client::gamerules::vanilla::ENDER_PEARLS_VANISH_ON_DEATH);
-            let host_dead = self.player_view().is_some_and(|p| !p.alive);
-            let dead_guests: Vec<u32> = self.lan.as_ref().map_or_else(Vec::new, |h| {
-                h.hub
-                    .guests
-                    .iter()
-                    .filter(|g| g.dead)
-                    .map(|g| g.conn)
-                    .collect()
-            });
-            // `EntityTickList.forEach`: a projectile that joined during this
-            // tick's entity pass (a mob's shot) first ticks on the next one; a
-            // player's or a dispenser's, which join before the pass, tick now.
-            let through = self.ticked_entities_through;
-            for i in 0..projectiles.len() {
+                .filter(|g| g.dead)
+                .map(|g| g.conn)
+                .collect()
+        });
+        // `EntityTickList.forEach`: a projectile that joined during this
+        // tick's entity pass (a mob's shot) first ticks on the next one; a
+        // player's or a dispenser's, which join before the pass, tick now.
+        let through = self.ticked_entities_through;
+        for i in 0..projectiles.len() {
                 if projectiles[i].id > through {
                     continue;
                 }
@@ -4505,7 +4491,21 @@ impl Game<'_> {
                     pickable_projectile_hitboxes_into(&projectiles, &keep_flags, i, &mut winds);
                 }
                 let mut redirect = None;
-                projectiles.update(i, |p| {
+                {
+                    let w = self.mob_world_base(&[]);
+                    let rain = self.arrow_rain();
+                    let scene = self.arrow_scene(&rain);
+                    let pw = ProjWorld {
+                        w: &w,
+                        targets: targets.clone(),
+                        border,
+                    };
+                    let pw_guests = ProjWorld {
+                        w: &w,
+                        targets: targets_guests.clone(),
+                        border,
+                    };
+                    projectiles.update(i, |p| {
                     if vanish
                         && matches!(p.kind, ProjectileKind::EnderPearl)
                         && p.owner == Some(Who::Player)
@@ -4675,16 +4675,22 @@ impl Game<'_> {
                     {
                         redirect = Some((j, (p.owner, p.owner_uuid, p.guest)));
                     }
-                });
+                    });
+                }
                 if let Some((j, (owner, owner_uuid, guest))) = redirect {
                     let look = self.owner_look(owner, guest);
                     projectiles.update(j, |wind| {
                         super::deflect::aim_deflect(wind, look, owner, owner_uuid, guest);
                     });
                 }
-                section_steps::record(&mut section_steps, projectiles.get(i), at);
+                section_steps::record(
+                    self,
+                    &mut section_steps,
+                    projectiles.get(i),
+                    at,
+                    keep_flags[i],
+                );
             }
-        }
         self.creatures.pickable_projectile_targets = winds;
         for (block, position, movement) in snow_contacts {
             self.powder_snow_particle(block, position, movement);

@@ -764,8 +764,8 @@ impl Game<'_> {
             }
         }
         crate::mobs::living::section_writes::finish();
-        // Every captured write is told at the live-row boundary above.  Keep
-        // only the allocation for the next pass; no tick-end reconstruction.
+        // Keep the reusable write storage for the next pass; the live-row callback has already
+        // consumed every record that belonged to this family tick.
         section_moves.clear();
         self.native_lifecycle.entity_sections.ticked = section_moves;
         *state.pushes = pushes;

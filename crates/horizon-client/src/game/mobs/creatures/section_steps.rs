@@ -2,34 +2,58 @@ use super::Game;
 use horizon_client::projectiles::Projectile;
 use horizon_core::geometry::Vec3;
 
-type Steps = Option<Vec<(u32, Vec3, Vec3)>>;
-
-pub(super) fn begin(game: &Game<'_>) -> Steps {
-    game.entity_section_scope().map(|_| Vec::new())
+pub(super) struct Steps {
+    enabled: bool,
+    seen: Vec<u32>,
 }
 
-pub(super) fn record(steps: &mut Steps, projectile: Option<&Projectile>, from: Vec3) {
+pub(super) fn begin(game: &mut Game<'_>) -> Steps {
+    Steps {
+        enabled: game.entity_section_scope().is_some(),
+        seen: std::mem::take(&mut game.native_lifecycle.entity_sections.projectile_ids),
+    }
+}
+
+pub(super) fn record(
+    game: &mut Game<'_>,
+    steps: &mut Steps,
+    projectile: Option<&Projectile>,
+    from: Vec3,
+    keep: bool,
+) {
     if let Some(p) = projectile
         && p.position != from
-        && let Some(steps) = steps.as_mut()
+        && steps.enabled
+        && keep
     {
-        steps.push((p.id, from, p.position));
+        steps.seen.push(p.id);
+        game.entity_section_step_visible(
+            p.id,
+            [from.x, from.y, from.z],
+            [p.position.x, p.position.y, p.position.z],
+        );
     }
 }
 
-pub(super) fn finish(game: &mut Game<'_>, steps: Steps) {
-    let Some(steps) = steps else {
-        return;
-    };
-    let live: horizon_client::fast_hash::FxHashSet<u32> =
-        game.creatures.projectiles.iter().map(|p| p.id).collect();
-    for (id, from, to) in steps {
-        if live.contains(&id) {
-            game.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-        } else {
-            game.entity_section_forget(id);
+pub(super) fn finish(game: &mut Game<'_>, mut steps: Steps) {
+    if steps.enabled {
+        {
+            let live = &mut game.native_lifecycle.entity_sections.projectile_live;
+            live.clear();
+            live.extend(game.creatures.projectiles.iter().map(|projectile| projectile.id));
         }
+        for id in steps.seen.drain(..) {
+            if !game.native_lifecycle.entity_sections.projectile_live.contains(&id) {
+                game.entity_section_forget(id);
+            }
+        }
+    } else {
+        steps.seen.clear();
     }
+    steps.seen.extend(std::mem::take(
+        &mut game.native_lifecycle.entity_sections.projectile_ids,
+    ));
+    game.native_lifecycle.entity_sections.projectile_ids = steps.seen;
 }
 
 pub(super) fn teleport_player(game: &mut Game<'_>, to: Vec3) {

@@ -81,6 +81,17 @@ pub(super) struct EntitySections {
     busy: bool,
     /// The mobs' position updates during their family's tick; kept for its capacity.
     pub(super) ticked: Vec<PositionWrite>,
+    /// Item writes captured while the item list is lent; kept for its capacity.
+    pub(super) item_steps: Vec<(u32, Vec3, Vec3)>,
+    /// A projectile row is lent during its individual tick. Position reads during its write
+    /// boundary use this value until the row is restored.
+    pub(super) write_position: Option<(u32, [f64; 3])>,
+    /// Projectile ids seen by the current pass; kept to forget rows removed during settlement.
+    pub(super) projectile_ids: Vec<u32>,
+    /// Item ids resident during the current delivery; kept to avoid a list scan per write.
+    pub(super) item_live: horizon_client::fast_hash::FxHashSet<u32>,
+    /// Projectile ids resident after settlement; kept to avoid a fresh set per pass.
+    pub(super) projectile_live: horizon_client::fast_hash::FxHashSet<u32>,
 }
 
 impl EntitySections {
@@ -220,6 +231,8 @@ impl Game<'_> {
     /// Entity `id` is gone, or replaced under the same id: it starts over untold.
     pub(super) fn entity_section_forget(&mut self, id: u32) {
         self.native_lifecycle.entity_sections.forget(id);
+        self.native_lifecycle.entity_sections.item_live.remove(&id);
+        self.native_lifecycle.entity_sections.projectile_live.remove(&id);
     }
 
     /// Tell the writes from one lifted mob while its owning list is resident.
@@ -234,8 +247,15 @@ impl Game<'_> {
             moves.clear();
             return;
         };
+        let mut indices = horizon_client::fast_hash::FxHashMap::default();
+        indices.extend(
+            self.mobs
+                .iter()
+                .enumerate()
+                .map(|(index, mob)| (mob.join, index)),
+        );
         for write in moves.drain(..) {
-            let Some(index) = self.mobs.locate(write.join) else {
+            let Some(&index) = indices.get(&write.join) else {
                 self.native_lifecycle.entity_sections.forget(write.id);
                 continue;
             };
@@ -248,7 +268,14 @@ impl Game<'_> {
                 [write.to.x, write.to.y, write.to.z],
             );
             self.tell_entity_sections();
-            if let Some(index) = self.mobs.locate(write.join) {
+            indices.clear();
+            indices.extend(
+                self.mobs
+                    .iter()
+                    .enumerate()
+                    .map(|(index, mob)| (mob.join, index)),
+            );
+            if let Some(&index) = indices.get(&write.join) {
                 self.mobs.update(index, |mob| {
                     if mob.position == write.to {
                         mob.position = final_position;
@@ -271,6 +298,24 @@ impl Game<'_> {
         }
     }
 
+    /// Tell a write whose row is temporarily lent to a family pass. The callback sees the
+    /// committed position without removing and reinserting the surrounding list tail.
+    pub(super) fn entity_section_step_visible(
+        &mut self,
+        id: u32,
+        from: [f64; 3],
+        to: [f64; 3],
+    ) {
+        self.native_lifecycle.entity_sections.write_position = Some((id, to));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.entity_section_step(id, from, to);
+        }));
+        self.native_lifecycle.entity_sections.write_position = None;
+        if let Err(payload) = result {
+            std::panic::resume_unwind(payload);
+        }
+    }
+
     /// `Entity.teleport` placed as `/tp` places it ([`Game::place_teleport_in_level`]), then filed
     /// and told as one position update (`/tp`, a mob's ender pearl). Its old position, as the
     /// placement returns it.
@@ -289,30 +334,37 @@ impl Game<'_> {
         from
     }
 
-    /// Tell one item write while its lifted row is resident again. A listener may remove the
-    /// item; in that case it is not returned to the lifted pass.
-    pub(super) fn tell_dropped_item_step(
-        &mut self,
-        items: &mut horizon_client::join_seq::JoinList<horizon_client::entities::ItemEntity>,
-        index: usize,
-        from: Vec3,
-        to: Vec3,
-    ) -> bool {
-        let item = items.remove(index);
-        let fallback = item.clone();
-        let join = item.join;
-        let id = item.id;
-        let end = self.dropped.len();
-        self.dropped.put_back(end, item);
-        self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-        let Some(item) = self.dropped.extract(join) else {
-            // Keep a tombstone in the lifted pass so its caller's indexes stay aligned; the
-            // caller marks it removed and the final retention drops this detached clone.
-            items.insert(index, fallback);
-            return false;
-        };
-        items.insert(index, item);
-        true
+    /// Capture one item write while its list is lent. The records are delivered after the
+    /// survivors are restored, so listeners resolve the real resident item and the lifted list's
+    /// tail is never removed and reinserted for every item.
+    pub(super) fn record_dropped_item_step(&mut self, id: u32, from: Vec3, to: Vec3) {
+        if self.entity_section_scope().is_some() && from != to {
+            self.native_lifecycle
+                .entity_sections
+                .item_steps
+                .push((id, from, to));
+        }
+    }
+
+    /// Deliver the item writes captured during a lifted pass, in write order.
+    pub(super) fn tell_dropped_item_steps(&mut self) {
+        {
+            let live = &mut self.native_lifecycle.entity_sections.item_live;
+            live.clear();
+            live.extend(self.dropped.iter().map(|item| item.id));
+        }
+        let mut steps = std::mem::take(&mut self.native_lifecycle.entity_sections.item_steps);
+        for (id, from, to) in steps.drain(..) {
+            if self.native_lifecycle.entity_sections.item_live.contains(&id) {
+                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+            } else {
+                self.entity_section_forget(id);
+            }
+        }
+        steps.extend(std::mem::take(
+            &mut self.native_lifecycle.entity_sections.item_steps,
+        ));
+        self.native_lifecycle.entity_sections.item_steps = steps;
     }
 
     /// An entity joined (`addEntity`): filed untold where it is now, which a join listener may
