@@ -294,6 +294,26 @@ fn ingredient_shape_contract_keeps_existing_tags_and_adds_custom_display_at_thre
 }
 
 #[test]
+fn explosion_interactions_cross_in_vanillas_order() {
+    use crate::world::types::ExplosionInteraction;
+    for (interaction, bytes) in [
+        (ExplosionInteraction::None, [0, 0, 0, 0]),
+        (ExplosionInteraction::Block, [1, 0, 0, 0]),
+        (ExplosionInteraction::Mob, [2, 0, 0, 0]),
+        (ExplosionInteraction::Tnt, [3, 0, 0, 0]),
+        (ExplosionInteraction::Trigger, [4, 0, 0, 0]),
+    ] {
+        let mut out = Writer::new();
+        out.put(&interaction);
+        assert_eq!(out.bytes(), bytes);
+        assert_eq!(
+            Reader::decode::<ExplosionInteraction>(&bytes).unwrap(),
+            interaction
+        );
+    }
+}
+
+#[test]
 fn boxed_ingredient_metadata_preserves_its_value_encoding() {
     let rule = Some(crate::item::crafting::IngredientRule::Components {
         patch: [("minecraft:damage".into(), Tag::Int(5))].into(),

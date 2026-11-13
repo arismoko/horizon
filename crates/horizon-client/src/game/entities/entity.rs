@@ -301,9 +301,11 @@ pub(super) trait Entity: EntityRules {
         true
     }
     /// `Entity.noPhysics` between ticks: its moves pass through the blocks,
-    /// and a shulker's lid leaves it be.
-    fn no_physics(&self) -> bool {
-        false
+    /// and a shulker's lid leaves it be. `stored` is the value a mod wrote for
+    /// a kind that keeps no field of its own (`EntityMemory.no_physics`); None
+    /// when none was written, so the kind answers its own default.
+    fn no_physics(&self, stored: Option<bool>) -> bool {
+        stored.unwrap_or(false)
     }
     /// Apply this kind's resolved movement after the invocation's gate is armed.
     /// Every entity kind states how it moves; family ticks resolve through
@@ -1532,6 +1534,12 @@ impl Entity for Mob {
     fn set_on_ground(&mut self, on_ground: bool) {
         self.on_ground = on_ground;
     }
+    /// `Entity.noPhysics`: written through the mod API; no mob tick rewrites it
+    /// (a vex sets it only for the length of its own, custom travel). Its own
+    /// field is the write's store, so `stored` is None for a mob.
+    fn no_physics(&self, _stored: Option<bool>) -> bool {
+        self.no_physics
+    }
     /// `Entity.move(MoverType.PISTON, ...)` ends in `setPos`, which `Shulker`
     /// overrides to snap to the block centre.
     fn move_entity(&mut self, gate: &mut MoveGate, movement: Vec3) {
@@ -2144,9 +2152,11 @@ impl Entity for ArmorStand {
     fn pushed_by_explosion(&self) -> bool {
         false
     }
-    /// A marker and a NoGravity stand have no physics (`noPhysics`).
-    fn no_physics(&self) -> bool {
-        self.marker || self.no_gravity
+    /// `Entity.noPhysics`: `Marker` or `NoGravity` unless a mod wrote it,
+    /// recomputed from them on load because `readAdditionalSaveData` does.
+    /// Its own field is the write's store, so `stored` is None for a stand.
+    fn no_physics(&self, _stored: Option<bool>) -> bool {
+        self.no_physics.unwrap_or(self.marker || self.no_gravity)
     }
     /// `ArmorStand.getPistonPushReaction`: a marker is ignored.
     fn get_piston_push_reaction(&self) -> PushReaction {
@@ -2470,10 +2480,14 @@ impl Entity for Projectile {
     fn bounds(&self) -> Aabb {
         Projectile::bounds(self)
     }
-    /// A shulker bullet's, set when it is made; an arrow's `AbstractArrow.noPhysics`.
-    fn no_physics(&self) -> bool {
-        matches!(self.kind, ProjectileKind::ShulkerBullet { .. })
-            || self.arrow.as_ref().is_some_and(|a| a.no_physics)
+    /// A shulker bullet's, set when it is made, unless a mod wrote one: the
+    /// write has no field on this struct and lands in `stored`, so a cleared
+    /// flag is what the movement code reads; an arrow's `AbstractArrow.noPhysics`.
+    fn no_physics(&self, stored: Option<bool>) -> bool {
+        stored.unwrap_or_else(|| {
+            matches!(self.kind, ProjectileKind::ShulkerBullet { .. })
+                || self.arrow.as_ref().is_some_and(|a| a.no_physics)
+        })
     }
     fn move_entity(&mut self, gate: &mut MoveGate, movement: Vec3) {
         if gate.skipped() {
@@ -2664,8 +2678,9 @@ impl Entity for ThrownTrident {
             Vec3::new(p.x + 0.25, p.y + 0.5, p.z + 0.25),
         )
     }
-    /// `AbstractArrow.noPhysics`, set once a loyal trident turns back.
-    fn no_physics(&self) -> bool {
+    /// `AbstractArrow.noPhysics`, set once a loyal trident turns back. Its own
+    /// field is the write's store, so `stored` is None for a trident.
+    fn no_physics(&self, _stored: Option<bool>) -> bool {
         self.no_physics
     }
     fn move_entity(&mut self, gate: &mut MoveGate, movement: Vec3) {

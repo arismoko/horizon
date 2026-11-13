@@ -1155,6 +1155,17 @@ impl Projectile {
         self.previous_yaw = self.yaw;
         self.previous_pitch = self.pitch;
     }
+    /// `Entity.noPhysics` on the arrow part, with the synced flag a client
+    /// reads (`AbstractArrow`'s entity-data flags, bit 1): the tracker sends
+    /// them again on the next tick. False for a projectile with no arrow part.
+    pub fn set_no_physics(&mut self, no_physics: bool) -> bool {
+        let Some(arrow) = self.arrow.as_mut() else {
+            return false;
+        };
+        arrow.no_physics = no_physics;
+        self.needs_sync = true;
+        true
+    }
     /// `Entity.move(PISTON)`: the position only; `release_after_piston` follows
     /// (`AbstractArrow.move`).
     pub fn move_by_piston(&mut self, movement: Vec3) {

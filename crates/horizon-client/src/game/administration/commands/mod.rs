@@ -2358,9 +2358,7 @@ impl Game<'_> {
                     o.age = u32::MAX / 2;
                 }
             }
-            Target::Projectile(id) => {
-                self.creatures.projectiles.retain(|p| p.id != id);
-            }
+            Target::Projectile(id) => self.remove_projectile(id),
             Target::Stand(id) => self.armor_stands.retain(|a| a.id != id),
             Target::Frame(id) => {
                 // ItemFrame.onKilled.
@@ -2387,8 +2385,8 @@ impl Game<'_> {
             Target::Falling(id) => self.falling.retain(|f| f.id != id),
             Target::Rocket(id) => self.rockets.retain(|r| r.id != id),
             Target::Trident(id) => self.tridents.retain(|t| t.id != id),
-            Target::Spawner(id) => self.ominous_spawners.retain(|s| s.id != id),
-            Target::Cloud(id) => self.breath_clouds.retain(|c| c.id != id),
+            Target::Spawner(id) => self.remove_ominous_spawner(id),
+            Target::Cloud(id) => self.remove_breath_cloud(id),
             Target::Hook(id) => self.remove_fishing_hook(id),
             Target::Knot(_) => {}
             // No command names a part, and `kill` on one would not stop its dragon.

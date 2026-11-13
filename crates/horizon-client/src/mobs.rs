@@ -1526,6 +1526,10 @@ pub struct Mob {
     /// `Entity.firstTick`: no splash for a mob that appears in water.
     pub first_tick: bool,
     pub no_gravity: bool,
+    /// `Entity.noPhysics`: its moves pass through blocks. No save writes it
+    /// (`Entity.saveWithoutId` omits it) and no mob tick rewrites it except a
+    /// vex, which sets it only for the length of its own tick.
+    pub no_physics: bool,
     /// `Entity.mainSupportingBlockPos`: the block it stood on after its last
     /// move.
     pub supporting: Option<[i32; 3]>,
@@ -1607,11 +1611,6 @@ pub struct Mob {
     /// What `entity_size` answered for its pose and vanilla size (`EntityEvent.Size`):
     /// `dims` uses it while it holds.
     pub size_answer: Option<crate::pose::SizeAnswer>,
-}
-impl crate::entity_rules::EntityRules for Mob {
-    fn is_no_gravity(&self) -> bool {
-        self.no_gravity
-    }
 }
 /// A mannequin's `description` and `hide_description` (`Mannequin.updateDescription`):
 /// the default `entity.minecraft.mannequin.label`, none at all, or a component.
@@ -3737,6 +3736,7 @@ impl Mob {
             was_eye_in_water: false,
             first_tick: true,
             no_gravity: false,
+            no_physics: false,
             supporting: None,
             standing_on: None,
             no_ai: false,
