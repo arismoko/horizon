@@ -209,6 +209,7 @@ fn opening_prompt_replaces_stale_destructive_focus_with_cancel() {
         .lock()
         .unwrap_or_else(|e| e.into_inner());
     let mut f = Fixture::new();
+    f.world("Gone", "Gone");
     f.title.focused_button = Some(103);
     f.title.scroll.get_mut().amount = 400.0;
     f.title.ask_missing_mods("Gone", vec![gone()]);
