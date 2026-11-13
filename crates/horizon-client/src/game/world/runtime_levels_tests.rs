@@ -1034,6 +1034,9 @@ fn a_removal_does_not_follow_links_out_of_the_world() {
     make_link(&outside, &world.join("dimensions/lnk"));
     assert!(erase(&world, "lnk:x").is_err());
     // The level's own folder is a link.
+    #[cfg(unix)]
+    std::fs::remove_file(world.join("dimensions/lnk")).unwrap();
+    #[cfg(windows)]
     std::fs::remove_dir(world.join("dimensions/lnk")).unwrap();
     make_link(&outside, &world.join("dimensions/ns/x"));
     assert!(erase(&world, "ns:x").is_err());
