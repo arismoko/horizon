@@ -1,6 +1,6 @@
 # The #[ignore]d library tests tools/ci/ignored_tests.py expects to fail on main, one per line:
-#   PACKAGE TEST REFERENCE [flaky|harness|gpu] [# note]
-# REFERENCE is the issue or PR that tracks it. A listed test that passes fails the job until its line is
+#   PACKAGE TEST REFERENCE [flaky|harness|gpu|needs] [# note]
+# REFERENCE is the issue or PR that tracks it (for `needs`, the variable). A listed test that passes fails the job until its line is
 # removed, so this list only shrinks; `flaky` lets one pass. `harness` marks a parity harness's own step:
 # its harness runs it with the environment it needs, and the job skips it. `gpu` marks a test that needs a
 # graphics adapter: it runs, and must pass, only where the runner has a Vulkan driver.
@@ -22,7 +22,29 @@ horizon-client game::remote_mob_data::tests::raider_celebration_parity_fixture t
 horizon-client-lib item_render::glint_tests::external_item_atlas_oracle HORIZON_GLINT_ROOT harness
 horizon-client-lib mobs::dragon_contacts::parity::contact_transcript tools/test_dragon_contacts_parity.py harness
 horizon-client-lib mobs::villager_brain::farming_tests::vanilla_farming_classification_matches_the_oracle tools/test_villager_farming_parity.py harness
+horizon-client-lib mobs::villager_brain::reputation_witness_tests::witnesses_use_sensor_candidates_radius_invisibility_and_cached_results tools/test_villager_witness_parity.py harness
 horizon-client-render packs::cache::tests::benchmark_real_resource_root HORIZON_OVERLAY_BENCH_VANILLA harness
+
+# Tests that read an input only their parity harness provides (REFERENCE is the variable): refused by name at
+# the start of the shard when the variable is unset; with it set they run and must pass. Not known failures.
+# The HORIZON_WASM_FIXTURE ones run in wasm-mods.yml, against the fixture that run builds.
+horizon-client game::end::cooldown_tests::gateway_counters_match_actual_vanilla_methods HORIZON_PORTAL_REFERENCE needs
+horizon-client game::nether_portal::cooldown_tests::portal_contact_and_waiting_handoff_match_vanilla_counters HORIZON_PORTAL_REFERENCE needs
+horizon-client game::functions::typed_state_range_read_tests::loaded_pack_state_ranges_match_typed_controls HORIZON_TYPED_RANGE_PACK needs
+horizon-client game::functions::typed_state_range_read_tests::loaded_pack_direction_ranges_keep_full_and_filtered_domains HORIZON_TYPED_RANGE_PACK needs
+horizon-client game::potions::arrow_contents::actual_arrow_contents_match_pinned_methods HORIZON_POTION_INPUT needs
+horizon-client game::special_attack_fixture::tests::special_attack_cases_without_world_startup HORIZON_SPECIAL_ATTACK_CASES needs
+horizon-client game::native_server::wasm_selector_tests::wasm_selectors_resolve_in_game_and_refuse_before_guest_dispatch HORIZON_WASM_FIXTURE needs
+horizon-client game::native_server::wasm_selector_tests::wasm_server_tick_messages_reach_dedicated_game HORIZON_WASM_FIXTURE needs
+horizon-client game::payload_transport::wasm_tests::compiled_guest_runs_in_actual_game_roots HORIZON_WASM_FIXTURE needs
+horizon-client game::remote::interaction_event_tests::interaction_event_wasm_tests::wasm_interaction_shared_matrix HORIZON_WASM_FIXTURE needs
+horizon-client-lib raw_payloads::wasm_tests::compiled_guest_observes_physical_provider_pressure HORIZON_WASM_FIXTURE needs
+
+# Disabled by the owner's decision until H077_OLD_WORLD is wired into CI.
+# needs the private old-world fixture: see followups
+horizon-client game::levels::tests::features_write_a_full_neighbour_only_through_its_sections H077_OLD_WORLD needs
+horizon-client game::levels::tests::an_old_chunk_saves_the_heights_its_new_neighbour_calculated H077_OLD_WORLD needs
+horizon-client game::levels::tests::the_overworld_cache_holds_the_edge_chunks_calculated_heights H077_OLD_WORLD needs
 
 # Tests that need a graphics adapter (REFERENCE is the ignore reason's word).
 horizon-client-render gfx::crumbling_tests::crack_samples_stay_aligned_between_stages adapter gpu
@@ -39,19 +61,6 @@ horizon-client-render gfx::pack_post::destination_tests::clear_budget_tests::siz
 horizon-client-render gfx::pack_post::destination_tests::clear_budget_tests::sized_hdr_clear_respects_byte_budget horizon-rust/horizon#9303 flaky
 
 # Client failures exposed after enforcing target completion (#2137).
-horizon-client game::persist::summon_uuid_conflict_tests::summon_skips_a_uuid_taken_earlier_in_the_same_tree #2175
 horizon-client game::explosion::tests::explosion_items_parity_fixture #2177 harness
 horizon-client game::native_live_holder_tests::thousand_live_block_entity_ticks #2177 harness
 horizon-client game::remote_vehicles::tests::steering_mount_control_matches_vanilla #2177 harness
-
-# Additional failures in the current-main honest run (42497697222).
-
-# #2474 dependency: external constructed 1.20.4 save with its partial ring removed; no committed recipe or CI provisioning.
-horizon-client game::levels::tests::features_write_a_full_neighbour_only_through_its_sections #2474
-# #2474 dependency: external constructed 1.20.4 save with its partial ring removed; no committed recipe or CI provisioning.
-horizon-client game::levels::tests::an_old_chunk_saves_the_heights_its_new_neighbour_calculated #2474
-# #2474 dependency: external constructed 1.20.4 save with its partial ring removed; no committed recipe or CI provisioning.
-horizon-client game::levels::tests::the_overworld_cache_holds_the_edge_chunks_calculated_heights #2474
-
-# #2505 dependency: canonical ignored-test runner lacks HORIZON_FISHING_RESOURCES and HORIZON_FISHING_REFERENCE; remove when real oracle inputs are provisioned there.
-horizon-client game::fishing::tests::fishing_retrieve_reference #2505

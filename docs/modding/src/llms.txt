@@ -2,7 +2,7 @@
 
 > Horizon is Minecraft: Java Edition 26.3 in Rust. A mod is one `.hmod`: content (assets/ and data/), plus an optional Rust crate built native or to mod.wasm against the `mod_api` crate (`horizon-mod-api`).
 
-Prefer a hook or Part method; otherwise use an API `[[inject]]` on native or wasm. Native code needing game internals uses `[[native.mixin]]`; `access = "internals"` is refused by name.
+Prefer a hook or Part method; otherwise use an API `[[inject]]` on native or wasm. Native code needing game internals uses `[[native.mixin]]`; `[[inject]]` has no `access` key; a row that still has one is refused by name.
 
 ## Rules
 

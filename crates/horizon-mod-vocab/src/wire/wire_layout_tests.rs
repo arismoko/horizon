@@ -462,7 +462,7 @@ fn registration_and_attribute_records_have_declared_field_bytes() {
             PackageKind::Code,
             Side::Both,
             vec!["example".into()],
-            vec!["library".into()],
+            vec![PackageDependency::new("library".into(), "^1".into(), true)],
         ),
         (
             "example".to_owned(),
@@ -470,7 +470,41 @@ fn registration_and_attribute_records_have_declared_field_bytes() {
             PackageKind::Code,
             Side::Both,
             vec!["example".to_owned()],
-            vec!["library".to_owned()],
+            // Nested tuples flatten into one field list.
+            (
+                vec![PackageDependency::new("library".into(), "^1".into(), true)],
+                PackageDetails::default(),
+            ),
+        ),
+    );
+    fields(PropertyValue::Integer(3), (1u32, 3i64));
+    fields(
+        PackageDependency::new("library".into(), "^1".into(), true),
+        ("library".to_owned(), "^1".to_owned(), true),
+    );
+    let details = PackageDetails {
+        name: "Example".into(),
+        icon_path: Some("icon.png".into()),
+        runtime: Some(PackageRuntime::Native),
+        properties: [("ratio".into(), PropertyValue::Float(0.5))].into(),
+        ..Default::default()
+    };
+    fields(
+        details.clone(),
+        (
+            (
+                "Example".to_owned(),
+                String::new(),
+                Vec::<String>::new(),
+                String::new(),
+                None::<String>,
+            ),
+            (
+                None::<String>,
+                Some("icon.png".to_owned()),
+                Some(PackageRuntime::Native),
+                details.properties.clone(),
+            ),
         ),
     );
     let spawners = vec![
@@ -656,6 +690,7 @@ fn newtype_widths_and_unit_enum_tags_match_their_layouts() {
     fields(crate::wire::wire_slots::Id(0x100000003), (0x100000003u64,));
     fields(BlockUpdateFlags(17), (17u32,));
     fields(PackageKind::Code, (0u32,));
+    fields(PackageRuntime::Wasm, (1u32,));
     fields(Side::Both, (1u32,));
     fields(Reduction::Armor, (1u8,));
     fields(SpawnerKind::Patrol, (1u32,));
@@ -913,4 +948,11 @@ fn erased_provider_record_uses_active_resource_scope() {
         },
         ("example:handler".to_owned(), 0x100000007u64),
     );
+}
+
+#[test]
+fn original_player_identity_and_attachment_selector_cross_the_boundary() {
+    let original = crate::__private::game::original_player_ref(0x1234_5678);
+    fields(original, (0x1234_5678u64,));
+    fields(Holder::OriginalPlayer(0x1234_5678), (5u32, 0x1234_5678u64));
 }

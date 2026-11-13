@@ -398,7 +398,7 @@ pub(in crate::game) struct Dragon {
     pub id: u32,
     pub position: Vec3,
     pub previous: Vec3,
-    velocity: Vec3,
+    pub(super) velocity: Vec3,
     pub yaw: f32,
     pub previous_yaw: f32,
     yaw_accel: f32,
@@ -1002,14 +1002,14 @@ impl Dragon {
     /// `ServerExplosion.hurtEntities` knockback on the dragon itself:
     /// `pushFromExplosion` adds `(1 - dist) * exposure` along the blast to
     /// its eye to the motion (`Entity.push`); the parts are not pushed.
-    fn whole_box(&self) -> Aabb {
+    pub(super) fn whole_box(&self) -> Aabb {
         let p = self.position;
         Aabb::new(
             Vec3::new(p.x - 8.0, p.y, p.z - 8.0),
             Vec3::new(p.x + 8.0, p.y + 8.0, p.z + 8.0),
         )
     }
-    fn explosion_knockback(
+    pub(super) fn explosion_knockback(
         &self,
         center: [f64; 3],
         radius: f32,
@@ -2048,35 +2048,7 @@ impl Game<'_> {
         }
         best
     }
-    pub(super) fn attack_dragon(&mut self) -> bool {
-        let Some((id, d)) = self.dragon_hit() else {
-            return false;
-        };
-        if !self.before_block(d) || self.mob_hit().is_some_and(|m| m.1 < d) {
-            return false;
-        }
-        // A dragon part is no LivingEntity: `canCriticalAttack` is false.
-        let (amount, _, _, _) = self.melee_damage(
-            "minecraft:ender_dragon",
-            false,
-            self.dragon.as_ref().map(|dragon| dragon.id),
-        );
-        self.swing_arm();
-        // The part's box.
-        let area = self
-            .special_targets()
-            .into_iter()
-            .find(|(part, _)| *part == id)
-            .map(|(_, b)| b);
-        // The sweep and the sounds read the charge, which the hit then spends.
-        let sweep = self.sweep_before_hit("minecraft:ender_dragon", false);
-        let hurt = self.hit_special(id, amount, true, DamageKind::PlayerAttack, None);
-        if let (Some(area), Hurt::Landed { .. }) = (area, hurt) {
-            self.attack_effects(area, sweep, None, false, super::mace::Spared::Nothing, None);
-        }
-        self.attack_ticks = 0;
-        true
-    }
+
     /// The 24 nodes (`findClosestNode` builds them on first use).
     fn dragon_nodes(&mut self) -> [[i32; 3]; 24] {
         if let Some(n) = self.dragon.as_ref().and_then(|d| d.nodes) {
@@ -2593,12 +2565,12 @@ impl Game<'_> {
                     let look = glam::DVec2::new(head.x - pos.x, head.z - pos.z).normalize_or_zero();
                     let (x, z) = (head.x + look.x * 2.5, head.z + look.y * 2.5);
                     let mut y = head.y + 0.5;
+                    let (xi, zi) = (x.floor() as i32, z.floor() as i32);
                     while y > 0.0
-                        && self.res.facts().is_air(self.world.block(
-                            x.floor() as i32,
-                            y.floor() as i32,
-                            z.floor() as i32,
-                        ))
+                        && self
+                            .res
+                            .facts()
+                            .is_air(self.world.block(xi, y.floor() as i32, zi))
                     {
                         y -= 1.0;
                     }
@@ -2608,6 +2580,7 @@ impl Game<'_> {
                         join: Default::default(),
                         id,
                         at: [x, y.floor() + 1.0, z],
+                        motion: [0.0; 3],
                         radius: 5.0,
                         age: 0,
                         duration: 200,
@@ -3264,18 +3237,17 @@ impl Game<'_> {
     /// cloud and level event 2006, as the fireballs of the dragon's own list
     /// burst before they joined the other projectiles.
     pub(super) fn dragon_fireball_on_hit(&mut self, next: Vec3) {
-        let mobs: Vec<(Aabb, Vec3)> = self
-            .mobs
-            .iter()
-            .filter(|m| m.alive())
-            .map(|m| (m.bounds(), m.position))
-            .collect();
         let snap_targets: Vec<(Aabb, Vec3)> = self
             .fight_players()
             .iter()
             .filter(|p| p.alive)
             .map(|p| (p.bounds, p.position))
-            .chain(mobs.iter().copied())
+            .chain(
+                self.mobs
+                    .iter()
+                    .filter(|m| m.alive())
+                    .map(|m| (m.bounds(), m.position)),
+            )
             .collect();
         let id = self.take_entity_id();
         let feet = [next.x, next.y - 0.5, next.z];
@@ -3285,6 +3257,7 @@ impl Game<'_> {
             join: Default::default(),
             id,
             at,
+            motion: [0.0; 3],
             radius: 3.0,
             age: 0,
             duration: 600,
@@ -3639,6 +3612,7 @@ pub(super) struct Breath {
     /// Its entity id once a server's players track it (0 until then).
     pub(super) id: u32,
     pub(super) at: [f64; 3],
+    pub(super) motion: [f64; 3],
     pub(super) radius: f32,
     pub(super) age: i32,
     pub(super) duration: i32,
@@ -3685,11 +3659,8 @@ impl Game<'_> {
         ) else {
             return;
         };
-        let pos = glam::DVec3::new(
-            d.previous.x + (d.position.x - d.previous.x) * alpha,
-            d.previous.y + (d.position.y - d.previous.y) * alpha,
-            d.previous.z + (d.position.z - d.previous.z) * alpha,
-        );
+        let p = d.previous.lerp(d.position, alpha);
+        let pos = glam::DVec3::new(p.x, p.y, p.z);
         let h = |delay: usize| d.sample_lerp(delay, a);
         let yr = h(7).1;
         let rot2 = (h(5).0 - h(10).0) as f32;
@@ -4053,9 +4024,9 @@ impl Dragon {
         let mut d = Self::new(position, yaw, seed);
         d.velocity = velocity;
         // Vanilla getFloatOr/getIntOr accept any numeric tag type.
-        if let Some(h) = nbt_value::float(tag.get("Health")) {
-            d.health = h as f32;
-        }
+        d.health = nbt_value::float(tag.get("Health")).map_or(d.health, |h| h as f32);
+        d.sitting_damage =
+            nbt_value::float(tag.get("sitting_damage_received")).unwrap_or(0.0) as f32;
         if let Some(p) = nbt_value::number(tag.get("DragonPhase")) {
             d.phase = Phase::from_id(p as i32);
         }
@@ -5272,7 +5243,7 @@ mod tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.dragon.discard();
                 game.native_joins_skip();
@@ -5348,7 +5319,7 @@ mod tests {
             for reason in [Reason::SpawnItemUse, Reason::Dispenser] {
                 for answer in [Answer::Keep, Answer::Skip, Answer::Refuse] {
                     game.dragon.discard();
-                    game.world.random = LegacyRandom::new(42);
+                    game.world.random.set_seed(42);
                     let calls = Arc::new(AtomicUsize::new(0));
                     let mods: mod_api::Mods = vec![ModEntry::new(
                         "dragon-finalize",
@@ -5359,7 +5330,7 @@ mod tests {
                         }),
                     )]
                     .into();
-                    let result = mod_api::testing::with_mods(mods, || {
+                    let result = mod_platform::testing::with_mods(mods, || {
                         game.spawn_dragon_spawned([4.5, 200.0, 4.5], SpawnSite::Finalizing(reason))
                     });
                     assert_eq!(calls.load(Ordering::Relaxed), 1);
@@ -5449,7 +5420,7 @@ mod tests {
                     Answer::RefuseJoin,
                 ] {
                     game.dragon.discard();
-                    game.world.random = LegacyRandom::new(42);
+                    game.world.random.set_seed(42);
                     let calls = Arc::new(AtomicUsize::new(0));
                     let joins = Arc::new(AtomicUsize::new(0));
                     let mods: mod_api::Mods = vec![ModEntry::new(
@@ -5462,7 +5433,7 @@ mod tests {
                         }),
                     )]
                     .into();
-                    let result = mod_api::testing::with_mods(mods, || {
+                    let result = mod_platform::testing::with_mods(mods, || {
                         game.build_registries();
                         game.set_allow_commands(true);
                         let suffix = nbt.map(|tag| format!(" {tag}")).unwrap_or_default();
@@ -5779,6 +5750,25 @@ mod tests {
         let mut d = Dragon::new(Vec3::new(0.0, 70.0, 0.0), 0.0, 1);
         d.phase = phase;
         d
+    }
+
+    /// `EnderDragon.readAdditionalSaveData` reads `sitting_damage_received`
+    /// (`getFloatOr`, 0 when absent); the writer already saved it. Horizon
+    /// only wrote it, so a perched dragon that took a quarter of its health
+    /// but was saved before taking off came back with the damage forgotten.
+    #[test]
+    fn a_perched_dragons_damage_survives_the_chunk_save() {
+        let mut d = dragon(Phase::Flaming { ticks: 0 });
+        d.sitting_damage = 12.5;
+        let tag = d.to_nbt([1, 2, 3, 4], None);
+        let back = Dragon::from_nbt(&tag, 0).unwrap();
+        assert_eq!(back.sitting_damage, 12.5);
+        // No key at all reads as no damage accumulated.
+        let mut bare = tag.clone();
+        if let horizon_core::nbt::Tag::Compound(fields) = &mut bare {
+            fields.remove(&"sitting_damage_received".into());
+        }
+        assert_eq!(Dragon::from_nbt(&bare, 0).unwrap().sitting_damage, 0.0);
     }
     fn flying() -> Phase {
         Phase::Holding {
@@ -6156,7 +6146,7 @@ mod tests {
             Box::new(Probe(heard.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.dragon.replace(dragon(Phase::Scanning { time: 0 }));
                 let arrow = ProjectileKind::Trident;
@@ -6493,7 +6483,6 @@ mod thorns_tests;
 mod dragon_fireball_spawn_tests {
     include!("dragon/fireball_spawn_tests.rs");
 }
-
 #[cfg(test)]
 #[path = "dragon/wing_push_tests.rs"]
 mod wing_push_tests;

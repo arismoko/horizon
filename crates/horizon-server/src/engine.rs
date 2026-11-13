@@ -143,14 +143,21 @@ pub fn spawn(
     resources: &Path,
     dir: &Path,
     low_memory: bool,
+    parallel_tick: bool,
     transfers: Option<&str>,
 ) -> std::io::Result<Child> {
     let mut command = horizon_server_launch::command(program, resources, dir, low_memory)?;
+    if parallel_tick {
+        command.env("HORIZON_PARALLEL_TICK", "1");
+    }
     if let Some(transfers) = transfers {
         command.arg("--transfers").arg(transfers);
     }
     command.spawn()
 }
+
+/// How long a [`Control`] waits for each reply.
+pub const REPLY_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A connection to the game's control endpoint: one JSON line asked, one answered.
 pub struct Control {
@@ -169,7 +176,7 @@ impl Control {
             .ok_or_else(bad)?;
         let token = v["token"].as_str().ok_or_else(bad)?;
         let writer = TcpStream::connect((Ipv4Addr::LOCALHOST, port))?;
-        writer.set_read_timeout(Some(Duration::from_secs(30)))?;
+        writer.set_read_timeout(Some(REPLY_TIMEOUT))?;
         let mut control = Self {
             reader: BufReader::new(writer.try_clone()?),
             writer,
@@ -184,7 +191,20 @@ impl Control {
         Ok(control)
     }
 
+    /// How long [`Self::ask`] waits for a reply; [`REPLY_TIMEOUT`] unless changed.
+    pub fn set_reply_timeout(&self, wait: Duration) -> std::io::Result<()> {
+        self.writer.set_read_timeout(Some(wait))
+    }
+
     pub fn ask(&mut self, line: &str) -> std::io::Result<serde_json::Value> {
+        // One request: the endpoint reads a line per request, so a line break would make the
+        // rest a request of its own. Refused before anything is sent.
+        if line.contains(['\n', '\r']) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "a request is one line",
+            ));
+        }
         writeln!(self.writer, "{line}")?;
         self.writer.flush()?;
         let mut reply = String::new();
@@ -200,6 +220,48 @@ impl Control {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    #[test]
+    fn a_request_with_a_line_break_is_refused_unsent() {
+        let dir = std::env::temp_dir().join(format!("horizon-control-line-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".horizon")).unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::fs::write(
+            horizon_server_launch::control_path(&dir),
+            format!("{{\"port\": {port}, \"token\": \"t\"}}"),
+        )
+        .unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut writer = stream;
+            let mut line = String::new();
+            while reader.read_line(&mut line).unwrap_or(0) > 0 {
+                tx.send(line.trim().to_owned()).unwrap();
+                line.clear();
+                let _ = writer.write_all(b"{\"ok\":true}\n");
+            }
+        });
+        let mut control = Control::connect(&dir).unwrap();
+        for request in [
+            "console kick Kim0 x\nconsole op Mallory",
+            "console say a\rb",
+        ] {
+            let refused = control.ask(request).unwrap_err();
+            assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
+        }
+        control.ask("console list").unwrap();
+        drop(control);
+        let heard: Vec<String> = rx.iter().collect();
+        assert_eq!(
+            heard,
+            ["auth t", "console list"],
+            "nothing of the refused requests was sent"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// A folder as `horizon-prepare` leaves it, as far as `check_prepared` looks.
     fn prepared_folder(name: &str) -> PathBuf {
@@ -336,6 +398,7 @@ mod tests {
                 &std::path::absolute(&game).unwrap(),
                 &root.join("res"),
                 &server,
+                false,
                 false,
                 None,
             ) {

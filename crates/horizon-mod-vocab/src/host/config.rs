@@ -40,6 +40,14 @@ pub trait ConfigHost {
     #[access(WorldOnly)]
     fn dimension(&self) -> &'static str;
     /// Side: both.
+    /// Whether the server's current tick still has time before the next one is
+    /// due (`MinecraftServer.haveTime`, NeoForge's `ServerTickEvent.hasTime` and
+    /// `LevelTickEvent.hasTime`): a mod doing optional work in `server_tick` or
+    /// `level_tick_pre`/`level_tick_post` skips it when this is false. Always
+    /// true on a client, and outside a scheduled tick.
+    #[access(WorldOnly)]
+    fn server_has_time(&self) -> bool;
+    /// Side: both.
     /// The instance (game) folder, which its players share: `saves/`,
     /// `resourcepacks/`, `shaderpacks/` and `horizon-mods/` are in it, and the
     /// title's screens create worlds and read packs there. A world's own

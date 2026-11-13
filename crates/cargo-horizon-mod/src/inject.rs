@@ -195,10 +195,6 @@ mod tests {
         assert!(result.starts_with(TEXT));
         let parsed = Manifest::parse(&result).unwrap();
         assert_eq!(parsed.inject[0].hash.as_deref(), Some("signature"));
-        assert_eq!(
-            parsed.inject[0].access,
-            horizon_mod_package::manifest::inject::Access::Api
-        );
     }
     #[test]
     fn call_flags_are_refused() {

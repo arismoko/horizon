@@ -75,8 +75,17 @@ impl Game<'_> {
             inserted.push(slot);
         }
     }
-    /// `EnchantmentsByCostWithDifficulty.enchant` on the item in a slot.
-    pub(super) fn enchant_item(&mut self, id: u32, slot: usize, item: &str, special: f32) {
+    /// `EnchantmentsByCostWithDifficulty.enchant` on the stack the mob holds
+    /// in a `finalize` slot: nothing is drawn when the slot is empty.
+    pub(super) fn enchant_item(&mut self, id: u32, slot: usize, special: f32) {
+        let Some(stack) = self
+            .mobs
+            .iter()
+            .find(|m| m.id == id)
+            .and_then(|m| horizon_client::mobs::finalize::item_stack(m, slot))
+        else {
+            return;
+        };
         let random = &mut self.world.random;
         let top = MIN_COST + (special * MAX_COST_SPAN) as i32;
         let cost = random
@@ -84,8 +93,9 @@ impl Game<'_> {
             .unwrap_or(MIN_COST);
         let e = &world_stations!(self).enchantments;
         let pool = e.tag("minecraft:on_mob_spawn_equipment");
-        let picked = e.select(world_items!(self), random, item, cost, pool);
+        let picked = e.select(world_items!(self), random, &stack, cost, pool);
         if let Some(m) = self.mobs.iter_mut().find(|m| m.id == id) {
+            let slot = horizon_client::mobs::finalize::gear_slot(slot);
             for (enchantment, level) in picked {
                 gear::upgrade(m, slot, &enchantment, level);
             }

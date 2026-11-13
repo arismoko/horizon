@@ -47,7 +47,10 @@ impl Game<'_> {
         };
         let table = cauldron_interactions::snapshot();
         let removes_dye = cauldron::removes_dye(self.items(), &held.item);
-        let entry = table.select(&state.name, &held.item, removes_dye);
+        let items = self.items();
+        let entry = table.select(&state.name, &held.item, removes_dye, |tag| {
+            items.item_in_tag(tag, &held.item)
+        });
         // Custom handlers have no matching-build/resource-generation admission handshake.
         // Consume locally without running decide or predicting writes; wait for the server.
         if matches!(entry, Some(Entry::Mod(_))) {

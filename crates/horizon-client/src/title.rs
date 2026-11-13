@@ -2,7 +2,6 @@
 //! SelectWorldScreen, CreateWorldScreen layouts), drawn as HUD quads.
 #[path = "title/preset_buttons.rs"]
 mod preset_buttons;
-
 use crate::{
     dialog_screen::BOX,
     game_rules_screen::{Exit, RulesScreen},
@@ -13,6 +12,8 @@ use crate::{
 };
 use horizon_core::random::RandomSource;
 use horizon_world::datafix::world_upgrader::{self, WorldUpgrader};
+pub(crate) use splash::choose_splash;
+use splash::{rolls_user_splash, splash_lines};
 use std::path::{Path, PathBuf};
 use std::{
     cell::{Cell, RefCell},
@@ -22,12 +23,16 @@ use std::{
 mod buffet;
 mod confirm_experiments;
 mod create_world;
+mod edit_world;
 mod experiments;
 mod flat;
+mod missing_biome_regions;
 mod onboarding;
 pub mod preset_editors;
+mod splash;
 #[cfg(test)]
 mod tests;
+mod world_folder;
 pub mod world_management;
 pub use buffet::State as BuffetEditor;
 pub use create_world::{DIFFICULTIES, WorldOptions};
@@ -287,6 +292,8 @@ pub enum Mode {
         world: WorldEntry,
         name: String,
         focused: bool,
+        /// The installed mods' biome regions differ from the world's (`edit_world`).
+        adopt_regions: bool,
     },
     Backup {
         world: WorldEntry,
@@ -314,6 +321,16 @@ pub enum Mode {
     /// `openWorldCheckDiskSpace`'s ConfirmScreen: little space is left on the device.
     LowDiskSpace {
         world: WorldEntry,
+    },
+    /// Edit World's opt-in to the installed mods' biome regions (`edit_world`).
+    AdoptBiomeRegions {
+        world: WorldEntry,
+        name: String,
+    },
+    /// Saved biome regions of missing mods, as `(mod, region)` (`missing_biome_regions`).
+    MissingBiomeRegions {
+        world: WorldEntry,
+        missing: Vec<(String, String)>,
     },
     Delete {
         world: WorldEntry,
@@ -746,40 +763,6 @@ fn world_narration(world: &WorldEntry) -> String {
     };
     narration_text("narrator.select", &[&entry])
 }
-fn choose_splash(text: &str, index: usize, date: (u32, u32)) -> Option<String> {
-    // SplashManager checks SpecialDates before the resource list (local date).
-    let special = match date {
-        (12, 24) => Some("Merry X-mas!"),
-        (1, 1) => Some("Happy new year!"),
-        (10, 31) => Some("OOoooOOOoooo! Spooky!"),
-        _ => None,
-    };
-    if let Some(special) = special {
-        return Some(special.to_owned());
-    }
-    let splashes: Vec<_> = splash_lines(text).collect();
-    splashes
-        .get(index.checked_rem(splashes.len())?)
-        .map(|s| (*s).to_owned())
-}
-/// `SplashManager.prepare`: the splash list. Blank lines are kept; only the
-/// hidden splash is dropped.
-fn splash_lines(text: &str) -> impl Iterator<Item = &str> {
-    text.lines()
-        .map(str::trim)
-        .filter(|s| horizon_core::random::java_string_hash(s.encode_utf16()) != 125780783)
-}
-
-/// `SplashManager.getSplash`: outside the special dates, a one in `size` roll
-/// (`nextInt(size) == 42`) shows the logged-in player's name instead of a splash.
-fn rolls_user_splash(text: &str, random: &mut impl RandomSource, date: (u32, u32)) -> bool {
-    if matches!(date, (12, 24) | (1, 1) | (10, 31)) {
-        return false;
-    }
-    i32::try_from(splash_lines(text).count())
-        .is_ok_and(|size| size > 0 && random.next_int_bound(size) == Ok(42))
-}
-
 impl Mode {
     /// The id native mods see for this screen (`ScreenView.id`, the
     /// screen hooks): one per variant, a hook's contract, so it stays the
@@ -799,6 +782,8 @@ impl Mode {
             Self::OptimizeConfirm { .. } => "world_optimize_confirm",
             Self::Optimize { .. } => "world_optimize",
             Self::LowDiskSpace { .. } => "low_disk_space",
+            Self::MissingBiomeRegions { .. } => "missing_biome_regions",
+            Self::AdoptBiomeRegions { .. } => "adopt_biome_regions",
             Self::Delete { .. } => "world_delete",
             Self::Recover { .. } => "world_recover",
             Self::Recovered { .. } => "world_recovered",
@@ -861,17 +846,15 @@ impl Title {
         }
         self
     }
-    pub fn new(saves: PathBuf, resources: &Path) -> Self {
+    /// `splashes` is the pool `crate::splashes::pool` built for the current resources.
+    pub fn new(saves: PathBuf, resources: &Path, splashes: &str) -> Self {
         use chrono::Datelike;
         let today = chrono::Local::now();
-        let splashes =
-            std::fs::read_to_string(resources.join("assets/minecraft/texts/splashes.txt"))
-                .unwrap_or_default();
         // `SplashManager.RANDOM`: `RandomSource.create()`. `getSplash` rolls for
         // the player's name first, then picks the splash with `nextInt(size)`.
         let mut random = crate::random_source::create();
-        let splash_you = rolls_user_splash(&splashes, &mut random, (today.month(), today.day()));
-        let splash_index = i32::try_from(splash_lines(&splashes).count())
+        let splash_you = rolls_user_splash(splashes, &mut random, (today.month(), today.day()));
+        let splash_index = i32::try_from(splash_lines(splashes).count())
             .ok()
             .filter(|&size| size > 0)
             .map_or(0, |size| random.next_int_bound(size).unwrap_or(0) as usize);
@@ -913,7 +896,7 @@ impl Title {
             toast: None,
             pending_toast: None,
             icons: RefCell::new(std::collections::HashMap::new()),
-            splash: choose_splash(&splashes, splash_index, (today.month(), today.day())),
+            splash: choose_splash(splashes, splash_index, (today.month(), today.day())),
             splash_you,
             recent: std::cell::RefCell::new(None),
             rules: RefCell::new(None),
@@ -1619,13 +1602,10 @@ impl Title {
                 return Action::None;
             }
         }
-        if crate::save::low_disk_space(&dir) {
-            self.set_mode(Mode::LowDiskSpace { world });
+        if self.ask_missing_biome_regions(&world) {
             return Action::None;
         }
-        Action::Play {
-            folder: world.folder,
-        }
+        self.check_disk_space(world)
     }
     /// `RecoverWorldDataScreen.attemptRestore`: with level.dat still broken and
     /// level.dat_old readable, level.dat_old takes level.dat's place
@@ -1948,29 +1928,8 @@ impl Title {
     }
     /// The folder a new world named `name` gets (`findResultFolder`).
     fn target_folder(&self, name: &str) -> String {
-        let base: String = name
-            .chars()
-            .map(|c| {
-                if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
-                    c
-                } else {
-                    '_'
-                }
-            })
-            .collect();
-        let base = if base.trim().is_empty() {
-            "World".to_owned()
-        } else {
-            base.trim().to_owned()
-        };
-        // FileUtil.findAvailableName: append (n) until unused.
-        let mut folder = base.clone();
-        let mut n = 1;
-        while self.saves.join(&folder).exists() {
-            folder = format!("{base} ({n})");
-            n += 1;
-        }
-        folder
+        let new_world = lang::get_or("selectWorld.newWorld", "New World");
+        world_folder::result_folder(name, &new_world, |f| self.saves.join(f).exists())
     }
     /// The screen this mode is, as the narrator reads it: its id and
     /// `getNarrationMessage` (the title, or `joinForNarration(title, message)`
@@ -2069,6 +2028,10 @@ Running out of disk space while in game can lead to your world being damaged.",
                     ),
                 ]),
             ),
+            Mode::MissingBiomeRegions { missing, .. } => {
+                missing_biome_regions::screen_info(missing)
+            }
+            Mode::AdoptBiomeRegions { .. } => edit_world::adopt_screen_info(),
             // AccessibilityOnboardingScreen narrates its title.
             Mode::Onboarding(_) => ScreenInfo::new(
                 "accessibility_onboarding",
@@ -2528,33 +2491,9 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
             }
             Mode::Edit { name, focused, .. } => {
-                crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
-                centered(
-                    atlas,
-                    batch,
-                    &lang::get_or("selectWorld.edit.title", "Edit World"),
-                    15.0,
-                    u32::MAX,
-                );
-                let top = edit_top(h);
-                batch.text(
-                    atlas,
-                    &lang::get_or("selectWorld.enterName", "World Name"),
-                    (w / 2.0).floor() - 100.0,
-                    top + 25.0,
-                    rgba(160, 160, 160, 255),
-                    true,
-                );
-                self.caret.borrow_mut().draw(
-                    batch,
-                    atlas,
-                    (EDIT_NAME, name, 32),
-                    [(w / 2.0).floor() - 100.0, top + 39.0, 200.0, 20.0],
-                    *focused,
-                    self.started,
-                );
-                crate::widgets::name_last_edit_box(|| narration_text("selectWorld.enterName", &[]));
+                self.draw_edit(atlas, batch, (w, h), name, *focused)
             }
+            Mode::AdoptBiomeRegions { .. } => self.draw_adopt_regions(atlas, batch, (w, h)),
             Mode::Delete { world } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
                 let message = translate(
@@ -2781,6 +2720,9 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 for (i, line) in lines.iter().enumerate() {
                     centered(atlas, batch, line, top + 17.0 + i as f32 * 9.0, u32::MAX);
                 }
+            }
+            Mode::MissingBiomeRegions { missing, .. } => {
+                self.draw_missing_biome_regions(atlas, batch, (w, h), missing)
             }
             Mode::Backup { .. } => {
                 self.backup_shown.set(true);
@@ -3249,12 +3191,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             .map(|b| b.id);
         if hit.is_some() {
             self.focused_button = hit;
-        } else if matches!(
-            self.mode,
-            Mode::Multiplayer(
-                crate::multiplayer::Screen::Edit { .. } | crate::multiplayer::Screen::Friend { .. }
-            )
-        ) {
+        } else if matches!(&self.mode, Mode::Multiplayer(screen) if screen.has_fields()) {
             // A press on a text field takes the focus from the button.
             self.focused_button = None;
         }
@@ -3396,7 +3333,9 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 }
             },
             (Mode::Main, Some(5)) => {
-                self.set_mode(Mode::Multiplayer(crate::multiplayer::Screen::friend(true)));
+                self.set_mode(
+                    crate::multiplayer::title_entry().map_or(Mode::Main, Mode::Multiplayer),
+                );
                 Action::None
             }
             (Mode::Onboarding(_), Some(onboarding::SOUNDS)) => Action::Sounds,
@@ -3430,9 +3369,23 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             (Mode::LowDiskSpace { world }, Some(94)) => Action::Play {
                 folder: world.folder.clone(),
             },
-            (Mode::LowDiskSpace { .. }, Some(95)) => {
+            (Mode::LowDiskSpace { .. }, Some(95))
+            | (Mode::MissingBiomeRegions { .. }, Some(97)) => {
                 self.escape();
                 Action::None
+            }
+            (Mode::MissingBiomeRegions { world, .. }, Some(96)) => {
+                let world = world.clone();
+                self.open_with_vanilla_regions(world)
+            }
+            (Mode::Edit { world, name, .. }, Some(98)) => {
+                let (world, name) = (world.clone(), name.clone());
+                self.set_mode(Mode::AdoptBiomeRegions { world, name });
+                Action::None
+            }
+            (Mode::AdoptBiomeRegions { world, name }, Some(id @ (99 | 100))) => {
+                let (world, name) = (world.clone(), name.clone());
+                self.answer_adopt_regions(world, name, id == 99)
             }
             (
                 Mode::OptimizeConfirm {
@@ -3485,11 +3438,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                     return Action::None;
                 };
                 match id {
-                    13 => self.set_mode(Mode::Edit {
-                        name: world.name.clone(),
-                        world,
-                        focused: true,
-                    }),
+                    13 => self.edit_world(world.name.clone(), world),
                     14 => self.set_mode(Mode::Delete { world }),
                     _ => {
                         let level = Level::read(&self.saves.join(&world.folder));
@@ -3874,24 +3823,6 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             // WorldSelectionList.notifyListUpdated: the filtered list is
             // narrated at once.
             crate::widgets::narrate_now();
-        }
-    }
-    pub fn confirm_edit(&mut self) {
-        let Mode::Edit {
-            world,
-            name,
-            focused: true,
-        } = &self.mode
-        else {
-            return;
-        };
-        if name.trim().is_empty() {
-            return;
-        }
-        let folder = world.folder.clone();
-        match world_management::rename(&self.saves, &folder, name) {
-            Ok(()) => self.return_to_list(Some(&folder)),
-            Err(error) => self.failed(error),
         }
     }
     /// `CreateWorldScreen.keyPressed`, `DirectJoinServerScreen.keyPressed` and
@@ -4583,18 +4514,15 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             // OptimizeWorldScreen: `shouldCloseOnEsc` is false; the Backup wait takes no input.
             Mode::Backup { .. } | Mode::Optimize { .. } => {}
             // BackupConfirmScreen.keyPressed: Escape runs `onCancel`, the Edit World screen again.
-            Mode::OptimizeConfirm { world, name, .. } => {
-                self.set_mode(Mode::Edit {
-                    world: world.clone(),
-                    name: name.clone(),
-                    focused: true,
-                });
+            Mode::OptimizeConfirm { world, name, .. } | Mode::AdoptBiomeRegions { world, name } => {
+                self.edit_world(name.clone(), world.clone())
             }
             Mode::Edit { world, .. }
             | Mode::Delete { world }
             | Mode::Recover { world, .. }
             | Mode::Recovered { world, .. }
             | Mode::LowDiskSpace { world }
+            | Mode::MissingBiomeRegions { world, .. }
             | Mode::BackupBeforeUpgrade { world, .. } => {
                 let folder = world.folder.clone();
                 self.return_to_list(Some(&folder));
@@ -4700,6 +4628,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         title.mode = Mode::Select {
             worlds: Vec::new(),
@@ -4727,6 +4656,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         let mut screen = crate::realms::Screen::with_saves(None);
         screen.state = crate::realms::FetchState::Loaded(Vec::new());
@@ -4750,6 +4680,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         let mut screen = crate::realms::Screen::with_saves(None);
         screen.state = crate::realms::FetchState::Loaded(Vec::new());
@@ -4773,6 +4704,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         let mut screen = crate::realms::Screen::with_saves(None);
         screen.state = crate::realms::FetchState::Loaded(Vec::new());
@@ -4798,6 +4730,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         let mut screen = crate::realms::Screen::with_saves(None);
         screen.state = crate::realms::FetchState::Loaded(Vec::new());
@@ -4828,6 +4761,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         let mut screen = crate::realms::Screen::with_saves(None);
         screen.state = crate::realms::FetchState::Loaded(Vec::new());
@@ -4854,6 +4788,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         title.mode = Mode::Create {
             name: String::new(),
@@ -4882,6 +4817,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         let multiplayer = |title: &Title| {
             title
@@ -4917,6 +4853,7 @@ mod classic_tests {
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         title.credits_button.set([300.0, 230.0, 120.0, 10.0]);
         assert_eq!(
@@ -4931,9 +4868,11 @@ mod classic_tests {
 
     #[test]
     fn classic_main_menu_icons_route_mods_language_and_accessibility() {
+        crate::net::JOINS_FRIENDS_IN_TEST.set(true);
         let mut title = Title::new(
             PathBuf::new(),
             Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         for (w, h) in [(960.0, 523.0), (480.0, 320.0), (427.0, 240.0)] {
             let buttons = title.buttons(w, h);
@@ -5054,7 +4993,7 @@ mod classic_tests {
                 },
             );
         }
-        let mut title = Title::new(PathBuf::new(), root);
+        let mut title = Title::new(PathBuf::new(), root, "");
         title.splash = Some("Visible splash!".into());
         let mut batch = HudBatch::scratch([1920, 1080]);
         title.draw(&atlas, &mut batch, (0.0, 0.0), false);

@@ -119,31 +119,13 @@ impl DatapackRegistrySet {
         declarations: &[DatapackRegistryDeclaration],
         accepts: impl Fn(&DatapackRegistryDeclaration) -> bool,
     ) -> DatapackSnapshot {
-        let mut registries: Vec<_> = declarations
-            .iter()
-            .filter(|declaration| declaration.sync != DatapackRegistrySync::ServerOnly)
-            .filter(|declaration| accepts(declaration))
-            .filter_map(|declaration| {
-                let entries = self.registries.get(&declaration.key)?;
-                Some(DatapackSnapshotRegistry {
-                    key: declaration.key.clone(),
-                    fields: declaration.fields.clone(),
-                    entries: entries
-                        .iter()
-                        .map(|(id, entry)| DatapackSnapshotEntry {
-                            id: id.clone(),
-                            values: entry.values.iter().map(|(_, v)| v.clone()).collect(),
-                        })
-                        .collect(),
-                })
-            })
-            .collect();
-        registries.sort_by(|a, b| a.key.cmp(&b.key));
-        DatapackSnapshot {
-            session: self.session,
-            generation: self.generation,
-            registries,
-        }
+        snapshot_of(
+            self.session,
+            self.generation,
+            &self.registries,
+            declarations,
+            accepts,
+        )
     }
 
     /// The snapshot for a client that `offered` these registries (`offer`): a registry goes
@@ -184,6 +166,54 @@ impl DatapackRegistrySet {
             registries: candidate.registries,
         }
     }
+}
+
+/// The snapshot of `published` at `session` and `generation`, as [`DatapackRegistrySet::snapshot`]
+/// builds it.
+fn snapshot_of(
+    session: u64,
+    generation: u64,
+    published: &BTreeMap<String, BTreeMap<String, DatapackEntry>>,
+    declarations: &[DatapackRegistryDeclaration],
+    accepts: impl Fn(&DatapackRegistryDeclaration) -> bool,
+) -> DatapackSnapshot {
+    let mut registries: Vec<_> = declarations
+        .iter()
+        .filter(|declaration| declaration.sync != DatapackRegistrySync::ServerOnly)
+        .filter(|declaration| accepts(declaration))
+        .filter_map(|declaration| {
+            let entries = published.get(&declaration.key)?;
+            Some(DatapackSnapshotRegistry {
+                key: declaration.key.clone(),
+                fields: declaration.fields.clone(),
+                entries: entries
+                    .iter()
+                    .map(|(id, entry)| DatapackSnapshotEntry {
+                        id: id.clone(),
+                        values: entry.values.iter().map(|(_, v)| v.clone()).collect(),
+                    })
+                    .collect(),
+            })
+        })
+        .collect();
+    registries.sort_by(|a, b| a.key.cmp(&b.key));
+    DatapackSnapshot {
+        session,
+        generation,
+        registries,
+    }
+}
+
+/// Whether the largest snapshot of `registries` a peer can receive, every synchronized registry,
+/// encodes within [`MAX_SNAPSHOT_BYTES`]. A peer's snapshot is a subset of it, and session and
+/// generation have a fixed width, so every later send of this candidate fits too.
+pub(super) fn snapshot_fits(
+    declarations: &[DatapackRegistryDeclaration],
+    registries: &BTreeMap<String, BTreeMap<String, DatapackEntry>>,
+) -> bool {
+    snapshot_of(0, 0, registries, declarations, |_| true)
+        .encode()
+        .is_some()
 }
 
 impl DatapackRegistrySet {
@@ -350,11 +380,14 @@ mod tests {
         let files = vec![
             (
                 "data/addon/example/spell/fire.json".to_owned(),
-                vec![br#"{"power": 7}"#.to_vec()],
+                vec![("pack".to_owned(), br#"{"power": 7}"#.to_vec())],
             ),
             (
                 "data/addon/example/spell/ice.json".to_owned(),
-                vec![br#"{"power": 4, "next": "addon:fire"}"#.to_vec()],
+                vec![(
+                    "pack".to_owned(),
+                    br#"{"power": 4, "next": "addon:fire"}"#.to_vec(),
+                )],
             ),
         ];
         let candidate =
@@ -372,7 +405,7 @@ mod tests {
                     std::slice::from_ref(&declaration),
                     &[(
                         "data/addon/example/spell/fire.json".to_owned(),
-                        vec![br#"{"power": 9}"#.to_vec()],
+                        vec![("pack".to_owned(), br#"{"power": 9}"#.to_vec())],
                     )],
                 )
                 .unwrap(),

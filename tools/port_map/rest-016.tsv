@@ -94,7 +94,7 @@ BlockDataAccessor.setData	port	crates/horizon-client/src/game/administration/com
 BlockDataAccessor.getModifiedSuccess	port	crates/horizon-client/src/game/administration/commands/data.rs::Game::modified_text	block message
 BlockDataAccessor.getPrintSuccess	port	crates/horizon-client/src/game/administration/commands/data.rs::Game::query_text	block query message
 DataCommands.stringifyTagList	inline	crates/horizon-client/src/game/administration/commands/data.rs::Game::cmd_data_modify	string branch of modify
-DataCommands.validatedSubstring	port	crates/horizon-client/src/data_cmd.rs::substring	
+DataCommands.validatedSubstring	port	crates/horizon-client/src/data_cmd.rs::substring
 DataCommands.resolveSourcePath	inline	crates/horizon-client/src/game/administration/commands/data.rs::Game::cmd_data_modify	sourcePath resolution
 DataCommands.manipulateData	port	crates/horizon-client/src/game/administration/commands/data.rs::Game::cmd_data_modify	modify arm
 DataCommands.removeData	port	crates/horizon-client/src/game/administration/commands/data.rs::Game::cmd_data_in	data.remove arm
@@ -119,10 +119,10 @@ ItemCommands.modifyItems	port	crates/horizon-client/src/game/administration/comm
 ItemCommands.getItems	inline	crates/horizon-client/src/game/administration/commands/items.rs::Game::cmd_item	from-source branch
 ItemCommands.getSlotsFromProvider	port	crates/horizon-client/src/game/administration/commands/items.rs::Game::command_slots	inline groups/ranges/filters/limits and named ranges; gap: minor: registered holder/tag sources and contents component adapters remain unsupported
 DedicatedPlayerList.saveIpBanList	port	crates/horizon-server-files/src/user_lists.rs::UserList::save	ban and list saves go through UserList::save
-DedicatedPlayerList.saveUserBanList	port	crates/horizon-server-files/src/user_lists.rs::UserList::save	
-DedicatedPlayerList.loadIpBanList	port	crates/horizon-server-files/src/user_lists.rs::UserList::load	
-DedicatedPlayerList.loadUserBanList	port	crates/horizon-server-files/src/user_lists.rs::UserList::load	
-DedicatedPlayerList.saveOps	port	crates/horizon-server-files/src/user_lists.rs::UserList::save	
+DedicatedPlayerList.saveUserBanList	port	crates/horizon-server-files/src/user_lists.rs::UserList::save
+DedicatedPlayerList.loadIpBanList	port	crates/horizon-server-files/src/user_lists.rs::UserList::load
+DedicatedPlayerList.loadUserBanList	port	crates/horizon-server-files/src/user_lists.rs::UserList::load
+DedicatedPlayerList.saveOps	port	crates/horizon-server-files/src/user_lists.rs::UserList::save
 DedicatedPlayerList.loadWhiteList	port	crates/horizon-server-files/src/user_lists.rs::UserList::load	startup and console reload
-DedicatedPlayerList.saveWhiteList	port	crates/horizon-server-files/src/user_lists.rs::UserList::save	
-DedicatedPlayerList.isWhiteListed	port	crates/horizon-client/src/game/interface/dedicated/mod.rs::Lists::whitelisted	
+DedicatedPlayerList.saveWhiteList	port	crates/horizon-server-files/src/user_lists.rs::UserList::save
+DedicatedPlayerList.isWhiteListed	port	crates/horizon-client/src/game/interface/dedicated/mod.rs::Lists::whitelisted

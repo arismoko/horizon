@@ -456,7 +456,7 @@ mod tests {
             Box::new(SourceProbe(heard.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let pig = game.res.mob_types().get("minecraft:pig").unwrap().clone();
                 for id in 300001..=300003 {
@@ -515,7 +515,7 @@ mod tests {
             Box::new(Probe(heard.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let pig = game.res.mob_types().get("minecraft:pig").unwrap().clone();
                 game.mobs.push(Mob::new(300001, pig, Vec3::ZERO, 0.0));

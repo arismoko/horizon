@@ -271,6 +271,13 @@ of P1: the others follow P1's answer.
 - The pools are filtered where they are picked (`sound_except` in
   `sound_events.rs`), the manager is `music.rs`, and the page is in `options_ui.rs`.
 
+### Modded splashes (`skipModdedSplashesIfVanillaModified`, default on)
+- NeoForge's client setting of the same name, with no Extras page entry. On, a
+  resource pack or a mod that provides `minecraft:texts/splashes.txt` replaces
+  the title screen's whole splash pool; off, every namespace's
+  `texts/splashes.txt` joins it (`crates/horizon-client/src/splashes.rs`). Read
+  on each resource reload.
+
 ## Shared rules
 
 - All extras are hidden with F1 and drawn in the HUD layer: under screens, over

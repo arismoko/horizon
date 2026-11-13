@@ -51,3 +51,21 @@ due on the same tick: they still run, and the panic goes on afterwards as any ho
 (including a failed open or close), and is never saved. A mod that must outlive a restart writes its
 deadline to its own storage and schedules again when the world opens. A mod's tasks are not cancelled
 when the mod unloads; the world's close is the end of them.
+
+## Spare time in a tick
+
+`host.server_has_time()` says whether the server's current tick has not yet reached the moment the next one is
+due (NeoForge's `ServerTickEvent.hasTime` and `LevelTickEvent.hasTime`, vanilla's `MinecraftServer.haveTime`).
+A listener of `server_tick` or of a level tick (`level_tick_pre`, `level_tick_post`) that has optional work, such
+as a cache rebuild, checks it and leaves the rest for a later tick when it is false. It is always true on a
+client and outside a scheduled server tick, so the same code runs on both sides.
+
+```rust,ignore
+fn level_tick_pre(&self, host: HostSide, _: &mut LevelTickPreEvent) {
+    if let HostSide::Server(host) = host
+        && host.server_has_time()
+    {
+        self.rebuild_next_cache_entry();
+    }
+}
+```

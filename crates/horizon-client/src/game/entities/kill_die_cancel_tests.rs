@@ -4,7 +4,8 @@ use super::kill_die_vibration_tests::{PIG, deaths, run};
 use super::*;
 use horizon_client::chunk::Chunk;
 use horizon_core::position::ChunkPos;
-use mod_api::{Hooks, LivingDeathEvent, ModEntry, ServerHost, testing::with_mods};
+use mod_api::{Hooks, LivingDeathEvent, ModEntry, ServerHost};
+use mod_platform::testing::with_mods;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},

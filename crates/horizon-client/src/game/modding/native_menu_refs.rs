@@ -864,7 +864,7 @@ mod tests {
             assert_eq!(newer.slot_count(game), None);
             let inventory = game.player_container_menu(player).unwrap();
             let host = game.lan.as_mut().unwrap();
-            host.play.entry(1).or_default().crafting.table = Some((
+            *host.play.entry(1).or_default().crafting.table = Some((
                 7,
                 0,
                 Box::new(horizon_client::menu::Menu::new(

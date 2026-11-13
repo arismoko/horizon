@@ -23,25 +23,6 @@ pub(super) struct Patch {
     pub installs: Vec<String>,
 }
 
-/// Why a mod's tables can't take the copy route, before anything runs.
-fn table_refusals(bundle: &Bundle) -> Vec<String> {
-    let id = &bundle.manifest.id;
-    let native = bundle.manifest.native.as_ref();
-    native
-        .map(|n| n.state.as_slice())
-        .unwrap_or_default()
-        .iter()
-        .map(|state| {
-            format!(
-                "E_MIXIN_STATE_LAYOUT: {id}:{}: a state field changes its type's layout, which \
-                 the prebuilt game fixes; keep the value in an attachment (`mod_api` attachments \
-                 on the entity, block entity, level or player)",
-                state.id
-            )
-        })
-        .collect()
-}
-
 fn install_expression(target: &str, mods: &[&str], install: &str) -> String {
     format!("({target:?}, &{mods:?}, {install})")
 }
@@ -370,10 +351,6 @@ pub(super) fn prepare<'a>(
         .collect();
     if bundles.is_empty() {
         return Ok(None);
-    }
-    let refusals: Vec<String> = bundles.iter().flat_map(|b| table_refusals(b)).collect();
-    if !refusals.is_empty() {
-        return Err(refusals.join("\n"));
     }
     let loops = loop_slots(game, &bundles)?;
     let requests: Vec<(String, String, String)> = bundles

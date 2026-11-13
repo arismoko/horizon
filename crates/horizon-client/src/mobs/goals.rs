@@ -46,7 +46,7 @@ pub struct Cx<'a, 'w, 'l> {
     pub level: &'a mut crate::health::DamageLevel<'l>,
     pub events: &'a mut Vec<MobEvent>,
 }
-pub trait Goal: std::fmt::Debug {
+pub trait Goal: std::fmt::Debug + Send + Sync {
     fn flags(&self) -> u8;
     /// A goal that draws its first start delay in its constructor (a schooling fish's
     /// `FollowFlockLeaderGoal`): the delay again, when the mob's random is seeded afterwards.
@@ -1936,7 +1936,7 @@ impl Goal for NearestTarget {
                     .map(|s| (s.id, s.position))
                     .collect();
                 for (cid, cpos) in candidates {
-                    if m.distance_sqr(cpos) > range * range {
+                    if m.distance_sqr(cpos) > cx.w.reach_sqr(cid, m, range) {
                         continue;
                     }
                     if self.beyond_sqr.is_some_and(|d| m.distance_sqr(cpos) <= d) {
@@ -2484,15 +2484,18 @@ impl Goal for Breed {
                     // AbstractHorse.canParent of the partner.
                     && (!(equine || camel) || s.tame && !s.ridden && s.health >= s.stats[0] as f32)
                     && (!sniffer || super::sniffer::can_mate_state(s.variant))
+                    // BreedGoal.getFreePartner: `!potentialPartner.isPanicking()`.
+                    && !s.panicking
             })
-            .map(|s| s.id)
-            .next();
+            .find(|s| m.distance_sqr(s.position) <= 64.0)
+            .map(|s| s.id);
         self.partner.is_some()
     }
     fn can_continue(&mut self, _: &mut Mob, cx: &mut Cx) -> bool {
         self.partner
             .and_then(|p| cx.w.seen(p))
-            .is_some_and(|s| s.alive && s.in_love)
+            // BreedGoal.canContinueToUse: `!this.partner.isPanicking()`.
+            .is_some_and(|s| s.alive && s.in_love && !s.panicking)
             && self.love_time < 60
     }
     fn stop(&mut self, _: &mut Mob, _: &mut Cx) {
@@ -2516,14 +2519,11 @@ impl Goal for Breed {
             let equine = super::equine::breed_offspring(m, &p).map(Box::new);
             let parent_variant =
                 super::draws_parent_variant(m.species()).then(|| m.random.next_boolean());
-            let experience = if (equine.is_some() || parent_variant.is_some())
-                && !cx.w.asks_baby_spawn
-                && !super::orb_after_child(m.species())
-            {
-                super::BreedExperience::Drawn(super::breeding_experience(m, cx.w.mob_drops))
-            } else {
-                super::BreedExperience::Deferred
-            };
+            let (wolf_voice, experience) = super::breeding::voice_and_experience(
+                m,
+                cx.w,
+                equine.is_some() || parent_variant.is_some(),
+            );
             m.extra.in_love = 0;
             m.extra.age = 6000;
             // TurtleBreedGoal.breed: the mother carries an egg, not a baby.
@@ -2539,6 +2539,7 @@ impl Goal for Breed {
                 partner: p.id,
                 equine,
                 parent_variant,
+                wolf_voice,
                 experience,
             });
         }
@@ -2668,13 +2669,10 @@ impl Goal for FollowMob {
         let area = m
             .bounds()
             .inflate(Vec3::new(self.area, self.area, self.area));
-        let found = cx
-            .w
-            .others_near(area)
-            .find(|s| {
-                s.species != species && s.bounds.intersects(area) && !s.has_effect("invisibility")
-            })
-            .map(|s| s.id);
+        let found =
+            cx.w.others_near(area)
+                .find(|s| s.species != species && s.bounds.intersects(area) && !s.invisible)
+                .map(|s| s.id);
         self.following = found;
         found.is_some()
     }
@@ -3324,13 +3322,25 @@ mod breeding_variant_tests {
                         if ask_mods || id == "minecraft:fox" {
                             BreedExperience::Deferred
                         } else {
-                            BreedExperience::Drawn(mob_drops.then_some(3))
+                            // Computed with an independent implementation of the documented
+                            // java.util.Random algorithm, not from the game's output.
+                            // Seed 0: coat is draw 1, wolf voice draw 2,
+                            // XP draw 3 (bits31 = 516548029, remainder 4).
+                            BreedExperience::Drawn(mob_drops.then_some(if id == "minecraft:wolf" {
+                                5
+                            } else {
+                                3
+                            }))
                         },
                         "{id}"
                     );
                     assert_eq!(
                         parent.random.state(),
-                        if !ask_mods && mob_drops && id != "minecraft:fox" {
+                        if !ask_mods && id == "minecraft:wolf" && mob_drops {
+                            67_704_983_304_270 // Java LCG seed 0, draw 3.
+                        } else if !ask_mods
+                            && (id == "minecraft:wolf" || (mob_drops && id != "minecraft:fox"))
+                        {
                             234_029_835_660_143
                         } else {
                             205_749_139_540_596
@@ -3340,7 +3350,11 @@ mod breeding_variant_tests {
                     if !ask_mods && mob_drops && id != "minecraft:fox" {
                         assert_eq!(
                             parent.random.next_int(),
-                            1_033_096_058,
+                            if id == "minecraft:wolf" {
+                                -1_690_734_402 // Java LCG seed 0, signed upper 32 bits of draw 4.
+                            } else {
+                                1_033_096_058
+                            },
                             "{id}: same-tick later draw"
                         );
                     }
@@ -4218,6 +4232,10 @@ mod breed_xp_tests {
 }
 
 #[cfg(test)]
+#[path = "breed_partner_range_tests.rs"]
+mod breed_partner_range_tests;
+
+#[cfg(test)]
 mod within_home_tests {
     use super::within_home;
 
@@ -4492,5 +4510,71 @@ impl Mob {
         self.ai
             .home
             .is_none_or(|(center, radius)| within_home(center, radius, block))
+    }
+}
+
+#[cfg(test)]
+mod breed_continue_tests {
+    use super::*;
+    use crate::mobs::world::with_test_world;
+    use horizon_core::geometry::Vec3;
+    use std::sync::Arc;
+
+    /// `BreedGoal.canContinueToUse` refuses a partner that is panicking. The
+    /// goal starts with a calm partner and must stop when the partner panics.
+    #[test]
+    fn a_breed_goal_stops_when_the_partner_panics() {
+        let mut kind = None;
+        if !with_test_world(&[], |_, types| {
+            kind = Some(Arc::new(types.types["minecraft:cow"].clone()));
+        }) {
+            return;
+        }
+        let Some(kind) = kind else { return };
+        let mut partner = Mob::new(2, kind.clone(), Vec3::new(2.5, 64.0, 0.5), 0.0);
+        partner.extra.in_love = 600;
+        let mut m = Mob::new(1, kind, Vec3::new(0.5, 64.0, 0.5), 0.0);
+        m.extra.in_love = 600;
+        m.ai.goals.add(1, Breed::new(1.0));
+        let mut started = None;
+        let calm = [partner.seen(None)];
+        if !with_test_world(&calm, |w, _| {
+            let mut damage = crate::health::TestLevel::new(0);
+            let mut events = Vec::new();
+            let mut cx = Cx {
+                w,
+                level: &mut damage.level(),
+                events: &mut events,
+            };
+            let mut goals = std::mem::take(&mut m.ai.goals);
+            goals.tick(&mut m, &mut cx);
+            started = Some(goals.is_running("Breed"));
+            m.ai.goals = goals;
+        }) {
+            return;
+        }
+        partner.ai.panicking = true;
+        let panicking = [partner.seen(None)];
+        let mut stopped = None;
+        if !with_test_world(&panicking, |w, _| {
+            let mut damage = crate::health::TestLevel::new(0);
+            let mut events = Vec::new();
+            let mut cx = Cx {
+                w,
+                level: &mut damage.level(),
+                events: &mut events,
+            };
+            let mut goals = std::mem::take(&mut m.ai.goals);
+            goals.tick(&mut m, &mut cx);
+            stopped = Some(!goals.is_running("Breed"));
+            m.ai.goals = goals;
+        }) {
+            return;
+        }
+        assert_eq!(
+            (started, stopped),
+            (Some(true), Some(true)),
+            "the breed goal starts for a calm partner and stops when it panics"
+        );
     }
 }

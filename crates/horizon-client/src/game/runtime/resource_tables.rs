@@ -29,6 +29,14 @@ impl Resources {
     pub(super) fn environment(&self) -> &Environment {
         &self.core.environment
     }
+    /// The environment of a dimension type id; a type with no table of its own gets the overworld's.
+    pub(super) fn environment_of(&self, dimension_type: &str) -> &Environment {
+        match dimension_type {
+            "minecraft:the_nether" => self.nether_environment(),
+            "minecraft:the_end" => self.end_environment(),
+            _ => self.environment(),
+        }
+    }
     pub(super) fn mob_types(&self) -> &HashMap<String, Arc<MobType>> {
         &self.rest().mob_types
     }
@@ -98,8 +106,28 @@ impl Resources {
     }
 }
 
+/// Everything the title and menus draw: the GUI atlas with its font, the
+/// title panorama and the splash pool. Kept apart from the world bundle so the
+/// title can appear before the block sprites, models and gameplay tables are ready.
+pub struct UiResources {
+    /// The GUI, font, particle, map and skin atlas.
+    pub atlas: HudAtlas,
+    /// The title screen's panorama faces.
+    pub panorama: Arc<horizon_client::gfx::panorama::Faces>,
+    /// The title screen's splashes (`horizon_client::splashes::pool`).
+    pub splashes: Arc<str>,
+}
+
+impl Game<'_> {
+    /// A title screen over the current resources and their splash pool.
+    pub(crate) fn new_title(&self, saves: PathBuf) -> Title {
+        Title::new(saves, &self.options.resources, &self.gui.splashes)
+    }
+}
+
 impl UiResources {
     /// The resolved resource generation, including the base layer and pack filters.
+    /// Its splash pool is empty until `with_splashes`.
     pub fn load(root: &horizon_assets::resource_source::ResourceSource) -> Result<Self> {
         // The title screen waits for both: the panorama's six faces decode
         // beside the atlas.
@@ -109,7 +137,7 @@ impl UiResources {
                     horizon_client::gfx::panorama::Faces::load(root, root)
                 })
             });
-            let mod_image = horizon_client::gfx::native_render::world_drawn_hooked();
+            let mod_image = horizon_client_render::render_slots::world_drawn_hooked();
             let atlas = startup::time("ui.atlas", || {
                 HudAtlas::build_over_with_image(root, root, mod_image)
             });
@@ -119,8 +147,19 @@ impl UiResources {
             Ok(Self {
                 atlas: atlas?,
                 panorama: Arc::new(panorama),
+                splashes: Arc::from(""),
             })
         })
+    }
+    /// The title's splash pool from `stack` (`horizon_client::splashes::pool`).
+    pub fn with_splashes(
+        mut self,
+        stack: &horizon_assets::resource_source::ResourceSource,
+        vanilla: &std::path::Path,
+        skip_if_modified: bool,
+    ) -> Self {
+        self.splashes = horizon_client::splashes::pool(stack, vanilla, skip_if_modified).into();
+        self
     }
     /// What a server's game holds, since it draws nothing: the font, which books
     /// and chat measure with, and a one-pixel panorama.
@@ -128,6 +167,7 @@ impl UiResources {
         Ok(Self {
             atlas: HudAtlas::fonts(root)?,
             panorama: Arc::new(horizon_client::gfx::panorama::Faces::colour([0; 4])),
+            splashes: Arc::from(""),
         })
     }
 }

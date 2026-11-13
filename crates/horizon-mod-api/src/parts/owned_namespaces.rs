@@ -95,6 +95,23 @@ mod tests {
     }
 
     #[test]
+    fn bare_block_entity_type_blocks_are_the_declaring_mods() {
+        with_porter(|| {
+            let mut r = PartRegistrar::new("porter");
+            (&mut r as &mut dyn Registrar)
+                .block_entity_type("press")
+                .blocks(&["press", "legacy:pot", "minecraft:stone"])
+                .build();
+            assert!(r.refused.is_empty(), "{:?}", r.refused);
+            assert_eq!(r.block_entity_types[0].id, "porter:press");
+            assert_eq!(
+                r.block_entity_types[0].blocks,
+                ["porter:press", "legacy:pot", "minecraft:stone"]
+            );
+        });
+    }
+
+    #[test]
     fn blocks_and_items_are_attributed_before_flattening_mod_outputs() {
         struct Declares;
         #[crate::__subscriptions]
@@ -104,6 +121,10 @@ mod tests {
                     let mut value: Block = Block::default();
                     value.id = "legacy:pot".into();
                     value.template = "minecraft:stone".into();
+                    value.block_item = Some("spoon".into());
+                    value.pick_item = Some("minecraft:stick".into());
+                    value.wall_block = Some("legacy:wall_pot".into());
+                    value.base_block = Some("soil".into());
                     value
                 });
                 event.blocks.push({
@@ -118,6 +139,8 @@ mod tests {
                     let mut value: Item = Item::default();
                     value.id = "spoon".into();
                     value.template = "minecraft:stick".into();
+                    value.crafting_remainder = Some("bowl".into());
+                    value.block = Some("minecraft:stone".into());
                     value
                 });
             }
@@ -132,6 +155,14 @@ mod tests {
                 crate::dispatch_items(&context, &mut items);
                 assert_eq!(blocks[0].id, "legacy:pot");
                 assert_eq!(items[0].id, "porter:spoon");
+                // A bare reference is the declaring mod's, as a bare id is; a full one is kept.
+                let pot = &blocks[0];
+                assert_eq!(pot.block_item.as_deref(), Some("porter:spoon"));
+                assert_eq!(pot.pick_item.as_deref(), Some("minecraft:stick"));
+                assert_eq!(pot.wall_block.as_deref(), Some("legacy:wall_pot"));
+                assert_eq!(pot.base_block.as_deref(), Some("porter:soil"));
+                assert_eq!(items[0].crafting_remainder.as_deref(), Some("porter:bowl"));
+                assert_eq!(items[0].block.as_deref(), Some("minecraft:stone"));
                 // Invalid output stays visible for an outer host dispatch to refuse
                 // too, rather than being silently lost inside a wasm guest.
                 assert_eq!(blocks[1].id, "unowned:pot");

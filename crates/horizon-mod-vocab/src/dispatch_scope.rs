@@ -141,9 +141,12 @@ impl Drop for TimingGuard {
 // hidden: platform-owned instrumentation plumbing, not a mod authoring surface.
 #[doc(hidden)]
 pub fn install(backend: Backend) -> Result<(), &'static str> {
-    BACKEND
-        .set(Some(backend))
-        .map_err(|_| "dispatch instrumentation is already sealed")
+    BACKEND.set(Some(backend)).map_err(|_| match BACKEND.get() {
+        Some(None) => {
+            "dispatch ran before platform initialization, which sealed instrumentation off"
+        }
+        _ => "dispatch instrumentation is already sealed",
+    })
 }
 
 /// Immutable dispatch-local instrumentation selection. Resolve the socket and

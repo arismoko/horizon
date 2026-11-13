@@ -25,7 +25,10 @@ impl Game<'_> {
         };
         let removes_dye = cauldron::removes_dye(self.items(), &held.item);
         let table = cauldron_interactions::snapshot();
-        let entry = table.select(&state.name, &held.item, removes_dye);
+        let items = self.items();
+        let entry = table.select(&state.name, &held.item, removes_dye, |tag| {
+            items.item_in_tag(tag, &held.item)
+        });
         if let Some(cauldron::interactions::Entry::Mod(callback)) = &entry {
             return Ok(self.use_mod_cauldron(pos, under_water, callback, &table));
         }

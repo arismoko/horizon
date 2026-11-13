@@ -290,7 +290,7 @@ fn elastic_pull_with_distance(
     Some((force, torque))
 }
 /// `Entity.checkFallDistanceAccumulation`.
-fn check_fall_distance(m: &mut Mob) {
+pub(super) fn check_fall_distance(m: &mut Mob) {
     if m.velocity.y > -0.5 && m.fall_distance > 1.0 {
         m.fall_distance = 1.0;
     }
@@ -468,8 +468,7 @@ pub fn tick(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) {
     if quad {
         // angularFriction returns a float, including the ground product.
         let friction = if m.on_ground {
-            let [x, y, z] = m.on_pos(0.500_001);
-            w.facts.get(w.world.block(x, y, z)).friction * 0.91_f32
+            m.friction_at(w, m.on_pos(0.500_001)) * 0.91_f32
         } else if m.is_in_liquid() {
             0.8_f32
         } else {

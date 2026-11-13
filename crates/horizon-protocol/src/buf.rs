@@ -31,10 +31,29 @@ pub fn check_network_nbt(tag: &Tag) -> Result<()> {
 pub struct Reader<'a> {
     data: &'a [u8],
     pos: usize,
+    payload_codecs: Option<&'a crate::packets::custom_payload::PayloadCodecs>,
 }
 impl<'a> Reader<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Self { data, pos: 0 }
+        Self {
+            data,
+            pos: 0,
+            payload_codecs: None,
+        }
+    }
+    /// Read using this connection's frozen custom-payload codecs.
+    pub fn with_payload_codecs(
+        data: &'a [u8],
+        codecs: &'a crate::packets::custom_payload::PayloadCodecs,
+    ) -> Self {
+        Self {
+            data,
+            pos: 0,
+            payload_codecs: Some(codecs),
+        }
+    }
+    pub(crate) fn payload_codecs(&self) -> Option<&crate::packets::custom_payload::PayloadCodecs> {
+        self.payload_codecs
     }
     pub fn remaining(&self) -> usize {
         self.data.len() - self.pos
@@ -339,6 +358,13 @@ pub trait Codec<T> {
     fn validate(_v: &T) -> Result<()> {
         Ok(())
     }
+    /// Validate using this connection's frozen custom-payload codecs.
+    fn validate_with_payload_codecs(
+        v: &T,
+        _codecs: &crate::packets::custom_payload::PayloadCodecs,
+    ) -> Result<()> {
+        Self::validate(v)
+    }
 }
 macro_rules! primitive {
     ($name:ident, $ty:ty, $read:ident, $write:ident) => {
@@ -441,6 +467,22 @@ impl<const N: usize> Codec<Vec<u8>> for BytesN<N> {
 pub struct Rest;
 impl Codec<Vec<u8>> for Rest {
     fn read(r: &mut Reader) -> Result<Vec<u8>> {
+        Ok(r.rest().to_vec())
+    }
+    fn write(v: &Vec<u8>, w: &mut Writer) {
+        w.bytes(v)
+    }
+}
+/// Everything left in the packet, at most N bytes: vanilla's unknown login query payloads
+/// (`readableBytes()` outside `0..=N` throws "Payload may not be larger than N bytes").
+pub struct RestN<const N: usize>;
+impl<const N: usize> Codec<Vec<u8>> for RestN<N> {
+    fn read(r: &mut Reader) -> Result<Vec<u8>> {
+        if r.remaining() > N {
+            return Err(Error::new(format!(
+                "Payload may not be larger than {N} bytes"
+            )));
+        }
         Ok(r.rest().to_vec())
     }
     fn write(v: &Vec<u8>, w: &mut Writer) {
@@ -687,6 +729,9 @@ macro_rules! packet {
         #[derive(Clone, Debug, PartialEq)]
         pub struct $name {
             $(pub $field: $ty),*
+        }
+        impl $crate::retained::OwnedHeap for $name {
+            fn owned_heap_bytes(&self) -> usize { 0usize $(.saturating_add($crate::retained::OwnedHeap::owned_heap_bytes(&self.$field)))* }
         }
         impl $crate::buf::Codec<$name> for $name {
             #[allow(unused_variables)]

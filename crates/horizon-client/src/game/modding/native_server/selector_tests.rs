@@ -40,7 +40,7 @@ impl mod_api::Hooks for SelectorCommands {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn native_selectors_deliver_ordered_handles_once_and_refuse_invalid_selections() {
     let heard = Arc::new(Mutex::new(Vec::new()));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "selector_acceptance",
             Box::new(SelectorCommands(heard.clone())),
@@ -325,7 +325,7 @@ fn selector_kinds_publish_vanilla_flags_and_share_parser_suggestions() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn entity_selection_has_no_additional_count_cap() {
     let heard = Arc::new(Mutex::new(Vec::new()));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "selector_uncapped",
             Box::new(SelectorCommands(heard.clone())),

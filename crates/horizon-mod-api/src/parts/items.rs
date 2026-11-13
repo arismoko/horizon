@@ -676,6 +676,10 @@ pub mod tests {
         fn level_in_place(&self, level: LevelRef) -> bool {
             level == here()
         }
+        /// The shelf stands in no named block, so no block's providers answer for it.
+        fn level_block(&self, _: LevelRef, _: [i32; 3]) -> Option<crate::BlockKey> {
+            None
+        }
     }
     #[cfg(test)]
     impl mod_api::prelude::BlockEntitiesBackend for Shelf {
@@ -967,6 +971,107 @@ pub mod tests {
         set_hand(&mut player, stick());
         let host: &mut dyn ServerHost = &mut player;
         assert!(HAND.capability(host, &ITEM_ENERGY).is_none());
+    }
+
+    #[test]
+    pub(crate) fn a_component_battery_charges_one_of_its_stack_and_an_abort_leaves_it() {
+        game_thread();
+        let energy = crate::ComponentId::new("test:energy").unwrap();
+        let battery = crate::ItemComponentEnergy::new(HAND, energy.clone(), 1000, 250, 1000);
+        let mut player = player_world(Some(stack("test:cell", 3, 0)));
+        let host: &mut dyn ServerHost = &mut player;
+        let aborted = host.transaction(|host, tx| Err::<(), _>(battery.insert(host, tx, 300)));
+        assert_eq!(aborted, Err(250));
+        assert_eq!(main_hand(&player), Some(stack("test:cell", 3, 0)));
+        assert!(player_of(&player).given.is_empty());
+        // The limit moves 250 of 300: one of the three is charged and splits off.
+        let host: &mut dyn ServerHost = &mut player;
+        let went = host.transaction(|host, tx| Ok::<_, ()>(battery.insert(host, tx, 300)));
+        assert_eq!(went, Ok(250));
+        assert_eq!(main_hand(&player), Some(stack("test:cell", 2, 0)));
+        let given = &player_of(&player).given;
+        assert_eq!(given.len(), 1);
+        assert_eq!(given[0].count(), 1);
+        let charged = ItemResource::of(&given[0]).component(&energy);
+        assert_eq!(charged, Some(Tag::Int(250)));
+    }
+
+    #[test]
+    pub(crate) fn a_component_canteen_fills_one_of_its_stack_and_an_abort_leaves_it() {
+        game_thread();
+        let content = crate::ComponentId::new("test:fluid").unwrap();
+        let canteen = crate::ItemComponentFluidTank::new(HAND, content.clone(), 4000);
+        let water = crate::FluidResource::of(&crate::FluidStack::new(
+            mod_vocab::__private::fluid_key("minecraft:water").unwrap(),
+            1,
+        ));
+        let mut player = player_world(Some(stack("test:case", 3, 0)));
+        let host: &mut dyn ServerHost = &mut player;
+        let aborted =
+            host.transaction(|host, tx| Err::<(), _>(canteen.insert(host, tx, 0, &water, 1000)));
+        assert_eq!(aborted, Err(1000));
+        assert_eq!(main_hand(&player), Some(stack("test:case", 3, 0)));
+        assert!(player_of(&player).given.is_empty());
+        let host: &mut dyn ServerHost = &mut player;
+        let went =
+            host.transaction(|host, tx| Ok::<_, ()>(canteen.insert(host, tx, 0, &water, 5000)));
+        assert_eq!(went, Ok(4000));
+        assert_eq!(main_hand(&player), Some(stack("test:case", 2, 0)));
+        let given = &player_of(&player).given;
+        assert_eq!(given.len(), 1);
+        let mut filled = crate::Compound::new();
+        filled.insert("id".into(), Tag::String("minecraft:water".into()));
+        filled.insert("amount".into(), Tag::Int(4000));
+        let held = ItemResource::of(&given[0]).component(&content);
+        assert_eq!(held, Some(Tag::Compound(filled)));
+    }
+
+    #[test]
+    pub(crate) fn a_canteen_holding_an_unknown_fluid_refuses_an_insert_and_keeps_it() {
+        game_thread();
+        let content = crate::ComponentId::new("test:fluid").unwrap();
+        let canteen = crate::ItemComponentFluidTank::new(HAND, content, 4000);
+        let water = crate::FluidResource::of(&crate::FluidStack::new(
+            mod_vocab::__private::fluid_key("minecraft:water").unwrap(),
+            1,
+        ));
+        let mut unknown = crate::Compound::new();
+        unknown.insert("id".into(), Tag::String("test:unknown_fluid".into()));
+        unknown.insert("amount".into(), Tag::Int(500));
+        let mut player = player_world(Some(stack("test:case", 1, 0)));
+        player
+            .registries
+            .item_component("test:case", "test:fluid", Tag::Compound(unknown));
+        let host: &mut dyn ServerHost = &mut player;
+        let went =
+            host.transaction(|host, tx| Ok::<_, ()>(canteen.insert(host, tx, 0, &water, 1000)));
+        assert_eq!(went, Ok(0));
+        assert_eq!(main_hand(&player), Some(stack("test:case", 1, 0)));
+        assert!(player_of(&player).given.is_empty());
+    }
+
+    #[test]
+    pub(crate) fn a_zero_extract_from_a_canteen_changes_nothing() {
+        game_thread();
+        let content = crate::ComponentId::new("test:fluid").unwrap();
+        let canteen = crate::ItemComponentFluidTank::new(HAND, content, 4000);
+        let water = crate::FluidResource::of(&crate::FluidStack::new(
+            mod_vocab::__private::fluid_key("minecraft:water").unwrap(),
+            1,
+        ));
+        let mut full = crate::Compound::new();
+        full.insert("id".into(), Tag::String("minecraft:water".into()));
+        full.insert("amount".into(), Tag::Int(1000));
+        let mut player = player_world(Some(stack("test:case", 2, 0)));
+        player
+            .registries
+            .item_component("test:case", "test:fluid", Tag::Compound(full));
+        let host: &mut dyn ServerHost = &mut player;
+        let came =
+            host.transaction(|host, tx| Ok::<_, ()>(canteen.extract(host, tx, 0, &water, 0)));
+        assert_eq!(came, Ok(0));
+        assert_eq!(main_hand(&player), Some(stack("test:case", 2, 0)));
+        assert!(player_of(&player).given.is_empty());
     }
 
     #[test]
@@ -1833,6 +1938,7 @@ impl ItemsRegistrar for PartRegistrar {
     ) {
         self.capability(
             |p| &mut p.item_capabilities,
+            None,
             name,
             ProviderTarget::Id(item),
             before_game,

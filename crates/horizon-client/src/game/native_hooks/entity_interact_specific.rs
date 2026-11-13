@@ -65,7 +65,7 @@ mod tests {
                         }),
                     ),
                 ];
-                mod_api::testing::with_mods(mods.into(), || {
+                mod_platform::testing::with_mods(mods.into(), || {
                     let mut claimed = false;
                     let stack = ItemStack::new("minecraft:stick", 1);
                     let at = [0.25, 1.5, -0.125];

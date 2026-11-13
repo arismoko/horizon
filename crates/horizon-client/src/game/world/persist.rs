@@ -3,6 +3,9 @@
 //! scheduled block/fluid ticks (chunk `block_ticks`/`fluid_ticks`).
 #[path = "persist/display.rs"]
 mod display;
+#[path = "persist/entity_uuids.rs"]
+mod entity_uuids;
+pub(super) use entity_uuids::EntityUuids;
 #[path = "persist/loaded_pass.rs"]
 mod loaded_pass;
 #[path = "persist/object_memory.rs"]
@@ -13,6 +16,8 @@ mod unload_sweep;
 #[cfg(test)]
 #[path = "persist/anger_tests.rs"]
 mod anger_tests;
+#[path = "persist/hurt_by_refs.rs"]
+mod hurt_by_refs;
 #[cfg(test)]
 #[path = "persist/lookup_order_tests.rs"]
 mod lookup_order_tests;
@@ -170,7 +175,7 @@ pub(super) fn write_static_entity_fields(tag: &mut Tag) {
 pub struct EntityMemory {
     /// UUIDs of entities by Horizon entity ID: the one each was loaded with,
     /// or made up once something needed it (a save, a native mod's attachment).
-    pub(super) uuids: HashMap<u32, [i32; 4]>,
+    pub(super) uuids: EntityUuids,
     /// The compound each mob or item entity was loaded with.
     pub(super) raw: HashMap<u32, Tag>,
     /// Full rejected passenger objects, not resident entities or frozen NBT copies.
@@ -383,7 +388,11 @@ pub(super) fn with_raw(mut modelled: Tag, raw: Option<&Tag>) -> Tag {
 fn read_attachments(
     tag: &Tag,
     id: u32,
-    maps: &mut HashMap<u32, horizon_mod_runtime::attachments::Attachments>,
+    maps: &mut HashMap<
+        u32,
+        horizon_mod_runtime::attachments::Attachments,
+        impl std::hash::BuildHasher,
+    >,
     live: bool,
 ) {
     if let Ok(Some(data)) = attachment_compound(tag.get(ATTACHMENTS_KEY)) {
@@ -405,7 +414,7 @@ fn read_attachments(
 pub(super) fn write_attachments(
     tag: &mut Tag,
     id: u32,
-    maps: &HashMap<u32, horizon_mod_runtime::attachments::Attachments>,
+    maps: &HashMap<u32, horizon_mod_runtime::attachments::Attachments, impl std::hash::BuildHasher>,
 ) {
     if let Tag::Compound(root) = tag
         && let Some(map) = maps.get(&id)
@@ -1382,43 +1391,6 @@ impl Game<'_> {
     pub(super) fn mob_tree_nbt(&mut self, i: usize) -> Tag {
         self.mob_object_tree_nbt(MobObject::Resident(i))
     }
-
-    /// `LivingEntity.addAdditionalSaveData`'s `last_hurt_by_mob` and
-    /// `ticks_since_last_hurt_by_mob`, a PARTIAL projection at save time: both
-    /// from `ai.last_hurt_by` while the attacker is a living mob in the level
-    /// with a registered UUID and at most 100 ticks have passed (`baseTick`
-    /// drops the record after that, or once the attacker is dead). Otherwise
-    /// both keys go, a copy read from loaded data included. A player attacker
-    /// is not written. This is not `baseTick`'s cleanup itself, the AI's
-    /// record, `#no_anger`, or reading the keys back.
-    pub(super) fn put_last_hurt_by_mob(&self, m: &horizon_client::mobs::Mob, tag: &mut Tag) {
-        let Tag::Compound(c) = tag else { return };
-        let since = i64::from(m.age) - i64::from(m.ai.last_hurt_by_time);
-        let reference = match m.ai.last_hurt_by {
-            Some(horizon_client::mobs::Who::Mob(attacker))
-                if (0..=100).contains(&since)
-                    && self.mobs.iter().any(|a| a.id == attacker && a.alive()) =>
-            {
-                self.persist.uuid_of(attacker)
-            }
-            _ => None,
-        };
-        match reference {
-            Some(uuid) => {
-                c.insert("last_hurt_by_mob".into(), Tag::IntArray(uuid.to_vec()));
-                c.insert(
-                    "ticks_since_last_hurt_by_mob".into(),
-                    Tag::Int(since as i32),
-                );
-            }
-            None => {
-                c.remove(&horizon_core::nbt::JavaString::from("last_hurt_by_mob"));
-                c.remove(&horizon_core::nbt::JavaString::from(
-                    "ticks_since_last_hurt_by_mob",
-                ));
-            }
-        }
-    }
     /// Forget an entity that left the world (its UUID and loaded compound).
     pub(super) fn forget_entity(&mut self, id: u32) {
         self.persist.uuids.remove(&id);
@@ -1441,6 +1413,19 @@ impl Game<'_> {
             .anon
             .get(&anon_key(kind, p))
             .map(|(_, raw)| raw)
+    }
+    /// `Entity.applyEffectsFromBlocks` on a fire-immune entity that is not
+    /// burning (`EndCrystal.tick`): the loaded `Fire` is reset to
+    /// `-getFireImmuneTicks()`, which is 0.
+    pub(super) fn clear_crystal_fire(&mut self) {
+        for c in &self.crystals {
+            let key = anon_key("minecraft:end_crystal", c.position);
+            if let Some((_, Tag::Compound(raw))) = self.persist.anon.get_mut(&key)
+                && let Some(fire) = raw.get_mut(&"Fire".into())
+            {
+                *fire = Tag::Short(0);
+            }
+        }
     }
     /// The compound an entity was loaded with (and commands have edited).
     pub(super) fn persist_raw(&self, id: u32) -> Option<&Tag> {
@@ -1576,7 +1561,7 @@ impl Game<'_> {
         if let Some(uuid) = self.known_resident_entity_uuid_at(self.dim.key(), id) {
             return uuid;
         }
-        *self.persist.uuids.entry(id).or_insert_with(random_uuid)
+        self.persist.uuids.get_or_insert_with(id, random_uuid)
     }
     /// `BlockState.CODEC`: a block name or `{id, properties}` (or legacy `{Name, Properties}`).
     pub(super) fn state_from_nbt(&self, tag: &Tag) -> Option<BlockStateId> {
@@ -1735,7 +1720,8 @@ impl Game<'_> {
                 .push((c.id, c.join_seq(), tag));
         }
         for o in &self.others {
-            if keys.contains(&chunk_of(o.position)) {
+            // EntityType.noSave: Entity.getEncodeId is null, so the chunk never stores it.
+            if keys.contains(&chunk_of(o.position)) && o.kind.as_str() != "minecraft:leash_knot" {
                 let uuid = self
                     .persist
                     .uuids
@@ -1970,12 +1956,13 @@ impl Game<'_> {
         keys.contains(&chunk_of(at)).then(|| {
             let id = self.dropped[i].id;
             let uuid = self.uuid_for(id);
-            let tag = entity_nbt::item_entity_to_nbt_with_items(
+            let mut tag = entity_nbt::item_entity_to_nbt_with_items(
                 &self.dropped[i],
                 uuid,
                 self.persist.raw.get(&id),
                 self.items(),
             );
+            self.save_portal_cooldown(id, &mut tag);
             (chunk_of(at), tag)
         })
     }
@@ -2123,6 +2110,7 @@ impl Game<'_> {
         self.put_mob_passengers(&mut tag, id);
         // AbstractBoat.addAdditionalSaveData: the lead's holder.
         self.write_boat_leash(&mut tag, i);
+        self.save_portal_cooldown(id, &mut tag);
         Some((chunk_of(at), tag))
     }
     pub(super) fn save_cart(
@@ -2137,6 +2125,7 @@ impl Game<'_> {
         let uuid = self.saved_uuid_or_random(id);
         let mut tag = self.carts[i].to_nbt(uuid, self.persist.raw.get(&id));
         self.put_mob_passengers(&mut tag, id);
+        self.save_portal_cooldown(id, &mut tag);
         Some((chunk_of(at), tag))
     }
     pub(super) fn save_armor_stand(
@@ -2694,7 +2683,7 @@ mod item_display_saved_transform_tests {
     use super::*;
     use crate::game::{Audio, Options, Progress, Settings, commands::Target, load_resources};
     use horizon_client::{chunk::Chunk, motion::PlayerMotion};
-    use horizon_core::{geometry::Vec3, position::ChunkPos, random::LegacyRandom};
+    use horizon_core::{geometry::Vec3, position::ChunkPos, random::RandomSource};
     fn with_game(test: impl FnOnce(&mut Game<'_>)) {
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let settings = Settings::default();
@@ -2757,7 +2746,7 @@ mod item_display_saved_transform_tests {
         assert!(
             game.run_command("summon pig 13.5 200 2.5 {UUID:[I;132,0,0,99],NoAI:1b,NoGravity:1b}")
         );
-        game.world.random = LegacyRandom::new(132);
+        game.world.random.set_seed(132);
         test(&mut game);
     }
     const IDENTITY: &str = "{translation:[0f,0f,0f],left_rotation:[0f,0f,0f,1f],scale:[1f,1f,1f],right_rotation:[0f,0f,0f,1f]}";
@@ -3862,7 +3851,7 @@ mod h262_enderman_absolute_anger_tests {
     use super::*;
     use crate::game::{Audio, Options, Progress, Settings, load_resources};
     use horizon_client::motion::PlayerMotion;
-    use horizon_core::{geometry::Vec3, position::ChunkPos, random::LegacyRandom};
+    use horizon_core::{geometry::Vec3, position::ChunkPos};
     pub(super) fn with_game(test: impl FnOnce(&mut Game<'_>)) {
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let settings = Settings::default();
@@ -3913,7 +3902,7 @@ mod h262_enderman_absolute_anger_tests {
         assert!(
             game.run_command("summon pig 13.5 200 2.5 {UUID:[I;262,0,0,99],NoAI:1b,NoGravity:1b}")
         );
-        game.world.random = LegacyRandom::new(262);
+        game.world.random.set_seed(262);
         test(&mut game);
     }
     fn load(game: &mut Game<'_>, n: i32, end: Option<i64>) -> (u32, usize) {
@@ -4386,7 +4375,7 @@ mod summoned_knot_tests {
     use super::*;
     use crate::game::{Audio, Options, Progress, Settings, commands::Target, load_resources};
     use horizon_client::{chunk::Chunk, motion::PlayerMotion};
-    use horizon_core::{geometry::Vec3, position::ChunkPos, random::LegacyRandom};
+    use horizon_core::{geometry::Vec3, position::ChunkPos, random::RandomSource};
     fn with_game(test: impl FnOnce(&mut Game<'_>)) {
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let settings = Settings::default();
@@ -4447,7 +4436,7 @@ mod summoned_knot_tests {
         assert!(
             game.run_command("summon pig 13.5 200 2.5 {UUID:[I;129,0,0,99],NoAI:1b,NoGravity:1b}")
         );
-        game.world.random = LegacyRandom::new(129);
+        game.world.random.set_seed(129);
         test(&mut game);
     }
     fn knot_id(game: &Game<'_>, n: i32) -> u32 {
@@ -4723,7 +4712,20 @@ mod camel_pose_saved_tests {
         game.block_ticks
             .add_empty_chunk(ChunkPos::new(0, 0))
             .unwrap();
-        assert!(game.run_command("forceload add 0 0"));
+        // A mob only ticks with its whole 5x5 chunk neighbourhood loaded.
+        for x in -2..=2 {
+            for z in -2..=2 {
+                if (x, z) != (0, 0) {
+                    game.world
+                        .chunks
+                        .insert((x, z), Arc::new(Chunk::empty(x, z)));
+                    game.block_ticks
+                        .add_empty_chunk(ChunkPos::new(x, z))
+                        .unwrap();
+                }
+            }
+        }
+        assert!(game.run_command("forceload add -32 -32 32 32"));
         assert!(game.run_command("tick freeze"));
         let initial = game.world.game_time;
         assert!(game.run_command("tick step 128"));
@@ -4792,6 +4794,31 @@ mod camel_pose_saved_tests {
                 assert!(game.run_command("tick step 1"));
                 game.tick_server(false).unwrap();
             }
+        }
+        // Unload and reload the chunk, then let time pass: the saved game time
+        // stays what it was (`Camel.addAdditionalSaveData` writes it unchanged).
+        let written: Vec<Tag> = game
+            .entity_chunks(&HashSet::from([(0, 0)]), true)
+            .into_iter()
+            .flat_map(|(_, tags)| tags)
+            .collect();
+        game.world.loaded_entities.push(((0, 0), written));
+        game.spawn_loaded_entities();
+        for step in 0..8 {
+            for number in 1..=cases.len() as i32 {
+                let index = game
+                    .mobs
+                    .iter()
+                    .position(|m| game.persist.uuids.get(&m.id) == Some(&[94, 0, 0, number]))
+                    .unwrap();
+                let value = actors[number as usize - 1].1;
+                assert_eq!(
+                    game.mob_tree_nbt(index).get("LastPoseTick"),
+                    Some(&Tag::Long(value)),
+                    "reloaded timestamp {value} after {step} steps"
+                );
+            }
+            game.tick_server(false).unwrap();
         }
     }
 }

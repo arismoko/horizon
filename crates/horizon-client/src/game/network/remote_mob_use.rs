@@ -169,15 +169,15 @@ impl Game<'_> {
             Species::Creeper => {
                 matches!(item, "minecraft:flint_and_steel" | "minecraft:fire_charge")
             }
-            // PiglinAi.mobInteract: an adult admires what it loves.
+            // Piglin.mobInteract on a client: PiglinAi.canAdmire (an adult and
+            // barter currency; the client's brain holds no admiring memories),
+            // unless getArmPose is ADMIRING_ITEM (a loved off-hand item, and
+            // not dancing).
             Species::Piglin => {
                 !baby
-                    && self
-                        .res
-                        .items()
-                        .item_tags
-                        .get("minecraft:piglin_loved")
-                        .is_some_and(|tag| tag.contains(item))
+                    && stack.is_some_and(|s| self.piglin_currency(s))
+                    && (m.extra.scratch[0] > 0
+                        || !m.extra.off_hand_id().is_some_and(|o| self.piglin_loved(o)))
             }
             _ => false,
         }

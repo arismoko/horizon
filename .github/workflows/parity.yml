@@ -70,7 +70,13 @@ jobs:
             echo "::warning::head ${HEAD_SHA:0:9} conflicts with main ${main:0:9}: tested alone, without main's fixes"
             echo "Tested: head ${HEAD_SHA:0:9} alone (it conflicts with main ${main:0:9})" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
-      - uses: dtolnay/rust-toolchain@stable
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
       - name: Tools from the runner
         run: bash tools/ci/runner-env.sh
       - name: Vanilla data, and resources prepared by this preparer

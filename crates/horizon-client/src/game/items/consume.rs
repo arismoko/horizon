@@ -38,6 +38,11 @@ fn consumed_snapshot(stack: &ItemStack) -> Option<mod_api::ItemStack> {
 pub(super) const USE_ITEM_COMPLETE_EVENT: i8 = 9;
 
 impl Game<'_> {
+    /// `stack.get(DataComponents.CONSUMABLE)`: item prototype, data patch or wire patch.
+    pub(super) fn consumable(&self, stack: &ItemStack) -> Option<ItemConsumable> {
+        horizon_client::item_sync::consumable(stack, self.items())
+    }
+
     /// `ServerPlayer.completeUsingItem`: the player's own client is told
     /// first, and completes the use itself (eating the food there too).
     pub(super) fn send_use_item_complete(&mut self) {
@@ -67,7 +72,7 @@ impl Game<'_> {
         self.award_stat("used", &stack.item, 1);
         self.trigger_item("minecraft:consume_item", stack);
         // FoodProperties.onConsume, the player's one ConsumableListener.
-        if let Some((nutrition, saturation)) = info.food {
+        if let Some((nutrition, saturation)) = horizon_client::item_sync::food(stack, info.food) {
             let at = self.feet();
             let pitch = self.world.random.triangle_float(1.0, 0.4);
             self.audio.play(&consumable.sound, at, 1.0, pitch);
@@ -110,7 +115,8 @@ impl Game<'_> {
         // with infinite materials, the hand when emptied, else the inventory
         // (ServerPlayer.handleExtraItemsCreatedOnUse) or a drop.
         self.consume_held();
-        self.apply_use_remainder(info.use_remainder.as_deref(), stack.count);
+        let remainder = horizon_client::item_sync::use_remainder(stack, info.use_remainder.clone());
+        self.apply_use_remainder(remainder.as_deref(), stack.count);
     }
     /// `ItemStack.applyAfterUseComponentSideEffects` uses the stack captured
     /// before the item handler, even when that handler changes the hand.
@@ -119,6 +125,7 @@ impl Game<'_> {
             .items()
             .get(&stack.item)
             .and_then(|info| info.use_remainder.clone());
+        let remainder = horizon_client::item_sync::use_remainder(stack, remainder);
         self.apply_use_remainder(remainder.as_deref(), stack.count);
         self.apply_use_cooldown(stack);
     }
@@ -166,22 +173,53 @@ impl Game<'_> {
         let Some(consumer) = self.entity(decision.mob).and_then(|e| self.living(e)) else {
             return false;
         };
-        let consumable = self
-            .items()
-            .get(&decision.stack.item)
-            .and_then(|info| decision.stack.consumable(Some(info)))
-            .cloned();
+        let Some(consumable) = self.consumable(&decision.stack) else {
+            return false;
+        };
         let remainder = self
             .items()
             .get(&decision.stack.item)
             .and_then(|info| info.use_remainder.as_deref())
             .map(std::sync::Arc::<str>::from);
+        let remainder = horizon_client::item_sync::use_remainder(
+            &decision.stack,
+            remainder.map(|value| value.to_string()),
+        )
+        .map(std::sync::Arc::<str>::from);
         let dim = self.dim;
         let consumed = std::cell::OnceCell::new();
         let result: Result<bool, ()> = mod_api::run_transaction(self, |game, _| {
-            if let Some(consumable) = &consumable {
+            {
+                let mut mobs = game.mobs.lift();
+                if let Some(mob) = mobs.iter_mut().find(|m| m.id == decision.mob) {
+                    let mut events = Vec::new();
+                    horizon_client::mobs::fox::consumed_before_effects(
+                        &game.mob_world_base(&[]),
+                        mob,
+                        &mut events,
+                        &decision.stack,
+                    );
+                    game.mobs
+                        .restore(mobs, horizon_client::join_seq::RestoreOrder::SpawnsFirst);
+                    if game.handle_mob_events(events).is_err() {
+                        return Ok(false);
+                    }
+                } else {
+                    game.mobs
+                        .restore(mobs, horizon_client::join_seq::RestoreOrder::SpawnsFirst);
+                    return Ok(false);
+                }
                 for effect in &consumable.effects {
-                    if let ConsumeEffect::TeleportRandomly(teleport) = effect {
+                    if let ConsumeEffect::PlaySound(_) = effect {
+                        // The level-style sound uses the user's block center and
+                        // category, not Entity.playSound's silent guard or RNG.
+                        if game
+                            .apply_consume_effect(&decision.stack, effect, Some(consumer))
+                            .is_none()
+                        {
+                            return Ok(false);
+                        }
+                    } else if let ConsumeEffect::TeleportRandomly(teleport) = effect {
                         let consumed = consumed.get_or_init(|| consumed_snapshot(&decision.stack));
                         let mut actor = FoxTeleporter {
                             game,
@@ -193,6 +231,26 @@ impl Game<'_> {
                         if teleport.apply(&mut actor, dim).is_err() {
                             return Ok(false);
                         }
+                    } else if let Some(mob) = game.mobs.iter_mut().find(|m| m.id == decision.mob) {
+                        mob.apply_consume_effect(
+                            crate::game::entity::damage_level_of!(game),
+                            effect,
+                        );
+                    }
+                }
+                if let Some(mob) = game.mobs.iter().find(|m| m.id == decision.mob) {
+                    let event = horizon_client::mobs::MobEvent::GameEvent {
+                        event: if consumable.animation == UseAnimation::Drink {
+                            "minecraft:drink"
+                        } else {
+                            "minecraft:eat"
+                        },
+                        at: [mob.position.x, mob.position.y, mob.position.z],
+                        source: mob.id,
+                        state: horizon_world::registry::BlockStateId(0),
+                    };
+                    if game.handle_mob_events(vec![event]).is_err() {
+                        return Ok(false);
                     }
                 }
             }
@@ -785,15 +843,19 @@ mod teleport_hook_tests {
             Box::new(ConsumptionProbe(Arc::clone(&heard), Arc::clone(&moved))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let at = Vec3::new(0.0, 65.0, 0.0);
                 game.player = Some(PlayerMotion::new(game.motion, at).unwrap());
+                // This body belongs to the guest record installed below, never
+                // to a separately admitted local player with the same runtime ID.
+                game.player.as_mut().unwrap().entity_id = 2;
                 game.lan_acting = Some(12);
                 game.lan_acting_uuid = Some(7);
                 game.lan_acting_name = Some("ConsumedStackTest".into());
                 game.lan_acting_entity = Some(2);
                 game.lan_acting_permission = Some(4);
+                crate::game::native_entity_refs::tests::bind_acting_guest(game);
                 game.creative = false;
                 let mut consumed = ItemStack::new("minecraft:chorus_fruit", 7);
                 consumed.damage = 3;
@@ -994,7 +1056,7 @@ mod fox_consumption_hook_tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.world
                     .chunks
@@ -1033,6 +1095,17 @@ mod fox_consumption_hook_tests {
                     .expect("pause before effect draws and mouth replacement");
                     assert!(events.is_empty());
                     let mut expected_random = actor.random.clone();
+                    // Independent Java Random state-advance budget before the
+                    // teleport: emitParticlesAndSounds spends 1 boolean plus
+                    // 3 floats for sound, 16 crumbs spend 4 floats each, and
+                    // FoodProperties' sound triangle spends 2 floats: 70
+                    // advances total. Discarded nextFloat advances the same
+                    // 48-bit LCG state once, without copying emission logic.
+                    for _ in 0..70 {
+                        expected_random.next_float();
+                    }
+                    // The first teleport attempt consumes three doubles
+                    // before any listener can cancel or replace the actor.
                     for _ in 0..3 {
                         expected_random.next_double();
                     }
@@ -1101,7 +1174,7 @@ mod fox_consumption_hook_tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 // Legacy summon checks the actual server owner as well as
                 // the opened native lifecycle, like the production server does.

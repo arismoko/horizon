@@ -93,7 +93,7 @@ Direction.getNearest	port	crates/horizon-core/src/geometry/mod.rs::Direction::ap
 Direction.verifyVertical	skip:data		codec check for vertical directions
 Direction.get	inline	crates/horizon-world/src/level/portal_travel.rs::largest_rectangle_around	the positive side is negative(axis).opposite() there; the PortalForcer call is not traced
 Direction.Axis.getPositive	inline	crates/horizon-world/src/level/portal_travel.rs::largest_rectangle_around	the positive side is negative(axis).opposite() there
-Direction.Axis.getNegative	port	crates/horizon-world/src/level/portal_travel.rs::negative	
+Direction.Axis.getNegative	port	crates/horizon-world/src/level/portal_travel.rs::negative
 Direction.Axis.getDirections	port	crates/horizon-world/src/level/creaking.rs::axis_directions	gap: minor: returns the negative direction first; vanilla returns the positive one first
 Direction.Axis.getPlane	port	crates/horizon-world/src/level/query.rs::is_horizontal	takes a direction and checks its axis is X or Z
 Direction.Axis.choose	port	crates/horizon-core/src/geometry/mod.rs::Vec3::component	gap: minor: selects a double component of a Vec3; no integer version

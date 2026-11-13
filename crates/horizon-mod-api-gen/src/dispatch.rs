@@ -703,7 +703,7 @@ pub(super) fn emit<'a>(
                 "///\n/// Return `Some` to set `{out}`; the first {callee} returning `Some` wins.\n"
             )),
             (Contract::Collect, Some(out)) if matches!(name, "blocks" | "items") => method_source.push_str(&format!(
-                "///\n/// Each mod receives its own empty `{event}.{out}` batch. Declared identifiers must\n/// belong to that mod's manifest-owned namespaces; unowned identifiers refuse registration.\n"
+                "///\n/// Each mod receives its own empty `{event}.{out}` batch. A bare name, in an identifier or\n/// in `block_item`, `pick_item`, `wall_block`, `base_block`, `crafting_remainder` or `Item::block`,\n/// is that mod's own; declared identifiers must belong to\n/// that mod's manifest-owned namespaces, and unowned identifiers refuse registration.\n"
             )),
             (Contract::Collect, Some(out)) if answered => method_source.push_str(&format!(
                 "///\n/// Each mod receives its own empty `{event}.{out}` batch; every entry it adds is recorded\n/// as that mod's.\n"
@@ -787,7 +787,7 @@ pub(super) fn emit<'a>(
             None if matches!(name, "blocks" | "items") => (
                 String::new(),
                 format!(
-                    "for (mod_id, {mod_item}) in super::entered_with_id(HookId::{hook_id}, \"{name}\") {{ let mut local = Vec::new(); {{ let mut {event} = {event_type} {{ {name}: &mut local }}; {mod_item}.{name}(context, &mut {event}); }} for declaration in &mut local {{ match super::parts::owned_declaration_id(mod_id, &declaration.id) {{ Ok(id) => declaration.id = id, Err(reason) => context.refuse_declaration(reason), }} }} {event}.{name}.extend(local); }}"
+                    "for (mod_id, {mod_item}) in super::entered_with_id(HookId::{hook_id}, \"{name}\") {{ let mut local = Vec::new(); {{ let mut {event} = {event_type} {{ {name}: &mut local }}; {mod_item}.{name}(context, &mut {event}); }} for declaration in &mut local {{ if let Err(reason) = super::parts::own_declaration(mod_id, declaration) {{ context.refuse_declaration(reason); }} }} {event}.{name}.extend(local); }}"
                 ),
             ),
             None if hook.context == Some(PhaseContext::ChunkDisk) => (
@@ -816,9 +816,15 @@ pub(super) fn emit<'a>(
                 format!("for {binding} in {each} {{ {} }}", call(&mod_item, "break")),
             ),
             Some((_, lookup)) => (
-                // The parts are looked up first: the key may be moved into the event.
+                // The parts are looked up first: the key may be moved into the event. A worldgen
+                // Part method runs on the worker threads too: it reads the server's published table.
                 format!(
-                    "\nif !super::has_part_hook(HookId::{hook_id}) {{ return; }} let {part_table} = super::parts(HookId::{hook_id}, \"{name}\"); let {part_list} = {part_table}.for_hook(HookId::{hook_id}).map_or(&[][..], |table| table.{lookup}); if {part_list}.is_empty() {{ return; }}"
+                    "\nif !super::has_part_hook(HookId::{hook_id}) {{ return; }} let {part_table} = {}; let {part_list} = {part_table}.for_hook(HookId::{hook_id}).map_or(&[][..], |table| table.{lookup}); if {part_list}.is_empty() {{ return; }}",
+                    if hook.context == Some(PhaseContext::Worldgen) {
+                        "super::worldgen_parts()".to_owned()
+                    } else {
+                        format!("super::parts(HookId::{hook_id}, \"{name}\")")
+                    }
                 ),
                 format!(
                     "for {part_item} in super::entered_parts({part_list}, \"{name}\") {{ {} }}",
@@ -2179,6 +2185,32 @@ fn main() {{
         assert!(compact.contains("mod_api::dispatch_living_change_target(self.host,call)"));
         assert!(
             compact.contains("mod_api::dispatch_living_visibility(self,entity,looking,visibility)")
+        );
+    }
+
+    #[test]
+    fn a_worldgen_part_method_takes_the_worldgen_context_and_reads_the_published_table() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let hooks = super::super::sources(&root, super::super::FillMode::Require)
+            .unwrap()
+            .hooks;
+        let compact: String = hooks.chars().filter(|c| !c.is_whitespace()).collect();
+        fn dispatch<'a>(compact: &'a str, name: &str) -> &'a str {
+            let start = compact
+                .find(&format!("fndispatch_{name}("))
+                .unwrap_or_else(|| panic!("no dispatch for {name}"));
+            let body = &compact[start..];
+            &body[..body.find("#[doc(hidden)]").unwrap_or(body.len())]
+        }
+        let method = &compact[compact.find("fnon_tree_grow(").unwrap()..];
+        assert!(method.starts_with("fnon_tree_grow(&self,context:&dynWorldgenHost,"));
+        let worldgen = dispatch(&compact, "on_tree_grow");
+        assert!(worldgen.contains("=super::worldgen_parts();"));
+        assert!(!worldgen.contains("super::parts("));
+        // Every other scoped hook keeps this thread's table, `is_ladder`'s loop context included.
+        assert!(
+            dispatch(&compact, "is_ladder")
+                .contains("=super::parts(HookId::IsLadder,\"is_ladder\");")
         );
     }
 }

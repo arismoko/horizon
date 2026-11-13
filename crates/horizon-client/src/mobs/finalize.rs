@@ -438,6 +438,11 @@ pub struct Attributes {
     /// The transient modifiers mods added: in the value and synced, never
     /// saved.
     pub transient: Vec<Modifier>,
+    /// `NAME_TAG_DISTANCE` from a server attribute update: the client reads
+    /// it for nameplates and a save never writes it.
+    pub name_tag_distance: Option<f64>,
+    /// `BELOW_NAME_DISTANCE` from a server attribute update.
+    pub below_name_distance: Option<f64>,
     /// The transient minecraft:baby speed modifier was taken away
     /// (`/attribute ... modifier remove`) until the next setBaby. Not
     /// saved: a load runs setBaby again.
@@ -801,11 +806,11 @@ pub fn max_health(m: &Mob) -> f32 {
 }
 /// `LivingEntity.onAttributeUpdated(MAX_HEALTH)` after a Health Boost
 /// change: the cached maximum follows the attribute model again, and Health
-/// above it is lowered (nothing is healed). Sulfur cubes and wolves write
-/// their maximum straight into the cache (`sulfur_cube::set_size`,
-/// `tame::set_tame`), outside the model, so they keep theirs.
+/// above it is lowered (nothing is healed). Wolves write their maximum
+/// straight into the cache (`tame::set_tame`), outside the model, so they
+/// keep theirs.
 pub fn health_boost_changed(m: &mut Mob) {
-    if matches!(m.species(), Species::SulfurCube | Species::Wolf) {
+    if m.species() == Species::Wolf {
         return;
     }
     refresh(m, Attr::MaxHealth);
@@ -1048,7 +1053,7 @@ pub const SLOT_NAMES: [&str; 8] = super::drops::SLOTS;
 pub use horizon_items::equipment::{CHEST, FEET, HEAD, LEGS, MAINHAND, OFFHAND};
 const SADDLE: usize = horizon_items::equipment::SADDLE;
 /// The `gear` slot of an `EquipmentSlot`.
-fn gear_slot(slot: usize) -> usize {
+pub fn gear_slot(slot: usize) -> usize {
     match slot {
         MAINHAND => gear::MAIN,
         OFFHAND => gear::OFF,
@@ -1438,7 +1443,13 @@ impl<L: FinalizeLevel + ?Sized, R: RandomSource> Ctx<'_, L, R> {
         let d = self.level.spawn_data();
         let e = d.enchantments;
         let pool = e.tag("minecraft:on_mob_spawn_equipment");
-        let picked = e.select(d.items, self.random, id, cost, pool);
+        let picked = e.select(
+            d.items,
+            self.random,
+            &item_stack(m, slot).unwrap_or_else(|| crate::items::ItemStack::new(id, 1)),
+            cost,
+            pool,
+        );
         for (enchantment, level) in picked {
             gear::upgrade(m, gear_slot(slot), &enchantment, level);
         }
@@ -1657,12 +1668,7 @@ impl<L: FinalizeLevel + ?Sized, R: RandomSource> Ctx<'_, L, R> {
         if g.is_none() {
             let mut effect = None;
             if self.difficulty.hard && self.float() < 0.1 * self.special() {
-                effect = Some(match self.int(5) {
-                    0 | 1 => "minecraft:speed",
-                    2 => "minecraft:strength",
-                    3 => "minecraft:regeneration",
-                    _ => "minecraft:invisibility",
-                });
+                effect = Some(super::spawning::spider_random_effect(self.random));
             }
             g = Some(Group::Spider(effect));
         }
@@ -2166,12 +2172,10 @@ impl<L: FinalizeLevel + ?Sized, R: RandomSource> Ctx<'_, L, R> {
             }
             S::Zombie | S::ZombifiedPiglin => self.zombie(m, g, reason),
             S::ZombieVillager => {
+                // `ZombieVillager.finalizeSpawn` chooses the villager type and
+                // nothing else: the profession came from the constructor.
                 self.villager_type(m);
-                if m.extra.profession.index().is_some() {
-                    m.extra.profession = super::villager::ProfessionState::from_index(
-                        super::zombie_villager::constructor_profession(m),
-                    );
-                }
+                // The profession is drawn at construction, not finalizeSpawn.
                 self.zombie(m, g, reason)
             }
             S::Husk => self.husk(m, g, reason),
@@ -2288,17 +2292,9 @@ pub fn panda_variant(main: u8, hidden: u8) -> u8 {
     if recessive && main != hidden { 0 } else { main }
 }
 /// `AbstractCubeMob.setSize(size, true)` for slimes and magma cubes.
-/// `SulfurCube.setSize(size, true)`, with the attribute bases it sets.
+/// `SulfurCube.setSize(size, true)`.
 fn sulfur_size(m: &mut Mob, size: i32) {
     super::sulfur_cube::set_size(m, size, true);
-    let size = m.extra.size;
-    set_base(m, Attr::MaxHealth, f64::from(4 * size));
-    set_base(
-        m,
-        Attr::MovementSpeed,
-        f64::from(0.2f32 + 0.1f32 * size as f32),
-    );
-    m.health = max_health(m);
 }
 fn cube_size(m: &mut Mob, size: i32) {
     super::cube::set_size(m, size);
@@ -2421,7 +2417,7 @@ pub fn variant_sound(m: &Mob, kind: &str) -> Option<&'static str> {
 pub fn variant_name(s: Species, index: u8) -> &'static str {
     let i = index as usize;
     match s {
-        Species::Cat => super::tame::CAT_VARIANTS.get(i).copied().unwrap_or("tabby"),
+        Species::Cat => super::tame::CAT_VARIANTS.get(i).copied().unwrap_or("black"),
         Species::Wolf => super::tame::WOLF_VARIANTS.get(i).map_or("pale", |v| v.0),
         Species::ZombieNautilus => super::nautilus::VARIANTS
             .get(i)
@@ -2535,6 +2531,7 @@ mod tests {
         assert_eq!(variant_index(Species::Llama, "minecraft:temperate"), 0);
         assert_eq!(variant_name(Species::Horse, 7), "white");
         assert_eq!(variant_name(Species::TraderLlama, 4), "creamy");
+        assert_eq!(variant_name(Species::Cat, 20), "black");
         // Only `VariantUtils.writeVariant` species save the name; a horse and
         // a llama save a packed `Variant` int, a fox and a mooshroom `Type`.
         for species in [Species::Wolf, Species::Cat, Species::Chicken, Species::Pig] {

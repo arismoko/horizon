@@ -57,6 +57,25 @@ scaled by its alpha. `WorldDepth::Tested` hides the quads behind nearer world su
 The id must be in a namespace your mod owns. There is no per-mod pipeline count cap. A registration
 that breaks either rule, or reuses an id, is logged with the mod's id and dropped.
 
+### Required or optional
+
+A pipeline is required unless you register it with `.optional()`, as NeoForge's `registerPipeline`
+and `registerOptionalPipeline` are:
+
+```rust,ignore
+event.pipelines.push(
+    RenderPipeline::new(id, fragment, PipelineBlend::Translucent, WorldDepth::Tested).optional(),
+);
+```
+
+| Policy | When a resource load cannot build it |
+| --- | --- |
+| Required (`RenderPipeline::new`) | The load fails with a message naming each required pipeline and why. At startup the game does not start. A resource reload fails and keeps the previous resources, so handles from before it still draw; then, as vanilla does with any failed reload, the selected resource packs are dropped and the reload runs again. |
+| Optional (`.optional()`) | The log has one line naming the pipeline and why. It resolves to `RenderPipelineError::Invalid`, and every other pipeline builds and draws. |
+
+A load cannot build a pipeline when its shader file is missing, the file is refused, or the GPU
+turns the built shader down. The game never panics over a pipeline's shader.
+
 ## 3. Resolve and draw
 
 ```rust,ignore
@@ -81,12 +100,13 @@ reload answers `Stale`.
 | Error | When |
 | --- | --- |
 | `RenderPipelineError::Unknown` | No mod registered that id. |
-| `RenderPipelineError::Invalid` | The shader file is missing or was refused. The log has a line `render pipeline <id> refused: <file>: <reason>`, with the file's line number for a syntax or type error. |
+| `RenderPipelineError::Invalid` | The pipeline is optional and its shader file is missing, was refused or was turned down by the GPU. The log has a line `render pipeline <id> from mod <owner> refused: <file>: <reason>`, with the file's line number for a syntax or type error, or `render pipeline <id> from mod <owner> refused by the GPU: <reason>`. |
 | `RenderPipelineError::Stale` | The handle is from before a resource reload. |
 | `PipelineDrawError::NonFinite` | A corner or texture coordinate is not finite. |
 | `PipelineDrawError::CapacityExceeded` | The view's 4,096 quads, shared with `WorldDrawContext::quads`, are used up. |
 
-A refused batch draws nothing. A pipeline that is `Invalid` never stops the game from starting.
+A refused batch draws nothing. An `Invalid` pipeline never stops the game from starting; a required
+pipeline that cannot be built does.
 
 ## What a pipeline draws, and when
 

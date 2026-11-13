@@ -653,7 +653,7 @@ mod tests {
             None,
         )
         .unwrap();
-        game.title = Some(Title::new(std::path::PathBuf::from("saves"), &root));
+        game.title = Some(game.new_title(std::path::PathBuf::from("saves")));
         game
     }
 

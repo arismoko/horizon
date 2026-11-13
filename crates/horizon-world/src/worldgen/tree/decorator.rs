@@ -4,7 +4,9 @@ use super::{
     unit_float,
 };
 use crate::heightmap::HeightmapType;
-use crate::native_worldgen_hooks::{self, AlterGroundTree, GroundAccess, ModGroundProvider};
+use crate::native_worldgen_hooks::{
+    self, AlterGroundTree, GroundAccess, ModGroundProvider, WorldgenRandom,
+};
 use crate::registry::BlockStateId;
 use crate::worldgen::{
     DecodeError, Object,
@@ -506,6 +508,8 @@ impl<W: FeatureWorld + PlacementContext, R: RandomSource> GroundAccess for Groun
             }
         }
     }
+}
+impl<W: FeatureWorld, R: RandomSource> WorldgenRandom for GroundRun<'_, '_, W, R> {
     fn next_int_bound(&mut self, bound: i32) -> i32 {
         ProcessorRandom::int(self.run.random, bound)
     }

@@ -93,3 +93,123 @@ pub fn move_energy(
         |host, tx, out| to.insert(host, tx, out),
     )
 }
+
+/// `EnergyHandlerUtil`'s queries, on any energy handler (a [`Capability`] reaches them through its
+/// handler): `cap.is_full(host)`. To pass calls through to another handler
+/// (`DelegatingEnergyHandler`), implement [`EnergyHandler`] on a struct holding it and forward.
+impl dyn EnergyHandler {
+    /// Whether it holds its capacity (`isFull`).
+    pub fn is_full(&self, host: &mut dyn ServerHost) -> bool {
+        self.amount(host) >= self.capacity(host)
+    }
+    /// A comparator's signal reading it (`getRedstoneSignalFromEnergyHandler`), vanilla's
+    /// container formula: 0 when empty, else `1 + floor(14 * amount / capacity)`, 15 when full.
+    pub fn comparator_signal(&self, host: &mut dyn ServerHost) -> u8 {
+        let amount = u64::from(self.amount(host));
+        let capacity = u64::from(self.capacity(host));
+        if amount == 0 || capacity == 0 {
+            return 0;
+        }
+        (1 + 14 * amount.min(capacity) / capacity) as u8
+    }
+}
+
+/// No energy and no room, refusing both ways (`EmptyEnergyHandler`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// no wire: a mod-side handler, invoked where it was built; never crosses the boundary.
+// exhaustive: a unit marker
+pub struct EmptyEnergyHandler;
+impl EnergyHandler for EmptyEnergyHandler {
+    fn amount(&self, _: &mut dyn ServerHost) -> u32 {
+        0
+    }
+    fn capacity(&self, _: &mut dyn ServerHost) -> u32 {
+        0
+    }
+    fn insert(&self, _: &mut dyn ServerHost, _: &Transaction, _: u32) -> u32 {
+        0
+    }
+    fn extract(&self, _: &mut dyn ServerHost, _: &Transaction, _: u32) -> u32 {
+        0
+    }
+}
+
+/// An endless source (`InfiniteEnergyHandler`): every extract is given whole, nothing goes in. A
+/// creative battery.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// no wire: a mod-side handler, invoked where it was built; never crosses the boundary.
+// exhaustive: a unit marker
+pub struct InfiniteEnergyHandler;
+impl EnergyHandler for InfiniteEnergyHandler {
+    fn amount(&self, _: &mut dyn ServerHost) -> u32 {
+        u32::MAX
+    }
+    fn capacity(&self, _: &mut dyn ServerHost) -> u32 {
+        u32::MAX
+    }
+    fn insert(&self, _: &mut dyn ServerHost, _: &Transaction, _: u32) -> u32 {
+        0
+    }
+    fn extract(&self, _: &mut dyn ServerHost, _: &Transaction, amount: u32) -> u32 {
+        amount
+    }
+}
+
+/// A sink that destroys what goes in and holds nothing (`VoidingEnergyHandler`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// no wire: a mod-side handler, invoked where it was built; never crosses the boundary.
+// exhaustive: a unit marker
+pub struct VoidingEnergyHandler;
+impl EnergyHandler for VoidingEnergyHandler {
+    fn amount(&self, _: &mut dyn ServerHost) -> u32 {
+        0
+    }
+    fn capacity(&self, _: &mut dyn ServerHost) -> u32 {
+        u32::MAX
+    }
+    fn insert(&self, _: &mut dyn ServerHost, _: &Transaction, amount: u32) -> u32 {
+        amount
+    }
+    fn extract(&self, _: &mut dyn ServerHost, _: &Transaction, _: u32) -> u32 {
+        0
+    }
+}
+
+/// Another handler with at most `max_insert` going in and `max_extract` coming out per call
+/// (`LimitingEnergyHandler`): each call is clamped, then forwarded in the same transaction, as a
+/// cable's throughput.
+// no wire: a mod-side handler, invoked where it was built; never crosses the boundary.
+// exhaustive: its fields are private, so mods cannot build or destructure it
+pub struct LimitingEnergyHandler {
+    inner: Box<dyn EnergyHandler>,
+    max_insert: u32,
+    max_extract: u32,
+}
+impl LimitingEnergyHandler {
+    /// `inner`, limited to `max_insert` in and `max_extract` out per call.
+    pub fn new(inner: Box<dyn EnergyHandler>, max_insert: u32, max_extract: u32) -> Self {
+        Self {
+            inner,
+            max_insert,
+            max_extract,
+        }
+    }
+}
+impl EnergyHandler for LimitingEnergyHandler {
+    fn amount(&self, host: &mut dyn ServerHost) -> u32 {
+        self.inner.amount(host)
+    }
+    fn capacity(&self, host: &mut dyn ServerHost) -> u32 {
+        self.inner.capacity(host)
+    }
+    fn insert(&self, host: &mut dyn ServerHost, tx: &Transaction, amount: u32) -> u32 {
+        self.inner.insert(host, tx, amount.min(self.max_insert))
+    }
+    fn extract(&self, host: &mut dyn ServerHost, tx: &Transaction, amount: u32) -> u32 {
+        self.inner.extract(host, tx, amount.min(self.max_extract))
+    }
+}
+
+#[cfg(test)]
+#[path = "energy_capability_tests.rs"]
+mod tests;

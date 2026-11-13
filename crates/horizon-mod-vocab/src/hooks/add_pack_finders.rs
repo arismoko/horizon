@@ -32,7 +32,13 @@ layers win. Required data packs also enter a new world's initial selection when
 the player does not open the Data Packs screen. `PackSource::Feature` exposes
 packs with declared feature flags in Experiments. Their flags must be enabled
 for the world before `/datapack enable` accepts them, and feature packs that
-request flags cannot be disabled through that command."##]
+request flags cannot be disabled through that command.
+
+`hidden` keeps a pack out of the Resource Packs, Data Packs and Experiments
+screens, for a compatibility pack or texture override players should not see.
+A hidden pack still loads when selected, so pair it with `always_active` for one
+that is always on. `/datapack list` and `/datapack enable|disable` still name
+hidden data packs for operators."##]
     #[hook(side = "both", contract = "listen", neoforge = "AddPackFindersEvent")]
     fn add_pack_finders();
 }

@@ -106,7 +106,7 @@ fn neutral_load_restores_only_the_saved_live_target_with_or_without_listeners() 
         Box::new(Observe(observed.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::super::native_entity_refs::tests::with_game(|game| check(game, Some(&observed)));
     });
 }

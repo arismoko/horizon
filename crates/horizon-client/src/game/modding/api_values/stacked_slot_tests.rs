@@ -1,6 +1,7 @@
 use super::{self as api_values, EngineStack, stack_limit_tests};
 use crate::{items::Items, menu::SlotView};
-use mod_api::{Flow, Hooks, ModEntry, testing::with_mods};
+use mod_api::{Flow, Hooks, ModEntry};
+use mod_platform::testing::with_mods;
 
 fn context() -> horizon_world::native_load_context::LoopContext {
     use horizon_world::native_load_context::{DataLoadOrigin, LoadContext, LoadInputs, LoopSide};

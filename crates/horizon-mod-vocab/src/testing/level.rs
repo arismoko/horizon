@@ -49,6 +49,10 @@ impl FakeLevel {
     pub fn block_entity(&mut self, pos: [i32; 3]) -> &mut FakeBlockEntity {
         self.block_entities.entry(pos).or_default()
     }
+    /// Takes the block entity at `pos` away, as breaking its block does.
+    pub fn remove_block_entity(&mut self, pos: [i32; 3]) -> Option<FakeBlockEntity> {
+        self.block_entities.remove(&pos)
+    }
     /// The block entity at `pos`, if one stands there.
     pub fn block_entity_at(&self, pos: [i32; 3]) -> Option<&FakeBlockEntity> {
         self.block_entities.get(&pos)
@@ -304,4 +308,34 @@ pub struct FakeEntity {
     pub level: LevelRef,
     /// Its UUID.
     pub uuid: u128,
+}
+
+// no wire: in-process testing harness state, not a mod boundary payload.
+/// A sound played in the level ([`LevelRef::play_sound`](crate::LevelRef::play_sound)).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct FakeSound {
+    /// The sound event.
+    pub sound: String,
+    /// Where it played.
+    pub at: [f64; 3],
+    /// The volume slider it plays under.
+    pub source: crate::SoundSource,
+    /// Its volume.
+    pub volume: f32,
+    /// Its pitch.
+    pub pitch: f32,
+}
+
+// no wire: in-process testing harness state, not a mod boundary payload.
+/// A game event sent in the level ([`LevelRef::game_event`](crate::LevelRef::game_event)).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct FakeGameEvent {
+    /// The game event.
+    pub event: String,
+    /// Where it was sent from.
+    pub at: [f64; 3],
+    /// Its source and affected state.
+    pub context: crate::GameEventContext,
 }

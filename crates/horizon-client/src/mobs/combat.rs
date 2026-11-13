@@ -121,10 +121,8 @@ pub fn do_hurt_target(m: &mut Mob, who: Who, cx: &mut Cx) {
     amount += super::gear::melee_bonus(m, target_species);
     let burn = super::gear::fire_aspect(m);
     if burn > 0 {
-        cx.events.push(cx.w.route_player_event(MobEvent::Ignite {
-            target: who,
-            seconds: burn,
-        }));
+        cx.events
+            .push(cx.w.route_player_event(MobEvent::Ignite(who, burn)));
     }
     // `Mob.doHurtTarget`: `causeExtraKnockback(target, getKnockback(...))`. `getKnockback` is the
     // `attack_knockback` attribute plus the Knockback enchantment, halved; the push goes along the
@@ -133,22 +131,15 @@ pub fn do_hurt_target(m: &mut Mob, who: Who, cx: &mut Cx) {
     let power = (m.attrs.attack_knockback as f32 + super::gear::knockback(m) as f32) / 2.0;
     if power > 0.0 {
         use horizon_core::geometry::trig::Mth;
-        let to_rad = std::f32::consts::PI / 180.0;
         cx.events.push(cx.w.route_player_event(MobEvent::Knockback {
             target: who,
             power: f64::from(power),
-            x: f64::from((m.yaw * to_rad).msin()),
-            z: f64::from(-(m.yaw * to_rad).mcos()),
+            x: f64::from(m.yaw.to_radians().msin()),
+            z: f64::from(-m.yaw.to_radians().mcos()),
             source,
+            apply_blocking: None,
         }));
         m.velocity = Vec3::new(m.velocity.x * 0.6, m.velocity.y, m.velocity.z * 0.6);
-    }
-    // Zombies set their target on fire while burning (Zombie.doHurtTarget).
-    if m.fire_ticks > 0 && matches!(m.species(), Species::Zombie) && m.random.next_float() < 0.3 {
-        cx.events.push(cx.w.route_player_event(MobEvent::Ignite {
-            target: who,
-            seconds: 2,
-        }));
     }
     // The effect picked above goes with the hit: it applies only when the
     // target takes damage (a shield-blocked hit gives none), for a mob as for
@@ -219,6 +210,17 @@ pub fn do_hurt_target(m: &mut Mob, who: Who, cx: &mut Cx) {
         let at = [m.position.x, m.position.y, m.position.z];
         cx.events
             .push(MobEvent::Sound("entity.dolphin.attack", at, 1.0, 1.0));
+    }
+    // `Zombie.doHurtTarget` (every zombie): drawn here, lit if the blow hurt.
+    // Queue this after the attack so the handler reads this blow's hit outcome.
+    let difficulty = cx.w.difficulty.effective;
+    if m.is_on_fire()
+        && m.extra.main_hand_id().is_none()
+        && super::doors::is_zombie(m.species())
+        && m.random.next_float() < difficulty * 0.3
+    {
+        cx.events
+            .push(cx.w.route_player_event(MobEvent::ZombieIgnite(who, 2 * difficulty as i32)));
     }
     let _ = Fluid::None;
 }

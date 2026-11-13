@@ -85,7 +85,7 @@ mod tests {
             }
         }
         let heard = Arc::new(Mutex::new(Vec::new()));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new(
                 "guest_events",
                 Box::new(Heard(heard.clone())),

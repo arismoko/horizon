@@ -44,7 +44,7 @@ pub(in crate::game) fn with_horse(test: impl FnOnce(&mut Game<'_>, u32, &AtomicB
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         let mut game = game();
         // A server hears its mounts' `entity_mount`.
         game.options.dedicated = Some(Vec::new());

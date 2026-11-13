@@ -16,8 +16,9 @@ mod tests {
     use horizon_core::geometry::Vec3;
     use mod_api::{
         EnchantmentDamageContext, EnchantmentDamageEffect, Hooks, ModEntry,
-        RegisterEnchantmentDamageEffectsEvent, ServerHost, testing::with_mods,
+        RegisterEnchantmentDamageEffectsEvent, ServerHost,
     };
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     type Observations = Arc<Mutex<Vec<(u32, u32, String, u32, f32)>>>;
@@ -147,6 +148,7 @@ mod tests {
                     player.entity_id = 7;
                     player.ground.on_ground = true;
                     game.player = Some(player);
+                    crate::game::native_entity_refs::tests::bind_local_player(game, 7, 1);
                     game.lan_acting_uuid = Some(1);
                     game.lan_acting_entity = Some(7);
                     game.lan_acting_name = Some("attacker".into());

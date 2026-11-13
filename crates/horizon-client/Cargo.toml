@@ -16,12 +16,12 @@ horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
 winresource = "0.1"
 
 [dependencies]
+horizon-guest-stack = { path = "../horizon-guest-stack" }
 horizon-cosmetics = { path = "../horizon-cosmetics" }
 horizon-hooks = { path = "../horizon-hooks" }
 horizon-mod-runtime = { path = "../horizon-mod-runtime" }
-horizon-mod-render = { path = "../horizon-mod-render" }
-horizon-mod-api = { path = "../horizon-mod-api" }
-horizon-mod-points = { path = "../horizon-mod-points" }
+mod_api = { package = "horizon-mod-vocab", path = "../horizon-mod-vocab" }
+horizon-engine-slots = { path = "../horizon-engine-slots" }
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
 horizon-client-lib = { path = "../horizon-client-lib", default-features = false }
 horizon-assets = { path = "../horizon-assets" }
@@ -35,6 +35,7 @@ horizon-core = { path = "../horizon-core" }
 horizon-optifine = { path = "../horizon-optifine" }
 # The server thread ahead of the workers (MinecraftServer.spin's Thread.setPriority).
 horizon-threads = { path = "../horizon-threads" }
+horizon-perf-format = { path = "../horizon-perf-format" }
 horizon-hdr = { path = "../horizon-hdr" }
 horizon-world = { path = "../horizon-world" }
 horizon-protocol = { path = "../horizon-protocol" }
@@ -42,7 +43,8 @@ horizon-protocol = { path = "../horizon-protocol" }
 horizon-server-files = { path = "../horizon-server-files" }
 # The dedicated server's anticheat, off unless server.toml's [anticheat] turns it on (docs/anticheat.md).
 horizon-anticheat = { path = "../horizon-anticheat" }
-# The dedicated server's chat filter: [chat_filter], the slur list, mutes (docs/chat-filter.md).
+# The dedicated server's chat filter: [chat_filter], the slur list, mutes (docs/chat-filter.md);
+# `entry` installs it into the engine's hook (`horizon_server_files::chat_guard`).
 horizon-chat-filter = { path = "../horizon-chat-filter" }
 # Shader packs: reading them and turning their GLSL into naga modules.
 horizon-shaders = { path = "../horizon-shaders" }
@@ -77,7 +79,7 @@ log = "0.4"
 chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs", "runtime_detection"] }
 horizon-theme = { path = "../horizon-theme" }
-# Hardware probes for the benchmark report (nothing leaves the machine, docs/telemetry.md).
+# Machine and process probes for benchmark and dedicated-server performance reports.
 horizon-system = { path = "../horizon-system" }
 # Opt-in data collection: the game keeps, the launcher sends (docs/telemetry.md). The
 # anonymous "I'm playing" ping is the Horizon layer's (`horizon-heartbeat`, in the official executable).
@@ -122,6 +124,9 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
 
 [features]
+# Source retention only: not compiled/tested on the fork; incompatible with typed residency.
+# Do not enable (including via --all-features); integration is tracked in #3491.
+upstream-parallel-mobs = []
 default = ["audio", "controllers", "horizon-extras"]
 # Scoped trait-mod installation for a mod's own tests.
 testing = []
@@ -145,7 +150,9 @@ rng-trace = ["horizon-core/rng-trace", "horizon-client-lib/rng-trace"]
 # Rust's allocations go to the system heap instead of mimalloc, where heap profilers that replace
 # malloc (heaptrack, valgrind's massif) see them. Also the Windows prebuilt archive's allocator
 # (tools/prebuilt_game.py, #2394): there std's DLL keeps its own allocator. Otherwise mimalloc is faster.
-system-allocator = []
+system-allocator = ["horizon-threads/system-allocator"]
+# mimalloc that counts each thread's allocations and frees (`stats` replies with `alloc`).
+alloc-count = ["horizon-threads/alloc-count"]
 # mimalloc with a tag on each block: `horizon-ctl memory` lists the live heap by startup step and
 # thread (`heap_by_tag_mb`). For measuring only: each block costs 16 bytes more.
 alloc-census = ["horizon-threads/alloc-census"]
@@ -170,13 +177,16 @@ path = "tests/mod_api_hooks.rs"
 workspace = true
 
 [dev-dependencies]
-horizon-mod-wasm = { path = "../horizon-mod-wasm", features = ["runtime-fixture", "listener-fixture"] }
+horizon-client-core = { path = "../horizon-client-core", features = ["test-language-publication"] }
+horizon-client-lib = { path = "../horizon-client-lib", default-features = false, features = ["test-payload-probe", "test-publication-scope", "test-residency-observer"] }
+horizon-mod-wasm = { path = "../horizon-mod-wasm", features = ["runtime-fixture", "listener-fixture", "test-copy-probe"] }
 wat = "1.261"
 tempfile = "3"
 horizon-mod-runtime = { path = "../horizon-mod-runtime", features = ["test-work-count"] }
 horizon-threads = { path = "../horizon-threads", features = ["test-allocation-count"] }
-horizon-mod-api = { path = "../horizon-mod-api", features = ["testing"] }
+mod_platform = { package = "horizon-mod-api", path = "../horizon-mod-api", features = ["testing"] }
 horizon-client-render = { path = "../horizon-client-render", features = ["test-support"] }
 horizon-items = { path = "../horizon-items", features = ["test-support"] }
+horizon-perf = { path = "../horizon-perf" }
 # Every WGSL shader translated as wgpu's DirectX 12 backend does (gfx.rs tests).
 naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out", "msl-out", "spv-out"] }

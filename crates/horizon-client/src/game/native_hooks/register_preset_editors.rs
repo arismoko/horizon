@@ -44,7 +44,7 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use horizon_client::title::{Mode, Title, WorldOptions};
+    use horizon_client::title::{Mode, WorldOptions};
     use mod_api::{
         Hooks, ModEntry, RegisterPresetEditorsEvent, ScreenKeyPressedPreEvent,
         ScreenRenderPostEvent,
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn preset_editor_test_mod_draws_and_edits_through_real_client_hooks() {
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("example", Box::new(EditorMod))].into(),
             || {
                 crate::game::native_entity_refs::tests::with_client_game(|game| {
@@ -112,8 +112,7 @@ mod tests {
                         &mut editors,
                     );
                     assert_eq!(editors.len(), 1);
-                    let mut title =
-                        Title::new(game.save.root.join("editor-saves"), &game.options.resources);
+                    let mut title = game.new_title(game.save.root.join("editor-saves"));
                     title.set_preset_data_source(game.pack.data_changes.clone());
                     let dimensions = horizon_core::nbt::Tag::compound([(
                         "minecraft:overworld",

@@ -13,7 +13,7 @@ from tools import pr_ready
 
 class RevisionOrchestration(unittest.TestCase):
     def test_plan_runs_real_repository_hygiene_even_for_python_only_delta(self):
-        steps = pr_ready.plan(Namespace(host="local", quick=True), "HEAD", {"tools/ci/ignored_tests.py"}, {}, set(), {})
+        steps = pr_ready.plan(Namespace(host="local", quick=True, harnesses=False), "HEAD", {"tools/ci/ignored_tests.py"}, {}, set(), {})
         hygiene = next(step for step in steps if step.name == "Repository hygiene")
         self.assertIsNone(hygiene.skip)
         self.assertEqual(hygiene.where, "here")

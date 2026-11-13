@@ -1,3 +1,4 @@
+import io
 import json
 import os
 from pathlib import Path
@@ -163,6 +164,79 @@ class UpstreamRestorationTests(unittest.TestCase):
     def test_verbatim_row_without_changed_sync_declaration_fails(self):
         (self.root / "tools/file_size_baseline.txt").write_text("")
         self.assertTrue(self.problems(self.row))
+
+
+class PullRequestMergeTests(unittest.TestCase):
+    def test_a_pull_request_merge_is_checked_against_main_as_merged(self):
+        """main allowed a new address after the branch left it: a pull request merged into that main didn't add it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+
+            def run(*args):
+                return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env,
+                                      text=True).stdout.strip()
+
+            def config(allowed):
+                return json.dumps({"homes": [], "vanilla": {}, "not_addresses": {}, "allowed": allowed})
+
+            run("init", "-q", "-b", "main")
+            (root / "tools").mkdir()
+            (root / "tools/addresses.json").write_text(config([]))
+            (root / "tools/file_size_baseline.txt").write_text("")
+            (root / "tools/layers.json").write_text('{"crates": {}}')
+            (root / "crates/a/src").mkdir(parents=True)
+            (root / "crates/a/src/lib.rs").write_text("pub fn a() {}\n")
+            run("add", ".")
+            run("commit", "-q", "-m", "base")
+            base = run("rev-parse", "HEAD")
+            run("checkout", "-q", "-b", "work")
+            (root / "crates/a/src/lib.rs").write_text("pub fn a() -> u8 { 1 }\n")
+            run("commit", "-q", "-am", "unrelated change")
+            run("checkout", "-q", "main")
+            (root / "crates/x/src").mkdir(parents=True)
+            (root / "crates/x/src/lib.rs").write_text('pub const URL: &str = "https://relay.playhorizon.dev";\n')
+            (root / "tools/addresses.json").write_text(config(["crates/x/src/lib.rs relay.playhorizon.dev"]))
+            run("add", ".")
+            run("commit", "-q", "-m", "main allows an address")
+            run("checkout", "-q", "--detach", "main")
+            run("merge", "-q", "--no-ff", "-m", "merge work", "work")
+            with mock.patch.object(check_addresses, "ROOT", root), mock.patch.object(check_file_size, "ROOT", root), \
+                    mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                self.assertEqual(check_addresses.main(["--base", base, "--pull-request-merge"]), 0)
+                # Against the branch's old base, main's new entry was charged to the pull request.
+                self.assertEqual(check_addresses.main(["--base", base]), 1)
+            self.assertIn("relay.playhorizon.dev", out.getvalue())
+
+
+class BaseConfigTests(unittest.TestCase):
+    def test_the_base_is_where_the_branch_left_main(self):
+        """An entry main dropped after the branch left it is still on the branch's base: the branch didn't add it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+
+            def run(*args):
+                subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env)
+
+            def allow(*entries):
+                (root / "tools").mkdir(exist_ok=True)
+                (root / "tools" / "addresses.json").write_text(json.dumps({"allowed": list(entries)}))
+
+            run("init", "-q", "-b", "main")
+            allow("crates/horizon-telemetry/src/lib.rs telemetry.playhorizon.dev")
+            run("add", ".")
+            run("commit", "-q", "-m", "base")
+            run("checkout", "-q", "-b", "work")
+            run("commit", "-q", "--allow-empty", "-m", "work")
+            run("checkout", "-q", "main")
+            allow()
+            run("commit", "-q", "-am", "main drops the entry")
+            run("checkout", "-q", "work")
+            with mock.patch.object(check_addresses, "ROOT", root):
+                self.assertEqual(check_addresses.base_config("main"), {"allowed": ["crates/horizon-telemetry/src/lib.rs telemetry.playhorizon.dev"]})
 
 
 if __name__ == "__main__":

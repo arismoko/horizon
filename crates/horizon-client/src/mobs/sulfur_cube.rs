@@ -399,6 +399,46 @@ mod knockback_sync_tests {
         assert!(m.velocity.x < 0.0, "velocity {:?}", m.velocity);
         assert!(m.needs_sync);
     }
+    /// `TemptGoal` scales its range by the player's visibility: an invisible
+    /// player five blocks away does not tempt a sulfur cube.
+    #[test]
+    fn an_invisible_player_tempts_a_sulfur_cube_only_within_two_blocks() {
+        use crate::mobs::goals::Cx;
+        use crate::mobs::world::{test_player, with_test_world};
+        let mut outcomes = Vec::new();
+        if !with_test_world(&[], |w, _| {
+            for invisible in [false, true] {
+                let mut world = w.clone();
+                let mut p = test_player(Vec3::new(5.5, 64.0, 0.5));
+                p.main_hand = Some("minecraft:iron_ingot".into());
+                p.invisible = invisible;
+                world.player = Some(p);
+                let mut kind = (*crate::mobs::sensor_scan_tests::kind()).clone();
+                kind.species = Species::SulfurCube;
+                kind.tempt = Arc::from(vec!["minecraft:iron_ingot".to_string()]);
+                let mut m = Mob::new(1, Arc::new(kind), Vec3::new(0.5, 64.0, 0.5), 0.0);
+                m.ai.goals.add(1, SulfurTempt { player: None });
+                let mut lr = crate::health::TestLevel::new(0);
+                let mut events = Vec::new();
+                let mut cx = Cx {
+                    w: &world,
+                    level: &mut lr.level(),
+                    events: &mut events,
+                };
+                let mut goals = std::mem::take(&mut m.ai.goals);
+                goals.tick(&mut m, &mut cx);
+                outcomes.push(goals.is_running("SulfurTempt"));
+                m.ai.goals = goals;
+            }
+        }) {
+            return;
+        }
+        assert_eq!(
+            outcomes,
+            vec![true, false],
+            "a visible player tempts at five; an invisible one does not"
+        );
+    }
 }
 /// Added controls (H192): the attribute part of `collectEquipmentChanges` on
 /// the cube's own map, with the amounts and ids of the pinned 26.3
@@ -589,6 +629,16 @@ pub fn fuse(m: &Mob) -> i32 {
 }
 pub fn primed(m: &Mob) -> bool {
     fuse(m) >= 0
+}
+/// `SulfurCube.tick`: tickFuse removes the cube before super.tick can handle
+/// its portal. This happens even when the TNT explosion gamerule is off.
+pub fn removes_before_portal_tick(m: &Mob) -> bool {
+    if m.species() != super::Species::SulfurCube {
+        return false;
+    }
+    let fuse = fuse(m);
+    let next_fuse = if fuse > 0 { fuse - 1 } else { fuse };
+    next_fuse == 0 && archetype(m).is_some_and(|a| a.explosion.is_some())
 }
 /// `hurtServer`'s priming by a hit whose direct entity is a burning
 /// `AbstractArrow` (an arrow or a trident): a cube with a block that can
@@ -807,13 +857,19 @@ pub fn register(m: &mut Mob) {
     set_size(m, 1, false);
     m.health = m.attrs.max_health;
 }
-/// `setSize`: health 4 per size, speed 0.2 + 0.1 * size; size 1 makes an
-/// adult a baby.
+/// `setSize`: the max health (`setCubeMobHealth`, 4 per size) and movement
+/// speed (0.2 + 0.1 * size, in floats) bases, which the save then holds;
+/// size 1 makes an adult a baby.
 pub fn set_size(m: &mut Mob, size: i32, update_health: bool) {
+    use super::finalize::{Attr, set_base};
     let size = size.clamp(1, 127);
     m.extra.size = size;
-    m.attrs.max_health = (4 * size) as f32;
-    m.attrs.speed = f64::from(0.2f32 + 0.1f32 * size as f32);
+    set_base(m, Attr::MaxHealth, f64::from(4 * size));
+    set_base(
+        m,
+        Attr::MovementSpeed,
+        f64::from(0.2f32 + 0.1f32 * size as f32),
+    );
     if update_health {
         m.health = m.attrs.max_health;
         if size == 1 && !m.is_baby() {
@@ -866,6 +922,10 @@ thread_local! {
     /// `primeTime` and `tickFuse` read (shared by the game each tick and on
     /// a rule change).
     static TNT_EXPLODES: Cell<bool> = const { Cell::new(true) };
+}
+/// The `tnt_explodes` rule this thread's sulfur cubes read.
+pub fn tnt_explodes() -> bool {
+    TNT_EXPLODES.get()
 }
 /// Share the `tnt_explodes` rule with this thread's sulfur cubes.
 pub fn set_tnt_explodes(on: bool) {
@@ -1381,11 +1441,12 @@ impl Goal for SulfurTempt {
                 }
             })
         };
-        // Attributes.TEMPT_RANGE 8.
+        // Attributes.TEMPT_RANGE 8, scaled by visibility (floor 2).
+        let range = (8.0 * p.visibility_percent(m.species())).max(2.0);
         let ok = p.alive
             && !p.spectator
             && (wants(&p.main_hand) || wants(&p.off_hand))
-            && m.distance_sqr(p.position) <= 64.0;
+            && m.distance_sqr(p.position) <= range * range;
         self.player = ok.then_some(p.eye);
         ok
     }
@@ -1453,13 +1514,24 @@ pub fn from_nbt(m: &mut Mob, tag: &horizon_core::nbt::Tag) {
     };
     m.extra.age = int("Age").unwrap_or(0);
     m.extra.age_locked = int("AgeLocked").unwrap_or(0) != 0;
-    let health = m.health;
     set_size(m, int("Size").unwrap_or(0) + 1, false);
-    m.health = if tag.get("Health").is_some() {
-        health
-    } else {
-        m.attrs.max_health
-    };
+    // LivingEntity's load applies the saved bases after the size, so they win.
+    if let Some(Tag::List(saved)) = tag.get("attributes") {
+        use super::finalize::{Attr, set_base};
+        for a in saved {
+            let attr = match crate::save::text(a.get("id")).as_deref() {
+                Some("minecraft:max_health") => Attr::MaxHealth,
+                Some("minecraft:movement_speed") => Attr::MovementSpeed,
+                _ => continue,
+            };
+            if let Some(base) = crate::save::float(a.get("base")) {
+                set_base(m, attr, base);
+            }
+        }
+    }
+    // The saved Health, not the one the living load's Health Boost clamp cut
+    // to the unsized maximum: vanilla sizes the cube before `setHealth`.
+    m.health = crate::save::float(tag.get("Health")).map_or(m.attrs.max_health, |h| h as f32);
     m.extra.flag2 = int("wasOnGround").unwrap_or(0) != 0;
     m.extra.ints[3] = int("pickup_timer").unwrap_or(0);
     m.extra.scratch[3] = int("from_bucket").unwrap_or(0);

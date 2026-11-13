@@ -6,6 +6,7 @@ mod borrowed;
 mod calls;
 mod host;
 pub use host::{generate_coverage, generate_host};
+mod trait_roles;
 mod ty;
 
 use crate::capability_providers::key_shapes;
@@ -65,6 +66,7 @@ pub(super) const IMPORTS: &[&str] = &[
     "EnchantmentDamageEffects",
     "PoiTypeExtensions",
     "VillagerProfessions",
+    "LoadConditions",
     "CauldronFluidContents",
     "BlockAndTintGetter",
     "GroundLevel",
@@ -131,6 +133,7 @@ const EXPORTS: &[&str] = &[
     "MenuPart",
     "FluidPart",
     "ServerReloadListener",
+    "LoadCondition",
     "GameTestFunction",
     "ClientReloadListener",
     "BiomeColorResolver",
@@ -150,7 +153,12 @@ const EXPORTS: &[&str] = &[
 /// (`ResourceHandler<ItemResource>`), each instance of a generic one its own export. Set once,
 /// by `surface`.
 pub(super) fn exports() -> &'static [&'static str] {
-    EXPORTED.get().map_or(EXPORTS, Vec::as_slice)
+    trait_roles::exports()
+}
+
+/// All imported traits, including discovered per-item declarations.
+pub(super) fn imports() -> &'static [&'static str] {
+    trait_roles::imports()
 }
 
 /// Whether the game also hands a mod objects of exported trait `owner` (a capability's handler,
@@ -182,32 +190,28 @@ const WORKERS: &[&str] = &[
     "SectionGeometry",
 ];
 
-/// What a call of `method` is to the runtime, for its limits and its wait.
+/// What a call of `method` is to the runtime, for its limits and its wait. A method given the
+/// worldgen context (`alter_ground`, a worldgen Part method) runs on the worldgen workers too.
 pub(super) fn call_class(types: &ty::Types<'_>, method: &Method) -> &'static str {
-    if WORKERS.contains(&method.owner)
-        || method
-            .params
-            .iter()
-            .any(|(_, ty)| matches!(ty, ty::Ty::Dyn(name, _) if name == "ChunkDiskHost"))
-    {
+    if WORKERS.contains(&method.owner) || takes(types, method, &["WorldgenHost", "ChunkDiskHost"]) {
         "super::Call::Worker"
-    } else if loads(types, method) {
+    } else if takes(types, method, LOAD_CONTEXTS) {
         "super::Call::Load"
     } else {
         "super::Call::Hook"
     }
 }
 
-/// Whether `method` is a load-phase call: one of its arguments is a load-phase context.
-fn loads(types: &ty::Types<'_>, method: &Method) -> bool {
+/// Whether one of `method`'s arguments is one of `contexts`.
+fn takes(types: &ty::Types<'_>, method: &Method, contexts: &[&str]) -> bool {
     method.params.iter().any(|(_, ty)| {
         let ty = match ty {
             ty::Ty::Ref(inner, _) => &**inner,
             ty => ty,
         };
         match ty {
-            ty::Ty::Dyn(name, _) => LOAD_CONTEXTS.contains(&name.as_str()),
-            ty::Ty::Named(def) => LOAD_CONTEXTS
+            ty::Ty::Dyn(name, _) => contexts.contains(&name.as_str()),
+            ty::Ty::Named(def) => contexts
                 .iter()
                 .any(|name| types.defs[*def].rust.rsplit("::").next() == Some(*name)),
             _ => false,
@@ -218,8 +222,6 @@ fn loads(types: &ty::Types<'_>, method: &Method) -> bool {
 /// A trait object that crosses without methods: a provider of a mod's own handler type,
 /// erased (`Arc<dyn Any + Send + Sync>`), which only mods of its group take back.
 pub(super) const ERASED: &str = "Any";
-
-static EXPORTED: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
 
 /// An owner as written (`ResourceHandler<ItemResource>`): the trait's path, and its type arguments.
 fn owner_parts(owner: &str) -> Result<(Vec<String>, Vec<syn::Type>), String> {
@@ -328,21 +330,22 @@ pub(super) fn surface<'a>(
 ) -> Result<Surface<'a>, String> {
     let mut types = Types::new(Index::new(root, included))?;
     let api = types.index.module("mod_api", &[])?;
-    let mut exported: Vec<&'static str> = EXPORTS.to_vec();
+    let (imported, mut exported, paths) = trait_roles::declared(root)?;
+    types.index.read.borrow_mut().extend(paths);
     for shape in key_shapes(&mut types.index)? {
         for owner in [shape.handler.clone(), shape.provider()] {
-            if !exported.iter().any(|e| *e == owner) {
-                exported.push(Box::leak(owner.into_boxed_str()));
+            if !exported.contains(&owner) {
+                exported.push(owner);
             }
         }
     }
-    let _ = EXPORTED.set(exported);
+    trait_roles::select(imported, exported);
     let mut methods = Vec::new();
     let mut unbound = Vec::new();
     let mut excused = Vec::new();
     let mut parts = Vec::new();
     let hooks = hook_ids(&mut types)?;
-    for owner in IMPORTS.iter().chain(exports()) {
+    for owner in imports().iter().chain(exports()) {
         let (path, args) = owner_parts(owner)?;
         let Found::Item(id) = types.index.resolve_path(api, &path)? else {
             return Err(format!("{owner} is not a mod_api trait"));
@@ -456,8 +459,26 @@ pub(super) fn surface<'a>(
 /// guest needs no wire call. Its trait methods are the actual imports.
 pub(super) fn frame_accessor(method: &Method) -> bool {
     method.params.is_empty()
-        && IMPORTS.contains(&method.owner)
-        && matches!(&method.ret, Ty::Dyn(name, _) if IMPORTS.iter().any(|owner| owner.rsplit("::").next() == Some(name.as_str())))
+        && imports().contains(&method.owner)
+        && matches!(&method.ret, Ty::Dyn(name, _) if imports().iter().any(|owner| owner.rsplit("::").next() == Some(name.as_str())))
+}
+
+/// A fallible borrowed frame getter sends only its availability result across
+/// Wire. The actual borrowed host remains in the synchronous native call frame.
+pub(super) fn fallible_frame_accessor(method: &Method) -> Option<(&str, bool, &Ty)> {
+    if !method.params.is_empty() || !imports().contains(&method.owner) {
+        return None;
+    }
+    let Ty::Result(ok, error) = &method.ret else {
+        return None;
+    };
+    let Ty::Dyn(name, mutable) = &**ok else {
+        return None;
+    };
+    imports()
+        .iter()
+        .any(|owner| owner.rsplit("::").next() == Some(name.as_str()))
+        .then_some((name.as_str(), *mutable, &**error))
 }
 
 /// The coverage check: every method of the bound traits crosses to wasm, or its doc says why
@@ -845,6 +866,40 @@ mod tests {
                     );
                 }
                 super::generate(&root, &included).unwrap();
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn a_worldgen_part_method_crosses_and_waits_for_its_group_as_a_worker_call() {
+        std::thread::Builder::new()
+            .stack_size(64 << 20)
+            .spawn(|| {
+                let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+                let generated = crate::sources(&root, crate::FillMode::Require).unwrap();
+                let included = [
+                    ("mod_api_generated.rs", generated.hooks.as_str()),
+                    ("mod_api_generated_host.rs", generated.host.as_str()),
+                    ("mod_api_host_areas.rs", generated.areas.as_str()),
+                ];
+                let providers = crate::capability_providers::generate(&root, &included)
+                    .unwrap()
+                    .0;
+                let mut surface_included = included.to_vec();
+                surface_included.push(("capability_providers_generated.rs", providers.as_str()));
+                let surface = super::surface(&root, &surface_included).unwrap();
+                let class = |name: &str| {
+                    let method = surface
+                        .methods
+                        .iter()
+                        .find(|method| method.owner == "BlockPart" && method.name == name)
+                        .unwrap_or_else(|| panic!("BlockPart::{name} does not cross"));
+                    super::call_class(&surface.types, method)
+                };
+                assert_eq!(class("on_tree_grow"), "super::Call::Worker");
+                assert_eq!(class("is_ladder"), "super::Call::Hook");
             })
             .unwrap()
             .join()

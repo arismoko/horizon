@@ -2,6 +2,7 @@
 //! the parts of them commands use: `.mcfunction` functions (with macros and
 //! line continuation), function tags and predicates.
 use crate::resource_source::ResourceSource;
+mod slot_sources;
 use crate::zip::Zip;
 use std::{
     collections::BTreeMap,
@@ -204,6 +205,7 @@ pub fn feature_packs(resources: &Path) -> Vec<DataPack> {
                 required: false,
                 position: crate::packs::Position::Bottom,
                 fixed: false,
+                hidden: false,
             });
             packs.push(pack);
         }
@@ -265,6 +267,7 @@ pub fn screen_packs(dir: &Path, resources: &Path) -> Vec<crate::pack_screen::Pac
             required: false,
             position: Position::Top,
             fixed: false,
+            hidden: false,
         })
         .collect();
     infos.push(PackInfo {
@@ -281,6 +284,7 @@ pub fn screen_packs(dir: &Path, resources: &Path) -> Vec<crate::pack_screen::Pac
         required: false,
         position: Position::Bottom,
         fixed: false,
+        hidden: false,
     });
     for p in feature_packs(resources) {
         infos.extend(p.selection);
@@ -680,6 +684,8 @@ pub struct DataStore {
     pub item_modifiers: BTreeMap<String, serde_json::Value>,
     /// `slot_source` definitions, evaluated against a command's live accessor.
     pub slot_sources: BTreeMap<String, serde_json::Value>,
+    /// Slot-source tags belong to the same loaded snapshot as their definitions.
+    pub slot_source_tags: BTreeMap<String, Vec<(String, bool)>>,
     /// The content tables' raw files from the packs after the built-in one:
     /// Server JSON resources (recipes, loot, enchantments, songs, instruments,
     /// predicates, modifiers, advancements, registries, data maps and tags), by
@@ -725,16 +731,20 @@ fn resource_id(file: &str, kind: &str, ext: &str) -> Option<String> {
 /// The entry files of mods' datapack registries in `packs`, lowest pack first: each file
 /// `data/<entry namespace>/<registry namespace>/<registry path>/<entry>.json` of a registry
 /// in `registries` (`(namespace, path)` of its key), by that path, each path's versions in
-/// pack order. The folders are the mods' own, so the fixed kinds `DataStore` lists never
-/// cover them.
+/// pack order, each with its pack's id. Only the highest accepted version is read into
+/// the returned map. `fallback` permits trying lower versions after a condition refusal;
+/// registered conditions disable fallback so losing callbacks never run. The folders
+/// are the mods' own, so the fixed kinds `DataStore` lists never cover them.
 pub fn registry_files(
     packs: &[&DataPack],
     registries: &[(&str, &str)],
-) -> BTreeMap<String, Vec<Vec<u8>>> {
+    fallback: bool,
+    mut accepts: impl FnMut(&str, &str, &[u8]) -> bool,
+) -> Result<BTreeMap<String, Vec<(String, Vec<u8>)>>, Box<mod_api::DatapackLoadError>> {
     let mut kinds: Vec<&str> = registries.iter().map(|(namespace, _)| *namespace).collect();
     kinds.sort_unstable();
     kinds.dedup();
-    let mut files: BTreeMap<String, Vec<Vec<u8>>> = BTreeMap::new();
+    let mut sources: BTreeMap<String, Vec<&DataPack>> = BTreeMap::new();
     for pack in packs {
         for file in pack.list_kinds(&kinds) {
             let in_registry = file
@@ -749,13 +759,59 @@ pub fn registry_files(
                                 .is_some_and(|rest| rest.starts_with('/'))
                         })
                 });
-            if in_registry && let Some(bytes) = pack.read(&file) {
-                files.entry(file).or_default().push(bytes);
+            if in_registry {
+                sources.entry(file).or_default().push(pack);
             }
         }
     }
-    files
+    let mut files = BTreeMap::new();
+    let mut total = 0;
+    for (file, packs) in sources {
+        for pack in packs.into_iter().rev() {
+            // Read at most the custom-registry limit plus a refusal byte, including
+            // decompressed output. No losing payload remains resident.
+            let bytes = pack
+                .source
+                .read_head(&file, mod_api::MAX_DATAPACK_ENTRY_BYTES as u64 + 1)
+                .unwrap_or_default();
+            let oversized = bytes.len() > mod_api::MAX_DATAPACK_ENTRY_BYTES;
+            if oversized || accepts(&file, &pack.id, &bytes) {
+                total += bytes.len();
+                if !oversized && total > mod_api::MAX_SNAPSHOT_BYTES {
+                    let (namespace, path) = registries
+                        .iter()
+                        .find(|(namespace, path)| {
+                            file.splitn(3, '/').nth(2).is_some_and(|rest| {
+                                rest.starts_with(&format!("{namespace}/{path}/"))
+                            })
+                        })
+                        .expect("listed custom registry file");
+                    let rest = file.strip_prefix("data/").unwrap();
+                    let (entry_namespace, rest) = rest.split_once('/').unwrap();
+                    let entry = rest
+                        .strip_prefix(&format!("{namespace}/{path}/"))
+                        .unwrap()
+                        .strip_suffix(".json")
+                        .unwrap();
+                    return Err(Box::new(mod_api::DatapackLoadError {
+                        registry: format!("{namespace}:{path}"),
+                        entry: format!("{entry_namespace}:{entry}"),
+                        file,
+                        pack: pack.id.clone(),
+                        reason: mod_api::DatapackLoadReason::CandidateTooLarge,
+                    }));
+                }
+                files.insert(file.clone(), vec![(pack.id.clone(), bytes)]);
+                break;
+            }
+            if !fallback {
+                break;
+            }
+        }
+    }
+    Ok(files)
 }
+
 impl DataStore {
     pub fn load(packs: &[&DataPack]) -> Self {
         Self::load_impl(packs, None)
@@ -823,7 +879,7 @@ impl DataStore {
                     && let Some(bytes) = pack.read(&f)
                     && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
                 {
-                    if conditions.is_some_and(|conditions| !conditions.allows(&v)) {
+                    if conditions.is_some_and(|conditions| !conditions.allows_file(&v, &f)) {
                         continue;
                     }
                     let entries = tag_entries(&v);
@@ -842,6 +898,16 @@ impl DataStore {
                     && let Ok(v) = serde_json::from_slice(&bytes)
                 {
                     s.item_modifiers.insert(id, v);
+                } else if let Some(id) = resource_id(&f, "tags/slot_source", ".json")
+                    && let Some(bytes) = pack.read(&f)
+                    && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
+                {
+                    let entries = tag_entries(&v);
+                    let slot = s.slot_source_tags.entry(id).or_default();
+                    if v["replace"].as_bool() == Some(true) {
+                        slot.clear();
+                    }
+                    slot.extend(entries);
                 } else if let Some(id) = resource_id(&f, "slot_source", ".json")
                     && let Some(bytes) = pack.read(&f)
                     && let Ok(v) = serde_json::from_slice(&bytes)
@@ -851,8 +917,10 @@ impl DataStore {
             }
         }
         if let Some(conditions) = conditions {
-            s.predicates.retain(|_, value| conditions.allows(value));
-            s.item_modifiers.retain(|_, value| conditions.allows(value));
+            s.predicates
+                .retain(|id, value| conditions.allows_id(value, "predicate", id));
+            s.item_modifiers
+                .retain(|id, value| conditions.allows_id(value, "item_modifier", id));
         }
         s
     }
@@ -1945,7 +2013,7 @@ mod tests {
             ));
         }
         let refs = packs.iter().collect::<Vec<_>>();
-        let files = registry_files(&refs, &[("example", "spell")]);
+        let files = registry_files(&refs, &[("example", "spell")], true, |_, _, _| true).unwrap();
         assert_eq!(
             files.keys().map(String::as_str).collect::<Vec<_>>(),
             [
@@ -1955,9 +2023,23 @@ mod tests {
         );
         assert_eq!(
             files["data/example/example/spell/fire.json"],
-            vec![b"low".to_vec(), b"high".to_vec()]
+            vec![("high".to_owned(), b"high".to_vec())]
         );
-        assert!(registry_files(&refs, &[]).is_empty());
+        assert!(
+            registry_files(&refs, &[], true, |_, _, _| true)
+                .unwrap()
+                .is_empty()
+        );
+        // Oversized losing files are never read; an oversized winner is retained
+        // only as the bounded refusal prefix, not as its full payload.
+        let path = "data/example/example/spell/fire.json";
+        std::fs::write(root.join("low").join(path), vec![b' '; 1_048_577]).unwrap();
+        let files = registry_files(&refs, &[("example", "spell")], true, |_, _, _| true).unwrap();
+        assert_eq!(files[path], vec![("high".to_owned(), b"high".to_vec())]);
+        std::fs::write(root.join("high").join(path), vec![b' '; 1_048_578]).unwrap();
+        let files = registry_files(&refs, &[("example", "spell")], true, |_, _, _| true).unwrap();
+        assert_eq!(files[path].len(), 1);
+        assert_eq!(files[path][0].1.len(), 1_048_577);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

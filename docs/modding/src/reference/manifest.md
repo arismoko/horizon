@@ -55,8 +55,8 @@ refuse the manifest. Native mods may declare top-level `internals`, an array of 
 
 API points use top-level declarations.
 API function listeners use top-level `[[inject]]`: `id`, `at`, lowercase `kind`, `with`, and optional `hash`,
-with optional `access` (default `api`) and `priority` (default 0). `head`, `return` and `replace` are supported
-for API points; `access = "internals"` is refused by name. Use `[[native.mixin]]` for game internals.
+with optional `priority` (default 0). `head`, `return` and `replace` are supported.
+The removed `access` key is refused by name. Use `[[native.mixin]]` for game internals.
 Unknown fields are refused by the schema. API function declarations use only `[[inject]]`.
 See [Injections](../injections.md) for the fields and point injections, and
 [Native mods](../how-to/native-mods.md#named-hook-points) for the named hook contracts.
@@ -64,12 +64,11 @@ See [Injections](../injections.md) for the fields and point injections, and
 A module has a unique, nonempty `id` (one id space with the injections), a `file` naming the game source
 file that receives it, a `name` that is a Rust module identifier, and a `source` payload file under
 `src/`, holding the module's items without an outer wrapper. An optional `visibility` is exactly
-`"pub"` or `"pub(crate)"`, the default. It is forwarded to horizon-mixins as `[[module]]`; see
-[Mixins](../mixins.md).
+`"pub"` or `"pub(crate)"`, the default. See [Support modules](../support-modules.md).
 
 `[[inject]]` only fills compiled slots and never compiles game code. Native source edits
 use `[[native.mixin]]` with `id`, `target`, uppercase `kind`, `helper` and upstream
-options. `[[native.bridge]]` provides bridge declarations; `[[native.state]]` is refused. See [Mixins](../mixins.md) for the vocabulary and trust boundary.
+options. `[[native.loop]]`, `[[native.bridge]]` and `[[native.module]]` complete the route; `[[native.state]]` is refused. See [The native route](../native-route.md) for every table, its fields and its refusals.
 
 A wasm mod adds `[wasm]` instead, written by `cargo horizon-mod build --wasm`
 ([Building to `mod.wasm`](../how-to/wasm-mods.md)):
@@ -84,10 +83,25 @@ A wasm mod adds `[wasm]` instead, written by `cargo horizon-mod build --wasm`
 At load `mod.wasm` must start with `\0asm`, be at most 64 MiB and match `sha512`; each failure refuses the
 package with its reason.
 
+A wasm mod or library may declare the memory it expects its dependency group to have, as top-level
+`wasm_memory_mib`: an integer from 1 to 4096 (wasm32's 4 GiB), in MiB. The group gets the largest value any
+member declares; with none declared it gets 1024 (1 GiB). The instance's cap (`wasm.memory_cap_mib` in
+`horizon-mods.txt`, 4096 unless the player lowers it) bounds it: a declaration above the cap refuses the whole
+group at load, naming the group and both numbers. Native mods are not wasm groups: they share the game's memory,
+and the key means nothing to them. See [Memory](../how-to/wasm-mods.md#memory).
+
 Top-level `[dependencies]` declares other mods by id: a semver requirement string, or
 `{ version = "^1", optional = true }`. These versions refer to `horizon-mod.toml`, not Cargo metadata.
 Content layers load in dependency order. A missing required dependency, incompatible installed version or dependency cycle refuses startup; an absent optional dependency is ignored. Native code dependencies additionally require API packages
 ([Dependencies between trait mods](../concepts/trait-mods.md#dependencies-between-trait-mods)).
+
+Top-level `[properties]` holds free-form values other mods read: strings, integers, floats and booleans only,
+at most 64 keys and 8 KiB (keys and strings by length, 8 bytes per number, 1 per boolean); a table, an array
+or a larger table refuses the package. A mod reads any loaded package's manifest through
+`context.mods().get(id)`: `PackageInfo` gives `name`, `description`, `authors`, `license`, `homepage`,
+`issues`, `icon_path`, `runtime` (`Native`, `Wasm`, or `None` for content), `dependencies` (id, version
+requirement, optional) and `property(key)`, the same on client and server (NeoForge's
+`ModContainer.getModInfo`, `IModInfo` and `getModProperties`).
 
 ## Original Java jar layers
 

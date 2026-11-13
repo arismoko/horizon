@@ -1160,14 +1160,14 @@ impl Game<'_> {
         };
         let changed = self.player_selected_slot(player) != Some(slot);
         if !self.native_as_player_handle(player, |game| {
-            game.selected = slot;
             if changed
                 && game
                     .using
                     .is_some_and(|(held, _)| held != crate::game::shield::OFFHAND_SLOT)
             {
-                game.using = None;
+                game.stop_active_item_use();
             }
+            game.selected = slot;
         }) {
             return false;
         }
@@ -1355,6 +1355,15 @@ impl Game<'_> {
             return Some(guest.brand.clone());
         }
         (self.native_acting_player() == Some(player)).then(String::new)
+    }
+
+    /// The plugin channels the player's client announced (`minecraft:register` less
+    /// `minecraft:unregister`), kept by its connection from configuration on.
+    pub(super) fn player_announced_channels(&self, player: PlayerRef) -> Option<Vec<String>> {
+        if let Some(guest) = self.online_player_record(player) {
+            return Some(guest.sender.announced.list());
+        }
+        (self.native_acting_player() == Some(player)).then(Vec::new)
     }
 
     /// Validate identity without requiring a live body: sending to an online
@@ -1692,7 +1701,7 @@ impl Game<'_> {
             host.hub
                 .chat_filter
                 .as_ref()
-                .is_none_or(|g| !g.filter.matches(text)),
+                .is_none_or(|g| !g.matches(text)),
         )
     }
     /// A system line in every player's chat and the server's log.
@@ -2479,6 +2488,7 @@ mod tests {
         let at = horizon_core::geometry::Vec3::new(1.0, 70.0, 1.0);
         game.orbs.push(horizon_client::entities::ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             rotation: [0.0, 0.0],
             join: Default::default(),
             id: 40,
@@ -2491,6 +2501,7 @@ mod tests {
             count: 1,
             ticks: 0,
             health: 5,
+            air: 300,
             no_gravity: true,
             following: None,
         });
@@ -2675,7 +2686,7 @@ mod tests {
             Box::new(Watcher(std::sync::Arc::clone(&heard))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 super::super::native_item_places::tests::open_to_lan(game);
                 let here = game.dim.id();
@@ -3062,7 +3073,7 @@ mod tests {
 
     #[test]
     fn a_registered_argument_type_parses_and_completes_its_values() {
-        mod_api::__private::part_tests::install_parts_fixture(&[mod_api::ModEntry::new(
+        mod_platform::__private::part_tests::install_parts_fixture(&[mod_api::ModEntry::new(
             "test",
             Box::new(Machines),
         )])
@@ -3202,7 +3213,7 @@ mod tests {
         }
         let changed = Arc::new(AtomicBool::new(false));
         let registrations = Arc::new(AtomicUsize::new(0));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new(
                 "refresh",
                 Box::new(ChangingCommands {
@@ -3324,7 +3335,7 @@ mod tests {
             }
         }
         let heard = Arc::new(Mutex::new(Vec::new()));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new(
                 "typed_commands",
                 Box::new(Commands(heard.clone())),
@@ -3493,7 +3504,7 @@ mod tests {
             }
         }
         let heard = Arc::new(Mutex::new(Vec::new()));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new(
                 "origins",
                 Box::new(Commands(heard.clone())),
@@ -3596,7 +3607,7 @@ mod tests {
             Box::new(Commands(heard.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 super::super::native_item_places::tests::open_to_lan(game);
                 game.register_native_commands();
@@ -3829,7 +3840,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod fake_action_tests {
+pub(super) mod fake_action_tests {
     use super::super::Game;
     use super::{Acting, ActionOutcome, ActionRefused, FakeEffect, PlayerAction};
     use horizon_client::items::ItemStack;
@@ -3837,7 +3848,11 @@ mod fake_action_tests {
 
     /// A server with a real guest (uuid 1) and a fake (uuid 2) standing at (0.5, 64, 0.5) on
     /// a stone floor, holding `item`, in game mode `mode`: the fake's handle and both conns.
-    fn fake(game: &mut Game<'_>, item: Option<&str>, mode: i32) -> (PlayerRef, u32, u32) {
+    pub(in crate::game) fn fake(
+        game: &mut Game<'_>,
+        item: Option<&str>,
+        mode: i32,
+    ) -> (PlayerRef, u32, u32) {
         super::super::bossbars::audience_tests::add_real_and_fake(game);
         game.options.dedicated = Some(Vec::new());
         for (x, z) in (-1..=1).flat_map(|x| (-1..=1).map(move |z| (x, z))) {
@@ -4599,7 +4614,7 @@ mod fake_action_tests {
             }
         }
         let heard = Arc::new(AtomicBool::new(false));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new(
                 "deny",
                 Box::new(Deny(heard.clone())),
@@ -4774,10 +4789,18 @@ mod fake_action_tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             // Half a fist's cooldown (delay 5 ticks): the charge is (2 + 0.5) / 5 = 0.5.
             with_game(|game| {
                 let (player, fake_conn, _) = fake(game, None, 0);
+                // A placed fake participates in actions, not online-player tracking.
+                // The packet attack gate must still reach the hook and damage below.
+                let host = game.lan.as_ref().unwrap();
+                let guest = host.hub.guest(fake_conn).unwrap();
+                assert!(guest.is_fake());
+                assert!(guest.placed);
+                assert_eq!(guest.dimension, host.hub.config.dimension);
+                assert!(!guest.participates_online());
                 game.lan
                     .as_mut()
                     .unwrap()
@@ -4906,7 +4929,7 @@ mod fake_action_tests {
             Box::new(ChargeWatcher(seen.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let (player, fake_conn, _) = fake(game, None, 0);
                 game.lan
@@ -5413,7 +5436,7 @@ mod player_rule_tests {
             }
         }
         let mods = vec![mod_api::ModEntry::new("veto", Box::new(Veto))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_guests(|game| {
                 let a = game.player(12).unwrap();
                 let overworld = "minecraft:overworld";
@@ -5500,5 +5523,72 @@ mod player_rule_tests {
                 .unwrap();
             assert_eq!(seen, (Some(109), Some(true)));
         });
+    }
+}
+
+// Dedicated network settings stay engine-private; never expose the forwarding secret.
+#[allow(dead_code)]
+impl Game<'_> {
+    /// Whether the dedicated server runs in online mode (`online-mode` of server.properties):
+    /// its players sign in with their accounts. None off a dedicated server and before it listens.
+    /// API @API:server_settings@.
+    pub(super) fn native_online_mode(&self) -> Option<bool> {
+        Some(online_mode_of(&self.dedicated_lan()?.shared.config))
+    }
+    /// The port the dedicated server listens on: `server-port` of server.properties, or the
+    /// `--port` it was started with. None off a dedicated server and before it listens.
+    /// API @API:server_settings@.
+    pub(super) fn native_server_port(&self) -> Option<u16> {
+        Some(self.dedicated_lan()?.port)
+    }
+    /// How the dedicated server takes its players from a proxy: `"velocity"` when it signs the
+    /// forwarded player information with `forwarding.secret` (offline mode behind Velocity),
+    /// `"none"` when it doesn't; None off a dedicated server and before it listens. The secret
+    /// itself is never returned. API @API:server_settings@.
+    pub(super) fn native_proxy_forwarding(&self) -> Option<&'static str> {
+        Some(proxy_forwarding_of(&self.dedicated_lan()?.shared.config))
+    }
+    /// The listening socket of a dedicated server; None on any other side and before it listens.
+    fn dedicated_lan(&self) -> Option<&horizon_client::lan::Lan> {
+        self.options.dedicated.as_ref()?;
+        Some(&self.lan.as_ref()?.hub.lan)
+    }
+}
+
+/// The online mode a dedicated server's network config carries: it has an
+/// `OnlineMode` key (and so signs its logins) only in online mode.
+fn online_mode_of(config: &horizon_client::lan::NetConfig) -> bool {
+    config.online.is_some()
+}
+
+/// The proxy forwarding a dedicated server's network config carries: the secret
+/// is set only offline behind a proxy (game/dedicated.rs `forwarding_secret`).
+fn proxy_forwarding_of(config: &horizon_client::lan::NetConfig) -> &'static str {
+    if config.forwarding_secret.is_some() {
+        "velocity"
+    } else {
+        "none"
+    }
+}
+
+#[cfg(test)]
+mod network_settings_tests {
+    use super::*;
+    #[test]
+    fn server_settings_follow_the_network_config() {
+        use horizon_client::lan::{NetConfig, OnlineMode};
+        let mut config = NetConfig::loopback(25565, String::new(), 20);
+        // online-mode=false, no proxy: no key, no forwarding secret.
+        assert!(!online_mode_of(&config));
+        assert_eq!(proxy_forwarding_of(&config), "none");
+        // online-mode=false behind Velocity: the secret is set.
+        config.forwarding_secret = Some(b"secret".to_vec());
+        assert!(!online_mode_of(&config));
+        assert_eq!(proxy_forwarding_of(&config), "velocity");
+        // online-mode=true: the server's key, and forwarding stays off.
+        config.forwarding_secret = None;
+        config.online = Some(std::sync::Arc::new(OnlineMode::generate(false).unwrap()));
+        assert!(online_mode_of(&config));
+        assert_eq!(proxy_forwarding_of(&config), "none");
     }
 }

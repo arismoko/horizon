@@ -1,12 +1,12 @@
-//! Internal stage-2 action coordinator. No public hook, transport, or menu route.
+//! Internal action coordinator shared by storage adapters.
 //!
 //! The storage here is deliberately encapsulated: every edit advances a complete
-//! menu epoch, including equal writes and rollback. A future route must move its
-//! authoritative storage behind this boundary before using these decisions.
-//! Merely snapshotting the existing publicly mutable menus would not catch ABA.
+//! menu epoch, including equal writes and rollback. Actual game menu owners use
+//! the engine adapter; resource-free fixtures use their own typed storage view.
+//! Both use this same admission, dispatch and savepoint lifetime.
 //!
-//! This module is dormant until stage 3. Its only callers today are the internal
-//! harness; allow dead code at this boundary rather than exporting an API.
+//! Hook routes are not connected yet; allow dead code at this internal boundary
+//! during the stage-3 migration rather than exporting a public token API.
 #![allow(dead_code)]
 
 use super::After as Effect;
@@ -14,8 +14,13 @@ use horizon_client::items::ItemStack;
 use mod_api::{EntityRef, WorldEpoch};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+#[path = "menu_owner.rs"]
+mod menu_owner;
 #[path = "decision_storage.rs"]
 mod storage;
+pub(in crate::game) use menu_owner::{MenuOwner, OwnerStamp};
+#[path = "decision_engine.rs"]
+pub(in crate::game) mod engine;
 pub(in crate::game) use storage::ActionHost;
 pub(super) use storage::{ActiveAction, Journal};
 
@@ -163,24 +168,43 @@ impl Plan {
 
 /// Typed whole-menu read set, conservative until all real route writes can
 /// supply complete per-slot epochs. Snapshots supplement, never replace, epoch.
-struct Reads {
+pub(in crate::game) struct Reads {
     epoch: Generation,
     menu: MenuState,
 }
 
-struct Proposed {
+struct Proposed<T, R, P> {
     identity: Identity,
     savepoint: u64,
-    target: Menu,
-    reads: Reads,
-    plan: FrozenPlan,
+    target: T,
+    reads: R,
+    plan: P,
 }
 
 /// Opaque, deliberately non-Clone and non-Copy. Single use is a by-value
 /// property: `apply` takes the decision, so every terminal outcome consumes
 /// it and a second application does not compile. A decision dropped without
 /// `apply` publishes nothing; the action guard closes its savepoint.
-pub(in crate::game) struct Decision(Proposed);
+pub(in crate::game) struct Decision<T = Menu, R = Reads, P = FrozenPlan>(Proposed<T, R, P>);
+
+/// Storage-specific capture, validation and frozen writes. The coordinator owns
+/// admission, identity checks, dispatch, consumption and savepoint lifetime for
+/// both real menu owners and the resource-free storage fixtures.
+pub(in crate::game) trait ActionTarget<H: ActionHost>: Clone {
+    type Reads;
+    type View: ?Sized;
+    type Plan;
+    type Frozen;
+
+    fn id(&self) -> MenuId;
+    fn keep(&self, _host: &mut H) {}
+    fn capture(&self, host: &H) -> Result<Self::Reads, Outcome>;
+    fn view(reads: &Self::Reads) -> &Self::View;
+    fn freeze(&self, reads: &Self::Reads, plan: Self::Plan) -> Result<Self::Frozen, InvalidReason>;
+    fn empty(plan: &Self::Frozen) -> bool;
+    fn validate(&self, host: &H, reads: &Self::Reads) -> Result<(), Outcome>;
+    fn apply(&self, host: &mut H, plan: Self::Frozen);
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::game) enum StaleReason {
@@ -268,9 +292,12 @@ fn validate_state(state: &MenuState) -> Result<(), InvalidReason> {
     Ok(())
 }
 
-impl Proposed {
-    fn validate<H: ActionHost>(&self, host: &H) -> Result<(), Outcome> {
-        if !host.action_is_current(self.savepoint, self.target.id) {
+impl<T, R, P> Proposed<T, R, P> {
+    fn validate<H: ActionHost>(&self, host: &H) -> Result<(), Outcome>
+    where
+        T: ActionTarget<H, Reads = R, Frozen = P>,
+    {
+        if !host.action_is_current(self.savepoint, self.target.id()) {
             return Err(Outcome::InvalidInput(if host.has_transaction() {
                 InvalidReason::ForeignSavepoint
             } else {
@@ -294,24 +321,13 @@ impl Proposed {
         {
             return Err(Outcome::Stale(StaleReason::Target));
         }
-        let inner = self.target.inner.borrow();
-        validate_state(&inner.state).map_err(Outcome::InvalidInput)?;
-        if inner.state.instance != self.reads.menu.instance {
-            return Err(Outcome::Stale(StaleReason::MenuInstance));
-        }
-        if inner.epoch != self.reads.epoch {
-            return Err(Outcome::Stale(StaleReason::Mutation));
-        }
-        if inner.state != self.reads.menu {
-            return Err(Outcome::Stale(StaleReason::Snapshot));
-        }
-        Ok(())
+        self.target.validate(host, &self.reads)
     }
 }
 
 /// Only a structurally validated plan can enter an opaque decision. Listener
 /// output cannot mutate it, so apply need only recheck the live preconditions.
-struct FrozenPlan {
+pub(in crate::game) struct FrozenPlan {
     kind: ActionKind,
     steps: Vec<Step>,
 }
@@ -352,7 +368,11 @@ fn write_to(state: &mut MenuState, write: &Mutation) -> Result<(), InvalidReason
 
 /// Takes the decision by value, so cancellation and malformed output consume
 /// it too. Validation immediately precedes the first write to the live overlay.
-fn apply<H: ActionHost>(host: &mut H, token: Decision, reply: Reply) -> Outcome {
+fn apply<H: ActionHost, T: ActionTarget<H>>(
+    host: &mut H,
+    token: Decision<T, T::Reads, T::Frozen>,
+    reply: Reply,
+) -> Outcome {
     let Decision(proposed) = token;
     match reply {
         Reply::Cancel => return Outcome::Canceled,
@@ -364,16 +384,66 @@ fn apply<H: ActionHost>(host: &mut H, token: Decision, reply: Reply) -> Outcome 
         return outcome;
     }
     // No callbacks or reentrant admission between validation and writes.
-    for step in proposed.plan.steps {
-        match step {
-            Step::Write(write) => proposed.target.edit(host, |state| {
-                write_to(state, &write).expect("validated internal plan");
-            }),
-            Step::Effect(effect) => host.defer(effect),
-        }
-    }
+    proposed.target.apply(host, proposed.plan);
     host.applied();
     Outcome::Applied
+}
+
+impl<H: ActionHost> ActionTarget<H> for Menu {
+    type Reads = Reads;
+    type View = MenuState;
+    type Plan = Plan;
+    type Frozen = FrozenPlan;
+
+    fn id(&self) -> MenuId {
+        self.id
+    }
+
+    fn capture(&self, _host: &H) -> Result<Reads, Outcome> {
+        let inner = self.inner.borrow();
+        Ok(Reads {
+            epoch: inner.epoch,
+            menu: inner.state.clone(),
+        })
+    }
+
+    fn freeze(&self, reads: &Reads, plan: Plan) -> Result<FrozenPlan, InvalidReason> {
+        plan.freeze(&reads.menu)
+    }
+
+    fn view(reads: &Reads) -> &MenuState {
+        &reads.menu
+    }
+
+    fn empty(plan: &FrozenPlan) -> bool {
+        plan.steps.is_empty()
+    }
+
+    fn validate(&self, _host: &H, reads: &Reads) -> Result<(), Outcome> {
+        let inner = self.inner.borrow();
+        validate_state(&inner.state).map_err(Outcome::InvalidInput)?;
+        if inner.state.instance != reads.menu.instance {
+            return Err(Outcome::Stale(StaleReason::MenuInstance));
+        }
+        if inner.epoch != reads.epoch {
+            return Err(Outcome::Stale(StaleReason::Mutation));
+        }
+        if inner.state != reads.menu {
+            return Err(Outcome::Stale(StaleReason::Snapshot));
+        }
+        Ok(())
+    }
+
+    fn apply(&self, host: &mut H, plan: FrozenPlan) {
+        for step in plan.steps {
+            match step {
+                Step::Write(write) => self.edit(host, |state| {
+                    write_to(state, &write).expect("validated internal plan");
+                }),
+                Step::Effect(effect) => host.defer(effect),
+            }
+        }
+    }
 }
 
 /// No mutable borrow crosses decide or fire. The guard aborts on unwind in
@@ -396,16 +466,16 @@ impl<H: ActionHost> Drop for ActionGuard<'_, H> {
 /// Entry for subscribed actions only. Admission precedes savepoint creation,
 /// snapshot/plan allocation, and dispatch. The enclosing Host transaction owns
 /// every committed child and is the sole publisher of effects.
-pub(in crate::game) fn run<H: ActionHost>(
+pub(in crate::game) fn run<H: ActionHost, T: ActionTarget<H>>(
     host: &mut H,
-    menu: &Menu,
-    decide: impl FnOnce(&MenuState) -> Plan,
+    menu: &T,
+    decide: impl FnOnce(&H, &T::View) -> T::Plan,
     fire: impl FnOnce(&mut H) -> Reply,
 ) -> Result<Outcome, Admission> {
     if !host.has_transaction() {
         return Err(Admission::NoTransaction);
     }
-    if host.menu_busy(menu.id) {
+    if host.menu_busy(menu.id()) {
         return Err(Admission::Busy);
     }
     let identity = host.identity();
@@ -416,7 +486,7 @@ pub(in crate::game) fn run<H: ActionHost>(
             Residence::Missing => return Err(Admission::MissingHolder),
         }
     }
-    let savepoint = host.open_action(menu.id);
+    let savepoint = host.open_action(menu.id());
     let guard = ActionGuard {
         host,
         savepoint,
@@ -424,14 +494,13 @@ pub(in crate::game) fn run<H: ActionHost>(
     };
     let mut guard = guard;
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let inner = menu.inner.borrow();
-        let reads = Reads {
-            epoch: inner.epoch,
-            menu: inner.state.clone(),
+        let reads = match menu.capture(guard.host) {
+            Ok(reads) => reads,
+            Err(outcome) => return outcome,
         };
-        let plan = decide(&inner.state);
-        drop(inner);
-        let plan = match plan.freeze(&reads.menu) {
+        menu.keep(guard.host);
+        let plan = decide(guard.host, T::view(&reads));
+        let plan = match menu.freeze(&reads, plan) {
             Ok(plan) => plan,
             Err(reason) => return Outcome::InvalidInput(reason),
         };
@@ -444,7 +513,7 @@ pub(in crate::game) fn run<H: ActionHost>(
         });
         guard.host.decided();
         // Returning before apply drops the decision unused.
-        if token.0.plan.steps.is_empty() {
+        if T::empty(&token.0.plan) {
             return Outcome::Canceled;
         }
         // First validation happens before dispatch.
@@ -466,12 +535,12 @@ pub(in crate::game) fn run<H: ActionHost>(
 /// Subscriber lookup is resolved by the caller at load, not by scanning mods.
 /// The fast branch does not enter the coordinator, snapshot a menu, or construct
 /// a Vec/read set/token. Baseline retains its enclosing transaction guarantees.
-pub(in crate::game) fn route<H: ActionHost>(
+pub(in crate::game) fn route<H: ActionHost, T: ActionTarget<H>>(
     subscribed: bool,
     host: &mut H,
-    menu: &Menu,
+    menu: &T,
     baseline: impl FnOnce(&mut H) -> Outcome,
-    decide: impl FnOnce(&MenuState) -> Plan,
+    decide: impl FnOnce(&H, &T::View) -> T::Plan,
     fire: impl FnOnce(&mut H) -> Reply,
 ) -> Result<Outcome, Admission> {
     if !subscribed {

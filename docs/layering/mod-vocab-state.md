@@ -5,8 +5,8 @@
 Part of #2587. The vocabulary is **not stateless**, and this first change does **not** claim it is
 free of unsafe. Its crate-level `deny(unsafe_code)` remains in force. The unchanged
 `src/__private/points.rs` contains the sole temporary unsafe exception (local lint expectations)
-and the open injection-dispatch registry. #2697 moves its activity and seal state into
-`horizon-engine-slots` and `horizon-mod-points`; the #2587 follow-up then moves raw-pointer
+and the open injection-dispatch registry. #2697 moves only the final seal into
+`horizon-engine-slots`; point activity stays in this registry. The #2587 follow-up then moves raw-pointer
 conversion and ownership behind the points boundary and installs `forbid(unsafe_code)`.
 
 Crash detail buffers, profiling, borrowed resource scopes, static-string storage, retained fluids,
@@ -62,10 +62,15 @@ OUT_DIR file checked by the generator before writing it.
 | `parts/fluids.rs::resolved_fluids::EMPTY` | `OnceLock<horizon_mod_runtime::registry_keys::Names>` | immutable cache | Empty or set-once resolved registry lookup returned when no installed Parts inventory supplies one. |
 | `parts/shared.rs::GAME_PARTS` | `RefCell<GamePartsLookup>` | Parts lookup table | Per-game lookup table and its world/thread validity context, replaced when world tags change. |
 | `parts/shared.rs::INSTALLED` | `OnceLock<Installed>` | Parts lookup table | Frozen installed Parts inventory used by engine dispatch and registry lookups. |
+| `parts/shared.rs::IN_FEATURE` | `Cell<bool>` | Parts lookup table | Per-thread flag keeping a running feature's worldgen Part table stable. |
 | `parts/shared.rs::NO_PARTS` | `LazyLock<Parts>` | Parts lookup table | Immutable empty lookup result before installation. |
 | `parts/shared.rs::TEST_PARTS` | `Cell<Option<&'staticInstalled>>` | Parts lookup table | Per-thread installed lookup inventory for isolated engine tests. |
+| `parts/shared.rs::WORLDGEN_GENERATION` | `AtomicU64` | Parts lookup table | Generation of the published worldgen Part table, read without its lock. |
+| `parts/shared.rs::WORLDGEN_PARTS` | `RwLock<(u64,Option<Arc<Parts>>)>` | Parts lookup table | Part table the server published for world generation, with its generation, replaced at world open and /reload. |
+| `parts/shared.rs::WORLDGEN_TABLE` | `RefCell<Option<(u64,Option<Arc<Parts>>)>>` | Parts lookup table | Per-thread handle on the published worldgen Part table and its generation. |
 | `parts/shared.rs::requested_keys::EMPTY` | `LazyLock<horizon_mod_runtime::registry_keys::Requests>` | immutable cache | Empty or set-once resolved registry lookup returned when no installed Parts inventory supplies one. |
 | `runtime.rs::MODS` | `OnceLock<Installed>` | dispatch table | Dependency-ordered hook routing and its per-mod enabled bits remain engine-owned. |
+| `runtime.rs::MODS_SWITCHED` | `std::sync::atomic::AtomicU64` | dispatch table | Counts changes to the per-mod enabled bits it sits beside; read through the host's capability provider table, never by a guest's own copy. |
 | `runtime.rs::TEST_MODS` | `std::cell::Cell<Option<&'staticInstalled>>` | dispatch table | Thread-local dispatch inventory for isolated engine tests. |
 | `wire/wire_resources.rs::ACCESS` | `OnceLock<ResourceAccess>` | set-once socket | Set-once platform callback registration; mutable platform storage lives above the engine. |
 | `wire/wire_resources.rs::shared::MARKER` | `std::sync::OnceLock<std::sync::Arc<Unsupported>>` | immutable cache | Shared immutable unsupported-resource marker with no writable payload. |

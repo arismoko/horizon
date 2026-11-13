@@ -318,6 +318,55 @@ pub fn learn_layout(event: &winit::event::KeyEvent) {
     }
 }
 
+/// Vanilla's name for the key the layout produced (`InputEvent.Key.getKeycode`):
+/// `layout` is the event's key without modifiers. A letter or digit names its
+/// own key, so AZERTY's key at QWERTY's W gives `key.keyboard.z`; a named key
+/// (Enter, arrows, Shift) keeps its place on every layout, so it gets the
+/// physical key's name. `None` for any other character and for a physical key
+/// vanilla doesn't name. A dead key arrives as its character (winit's key
+/// without modifiers), so an accent key gives `None`, not a dead-key value.
+pub fn layout_key_name(
+    physical: winit::keyboard::PhysicalKey,
+    layout: &winit::keyboard::Key,
+) -> Option<&'static str> {
+    use winit::keyboard::{Key, PhysicalKey};
+    match layout {
+        Key::Character(text) => {
+            let mut chars = text.chars();
+            let c = chars.next().filter(|c| c.is_ascii_alphanumeric())?;
+            if chars.next().is_some() {
+                return None;
+            }
+            let c = c.to_ascii_lowercase();
+            KEYS.iter().map(|(n, _)| *n).find(|n| {
+                n.strip_prefix("key.keyboard.")
+                    .is_some_and(|rest| rest.chars().eq([c]))
+            })
+        }
+        Key::Named(_) => match physical {
+            PhysicalKey::Code(code) => key_name(code),
+            PhysicalKey::Unidentified(_) => None,
+        },
+        _ => None,
+    }
+}
+
+/// A code telling physical keys apart, named or not (`InputEvent.Key.getScanCode`):
+/// the platform scan code, or the native code winit reports for a key it
+/// doesn't identify; 0 when there is neither. Stable within a platform only.
+pub fn raw_key_code(physical: winit::keyboard::PhysicalKey) -> u32 {
+    use winit::keyboard::{NativeKeyCode, PhysicalKey};
+    use winit::platform::scancode::PhysicalKeyExtScancode;
+    match physical {
+        PhysicalKey::Unidentified(native) => match native {
+            NativeKeyCode::Android(c) | NativeKeyCode::Xkb(c) => c,
+            NativeKeyCode::MacOS(c) | NativeKeyCode::Windows(c) => c.into(),
+            NativeKeyCode::Unidentified => 0,
+        },
+        PhysicalKey::Code(_) => physical.to_scancode().unwrap_or(0),
+    }
+}
+
 /// Current bindings by mapping name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyBinds {
@@ -358,6 +407,12 @@ impl KeyBinds {
     }
     pub fn is_default(&self, name: &str) -> bool {
         self.get(name) == Self::default_of(name)
+    }
+    /// `KeyBindsScreen.extractRenderState`: Reset All is active only while a
+    /// mapping differs from its default (`KeyMapping.isDefault`, the bound key
+    /// against `defaultKey`).
+    pub fn changed_from_defaults(&self) -> bool {
+        self.keys.keys().any(|name| !self.is_default(name))
     }
     pub fn set(&mut self, name: &str, key: &str) {
         if let Some((n, _, _)) = all_mappings().find(|m| m.0 == name) {
@@ -657,6 +712,22 @@ mod tests {
         assert_eq!(k.translate_all(KeyCode::Digit9), [Ok(KeyCode::Digit9)]);
         assert_eq!(k.translate_all(KeyCode::F3), [Ok(KeyCode::F3)]);
     }
+
+    /// `KeyBindsScreen.extractRenderState`: Reset All is active only while a
+    /// binding differs from its default.
+    #[test]
+    fn reset_all_is_active_only_after_a_binding_moves() {
+        let mut keys = KeyBinds::default();
+        assert!(!keys.changed_from_defaults());
+        keys.set("key.attack", "key.mouse.right");
+        assert!(keys.changed_from_defaults());
+        // Setting a mapping back to its own default leaves nothing to reset.
+        keys.set("key.attack", KeyBinds::default_of("key.attack"));
+        assert!(!keys.changed_from_defaults());
+        keys.set("key.jump", "key.keyboard.z");
+        keys.reset_all();
+        assert!(!keys.changed_from_defaults());
+    }
     #[test]
     fn display_names() {
         assert_eq!(display_name("key.keyboard.w").plain(), "W");
@@ -672,5 +743,24 @@ mod tests {
         inactive.set("key.forward", "key.keyboard.x");
         assert_eq!(display_name("key.forward").plain(), "key.keyboard.up");
         clear_action_bindings();
+    }
+
+    #[test]
+    fn a_key_event_names_the_layout_key_and_tells_unnamed_keys_apart() {
+        use winit::keyboard::{Key, NamedKey, NativeKeyCode, PhysicalKey};
+        // AZERTY: the key at QWERTY's W writes z.
+        let w = PhysicalKey::Code(KeyCode::KeyW);
+        assert_eq!(key_name(KeyCode::KeyW), Some("key.keyboard.w"));
+        let z = layout_key_name(w, &Key::Character("Z".into()));
+        assert_eq!(z, Some("key.keyboard.z"));
+        let enter = PhysicalKey::Code(KeyCode::Enter);
+        let named = layout_key_name(enter, &Key::Named(NamedKey::Enter));
+        assert_eq!(named, Some("key.keyboard.enter"));
+        assert_eq!(layout_key_name(w, &Key::Character("é".into())), None);
+        assert_eq!(layout_key_name(w, &Key::Dead(Some('^'))), None);
+        // Two keys vanilla doesn't name share a name but not a code.
+        let a = PhysicalKey::Unidentified(NativeKeyCode::Windows(0x6a));
+        let b = PhysicalKey::Unidentified(NativeKeyCode::Windows(0x6b));
+        assert_eq!((raw_key_code(a), raw_key_code(b)), (0x6a, 0x6b));
     }
 }

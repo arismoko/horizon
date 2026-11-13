@@ -274,7 +274,65 @@ fn cow(host: &mut BenchHost) {
         median(unpinned)
     );
 }
+static VECTOR: AttachmentType<Vec<i32>> = AttachmentType {
+    namespace: "bench",
+    name: "vector",
+    default: || vec![0; 8],
+    codec: None,
+    copy_on_death: false,
+    sync: false,
+};
+fn map_probes() {
+    let mut host = BenchHost::new(false, false);
+    for (label, operation) in [("get", 0), ("set", 1)] {
+        let (_, counts) = measured(|| {
+            for _ in 0..100_000 {
+                if operation == 0 {
+                    black_box(VALUE.get(&mut host, Holder::Entity(0)).unwrap());
+                } else {
+                    VALUE
+                        .set(&mut host, Holder::Entity(0), black_box(42))
+                        .unwrap();
+                }
+            }
+        });
+        println!("map {label}, 100,000 operations: {counts:?}");
+        let start = Instant::now();
+        for _ in 0..100_000 {
+            if operation == 0 {
+                black_box(VALUE.get(&mut host, Holder::Entity(0)).unwrap());
+            } else {
+                VALUE
+                    .set(&mut host, Holder::Entity(0), black_box(42))
+                    .unwrap();
+            }
+        }
+        println!(
+            "map {label}: {:.2} ns/op",
+            start.elapsed().as_nanos() as f64 / 100_000.0
+        );
+    }
+    VECTOR
+        .set(&mut host, Holder::Entity(0), vec![0; 8])
+        .unwrap();
+    let start = Instant::now();
+    let (_, counts) = measured(|| {
+        for _ in 0..100_000 {
+            let mut value = VECTOR.get(&mut host, Holder::Entity(0)).unwrap();
+            value[0] += 1;
+            VECTOR.set(&mut host, Holder::Entity(0), value).unwrap();
+        }
+    });
+    println!(
+        "map vec8 read-modify-write: {:.2} ns/op; {counts:?}",
+        start.elapsed().as_nanos() as f64 / 100_000.0
+    );
+}
 fn main() {
+    map_probes();
+    if std::env::var_os("ATTACHMENT_MAP_ONLY").is_some() {
+        return;
+    }
     if cfg!(debug_assertions) {
         eprintln!("run with --profile fast or --release");
         std::process::exit(2);

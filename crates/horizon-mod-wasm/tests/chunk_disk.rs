@@ -50,7 +50,7 @@ fn wasm() -> Mods {
         PackageKind::Code,
         Side::Both,
         vec![manifest.id.clone()],
-        manifest.dependencies.keys().cloned().collect(),
+        Vec::new(),
     );
     let mut package = horizon_mod_wasm::WasmPackage {
         manifest,
@@ -81,37 +81,44 @@ impl log::Log for Stderr {
 #[test]
 #[ignore = "needs HORIZON_WASM_FIXTURE and HORIZON_WASM_STD, built by wasm-mods"]
 fn native_and_wasm_execute_identical_job_and_fail_closed_on_trap() {
-    let _ = log::set_logger(&Stderr);
-    log::set_max_level(log::LevelFilter::Warn);
-    for (mods, trap_reason) in [
-        (
-            vec![ModEntry::new("wasm_fixture", Box::new(Native))].into(),
-            "native listener unwound",
-        ),
-        (
-            wasm(),
-            "wasm listener trapped or its Wire response was refused",
-        ),
-    ] {
-        testing::with_mods(mods, || {
-            let mut live = saved(7);
-            let job =
-                ChunkDiskJob::capture(&context(ChunkDiskPhase::Save, [2, -3]), &live).unwrap();
-            fixture::VALUE.set(&mut live, Holder::Level, 9).unwrap();
-            let resources = OwningWorldgen::new(&|_| None, &|_, _| None);
-            assert_eq!(value(job.run(&resources).clone().unwrap()), 8);
-            assert_eq!(fixture::VALUE.get(&mut live, Holder::Level).unwrap(), 9);
-            let load =
-                ChunkDiskJob::capture(&context(ChunkDiskPhase::Load, [2, -3]), &saved(8)).unwrap();
-            assert_eq!(value(load.run(&resources).clone().unwrap()), 9);
+    crate::test_stack::on_guest_stack(|| {
+        let _ = log::set_logger(&Stderr);
+        log::set_max_level(log::LevelFilter::Warn);
+        for (mods, trap_reason) in [
+            (
+                vec![ModEntry::new("wasm_fixture", Box::new(Native))].into(),
+                "native listener unwound",
+            ),
+            (
+                wasm(),
+                "wasm listener trapped or its Wire response was refused",
+            ),
+        ] {
+            testing::with_mods(mods, || {
+                let mut live = saved(7);
+                let job =
+                    ChunkDiskJob::capture(&context(ChunkDiskPhase::Save, [2, -3]), &live).unwrap();
+                fixture::VALUE.set(&mut live, Holder::Level, 9).unwrap();
+                let resources = OwningWorldgen::new(&|_| None, &|_, _| None);
+                assert_eq!(value(job.run(&resources).clone().unwrap()), 8);
+                assert_eq!(fixture::VALUE.get(&mut live, Holder::Level).unwrap(), 9);
+                let load =
+                    ChunkDiskJob::capture(&context(ChunkDiskPhase::Load, [2, -3]), &saved(8))
+                        .unwrap();
+                assert_eq!(value(load.run(&resources).clone().unwrap()), 9);
 
-            // The guest sets 8 and then traps: the job refuses and keeps 7.
-            let job =
-                ChunkDiskJob::capture(&context(ChunkDiskPhase::Save, [99, 99]), &saved(7)).unwrap();
-            let refusal = job.run(&resources).as_ref().unwrap_err();
-            assert_eq!(refusal.mod_id, "wasm_fixture");
-            assert_eq!(refusal.reason, trap_reason);
-            assert_eq!(value(job.captured().clone()), 7);
-        });
-    }
+                // The guest sets 8 and then traps: the job refuses and keeps 7.
+                let job =
+                    ChunkDiskJob::capture(&context(ChunkDiskPhase::Save, [99, 99]), &saved(7))
+                        .unwrap();
+                let refusal = job.run(&resources).as_ref().unwrap_err();
+                assert_eq!(refusal.mod_id, "wasm_fixture");
+                assert_eq!(refusal.reason, trap_reason);
+                assert_eq!(value(job.captured().clone()), 7);
+            });
+        }
+    });
 }
+
+#[path = "../src/test_stack.rs"]
+mod test_stack;

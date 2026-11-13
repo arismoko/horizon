@@ -231,15 +231,10 @@ impl adv::World for View<'_, '_> {
             _ => None,
         }
     }
+    /// `Level.canSeeSky`: sky light 15 at the position, whatever stands
+    /// above it, as `MobWorld` reads it for the spawn rules.
     fn can_see_sky(&self, p: [i32; 3]) -> bool {
-        (p[1] + 1..p[1] + 200).all(|y| {
-            !self
-                .0
-                .res
-                .facts()
-                .get(self.0.world.block(p[0], y, p[2]))
-                .full_collision
-        })
+        self.0.mob_world_base(&[]).can_see_sky(p[0], p[1], p[2])
     }
     fn light(&self, p: [i32; 3]) -> i32 {
         let l = self.0.world.light(p[0], p[1], p[2]);
@@ -2756,7 +2751,7 @@ mod tests {
             }
         }
         let mods: mod_api::Mods = vec![ModEntry::new("toasts", Box::new(Listener))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.options.execution_role = super::super::execution_role::ExecutionRole::Client;
                 game.adv.toasts.clear();

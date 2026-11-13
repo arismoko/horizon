@@ -29,7 +29,7 @@ IntegratedServer.fillServerSystemReport	skip:debug		system report for crash repo
 IntegratedServer.getPersonalGameMode	port	crates/horizon-client/src/game/world/integrated.rs::Game::server_options	owner's game mode, read from the guest record
 IntegratedServer.updateGameModeBasedOnPermission	inline	crates/horizon-client/src/game/network/lan/mod.rs::Game::lan_guest_joined	gap: player: a guest already in the world keeps their mode when force-gamemode or the default mode changes; only a join applies it
 IntegratedServer.updatePermissions	port	crates/horizon-client/src/lan/hub.rs::Hub::resend_commands	permission level and commands sent to every guest
-IntegratedServer.setDefaultGameType	port	crates/horizon-client/src/game/network/lan/mod.rs::Game::set_default_game_mode	
+IntegratedServer.setDefaultGameType	port	crates/horizon-client/src/game/network/lan/mod.rs::Game::set_default_game_mode
 IntegratedServer.isSingleplayerOwner	port	crates/horizon-client/src/lan/hub.rs::Hub::player_info	the owner is kept by uuid on the hub, and player_info marks the guest it names
 IntegratedServer.getScaledTrackingDistance	inline	crates/horizon-client/src/game/network/lan/mod.rs::Game::tick_lan	the Entity Distance option becomes the hub's entity range percent for an integrated or LAN host
 IntegratedServer.getForcedGameType	inline	crates/horizon-client/src/game/network/lan/mod.rs::Game::lan_guest_joined	forced mode is sent when a guest joins
@@ -79,7 +79,7 @@ SoundManager.validateSoundResource	inline	crates/horizon-client-render/src/sound
 SoundManager.Preparations.handleRegistration	port	crates/horizon-client-render/src/sound_events.rs::SoundRegistry::add_file	replace flag and sound entries
 SoundManager.Preparations.apply	inline	crates/horizon-client-render/src/sound_events.rs::SoundRegistry::load	registry replaced with the prepared one
 SoundPreviewHandler.preview	port	crates/horizon-client-render/src/audio.rs::preview	the pack screen's sound preview
-SoundPreviewHandler.stopOtherCategoryPreview	port	crates/horizon-client-render/src/sound_preview.rs::SoundPreview::stop_other_category_preview	
+SoundPreviewHandler.stopOtherCategoryPreview	port	crates/horizon-client-render/src/sound_preview.rs::SoundPreview::stop_other_category_preview
 WeighedSoundEvents.preloadIfRequired	skip:java		preload is a cache; Horizon decodes on demand
 CraftPlanksTutorialStep.tick	inline	crates/horizon-client/src/game/interface/tutorial.rs::Tutorial::tick	the CraftPlanks arm: a plank already held or crafted on the first tick ends the step; its toast is Tutorial::hint
 CraftPlanksTutorialStep.hasCraftedPlanksPreviously	inline	crates/horizon-client/src/game/interface/tutorial.rs::Game::tick_tutorial	Previous::crafted_plank: a planks item with a count in the player's minecraft:crafted stats

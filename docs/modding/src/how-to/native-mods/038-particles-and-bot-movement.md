@@ -25,6 +25,17 @@ layer particle sprites and resource-pack and stack-component overrides. It retur
 Setup, Reloading and World, on native and wasm. Resolve again after resource reloads.
 It allocates a sprite list only when called; it adds no per-tick work.
 
+### Client fireworks
+
+`ClientHost::create_fireworks` draws a firework's explosions from a `FireworksRequest`: the
+position, the rocket's velocity carried by the sparks, a list of `FireworkExplosion`s (shape,
+colours, fade colours, trail, twinkle) and `audible`. It uses the starter a bursting rocket
+uses, so the explosions follow each other every other tick as a rocket's do. With `audible`
+false the sparks and flash still draw but the blast and twinkle sounds don't play, as for a
+silent rocket. Nothing reaches the server or other players: a mod's server half tells each
+client half to draw it. The request is refused on a server, without a loaded client player
+and world, for non-finite numbers and for more than 256 explosions.
+
 ### Bot movement and block collisions
 
 `PlayerRef::simulate_move` predicts one server player's movement tick from

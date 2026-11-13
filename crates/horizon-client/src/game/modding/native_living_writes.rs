@@ -416,7 +416,7 @@ mod tests {
         let uses = Shared::default();
         let mods: Mods = vec![ModEntry::new("uses", Box::new(UseMod(uses.clone())))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 crate::game::native_entity_refs::tests::resolve_parts(game).unwrap();
                 game.player = Some(

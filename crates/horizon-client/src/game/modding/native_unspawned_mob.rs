@@ -601,7 +601,7 @@ mod tests {
         run: impl FnOnce() -> R,
     ) -> R {
         let listener = Listener(Box::new(listen));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new("unspawned", Box::new(listener))].into(),
             run,
         )
@@ -843,7 +843,7 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_panicking_listener_still_ends_the_lend() {
         let installed = || vec![mod_api::ModEntry::new("kept-goal", Box::new(KeptGoalMod))];
-        mod_api::testing::with_mods(installed().into(), || {
+        mod_platform::testing::with_mods(installed().into(), || {
             super::super::api_values::install_parts(&installed()).unwrap();
             with_game(|game| {
                 let kind = game

@@ -18,7 +18,9 @@ impl Game<'_> {
         }
         let power = if explodes {
             let speed = speed_sqr.sqrt().min(5.0);
-            (4.0 + c.random.next_double() * 1.5 * speed) as f32
+            (f64::from(c.explosion_power)
+                + f64::from(c.explosion_speed_factor) * c.random.next_double() * 1.5 * speed)
+                as f32
         } else {
             0.0
         };

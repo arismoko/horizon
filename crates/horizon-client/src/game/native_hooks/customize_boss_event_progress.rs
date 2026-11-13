@@ -23,8 +23,8 @@ mod customize_boss_event_progress_tests {
     use horizon_protocol::packets::play::{BossAction, BossEvent};
     use mod_api::{
         BossBarColor, ClientHost, CustomizeBossEventProgressEvent, Flow, Hooks, ModEntry,
-        testing::with_mods,
     };
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     type Seen = Arc<Mutex<Vec<(u128, BossBarColor, i32, i32, i32)>>>;

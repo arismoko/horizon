@@ -96,6 +96,7 @@ impl StartupMenu {
         root: PathBuf,
         settings: &Settings,
         additional_data: Arc<[Arc<horizon_client::datapack::DataPack>]>,
+        splashes: &str,
     ) {
         horizon_client::ui::load_metadata(
             &horizon_assets::resource_source::ResourceSource::directory(root.to_path_buf()),
@@ -111,6 +112,7 @@ impl StartupMenu {
             let mut title = Title::new(
                 std::env::current_dir().unwrap_or_default().join("saves"),
                 &self.root,
+                splashes,
             );
             title.last_server = settings.file.string("lastServer");
             title.skip_multiplayer_warning = settings.file.bool("skipMultiplayerWarning");
@@ -398,7 +400,7 @@ pub(super) fn spawn_loader(
     let world = launch_world(options).map(str::to_owned);
     let role = options.execution_role;
     let progress = progress.clone();
-    let handle = std::thread::Builder::new()
+    let handle = horizon_guest_stack::builder()
         .name("resource-loader".into())
         .spawn(move || {
             let mut pack_error = None;
@@ -612,6 +614,21 @@ impl Loading {
                     let dir = packs::packs_dir();
                     let _ = std::fs::create_dir_all(&dir);
                     packs::open_folder(&dir);
+                }
+                Event::ImportPacks(paths) => {
+                    let additional = self.options.as_ref().map_or_else(Vec::new, |options| {
+                        super::pack_finders::discover(
+                            mod_api::PackType::ClientResources,
+                            &options.mods,
+                        )
+                    });
+                    packs::import_resource_packs(
+                        &mut self.menu.options,
+                        &self.vanilla_root,
+                        &[],
+                        &paths,
+                        &additional,
+                    );
                 }
                 Event::DownloadPack(i) => {
                     let dir = packs::packs_dir();
@@ -1118,7 +1135,16 @@ impl Loading {
             // `PackSelectionScreen.onFilesDrop`: a pack dropped on the window
             // joins the Create New World screen's data packs.
             WindowEvent::DroppedFile(path) => {
-                if let Some(title) = &mut self.menu.title {
+                let batch = HudBatch::new(self.menu_size(), self.settings.gui_scale_inputs());
+                let handled = self.menu.options_open
+                    && self.gui.as_ref().is_some_and(|gui| {
+                        self.menu.options.drop_resource_pack(
+                            path.clone(),
+                            &gui.atlas,
+                            (batch.width, batch.height),
+                        )
+                    });
+                if !handled && let Some(title) = &mut self.menu.title {
                     title.drop_file(path);
                 }
             }
@@ -1457,6 +1483,7 @@ mod tests {
             panorama: Arc::new(horizon_client::gfx::panorama::Faces::colour([
                 96, 110, 111, 255,
             ])),
+            splashes: Arc::from(""),
         }
     }
 
@@ -1503,12 +1530,12 @@ mod tests {
             }
         }
         let mods: mod_api::Mods = vec![mod_api::ModEntry::new("example", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 let saves = std::env::temp_dir()
                     .join(format!("horizon-startup-rules-{}", std::process::id()));
                 let _ = std::fs::remove_dir_all(&saves);
-                let mut title = Title::new(saves, &game.options.resources);
+                let mut title = game.new_title(saves);
                 title.enter_singleplayer();
                 let Action::Create { mut options, .. } = title.create_action() else {
                     panic!("creation")
@@ -1582,6 +1609,125 @@ mod tests {
         first.apply_menu_settings();
         assert_eq!(view(&first), (4.0, 240.0, 180.0));
         assert_eq!(first.menu.cursor, (100.0, 50.0));
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and scratch homes/cwd"]
+    fn resource_pack_drops_import_from_startup_and_game_options() {
+        if super::super::native_entity_refs::tests::run_fresh_cases(
+            "game::startup_menu::tests::resource_pack_drops_import_from_startup_and_game_options",
+            "HORIZON_RESOURCE_PACK_DROP_CHILD",
+            &["import"],
+        ) {
+            return;
+        }
+        // Only this exact test runs in the child. Keep the game directory empty,
+        // separate from the isolated homes created by run_fresh_cases.
+        let previous_dir = std::env::current_dir().unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(scratch.path()).unwrap();
+        struct Loop;
+        impl EventLoopCtl for Loop {
+            fn exit(&self) {}
+            fn set_control_flow(&self, _: winit::event_loop::ControlFlow) {}
+        }
+        let root =
+            PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").expect("prepared resources"));
+        let game_dir = std::env::current_dir().unwrap();
+        assert!(
+            std::fs::read_dir(&game_dir).unwrap().next().is_none(),
+            "run the built test executable directly from an empty scratch game directory"
+        );
+        let source = game_dir.join("drop-fixtures");
+        std::fs::create_dir(&source).unwrap();
+        for name in ["Startup pack", "Game pack"] {
+            let path = source.join(name);
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(
+                path.join("pack.mcmeta"),
+                br#"{"pack":{"pack_format":1,"description":"Drop test"}}"#,
+            )
+            .unwrap();
+        }
+        let (_sender, receiver) = std::sync::mpsc::channel();
+        let mut loading = loading(receiver);
+        loading.gui = Some(gui(&root));
+        loading.vanilla_root = root.clone();
+        loading.open_menu_options(Page::Packs);
+        loading
+            .menu_event(&Loop, WindowEvent::DroppedFile(source.join("Startup pack")))
+            .unwrap();
+        assert!(
+            loading
+                .menu
+                .options
+                .pack_screen
+                .as_ref()
+                .unwrap()
+                .confirming()
+        );
+        assert!(!packs::packs_dir().join("Startup pack").exists());
+        let batch = HudBatch::new(loading.menu_size(), loading.settings.gui_scale_inputs());
+        let events = loading.menu.options.click(
+            &mut loading.settings,
+            &loading.gui.as_ref().unwrap().atlas,
+            batch.width / 2.0 - 150.0,
+            batch.height / 2.0 + 20.0,
+            (batch.width, batch.height),
+            [1280, 720],
+            false,
+            false,
+        );
+        assert!(events.iter().any(|e| matches!(e, Event::ImportPacks(_))));
+        loading.menu_option_events(events);
+        assert!(
+            packs::packs_dir()
+                .join("Startup pack/pack.mcmeta")
+                .is_file()
+        );
+        assert!(
+            loading
+                .menu
+                .options
+                .pack_infos
+                .iter()
+                .any(|p| p.id == "file/Startup pack")
+        );
+        assert!(loading.settings.resource_packs.is_empty());
+
+        super::super::native_entity_refs::tests::with_client_game(|game| {
+            game.title = Some(game.new_title(PathBuf::from("saves")));
+            game.open_options_at(true, Page::Packs);
+            game.handle_window_event_inner(
+                &Loop,
+                WindowEvent::DroppedFile(source.join("Game pack")),
+            );
+            assert!(game.ui.options.pack_screen.as_ref().unwrap().confirming());
+            assert!(!packs::packs_dir().join("Game pack").exists());
+            let size = game.gui_size();
+            let events = game.ui.options.click(
+                &mut game.settings,
+                &game.gui.atlas,
+                size.0 / 2.0 - 150.0,
+                size.1 / 2.0 + 20.0,
+                size,
+                [1280, 720],
+                false,
+                false,
+            );
+            assert!(events.iter().any(|e| matches!(e, Event::ImportPacks(_))));
+            game.handle_option_events(events).unwrap();
+            assert!(packs::packs_dir().join("Game pack/pack.mcmeta").is_file());
+            assert!(
+                game.ui
+                    .options
+                    .pack_infos
+                    .iter()
+                    .any(|p| p.id == "file/Game pack")
+            );
+            assert!(game.settings.resource_packs.is_empty());
+        });
+        std::env::set_current_dir(previous_dir).unwrap();
     }
 
     #[test]

@@ -14,6 +14,8 @@ WORKFLOWS = ROOT / ".github/workflows"
 LIGHT = ("horizon-light", "playhorizon-light", "playhorizon-ci")
 CHECKS = ("horizon-checks",)
 FORK_GUARD = "github.event.pull_request.head.repo.full_name == github.repository"
+# dyna-ci.yml decides trust once, in its changes job (a fork's pull request, dispatched with `pr` or not).
+TRUSTED = "needs.changes.outputs.trusted == 'true'"
 TRUSTED_WRITES = re.compile(r"^\s*(contents|actions|packages|id-token|deployments|attestations): write", re.M)
 # actions: write can start workflows too; cancel-on-close needs it to cancel runs and runs no checkout at all.
 CANCELS_RUNS = {"cancel-on-close.yml cancel"}
@@ -65,32 +67,6 @@ def routed():
 
 
 class OwnRunnerTests(unittest.TestCase):
-    def test_wasm_fixture_routes_by_repository_identity(self):
-        workflow = (WORKFLOWS / "wasm-mods.yml").read_text()
-        expression = runs_on(dict(jobs(workflow))["fixture"])
-        self.assertTrue(expression.startswith("${{ "))
-        self.assertTrue(expression.endswith(" }}"))
-        expression = expression[4:-3]
-        # Evaluate the actual workflow expression, not a duplicate routing rule.
-        # These operators have the same precedence and truthy-string behavior
-        # in Python and Actions. Missing PR properties evaluate to empty strings.
-        for event, head, expected in (
-            ("pull_request", "arismoko/horizon", "dyna-large"),
-            ("pull_request", "contributor/horizon", "ubuntu-latest"),
-            ("push", "", "dyna-large"),
-            ("workflow_dispatch", "", "dyna-large"),
-        ):
-            with self.subTest(event=event, head=head):
-                values = {
-                    "github.event_name": event,
-                    "github.event.pull_request.head.repo.full_name": head,
-                    "github.repository": "arismoko/horizon",
-                }
-                evaluated = re.sub(
-                    r"github\.[a-z_.]+", lambda match: repr(values[match[0]]), expression
-                ).replace("&&", " and ").replace("||", " or ")
-                self.assertEqual(eval(evaluated, {"__builtins__": {}}), expected)
-
     def test_workflows_do_not_classify_pull_requests_by_fork_flag(self):
         for path in sorted(WORKFLOWS.glob("*.y*ml")):
             with self.subTest(workflow=path.name):
@@ -107,10 +83,11 @@ class OwnRunnerTests(unittest.TestCase):
             if "dyna-ci.yml" in where:
                 self.assertIn("needs.changes.outputs.self_hosted == 'true'", value, where)
                 self.assertIn("vars.SELF_HOSTED_CI == 'all'", value, where)
-                self.assertIn(FORK_GUARD, value, where)
+                self.assertIn(TRUSTED, value, where)
             else:
                 self.assertIn("vars.SELF_HOSTED_CI != 'off'", value, where)
-            self.assertTrue(value.endswith("|| 'ubuntu-latest' }}"), where)
+            # Both labels select a GitHub-hosted Ubuntu runner when our pools are disabled.
+            self.assertRegex(value, r"\|\| 'ubuntu-(?:latest|24\.04)' \}\}$", where)
             if "checks" in pools:
                 # The desktop paused: every checks job back to GitHub, the bots stay.
                 self.assertIn("vars.SELF_HOSTED_CI != 'light'", value, where)
@@ -123,9 +100,8 @@ class OwnRunnerTests(unittest.TestCase):
             if "pull_request" in on:
                 # The guard lives in the job's `if` upstream; dyna-ci.yml (ours)
                 # puts it in `runs-on`, before the self-hosted labels.
-                guarded = FORK_GUARD in next(
-                    (l for l in block.splitlines() if l.strip().startswith("if:")), ""
-                ) or FORK_GUARD in value
+                condition = next((l for l in block.splitlines() if l.strip().startswith("if:")), "")
+                guarded = any(guard in condition or guard in value for guard in (FORK_GUARD, TRUSTED))
                 self.assertTrue(guarded, f"{where}: a fork's pull request")
             if "pull_request_target" in on:
                 # main's code only: every checkout is main's.

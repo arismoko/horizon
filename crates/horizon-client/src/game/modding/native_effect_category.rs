@@ -32,7 +32,7 @@ mod tests {
                 ("minecraft:poison", EffectCategory::Harmful),
                 ("minecraft:glowing", EffectCategory::Neutral),
             ] {
-                let key = mod_api::__private::part_tests::effect_key(id);
+                let key = mod_platform::__private::part_tests::effect_key(id);
                 assert_eq!(key.category(game), Some(expected), "{id}");
                 let active = mod_api::ActiveEffect::new(key, 200, 1, false, true, true);
                 assert_eq!(active.id.category(game), Some(expected));

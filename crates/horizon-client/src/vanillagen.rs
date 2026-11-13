@@ -20,6 +20,7 @@ use {
         loot::PackOverlay,
         registry::BlockRegistry,
         worldgen::{
+            biome_source::regions::RegionLayout,
             generator::{
                 GeneratorData, GeneratorWorker, OverworldGenerator, ProtoChunk, SurfaceSample,
             },
@@ -206,11 +207,11 @@ impl VanillaTerrain {
         structures: bool,
     ) -> crate::Result<Self> {
         Self::for_world_with_settings(
-            resources, overrides, seed, preset, dimension, structures, None,
+            resources, overrides, seed, preset, dimension, structures, None, None,
         )
     }
     /// `for_world_with` with the saved dimension's generator and type, below
-    /// any dimension supplied by the world's data packs.
+    /// any dimension supplied by the world's data packs, and its saved biome region layout.
     pub fn for_world_with_settings(
         resources: TerrainResources<'_>,
         overrides: &WorldgenOverrides,
@@ -219,10 +220,11 @@ impl VanillaTerrain {
         dimension: &str,
         structures: bool,
         saved_stem: Option<&serde_json::Value>,
+        regions: Option<Arc<RegionLayout>>,
     ) -> crate::Result<Self> {
         let data: Arc<GeneratorData> = shared_resource_data(resources, overrides)?;
         let generator = OverworldGenerator::for_world_with_settings(
-            data, seed, preset, dimension, structures, saved_stem,
+            data, seed, preset, dimension, structures, saved_stem, regions,
         )?;
         Self::assemble(resources, generator, seed, preset, dimension)
     }
@@ -376,6 +378,11 @@ impl VanillaTerrain {
     /// mobs are finalized with.
     pub fn set_spawn_conditions(&self, difficulty: u8, day_time: i64) {
         self.structure_mobs.set_conditions(difficulty, day_time);
+    }
+    /// Reads what generated mobs are finalized with on a thread of its own
+    /// (`StructureMobFinalizer::load_behind`).
+    pub fn load_structure_mobs_behind(&self) {
+        self.structure_mobs.load_behind();
     }
     /// The random a chunk's generation steps draw from (`WorldGenRegion`).
     pub fn region_random(&self, cx: i32, cz: i32) -> Box<dyn PieceRandom> {
@@ -719,7 +726,7 @@ impl VanillaTerrain {
         const QUIET: u64 = 2_000;
         const LATEST: u64 = 60_000;
         let terrain = Arc::downgrade(self);
-        let spawned = std::thread::Builder::new()
+        let spawned = horizon_guest_stack::builder()
             .name("Ring search".into())
             .spawn(move || {
                 horizon_threads::idle_current();
@@ -1119,8 +1126,8 @@ impl ChunkGenerator for VanillaTerrain {
             entities: chunk.entities.iter().cloned().map(Tag::Compound).collect(),
         })
     }
-    /// The saved state replaces what decoration can change; biomes, structure
-    /// starts and references are generated again as they were.
+    /// Restore saved blocks and decoration state. Biomes and structure lookups use the current
+    /// generator, including an adopted region layout; completed Features decoration stays done.
     fn restore_proto(&self, proto: &mut Proto, saved: SavedProto) {
         let Some(VanillaProto::Ready(chunk)) = proto.downcast_mut::<VanillaProto>() else {
             return;

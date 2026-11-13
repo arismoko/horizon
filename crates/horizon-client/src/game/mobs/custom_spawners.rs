@@ -134,7 +134,7 @@ mod tests {
                 )
             })
             .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.creatures.cat_tick = 5;
                 game.tick_custom_spawners();

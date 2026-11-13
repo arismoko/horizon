@@ -113,12 +113,29 @@ they stay server-only there, though their changes on a server are synced.
 
 `copy_on_death` requires a codec. Player respawn copies opted-in entries via their
 encoded representation, including raw entries of an absent mod; other entries are
-removed. Living-entity conversion is not supported. This follows the default supplier,
+removed. A mob's conversion (a villager struck into a witch, a zombie villager cured, a
+piglin zombified, a tadpole grown) copies every entry with a codec, raw entries of an absent
+mod included, to the new mob through its encoded form, over what its construction set; entries
+without a codec stay on the removed mob. A cancelled `living_conversion_pre` copies nothing,
+`living_conversion_post` sees the copy, and the copy is not synced on its own (the new mob's
+spawn carries its synced entries). This follows the default supplier,
 optional server-side persistence, player-respawn option and `sync` with a `StreamCodec`
 (with `syncData`) of NeoForge 26.3's public `AttachmentType.Builder` contract, and
 `IAttachmentHolder`'s `hasData`/`getExistingData`, but not its holder-aware supplier,
 custom copy handler, conditional serialization, the `sendToPlayer` predicate,
 `AttachmentSyncHandler` partial updates or a wire codec apart from the disk codec.
+
+`player_clone` supplies `event.original: OriginalPlayerRef` alongside the replacement's
+`event.player` UUID. During that hook, `event.original.attachment(host, &COUNTER)` reads
+the old value even when `copy_on_death` is false or the type has no codec;
+`COUNTER.get(host, Holder::Player(event.player))` reads the replacement's retained value
+or fresh default. This works on death and on return from the End, for native and wasm.
+The original's `position`, `dimension`, `level`, and `inventory_slot` methods read the
+same pre-copy player. Inventory slot numbers are 0–35 for the main inventory,
+100–103 for boots through helmet, and -106 for the off hand. Every original read expires
+when the hook returns; keeping the handle does not keep the old player alive.
+The snapshot retains shared attachment bindings, not a deep freeze of interior mutability.
+With no `player_clone` listener, no original snapshot is allocated.
 
 The API owns these public names. Their engine-independent storage and query index
 live in `horizon-mod-runtime`, which depends only on the shared vocabulary in

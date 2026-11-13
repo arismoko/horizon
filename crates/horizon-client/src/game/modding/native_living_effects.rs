@@ -358,7 +358,7 @@ mod tests {
 
     fn effect(id: &'static str, duration: i32, amplifier: i32) -> ActiveEffect {
         ActiveEffect::from(mod_api::__private::built::ActiveEffect {
-            id: mod_api::__private::part_tests::effect_key(id),
+            id: mod_platform::__private::part_tests::effect_key(id),
             duration,
             amplifier,
             ambient: false,
@@ -381,7 +381,7 @@ mod tests {
             let zombie = game.living(game.entity(21).unwrap()).unwrap();
             // The same load-owned slot is used for application, enumeration and diagnostics.
             let speed = ActiveEffect::new(
-                mod_api::__private::part_tests::effect_key("minecraft:speed"),
+                mod_platform::__private::part_tests::effect_key("minecraft:speed"),
                 200,
                 0,
                 false,
@@ -392,7 +392,7 @@ mod tests {
             let listed = game.living_effects(zombie).unwrap();
             assert_eq!(
                 listed[0].id,
-                mod_api::__private::part_tests::effect_key("speed")
+                mod_platform::__private::part_tests::effect_key("speed")
             );
             assert_eq!(listed[0].id.id(game), "minecraft:speed");
         });
@@ -410,7 +410,7 @@ mod tests {
             game.player = Some(PlayerMotion::new(game.motion, Vec3::ZERO).unwrap());
             game.player.as_mut().unwrap().entity_id = 20;
             crate::game::native_entity_refs::tests::bind_local_player(game, 20, 123);
-            let key = mod_api::__private::part_tests::effect_key("minecraft:speed");
+            let key = mod_platform::__private::part_tests::effect_key("minecraft:speed");
             for id in [23, 20] {
                 let living = game.living(game.entity(id).unwrap()).unwrap();
                 for show_icon in [false, true] {
@@ -431,7 +431,7 @@ mod tests {
             let kind = game.res.mob_types().get("minecraft:cow").unwrap().clone();
             game.mobs.push(Mob::new(22, kind, Vec3::ZERO, 0.0));
             let cow = game.living(game.entity(22).unwrap()).unwrap();
-            let key = mod_api::__private::part_tests::effect_key("speed");
+            let key = mod_platform::__private::part_tests::effect_key("speed");
             assert!(game.living_add_effect(cow, &effect("speed", 2, 1)));
             assert!(!game.living_add_effect(cow, &effect("speed", 5, 0)));
             let mob = &game.mobs[0];
@@ -463,7 +463,7 @@ mod tests {
             assert_eq!(game.world.random.next_float(), level_random.next_float());
             assert!(game.living_potion_affected(
                 cow,
-                mod_api::__private::part_tests::effect_key("minecraft:poison")
+                mod_platform::__private::part_tests::effect_key("minecraft:poison")
             ));
             assert_eq!(
                 game.living_apply_consume_effect(cow, &item("minecraft:honey_bottle"), 0),
@@ -540,7 +540,7 @@ mod tests {
             assert_eq!(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:darkness"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:darkness"),
                     0.5
                 ),
                 Some(0.0)
@@ -554,18 +554,18 @@ mod tests {
                 .push(EffectInstance::new("darkness", 200, 0));
             game.sculk.darkness = (0.0, 0.0);
             // The same effect reads whole on the client: `getEffect`, `getActiveEffects`, `hasEffect`.
-            let darkness = mod_api::__private::part_tests::effect_key("minecraft:darkness");
+            let darkness = mod_platform::__private::part_tests::effect_key("minecraft:darkness");
             assert!(me.potion_affected(game, darkness));
             assert_eq!(me.effect(game, darkness).map(|e| e.duration), Some(200));
             assert_eq!(me.effects(game).map(|list| list.len()), Some(1));
             assert!(!me.potion_affected(
                 game,
-                mod_api::__private::part_tests::effect_key("minecraft:nausea")
+                mod_platform::__private::part_tests::effect_key("minecraft:nausea")
             ));
             assert_eq!(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("darkness"),
+                    mod_platform::__private::part_tests::effect_key("darkness"),
                     1.0
                 ),
                 Some(0.0)
@@ -575,7 +575,7 @@ mod tests {
             assert!(close(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:darkness"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:darkness"),
                     0.0
                 ),
                 1.0 / 22.0
@@ -583,7 +583,7 @@ mod tests {
             assert!(close(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:darkness"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:darkness"),
                     0.5
                 ),
                 1.5 / 22.0
@@ -598,7 +598,7 @@ mod tests {
             assert!(close(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:nausea"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:nausea"),
                     0.5
                 ),
                 0.5 / 150.0
@@ -612,7 +612,7 @@ mod tests {
             assert_eq!(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed"),
                     0.0
                 ),
                 Some(0.0)
@@ -621,7 +621,7 @@ mod tests {
             assert_eq!(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed"),
                     0.5
                 ),
                 Some(0.5)
@@ -632,7 +632,7 @@ mod tests {
             assert_eq!(
                 me.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:darkness"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:darkness"),
                     0.5
                 ),
                 Some(0.0)
@@ -645,7 +645,7 @@ mod tests {
             assert_eq!(
                 other.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed"),
                     0.5
                 ),
                 None
@@ -654,7 +654,7 @@ mod tests {
             assert_eq!(
                 stale.effect_blend_factor(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed"),
                     0.5
                 ),
                 None
@@ -682,10 +682,13 @@ mod tests {
             assert!(game.living_add_effect(zombie, &effect("minecraft:speed", 200, 0)));
             assert!(game.living_potion_affected(
                 zombie,
-                mod_api::__private::part_tests::effect_key("speed")
+                mod_platform::__private::part_tests::effect_key("speed")
             ));
             assert_eq!(
-                game.living_effect(zombie, mod_api::__private::part_tests::effect_key("speed")),
+                game.living_effect(
+                    zombie,
+                    mod_platform::__private::part_tests::effect_key("speed")
+                ),
                 Some(effect("minecraft:speed", 200, 0))
             );
             assert_eq!(
@@ -700,7 +703,7 @@ mod tests {
             assert_eq!(
                 game.living_effect(
                     zombie,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed")
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed")
                 ),
                 Some(effect("minecraft:speed", 200, 0))
             );
@@ -708,7 +711,7 @@ mod tests {
             assert_eq!(
                 game.living_effect(
                     zombie,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed")
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed")
                 ),
                 Some(effect("minecraft:speed", 90, 1))
             );
@@ -730,16 +733,16 @@ mod tests {
             game.mobs[0].absorption = 8.0;
             assert!(game.living_remove_effect(
                 zombie,
-                mod_api::__private::part_tests::effect_key("minecraft:absorption")
+                mod_platform::__private::part_tests::effect_key("minecraft:absorption")
             ));
             assert_eq!(game.mobs[0].absorption, 0.0);
             assert!(!game.living_remove_effect(
                 zombie,
-                mod_api::__private::part_tests::effect_key("minecraft:absorption")
+                mod_platform::__private::part_tests::effect_key("minecraft:absorption")
             ));
             assert!(game.living_potion_affected(
                 zombie,
-                mod_api::__private::part_tests::effect_key("minecraft:speed")
+                mod_platform::__private::part_tests::effect_key("minecraft:speed")
             ));
 
             // remove_all_effects takes the rest, and says when there was none.
@@ -747,7 +750,7 @@ mod tests {
             assert_eq!(game.living_effects(zombie), Some(Vec::new()));
             assert!(!game.living_potion_affected(
                 zombie,
-                mod_api::__private::part_tests::effect_key("minecraft:speed")
+                mod_platform::__private::part_tests::effect_key("minecraft:speed")
             ));
             assert!(!game.living_remove_all_effects(zombie));
 
@@ -758,18 +761,18 @@ mod tests {
             assert_eq!(
                 game.living_effect(
                     stale,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed")
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed")
                 ),
                 None
             );
             assert_eq!(game.living_effects(stale), None);
             assert!(!game.living_potion_affected(
                 stale,
-                mod_api::__private::part_tests::effect_key("minecraft:speed")
+                mod_platform::__private::part_tests::effect_key("minecraft:speed")
             ));
             assert!(!game.living_remove_effect(
                 stale,
-                mod_api::__private::part_tests::effect_key("minecraft:speed")
+                mod_platform::__private::part_tests::effect_key("minecraft:speed")
             ));
             assert!(!game.living_remove_all_effects(stale));
         });

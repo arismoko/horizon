@@ -194,8 +194,8 @@ def inventory_document(allowed: dict[str, dict]) -> str:
 Part of #2587. The vocabulary is **not stateless**, and this first change does **not** claim it is
 free of unsafe. Its crate-level `deny(unsafe_code)` remains in force. The unchanged
 `src/__private/points.rs` contains the sole temporary unsafe exception (local lint expectations)
-and the open injection-dispatch registry. #2697 moves its activity and seal state into
-`horizon-engine-slots` and `horizon-mod-points`; the #2587 follow-up then moves raw-pointer
+and the open injection-dispatch registry. #2697 moves only the final seal into
+`horizon-engine-slots`; point activity stays in this registry. The #2587 follow-up then moves raw-pointer
 conversion and ownership behind the points boundary and installs `forbid(unsafe_code)`.
 
 Crash detail buffers, profiling, borrowed resource scopes, static-string storage, retained fluids,

@@ -7,6 +7,11 @@
 //! panel, the book and effect panels beside it, the creative tab rows and
 //! every slot's hover box are made once here, and the drawing, the hit tests
 //! and `screen_exclusion` read them instead of rebuilding them per call.
+//! Step 3 adds the pause menu. Step 4 takes chat's and the command block
+//! screen's resize out of their draws: their text boxes are re-made at the
+//! build's size here (`ChatScreen.resize`,
+//! `AbstractCommandBlockEditScreen.resize`), and their buttons are laid out
+//! once per build.
 
 use horizon_client::inventory_effects::{EffectsLayout, EffectsSpace};
 use horizon_client::window::GuiSize;
@@ -142,11 +147,33 @@ pub(super) struct PauseInputs {
     pub(super) rows: Vec<(&'static str, u8)>,
 }
 
+/// `InBedChatScreen`'s widget beside the chat box: the Leave Bed button
+/// (`width / 2 - 100`, `height - 40`, 200x20). Laid out for every chat build
+/// and drawn and hit-tested only while the player sleeps, so a sleeper's
+/// chat opening on a plain chat build needs no rebuild.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ChatLayout {
+    pub(super) leave_bed: (i32, i32, i32, i32),
+}
+
+/// `AbstractCommandBlockEditScreen.init`'s buttons: the output toggle, the
+/// command block's three mode switches (none for a minecart) and Done/Cancel.
+/// Read by the drawing and `command_block_click`.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct CommandBlockLayout {
+    /// A minecart's screen (`getPreviousY` 150, no mode switches): an input,
+    /// so another kind of edit screen opening at the same size rebuilds.
+    pub(super) cart: bool,
+    /// `(button, x, y, width)`, all 20 high, in `init`'s order.
+    pub(super) buttons: Vec<(super::command_blocks::Button, f32, f32, f32)>,
+}
+
 /// A screen's own widgets, as rectangles.
 ///
 /// Step 2 fills `Container` for the inventory, the creative inventory and
-/// every container or station window, and step 3 fills `Pause`; `Options` and
-/// `Chat` arrive with the screens that fill them.
+/// every container or station window, step 3 fills `Pause` and step 4 `Chat`
+/// and `CommandBlock`. (Options keeps its own built layout, keyed by its
+/// revision, in `OptionsUi`.)
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(super) enum BuildLayout {
     /// Not migrated yet: the build has the window's rectangle only.
@@ -156,6 +183,10 @@ pub(super) enum BuildLayout {
     Container(ContainerLayout),
     /// The pause menu: its buttons and icon row.
     Pause(PauseLayout),
+    /// The chat screen: the in-bed Leave Bed button.
+    Chat(ChatLayout),
+    /// The command block edit screen: its buttons.
+    CommandBlock(CommandBlockLayout),
 }
 
 /// A layout a screen just made for its build. One arm per migrated screen;
@@ -163,6 +194,21 @@ pub(super) enum BuildLayout {
 pub(super) enum ScreenLayout {
     Container(ContainerLayout),
     Pause(PauseLayout),
+    Chat(ChatLayout),
+    CommandBlock(CommandBlockLayout),
+}
+
+impl ScreenLayout {
+    /// A layout that is only widgets: the window is its rectangle and it
+    /// draws nothing outside it.
+    fn widgets(self) -> BuildLayout {
+        match self {
+            ScreenLayout::Container(layout) => BuildLayout::Container(layout),
+            ScreenLayout::Pause(layout) => BuildLayout::Pause(layout),
+            ScreenLayout::Chat(layout) => BuildLayout::Chat(layout),
+            ScreenLayout::CommandBlock(layout) => BuildLayout::CommandBlock(layout),
+        }
+    }
 }
 
 impl ScreenBuild {
@@ -186,10 +232,10 @@ impl ScreenBuild {
                     exclusion,
                 )
             }
-            Some(ScreenLayout::Pause(layout)) => (
+            Some(layout) => (
                 [0.0, 0.0, size.0, size.1],
                 (0.0, 0.0),
-                BuildLayout::Pause(layout),
+                layout.widgets(),
                 Vec::new(),
             ),
             None => (
@@ -230,6 +276,22 @@ impl ScreenBuild {
         }
         match &self.layout {
             BuildLayout::Pause(layout) => Some(layout),
+            _ => None,
+        }
+    }
+
+    /// The build's chat layout, when it has one at this size.
+    pub(super) fn chat(&self, width: f32, height: f32) -> Option<&ChatLayout> {
+        match &self.layout {
+            BuildLayout::Chat(layout) if self.size == (width, height) => Some(layout),
+            _ => None,
+        }
+    }
+
+    /// The build's command block layout, when it has one at this size.
+    pub(super) fn command_block(&self, width: f32, height: f32) -> Option<&CommandBlockLayout> {
+        match &self.layout {
+            BuildLayout::CommandBlock(layout) if self.size == (width, height) => Some(layout),
             _ => None,
         }
     }
@@ -366,16 +428,12 @@ impl ScreenBuildState {
                     exclusion,
                 )
             }
-            ScreenLayout::Pause(layout) => {
-                if matches!(&build.layout, BuildLayout::Pause(built) if *built == layout) {
+            layout => {
+                let layout = layout.widgets();
+                if build.layout == layout {
                     return;
                 }
-                (
-                    build.rect,
-                    build.origin,
-                    BuildLayout::Pause(layout),
-                    Vec::new(),
-                )
+                (build.rect, build.origin, layout, Vec::new())
             }
         };
         build.rect = rect;
@@ -494,9 +552,15 @@ impl Game<'_> {
             (!unchanged).then(|| self.pause_layout(gui.size[0] as f32, gui.size[1] as f32))
         });
         let pause = pause.flatten();
+        let text = if shown {
+            self.text_screen_layout(identity, gui)
+        } else {
+            None
+        };
         let layout = container
             .map(ScreenLayout::Container)
-            .or_else(|| pause.map(ScreenLayout::Pause));
+            .or_else(|| pause.map(ScreenLayout::Pause))
+            .or(text);
         self.screen_state
             .build
             .sync(self.screen, shown, identity, gui, layout);
@@ -522,6 +586,92 @@ impl Game<'_> {
             .as_ref()?
             .pause(width, height)
     }
+
+    /// The build's chat layout, when it holds `(width, height)`.
+    pub(super) fn built_chat(&self, width: f32, height: f32) -> Option<&ChatLayout> {
+        self.screen_state
+            .build
+            .current
+            .as_ref()?
+            .chat(width, height)
+    }
+
+    /// The build's command block layout, when it holds `(width, height)`.
+    pub(super) fn built_command_block(
+        &self,
+        width: f32,
+        height: f32,
+    ) -> Option<&CommandBlockLayout> {
+        self.screen_state
+            .build
+            .current
+            .as_ref()?
+            .command_block(width, height)
+    }
+
+    /// Re-makes the shown chat or command box at `(w, h)` when it was made at
+    /// another size; at its own size it compares and changes nothing.
+    fn resize_text_screens(&mut self, w: f32, h: f32) {
+        let m = horizon_client::screen_draw::Measure(&self.gui.atlas.font);
+        let c = horizon_client::chat::Commands {
+            dispatcher: super::chat::chat_tree(&self.remote),
+            registries: &self.ui.registries,
+        };
+        match self.screen {
+            Screen::Chat => {
+                if let Some(screen) = self.ui.chat_screen.as_mut() {
+                    screen.resize(&m, &c, w as i32, h as i32);
+                }
+            }
+            Screen::CommandBlock => {
+                if let Some(screen) = self.command_block_screen.as_mut() {
+                    screen.resize(&m, &c, w, h);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// `ChatScreen.resize` and `AbstractCommandBlockEditScreen.resize` at the
+    /// build's size: the open text box is re-made here, keeping its text, and
+    /// never in the draw. Then the screen's layout, when the build lacks it at
+    /// this size (or, for the edit screen, for this kind of block). An
+    /// unchanged frame only compares: the boxes keep their size and nothing
+    /// is laid out.
+    pub(super) fn text_screen_layout(
+        &mut self,
+        identity: Option<&'static str>,
+        gui: GuiSize,
+    ) -> Option<ScreenLayout> {
+        let (w, h) = (gui.size[0] as f32, gui.size[1] as f32);
+        let cart = match self.screen {
+            Screen::Chat => None,
+            Screen::CommandBlock => Some(self.command_block_screen.as_ref()?.cart()),
+            _ => return None,
+        };
+        self.resize_text_screens(w, h);
+        let built = self.screen_state.build.current.as_ref().filter(|build| {
+            build.screen == self.screen
+                && build.identity == identity
+                && build.scale == gui.scale as f32
+        });
+        match cart {
+            None => built.and_then(|build| build.chat(w, h)).is_none().then(|| {
+                ScreenLayout::Chat(ChatLayout {
+                    leave_bed: Self::leave_bed_button(w, h),
+                })
+            }),
+            Some(cart) => built
+                .and_then(|build| build.command_block(w, h))
+                .is_none_or(|old| old.cart != cart)
+                .then(|| {
+                    ScreenLayout::CommandBlock(CommandBlockLayout {
+                        cart,
+                        buttons: super::command_blocks::CommandBlockScreen::buttons(w, h, cart),
+                    })
+                }),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -533,6 +683,52 @@ mod tests {
     use crate::game::Screen;
     use horizon_client::hud::{GuiScale, HudBatch};
     use horizon_client::window::GuiSize;
+
+    /// The chat box is re-made at the build's size when the GUI scale
+    /// changes, with no draw in between (`ChatScreen.resize`), and the Leave
+    /// Bed button is laid out once per build. The rectangles are
+    /// `ChatScreen.init` and `InBedChatScreen.init` worked by hand for the
+    /// test's 1280x720 window.
+    #[test]
+    #[ignore = "needs prepared resources and isolated homes"]
+    fn the_chat_box_is_resized_by_the_build_not_the_draw() {
+        crate::game::native_entity_refs::tests::with_game(|game| {
+            use horizon_client::chat::{ChatAbilities, ChatScreen, ChatVisibility, Commands};
+            game.title = None;
+            // 1280x720 at GUI scale 3 is 427x240.
+            game.settings.gui_scale = 3;
+            let m = horizon_client::screen_draw::Measure(&game.gui.atlas.font);
+            let c = Commands {
+                dispatcher: horizon_client::command::vanilla::game_dispatcher(),
+                registries: &game.ui.registries,
+            };
+            let abilities = ChatAbilities::new(ChatVisibility::Full);
+            let screen = ChatScreen::new(&m, &c, "/say hi", false, 0, 427, 240, abilities);
+            game.ui.chat_screen = Some(screen);
+            game.screen = Screen::Chat;
+            game.build_screen();
+            let input = |game: &crate::game::Game<'_>| {
+                let i = &game.ui.chat_screen.as_ref().unwrap().input;
+                [i.x, i.y, i.width, i.height]
+            };
+            assert_eq!(input(game), [4, 228, 423, 12]);
+            let leave_bed = |game: &crate::game::Game<'_>, w, h| {
+                game.built_chat(w, h).map(|layout| layout.leave_bed)
+            };
+            assert_eq!(leave_bed(game, 427.0, 240.0), Some((113, 200, 200, 20)));
+            let builds = game.screen_state.build.builds;
+            game.build_screen();
+            assert_eq!(game.screen_state.build.builds, builds, "an unchanged frame");
+            // GUI scale 1: the build re-makes the box, keeping its text.
+            game.settings.gui_scale = 1;
+            game.build_screen();
+            assert_eq!(game.screen_state.build.builds, builds + 1);
+            assert_eq!(input(game), [4, 708, 1276, 12]);
+            assert_eq!(game.ui.chat_screen.as_ref().unwrap().value(), "/say hi");
+            assert_eq!(leave_bed(game, 1280.0, 720.0), Some((540, 680, 200, 20)));
+            assert_eq!(leave_bed(game, 427.0, 240.0), None);
+        });
+    }
 
     #[test]
     #[ignore = "needs prepared resources and isolated homes"]
@@ -1006,7 +1202,7 @@ mod tests {
             Box::new(Effects(Arc::clone(&calls))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 game.options.execution_role = crate::game::execution_role::ExecutionRole::Client;
                 game.screen = Screen::Inventory;

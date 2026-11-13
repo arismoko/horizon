@@ -288,7 +288,7 @@ mod sweep_tests {
     fn a_part_pushes_the_player_and_its_effect_lands() {
         let part = InsidePart::default();
         let mods = install_inside_mod("inside-push", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let (before, after, dead) = sweep_game_player(game);
@@ -332,7 +332,7 @@ mod sweep_tests {
             ..InsidePart::default()
         };
         let mods = install_inside_mod("inside-kill", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let (before, after, dead) = sweep_game_player(game);
@@ -363,7 +363,7 @@ mod sweep_tests {
             ..InsidePart::default()
         };
         let mods = install_inside_mod("inside-panic", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let (before, after, dead) = sweep_game_player(game);
@@ -434,7 +434,7 @@ mod sweep_tests {
     fn an_added_effect_keeps_its_collector_position() {
         let part = InsidePart::default();
         let mods = install_inside_mod("inside-order", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let (_, _, dead) = sweep_game_player(game);
@@ -475,7 +475,7 @@ mod sweep_tests {
     fn a_servers_player_is_told_once_a_tick() {
         let part = InsidePart::default();
         let mods = install_inside_mod("inside-once", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let stone = game
@@ -624,7 +624,7 @@ mod sweep_tests {
     fn a_part_pushes_an_item_once_a_block() {
         let part = InsidePart::default();
         let mods = install_inside_mod("inside-item", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let mut item = item_at_blocks(game);
@@ -656,7 +656,7 @@ mod sweep_tests {
             ..InsidePart::default()
         };
         let mods = install_inside_mod("inside-item-kill", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let mut item = item_at_blocks(game);
@@ -685,7 +685,7 @@ mod sweep_tests {
             ..InsidePart::default()
         };
         let mods = install_inside_mod("inside-item-panic", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let item = item_at_blocks(game);
@@ -746,7 +746,7 @@ mod sweep_tests {
     fn a_part_pushes_a_projectile_and_removal_stops_the_flush() {
         let part = InsidePart::default();
         let mods = install_inside_mod("inside-shot", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(super::BLOCK_CONTACT_HOOKS);
                 let stone = game
@@ -858,7 +858,7 @@ mod sweep_tests {
     fn an_arrow_is_told_once_a_block_stuck_and_flying() {
         let part = InsidePart::default();
         let mods = install_inside_mod("inside-arrow", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(BLOCK_CONTACT_HOOKS);
                 let stone = game
@@ -917,7 +917,7 @@ mod sweep_tests {
             ..InsidePart::default()
         };
         let mods = install_inside_mod("inside-arrow-panic", &part);
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let _ = horizon_client::block_contact::HOOKS.set(BLOCK_CONTACT_HOOKS);
                 let stone = game

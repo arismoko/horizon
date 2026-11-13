@@ -9,6 +9,8 @@ use horizon_mod_runtime::attachments::Attachments;
 /// A block entity out of the world while a piston moves its block.
 pub struct Carried {
     pub entity: BlockEntity,
+    /// Position-owned saved fields and adapter state, owned by the carried instance.
+    pub position_data: horizon_core::nbt::Compound,
     /// Its attachment map, when it had one.
     pub attachments: Option<Attachments>,
 }
@@ -35,6 +37,7 @@ impl BlockEntities {
             to,
             Carried {
                 entity,
+                position_data: Default::default(),
                 attachments,
             },
         );
@@ -47,6 +50,7 @@ impl BlockEntities {
         let Some(Carried {
             entity,
             attachments,
+            ..
         }) = self.carried.remove(&at)
         else {
             return false;
@@ -61,6 +65,14 @@ impl BlockEntities {
     /// The block entity carried to `at`, for its moving piston's save.
     pub fn carried(&self, at: &Pos) -> Option<&Carried> {
         self.carried.get(at)
+    }
+    /// An in-flight tick owns the payload: a piston must refuse rather than replace its lease.
+    pub fn is_taken(&self, at: &Pos) -> bool {
+        self.out.contains_key(at)
+    }
+    /// The owning adapter updates position-owned state before a save or landing.
+    pub fn carried_mut(&mut self, at: &Pos) -> Option<&mut Carried> {
+        self.carried.get_mut(at)
     }
     /// Holds `carried` for the moving piston at `at`, loaded with it.
     pub fn hold_carried(&mut self, at: Pos, carried: Carried) {

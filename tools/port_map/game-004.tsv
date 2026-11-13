@@ -13,7 +13,7 @@ MobEffect.removeAttributeModifiers	inline	crates/horizon-client/src/game/items/p
 MobEffectInstance.<init>	port	crates/horizon-client-render/src/effects.rs::EffectInstance::new	gap: minor: no showIcon flag, so an effect given without particles still shows its icon; amplifier clamps to 0..255
 MobEffectInstance.asDetails	inline	crates/horizon-client-render/src/effects.rs::PlayerEffects::saved	gap: minor: only id, duration, amplifier, ambient and particles are saved; hidden_effect is lost on save and show_icon is written as the particles flag
 MobEffectInstance.setDetailsFrom	inline	crates/horizon-client-render/src/effects.rs::EffectInstance::downgrade	copies the hidden effect's details when the active one runs out; the copy constructor is Clone
-MobEffectInstance.isShorterDurationThan	port	crates/horizon-client-render/src/effects.rs::EffectInstance::shorter_than	
+MobEffectInstance.isShorterDurationThan	port	crates/horizon-client-render/src/effects.rs::EffectInstance::shorter_than
 MobEffectInstance.withScaledDuration	inline	crates/horizon-client/src/game/items/potions.rs::Game::cloud_affect	the scaled closure: floor(duration * 0.25) at least 1 for lingering clouds; fixed 0.25, the stack's potion_duration_scale is not read
 MobEffectInstance.mapDuration	inline	crates/horizon-client/src/game/items/potions.rs::Game::splash	the (int)(scale * duration + 0.5) of a splash potion on mobs (splash_on_player for the player); potions are never infinite
 MobEffectInstance.tickDownDuration	port	crates/horizon-client-render/src/effects.rs::EffectInstance::tick_down	hidden effect ticks down too; infinite stays
@@ -47,7 +47,8 @@ AgeableMob.addAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::m
 AgeableMob.readAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_from_nbt	Age/ForcedAge through NumericTag.intValue; AgeLocked unchanged
 AgeableMob.canBeABaby	port	crates/horizon-client/src/mobs/species.rs::can_be_a_baby	false for the frog, parrot, zombie nautilus, camel husk, slime and magma cube, true for the rest of the ageable tree and for the zombie/piglin/zoglin synced flag
 AgeableMob.isBaby	port	crates/horizon-client/src/mobs/living.rs::Mob::is_baby	canBeABaby && getAge() < 0: a negative Age alone is not a baby, so the box, voice, breeding, growth and loot stay an adult's
-AnimationState.getTimeInMillis	port	crates/horizon-client/src/mobs/keyframes.rs::AnimationState::millis	
+AgeableMob.canAgeUp	port	crates/horizon-client/src/mobs/ai.rs::can_age_up	isBaby && !isAgeLocked: the growing branch of Animal.mobInteract and of the feeding paths, and the age step
+AnimationState.getTimeInMillis	port	crates/horizon-client/src/mobs/keyframes.rs::AnimationState::millis
 AreaEffectCloud.defineSynchedData	port	crates/horizon-client/src/game/network/lan_entities.rs::Game::lan_projectile_states	radius, waiting and particle for dragon breath and lingering clouds; read back in remote_arrows.rs::remote_projectile_data
 AreaEffectCloud.setRadius	inline	crates/horizon-client/src/game/items/potions.rs::Game::tick_potion_cloud	loaded radius and nonzero per-tick/per-use changes clamp to 0..32
 AreaEffectCloud.refreshDimensions	inline	crates/horizon-client/src/game/items/potions.rs::Game::tick_potion_cloud	the affected box is rebuilt from the radius every check
@@ -63,7 +64,7 @@ ContainerUser.getLivingEntity	skip:java		interface cast; every container user he
 ConversionTracker.addAdditionalSaveData	inline	crates/horizon-client/src/entity_nbt.rs::mob_to_nbt	Zombie-derived InWaterTime saves -1 unless cached eyes are in water; gap: supplied NBT can still shadow live counter progress
 ConversionTracker.readAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_from_nbt	the affliction time (0 when absent) and a conversion started from the saved time, for drowned, stray, husk and zombie-villager mobs
 ConversionTracker.doConversion	inline	crates/horizon-client/src/mobs/undead.rs::custom_server_ai_step	gap: player: zombie to drowned, husk to zombie and skeleton to stray (and piglin to zombified piglin, hoglin to zoglin) spawn a fresh mob through SpawnKind, so the old one's armor, held items, name tag and effects are lost
-ConversionType.convertCommon	port	crates/horizon-client/src/game/mobs/zombie_villagers.rs::carry_over	gap: player: only villager and zombie villager conversions use it (dispenser.rs::Game::convert_mob copies the flags for shearing); drowned, stray, zombified piglin, zoglin, frog and witch conversions go through SpawnKind and carry only baby, yaw and persistence, so name tag, armor, held items and effects are lost; absorption and tags are never copied
+ConversionType.convertCommon	port	crates/horizon-client/src/game/mobs/zombie_villagers.rs::carry_over	gap: player: only villager and zombie villager conversions use it (dispenser.rs::Game::convert_mob copies the flags for shearing); drowned, stray, zombified piglin, zoglin, frog and witch conversions go through SpawnKind and carry only baby, yaw and persistence, so name tag, armor, held items and effects are lost; the absorption is copied by `mobs/conversion.rs::single` (the SINGLE path), tags are never copied
 ConversionType.copyComponent	inline	crates/horizon-client/src/game/mobs/zombie_villagers.rs::carry_over	gap: minor: the custom name is kept by carry_over and convert_mob, custom data is not
 Crackiness.byFraction	port	crates/horizon-client/src/mobs/golem.rs::crackiness	iron golem thresholds 0.75, 0.5, 0.25; wolf armor 0.95, 0.69, 0.32 are in mobs/render.rs::layers and mobs.rs::Mob::hurt_wolf_armor
 Crackiness.byDamage	inline	crates/horizon-client/src/mobs/render.rs::layers	wolf armor: durability left over max picks the crack texture; a golem uses its health instead
@@ -72,14 +73,14 @@ Display.createTransformation	port	crates/horizon-client/src/text_display.rs::Tex
 Display.tick	port	crates/horizon-client/src/game/entities/text_displays.rs::RemoteTextDisplay::tick	start tick, interpolation duration and render state refresh; text displays only
 Display.defineSynchedData	port	crates/horizon-client/src/text_display.rs::TextDisplayData::default	the defaults of entries 8 to 22
 Display.readAdditionalSaveData	port	crates/horizon-client/src/text_display.rs::display_data	the synched data entries (ids 8 to 22) of a saved display, matrix transformation included
-Display.setTransformation	port	crates/horizon-client/src/game/native_entities.rs::Game::native_set_display	a display Horizon keeps as a saved tag (block_display, item_display, text_display) eases from what it showed: the transformation and its interpolation and teleport durations, written for the mod API (native_set_display); nothing writes the brightness, billboard or shadow values back
-Display.addAdditionalSaveData	port	crates/horizon-client/src/game/persist/display.rs::Game::write_display_nbt	the display transformation, duration, culling, brightness, billboard and shadow settings in the saved compound
-Display.BlockDisplay.addAdditionalSaveData	inline	crates/horizon-client/src/game/persist/display.rs::Game::write_display_nbt	block_state, defaulting to air
-Display.ItemDisplay.addAdditionalSaveData	inline	crates/horizon-client/src/game/persist/display.rs::Game::write_display_nbt	item_display context and the nonempty item stack
+Display.setTransformation	port	crates/horizon-client/src/game/modding/native_entities.rs::Game::native_set_display	a display Horizon keeps as a saved tag (block_display, item_display, text_display) eases from what it showed: the transformation and its interpolation and teleport durations, written for the mod API (native_set_display); nothing writes the brightness, billboard or shadow values back
+Display.addAdditionalSaveData	port	crates/horizon-client/src/game/world/persist/display.rs::Game::write_display_nbt	the display transformation, duration, culling, brightness, billboard and shadow settings in the saved compound
+Display.BlockDisplay.addAdditionalSaveData	inline	crates/horizon-client/src/game/world/persist/display.rs::Game::write_display_nbt	block_state, defaulting to air
+Display.ItemDisplay.addAdditionalSaveData	inline	crates/horizon-client/src/game/world/persist/display.rs::Game::write_display_nbt	item_display context and the nonempty item stack
 Display.getInterpolatedBoundingBox	port	crates/horizon-client/src/text_display.rs::culling_box	width-centred XZ box from y to y+height at the interpolated origin; used by Game::display_in_view
 Display.setBrightnessOverride	missing		minor: server side setter; there is no local display entity
 Display.getBrightnessOverride	inline	crates/horizon-client/src/game/entities/text_displays.rs::Game::text_display_geometry	the packed sky and block light of the brightness entry (-1 uses the world light)
-Display.calculateInterpolationProgress	port	crates/horizon-client/src/game/entities/text_displays.rs::RemoteTextDisplay::progress	
+Display.calculateInterpolationProgress	port	crates/horizon-client/src/game/entities/text_displays.rs::RemoteTextDisplay::progress
 Display.updateCulling	port	crates/horizon-client/src/text_display.rs::culling_box	noCulling when width or height is 0 (`no_culling`); else the width/height AABB
 Display.shouldRenderAtSqrDistance	inline	crates/horizon-client/src/game/entities/text_displays.rs::Game::display_in_view	view_range * 64 * view scale squared; frustum when width and height are set
 Display.getTeamColor	missing		minor: glow_color_override is read but a glowing display gets no coloured outline
@@ -92,7 +93,7 @@ Display.TextDisplay.onSyncedDataUpdated	port	crates/horizon-client/src/game/enti
 Display.TextDisplay.loadFlag	inline	crates/horizon-client/src/text_display.rs::text_display_data	each NBT boolean (shadow, see_through, default_background) ORs its bit into the flags, then the alignment
 Display.TextDisplay.readAdditionalSaveData	port	crates/horizon-client/src/text_display.rs::text_display_data	a saved text display's synched data (ids 23 to 27) is read back from its compound and re-sent
 Display.TextDisplay.storeFlag	missing		minor: writes the style flags to NBT; no local display entity
-Display.TextDisplay.addAdditionalSaveData	port	crates/horizon-client/src/game/persist/display.rs::write_text_display	text, layout, opacity, background and style flags; gap: dynamic text resolution
+Display.TextDisplay.addAdditionalSaveData	port	crates/horizon-client/src/game/world/persist/display.rs::write_text_display	text, layout, opacity, background and style flags; gap: dynamic text resolution
 Display.TextDisplay.updateRenderSubState	port	crates/horizon-client/src/text_display.rs::TextDisplayData::blend	text, line width, opacity and background blend over the interpolation
 Display.TextDisplay.createFreshTextRenderState	inline	crates/horizon-client/src/game/entities/text_displays.rs::RemoteTextDisplay::tick	the plain copy of the synced text data
 Display.TextDisplay.createInterpolatedTextRenderState	port	crates/horizon-client/src/text_display.rs::TextDisplayData::blend	opacity and the four background channels interpolate linearly
@@ -101,4 +102,4 @@ Display.TransformationInterpolator.get	port	crates/horizon-client/src/text_displ
 DropChances.filterDefaultValues	port	crates/horizon-client/src/entity_nbt.rs::mob_to_nbt	only the chances that are not the default 0.085 are written; an all-default set is dropped from the tage and reload
 DropChances.toEnumMap	port	crates/horizon-client/src/entity_nbt.rs::mob_from_nbt	the saved drop_chances compound read back by slot name, missing slots keeping the default
 DropChances.withEquipmentChance	port	crates/horizon-client/src/mobs/finalize.rs::set_drop_chance	stored per slot in extra.drop_chances
-ElytraAnimationState.tick	port	crates/horizon-client/src/mobs.rs::ElytraAnimation::tick	
+ElytraAnimationState.tick	port	crates/horizon-client/src/mobs.rs::ElytraAnimation::tick

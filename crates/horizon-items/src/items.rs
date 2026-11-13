@@ -91,6 +91,7 @@ pub fn parse_consumable(
         animation: crate::use_animation::consumable_animation(cons),
         sound: cons["sound"]
             .as_str()
+            .or_else(|| cons["sound"]["sound_id"].as_str())
             .unwrap_or("minecraft:entity.generic.eat")
             .to_owned(),
         particles: cons["has_consume_particles"].as_bool().unwrap_or(true),
@@ -123,7 +124,7 @@ pub fn parse_consumable(
 /// `minecraft:apply_effects`. A
 /// namespaced kind outside `minecraft:` is the mod's own, kept whole for
 /// the hook. An unknown `minecraft:` kind and a missing type are dropped.
-fn parse_consume_effect(effect: &serde_json::Value) -> Option<ConsumeEffect> {
+pub fn parse_consume_effect(effect: &serde_json::Value) -> Option<ConsumeEffect> {
     let kind = effect.get("type")?.as_str()?;
     // `Identifier.bySeparator`: no namespace, or an empty one (`:clear_all_effects`), is minecraft's.
     let kind = match kind.split_once(':') {
@@ -188,7 +189,6 @@ fn parse_consume_effect(effect: &serde_json::Value) -> Option<ConsumeEffect> {
 
 #[derive(Clone, Debug)]
 pub struct ItemInfo {
-    pub fire_resistant: bool,
     pub id: Arc<str>,
     pub max_stack: u32,
     pub max_damage: u32,
@@ -482,6 +482,32 @@ pub struct Items {
     /// station menus share this copy.
     pub enchantments: Arc<crate::enchant::Enchantments>,
 }
+impl Items {
+    /// This table with a server's block and item tags in place of its own
+    /// (`ClientboundUpdateTagsPacket`): each tag's members in the order sent,
+    /// which is `TagLoader`'s. `None` keeps this table's tags of that kind.
+    pub fn with_tags(
+        &self,
+        block_tags: Option<HashMap<String, Vec<String>>>,
+        item_tags: Option<HashMap<String, Vec<String>>>,
+    ) -> Self {
+        let mut items = self.clone();
+        if let Some(tags) = block_tags {
+            items.block_tags = tags
+                .into_iter()
+                .map(|(name, members)| (name, members.into_iter().collect()))
+                .collect();
+        }
+        if let Some(tags) = item_tags {
+            items.item_tags = tags
+                .iter()
+                .map(|(name, members)| (name.clone(), members.iter().cloned().collect()))
+                .collect();
+            items.item_tag_order = tags;
+        }
+        items
+    }
+}
 /// A `JukeboxSong`.
 #[derive(Clone, Debug)]
 pub struct Song {
@@ -552,26 +578,9 @@ fn parse_instrument(v: &Value) -> Instrument {
         range: v["range"].as_f64().unwrap_or(0.0) as f32,
     }
 }
-/// Select one JSON resource per ID before applying the owning load's conditions.
-/// A skipped winning resource stays absent; it never uncovers a lower version.
-pub(crate) fn data_files(root: &Path, kind: &str, overlay: &PackOverlay) -> HashMap<String, Value> {
-    let mut files: HashMap<_, _> = horizon_world::damage_source::resource_files(root, kind)
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|(id, bytes)| {
-            serde_json::from_slice::<Value>(&bytes)
-                .ok()
-                .map(|v| (id, v))
-        })
-        .collect();
-    for (id, versions) in overlay.kind(kind) {
-        if let Ok(value) = serde_json::from_slice::<Value>(PackOverlay::top(versions)) {
-            files.insert(id.to_owned(), value);
-        }
-    }
-    files.retain(|_, value| overlay.conditions.allows(value));
-    files
-}
+#[path = "condition_files.rs"]
+mod condition_files;
+pub(crate) use condition_files::data_files;
 fn load_instruments(root: &Path, overlay: &PackOverlay) -> HashMap<String, Instrument> {
     data_files(root, "instrument", overlay)
         .into_iter()
@@ -630,8 +639,9 @@ pub(crate) fn load_tag_lists(
     overlay: &PackOverlay,
 ) -> Result<HashMap<String, Vec<String>>> {
     let inventory = horizon_mod_package::enabled::EnabledMods::read(root)?;
-    let loaded =
-        |id: &str| id == "minecraft" || inventory.server_ids().any(|enabled| enabled == id);
+    let conditions = overlay
+        .conditions
+        .with_mod_inventory(inventory.server_ids());
     let mut raw: HashMap<String, Vec<String>> = HashMap::new();
     /// Through `json_folder`: from the prepared data file, and read once for
     /// the tables a load builds from the same tags.
@@ -639,11 +649,11 @@ pub(crate) fn load_tag_lists(
         dir: &Path,
         namespace: &str,
         raw: &mut HashMap<String, Vec<String>>,
-        loaded: &horizon_world::conditions::ModLoaded<'_>,
+        conditions: &horizon_world::conditions::LoadConditions,
     ) -> Result<()> {
         for file in &horizon_world::json_folder::read(dir)?.files {
             let v: Value = serde_json::from_slice(file.bytes()?)?;
-            if !horizon_world::conditions::conditions_hold(&v, loaded) {
+            if !conditions.allows_path(&v, dir, &file.name) {
                 continue;
             }
             let values = v["values"]
@@ -660,7 +670,7 @@ pub(crate) fn load_tag_lists(
     for namespace in crate::content_namespaces::tag_namespaces(root) {
         let dir = root.join(format!("data/{namespace}/tags/{kind}"));
         if dir.exists() {
-            walk(&dir, &namespace, &mut raw, &loaded)?;
+            walk(&dir, &namespace, &mut raw, &conditions)?;
         }
     }
     // The packs' entries join the game's own, in pack order; a `replace`
@@ -673,7 +683,7 @@ pub(crate) fn load_tag_lists(
             let Ok(v) = serde_json::from_slice::<Value>(bytes) else {
                 continue;
             };
-            if !horizon_world::conditions::conditions_hold(&v, &loaded) {
+            if !conditions.allows_tag(&v, kind, &id) {
                 continue;
             }
             let slot = raw.entry(id.to_owned()).or_default();
@@ -767,9 +777,11 @@ fn worn_mob_visibility(
         parse_mob_visibility(components.get("minecraft:mob_visibility")?, tags)?,
     ))
 }
-/// Every item of the last item registry loaded with its `villager_food`
-/// nutrition (0 without the component): what the mobs' villagers read, since
-/// a mob does not hold the registry (`None` until one is loaded).
+/// Every item of the last game registry loaded ([`Items::load`]) with its
+/// `villager_food` nutrition (0 without the component): what the mobs' villagers
+/// read, since a mob does not hold the registry (`None` until one is loaded).
+/// [`Items::catalog`] leaves it alone, so a headless or test catalog of other
+/// items never replaces the game's table.
 static VILLAGER_FOOD: std::sync::RwLock<Option<HashMap<Arc<str>, i32>>> =
     std::sync::RwLock::new(None);
 fn set_villager_food(items: &HashMap<Arc<str>, ItemInfo>) {
@@ -793,56 +805,6 @@ pub fn villager_food(item: &str) -> Option<i32> {
 }
 
 impl Items {
-    pub fn resists_fire(&self, stack: &ItemStack, source: &str) -> bool {
-        if let Some(data) = stack.data()
-            && let Some((_, v)) = data
-                .other
-                .iter()
-                .find(|(key, _)| key == "minecraft:damage_resistant")
-        {
-            return match v.get("types") {
-                Some(horizon_core::nbt::Tag::String(tag)) => {
-                    tag.to_string().is_ok_and(|id|id=="#minecraft:is_fire" || id==source)
-                }
-                Some(horizon_core::nbt::Tag::List(tags)) => tags.iter().any(
-                    |t| matches!(t,horizon_core::nbt::Tag::String(id) if id.to_string().is_ok_and(|id|id==source)),
-                ),
-                _ => false,
-            };
-        }
-        self.get(&stack.item).is_some_and(|i| i.fire_resistant)
-    }
-
-    /// `ItemStack.canBeHurtBy` for the cactus damage type: a `damage_resistant`
-    /// component naming `minecraft:cactus`, or a damage type tag that holds it.
-    /// (`#minecraft:is_fire`, as on netherite gear, does not.)
-    pub fn resists_cactus(&self, stack: &ItemStack) -> bool {
-        const CACTUS_TAGS: [&str; 5] = [
-            "#minecraft:bypasses_shield",
-            "#minecraft:no_knockback",
-            "#minecraft:panic_environmental_causes",
-            "#minecraft:panic_causes",
-            "#minecraft:sulfur_cube_with_block_immune_to",
-        ];
-        let Some((_, v)) = stack.data().and_then(|data| {
-            data.other
-                .iter()
-                .find(|(key, _)| key == "minecraft:damage_resistant")
-        }) else {
-            return false;
-        };
-        match v.get("types") {
-            Some(horizon_core::nbt::Tag::String(id)) => id
-                .to_string()
-                .is_ok_and(|id| id == "minecraft:cactus" || CACTUS_TAGS.contains(&id.as_str())),
-            Some(horizon_core::nbt::Tag::List(ids)) => ids.iter().any(|t| {
-                matches!(t, horizon_core::nbt::Tag::String(id)
-                    if id.to_string().is_ok_and(|id| id == "minecraft:cactus"))
-            }),
-            _ => false,
-        }
-    }
-
     pub fn load(
         root: &Path,
         registry: &BlockRegistry,
@@ -894,6 +856,7 @@ impl Items {
             }
         }
         let mut items = Self::load_with(root, &block_for_item, overlay, defaults)?;
+        set_villager_food(&items.items);
         let path = root.join(MOD_ITEM_BLOCKS);
         match fs::read(&path) {
             Ok(bytes) => {
@@ -994,8 +957,6 @@ impl Items {
             items.insert(
                 id.clone(),
                 ItemInfo {
-                    fire_resistant: c["minecraft:damage_resistant"]["types"].as_str()
-                        == Some("#minecraft:is_fire"),
                     id: id.clone(),
                     max_stack: c["minecraft:max_stack_size"].as_u64().unwrap_or(64) as u32,
                     max_damage: c["minecraft:max_damage"].as_u64().unwrap_or(0) as u32,
@@ -1160,7 +1121,6 @@ impl Items {
         // game's own: one map with the loot data of the same root and packs.
         let loot = horizon_world::loot::shared_tables(root, overlay)?;
         let registry_order = registry_order(root, &order);
-        set_villager_food(&items);
         Ok(Self {
             items,
             mob_visibility,
@@ -1460,24 +1420,55 @@ impl Items {
         }
         self.get(&stack.item)?.tool_damage_per_block
     }
-    /// Mining wear on an already durable item prototype. Custom durability on
-    /// non-durable items needs item-aware DAMAGE-presence decoding first.
-    pub fn mining_damage_capacity(&self, stack: &ItemStack) -> u32 {
-        let prototype_max = self.get(&stack.item).map_or(0, |info| info.max_damage);
-        let component = |id| stack.data().and_then(|d| d.other(id));
-        if prototype_max == 0
-            || stack.count == 0
-            || &*stack.item == "minecraft:air"
-            || component("!minecraft:max_damage").is_some()
-            || component("!minecraft:damage").is_some()
-            || component("minecraft:unbreakable").is_some()
+    /// `Weapon.disableBlockingForSeconds`: the stack's `weapon` component,
+    /// else the item's prototype; zero without one.
+    pub fn weapon_disable_blocking(&self, stack: &ItemStack) -> f32 {
+        if stack.count == 0 || &*stack.item == "minecraft:air" {
+            return 0.0;
+        }
+        if stack
+            .data()
+            .is_some_and(|d| d.other("!minecraft:weapon").is_some())
         {
-            return 0;
+            return 0.0;
         }
-        match component("minecraft:max_damage") {
-            Some(value) => horizon_world::datafix::dynamic::as_int(Some(value), 0).max(0) as u32,
-            _ => prototype_max,
+        if let Some(weapon) = stack.data().and_then(|d| d.other("minecraft:weapon")) {
+            return horizon_world::datafix::dynamic::as_float(
+                weapon.get("disable_blocking_for_seconds"),
+                0.0,
+            );
         }
+        self.get(&stack.item)
+            .map_or(0.0, |i| i.disable_blocking_seconds)
+    }
+
+    /// `Weapon.itemDamagePerAttack`: the stack's `weapon` component, else the
+    /// item's prototype. A removed component leaves no weapon.
+    pub fn weapon_damage(&self, stack: &ItemStack) -> Option<u32> {
+        if stack.count == 0 || &*stack.item == "minecraft:air" {
+            return None;
+        }
+        if stack
+            .data()
+            .is_some_and(|d| d.other("!minecraft:weapon").is_some())
+        {
+            return None;
+        }
+        if let Some(weapon) = stack.data().and_then(|d| d.other("minecraft:weapon")) {
+            return Some(
+                horizon_world::datafix::dynamic::as_int(weapon.get("item_damage_per_attack"), 1)
+                    .max(0) as u32,
+            );
+        }
+        self.get(&stack.item)?.weapon_damage
+    }
+    /// The stack's damage capacity (`crate::durability::stack_max_damage`).
+    pub fn stack_max_damage(&self, stack: &ItemStack) -> u32 {
+        crate::durability::stack_max_damage(self, stack)
+    }
+    /// The damage capacity mining wear uses (`stack_max_damage`).
+    pub fn mining_damage_capacity(&self, stack: &ItemStack) -> u32 {
+        self.stack_max_damage(stack)
     }
     /// Whether a loot table (`minecraft:blocks/stone`, ...) exists.
     pub fn has_loot_table(&self, id: &str) -> bool {
@@ -2483,7 +2474,8 @@ impl<R: RandomSource> LootContext<'_, R> {
                     } else {
                         0
                     };
-                    stack.count = (base + n).max(0) as u32;
+                    let total = base.saturating_add(n).max(0);
+                    stack.count = total as u32;
                 }
                 // SetItemDamageFunction.run: check damageability before the
                 // float provider, so ineligible stacks do not draw randomness.
@@ -2528,7 +2520,7 @@ impl<R: RandomSource> LootContext<'_, R> {
                         }
                         "minecraft:uniform_bonus_count" => {
                             let multiplier = params["bonusMultiplier"].as_i64().unwrap_or(1) as i32;
-                            let bound = multiplier.saturating_mul(level).saturating_add(1);
+                            let bound = multiplier.saturating_mul(level).saturating_add(1).max(1);
                             count.saturating_add(random.next_int_bound(bound).unwrap_or(0))
                         }
                         "minecraft:binomial_with_bonus_count" => {
@@ -2608,7 +2600,7 @@ impl<R: RandomSource> LootContext<'_, R> {
                     let cost = Self::int_number(&f["levels"], random);
                     let e = &self.items.enchantments;
                     let pool = Self::enchant_pool(e, &f["options"]);
-                    let chosen = e.select(self.items, random, &stack.item, cost, &pool);
+                    let chosen = e.select(self.items, random, stack, cost, &pool);
                     // EnchantmentHelper.enchantItem: a book becomes one
                     // enchanted book (the fresh stack's count).
                     if &*stack.item == "minecraft:book" {
@@ -2868,25 +2860,20 @@ pub fn bucket_contents(
     item: &str,
 ) -> Option<(horizon_world::level::BucketContent, &str, Option<&str>)> {
     use horizon_world::{fluid::FluidKind, level::BucketContent as C};
+    // A bucket of a fluid empties with that fluid's sound.
+    let fluid = |kind| {
+        Some((
+            C::Fluid(kind),
+            horizon_world::level::fluid_empty_sound(kind)?,
+            None,
+        ))
+    };
     Some(match item {
-        _ if !item.starts_with("minecraft:") => {
-            let fluid = horizon_world::fluid::mod_fluid_of_bucket(item)?;
-            (
-                C::Fluid(FluidKind::Mod(fluid)),
-                "minecraft:item.bucket.empty",
-                None,
-            )
-        }
-        "minecraft:water_bucket" => (
-            C::Fluid(FluidKind::Water),
-            "minecraft:item.bucket.empty",
-            None,
-        ),
-        "minecraft:lava_bucket" => (
-            C::Fluid(FluidKind::Lava),
-            "minecraft:item.bucket.empty_lava",
-            None,
-        ),
+        _ if !item.starts_with("minecraft:") => fluid(FluidKind::Mod(
+            horizon_world::fluid::mod_fluid_of_bucket(item)?,
+        ))?,
+        "minecraft:water_bucket" => fluid(FluidKind::Water)?,
+        "minecraft:lava_bucket" => fluid(FluidKind::Lava)?,
         "minecraft:powder_snow_bucket" => {
             (C::Powder, "minecraft:item.bucket.empty_powder_snow", None)
         }
@@ -3110,12 +3097,91 @@ mod consume_effect_tests {
 
 #[cfg(test)]
 mod tests {
+    mod enchant_select_tests {
+        include!("enchant_select_tests.rs");
+    }
     use super::*;
     use horizon_core::random::LegacyRandom;
     use serde_json::json;
 
     /// The ids `/loot ... loot <id>` takes: a content mod's table in the
     /// root and a world pack's table over it.
+    #[test]
+    fn weapon_damage_comes_from_the_stack() {
+        let items = Items::for_tests(HashMap::new());
+        let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
+        sword.data_mut().set_other(
+            "minecraft:weapon",
+            Some(horizon_core::nbt::Tag::compound([(
+                "item_damage_per_attack",
+                horizon_core::nbt::Tag::Int(3),
+            )])),
+        );
+        assert_eq!(items.weapon_damage(&sword), Some(3));
+        sword.data_mut().set_other(
+            "!minecraft:weapon",
+            Some(horizon_core::nbt::Tag::compound(Vec::<(
+                &str,
+                horizon_core::nbt::Tag,
+            )>::new())),
+        );
+        assert_eq!(items.weapon_damage(&sword), None);
+    }
+
+    #[test]
+    fn weapon_disable_blocking_comes_from_the_stack() {
+        let root = std::env::temp_dir().join(format!(
+            "horizon-weapon-disable-blocking-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("items.json"),
+            r#"{"minecraft:stick":{},"minecraft:diamond_axe":{"minecraft:weapon":{"disable_blocking_for_seconds":5.0}}}"#,
+        )
+        .unwrap();
+        let defaults = horizon_world::item_defaults::read(&root).unwrap();
+        let items = Items::catalog(&root, &PackOverlay::NONE, &defaults).unwrap();
+        let mut axe = ItemStack::new("minecraft:diamond_axe", 1);
+        assert_eq!(items.weapon_disable_blocking(&axe), 5.0);
+        for item in ["minecraft:stick", "test:unknown", "minecraft:air"] {
+            assert_eq!(items.weapon_disable_blocking(&ItemStack::new(item, 1)), 0.0);
+        }
+
+        // A replacement component uses the codec's zero default, not the axe's.
+        let empty = crate::item_data::command_components("[weapon={}]").unwrap();
+        (axe.damage, axe.extra) = crate::item_data::decode_components(Some(&empty));
+        assert_eq!(items.weapon_disable_blocking(&axe), 0.0);
+
+        let custom =
+            crate::item_data::command_components("[weapon={disable_blocking_for_seconds:1.5f}]")
+                .unwrap();
+        (axe.damage, axe.extra) = crate::item_data::decode_components(Some(&custom));
+        assert_eq!(items.weapon_disable_blocking(&axe), 1.5);
+        let mut stick = ItemStack::new("minecraft:stick", 1);
+        (stick.damage, stick.extra) = crate::item_data::decode_components(Some(&custom));
+        assert_eq!(items.weapon_disable_blocking(&stick), 1.5);
+        stick.count = 0;
+        assert_eq!(items.weapon_disable_blocking(&stick), 0.0);
+        stick.count = 1;
+        stick.item = "minecraft:air".into();
+        assert_eq!(items.weapon_disable_blocking(&stick), 0.0);
+
+        axe.data_mut().set_other(
+            "!minecraft:weapon",
+            Some(horizon_core::nbt::Tag::compound(Vec::<(
+                &str,
+                horizon_core::nbt::Tag,
+            )>::new())),
+        );
+        assert_eq!(items.weapon_disable_blocking(&axe), 0.0);
+        let removal = crate::item_data::command_components("[!weapon]").unwrap();
+        (axe.damage, axe.extra) = crate::item_data::decode_components(Some(&removal));
+        let restored = crate::item_nbt::item_from_nbt(&crate::item_nbt::item_to_nbt(&axe)).unwrap();
+        assert_eq!(items.weapon_disable_blocking(&restored), 0.0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn loot_table_ids_list_the_roots_and_the_packs_tables() {
         let root = std::env::temp_dir().join(format!("horizon-loot-ids-{}", std::process::id()));

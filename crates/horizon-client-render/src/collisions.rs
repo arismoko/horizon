@@ -37,7 +37,8 @@ pub fn load<'r>(root: &Path, registry: &'r BlockRegistry) -> Result<BlockCollisi
 /// What powder snow's and liquids' contextual collisions ask of the colliding
 /// entity (`PowderSnowBlock` and `LiquidBlock.getCollisionShape`).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct PowderSnowSubject {
+pub struct PowderSnowSubject<'a> {
+    pub main_hand: Option<CollisionItem<'a>>,
     pub fall_distance: f64,
     /// `FallingBlockEntity`.
     pub falling_block: bool,
@@ -79,7 +80,7 @@ pub struct SceneCollisions<'w, 'r> {
     pub world: &'w World,
     pub binding: &'w BlockCollisionRegistry<'r>,
     /// The entity colliding, for powder snow; None: no fall, no boots.
-    pub subject: Option<PowderSnowSubject>,
+    pub subject: Option<PowderSnowSubject<'w>>,
 }
 /// Already selected entity boxes alongside the resident block collision world.
 pub struct EntityCollisions<'a, W> {
@@ -219,11 +220,10 @@ where
         )?)
     }
 }
-impl SceneCollisions<'_, '_> {
+impl<'w> SceneCollisions<'w, '_> {
     /// Position contexts permit geometric movement probes without inventing a
-    /// player, inventory, effects or fluid-standing behavior; a lava walker or
-    /// a living entity in leather boots collides as the living entity it is,
-    /// empty-handed.
+    /// player, inventory, effects or fluid-standing behavior. A supplied subject
+    /// collides as a living entity with its captured main-hand stack.
     pub fn resolve(
         &mut self,
         bounds: Aabb,
@@ -289,21 +289,18 @@ impl SceneCollisions<'_, '_> {
             },
         )?)
     }
-    fn context(&self, bounds: Aabb) -> CollisionContext<'static> {
+    fn context(&self, bounds: Aabb) -> CollisionContext<'w> {
         let y = bounds.min_position().y;
-        if !self
-            .subject
-            .is_some_and(|s| s.lava_walker || s.leather_boots)
-        {
+        let Some(subject) = self.subject else {
             return CollisionContext::position(y);
-        }
+        };
         CollisionContext::for_entity(
             CollisionEntity {
                 identity: EntityIdentity(0),
                 kind: horizon_world::collision_context::EntityContextKind::Living,
                 y,
                 descending: false,
-                main_hand: Some(CollisionItem::EMPTY),
+                main_hand: Some(subject.main_hand.unwrap_or(CollisionItem::EMPTY)),
             },
             false,
         )
@@ -419,8 +416,10 @@ impl SceneCollisions<'_, '_> {
         let hi = BlockPos::containing(Vec3::new(max.x + 1.0e-7, max.y + 1.0e-7, max.z + 1.0e-7))
             .offset(1, 1, 1);
         let size = |a: i32, b: i32| i64::from(b) - i64::from(a) + 1;
-        let cells = size(lo.x, hi.x) * size(lo.y, hi.y) * size(lo.z, hi.z);
-        if lo.x > hi.x || lo.y > hi.y || lo.z > hi.z || cells > 4096 {
+        let cells = [size(lo.x, hi.x), size(lo.y, hi.y), size(lo.z, hi.z)]
+            .into_iter()
+            .try_fold(1i64, |n, size| n.checked_mul(size));
+        if lo.x > hi.x || lo.y > hi.y || lo.z > hi.z || cells.is_none_or(|n| n > 4096) {
             return false;
         }
         // A column and section at a time. Most boxes lie in a few sections whose palette says that no
@@ -1115,6 +1114,13 @@ mod section_tests {
             binding: &binding,
             subject: None,
         };
+        // The fast path must decline an enormous volume without overflowing
+        // its size calculation or beginning to walk it.
+        let enormous = Aabb::new(
+            Vec3::new(-1.0e9, -1.0e9, -1.0e9),
+            Vec3::new(1.0e9, 1.0e9, 1.0e9),
+        );
+        assert!(!scene.cells_without_collision(enormous));
         // Under the fence: its section's outer cells may hold a shape reaching in.
         let under = Aabb::new(Vec3::new(5.4, 31.6, 5.4), Vec3::new(5.6, 31.8, 5.6));
         assert!(!scene.cells_without_collision(under.expand_towards(Vec3::new(0.0, 0.1, 0.0))));

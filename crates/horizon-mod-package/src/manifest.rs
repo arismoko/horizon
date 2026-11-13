@@ -31,6 +31,10 @@ pub const API: &str = "0.2";
 const RESERVED_NAMESPACES: [&str; 3] = ["minecraft", "c", "horizon"];
 /// A mod's saved settings, shared by native mods and modpack overrides.
 pub const STORAGE_DIR: &str = ".horizon-mod-data";
+/// wasm32's whole address space in MiB (4 GiB): the most a mod may declare in `wasm_memory_mib`,
+/// and an instance's group memory cap unless the player lowers it (`horizon-mods.txt`).
+pub const MAX_WASM_MEMORY_MIB: u32 = 4096;
+
 /// The largest manifest this build reads.
 /// Maximum manifest bytes accepted by package readers and developer tools.
 pub const MAX_MANIFEST: u64 = 32 << 20;
@@ -82,11 +86,35 @@ pub struct Manifest {
     pub native: Option<Native>,
     /// A wasm mod's `mod.wasm`, its toolchain and what it was linked against.
     pub wasm: Option<Wasm>,
+    /// The linear memory, in MiB (1 to [`MAX_WASM_MEMORY_MIB`]), this wasm mod or library expects
+    /// its dependency group to have. The group gets the largest any member declares, up to the
+    /// instance's cap; with none declared it gets 1 GiB. Native mods are not wasm groups: they
+    /// share the game's memory, and the key means nothing to them.
+    #[serde(default)]
+    pub wasm_memory_mib: Option<u32>,
     /// Game internals used by this mod, fingerprinted against its pinned build.
     #[serde(default)]
     pub internals: Vec<Internal>,
     #[serde(default, deserialize_with = "inject::rows")]
     pub inject: Vec<inject::Inject>,
+    /// Free-form values other mods read through `PackageInfo::property`.
+    #[serde(default)]
+    pub properties: std::collections::BTreeMap<String, Property>,
+}
+
+/// The most `[properties]` keys a manifest may declare.
+pub const MAX_PROPERTIES: usize = 64;
+/// The most `[properties]` bytes: keys and strings by length, 8 per number, 1 per boolean.
+pub const MAX_PROPERTY_BYTES: usize = 8 << 10;
+
+/// One `[properties]` value: a table or array is refused.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum Property {
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
+    String(String),
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -276,7 +304,7 @@ impl Manifest {
                 && let Some(rows) = table.get("inject").and_then(toml::Value::as_array)
             {
                 for row in rows {
-                    if let Err(error) = row.clone().try_into::<inject::Inject>() {
+                    if let Some(Err(error)) = row.as_table().cloned().map(inject::row) {
                         let field = |key| row.get(key).and_then(toml::Value::as_str).unwrap_or("?");
                         let id = table.get("id").and_then(toml::Value::as_str).unwrap_or("?");
                         return format!(
@@ -333,6 +361,13 @@ impl Manifest {
             if !valid_mod_id(id) {
                 return Err(format!("{MANIFEST}: invalid dependency id {id:?}"));
             }
+        }
+        if let Some(mib) = m.wasm_memory_mib
+            && !(1..=MAX_WASM_MEMORY_MIB).contains(&mib)
+        {
+            return Err(format!(
+                "{MANIFEST}: wasm_memory_mib {mib} is not 1 to {MAX_WASM_MEMORY_MIB} (wasm32's 4 GiB)"
+            ));
         }
         if m.native.is_some() && m.wasm.is_some() {
             if let Some(refusal) = wasm_loop() {
@@ -396,6 +431,28 @@ impl Manifest {
                     ));
                 }
             }
+            // A bridge's id becomes part of its accessor's name: `-` reads as `_`, and case is
+            // dropped, so the id is that alphabet and no two ids may give one name.
+            let mut accessors = std::collections::HashMap::new();
+            for bridge in &native.bridge {
+                let id = &bridge.id;
+                if !id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                {
+                    return Err(format!(
+                        "{MANIFEST}: E_MIXIN_INVALID: {}:{id}: invalid id; a bridge id is ASCII letters, digits, `_` and `-`",
+                        m.id
+                    ));
+                }
+                if let Some(other) = accessors.insert(id.replace('-', "_").to_ascii_lowercase(), id)
+                {
+                    return Err(format!(
+                        "{MANIFEST}: E_MIXIN_INVALID: {}:{id}: invalid id; it gives the same accessor name as bridge `{other}`",
+                        m.id
+                    ));
+                }
+            }
             for module in &native.module {
                 if module.id.trim().is_empty() || !ids.insert(&module.id) {
                     return Err(format!("{MANIFEST}: empty or duplicate module id"));
@@ -433,6 +490,25 @@ impl Manifest {
             return Err(format!(
                 "unsupported content API {}; this Horizon reads {API}",
                 m.api
+            ));
+        }
+        let property_bytes: usize = m
+            .properties
+            .iter()
+            .map(|(key, value)| {
+                key.len()
+                    + match value {
+                        Property::Boolean(_) => 1,
+                        Property::Integer(_) | Property::Float(_) => 8,
+                        Property::String(text) => text.len(),
+                    }
+            })
+            .sum();
+        if m.properties.len() > MAX_PROPERTIES || property_bytes > MAX_PROPERTY_BYTES {
+            return Err(format!(
+                "{MANIFEST}: [properties] holds at most {MAX_PROPERTIES} keys and {MAX_PROPERTY_BYTES} \
+                 bytes; this one has {} keys and {property_bytes} bytes",
+                m.properties.len()
             ));
         }
         if m.capabilities != [Capability::Registries] {
@@ -1096,6 +1172,27 @@ mod tests {
     }
 
     #[test]
+    fn declared_wasm_memory_is_one_mib_to_wasm32s_four_gib() {
+        let declare = |value: &str| {
+            Manifest::parse(&EXAMPLE.replace(
+                "capabilities = [\"registries\"]\n",
+                &format!("capabilities = [\"registries\"]\nwasm_memory_mib = {value}\n"),
+            ))
+        };
+        assert_eq!(Manifest::parse(EXAMPLE).unwrap().wasm_memory_mib, None);
+        assert_eq!(declare("1").unwrap().wasm_memory_mib, Some(1));
+        assert_eq!(declare("4096").unwrap().wasm_memory_mib, Some(4096));
+        for value in ["0", "4097"] {
+            assert!(
+                declare(value)
+                    .unwrap_err()
+                    .contains(&format!("wasm_memory_mib {value} is not 1 to 4096")),
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
     fn windows_device_mod_ids_are_refused() {
         for id in ["con", "prn", "aux", "nul", "com1", "com9", "lpt1", "lpt9"] {
             assert!(
@@ -1274,6 +1371,21 @@ capabilities = ["registries"]
         }
         let public = valid.to_owned() + "visibility = 'pub(crate)'\n";
         assert!(Manifest::parse(&format!("{EXAMPLE}{native}{public}")).is_ok());
+    }
+
+    #[test]
+    fn properties_are_typed_and_bounded() {
+        let properties = |rows: &str| Manifest::parse(&format!("{EXAMPLE}[properties]\n{rows}"));
+        let manifest = properties("tier = 3\nratio = 0.5\nlabel = 'x'\nfast = true\n").unwrap();
+        assert_eq!(manifest.properties["tier"], Property::Integer(3));
+        assert_eq!(manifest.properties["ratio"], Property::Float(0.5));
+        assert_eq!(manifest.properties["label"], Property::String("x".into()));
+        assert_eq!(manifest.properties["fast"], Property::Boolean(true));
+        let many: String = (0..65).map(|i| format!("k{i} = {i}\n")).collect();
+        let error = properties(&many).unwrap_err();
+        assert!(error.contains("at most 64 keys"), "{error}");
+        assert!(properties(&format!("text = '{}'\n", "a".repeat(8 << 10))).is_err());
+        assert!(properties("list = [1]\n").is_err());
     }
 
     #[test]
@@ -1658,6 +1770,24 @@ issues = \"http://example.org/issues\"
         let package = Package::read(&root).unwrap();
         assert!(crate::Content::read(&root, &package.manifest).is_err());
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn structure_nbt_is_data_but_not_an_executable_exception() {
+        let name = "data/ruby/structure/hut.nbt";
+        // An uncompressed, named NBT root containing an empty compound.
+        let nbt = [10u8, 0, 0, 0];
+        assert!(check_file(name, 0o100644, || Ok(std::io::Cursor::new(nbt))).is_ok());
+        assert!(matches!(
+            check_file(name, 0o100755, || Ok(std::io::Cursor::new(nbt))),
+            Err(ContentFileError::Executable(_))
+        ));
+        for header in [b"\x7fELF", b"MZ!!", b"\0asm"] {
+            assert!(matches!(
+                check_file(name, 0o100644, || Ok(std::io::Cursor::new(header))),
+                Err(ContentFileError::Executable(_))
+            ));
+        }
     }
 
     #[test]

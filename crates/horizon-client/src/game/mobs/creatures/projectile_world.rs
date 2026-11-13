@@ -3,6 +3,9 @@
 use super::*;
 
 impl ProjectileWorld for ProjWorld<'_, '_> {
+    fn below_world_y(&self) -> f64 {
+        self.w.world.below_world_y()
+    }
     fn clip(&self, from: Vec3, to: Vec3) -> Option<(Vec3, [i32; 3], [i32; 3])> {
         let mut scene = SceneCollisions {
             world: self.w.world,
@@ -40,6 +43,9 @@ impl ProjectileWorld for ProjWorld<'_, '_> {
     /// block at its feet (#3072).
     fn in_water(&self, bounds: Aabb) -> bool {
         self.w.fluids(bounds, bounds.max_position().y).in_water
+    }
+    fn pushed_by_currents(&self, bounds: Aabb, velocity: Vec3) -> Vec3 {
+        self.w.pushed_by_currents(bounds, velocity)
     }
     fn targets(&self) -> &[(Who, Aabb)] {
         &self.targets

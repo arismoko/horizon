@@ -45,8 +45,8 @@ fn installed_block_entity_neighbor_parts_dispatch_through_game() {
         Box::new(Listener(notices.clone(), weak.clone(), queries.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
+    mod_platform::testing::with_mods(mods.clone(), || {
+        mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
         with_game(|game| {
             let directory = tempfile::tempdir().unwrap();
             game.save = Arc::new(horizon_client::save::SaveDir::new(
@@ -126,8 +126,8 @@ fn block_entity_neighbor_traversal_keeps_far_chunk_unloaded() {
         )),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
+    mod_platform::testing::with_mods(mods.clone(), || {
+        mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.world.chunks.clear();

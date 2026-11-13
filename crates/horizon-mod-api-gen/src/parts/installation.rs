@@ -65,7 +65,11 @@ impl Schema {
                             if !matches!(item.vis, Visibility::Public(_))
                                 || matches!(
                                     name.as_str(),
-                                    "Attached" | "Parts" | "OwnProvider" | "TooltipAppenderPart"
+                                    "Attached"
+                                        | "Parts"
+                                        | "OwnProvider"
+                                        | "TooltipAppenderPart"
+                                        | "Payloads"
                                 )
                             {
                                 let target_name = if name == "Installed" {
@@ -181,12 +185,21 @@ impl Schema {
                         let element = self.convert(quote!(element), element)?;
                         Ok(quote!((#value).map(|element| #element)))
                     }
+                    ("Arc", [element]) => {
+                        let element =
+                            self.convert(quote!(std::sync::Arc::unwrap_or_clone(#value)), element)?;
+                        Ok(quote!(std::sync::Arc::new(#element)))
+                    }
                     ("Box", [element]) => {
                         let element = self.convert(quote!(*#value), element)?;
                         Ok(quote!(Box::new(#element)))
                     }
                     _ => Err(format!("unsupported owned storage container {name}")),
                 }
+            }
+            Type::Array(array) => {
+                let element = self.convert(quote!(element), &array.elem)?;
+                Ok(quote!((#value).map(|element| #element)))
             }
             Type::Tuple(tuple) => {
                 let converted = tuple
@@ -244,7 +257,7 @@ impl Schema {
                     Type::Path(path) if path.path.segments.len() == 1 && matches!(
                         path.path.segments[0].ident.to_string().as_str(),
                         "bool" | "char" | "usize" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128" |
-                        "i8" | "i16" | "i32" | "i64" | "i128" | "f32" | "f64"
+                        "i8" | "i16" | "i32" | "i64" | "i128" | "f32" | "f64" | "HandlerThread"
                     ));
                 reverse.push(if copied {
                     quote!(#field_name: input.#field_name)
@@ -467,9 +480,17 @@ mod tests {
             pub struct Attached<P: ?Sized> { pub(crate) owner: &'static str, pub(crate) part: Arc<P> }
             pub(crate) struct Holder<P> { pub(crate) provider: P }
             pub(crate) type Rows<P> = HashMap<Box<str>, Vec<Holder<P>>>;
+            #[derive(Clone)] pub(crate) struct Registered {
+                pub(crate) owner: &'static str, pub(crate) owner_index: usize,
+                pub(crate) part: Arc<dyn crate::Part>,
+            }
+            #[derive(Clone, Default)] pub struct Payloads {
+                pub(crate) phases: [HashMap<String, Registered>; 2],
+            }
             #[derive(Default)] pub struct Parts {
                 pub(crate) values: Vec<Attached<dyn crate::Part>>,
                 pub(crate) rows: Rows<Arc<dyn crate::Part>>,
+                pub(crate) payloads: Option<Arc<Payloads>>,
                 pub(crate) hooks: Vec<u8>,
             }
             #[derive(Default)] pub(crate) struct TagParts {
@@ -504,9 +525,17 @@ mod tests {
                 {generated}
             }}
             pub use parts::installation;
-            pub use parts::shared::Attached;
+            pub use parts::shared::{{Attached, Payloads}};
             pub fn inspect(input: installation::InstalledInput) -> (usize, usize, String, Vec<u32>, bool) {{
+                let expected = input.keys.payloads.as_ref().unwrap().phases[0]["sample"].part.clone();
                 let stored: parts::shared::Installed = input.into();
+                let phases = &stored.keys.payloads.as_ref().unwrap().phases;
+                assert_eq!(phases[0]["sample"].owner, "after");
+                assert_eq!(phases[1]["sample"].owner, "owner");
+                assert_eq!(phases[0]["sample"].owner_index, 11);
+                assert_eq!(phases[1]["sample"].owner_index, 19);
+                assert!(std::sync::Arc::ptr_eq(&phases[0]["sample"].part, &expected));
+                assert!(std::sync::Arc::ptr_eq(&phases[1]["sample"].part, &expected));
                 assert_eq!(stored.keys.values[0].owner, "owner");
                 assert_eq!(stored.tags.entries[0].0.as_ref(), "tag");
                 let item = &stored.metadata[0];
@@ -536,8 +565,17 @@ mod tests {
                 let attached = AttachedInput { owner: "owner", part: part.clone() };
                 let cloned = attached.clone();
                 assert!(Arc::ptr_eq(&attached.part, &cloned.part));
+                let checkpoint = Arc::new(PayloadsInput {
+                    phases: [11, 19].map(|owner_index| HashMap::from([("sample".into(), RegisteredInput {
+                        owner: "owner", owner_index, part: part.clone(),
+                    })])),
+                });
+                let mut payloads = checkpoint.clone();
+                Arc::make_mut(&mut payloads).phases[0].get_mut("sample").unwrap().owner = "after";
+                let retained = payloads.clone();
                 let input = InstalledInput {
                     keys: PartsInput {
+                        payloads: Some(payloads),
                         values: vec![attached, cloned],
                         rows: HashMap::from([("row".into(), vec![HolderInput { provider: part.clone() }])]),
                     },
@@ -545,6 +583,8 @@ mod tests {
                     metadata: vec![InfoInput { id: "metadata".into(), hooks: vec![7, 8] }],
                 };
                 assert_eq!(lookup::inspect(input), (2, 1, "metadata".to_owned(), vec![7, 8], true));
+                assert_eq!(checkpoint.phases[0]["sample"].owner, "owner");
+                assert_eq!(retained.phases[0]["sample"].owner, "after");
             }
         "#).unwrap();
         let binary = root.join(format!("author{}", std::env::consts::EXE_SUFFIX));
@@ -568,25 +608,29 @@ mod tests {
             "{}",
             String::from_utf8_lossy(&output.stdout)
         );
-        fs::write(
-            root.join("forbidden.rs"),
-            r#"
-            fn main() {
-                let _ = lookup::Attached { owner: "not public", part: std::sync::Arc::new(5u32) };
-            }
-        "#,
-        )
-        .unwrap();
-        let output = std::process::Command::new("rustc")
-            .arg("--edition=2024")
-            .arg(root.join("forbidden.rs"))
-            .arg("--extern")
-            .arg(format!("lookup={}", root.join("liblookup.rlib").display()))
-            .arg("-o")
-            .arg(root.join("forbidden"))
-            .output()
+        for construction in [
+            r#"lookup::Attached { owner: "not public", part: std::sync::Arc::new(5u32) }"#,
+            "lookup::Payloads { phases: Default::default() }",
+        ] {
+            fs::write(
+                root.join("forbidden.rs"),
+                format!("fn main() {{ let _ = {construction}; }}"),
+            )
             .unwrap();
-        assert!(!output.status.success(), "lookup fields became public");
+            let output = std::process::Command::new("rustc")
+                .arg("--edition=2024")
+                .arg(root.join("forbidden.rs"))
+                .arg("--extern")
+                .arg(format!("lookup={}", root.join("liblookup.rlib").display()))
+                .arg("-o")
+                .arg(root.join("forbidden"))
+                .output()
+                .unwrap();
+            assert!(
+                !output.status.success(),
+                "lookup fields became public: {construction}"
+            );
+        }
         fs::remove_dir_all(root).unwrap();
     }
 }

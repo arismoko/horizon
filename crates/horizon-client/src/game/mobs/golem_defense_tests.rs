@@ -87,6 +87,8 @@ fn game<'a>(resources: &'a mut Option<std::sync::Arc<crate::game::Resources>>) -
         },
     )
     .unwrap();
+    // Reserve the manually installed guest in the shared runtime ID allocator.
+    game.next_entity = game.next_entity.max(2);
     let (tx, _rx) = mpsc::channel();
     let mut guest = Guest::new(
         Joined {

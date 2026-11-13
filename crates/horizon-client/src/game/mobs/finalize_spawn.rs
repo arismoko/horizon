@@ -273,7 +273,8 @@ mod tests {
         crate::game::native_guest_turn_tests::with_guests(|game| {
             let mut mob = zombie(game);
             let seed = 0xC0FFEE_i64;
-            game.world.random = LegacyRandom::new(seed);
+            game.world.random =
+                horizon_core::random::LevelRandom::for_level(LegacyRandom::new(seed));
             let difficulty = game.local_difficulty([8.0, 65.0, 8.0]);
             game.finalize_plain(&mut mob, &difficulty, Reason::Natural);
 
@@ -304,11 +305,13 @@ mod tests {
             let mut with = zombie(game);
             let mut plain = zombie(game);
             let difficulty = game.local_difficulty([8.0, 65.0, 8.0]);
-            game.world.random = LegacyRandom::new(42_i64);
+            game.world.random =
+                horizon_core::random::LevelRandom::for_level(LegacyRandom::new(42_i64));
             let outcome = game.finalize_with(&mut with, Reason::Natural, None);
             assert_eq!(outcome, super::super::creatures::Finalized::Done);
             // The same stream for the plain path: same seed, same draws.
-            game.world.random = LegacyRandom::new(42_i64);
+            game.world.random =
+                horizon_core::random::LevelRandom::for_level(LegacyRandom::new(42_i64));
             game.finalize_plain(&mut plain, &difficulty, Reason::Natural);
 
             assert_eq!(with.extra.left_handed, plain.extra.left_handed);

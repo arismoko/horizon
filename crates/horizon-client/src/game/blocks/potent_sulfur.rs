@@ -347,8 +347,8 @@ impl Game<'_> {
         self.process_level_events()
     }
 
-    /// `PotentSulfurBlockEntity.LAUNCH_ENTITY_TICKER` on the server: mobs and
-    /// items and primed TNT in the geyser's column with less than
+    /// `PotentSulfurBlockEntity.LAUNCH_ENTITY_TICKER` on the server: mobs, items,
+    /// primed TNT, projectiles, boats and minecarts in the geyser's column with less than
     /// `0.3 + 0.1 * water` upward speed get 0.2 more, unless they ride
     /// something or are of a type geysers do not move. Players are moved by
     /// their own client.
@@ -411,6 +411,24 @@ impl Game<'_> {
                 tnt.velocity.y += push;
             }
         }
+        // Every entity in the column is launched (`getEntitiesOfClass(Entity.class)`):
+        // a projectile in flight or at rest, a boat and a minecart too.
+        self.creatures.projectiles.for_each_mut(|p| {
+            if p.bounds().intersects(area) && p.velocity.y < limit {
+                p.velocity.y += push;
+                p.needs_sync = true;
+            }
+        });
+        self.boats.for_each_mut(|boat| {
+            if boat.bounds().intersects(area) && boat.velocity.y < limit {
+                boat.velocity.y += push;
+            }
+        });
+        self.carts.for_each_mut(|cart| {
+            if cart.bounds().intersects(area) && cart.velocity.y < limit {
+                cart.velocity.y += push;
+            }
+        });
     }
 
     /// `PotentSulfurBlockEntity.LAUNCH_ENTITY_TICKER` on the client: the local
@@ -642,7 +660,7 @@ mod pass_tests {
             let moved = game.entity(2).unwrap();
             let mods: mod_api::Mods =
                 vec![ModEntry::new("move-on-nausea", Box::new(MoveMob(moved)))].into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 game.pass_mobs = Some(PassMobs::default());
                 game.server_nausea_effect_ticker((1, 63, 1));
                 assert_eq!(game.mobs[1].position, Vec3::new(33.5, 64.0, 1.5));

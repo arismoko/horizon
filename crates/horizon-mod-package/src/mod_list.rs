@@ -10,6 +10,8 @@ use std::{
 };
 
 pub const FILE: &str = "horizon-mods.txt";
+/// The `horizon-mods.txt` key of [`ModList::wasm_memory_cap_mib`].
+const WASM_MEMORY_CAP: &str = "wasm.memory_cap_mib";
 /// The folder holding `.hmod` files, beside `options.txt`.
 pub const DIR: &str = "horizon-mods";
 /// Where the launcher installs native mods (`<id>.hmod`), beside [`DIR`]. They run only in a
@@ -28,6 +30,10 @@ pub struct ModList {
     /// The keys the player chose for mods' keys, mod id → key name → key
     /// (`key.<id>.<name>:key.keyboard.x` lines).
     pub keys: BTreeMap<String, BTreeMap<String, String>>,
+    /// The player's cap on each wasm dependency group's memory, in MiB
+    /// (`wasm.memory_cap_mib:<1 to 4096>`); unset, wasm32's whole 4 GiB. A group whose mods
+    /// declare more (`wasm_memory_mib`) is refused at load, naming both numbers.
+    pub wasm_memory_cap_mib: Option<u32>,
     /// What the Mods page shows, filled by the game from the mods it found.
     pub installed: Vec<Installed>,
     /// What the Mods screen's panel shows of each installed mod, by id.
@@ -301,10 +307,17 @@ impl ModList {
                 entry.insert(name.to_owned(), v.trim().to_owned());
             }
         }
+        let wasm_memory_cap_mib = text
+            .lines()
+            .filter_map(|l| l.split_once(':'))
+            .filter(|(k, _)| k.trim() == WASM_MEMORY_CAP)
+            .filter_map(|(_, v)| v.trim().parse().ok())
+            .rfind(|mib| (1..=crate::manifest::MAX_WASM_MEMORY_MIB).contains(mib));
         Self {
             enabled,
             disabled,
             keys,
+            wasm_memory_cap_mib,
             installed: Vec::new(),
             info: BTreeMap::new(),
         }
@@ -316,7 +329,15 @@ impl ModList {
             keys.iter()
                 .map(move |(name, key)| format!("key.{id}.{name}:{key}\n"))
         });
-        on.chain(off).chain(keys).collect()
+        let cap = self
+            .wasm_memory_cap_mib
+            .map(|mib| format!("{WASM_MEMORY_CAP}:{mib}\n"));
+        on.chain(off).chain(keys).chain(cap).collect()
+    }
+    /// The cap on each wasm group's memory this instance allows, in MiB.
+    pub fn wasm_memory_cap(&self) -> u32 {
+        self.wasm_memory_cap_mib
+            .unwrap_or(crate::manifest::MAX_WASM_MEMORY_MIB)
     }
     /// Mod `id`'s chosen keys, for `Mods::set_bindings`.
     pub fn keys_of(&self, id: &str) -> Vec<(&str, &str)> {
@@ -407,6 +428,22 @@ mod tests {
         assert_eq!(list.enabled.iter().collect::<Vec<_>>(), ["coords_hud"]);
         assert_eq!(ModList::parse(&list.serialize()), list);
         assert_eq!(ModList::default().serialize(), "");
+    }
+
+    #[test]
+    fn the_player_may_lower_the_wasm_memory_cap() {
+        assert_eq!(ModList::parse("").wasm_memory_cap(), 4096);
+        let list = ModList::parse("mod.a:true\nwasm.memory_cap_mib:512\n");
+        assert_eq!(list.wasm_memory_cap(), 512);
+        assert_eq!(ModList::parse(&list.serialize()), list);
+        // Outside 1 to 4096 MiB (wasm32's whole space) the line is ignored.
+        for text in [
+            "wasm.memory_cap_mib:0\n",
+            "wasm.memory_cap_mib:8192\n",
+            "wasm.memory_cap_mib:lots\n",
+        ] {
+            assert_eq!(ModList::parse(text).wasm_memory_cap(), 4096, "{text}");
+        }
     }
 
     #[test]

@@ -25,7 +25,13 @@ jobs:
           persist-credentials: false
           # Same persistent build/import/preparation caches as the parity workflows.
           clean: false
-      - uses: dtolnay/rust-toolchain@stable
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
       - name: Tools from the runner (Python and the pinned JDK)
         run: bash tools/ci/runner-env.sh
       - name: Vanilla data, and resources prepared by this preparer

@@ -43,16 +43,33 @@ fn world_attachments(
 }
 
 impl Game<'_> {
-    /// Whether entity `id` is in the level, as a holder of attachments: one walk
-    /// over the entity lists (a kind added there holds attachments too), then the
-    /// kinds that are not on it.
+    /// Attachment membership uses physical presence (except removed mobs), not the
+    /// command resolver's pending-removal masks. Limit resolution to this level.
     fn attachment_entity_exists(&self, id: u32) -> bool {
-        use super::entity::{Entity as _, entity_lists_of, for_each_entity};
-        let mut found = false;
-        for_each_entity!(entity_lists_of!(self), entity => {
-            found |= entity.id() == id && !entity.is_removed();
-        });
-        found || self.entity_ids_off_walk().any(|e| e == id) || self.level_dragon_part(id).is_some()
+        use horizon_client::join_seq::residency::table::EntityLookup;
+        matches!(
+            self.resident_entities
+                .table
+                .borrow_mut()
+                .entity_lookup(&self.dim.key(), id, |at| {
+                    use horizon_client::join_seq::residency::Kind;
+                    match at.owner.kind {
+                        Kind::Hook | Kind::Player => self
+                            .locate_specialized_resident_owner(at)
+                            .map(|mut source| {
+                                // Hooks were counted by physical presence, regardless of pending
+                                // removals. Players were not, but must still validate their row.
+                                source.value.1 = at.owner.kind == Kind::Hook;
+                                source
+                            }),
+                        _ => self.locate_resident_attachment_owner(at),
+                    }
+                }),
+            EntityLookup::Found {
+                value: (_, true),
+                ..
+            }
+        )
     }
 
     /// Object ownership for persistence cleanup, never a level-query membership set.
@@ -92,6 +109,9 @@ impl Game<'_> {
         holder: mod_api::Holder,
         access: AttachmentAccess,
     ) -> Result<&mut mod_api::Attachments, mod_api::AttachmentError> {
+        if matches!(holder, mod_api::Holder::OriginalPlayer(_)) {
+            return self.attachment_slot(holder, access);
+        }
         if self.client_attachment_entity_exists(holder) {
             self.initialize_entity_on_access(holder);
         }
@@ -115,6 +135,9 @@ impl Game<'_> {
         holder: mod_api::Holder,
         access: AttachmentAccess,
     ) -> Result<&mut mod_api::Attachments, mod_api::AttachmentError> {
+        if matches!(holder, mod_api::Holder::OriginalPlayer(_)) {
+            return self.attachment_slot(holder, access);
+        }
         if !self.native_authoritative() {
             return Err(mod_api::AttachmentError::MissingHolder);
         }
@@ -130,6 +153,12 @@ impl Game<'_> {
     ) -> Result<(), mod_api::AttachmentError> {
         use mod_api::AttachmentError;
         let id = std::num::NonZeroU32::new(id).ok_or(AttachmentError::MissingHolder)?;
+        if matches!(
+            self.with_resident_slot(&self.dim.key(), id, |slot| slot.is_bound()),
+            super::entity_residency::SlotAccess::Done(true)
+        ) {
+            return Ok(());
+        }
         if !matches!(
             self.server_resident_entity(id.get()),
             horizon_client::join_seq::residency::table::EntityLookup::Found {
@@ -243,8 +272,24 @@ impl Game<'_> {
             }
             return Ok(self.entity_attachments.entry(id).or_default());
         }
+        if let mod_api::Holder::OriginalPlayer(token) = holder {
+            return self
+                .player_state
+                .originals
+                .iter_mut()
+                .rev()
+                .find(|snapshot| snapshot.token() == token)
+                .map(|snapshot| &mut snapshot.attachments)
+                .ok_or(AttachmentError::MissingHolder);
+        }
         if let mod_api::Holder::Player(uuid) = holder {
+            let cloning = self
+                .player_state
+                .originals
+                .iter()
+                .any(|snapshot| snapshot.uuid() == uuid);
             if self.entity_initialization.active != Some(holder)
+                && !cloning
                 && self.lan_acting_uuid != Some(uuid)
                 && self
                     .lan
@@ -261,13 +306,13 @@ impl Game<'_> {
                 {
                     self.bind_player_attachments(conn, true);
                 }
-                return Ok(&mut self.player_attachments);
+                return Ok(&mut self.player_state.attachments);
             }
             let conn = self
                 .lan
                 .as_ref()
                 .and_then(|host| {
-                    if self.entity_initialization.active == Some(holder) {
+                    if self.entity_initialization.active == Some(holder) || cloning {
                         host.hub.guests.iter().find(|guest| guest.uuid == uuid)
                     } else {
                         host.hub.holder_guest(uuid, self.dim.id())
@@ -291,8 +336,25 @@ impl Game<'_> {
     }
 }
 
-pub(super) fn level_side<'a>(level: &'a super::GameLevel<'_>) -> mod_api::LevelSide<'a> {
-    if horizon_world::level::LevelAccess::is_client_side(level) {
+/// A level a both-side level hook reads, which knows the side it is on.
+pub(super) trait SidedLevel: mod_api::LevelHost {
+    fn client_side(&self) -> bool;
+}
+
+impl SidedLevel for super::GameLevel<'_> {
+    fn client_side(&self) -> bool {
+        horizon_world::level::LevelAccess::is_client_side(self)
+    }
+}
+
+impl SidedLevel for super::native_hooks::HitLevel<'_> {
+    fn client_side(&self) -> bool {
+        self.0.client_side()
+    }
+}
+
+pub(super) fn level_side(level: &impl SidedLevel) -> mod_api::LevelSide<'_> {
+    if level.client_side() {
         mod_api::LevelSide::Client(level)
     } else {
         mod_api::LevelSide::Server(level)
@@ -717,3 +779,239 @@ super::native_tags::impl_tags!(
     level.native_authoritative.then_some(level.items)
 );
 super::native_tags::impl_tags!(super::native_hooks::HitLevel<'_>, level, level.0.tags());
+
+#[cfg(test)]
+mod attachment_membership_tests {
+    use super::*;
+    use crate::game::{commands::Target, native_entity_refs::tests::with_game};
+    use horizon_client::{join_seq::Joined, mobs::Mob};
+    use horizon_core::geometry::Vec3;
+
+    fn old_membership(game: &Game<'_>, id: u32) -> bool {
+        use crate::game::entity::{Entity as _, entity_lists_of, for_each_entity};
+        let mut found = false;
+        for_each_entity!(entity_lists_of!(game), entity => {
+            found |= entity.id() == id && !entity.is_removed();
+        });
+        found || game.entity_ids_off_walk().any(|e| e == id) || game.level_dragon_part(id).is_some()
+    }
+    fn assert_membership(game: &mut Game<'_>, id: u32) {
+        assert_eq!(
+            game.attachment_entity_exists(id),
+            old_membership(game, id),
+            "id {id}"
+        );
+    }
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn attachment_off_walk_membership_matches_old_walk() {
+        with_game(|game| {
+            game.reset_entity_residency();
+            macro_rules! summon {
+                ($name:literal, $($field:ident).+) => {{
+                    game.summon_with_nbt(concat!("minecraft:", $name), [0.5, 70.0, 0.5], "{}").unwrap();
+                    game.lan_assign_ids();
+                    let id = game$(.$field)+.last().unwrap().id;
+                    assert_membership(game, id);
+                }};
+            }
+            summon!("pig", mobs);
+            summon!("item_frame", item_frames);
+            summon!("painting", paintings);
+            summon!("marker", others);
+            summon!("leash_knot", others);
+            summon!("area_effect_cloud", breath_clouds);
+            summon!("end_crystal", crystals);
+            summon!("cushion", cushions);
+            game.add_fangs([0.5, 70.0, 0.5], 0.0, 0, 0);
+            let id = game.fangs.list[0].id;
+            assert_membership(game, id);
+            game.add_ominous_item_spawner(
+                horizon_client::items::ItemStack::new("minecraft:stone", 1),
+                [0.5, 70.0, 0.5],
+                60,
+            );
+            let id = game.ominous_spawners[0].id;
+            assert_membership(game, id);
+            let fence = [0, 70, 0];
+            game.tie_knot(fence);
+            let mob = game.mobs[0].id;
+            assert!(game.set_leash(
+                Target::Mob(mob),
+                horizon_client::mobs::leash::Holder::Knot(fence),
+                None
+            ));
+            let id = game.resident_entities.knots[0].id;
+            assert_membership(game, id);
+            // Also cover a player-tied natural knot, besides the explicitly summoned knot.
+            let natural_fence = [3, 70, 3];
+            assert!(game.set_leash(
+                Target::Mob(mob),
+                horizon_client::mobs::leash::Holder::Player,
+                None
+            ));
+            assert!(game.use_knot(natural_fence, false));
+            let id = game.knot_ids[&natural_fence];
+            assert_membership(game, id);
+            let mut player =
+                horizon_client::motion::PlayerMotion::new(game.motion, Vec3::ZERO).unwrap();
+            player.entity_id = 880;
+            game.player = Some(player);
+            game.bind_local_player_residency();
+            let player_id = game.player.as_ref().unwrap().entity_id as u32;
+            assert_membership(game, player_id);
+            assert!(!old_membership(game, player_id));
+            game.install_fishing_hook(crate::game::fishing::Hook::remote(
+                900,
+                Vec3::ZERO,
+                [1, 2, 3, 4],
+            ));
+            assert_membership(game, 900);
+            assert!(
+                game.attachment_slot(mod_api::Holder::Entity(900), AttachmentAccess::Existing)
+                    .is_ok()
+            );
+            game.persist.removals.push(Target::Hook(900));
+            assert_membership(game, 900);
+        });
+    }
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn attachment_guest_hook_membership_matches_old_walk() {
+        crate::game::native_guest_turn_tests::with_guests(|game| {
+            for id in [12, 13] {
+                assert_membership(game, id);
+                assert!(
+                    !old_membership(game, id),
+                    "players are not entity attachment holders"
+                );
+            }
+            game.as_guest(12, |game| {
+                game.install_fishing_hook(crate::game::fishing::Hook::remote(
+                    901,
+                    Vec3::ZERO,
+                    [5, 6, 7, 8],
+                ));
+                assert_membership(game, 901);
+                assert!(
+                    game.attachment_slot(mod_api::Holder::Entity(901), AttachmentAccess::Existing)
+                        .is_ok()
+                );
+            })
+            .unwrap();
+            assert_membership(game, 901);
+            assert!(
+                game.attachment_slot(mod_api::Holder::Entity(901), AttachmentAccess::Existing)
+                    .is_ok()
+            );
+        });
+    }
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn attachment_membership_matches_old_walk() {
+        with_game(|game| {
+            game.reset_entity_residency();
+            let kind = game.res.mob_types().get("minecraft:pig").unwrap().clone();
+            game.mobs.push(Mob::new(410, kind, Vec3::ZERO, 0.0));
+            let check = |game: &Game<'_>| {
+                for id in [0, 410, 999] {
+                    assert_eq!(
+                        game.attachment_entity_exists(id),
+                        old_membership(game, id),
+                        "id {id}"
+                    );
+                }
+            };
+            check(game);
+            game.paintings.push(horizon_client::entities::Painting {
+                attachment_lifetime: Default::default(),
+                join: Default::default(),
+                id: 420,
+                pos: [0, 64, 0],
+                facing: 2,
+                variant: "minecraft:kebab".into(),
+                width: 1,
+                height: 1,
+                check_interval: 0,
+            });
+            game.persist.removals.push(Target::Painting(420));
+            assert_eq!(
+                game.attachment_entity_exists(420),
+                old_membership(game, 420)
+            );
+            assert!(
+                game.attachment_slot(mod_api::Holder::Entity(420), AttachmentAccess::Existing)
+                    .is_ok()
+            );
+            assert!(
+                game.attachment_slot(mod_api::Holder::Entity(420), AttachmentAccess::Store)
+                    .is_err()
+            );
+            let join = game.mobs[0].join_seq();
+            let taken = game.mobs.extract(join).unwrap();
+            assert!(matches!(
+                game.attachment_slot(mod_api::Holder::Entity(410), AttachmentAccess::Existing),
+                Err(mod_api::AttachmentError::HolderBusy)
+            ));
+            game.mobs.put_back(0, taken);
+            let mut dragon = crate::game::dragon::Dragon::new(Vec3::ZERO, 0.0, 0);
+            dragon.id = 500;
+            game.dragon.replace(dragon);
+            for id in 500..=508 {
+                assert_eq!(game.attachment_entity_exists(id), old_membership(game, id));
+            }
+            game.persist.removals.push(Target::Dragon(500));
+            for id in 500..=508 {
+                assert_eq!(game.attachment_entity_exists(id), old_membership(game, id));
+            }
+            game.persist.removals.push(Target::Mob(410));
+            check(game);
+            game.persist.destroying_vehicles.insert(Target::Mob(410));
+            check(game);
+            game.mobs.update(0, |mob| mob.removed = true);
+            check(game);
+            game.enter_level(crate::game::Dim::Nether).unwrap();
+            check(game);
+            game.enter_level(crate::game::Dim::Overworld).unwrap();
+            let holder = mod_api::Holder::Entity(999);
+            game.entity_initialization.active = Some(holder);
+            assert!(
+                game.attachment_slot(holder, AttachmentAccess::Existing)
+                    .is_ok()
+            );
+            game.entity_initialization.active = None;
+            assert!(
+                game.attachment_slot(holder, AttachmentAccess::Existing)
+                    .is_err()
+            );
+        });
+    }
+    #[test]
+    #[ignore = "manual attachment scaling benchmark; needs HORIZON_TEST_RESOURCES"]
+    fn attachment_entity_read_bench() {
+        with_game(|game| {
+            game.reset_entity_residency();
+            let kind = game.res.mob_types().get("minecraft:pig").unwrap().clone();
+            for population in [300, 3000, 10000] {
+                while game.mobs.len() < population {
+                    let id = game.mobs.len() as u32 + 100;
+                    game.mobs.push(Mob::new(id, kind.clone(), Vec3::ZERO, 0.0));
+                }
+                let holder = mod_api::Holder::Entity(100);
+                game.attachment_slot(holder, AttachmentAccess::Existing)
+                    .unwrap();
+                let start = std::time::Instant::now();
+                for _ in 0..100_000 {
+                    std::hint::black_box(
+                        game.attachment_slot(holder, AttachmentAccess::Existing)
+                            .unwrap(),
+                    );
+                }
+                println!(
+                    "attachment entity population={population} ns/read={:.2}",
+                    start.elapsed().as_nanos() as f64 / 100_000.0
+                );
+            }
+        });
+    }
+}

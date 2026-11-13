@@ -266,6 +266,12 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<String>, active: &mut BTreeSet<Pa
 }
 
 impl ResourceSource {
+    /// Observe whether any reader still owns this resource generation, without retaining it.
+    pub fn liveness(&self) -> impl Fn() -> bool + Send + Sync + use<> {
+        let weak = Arc::downgrade(&self.0);
+        move || weak.strong_count() != 0
+    }
+
     /// Whether both readers belong to the same opened resource generation.
     pub fn same_generation(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
@@ -363,6 +369,23 @@ impl ResourceSource {
                 .get(name)
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, name.to_owned()))?
                 .read(),
+        }
+    }
+    /// The folder that supplies `name`, following an index to the layer its
+    /// winning file comes from. None for an archive, merged bytes, or no file.
+    pub fn folder_of(&self, name: &str) -> Option<PathBuf> {
+        if !stays_inside(name) {
+            return None;
+        }
+        match self.0.as_ref() {
+            Storage::Directory(root) => root.join(name).is_file().then(|| root.clone()),
+            #[cfg(not(target_arch = "wasm32"))]
+            Storage::Archive(_) => None,
+            Storage::Prefix { source, prefix } => source.folder_of(&format!("{prefix}{name}")),
+            Storage::Index(files) => match &files.get(name)?.0 {
+                ResourceStorage::File { source, name } => source.folder_of(name),
+                ResourceStorage::Bytes(_) => None,
+            },
         }
     }
     /// Copy a resource under a shared output budget, streaming archive entries.

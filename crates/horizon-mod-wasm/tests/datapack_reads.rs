@@ -65,82 +65,87 @@ mod_api::impl_server_host_areas!(World);
 #[test]
 #[ignore = "requires HORIZON_WASM_FIXTURE and HORIZON_WASM_STD built from this tree"]
 fn real_wasm_datapack_reads_preserve_values_and_ordering() {
-    struct Logger;
-    impl log::Log for Logger {
-        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-            true
+    crate::test_stack::on_guest_stack(|| {
+        struct Logger;
+        impl log::Log for Logger {
+            fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+                true
+            }
+            fn log(&self, record: &log::Record<'_>) {
+                eprintln!("{}", record.args());
+            }
+            fn flush(&self) {}
         }
-        fn log(&self, record: &log::Record<'_>) {
-            eprintln!("{}", record.args());
-        }
-        fn flush(&self) {}
-    }
-    let _ = log::set_logger(&Logger);
-    log::set_max_level(log::LevelFilter::Warn);
-    use horizon_mod_package::manifest::Package;
-    use horizon_mod_wasm::{WasmPackage, load};
-    let path = std::env::var("HORIZON_WASM_FIXTURE").unwrap();
-    let mut manifest = Package::read(std::path::Path::new(&path)).unwrap().manifest;
-    // This fixture variant exercises ordinary hooks and Parts, not game points.
-    manifest.inject.clear();
-    let info = PackageInfo::new(
-        manifest.id.clone(),
-        manifest.version.clone(),
-        PackageKind::Code,
-        Side::Both,
-        vec![manifest.id.clone()],
-        vec![],
-    );
-    let loaded = load(
-        &std::fs::read(std::env::var("HORIZON_WASM_STD").unwrap()).unwrap(),
-        vec![WasmPackage {
-            manifest,
-            module: Package::read_wasm(std::path::Path::new(&path)).unwrap(),
-        }],
-    );
-    assert!(loaded.refused.is_empty(), "{:?}", loaded.refused);
-    loaded.initialize(&[info]).unwrap();
-    let declaration = DatapackRegistryDeclaration {
-        mod_id: "wasm_fixture".into(),
-        key: "wasm_fixture:spell".into(),
-        fields: vec![DatapackField::required(
-            "power",
-            DatapackFieldKind::Int { min: 0, max: 100 },
-        )],
-        sync: DatapackRegistrySync::ServerOnly,
-    };
-    let candidate = DatapackCandidate::build(
-        &[declaration],
-        &[
-            (
-                "data/wasm_fixture/wasm_fixture/spell/fire.json".into(),
-                vec![br#"{"power":7}"#.to_vec()],
-            ),
-            (
-                "data/addon/wasm_fixture/spell/ice.json".into(),
-                vec![br#"{"power":3}"#.to_vec()],
-            ),
-        ],
-    )
-    .unwrap();
-    let mut world = World(
-        DatapackRegistrySet::first(candidate, 8),
-        std::cell::Cell::new([0; 3]),
-        std::cell::Cell::new(false),
-    );
-    mod_api::testing::with_mods(loaded.mods.into(), || {
-        mod_api::__private::mark_game_thread();
-        let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
-        mod_api::dispatch_server_started(&mut world, true);
-        assert!(
-            world.2.get(),
-            "all assertions in the guest must finish; calls: {:?}",
-            world.1.get()
+        let _ = log::set_logger(&Logger);
+        log::set_max_level(log::LevelFilter::Warn);
+        use horizon_mod_package::manifest::Package;
+        use horizon_mod_wasm::{WasmPackage, load};
+        let path = std::env::var("HORIZON_WASM_FIXTURE").unwrap();
+        let mut manifest = Package::read(std::path::Path::new(&path)).unwrap().manifest;
+        // This fixture variant exercises ordinary hooks and Parts, not game points.
+        manifest.inject.clear();
+        let info = PackageInfo::new(
+            manifest.id.clone(),
+            manifest.version.clone(),
+            PackageKind::Code,
+            Side::Both,
+            vec![manifest.id.clone()],
+            vec![],
         );
-        assert_eq!(
-            world.1.get(),
-            [2, 2, 1],
-            "the real guest must execute all three host imports"
+        let loaded = load(
+            &std::fs::read(std::env::var("HORIZON_WASM_STD").unwrap()).unwrap(),
+            vec![WasmPackage {
+                manifest,
+                module: Package::read_wasm(std::path::Path::new(&path)).unwrap(),
+            }],
         );
-    });
+        assert!(loaded.refused.is_empty(), "{:?}", loaded.refused);
+        loaded.initialize(&[info]).unwrap();
+        let declaration = DatapackRegistryDeclaration {
+            mod_id: "wasm_fixture".into(),
+            key: "wasm_fixture:spell".into(),
+            fields: vec![DatapackField::required(
+                "power",
+                DatapackFieldKind::Int { min: 0, max: 100 },
+            )],
+            sync: DatapackRegistrySync::ServerOnly,
+        };
+        let candidate = DatapackCandidate::build(
+            &[declaration],
+            &[
+                (
+                    "data/wasm_fixture/wasm_fixture/spell/fire.json".into(),
+                    vec![("pack".to_owned(), br#"{"power":7}"#.to_vec())],
+                ),
+                (
+                    "data/addon/wasm_fixture/spell/ice.json".into(),
+                    vec![("pack".to_owned(), br#"{"power":3}"#.to_vec())],
+                ),
+            ],
+        )
+        .unwrap();
+        let mut world = World(
+            DatapackRegistrySet::first(candidate, 8),
+            std::cell::Cell::new([0; 3]),
+            std::cell::Cell::new(false),
+        );
+        mod_api::testing::with_mods(loaded.mods.into(), || {
+            mod_api::__private::mark_game_thread();
+            let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
+            mod_api::dispatch_server_started(&mut world, true);
+            assert!(
+                world.2.get(),
+                "all assertions in the guest must finish; calls: {:?}",
+                world.1.get()
+            );
+            assert_eq!(
+                world.1.get(),
+                [2, 2, 1],
+                "the real guest must execute all three host imports"
+            );
+        });
+    })
 }
+
+#[path = "../src/test_stack.rs"]
+mod test_stack;

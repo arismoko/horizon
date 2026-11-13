@@ -120,7 +120,7 @@ mod tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.load_server_loot();
 
@@ -237,7 +237,7 @@ mod tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.load_server_loot();
                 add_guest(game);

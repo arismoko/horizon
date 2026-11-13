@@ -1,7 +1,8 @@
 //! Server-side profiler controls. Export and durable filesystem work run only on stop.
 use super::{Game, R, err};
 use horizon_client::{save, text::Text};
-use mod_api::__private::profiler;
+#[cfg(test)]
+use mod_platform::__private::profiler;
 use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -34,15 +35,19 @@ impl Game<'_> {
     }
 }
 fn run(action: Action, game_dir: &Path) -> R<Vec<Text>> {
+    #[cfg(test)]
+    crate::game::api_values::install_test_platform();
+    let profiler = horizon_engine_slots::platform()
+        .map_err(|e| err("horizon.modprofile.writeFailed", &[&e.to_string()]))?;
     match action {
         Action::Start => {
-            if !profiler::start() {
+            if !(profiler.profiler_start)() {
                 return Err(err("horizon.modprofile.alreadyRunning", &[]));
             }
             Ok(vec![Text::translate("horizon.modprofile.started", &[])])
         }
         Action::Stop => {
-            if !profiler::is_enabled() {
+            if !(profiler.profiler_is_enabled)() {
                 return Err(err("horizon.modprofile.notRunning", &[]));
             }
             // A host command may be invoked synchronously by a mod. Draining here would
@@ -50,8 +55,8 @@ fn run(action: Action, game_dir: &Path) -> R<Vec<Text>> {
             if mod_api::content::crash::current_native_call().is_some() {
                 return Err(err("horizon.modprofile.inHook", &[]));
             }
-            profiler::stop();
-            let bytes = profiler::firefox_profile()
+            (profiler.profiler_stop)();
+            let bytes = (profiler.profiler_firefox_profile)()
                 .map_err(|e| err("horizon.modprofile.writeFailed", &[&e]))?;
             let stamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -65,7 +70,7 @@ fn run(action: Action, game_dir: &Path) -> R<Vec<Text>> {
             )])
         }
         Action::Report => {
-            let summary = profiler::summary();
+            let summary = (profiler.profiler_summary)();
             if summary.is_empty() {
                 return Err(err("horizon.modprofile.noReport", &[]));
             }

@@ -2,6 +2,10 @@
 
 An `[[inject]]` attaches a typed listener to an injection point without compiling game code. Prefer a named hook or Part method when one exists. API points work on native and wasm, on engine functions.
 
+To change a call or value inside a function, replace its body, or run code inside a hot loop, a native mod
+takes [the native route](native-route.md): [`[[native.mixin]]`](mixins.md), [`[[native.loop]]`](loops.md),
+[`[[native.bridge]]`](bridges.md) and [`[[native.module]]`](support-modules.md).
+
 ## Declaration
 
 ```toml
@@ -10,11 +14,10 @@ id = "count"
 at = "horizon_client::game::Game<'_>::tick"
 kind = "head"
 with = "count"
-access = "api"
 priority = 0
 ```
 
-`id`, `at`, `kind` and `with` identify the declaration, function, point kind and listener. `access` defaults to `api`; `priority` defaults to zero. An optional signature `hash` pins the target.
+`id`, `at`, `kind` and `with` identify the declaration, function, point kind and listener. `priority` defaults to zero. An injection is always through the API; there is no `access` key. An optional signature `hash` pins the target.
 
 | Kind | Contract |
 | --- | --- |
@@ -34,7 +37,7 @@ dispatcher for a listened point is installed through that cell.
 
 Head cancellation skips the body and return point, but every head listener still runs and may clear cancellation. Return listeners run only after the body. Replacement listeners run after other API listeners; otherwise priority descends, then dependency registration order, with inject ID breaking ties within a mod. Only one replacement may own a point; disabling it restores the original body. Calling the replaced function from its replacement re-enters the point, not the original body.
 
-Native code that needs game internals uses [`[[native.mixin]]`](mixins.md); `access = "internals"` on `[[inject]]` is refused by name.
+Native code that needs game internals uses [`[[native.mixin]]`](mixins.md). The removed `access` key is refused by name: `access = "internals"` points to `[[native.mixin]]`, and `access = "api"` says to remove the line.
 
 A library mod publishes its own hooks and functions for other mods to use.
 
@@ -42,7 +45,7 @@ A library mod publishes its own hooks and functions for other mods to use.
 
 | Code or message | When |
 | --- | --- |
-| `E_INJECT_INVALID` | A field is malformed; the field is named. `access = "internals"` is refused by name, pointing to `[[native.mixin]]`. |
+| `E_INJECT_INVALID` | A field is malformed or was removed; the field is named. `access = "internals"` points to `[[native.mixin]]`; `access = "api"` says to remove the line. |
 | `E_INJECT_NO_SLOT` | A removed kind (`before_call`, `after_call`, `modify_value`, `wrap_call`, `wrap_if` and the other source-level kinds): the message names the `[[native.mixin]]` form to use. Also a function whose record the API cannot carry. |
 | `E_INJECT_MISSING` | `at` names no function the pinned game lists. |
 | `E_INJECT_CHANGED` | The pinned `hash` no longer matches the function's signature; run `cargo horizon-mod inject update`. |
@@ -62,7 +65,7 @@ Copy this, and fill every field:
 - **What the mod needs:** <one sentence: the moment, and what the mod does there>
 - **NeoForge 26.3 counterpart:** <event or method name, or "none">
 - **Vanilla class and method:** <`net.minecraft…Class.method`, the call the hook wraps>
-- **The injection it replaces:** <the `[[inject]]` table, `at`, `kind`, `access` and callback signature>
+- **The injection it replaces:** <the `[[inject]]` table, `at`, `kind` and callback signature>
 - **Mod:** <name, repository or `.hmod`>
 - **Side:** <server, client or both>
 - **Contract wanted:** <listen, cancel, replace a value, collect; what a listener may change>

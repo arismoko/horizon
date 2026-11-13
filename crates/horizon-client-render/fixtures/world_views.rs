@@ -1,4 +1,4 @@
-//! World views (`horizon_mod_render::render::world_views`, the hook notes' "World views") through the real
+//! World views (`horizon_client_render::render_slots::world_views`, the hook notes' "World views") through the real
 //! `Renderer`, offscreen: a white wall the player's camera faces and a green one behind it that
 //! a view from the other side faces, an entity quad between them, drawn without views and with
 //! two. The frame's own picture stays as it was; each view comes back at its size with what its

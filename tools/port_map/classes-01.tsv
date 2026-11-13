@@ -1,5 +1,5 @@
 Squid.hurtServer	inline	crates/horizon-client/src/mobs.rs::Mob::damage_with_player_context	after shared parent damage, require last living attacker for true; retain health loss and existing ink guard
-GlowSquid.aiStep	port	crates/horizon-client/src/mobs/aquatic.rs::glow_squid_ai_step	
+GlowSquid.aiStep	port	crates/horizon-client/src/mobs/aquatic.rs::glow_squid_ai_step
 GlowSquid.checkGlowSquidSpawnRules	port	crates/horizon-client/src/mobs/spawn_rules.rs::check_spawn_rules	S::GlowSquid arm: 33 blocks below sea level, dark, in water
 GlowSquid.hurtServer	inline	crates/horizon-client/src/mobs.rs::Mob::damage_with_player_context	inherited Squid acceptance is returned after parent health effects; existing dim guard calls aquatic::hurt_server
 WolfSoundVariants	skip:data		registry bootstrap of the wolf sound sets; sounds are in species.rs and finalize.rs
@@ -9,12 +9,12 @@ DragonDeathPhase.doClientTick	inline	crates/horizon-client/src/game/mobs/dragon.
 DragonDeathPhase.doServerTick	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	Dying arm sets health 1 or 0; gap: minor: egg found with the leaves-excluded heightmap, vanilla uses MOTION_BLOCKING
 DragonHoldingPatternPhase.doServerTick	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	Holding arm; gap: minor: horizontal and vertical collision re-target not tracked (always false)
 DragonHoldingPatternPhase.findNewTarget	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	Holding arm: landing roll, strafe pick by egg distance, ring path
-DragonHoldingPatternPhase.navigateToNextPathNode	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::next_target	
+DragonHoldingPatternPhase.navigateToNextPathNode	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::next_target
 DragonHoldingPatternPhase.onCrystalDestroyed	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::destroy_crystal	sets strafe_request for the killer or the nearest; tick_phase strafes from Holding only
 DragonHoldingPatternPhase.strafePlayer	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	phase switch to Strafe and setTarget (strafe_begin) in the Holding arm and the strafe_request block
 DragonLandingApproachPhase.doServerTick	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	LandingApproach arm; gap: minor: no collision re-target
 DragonLandingApproachPhase.findNewTarget	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	LandingApproach arm: path to the node by the nearest enemy to the egg, last node is the podium
-DragonLandingApproachPhase.navigateToNextPathNode	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::next_target	
+DragonLandingApproachPhase.navigateToNextPathNode	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::next_target
 DragonLandingPhase.doClientTick	inline	crates/horizon-client/src/game/mobs/dragon.rs::breath_puffs	the fan of dragon breath at the head: eight a tick along getHeadLookVector(1) plus the dragon's motion; every client (single player on its server thread included) breathes it in remote_dragon_phase_tick
 DragonLandingPhase.doServerTick	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	Landing arm: sets flame count 0 and goes to Scanning on reaching the podium
 DragonLandingPhase.getTurnSpeed	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_dragon	Landing turn min(rot,40)/rot, the one turn formula that differs from the default
@@ -25,7 +25,7 @@ DragonSittingFlamingPhase.doServerTick	inline	crates/horizon-client/src/game/mob
 DragonSittingScanningPhase.doServerTick	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	Scanning arm; gap: minor: turns every tick, vanilla skips the turn while the target is within 10 degrees of the facing
 DragonTakeoffPhase.doServerTick	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	Takeoff arm: first tick finds a new target, later ticks go to Holding once 10 blocks from the podium
 DragonTakeoffPhase.findNewTarget	inline	crates/horizon-client/src/game/mobs/dragon.rs::Game::tick_phase	Takeoff arm; gap: minor: no path leaves an empty path, vanilla leaves none and searches again next tick
-DragonTakeoffPhase.navigateToNextPathNode	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::next_target	
+DragonTakeoffPhase.navigateToNextPathNode	port	crates/horizon-client/src/game/mobs/dragon.rs::Game::next_target
 EnderDragonPhase.create	skip:data		phase registry; the ids are fixed in Phase::id
 EnderDragonPhase.createInstance	port	crates/horizon-client/src/game/mobs/dragon.rs::Phase::from_id	builds the default instance for an id
 EnderDragonPhase.getById	port	crates/horizon-client/src/game/mobs/dragon.rs::Phase::from_id	id to phase, unknown ids fall back to Holding
@@ -36,23 +36,23 @@ Mannequin.get	skip:other		data-component getter for the PROFILE component; the p
 Mannequin.readAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_from_nbt	profile, immovable and description load here; validated lowercase pose now feeds extra.avatar_pose for existing live dimensions and eye anchoring. Saved pose default/invalid getter normalization and the remaining schema are separate.
 Mannequin.updateDescription	port	crates/horizon-client/src/mobs.rs::MannequinDescription::component	the description component: the default `entity.minecraft.mannequin.label`, none when hidden, or the server's own (the text drawn under the name tag)
 Giant.createAttributes	skip:data		attributes come from entity-types.json
-ShootWhenStuck.checkExtraStartConditions	inline	crates/horizon-client/src/mobs/breeze.rs::register	
+ShootWhenStuck.checkExtraStartConditions	inline	crates/horizon-client/src/mobs/breeze.rs::register
 Evoker.createAttributes	skip:data		attributes come from entity-types.json
-Evoker.registerGoals	port	crates/horizon-client/src/mobs/illager.rs::register_evoker	
+Evoker.registerGoals	port	crates/horizon-client/src/mobs/illager.rs::register_evoker
 Evoker.EvokerCastingSpellGoal.tick	port	crates/horizon-client/src/mobs/illager.rs::CastingSpell::tick	looks at the target, else the wololo sheep
-Pillager.applyRaidBuffs	port	crates/horizon-client/src/game/mobs/mob_gear.rs::Game::apply_raid_buffs	
+Pillager.applyRaidBuffs	port	crates/horizon-client/src/game/mobs/mob_gear.rs::Game::apply_raid_buffs
 Pillager.createAttributes	skip:data		attributes come from entity-types.json
 Pillager.finalizeSpawn	inline	crates/horizon-client/src/mobs/finalize.rs::Ctx::mob	crossbow in the main hand via populate; the enchant roll is in Ctx::enchant
-Pillager.getArmPose	port	crates/horizon-client/src/mobs/illager.rs::arm_pose	
+Pillager.getArmPose	port	crates/horizon-client/src/mobs/illager.rs::arm_pose
 Pillager.getSlot	skip:other		Horizon's /item addresses named slots (weapon.mainhand, armor.head, ...); a mob has no numeric slot ids, so the pillager's 300+ inventory slots have no target
 Pillager.pickUpItem	inline	crates/horizon-client/src/game/mobs/raids/mod.rs::Game::sync_raiders	an ominous banner beside a raider in a live raid with no leader becomes its head slot and the wave's leader (banner scan at 779-789, pickup at 894-906); gap: minor: a plain banner falls through to Mob.pickUpItem's gear swap, which Horizon does not do
-Pillager.registerGoals	port	crates/horizon-client/src/mobs/illager.rs::register_pillager	
+Pillager.registerGoals	port	crates/horizon-client/src/mobs/illager.rs::register_pillager
 Pillager.wantsItem	skip:other		dead code: only a white banner passes, and Pillager.pickUpItem sends every BannerItem to Raider.pickUpItem before consulting it; the ominous banner pickup is in game/mobs/raids/mod.rs
 PiglinBrute.createAttributes	skip:data		attributes come from entity-types.json
 PiglinBrute.customServerAiStep	inline	crates/horizon-client/src/mobs/piglin.rs::ai_step	after the goals that pick the target: update_activity, then maybe_play_brute_sound; the goals set in register_brute stand in for vanilla's brain tick
 PiglinBrute.finalizeSpawn	inline	crates/horizon-client/src/mobs/finalize.rs::Ctx::mob	golden axe in the main hand via populate; initMemories is missing
 PiglinBrute.hurtServer	inline	crates/horizon-client/src/mobs/piglin.rs::register_brute	gap: minor: retaliation is the HurtByTarget goal; no PiglinAi.maybeRetaliate for non-piglin attackers
-PiglinBrute.wantsToPickUp	port	crates/horizon-client/src/mobs/equip.rs::wants_to_pick_up	
+PiglinBrute.wantsToPickUp	port	crates/horizon-client/src/mobs/equip.rs::wants_to_pick_up
 PiglinBruteAi.createIdleLookBehaviors	inline	crates/horizon-client/src/mobs/piglin.rs::register_brute	gap: minor: looks at players only (LookAtPlayer); no look at piglins, random look or do-nothing pause
 PiglinBruteAi.createIdleMovementBehaviors	inline	crates/horizon-client/src/mobs/piglin.rs::register_brute	the walk back to the home memory is `BruteStrollHome` (`StrollToPoi(HOME, 0.6F, 2, 100)`); gap: minor: no visits to piglins (`InteractWith`) and no `StrollAroundPoi`, and the goal yields within ten blocks of home where vanilla re-targets it every 80 ticks
 PiglinBruteAi.findNearestValidAttackTarget	inline	crates/horizon-client/src/mobs/piglin.rs::register_brute	gap: minor: targets nearest player or wither skeleton through the target goals; no anger memory first
@@ -73,7 +73,7 @@ Parched.canBeAffected	port	crates/horizon-client/src/mobs.rs::Mob::can_be_affect
 Stray.checkStraySpawnRules	port	crates/horizon-client/src/mobs/spawn_rules.rs::check_spawn_rules	S::Stray arm: powder snow skipped, sky must be visible
 Stray.getArrow	inline	crates/horizon-client/src/mobs/undead.rs::perform_ranged_attack	Stray arrows carry slowness for 600 ticks
 CaveSpider.getVehicleAttachmentPoint	port	crates/horizon-client/src/mobs/riders.rs::vehicle_attachment	0.21875 of the scale when the vehicle's box is no wider than the spider's; the wider case falls to the type default
-VillagerDataHolder.finalizeVillagerType	inline	crates/horizon-client/src/mobs/finalize.rs::Ctx::villager_type	
+VillagerDataHolder.finalizeVillagerType	inline	crates/horizon-client/src/mobs/finalize.rs::Ctx::villager_type
 Abilities.apply	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::apply_remote_abilities	gap: minor: invulnerable, flying, may fly and flying speed only; instabuild, may build and walk speed are not applied
 Abilities.pack	skip:java		record copy for the abilities packet; the flags are read in remote.rs
 PlayerSkin.with	missing		minor: skin patches (body, cape, elytra and model overrides) are not applied on top of a profile skin
@@ -91,7 +91,7 @@ LargeFireball.onHitEntity	port	crates/horizon-client/src/game/mobs/creatures/mod
 SmallFireball.onHitEntity	port	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::projectile_hit	SmallFireball arm: ignites for 5 seconds and deals 5 damage
 AbstractThrownPotion.affectEntitiesAround	port	crates/horizon-client/src/game/blocks/splash_water.rs::Game::affect_entities_around	water potion in the potion's (4, 2, 4) box: 1 indirect-magic damage to water-sensitive mobs, put out burning mobs, players and armor stands, then Axolotl.rehydrate
 AbstractThrownPotion.calculateHorizontalHurtKnockbackDirection	inline	crates/horizon-client/src/mobs.rs::Mob::damage_with	the splash hurt is `Damage::indirect_magic` from the potion position and the hurt pushes away from the source position
-AbstractThrownPotion.douseFire	port	crates/horizon-client/src/game/blocks/splash_water.rs::Game::douse_fire	fire blocks break without drops, lit candles and campfires go out (campfire with level event 1009 and the block-change game event); gap: minor: that game event carries no source entity
+AbstractThrownPotion.douseFire	port	crates/horizon-client/src/game/blocks/splash_water.rs::Game::douse_fire	fire blocks break without drops, lit candles and campfires go out (campfire with level event 1009 and the block-change game event, sourced from the potion's owner through `CampfireBlock.douse`)
 AbstractThrownPotion.onHitBlock	port	crates/horizon-client/src/game/blocks/splash_water.rs::Game::potion_hit_block	a potion in #douses_fire puts out the cell in front of the face it hit, the block it hit and the four horizontal neighbours of the cell in front
 Snowball.getParticle	port	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::item_burst	snowball item burst on break
 Snowball.handleEntityEvent	port	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::thrown_break_event	break event 3 for thrown items
@@ -115,14 +115,14 @@ MinecartCommandBlock.onSyncedDataUpdated	inline	crates/horizon-client/src/game/a
 MinecartCommandBlock.readAdditionalSaveData	inline	crates/horizon-client/src/game/entities/minecarts.rs::Minecart::from_nbt	loads the base command block and syncs its command/output; a changed command invokes setCommand and resets SuccessCount
 MinecartCommandBlock.MinecartCommandBase.createCommandSourceStack	port	crates/horizon-client/src/game/administration/command_minecarts.rs::Game::perform_cart_command	the due command runs with the cart as its source: its position, rotation and game master level
 MinecartCommandBlock.MinecartCommandBase.onUpdated	inline	crates/horizon-client/src/game/administration/command_minecarts.rs::Game::cart_command_updated	copies the command and the last output into the cart's synched fields
-MinecartFurnace.addAdditionalSaveData	port	crates/horizon-client/src/game/entities/minecarts.rs::Minecart::to_nbt	
+MinecartFurnace.addAdditionalSaveData	port	crates/horizon-client/src/game/entities/minecarts.rs::Minecart::to_nbt
 MinecartFurnace.addFuel	inline	crates/horizon-client/src/game/entities/minecarts.rs::Game::interact_cart	furnace arm: coal or charcoal adds 3600 ticks of fuel up to 32000
-MinecartFurnace.applyNaturalSlowdown	port	crates/horizon-client/src/game/entities/minecarts.rs::Game::natural_slowdown	
+MinecartFurnace.applyNaturalSlowdown	port	crates/horizon-client/src/game/entities/minecarts.rs::Game::natural_slowdown
 MinecartFurnace.calculateNewPushAlong	port	crates/horizon-client/src/game/entities/minecarts.rs::push_along	the push projected on the movement when both horizontal lengths pass 1.0E-4 and 0.001, else the push; the slow path and the cart tick both call it
 MinecartFurnace.getDefaultDisplayBlockState	port	crates/horizon-client/src/game/entities/minecarts.rs::Game::display_state	lit furnace while it has fuel
 MinecartFurnace.getMaxSpeed	port	crates/horizon-client/src/game/entities/minecarts.rs::Game::max_speed	half speed on land, three quarters of 0.2 in water
 MinecartFurnace.interact	inline	crates/horizon-client/src/game/entities/minecarts.rs::Game::interact_cart	furnace arm
-MinecartFurnace.readAdditionalSaveData	port	crates/horizon-client/src/game/entities/minecarts.rs::Minecart::from_nbt	
+MinecartFurnace.readAdditionalSaveData	port	crates/horizon-client/src/game/entities/minecarts.rs::Minecart::from_nbt
 MinecartFurnace.tick	inline	crates/horizon-client/src/game/entities/minecarts.rs::Game::tick_cart	furnace variant: fuel counts down, push clears at zero, smoke puffs
 MinecartSpawner.tick	port	crates/horizon-client/src/game/entities/minecarts.rs::Game::tick_cart	BaseSpawner.serverTick at the cart's block (spawner.rs server_tick_spawner_of); its broadcastEvent is an entity event on the cart
 MinecartSpawner.createTicker	port	crates/horizon-client/src/game/entities/minecarts.rs::Game::tick_cart	the server ticker: the CartKind::Spawner arm
@@ -139,7 +139,7 @@ AbstractCraftingMenu.addCraftingGridSlots	skip:ui		slot positions of the craftin
 AbstractCraftingMenu.addResultSlot	skip:ui		result slot position; menu.rs keeps the vanilla slot index
 AbstractCraftingMenu.handlePlacement	port	crates/horizon-client/src/menu/place.rs::Menu::place_recipe	recipe placement from the book
 ChestMenu.addChestGrid	skip:ui		slot grid layout of the chest screen, drawn by storage.rs
-ChestMenu.quickMoveStack	port	crates/horizon-client/src/game/world/storage.rs::Game::container_quick_move	
+ChestMenu.quickMoveStack	port	crates/horizon-client/src/game/world/storage.rs::Game::container_quick_move
 ChestMenu.sixRows	skip:ui		constructor shorthand for the six-row chest layout
 ChestMenu.threeRows	skip:ui		constructor shorthand for the three-row chest layout
 ContainerLevelAccess.execute	skip:java		level access wrapper for menus; Horizon's menus hold the game state directly
@@ -149,15 +149,15 @@ ItemCombinerMenuSlotDefinition.Builder.build	skip:java		builder for anvil and sm
 ItemCombinerMenuSlotDefinition.Builder.withResultSlot	skip:java		builder for anvil and smithing slot definitions
 ItemCombinerMenuSlotDefinition.Builder.withSlot	skip:java		builder for anvil and smithing slot definitions
 PlayerEnderChestContainer.fromSlots	skip:java		builds the ender chest from saved slots; Horizon keeps ender_items
-PlayerEnderChestContainer.startOpen	port	crates/horizon-client/src/game/world/storage.rs::Game::open_ender_chest	
+PlayerEnderChestContainer.startOpen	port	crates/horizon-client/src/game/world/storage.rs::Game::open_ender_chest
 PlayerEnderChestContainer.stillValid	inline	crates/horizon-client/src/game/world/storage.rs::Game::tick_container_reach	closes the chest when the player walks away
-PlayerEnderChestContainer.stopOpen	port	crates/horizon-client/src/game/world/storage.rs::Game::close_ender_chest	
+PlayerEnderChestContainer.stopOpen	port	crates/horizon-client/src/game/world/storage.rs::Game::close_ender_chest
 PlayerEnderChestContainer.storeAsSlots	skip:java		saves the ender chest as slots; Horizon writes ender_items
 RecipeCraftingHolder.setRecipeUsed	port	crates/horizon-client-render/src/containers.rs::recipe_used_key	the recipe a block last crafted is kept under that key and saved (save.rs, furnace.rs)
 RemoteSlot.Synchronized.matches	skip:java		compares a slot with its last synced copy; Horizon sends the slot when it changes
 ResultContainer.isEmpty	port	crates/horizon-client/src/menu.rs::Menu::has_item	the result slot is empty when it has no item
-ShulkerBoxMenu.quickMoveStack	port	crates/horizon-client/src/game/world/storage.rs::Game::container_quick_move	
-TransientCraftingContainer.fillStackedContents	port	crates/horizon-client/src/menu/place.rs::Menu::stacked_contents	
+ShulkerBoxMenu.quickMoveStack	port	crates/horizon-client/src/game/world/storage.rs::Game::container_quick_move
+TransientCraftingContainer.fillStackedContents	port	crates/horizon-client/src/menu/place.rs::Menu::stacked_contents
 TransientCraftingContainer.getItem	skip:java		slot read of a menu-owned grid; Horizon reads menu slots directly
 TransientCraftingContainer.isEmpty	skip:java		emptiness of a menu-owned grid; Horizon reads menu slots directly
 TransientCraftingContainer.removeItem	skip:java		slot removal of a menu-owned grid; Horizon takes from menu slots directly
@@ -170,7 +170,7 @@ ArrayItemProvider.setPosition	inline	crates/horizon-client/src/game/items/recipe
 ArrayItemProvider.Cycled.computeNextItem	inline	crates/horizon-client/src/game/items/recipe_book.rs::Game::draw_ghost	ghost slot item list
 ArrayItemProvider.Cycled.findNext	inline	crates/horizon-client/src/game/items/recipe_book.rs::Game::draw_ghost	ghost slot item list
 BottleItem.use	port	crates/horizon-client/src/game/items/potions.rs::Game::use_potion_item	glass bottle arm
-CreativeModeTab.buildContents	port	crates/horizon-client/src/creative.rs::Creative::items	
+CreativeModeTab.buildContents	port	crates/horizon-client/src/creative.rs::Creative::items
 CreativeModeTab.getIconItem	inline	crates/horizon-client/src/creative.rs::Creative::tab_headers	tab header carries the icon
 CreativeModeTab.shouldDisplay	inline	crates/horizon-client/src/creative.rs::Creative::tab_headers	tabs listed from the data file
 CreativeModeTab.Builder.build	skip:java		builder for tab properties
@@ -190,7 +190,7 @@ CreativeModeTabs.generatePresetPaintings	skip:data		creative contents come from 
 CreativeModeTabs.generateSuspiciousStews	skip:data		creative contents come from the data file
 CreativeModeTabs.registerColoredItems	skip:data		creative contents come from the data file
 CreativeModeTabs.tryRebuildTabContents	port	crates/horizon-client/src/creative.rs::Creative::items	contents rebuilt on demand
-DebugStickItem	home	crates/horizon-client/src/game/blocks/debug_stick.rs	
+DebugStickItem	home	crates/horizon-client/src/game/blocks/debug_stick.rs
 DoubleHighBlockItem.placeBlock	port	crates/horizon-world/src/level/place.rs::Sim::place	the block above is cleared to air (or water when it was water) before the placed half, as `BlockItem.place` does for a double-high item
 DyeItem.interactLivingEntity	port	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::interact_mob	a dye recolours an unsheared sheep's wool and a tamed wolf's or cat's collar, consumed with `item.dye.use`
 DyeItem.tryApplyToSign	inline	crates/horizon-client/src/game/interface/sign_edit.rs::Game::use_sign_applicator	dye colours the sign text
@@ -214,7 +214,7 @@ InstrumentItem.play	inline	crates/horizon-client/src/game/items/using_item.rs::G
 InstrumentItem.use	port	crates/horizon-client/src/game/items/using_item.rs::Game::use_instrument	holds the horn up for the instrument's use duration, plays it, counts the used statistic; an unknown instrument fails
 Instruments.bootstrap	skip:data		registry bootstrap of the instrument list
 Instruments.register	skip:data		registry bootstrap of the instrument list
-ItemFrameItem.mayPlace	port	crates/horizon-client/src/game/entities/frames.rs::Game::place_item_frame	
+ItemFrameItem.mayPlace	port	crates/horizon-client/src/game/entities/frames.rs::Game::place_item_frame
 ItemProvider.cycle	inline	crates/horizon-client/src/game/items/recipe_book.rs::Game::draw_ghost	ghost slot shows its items in turn
 ItemProvider.of	inline	crates/horizon-client/src/game/items/recipe_book.rs::Game::draw_ghost	ghost slot item list
 ItemProvider.FallbackItemProvider.findNext	inline	crates/horizon-client/src/game/items/recipe_book.rs::Game::draw_ghost	ghost slot item list

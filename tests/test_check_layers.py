@@ -63,6 +63,7 @@ class CheckLayersTests(unittest.TestCase):
     def test_build_dependencies_count_and_dev_dependencies_do_not(self):
         self.assertEqual(len(run(package("core", ("mod-api", "build")))[0]), 1)
         self.assertEqual(run(package("core", ("mod-api", "dev"))), ([], []))
+        self.assertEqual(len(run(package("core", "mod-api"))[0]), 1)
 
     def test_an_exception_with_no_dependency_left_is_only_a_note(self):
         problems, notes = run(package("game", "core"), allowed=["game -> cosmetics"])
@@ -260,6 +261,73 @@ class UpstreamLayerRestorationTests(unittest.TestCase):
 
     def test_altered_new_crate_assignment_fails(self):
         self.assertTrue(self.problems("game -> cosmetics", "platform"))
+
+
+class PullRequestMergeTests(unittest.TestCase):
+    def test_a_pull_request_merge_compares_with_main_as_merged(self):
+        """main added an exception after the branch left it: on the pull request's merge into that main, the base
+        holds it, so the pull request isn't charged with it; the event's old base does not."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+
+            def run(*args):
+                return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env,
+                                      text=True).stdout.strip()
+
+            (root / "tools").mkdir()
+            (root / "tools/layers.json").write_text(json.dumps({"allowed": []}))
+            (root / "work.txt").write_text("a\n")
+            run("init", "-q", "-b", "main")
+            run("add", ".")
+            run("commit", "-q", "-m", "base")
+            base = run("rev-parse", "HEAD")
+            run("checkout", "-q", "-b", "work")
+            (root / "work.txt").write_text("b\n")
+            run("commit", "-q", "-am", "unrelated change")
+            run("checkout", "-q", "main")
+            (root / "tools/layers.json").write_text(json.dumps({"allowed": ["core -> horizon"]}))
+            run("commit", "-q", "-am", "main allows an exception")
+            run("checkout", "-q", "--detach", "main")
+            run("merge", "-q", "--no-ff", "-m", "merge work", "work")
+            with mock.patch.object(check_layers, "ROOT", root), mock.patch.object(check_file_size, "ROOT", root):
+                merged, error = check_file_size.pull_request_base(base, True)
+                self.assertIsNone(error)
+                self.assertEqual(check_layers.base_config(merged), {"allowed": ["core -> horizon"]})
+                self.assertEqual(check_layers.base_config(base), {"allowed": []})
+                run("checkout", "-q", "work")
+                self.assertEqual(check_file_size.pull_request_base(base, True)[1],
+                                 "--pull-request-merge needs HEAD to merge the pull request into a descendant of --base.")
+
+
+class BaseConfigTests(unittest.TestCase):
+    def test_the_base_is_where_the_branch_left_main(self):
+        """An entry main dropped after the branch left it is still on the branch's base: the branch didn't add it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+
+            def run(*args):
+                subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env)
+
+            def allow(*entries):
+                (root / "tools").mkdir(exist_ok=True)
+                (root / "tools" / "layers.json").write_text(json.dumps({"allowed": list(entries)}))
+
+            run("init", "-q", "-b", "main")
+            allow("game -> cosmetics")
+            run("add", ".")
+            run("commit", "-q", "-m", "base")
+            run("checkout", "-q", "-b", "work")
+            run("commit", "-q", "--allow-empty", "-m", "work")
+            run("checkout", "-q", "main")
+            allow()
+            run("commit", "-q", "-am", "main drops the entry")
+            run("checkout", "-q", "work")
+            with mock.patch.object(check_layers, "ROOT", root):
+                self.assertEqual(check_layers.base_config("main"), {"allowed": ["game -> cosmetics"]})
 
 
 if __name__ == "__main__":

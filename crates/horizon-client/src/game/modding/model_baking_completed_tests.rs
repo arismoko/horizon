@@ -5,8 +5,9 @@ use super::native_entity_refs::tests::with_client_game;
 use super::packs::ReloadKind;
 use mod_api::{
     ClientHost, ClientResourcesReloadedEvent, ClientSetupEvent, Hooks, Identifier, ModEntry,
-    ModelBakingCompletedEvent, ModelError, ModelRef, TextureAtlasStitchedEvent, testing::with_mods,
+    ModelBakingCompletedEvent, ModelError, ModelRef, TextureAtlasStitchedEvent,
 };
+use mod_platform::testing::with_mods;
 use std::sync::{Arc, Mutex};
 
 /// The standalone model the mod asked for, installed by the fixture as `standalone_models`
@@ -67,7 +68,7 @@ fn keeper() -> (Arc<Mutex<Kept>>, mod_api::Mods) {
 }
 
 /// F3+T: the reload stages on a worker and applies here.
-fn reload(game: &mut super::Game<'_>) {
+pub(in crate::game) fn reload(game: &mut super::Game<'_>) {
     game.spawn_pack_reload(ReloadKind::Selection).unwrap();
     let started = std::time::Instant::now();
     while game.pack_reload.is_some() {

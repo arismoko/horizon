@@ -77,7 +77,7 @@ impl TryIntoApi for engine::LootStack {
             .names
             .iter()
             .map(|(id, name)| {
-                super::text_boundary::captured_text(name)
+                horizon_client_lib::api_text::captured_text(name)
                     .map(|name| (id.clone(), name))
                     .map_err(|_| LootValueError::InvalidName)
             })
@@ -231,7 +231,8 @@ mod tests {
     use super::*;
     include!("loot_tags_tests.rs");
     use horizon_core::nbt::Tag;
-    use mod_api::{Hooks, LootFunctionEvent, ModEntry, testing::with_mods};
+    use mod_api::{Hooks, LootFunctionEvent, ModEntry};
+    use mod_platform::testing::with_mods;
     fn stack() -> engine::LootStack {
         engine::LootStack {
             item: "minecraft:stick".into(),

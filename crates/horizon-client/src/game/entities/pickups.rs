@@ -176,6 +176,7 @@ mod tests {
         let at = horizon_core::geometry::Vec3::new(x, y, z);
         Taken::Orb(Box::new(ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             rotation: [0.0, 0.0],
             join: Default::default(),
             no_gravity: false,
@@ -189,6 +190,7 @@ mod tests {
             count: 1,
             ticks: 0,
             health: 5,
+            air: 300,
             following: None,
         }))
     }

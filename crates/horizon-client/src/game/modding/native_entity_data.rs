@@ -412,7 +412,7 @@ mod tests {
             Box::new(Observer(during.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.native_joins_skip();
                 game.next_entity += 1;

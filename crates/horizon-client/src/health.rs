@@ -104,6 +104,8 @@ pub struct DamageLevel<'a> {
     hooks: Option<&'a DamageHooks>,
     /// Who attacks in this hit and what they hold: the facts of the site that built the level.
     attack: &'a Attack,
+    /// Whether this is a client's level, for a hook asked on both sides ([`Self::on_client`]).
+    client_side: bool,
 }
 impl<'a> DamageLevel<'a> {
     /// The level of `world`, whose blocks `registry` names.
@@ -135,6 +137,7 @@ impl<'a> DamageLevel<'a> {
             attachment_syncs,
             hooks: Some(hooks),
             attack: &NO_ATTACK,
+            client_side: false,
         }
     }
     /// The level of `world`, with the random and attachments `lent` took out of it.
@@ -158,6 +161,7 @@ impl<'a> DamageLevel<'a> {
             attachment_syncs: &mut lent.attachment_syncs,
             hooks: Some(hooks),
             attack: &NO_ATTACK,
+            client_side: false,
         }
     }
     /// The same level on a client predicting a mob it rides: no damage hooks fire.
@@ -181,7 +185,20 @@ impl<'a> DamageLevel<'a> {
             attachment_syncs: self.attachment_syncs,
             hooks: self.hooks,
             attack: self.attack,
+            client_side: self.client_side,
         }
+    }
+    /// The same level, on a client when `client_side`: a hook asked on both sides tells its
+    /// listener so.
+    pub fn on_client(self, client_side: bool) -> Self {
+        Self {
+            client_side,
+            ..self
+        }
+    }
+    /// Whether this is a client's level ([`Self::on_client`]).
+    pub fn client_side(&self) -> bool {
+        self.client_side
     }
     /// The same level for the hit `attack` describes.
     pub fn attacked_by(self, attack: &'a Attack) -> Self {
@@ -278,7 +295,7 @@ impl LentLevel {
     pub fn take(world: &mut crate::world::World) -> Self {
         Self {
             random: std::mem::replace(
-                &mut world.random,
+                &mut *world.random,
                 horizon_core::random::LegacyRandom::new(0),
             ),
             attachments: std::mem::take(&mut world.attachments),
@@ -287,7 +304,7 @@ impl LentLevel {
     }
     /// Put them back into `world`.
     pub fn give_back(self, world: &mut crate::world::World) {
-        world.random = self.random;
+        *world.random = self.random;
         world.attachments = self.attachments;
         world.attachment_syncs = self.attachment_syncs;
     }
@@ -918,6 +935,7 @@ impl PlayerMotion {
             blocking,
             blocked: 0.0,
             shield_damage: 0,
+            blocking_item_used: false,
             fully_blocked: false,
             block_sound: false,
             knocked: false,
@@ -998,6 +1016,7 @@ impl PlayerMotion {
             hurt,
             blocked: hit.blocked,
             shield_damage: hit.shield_damage,
+            blocking_item_used: hit.blocking_item_used,
             fully_blocked: hit.fully_blocked,
             sound: hit.block_sound,
             knockback: hit.knocked,
@@ -1095,6 +1114,7 @@ impl PlayerMotion {
             blocking: hit.blocking.take(),
             blocked: hit.blocked,
             shield_damage: hit.shield_damage,
+            blocking_item_used: hit.blocking_item_used,
             fully_blocked: hit.fully_blocked,
             block_sound: hit.block_sound,
             knocked: hit.knocked,
@@ -1118,6 +1138,7 @@ impl PlayerMotion {
         hit.blocking = environment.blocking;
         hit.blocked = environment.blocked;
         hit.shield_damage = environment.shield_damage;
+        hit.blocking_item_used = environment.blocking_item_used;
         hit.fully_blocked = environment.fully_blocked;
         hit.block_sound = environment.block_sound;
         hit.knocked = environment.knocked;
@@ -1184,6 +1205,7 @@ pub(crate) struct Environment<'a> {
     pub(crate) blocked: f32,
     /// The durability the blocking item loses.
     pub(crate) shield_damage: i32,
+    pub(crate) blocking_item_used: bool,
     /// What it blocked covers the whole hit, as difficulty scaled it.
     pub(crate) fully_blocked: bool,
     pub(crate) block_sound: bool,
@@ -1230,6 +1252,7 @@ pub struct PausedHurt {
     blocking: Option<Blocking>,
     blocked: f32,
     shield_damage: i32,
+    blocking_item_used: bool,
     fully_blocked: bool,
     block_sound: bool,
     knocked: bool,
@@ -1254,6 +1277,18 @@ pub struct Blocking {
     pub pierce: bool,
     /// Angle between the head's view and the source position (pi without one).
     pub angle: f64,
+}
+impl Blocking {
+    /// `BlocksAttacks.resolveBlockedDamage`: what the item stops of `damage`,
+    /// nothing for a source it bypasses or an arrow that pierces it.
+    pub fn blocked(&self, damage: f32) -> f32 {
+        if damage <= 0.0 || self.bypassed || self.pierce {
+            return 0.0;
+        }
+        self.rules
+            .resolve(&mut MatchedSets, damage, self.angle)
+            .unwrap_or(0.0)
+    }
 }
 /// How many hurts `PlayerMotion::hurt_log` keeps.
 const HURT_LOG: usize = 64;
@@ -1300,6 +1335,8 @@ pub struct AttackRecord {
 /// The outcome of a hurt with a raised blocking item.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BlockOutcome {
+    /// `hurtBlockingItem` ran, including when reductions resolve to zero.
+    pub blocking_item_used: bool,
     pub hurt: bool,
     pub blocked: f32,
     /// The durability the blocking item loses (`ItemDamageFunction`, or what a
@@ -1603,6 +1640,7 @@ impl HurtWorld for Environment<'_> {
         else {
             return Ok(0.0);
         };
+        self.blocking_item_used = true;
         self.blocked = block.blocked_damage;
         // `setShieldDamage` is what the item loses if `blocked` holds, whatever
         // `blocked_damage` says; below 0, the item's own `itemDamage` of what is stopped.

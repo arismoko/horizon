@@ -56,7 +56,7 @@ fn thousand_live_block_entity_ticks() {
         Box::new(BenchMod(mode)),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::__private::mark_game_thread();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
@@ -123,7 +123,7 @@ pub(super) fn with_mod_parts(name: &str, test: impl FnOnce(std::path::PathBuf)) 
         Box::new(BenchMod("none")),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::__private::mark_game_thread();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
@@ -308,7 +308,7 @@ fn a_declared_type_ticks_once_whichever_path_named_it() {
     }
     let mods: mod_api::Mods =
         vec![mod_api::ModEntry::new("tick_paths", Box::new(TickPaths))].into();
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         mod_api::__private::mark_game_thread();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());

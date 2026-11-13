@@ -15,7 +15,7 @@ fn main() {
         out_dir.join("game_modules.rs"),
         horizon_game_discovery::declarations(
             &root.join("crates/horizon-client/src/game"),
-            &["native_hooks", "host"],
+            &["native_hooks", "host", "creatures"],
         )
         .expect("discovering game modules"),
     )
@@ -30,6 +30,11 @@ fn main() {
     println!(
         "cargo:rerun-if-changed={}",
         root.join("packaging/executable_link.rs").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("crates/horizon-guest-stack/src/guest_stack_constants.rs")
+            .display()
     );
     for arg in windows_exe::executable_link::arguments(&target_os, &target_env) {
         println!("cargo:horizon-executable-link-arg={arg}");

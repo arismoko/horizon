@@ -5,7 +5,9 @@ use std::sync::OnceLock;
 // no wire: engine-owned recovery snapshot and once-only worker completion.
 /// One captured disk record. The persistence owner retains this until a durable
 /// acknowledgement; callback completion alone does not permit dirty clearing.
+// hidden: engine-owned save job, built and retained by the persistence owner
 #[doc(hidden)]
+#[non_exhaustive]
 pub struct ChunkDiskJob {
     context: ChunkDiskContextWire,
     captured: Compound,

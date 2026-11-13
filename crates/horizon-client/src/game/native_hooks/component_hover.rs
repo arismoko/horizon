@@ -18,7 +18,8 @@ mod component_hover_tests {
     use horizon_client::hud::HudBatch;
     use horizon_client::text::{Style, Text};
     use mod_api::text::{TextContent, TextHover};
-    use mod_api::{ComponentHoverEvent, Hooks, ModEntry, testing::with_mods};
+    use mod_api::{ComponentHoverEvent, Hooks, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::sync::Mutex;
 
     /// Every hover the mod was asked about, in order.

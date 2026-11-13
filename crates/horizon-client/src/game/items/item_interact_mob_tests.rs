@@ -106,7 +106,7 @@ fn actual_item_interact_mob_fallback_priority_and_filters_isolated() {
     let root = PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let probe = Probe::default();
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("item", Box::new(probe.clone()))].into();
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         let settings = Settings::default();
         let loaded = load_resources(

@@ -73,7 +73,8 @@ mod tests {
     use crate::game::api_values::TryIntoApi;
     use crate::game::native_entity_refs::tests::with_game;
     use horizon_core::random::{LegacyRandom, RandomSource};
-    use mod_api::{EnchantedBlockLootEvent, Hooks, LevelHost, ModEntry, testing::with_mods};
+    use mod_api::{EnchantedBlockLootEvent, Hooks, LevelHost, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug, PartialEq)]
@@ -122,7 +123,7 @@ mod tests {
         gravel: BlockStateId,
         tool: Option<&ItemStack>,
     ) -> (usize, i32, i32) {
-        game.world.random = LegacyRandom::new(7);
+        *game.world.random = LegacyRandom::new(7);
         game.rand_sequences = Default::default();
         let flint = (0..ROLLS)
             .flat_map(|_| game.block_loot_at(POS, gravel, tool, None))

@@ -8,7 +8,7 @@ use horizon_client::mobs::{
     spawn_selection::{self, NaturalLevel},
     spawner::SpawnerLevel,
 };
-use horizon_core::random::{LegacyRandom, RandomSource};
+use horizon_core::random::{LegacyRandom, LevelRandom, RandomSource};
 use horizon_world::food::Difficulty;
 
 /// `Zombie.REINFORCEMENT_ATTEMPTS`.
@@ -59,7 +59,10 @@ impl Game<'_> {
             zombie.position.z.floor() as i32,
         ];
         let mut own = std::mem::replace(&mut zombie.random, LegacyRandom::new(0));
-        let mut rules = std::mem::replace(&mut self.world.random, LegacyRandom::new(0));
+        let mut rules = std::mem::replace(
+            &mut self.world.random,
+            LevelRandom::for_level(LegacyRandom::new(0)),
+        );
         let spot = self.reinforcement_spot(&kind, from, &mut own, &mut rules);
         self.mobs[index].random = own;
         self.world.random = rules;

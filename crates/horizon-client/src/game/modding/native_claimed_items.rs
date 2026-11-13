@@ -223,7 +223,7 @@ mod input_tests {
     use super::*;
 
     fn keys() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         mod_api::__private::resolve_items(["minecraft:stick"]).unwrap();
     }
 

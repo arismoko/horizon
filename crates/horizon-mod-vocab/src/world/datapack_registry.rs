@@ -295,8 +295,9 @@ impl DatapackRegistryDeclaration {
     /// Decodes one entry file against the schema. A key the schema does not
     /// declare, a missing required key, a wrong type or an out-of-range value
     /// fails the whole entry, and no default stands in for invalid data.
-    /// Nothing here runs mod code. The engine adds no size or field-count
-    /// limit of its own; nesting is bounded by the JSON parser's recursion limit.
+    /// Nothing here runs mod code. Nesting is bounded by the JSON parser's
+    /// recursion limit; the file's size is bounded before this, by
+    /// [`DatapackCandidate::build`](super::datapack_registry_set::DatapackCandidate::build).
     pub fn decode_entry(&self, text: &str) -> Result<DatapackEntry, DatapackDecodeError> {
         // serde_json's own recursion limit (128) bounds nesting before any value is built.
         let json: Value = serde_json::from_str(text)
@@ -511,20 +512,9 @@ mod tests {
     }
 
     #[test]
-    fn nesting_is_bounded_but_size_is_not() {
+    fn nesting_is_bounded_by_the_json_parser() {
+        // Size is the candidate's limit (`datapack_registry_set` tests), not the decoder's.
         let decl = spell();
-        // The engine adds no size limit of its own: only the field's `max_len` applies.
-        let long = DatapackRegistryDeclaration {
-            mod_id: "example".into(),
-            key: "example:note".into(),
-            fields: vec![DatapackField::required(
-                "text",
-                DatapackFieldKind::Text { max_len: u32::MAX },
-            )],
-            sync: DatapackRegistrySync::ServerOnly,
-        };
-        let big = format!(r#"{{"text": "{}"}}"#, "x".repeat(2 << 20));
-        assert!(long.decode_entry(&big).is_ok());
         let deep = format!("{}1{}", "[".repeat(65), "]".repeat(65));
         assert!(matches!(
             decl.decode_entry(&deep),

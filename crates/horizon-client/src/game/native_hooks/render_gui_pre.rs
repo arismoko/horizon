@@ -11,9 +11,8 @@ impl Game<'_> {
 
 #[cfg(test)]
 mod local_sound_tests {
-    use mod_api::{
-        ClientHost, Flow, Hooks, ModEntry, RenderGuiPreEvent, SoundPlay, testing::with_mods,
-    };
+    use mod_api::{ClientHost, Flow, Hooks, ModEntry, RenderGuiPreEvent, SoundPlay};
+    use mod_platform::testing::with_mods;
 
     struct Mod;
     #[mod_api::__subscriptions]

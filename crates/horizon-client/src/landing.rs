@@ -180,7 +180,10 @@ pub enum FallEvent {
         volume: f32,
         pitch: f32,
     },
-    BlockFallSound,
+    BlockFallSound {
+        position: BlockPos,
+        state: BlockStateId,
+    },
     Broadcast(u8),
     Write {
         position: BlockPos,
@@ -266,7 +269,7 @@ impl FallEvent {
                 volume.to_bits(),
                 pitch.to_bits()
             ),
-            Self::BlockFallSound => "block-fall-sound".into(),
+            Self::BlockFallSound { .. } => "block-fall-sound".into(),
             Self::Broadcast(event) => format!("broadcast {event}"),
             Self::Write {
                 position,
@@ -720,8 +723,16 @@ impl LivingFallWorld for FallCall<'_, '_, '_, '_> {
     fn play_fall_sound(&mut self, sound: SceneSound) -> Result<()> {
         self.world.entity_sound(sound, 1.0, 1.0)
     }
+    /// `LivingEntity.playBlockFallSound`. The server keeps no Silent flag for a player,
+    /// so its `isSilent()` return is the landing client's (`remote::fall_sound`).
     fn play_block_fall_sound(&mut self) -> Result<()> {
-        self.world.fall_event(FallEvent::BlockFallSound);
+        let p = self.world.player.position;
+        let position = BlockPos::containing(Vec3::new(p.x, p.y - 0.20000000298023224, p.z));
+        let state = self.world.scene.block(position.x, position.y, position.z);
+        if !self.world.scene.is_air(state) {
+            self.world
+                .fall_event(FallEvent::BlockFallSound { position, state });
+        }
         Ok(())
     }
     fn hurt(&mut self, amount: f32) -> Result<()> {

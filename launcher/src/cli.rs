@@ -856,6 +856,10 @@ enum Cmd {
         /// The game is never rebuilt by a mod build.
         #[arg(long, value_enum)]
         profile: Option<native_mods::Profile>,
+        /// Build the horizon-mixins tool from its pinned source instead of downloading the
+        /// prebuilt one: for CI, which keeps that path proven
+        #[arg(long, hide = true)]
+        mixins_from_source: bool,
     },
     /// Show a release's patch notes (default: the newest)
     Notes { tag: Option<String> },
@@ -1150,14 +1154,7 @@ fn set_setting(s: &mut backend::Settings, key: &str, value: &str) -> Result<(), 
     Ok(())
 }
 
-/// Every launcher setting, as `settings` shows them.
 /// Runs a subcommand and returns the exit code, or None when the window should open.
-fn registry_consent(inventory: &native_mods::RegistryInventory) -> bool {
-    eprintln!("{}\n{}", inventory.label(), inventory.detail());
-    // The headless native route has already required explicit native-code permission.
-    true
-}
-
 pub fn run() -> Option<i32> {
     use clap::FromArgMatches;
     let no_ai = backend::no_ai();
@@ -1341,8 +1338,10 @@ fn execute(command: Cmd, as_json: bool) -> Result<i32, String> {
             update,
             trust_native_code,
             profile,
+            mixins_from_source,
         } => {
             native_permission(trust_native_code)?;
+            native_mods::mixins_from_source(mixins_from_source);
             if catalog {
                 let discovered =
                     native_mods::pinned_catalog_with_modules(&folder.expect("required by clap"))?;
@@ -4049,7 +4048,7 @@ mod catalog_tests;
 
 #[path = "cli_native_permission.rs"]
 mod native_permission_impl;
-use native_permission_impl::{github_native, native_permission};
+use native_permission_impl::{github_native, native_permission, registry_consent};
 
 mod developer_builds;
 

@@ -98,6 +98,14 @@ impl ModuleCache {
         digest.0.update((setting.len() as u64).to_le_bytes());
         digest.0.update(setting.as_bytes());
         digest.0.update([u8::from(enabled)]);
+        // Runtime stack bounds need not affect Wasmtime's compiled-code hash,
+        // but a policy change still starts a new Horizon cache generation.
+        digest
+            .0
+            .update((horizon_guest_stack::GUEST_STACK_BYTES as u64).to_le_bytes());
+        digest
+            .0
+            .update((horizon_guest_stack::HOST_HEADROOM as u64).to_le_bytes());
         engine.precompile_compatibility_hash().hash(&mut digest);
         format!("{:x}", digest.0.finalize())
     }
@@ -126,6 +134,18 @@ impl ModuleCache {
         engine: &Engine,
         bytes: &[u8],
         child: ChildCompile,
+    ) -> wasmtime::Result<(Module, Source)> {
+        self.load_with_child_command(engine, bytes, child)
+    }
+
+    pub(crate) fn load_with_child_command(
+        &self,
+        engine: &Engine,
+        bytes: &[u8],
+        child: Option<(
+            impl FnOnce(&Path, &str) -> std::process::Command,
+            std::time::Duration,
+        )>,
     ) -> wasmtime::Result<(Module, Source)> {
         if self.disabled.is_some() {
             return Module::new(engine, bytes).map(|module| (module, Source::Compiled));
@@ -487,7 +507,7 @@ mod tests;
 mod gate_tests;
 
 #[cfg(unix)]
-fn production_command(input: &Path, key: &str) -> std::process::Command {
+pub(crate) fn production_command(input: &Path, key: &str) -> std::process::Command {
     let mut command = std::process::Command::new(std::env::current_exe().unwrap_or_default());
     command
         .env_clear()

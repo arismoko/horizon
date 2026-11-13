@@ -429,7 +429,7 @@ impl Game<'_> {
         let mut shulker_pushes = Vec::new();
         for &(pos, ticker) in &positions {
             match ticker {
-                Ticker::Lid => self.be_anims.chests.entry(pos).or_default().tick(),
+                Ticker::Lid => self.tick_chest_lid(pos),
                 Ticker::Book => {
                     let anims = &mut self.be_anims;
                     anims
@@ -807,8 +807,17 @@ impl Game<'_> {
         let server = self.be_anims.gateway_servers.entry(key).or_insert(initial);
         let triggered = server.portal_tick();
         let age = server.age;
-        if let Some(BlockEntity::EndGateway(g)) = self.world.block_entities.get_mut(&pos) {
+        let mut aged = false;
+        if let Some(BlockEntity::EndGateway(g)) = self.world.block_entities.get_mut(&pos)
+            && g.age != age
+        {
             g.age = age;
+            aged = true;
+        }
+        if aged {
+            // `TheEndGatewayBlockEntity.portalTick` ends with `setChanged`: the
+            // age the beam and the chunk save read moved.
+            self.world.modified.insert((pos.0 >> 4, pos.2 >> 4));
         }
         if triggered {
             self.gateway_cooldown_event(key);
@@ -894,6 +903,10 @@ impl Game<'_> {
         };
         self.be_anims
             .block_anim(pos, self.world.game_time, partial, sherds)
+    }
+    /// The client chest ticker, also used when replaying a moved chest.
+    pub(super) fn tick_chest_lid(&mut self, pos: [i32; 3]) {
+        self.be_anims.chests.entry(pos).or_default().tick();
     }
     /// `ChestLidController.getOpenness(partial)` at `pos`.
     pub(super) fn chest_lid(&self, pos: [i32; 3], partial: f32) -> f32 {
@@ -1115,5 +1128,44 @@ mod bell_ownership_tests {
         assert!(anims.pots.is_empty());
         anims.retain_present(&[]);
         assert!(anims.bells.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod gateway_age_tests {
+    use super::*;
+    use crate::game::game_tests::tests::server_game;
+
+    /// `TheEndGatewayBlockEntity.portalTick`: an age that moved is a change
+    /// to save.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_gateway_that_ages_marks_the_chunk() {
+        let mut resources = None;
+        let mut game = server_game(&mut resources);
+        let state = game
+            .pack
+            .assets
+            .registry
+            .default_state("minecraft:end_gateway")
+            .unwrap();
+        let pos = (2, 4, 3);
+        game.world.set(pos.0, pos.1, pos.2, state).unwrap();
+        game.world.block_entities.insert(
+            pos,
+            BlockEntity::EndGateway(horizon_client::containers::EndGateway::default()),
+        );
+        game.world.modified.clear();
+
+        game.tick_end_gateway(pos);
+
+        let Some(BlockEntity::EndGateway(g)) = game.world.block_entities.get(&pos) else {
+            panic!("no gateway");
+        };
+        assert_eq!(g.age, 1, "the tick aged the gateway");
+        assert!(
+            game.world.modified.contains(&(0, 0)),
+            "the aged gateway left the chunk unmarked"
+        );
     }
 }

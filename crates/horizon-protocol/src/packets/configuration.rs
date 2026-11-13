@@ -221,6 +221,66 @@ packet_enum!(Serverbound, crate::ids::configuration::serverbound {
     CustomClickAction(CustomClickAction) = CUSTOM_CLICK_ACTION,
 });
 
+// Generated retained-allocation traversals; regenerate with protocol-retained-gen.
+impl crate::retained::OwnedHeap for ServerLinkKind {
+    fn owned_heap_bytes(&self) -> usize {
+        match self {
+            Self::Known(field_0) => {
+                0usize.saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(field_0))
+            }
+            Self::Custom(field_0) => {
+                0usize.saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(field_0))
+            }
+        }
+    }
+}
+impl crate::retained::OwnedHeap for ServerLink {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self { kind, link } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(kind))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(link))
+    }
+}
+impl crate::retained::OwnedHeap for ClickPayload {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self = self;
+        0usize
+    }
+}
+impl crate::retained::OwnedHeap for ClientInformation {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self {
+            language,
+            view_distance,
+            chat_visibility,
+            chat_colors,
+            model_customisation,
+            main_hand,
+            text_filtering,
+            allows_listing,
+            particle_status,
+        } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(language))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(view_distance))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(
+                chat_visibility,
+            ))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(chat_colors))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(
+                model_customisation,
+            ))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(main_hand))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(text_filtering))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(allows_listing))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(
+                particle_status,
+            ))
+    }
+}
+// End generated retained traversals.
+
 #[cfg(test)]
 mod tests {
     use super::*;

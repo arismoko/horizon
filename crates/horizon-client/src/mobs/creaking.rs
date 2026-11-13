@@ -362,7 +362,7 @@ fn check_can_move(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) -> bool
         if p.alive && !p.creative && !p.spectator {
             potential = true;
             // GAZE_DISGUISE_EQUIPMENT hides the player once the creaking is awake.
-            let disguised = p.head.as_deref() == Some("minecraft:carved_pumpkin");
+            let disguised = super::ai::wears_gaze_disguise(p.head.as_deref(), w);
             if (!active || !disguised) && looked_at_by(m, w) {
                 if active {
                     return false;
@@ -692,3 +692,7 @@ mod tests {
         assert_eq!(hurt_sounds(&m), ["entity.hostile.death"], "a giant's death");
     }
 }
+
+#[cfg(test)]
+#[path = "gaze_disguise_tests.rs"]
+mod gaze_disguise_tests;

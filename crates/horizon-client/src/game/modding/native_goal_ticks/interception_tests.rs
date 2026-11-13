@@ -58,7 +58,7 @@ fn installed_native_listener_intercepts_ai_setter_and_preserves_species_effects(
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             let kind = game

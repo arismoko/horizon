@@ -53,7 +53,7 @@ fn with_observer(test: impl FnOnce(&mut super::Game<'_>, &Arc<Mutex<Observation>
         Box::new(Observer(state.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             game.world
                 .chunks

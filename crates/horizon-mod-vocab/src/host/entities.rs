@@ -23,6 +23,15 @@ pub trait EntitiesHost {
 #[horizon_mod_api_macros::host_area]
 pub trait EntitiesServerHost {
     /// Side: server.
+    /// Finds a loaded entity by UUID in the server level in place for this
+    /// hook. Returns `None` for unloaded entities, entities in another level,
+    /// and dragon parts. It also returns `None` for entities held out of
+    /// lookup, taken from their resident storage, unavailable under a scoped
+    /// item loan, queued for removal, or vehicles undergoing destruction.
+    /// The lookup leaves entity and level state alone.
+    #[access(WorldOnly)]
+    fn entity_by_uuid(&self, uuid: EntityUuid) -> Option<EntityRef>;
+    /// Side: server.
     /// Spawns an entity of `kind` (`minecraft:item_display`) at `pos` in the
     /// level in place, `dimension`, from `nbt` (its compound, as `/summon
     /// <kind> <pos> <nbt>` takes it; passengers included): its id. None on a
@@ -786,6 +795,22 @@ pub trait EntitiesBackendMut {
     /// Sets the mob's persistent glowing tag (`Entity.setGlowingTag`). Returns false for players and guests.
     #[access(WorldOnly)]
     fn entity_set_glowing(&mut self, entity: EntityRef, glowing: bool) -> bool;
+    /// Side: server.
+    /// Turns a painting, item frame or glow item frame in place to face `direction`
+    /// (`HangingEntity.setDirection`, `ItemFrame.setDirection`): its facing, the yaw and pitch
+    /// that follow from it and its bounds, nothing else. Like vanilla it doesn't check that the
+    /// entity can still hang there: the next survival check does. A painting takes only a
+    /// horizontal direction (vanilla's `Painting.setDirection` refuses up and down). Clients are
+    /// told through the entity's data. False for another kind, a vertical direction for a
+    /// painting, or a stale handle.
+    #[access(WorldOnly)]
+    fn entity_set_hanging_direction(&mut self, entity: EntityRef, direction: Direction) -> bool;
+    /// Side: server.
+    /// Turns the item in an item frame or glow item frame (`ItemFrame.setRotation`): `rotation`
+    /// in eighths of a turn, wrapped to 0..=7 as vanilla's `rotation % 8`; the comparators reading
+    /// the frame take its new signal. False for another kind or a stale handle.
+    #[access(WorldOnly)]
+    fn entity_set_item_frame_rotation(&mut self, entity: EntityRef, rotation: u8) -> bool;
     /// Side: server.
     /// Sets the mob's no-gravity flag (`Entity.setNoGravity`). Returns false for players and guests.
     #[access(WorldOnly)]

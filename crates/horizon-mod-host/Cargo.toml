@@ -8,6 +8,10 @@ publish = false
 description = "The mod host above the engine: loading, Host implementations, registries and hook dispatch (#2534)"
 
 [dependencies]
+mod-render = { package = "horizon-mod-render", path = "../horizon-mod-render" }
+horizon-engine-slots = { path = "../horizon-engine-slots" }
+mod-points = { package = "horizon-mod-points", path = "../horizon-mod-points" }
+horizon-guest-stack = { path = "../horizon-guest-stack" }
 horizon-client = { path = "../horizon-client", default-features = false }
 
 horizon-mod-package = { path = "../horizon-mod-package", default-features = false, features = ["index"] }

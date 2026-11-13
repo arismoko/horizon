@@ -28,7 +28,8 @@ mod client_packet_send_tests {
         configuration::CustomPayload,
         play::{Serverbound, SetCarriedItem},
     };
-    use mod_api::{ClientHost, ClientPacketSendEvent, Flow, Hooks, ModEntry, testing::with_mods};
+    use mod_api::{ClientHost, ClientPacketSendEvent, Flow, Hooks, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// Drops payloads on `example:secret`, logging every packet it hears.

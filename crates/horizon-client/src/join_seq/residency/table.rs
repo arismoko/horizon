@@ -1,9 +1,15 @@
 //! A journal-fed index. Every hit is checked against its named storage owner;
 //! there is no owner reconciliation scan or reference back to the game.
-use super::{Change, DimensionKey, Event, Identity, IdentityDetails, Journal, Owner};
+use super::{
+    Change, DimensionKey, Event, Identity, IdentityDetails, Journal, Owner, SavedUuidUpdate,
+};
+
+#[path = "table/uuid_index.rs"]
+mod uuid_index;
 use crate::join_seq::JoinSeq;
 use horizon_core::fast_hash::FxHashMap;
 use std::num::NonZeroU32;
+use uuid_index::UuidIndex;
 
 /// Stable storage identity, never a cached element index.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -48,6 +54,8 @@ struct ResidentRow {
 pub struct EntityTable {
     journal: Journal,
     pending: Vec<Event>,
+    saved_uuid_updates: Vec<SavedUuidUpdate>,
+    uuids: UuidIndex,
     rows: FxHashMap<NonZeroU32, ResidentRow>,
     extracted: FxHashMap<NonZeroU32, Location>,
     lifted: FxHashMap<Owner, usize>,
@@ -58,6 +66,8 @@ impl EntityTable {
         Self {
             journal,
             pending: Vec::new(),
+            saved_uuid_updates: Vec::new(),
+            uuids: UuidIndex::default(),
             rows: FxHashMap::default(),
             extracted: FxHashMap::default(),
             lifted: FxHashMap::default(),
@@ -112,13 +122,20 @@ impl EntityTable {
         {
             return EntityLookup::Taken;
         }
-        forget_row(&mut self.rows, id, location);
+        forget_row(&mut self.rows, &mut self.uuids, id, location);
         forget(&mut self.extracted, id, location);
         EntityLookup::Missing
     }
     /// Apply pending operations in mutation order, reusing the event buffer.
     pub fn drain(&mut self) {
-        self.journal.drain_into(&mut self.pending);
+        self.journal
+            .drain_batches(&mut self.pending, Some(&mut self.saved_uuid_updates));
+        // Saved UUIDs and residency are independent inputs. A UUID may be
+        // written before an owner admits the object, or while it is resident.
+        for update in self.saved_uuid_updates.drain(..) {
+            self.uuids
+                .remember(update, self.rows.get(&update.id).copied());
+        }
         for event in self.pending.drain(..) {
             let location = |identity: Identity| Location {
                 owner: event.owner,
@@ -142,12 +159,14 @@ impl EntityTable {
                             old.details, identity.details,
                             "immutable identity details changed without replacement"
                         );
+                    } else {
+                        self.uuids.admit(identity.id, row);
                     }
                     self.extracted.remove(&identity.id);
                 }
                 Change::Remove(identity) => {
                     let location = location(identity);
-                    forget_row(&mut self.rows, identity.id, location);
+                    forget_row(&mut self.rows, &mut self.uuids, identity.id, location);
                     forget(&mut self.extracted, identity.id, location);
                 }
                 Change::Extract(identity) => {
@@ -216,6 +235,18 @@ impl EntityTable {
             .map(|(id, row)| (id.get(), row.location, row.details))
     }
 
+    /// The next admitted ID for this level and UUID. The caller still checks
+    /// the owner and visibility, including temporarily taken payloads.
+    pub fn level_uuid_candidate(
+        &mut self,
+        dimension: DimensionKey,
+        uuid: [i32; 4],
+        after: Option<NonZeroU32>,
+    ) -> Option<NonZeroU32> {
+        self.drain();
+        self.uuids.candidate(dimension, uuid, after)
+    }
+
     /// Candidates in lookup insertion order, independent of family and runtime id.
     /// Extraction/restoration preserves order; removal and re-admission moves to the end.
     /// Dragon parts are not members of vanilla's entity lookup.
@@ -249,14 +280,24 @@ impl EntityTable {
     pub fn reset(&mut self) {
         self.journal.reset_epoch();
         self.pending.clear();
+        self.saved_uuid_updates.clear();
+        self.uuids = UuidIndex::default();
         self.rows.clear();
         self.extracted.clear();
         self.lifted.clear();
     }
 }
-fn forget_row(map: &mut FxHashMap<NonZeroU32, ResidentRow>, id: NonZeroU32, location: Location) {
-    if map.get(&id).map(|row| row.location) == Some(location) {
-        map.remove(&id);
+fn forget_row(
+    rows: &mut FxHashMap<NonZeroU32, ResidentRow>,
+    uuids: &mut UuidIndex,
+    id: NonZeroU32,
+    location: Location,
+) {
+    if let Some(&row) = rows.get(&id)
+        && row.location == location
+    {
+        uuids.retire(id, row);
+        rows.remove(&id);
     }
 }
 fn forget(map: &mut FxHashMap<NonZeroU32, Location>, id: NonZeroU32, location: Location) {

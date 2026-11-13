@@ -160,11 +160,11 @@ mod tests {
         use horizon_client::fast_hash::FxHashMap;
         use horizon_client::mobs::Mob;
         use horizon_core::geometry::{Direction, Vec3};
-        use mod_api::__private::part_tests::{ROBOT_FLUID, game_thread};
         use mod_api::{
             BlockUpdateFlags, ENERGY, ENTITY_ENERGY, ENTITY_FLUIDS, Holder, move_energy,
             move_resources,
         };
+        use mod_platform::__private::part_tests::{ROBOT_FLUID, game_thread};
         with_game(|game| {
             let _mods = game_thread();
             game.options.dedicated = Some(Vec::new());

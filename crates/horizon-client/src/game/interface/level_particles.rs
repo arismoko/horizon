@@ -280,8 +280,8 @@ impl Game<'_> {
         };
         let above = self.world.block(pos.x, root_y + 1, pos.z);
         let above_facts = self.res.facts().get(above);
-        let nether = self.dim == super::Dim::Nether;
-        let fluid = if &*above_facts.name == "minecraft:mud" && !nether {
+        let evaporates = self.dimension_type().water_evaporates;
+        let fluid = if &*above_facts.name == "minecraft:mud" && !evaporates {
             horizon_client::blocks::Fluid::Water
         } else {
             above_facts.fluid
@@ -291,7 +291,7 @@ impl Game<'_> {
             horizon_client::blocks::Fluid::Lava => ParticleType::DrippingDripstoneLava,
             // A mod's fluid drips as no fluid above the dripstone would.
             horizon_client::blocks::Fluid::None | horizon_client::blocks::Fluid::Modded
-                if nether =>
+                if evaporates =>
             {
                 ParticleType::DrippingDripstoneLava
             }
@@ -372,14 +372,7 @@ impl Game<'_> {
             return;
         }
         if play_sound {
-            let sounds = self.res.facts().get(state).sounds.clone();
-            // Each guest plays it from the level event itself.
-            self.audio.play_unshared(
-                &sounds.hit,
-                Some(pos.map(|v| f64::from(v) + 0.5)),
-                (sounds.volume + 1.0) / 8.0,
-                sounds.pitch * 0.5,
-            );
+            self.play_mining_hit_sound(state, pos, face, true);
         }
         self.crack_particle(pos, face, state);
     }

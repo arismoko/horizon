@@ -5,7 +5,7 @@ use std::{fs, path::Path};
 pub(crate) const INCLUDE: &str = "include!(concat!(env!(\"OUT_DIR\"), \"/game_modules.rs\"));";
 
 pub(crate) fn declarations(game: &Path) -> Result<String, String> {
-    horizon_game_discovery::declarations(game, &["native_hooks", "host"])
+    horizon_game_discovery::declarations(game, &["native_hooks", "host", "creatures"])
 }
 
 pub(crate) fn lan_action_modules(directory: &Path) -> Result<String, String> {

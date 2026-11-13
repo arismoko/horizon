@@ -45,6 +45,9 @@ fn wrap_degrees(angle: f32) -> f32 {
 
 #[test]
 fn the_shared_listener_source_answers_natively_as_in_wasm() {
+    // Before any dispatch: a first dispatch without the platform seals instrumentation off
+    // for the whole process, and the other test of this binary (`with_mods`) then refuses.
+    mod_api::__private::initialize().unwrap();
     matrix_checks::baseline();
     // Without a listener the body wraps the angle as given.
     assert_eq!(wrap_degrees(10.0), 10.0);

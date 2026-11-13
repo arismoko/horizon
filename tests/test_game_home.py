@@ -35,6 +35,7 @@ EXEMPT = {
     "test_bed_explosion_parity.py": "starts servers through test_server_knockback_parity.run_side; its Server uses game_environment",
     "port_harness.py": "ports Java code, starts no game",
     "native_dylib_probe.py": "builds the game's executable to read its imports; runs only probe fixtures, never the game",
+    "profile_client_e2e.py": "starts its games through agent_control_e2e.scratch, which uses game_env",
 }
 
 

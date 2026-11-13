@@ -15,7 +15,7 @@ pub struct TextEdit {
     pub cursor: usize,
     /// The other end of the selection; the same as `cursor` when nothing is selected.
     pub highlight: usize,
-    /// The most characters the text may have (`EditBox.setMaxLength`, 32 by default).
+    /// The most UTF-16 code units the text may have (`EditBox.setMaxLength`, 32 by default).
     pub max_length: usize,
     /// `MultiLineEditBox`: line breaks are kept and words split at any whitespace.
     pub multiline: bool,
@@ -55,8 +55,32 @@ pub enum EditKey {
     SelectAll,
 }
 
+/// Java's `String.length()`: UTF-16 code units, the unit `EditBox.maxLength`
+/// counts. A character outside the BMP — an emoji, say — is two of them, so
+/// a box with room for one more character takes an `a` and rejects a `😀`.
+pub fn utf16_len(s: &str) -> usize {
+    s.encode_utf16().count()
+}
+/// The longest prefix of `s` that fits `max` UTF-16 code units without
+/// splitting a character. `EditBox.insertText` drops the half surrogate it
+/// would otherwise keep, so this is what vanilla inserts; Rust strings cannot
+/// hold the lone surrogate that `setValue`'s unguarded `substring` may leave,
+/// so a value too long by half a character keeps the whole characters before
+/// the cut.
+pub fn utf16_prefix(s: &str, max: usize) -> String {
+    let mut units = 0;
+    for (i, c) in s.char_indices() {
+        let n = c.len_utf16();
+        if units + n > max {
+            return s[..i].to_owned();
+        }
+        units += n;
+    }
+    s.to_owned()
+}
+
 impl TextEdit {
-    /// An empty field that takes up to `max_length` characters.
+    /// An empty field that takes up to `max_length` UTF-16 code units.
     pub fn new(max_length: usize) -> Self {
         Self {
             max_length,
@@ -66,7 +90,7 @@ impl TextEdit {
 
     /// `EditBox.setValue`: the text, cut to the maximum length, with the cursor at its end.
     pub fn set_value(&mut self, value: &str) {
-        self.value = value.chars().take(self.max_length).collect();
+        self.value = utf16_prefix(value, self.max_length);
         self.move_cursor_to_end(false);
     }
 
@@ -99,10 +123,17 @@ impl TextEdit {
         self.clamp();
         let (a, b) = self.selected();
         let filtered = filter_text(text, self.multiline);
+        let selected_units: usize = self
+            .value
+            .chars()
+            .skip(a)
+            .take(b - a)
+            .map(char::len_utf16)
+            .sum();
         let room = self
             .max_length
-            .saturating_sub(char_len(&self.value) - (b - a));
-        let insert: String = filtered.chars().take(room).collect();
+            .saturating_sub(utf16_len(&self.value) - selected_units);
+        let insert = utf16_prefix(&filtered, room);
         let (ba, bb) = (byte_index(&self.value, a), byte_index(&self.value, b));
         self.value.replace_range(ba..bb, &insert);
         let pos = a + char_len(&insert);

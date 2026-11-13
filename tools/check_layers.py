@@ -13,7 +13,7 @@ optional (behind a feature), for the layer and the portable check alike. The che
 - with --base, an `allowed` or `optional` entry the branch added from a crate that already had a layer on the base;
 - a shipped crate depending on a tool;
 - a portable crate depending on a crate of the repository that isn't portable, or on a `forbidden` library.
-An `allowed` or `optional` entry with no dependency left is reported, not failed. Dev-dependencies are not checked.
+An `allowed` or `optional` entry with no dependency left is reported, not failed. Dev-dependencies are exempt: tests may reach the platform, but shipped code may not.
 
     python3 tools/check_layers.py                     # the check
     python3 tools/check_layers.py --base origin/main  # and no new exceptions since the base
@@ -42,8 +42,13 @@ def load_config(path=CONFIG):
 
 
 def base_config(base):
-    """tools/layers.json as it is on `base`, or None when the base has none."""
-    shown = subprocess.run(["git", "show", f"{base}:{CONFIG_PATH}"], capture_output=True, text=True, cwd=ROOT)
+    """tools/layers.json where the branch left `base` (their merge base), or None when there is none. On `base` itself,
+    the exceptions main dropped since then would look like ones this branch added."""
+    merge_base = subprocess.run(["git", "merge-base", base, "HEAD"], capture_output=True, text=True, cwd=ROOT)
+    if merge_base.returncode != 0:
+        return None
+    shown = subprocess.run(["git", "show", f"{merge_base.stdout.strip()}:{CONFIG_PATH}"], capture_output=True,
+                           text=True, cwd=ROOT)
     return json.loads(shown.stdout) if shown.returncode == 0 else None
 
 
@@ -191,7 +196,17 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base", help="refuse 'allowed' entries added since this git ref")
     parser.add_argument("--list", action="store_true", help="print each crate's layer and the exceptions")
+    if __package__:
+        from . import check_file_size
+    else:
+        import check_file_size
+    parser.add_argument("--pull-request-merge", action="store_true", help=check_file_size.PULL_REQUEST_MERGE_HELP)
     args = parser.parse_args(argv)
+    if args.base:
+        args.base, error = check_file_size.pull_request_base(args.base, args.pull_request_merge)
+        if error:
+            print(f"Layer check failed: {error}")
+            return 1
     config = load_config()
     packages = workspace_packages(config)
     graph = edges(packages)
@@ -204,10 +219,6 @@ def main(argv=None):
             print(f"  {edge}")
         return 0
     if args.base:
-        if __package__:
-            from . import check_file_size
-        else:
-            import check_file_size
         upstream, provenance = check_file_size.verified_sync_config(args.base, CONFIG_PATH)
     else:
         upstream, provenance = None, []

@@ -138,6 +138,31 @@ impl Game<'_> {
             || self.native_client_tracked(entity).is_some())
         .then_some(entity)
     }
+    pub(super) fn entity_by_uuid(&self, uuid: mod_api::EntityUuid) -> Option<EntityRef> {
+        if !self.is_logical_server() {
+            return None;
+        }
+        let epoch = self.native_lifecycle.epoch()?;
+        let dimension = self.dim.key();
+        let uuid = horizon_client::lan::playerdata::uuid_ints(uuid.0);
+        let mut after = None;
+        loop {
+            let id = self
+                .resident_entities
+                .table
+                .borrow_mut()
+                .level_uuid_candidate(dimension, uuid, after)?;
+            let entity = EntityRef::new(epoch, id.get());
+            if self
+                .native_entity_target(entity)
+                .is_some_and(|target| self.resident_source_target_visible(dimension, target))
+            {
+                return Some(entity);
+            }
+            // A queued departure can overlap a replacement with the same UUID.
+            after = Some(id);
+        }
+    }
     /// Whether the entity is made of parts that are entities of their own
     /// (`Entity.isMultipartEntity`): the dragon, not one of its parts.
     pub(super) fn entity_is_multipart(&self, entity: EntityRef) -> Option<bool> {
@@ -917,6 +942,9 @@ mod ray_tests {
 
 #[cfg(test)]
 pub(super) mod tests {
+    /// Keep guest setup and calls together, preserving libtest identity and panic payloads.
+    pub(in crate::game) use horizon_guest_stack::run_on_guest_stack;
+
     /// Resolve a fixture after registration or a late Parts reinstall from its loaded table.
     pub(in crate::game) fn resolve_parts(game: &super::Game<'_>) -> Result<(), String> {
         crate::game::api_values::resolve_block_definitions(game.pack.assets.registry)?;
@@ -1015,7 +1043,7 @@ pub(super) mod tests {
         if run_fresh_cases(name, "HORIZON_DECLARED_PART_GAME_CHILD", &["valid"]) {
             return None;
         }
-        let _mods = mod_api::__private::part_tests::game_thread();
+        let _mods = mod_platform::__private::part_tests::game_thread();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let root = super::super::mods::content_root(&base, &Default::default())
             .unwrap()
@@ -1058,12 +1086,78 @@ pub(super) mod tests {
 
     /// Bind the fixture body's canonical identity before configuring its acting context.
     pub(in crate::game) fn bind_local_player(game: &mut super::Game<'_>, id: u32, uuid: u128) {
+        game.next_entity = game.next_entity.max(id);
         game.player.as_mut().expect("fixture player body").entity_id =
             i32::try_from(id).expect("fixture entity ID fits the protocol");
         game.level.player_uuid = Some(horizon_client::lan::playerdata::uuid_ints(uuid));
         game.bind_local_player_residency();
         game.lan_acting_entity = Some(id);
         game.lan_acting_uuid = Some(uuid);
+    }
+
+    /// Install the server record backing a fixture's already configured acting body.
+    pub(in crate::game) fn bind_acting_guest(game: &mut super::Game<'_>) {
+        use horizon_client::lan::{Joined, NetConfig, PlayerSender, guest::Guest, hub::HubConfig};
+        use horizon_protocol::packets::configuration::ClientInformation;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicI32, AtomicUsize},
+        };
+        let conn = game.lan_acting.unwrap();
+        let id = game.lan_acting_entity.unwrap();
+        let uuid = game.lan_acting_uuid.unwrap();
+        let name = game.lan_acting_name.clone().unwrap();
+        let at = game.player.as_ref().unwrap().position;
+        game.next_entity = game.next_entity.max(id);
+        game.lan_host(
+            super::super::lan::LanSettings {
+                port: 0,
+                guest_commands: false,
+                force_game_mode: false,
+            },
+            NetConfig {
+                listen: false,
+                announce: false,
+                lod_distance: 0,
+                ..NetConfig::lan(0, String::new(), 2)
+            },
+            HubConfig {
+                default_game_mode: 0,
+                guest_commands: false,
+                force_game_mode: false,
+                hardcore: false,
+                view_distance: 2,
+                simulation_distance: 2,
+                dimension: game.dim.id().to_owned(),
+                allow_flight: true,
+                seed: 0,
+                max_players: 2,
+                integrated: true,
+                levels: game.level_shapes,
+            },
+        )
+        .unwrap();
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut guest = Guest::new(
+            Joined {
+                conn,
+                uuid,
+                name,
+                properties: Vec::new(),
+                info: ClientInformation::new(8),
+                brand: String::new(),
+                sender: PlayerSender::new(tx, Arc::new(AtomicUsize::new(0))),
+                latency: Arc::new(AtomicI32::new(0)),
+                address: "127.0.0.1:1".parse().unwrap(),
+                expected: false,
+            },
+            id as i32,
+            [at.x, at.y, at.z],
+            10,
+        );
+        guest.placed = true;
+        game.lan.as_mut().unwrap().hub.guests.push(guest);
+        game.reset_entity_residency();
     }
 
     pub(in crate::game) fn with_game(test: impl FnOnce(&mut super::Game<'_>)) {
@@ -1179,12 +1273,54 @@ pub(super) mod tests {
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn typed_uuid_and_nbt_reads_follow_the_entity_level() {
+        with_game(|game| {
+            game.options.dedicated = Some(Vec::new());
+            // with_game prepares lifecycle, not world-open command registries.
+            // execute in and summon must resolve real dimension and entity keys.
+            game.build_registries();
+            let words = [7, 0, 0, 3];
+            let uuid = (7u128 << 96) | 3;
+            // Harness commands use the console boundary; setting dedicated
+            // options alone does not grant the command parser operator rights.
+            assert!(game.as_console(|game| game.run_command(
+                "execute in minecraft:the_nether run summon cow 8.5 70 8.5 {UUID:[I;7,0,0,3],NoAI:1b}"
+            )));
+            let original = game.dim;
+            game.enter_command_level(super::super::Dim::Nether).unwrap();
+            let id = *game
+                .persist
+                .uuids
+                .iter()
+                .find(|(_, value)| **value == words)
+                .unwrap()
+                .0;
+            let entity = game.entity(id).unwrap();
+            assert_eq!(game.entity_uuid(entity), Some(uuid));
+            let nbt = game.entity_nbt(entity).unwrap();
+            assert_eq!(
+                nbt.get(&"NoAI".into()),
+                Some(&horizon_core::nbt::Tag::Byte(1))
+            );
+            assert!(!nbt.contains_key(&"id".into()));
+            game.enter_command_level(original).unwrap();
+            assert_eq!(game.entity_nbt(entity), None);
+            game.enter_command_level(super::super::Dim::Nether).unwrap();
+            assert_eq!(game.entity_uuid(entity), Some(uuid));
+            assert_eq!(game.entity_nbt(entity), Some(nbt));
+            game.enter_command_level(original).unwrap();
+            assert_eq!(game.dim, original);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn block_part_allows_weak_power_in_real_game_level() {
         use horizon_client::chunk::Chunk;
         use horizon_core::position::BlockPos;
         use std::sync::Arc;
 
-        mod_api::__private::part_tests::weak_power_game_thread();
+        mod_platform::__private::part_tests::weak_power_game_thread();
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.world
@@ -1219,7 +1355,7 @@ pub(super) mod tests {
         use std::sync::Arc;
 
         // The fixture's parts: glass sustains any plant, grass sustains none.
-        mod_api::__private::part_tests::sustain_plant_game_thread();
+        mod_platform::__private::part_tests::sustain_plant_game_thread();
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.world
@@ -1256,7 +1392,7 @@ pub(super) mod tests {
         use std::sync::Arc;
 
         // The fixture's parts: stone is harvested by any tool, dirt by none.
-        mod_api::__private::part_tests::harvest_game_thread();
+        mod_platform::__private::part_tests::harvest_game_thread();
         with_game(|game| {
             let scratch = std::env::temp_dir().join(format!(
                 "horizon-harvest-part-{}-{:?}",
@@ -1626,7 +1762,9 @@ pub(super) mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn neighbor_changed_reads_its_inputs_and_its_tick_fires_at_its_delay() {
-        use mod_api::__private::part_tests::{SignalRead, signal_reader_game_thread, signal_reads};
+        use mod_platform::__private::part_tests::{
+            SignalRead, signal_reader_game_thread, signal_reads,
+        };
 
         // The fixture's part on glass reads its inputs in `neighbor_changed` and schedules
         // its own tick 2 ticks later, as a diode does.
@@ -1688,7 +1826,7 @@ pub(super) mod tests {
         use horizon_core::geometry::Direction::West;
 
         // The fixture's part lets glass conduct (`should_check_weak_power`).
-        mod_api::__private::part_tests::weak_power_game_thread();
+        mod_platform::__private::part_tests::weak_power_game_thread();
         with_game(|game| {
             lever_on(game, "minecraft:glass");
             let level = game.level(game.dim.id()).unwrap();
@@ -1715,7 +1853,7 @@ pub(super) mod tests {
                 }
             }
         });
-        mod_api::__private::part_tests::pathfindable_game_thread();
+        mod_platform::__private::part_tests::pathfindable_game_thread();
         with_game(|game| {
             let registry = game.pack.assets.registry;
             let asks = |name: &str, kind: PathComputationType| {
@@ -1749,7 +1887,7 @@ pub(super) mod tests {
         use horizon_core::position::BlockPos;
         use std::sync::Arc;
 
-        mod_api::__private::part_tests::removal_game_thread();
+        mod_platform::__private::part_tests::removal_game_thread();
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.world
@@ -1796,6 +1934,151 @@ pub(super) mod tests {
         });
     }
 
+    /// A plain piston pushing east at (5, `y`, 5) with `block` at (6, `y`, 5) and `above` on top
+    /// of it, powered from (4, `y`, 5): whether the block above moved with the one below. Moved,
+    /// its old cell is air once the push started. Each scenario has its own `y`, so none meets
+    /// the moving blocks of another.
+    fn piston_pulls_above(game: &mut super::Game<'_>, y: i32, block: &str, above: &str) -> bool {
+        use horizon_core::position::BlockPos;
+        let registry = game.pack.assets.registry;
+        let state = |name: &str| registry.default_state(name).unwrap();
+        let air = state("minecraft:air");
+        game.with_level(|b, level, ticks| {
+            let piston = |extended: &str| {
+                registry
+                    .resolve(&horizon_world::chunk::BlockState {
+                        name: "minecraft:piston".into(),
+                        properties: [
+                            ("facing".into(), "east".into()),
+                            ("extended".into(), extended.into()),
+                        ]
+                        .into_iter()
+                        .collect(),
+                    })
+                    .unwrap()
+            };
+            let mut place = |pos: [i32; 3], s| {
+                let flags = horizon_world::level::flags::UPDATE_ALL;
+                b.set_block(
+                    level,
+                    ticks,
+                    BlockPos::new(pos[0], pos[1], pos[2]),
+                    s,
+                    flags,
+                );
+            };
+            place([5, y, 5], piston("false"));
+            place([6, y, 5], state(block));
+            place([6, y + 1, 5], state(above));
+            place([4, y, 5], state("minecraft:redstone_block"));
+            b.run_block_events(level, ticks);
+            assert_eq!(
+                horizon_world::level::LevelAccess::block_state(level, BlockPos::new(5, y, 5)),
+                piston("true"),
+                "{block}: the piston extended"
+            );
+            horizon_world::level::LevelAccess::block_state(level, BlockPos::new(6, y + 1, 5)) == air
+        })
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn block_parts_decide_what_a_piston_pulls_along() {
+        use horizon_client::chunk::Chunk;
+        use std::sync::Arc;
+
+        mod_platform::__private::part_tests::sticky_game_thread();
+        with_game(|game| {
+            game.options.dedicated = Some(Vec::new());
+            game.world
+                .chunks
+                .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+            // The block below, the block on top of it, and whether the top one moves.
+            for ((block, above, pulled), y) in [
+                // No part: vanilla's slime and honey, and nothing else sticks.
+                ("minecraft:slime_block", "minecraft:stone", true),
+                ("minecraft:honey_block", "minecraft:stone", true),
+                ("minecraft:slime_block", "minecraft:honey_block", false),
+                ("minecraft:stone", "minecraft:stone", false),
+                // A sticky part pulls whatever its `can_stick_to` allows: diamond all of it,
+                // gold only gold.
+                ("minecraft:diamond_block", "minecraft:stone", true),
+                ("minecraft:diamond_block", "minecraft:honey_block", true),
+                ("minecraft:gold_block", "minecraft:gold_block", true),
+                ("minecraft:gold_block", "minecraft:stone", false),
+                ("minecraft:gold_block", "minecraft:honey_block", false),
+                // Either side may refuse: honey is held back by gold's rule though it is sticky.
+                ("minecraft:honey_block", "minecraft:gold_block", false),
+                // A slime part is kept apart from honey as slime is.
+                ("minecraft:emerald_block", "minecraft:honey_block", false),
+                ("minecraft:emerald_block", "minecraft:stone", true),
+            ]
+            .into_iter()
+            .zip((8..).step_by(4))
+            {
+                assert_eq!(
+                    piston_pulls_above(game, y, block, above),
+                    pulled,
+                    "{above} on {block}"
+                );
+            }
+        });
+    }
+
+    /// The restitution an entity landing on a block reads is asked of the block's parts in the
+    /// entity's level, on the side that ticks it, with the entity and the block's position; a
+    /// block without a part is not asked, and a non-finite answer is ignored.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_block_part_changes_the_bounce_restitution_an_entity_reads() {
+        use horizon_client::block_contact::{Contact, bounce_restitution};
+        use horizon_core::position::BlockPos;
+
+        let heard = mod_platform::__private::part_tests::restitution_game_thread();
+        crate::game::native_hooks::install_block_contact_hooks();
+        with_game(|game| {
+            game.world.chunks.insert(
+                (0, 0),
+                std::sync::Arc::new(horizon_client::chunk::Chunk::empty(0, 0)),
+            );
+            let registry = game.pack.assets.registry;
+            let state = |name: &str| registry.default_state(name).unwrap();
+            let (glass, stone, slime) = (
+                state("minecraft:glass"),
+                state("minecraft:stone"),
+                state("minecraft:slime_block"),
+            );
+            let pos = BlockPos::new(3, 64, 5);
+            let mut read = |block, own, client_side| {
+                game.world.set(pos.x, pos.y, pos.z, block).unwrap();
+                let contact = Contact {
+                    entity: 7,
+                    kind: "minecraft:pig",
+                    state: block,
+                    position: pos,
+                };
+                let level = horizon_client::health::DamageLevel::of(
+                    &mut game.world,
+                    registry,
+                    None,
+                    Some(&game.pack.block_registries),
+                    &game.damage_hooks,
+                );
+                bounce_restitution(&mut level.on_client(client_side), contact, own)
+            };
+            // Glass's part answers whatever the block's own value: 0.5 on a server, 0.25 on a
+            // client predicting its own bounce.
+            assert_eq!(read(glass, 0.0, false), 0.5);
+            assert_eq!(read(glass, 1.0, true), 0.25);
+            // A block with no part keeps its own: slime bounces fully.
+            assert_eq!(read(slime, 1.0, false), 1.0);
+            // Stone's part answers not a number, which is ignored.
+            assert_eq!(read(stone, 0.0, false), 0.0);
+            let pig = |client| (client, 7, "minecraft:pig".to_owned(), pos, true);
+            assert_eq!(*heard.lock().unwrap(), [pig(false), pig(true)]);
+        });
+    }
+
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn block_part_connects_wire_in_a_real_game_level() {
@@ -1803,7 +2086,7 @@ pub(super) mod tests {
         use horizon_core::{geometry::Direction, position::BlockPos};
         use std::sync::Arc;
 
-        mod_api::__private::part_tests::redstone_game_thread();
+        mod_platform::__private::part_tests::redstone_game_thread();
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.world
@@ -1839,7 +2122,7 @@ pub(super) mod tests {
         use horizon_core::{geometry::Direction, position::BlockPos};
         use std::sync::Arc;
 
-        mod_api::__private::part_tests::connection_game_thread();
+        mod_platform::__private::part_tests::connection_game_thread();
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.world
@@ -3136,7 +3419,7 @@ pub(super) mod tests {
                 Box::new(Logout(logouts.clone())),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 game.native_player_logged_out(0, "control");
                 assert_eq!(logouts.swap(0, std::sync::atomic::Ordering::Relaxed), 1);
                 game.tick_lan_packets();
@@ -3174,7 +3457,7 @@ pub(super) mod tests {
                 .iter()
                 .filter(|g| g.placed && g.participates_online())
                 .count();
-            mod_api::testing::with_mods(mods, || game.native_players_leaving());
+            mod_platform::testing::with_mods(mods, || game.native_players_leaving());
             assert_eq!(logouts.load(Ordering::Relaxed), real_count);
             game.lan.as_mut().unwrap().play.entry(fake_id).or_default();
             game.award_leave_game_to_all();
@@ -4215,3 +4498,7 @@ pub(super) mod tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "native_entity_refs/restitution_replay_tests.rs"]
+mod restitution_replay_tests;

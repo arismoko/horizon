@@ -313,12 +313,13 @@ mod tests {
         }
         let mods: mod_api::Mods =
             vec![mod_api::ModEntry::new("level-item-awards", Box::new(Award))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let orb = |id, x, value, ticks| {
                     let p = Vec3::new(x, 70.0, 0.5);
                     ExperienceOrb {
                         attachment_lifetime: Default::default(),
+                        fall_distance: 0.0,
                         rotation: [0.0, 0.0],
                         join: Default::default(),
                         id,
@@ -331,6 +332,7 @@ mod tests {
                         count: 1,
                         ticks,
                         health: 5,
+                        air: 300,
                         no_gravity: true,
                         following: None,
                     }

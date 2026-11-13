@@ -1,12 +1,12 @@
 # Permission nodes and handlers: proposed design
 
-**Status: proposal for #1034, not approved or implemented.** The two gather hooks and the query API described here do not exist yet. This document proposes their behavior for review; adding hooks waits for agreement. It does not change sound hooks or existing permissions.
+**Status: the approved design for #1034 (merged in #2876); the build is #1034 and is not done.** The two gather hooks and the query API described here do not exist yet; the build follows this document. It does not change sound hooks or existing permissions.
 
 ## Boundary and existing contracts
 
 A permission node is a named, typed question a server-side mod explicitly asks about a player UUID. A default supplies the answer when no external policy is selected. Exactly one selected handler answers every registered node for that server; handlers are not a chain of voters. This is a platform service, not an engine dependency. An unmodified game and its vanilla checks must behave as before. The [layer split](../../../layers.md) and [mod API design](design.md#registering-behaviour) put collection and ownership in the game and prohibit an engine dependency on the mod platform.
 
-Today commands use operator levels, not nodes: `Command::level` is 0–4, with 0 available to everyone (`crates/horizon-mod-vocab/src/command/types.rs`); the command tree and dispatch enforce their existing levels. Existing game-master block checks also use levels (`crates/horizon-client/src/game/administration/command_blocks.rs`). No vanilla command, command tree, command-block restriction or other existing check is implicitly converted to a node. A mod that wants a node check must call it at its own server-side authorization point; a node grant does not grant an operator level, and a node denial does not remove one. Where a mod deliberately requires both a level and a node, both checks must pass.
+Today commands use operator levels, not nodes: `Command::level` is 0–4, with 0 available to everyone (`crates/horizon-mod-vocab/src/command/types.rs`); the command tree and dispatch enforce their existing levels. Existing game-master block checks also use levels (`crates/horizon-client/src/game/administration/command_blocks.rs`). No vanilla command, command tree, command-block restriction or other existing check is implicitly converted to a node. A mod that wants a node check must call it at its own server-side authorization point; a node grant does not grant an operator level, and a node denial does not remove one. A mod command that declares a node follows the answer order in "Command paths" below instead; commands without a node keep level enforcement unchanged, and vanilla's own commands are untouched.
 
 The existing `permissions_changed` hook is different: the catalog declaration is `crates/horizon-mod-vocab/src/hooks/permissions_changed.rs`, with dispatch target `crates/horizon-client/src/game/native_hooks/permissions_changed.rs`. On dedicated servers it can cancel a pending `PlayerList.op`/`deop` operator-list change, including for an offline player; `operators/clear` is not such a call. It neither reports nor vetoes individual node decisions, and node decisions do not fire it. A canceled level change leaves the old level in force; a committed one affects the next check using that player's current level. A handler must not assume this hook reports all policy or operator-list changes. No node decision cache is specified, so there is no cache to invalidate through this hook.
 
@@ -32,6 +32,14 @@ Queries are unavailable before initialization. No late registration is allowed. 
 Exactly one selected handler answers each query with the node's typed value. The built-in handler invokes the node's mod-written resolver with the optional online player, UUID and contexts; there is no universal Allow/Deny/UseDefault result. A custom handler can supply policy independent of operator levels. Node decisions do not fire `permissions_changed` or change vanilla operator levels.
 
 An unregistered node, invalid value, wrong-server online handle, handler error, trap or recursive query yields an explicit query error. Failures never switch handlers or invoke a potentially permissive default. Recursion fails both inner and enclosing queries. The protected operation must handle errors safely; integer, string and component errors must not be converted into Boolean denial values. Diagnostics identify the node and handler. There is no answer cache, implicit world write or transaction during a query.
+
+## Command paths (maintainer ruling)
+
+A mod command may declare a **per-path requirement** that consults the typed service with a typed node (never a bare string). It is the command's own requirement check, so vanilla's existing behaviour follows: a path whose check fails is left out of the command tree sent to that player and answers as unknown when typed. There is no separate hiding mechanism.
+
+Answer order for a command that declares a node: a configured handler's answer decides; with no handler configured the usage's operator level decides, as in vanilla; a handler error denies and is logged, and never falls back to the level. Vanilla's own commands, and mod commands without a node, are unchanged.
+
+One server host method resends a player's command tree (vanilla already resends it on join, respawn, dimension change and an operator change); a handler calls it when its answers change. The server rechecks on every run, so a stale tree affects suggestions only. This is built on top of the typed service (#3609).
 
 ## Example mod (contract sketch)
 

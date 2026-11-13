@@ -48,17 +48,17 @@ pub(super) struct CommandBlockScreen {
 }
 
 /// What `ServerboundSetCommandBlockPacket` carries.
-struct CommandBlockEdit {
-    pos: Pos,
-    command: String,
-    track_output: bool,
-    mode: Mode,
-    conditional: bool,
-    auto: bool,
+pub(super) struct CommandBlockEdit {
+    pub(super) pos: Pos,
+    pub(super) command: String,
+    pub(super) track_output: bool,
+    pub(super) mode: Mode,
+    pub(super) conditional: bool,
+    pub(super) auto: bool,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Button {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum Button {
     Output,
     Mode,
     Conditional,
@@ -79,7 +79,8 @@ impl CommandBlockScreen {
     /// `AbstractCommandBlockEditScreen.init` and `CommandBlockEditScreen`'s
     /// buttons, in GUI pixels of a `w`×`h` screen.
     /// A minecart's screen has no mode buttons (`getPreviousY` 150).
-    fn buttons(w: f32, h: f32, cart: bool) -> Vec<(Button, f32, f32, f32)> {
+    /// Laid out once per build (`CommandBlockLayout`), not per frame.
+    pub(super) fn buttons(w: f32, h: f32, cart: bool) -> Vec<(Button, f32, f32, f32)> {
         let mid = (w / 2.0).floor();
         let low = (h / 4.0).floor() + 132.0;
         let mut out = vec![(Button::Output, mid + 130.0, previous_y(cart), 20.0)];
@@ -129,6 +130,23 @@ impl CommandBlockScreen {
     }
     pub(super) fn pos(&self) -> Pos {
         self.pos
+    }
+    /// A minecart's edit screen, not a command block's.
+    pub(super) fn cart(&self) -> bool {
+        self.cart.is_some()
+    }
+    /// The previous output box's rectangle.
+    pub(super) fn previous(&self) -> [f32; 4] {
+        let p = &self.previous;
+        [p.x, p.y, p.width, p.height]
+    }
+    /// `AbstractCommandBlockEditScreen.resize`: the command box is made
+    /// again at the new size with its text (`ChatScreen::resize`), and the
+    /// previous output box is centred on it. The screen's build calls it,
+    /// never the draw.
+    pub(super) fn resize(&mut self, m: &Measure, c: &Commands, w: f32, h: f32) {
+        self.command.resize(m, c, w as i32, h as i32);
+        self.previous.x = (w / 2.0).floor() - 150.0;
     }
     /// `updatePreviousOutput`.
     fn show_previous(&mut self, block: &CommandBlock) {
@@ -637,7 +655,8 @@ impl Game<'_> {
         let mut command = ChatScreen::command_block(&m, &c, &block.command, w as i32, h as i32);
         command.auto_suggestions = self.settings.auto_suggestions;
         command.input.message = super::screen_info::tr("advMode.command", &[]);
-        let mut previous = EditBox::new(0.0, previous_y(cart.is_some()), 276.0, 20.0);
+        let x = (w / 2.0).floor() - 150.0;
+        let mut previous = EditBox::new(x, previous_y(cart.is_some()), 276.0, 20.0);
         previous.message = super::screen_info::tr("advMode.previousOutput", &[]);
         previous.max_length = 32500;
         previous.text_color = UNEDITABLE;
@@ -711,10 +730,17 @@ impl Game<'_> {
             // 75 + 5 * 9 + 1 + getPreviousY() - 135, then the label's 4.
             let y = 125.0 + previous_y(s.cart.is_some()) - 135.0;
             batch.text_styled(atlas, &label, mid - 149.0, y, grey, true);
-            s.previous.x = mid - 150.0;
             s.previous.draw(batch, atlas, None);
         }
-        for (b, x, y, bw) in CommandBlockScreen::buttons(w, h, s.cart.is_some()) {
+        let fallback;
+        let buttons = match self.built_command_block(w, h) {
+            Some(layout) => &layout.buttons,
+            None => {
+                fallback = CommandBlockScreen::buttons(w, h, s.cart.is_some());
+                &fallback
+            }
+        };
+        for &(b, x, y, bw) in buttons {
             let hover = ui::hovered(self.cursor, x, y, bw, 20.0);
             let action = match b {
                 Button::Done => Some(horizon_client::widgets::Action::Done),
@@ -737,13 +763,9 @@ impl Game<'_> {
                 |rect| s.narration(b, rect, &super::screen_info::tr),
             );
         }
-        // The command box, then its suggestions over the widgets.
+        // The command box, then its suggestions over the widgets: the build
+        // made it at this size.
         let m = Measure(&atlas.font);
-        let c = Commands {
-            dispatcher: super::chat::chat_tree(&self.remote),
-            registries: &self.ui.registries,
-        };
-        s.command.resize(&m, &c, w as i32, h as i32);
         let mouse = (self.cursor.0.floor() as i32, self.cursor.1.floor() as i32);
         let blink = s.opened.elapsed().as_millis() as u64;
         // The command box is added first.
@@ -804,8 +826,16 @@ impl Game<'_> {
             .as_ref()
             .map_or([1, 1], |r| [r.config.width, r.config.height]);
         let b = HudBatch::new(size, self.settings.gui_scale_inputs());
-        let hit = CommandBlockScreen::buttons(b.width, b.height, s.cart.is_some())
-            .into_iter()
+        let fallback;
+        let buttons = match self.built_command_block(b.width, b.height) {
+            Some(layout) => &layout.buttons,
+            None => {
+                fallback = CommandBlockScreen::buttons(b.width, b.height, s.cart.is_some());
+                &fallback
+            }
+        };
+        let hit = buttons
+            .iter()
             .find(|(_, x, y, bw)| ui::hovered(self.cursor, *x, *y, *bw, 20.0))
             .map(|b| b.0);
         if hit.is_some() {
@@ -967,8 +997,6 @@ impl Game<'_> {
         self.as_guest_messaged(conn, |game| {
             if allowed {
                 game.apply_command_block(&edit);
-                // BaseCommandBlock.onUpdated: the clients get the new command.
-                game.mark_block_entity_updated(edit.pos);
             } else {
                 game.system_message(Text::translate("advMode.notAllowed", &[]));
             }
@@ -1006,7 +1034,7 @@ impl Game<'_> {
         );
     }
     /// What `handleSetCommandBlock` does once the player may edit the block.
-    fn apply_command_block(&mut self, s: &CommandBlockEdit) {
+    pub(super) fn apply_command_block(&mut self, s: &CommandBlockEdit) {
         let pos = s.pos;
         let registry = self.pack.assets.registry;
         let Some(current) = self.block_state_at(pos) else {
@@ -1079,6 +1107,9 @@ impl Game<'_> {
             };
             self.system_message(Text::translate(key, &[Text::literal(command)]));
         }
+        // `BaseCommandBlock.onUpdated`: the edited block entity is saved and
+        // its clients (and comparators) see the new command.
+        self.mark_block_entity_updated(pos);
     }
 }
 
@@ -1109,6 +1140,74 @@ impl CommandBlockTransition {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The edit screen's boxes are re-made at the build's size and its
+    /// buttons laid out once per build: a GUI scale change moves them with no
+    /// draw, and a minecart's screen opening over a block's at the same size
+    /// gets its own buttons. The rectangles are
+    /// `AbstractCommandBlockEditScreen.init` and `addExtraControls` worked by
+    /// hand for the test's 1280x720 window.
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn the_edit_screen_is_laid_out_by_the_build() {
+        super::super::native_entity_refs::tests::with_game(|game| {
+            game.title = None;
+            // 1280x720 at GUI scale 3 is 427x240.
+            game.settings.gui_scale = 3;
+            let block = CommandBlock::default;
+            game.open_edit_screen((0, 0, 0), None, block(), Mode::Redstone, false);
+            assert_eq!(game.screen, Screen::CommandBlock);
+            game.build_screen();
+            let boxes = |game: &Game<'_>| {
+                let s = game.command_block_screen.as_ref().unwrap();
+                let (i, p) = (&s.command.input, &s.previous);
+                ([i.x, i.y, i.width, i.height], [p.x, p.y, p.width, p.height])
+            };
+            let buttons = |game: &Game<'_>, w, h| {
+                game.built_command_block(w, h)
+                    .map(|layout| layout.buttons.clone())
+            };
+            assert_eq!(boxes(game), ([63, 50, 300, 20], [63.0, 135.0, 276.0, 20.0]));
+            assert_eq!(
+                buttons(game, 427.0, 240.0),
+                Some(vec![
+                    (Button::Output, 343.0, 135.0, 20.0),
+                    (Button::Mode, 59.0, 165.0, 100.0),
+                    (Button::Conditional, 163.0, 165.0, 100.0),
+                    (Button::Auto, 267.0, 165.0, 100.0),
+                    (Button::Done, 59.0, 192.0, 150.0),
+                    (Button::Cancel, 217.0, 192.0, 150.0),
+                ])
+            );
+            // A minecart's screen at the same size: no mode switches, and the
+            // output toggle lower.
+            game.open_edit_screen((0, 0, 0), Some(7), block(), Mode::Redstone, false);
+            game.build_screen();
+            assert_eq!(
+                buttons(game, 427.0, 240.0),
+                Some(vec![
+                    (Button::Output, 343.0, 150.0, 20.0),
+                    (Button::Done, 59.0, 192.0, 150.0),
+                    (Button::Cancel, 217.0, 192.0, 150.0),
+                ])
+            );
+            // GUI scale 1 (1280x720): the build moves both boxes and the buttons.
+            game.settings.gui_scale = 1;
+            game.build_screen();
+            assert_eq!(
+                boxes(game),
+                ([490, 50, 300, 20], [490.0, 150.0, 276.0, 20.0])
+            );
+            assert_eq!(
+                buttons(game, 1280.0, 720.0),
+                Some(vec![
+                    (Button::Output, 770.0, 150.0, 20.0),
+                    (Button::Done, 486.0, 312.0, 150.0),
+                    (Button::Cancel, 644.0, 312.0, 150.0),
+                ])
+            );
+        });
+    }
 
     #[test]
     #[ignore = "needs prepared resources"]

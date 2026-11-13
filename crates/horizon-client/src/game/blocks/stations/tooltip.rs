@@ -1,6 +1,14 @@
 use super::*;
 
 impl Game<'_> {
+    /// `getEmptyBundleDescriptionTextHeight`'s lines: the empty bundle's description wrapped at
+    /// the grid's width in this font.
+    fn bundle_description_lines(&self) -> usize {
+        let text =
+            horizon_client::text::Text::translate("item.minecraft.bundle.empty.description", &[]);
+        self.gui.atlas.font.split_lines(&text, 96.0).len()
+    }
+
     /// `RenderTooltipEvent.Pre` for a tooltip of `lines` then `images`, hanging from `at`: the
     /// point a mod moved it to, `None` when one cancelled it. Only built when a mod listens.
     pub(in crate::game) fn tooltip_pre(
@@ -179,6 +187,7 @@ impl Game<'_> {
                     origin[0],
                     origin[1],
                     size[0],
+                    self.bundle_description_lines(),
                 ) {
                     self.draw_bundle_tooltip(batch, &layout);
                     self.draw_bundle_selected_name(batch, &layout, origin[0], origin[1], size[0]);
@@ -221,8 +230,14 @@ impl Game<'_> {
             .collect::<Result<_, _>>()
             .ok()?;
         let index = usize::from(!elements.is_empty());
-        let bundle =
-            horizon_client::item_tooltip::bundle_tooltip(self.items(), stack, 0.0, 0.0, 96.0);
+        let bundle = horizon_client::item_tooltip::bundle_tooltip(
+            self.items(),
+            stack,
+            0.0,
+            0.0,
+            96.0,
+            self.bundle_description_lines(),
+        );
         let bundle = bundle
             .map(|layout| {
                 stack.try_into_api().map(|stack| TooltipImage {
@@ -369,7 +384,7 @@ mod tests {
         }
         let mods: Mods = vec![ModEntry::new("image", Box::new(Mod))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 DRAWN.store(false, Ordering::Relaxed);
                 game.draw_stack_tooltip(

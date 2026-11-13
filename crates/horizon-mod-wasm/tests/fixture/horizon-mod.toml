@@ -11,7 +11,6 @@ id = "tick"
 at = "horizon_client::game::Game<'_>::tick"
 kind = "head"
 with = "on_tick"
-access = "api"
 hash = "fixture"
 
 [[inject]]
@@ -19,7 +18,6 @@ id = "shutdown"
 at = "horizon_client::game::server_lifecycle::remember_shutdown"
 kind = "head"
 with = "on_shutdown"
-access = "api"
 hash = "fixture"
 
 [[inject]]
@@ -27,7 +25,6 @@ id = "average"
 at = "horizon_client::game::beacon::average"
 kind = "replace"
 with = "own_average"
-access = "api"
 hash = "fixture"
 
 [[inject]]
@@ -35,7 +32,6 @@ id = "sum"
 at = "listener_fixture::sum"
 kind = "return"
 with = "sum_return"
-access = "api"
 hash = "fixture"
 
 [[inject]]
@@ -43,7 +39,6 @@ id = "mirrors"
 at = "listener_fixture::mirrors"
 kind = "head"
 with = "mirrors"
-access = "api"
 hash = "fixture"
 
 [[inject]]
@@ -51,5 +46,8 @@ id = "turn"
 at = "horizon_client::game::commands::wrap_degrees"
 kind = "head"
 with = "turn_angle"
-access = "api"
 hash = "fixture"
+
+[wasm]
+sha512 = "7d7adfe6c211b3778788ff463fc1d121f7bad7544580f677011bceb9bed6fb78d6b0de74bebfccc44b01084eb23d8dcf77f8bc952eb807484546e73016e17a95"
+toolchain = "1.99.1 58cf8f9c35b355199727627d07ae34a4e2846d67"

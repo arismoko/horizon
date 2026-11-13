@@ -15,7 +15,7 @@ Rules for a coding agent making a Horizon mod. They are short on purpose; each l
    only from `horizon-mod.toml`; ids are `[a-z0-9_]`. No `native/` folder, no `horizon-native.json`.
 6. **Manifest fields:** `id`, `name`, `version`, `description`, `authors`, `api = "0.2"`, `side`,
    `capabilities = ["registries"]`, `[dependencies]`, top-level `internals`, `[[inject]]`, `[native]`
-   (`game`, `horizon`, `mixins`, optional `mixin`, `bridge`, `state`, `module`) or `[wasm]`, `[[jar]]`. One of `[native]` or `[wasm]`, never both. Unknown fields are refused
+   (`game`, `horizon`, `mixins`, optional `mixin`, `loop`, `bridge`, `module`; `state` is refused; see [the native route](native-route.md)) or `[wasm]`, `[[jar]]`. One of `[native]` or `[wasm]`, never both. Unknown fields are refused
    ([manifest](reference/manifest.md)).
 7. **Freshness errors:** a changed function hash refuses the injection; use `inject update` or reselect it with `inject add`. Never substitute a different function.
 8. **Data and assets** are read through a reload hook, once per reload, never on the tick.

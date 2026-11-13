@@ -34,6 +34,18 @@ pub(super) fn chat_tree(
         None => horizon_client::command::vanilla::game_dispatcher(),
     }
 }
+/// The arguments of a typed `/profiler` the client answers itself: only when the chat tree's `profiler` is Horizon's, else the server or mod that owns the name runs it.
+fn horizon_profiler_args<'a>(
+    message: &'a str,
+    server_tree: Option<&horizon_client::command::Dispatcher>,
+) -> Option<&'a str> {
+    let args = message
+        .strip_prefix('/')
+        .and_then(super::profile_capture::profiler_args)?;
+    server_tree
+        .is_none_or(|tree| tree.has_horizon_profiler())
+        .then_some(args)
+}
 use winit::{
     event::KeyEvent,
     keyboard::{KeyCode, PhysicalKey},
@@ -181,7 +193,7 @@ impl Game<'_> {
             horizon_client::command::MOD_COMMAND,
             &arguments,
         );
-        with_studio_commands(&with_native_commands(&tree_with_mods, &["studio"]))
+        with_studio_commands(&with_native_commands(&tree_with_mods, &["studio"])).with_profiler()
     }
 }
 
@@ -491,6 +503,15 @@ fn overworld_timelines(root: &Path) -> (Vec<(String, Option<i64>)>, Vec<(String,
         }
     }
     (timelines, markers)
+}
+
+/// Whether `id` is one of `entity-types.json`'s entity types under `root`: vanilla's and the content
+/// mods' (read once per root, as the command registries read it).
+pub(in crate::game) fn is_entity_type(root: &Path, id: &str) -> bool {
+    resource_ids(root)
+        .entity_types
+        .binary_search_by(|t| t.as_str().cmp(id))
+        .is_ok()
 }
 
 fn resource_ids(root: &Path) -> Arc<ResourceIds> {
@@ -1110,8 +1131,9 @@ impl Game<'_> {
             self.ui.in_bed_chat = self.screen == Screen::Chat;
         }
     }
-    /// The Leave Bed button of `InBedChatScreen`: its bounds.
-    fn leave_bed_button(width: f32, height: f32) -> (i32, i32, i32, i32) {
+    /// The Leave Bed button of `InBedChatScreen`: its bounds, laid out once
+    /// per build (`ChatLayout`).
+    pub(super) fn leave_bed_button(width: f32, height: f32) -> (i32, i32, i32, i32) {
         (width as i32 / 2 - 100, height as i32 - 40, 200, 20)
     }
     /// The Leave Bed button's draws. It registers as a button
@@ -1120,10 +1142,8 @@ impl Game<'_> {
     fn leave_bed_draws(
         m: &Measure,
         mouse: (i32, i32),
-        width: f32,
-        height: f32,
+        (x, y, w, h): (i32, i32, i32, i32),
     ) -> Vec<horizon_client::screen_draw::Draw> {
-        let (x, y, w, h) = Self::leave_bed_button(width, height);
         let label = Text::literal(horizon_client::lang::get_or(
             "multiplayer.stopSleeping",
             "Leave Bed",
@@ -1238,7 +1258,7 @@ impl Game<'_> {
         let ctrl = self.has_control_down_with_quirk();
         let shift = self.has_shift_down();
         // PvP & HUD's chat search: Ctrl+F starts and stops it, Enter stops it (sends nothing).
-        if self.settings.extras.pvp.chat.search
+        if self.pvp_chat().search
             && match key {
                 KeyCode::KeyF => ctrl,
                 KeyCode::Enter | KeyCode::NumpadEnter => self.pvp.chat_search,
@@ -1363,6 +1383,12 @@ impl Game<'_> {
             return;
         }
         self.ui.chat.add_recent(&message);
+        if let Some(args) =
+            horizon_profiler_args(&message, self.remote.as_ref().map(|r| &r.chat_tree))
+        {
+            self.profiler_chat(args);
+            return;
+        }
         // On a server (single player's own included) the server runs it,
         // unless a client mod owns the command.
         if self.remote.is_some() {
@@ -1400,14 +1426,6 @@ impl Game<'_> {
     }
     pub(super) fn chat_scroll(&mut self, amount: f32) {
         let cursor = self.cursor;
-        let height = self.renderer.as_ref().map_or(720.0, |r| {
-            HudBatch::new(
-                [r.config.width, r.config.height],
-                self.settings.gui_scale_inputs(),
-            )
-            .height
-        });
-        let _ = height;
         let mouse = (cursor.0.floor() as i32, cursor.1.floor() as i32);
         if let Some(screen) = self.ui.chat_screen.as_mut()
             && screen.scroll(mouse, amount as f64)
@@ -1441,7 +1459,9 @@ impl Game<'_> {
                 )
                 .width
             });
-            let (x, y, w, h) = Self::leave_bed_button(width, height);
+            let (x, y, w, h) = self
+                .built_chat(width, height)
+                .map_or_else(|| Self::leave_bed_button(width, height), |l| l.leave_bed);
             if horizon_client::screen_draw::inside((cursor.0 as i32, cursor.1 as i32), x, y, w, h) {
                 self.wake_up();
                 return;
@@ -1462,7 +1482,7 @@ impl Game<'_> {
             cursor.1 as f64,
         );
         // PvP & HUD's copy on click: a message where the click has nothing else to do.
-        if self.settings.extras.pvp.chat.copy
+        if self.pvp_chat().copy
             && !self.has_shift_down()
             && style.as_ref().is_none_or(|s| s.click.is_none())
             && let Some(message) =
@@ -1505,6 +1525,14 @@ impl Game<'_> {
                 }
             }
             Some(ClickEvent::RunCommand(command)) => self.click_command(&command),
+            Some(ClickEvent::Profiler(command)) => {
+                if let Some(args) = command
+                    .strip_prefix('/')
+                    .and_then(super::profile_capture::profiler_args)
+                {
+                    self.profiler_chat(args);
+                }
+            }
             // Screen.defaultHandleGameClickEvent: the dialog opens over the
             // screen, and closes back to it.
             Some(ClickEvent::ShowDialog(dialog)) => self.show_dialog_ref(&dialog),
@@ -1642,7 +1670,7 @@ impl Game<'_> {
     /// Chat lines over the HUD (focused while the chat screen is open).
     pub(super) fn draw_chat(&mut self, batch: &mut HudBatch) {
         let focused = self.screen == Screen::Chat;
-        let options = self.settings.extras.pvp.chat;
+        let options = self.pvp_chat();
         self.ui.chat.set_qol(&self.gui.atlas, options.qol());
         // A search ends with its option; a chat closed some other way ends it in keep_chat_draft.
         if self.pvp.chat_search && self.ui.chat_screen.is_none() {
@@ -1729,12 +1757,8 @@ impl Game<'_> {
                 &super::screen_info::tr,
             )
         });
+        // The build made the box at this size (`ChatScreen.resize`).
         let m = Measure(&self.gui.atlas.font);
-        let c = Commands {
-            dispatcher: chat_tree(&self.remote),
-            registries: &self.ui.registries,
-        };
-        screen.resize(&m, &c, batch.width as i32, batch.height as i32);
         // Options.getBackgroundColor(Integer.MIN_VALUE).
         let background = if self.settings.file.bool("backgroundForChatOnly") {
             i32::MIN
@@ -1750,7 +1774,11 @@ impl Game<'_> {
         horizon_client::screen_draw::paint(batch, &self.gui.atlas, &draws);
         self.ui.chat_screen = Some(screen);
         if in_bed {
-            let button = Self::leave_bed_draws(&m, mouse, batch.width, batch.height);
+            let (w, h) = (batch.width, batch.height);
+            let rect = self
+                .built_chat(w, h)
+                .map_or_else(|| Self::leave_bed_button(w, h), |l| l.leave_bed);
+            let button = Self::leave_bed_draws(&m, mouse, rect);
             horizon_client::screen_draw::paint(batch, &self.gui.atlas, &button);
         }
         // The hovered message part's tooltip (`renderComponentHoverEffect`),
@@ -1823,7 +1851,7 @@ impl Game<'_> {
         if !mod_api::__private::listened(mod_api::HookId::ComponentHover) {
             return false;
         }
-        let Some(hover) = crate::game::api_values::style_hover(style) else {
+        let Some(hover) = horizon_client_lib::api_text::style_hover(style) else {
             return false;
         };
         let mut cancel = false;
@@ -2356,6 +2384,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_typed_profiler_is_the_clients_unless_the_server_owns_the_name() {
+        let vanilla = horizon_client::command::vanilla::game_dispatcher();
+        let ours = vanilla.with_profiler();
+        assert_eq!(
+            super::horizon_profiler_args("/profiler share", Some(&ours)),
+            Some(" share")
+        );
+        assert_eq!(super::horizon_profiler_args("/profiler", None), Some(""));
+        assert_eq!(
+            super::horizon_profiler_args("/profilers", Some(&ours)),
+            None
+        );
+        let mut server = vanilla.clone();
+        let node = server.literal(0, "profiler");
+        server.executes(node, "server:profiler");
+        let theirs = server.with_profiler();
+        assert_eq!(
+            super::horizon_profiler_args("/profiler share", Some(&theirs)),
+            None
+        );
+    }
+
+    /// A mod's text reaches the chat box as typing would leave it: emoji and
+    /// accents stay, control characters, DEL and the section sign go.
+    #[test]
     fn canceled_screenshot_keeps_a_custom_line_or_the_default_reason() {
         let custom = Text::literal("kept");
         assert_eq!(screenshot_cancel_line(Some(custom.clone())), custom);
@@ -2865,11 +2918,11 @@ mod tests {
             ChatAbilities::new(ChatVisibility::Full),
         );
         screen.draw(&m, (0, 0), 0, 0);
-        Game::leave_bed_draws(&m, (0, 0), width, height);
+        let (x, y, w, h) = Game::leave_bed_button(width, height);
+        Game::leave_bed_draws(&m, (0, 0), (x, y, w, h));
         horizon_client::widgets::end_frame(u64::MAX);
 
         let targets = key_focus::drawn_targets();
-        let (x, y, w, h) = Game::leave_bed_button(width, height);
         let bed = targets
             .iter()
             .copied()

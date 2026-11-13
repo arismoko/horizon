@@ -9,7 +9,7 @@ AbstractBoat.handleBubbleColumnEffect	port	crates/horizon-client/src/game/entiti
 AbstractBoat.setPaddleState	inline	crates/horizon-client/src/game/entities/boats/mod.rs::Game::tick_boat	paddle flags are set from the rider's input inside the controlled branch
 AbstractBoat.getLeashOffset	port	crates/horizon-client/src/mobs/leash.rs::Holder::boat_leash_offset	1.375 by 0.5625 for a boat or raft
 AbstractBoat.getStatus	port	crates/horizon-client/src/game/entities/boats/mod.rs::Game::boat_status	in air, in water, under water or on land
-AbstractBoat.getWaterLevelAbove	port	crates/horizon-client/src/game/entities/boats/mod.rs::Game::water_level_above	
+AbstractBoat.getWaterLevelAbove	port	crates/horizon-client/src/game/entities/boats/mod.rs::Game::water_level_above
 AbstractBoat.getGroundFriction	port	crates/horizon-client/src/game/entities/boats/mod.rs::Game::boat_ground_friction	average friction of blocks whose collision shape meets a thin slab under the hull; lily pads skipped
 AbstractBoat.checkInWater	inline	crates/horizon-client/src/game/entities/boats/mod.rs::Game::boat_status	sets the water level and reports the in-water status
 AbstractBoat.isUnderwater	inline	crates/horizon-client/src/game/entities/boats/mod.rs::Game::boat_status	the under-water and flowing-water check runs first in boat_status
@@ -24,7 +24,7 @@ AbstractBoat.checkFallDamage	missing		minor: boats keep no fall distance; boats 
 AbstractBoat.getPaddleState	port	crates/horizon-client/src/game/entities/boats/mod.rs::Boat::rowing_time	paddle flag, set only while a rider drives
 AbstractBoat.getControllingPassenger	inline	crates/horizon-client/src/game/entities/boat_passengers.rs::Game::boat_contacts	a riding player is the controller; mobs never steer
 AbstractBoat.setInput	inline	crates/horizon-client/src/game/network/lan_vehicles.rs::Game::guest_paddle_boat	the paddle packet's flags are the controller's input
-AbstractBoat.isUnderWater	port	crates/horizon-client/src/game/entities/boats/mod.rs::Boat::under_water	
+AbstractBoat.isUnderWater	port	crates/horizon-client/src/game/entities/boats/mod.rs::Boat::under_water
 AbstractBoat.modifyPassengerFluidInteractionBox	inline	crates/horizon-client/src/motion/fluids.rs::MotionWorld::interaction_box	the ridden boat (RiddenBoat) is set on clients in remote.rs and for served players in lan_actions.rs; the passenger box keeps only the part above the boat's top
 AbstractChestBoat.remove	port	crates/horizon-client/src/game/entities/minecarts.rs::Game::drop_vehicle_contents	Containers.dropContents on every destroying removal, whatever entity_drops says: the damage path's kill or a creative player's discard, and /kill after the open menu writes its slots back; a loot table still held drops the roll made on load
 AbstractChestBoat.openCustomInventoryScreen	inline	crates/horizon-client/src/game/entities/boats/mod.rs::Game::interact_boat	sneaking opens the chest; gap: minor: no piglin anger
@@ -131,7 +131,7 @@ EnchantmentMenu.<init>	inline	crates/horizon-client/src/game/blocks/stations.rs:
 EnchantmentMenu.getGoldCount	inline	crates/horizon-client/src/menu.rs::Menu::enchant_click	the lapis count is checked against the enchant cost there
 EnchantmentMenu.removed	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::close_station	the inputs go back when the table closes
 EnchantmentMenu.quickMoveStack	port	crates/horizon-client/src/menu.rs::Menu::quick_move	shift-click for the enchanting slots, with lapis and the item slot
-FurnaceResultSlot.remove	port	crates/horizon-client/src/game/item_entities.rs::Game::award_furnace_recipes	the furnace output's experience is awarded from the recorded recipe uses; gap: minor: no per-slot taken count
+FurnaceResultSlot.remove	port	crates/horizon-mod-vocab/src/host/item_entities.rs::Game::award_furnace_recipes	the furnace output's experience is awarded from the recorded recipe uses; gap: minor: no per-slot taken count
 GrindstoneMenu.mergeItems	port	crates/horizon-client/src/stations.rs::grindstone_result	two repairable items merge into one with the summed durability
 GrindstoneMenu.mergeEnchantsFrom	inline	crates/horizon-client/src/stations.rs::grindstone_result	the second item's enchantments merge in, curses only when the target lacks them
 GrindstoneMenu.removed	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::close_station	the repair inputs go back when the grindstone closes

@@ -1827,7 +1827,7 @@ pub(super) mod tests {
         }
         let mods: Mods = vec![ModEntry::new("pigs", Box::new(Pigs(bin.clone())))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || with_game(test));
+        mod_platform::testing::with_mods(mods, || with_game(test));
     }
 
     /// A hopper at (0, 64, 0) facing `facing` holding `stack`, in an otherwise empty world.
@@ -1889,6 +1889,94 @@ pub(super) mod tests {
             let sides = bin.sides.lock().unwrap();
             assert!(!sides.is_empty());
             assert!(sides.iter().all(|side| *side == Some(Direction::Up)));
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_hopper_pushes_into_a_block_with_no_block_entity_whose_provider_voids_the_items() {
+        use mod_api::{self, Hooks, ModEntry, Mods, Registrar};
+        /// A trash can's one slot: it takes anything and keeps nothing.
+        struct Voids;
+        impl mod_api::ResourceHandler<ItemResource> for Voids {
+            fn size(&self, _: &mut dyn ServerHost) -> usize {
+                1
+            }
+            fn resource(&self, _: &mut dyn ServerHost, _: usize) -> Option<ItemResource> {
+                None
+            }
+            fn amount(&self, _: &mut dyn ServerHost, _: usize) -> u32 {
+                0
+            }
+            fn capacity(&self, _: &mut dyn ServerHost, _: usize, _: &ItemResource) -> u32 {
+                64
+            }
+            fn insert(
+                &self,
+                _: &mut dyn ServerHost,
+                _: &mod_api::Transaction,
+                _: usize,
+                _: &ItemResource,
+                amount: u32,
+            ) -> u32 {
+                amount
+            }
+            fn extract(
+                &self,
+                _: &mut dyn ServerHost,
+                _: &mod_api::Transaction,
+                _: usize,
+                _: &ItemResource,
+                _: u32,
+            ) -> u32 {
+                0
+            }
+        }
+        struct TrashCan;
+        #[mod_api::__subscriptions]
+        impl Hooks for TrashCan {
+            fn register(&self, r: &mut dyn Registrar, _: &mod_api::RegistrationContext) {
+                let lodestone = r.block_key("minecraft:lodestone");
+                r.block_capability(&mod_api::ITEMS, &lodestone, |_, _, _, entity| {
+                    entity.is_none().then(|| Box::new(Voids) as _)
+                });
+            }
+        }
+        let mods: Mods = vec![ModEntry::new("trash_can", Box::new(TrashCan))].into();
+        crate::game::api_values::install_parts(&mods).unwrap();
+        mod_platform::testing::with_mods(mods, || {
+            with_game(|game| {
+                hopper_with(game, "down", Some(ItemStack::new("minecraft:stick", 3)));
+                let registry = &game.pack.assets.registry;
+                let lodestone = registry.default_state("minecraft:lodestone").unwrap();
+                let stone = registry.default_state("minecraft:stone").unwrap();
+                game.world.set(0, 63, 0, lodestone).unwrap();
+                game.world.set(1, 63, 0, stone).unwrap();
+                // The hopper pushes one stick down into the lodestone, which keeps none.
+                game.hopper_try_move_items((0, 64, 0));
+                assert_eq!(
+                    hopper_slot(game),
+                    Some(ItemStack::new("minecraft:stick", 2))
+                );
+                let host: &mut dyn ServerHost = game;
+                let level = host.level("minecraft:overworld").unwrap();
+                let bin = level
+                    .capability(
+                        host,
+                        &mod_api::ITEMS,
+                        [0, 63, 0],
+                        Some(mod_api::Direction::Up),
+                    )
+                    .expect("the lodestone's provider");
+                assert_eq!(bin.owner(), "trash_can");
+                assert_eq!(bin.amount(host, 0), 0);
+                // Stone has no provider and no slots of the game's.
+                assert!(
+                    level
+                        .capability(host, &mod_api::ITEMS, [1, 63, 0], None)
+                        .is_none()
+                );
+            })
         });
     }
 
@@ -2077,7 +2165,7 @@ pub(super) mod tests {
         }
         let mods: Mods = vec![ModEntry::new("energy", Box::new(Energy))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             assert!(!has_entity_providers(&ENTITY_AUTOMATION));
             with_game(|game| {
                 hopper_with(game, "down", Some(ItemStack::new("minecraft:stick", 3)));

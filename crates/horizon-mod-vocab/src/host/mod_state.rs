@@ -40,6 +40,22 @@ pub trait ModStateServerHost {
     #[access(WorldOnly)]
     fn transaction_close(&mut self, seal: &TransactionSeal, commit: bool);
     /// Side: server.
+    /// Where the transaction system is (`Transaction.getLifecycle`): none open, one open, a
+    /// nested one closing, or the outermost closing while the game tells the world of a commit.
+    #[access(WorldOnly)]
+    fn transaction_lifecycle(&self) -> TransactionLifecycle;
+    /// Side: server.
+    /// The innermost open transaction, to write in (`Transaction.getCurrentOpenedTransaction`);
+    /// none when none is open. It names the transaction only: ending it still takes the seal its
+    /// opener holds.
+    #[access(WorldOnly)]
+    fn transaction_current(&self) -> Option<Transaction>;
+    /// Side: server.
+    /// How deeply `tx` is nested (`TransactionContext.depth`): 0 for the outermost, none for a
+    /// transaction that is not open.
+    #[access(WorldOnly)]
+    fn transaction_depth(&self, tx: &Transaction) -> Option<u32>;
+    /// Side: server.
     /// Asks for `Hooks::scheduled_task` to be called with `token` after `delay_ticks` server
     /// ticks (`MinecraftServer.tell(new TickTask(getTickCount() + delay, ..))`; 0 and 1 both
     /// mean the next tick, and a paused server does not advance it). Tasks due together run in

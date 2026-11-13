@@ -105,7 +105,7 @@ fn local_level_requests_can_mute_sound_without_undoing_prediction() {
         Box::new(LocalTuner(requests.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_client_game(|game| {
             let _server = logged_client(game);
             game.player = Some(PlayerMotion::new(game.motion, Vec3::new(1.0, 64.0, 1.0)).unwrap());
@@ -207,7 +207,7 @@ fn game_events_ask_client_level_before_playback() {
         Box::new(LocalTuner(requests.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_client_game(|game| {
             let _server = logged_client(game);
             let mut player = PlayerMotion::new(game.motion, Vec3::new(1.0, 64.0, 1.0)).unwrap();
@@ -281,7 +281,7 @@ fn packets_ask_client_level_before_playback_not_ui() {
         Box::new(Tuner(log.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_client_game(|game| {
             let _server = logged_client(game);
             game.player = Some(PlayerMotion::new(game.motion, Vec3::new(3.0, 64.0, 4.0)).unwrap());

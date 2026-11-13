@@ -44,6 +44,7 @@ pub mod crash;
 pub mod custom_sky;
 pub mod datapack;
 pub mod dynamic_light;
+pub mod dynamic_resolution;
 pub mod effects;
 pub mod environment;
 pub mod extras;
@@ -76,6 +77,7 @@ pub mod level_loading;
 pub mod light;
 pub mod lod;
 pub mod logging;
+pub mod mark_sprite;
 pub mod menu_blur;
 pub mod menu_style;
 pub mod mesher;
@@ -112,6 +114,9 @@ pub mod pad_glyph;
 pub mod paged_maps;
 pub mod par;
 pub mod particles;
+#[cfg(target_os = "linux")]
+pub mod perf_capture;
+pub mod perf_gpu;
 pub mod poi_sections;
 pub mod polytone_post;
 pub mod post_chain;
@@ -197,3 +202,8 @@ pub use horizon_items::enchant;
 pub use horizon_items::item_data;
 pub use horizon_items::items;
 pub use horizon_items::random_sequences;
+
+pub mod render_geometry;
+pub mod render_slots;
+
+pub mod render_views;

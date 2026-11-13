@@ -12,5 +12,9 @@ horizon-core = { path = "../horizon-core" }
 horizon-world = { path = "../horizon-world" }
 serde_json = { version = "1.0.151", features = ["raw_value"] }
 
+[features]
+# Mutable thread-local language publication for resource-backed game fixtures only.
+test-language-publication = []
+
 [lints]
 workspace = true

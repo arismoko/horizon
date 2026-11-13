@@ -38,11 +38,14 @@ pub fn text_with_backdrop(
     background: u32,
 ) {
     if background != 0 {
+        // Font.PreparedTextBuilder.markBackground: one pixel above and left of
+        // the glyphs, the glyph advance to the right and nine high: not a
+        // fixed two-pixel frame.
         out.push(fill(
-            x - 2,
-            y - 2,
-            x + w + 2,
-            y + 9 + 2,
+            x - 1,
+            y - 1,
+            x + w,
+            y + 9,
             multiply(background, color),
         ));
     }
@@ -100,8 +103,9 @@ pub struct EffectIcon {
     pub id: String,
     /// `MobEffect.isBeneficial`.
     pub beneficial: bool,
-    /// `MobEffect.getColor`.
-    pub color: i32,
+    /// `IMobEffectExtension.getSortOrder`: `MobEffect.getColor` unless a content mod declared
+    /// an order.
+    pub sort_order: i32,
     pub ambient: bool,
     /// Remaining ticks, -1 for infinite.
     pub duration: i32,
@@ -115,7 +119,7 @@ impl From<&crate::effects::EffectInstance> for EffectIcon {
             id: effect.id.to_owned(),
             beneficial: def
                 .is_some_and(|d| d.category == horizon_client_core::potions::Category::Beneficial),
-            color: def.map_or(0, |d| d.color as i32),
+            sort_order: def.map_or(0, |d| d.sort_order),
             ambient: effect.ambient,
             duration: effect.duration,
             show_icon: effect.show_icon,
@@ -123,16 +127,18 @@ impl From<&crate::effects::EffectInstance> for EffectIcon {
     }
 }
 
-/// `MobEffectInstance.compareTo`.
+/// `MobEffectInstance.compareTo`, with NeoForge's sort order in the colour's place.
 pub(crate) fn compare_effects(a: &EffectIcon, o: &EffectIcon) -> Ordering {
     if (a.duration <= 32147 || o.duration <= 32147) && !(a.ambient && o.ambient) {
         a.ambient
             .cmp(&o.ambient)
             .then((a.duration == -1).cmp(&(o.duration == -1)))
             .then(a.duration.cmp(&o.duration))
-            .then(a.color.cmp(&o.color))
+            .then(a.sort_order.cmp(&o.sort_order))
     } else {
-        a.ambient.cmp(&o.ambient).then(a.color.cmp(&o.color))
+        a.ambient
+            .cmp(&o.ambient)
+            .then(a.sort_order.cmp(&o.sort_order))
     }
 }
 
@@ -1592,5 +1598,88 @@ mod boss_bar_room_tests {
                 .max();
             assert_eq!(bottom, Some(boss_bars_bottom(h, bars.len())), "height {h}");
         }
+    }
+}
+#[cfg(test)]
+mod backdrop_tests {
+    use super::*;
+
+    /// `markBackground`: the backdrop reaches one pixel above and left of the
+    /// glyphs, their advance to the right and nine down, not 2 on every side.
+    #[test]
+    fn the_backdrop_frames_the_glyphs_by_one_pixel() {
+        let mut out = Vec::new();
+        text_with_backdrop(
+            &mut out,
+            Text::literal("X"),
+            10,
+            20,
+            6,
+            u32::MAX,
+            0xFF00_0000,
+        );
+        let Some(GuiDraw::Fill { x0, y0, x1, y1, .. }) = out.first() else {
+            panic!("a backdrop is a fill first");
+        };
+        assert_eq!((*x0, *y0, *x1, *y1), (9, 19, 16, 29));
+    }
+}
+
+#[cfg(test)]
+mod effect_order_tests {
+    use super::*;
+
+    fn icon(sort_order: i32, ambient: bool, duration: i32) -> EffectIcon {
+        EffectIcon {
+            id: "speed".to_owned(),
+            beneficial: true,
+            sort_order,
+            ambient,
+            duration,
+            show_icon: true,
+        }
+    }
+
+    /// Short effects order by their time left first and the sort order last; two long ones, or two
+    /// ambient ones, order by the sort order alone.
+    #[test]
+    fn both_comparator_branches_use_the_sort_order() {
+        assert_eq!(
+            compare_effects(&icon(9, false, 100), &icon(1, false, 200)),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_effects(&icon(9, false, 100), &icon(1, false, 100)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            compare_effects(&icon(9, false, 40_000), &icon(1, false, 50_000)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            compare_effects(&icon(9, true, 100), &icon(1, true, 200)),
+            Ordering::Greater
+        );
+    }
+
+    /// The HUD lists the highest sort order nearest the corner, and the extremes of `i32` compare
+    /// without wrapping.
+    #[test]
+    fn the_hud_lists_the_highest_sort_order_first() {
+        let icons = [
+            icon(i32::MIN, false, -1),
+            icon(i32::MAX, false, -1),
+            icon(0, false, -1),
+        ];
+        let corners: Vec<(i32, i32)> = effects(200, false, &icons)
+            .iter()
+            .filter_map(|d| match d {
+                GuiDraw::Sprite { sprite, x, y, .. } if sprite == "hud/effect_background" => {
+                    Some((*x, *y))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(corners, [(175, 1), (150, 1), (125, 1)]);
     }
 }

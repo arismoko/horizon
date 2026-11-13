@@ -88,7 +88,7 @@ impl Title {
                         y + 72.0,
                         20.0,
                         &lang::get_or(key, plain),
-                        true,
+                        id != 5 || crate::net::joins_friends(),
                         id,
                     );
                     button.icon = Some((icon, 15.0));
@@ -185,10 +185,15 @@ impl Title {
                 )
                 .does(crate::widgets::Action::Back),
             ],
-            Mode::Edit { world, name, .. } => {
+            Mode::Edit {
+                world,
+                name,
+                adopt_regions,
+                ..
+            } => {
                 let x = (w / 2.0).floor() - 100.0;
                 let top = edit_top(h);
-                vec![
+                let mut buttons = vec![
                     b(
                         x,
                         top + 64.0,
@@ -246,6 +251,42 @@ impl Title {
                         36,
                     )
                     .does(crate::widgets::Action::Cancel),
+                ];
+                // Horizon's opt-in (#2554), in the row vanilla leaves empty above Save.
+                if *adopt_regions {
+                    buttons.push(b(
+                        x,
+                        top + 189.0,
+                        200.0,
+                        &lang::get("horizon.biome_regions.adopt.button"),
+                        true,
+                        98,
+                    ));
+                }
+                buttons
+            }
+            Mode::AdoptBiomeRegions { .. } => {
+                let y = confirm_top(h, self.message_lines.get())
+                    + 41.0
+                    + self.message_lines.get() as f32 * 9.0;
+                vec![
+                    b(
+                        (w / 2.0).floor() - 152.0,
+                        y,
+                        150.0,
+                        &lang::get("horizon.biome_regions.adopt.confirm"),
+                        true,
+                        99,
+                    ),
+                    b(
+                        (w / 2.0).floor() + 2.0,
+                        y,
+                        150.0,
+                        &lang::get_or("gui.cancel", "Cancel"),
+                        true,
+                        100,
+                    )
+                    .does(crate::widgets::Action::Back),
                 ]
             }
             Mode::Delete { .. } => {
@@ -292,6 +333,30 @@ impl Title {
                         &lang::get_or("gui.back", "Back"),
                         true,
                         95,
+                    )
+                    .does(crate::widgets::Action::Back),
+                ]
+            }
+            Mode::MissingBiomeRegions { .. } => {
+                let y = confirm_top(h, self.message_lines.get())
+                    + 41.0
+                    + self.message_lines.get() as f32 * 9.0;
+                vec![
+                    b(
+                        (w / 2.0).floor() - 152.0,
+                        y,
+                        150.0,
+                        &lang::get("horizon.biome_regions.missing.open_vanilla"),
+                        true,
+                        96,
+                    ),
+                    b(
+                        (w / 2.0).floor() + 2.0,
+                        y,
+                        150.0,
+                        &lang::get("horizon.biome_regions.missing.dont_open"),
+                        true,
+                        97,
                     )
                     .does(crate::widgets::Action::Back),
                 ]

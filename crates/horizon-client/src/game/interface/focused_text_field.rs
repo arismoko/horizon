@@ -203,7 +203,7 @@ mod tests {
         let taken = || std::mem::take(&mut *seen.lock().unwrap());
         let mods: mod_api::Mods =
             vec![ModEntry::new("editor", Box::new(Editor(seen.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_client_game(|game| {
                 let _event_loop = frame_scene(game);
                 let social = |game: &Game<'_>| {
@@ -280,6 +280,7 @@ mod tests {
                 let mut menu = title::Title::new(
                     std::path::PathBuf::from("/nonexistent-field-fixture/saves"),
                     std::path::Path::new("/nonexistent-field-fixture"),
+                    "",
                 );
                 menu.mode = title::Mode::Multiplayer(multiplayer::Screen::Direct {
                     address: "\u{1f600}".into(),
@@ -306,8 +307,9 @@ mod tests {
         edited.highlight = 1;
         edited.max_length = 100;
         let state = visit_box(&mut field, Some(&edited));
-        assert_eq!(state.value, "a\u{1f600}bc");
-        assert_eq!((state.cursor, state.highlight), (4, 1));
+        // The limit counts UTF-16 units, while selection positions count scalars.
+        assert_eq!(state.value, "a\u{1f600}b");
+        assert_eq!((state.cursor, state.highlight), (3, 1));
         assert_eq!(state.max_length, 4);
     }
 

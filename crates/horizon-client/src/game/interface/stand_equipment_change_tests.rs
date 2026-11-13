@@ -44,7 +44,7 @@ fn a_stands_body_and_saddle_writes_are_told_once_each() {
         Box::new(Counter(heard.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             game.armor_stands.push(ArmorStand::new(16, Vec3::ZERO, 0.0));
             let body = ItemStack::new("minecraft:diamond_horse_armor", 1);

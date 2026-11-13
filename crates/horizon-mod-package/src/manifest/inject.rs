@@ -20,8 +20,6 @@ pub struct Inject {
     pub kind: Kind,
     pub with: String,
     #[serde(default)]
-    pub access: Access,
-    #[serde(default)]
     pub priority: i32,
     /// Optional pinning: the function's catalog fingerprint `inject add` writes. Absent, the
     /// build takes it from the pinned game's catalog, which `[native] horizon` fixes exactly.
@@ -94,41 +92,38 @@ fn source_level(kind: &str, form: &str) -> String {
 }
 
 /// The manifest's `[[inject]]` rows. A row's kind is read before its other keys, so a removed
-/// kind is refused by name even when keys that went with it follow.
+/// kind is refused by name even when keys that went with it follow. The removed `access` key is
+/// refused by name too: an injection is always through the API.
 pub(super) fn rows<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Vec<Inject>, D::Error> {
     Vec::<toml::Table>::deserialize(deserializer)?
         .into_iter()
-        .map(|row| {
-            if let Some(kind) = row.get("kind") {
-                Kind::deserialize(kind.clone())?;
-            }
-            row.try_into()
-        })
+        .map(row)
         .collect::<Result<_, toml::de::Error>>()
         .map_err(serde::de::Error::custom)
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum Access {
-    #[default]
-    Api,
+/// One `[[inject]]` row: the one place a row is read, so a removed kind or key gets its own
+/// refusal and never serde's "unknown field".
+pub(super) fn row(row: toml::Table) -> Result<Inject, toml::de::Error> {
+    if let Some(kind) = row.get("kind") {
+        Kind::deserialize(kind.clone())?;
+    }
+    if let Some(access) = row.get("access") {
+        return Err(serde::de::Error::custom(
+            if access.as_str() == Some("internals") {
+                "E_INJECT_INVALID: field `access`: `internals` injections were removed: \
+                 use `[[native.mixin]]` in a native mod"
+            } else {
+                "E_INJECT_INVALID: field `access` was removed, an injection is always \
+                 through the API: remove this line"
+            },
+        ));
+    }
+    row.try_into()
 }
 
-impl<'de> Deserialize<'de> for Access {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = String::deserialize(d)?;
-        if value == "api" {
-            Ok(Self::Api)
-        } else {
-            Err(serde::de::Error::custom(format!(
-                "access `{value}` is unsupported; use access = \"api\" or [[native.mixin]] for native function replacement"
-            )))
-        }
-    }
-}
 impl Kind {
     pub fn slot(self) -> SlotKind {
         match self {
@@ -318,15 +313,9 @@ mod tests {
                 "id='listen'\nat='game::tick'\nkind='{}'\nwith='listen'",
                 kind.name()
             );
-            assert_eq!(toml::from_str::<Inject>(&text).unwrap().access, Access::Api);
+            assert_eq!(toml::from_str::<Inject>(&text).unwrap().kind, kind);
         }
         let text = "id='listen'\nat='game::tick'\nkind='head'\nwith='listen'";
-        assert!(
-            toml::from_str::<Inject>(&format!("{text}\naccess='internals'"))
-                .unwrap_err()
-                .to_string()
-                .contains("[[native.mixin]]")
-        );
         for extra in ["call='f'", "nth=0", "ctx='x'"] {
             assert!(toml::from_str::<Inject>(&format!("{text}\n{extra}")).is_err());
         }
@@ -396,7 +385,14 @@ mod provenance_tests {
     fn removed_access_names_mod_row_and_target() {
         refused(
             "kind='head'\naccess='internals'",
-            "access `internals` is unsupported",
+            "field `access`: `internals` injections were removed: use `[[native.mixin]]`",
+        );
+    }
+    #[test]
+    fn the_removed_access_key_is_refused_even_as_api() {
+        refused(
+            "kind='head'\naccess='api'",
+            "field `access` was removed, an injection is always through the API: remove this line",
         );
     }
     fn refused(fields: &str, reason: &str) {

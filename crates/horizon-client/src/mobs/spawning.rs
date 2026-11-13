@@ -31,6 +31,16 @@ pub struct BiomeFacts {
 pub fn placement_ok(entity: &str, species: Species, w: &MobWorld, x: i32, y: i32, z: i32) -> bool {
     super::spawn_rules::is_spawn_position_ok(entity, species, w, x, y, z)
 }
+/// `Spider.SpiderEffectsGroupData.setRandomEffect`: Speed on two of five
+/// draws, then Strength, Regeneration and Invisibility on one each.
+pub fn spider_random_effect(random: &mut impl horizon_core::random::RandomSource) -> &'static str {
+    match random.next_int_bound(5).unwrap_or(0) {
+        0 | 1 => "minecraft:speed",
+        2 => "minecraft:strength",
+        3 => "minecraft:regeneration",
+        _ => "minecraft:invisibility",
+    }
+}
 /// Mob.finalizeSpawn for natural, chunk-generation and summoned mobs.
 /// `DifficultyInstance`: the local difficulty at a position.
 #[derive(Clone, Copy, Debug)]
@@ -222,6 +232,14 @@ mod tests {
     }
 
     fn spawn(types: &crate::mobs::MobTypes, kind: &str, id: u32) -> Mob {
+        spawn_with(types, kind, id, &LocalDifficulty::new(3, 0, 0, 1.0))
+    }
+    fn spawn_with(
+        types: &crate::mobs::MobTypes,
+        kind: &str,
+        id: u32,
+        difficulty: &LocalDifficulty,
+    ) -> Mob {
         let kind = std::sync::Arc::new(types.types.get(kind).unwrap().clone());
         let mut m = Mob::new(
             id,
@@ -229,9 +247,70 @@ mod tests {
             horizon_core::geometry::Vec3::new(0.5, 64.0, 0.5),
             0.0,
         );
-        let difficulty = LocalDifficulty::new(3, 0, 0, 1.0);
-        run_finalize(&mut m, difficulty);
+        run_finalize(&mut m, *difficulty);
         m
+    }
+    /// The four effects `Spider.SpiderEffectsGroupData.setRandomEffect` picks.
+    const SPIDER_EFFECTS: [&str; 4] = [
+        "minecraft:speed",
+        "minecraft:strength",
+        "minecraft:regeneration",
+        "minecraft:invisibility",
+    ];
+    /// `Spider.finalizeSpawn`: on Hard, `0.1 * getSpecialMultiplier()` of
+    /// spiders get one of those four for good (`MobEffectInstance(effect, -1)`).
+    /// `/summon`, eggs, spawners and natural spawns all run it; Normal and
+    /// CaveSpider's own `finalizeSpawn` never roll.
+    #[test]
+    fn runtime_spiders_roll_a_permanent_effect_on_hard() {
+        let Some(types) = types() else { return };
+        // Long played-in time: `getSpecialMultiplier` at its 1.0 maximum.
+        let hard = LocalDifficulty::new(3, 1_512_000, 3_600_000, 1.0);
+        assert_eq!(hard.special(), 1.0);
+        let mut carried = 0;
+        let mut kinds = [0usize; 4];
+        for id in 1..=400 {
+            let m = spawn_with(&types, "minecraft:spider", id, &hard);
+            let effects = &m.extra.effects;
+            assert!(effects.len() <= 1, "{id}: {effects:?}");
+            for stored in effects {
+                let (effect, duration, amplifier) = (stored.id, stored.duration, stored.amplifier);
+                let i = SPIDER_EFFECTS
+                    .iter()
+                    .position(|e| *e == effect)
+                    .unwrap_or_else(|| panic!("{id}: {effect}"));
+                assert_eq!((duration, amplifier), (-1, 0), "{id}: {effect}");
+                kinds[i] += 1;
+                carried += 1;
+            }
+        }
+        // 10 percent of 400 is 40.
+        assert!((25..=60).contains(&carried), "{carried} of 400 spiders");
+        // Vanilla's `nextInt(5)`: Speed on 0 or 1, then one each.
+        assert!(kinds.iter().all(|n| *n > 0), "{kinds:?}");
+        assert!(
+            kinds[0] >= kinds[1] && kinds[0] >= kinds[2] && kinds[0] >= kinds[3],
+            "{kinds:?}"
+        );
+        // Normal: `level.getDifficulty() == Difficulty.HARD` is false.
+        let normal = LocalDifficulty::new(2, 1_512_000, 3_600_000, 1.0);
+        for id in 1..=400 {
+            let m = spawn_with(&types, "minecraft:spider", id, &normal);
+            assert!(
+                m.extra.effects.is_empty(),
+                "normal {id}: {:?}",
+                m.extra.effects
+            );
+        }
+        // CaveSpider.finalizeSpawn returns the group data without rolling.
+        for id in 1..=400 {
+            let m = spawn_with(&types, "minecraft:cave_spider", id, &hard);
+            assert!(
+                m.extra.effects.is_empty(),
+                "cave spider {id}: {:?}",
+                m.extra.effects
+            );
+        }
     }
     /// #2783: `/summon`, eggs, spawners and natural spawns run
     /// `WitherSkeleton.finalizeSpawn`: attack damage base 4.0, not the

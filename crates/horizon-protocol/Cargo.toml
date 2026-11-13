@@ -35,5 +35,10 @@ path = "examples/probe.rs"
 name = "item_wire_probe"
 path = "examples/item_wire_probe.rs"
 
+[dev-dependencies]
+# The isolated retained-allocation integration test installs the census allocator
+# explicitly; no alloc-census feature unification with production consumers.
+horizon-threads = { path = "../horizon-threads" }
+
 [lints]
 workspace = true

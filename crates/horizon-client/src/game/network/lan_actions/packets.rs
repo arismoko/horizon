@@ -328,7 +328,7 @@ impl Game<'_> {
                 }
                 4 | 5 => {
                     if !spectator {
-                        self.as_guest(conn, |g| g.drop_held(a.action == 4));
+                        self.guest_drop_held(gi, conn, a.action == 4);
                     }
                 }
                 // RELEASE_USE_ITEM: ServerPlayer.releaseUsingItem.
@@ -368,18 +368,31 @@ impl Game<'_> {
                     let Some(host) = self.lan.as_mut() else {
                         return;
                     };
+                    let used =
+                        host.play
+                            .get(&conn)
+                            .and_then(|play| play.using)
+                            .and_then(|(slot, _)| {
+                                let guest = &host.hub.guests[gi];
+                                if slot == crate::game::shield::OFFHAND_SLOT {
+                                    guest.offhand.clone()
+                                } else {
+                                    guest.inventory[slot].clone()
+                                }
+                            });
                     let (offhand, main) = host.hub.guests.update(gi, |g| {
                         let slot = g.selected;
                         std::mem::swap(&mut g.inventory[slot], &mut g.offhand);
                         (g.offhand.clone(), g.inventory[slot].clone())
                     });
-                    if let Some(play) = host.play.get_mut(&conn) {
-                        play.using = None;
-                    }
                     // setItemInHand: the off hand, then the main hand.
                     self.as_guest(conn, |g| {
                         g.player_on_equip("offhand", main.as_ref(), offhand.as_ref());
                         g.player_on_equip("mainhand", offhand.as_ref(), main.as_ref());
+                        match used {
+                            Some(stack) => g.stop_using_item(&stack),
+                            None => g.using = None,
+                        }
                     });
                     if mod_api::__private::listened(mod_api::HookId::PlayerSwapWithEquipmentSlot) {
                         let Some(host) = self.lan.as_ref() else {
@@ -436,20 +449,20 @@ impl Game<'_> {
                         return;
                     }
                 }
+                self.as_guest(conn, |g| {
+                    if changed
+                        && g.using
+                            .is_some_and(|(slot, _)| slot != crate::game::shield::OFFHAND_SLOT)
+                    {
+                        g.stop_active_item_use();
+                    }
+                });
                 let Some(host) = self.lan.as_mut() else {
                     return;
                 };
                 {
                     let value = p.slot as usize;
                     host.hub.guests.update(gi, |guest| guest.selected = value);
-                }
-                if let Some(play) = host.play.get_mut(&conn)
-                    && changed
-                    && play
-                        .using
-                        .is_some_and(|(slot, _)| slot != crate::game::shield::OFFHAND_SLOT)
-                {
-                    play.using = None;
                 }
                 if changed {
                     self.native_player_switch_hotbar_slot_post(
@@ -772,14 +785,14 @@ impl Game<'_> {
             {
                 self.guest_book_settings(conn, &p.data)
             }
-            S::CustomPayload(p) if p.channel == horizon_protocol::mod_net::CHANNEL => {
-                self.guest_native_net(conn, &p.data)
-            }
             S::CustomPayload(p) if p.channel == horizon_client::lan::recipes::TRANSFER_CHANNEL => {
                 self.guest_recipe_transfer(conn, &p.data);
             }
             S::CustomPayload(p) if p.channel == horizon_client::lan::recipes::CHECK_CHANNEL => {
                 self.guest_recipe_check(conn, &p.data);
+            }
+            S::CustomPayload(p) if p.channel == horizon_client::perf_net::CHANNEL => {
+                self.guest_perf(conn, &p.data)
             }
             S::CustomPayload(p) if p.channel == horizon_client::lod_net::CHANNEL => {
                 self.guest_far_terrain(conn, &p.data)

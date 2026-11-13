@@ -82,7 +82,7 @@ fn third_guest(game: &mut super::Game<'_>, position: [f64; 3]) {
 fn with_probe(test: impl FnOnce(&mut super::Game<'_>, &dyn Fn() -> Vec<Heard>)) {
     let heard = Arc::new(Mutex::new(Vec::new()));
     let mods = vec![ModEntry::new("spectating", Box::new(Probe(heard.clone())))];
-    mod_api::testing::with_mods(mods.into(), || {
+    mod_platform::testing::with_mods(mods.into(), || {
         super::native_guest_turn_tests::with_guests(|game| {
             third_guest(game, FAR);
             let take = || std::mem::take(&mut *heard.lock().unwrap());

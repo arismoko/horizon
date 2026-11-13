@@ -10,8 +10,6 @@ pub(super) enum MenuOpen {
 /// Per-guest state of the gameplay code that lives outside `Guest`.
 #[derive(Default)]
 pub(super) struct GuestPlay {
-    /// The sign this guest may write on (`SignBlockEntity.playerWhoMayEdit`).
-    pub(super) sign_editing: Option<[i32; 3]>,
     mining: Option<Mining>,
     destroy_delay: u32,
     using: Option<(usize, u32)>,
@@ -64,7 +62,7 @@ pub(super) struct GuestPlay {
     /// The inventory menu and the crafting table the guest crafts in.
     pub(super) crafting: super::lan_crafting::GuestCrafting,
     /// The workstation menu the guest has open (game/network/lan_stations.rs).
-    pub(super) station: Option<super::lan_stations::GuestStation>,
+    pub(super) station: MenuOwner<Option<super::lan_stations::GuestStation>>,
     /// The mount inventory the guest has open (game/network/lan_mount_menu.rs).
     pub(super) mount_window: Option<super::lan_mount_menu::GuestMount>,
     /// The lectern the guest reads (game/network/lan_stations.rs).
@@ -298,15 +296,6 @@ impl Rules for ItemRules<'_> {
     fn max_stack(&self, item: &str) -> u32 {
         self.0.get(item).map_or(64, |i| i.max_stack)
     }
-    fn armor_index(&self, item: &str) -> Option<usize> {
-        match self.0.get(item)?.equip_slot.as_deref()? {
-            "head" => Some(0),
-            "chest" => Some(1),
-            "legs" => Some(2),
-            "feet" => Some(3),
-            _ => None,
-        }
-    }
 }
 
 /// `Player.isWithinEntityInteractionRange(entity, buffer)` for a guest: the
@@ -496,6 +485,26 @@ mod tests {
     use crate::game::api_values::TryIntoApi;
     use horizon_client::pose::Pose;
     #[test]
+    fn a_block_break_suppresses_its_positional_duplicate_but_not_an_entity_sound() {
+        let mut sound = horizon_client::audio::CapturedSound {
+            event: "minecraft:block.stone.break".into(),
+            position: [1.5, 64.5, -2.5],
+            volume: 1.0,
+            pitch: 1.0,
+            source: 4,
+            entity: None,
+            except_entity: None,
+        };
+        let broken = [[1.0, 64.0, -3.0]];
+        assert!(super::captured_block_break(&sound, &broken));
+        sound.entity = Some(37);
+        assert!(!super::captured_block_break(&sound, &broken));
+        sound.entity = None;
+        sound.position[0] += 0.25;
+        assert!(!super::captured_block_break(&sound, &broken));
+    }
+
+    #[test]
     fn use_swing_resets_attack_charge_only_when_started() {
         let mut ticker = 20;
         reset_use_attack_strength(&mut ticker, 3, 4);
@@ -567,7 +576,7 @@ mod tests {
         let mods: Mods = vec![ModEntry::new("menu_rules", Box::new(Mod))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
         crate::entry::install_client_hooks();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_guest_turn_tests::with_guests(|game| {
                 game.world
                     .chunks
@@ -1016,7 +1025,7 @@ mod tests {
                     mod_api::Flow::Cancel
                 }
             }
-            mod_api::testing::with_mods(
+            mod_platform::testing::with_mods(
                 vec![mod_api::ModEntry::new("stop_menu", Box::new(StopMenu))].into(),
                 || {
                     assert!(
@@ -1266,7 +1275,7 @@ mod tests {
         )]
         .into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.world
@@ -1834,7 +1843,7 @@ mod tests {
         )]
         .into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.world
@@ -1901,7 +1910,7 @@ mod tests {
         )]
         .into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.world
@@ -2148,7 +2157,7 @@ mod hotbar_tests {
     fn a_hotbar_switch_fires_pre_then_post_and_pre_can_keep_the_slot() {
         let heard = Heard::default();
         let mods = vec![ModEntry::new("hotbar", Box::new(Hotbar(heard.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 open_to_lan(game);
                 game.lan.as_mut().unwrap().hub.guests.push(guest(1));
@@ -2219,7 +2228,7 @@ mod respawn_position_tests {
     fn a_mod_moves_a_respawn_and_drops_the_point() {
         let heard = Heard::default();
         let mods = vec![ModEntry::new("east", Box::new(East(heard.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 open_to_lan(game);
                 game.options.dedicated = Some(Vec::new());
@@ -2273,7 +2282,7 @@ mod respawn_position_tests {
             Box::new(Listen(Arc::clone(&heard))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 open_to_lan(game);
                 game.options.dedicated = Some(Vec::new());
@@ -2349,9 +2358,11 @@ mod pickup_xp_tests {
                 on_ground: true,
                 count: 1,
                 ticks: 0,
+                air: 300,
                 health: 5,
                 no_gravity: true,
                 following: None,
+                fall_distance: 0.0,
             });
             game.guest_orbs(0);
             let left = game.orbs.iter().any(|o| o.id == 40);
@@ -2368,9 +2379,9 @@ mod pickup_xp_tests {
         let none = take_orb();
         assert_eq!(none, (false, 7));
         let mods = vec![mod_api::ModEntry::new("listen", Box::new(Listen(false)))].into();
-        mod_api::testing::with_mods(mods, || assert_eq!(take_orb(), none));
+        mod_platform::testing::with_mods(mods, || assert_eq!(take_orb(), none));
         let mods = vec![mod_api::ModEntry::new("cancel", Box::new(Listen(true)))].into();
-        mod_api::testing::with_mods(mods, || assert_eq!(take_orb(), (true, 0)));
+        mod_platform::testing::with_mods(mods, || assert_eq!(take_orb(), (true, 0)));
     }
 }
 

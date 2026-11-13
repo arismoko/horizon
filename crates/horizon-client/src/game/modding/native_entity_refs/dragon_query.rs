@@ -32,6 +32,45 @@ mod tests {
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn entity_uuid_lookup_includes_the_dragon_and_excludes_its_parts() {
+        use crate::game::creatures::SpawnSite;
+        use horizon_client::lan::playerdata::uuid_ints;
+        use mod_api::{EntityUuid, ServerHost};
+
+        with_game(|game| {
+            let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
+            let id = game
+                .spawn_dragon_spawned([0.0, 80.0, 0.0], SpawnSite::Plain)
+                .unwrap();
+            game.persist.uuids.insert(id, [19, 23, 29, 31]);
+            let dragon = game.entity(id).unwrap();
+            let part = game.entity(id + 1).unwrap();
+            let part_uuid = part.uuid(game).expect("dragon parts have UUIDs");
+            // A part can also have saved UUID metadata when it holds attachments.
+            game.persist.uuids.insert(part.id(), uuid_ints(part_uuid));
+
+            let host: &dyn ServerHost = game;
+            let dragon_uuid = EntityUuid(0x0000_0013_0000_0017_0000_001d_0000_001f);
+            let part_uuid = EntityUuid(part_uuid);
+            assert_eq!(host.entity_by_uuid(dragon_uuid), Some(dragon));
+            assert_eq!(host.entity_by_uuid(part_uuid), None);
+
+            #[cfg(not(any(feature = "system-allocator", feature = "alloc-census")))]
+            {
+                let (found, allocations) = horizon_threads::allocation_count::measure(|| {
+                    (
+                        host.entity_by_uuid(dragon_uuid),
+                        host.entity_by_uuid(part_uuid),
+                    )
+                });
+                assert_eq!(found, (Some(dragon), None));
+                assert_eq!(allocations, 0);
+            }
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn all_entities_uses_lookup_order_without_bounds_or_parts() {
         with_game(|game| {
             let kind = game.res.mob_types().get("minecraft:pig").unwrap().clone();

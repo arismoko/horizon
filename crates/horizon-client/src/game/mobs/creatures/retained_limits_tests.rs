@@ -62,7 +62,7 @@ fn same_mob_guest_attack_survives_movement_panic() {
         remaining: AtomicUsize::new(1),
         calls: AtomicUsize::new(0),
     });
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "same-mob",
             Box::new(Hooks(probe.clone())),
@@ -152,7 +152,7 @@ fn repeated_producer_panic_has_bounded_batches() {
         remaining: AtomicUsize::new(MAX_PENDING_MOB_PASSES + 1),
         calls: AtomicUsize::new(0),
     });
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "backlog",
             Box::new(Hooks(probe.clone())),
@@ -328,7 +328,7 @@ fn interrupted_refusal_stays_latched_until_empty() {
         calls: AtomicUsize::new(0),
     });
     let items = Arc::new(AtomicUsize::new(0));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "interrupted-consumer",
             Box::new(InterruptedConsumer {
@@ -437,7 +437,7 @@ fn push_only_failed_passes_are_refused_and_delivered_without_loss() {
         remaining: AtomicUsize::new(40),
         calls: AtomicUsize::new(0),
     });
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "push_only",
             Box::new(Hooks(probe.clone())),
@@ -554,7 +554,7 @@ fn successful_mixed_producers_are_bounded_behind_a_repeatedly_failing_consumer()
         fail: std::sync::atomic::AtomicBool::new(true),
         entered: AtomicUsize::new(0),
     });
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "repeated_consumer",
             Box::new(RepeatedConsumerHooks(probe.clone())),

@@ -390,12 +390,27 @@ fn teleport(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) -> bool {
             1.0,
             1.0,
         ));
-        m.position = Vec3::new(
-            f64::from(t[0]) + 0.5,
-            f64::from(t[1]),
-            f64::from(t[2]) + 0.5,
+        super::living::teleports::snap_to(
+            m,
+            Vec3::new(
+                f64::from(t[0]) + 0.5,
+                f64::from(t[1]),
+                f64::from(t[2]) + 0.5,
+            ),
         );
-        m.previous = m.position;
+        // `level.gameEvent(GameEvent.TELEPORT, oldPos, Context.of(this))`:
+        // the BlockPos overload uses `Vec3.atCenterOf(oldPos)`, between the
+        // sound and the level event.
+        events.push(MobEvent::GameEvent {
+            event: "minecraft:teleport",
+            at: [
+                f64::from(old[0]) + 0.5,
+                f64::from(old[1]) + 0.5,
+                f64::from(old[2]) + 0.5,
+            ],
+            source: m.id,
+            state: horizon_world::registry::BlockStateId(0),
+        });
         // Level.levelEvent(2016, oldPos, packedDiff): the teleport's
         // particles at both ends, seen by the players around.
         events.push(MobEvent::LevelEvent {
@@ -471,6 +486,14 @@ fn set_peek(
         source: m.id,
         state: horizon_world::registry::BlockStateId(0),
     });
+    // The getAttribute(ARMOR) calls make the instance (saved as an armor entry
+    // even with no modifier) and swap the covered +20 modifier.
+    use super::finalize::{Attr, Op};
+    super::finalize::set_base(m, Attr::Armor, super::finalize::base_value(m, Attr::Armor));
+    super::finalize::remove_modifier(m, Attr::Armor, "minecraft:covered");
+    if amount == 0 {
+        super::finalize::add_modifier(m, Attr::Armor, "minecraft:covered", 20.0, Op::AddValue);
+    }
     m.extra.counter = amount;
 }
 /// `Shulker.updatePeekAmount`/`updatePeekAmountO`: the eased peek.
@@ -521,7 +544,7 @@ pub fn shell_tick(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) {
     }
     let (old, new) = ease_peek(m);
     if new != old {
-        on_peek_change(m, w, old, new, events);
+        on_peek_change(m, old, new, events);
     }
 }
 /// `Shulker.getPhysicalPeek`: the lid's lift for a peek amount.
@@ -545,58 +568,24 @@ fn peek_push(m: &Mob, old: f32, new: f32) -> Option<([f64; 3], Aabb)> {
     Some((delta, area))
 }
 /// `Shulker.onPeekAmountChange`: an opening shell pushes out of its way
-/// every entity that can be collided with (except other shulkers): the
-/// player and the mobs here, the armor stands through
-/// [`MobEvent::LidPush`].
-fn on_peek_change(m: &Mob, w: &MobWorld, old: f32, new: f32, events: &mut Vec<MobEvent>) {
-    let Some((delta, area)) = peek_push(m, old, new) else {
-        return;
-    };
-    events.push(MobEvent::LidPush {
-        shulker: m.id,
-        area,
-        delta,
-    });
-    if let Some(p) = w.selected_player()
-        && p.alive
-        && !p.spectator
-        && p.bounds.intersects(area)
-    {
-        events.push(MobEvent::Shift {
-            target: Who::Player,
-            delta,
-        });
-    }
-    for seen in w.others_near(area) {
-        if seen.id == m.id
-            || !seen.alive
-            || seen.species == Species::Shulker
-            || !seen.bounds.intersects(area)
-        {
-            continue;
-        }
-        events.push(MobEvent::Shift {
-            target: Who::Mob(seen.id),
+/// every entity in the box the lid swept, through [`MobEvent::LidPush`]
+/// (the game's one lid push picks them and moves them).
+fn on_peek_change(m: &Mob, old: f32, new: f32, events: &mut Vec<MobEvent>) {
+    if let Some((delta, area)) = peek_push(m, old, new) {
+        events.push(MobEvent::LidPush {
+            shulker: m.id,
+            area,
             delta,
         });
     }
 }
 /// `Shulker.tick`'s `onPeekAmountChange` on a client that is not the server,
-/// after `client_tick` eased the lid: the client moves its own player, so a
-/// lid opening into `player` (the local player's box, alive and not a
-/// spectator) pushes it out of the way.
-pub fn client_push(m: &Mob, player: Aabb, events: &mut Vec<MobEvent>) {
+/// after `client_tick` eased the lid: the client moves its own player, which
+/// the [`MobEvent::LidPush`] reaches.
+pub fn client_push(m: &Mob, events: &mut Vec<MobEvent>) {
     let (old, new) = (m.anim.vo[PEEK], m.anim.v[PEEK]);
-    if new == old {
-        return;
-    }
-    if let Some((delta, area)) = peek_push(m, old, new)
-        && player.intersects(area)
-    {
-        events.push(MobEvent::Shift {
-            target: Who::Player,
-            delta,
-        });
+    if new != old {
+        on_peek_change(m, old, new, events);
     }
 }
 /// `ShulkerLookControl.getYRotD`: the look yaw in the open direction's

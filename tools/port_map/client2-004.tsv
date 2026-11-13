@@ -49,14 +49,14 @@ MobEffectFogEnvironment.isApplicable	inline	crates/horizon-client/src/game/inter
 PowderedSnowFogEnvironment.setupFog	port	crates/horizon-client-render/src/fog.rs::setup_fog	gap: player: spectator case (-8 start, half render distance) is not applied
 WaterFogEnvironment.setupFog	port	crates/horizon-client-render/src/fog.rs::setup_fog	gap: minor: water fog start is fixed at -8; vanilla reads the WATER_FOG_START_DISTANCE attribute
 DrawableGizmoPrimitives.addPoint	missing		minor: debug points are not drawn; Gizmos has no point kind
-DrawableGizmoPrimitives.addLine	port	crates/horizon-client/src/gizmos.rs::Gizmos::line	
+DrawableGizmoPrimitives.addLine	port	crates/horizon-client/src/gizmos.rs::Gizmos::line
 DrawableGizmoPrimitives.addTriangleFan	missing		minor: debug triangle fans are not drawn
 DrawableGizmoPrimitives.addQuad	inline	crates/horizon-client/src/gizmos.rs::cuboid_fill_quads	a cuboid's six fill quads, which the debug renderers push into their fill list; there is no general quad kind
 DrawableGizmoPrimitives.addText	inline	crates/horizon-client/src/gizmos.rs::billboard_text_unit	one font pixel's world size for a text scale, which the debug renderers' and game-test markers' billboard text quads are built at (name_tag_quads)
 DrawableGizmoPrimitives.submit	port	crates/horizon-client/src/game.rs::Game::render	gap: minor: lines of both lists go to camera_relative in Game::render; the fills and texts of the debug renderers are built as vertices in debug_renderers::Game::debug_renderer_geometry instead
 BundleSelectedItemSpecialRenderer.update	port	crates/horizon-assets/src/item_model.rs::Resolve::node	bundle selected item layers via the BundleSelectedItem arm
 CompositeModel.update	port	crates/horizon-assets/src/item_model.rs::Resolve::node	composite arm: each child in order
-CompositeModel.Unbaked.resolveDependencies	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::dependencies	
+CompositeModel.Unbaked.resolveDependencies	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::dependencies
 CompositeModel.Unbaked.bake	inline	crates/horizon-assets/src/item_model.rs::Resolve::node	child transform composed in the composite arm
 ConditionalItemModel.update	port	crates/horizon-assets/src/item_model.rs::Resolve::node	condition arm picks the branch
 ConditionalItemModel.Unbaked.bake	inline	crates/horizon-assets/src/item_model.rs::Resolve::node	child transform composed in the condition arm
@@ -84,10 +84,10 @@ RangeSelectItemModel.Unbaked.bake	port	crates/horizon-assets/src/item_model.rs::
 SelectItemModel.update	port	crates/horizon-assets/src/item_model.rs::Resolve::node	select arm picks the case
 SelectItemModel.SwitchCase.codec	port	crates/horizon-assets/src/item_model.rs::SwitchCase::decode	case decode from JSON
 SelectItemModel.Unbaked.bake	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::decode	cases built at load time
-SelectItemModel.Unbaked.resolveDependencies	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::dependencies	
+SelectItemModel.Unbaked.resolveDependencies	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::dependencies
 SelectItemModel.UnbakedSwitch.bake	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::decode	switch cases built at load time
 SelectItemModel.UnbakedSwitch.createModelGetter	port	crates/horizon-assets/src/item_model.rs::Resolve::node	case lookup by value in the select arm
-SelectItemModel.UnbakedSwitch.resolveDependencies	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::dependencies	
+SelectItemModel.UnbakedSwitch.resolveDependencies	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::dependencies
 SpecialModelWrapper.update	port	crates/horizon-assets/src/item_model.rs::Resolve::node	special arm: model argument from components
 SpecialModelWrapper.Unbaked.bake	port	crates/horizon-assets/src/item_model.rs::ItemModelNode::decode	special node built at load time
 SpecialModelWrapper.Unbaked.getProperties	port	crates/horizon-assets/src/item_model.rs::ItemModels::properties	hand animation, GUI oversize and swap scale

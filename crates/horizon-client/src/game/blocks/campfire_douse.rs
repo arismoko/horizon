@@ -62,7 +62,13 @@ impl Game<'_> {
         stack: &ItemStack,
         unlit: horizon_world::registry::BlockStateId,
     ) -> Option<horizon_world::registry::BlockStateId> {
-        if !mod_api::__private::listened(mod_api::HookId::BlockToolModification) {
+        let block = self.world.block(hit.pos[0], hit.pos[1], hit.pos[2]);
+        if !mod_api::__private::listened(mod_api::HookId::BlockToolModification)
+            && !crate::game::api_values::block_state::block_listens(
+                mod_api::HookId::ToolModifiedState,
+                block,
+            )
+        {
             return Some(unlit);
         }
         let tool = mod_api::ToolUse::from(mod_api::__private::built::ToolUse {
@@ -76,7 +82,7 @@ impl Game<'_> {
         });
         let mut state = Some(unlit);
         let mut cancel = false;
-        self.native_block_tool_modification(stack, &tool, &mut state, &mut cancel);
+        self.mod_tool_modification(stack, block, &tool, &mut state, &mut cancel);
         if cancel { None } else { state }
     }
 

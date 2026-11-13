@@ -93,8 +93,8 @@ mod tests {
     #[test]
     fn registered_settings_confine_files_and_cache_successful_writes() {
         let mods: mod_api::Mods = vec![ModEntry::new("a", Box::new(Settings))].into();
-        mod_api::testing::with_mods(mods.clone(), || {
-            mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
+        mod_platform::testing::with_mods(mods.clone(), || {
+            mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
             let root = std::env::temp_dir().join(format!("settings-carry-{}", std::process::id()));
             fs::create_dir_all(root.join("b")).unwrap();
             fs::write(root.join("b/secret"), "secret").unwrap();

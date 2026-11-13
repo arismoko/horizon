@@ -137,52 +137,13 @@ impl Game<'_> {
                 .for_turn(conn, Some(outer), building_players(host));
         let fresh = host.hub.guests[i].motion.is_none();
         if fresh {
-            let p = Vec3::new(
-                host.hub.guests[i].position[0],
-                host.hub.guests[i].position[1],
-                host.hub.guests[i].position[2],
-            );
-            {
-                let value = PlayerMotion::new(self.motion, p)
-                    .map(Box::new)
-                    .map_err(|_| TurnRefused::Gone)?;
-                host.hub
-                    .guests
-                    .update(i, |guest| guest.motion = Some(value));
+            let initialized = host
+                .hub
+                .guests
+                .update(i, |guest| super::guest_body::initialize(self.motion, guest));
+            if !initialized {
+                return Err(TurnRefused::Gone);
             }
-            // The first body after joining burns, breathes and falls on as saved.
-            host.hub.guests.update(i, |g| {
-                if let Some(saved) = g.loaded_body.take()
-                    && let Some(m) = g.motion.as_mut()
-                {
-                    saved.apply(m);
-                    // LivingEntity.readAdditionalSaveData: the saved attributes.
-                    let _ = m
-                        .apply_saved_attributes(g.saved.as_ref().and_then(|t| t.get("attributes")));
-                    // The abilities' walking speed is the movement speed's base.
-                    let _ = m.set_walking_speed_base(g.abilities.walking_speed);
-                }
-                // ServerPlayer.restoreFrom: a body that follows another takes its
-                // attributes (a scale of 0.1 stays 0.1 after a respawn or a trip
-                // to another level).
-
-                if let Some(carried) = g.carried_attributes.take()
-                    && let Some(m) = g.motion.as_mut()
-                {
-                    let _ = m.apply_saved_attributes(Some(&carried));
-                }
-                // The saved golden hearts go on the first body of a player who
-                // has been here before.
-                let saved = g.saved_absorption.take();
-                if let (Some(m), Some(amount)) = (g.motion.as_mut(), saved) {
-                    let _ = m.internal_set_absorption(amount);
-                }
-                let kept = g.logs_kept.take();
-                if let (Some(m), Some((hurts, attacks))) = (g.motion.as_mut(), kept) {
-                    m.hurt_log = hurts;
-                    m.attack_log = attacks;
-                }
-            });
         }
         // Refusal must leave canonical records and loan state untouched.
         let Some(mut motion) = host.hub.guests.update(i, |g| g.motion.take()) else {
@@ -208,7 +169,7 @@ impl Game<'_> {
             play.score_recorded = Default::default();
         }
         let attachments = std::mem::replace(
-            &mut self.player_attachments,
+            &mut self.player_state.attachments,
             std::mem::take(host.hub.guests.attachments_mut(conn).unwrap()),
         );
         self.sculk.swap_player(&mut play.sculk);
@@ -837,7 +798,7 @@ impl Game<'_> {
             .filter(|id| Some(*id) != guest_vehicle);
         let (stat_events, name, teleport) = host.hub.guests.update(i, |g| {
             let mut teleport = None;
-            g.attachments = std::mem::replace(&mut self.player_attachments, attachments);
+            g.attachments = std::mem::replace(&mut self.player_state.attachments, attachments);
             let left_vehicle = g.vehicle.filter(|_| guest_vehicle.is_none());
             if guest_vehicle.is_none() {
                 g.vehicle_good = None;

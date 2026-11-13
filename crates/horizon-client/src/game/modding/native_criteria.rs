@@ -247,7 +247,7 @@ mod tests {
     fn a_mods_criterion_takes_its_own_test_and_the_player_predicate() {
         crate::game::api_values::install_parts(&[]).unwrap();
         mod_api::__private::resolve_items(["minecraft:stick"]).unwrap();
-        mod_api::__private::install(Default::default());
+        mod_platform::__private::install(Default::default());
         crate::game::api_values::install_parts(&[]).unwrap();
         mod_api::__private::resolve_items(["minecraft:copper_ingot", "minecraft:iron_ingot"])
             .unwrap();

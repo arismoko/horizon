@@ -27,8 +27,8 @@ impl Hooks for Attach {
 
 fn refusal(two: bool) -> String {
     let mods: Mods = vec![ModEntry::new("demo", Box::new(Attach(two)))].into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+    mod_platform::testing::with_mods(mods.clone(), || {
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         admit_parts(&mods).unwrap_err().to_string()
     })
 }
@@ -57,8 +57,8 @@ fn two_refused_parts_preserve_messages_and_order() {
 #[test]
 fn no_refusals_admits_parts() {
     let mods: Mods = Vec::new().into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+    mod_platform::testing::with_mods(mods.clone(), || {
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         assert!(admit_parts(&mods).is_ok());
     });
 }

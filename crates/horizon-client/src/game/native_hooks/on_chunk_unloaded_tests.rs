@@ -112,7 +112,7 @@ fn each_mod_block_entity_of_an_unloading_chunk_is_told_once() {
         return;
     }
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("unload_probe", Box::new(Probe))].into();
-    mod_api::__private::install(mods.clone());
+    mod_platform::__private::install(mods.clone());
     crate::game::api_values::install_parts(&mods).unwrap();
     let root = prepared_root();
     let saves = std::env::current_dir()
@@ -202,7 +202,7 @@ fn a_client_tells_a_forgotten_column_but_not_its_level_going() {
         return;
     }
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("unload_probe", Box::new(Probe))].into();
-    mod_api::__private::install(mods.clone());
+    mod_platform::__private::install(mods.clone());
     crate::game::api_values::install_parts(&mods).unwrap();
     with_game_at(prepared_root(), |game| {
         game.options.execution_role = ExecutionRole::Client;

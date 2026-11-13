@@ -10,6 +10,19 @@ use horizon_world::{
     registry::BlockStateId,
 };
 
+/// An entity's box (`EntityDimensions.makeBoundingBox`): `width` wide and
+/// `height` tall, standing on `feet`.
+fn point_box(feet: [f64; 3], width: f64, height: f64) -> Aabb {
+    Aabb::new(
+        Vec3::new(feet[0] - width / 2.0, feet[1], feet[2] - width / 2.0),
+        Vec3::new(
+            feet[0] + width / 2.0,
+            feet[1] + height,
+            feet[2] + width / 2.0,
+        ),
+    )
+}
+
 impl Game<'_> {
     /// `Enderman.hurtServer` teleports inside the hurt (`teleport()`,
     /// `repeatedlyTryToTeleport()`), and so does `Shulker.hurtServer`
@@ -57,6 +70,7 @@ impl Game<'_> {
             // The world is read while the mob moves: take it out, then put it
             // back where it was (the mob order stays).
             let mut mob = self.mobs.swap_remove(i);
+            let from = mob.position;
             let mut events = Vec::new();
             // `hitByShulkerBullet` draws its crowding check from the level's random.
             let mut level_random = self.world.random.clone();
@@ -78,9 +92,12 @@ impl Game<'_> {
                 }
             }
             self.world.random = level_random;
+            let to = mob.position;
             self.mobs.push(mob);
             let last = self.mobs.len() - 1;
             self.mobs.swap(i, last);
+            // The hurt's teleport (`teleportTo`) is one position update, told at once.
+            self.entity_section_moved(id, Some([from.x, from.y, from.z]), [to.x, to.y, to.z]);
             self.handle_mob_events(events)?;
         }
         Ok(())
@@ -114,6 +131,7 @@ impl Game<'_> {
                 f64::from(pos[2] + 1),
             ),
         );
+        let entity_in_cube = self.non_mob_entity_meets(area);
         struct Candidate {
             state: BlockStateId,
             target: BlockStateId,
@@ -130,7 +148,9 @@ impl Game<'_> {
                 || level.facts.is_air(below)
                 || &*support.name == "minecraft:bedrock"
                 || !support.full_collision
+                || !b.can_survive(level, ticks, at, state)
                 || occupants.iter().any(|bounds| bounds.intersects(area))
+                || entity_in_cube
             {
                 return None;
             }
@@ -197,4 +217,43 @@ impl Game<'_> {
         }
         Ok(())
     }
+    /// The rest of `Level.getEntities(enderman, box)` past the mobs the goal
+    /// saw: whether a player who is not a spectator (`NO_SPECTATORS`) or any
+    /// other entity has a box meeting `area`.
+    fn non_mob_entity_meets(&self, area: Aabb) -> bool {
+        use super::entity::{Entity as _, EntityLists, entity_lists_of, for_each_entity};
+        let boxed = |(lo, hi): ([f64; 3], [f64; 3])| {
+            Aabb::new(
+                Vec3::new(lo[0], lo[1], lo[2]),
+                Vec3::new(hi[0], hi[1], hi[2]),
+            )
+        };
+        let spectator = self.spectator();
+        let player = self.player.as_ref().filter(|_| !spectator).map(|p| {
+            point_box(
+                [p.position.x, p.position.y, p.position.z],
+                f64::from(p.dimensions.width),
+                f64::from(p.dimensions.height),
+            )
+        });
+        let lists = EntityLists {
+            mobs: &[],
+            ..entity_lists_of!(self)
+        };
+        let mut met = false;
+        for_each_entity!(lists, e => {
+            met |= !e.is_removed() && e.bounds().intersects(area);
+        });
+        met || player
+            .into_iter()
+            .chain(self.lan_block_trigger_boxes().into_iter().map(boxed))
+            .chain(self.item_frames.iter().map(|f| boxed(f.bounds())))
+            .chain(self.paintings.iter().map(|p| boxed(p.bounds())))
+            .chain(self.crystals.iter().map(super::dragon::Crystal::bounds))
+            .chain(self.hook.iter().map(super::fishing::Hook::bounds))
+            .any(|b| b.intersects(area))
+    }
 }
+#[cfg(test)]
+#[path = "enderman/enderman_occupancy_tests.rs"]
+mod occupancy_tests;

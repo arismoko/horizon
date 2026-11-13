@@ -26,6 +26,7 @@ use horizon_core::{
     position::BlockPos,
     random::{LegacyRandom, RandomSource},
 };
+use horizon_world::dimension_type::{CardinalLight, Skybox};
 use horizon_world::{
     heightmap::HeightmapType, registry::BlockStateId, worldgen::terrain::TerrainBlockStates,
 };
@@ -124,6 +125,18 @@ fn rains_at(world: &World, biomes: &Biomes, x: i32, y: i32, z: i32) -> bool {
 }
 
 impl Game<'_> {
+    /// `GameRenderer`'s cardinal light: the level's type uses the Nether's diffuse lights.
+    pub(super) fn nether_lighting(&self) -> bool {
+        self.dimension_type().cardinal_light == CardinalLight::Nether
+    }
+    /// `SkyRenderer`'s overworld skybox: sun, moon, stars and clouds.
+    pub(super) fn overworld_skybox(&self) -> bool {
+        self.dimension_type().skybox == Skybox::Overworld
+    }
+    /// `SkyRenderer`'s End skybox and its flashes.
+    pub(super) fn end_skybox(&self) -> bool {
+        self.dimension_type().skybox == Skybox::End
+    }
     pub(super) fn forward(&self) -> [f64; 3] {
         let (yaw, pitch) = (
             f64::from(self.yaw).to_radians(),
@@ -179,7 +192,7 @@ impl Game<'_> {
             forward: forward.map(|c| c as f32),
             rain,
             thunder,
-            skybox: self.dim == Dim::Overworld,
+            skybox: self.overworld_skybox(),
             blindness: self
                 .potions
                 .effects
@@ -192,8 +205,8 @@ impl Game<'_> {
             boss_world_fog: self.boss_overlay.should_create_world_fog(),
             spectator: self.spectator(),
             fire_resistance: self.potions.effects.get("fire_resistance").is_some()
-                || self.settings.extras.pvp.tweaks.clear_lava,
-            full_water_vision: self.settings.extras.pvp.tweaks.clear_water,
+                || self.pvp_clear_fluids().0,
+            full_water_vision: self.pvp_clear_fluids().1,
             night_vision: self.fog_night_vision(),
             environment: self.pack.polytone_colors.env,
             fluid_fog: self.pack.polytone_colors.fluid_fog,
@@ -280,7 +293,7 @@ impl Game<'_> {
         }
     }
     /// `Level.getMinY`: the current dimension type's minimum y.
-    fn level_min_y(&self) -> i32 {
+    pub(super) fn level_min_y(&self) -> i32 {
         match self.remote.as_ref() {
             Some(r) => r.dimension.min_y,
             None => self.world.shape.min_y,
@@ -295,7 +308,7 @@ impl Game<'_> {
         } else {
             f64::from(self.pack.polytone_colors.env.horizon_height)
         };
-        self.dim == Dim::Overworld
+        self.overworld_skybox()
             && camera.y < horizon
             && fog_type(
                 &self.world,
@@ -382,7 +395,7 @@ impl Game<'_> {
             block_overlay,
             water,
             on_fire: effects.on_fire,
-            fire_lower: f32::from(self.settings.extras.pvp.tweaks.fire_lower) / 100.0,
+            fire_lower: self.pvp_fire_lower(),
             gui_overlays: &gui_overlays,
             custom: [&custom[0], &custom[1], &custom[2]],
         })
@@ -685,10 +698,10 @@ impl Game<'_> {
         let height_no_leaves =
             |p: [i32; 3]| motion_blocking_leaves(world, facts, p[0], p[2], i32::MAX, false);
         // The day timeline: firefly bush sounds from 12600 to 23400.
-        let firefly_bush_sounds = self.dim == Dim::Overworld
+        let firefly_bush_sounds = self.dimension_type().has_timeline("minecraft:day")
             && (12600..23401).contains(&self.world.day_time.rem_euclid(24000));
         // EnvironmentAttributes.CREAKING_ACTIVE: the same overworld night.
-        let creaking_active = self.dim == Dim::Overworld
+        let creaking_active = self.dimension_type().has_timeline("minecraft:day")
             && (12600..23401).contains(&self.world.day_time.rem_euclid(24000));
         let tables = &self.pack.context.tables;
         let model_offset = |state, x, z| tables.offset(state, x, z);
@@ -715,7 +728,7 @@ impl Game<'_> {
             model_offset: &model_offset,
             gateway_particles: &gateway_particles,
             thundering,
-            ultrawarm: self.dim == Dim::Nether,
+            ultrawarm: self.dimension_type().water_evaporates,
         };
         if let Some(e) = eye {
             let block = [
@@ -1070,7 +1083,7 @@ mod tests {
                 "stone shows its overlay"
             );
             let mods: Mods = vec![ModEntry::new("screen-effect", Box::new(Mod(stone)))].into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 assert_eq!(effects(game, stone), open);
                 assert_eq!(effects(game, dirt), in_dirt);
             });

@@ -260,7 +260,7 @@ mod tests {
         heard().clear();
         let mods: mod_api::Mods = vec![mod_api::ModEntry::new("meal", Box::new(meal))].into();
         let mut out = None;
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.world.chunks.insert(
@@ -353,7 +353,7 @@ mod tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let stack = ItemStack::new("minecraft:bone_meal", 3);
                 *game.held_mut() = Some(stack.clone());

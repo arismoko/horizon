@@ -314,7 +314,7 @@ fn catalog_pair<R: Read>(
 }
 
 /// `name`'s sum in a `sha256sum` listing.
-fn expected_sum(listing: &str, name: &str) -> Option<String> {
+pub(super) fn expected_sum(listing: &str, name: &str) -> Option<String> {
     listing.lines().find_map(|line| {
         let (sum, file) = line.split_once(char::is_whitespace)?;
         (file.trim_start().trim_start_matches('*') == name).then(|| sum.to_ascii_lowercase())

@@ -165,12 +165,6 @@
       "canonical_path": "crate::game::ConfigKind"
     },
     {
-      "name": "ConnectionPhase",
-      "path": "crate::content::payloads::ConnectionPhase",
-      "hash": "f46e46bb704d5cc2",
-      "canonical_path": "crate::content::payloads::ConnectionPhase"
-    },
-    {
       "name": "Corner",
       "path": "crate::client::extras::Corner",
       "hash": "35279684102ee89d",
@@ -575,24 +569,6 @@
       "canonical_path": "crate::entity::mobs::PathType"
     },
     {
-      "name": "PayloadDirection",
-      "path": "crate::content::payloads::PayloadDirection",
-      "hash": "389907f5b5c09dfc",
-      "canonical_path": "crate::content::payloads::PayloadDirection"
-    },
-    {
-      "name": "PayloadPhase",
-      "path": "crate::content::payloads::PayloadPhase",
-      "hash": "5d2ee1d25cc9ec33",
-      "canonical_path": "crate::content::payloads::PayloadPhase"
-    },
-    {
-      "name": "PeerPolicy",
-      "path": "crate::content::payloads::PeerPolicy",
-      "hash": "a4b0600dc6d16d0a",
-      "canonical_path": "crate::content::payloads::PeerPolicy"
-    },
-    {
       "name": "PermissionLevel",
       "path": "crate::command::types::PermissionLevel",
       "hash": "8cf4faa1014b6781",
@@ -637,7 +613,8 @@
     {
       "name": "ProvidedBy",
       "path": "crate::ProvidedBy",
-      "hash": "5d265204eef1d102",
+      "hash": "fe10e188155f9b86",
+      "contract_change": "arismoko/horizon#3519 appends ProvidedBy::Block; the frozen hash was 5d265204eef1d102",
       "canonical_path": "crate::parts::shared::ProvidedBy",
       "alias_provenance": "rustc E0603 public re-export suggestion from generated direct-type test compilation"
     },
@@ -902,6 +879,10 @@
   ],
   "retired_identities": [
     "crate::client::keyframe_animation::AnimationTarget",
-    "crate::client::keyframe_animation::Interpolation"
+    "crate::client::keyframe_animation::Interpolation",
+    "crate::content::payloads::ConnectionPhase",
+    "crate::content::payloads::PayloadDirection",
+    "crate::content::payloads::PayloadPhase",
+    "crate::content::payloads::PeerPolicy"
   ]
 }

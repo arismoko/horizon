@@ -19,6 +19,9 @@ impl Game<'_> {
         if let Some(r) = self.remote.as_mut() {
             Arc::make_mut(&mut r.registries).add_tags(tags);
         }
+        if let Some(r) = self.remote.as_ref() {
+            self.server_items = self.server_items(&r.registries);
+        }
         self.install_remote_tags();
     }
 
@@ -50,7 +53,18 @@ impl Game<'_> {
             items.set_tags(registry, tags.collect());
         }
         super::class_tags::install(&mut items, self.res.facts());
-        super::native_world_read::install_block_tags(self.block_tag_sets(&items));
+        // Rebuild scoped parts against the received tags before refreshing state-only facts.
+        let mut part_items = self.items().clone();
+        part_items.block_tags = items.block_tags.clone();
+        part_items.item_tags = items.item_tags.clone();
+        let parts = match self.prepare_parts(&part_items) {
+            Ok(parts) => parts,
+            Err(error) => {
+                log::warn!("Horizon: client tag parts refused: {error}");
+                return;
+            }
+        };
+        self.install_parts(parts);
         if let Some(r) = self.remote.as_mut() {
             r.tags = Some(items);
         }
@@ -68,8 +82,8 @@ mod tests {
         play::{self, Clientbound as C},
     };
     use horizon_protocol::registry::Builtin;
-    use mod_api::__private::part_tests::block_key;
     use mod_api::{Hooks, HostSide, Identifier, ModEntry, TagsUpdateCause, TagsUpdatedEvent};
+    use mod_platform::__private::part_tests::block_key;
     use std::sync::{Arc, Mutex};
 
     /// What a listener read of the tags during its notice.
@@ -161,7 +175,7 @@ mod tests {
     fn a_client_notice_reads_each_applied_set_of_server_tags() {
         let seen = Arc::new(Mutex::new(Vec::new()));
         let mods = vec![ModEntry::new("tags_probe", Box::new(Probe(seen.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_client_game(|game| {
                 let (pipe, _server) = horizon_protocol::connection::Pipe::pair();
                 game.connect_local(pipe, "Steve").unwrap();

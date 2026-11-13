@@ -1,4 +1,6 @@
 use super::*;
+#[path = "mod_content_item_metadata_tests.rs"]
+mod item_metadata_tests;
 use crate::{assets::Assets, blocks::BlockFacts, crafting::CraftingRemainder, items::Items};
 use horizon_mod_package::manifest::JarRef;
 use horizon_world::native_load_context::DataLoadOrigin;
@@ -837,45 +839,6 @@ fn block_items_patch_their_template_item() {
 }
 
 #[test]
-fn conditional_base_tag_does_not_gate_later_accepted_layers() {
-    let base = r#"{"neoforge:conditions":[{"type":"neoforge:mod_loaded","modid":"code_only"}],"values":["minecraft:stone"]}"#;
-    let more = [J::Str("minecraft:dirt".into())];
-    for enabled in [false, true] {
-        let merged: serde_json::Value = serde_json::from_str(
-            &merge_tag(Some(base), &more, "conditional", &|id| {
-                enabled && id == "code_only"
-            })
-            .unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            merged["values"],
-            if enabled {
-                serde_json::json!(["minecraft:stone", "minecraft:dirt"])
-            } else {
-                serde_json::json!(["minecraft:dirt"])
-            }
-        );
-        assert!(merged.get("neoforge:conditions").is_none());
-    }
-}
-
-#[test]
-fn tags_merge_without_repeats() {
-    let vanilla = r#"{"values": ["minecraft:stone"]}"#;
-    let more = [
-        J::Str("ruby:ruby_block".into()),
-        J::Str("minecraft:stone".into()),
-    ];
-    let merged: serde_json::Value =
-        serde_json::from_str(&merge_tag(Some(vanilla), &more, "t", &|_| false).unwrap()).unwrap();
-    assert_eq!(
-        merged["values"],
-        serde_json::json!(["minecraft:stone", "ruby:ruby_block"])
-    );
-}
-
-#[test]
 fn a_mods_atlas_sources_follow_vanillas() {
     let vanilla = r#"{"sources": [{"type": "directory", "source": "block", "prefix": "block/"}]}"#;
     let more = [serde_json::json!({"type": "directory", "source": "mek_chemical"})];
@@ -1459,14 +1422,7 @@ fn content_root_loads_with_every_table() {
 
     let defaults = horizon_world::item_defaults::read(&root).unwrap();
     let items = Items::load(&root, new, &facts, &overlay, &defaults).unwrap();
-    let ruby_block = &items.items["ruby:ruby_block"];
-    assert_eq!(ruby_block.block, Some(ruby));
-    let iron_block = &items.items["minecraft:iron_block"];
-    assert_eq!((ruby_block.max_stack, iron_block.max_stack), (16, 64));
-    assert!(ruby_block.fire_resistant && !iron_block.fire_resistant);
-    let gem = &items.items["ruby:ruby"];
-    assert_eq!(gem.max_stack, 16);
-    assert_eq!(gem.block, Some(BlockStateId(n + 65)));
+    item_metadata_tests::assert_metadata(&root, &items, &defaults, ruby, n);
     let binding = independent_behaviours.item_binding("ruby:ruby").unwrap();
     assert_eq!(
         binding.block,
@@ -2110,11 +2066,11 @@ fn content_root_carries_a_structure_mod() {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, text).unwrap();
     }
-    // The template: vanilla's smallest plains house, as the mod's own file.
-    let house =
-        base.join("worldgen/structure/minecraft/village/plains/houses/plains_small_house_1.nbt");
+    // The vanilla house's bytes belong to the mod; prepared file permissions do not.
+    let houses = base.join("worldgen/structure/minecraft/village/plains/houses");
+    let template = fs::read(houses.join("plains_small_house_1.nbt")).unwrap();
     fs::create_dir_all(dir.join("data/huts/structure")).unwrap();
-    fs::copy(&house, dir.join("data/huts/structure/hut.nbt")).unwrap();
+    fs::write(dir.join("data/huts/structure/hut.nbt"), template).unwrap();
     let package = horizon_mod_package::Package::read(&dir).unwrap();
     let m = ContentMod {
         id: "huts".into(),
@@ -6875,20 +6831,8 @@ fn resource_root_fixture(
     super::resource_root(base, jars, mods, cache, &fixture_inventory(mods))
 }
 
-/// Only 26.3's canonical worldgen feature folder is admitted.
-#[test]
-fn worldgen_entry_reads_the_feature_folder() {
-    assert_eq!(
-        worldgen_entry("data/zinc/worldgen/feature/ore_zinc.json"),
-        Some(("worldgen/features.json", "zinc:ore_zinc".to_owned()))
-    );
-    for folder in ["configured_feature", "nope"] {
-        assert_eq!(
-            worldgen_entry(&format!("data/zinc/worldgen/{folder}/ore_zinc.json")),
-            None
-        );
-    }
-}
+#[path = "mod_content_load_conditions_tests.rs"]
+mod registered_conditions_tests;
 
 fn structure_modifier_base(tag: &str) -> PathBuf {
     let base = biome_base(tag);

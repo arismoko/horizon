@@ -31,8 +31,8 @@ use horizon_world::{
         self as emission, MovementDistances, MovementEmission, MovementEmissionWorld, MovementEvent,
     },
     movement_properties::{
-        BlockFactorEdits, BoundMovementProperties, MovementBlockError, MovementBlockProvider,
-        MovementProperties, MovementTags, NoFactorEdits, RegistryMovementWorld,
+        BoundMovementProperties, MovementBlockError, MovementBlockProvider, MovementProperties,
+        MovementTags, NoFactorEdits, RegistryMovementWorld,
     },
     movement_restitution::{self, RestitutionInput, RestitutionWorld},
     movement_statistics::{self, MovementStat, MovementStatisticsWorld},
@@ -47,6 +47,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
+mod restitution;
 
 /// A living entity jumped (`LivingEvent.LivingJumpEvent`).
 #[inline(never)]
@@ -75,51 +76,6 @@ pub fn native_living_speed(context: &LoopContext, entity: u32, kind: &str, speed
 #[inline(never)]
 pub fn native_living_flying_speed(context: &LoopContext, entity: u32, kind: &str, speed: &mut f32) {
     crate::native_client_hooks::living_flying_speed(context, entity, kind, speed);
-}
-
-/// A block state's jump factor (`Block.getJumpFactor`) is being read (beyond NeoForge: no event).
-/// Its parts may change it. Fires on replayed ticks too, so a listener must be a pure function of
-/// its inputs.
-#[inline(never)]
-pub fn native_block_jump_factor(context: &LoopContext, state: BlockStateId, factor: &mut f32) {
-    crate::native_client_hooks::block_jump_factor(context, state, factor);
-}
-
-/// A block state's speed factor (`Block.getSpeedFactor`) is being read (beyond NeoForge: no
-/// event). Its parts may change it. Fires on replayed ticks too, so a listener must be a pure
-/// function of its inputs.
-#[inline(never)]
-pub fn native_block_speed_factor(context: &LoopContext, state: BlockStateId, factor: &mut f32) {
-    crate::native_client_hooks::block_speed_factor(context, state, factor);
-}
-
-/// Whether a block is a ladder to a living entity (`IBlockExtension.isLadder`, which
-/// `LivingEntity.onClimbable` asks of the block the entity stands in) is being decided. `ladder`
-/// starts with the `#minecraft:climbable` answer and the block's parts may change it. Fires on
-/// replayed ticks too, so a listener must be a pure function of its inputs.
-#[inline(never)]
-pub fn native_is_ladder(
-    context: &LoopContext,
-    entity: u32,
-    pos: BlockPos,
-    state: BlockStateId,
-    ladder: &mut bool,
-) {
-    crate::native_client_hooks::is_ladder(context, entity, pos, state, ladder);
-}
-
-/// The factors the `block_jump_factor` and `block_speed_factor` parts give the blocks an entity
-/// reads, for the loop of the side that ticks it.
-pub(crate) struct ModBlockFactors<'a>(pub &'a LoopContext);
-impl BlockFactorEdits for ModBlockFactors<'_> {
-    fn jump(&self, state: BlockStateId, mut factor: f32) -> f32 {
-        native_block_jump_factor(self.0, state, &mut factor);
-        factor
-    }
-    fn speed(&self, state: BlockStateId, mut factor: f32) -> f32 {
-        native_block_speed_factor(self.0, state, &mut factor);
-        factor
-    }
 }
 
 /// The player's crouch edge backoff asks whether it is staying on the ground surface
@@ -159,9 +115,15 @@ pub(crate) mod environment;
 use environment::fly_into_wall_damage;
 mod fluids;
 mod ladder;
+pub mod surface;
 pub use fluids::{
     BubbleColumn, FluidResources, FluidTags, LAVA, PlayerFluids, RiddenBoat, WATER,
     bubble_column_at, bubble_column_push, bubble_column_push_over, bubble_column_surfaces,
+};
+pub(crate) use surface::ModBlockFactors;
+pub use surface::{
+    block_friction, native_block_jump_factor, native_block_speed_factor, native_friction,
+    native_is_ladder,
 };
 
 pub struct MotionResources {
@@ -408,6 +370,10 @@ pub enum MotionEvent {
 }
 #[derive(Clone)]
 pub struct PlayerMotion {
+    /// Entity-owned random stream, independent of the level. Like mobs, a new
+    /// body seeds it from its initial identity/position without drawing from the
+    /// level. It lives with this body (including guest turns), not player NBT.
+    pub random: horizon_core::random::EntityRandom,
     pub swimming: bool,
     /// `Entity.isPassenger()`: this body rides a vehicle. `Entity.updateSwimming`
     /// needs it false, so the server's copy of a guest who boards a boat while
@@ -702,13 +668,11 @@ impl PlayerMotion {
         !self.spectator && !self.freeze_immune
     }
     /// What powder snow's contextual collision asks of the player.
-    pub fn powder_snow_subject(&self) -> crate::collisions::PowderSnowSubject {
+    pub fn powder_snow_subject(&self) -> crate::collisions::PowderSnowSubject<'static> {
         crate::collisions::PowderSnowSubject {
             fall_distance: self.fall_distance,
-            falling_block: false,
             leather_boots: self.leather_boots,
-            walkable_type: false,
-            lava_walker: false,
+            ..Default::default()
         }
     }
     /// `LivingEntity.tryAddFrost`: the frozen slowdown, on anything but air.
@@ -2057,14 +2021,14 @@ impl MotionWorld<'_, '_, '_> {
         }
         Ok(())
     }
-    /// `Entity.move(MoverType.SHULKER_BOX, movement)`: a shulker box lid pushed
-    /// the player. An ordinary move — the collision scan steps and reads the
-    /// ground flag — whose end writes the ground state
-    /// (`Entity.setOnGroundWithMovement`): a lid lifting the body off the
-    /// ground leaves it airborne, and the next tick's gravity lands it on the
-    /// lid again instead of the client holding it on a stale ground.
-    pub fn shulker_box_push(&mut self, movement: Vec3) -> Result<()> {
-        entity_move::move_entity(self, MoverType::ShulkerBox, movement)
+    /// `Entity.move(MoverType.SHULKER_BOX or SHULKER, movement)`: a shulker
+    /// box's or a shulker's lid pushed the player. An ordinary move — the
+    /// collision scan steps and reads the ground flag — whose end writes the
+    /// ground state (`Entity.setOnGroundWithMovement`): a lid lifting the body
+    /// off the ground leaves it airborne, and the next tick's gravity lands it
+    /// on the lid again instead of the client holding it on a stale ground.
+    pub fn lid_push(&mut self, mover: MoverType, movement: Vec3) -> Result<()> {
+        entity_move::move_entity(self, mover, movement)
     }
     /// `LocalPlayer.move`: the move, then `updateAutoJump` with the float
     /// horizontal displacement.
@@ -2645,12 +2609,7 @@ impl RestitutionWorld for MotionWorld<'_, '_, '_> {
         Ok(self.resources.blocks.get(state)?.suppresses_bounce)
     }
     fn block_bounce_restitution(&mut self, state: BlockStateId) -> Result<f32> {
-        Ok(self
-            .resources
-            .blocks
-            .get(state)?
-            .coefficients
-            .bounce_restitution)
+        self.part_bounce_restitution(state)
     }
     fn air_drag(&mut self) -> Result<f32> {
         living_motion::air_drag(self)
@@ -4089,7 +4048,7 @@ mod tests {
         let mut player = PlayerMotion::new(&resources, at).unwrap();
         let mut found = 0;
         for seed in 0..64 {
-            scene.random = horizon_core::random::LegacyRandom::new(seed);
+            scene.random.set_seed(seed);
             player.events.clear();
             MotionWorld {
                 tag_items: None,
@@ -4125,7 +4084,7 @@ mod tests {
             assert_eq!(velocity.y, f64::from(0.05_f32));
         }
         player.events.clear();
-        scene.random = horizon_core::random::LegacyRandom::new(1);
+        scene.random.set_seed(1);
         MotionWorld {
             tag_items: None,
             block_registries: None,
@@ -6694,6 +6653,61 @@ mod tests {
             .controlled_simulation_tick(Default::default())
             .unwrap();
             assert_eq!(player.velocity.y, want, "client_side={client_side}");
+        }
+    }
+    /// `LocalPlayer.isSuppressingSlidingDownLadder` is `!abilities.flying && super...()`, where
+    /// `LivingEntity`'s is `isShiftKeyDown()`: a flying player on the client keeps sliding down a
+    /// ladder whether it sneaks or not. The server's player (`ServerPlayer` has no override) only
+    /// looks at the sneak.
+    #[test]
+    fn a_flying_client_does_not_stop_sliding_down_a_ladder_by_sneaking() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.local/horizon-client")
+            .join(horizon_core::VANILLA_VERSION);
+        if !root.join("movement-properties.nbt").exists() {
+            return;
+        }
+        let assets = Assets::load(&root).unwrap();
+        let render = assets
+            .reload(&horizon_assets::resource_source::ResourceRoot::directory(
+                root.to_path_buf(),
+            ))
+            .unwrap();
+        let binding = crate::collisions::load(&root, assets.registry).unwrap();
+        let resources = MotionResources::load(&root, &assets).unwrap();
+        // (client_side, flying, sneaking, suppressing)
+        for (client_side, flying, sneaking, want) in [
+            (true, false, true, true),
+            (true, false, false, false),
+            (true, true, true, false),
+            (true, true, false, false),
+            (false, false, true, true),
+            (false, true, true, true),
+            (false, true, false, false),
+        ] {
+            let mut scene = World::test_scene(&assets, &render, 2).unwrap();
+            let mut player = PlayerMotion::new(&resources, Vec3::new(0.5, 64.0, 0.5)).unwrap();
+            player.client_side = client_side;
+            player.flying = flying;
+            player.shift_key_down = sneaking;
+            let mut w = MotionWorld {
+                tag_items: None,
+                block_registries: None,
+                loop_context: crate::test_resources::server_loop_context(),
+                damage_hooks: &crate::health::DamageHooks::NONE,
+                entities: &[],
+                player: &mut player,
+                scene: &mut scene,
+                assets: &assets,
+                collision_binding: &binding,
+                resources: &resources,
+                health: &resources.health,
+            };
+            assert_eq!(
+                w.suppressing_ladder_slide().unwrap(),
+                want,
+                "client_side={client_side} flying={flying} sneaking={sneaking}"
+            );
         }
     }
 }

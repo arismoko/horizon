@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 #[test]
 fn typed_item_membership_reaches_the_owning_loop_generation() {
-    mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+    mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
     mod_api::__private::resolve_items(["minecraft:emerald", "minecraft:diamond"]).unwrap();
     let emerald = mod_api::__private::item_key("minecraft:emerald").unwrap();
     let diamond = mod_api::__private::item_key("minecraft:diamond").unwrap();

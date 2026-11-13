@@ -214,13 +214,20 @@ impl Game<'_> {
                 match (index, value) {
                     (0, Value::Byte(flags)) => f.invisible = (*flags as u8 & 0x20) != 0,
                     (8, Value::Id(d)) => f.facing = (*d).clamp(0, 5) as u8,
-                    (10, Value::Int(r)) => f.rotation = r.rem_euclid(8) as u8,
+                    (10, Value::Int(r)) => f.rotation = r.rem_euclid(8) as i8,
                     _ => {}
                 }
                 if let Some(item) = item {
                     f.item = item;
                 }
             } else if self.paintings.iter().any(|p| p.id == id) {
+                // HangingEntity.DATA_DIRECTION, kept as the painting's 2D value; it is never vertical.
+                if let (8, Value::Id(direction)) = (index, value)
+                    && let Some(facing) = painting_facing(*direction)
+                    && let Some(p) = self.paintings.iter_mut().find(|p| p.id == id)
+                {
+                    p.facing = facing;
+                }
                 // Painting.DATA_PAINTING_VARIANT_ID: a registry holder (id + 1).
                 if let (9, Value::Id(holder)) = (index, value)
                     && let Some(v) = self.remote_painting_variant(holder - 1)
@@ -527,6 +534,18 @@ impl Game<'_> {
         self.item_frames.retain(|f| f.id != id);
         self.paintings.retain(|p| p.id != id);
         self.bolts.retain(|b| b.id != id);
+    }
+}
+
+/// `Direction.get2DDataValue` of a 3D data value (south 3 to 0, west 4 to 1, north 2 to 2, east 5 to 3), the
+/// facing a painting keeps; None for up, down and anything else.
+fn painting_facing(direction: i32) -> Option<u8> {
+    match direction {
+        3 => Some(0),
+        4 => Some(1),
+        2 => Some(2),
+        5 => Some(3),
+        _ => None,
     }
 }
 

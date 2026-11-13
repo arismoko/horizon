@@ -596,6 +596,7 @@ impl Goal for Charge {
                 x: f64::from(horizon_core::geometry::trig::sin(yaw)),
                 z: -f64::from(horizon_core::geometry::trig::cos(yaw)),
                 source: super::Damage::mob(m.id, from),
+                apply_blocking: None,
             };
             cx.events.push(if who == Who::Player {
                 cx.w.route_player_event(event)
@@ -689,7 +690,7 @@ pub fn from_nbt(m: &mut Mob, tag: &horizon_core::nbt::Tag) {
     use horizon_core::nbt::Tag;
     m.extra.owner = crate::save::uuid_from_tag(tag.get("Owner"));
     m.extra.tame = m.extra.owner.is_some();
-    m.extra.sitting = crate::entity_nbt::flag(tag, "Sitting");
+    crate::mobs::tame::restore_sitting(m, crate::entity_nbt::flag(tag, "Sitting"));
     if let Some(Tag::String(v)) = tag.get("variant") {
         let v = v.to_string().unwrap_or_default();
         m.extra.variant = u8::from(v.trim_start_matches("minecraft:") == "warm");

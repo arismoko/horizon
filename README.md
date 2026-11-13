@@ -5,6 +5,7 @@
 > - **Kept in step with upstream:** upstream's main is merged in regularly. Changes that differ from upstream are marked "Diverges from upstream" in their pull requests.
 > - **Where to report things:** modding proposals, API gaps and mod-loading bugs go in this fork's [issues](https://github.com/arismoko/horizon/issues). Game bugs that have nothing to do with modding belong upstream, at [horizon-rust/horizon](https://github.com/horizon-rust/horizon/issues).
 > - **Downloads:** the [fork launcher](https://github.com/arismoko/horizon/releases?q=launcher%40&expanded=true) is published for Linux x86_64 and Windows x64, with separate settings, game data, accounts and updates. Microsoft sign-in is configured using upstream's application with permission; signed Nightly Play requires an account that owns Minecraft. Windows packages are not Authenticode-signed: expect SmartScreen or unknown-publisher warnings. The launcher installs this fork's [signed Nightlies](https://github.com/arismoko/horizon/releases/tag/nightly); dedicated servers and exact source pins for native mods are also available there. For client development without sign-in, [build an unsigned developer base from source](docs/modding/src/how-to/native-mods/042-local-developer-builds.md) and opt into single-player-only Play with `HORIZON_LAUNCHER_DEVELOPER_OFFLINE=1`; this does not enable signed Nightly Play. The official launcher, website and stable releases below are upstream's, not this fork's.
+> - **Recent developments:** [Generated daily changelog](https://github.com/arismoko/horizon/blob/changelog/CHANGELOG.md), refreshed every 12 hours.
 > - **How it's maintained:** day-to-day work on this fork is done by Aria's agent swarm, Dyna, with reviews on every pull request.
 
 <p align="center">
@@ -117,7 +118,7 @@ horizon-ctl break -1 65 -3                              # mines it; replies with
 
 ## Build from source
 
-Needs Rust 1.90+, Python 3.10+, JDK 25, and on Linux `libasound2-dev libudev-dev`. `horizon-prepare` builds the game's resources from **your own copy** of Java Edition 26.3 (checked against `research-lock.json`) and never downloads it:
+Needs Rust 1.90+, Python 3.11+, JDK 25, and on Linux `libasound2-dev libudev-dev`. `horizon-prepare` builds the game's resources from **your own copy** of Java Edition 26.3 (checked against `research-lock.json`) and never downloads it:
 
 1. **Client:** play 26.3 once in the official launcher. Horizon reads `~/.minecraft` (or `--minecraft-dir` / `HORIZON_MINECRAFT_DIR`).
 2. **Server jar:** the 26.3 server jar (`downloads.server.url` in `versions/26.3/26.3.json`), passed once with `--server-jar` or `HORIZON_SERVER_JAR`.

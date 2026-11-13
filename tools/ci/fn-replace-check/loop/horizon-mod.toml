@@ -1,7 +1,7 @@
 id = "fnr_loop"
 name = "Function replacement check: loop"
 version = "0.1.0"
-description = "fn-replace: two slots in the published loop block_entities.tick, a nested run of the loop, a HEAD mixin on its entry and a call-site mixin inside the loop body and an API listener at its entry"
+description = "fn-replace: two slots in the published loop block_entities.tick, one counting its mod's own ticking block entities, a nested run of the loop, a HEAD mixin on its entry and a call-site mixin inside the loop body and an API listener at its entry"
 authors = []
 api = "0.2"
 side = "both"
@@ -28,8 +28,8 @@ helper = "src/loops/throttle.rs"
 with = "Throttle"
 priority = 20
 
-# Asked first: counts what the loop visits, runs the loop again from inside it once, and always
-# answers Continue.
+# Asked first: counts what the loop visits and this mod's counters among it, runs the loop again from
+# inside it once, and always answers Continue.
 [[native.loop]]
 id = "count"
 loop = "block_entities.tick"

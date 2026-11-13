@@ -291,6 +291,7 @@ fn run_output(family: Family, output: Output) {
             "borrowed-panic:hit".into(),
             0,
             horizon_client::brewing::Category::Neutral,
+            None,
         )]);
     });
     eprintln!("BORROWED_ASSERTIONS_DISABLED:{}", !cfg!(debug_assertions));
@@ -313,7 +314,7 @@ fn run_output(family: Family, output: Output) {
             payload: std::sync::Mutex::new(Some(payload)),
             payload_address,
         });
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new(
                 "borrowed-panic",
                 Box::new(Hooks(probe.clone())),
@@ -487,7 +488,8 @@ fn run_output(family: Family, output: Output) {
                         }
                     }
                     let writes = game.world.path_writes.clone();
-                    game.world.random = LegacyRandom::new(0x5eed);
+                    game.world.random =
+                        horizon_core::random::LevelRandom::for_level(LegacyRandom::new(0x5eed));
                     let guest_health = if matches!(output, Output::Guest | Output::Mixed) {
                         game.lan.as_ref().unwrap().hub.guests[0].health
                     } else {
@@ -778,7 +780,7 @@ fn retained_consumer_tail() {
         let scratch = Scratch(
             std::env::temp_dir().join(format!("horizon-consumer-{}-{dim:?}", std::process::id())),
         );
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new(
                 "consumer",
                 Box::new(ConsumerPanic(calls.clone())),
@@ -859,7 +861,7 @@ fn run_conditional(nested: bool) {
     let calls = Arc::new(AtomicUsize::new(0));
     let scratch =
         Scratch(std::env::temp_dir().join(format!("horizon-conditional-{}", std::process::id())));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "consumer",
             Box::new(ConsumerPanic(calls.clone())),

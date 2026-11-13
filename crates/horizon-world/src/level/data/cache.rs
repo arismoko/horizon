@@ -646,6 +646,9 @@ impl Snapshot {
                     dampening: wire.dampening,
                     hardness: wire.hardness,
                     push: push(wire.push)?,
+                    resolved_push: super::super::piston_reactions::CachedReaction::new(push(
+                        wire.push,
+                    )?),
                     instrument: wire.instrument,
                     shape: wire.shape,
                 })

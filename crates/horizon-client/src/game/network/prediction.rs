@@ -1,7 +1,6 @@
 //! The movement prediction's replay on the server (`lan::prediction`): each guest's client ticks
 //! played again with the client's own movement code, in the guest's level.
 use super::Game;
-use horizon_client::items::{ItemStack, Items};
 use horizon_client::lan::entity::EntityState;
 use horizon_client::lan::guest::Guest;
 use horizon_client::lan::prediction::{Replay, near, slack};
@@ -55,25 +54,21 @@ impl Game<'_> {
                 // A teleport not yet accepted (a setback): the client still moves on its own until it
                 // hears it, and the replay follows, but nothing counts.
                 let waiting = g.awaiting_teleport.is_some();
-                // The server's copy of a guest doesn't follow its armor (Game.glider_worn).
-                let hand = |stack: Option<&horizon_client::items::ItemStack>, slot: &str| {
-                    stack.is_some_and(|s| {
-                        horizon_client::item_sync::can_glide_using(s, slot, self.res.items())
-                    })
-                };
-                let glider = super::gliding_pieces(self.res.items(), &g.armor).contains(&true)
-                    || hand(
-                        g.inventory.get(g.selected).and_then(Option::as_ref),
-                        "mainhand",
-                    )
-                    || hand(g.offhand.as_ref(), "offhand");
+                let glider = super::glide_wear::gliding_slots(
+                    self.res.items(),
+                    &g.armor,
+                    g.inventory.get(g.selected).and_then(Option::as_ref),
+                    g.offhand.as_ref(),
+                )
+                .next()
+                .is_some();
                 if let Some(motion) = g.motion.as_deref_mut() {
                     motion.glider = glider;
+                    motion.leather_boots = super::worn_boots::leather_boots(&g.armor);
                     motion.item_use_speed = item_use.map(|(speed, _)| speed);
                     motion.item_use_slows_sprint = item_use.is_some_and(|(_, slows)| slows);
                 }
-                let (Some(record), Some(server)) =
-                    (g.anticheat.record.as_deref_mut(), g.motion.as_deref())
+                let (Some(record), Some(server)) = (g.record.as_deref_mut(), g.motion.as_deref())
                 else {
                     return None;
                 };
@@ -164,12 +159,6 @@ impl Game<'_> {
 fn excused(g: &Guest, world: &World, entities: &[EntityState], guests: &[Guest]) -> bool {
     let at = g.position;
     let slack = slack(std::array::from_fn(|i| at[i] - g.previous_position[i]));
-    let close = |p: [f64; 3]| {
-        let r = 3.0 + slack;
-        (p[0] - at[0]).abs() <= r
-            && (p[2] - at[2]).abs() <= r
-            && (-3.0 - slack..=4.0 + slack).contains(&(p[1] - at[1]))
-    };
     let unsent = world
         .block_log
         .iter()
@@ -188,32 +177,152 @@ fn excused(g: &Guest, world: &World, entities: &[EntityState], guests: &[Guest])
         .motion
         .as_deref()
         .is_some_and(|m: &PlayerMotion| m.auto_spin_attack_ticks > 0);
-    // Items and experience orbs neither push nor hold anyone up; the list holds the player itself.
-    let entity = entities.iter().any(|e| {
-        e.id != g.entity_id
+    let entity = entity_near(entities, g.entity_id, at, slack);
+    let player = guests.iter().any(|o| {
+        o.conn != g.conn && o.placed && o.dimension == g.dimension && close(at, slack, o.position)
+    });
+    unsent || pistons || unloaded || riptide || entity || player
+}
+
+/// Whether `p` is in the box around `at` that a player's moves are excused for.
+fn close(at: [f64; 3], slack: f64, p: [f64; 3]) -> bool {
+    let r = 3.0 + slack;
+    (p[0] - at[0]).abs() <= r
+        && (p[2] - at[2]).abs() <= r
+        && (-3.0 - slack..=4.0 + slack).contains(&(p[1] - at[1]))
+}
+
+/// Whether an entity in `entities` other than the guest's own (`own`) is close to `at`. The
+/// distance test runs first: most entities are far, and the kind is a string compare. Items and
+/// experience orbs neither push nor hold anyone up; the list holds the player itself.
+fn entity_near(entities: &[EntityState], own: i32, at: [f64; 3], slack: f64) -> bool {
+    entities.iter().any(|e| {
+        close(at, slack, e.position)
+            && e.id != own
             && !matches!(
                 e.kind.as_str(),
                 "minecraft:item" | "minecraft:experience_orb"
             )
-            && close(e.position)
-    });
-    let player = guests
-        .iter()
-        .any(|o| o.conn != g.conn && o.placed && o.dimension == g.dimension && close(o.position));
-    unsent || pistons || unloaded || riptide || entity || player
+    })
 }
 
-/// `LivingEntity.canGlideUsing`: for each worn piece (head, chest, legs,
-/// feet), whether it is a glider (its own component, or one the server
-/// patched onto the stack) in the slot its `equippable` names, and will not
-/// break with its next point of wear (`ItemStack.nextDamageWillBreak`).
-pub(super) fn gliding_pieces(items: &Items, armor: &[Option<ItemStack>; 4]) -> [bool; 4] {
-    const SLOTS: [&str; 4] = ["head", "chest", "legs", "feet"];
-    // `canGlideUsing`: the stack's own `glider` and `equippable` (its
-    // components, a server's patch), else its item's.
-    std::array::from_fn(|i| {
-        armor[i]
-            .as_ref()
-            .is_some_and(|s| horizon_client::item_sync::can_glide_using(s, SLOTS[i], items))
-    })
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The scan `excused` ran over the entities before `entity_near`, verbatim.
+    fn old_entity(entities: &[EntityState], own: i32, at: [f64; 3], slack: f64) -> bool {
+        let close = |p: [f64; 3]| {
+            let r = 3.0 + slack;
+            (p[0] - at[0]).abs() <= r
+                && (p[2] - at[2]).abs() <= r
+                && (-3.0 - slack..=4.0 + slack).contains(&(p[1] - at[1]))
+        };
+        entities.iter().any(|e| {
+            e.id != own
+                && !matches!(
+                    e.kind.as_str(),
+                    "minecraft:item" | "minecraft:experience_orb"
+                )
+                && close(e.position)
+        })
+    }
+
+    /// xorshift64*: a fixed stream, so a failure reruns the same inputs.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next_u64(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            self.next_u64() % n
+        }
+
+        /// A multiple of 1/8 in `[-n/8, n/8]`: every edge of the box (multiples of 1/4) is exact.
+        fn step(&mut self, n: i64) -> f64 {
+            (self.below(2 * n as u64 + 1) as i64 - n) as f64 * 0.125
+        }
+
+        /// An offset from the guest: half the time on or next to an edge of the box.
+        fn offset(&mut self, edges: [f64; 4]) -> f64 {
+            if self.below(2) == 0 {
+                edges[self.below(4) as usize] + self.step(2)
+            } else {
+                self.step(160)
+            }
+        }
+    }
+
+    fn entity(rng: &mut Rng, at: [f64; 3], slack: f64) -> EntityState {
+        const KINDS: [&str; 4] = [
+            "minecraft:item",
+            "minecraft:experience_orb",
+            "minecraft:zombie",
+            "minecraft:pig",
+        ];
+        let r = 3.0 + slack;
+        let xz = [r, -r, r, -r];
+        let y = [-3.0 - slack, 4.0 + slack, -3.0 - slack, 4.0 + slack];
+        let off = [rng.offset(xz), rng.offset(y), rng.offset(xz)];
+        EntityState {
+            id: rng.below(6) as i32,
+            kind: KINDS[rng.below(4) as usize].to_string(),
+            position: [at[0] + off[0], at[1] + off[1], at[2] + off[2]],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn entity_near_matches_the_scan_it_replaced() {
+        const SLACKS: [f64; 6] = [0.0, 0.25, 0.5, 1.5, 3.0, 16.0];
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+        let (mut yes, mut no) = (0, 0);
+        for seed in 0..2_000 {
+            let slack = SLACKS[rng.below(6) as usize];
+            let at = [rng.step(160), rng.step(160), rng.step(160)];
+            let n = rng.below(40) as usize;
+            let entities: Vec<EntityState> = (0..n).map(|_| entity(&mut rng, at, slack)).collect();
+            for own in 0..6 {
+                let new = entity_near(&entities, own, at, slack);
+                let old = old_entity(&entities, own, at, slack);
+                assert_eq!(new, old, "seed {seed}, own {own}, at {at:?}, slack {slack}");
+                if new {
+                    yes += 1;
+                } else {
+                    no += 1;
+                }
+            }
+        }
+        assert!(yes > 0 && no > 0, "the inputs must give both answers");
+    }
+
+    #[test]
+    fn box_edges_are_inclusive_and_own_and_drops_are_skipped() {
+        let at = [0.0, 0.0, 0.0];
+        let zombie = |id, position| EntityState {
+            id,
+            kind: "minecraft:zombie".to_string(),
+            position,
+            ..Default::default()
+        };
+        let s = 0.5;
+        assert!(entity_near(&[zombie(1, [3.5, 0.0, 0.0])], 0, at, s));
+        assert!(!entity_near(&[zombie(1, [3.625, 0.0, 0.0])], 0, at, s));
+        assert!(entity_near(&[zombie(1, [0.0, 4.5, 0.0])], 0, at, s));
+        assert!(!entity_near(&[zombie(1, [0.0, 4.625, 0.0])], 0, at, s));
+        assert!(entity_near(&[zombie(1, [0.0, -3.5, 0.0])], 0, at, s));
+        assert!(!entity_near(&[zombie(1, [0.0, -3.625, 0.0])], 0, at, s));
+        // The guest's own entity, and items and orbs, never excuse.
+        assert!(!entity_near(&[zombie(7, [0.0, 0.0, 0.0])], 7, at, s));
+        let item = EntityState {
+            kind: "minecraft:item".to_string(),
+            ..zombie(2, [0.0, 0.0, 0.0])
+        };
+        assert!(!entity_near(&[item], 0, at, s));
+    }
 }

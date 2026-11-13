@@ -196,7 +196,7 @@ mod tests {
         // The fixture's parts: glass answers `mymod:block.x.*` at volume 2.0 and pitch 1.5 to
         // every cause, white wool the same to a player only, red and blue wool a NaN volume and
         // an event with no namespace, and a snow layer as glass but only when asked at y 64.
-        mod_api::__private::part_tests::sound_type_game_thread();
+        mod_platform::__private::part_tests::sound_type_game_thread();
         // The client library asks the mods through the executable's callbacks.
         crate::entry::install_client_hooks();
         with_game(|game| {

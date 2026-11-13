@@ -551,7 +551,12 @@ impl Game<'_> {
         let corner = |max: bool| {
             [Axis::X, Axis::Y, Axis::Z].map(|a| if max { around.max(a) } else { around.min(a) })
         };
-        let no_blocks = no_blocks_in(&self.world, corner(false), corner(true));
+        let no_blocks = no_blocks_in(
+            &self.world,
+            corner(false),
+            corner(true),
+            &self.lan.as_ref().unwrap().hub.encoder,
+        );
         self.lan.as_mut().unwrap().hub.guests.update(gi, |g| {
             g.vehicle_good = Some([target.x, target.y, target.z]);
             let rested = std::mem::replace(

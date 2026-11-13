@@ -44,7 +44,7 @@ Existing codec constraints remain with their owners:
 | --- | --- |
 | `minecraft:brand` | UTF string codec, 32,767 UTF-16 code units, not 32,767 bytes |
 | `horizon:quiet_commands` | `quiet`, 32,767 body bytes, 256 lines with 256 characters each |
-| `horizon:mod_net` | `mod_net`, 30,000 data bytes plus bounded channel and framing |
+| `horizon:recipe_book_settings` (configuration) | exact private capability version byte `[1]` |
 | `horizon:mod_list` | `mod_list`, 128 entries, 64-character id and version fields on decode |
 | `horizon:attachment_sync` | `attachment_sync`, 1,048,576 body bytes |
 | `horizon:menu_extra` | `menu_extra`, 32,768 extra-data bytes plus window/position/framing |

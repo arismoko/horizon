@@ -72,6 +72,10 @@ pub(super) struct CodeSwitches {
 
 #[derive(Clone, Default)]
 pub(super) struct ModsState {
+    pub(super) active_condition_root: Option<Arc<()>>,
+    pub(super) load_condition_candidate: Option<horizon_world::conditions::LoadConditions>,
+    pub(super) load_conditions:
+        Arc<std::sync::OnceLock<Result<crate::game::load_conditions::ConditionTable, String>>>,
     pub(super) profession_declarations:
         Arc<std::sync::OnceLock<Vec<(String, mod_api::ProfessionDefinition)>>>,
     /// Saved switches gate the first data inventory while registration keeps
@@ -128,6 +132,15 @@ impl ModsState {
         }
     }
 
+    pub(super) fn code_owner_enabled(&self, owner: &str) -> bool {
+        let initially_disabled = self.code_switches.as_ref().is_some_and(|switches| {
+            !switches.applied.load(std::sync::atomic::Ordering::Acquire)
+                && switches.disabled.contains(owner)
+        });
+        !initially_disabled
+            && mod_api::__private::mod_index(owner).is_some_and(mod_api::__private::mod_index_on)
+    }
+
     /// One admission rule for initial composition and later code-only toggles.
     /// Content acceptance belongs to the generation; code admission belongs to
     /// the installed dispatch entries, including their live enabled switches.
@@ -149,13 +162,7 @@ impl ModsState {
         horizon_mod_package::enabled::EnabledMods::new(native.chain(selected).filter_map(
             |(manifest, code)| {
                 let enabled = if code {
-                    let initially_disabled = self.code_switches.as_ref().is_some_and(|switches| {
-                        !switches.applied.load(std::sync::atomic::Ordering::Acquire)
-                            && switches.disabled.contains(&manifest.id)
-                    });
-                    !initially_disabled
-                        && mod_api::__private::mod_index(&manifest.id)
-                            .is_some_and(mod_api::__private::mod_index_on)
+                    self.code_owner_enabled(&manifest.id)
                 } else {
                     accepted_content(&manifest.id)
                 };
@@ -244,14 +251,16 @@ pub(super) fn install_registration_data(root: &Path) -> horizon_client::Result<(
         use std::os::windows::ffi::OsStrExt;
         mod_api::InstanceDirectory::Windows(directory.as_os_str().encode_wide().collect())
     };
-    mod_api::__private::install_registration_data(mod_api::__private::RegistrationData::new(
-        builtin_registry_names(root)?,
-        horizon_world::native_load_context::capture_settings(
-            &Game::mod_data_root(),
-            packages.ids(),
+    (horizon_engine_slots::platform()?.install_registration_data)(
+        mod_api::__private::RegistrationData::new(
+            builtin_registry_names(root)?,
+            horizon_world::native_load_context::capture_settings(
+                &Game::mod_data_root(),
+                packages.ids(),
+            ),
+            directory,
         ),
-        directory,
-    ));
+    );
     Ok(())
 }
 
@@ -506,13 +515,15 @@ pub(super) fn register_resource_sources(role: ExecutionRole) {
     Game::native_register_block_state_models(&RegistrationContext::new(), &mut definitions);
     horizon_client_render::mod_block_state_models::register(definitions);
 }
-/// The client presentation registrations, resolved once before the first level opens: the
-/// dimension transition screens and the entity spectator shaders.
+/// The client presentation registrations, kept once at start, before resources load: the
+/// dimension transition screens, the entity spectator shaders, the render pipelines and the entity
+/// renderers.
 pub(super) fn register_client_presentations(role: ExecutionRole) {
     register_preset_editors(role);
     register_dimension_transition_screens(role);
     register_entity_spectator_shaders(role);
     register_render_pipelines(role);
+    register_entity_renderers(role);
 }
 
 /// Resolve client dimension-transition registrations once, before the first level opens.
@@ -593,6 +604,16 @@ fn add_section_geometry(role: ExecutionRole) {
     let mut registry = mod_api::SectionGeometryRegistry::default();
     Game::native_add_section_geometry(&RegistrationContext::new(), &mut registry);
     horizon_client::mesher::register_section_geometry(registry.into_renderers());
+}
+/// The native mods' entity renderers (`native_register_entity_renderers`), kept once at start,
+/// before resources load; every resource load resolves each type's renderer.
+pub(super) fn register_entity_renderers(role: ExecutionRole) {
+    if !role.is_client() {
+        return;
+    }
+    let mut registry = mod_api::EntityRendererRegistry::default();
+    Game::native_register_entity_renderers(&RegistrationContext::new(), &mut registry);
+    super::native_entity_renderers::register(registry.into_renderers());
 }
 /// The native mods' particle providers (`native_register_particle_providers`) and render groups
 /// (`native_register_particle_groups`), kept once at start, before resources load; every particle
@@ -809,7 +830,9 @@ pub(super) fn content_overlay(
     // Content admission and the live code-dispatch boundary jointly determine
     // what loaded. Namespaces and raw startup metadata cannot answer this.
     let inventory = sources.enabled_inventory(|id| mods.iter().any(|loaded| loaded.id == id));
-    let prepared = mod_content::resource_root(root, jar_store, &mods, &cache, &inventory)?;
+    let prepared = super::load_conditions::content_root_with_conditions(
+        root, jar_store, &mods, &cache, &inventory, sources,
+    )?;
     let root = mod_content::resolved_resources(root, prepared, jar_store, &mods, cache)?;
     let _ = sources.content_base.set(original_base);
     Ok(ContentOverlay {
@@ -866,7 +889,7 @@ fn resolve_particle_providers(
 mod particle_registry_reload_tests {
     #[test]
     fn an_unlisted_vanilla_provider_file_does_not_refuse_startup() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let source = horizon_assets::resource_source::ResourceSource::indexed(
             [(
                 "assets/minecraft/particles/ambient_entity_effect.json".into(),
@@ -879,7 +902,7 @@ mod particle_registry_reload_tests {
 
     #[test]
     fn repeated_particle_content_load_keeps_the_published_keys() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let source = horizon_assets::resource_source::ResourceSource::indexed(
             [(
                 "assets/invalid namespace/particles/bad name.json".into(),
@@ -1144,7 +1167,7 @@ fn register_mob_effects(mods: &[horizon_client::mod_content::ContentMod]) {
             EffectCategory::Harmful => Category::Harmful,
             EffectCategory::Neutral => Category::Neutral,
         };
-        (e.id.clone(), e.color, category)
+        (e.id.clone(), e.color, category, e.sort_order)
     }));
     if !set
         && brewing::mod_effects()
@@ -1351,7 +1374,8 @@ impl Game<'_> {
     pub(super) fn initialize_mod_runtime_for_tests() {
         static INITIALIZED: std::sync::Once = std::sync::Once::new();
         INITIALIZED.call_once(|| {
-            mod_api::__private::initialize()
+            super::api_values::install_test_platform();
+            mod_platform::__private::initialize()
                 .expect("engine test runtime initializes before mod dispatch");
         });
     }
@@ -1395,6 +1419,7 @@ impl Game<'_> {
     }
 
     pub(super) fn install_loop_context(&mut self, context: PreparedLoopContext) {
+        self.protect_condition_root();
         self.loop_context = context.game;
         self.refresh_recipe_property_context();
         self.setting_overrides.borrow_mut().clear();
@@ -1406,7 +1431,7 @@ impl Game<'_> {
         }
     }
 
-    /// Stage a fresh root only when live code admission changes the inventory.
+    /// Stage a fresh root when admission changes or registered conditions need reevaluation.
     /// The caller publishes it after every server reload listener prepared.
     pub(super) fn stage_enabled_inventory(
         &self,
@@ -1415,7 +1440,7 @@ impl Game<'_> {
         let next = self
             .mods
             .enabled_inventory(|id| previous.client_ids().any(|loaded| loaded == id));
-        if previous == next {
+        if previous == next && !self.condition_root_needs_reload() {
             return Ok(None);
         }
         let base = self
@@ -2401,7 +2426,8 @@ mod tests {
 
     #[test]
     fn fluid_models_recollection_changes_model_identifiers() {
-        use mod_api::{FluidModel, Hooks, ModEntry, RegisterFluidModelsEvent, testing::with_mods};
+        use mod_api::{FluidModel, Hooks, ModEntry, RegisterFluidModelsEvent};
+        use mod_platform::testing::with_mods;
         use std::sync::atomic::{AtomicUsize, Ordering};
         #[derive(Default)]
         struct Models(Arc<AtomicUsize>);
@@ -2427,7 +2453,7 @@ mod tests {
             )]
             .into(),
             || {
-                mod_api::__private::with_test_packages(&["reload_fluid"], || {
+                mod_platform::__private::with_test_packages(&["reload_fluid"], || {
                     horizon_client::fluid_models::set_world_looks([
                         &horizon_mod_package::content::FluidLook {
                             id: "reload_fluid:oil".into(),
@@ -2464,7 +2490,8 @@ mod tests {
     #[test]
     fn fluid_models_collect_only_on_the_client() {
         use mod_api::FluidModel;
-        use mod_api::{Hooks, ModEntry, RegisterFluidModelsEvent, testing::with_mods};
+        use mod_api::{Hooks, ModEntry, RegisterFluidModelsEvent};
+        use mod_platform::testing::with_mods;
         #[derive(Default)]
         struct Models;
         #[mod_api::horizon_mod]
@@ -2484,7 +2511,7 @@ mod tests {
         with_mods(
             vec![ModEntry::new("registration_test", Box::new(Models))].into(),
             || {
-                mod_api::__private::with_test_packages(&["registration_test"], || {
+                mod_platform::__private::with_test_packages(&["registration_test"], || {
                     for server in [
                         ExecutionRole::IntegratedServer,
                         ExecutionRole::DedicatedServer,
@@ -2509,7 +2536,8 @@ mod tests {
 
     #[test]
     fn standalone_models_collect_only_on_the_client() {
-        use mod_api::{self, Hooks, ModEntry, StandaloneModelsEvent, testing::with_mods};
+        use mod_api::{self, Hooks, ModEntry, StandaloneModelsEvent};
+        use mod_platform::testing::with_mods;
         use std::sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -2539,7 +2567,7 @@ mod tests {
             )]
             .into(),
             || {
-                mod_api::__private::with_test_packages(&["registration_test"], || {
+                mod_platform::__private::with_test_packages(&["registration_test"], || {
                     assert_eq!(
                         collect_standalone_models(ExecutionRole::IntegratedServer),
                         None
@@ -2898,7 +2926,8 @@ mod tests {
         assert!(brewing::register_mod_effects([(
             "test:effect".to_owned(),
             0,
-            brewing::Category::Neutral
+            brewing::Category::Neutral,
+            None
         )]));
     }
 }

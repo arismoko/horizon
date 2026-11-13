@@ -417,10 +417,11 @@ pub fn bundle_tooltip(
     x: f32,
     y: f32,
     box_width: f32,
+    description_lines: usize,
 ) -> Option<TooltipLayout> {
     tooltip_display(stack)
         .shows("minecraft:bundle_contents")
-        .then(|| crate::bundle::tooltip_layout(items, stack, x, y, box_width))
+        .then(|| crate::bundle::tooltip_layout(items, stack, x, y, box_width, description_lines))
         .flatten()
 }
 
@@ -1604,10 +1605,10 @@ mod tests {
         let items = Items::for_tests(Default::default());
         let mut bundle = ItemStack::new("minecraft:bundle", 1);
         bundle.data_mut().bundle_contents = vec![ItemStack::new("minecraft:stone", 3)];
-        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0).is_some());
+        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0, 2).is_some());
         // A stack that is not a bundle has no grid.
         let stone = ItemStack::new("minecraft:stone", 1);
-        assert!(bundle_tooltip(&items, &stone, 0.0, 0.0, 96.0).is_none());
+        assert!(bundle_tooltip(&items, &stone, 0.0, 0.0, 96.0, 2).is_none());
         // A display that hides the contents component hides the grid.
         bundle.data_mut().set_other(
             "minecraft:tooltip_display",
@@ -1616,13 +1617,13 @@ mod tests {
                 Tag::List(vec![Tag::String("minecraft:bundle_contents".into())]),
             )])),
         );
-        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0).is_none());
+        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0, 2).is_none());
         // So does one that hides the whole tooltip.
         bundle.data_mut().set_other(
             "minecraft:tooltip_display",
             Some(Tag::compound([("hide_tooltip", Tag::Byte(1))])),
         );
-        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0).is_none());
+        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0, 2).is_none());
         // A component the display does not name leaves the grid alone.
         bundle.data_mut().set_other(
             "minecraft:tooltip_display",
@@ -1631,7 +1632,7 @@ mod tests {
                 Tag::List(vec![Tag::String("minecraft:lore".into())]),
             )])),
         );
-        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0).is_some());
+        assert!(bundle_tooltip(&items, &bundle, 0.0, 0.0, 96.0, 2).is_some());
     }
 
     #[test]
@@ -2566,5 +2567,47 @@ mod tests {
         );
         let texts: Vec<String> = lines.iter().map(|(text, _)| text.plain()).collect();
         assert_eq!(texts, ["scale"]);
+    }
+}
+
+#[cfg(test)]
+mod stack_modifier_tests {
+    use horizon_client::items::ItemStack;
+
+    #[test]
+    fn tooltip_attributes_come_from_the_stack() {
+        let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
+        let attack = horizon_core::nbt::Tag::compound([
+            (
+                "type",
+                horizon_core::nbt::Tag::String("minecraft:attack_damage".into()),
+            ),
+            (
+                "id",
+                horizon_core::nbt::Tag::String("minecraft:test".into()),
+            ),
+            ("amount", horizon_core::nbt::Tag::Double(5.0f64.to_bits())),
+            (
+                "operation",
+                horizon_core::nbt::Tag::String("add_value".into()),
+            ),
+            ("slot", horizon_core::nbt::Tag::String("mainhand".into())),
+        ]);
+        sword.data_mut().set_other(
+            "minecraft:attribute_modifiers",
+            Some(horizon_core::nbt::Tag::List(vec![attack])),
+        );
+        let modifiers = sword.default_attribute_modifiers_or(&[]);
+        assert_eq!(modifiers.len(), 1);
+        assert_eq!(modifiers[0].attribute, "minecraft:attack_damage");
+        assert_eq!(modifiers[0].amount, 5.0);
+        sword.data_mut().set_other(
+            "!minecraft:attribute_modifiers",
+            Some(horizon_core::nbt::Tag::compound(Vec::<(
+                &str,
+                horizon_core::nbt::Tag,
+            )>::new())),
+        );
+        assert!(sword.default_attribute_modifiers_or(&[]).is_empty());
     }
 }

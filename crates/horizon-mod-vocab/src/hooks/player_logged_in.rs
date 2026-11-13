@@ -4,7 +4,7 @@
 pub trait Hooks {
     /// `player` (`name`) joined the game (NeoForge's
     /// `PlayerLoggedInEvent`): placed in the world and listed in
-    /// `host.players().server_players()`, so `native_net_send_to_player` reaches them.
+    /// `host.players().server_players()`, so `PlayerRef::send_payload` reaches them.
     /// Once a join, with no player's state swapped in. Server-side.
     #[hook(
         side = "server",

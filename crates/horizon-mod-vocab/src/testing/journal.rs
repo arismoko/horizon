@@ -65,6 +65,16 @@ impl<S> FakeJournal<S> {
     pub fn holds(&self, tx: &crate::Transaction) -> bool {
         self.kept.iter().any(|(token, _, _)| *token == tx.0)
     }
+    /// The innermost open transaction, its write token only.
+    pub fn current(&self) -> Option<crate::Transaction> {
+        let (token, _, _) = self.kept.last()?;
+        Some(crate::Transaction(*token))
+    }
+    /// How deeply `tx` is nested, 0 for the outermost; none when it is not open.
+    pub fn depth_of(&self, tx: &crate::Transaction) -> Option<u32> {
+        let at = self.kept.iter().position(|(token, _, _)| *token == tx.0)?;
+        u32::try_from(at).ok()
+    }
     /// How many transactions are open.
     pub fn depth(&self) -> usize {
         self.kept.len()

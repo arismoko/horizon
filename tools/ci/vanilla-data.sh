@@ -44,12 +44,43 @@ else
   done
   trap 'rmdir "$lock" 2>/dev/null || true' EXIT
 fi
-if [ "$dyna" = true ] && [ -f "$prepared/.entries" ] && grep -qx horizon-client "$prepared/.entries"; then
-  echo "prepared key $key fresh"
+# Dyna keeps $prepared on the slot between jobs, so a job must never change it: it is only ever read here,
+# against the digest of its files written when its preparation finished, and the job gets a private copy.
+# Each file's digest, then one digest of the list; .manifest* themselves are left out.
+file_digests() {
+  (cd "$1" && find . -type f ! -name '.manifest*' -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum)
+}
+digest() { file_digests "$1" | sha256 | cut -c1-16; }
+# The job's own copy (reflinks where the file system has them): what tests write stays out of the kept tree.
+use_private_copy() {
+  local work="$shared/job"
+  rm -rf "$work"
+  cp -a --reflink=auto "$prepared" "$work"
   for name in minecraft tools; do ln -sfn "$source/$name" ".local/$name"; done
-  while read -r name; do ln -sfn "$prepared/$name" ".local/$name"; done < "$prepared/.entries"
-  report_prepared
-  exit 0
+  while read -r name; do ln -sfn "$work/$name" ".local/$name"; done < "$work/.entries"
+  echo "prepared key $key: private copy for this job ($(find "$work" -type f | wc -l) files)"
+}
+if [ "$dyna" = true ] && [ -f "$prepared/.entries" ] && grep -qx horizon-client "$prepared/.entries"; then
+  expected=$(cat "$prepared/.manifest" 2>/dev/null || echo none)
+  found=$(digest "$prepared")
+  if [ "$found" = "$expected" ]; then
+    echo "prepared key $key fresh (manifest $found)"
+    use_private_copy
+    report_prepared
+    exit 0
+  fi
+  # A tree an earlier job changed, or one kept from before manifests: never reused. Counts only, no names.
+  echo "prepared key $key: kept tree does not match its manifest (expected $expected, found $found): preparing again"
+  if [ -f "$prepared/.manifest-files" ]; then
+    file_digests "$prepared" > "$RUNNER_TEMP/prepared-files-now"
+    old_paths=$(cut -c67- "$prepared/.manifest-files" | LC_ALL=C sort)
+    new_paths=$(cut -c67- "$RUNNER_TEMP/prepared-files-now" | LC_ALL=C sort)
+    added=$(LC_ALL=C comm -13 <(echo "$old_paths") <(echo "$new_paths") | grep -c . || true)
+    removed=$(LC_ALL=C comm -23 <(echo "$old_paths") <(echo "$new_paths") | grep -c . || true)
+    changed=$(LC_ALL=C comm -13 <(LC_ALL=C sort "$prepared/.manifest-files") <(LC_ALL=C sort "$RUNNER_TEMP/prepared-files-now") | cut -c67- | LC_ALL=C sort | LC_ALL=C comm -12 - <(echo "$old_paths") | grep -c . || true)
+    echo "prepared key $key: files added $added, removed $removed, changed $changed since its preparation"
+  fi
+  rm -rf "$prepared"
 fi
 if [ "$dyna" = true ]; then
   echo "prepared key $key stale"
@@ -92,7 +123,7 @@ if [ ! -f "$prepared/.entries" ]; then
   rm -rf "$prepared" && mkdir -p "$prepared"
   # Links to another preparation's outputs go first, so what this one writes shows up as new entries.
   for entry in .local/*; do
-    if [ -L "$entry" ] && [[ "$(readlink "$entry")" == "$shared/prepared/"* ]]; then rm "$entry"; fi
+    if [ -L "$entry" ] && [[ "$(readlink "$entry")" == "$shared/prepared/"* || "$(readlink "$entry")" == "$shared/job/"* ]]; then rm "$entry"; fi
   done
   before=$(ls -1A .local | LC_ALL=C sort)
   started=$SECONDS
@@ -175,6 +206,12 @@ fi
 touch "$prepared"
 if [ "$dyna" = true ]; then
   echo "prepared in $((SECONDS - started)) s"
+  # Written last, once the preparation is whole: the next job reuses this tree only if it still matches.
+  file_digests "$prepared" > "$RUNNER_TEMP/prepared-files"
+  sha256 < "$RUNNER_TEMP/prepared-files" | cut -c1-16 > "$prepared/.manifest"
+  mv "$RUNNER_TEMP/prepared-files" "$prepared/.manifest-files"
+  echo "prepared key $key manifest $(cat "$prepared/.manifest")"
+  use_private_copy
   report_prepared
 fi
 # The four newest preparations stay.

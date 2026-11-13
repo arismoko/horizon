@@ -5,12 +5,13 @@ Declare a block entity type and its valid blocks during `Hooks::register`, then 
 
 ```rust,ignore
 let press = r.block_entity_type("press")
-    .blocks(&["mymod:press", "mymod:big_press"])
+    .blocks(&["press", "mymod:big_press"])
     .build();
 r.block_entity_part(&press, Press).expect("native block entity type");
 ```
 
-The builder qualifies the type ID with the registering mod's namespace. It owns the save ID, wire type
+The builder qualifies the type ID and each bare block name with the registering mod's namespace, so
+`"press"` above is `mymod:press`; the blocks may be declared later in `blocks`. It owns the save ID, wire type
 and valid blocks; `block_entity` returns only initial `Compound` data (or none for an empty compound). It is fired
 inside the write that creates the entity (`LevelChunk.setBlockState`) and receives the read-only level, a `LevelSide`,
 on a server and on a client of one.

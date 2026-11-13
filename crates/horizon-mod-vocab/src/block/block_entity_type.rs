@@ -131,7 +131,8 @@ pub struct BlockEntityTypeBuilder<'a> {
 }
 
 impl BlockEntityTypeBuilder<'_> {
-    /// The blocks which may contain this type.
+    /// The blocks which may contain this type. A bare name is this mod's own, as the type's
+    /// id is, so `.blocks(&["press"])` names `<mod id>:press`; the block may be declared later.
     pub fn blocks(mut self, blocks: &[&str]) -> Self {
         self.blocks = blocks.iter().map(|block| (*block).to_owned()).collect();
         self

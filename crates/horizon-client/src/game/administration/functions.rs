@@ -237,7 +237,7 @@ impl Game<'_> {
             )
         })?;
         let next_root = self
-            .stage_enabled_inventory()
+            .stage_condition_inventory()
             .map_err(|error| ReloadStageError::DataSource(error.to_string()))?;
         let resources = next_root
             .as_ref()
@@ -259,7 +259,7 @@ impl Game<'_> {
             enabled_features,
             &additional,
         );
-        let prepared = self.prepare_server_reload(&stack, &resources)?;
+        let prepared = self.begin_condition_reload(&stack, &resources)?;
         let context = self
             .prepare_loop_context(&resources)
             .map_err(|error| ReloadStageError::DataSource(error.to_string()))?;
@@ -323,11 +323,17 @@ impl Game<'_> {
         registries.function_tags = store.function_tags.keys().cloned().collect();
         registries.predicates = store.predicates.keys().cloned().collect();
         registries.item_modifiers = store.item_modifiers.keys().cloned().collect();
-        registries
+        let sources = registries
             .by_registry
             .entry("minecraft:slot_source".into())
-            .or_default()
-            .ids = store.slot_sources.keys().cloned().collect();
+            .or_default();
+        sources.ids = store.slot_sources.keys().cloned().collect();
+        sources.tags = store
+            .slot_source_tags
+            .keys()
+            .filter(|id| store.slot_source_tag(id).is_ok())
+            .cloned()
+            .collect();
         for (id, ids) in [
             ("minecraft:predicate", &registries.predicates),
             ("minecraft:item_modifier", &registries.item_modifiers),
@@ -383,10 +389,19 @@ impl Game<'_> {
         reg.function_tags = self.fns.store.function_tags.keys().cloned().collect();
         reg.predicates = self.fns.store.predicates.keys().cloned().collect();
         reg.item_modifiers = self.fns.store.item_modifiers.keys().cloned().collect();
-        reg.by_registry
+        let sources = reg
+            .by_registry
             .entry("minecraft:slot_source".into())
-            .or_default()
-            .ids = self.fns.store.slot_sources.keys().cloned().collect();
+            .or_default();
+        sources.ids = self.fns.store.slot_sources.keys().cloned().collect();
+        sources.tags = self
+            .fns
+            .store
+            .slot_source_tags
+            .keys()
+            .filter(|id| self.fns.store.slot_source_tag(id).is_ok())
+            .cloned()
+            .collect();
         reg.schedules = self.fns.schedule.iter().map(|s| s.id.clone()).collect();
 
         reg.datapacks_enabled = std::iter::once("vanilla".to_owned())
@@ -1306,7 +1321,7 @@ impl Game<'_> {
         );
         stack.enabled =
             datapack::selected_ids(stack.packs.iter().map(Arc::as_ref), &self.fns.enabled);
-        let prepared = match self.prepare_server_reload(&stack, &self.options.resources) {
+        let prepared = match self.prepare_pack_condition_reload(&stack) {
             Ok(prepared) => prepared,
             Err(error) => {
                 self.fns.enabled = previous_enabled;
@@ -2000,7 +2015,7 @@ mod tests {
             assert!(game.items().block_tags["reload_test:candidate"].contains("minecraft:stone"));
             assert!(game.run_command("datapack disable \"file/candidate\""));
             assert!(game.run_command("datapack enable \"file/candidate\""));
-            let live_stone = mod_api::__private::part_tests::block_key("minecraft:stone");
+            let live_stone = mod_platform::__private::part_tests::block_key("minecraft:stone");
             assert_eq!(
                 super::super::native_world_read::block_in_tag(live_stone, "reload_test:candidate"),
                 Some(true)
@@ -2015,7 +2030,7 @@ mod tests {
                 horizon_world::level::data::load_registry_with_flags(&game.options.resources)
                     .unwrap();
             crate::game::api_values::resolve_block_definitions(&registry).unwrap();
-            let stone = mod_api::__private::part_tests::block_key("minecraft:stone");
+            let stone = mod_platform::__private::part_tests::block_key("minecraft:stone");
             let old_tag =
                 super::super::native_world_read::block_in_tag(stone, "reload_test:candidate");
             let old_context = game.loop_context.clone();

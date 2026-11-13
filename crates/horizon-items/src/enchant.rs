@@ -206,7 +206,7 @@ fn read_tag_dir(
         .iter()
         .filter_map(|file| {
             let v = serde_json::from_slice::<Value>(file.bytes().ok()?).ok()?;
-            if !conditions.allows(&v) {
+            if !conditions.allows_path(&v, dir, &file.name) {
                 return None;
             }
             let values = v["values"]
@@ -337,7 +337,7 @@ impl Enchantments {
                 let Ok(v) = serde_json::from_slice::<Value>(bytes) else {
                     continue;
                 };
-                if !overlay.conditions.allows(&v) {
+                if !overlay.conditions.allows_id(&v, "tags/enchantment", &id) {
                     continue;
                 }
                 let slot = raw_tags.entry(id.clone()).or_default();
@@ -770,20 +770,8 @@ impl Enchantments {
         }
         None
     }
-    /// `EnchantmentHelper.selectEnchantment`.
-    pub fn select<R: RandomSource>(
-        &self,
-        items: &Items,
-        random: &mut R,
-        item: &str,
-        cost: i32,
-        pool: &[Arc<str>],
-    ) -> Vec<(Arc<str>, u32)> {
-        self.select_with_value(items, random, item, cost, pool, self.enchantable(item))
-    }
-
     /// Select enchantments using the stack's enchantable component.
-    pub fn select_of<R: RandomSource>(
+    pub fn select<R: RandomSource>(
         &self,
         items: &Items,
         random: &mut R,
@@ -1809,7 +1797,13 @@ pub mod tests {
         let pool = e.tag("minecraft:in_enchanting_table").to_vec();
         for seed in 0..200 {
             let mut r = LegacyRandom::new(seed);
-            let picked = e.select(&items, &mut r, "minecraft:diamond_sword", 30, &pool);
+            let picked = e.select(
+                &items,
+                &mut r,
+                &ItemStack::new("minecraft:diamond_sword", 1),
+                30,
+                &pool,
+            );
             assert!(!picked.is_empty());
             let has = |id: &str| picked.iter().any(|(p, _)| &**p == id);
             assert!(
@@ -1830,8 +1824,14 @@ pub mod tests {
                 .any(|(id, _)| &**id == "minecraft:feather_falling")
         );
         assert!(
-            e.select(&items, &mut r, "minecraft:stick", 30, &pool)
-                .is_empty()
+            e.select(
+                &items,
+                &mut r,
+                &ItemStack::new("minecraft:stick", 1),
+                30,
+                &pool
+            )
+            .is_empty()
         );
     }
 

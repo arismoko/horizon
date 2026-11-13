@@ -5,7 +5,6 @@ use horizon_client::{
     mobs::{Damage, DamageKind, Mob, MobEvent, Who, finalize as f},
     projectiles::{Hit, Projectile, ProjectileKind},
 };
-use horizon_core::random::LegacyRandom;
 
 fn with_game(test: impl FnOnce(&mut Game<'_>)) {
     let root = PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
@@ -59,7 +58,7 @@ fn pair(g: &mut Game<'_>, slot: usize) -> Damage {
         m.health = 100.0;
         g.mobs.push(m);
     }
-    g.mobs[0].random = LegacyRandom::new(1);
+    g.mobs[0].random.set_seed(1);
     f::set_item_stack(&mut g.mobs[0], f::MAINHAND, thorny()); // Retaliation must not recurse.
     f::set_item_stack(&mut g.mobs[1], slot, thorny());
     Damage::mob(41, [10.5, 64.0, 0.5])

@@ -2,6 +2,8 @@
 //! Bindings ride with storage when dimensions are parked; no event holds Game.
 use super::JoinSeq;
 use mod_api::DimensionKey;
+#[cfg(any(test, feature = "test-residency-observer"))]
+use std::sync::OnceLock;
 use std::{
     num::NonZeroU32,
     sync::{
@@ -140,11 +142,33 @@ pub struct Event {
     pub change: Change,
 }
 
+/// A level's saved UUID changed independently of its entity's residency.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SavedUuidUpdate {
+    pub dimension: DimensionKey,
+    pub id: NonZeroU32,
+    pub uuid: Option<[i32; 4]>,
+}
+
+#[derive(Debug, Default)]
+struct Batches {
+    structural: Vec<Event>,
+    saved_uuids: Vec<SavedUuidUpdate>,
+}
+
+impl Batches {
+    fn is_empty(&self) -> bool {
+        self.structural.is_empty() && self.saved_uuids.is_empty()
+    }
+}
+
 #[derive(Debug, Default)]
 struct Pending {
-    events: Mutex<Vec<Event>>,
+    events: Mutex<Batches>,
     ready: AtomicBool,
     retired: AtomicBool,
+    #[cfg(any(test, feature = "test-residency-observer"))]
+    observer: OnceLock<Journal>,
 }
 
 /// Shared only by the owners of one game instance and its parked dimensions.
@@ -152,8 +176,17 @@ struct Pending {
 #[derive(Clone, Debug, Default)]
 pub struct Journal(Arc<Pending>);
 impl Journal {
-    pub(super) fn same_epoch(&self, other: &Self) -> bool {
+    /// Whether these bindings share the same epoch's event sink.
+    pub fn same_epoch(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
+    }
+
+    /// Observe structural events without consuming the authoritative queue.
+    /// The returned journal is diagnostic only and receives no saved UUID writes.
+    /// Repeated calls share the same observation queue for this epoch.
+    #[cfg(any(test, feature = "test-residency-observer"))]
+    pub fn observe_structural_events(&self) -> Self {
+        self.0.observer.get_or_init(Self::default).clone()
     }
 
     /// Record an operation at the storage boundary, in mutation order.
@@ -162,22 +195,64 @@ impl Journal {
         if self.0.retired.load(Ordering::Relaxed) {
             return;
         }
-        debug_assert!(events.len() < 1_000_000, "entity journal was not drained");
-        events.push(event);
+        debug_assert!(
+            events.structural.len() < 1_000_000,
+            "entity journal was not drained"
+        );
+        events.structural.push(event);
+        #[cfg(any(test, feature = "test-residency-observer"))]
+        if let Some(observer) = self.0.observer.get() {
+            observer.push(event);
+        }
         self.0.ready.store(true, Ordering::Release);
     }
 
-    /// Exchange the pending batch with an empty reusable scratch buffer.
+    /// Record a write in the level's persisted UUID store.
+    pub fn set_saved_uuid(&self, dimension: DimensionKey, id: u32, uuid: Option<[i32; 4]>) {
+        let Some(id) = NonZeroU32::new(id) else {
+            return;
+        };
+        if self.0.retired.load(Ordering::Relaxed) {
+            return;
+        }
+        let mut events = self.0.events.lock().unwrap();
+        if self.0.retired.load(Ordering::Relaxed) {
+            return;
+        }
+        events.saved_uuids.push(SavedUuidUpdate {
+            dimension,
+            id,
+            uuid,
+        });
+        self.0.ready.store(true, Ordering::Release);
+    }
+
+    /// Exchange the pending structural batch with an empty reusable scratch buffer.
     /// Consumers run after releasing the lock and can safely produce events.
     /// An idle drain takes no mutex and performs no allocation.
     pub fn drain_into(&self, scratch: &mut Vec<Event>) {
+        self.drain_batches(scratch, None);
+    }
+
+    pub(super) fn drain_batches(
+        &self,
+        scratch: &mut Vec<Event>,
+        saved_uuids: Option<&mut Vec<SavedUuidUpdate>>,
+    ) {
         assert!(scratch.is_empty(), "previous entity batch was not consumed");
         if !self.0.ready.load(Ordering::Acquire) {
             return;
         }
         let mut events = self.0.events.lock().unwrap();
-        std::mem::swap(&mut *events, scratch);
-        self.0.ready.store(false, Ordering::Release);
+        std::mem::swap(&mut events.structural, scratch);
+        if let Some(saved_uuids) = saved_uuids {
+            assert!(
+                saved_uuids.is_empty(),
+                "previous UUID batch was not consumed"
+            );
+            std::mem::swap(&mut events.saved_uuids, saved_uuids);
+        }
+        self.0.ready.store(!events.is_empty(), Ordering::Release);
     }
 
     /// Retire this epoch and all of its producer clones, discarding its queue.
@@ -188,7 +263,7 @@ impl Journal {
         {
             let mut events = self.0.events.lock().unwrap();
             self.0.retired.store(true, Ordering::Relaxed);
-            *events = Vec::new();
+            *events = Batches::default();
             self.0.ready.store(false, Ordering::Release);
         }
         *self = next;
@@ -198,7 +273,8 @@ impl Journal {
     /// This is a queue clear, not a table/epoch reset barrier.
     pub fn clear(&self) {
         let mut events = self.0.events.lock().unwrap();
-        events.clear();
+        events.structural.clear();
+        events.saved_uuids.clear();
         self.0.ready.store(false, Ordering::Release);
     }
 }
@@ -345,6 +421,25 @@ mod tests {
             owner: Owner { dimension, kind },
             change,
         }
+    }
+
+    #[test]
+    fn observation_survives_authoritative_drains_without_stealing_events() {
+        let journal = Journal::default();
+        let observation = journal.observe_structural_events();
+        let lifted = event(DimensionKey::OVERWORLD, Kind::Mob, Change::Lifted);
+        let restored = event(DimensionKey::OVERWORLD, Kind::Mob, Change::Restored);
+        journal.push(lifted);
+        let mut actual = Vec::new();
+        journal.drain_into(&mut actual);
+        assert_eq!(actual, [lifted]);
+        journal.push(restored);
+        let mut observed = Vec::new();
+        observation.drain_into(&mut observed);
+        assert_eq!(observed, [lifted, restored]);
+        actual.clear();
+        journal.drain_into(&mut actual);
+        assert_eq!(actual, [restored]);
     }
 
     #[test]

@@ -5,7 +5,7 @@ use crate::{
     fast_hash::{FxHashMap, FxHashSet},
     section_mask::SectionMask,
 };
-use horizon_core::random::LegacyRandom;
+use horizon_core::random::{LegacyRandom, LevelRandom};
 use horizon_world::registry::BlockStateId;
 use std::sync::Arc;
 
@@ -72,7 +72,7 @@ pub struct World {
     pub shape: LevelShape,
     pub fast_lava: bool,
     pub chunks: crate::chunk_map::ChunkMap,
-    pub random: LegacyRandom,
+    pub random: LevelRandom,
     pub revision: u64,
     pub health_rules: HealthRules,
     pub air: BlockStateId,
@@ -254,7 +254,7 @@ impl World {
         Self {
             shape: LevelShape::OVERWORLD,
             chunks: Default::default(),
-            random: LegacyRandom::new(seed),
+            random: LevelRandom::for_level(LegacyRandom::new(seed)),
             revision: 0,
             health_rules: HealthRules::default(),
             air,
@@ -357,6 +357,12 @@ impl World {
     /// The lowest block Y the level's chunks hold.
     pub fn bottom_y(&self) -> i32 {
         self.layout().min_y()
+    }
+    /// `Entity.checkBelowWorld`'s floor, `Level.getMinY() - 64`: the level's own
+    /// lowest Y (0 in the Nether and the End), not the chunks' widened column.
+    /// An entity below it is out of the world.
+    pub fn below_world_y(&self) -> f64 {
+        f64::from(self.shape.min_y - 64)
     }
     /// One above the highest block Y the level's chunks hold.
     pub fn top_y(&self) -> i32 {
@@ -862,8 +868,8 @@ mod tests {
 }
 
 /// A block entity's fields kept beside its model ([`World::block_entity_extras`]).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct BlockEntityExtras {
-    source: Option<horizon_core::nbt::Tag>,
-    rolled_loot: Option<crate::chunk::RolledLoot>,
+    pub source: Option<horizon_core::nbt::Tag>,
+    pub rolled_loot: Option<crate::chunk::RolledLoot>,
 }

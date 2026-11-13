@@ -2,8 +2,6 @@
 use super::Facts;
 use std::{collections::BTreeMap, io::Read, path::Path};
 
-pub const MIXINS_REV: &str = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0";
-
 /// Where the prebuilt game (#589) is released: one `prebuilt-<commit>` prerelease per daily build
 /// of this fork's main (Diverges from upstream: horizon-rust/horizon has none).
 pub const PREBUILT_REPO: &str = "arismoko/horizon";

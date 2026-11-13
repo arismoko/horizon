@@ -20,6 +20,7 @@ pub(crate) struct Installed {
     pub(crate) general_entity_types: Vec<crate::parts::entity_types::GeneralEntityTypeDeclaration>,
     pub(crate) spawn_placements: Vec<SpawnPlacementDeclaration>,
     pub(crate) biome_modifiers: Vec<BiomeModifierDeclaration>,
+    pub(crate) biome_regions: Vec<BiomeRegionDeclaration>,
     pub(crate) datapack_registries:
         Vec<crate::world::datapack_registry::DatapackRegistryDeclaration>,
     pub(crate) registry_keys: horizon_mod_runtime::registry_keys::Requests,

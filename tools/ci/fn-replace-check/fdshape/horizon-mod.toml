@@ -60,5 +60,5 @@ bindings = [{ name = "dedicated", ty = "bool", value = "dedicated" }]
 [[native.mixin]]
 id = "trait_block_state"
 kind = "HEAD"
-target = "horizon_client::game::<GameLevel<'_> as LevelAccess>::block_state"
+target = "horizon_client::game::level_access::<GameLevel<'_> as LevelAccess>::block_state"
 helper = "src/mixins/trait.rs"

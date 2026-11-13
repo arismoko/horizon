@@ -324,11 +324,12 @@ mod tests {
         storage.retire_disabled(&std::collections::BTreeSet::from(["group-owner".into()]));
         assert!(storage.get(handle, 1).is_ok());
         assert!(matches!(storage.get(handle, 2), Err(GroupError::Stale)));
-        let _owner = mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
-            id: "other",
-            hook: "test",
-            part: None,
-        });
+        let _owner =
+            mod_platform::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+                id: "other",
+                hook: "test",
+                part: None,
+            });
         assert!(matches!(storage.get(handle, 1), Err(GroupError::Stale)));
     }
 }

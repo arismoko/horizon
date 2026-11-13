@@ -101,25 +101,28 @@ pub fn installer(trait_name: Option<&syn::Ident>, name: &syn::Ident) -> syn::Ide
 /// The trait of `block` when its methods can be replaced: a trait one of the game's own crates
 /// declares (`traits`, by name), written without generic arguments, implemented safely for a
 /// type its own crate declares: the installer is an inherent function of the type. The type is
-/// written as one name, which the crate declares (`types`) and the file does not import from
-/// another crate (`foreign`). Another crate's trait (`Ord`, `Iterator`, `Drop`) is the caller's
-/// contract with that crate, and often a hot path.
+/// written as one name, which exactly one module of the crate declares (`types`), in the impl's
+/// file or any other, and the file does not import from another crate (`foreign`). Another
+/// crate's trait (`Ord`, `Iterator`, `Drop`) is the caller's contract with that crate, and often
+/// a hot path.
 pub fn replaceable_trait<'a>(
+    module: &str,
     block: &'a syn::ItemImpl,
     traits: &BTreeSet<String>,
-    types: &BTreeSet<String>,
+    types: &OwnerTypes,
     foreign: &BTreeSet<String>,
 ) -> Option<&'a syn::Ident> {
     let (_, path, _) = block.trait_.as_ref()?;
-    trait_exclusion(block, traits, types, foreign)
+    trait_exclusion(module, block, traits, types, foreign)
         .is_none()
         .then(|| &path.segments.last().expect("a trait path has a name").ident)
 }
 
 fn trait_exclusion(
+    module: &str,
     block: &syn::ItemImpl,
     traits: &BTreeSet<String>,
-    types: &BTreeSet<String>,
+    types: &OwnerTypes,
     foreign: &BTreeSet<String>,
 ) -> Option<&'static str> {
     let (negative, path, _) = block.trait_.as_ref()?;
@@ -131,16 +134,306 @@ fn trait_exclusion(
         return Some("path-written trait owner");
     };
     let owner = owner.ident.to_string();
+    let undeclared = types.exclusion(module, &owner);
     [
         (negative.is_some(), "negative trait impl"),
         (block.unsafety.is_some(), "unsafe trait impl"),
         (!last.arguments.is_none(), "trait generic arguments"),
         (!traits.contains(&last.ident.to_string()), "foreign trait"),
-        (!types.contains(&owner), "foreign trait owner"),
+        (undeclared.is_some(), undeclared.unwrap_or_default()),
         (foreign.contains(&owner), "imported trait owner"),
     ]
     .into_iter()
     .find_map(|(applies, name)| applies.then_some(name))
+}
+
+/// Why a mixin's target in the trait implementation `block` has no installer, for the refusal;
+/// `None` when it has one.
+pub(crate) fn trait_refusal(
+    module: &str,
+    block: &syn::ItemImpl,
+    traits: &BTreeSet<String>,
+    types: &OwnerTypes,
+    foreign: &BTreeSet<String>,
+) -> Option<String> {
+    let reason = trait_exclusion(module, block, traits, types, foreign)?;
+    Some(if reason == AMBIGUOUS_OWNER {
+        format!(
+            "its trait implementation has no replacement installer: owner type name `{}` is ambiguous in the crate: more than one module declares it, and the `impl`'s module neither declares it nor imports it from one of them",
+            quote::ToTokens::to_token_stream(&block.self_ty)
+        )
+    } else {
+        format!("its trait implementation has no replacement installer ({reason})")
+    })
+}
+
+const AMBIGUOUS_OWNER: &str = "ambiguous trait owner";
+
+/// What a crate's source says about the names of its types: each type with the modules that
+/// declare it, and each module's `use`s, gathered over every file of the module. The staging pass
+/// and the patch generator fill it from the same files, so both give a trait implementation's
+/// owner the same answer, in whatever file the `impl` is.
+#[derive(Default)]
+pub struct OwnerTypes {
+    types: BTreeMap<String, BTreeSet<String>>,
+    modules: BTreeMap<String, Uses>,
+}
+
+/// One module's `use`s.
+#[derive(Default)]
+struct Uses {
+    /// Each name a `use` brings in, under the name it has here (a renamed import under its new
+    /// one), with where the path takes it from.
+    named: BTreeMap<String, Import>,
+    globs: Vec<Glob>,
+}
+
+/// Where a `use` takes a name from: `original` is the name it has there.
+enum Import {
+    /// A module of the crate, written from `crate`, `self` or `super`.
+    Module { from: String, original: String },
+    /// A path written from a bare name, as [`Glob::Bare`].
+    Bare { path: Vec<String>, original: String },
+}
+
+/// A `use …::*`.
+enum Glob {
+    /// Of a module of the crate, written from `crate`, `self` or `super`.
+    Module(String),
+    /// Written from a bare name: a child module, an enum's variants, the crate under its own
+    /// name, or another crate. Which one is known once every module is read.
+    Bare(Vec<String>),
+}
+
+/// What a name is in a module, as far as its `use`s say.
+enum Binding {
+    /// The type the module `0` declares.
+    Local(String),
+    /// Another crate's.
+    Foreign,
+    /// A `use` names it and does not lead to a type this pass reads, or a glob of another crate
+    /// may name it.
+    Unresolved,
+    /// Two different things by two globs.
+    Ambiguous,
+    /// No `use` names it.
+    NotFound,
+}
+
+impl OwnerTypes {
+    /// Adds what `items`, a file of `module`, declare and import, inline modules included.
+    pub fn declare(&mut self, module: &str, items: &[Item]) {
+        fn parent(module: &str) -> String {
+            module
+                .rsplit_once("::")
+                .map_or(module, |(parent, _)| parent)
+                .to_owned()
+        }
+        fn bare(tree: &syn::UseTree, path: &mut Vec<String>, uses: &mut Uses) {
+            let import = |path: &[String], original: &syn::Ident| Import::Bare {
+                path: path.to_vec(),
+                original: original.to_string(),
+            };
+            match tree {
+                syn::UseTree::Path(next) => {
+                    path.push(next.ident.to_string());
+                    bare(&next.tree, path, uses);
+                    path.pop();
+                }
+                syn::UseTree::Name(name) if name.ident == "self" => {}
+                syn::UseTree::Name(name) => {
+                    uses.named
+                        .insert(name.ident.to_string(), import(path.as_slice(), &name.ident));
+                }
+                syn::UseTree::Rename(rename) => {
+                    uses.named.insert(
+                        rename.rename.to_string(),
+                        import(path.as_slice(), &rename.ident),
+                    );
+                }
+                syn::UseTree::Glob(_) => uses.globs.push(Glob::Bare(path.clone())),
+                syn::UseTree::Group(group) => {
+                    for tree in &group.items {
+                        bare(tree, path, uses);
+                    }
+                }
+            }
+        }
+        fn local(tree: &syn::UseTree, at: &str, uses: &mut Uses) {
+            let import = |original: &syn::Ident| Import::Module {
+                from: at.to_owned(),
+                original: original.to_string(),
+            };
+            match tree {
+                syn::UseTree::Path(path) if path.ident == "super" => {
+                    local(&path.tree, &parent(at), uses)
+                }
+                syn::UseTree::Path(path) => {
+                    local(&path.tree, &format!("{at}::{}", path.ident), uses)
+                }
+                syn::UseTree::Name(name) if name.ident == "self" => {}
+                syn::UseTree::Name(name) => {
+                    uses.named
+                        .insert(name.ident.to_string(), import(&name.ident));
+                }
+                // A module under another name names no type.
+                syn::UseTree::Rename(rename) if rename.ident == "self" => {}
+                syn::UseTree::Rename(rename) => {
+                    uses.named
+                        .insert(rename.rename.to_string(), import(&rename.ident));
+                }
+                syn::UseTree::Glob(_) => uses.globs.push(Glob::Module(at.to_owned())),
+                syn::UseTree::Group(group) => {
+                    for tree in &group.items {
+                        local(tree, at, uses);
+                    }
+                }
+            }
+        }
+        let mut uses = self.modules.remove(module).unwrap_or_default();
+        for item in items {
+            let name = match item {
+                Item::Struct(item) => &item.ident,
+                Item::Enum(item) => &item.ident,
+                Item::Union(item) => &item.ident,
+                Item::Mod(item) => {
+                    if let Some((_, inner)) = &item.content {
+                        self.declare(&format!("{module}::{}", item.ident), inner);
+                    }
+                    continue;
+                }
+                Item::Use(item) => {
+                    let from = match &item.tree {
+                        syn::UseTree::Path(path) if path.ident == "crate" => {
+                            Some(module.split("::").next().unwrap_or(module).to_owned())
+                        }
+                        syn::UseTree::Path(path) if path.ident == "self" => Some(module.to_owned()),
+                        syn::UseTree::Path(path) if path.ident == "super" => Some(parent(module)),
+                        _ => None,
+                    };
+                    match (&item.tree, from) {
+                        (syn::UseTree::Path(path), Some(from)) => {
+                            local(&path.tree, &from, &mut uses)
+                        }
+                        (tree, _) => bare(tree, &mut Vec::new(), &mut uses),
+                    }
+                    continue;
+                }
+                _ => continue,
+            };
+            self.types
+                .entry(name.to_string())
+                .or_default()
+                .insert(module.to_owned());
+        }
+        self.modules.insert(module.to_owned(), uses);
+    }
+
+    /// The module a path written from a bare name leads to: `Ok(None)` for one that holds no
+    /// type (an enum's variants), `Err(())` for another crate's.
+    fn bare_module(&self, module: &str, path: &[String]) -> Result<Option<String>, ()> {
+        let Some(first) = path.first() else {
+            return Err(());
+        };
+        if self.modules.contains_key(&format!("{module}::{first}")) {
+            Ok(Some(format!("{module}::{}", path.join("::"))))
+        } else if self
+            .types
+            .get(first)
+            .is_some_and(|modules| modules.contains(module))
+        {
+            Ok(None)
+        } else if module.split("::").next() == Some(first.as_str()) {
+            // The crate under its own name.
+            Ok(Some(path.join("::")))
+        } else {
+            Err(())
+        }
+    }
+
+    /// What `name` is in `module`: the module's own type; else what a `use` names, followed to
+    /// where it leads under the name it has there; else what its globs bring in, where two
+    /// different answers are no answer.
+    fn binding(&self, module: &str, name: &str, seen: &mut BTreeSet<(String, String)>) -> Binding {
+        if !seen.insert((module.to_owned(), name.to_owned())) {
+            return Binding::NotFound;
+        }
+        if self
+            .types
+            .get(name)
+            .is_some_and(|modules| modules.contains(module))
+        {
+            return Binding::Local(module.to_owned());
+        }
+        let Some(uses) = self.modules.get(module) else {
+            return Binding::NotFound;
+        };
+        if let Some(import) = uses.named.get(name) {
+            let (from, original) = match import {
+                Import::Module { from, original } => (from.clone(), original),
+                Import::Bare { path, original } => match self.bare_module(module, path) {
+                    Ok(Some(from)) => (from, original),
+                    Ok(None) | Err(()) => return Binding::Foreign,
+                },
+            };
+            // The `use` binds the name: where it leads nowhere this pass reads, nothing else
+            // may stand in for it.
+            return match self.binding(&from, original, seen) {
+                Binding::NotFound => Binding::Unresolved,
+                found => found,
+            };
+        }
+        // One module reached through two globs is one answer: `None` here is another crate's.
+        let mut found: BTreeSet<Option<String>> = BTreeSet::new();
+        let mut unresolved = false;
+        for glob in &uses.globs {
+            let from = match glob {
+                Glob::Module(from) => from.clone(),
+                Glob::Bare(path) => match self.bare_module(module, path) {
+                    Ok(Some(from)) => from,
+                    Ok(None) => continue,
+                    Err(()) => {
+                        unresolved = true;
+                        continue;
+                    }
+                },
+            };
+            match self.binding(&from, name, seen) {
+                Binding::Local(declaring) => drop(found.insert(Some(declaring))),
+                Binding::Foreign => drop(found.insert(None)),
+                Binding::Unresolved => unresolved = true,
+                Binding::Ambiguous => return Binding::Ambiguous,
+                Binding::NotFound => {}
+            }
+        }
+        let mut found = found.into_iter();
+        match (found.next(), found.next()) {
+            (Some(Some(declaring)), None) => Binding::Local(declaring),
+            (Some(None), None) => Binding::Foreign,
+            (Some(_), Some(_)) => Binding::Ambiguous,
+            (None, _) if unresolved => Binding::Unresolved,
+            (None, _) => Binding::NotFound,
+        }
+    }
+
+    /// Why `owner`, named by an `impl` in `module`, can't carry an installer. The name must be a
+    /// type of the crate: the one the module declares or its `use`s lead to, a renamed import
+    /// followed to the type it renames; or, where no `use` names it at all, the crate's only
+    /// type of that name. A name that a `use` binds to another crate's type, or to something
+    /// this pass can't follow, is refused, as is one that several modules declare with nothing
+    /// to choose between them.
+    fn exclusion(&self, module: &str, owner: &str) -> Option<&'static str> {
+        match self.binding(module, owner, &mut BTreeSet::new()) {
+            Binding::Local(_) => None,
+            Binding::Foreign | Binding::Unresolved => Some("imported trait owner"),
+            Binding::Ambiguous => Some(AMBIGUOUS_OWNER),
+            Binding::NotFound => match self.types.get(owner).map_or(0, BTreeSet::len) {
+                0 => Some("foreign trait owner"),
+                1 => None,
+                _ => Some(AMBIGUOUS_OWNER),
+            },
+        }
+    }
 }
 
 /// The names `items`' `use`s bring in from other crates: paths that don't start at `crate`,
@@ -164,23 +457,6 @@ pub fn foreign_imports(items: &[Item]) -> BTreeSet<String> {
         }
     }
     out
-}
-
-/// The names of the types `items` declare, inline modules included.
-pub fn declared_types(items: &[Item], out: &mut BTreeSet<String>) {
-    for item in items {
-        match item {
-            Item::Struct(item) => drop(out.insert(item.ident.to_string())),
-            Item::Enum(item) => drop(out.insert(item.ident.to_string())),
-            Item::Union(item) => drop(out.insert(item.ident.to_string())),
-            Item::Mod(item) => {
-                if let Some((_, inner)) = &item.content {
-                    declared_types(inner, out);
-                }
-            }
-            _ => {}
-        }
-    }
 }
 
 /// `sig` with each type it names through `Self::` (an associated type of the trait) written
@@ -408,7 +684,7 @@ fn functions<'a>(
     module: &str,
     items: &'a [Item],
     traits: &BTreeSet<String>,
-    types: &BTreeSet<String>,
+    types: &OwnerTypes,
     out: &mut Vec<Found<'a>>,
 ) {
     let foreign = foreign_imports(items);
@@ -445,7 +721,7 @@ fn functions<'a>(
                     && lifetimes_only(&block.generics)
                     && matches!(&*block.self_ty, Type::Path(ty) if ty.qself.is_none()) =>
             {
-                let trait_name = replaceable_trait(block, traits, types, &foreign);
+                let trait_name = replaceable_trait(module, block, traits, types, &foreign);
                 if block.trait_.is_some() && trait_name.is_none() {
                     continue;
                 }
@@ -476,9 +752,10 @@ fn functions<'a>(
 /// Module-scope function definitions, partitioned by their first exclusion rule. Local functions
 /// inside bodies and macro expansions are not source-level replacement candidates.
 fn inventory(
+    module: &str,
     items: &[Item],
     traits: &BTreeSet<String>,
-    types: &BTreeSet<String>,
+    types: &OwnerTypes,
     inherited: Option<&'static str>,
     counts: &mut BTreeMap<&'static str, usize>,
 ) {
@@ -496,13 +773,20 @@ fn inventory(
     let foreign = foreign_imports(items);
     for item in items {
         match item {
-            Item::Mod(module) => {
-                if let Some((_, inner)) = &module.content {
+            Item::Mod(inline) => {
+                if let Some((_, inner)) = &inline.content {
                     let reason = inherited.or_else(|| {
-                        (source::gated(&module.attrs) || source::test_only(&module.attrs))
+                        (source::gated(&inline.attrs) || source::test_only(&inline.attrs))
                             .then_some("conditional/test module")
                     });
-                    inventory(inner, traits, types, reason, counts);
+                    inventory(
+                        &format!("{module}::{}", inline.ident),
+                        inner,
+                        traits,
+                        types,
+                        reason,
+                        counts,
+                    );
                 }
             }
             Item::Fn(function) => record(&function.attrs, &function.sig, inherited, counts),
@@ -515,7 +799,7 @@ fn inventory(
                     } else if !matches!(&*block.self_ty, Type::Path(ty) if ty.qself.is_none()) {
                         Some("non-path/qualified impl owner")
                     } else {
-                        trait_exclusion(block, traits, types, &foreign)
+                        trait_exclusion(module, block, traits, types, &foreign)
                     }
                 });
                 for member in &block.items {
@@ -685,7 +969,7 @@ pub struct Staged {
 }
 
 /// The library name of the package at `package`: its `[lib]` name, or its own with underscores.
-fn library_name(package: &Path) -> Result<String, String> {
+pub(crate) fn library_name(package: &Path) -> Result<String, String> {
     let manifest = package.join("Cargo.toml");
     let text = fs::read_to_string(&manifest).map_err(|e| format!("{}: {e}", manifest.display()))?;
     let cargo: toml::Table =
@@ -711,6 +995,8 @@ struct Crate {
     files: Vec<GameFile>,
     /// Whether only its marked functions are replaceable.
     marked_only: bool,
+    /// Its package folder.
+    package: PathBuf,
 }
 
 /// The staging pass: in the staged copy at `root`, in place, gives every replaceable function its
@@ -721,11 +1007,13 @@ pub fn stage(root: &Path) -> Result<Staged, String> {
     let list = marked(root)?;
     let mut used = vec![false; list.len()];
     let client = root.join("crates/horizon-client/src");
+    let game = root.join("crates/horizon-client");
     let mut crates = vec![Crate {
         name: "horizon_client".into(),
         lib: client.join("lib.rs"),
         files: source::game_files(&client, true)?,
         marked_only: false,
+        package: game.clone(),
     }];
     let lower: BTreeSet<&str> = list
         .iter()
@@ -738,11 +1026,18 @@ pub fn stage(root: &Path) -> Result<Staged, String> {
             ));
         }
         let (package, lib) = source::crate_root(root, name)?;
+        // The game crate arms every marked crate: one built on the game crate would be a cycle.
+        if built_on(&package, &game)? {
+            return Err(format!(
+                "{name}: it is built on horizon-client, so the game crate can't arm its replaceable functions; a crate with #[horizon_mod_api_macros::replaceable] must sit below the game crate"
+            ));
+        }
         crates.push(Crate {
             name: library_name(&package)?,
             lib,
             files: source::crate_files(root, name)?,
             marked_only: true,
+            package,
         });
     }
     let mut staged = Staged::default();
@@ -755,19 +1050,19 @@ pub fn stage(root: &Path) -> Result<Staged, String> {
         // Each file's text as the pass leaves it, the crate root's included.
         let mut texts: BTreeMap<&Path, String> = BTreeMap::new();
         let mut parsed = Vec::new();
-        let mut types = BTreeSet::new();
+        let mut types = OwnerTypes::default();
         for file in &krate.files {
             let text = fs::read_to_string(&file.path)
                 .map_err(|e| format!("{}: {e}", file.path.display()))?;
             let items = syn::parse_file(&text)
                 .map_err(|e| format!("{}: {e}", file.path.display()))?
                 .items;
-            declared_types(&items, &mut types);
+            types.declare(&file.module, &items);
             parsed.push((file, text, items));
         }
         for (file, text, items) in &parsed {
             if !krate.marked_only {
-                inventory(items, &traits, &types, None, &mut counts);
+                inventory(&file.module, items, &traits, &types, None, &mut counts);
             }
             let mut found = Vec::new();
             functions(&file.module, items, &traits, &types, &mut found);
@@ -843,7 +1138,128 @@ pub fn stage(root: &Path) -> Result<Staged, String> {
             "{origin}: {path}: no free function or inherent method every build compiles that can be replaced"
         ));
     }
+    let below: Vec<&Path> = crates
+        .iter()
+        .filter(|krate| krate.marked_only)
+        .map(|krate| krate.package.as_path())
+        .collect();
+    arm_dependencies(root, &game, &below)?;
     Ok(staged)
+}
+
+/// `path` with its `..` and `.` resolved, as written: the staged copy has no links to follow.
+fn lexical(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// A package's manifest, parsed.
+fn manifest(package: &Path) -> Result<toml::Table, String> {
+    let path = package.join("Cargo.toml");
+    let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    toml::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Whether `package` is built on `game` through its path dependencies (normal and build ones).
+fn built_on(package: &Path, game: &Path) -> Result<bool, String> {
+    let game = lexical(game);
+    let mut pending = vec![lexical(package)];
+    let mut seen = BTreeSet::new();
+    while let Some(next) = pending.pop() {
+        if !seen.insert(next.clone()) {
+            continue;
+        }
+        let cargo = manifest(&next)?;
+        for kind in ["dependencies", "build-dependencies"] {
+            let Some(table) = cargo.get(kind).and_then(toml::Value::as_table) else {
+                continue;
+            };
+            for dependency in table.values() {
+                if let Some(path) = dependency.get("path").and_then(toml::Value::as_str) {
+                    let folder = lexical(&next.join(path));
+                    if folder == game {
+                        return Ok(true);
+                    }
+                    pending.push(folder);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+/// Give the staged game crate a path dependency on each crate it arms, in its manifest and its
+/// lock entry: its source manifest needn't name a crate it reaches only through slots.
+fn arm_dependencies(root: &Path, game: &Path, armed: &[&Path]) -> Result<(), String> {
+    if armed.is_empty() {
+        return Ok(());
+    }
+    let mut cargo = manifest(game)?;
+    let game_name = cargo
+        .get("package")
+        .and_then(|package| package.get("name"))
+        .and_then(toml::Value::as_str)
+        .ok_or_else(|| format!("{}: no package name", game.display()))?
+        .to_owned();
+    let dependencies = cargo
+        .entry("dependencies")
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+        .as_table_mut()
+        .ok_or("[dependencies] is not a table")?;
+    let mut added = Vec::new();
+    for package in armed {
+        let name = manifest(package)?
+            .get("package")
+            .and_then(|package| package.get("name"))
+            .and_then(toml::Value::as_str)
+            .ok_or_else(|| format!("{}: no package name", package.display()))?
+            .to_owned();
+        // Kept under whatever name the game crate already gives it.
+        let present = dependencies.iter().any(|(key, dependency)| {
+            *key == name
+                || dependency.get("package").and_then(toml::Value::as_str) == Some(name.as_str())
+        });
+        if present {
+            continue;
+        }
+        let folder = package
+            .file_name()
+            .ok_or_else(|| format!("{}: no folder name", package.display()))?
+            .to_string_lossy()
+            .into_owned();
+        dependencies.insert(
+            name.clone(),
+            toml::Value::Table(toml::Table::from_iter([(
+                "path".to_owned(),
+                format!("../{folder}").into(),
+            )])),
+        );
+        added.push(name);
+    }
+    if added.is_empty() {
+        return Ok(());
+    }
+    let lock_path = root.join("Cargo.lock");
+    // A Windows checkout has CRLF line endings; Cargo reads either, and the entries match on LF.
+    let lock = fs::read_to_string(&lock_path)
+        .map_err(|e| format!("{}: {e}", lock_path.display()))?
+        .replace("\r\n", "\n");
+    let added: Vec<&str> = added.iter().map(String::as_str).collect();
+    let lock = crate::points::locked_with(&lock, &game_name, &added)
+        .ok_or_else(|| format!("Cargo.lock has no entry for {game_name}"))?;
+    let path = game.join("Cargo.toml");
+    fs::write(&path, toml::to_string(&cargo).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    fs::write(&lock_path, lock).map_err(|e| format!("{}: {e}", lock_path.display()))
 }
 
 /// `text` with the head check, reader and installer of each of `found`, numbering their cells
@@ -1113,7 +1529,7 @@ pub fn targets(
     module: &str,
     file: &syn::File,
     traits: &BTreeSet<String>,
-    types: &BTreeSet<String>,
+    types: &OwnerTypes,
 ) -> Vec<String> {
     let mut found = Vec::new();
     functions(module, &file.items, traits, types, &mut found);
@@ -1131,7 +1547,7 @@ mod tests {
             "k",
             &file.items,
             &BTreeSet::new(),
-            &BTreeSet::new(),
+            &OwnerTypes::default(),
             &mut found,
         );
         let mut count = 0;
@@ -1228,9 +1644,10 @@ mod tests {
     fn inventory_partitions_definitions_by_the_actual_eligibility_rules() {
         let file = syn::parse_file("fn free() {} const fn constant() {} fn generic<T>() {} struct T; trait Owned { fn required(&self); fn default(&self) {} } impl Owned for T { fn required(&self) {} } #[cfg(test)] mod tests { fn helper() {} } impl T { fn consume(self) {} }").unwrap();
         let traits = BTreeSet::from(["Owned".to_owned()]);
-        let types = BTreeSet::from(["T".to_owned()]);
+        let mut types = OwnerTypes::default();
+        types.declare("k", &file.items);
         let mut counts = BTreeMap::new();
-        inventory(&file.items, &traits, &types, None, &mut counts);
+        inventory("k", &file.items, &traits, &types, None, &mut counts);
         assert_eq!(counts.values().sum::<usize>(), 7);
         assert_eq!(
             counts,
@@ -1257,7 +1674,11 @@ mod tests {
             "k",
             &file.items,
             &BTreeSet::from(["GameTrait".to_owned()]),
-            &BTreeSet::from(["Example".to_owned()]),
+            &{
+                let mut types = OwnerTypes::default();
+                types.declare("k", &file.items);
+                types
+            },
             &mut found,
         );
         let mut count = 0;
@@ -1331,7 +1752,7 @@ mod tests {
             "k",
             &file.items,
             &BTreeSet::new(),
-            &BTreeSet::new(),
+            &OwnerTypes::default(),
             &mut found,
         );
         let mut count = 7;
@@ -1384,7 +1805,7 @@ mod tests {
             "k",
             &file.items,
             &BTreeSet::new(),
-            &BTreeSet::new(),
+            &OwnerTypes::default(),
             &mut found,
         );
         let error =
@@ -1403,7 +1824,7 @@ mod tests {
                 "k",
                 &file,
                 &BTreeSet::from(["Goal".to_owned()]),
-                &BTreeSet::new()
+                &OwnerTypes::default()
             ),
             ["k::inner::kept", "k::free"]
         );
@@ -1414,8 +1835,8 @@ mod tests {
         let source = "use engine::Style; struct Wander; struct Raw; mod other { struct Style; }\nimpl Goal for Style { fn start(&mut self) {} } impl Goal for engine::Raw { fn start(&mut self) {} } impl Goal for Wander { fn start(&mut self, mob: &Mob) -> bool { true } fn kind(&self) -> Self::Kind { Kind } fn sized(&self) -> [u8; Self::N] { [0; Self::N] } }\nimpl Goal<u8> for Wander { fn start(&mut self) {} }\nunsafe impl Goal for Raw { fn start(&mut self) {} }\nimpl Goal for Vec3 { fn start(&mut self) {} }\n";
         let traits = BTreeSet::from(["Goal".to_owned()]);
         let file = syn::parse_file(source).unwrap();
-        let mut types = BTreeSet::new();
-        declared_types(&file.items, &mut types);
+        let mut types = OwnerTypes::default();
+        types.declare("k", &file.items);
         // A signature naming the trait's associated constant, a trait written with arguments, an
         // unsafe impl and another crate's type (imported under a name the crate also declares,
         // written by path, or not declared here at all) are left as the game wrote them.
@@ -1440,6 +1861,221 @@ mod tests {
         assert!(out.contains("pub fn __fnr_as_Goal_start"), "{out}");
         // The trait's associated type is named through the trait outside its `impl`.
         assert!(out.contains("-> < Self as Goal > :: Kind"), "{out}");
+    }
+
+    #[test]
+    fn a_trait_impl_in_another_file_from_its_type_gets_its_slot() {
+        let traits = BTreeSet::from(["LevelAccess".to_owned()]);
+        let declares = syn::parse_file("pub struct GameLevel;").unwrap();
+        let implements = syn::parse_file(
+            "impl LevelAccess for GameLevel { fn block_state(&self) -> u32 { 0 } }",
+        )
+        .unwrap();
+        let mut types = OwnerTypes::default();
+        types.declare("k::levels", &declares.items);
+        types.declare("k::level_access", &implements.items);
+        // The crate's only type of that name.
+        assert_eq!(
+            targets("k::level_access", &implements, &traits, &types),
+            ["k::level_access::<GameLevel as LevelAccess>::block_state"]
+        );
+        let Item::Impl(block) = &implements.items[0] else {
+            panic!("an impl")
+        };
+        let foreign = foreign_imports(&implements.items);
+        let here = "k::level_access";
+        assert_eq!(trait_refusal(here, block, &traits, &types, &foreign), None);
+        // A second module declaring the name, and no `use` in the `impl`'s module names either:
+        // a bare `GameLevel` no longer says which type.
+        types.declare("k::other", &declares.items);
+        assert!(targets("k::level_access", &implements, &traits, &types).is_empty());
+        assert_eq!(
+            trait_refusal(here, block, &traits, &types, &foreign).unwrap(),
+            "its trait implementation has no replacement installer: owner type name `GameLevel` is ambiguous in the crate: more than one module declares it, and the `impl`'s module neither declares it nor imports it from one of them"
+        );
+    }
+
+    /// The targets of `impl LevelAccess for GameLevel` in `k::game::level_access`, a child of
+    /// `k::game`, whose file starts with `import`; each of `others` is a module and its file.
+    fn level_access_targets(others: &[(&str, &str)], import: &str) -> Vec<String> {
+        let traits = BTreeSet::from(["LevelAccess".to_owned()]);
+        let mut types = OwnerTypes::default();
+        for (module, text) in others {
+            types.declare(module, &syn::parse_file(text).unwrap().items);
+        }
+        let file = syn::parse_file(&format!(
+            "{import} impl LevelAccess for GameLevel {{ fn block_state(&self) -> u32 {{ 0 }} }}"
+        ))
+        .unwrap();
+        types.declare("k::game::level_access", &file.items);
+        targets("k::game::level_access", &file, &traits, &types)
+    }
+
+    const KEPT: [&str; 1] = ["k::game::level_access::<GameLevel as LevelAccess>::block_state"];
+
+    /// The game's own shape: `GameLevel` in the `game` module and in another one, the `impl`
+    /// in a child of `game` that takes its parent's names.
+    #[test]
+    fn a_use_of_the_declaring_module_settles_a_name_two_modules_declare() {
+        let twice = [
+            ("k::game", "struct GameLevel;"),
+            ("k::game::natural_spawning", "struct GameLevel;"),
+        ];
+        for import in [
+            "use super::*;",
+            "use super::GameLevel;",
+            "use crate::game::{GameLevel, Other};",
+            "use crate::game::natural_spawning::GameLevel;",
+        ] {
+            assert_eq!(level_access_targets(&twice, import), KEPT, "{import}");
+        }
+        // Renamed from a name that is no type there, a name its module does not hold, or brought
+        // in by two globs that both declare it: nothing says which.
+        for import in [
+            "use super::Level as GameLevel;",
+            "use crate::elsewhere::GameLevel;",
+            "use super::*; use super::natural_spawning::*;",
+        ] {
+            assert!(level_access_targets(&twice, import).is_empty(), "{import}");
+        }
+        // One module reached through two globs is one answer.
+        let through = [
+            (
+                "k::game",
+                "struct GameLevel; mod other { struct GameLevel; }",
+            ),
+            ("k::game::prelude", "use super::*;"),
+        ];
+        assert_eq!(
+            level_access_targets(&through, "use super::*; use super::prelude::*;"),
+            KEPT
+        );
+    }
+
+    /// A name the parent takes from another crate reaches the child through its glob: the
+    /// crate's own type of that name, declared elsewhere, is not what the `impl` names.
+    #[test]
+    fn a_foreign_name_inherited_through_a_glob_is_refused() {
+        for parent in [
+            "use engine::GameLevel;",
+            "use engine::Level as GameLevel;",
+            "use engine::*;",
+        ] {
+            let crate_ = [("k::game", parent), ("k::levels", "struct GameLevel;")];
+            assert!(
+                level_access_targets(&crate_, "use super::*;").is_empty(),
+                "{parent}"
+            );
+        }
+        // The same glob beside the parent's own type: the type is the parent's.
+        let own = [("k::game", "use engine::*; struct GameLevel;")];
+        assert_eq!(level_access_targets(&own, "use super::*;"), KEPT);
+        // A glob of an enum's variants, or of a child module, brings in no other crate's name.
+        let variants = [
+            (
+                "k::game",
+                "enum Kind { A } use Kind::*; mod child {} use child::*;",
+            ),
+            ("k::levels", "struct GameLevel;"),
+        ];
+        assert_eq!(level_access_targets(&variants, "use super::*;"), KEPT);
+    }
+
+    /// A renamed import is the type it renames: followed when that is a type of the crate,
+    /// refused when it is another crate's or leads nowhere, and never dropped for a type that
+    /// happens to have the new name.
+    #[test]
+    fn a_renamed_import_is_followed_to_the_type_it_renames() {
+        let own = [("k::a", "struct Level;"), ("k::b", "struct GameLevel;")];
+        assert_eq!(
+            level_access_targets(&own, "use crate::a::Level as GameLevel;"),
+            KEPT
+        );
+        for (a, import) in [
+            // `k::a` takes `Level` from another crate, by name and by glob.
+            ("use engine::Level;", "use crate::a::Level as GameLevel;"),
+            ("use engine::*;", "use crate::a::Level as GameLevel;"),
+            // Renamed straight from another crate, in the parent.
+            ("", "use engine::Level as GameLevel;"),
+        ] {
+            let crate_ = [("k::a", a), ("k::b", "struct GameLevel;")];
+            assert!(
+                level_access_targets(&crate_, import).is_empty(),
+                "{a} {import}"
+            );
+        }
+        // Inherited through the parent's glob, the renamed name is still not `k::b`'s type.
+        let inherited = [
+            ("k::game", "use engine::Level as GameLevel;"),
+            ("k::b", "struct GameLevel;"),
+        ];
+        assert!(level_access_targets(&inherited, "use super::*;").is_empty());
+    }
+
+    /// `mod_api`'s `PartRegistrar` shape: the type in a child module, re-exported by its parent
+    /// through a path written from the child's bare name, and the `impl`s in sibling files that
+    /// take the parent's names.
+    #[test]
+    fn a_parents_re_export_of_its_childs_type_reaches_a_sibling() {
+        for re_export in [
+            "pub use shared::GameLevel;",
+            "pub use shared::*;",
+            "pub use self::shared::GameLevel;",
+            "pub use shared::{GameLevel as Level, GameLevel};",
+        ] {
+            let crate_ = [
+                ("k::game::shared", "pub struct GameLevel;"),
+                ("k::game", re_export),
+                ("k::other", "struct GameLevel;"),
+            ];
+            assert_eq!(
+                level_access_targets(&crate_, "use super::*;"),
+                KEPT,
+                "{re_export}"
+            );
+        }
+        // Re-exported under the name: the sibling's `GameLevel` is the child's `Shared`, a type of
+        // the crate, whatever else is called `GameLevel`.
+        let renamed = [
+            ("k::game::shared", "pub struct Shared;"),
+            ("k::game", "pub use shared::Shared as GameLevel;"),
+            ("k::other", "struct GameLevel;"),
+        ];
+        assert_eq!(level_access_targets(&renamed, "use super::*;"), KEPT);
+        // A child the parent does not have is another crate.
+        let foreign = [
+            ("k::game", "pub use engine_shared::GameLevel;"),
+            ("k::other", "struct GameLevel;"),
+        ];
+        assert!(level_access_targets(&foreign, "use super::*;").is_empty());
+    }
+
+    /// A module's `use`s are its own, whichever of its files writes them.
+    #[test]
+    fn a_use_in_a_sibling_file_of_the_module_settles_the_name() {
+        let crate_ = [
+            ("k::a", "struct GameLevel;"),
+            ("k::b", "struct GameLevel;"),
+            ("k::game::level_access", "use crate::a::GameLevel;"),
+        ];
+        assert_eq!(level_access_targets(&crate_, ""), KEPT);
+    }
+
+    #[test]
+    fn two_modules_types_of_one_name_each_keep_their_own_impls_slot() {
+        let traits = BTreeSet::from(["Goal".to_owned()]);
+        let file = syn::parse_file("struct State; impl Goal for State { fn start(&mut self) {} }")
+            .unwrap();
+        let mut types = OwnerTypes::default();
+        for module in ["k::a", "k::b"] {
+            types.declare(module, &file.items);
+        }
+        for module in ["k::a", "k::b"] {
+            assert_eq!(
+                targets(module, &file, &traits, &types),
+                [format!("{module}::<State as Goal>::start")]
+            );
+        }
     }
 
     #[test]
@@ -1486,6 +2122,10 @@ mod tests {
             "crates/horizon-low/src/lib.rs",
             "#[horizon_mod_api_macros::replaceable] pub fn drawn() {}\npub fn unlisted() {}\n",
         );
+        write(
+            "Cargo.lock",
+            "version = 4\n\n[[package]]\nname = \"horizon-client\"\nversion = \"0.1.0\"\n\n[[package]]\nname = \"horizon-low\"\nversion = \"0.1.0\"\n",
+        );
 
         let staged = stage(root.path()).unwrap();
         assert_eq!(
@@ -1506,6 +2146,21 @@ mod tests {
         );
         assert!(low.contains("pub static __REPLACE: [::std::sync::atomic::AtomicPtr<()>; 1]"));
         syn::parse_file(&low).unwrap();
+        // The game crate arms the marked crate, so the staged copy depends on it.
+        assert!(lib.contains("::horizon_low::__fnr_arm();"), "{lib}");
+        let client: toml::Table = toml::from_str(
+            &fs::read_to_string(root.path().join("crates/horizon-client/Cargo.toml")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            client["dependencies"]["horizon-low"]["path"].as_str(),
+            Some("../horizon-low")
+        );
+        let lock = fs::read_to_string(root.path().join("Cargo.lock")).unwrap();
+        assert!(
+            lock.contains("name = \"horizon-client\"\nversion = \"0.1.0\"\ndependencies = [\n \"horizon-low\",\n]"),
+            "{lock}"
+        );
 
         write(
             "crates/horizon-low/src/lib.rs",
@@ -1515,6 +2170,45 @@ mod tests {
         assert!(
             error.contains("#[horizon_mod_api_macros::replaceable] on horizon_low::missing"),
             "{error}"
+        );
+    }
+
+    #[test]
+    fn a_marked_crate_built_on_the_game_crate_is_refused_by_name() {
+        let root = tempfile::tempdir().unwrap();
+        let write = |path: &str, text: &str| {
+            let path = root.path().join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, text).unwrap();
+        };
+        write(
+            "crates/horizon-client/Cargo.toml",
+            "[package]\nname = 'horizon-client'\n",
+        );
+        write("crates/horizon-client/src/lib.rs", "mod game;\n");
+        write("crates/horizon-client/src/game.rs", "");
+        // Through a crate in between, as a cycle usually hides.
+        write(
+            "crates/horizon-high/Cargo.toml",
+            "[package]\nname = 'horizon-high'\n[dependencies]\nhorizon-mid = { path = '../horizon-mid' }\n",
+        );
+        write(
+            "crates/horizon-mid/Cargo.toml",
+            "[package]\nname = 'horizon-mid'\n[build-dependencies]\nhorizon-client = { path = '../horizon-client' }\n",
+        );
+        write(
+            "crates/horizon-high/src/lib.rs",
+            "#[horizon_mod_api_macros::replaceable] pub fn drawn() {}\n",
+        );
+        let error = stage(root.path()).unwrap_err();
+        assert!(
+            error.starts_with("horizon_high: it is built on horizon-client"),
+            "{error}"
+        );
+        // Left untouched: the refusal comes before any edit.
+        assert_eq!(
+            fs::read_to_string(root.path().join("crates/horizon-high/src/lib.rs")).unwrap(),
+            "#[horizon_mod_api_macros::replaceable] pub fn drawn() {}\n"
         );
     }
 }

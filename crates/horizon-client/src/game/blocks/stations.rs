@@ -8,6 +8,7 @@
 mod anvil;
 #[path = "stations/tooltip.rs"]
 mod tooltip;
+use super::smithing_icons::smithing_slot_icons;
 /// Invalid measurements must not reach tooltip positioning or reserve empty space.
 fn tooltip_component_size(size: Option<[f32; 2]>) -> Option<[f32; 2]> {
     size.filter(|size| size.iter().all(|v| v.is_finite() && *v > 0.0))
@@ -277,64 +278,6 @@ const EMPTY_TEMPLATE_ICONS: [&str; 2] = [
     "smithing_template_armor_trim",
     "smithing_template_netherite_upgrade",
 ];
-/// The base and additions slot icons of the template in the smithing table:
-/// `SmithingTemplateItem.createNetheriteUpgradeTemplate` (the 11 tools and
-/// armour of `SmithingTemplateItem.createNetheriteUpgradeIconList`, then the
-/// ingot) and `SmithingTemplateItem.createArmorTrimTemplate` (the four armour
-/// pieces, then the seven trim materials), as `getBaseSlotEmptyIcons` and
-/// `getAdditionalSlotEmptyIcons` give them.
-fn smithing_slot_icons(
-    template: Option<&str>,
-) -> ([&'static str; 11], usize, [&'static str; 7], usize) {
-    let none = ([""; 11], 0, [""; 7], 0);
-    match template.map(|t| t.trim_start_matches("minecraft:")) {
-        Some("netherite_upgrade_smithing_template") => (
-            [
-                "helmet",
-                "sword",
-                "chestplate",
-                "pickaxe",
-                "leggings",
-                "axe",
-                "boots",
-                "hoe",
-                "shovel",
-                "nautilus_armor",
-                "spear",
-            ],
-            11,
-            ["ingot", "", "", "", "", "", ""],
-            1,
-        ),
-        Some(t) if t.ends_with("_armor_trim_smithing_template") => (
-            [
-                "helmet",
-                "chestplate",
-                "leggings",
-                "boots",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-            ],
-            4,
-            [
-                "ingot",
-                "redstone_dust",
-                "lapis_lazuli",
-                "quartz",
-                "diamond",
-                "emerald",
-                "amethyst_shard",
-            ],
-            7,
-        ),
-        _ => none,
-    }
-}
 
 pub(super) struct Station {
     pub(super) kind: Kind,
@@ -748,7 +691,10 @@ impl Game<'_> {
             return;
         };
         let creative = self.creative;
-        let data = self.stations();
+        let (enchantments, data) = (
+            std::sync::Arc::clone(self.item_enchantments()),
+            self.stations(),
+        );
         let items = self.items();
         match s.kind {
             // A server's table: its data slots carry the offers, and its
@@ -756,7 +702,7 @@ impl Game<'_> {
             Kind::Enchanting if self.remote.is_some() => {
                 let enchantable = s.inputs[0]
                     .as_ref()
-                    .is_some_and(|i| stations::is_enchantable(&data.enchantments, i));
+                    .is_some_and(|i| stations::is_enchantable(&enchantments, i));
                 if !enchantable {
                     s.offers = Default::default();
                 }
@@ -764,7 +710,7 @@ impl Game<'_> {
             Kind::Enchanting => {
                 s.bookcases = self.count_bookshelves(s.pos);
                 s.offers = stations::enchant_offers(
-                    &data.enchantments,
+                    &enchantments,
                     items,
                     self.level.xp_seed,
                     s.bookcases,
@@ -778,7 +724,7 @@ impl Game<'_> {
                     .map(|i| stations::hover_name(&self.pack.names, i))
                     .unwrap_or_default();
                 s.anvil = stations::anvil_result(
-                    &data.enchantments,
+                    &enchantments,
                     items,
                     s.inputs[0].as_ref(),
                     s.inputs[1].as_ref(),
@@ -799,7 +745,7 @@ impl Game<'_> {
             }
             Kind::Grindstone => {
                 s.result = stations::grindstone_result(
-                    &data.enchantments,
+                    &enchantments,
                     items,
                     s.inputs[0].as_ref(),
                     s.inputs[1].as_ref(),
@@ -3290,7 +3236,7 @@ mod tests {
             }
         }
         let defaults = vec![ModEntry::new("default", Box::new(DefaultMod))].into();
-        mod_api::testing::with_mods(defaults, || {
+        mod_platform::testing::with_mods(defaults, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let mut station = super::Station::new(super::Kind::Anvil, [0; 3]);
                 station.inputs[0] = Some(super::ItemStack::new("minecraft:iron_sword", 1));
@@ -3303,7 +3249,7 @@ mod tests {
         });
         let calls = Arc::new(AtomicUsize::new(0));
         let mods = vec![ModEntry::new("listener", Box::new(Listener(calls.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let mut station = super::Station::new(super::Kind::Anvil, [0; 3]);
                 station.inputs[0] = Some(super::ItemStack::new("minecraft:iron_sword", 1));
@@ -3395,7 +3341,7 @@ mod tests {
         }
         let mods: Mods = vec![ModEntry::new("lore", Box::new(Mod))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.settings.file.set(
                     "advancedItemTooltips",
@@ -3486,7 +3432,7 @@ mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("runes", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let helmet = super::ItemStack::new("minecraft:diamond_helmet", 1);
                 let plain = |game: &super::Game<'_>| -> Vec<String> {
@@ -3572,7 +3518,7 @@ mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("gather", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let stick = super::ItemStack::new("minecraft:stick", 1);
                 let long = Text::literal("one two three four five six seven eight");
@@ -3836,7 +3782,7 @@ mod cycling_tests {
         }
         let lines = vec![(Text::literal("Tip"), u32::MAX)];
         let mods: Mods = vec![ModEntry::new("pre", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let mut batch = HudBatch::scratch([320, 240]);
                 let mut pre = |game: &super::Game<'_>| {

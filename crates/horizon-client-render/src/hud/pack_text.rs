@@ -79,7 +79,7 @@ pub(super) fn load_shaders(
     root: &ResourceSource,
     defaults: &ResourceSource,
 ) {
-    atlas.text_shader = load(root, defaults);
+    atlas.text_shaders.gui = load(root, defaults);
     atlas.lines_shader = load_core(
         root,
         defaults,
@@ -90,6 +90,12 @@ pub(super) fn load_shaders(
     let sky = |name| load_core(root, defaults, name, &[], &crate::gfx::core_sky::GLUE);
     atlas.sky_shader = sky("sky");
     atlas.stars_shader = sky("stars");
+    let world = |defines: &[&str], glue| load_core(root, defaults, "text", defines, glue);
+    atlas.text_shaders.world = world(&[], &crate::gfx::core_text::WORLD_GLUE);
+    atlas.text_shaders.see_through = world(
+        &["IS_SEE_THROUGH"],
+        &crate::gfx::core_text::SEE_THROUGH_GLUE,
+    );
 }
 
 /// Each uniform block's offset in the one buffer (`core_shader::BLOCKS` order).

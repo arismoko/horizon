@@ -71,7 +71,10 @@ fn candidate(power: i64) -> DatapackCandidate {
     let file = format!(r#"{{"power": {power}}}"#).into_bytes();
     DatapackCandidate::build(
         &declarations(),
-        &[("data/addon/example/spell/fire.json".to_owned(), vec![file])],
+        &[(
+            "data/addon/example/spell/fire.json".to_owned(),
+            vec![("pack".to_owned(), file)],
+        )],
     )
     .unwrap()
 }
@@ -224,7 +227,8 @@ fn drive<T>(
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         host.tick();
-        for event in session.poll() {
+        for receipt in session.poll() {
+            let (event, _credit) = receipt.into_parts();
             if let Some(found) = done(host, event) {
                 return found;
             }
@@ -315,6 +319,22 @@ fn refused_client(brand: &str) -> (String, bool) {
                         .encode(),
                 )
                 .unwrap(),
+            cfg::Clientbound::CustomPayload(p)
+                if brand == "horizon"
+                    && p.channel == horizon_protocol::payload_negotiation::CHANNEL =>
+            {
+                use horizon_protocol::payload_negotiation::{CHANNEL, Control, Manifest};
+                if Control::decode(&p.data).unwrap() == Control::Query {
+                    c.send(
+                        &cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                            channel: CHANNEL.into(),
+                            data: Control::Offer(Manifest::default()).encode().unwrap(),
+                        })
+                        .encode(),
+                    )
+                    .unwrap();
+                }
+            }
             cfg::Clientbound::CustomPayload(p) if p.channel == datapack_net::CHANNEL => {
                 registry_payload = true;
             }

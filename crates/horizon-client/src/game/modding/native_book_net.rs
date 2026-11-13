@@ -1,4 +1,4 @@
-//! The dedicated custom-book channel uses the negotiated mod-transport capability.
+//! Private custom-book synchronization, admitted by its own configuration capability.
 use super::Game;
 use horizon_client::recipe_book::{
     settings_codec,
@@ -22,7 +22,6 @@ fn registered() -> BTreeSet<String> {
 impl Game<'_> {
     pub(super) fn tick_book_snapshot_retry(&mut self) {
         self.check_mod_book_placement_timeout();
-        self.native_net.to_server = 0;
         if self
             .native_net
             .book_retry_at
@@ -80,27 +79,6 @@ impl Game<'_> {
         self.native_net.book_retry_at = None;
         self.build_screen();
     }
-    pub(super) fn is_book_or_mod_channel(&self, channel: &str) -> bool {
-        channel == CHANNEL
-            || channel == horizon_protocol::mod_net::CHANNEL
-            || channel == horizon_client::datapack_net::CHANNEL
-    }
-    pub(super) fn remote_book_or_mod_payload(
-        &mut self,
-        channel: &str,
-        data: &[u8],
-    ) -> horizon_client::Result<()> {
-        if channel == CHANNEL {
-            self.remote_book_settings(data);
-        } else if channel == horizon_client::datapack_net::CHANNEL {
-            // The server's next generation of the mods' registries: all of it or the connection.
-            horizon_client::datapack_net::accept_chunk(data)?;
-        } else {
-            self.remote_native_net(data);
-        }
-        Ok(())
-    }
-
     pub(super) fn clear_guest_book_connection(&mut self, conn: u32) {
         self.guest_combat.remove(&conn);
         self.native_net.book_connections.remove(&conn);
@@ -212,7 +190,10 @@ impl Game<'_> {
 
     pub(super) fn begin_book_negotiation(&mut self) {
         self.reset_book_view();
-        if self.remote.as_ref().is_some_and(|r| r.mod_net && r.joined)
+        if self
+            .remote
+            .as_ref()
+            .is_some_and(|r| r.custom_books && r.joined)
             && let Some(data) = settings_codec::encode(&Message::Hello)
         {
             self.send(S::CustomPayload(CustomPayload {
@@ -280,7 +261,7 @@ impl Game<'_> {
         if !self
             .remote
             .as_ref()
-            .is_some_and(|remote| remote.mod_net && remote.joined)
+            .is_some_and(|remote| remote.custom_books && remote.joined)
         {
             return;
         }

@@ -93,9 +93,9 @@ and some are waiting for Ludovic:
   same fork key file, then enable `RELEASE_SIGNING_KEY_NEXT` for overlapping signatures before
   replacing the primary secret and eventually retiring the old public key. Nightly title,
   channel and exact-version signature binding remain unchanged.
-- **The release machinery needs Ludovic.** The workflows, the release and signing tools, the update-checking code
+- **Upstream release machinery needs the council.** The workflows, the release and signing tools, the update-checking code
   and the installers are listed in `.github/CODEOWNERS`. Once main's protection requires code owners' reviews, a
-  change to any of them waits for Ludovic's approval. Everything else still merges as soon as its checks pass.
+  change to any of them waits for a review from the `horizon-rust/council` team (council poll P35). Everything else still merges as soon as its checks pass.
 - **Agents get their own, smaller identity** (prepared, switched on by Ludovic). The `horizon-agent` GitHub App
   can read and write code, pull requests and issues, and read the checks. It cannot change settings, workflows,
   secrets or members, and its tokens last an hour. Once agents use it, their pull requests are the app's, and

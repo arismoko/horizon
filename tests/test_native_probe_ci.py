@@ -19,7 +19,7 @@ class SelectionTests(unittest.TestCase):
         for path in ("Cargo.lock", "Cargo.toml", "crates/new-crate/Cargo.toml",
                      "crates/horizon-mod-api-gen/src/main.rs", "crates/horizon-client/src/game.rs",
                      "crates/cargo-horizon-mod/template/native/lib.rs", "tools/native_dylib_probe/a.rs",
-                     "launcher/src/rust_toolchain.rs", "rust-toolchain.toml",
+                     "launcher/src/rust_toolchain.rs", "tools/ci/rust-version", "rust-toolchain.toml",
                      "packaging/windows/exe.rs", "packaging/executable_link.rs"):
             with self.subTest(path=path):
                 self.assertTrue(ci.selected([path], roots))

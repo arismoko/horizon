@@ -20,7 +20,7 @@ use horizon_client::entity_rules::EntityRules;
 use horizon_client::join_seq::JoinSeq;
 use horizon_client::join_seq::Joined as _;
 use horizon_client::mobs::{Mob, Species};
-use horizon_client::projectiles::Projectile;
+use horizon_client::projectiles::{Projectile, ProjectileKind};
 use horizon_core::geometry::{Aabb, Direction, Vec3};
 use horizon_core::nbt::Tag;
 use horizon_core::position::BlockPos;
@@ -271,6 +271,11 @@ pub(super) trait Entity: EntityRules {
     fn portal_size(&self) -> Option<(f32, f32)> {
         None
     }
+    /// Whether [`Self::portal_size`] is Some, without working the size out (a
+    /// mob's depends on its age, scale and pose).
+    fn sweeps_portals(&self) -> bool {
+        self.portal_size().is_some()
+    }
     /// `Entity.canUsePortal(false)` for a kind in `portal_size`. A kind that
     /// cannot stays tracked, so its cooldown and process run out.
     fn can_use_portal(&self, _game: &Game<'_>) -> bool {
@@ -279,6 +284,10 @@ pub(super) trait Entity: EntityRules {
     /// A boat or minecart: the kinds whose portal pass opens the tick, before
     /// they move (`AbstractMinecart.tick` handles its portal first).
     fn is_vehicle(&self) -> bool {
+        false
+    }
+    /// Whether movement applies portal block effects before Entity's base tick.
+    fn portal_after_move(&self) -> bool {
         false
     }
     /// Where it stood at the start of its tick, for the kinds that store it
@@ -290,6 +299,11 @@ pub(super) trait Entity: EntityRules {
     /// arrow or a trident in the ground that did not move enters none.
     fn portal_sweeps(&self) -> bool {
         true
+    }
+    /// `Entity.noPhysics` between ticks: its moves pass through the blocks,
+    /// and a shulker's lid leaves it be.
+    fn no_physics(&self) -> bool {
+        false
     }
     /// `Entity.move(MoverType.PISTON, …)` once the movement is resolved.
     fn move_by_piston(&mut self, movement: Vec3) {
@@ -342,7 +356,14 @@ impl RenderEntityBounds for Mob {
             self.species(),
             Species::Guardian | Species::ElderGuardian | Species::Phantom
         ) {
-            let radius = width.max(height) * 2.5 + 3.0;
+            // The model's root scales its appendages too (the elder guardian
+            // uses 2.35), so the margin must grow along with the model.
+            let root_scale = self.kind.model.pose[6..]
+                .iter()
+                .copied()
+                .map(f32::abs)
+                .fold(1.0, f32::max);
+            let radius = width.max(height) * 2.5 + 3.0 * f64::from(root_scale * self.model_scale());
             return Aabb::of_size(at, Vec3::new(radius * 2.0, radius * 2.0, radius * 2.0));
         }
 
@@ -921,10 +942,12 @@ impl Game<'_> {
         splash: &mut impl FnMut(horizon_client::entities::ItemSplash),
     ) -> (bool, bool) {
         let no_physics = escape_speed.is_some();
+        // Entity.baseTick splashes before moving, except on the first tick, at
+        // the motion before the currents push it.
+        let before = item.velocity;
         let heights =
             item.push_by_fluid(&self.world, &self.res.motion().fluids, &self.loop_context);
-        // Entity.baseTick splashes before moving, except on the first tick.
-        item.water_entry(heights.0 > 0.0, item.ticks == 0, splash);
+        item.water_entry(heights.0 > 0.0, item.ticks == 0, before, splash);
         item.lava_fall(heights.1 > 0.0);
         let mut step = item.tick_move_before_block_effects(
             &self.world,
@@ -991,11 +1014,18 @@ impl Game<'_> {
             self.res.facts(),
             self.collision,
         );
-        let alive = item.tick_settle(&self.world, self.res.facts(), no_physics, step);
+        let alive = item.tick_settle(
+            &self.world,
+            self.res.facts(),
+            no_physics,
+            step,
+            &self.loop_context,
+        );
         // ItemEntity.tick refreshes immersion and splashes on water entry.
+        let before = item.velocity;
         let (water, _) =
             item.push_by_fluid(&self.world, &self.res.motion().fluids, &self.loop_context);
-        item.water_entry(water > 0.0, false, splash);
+        item.water_entry(water > 0.0, false, before, splash);
         (alive, false)
     }
 }
@@ -1566,6 +1596,9 @@ impl Entity for Mob {
     fn portal_size(&self) -> Option<(f32, f32)> {
         Some((self.width(), self.height()))
     }
+    fn sweeps_portals(&self) -> bool {
+        true
+    }
     fn can_use_portal(&self, game: &Game<'_>) -> bool {
         game.mob_portal_eligible(self)
     }
@@ -2085,6 +2118,10 @@ impl Entity for ArmorStand {
     fn pushed_by_explosion(&self) -> bool {
         false
     }
+    /// A marker and a NoGravity stand have no physics (`noPhysics`).
+    fn no_physics(&self) -> bool {
+        self.marker || self.no_gravity
+    }
     /// `ArmorStand.getPistonPushReaction`: a marker is ignored.
     fn get_piston_push_reaction(&self) -> PushReaction {
         if self.marker {
@@ -2248,6 +2285,13 @@ impl Entity for Projectile {
             arrow.fall_distance = 0.0;
         }
     }
+    fn portal_after_move(&self) -> bool {
+        !matches!(
+            self.kind,
+            horizon_client::projectiles::ProjectileKind::LlamaSpit
+                | horizon_client::projectiles::ProjectileKind::ShulkerBullet { .. }
+        )
+    }
     fn rotation(&self) -> [f32; 2] {
         [self.yaw, self.pitch]
     }
@@ -2386,6 +2430,11 @@ impl Entity for Projectile {
     fn bounds(&self) -> Aabb {
         Projectile::bounds(self)
     }
+    /// A shulker bullet's, set when it is made; an arrow's `AbstractArrow.noPhysics`.
+    fn no_physics(&self) -> bool {
+        matches!(self.kind, ProjectileKind::ShulkerBullet { .. })
+            || self.arrow.as_ref().is_some_and(|a| a.no_physics)
+    }
     fn move_by_piston(&mut self, movement: Vec3) {
         Projectile::move_by_piston(self, movement);
     }
@@ -2483,6 +2532,9 @@ impl Entity for ThrownTrident {
     fn reset_fall_distance(&mut self) {
         // A thrown trident keeps no fall distance here.
     }
+    fn portal_after_move(&self) -> bool {
+        true
+    }
     fn rotation(&self) -> [f32; 2] {
         [self.yaw, self.pitch]
     }
@@ -2561,6 +2613,10 @@ impl Entity for ThrownTrident {
             Vec3::new(p.x - 0.25, p.y, p.z - 0.25),
             Vec3::new(p.x + 0.25, p.y + 0.5, p.z + 0.25),
         )
+    }
+    /// `AbstractArrow.noPhysics`, set once a loyal trident turns back.
+    fn no_physics(&self) -> bool {
+        self.no_physics
     }
     fn move_by_piston(&mut self, movement: Vec3) {
         ThrownTrident::move_by_piston(self, movement);
@@ -2851,6 +2907,7 @@ mod set_rotation_tests {
     fn set_rotation_keeps_yaw_and_clamps_pitch_on_kinds_that_had_none() {
         let mut orb = ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             join: Default::default(),
             no_gravity: false,
             id: 0,
@@ -2863,6 +2920,7 @@ mod set_rotation_tests {
             count: 1,
             ticks: 0,
             health: 5,
+            air: 300,
             rotation: [0.0, 0.0],
             following: None,
         };

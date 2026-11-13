@@ -61,7 +61,7 @@ fn a_mod_menu_part_decides_whether_its_menu_stays_open() {
         crafting: None,
         links: None,
     }));
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::super::native_guest_turn_tests::with_guests(|game| {
             game.world
                 .chunks

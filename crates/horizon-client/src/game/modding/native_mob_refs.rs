@@ -789,7 +789,7 @@ mod tests {
             Box::new(Redirect(redirect.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 super::super::native_item_places::tests::open_to_lan(game);
                 let level = game.level(game.dim.id()).unwrap();

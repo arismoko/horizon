@@ -814,6 +814,7 @@ mod tests {
             "ruby:glow".to_owned(),
             0xFF0000,
             potions::Category::Neutral,
+            None,
         )]);
         let mut fx = PlayerEffects::default();
         fx.add(EffectInstance::new(

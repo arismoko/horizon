@@ -1,7 +1,7 @@
 //! Dense attachment membership with immutable, shared-entry snapshots.
 use std::{
     collections::HashMap,
-    hash::Hash,
+    hash::{BuildHasher, Hash},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -12,7 +12,7 @@ use super::{
     AttachmentEntry,
     index_key::{BucketKey, Lookup, Named},
 };
-use horizon_core::nbt::JavaString;
+use horizon_core::{fast_hash::FxHashMap, nbt::JavaString};
 
 /// An already-resolved attachment namespace and name.
 pub type AttachmentKey = (JavaString, JavaString);
@@ -32,13 +32,13 @@ pub struct AttachmentRow<H> {
 #[derive(Clone)]
 pub struct AttachmentSnapshot<H> {
     rows: Vec<AttachmentRow<H>>,
-    slots: HashMap<H, usize>,
+    slots: FxHashMap<H, usize>,
 }
 impl<H> Default for AttachmentSnapshot<H> {
     fn default() -> Self {
         Self {
             rows: Vec::new(),
-            slots: HashMap::new(),
+            slots: FxHashMap::default(),
         }
     }
 }
@@ -190,9 +190,9 @@ struct Owner {
     slots: HashMap<Arc<AttachmentKey>, usize>,
 }
 
-fn reclaim_sparse_map<K: Eq + Hash, V>(map: &mut HashMap<K, V>) {
+fn reclaim_sparse_map<K: Eq + Hash, V, S: BuildHasher + Default>(map: &mut HashMap<K, V, S>) {
     if map.is_empty() {
-        *map = HashMap::new();
+        *map = HashMap::default();
     } else if map.len() < map.capacity() / 4 {
         map.shrink_to_fit();
     }
@@ -216,7 +216,7 @@ fn reclaim_sparse_map<K: Eq + Hash, V>(map: &mut HashMap<K, V>) {
 #[non_exhaustive]
 pub struct AttachmentIndex<H> {
     buckets: HashMap<BucketKey, Arc<AttachmentSnapshot<H>>>,
-    owners: HashMap<H, Owner>,
+    owners: FxHashMap<H, Owner>,
     empty: Arc<AttachmentSnapshot<H>>,
     #[cfg(feature = "test-work-count")]
     work: AtomicU64,
@@ -226,7 +226,7 @@ impl<H> Default for AttachmentIndex<H> {
     fn default() -> Self {
         Self {
             buckets: HashMap::new(),
-            owners: HashMap::new(),
+            owners: FxHashMap::default(),
             empty: Arc::new(AttachmentSnapshot::default()),
             #[cfg(feature = "test-work-count")]
             work: AtomicU64::new(0),

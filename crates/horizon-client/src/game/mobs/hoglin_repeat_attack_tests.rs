@@ -5,7 +5,7 @@
 //! (tools/test_hoglin_repeat_attack_parity.py measures the same on vanilla 26.3).
 use super::commands::Target;
 use super::*;
-use horizon_client::chunk::Chunk;
+use horizon_client::{chunk::Chunk, motion::PlayerMotion};
 use horizon_core::position::ChunkPos;
 use std::sync::Arc;
 
@@ -50,6 +50,8 @@ fn game<'a>(resources: &'a mut Option<std::sync::Arc<crate::game::Resources>>) -
     )
     .unwrap();
     game.build_registries();
+    game.native_lifecycle
+        .begin_open(super::native_lifecycle::Authority::IntegratedServer);
     game.set_allow_commands(true);
     for cx in 0..2 {
         game.world
@@ -135,6 +137,60 @@ fn a_hoglin_keeps_attacking_its_attacker_beside_another_hit_hoglin() {
         later < after_first,
         "this hoglin hits its attacker again ({later})"
     );
+}
+
+fn hurt_time(game: &mut Game<'_>, uuid: &str) -> i32 {
+    let id = mob_id(game, uuid);
+    game.mobs.iter().find(|m| m.id == id).unwrap().hurt_time
+}
+
+/// Vanilla 26.3's hit pen: the hoglin enters the fight activity at the end of
+/// the tick after the hit (`HoglinAi.updateActivity` follows the brain), hits
+/// in the next one, and again 41 ticks later. The pig ticks after the hoglin,
+/// so it reads `HurtTime` 9 on the tick of each hit.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_hoglin_hits_from_its_second_fighting_tick_every_41_ticks() {
+    let mut resources = None;
+    let mut game = game(&mut resources);
+    step(&mut game, 40);
+    assert!(game.run_command(&format!("damage {HOGLIN} 1 minecraft:mob_attack by {PIG}")));
+    let mut hits = Vec::new();
+    for tick in 1..=90 {
+        step(&mut game, 1);
+        if hurt_time(&mut game, PIG) == 9 {
+            hits.push(tick);
+        }
+    }
+    assert_eq!(hits, [2, 43, 84]);
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn deferred_stronger_hits_do_not_count_hurt_timers_down_twice() {
+    use horizon_client::mobs::Damage;
+    let mut resources = None;
+    let mut game = game(&mut resources);
+    let first = mob_id(&mut game, NEAR_HOGLIN);
+    let second = mob_id(&mut game, HOGLIN);
+    let target = mob_id(&mut game, PIG);
+    game.creatures.ticked.extend([first, second, target]);
+    game.creatures.deferred_hits = true;
+    assert!(game.mob_hits_mob(target, 4.0, Damage::mob(first, [0.0; 3])));
+    assert!(game.mob_hits_mob(target, 6.0, Damage::mob(second, [0.0; 3])));
+    let victim = game.mobs.iter().find(|m| m.id == target).unwrap();
+    assert_eq!((victim.hurt_time, victim.invulnerable), (9, 19));
+    assert_eq!(victim.health, 94.0);
+
+    // A stronger hit on the following tick also leaves the already-counted
+    // timers alone rather than decrementing them again.
+    let victim = game.mobs.iter_mut().find(|m| m.id == target).unwrap();
+    victim.hurt_time = 8;
+    victim.invulnerable = 18;
+    assert!(game.mob_hits_mob(target, 8.0, Damage::mob(first, [0.0; 3])));
+    let victim = game.mobs.iter().find(|m| m.id == target).unwrap();
+    assert_eq!((victim.hurt_time, victim.invulnerable), (8, 18));
+    assert_eq!(victim.health, 92.0);
 }
 
 /// Added controls (after the frozen baseline above).
@@ -293,7 +349,7 @@ fn hoglin_broadcast_obeys_target_cancellation_and_redirection() {
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             let kind = game
@@ -410,4 +466,174 @@ fn hoglin_broadcast_obeys_target_cancellation_and_redirection() {
             assert_eq!(game.lan.as_ref().unwrap().mob_players[&9001], 13);
         });
     });
+}
+
+/// The broadcast as the flush applies it (`MobEvent::HoglinAttackTarget`).
+fn broadcast(game: &mut Game<'_>, mob: u32, from: u32, target: horizon_client::mobs::Who) {
+    let player = game
+        .lan
+        .as_ref()
+        .and_then(|h| h.mob_players.get(&from).copied());
+    let event = horizon_client::mobs::MobEvent::HoglinAttackTarget {
+        mob,
+        target,
+        player,
+    };
+    game.handle_mob_events(vec![event]).unwrap();
+}
+
+fn target_of(game: &Game<'_>, id: u32) -> Option<horizon_client::mobs::Who> {
+    game.mobs.iter().find(|m| m.id == id).unwrap().ai.target
+}
+
+fn set_target(game: &mut Game<'_>, id: u32, target: Option<horizon_client::mobs::Who>) {
+    game.mobs.iter_mut().find(|m| m.id == id).unwrap().ai.target = target;
+}
+
+fn place_player(game: &mut Game<'_>, x: f64, z: f64) {
+    if let Some(player) = game.player.as_mut() {
+        player.position = Vec3::new(x, 100.0, z);
+    } else {
+        game.next_entity += 1;
+        let id = game.next_entity;
+        game.player = Some(PlayerMotion::new(game.motion, Vec3::new(x, 100.0, z)).unwrap());
+        super::native_entity_refs::tests::bind_local_player(game, id, 1);
+    }
+}
+
+/// A player on either side is placed and compared like a mob
+/// (`getTargetNearestMe` compares positions, whoever the targets are).
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_broadcast_player_is_compared_by_distance() {
+    use horizon_client::mobs::Who;
+    let mut resources = None;
+    let mut game = game(&mut resources);
+    let receiver = mob_id(&mut game, HOGLIN);
+    let from = mob_id(&mut game, NEAR_HOGLIN);
+    // The receiver at x 22.5, its pig at 23.5, the other pen's pig at 7.5.
+    let (pig, other_pig) = (mob_id(&mut game, PIG), mob_id(&mut game, NEAR_PIG));
+    // The player 2 blocks away beats the pig 15 blocks away.
+    place_player(&mut game, 22.5, 10.5);
+    set_target(&mut game, receiver, Some(Who::Mob(other_pig)));
+    broadcast(&mut game, receiver, from, Who::Player);
+    assert_eq!(
+        target_of(&game, receiver),
+        Some(Who::Player),
+        "a nearer player"
+    );
+    // A current player 2 blocks away stays against the pig 15 blocks away.
+    broadcast(&mut game, receiver, from, Who::Mob(other_pig));
+    assert_eq!(
+        target_of(&game, receiver),
+        Some(Who::Player),
+        "a nearer current player"
+    );
+    // The player 21 blocks away loses to the pig 1 block away, either way round.
+    place_player(&mut game, 2.5, 2.5);
+    broadcast(&mut game, receiver, from, Who::Mob(pig));
+    assert_eq!(
+        target_of(&game, receiver),
+        Some(Who::Mob(pig)),
+        "a farther current player"
+    );
+    broadcast(&mut game, receiver, from, Who::Player);
+    assert_eq!(
+        target_of(&game, receiver),
+        Some(Who::Mob(pig)),
+        "a farther player"
+    );
+}
+
+/// A host on LAN with one placed guest (conn 2) at `guest_at`.
+fn host_with_guest(game: &mut Game<'_>, guest_at: [f64; 3]) {
+    use horizon_client::lan::{Joined, NetConfig, PlayerSender, guest::Guest, hub::HubConfig};
+    use horizon_protocol::packets::configuration::ClientInformation;
+    let net = NetConfig {
+        announce: false,
+        ..NetConfig::lan(0, "hoglin-broadcast-test".into(), 2)
+    };
+    let settings = super::lan::LanSettings {
+        port: 0,
+        guest_commands: true,
+        force_game_mode: false,
+    };
+    let hub = HubConfig {
+        default_game_mode: 0,
+        guest_commands: true,
+        force_game_mode: false,
+        hardcore: false,
+        view_distance: 2,
+        simulation_distance: 2,
+        dimension: Dim::Overworld.id().into(),
+        allow_flight: false,
+        seed: 0,
+        max_players: 2,
+        integrated: false,
+        levels: Default::default(),
+    };
+    game.lan_host(settings, net, hub).unwrap();
+    let (tx, _rx) = std::sync::mpsc::channel();
+    let joined = Joined {
+        conn: 2,
+        uuid: 2,
+        name: "HoglinGuest".into(),
+        properties: Vec::new(),
+        info: ClientInformation::new(2),
+        brand: "test".into(),
+        sender: PlayerSender::new(tx, Arc::default()),
+        latency: Arc::new(std::sync::atomic::AtomicI32::new(0)),
+        address: "127.0.0.1:25565".parse().unwrap(),
+        expected: false,
+    };
+    game.next_entity += 1;
+    let mut guest = Guest::new(
+        joined,
+        i32::try_from(game.next_entity).expect("fixture entity ID fits the protocol"),
+        guest_at,
+        0,
+    );
+    guest.placed = true;
+    guest.loaded = true;
+    game.lan.as_mut().unwrap().hub.guests.push(guest);
+}
+
+/// On LAN, `Who::Player` is each mob's own player (`mob_players`): a hoglin
+/// that a guest's attacker is broadcast to compares that guest, not the
+/// host, and once it takes the guest it is bound to them.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_guest_broadcast_is_placed_as_the_guest() {
+    use horizon_client::mobs::Who;
+    let mut resources = None;
+    let mut game = game(&mut resources);
+    // The host 21 blocks from the receiver, the guest 2 blocks.
+    place_player(&mut game, 2.5, 2.5);
+    host_with_guest(&mut game, [22.5, 100.0, 10.5]);
+    let receiver = mob_id(&mut game, HOGLIN);
+    let from = mob_id(&mut game, NEAR_HOGLIN);
+    let other_pig = mob_id(&mut game, NEAR_PIG);
+    let bound = |game: &Game<'_>| {
+        let host = game.lan.as_ref().unwrap();
+        host.mob_players.get(&receiver).copied()
+    };
+    // From a hoglin that sees the host: the host is farther than the pig 15 blocks away.
+    set_target(&mut game, receiver, Some(Who::Mob(other_pig)));
+    broadcast(&mut game, receiver, from, Who::Player);
+    assert_eq!(
+        target_of(&game, receiver),
+        Some(Who::Mob(other_pig)),
+        "the host is farther"
+    );
+    assert_eq!(bound(&game), None);
+    // From a hoglin bound to the guest: the guest is nearer, and the receiver
+    // now sees that guest.
+    game.lan.as_mut().unwrap().mob_players.insert(from, 2);
+    broadcast(&mut game, receiver, from, Who::Player);
+    assert_eq!(
+        target_of(&game, receiver),
+        Some(Who::Player),
+        "the guest is nearer"
+    );
+    assert_eq!(bound(&game), Some(2), "bound to the guest");
 }

@@ -482,30 +482,41 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     pub(crate) fn is_valid_fire_location(&self, pos: BlockPos) -> bool {
         Direction::ALL
             .into_iter()
-            .any(|direction| self.can_burn(self.rel_state(pos, direction)))
+            .any(|direction| self.neighbour_can_burn(pos, direction))
+    }
+    /// `FireBlock.canBurn` of the neighbour of `pos` in `direction`, asked
+    /// from its side that faces `pos`.
+    pub(crate) fn neighbour_can_burn(&self, pos: BlockPos, direction: Direction) -> bool {
+        let at = rel(pos, direction);
+        self.can_burn(self.state(at), at, direction.opposite())
     }
     /// `FireBlock.canBurn`: ignite odds above zero (waterlogged states never burn).
-    pub(crate) fn can_burn(&self, state: BlockStateId) -> bool {
-        self.ignite_odds(state) > 0
+    pub(crate) fn can_burn(&self, state: BlockStateId, pos: BlockPos, face: Direction) -> bool {
+        self.ignite_odds(state, pos, face) > 0
     }
-    pub(crate) fn ignite_odds(&self, state: BlockStateId) -> i32 {
-        self.fire_odds(state).0
+    pub(crate) fn ignite_odds(&self, state: BlockStateId, pos: BlockPos, face: Direction) -> i32 {
+        self.fire_odds(state, pos, face).0
     }
-    pub(crate) fn burn_odds(&self, state: BlockStateId) -> i32 {
-        self.fire_odds(state).1
+    pub(crate) fn burn_odds(&self, state: BlockStateId, pos: BlockPos, face: Direction) -> i32 {
+        self.fire_odds(state, pos, face).1
     }
-    /// `FireBlock.getIgniteOdds` and `getBurnOdds`: the level's answer, else
-    /// `FireBlock.bootStrap`'s table.
-    fn fire_odds(&self, state: BlockStateId) -> (i32, i32) {
+    /// `FireBlock.getIgniteOdds` and `getBurnOdds` of `state` at `pos`, asked
+    /// from its side `face`: the level's answer, else `FireBlock.bootStrap`'s
+    /// table.
+    fn fire_odds(&self, state: BlockStateId, pos: BlockPos, face: Direction) -> (i32, i32) {
         if self.b.is_waterlogged(state) {
             return (0, 0);
         }
         let mut odds = None;
-        self.level.before_fire_odds(state, &mut odds);
-        odds.unwrap_or_else(|| {
-            let data = self.b.data(state);
-            (data.ignite_odds, data.burn_odds)
-        })
+        self.level.before_fire_odds(state, pos, face, &mut odds);
+        match odds {
+            // Burn rolls are at most 300; spread speed has no upper cap.
+            Some((ignite, burn)) => (ignite.max(0), burn.clamp(0, 300)),
+            None => {
+                let data = self.b.data(state);
+                (data.ignite_odds, data.burn_odds)
+            }
+        }
     }
     /// `CampfireBlock.isSmokeSource`: a hay bale, unless the level answers.
     pub(crate) fn is_smoke_source(&self, state: BlockStateId) -> bool {

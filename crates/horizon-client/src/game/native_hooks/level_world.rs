@@ -32,11 +32,11 @@ impl Game<'_> {
     pub(in crate::game) fn level_random(&self, level: LevelRef) -> Option<LegacyRandom> {
         self.native_level_world(level)?;
         if level.dimension() == self.dim.key() {
-            Some(self.world.random.clone())
+            Some((*self.world.random).clone())
         } else {
             self.levels
                 .parked_world_of(level.dimension_id())
-                .map(|world| world.random.clone())
+                .map(|world| (*world.random).clone())
         }
     }
     /// Replace the random of the server level `level` names with `random`,
@@ -57,6 +57,6 @@ impl Game<'_> {
                 .parked_world_mut_of(level.dimension_id())
                 .map(|world| &mut world.random)
         };
-        target.map(|target| *target = random).is_some()
+        target.map(|target| **target = random).is_some()
     }
 }

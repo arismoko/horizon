@@ -16,6 +16,7 @@ use horizon_client::actions::Action;
 use horizon_client::mobs::leash::{self, Holder, HolderState, Pending};
 use horizon_core::geometry::Vec3;
 use horizon_core::nbt::Tag;
+use horizon_core::position::BlockPos;
 
 /// `AbstractBoat`'s `getBbWidth` and `getBbHeight`.
 const WIDTH: f32 = 1.375;
@@ -275,7 +276,9 @@ impl Game<'_> {
         if b.on_ground {
             let (x, z) = (b.position.x.floor() as i32, b.position.z.floor() as i32);
             let y = (b.position.y - 0.500_001).floor() as i32;
-            self.res.facts().get(self.world.block(x, y, z)).friction * 0.91
+            let state = self.world.block(x, y, z);
+            let own = self.res.facts().get(state).friction;
+            self.boat_friction(b, BlockPos::new(x, y, z), state, own) * 0.91
         } else if b.in_liquid() {
             0.8
         } else {

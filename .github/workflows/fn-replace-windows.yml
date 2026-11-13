@@ -22,7 +22,7 @@ jobs:
       - name: The launcher's pinned Rust
         id: rust
         run: |
-          echo "version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' launcher/src/rust_toolchain.rs)" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat tools/ci/rust-version)" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.rust.outputs.version }}-x86_64-pc-windows-gnu
@@ -41,11 +41,11 @@ jobs:
       - name: Exported names, toward Windows' 65,535
         run: python tools/prebuilt_game.py exports prebuilt | tee -a "$GITHUB_STEP_SUMMARY"
       # Release, as players get it: the debug launcher overflows Windows' 1 MiB main-thread stack.
-      - name: Launcher (built with MSVC stable, as launcher-windows-check builds it)
+      - name: Launcher (built with MSVC on the pinned Rust, as launcher-windows-check builds it)
         working-directory: launcher
         run: |
-          rustup toolchain install stable-x86_64-pc-windows-msvc --profile minimal
-          cargo +stable-x86_64-pc-windows-msvc build --release --locked
+          rustup toolchain install "$(cat ../tools/ci/rust-version)-x86_64-pc-windows-msvc" --profile minimal
+          cargo +"$(cat ../tools/ci/rust-version)-x86_64-pc-windows-msvc" build --release --locked
       - name: Function replacement check (build and link)
         run: |
           FNR_MODS="alpha beta support fdshape registry" tools/ci/fn_replace_check.sh \

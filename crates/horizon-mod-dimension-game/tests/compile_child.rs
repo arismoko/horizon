@@ -84,3 +84,48 @@ fn missing_key_exits_one_and_writes_nothing() {
     );
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
 }
+
+fn cache_loads(parents: usize) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join(".horizon-cache/wasm");
+    let bytes =
+        wat::parse_str("(module (func (export \"answer\") (result i32) i32.const 42))").unwrap();
+    let barrier = std::sync::Barrier::new(parents);
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..parents)
+            .map(|_| {
+                scope.spawn(|| {
+                    barrier.wait();
+                    horizon_mod_wasm::fixture::cached_answer(
+                        &root,
+                        std::path::Path::new(env!("CARGO_BIN_EXE_horizon-mod-dimension-game")),
+                        &bytes,
+                    )
+                    .unwrap()
+                })
+            })
+            .collect();
+        for handle in handles {
+            assert_eq!(handle.join().unwrap(), (42, true));
+        }
+    });
+    let names: Vec<_> = fs::read_dir(&root)
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    let key = horizon_mod_wasm::compile_child_key(&bytes).unwrap();
+    assert_eq!(
+        names,
+        vec![std::ffi::OsString::from(format!("{key}.cwasm"))]
+    );
+}
+
+#[test]
+fn production_parent_uses_child_artifact() {
+    cache_loads(1);
+}
+
+#[test]
+fn concurrent_production_parents_share_one_clean_artifact() {
+    cache_loads(4);
+}

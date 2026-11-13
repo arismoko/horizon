@@ -93,7 +93,7 @@ fn with_probe(probe: &Probe, test: impl FnOnce()) {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, test);
+    mod_platform::testing::with_mods(mods, test);
 }
 
 /// Guest 12's held stack.

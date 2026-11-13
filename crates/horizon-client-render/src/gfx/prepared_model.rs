@@ -354,7 +354,7 @@ impl PreparedModels {
         ];
         let kept = reuse.on(device);
         let make = |label, blend, depth_write, bias, fragment, write_mask| {
-            entity_pipeline_factory(&kept, &layout, &layout, &shader, &buffers, format)(
+            entity_pipeline_factory(&kept, &layout, &layout, &shader, &buffers, format, false)(
                 EntityPipelineOptions {
                     label,
                     cull_mode: None,

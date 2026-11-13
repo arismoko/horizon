@@ -33,7 +33,7 @@ impl Game<'_> {
             return;
         }
         let map = if acting {
-            &mut self.player_attachments
+            &mut self.player_state.attachments
         } else {
             let Some(map) = self
                 .lan

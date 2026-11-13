@@ -799,6 +799,7 @@ mod tests {
         );
         let connected = crate::connected::ConnectedTextures::load(
             root.source(),
+            horizon_optifine::ctm::load(root.source()),
             &registry,
             &mut sprites,
             |_, _| Some(base),

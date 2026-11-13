@@ -51,9 +51,14 @@ Native mods only: entity parts do not cross to wasm yet.
 
 `EntityPart::register_behaviors` receives a `BehaviorRegistrar` whenever a brain-driven species builds or rebuilds its brain. Use `add(activity, priority, min_duration, max_duration, requirements, behavior)` to join a fresh `Behavior` to the species' supported activity. Registration returns a `BehaviorRefusal` for an unsupported activity or invalid duration. Behaviors start and stop in vanilla `Brain.tick` order: priority, activity bucket, then insertion order, with mod behaviors after vanilla behaviors in the same bucket. Their state is not saved. `BehaviorCx` provides the mob, host, random source and typed brain memory access; each species refuses memories it does not support.
 
-The part's other method, `spawn_cluster_size`, changes how large a natural spawn group of the type grows
+The part's `spawn_cluster_size`, changes how large a natural spawn group of the type grows
 (`Mob.getMaxSpawnClusterSize`); [controlling spawns](../../how-to/spawning.md#changing-how-large-a-spawn-group-grows)
 shows it.
+
+`is_shearable` and `on_sheared` make the type shearable, as NeoForge's `IShearable` does: shears in a player's
+hand and a dispenser's ask `is_shearable` first, and the part that says `Some(true)` shears the entity in
+`on_sheared` and returns the drops, which the game spawns before damaging the shears. `Some(false)` keeps the
+entity unsheared, and `None` leaves it to the species (a sheep keeps shearing as vanilla's does).
 
 Entity parts are a native mod's for now: the goal surface does not cross to wasm (see the
 `attach_entity_part` note), so `r.entity_part` is absent from a wasm build.

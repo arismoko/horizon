@@ -3,7 +3,8 @@
 //! resource load makes of them. A load reads every registered pipeline's fragment file
 //! (`assets/<namespace>/shaders/pipeline/<path>.wgsl`), puts Horizon's prelude before it and its
 //! entry points after it, and checks the whole shader, so the renderer (`gfx::mod_pipelines`) is
-//! only ever handed WGSL that compiles. A frame reads none of this by name.
+//! only ever handed WGSL that compiles. A required pipeline the load cannot build fails the load;
+//! an optional one is logged and left out. A frame reads none of this by name.
 //!
 //! Colour follows the mod render colour rule (docs/modding/src/concepts/mod-render-colour.md):
 //! the mod's function reads and returns linear light, and the generated entry points convert
@@ -92,14 +93,20 @@ fn registered() -> &'static [RenderPipeline] {
 /// A registered pipeline one resource load built: a shader that compiles and its fixed state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Built {
+    /// The owning mod, not necessarily the pipeline namespace.
+    pub owner: String,
+    /// The pipeline's id, for the log.
+    pub id: Identifier,
     /// The whole shader: prelude, the mod's file, entry points.
     pub shader: String,
     pub blend: PipelineBlend,
     pub depth: WorldDepth,
+    /// Whether the load may go on without it ([`RenderPipeline::optional()`]).
+    pub optional: bool,
 }
 
-/// The registered pipelines as one resource load built them, by slot. A pipeline the load
-/// refused has no shader here and resolves to [`RenderPipelineError::Invalid`].
+/// The registered pipelines as one resource load built them, by slot. An optional pipeline the
+/// load refused has no shader here and resolves to [`RenderPipelineError::Invalid`].
 #[derive(Clone, Debug, Default)]
 pub struct Pipelines {
     ids: Vec<Identifier>,
@@ -110,9 +117,13 @@ pub struct Pipelines {
 }
 
 impl Pipelines {
-    /// Build every registered pipeline from `source`, for the load of `generation`. A pipeline
-    /// whose file is missing or refused is logged with its reason; the others build.
-    pub fn load(source: &crate::resource_source::ResourceSource, generation: u64) -> Self {
+    /// Build every registered pipeline from `source`, for the load of `generation`. An optional
+    /// pipeline whose file is missing or refused is logged with its reason and the others build;
+    /// a required one fails the load, naming every required pipeline refused and why.
+    pub fn load(
+        source: &crate::resource_source::ResourceSource,
+        generation: u64,
+    ) -> Result<Self, String> {
         Self::build(registered(), generation, |file| {
             source.read_to_string(file).map_err(|e| e.to_string())
         })
@@ -122,40 +133,64 @@ impl Pipelines {
         registered: &[RenderPipeline],
         generation: u64,
         read: impl Fn(&str) -> Result<String, String>,
-    ) -> Self {
+    ) -> Result<Self, String> {
+        let mut required = Vec::new();
         let built = registered
             .iter()
             .map(|pipeline| {
                 let file = fragment_file(&pipeline.fragment);
                 match read(&file).and_then(|text| compose(&text)) {
                     Ok(shader) => Some(Built {
+                        owner: pipeline.owner().to_owned(),
+                        id: pipeline.id.clone(),
                         shader,
                         blend: pipeline.blend,
                         depth: pipeline.depth,
+                        optional: pipeline.optional,
                     }),
                     Err(reason) => {
-                        log::warn!(
-                            "Horizon: render pipeline {} refused: {file}: {reason}",
-                            pipeline.id
+                        let refusal = format!(
+                            "render pipeline {} from mod {} refused: {file}: {reason}",
+                            pipeline.id,
+                            pipeline.owner()
                         );
+                        if pipeline.optional {
+                            log::warn!("Horizon: {refusal}");
+                        } else {
+                            required.push(format!("required {refusal}"));
+                        }
                         None
                     }
                 }
             })
             .collect();
-        Self {
+        if !required.is_empty() {
+            return Err(required.join("; "));
+        }
+        Ok(Self {
             ids: registered.iter().map(|p| p.id.clone()).collect(),
             built,
             generation,
             invalid: Default::default(),
-        }
+        })
     }
 
-    pub(crate) fn invalidate(&self, slot: usize) {
+    /// Marks `slot` as one the GPU refused; false when it already was, so it is reported once.
+    pub(crate) fn invalidate(&self, slot: usize) -> bool {
+        let mut invalid = self.invalid.lock().unwrap_or_else(|e| e.into_inner());
+        let fresh = !invalid.contains(&slot);
+        if fresh {
+            invalid.push(slot);
+        }
+        fresh
+    }
+
+    /// Makes `slot` usable again: a renderer that built it took the refusal of another over.
+    pub(crate) fn revalidate(&self, slot: usize) {
         self.invalid
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .push(slot);
+            .retain(|&invalid| invalid != slot);
     }
 
     /// The load this set belongs to: a renderer holding another builds its pipelines again.
@@ -417,11 +452,12 @@ fn pipeline_fragment(input: PipelineInput) -> vec4<f32> {
     }
 
     #[test]
-    fn a_load_builds_what_compiles_and_names_the_rest_invalid() {
+    fn an_optional_pipeline_that_fails_leaves_the_others_drawing_and_refuses_its_own_use() {
         let registered = [
             pipeline("example:glow", "example:glow"),
-            pipeline("example:broken", "example:broken"),
-            pipeline("example:missing", "example:nested/missing"),
+            pipeline("example:broken", "example:broken").optional(),
+            pipeline("example:missing", "example:nested/missing").optional(),
+            pipeline("example:driver", "example:glow").optional(),
         ];
         let read = |file: &str| match file {
             "assets/example/shaders/pipeline/glow.wgsl" => Ok(GLOW.to_owned()),
@@ -429,7 +465,7 @@ fn pipeline_fragment(input: PipelineInput) -> vec4<f32> {
             "assets/example/shaders/pipeline/nested/missing.wgsl" => Err("not found".to_owned()),
             other => panic!("read {other}"),
         };
-        let set = Pipelines::build(&registered, 7, read);
+        let set = Pipelines::build(&registered, 7, read).unwrap();
 
         let glow = set.resolve(&id("example:glow")).unwrap();
         assert_eq!(set.slot(glow), Ok(0));
@@ -450,24 +486,74 @@ fn pipeline_fragment(input: PipelineInput) -> vec4<f32> {
             set.resolve(&id("example:never")),
             Err(RenderPipelineError::Unknown)
         );
+
+        // The GPU turns down a pipeline the load built: it is reported once, a handle taken
+        // before is refused, and the rest still draw.
+        let driver = set.resolve(&id("example:driver")).unwrap();
+        assert!(set.invalidate(3));
+        assert!(!set.invalidate(3));
+        assert_eq!(set.slot(driver), Err(RenderPipelineError::Invalid));
+        assert_eq!(
+            set.resolve(&id("example:driver")),
+            Err(RenderPipelineError::Invalid)
+        );
+        assert_eq!(set.slot(glow), Ok(0));
+    }
+
+    #[test]
+    fn a_required_pipeline_that_fails_fails_the_load_by_name() {
+        let registered = [
+            pipeline("example:glow", "example:glow"),
+            pipeline("example:beam", "example:beam"),
+            pipeline("example:extra", "example:extra").optional(),
+        ];
+        let before = Pipelines::build(&registered, 7, |_| Ok(GLOW.to_owned())).unwrap();
+        let handle = before.resolve(&id("example:beam")).unwrap();
+
+        // A pack broke the required beam and the optional extra: the load fails naming the
+        // required one only, so nothing of it is published and the previous load still draws.
+        let error = Pipelines::build(&registered, 8, |file| match file {
+            "assets/example/shaders/pipeline/glow.wgsl" => Ok(GLOW.to_owned()),
+            _ => Ok("garbage".to_owned()),
+        })
+        .unwrap_err();
+        assert!(
+            error.starts_with(
+                "required render pipeline example:beam from mod  refused: assets/example/shaders/pipeline/beam.wgsl: "
+            ),
+            "{error}"
+        );
+        assert!(!error.contains("example:glow"), "{error}");
+        assert!(!error.contains("example:extra"), "{error}");
+        assert_eq!(before.slot(handle), Ok(1));
+    }
+
+    #[test]
+    fn initial_required_failure_has_a_literal_message() {
+        let registered = [pipeline("example:glow", "example:glow")];
+        let error = Pipelines::build(&registered, 7, |_| Err("not found".to_owned())).unwrap_err();
+        assert_eq!(
+            error,
+            "required render pipeline example:glow from mod  refused: assets/example/shaders/pipeline/glow.wgsl: not found"
+        );
     }
 
     #[test]
     fn a_reload_makes_old_handles_stale_and_can_fix_or_break_a_pipeline() {
-        let registered = [pipeline("example:glow", "example:glow")];
-        let before = Pipelines::build(&registered, 7, |_| Ok(GLOW.to_owned()));
+        let registered = [pipeline("example:glow", "example:glow").optional()];
+        let before = Pipelines::build(&registered, 7, |_| Ok(GLOW.to_owned())).unwrap();
         let handle = before.resolve(&id("example:glow")).unwrap();
 
         // A pack replaced the file with one that doesn't compile: the pipeline is invalid in
         // the new load, and the old handle is stale there, not silently redirected.
-        let broken = Pipelines::build(&registered, 8, |_| Ok("garbage".to_owned()));
+        let broken = Pipelines::build(&registered, 8, |_| Ok("garbage".to_owned())).unwrap();
         assert_eq!(broken.slot(handle), Err(RenderPipelineError::Stale));
         assert_eq!(
             broken.resolve(&id("example:glow")),
             Err(RenderPipelineError::Invalid)
         );
 
-        let fixed = Pipelines::build(&registered, 9, |_| Ok(GLOW.to_owned()));
+        let fixed = Pipelines::build(&registered, 9, |_| Ok(GLOW.to_owned())).unwrap();
         assert_eq!(fixed.slot(handle), Err(RenderPipelineError::Stale));
         let again = fixed.resolve(&id("example:glow")).unwrap();
         assert_eq!(fixed.slot(again), Ok(0));

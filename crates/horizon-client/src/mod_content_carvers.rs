@@ -28,9 +28,14 @@ pub(super) fn refresh(saved: &mut SavedModifiers, packs: &WorldgenOverrides) -> 
         } else {
             saved.carver_tags.get(id).map(String::as_str)
         };
-        let merged = super::merge_tag(old, values, id, &|ns| {
-            ns == "minecraft" || saved.enabled_mods.iter().any(|m| m == ns)
-        })?;
+        let merged = super::merge_tag(
+            old,
+            values,
+            id,
+            &horizon_world::conditions::LoadConditions::new(
+                saved.enabled_mods.iter().map(String::as_str),
+            ),
+        )?;
         saved.carver_tags.insert(id.to_owned(), merged);
     }
     Ok(())

@@ -122,7 +122,7 @@ mod tests {
             "level-spawning",
             Box::new(Listener(heard.clone())),
         )];
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             with_game(|game| {
                 game.world
                     .chunks

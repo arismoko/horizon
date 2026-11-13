@@ -14,8 +14,9 @@ mod tests {
     use horizon_world::{chunk::BlockState, poi::PoiExtension, registry::BlockRegistry};
     use mod_api::{
         ExtendPoiTypesEvent, Hooks, Identifier, ModEntry, RegistrationContext, StateConstraint,
-        StatePredicate, testing::with_mods,
+        StatePredicate,
     };
+    use mod_platform::testing::with_mods;
 
     struct Tags;
     impl mod_api::Tags for Tags {}
@@ -80,7 +81,7 @@ mod tests {
 
     #[test]
     fn a_mods_predicates_become_the_complete_states_it_adds() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let facts = r#"{"defaults":{"minecraft:air":0,"minecraft:stone":1,"minecraft:hay_block":3,"minecraft:bell":5,"minecraft:red_bed":6},"states":[
             ["a",true,false,"","minecraft:air"],
             ["s",false,false,"","minecraft:stone"],

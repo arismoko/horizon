@@ -58,7 +58,7 @@ fn block_entity_data_received_after_merge() {
         Box::new(TestMod(seen.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         horizon_client::block_entity_types::install(
             horizon_client::block_entity_types::BlockEntityTypes::new(

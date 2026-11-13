@@ -318,7 +318,7 @@ fn new_native(
     let manifest = format!(
         "{}\n[native]\ngame = \"26.3\"\nhorizon = \"{horizon}\"\nmixins = \"{}\"\n",
         include_str!("../template/content/horizon-mod.toml"),
-        native::MIXINS_REV,
+        horizon_mod_package::mixins_tool::REV,
     );
     let files = [
         ("Cargo.toml", include_str!("../template/native/api.toml")),

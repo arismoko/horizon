@@ -2,15 +2,17 @@
 //! `HORIZON_SCREEN_BUILD_FIXTURE=CASES,OUTPUT` the game loads its resources,
 //! opens each case's container or pause screen state, builds its layout and
 //! prints the panel, the origin, the slot boxes, the slot a cursor point
-//! hovers and the pause menu's buttons and icons, in the format of
-//! `VanillaScreenBuildOracle`.
+//! hovers, the pause menu's buttons and icons, and the chat and command block
+//! screens' widgets, in the format of `VanillaScreenBuildOracle`.
 use super::{Game, Screen, screen_build::ScreenLayout};
 use horizon_client::{
     Result,
+    chat::{ChatAbilities, ChatScreen, ChatVisibility, Commands},
     chunk::Chunk,
     containers::{BlockEntity, Furnace, FurnaceKind},
     hud::{GuiScale, HudBatch},
     recipe_book::BookType,
+    screen_draw::Measure,
     text::Text,
     window::GuiSize,
 };
@@ -94,6 +96,66 @@ impl Game<'_> {
             return Ok(serde_json::json!({
                 "gui": [gui.scale, gui.size[0], gui.size[1]],
                 "pause": {"buttons": buttons, "icons": icons},
+            }));
+        }
+        // Chat (`InBedChatScreen`) and the command block edit screens: each
+        // opens at another size, so the build must resize its boxes; then
+        // every widget's rectangle in `init`'s order.
+        if let Some(cart) = match kind {
+            "chat" => Some(None),
+            "command_block" => Some(Some(false)),
+            "minecart_command_block" => Some(Some(true)),
+            _ => None,
+        } {
+            let gui = GuiSize::new(window, scale, false);
+            self.title = None;
+            let rect = |x, y, w, h| serde_json::json!([x, y, w, h]);
+            let mut widgets = Vec::new();
+            match cart {
+                None => {
+                    let m = Measure(&self.gui.atlas.font);
+                    let c = Commands {
+                        dispatcher: horizon_client::command::vanilla::game_dispatcher(),
+                        registries: &self.ui.registries,
+                    };
+                    let abilities = ChatAbilities::new(ChatVisibility::Full);
+                    let chat = ChatScreen::new(&m, &c, "", false, 0, 1, 1, abilities);
+                    self.ui.chat_screen = Some(chat);
+                    self.screen = Screen::Chat;
+                }
+                Some(cart) => {
+                    use horizon_client::command_block::{CommandBlock, Mode};
+                    let block = CommandBlock::default();
+                    self.open_edit_screen(POS, cart.then_some(0), block, Mode::Redstone, false);
+                    self.screen = Screen::CommandBlock;
+                }
+            }
+            self.screen_state.build.reopened();
+            let layout = self.text_screen_layout(None, gui);
+            self.screen_state
+                .build
+                .sync(self.screen, true, None, gui, layout);
+            let (w, h) = (gui.size[0] as f32, gui.size[1] as f32);
+            if let Some(chat) = &self.ui.chat_screen {
+                let i = &chat.input;
+                widgets.push(rect(i.x, i.y, i.width, i.height));
+                let (x, y, bw, bh) = self.built_chat(w, h).ok_or("no build")?.leave_bed;
+                widgets.push(rect(x, y, bw, bh));
+            }
+            if let Some(screen) = &self.command_block_screen {
+                let (i, p) = (&screen.command.input, screen.previous());
+                widgets.push(rect(i.x, i.y, i.width, i.height));
+                widgets.push(rect(p[0] as i32, p[1] as i32, p[2] as i32, p[3] as i32));
+                let layout = self.built_command_block(w, h).ok_or("no build")?;
+                for &(_, x, y, bw) in &layout.buttons {
+                    widgets.push(rect(x as i32, y as i32, bw as i32, 20));
+                }
+            }
+            self.ui.chat_screen = None;
+            self.command_block_screen = None;
+            return Ok(serde_json::json!({
+                "gui": [gui.scale, gui.size[0], gui.size[1]],
+                "widgets": widgets,
             }));
         }
         // The case's screen: a survival/creative container in the inventory

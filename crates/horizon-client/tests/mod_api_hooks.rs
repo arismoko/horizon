@@ -54,10 +54,10 @@ mod sidebar {
 
 #[test]
 fn client_packet_hands_a_mod_the_type_and_custom_payload() {
-    use mod_api::testing::FakeHost;
     use mod_api::{
         ClientPacket, ClientPacketEvent, ClientPayload, Identifier, dispatch_client_packet,
     };
+    use mod_platform::testing::FakeHost;
     use std::sync::Mutex;
     static HEARD: Mutex<Vec<(String, Vec<u8>)>> = Mutex::new(Vec::new());
     // A plugin-channel listener using only the mod API's plain data.
@@ -74,7 +74,7 @@ fn client_packet_hands_a_mod_the_type_and_custom_payload() {
             }
         }
     }
-    mod_api::testing::with_mods(vec![ModEntry::new("channels", hooks())].into(), || {
+    mod_platform::testing::with_mods(vec![ModEntry::new("channels", hooks())].into(), || {
         dispatch_client_packet(
             &mut FakeHost::new(),
             &ClientPacket::new(Identifier::parse("minecraft:ping").unwrap(), None),
@@ -130,7 +130,7 @@ mod model_layers {
     fn register_layer_definitions_collect_each_mods_layers_in_order() {
         // The harness supplies the engine-owned context; the listener above uses only public API.
         use mod_api::__private::game::RegistrationContextNew;
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![
                 ModEntry::new("first", Box::new(Golem("first:golem#main"))),
                 ModEntry::new("second", Box::new(Golem("second:golem#main"))),
@@ -207,10 +207,10 @@ fn an_anvil_update_is_changed_in_turn_and_cancel_stops_later_mods() {
         ModEntry::new("discount", Box::new(Discount)),
     ]
     .into();
-    mod_api::testing::with_mods(mods, || {
-        mod_api::__private::install_parts(
+    mod_platform::testing::with_mods(mods, || {
+        mod_platform::__private::install_parts(
             &[],
-            &mod_api::__private::part_tests::rule_schema(),
+            &mod_platform::__private::part_tests::rule_schema(),
             |_| false,
         )
         .unwrap();
@@ -288,7 +288,7 @@ fn wind_burst_filter_preserves_order_and_context() {
         }
     }
     let mods: mod_api::Mods = vec![ModEntry::new("claims", Box::new(Claims))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         let mut blocks = vec![[3, 70, -2], [1, 70, -2], [2, 70, -2]];
         dispatch_wind_burst(
             &mut TestHost,

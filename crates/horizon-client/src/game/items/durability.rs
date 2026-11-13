@@ -69,13 +69,7 @@ impl Game<'_> {
             },
             damage: if component("!minecraft:damage").is_some() {
                 None
-            } else if component("minecraft:damage").is_some()
-                || item.is_some_and(|item| {
-                    item.components
-                        .iter()
-                        .any(|component| component == "minecraft:damage")
-                })
-            {
+            } else if stack.carries_component(item, "minecraft:damage") {
                 Some(stack.damage as i32)
             } else {
                 None

@@ -7,9 +7,11 @@ static ENTITY_POST_CALLS: AtomicU32 = AtomicU32::new(0);
 pub mod area_macros;
 pub mod chunk_disk;
 pub mod datapack;
+pub mod game_payload;
 pub mod interaction;
 pub mod lending;
 pub mod matrix;
+pub mod movement;
 pub mod projectile_owner;
 pub mod replace;
 pub mod selector_command;
@@ -25,6 +27,10 @@ pub struct Mod;
 
 #[mod_api::horizon_mod]
 impl Hooks for Mod {
+    fn movement_input(&self, _: &dyn mod_api::ClientHost, event: &mut mod_api::MovementInputEvent) {
+        movement::movement_input(event);
+    }
+
     fn server_tick(
         &self,
         host: &mut dyn mod_api::ServerHost,
@@ -180,6 +186,7 @@ impl Hooks for Mod {
     }
 
     fn register(&self, registrar: &mut dyn mod_api::Registrar, cx: &mod_api::RegistrationContext) {
+        game_payload::register(registrar);
         interaction::register(registrar);
         registrar
             .declare_datapack_registry(

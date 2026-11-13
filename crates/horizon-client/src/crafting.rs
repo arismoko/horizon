@@ -18,6 +18,7 @@ pub use snapshots::{
 };
 mod ingredient;
 pub mod native_hooks;
+mod repair_item;
 pub use ingredient::{Ingredient, Shape};
 use serde_json::Value;
 use std::{
@@ -597,11 +598,11 @@ impl<'a> Input<'a> {
     }
 }
 /// What recipes need to know about an item.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct Facts {
     /// Index into the dye colours when the item has the `dye` component.
     dye: Option<usize>,
-    max_damage: u32,
+    info: crate::items::ItemInfo,
     max_stack: u32,
 }
 /// The tables recipes consult.
@@ -916,24 +917,8 @@ impl Special {
                         .get(1, 2)
                         .is_some_and(|s| front.test_in(ctx.context, s))
             }
-            Self::RepairItem => Self::repair_pair(ctx, &stacks).is_some(),
+            Self::RepairItem => repair_item::pair(ctx, &stacks).is_some(),
         }
-    }
-    /// `RepairItemRecipe.getItemsToCombine`.
-    fn repair_pair<'a>(
-        ctx: &Context,
-        stacks: &[&'a ItemStack],
-    ) -> Option<(&'a ItemStack, &'a ItemStack)> {
-        let [first, second] = stacks else {
-            return None;
-        };
-        let durable = |s: &ItemStack| ctx.facts(s).is_some_and(|f| f.max_damage > 0);
-        (second.item == first.item
-            && first.count == 1
-            && second.count == 1
-            && durable(first)
-            && durable(second))
-        .then_some((*first, *second))
     }
     /// `Recipe.assemble`; None is the empty stack.
     fn assemble(&self, ctx: &Context, input: &Input) -> Option<ItemStack> {
@@ -1163,33 +1148,7 @@ impl Special {
                 }
                 out
             }
-            Self::RepairItem => {
-                let (first, second) = Self::repair_pair(ctx, &stacks)?;
-                let max = |s: &ItemStack| ctx.facts(s).map_or(0, |f| f.max_damage) as i64;
-                let durability = max(first).max(max(second));
-                let remaining = (max(first) - i64::from(first.damage))
-                    + (max(second) - i64::from(second.damage))
-                    + durability * 5 / 100;
-                let mut out = ItemStack::new(&first.item, 1);
-                out.damage = (durability - remaining).max(0) as u32;
-                // Only the curses of both survive, at the higher level.
-                let (a, b) = (
-                    first.crafting_enchantments(),
-                    second.crafting_enchantments(),
-                );
-                let mut curses: Vec<(Arc<str>, u32)> = Vec::new();
-                for (id, level) in a.iter().chain(b.iter()) {
-                    if !ctx.recipes.curses.contains(&**id) {
-                        continue;
-                    }
-                    match curses.iter_mut().find(|(c, _)| c == id) {
-                        Some((_, l)) => *l = (*l).max(*level),
-                        None => curses.push((id.clone(), *level)),
-                    }
-                }
-                out.set_crafting_enchantments(curses);
-                out
-            }
+            Self::RepairItem => repair_item::assemble(ctx, &stacks)?,
         };
         let mut made = made;
         made.tidy();
@@ -1922,7 +1881,7 @@ impl Recipes {
                                 .iter()
                                 .position(|(name, _)| *name == d)
                         }),
-                        max_damage: info.max_damage,
+                        info: info.clone(),
                         max_stack: info.max_stack,
                     },
                 )
@@ -3345,6 +3304,7 @@ mod crafting_remainder_tests {
             title: "Original".into(),
             author: "Author".into(),
             generation: 1,
+            resolved: false,
             pages: vec!["page".into()],
             page_tags: Vec::new(),
         });

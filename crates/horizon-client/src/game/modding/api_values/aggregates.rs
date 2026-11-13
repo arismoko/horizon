@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn aggregates_preserve_properties_reorder_and_refuse_whole_values() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let facts = r#"{"defaults":{"minecraft:air":0,"minecraft:stairs":2},"states":[["a",true,false,"","minecraft:air"],["s",false,false,"",{"id":"minecraft:stairs","properties":{"facing":"north","waterlogged":"false"}}],["s",false,false,"",{"id":"minecraft:stairs","properties":{"facing":"east","waterlogged":"true"}}]]}"#;
         let registry = BlockRegistry::from_facts_json(facts.as_bytes()).unwrap();
         super::super::resolve_block_definitions(&registry).unwrap();

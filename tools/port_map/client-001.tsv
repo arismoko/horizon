@@ -11,7 +11,7 @@ ClientAdvancements.setSelectedTab	port	crates/horizon-client/src/game/interface/
 ClientAdvancements.setListener	skip:ui		listener plumbing for the advancements screen; Horizon's screen reads its state each frame
 ClientAdvancements.get	port	crates/horizon-client/src/advancements.rs::Tree::get	returns the advancement by id; holder wrapper is not needed
 ClientChunkCache.isValidChunk	skip:other		chunks are stored by position, so there is no ring slot to check
-ClientChunkCache.drop	port	crates/horizon-client-render/src/streaming.rs::Streaming::forget_columns	gap: minor: no ChunkEvent unload hook; block entities and renderer columns are cleared in Game::handle_packet
+ClientChunkCache.drop	port	crates/horizon-client-render/src/streaming.rs::Streaming::forget_columns	Game::client_chunk_unload tells mods (client_chunk_unload) before the column is freed; block entities and renderer columns are cleared in Game::handle_packet
 ClientChunkCache.getChunk	skip:java		lookup of a loaded chunk; Horizon reads world.chunks directly
 ClientChunkCache.replaceBiomes	port	crates/horizon-client/src/game/network/remote_chunks.rs::Game::remote_chunks_biomes	each loaded column takes the packet's biomes per section, then it and its neighbours are marked dirty so their sections are drawn again (/fillbiome reaches the client)
 ClientChunkCache.flipUpdateTrackingSets	skip:other		double-buffered change lists for LevelRenderer; Horizon hands changed columns to the renderer directly
@@ -31,9 +31,9 @@ ClientCommonPacketListenerImpl.storeDisconnectionReport	skip:debug		writes the d
 ClientCommonPacketListenerImpl.shouldHandleMessage	inline	crates/horizon-client/src/net.rs::receive_play	minor: receive_play returns at Transfer, so nothing else is read after a transfer starts
 ClientCommonPacketListenerImpl.handleKeepAlive	port	crates/horizon-client/src/net.rs::receive_play	gap: minor: the keep-alive reply is sent at once; vanilla defers it while the game is frozen at poll events
 ClientCommonPacketListenerImpl.handleCustomPayload	port	crates/horizon-client/src/net.rs::receive_brand	gap: minor: reads the brand only; other custom payloads go to the game and are ignored
-ClientCommonPacketListenerImpl.handleResourcePackPush	port	crates/horizon-client/src/game/world/server_packs.rs::Game::handle_pack_push	
-ClientCommonPacketListenerImpl.handleResourcePackPop	port	crates/horizon-client/src/game/world/server_packs.rs::Game::handle_pack_pop	
-ClientCommonPacketListenerImpl.handlePostEffects	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	
+ClientCommonPacketListenerImpl.handleResourcePackPush	port	crates/horizon-client/src/game/world/server_packs.rs::Game::handle_pack_push
+ClientCommonPacketListenerImpl.handleResourcePackPop	port	crates/horizon-client/src/game/world/server_packs.rs::Game::handle_pack_pop
+ClientCommonPacketListenerImpl.handlePostEffects	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet
 ClientCommonPacketListenerImpl.preparePackPrompt	port	crates/horizon-client/src/game/world/server_packs.rs::PackPrompt::texts	builds the server prompt line from the header and the server's prompt
 ClientCommonPacketListenerImpl.handleStoreCookie	port	crates/horizon-client/src/net.rs::receive_play	stores the cookie for a later transfer or cookie request
 ClientCommonPacketListenerImpl.handleCustomReportDetails	skip:debug		extra lines for crash reports only
@@ -88,16 +88,16 @@ ClientLevel.setBlock	port	crates/horizon-client/src/game/network/remote/mod.rs::
 ClientLevel.<init>	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::enter_remote_dimension	gap: minor: the environment layers are applied in Game::render
 ClientLevel.addEnvironmentAttributeLayers	port	crates/horizon-client/src/game.rs::Game::render	sky colour and sky light move during a lightning flash
 ClientLevel.pollLightUpdates	skip:other		light is applied when it arrives or relit at once (light.rs relight); there is no queue to poll
-ClientLevel.getPrecipitationAt	port	crates/horizon-client/src/game.rs::GameLevel::precipitation	the column's biome decides; no column, no answer (the chunk lookup fails, as vanilla answers none for an unloaded column)
-ClientLevel.removeBlockBreakingProgress	inline	crates/horizon-client/src/game/block_breaking.rs::Game::destroy_block_progress	minor: the 400-tick expiry runs on every update, not every 20 ticks
-ClientLevel.removeProgress	inline	crates/horizon-client/src/game/block_breaking.rs::Game::destroy_block_progress	cracks are keyed by breaker id, so there are no per-position sets to tidy
+ClientLevel.getPrecipitationAt	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::precipitation	the column's biome decides; no column, no answer (the chunk lookup fails, as vanilla answers none for an unloaded column)
+ClientLevel.removeBlockBreakingProgress	inline	crates/horizon-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	minor: the 400-tick expiry runs on every update, not every 20 ticks
+ClientLevel.removeProgress	inline	crates/horizon-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	cracks are keyed by breaker id, so there are no per-position sets to tidy
 ClientLevel.shouldTickDeath	missing		minor: death animations tick for every remote mob held; no simulation-distance check
 ClientLevel.tickNonPassenger	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::tick_remote_entities	ticks each remote entity
 ClientLevel.tickPassenger	port	crates/horizon-client/src/game/entities/passengers.rs::Game::position_riders	gap: minor: passengers are placed on their vehicle; no per-passenger tick
 ClientLevel.update	skip:other		runs the light queue each tick; Horizon relights when changes arrive
 ClientLevel.unload	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	minor: the ForgetLevelChunk arm clears block entities and renderer columns; light and entity ticking are not toggled
 ClientLevel.onChunkLoaded	inline	crates/horizon-client/src/game/network/remote_chunks.rs::Game::remote_chunk	minor: chunks are meshed on arrival; no tint cache to clear and no entity-ticking gate
-ClientLevel.removeEntity	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::remove_entity	removes the entity and its passengers
+ClientLevel.removeEntity	port	crates/horizon-client/src/game/network/remote_removal.rs::Game::remove_entity	removes the entity and its passengers
 ClientLevel.getPushableEntities	missing		minor: the client does not push the local player with nearby mobs or boats; the server's position correction moves it
 ClientLevel.disconnect	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::leave_server	gap: minor: no presence update
 ClientLevel.spawnParticle	port	crates/horizon-client/src/animate_tick.rs::try_spawn_drip	drip particle from a block shape (doAnimateTick)
@@ -106,7 +106,7 @@ ClientLevel.fillReportDetails	skip:debug		crash report details only
 ClientLevel.playPlayerSound	skip:other		no caller in the 26.3 client sources
 ClientLevel.playSound	port	crates/horizon-client-render/src/audio.rs::Audio::play_distance_delayed	a sound over 10 blocks from the camera starts sqrt(distance)/40 s later (Audio::play_after)
 ClientLevel.getRelativeTickSpeed	skip:other		no caller in the 26.3 client sources
-ClientLevel.destroyBlockProgress	port	crates/horizon-client/src/game/block_breaking.rs::Game::destroy_block_progress	sets or clears another player's crack on a block
+ClientLevel.destroyBlockProgress	port	crates/horizon-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	sets or clears another player's crack on a block
 ClientLevel.addAlwaysVisibleParticle	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::add_with	always-show flag set
 ClientLevel.doAddParticle	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::add_with	drops particles beyond 32 blocks and at minimal particle level
 ClientLevel.getSkyFlashTime	inline	crates/horizon-client/src/game.rs::Game::render	the flash check with the hideLightningFlashes option
@@ -114,4 +114,4 @@ ClientLevel.calculateBlockTint	port	crates/horizon-client-render/src/mesher.rs::
 ClientLevel.playBreakingSound	port	crates/horizon-client/src/game/interface/level_particles.rs::Game::breaking_block_effects	the block's hit sound while digging
 ClientLevel.getClientLeafTintColor	port	crates/horizon-client/src/animate_tick.rs::AnimateContext::foliage	leaf tint for tinted leaves particles; the caller is TintedParticleLeavesBlock
 ClientLevel.EntityCallbacks.onTrackingStart	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::spawn_entity	minor: ender dragon parts are placed by the dragon module, with no tracked parts list
-ClientLevel.EntityCallbacks.onTrackingEnd	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::remove_entity	minor: detaches passengers and removes the dragon's parts; the leave-level event is not posted
+ClientLevel.EntityCallbacks.onTrackingEnd	port	crates/horizon-client/src/game/network/remote_removal.rs::Game::remove_entity	minor: detaches passengers and removes the dragon's parts; the leave-level event is not posted

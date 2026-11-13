@@ -92,6 +92,33 @@ impl Game<'_> {
         let slot = *view.slots_for_face(at.side).get(slot)?;
         self.containers().get(&view, slot).cloned()
     }
+    /// Keeps what a capability write to slot `slot` of `view` changes: that slot alone where a
+    /// write there changes nothing else, else each block entity of the view whole.
+    fn journal_view_slot(&mut self, view: &View, slot: usize) {
+        let slot_only = match view.kind {
+            // A chest's, barrel's, dispenser's, dropper's or shelf's slot, a shulker box's, a
+            // mod container's: the slot is all a write changes (setChanged waits for the root
+            // commit).
+            Kind::Generic | Kind::Shulker | Kind::Mod => true,
+            // State beside the slot: filling an empty input restarts a furnace's cooking; an
+            // insert into an empty hopper sets its cooldown; a jukebox's disc starts its song;
+            // a bookshelf's books are in its block state and last slot.
+            Kind::Furnace | Kind::Hopper | Kind::Jukebox | Kind::Bookshelf => false,
+            // Not shown to change only the slot (a crafter's disabled slots, a brewing stand's
+            // brew), so kept whole as before.
+            Kind::Crafter | Kind::Brewing => false,
+            // A pot's item lives in its saved data, written through its own insertion view, not
+            // its slots; a composter has no block entity (its level is its block state) and the
+            // capability never reaches it. Listed so a new kind has to say where it goes.
+            Kind::Pot | Kind::Composter(_) => false,
+        };
+        if slot_only && let Some((pos, slot)) = view.locate(slot) {
+            return self.journal_block_entity_slot(pos, slot);
+        }
+        for &(part, _) in &view.parts {
+            self.journal_block_entity(part);
+        }
+    }
     /// `view_changed` of a capability write, at the root commit of its transaction.
     fn view_told(&mut self, view: &View) {
         if let Kind::Composter(_) = view.kind {
@@ -131,9 +158,7 @@ impl Game<'_> {
                 count: fits,
                 ..stack.clone()
             };
-            for &(part, _) in &view.parts {
-                self.journal_block_entity(part);
-            }
+            self.journal_view_slot(&view, slot);
             // A jukebox's disc starts at the root commit (`JukeboxBlockEntity.setTheItem`).
             if self.move_in_item(None, &view, some, slot).1 {
                 self.view_told(&view);
@@ -143,6 +168,160 @@ impl Game<'_> {
             count: stack.count - fits,
             ..stack
         })
+    }
+    /// How much of `resource` the slots `at`'s side reaches hold in all (`STORAGE`'s amount),
+    /// in one pass over one view of the container.
+    /// None where the total does not fit in 64 bits.
+    pub(in crate::game) fn container_kind_amount(
+        &self,
+        at: BlockSide,
+        resource: &ItemStack,
+    ) -> Option<u64> {
+        let Some(view) = self.capability_view(at) else {
+            return Some(0);
+        };
+        let c = self.containers();
+        view.slots_for_face_iter(at.side)
+            .filter_map(|slot| c.get(&view, slot))
+            .filter(|held| held.same_item_same_components(resource))
+            .try_fold(0u64, |total, held| total.checked_add(u64::from(held.count)))
+    }
+    /// How much of `resource` an insert through `at`'s side takes now: each slot's room for it,
+    /// by the rules `container_insert` follows, summed in one pass.
+    /// None where the total does not fit in 64 bits.
+    pub(in crate::game) fn container_kind_space(
+        &self,
+        at: BlockSide,
+        resource: &ItemStack,
+    ) -> Option<u64> {
+        let Some(view) = self.capability_view(at) else {
+            return Some(0);
+        };
+        let probe = ItemStack {
+            count: u32::MAX,
+            ..resource.clone()
+        };
+        let c = self.containers();
+        view.slots_for_face_iter(at.side)
+            .try_fold(0u64, |total, slot| {
+                total.checked_add(u64::from(c.fits(&view, slot, &probe)))
+            })
+    }
+    /// What the slots `at`'s side reaches hold, from its `from`th to before its
+    /// `from + limit`th (fewer at the end), empty ones included: never more than
+    /// `MAX_STORAGE_PAGE` slots, whatever `limit` asks, so a request cannot make the game
+    /// allocate more than one page.
+    pub(in crate::game) fn container_listing(
+        &self,
+        at: BlockSide,
+        from: usize,
+        limit: usize,
+    ) -> Option<Vec<Option<ItemStack>>> {
+        let view = self.capability_view(at)?;
+        let c = self.containers();
+        Some(
+            view.slots_for_face_iter(at.side)
+                .skip(from)
+                .take(limit.min(mod_api::MAX_STORAGE_PAGE))
+                .map(|slot| c.get(&view, slot).cloned())
+                .collect(),
+        )
+    }
+    /// Puts up to `amount` of `resource` into the slots `at`'s side reaches, those holding it
+    /// first and then the empty ones, in transaction `tx`, on one view of the container: what
+    /// went in. Each slot is kept and filled as `container_insert` keeps and fills it.
+    pub(in crate::game) fn container_insert_kind(
+        &mut self,
+        at: BlockSide,
+        resource: &ItemStack,
+        amount: u64,
+        tx: &Transaction,
+    ) -> u64 {
+        if amount == 0 || !self.transaction_holds(tx) {
+            return 0;
+        }
+        let Some(view) = self.capability_view(at) else {
+            return 0;
+        };
+        let (mut left, mut told) = (amount, false);
+        for holding in [true, false] {
+            for slot in view.slots_for_face_iter(at.side) {
+                if left == 0 {
+                    break;
+                }
+                let pick = match self.containers().get(&view, slot) {
+                    Some(held) => holding && held.same_item_same_components(resource),
+                    None => !holding,
+                };
+                if !pick {
+                    continue;
+                }
+                let stack = ItemStack {
+                    count: left.min(u64::from(u32::MAX)) as u32,
+                    ..resource.clone()
+                };
+                let fits = self.containers().fits(&view, slot, &stack);
+                if fits == 0 {
+                    continue;
+                }
+                self.journal_view_slot(&view, slot);
+                let some = ItemStack {
+                    count: fits,
+                    ..resource.clone()
+                };
+                if self.move_in_item(None, &view, some, slot).1 {
+                    left -= u64::from(fits);
+                    told = true;
+                }
+            }
+        }
+        if told {
+            self.view_told(&view);
+        }
+        amount - left
+    }
+    /// Takes up to `amount` of `resource` out of the slots `at`'s side reaches and may take
+    /// from, in transaction `tx`, on one view of the container: what came out.
+    pub(in crate::game) fn container_extract_kind(
+        &mut self,
+        at: BlockSide,
+        resource: &ItemStack,
+        amount: u64,
+        tx: &Transaction,
+    ) -> u64 {
+        if amount == 0 || !self.transaction_holds(tx) {
+            return 0;
+        }
+        let Some(view) = self.capability_view(at) else {
+            return 0;
+        };
+        let (mut left, mut told) = (amount, false);
+        for slot in view.slots_for_face_iter(at.side) {
+            if left == 0 {
+                break;
+            }
+            let c = self.containers();
+            let Some(held) = c.get(&view, slot) else {
+                continue;
+            };
+            if !held.same_item_same_components(resource)
+                || at
+                    .side
+                    .is_some_and(|face| !c.can_take(&view, slot, held, face))
+            {
+                continue;
+            }
+            self.journal_view_slot(&view, slot);
+            let ask = left.min(u64::from(u32::MAX)) as u32;
+            if let Some(out) = self.take_up_to(&view, slot, ask) {
+                left -= u64::from(out.count);
+                told = true;
+            }
+        }
+        if told {
+            self.view_told(&view);
+        }
+        amount - left
     }
     /// How many of `stack` slot `slot` of those `at`'s side reaches holds when empty, as
     /// NeoForge's `isValid` and `getCapacityAsLong` answer: none where it may not go in (a
@@ -183,9 +362,7 @@ impl Game<'_> {
         {
             return None;
         }
-        for &(part, _) in &view.parts {
-            self.journal_block_entity(part);
-        }
+        self.journal_view_slot(&view, slot);
         let out = self.take_up_to(&view, slot, max)?;
         // A jukebox's song stops at the root commit (`JukeboxBlockEntity.removeItem`).
         self.view_told(&view);

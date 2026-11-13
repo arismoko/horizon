@@ -7,13 +7,20 @@ pub fn owns_namespace(owner: &str, namespace: &str) -> bool {
             .is_some_and(|package| package.namespaces().any(|owned| owned == namespace))
 }
 
-/// Validate and qualify a declaration using the package namespace inventory.
-pub fn owned_declaration_id(owner: &str, name: &str) -> Result<String, String> {
-    let id = if name.contains(':') {
+/// `name` with its namespace: a bare name is in mod `owner`'s own, for a declared id and
+/// for the block and item references a declaration names (`block_item`, `pick_item`,
+/// `wall_block`, `base_block`, `crafting_remainder`, `Item::block`) alike.
+pub fn qualified(owner: &str, name: &str) -> String {
+    if name.contains(':') {
         name.to_owned()
     } else {
         format!("{owner}:{name}")
-    };
+    }
+}
+
+/// Validate and qualify a declaration using the package namespace inventory.
+pub fn owned_declaration_id(owner: &str, name: &str) -> Result<String, String> {
+    let id = qualified(owner, name);
     let parsed = crate::Identifier::parse_namespaced(&id)
         .ok_or_else(|| format!("mod {owner} declares invalid identifier {id:?}"))?;
     let namespace = parsed.namespace();
@@ -23,6 +30,50 @@ pub fn owned_declaration_id(owner: &str, name: &str) -> Result<String, String> {
         ));
     }
     Ok(id)
+}
+
+/// A declaration a mod's `blocks` or `items` hook adds: its id, and the names of other
+/// content it references.
+pub(crate) trait Declaration {
+    /// The declared id and its optional references.
+    fn names(&mut self) -> (&mut String, impl IntoIterator<Item = &mut Option<String>>);
+}
+
+impl Declaration for crate::Block {
+    fn names(&mut self) -> (&mut String, impl IntoIterator<Item = &mut Option<String>>) {
+        (
+            &mut self.id,
+            [
+                &mut self.block_item,
+                &mut self.pick_item,
+                &mut self.wall_block,
+                &mut self.base_block,
+            ],
+        )
+    }
+}
+
+impl Declaration for crate::Item {
+    fn names(&mut self) -> (&mut String, impl IntoIterator<Item = &mut Option<String>>) {
+        (
+            &mut self.id,
+            [&mut self.crafting_remainder, &mut self.block],
+        )
+    }
+}
+
+/// Make `declaration` mod `owner`'s: each bare reference names its own content, and
+/// the id must be in a namespace it owns. On an error the id is left as given.
+pub(crate) fn own_declaration(
+    owner: &str,
+    declaration: &mut impl Declaration,
+) -> Result<(), String> {
+    let (id, references) = declaration.names();
+    for reference in references.into_iter().flatten() {
+        *reference = qualified(owner, reference);
+    }
+    *id = owned_declaration_id(owner, id)?;
+    Ok(())
 }
 
 impl crate::RegistrationContext {

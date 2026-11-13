@@ -95,8 +95,8 @@ mod tests {
         }
         let mods: mod_api::Mods =
             vec![mod_api::ModEntry::new("routing", Box::new(Listener))].into();
-        mod_api::testing::with_mods(mods.clone(), || {
-            mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
+        mod_platform::testing::with_mods(mods.clone(), || {
+            mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
             let facts = r#"{"defaults":{"minecraft:air":2,"minecraft:stone":0,"minecraft:dirt":1},"states":[["s",false,false,"","minecraft:stone"],["d",false,false,"","minecraft:dirt"],["a",true,false,"","minecraft:air"]]}"#;
             let registry = BlockRegistry::from_facts_json(facts.as_bytes()).unwrap();
             super::super::resolve_block_definitions(&registry).unwrap();
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn numeric_block_index_prepared_token_activates_only_on_fresh_owner() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let facts = r#"{"defaults":{"minecraft:air":0,"minecraft:stone":1},"states":[["a",true,false,"","minecraft:air"],["s",false,false,"","minecraft:stone"]]}"#;
         let registry = BlockRegistry::from_facts_json(facts.as_bytes()).unwrap();
         super::super::resolve_block_definitions(&registry).unwrap();
@@ -152,7 +152,7 @@ mod tests {
     }
     #[test]
     fn numeric_block_index_reorders_refuses_and_clears_failed_rebind() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let facts = r#"{"defaults":{"minecraft:air":0,"minecraft:stairs":2},"states":[["a",true,false,"","minecraft:air"],["s",false,false,"",{"id":"minecraft:stairs","properties":{"facing":"north"}}],["s",false,false,"",{"id":"minecraft:stairs","properties":{"facing":"east"}}]]}"#;
         let first = BlockRegistry::from_facts_json(facts.as_bytes()).unwrap();
         super::super::resolve_block_definitions(&first).unwrap();

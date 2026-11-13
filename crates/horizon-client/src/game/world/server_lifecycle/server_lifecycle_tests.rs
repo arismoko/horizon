@@ -2,7 +2,8 @@ use crate::game::{
     execution_role::ExecutionRole, native_entity_refs::tests::with_game,
     native_guest_turn_tests::with_guests,
 };
-use mod_api::{Hooks, ModEntry, ServerHost, testing::with_mods};
+use mod_api::{Hooks, ModEntry, ServerHost};
+use mod_platform::testing::with_mods;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 

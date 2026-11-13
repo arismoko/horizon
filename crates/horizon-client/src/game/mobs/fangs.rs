@@ -47,6 +47,11 @@ pub(super) struct FangState {
     pub list: horizon_client::join_seq::ResidentList<Fangs>,
     model: Option<Arc<Part>>,
 }
+impl FangState {
+    pub(in crate::game) fn perf_count(&self) -> usize {
+        self.list.len()
+    }
+}
 impl Game<'_> {
     pub(super) fn add_fangs(&mut self, at: [f64; 3], yaw: f32, delay: i32, owner: u32) {
         self.next_entity += 1;
@@ -143,6 +148,7 @@ impl Game<'_> {
 
     /// `EvokerFangs.tick`.
     pub(super) fn tick_fangs(&mut self) {
+        horizon_threads::work::clear_work();
         let mut list = self.fangs.list.lift();
         #[cfg(test)]
         super::entity::taken_pass_tests::after_take(self);
@@ -282,7 +288,7 @@ impl Game<'_> {
         &self,
         camera: glam::DVec3,
         alpha: f64,
-        out: &mut Vec<mod_render::render::Vertex>,
+        out: &mut Vec<horizon_client_render::render_geometry::Vertex>,
     ) {
         let Some(model) = self.fangs.model.as_ref() else {
             return;

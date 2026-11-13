@@ -123,6 +123,7 @@ pub fn main() -> horizon_client::Result<()> {
                         Position::Bottom
                     },
                     fixed: p["fixed"].as_bool().unwrap_or(false),
+                    hidden: false,
                 }
             })
             .collect();
@@ -144,6 +145,11 @@ pub fn main() -> horizon_client::Result<()> {
         for a in c["actions"].as_array().into_iter().flatten() {
             let f = |k: &str| a[k].as_f64().unwrap_or(0.0);
             match a["type"].as_str().unwrap_or_default() {
+                "drop" => {
+                    for path in a["paths"].as_array().into_iter().flatten() {
+                        screen.drop_file(path.as_str().unwrap_or_default().into());
+                    }
+                }
                 "click" => {
                     screen.click(&m, f("x"), f("y"));
                 }

@@ -32,6 +32,7 @@ pub(super) fn build_renderer(
     prepared: Option<horizon_client::gfx::PreparedTextures>,
     api: horizon_client::graphics::GraphicsApi,
     translucent_batching: bool,
+    vsync: bool,
     // HDR and Smooth Gradients pick the frame, with what the window's display reported to the
     // renderer before (`display`, `Renderer::new`).
     settings: &horizon_client::graphics::Graphics,
@@ -86,6 +87,10 @@ pub(super) fn build_renderer(
         &prepared_vertices,
         prepared_ranges,
     )?;
+    // The loading renderer may have been built before the saved graphics settings were
+    // adopted. Configure the world swapchain before its first gameplay frame instead of
+    // waiting for `Game::apply_settings` after the handoff.
+    renderer.set_present_mode(vsync, settings.present_mode);
     renderer.hud.sprite_animations = atlas
         .sprite_animations
         .iter()
@@ -93,10 +98,11 @@ pub(super) fn build_renderer(
         .collect();
     renderer
         .hud
-        .set_text_shader(&renderer.device, atlas.text_shader.as_deref());
+        .set_text_shader(&renderer.device, atlas.text_shaders.gui.as_deref());
     pack.item_renderer
         .prepare_glint_atlas(renderer.device.limits().max_texture_dimension_2d, filtering)?;
     renderer.set_lines_shader(atlas.lines_shader.as_deref());
+    renderer.set_world_text_shaders(&atlas.text_shaders);
     renderer.set_sky_shaders(atlas.sky_shader.as_deref(), atlas.stars_shader.as_deref());
     renderer.set_custom_sky(&*pack.custom_sky);
     renderer.set_shared_material_maps(&atlas.material_maps);
@@ -104,6 +110,8 @@ pub(super) fn build_renderer(
     renderer
         .hud
         .set_cit_glints(&renderer.device, &renderer.queue, cit_glints);
+    // Last, so a renderer that fails before this marks none of the pack's pipelines invalid.
+    renderer.build_mod_pipelines(&pack.render.mod_pipelines)?;
     Ok(renderer)
 }
 
@@ -348,6 +356,8 @@ pub(super) fn start_game<'a>(
                 fps_cap: None,
                 offscreen: game.options.offscreen,
                 game_dir: std::env::current_dir()?,
+                set: game.options.benchmark_set.clone(),
+                profile: game.options.benchmark_profile,
             },
         );
     }
@@ -373,6 +383,10 @@ pub(super) fn start_game<'a>(
     }
     if let Ok(spec) = std::env::var("HORIZON_SCULK_FIXTURE") {
         game.run_component_harness(integrated::ComponentHarness::Sculk(spec))?;
+        return Ok(None);
+    }
+    if let Ok(output) = std::env::var("HORIZON_HOT_PATHS") {
+        game.run_component_harness(integrated::ComponentHarness::HotPaths(output))?;
         return Ok(None);
     }
     if game.options.execution_role == execution_role::ExecutionRole::DedicatedServer {
@@ -418,11 +432,9 @@ pub(super) fn start_game<'a>(
             } else {
                 // Start after the window is handed over, so --world uses the
                 // same responsive initialization path as the title screen.
-                let title = Title::new(
-                    std::env::current_dir()?.join("saves"),
-                    &game.options.resources,
-                )
-                .with_user(|| game.options.player_name());
+                let title = game
+                    .new_title(std::env::current_dir()?.join("saves"))
+                    .with_user(|| game.options.player_name());
                 game.show_title(title);
                 game.pending_entry = Some(PendingWorldEntry::Local {
                     folder,
@@ -435,11 +447,9 @@ pub(super) fn start_game<'a>(
         }
         None if handoff => {}
         None => {
-            let mut title = Title::new(
-                std::env::current_dir()?.join("saves"),
-                &game.options.resources,
-            )
-            .with_user(|| game.options.player_name());
+            let mut title = game
+                .new_title(std::env::current_dir()?.join("saves"))
+                .with_user(|| game.options.player_name());
             title.last_server = game.settings.file.string("lastServer");
             title.skip_multiplayer_warning = game.settings.file.bool("skipMultiplayerWarning");
             // Gui.addInitialScreens: the accessibility onboarding comes first.

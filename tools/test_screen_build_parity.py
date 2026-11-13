@@ -10,7 +10,10 @@ the slot `AbstractContainerScreen`'s hover test answers for the case's cursor
 points. The game (`HORIZON_SCREEN_BUILD_FIXTURE`) builds the same screens'
 `ScreenBuild::ContainerLayout` (and the pause screen's `PauseLayout`) and
 reports the panel, the origin, the slot boxes, the slot `slot_at` answers and
-the pause menu's buttons and icons. Both sides must agree; the first
+the pause menu's buttons and icons. For chat in bed and the command block and
+minecart edit screens, both sides open the screen at another size, resize it
+to the case's and report every widget's rectangle (vanilla's `children()`).
+Both sides must agree; the first
 comparison is the GUI scale and size, so a size mismatch cannot pass.
 """
 import argparse
@@ -37,6 +40,7 @@ IMAGES = {'inventory': (176, 166), 'crafting': (176, 166), 'furnace': (176, 166)
           'hopper': (176, 133), 'shulker': (176, 167)}
 BOOKS = ('inventory', 'crafting', 'furnace')
 NARROW = 379
+TEXT_SCREENS = ('chat', 'command_block', 'minecart_command_block')
 
 
 def calculate_scale(window, max_scale):
@@ -82,6 +86,8 @@ def cases():
         for scale in SCALES:
             gui_scale, gui_width, gui_height = gui_size(window, scale)
             out.append({'kind': 'pause', 'window': window, 'scale': scale})
+            for kind in TEXT_SCREENS:
+                out.append({'kind': kind, 'window': window, 'scale': scale})
             for kind in kinds:
                 rows = int(kind[5:]) if kind.startswith('chest') else 0
                 width, height = image(kind, rows)
@@ -125,7 +131,7 @@ def main():
          str(java_root / 'dev/horizonlab/parity/VanillaScreenBuildOracle.java')])
     run(['java', '-Xmx2G', '-cp', str(classes) + os.pathsep + dependencies,
          'dev.horizonlab.parity.VanillaScreenBuildOracle', str(work / 'cases.jsonl'), str(work / 'native.jsonl')])
-    run(['cargo', 'build', '-q', '--profile', 'fast', '-p', 'horizon-client', '--bin', 'horizon-client'], cwd=lab.ROOT,
+    run(['cargo', 'build', '-q', '--profile', 'fast', '-p', 'horizon-game', '--bin', 'horizon-client'], cwd=lab.ROOT,
         env={**os.environ, 'CARGO_BUILD_JOBS': os.environ.get('CARGO_BUILD_JOBS', '3')})
     executable = lab.cargo_target() / ('fast/horizon-client.exe' if os.name == 'nt' else 'fast/horizon-client')
     with tempfile.TemporaryDirectory(prefix='game-', dir=work) as game_dir:
@@ -150,6 +156,10 @@ def main():
         if case['kind'] == 'pause':
             if a['pause'] != b['pause']:
                 bad.append((case, 'pause', a['pause'], b['pause']))
+            continue
+        if case['kind'] in TEXT_SCREENS:
+            if a['widgets'] != b['widgets']:
+                bad.append((case, 'widgets', a['widgets'], b['widgets']))
             continue
         for key in ('image', 'origin'):
             if a[key] != b[key]:

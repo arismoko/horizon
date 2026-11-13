@@ -253,7 +253,7 @@ mod on_entity_item_update_tests {
             ])),
         )]
         .into();
-        mod_api::testing::with_mods(mods.clone(), || {
+        mod_platform::testing::with_mods(mods.clone(), || {
             crate::game::api_values::install_parts(&mods).unwrap();
             with_game(|game| {
                 floor(game);

@@ -110,7 +110,9 @@ pub trait ChunkDiskHost: Host {
 
 // no wire: a borrowed worker-only Host, carried by a synchronous Wire frame.
 /// Engine-side capability lasting only for one callback dispatch.
+// hidden: engine-side worker capability, built only by the persistence owner
 #[doc(hidden)]
+#[non_exhaustive]
 pub struct OwningChunkDisk<'a> {
     job: &'a ChunkDiskContextWire,
     resources: &'a dyn WorldgenHost,
@@ -148,6 +150,7 @@ impl ChunkDiskHost for OwningChunkDisk<'_> {
 }
 
 /// The worker's load entry point, discovered by the hook catalog generator.
+// hidden: worker entry point found by the hook catalog generator
 #[doc(hidden)]
 #[inline(never)]
 pub fn native_chunk_data_load(context: &OwningChunkDisk<'_>, data: &mut ChunkDiskData) {
@@ -155,6 +158,7 @@ pub fn native_chunk_data_load(context: &OwningChunkDisk<'_>, data: &mut ChunkDis
 }
 
 /// The worker's save entry point, discovered by the hook catalog generator.
+// hidden: worker entry point found by the hook catalog generator
 #[doc(hidden)]
 #[inline(never)]
 pub fn native_chunk_data_save(context: &OwningChunkDisk<'_>, data: &mut ChunkDiskData) {
@@ -163,6 +167,7 @@ pub fn native_chunk_data_save(context: &OwningChunkDisk<'_>, data: &mut ChunkDis
 
 #[path = "chunk_disk/job.rs"]
 mod job;
+// hidden: engine-owned save job, built and retained by the persistence owner
 #[doc(hidden)]
 pub use job::ChunkDiskJob;
 

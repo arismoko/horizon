@@ -112,8 +112,8 @@ FireworkParticles.FlashProvider.createParticle	port	crates/horizon-client-render
 FireworkParticles.SparkProvider.createParticle	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::make	Firework arm, alpha 0.99
 FireworkParticles.Starter.tick	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::tick_starters	launch sound, a burst every 2 ticks, flash, twinkle sound at the end
 FireworkParticles.Starter.isFarAwayFromCamera	inline	crates/horizon-client-render/src/particles.rs::ParticleEngine::fireworks	gap: minor: the distance is taken when the rocket is launched, not on each tick
-FireworkParticles.Starter.createParticleBall	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::spark_ball	
-FireworkParticles.Starter.createParticleShape	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::spark_shape	
+FireworkParticles.Starter.createParticleBall	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::spark_ball
+FireworkParticles.Starter.createParticleShape	port	crates/horizon-client-render/src/particles.rs::ParticleEngine::spark_shape
 FireworkParticles.Starter.createParticleBurst	inline	crates/horizon-client-render/src/particles.rs::ParticleEngine::tick_starters	Burst shape arm of tick_starters
 FlameParticle.move	port	crates/horizon-client-render/src/particles.rs::Particle::move_by	free_move: moves the box without collision
 FlameParticle.getQuadSize	port	crates/horizon-client-render/src/particles.rs::Particle::quad_size	Flame size curve

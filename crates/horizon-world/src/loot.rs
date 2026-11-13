@@ -630,18 +630,9 @@ fn int_value(v: &Value) -> Option<i64> {
 /// `data/<ns>/<kind>/` of every namespace, as `ns:path`: vanilla's, and in
 /// a content mods' root theirs (docs/modpacks.md), whose chests name their
 /// own loot tables.
-/// A kind's overlay files over what the resource root provided: the top
-/// pack's file for each id replaces the rest (`SimpleJsonResourceReloadListener`
-/// sees one resource per id).
-fn overlay_map(overlay: &PackOverlay, kind: &str, out: &mut HashMap<String, Value>) {
-    for (id, files) in overlay.kind(kind) {
-        let Ok(v) = serde_json::from_slice::<Value>(PackOverlay::top(files)) else {
-            continue;
-        };
-        out.insert(id.to_owned(), v);
-    }
-    out.retain(|_, value| overlay.conditions.allows(value));
-}
+#[path = "loot_conditions.rs"]
+mod loot_conditions;
+use loot_conditions::overlay_map;
 
 /// Loot tables by id. Each is kept as its JSON text and read into a [`Value`]
 /// the first time it is rolled: of vanilla's ~1,450 tables a game rolls a
@@ -900,7 +891,7 @@ impl LootData {
             let mut raw = HashMap::new();
             load_kind(&all, &format!("tags/{registry}"), &mut raw)?;
             for (name, value) in raw {
-                if !overlay.conditions.allows(&value) {
+                if !overlay.conditions.allows_tag(&value, registry, &name) {
                     continue;
                 }
                 let values = value["values"].as_array().cloned().unwrap_or_default();
@@ -914,7 +905,7 @@ impl LootData {
                     let Ok(v) = serde_json::from_slice::<Value>(bytes) else {
                         continue;
                     };
-                    if !overlay.conditions.allows(&v) {
+                    if !overlay.conditions.allows_tag(&v, registry, &id) {
                         continue;
                     }
                     let slot = tags.entry((registry.to_owned(), id.clone())).or_default();
@@ -1704,13 +1695,7 @@ impl<R: RandomSource> Context<'_, R> {
             }
             "minecraft:set_enchantments" => {
                 if let Some(map) = f["enchantments"].as_object() {
-                    if stack.item == "minecraft:book" {
-                        stack.item = "minecraft:enchanted_book".into();
-                    }
-                    for (name, level) in map {
-                        let level = self.int(level);
-                        enchant(&mut stack, name, level);
-                    }
+                    set_enchantments(&mut stack, map, |value| self.int(value));
                 }
             }
             "minecraft:set_potion" => stack.potion = f["id"].as_str().map(str::to_owned),
@@ -2318,6 +2303,21 @@ struct Choice<'v> {
     entry: &'v Value,
     item: Option<String>,
 }
+/// `SetEnchantmentsFunction.run`: set each enchantment in `map` to its level
+/// and keep the others (a book transmutes to an enchanted book first).
+fn set_enchantments(
+    stack: &mut LootStack,
+    map: &serde_json::Map<String, serde_json::Value>,
+    mut level: impl FnMut(&serde_json::Value) -> i32,
+) {
+    if stack.item == "minecraft:book" {
+        stack.item = "minecraft:enchanted_book".into();
+    }
+    for (name, value) in map {
+        enchant(stack, name, level(value).max(0));
+    }
+}
+
 fn enchant(stack: &mut LootStack, name: &str, level: i32) {
     match stack.enchantments.iter_mut().find(|(n, _)| n == name) {
         Some(slot) => slot.1 = level,
@@ -2382,6 +2382,26 @@ mod namespace_tests {
                 .contains_key(&("item".into(), "demo:absent".into()))
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn set_enchantments_replaces_the_levels() {
+        let mut stack = LootStack::new("minecraft:book");
+        stack.enchantments.push(("minecraft:sharpness".into(), 1));
+        stack.enchantments.push(("minecraft:mending".into(), 1));
+        let map = serde_json::json!({"minecraft:sharpness": 2, "minecraft:unbreaking": 3});
+        set_enchantments(&mut stack, map.as_object().unwrap(), |value| {
+            value.as_i64().unwrap_or(0) as i32
+        });
+        assert_eq!(&*stack.item, "minecraft:enchanted_book");
+        assert_eq!(
+            stack.enchantments,
+            [
+                ("minecraft:sharpness".to_owned(), 2),
+                ("minecraft:mending".to_owned(), 1),
+                ("minecraft:unbreaking".to_owned(), 3),
+            ]
+        );
     }
 
     /// The same root and packs share one map while it is held; other packs

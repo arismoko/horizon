@@ -187,7 +187,13 @@ mod tests {
     /// The x of the centre of each quad `render` draws, in draw order, and its layer.
     fn drawn(e: &ParticleEngine) -> Vec<(i32, bool)> {
         let mut vertices = Vec::new();
-        e.render(DVec3::ZERO, 0.0, 0.0, 0.0, &|_| 0, &mut vertices);
+        e.render(
+            DVec3::ZERO,
+            glam::Quat::IDENTITY,
+            0.0,
+            &|_| 0,
+            &mut vertices,
+        );
         vertices
             .chunks(4)
             .map(|quad| {

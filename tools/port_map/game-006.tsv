@@ -30,6 +30,10 @@ LinearInterpolationHandler.create	inline	crates/horizon-client/src/game/network/
 LinearInterpolationHandler.startInterpolating	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::move_entity	target kept as Lerp with steps 3
 LinearInterpolationHandler.doInterpolate	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::tick_remote_entities	gap: minor: position eased by 1/steps; a boat's or minecart's yaw is set at once, not eased
 LivingEntity.<init>	port	crates/horizon-client/src/mobs.rs::Mob::new	box, health, random yaw
+LivingEntity.canFreeze	port	crates/horizon-client/src/mobs/ai/freezing.rs::can_freeze	the freeze_immune_entity_types tag and the freeze_immune_wearables on every armour slot, with the class answers below
+Skeleton.canFreeze	port	crates/horizon-client/src/mobs/ai/freezing.rs::can_freeze	false: a skeleton never freezes; the bogged, parched and wither skeleton extend AbstractSkeleton and are not affected, the stray is immune through the freeze_immune_entity_types tag
+SulfurCube.canFreeze	port	crates/horizon-client/src/mobs/ai/freezing.rs::can_freeze	`!hasBodyItem() && super`: a cube carrying a block never freezes
+LivingEntity.canBreatheUnderwater	port	crates/horizon-client/src/mobs/ai.rs::can_breathe_under_water	the can_breathe_under_water tag, then the baby happy ghast and the sulfur cube with a block in its body
 LivingEntity.canBeAffected	port	crates/horizon-client/src/mobs.rs::Mob::can_be_affected	the three tags (immune_to_infested, immune_to_oozing, ignores_poison_and_regen which is #minecraft:undead) then the class overrides below; asked by addEffect before anything is stored
 LivingEntity.defineSynchedData	port	crates/horizon-client/src/game/network/lan/mod.rs::mob_meta	gap: player: arrow count (12) and stinger count (13) are never kept or sent, so arrows and bee stingers do not stay stuck in a body
 LivingEntity.hasLandedInLiquid	port	crates/horizon-world/src/living_fall.rs::ImpulseContext::landed_in_liquid	water or lava with getDeltaMovement().y below 9.9999997E-6, from the guest move loop; the grace time still defers it
@@ -67,7 +71,7 @@ LivingEntity.isAlive	port	crates/horizon-client/src/mobs.rs::Mob::alive	not remo
 LivingEntity.setIgnoreFallDamageFromCurrentImpulse	port	crates/horizon-world/src/living_fall.rs::ImpulseContext::set_ignore_fall_damage	40 ticks of grace
 LivingEntity.getDamageAfterArmorAbsorb	inline	crates/horizon-client/src/mobs.rs::Mob::damage_with	the player's armor wear is health.rs hurt_armor; the mob path also scales armor effectiveness (breach)
 LivingEntity.getKillCredit	port	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::mob_died	the last player to hit it, else the last mob
-LivingEntity.getTicksSinceLastKineticHitFeedback	port	crates/horizon-client/src/game/items/spear.rs::Game::kinetic_hit_ticks	
+LivingEntity.getTicksSinceLastKineticHitFeedback	port	crates/horizon-client/src/game/items/spear.rs::Game::kinetic_hit_ticks
 LivingEntity.swapHandItems	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	entity event 55 swaps another player's hands; the arm is in `handle_packet`
 LivingEntity.getAttackRangeWith	inline	crates/horizon-client/src/game.rs::Game::reach	gap: minor: only the spear's range is item specific (spear.rs REACH); other items use the default reach
 LivingEntity.getActiveItem	inline	crates/horizon-client/src/game.rs::Game::held	the selected slot; the item in use is the `using` slot

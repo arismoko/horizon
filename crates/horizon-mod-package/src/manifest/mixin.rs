@@ -339,4 +339,38 @@ mod tests {
         assert_eq!(native.bridge[0].fields["member"].as_str(), Some("world"));
         assert_eq!(native.state[0].fields["ty"].as_str(), Some("u32"));
     }
+
+    /// A bridge's id names its accessor, so it is refused when it can't, naming the mod and row.
+    #[test]
+    fn a_bridge_id_that_cannot_name_an_accessor_is_refused() {
+        let bridge = |id: &str| {
+            format!(
+                "[[native.bridge]]\nid='{id}'\nkind='GET'\ntarget='game::Game'\nmember='world'\n"
+            )
+        };
+        assert!(parse(&native(), &bridge("ticks-current_2")).is_ok());
+        let error = parse(&native(), &bridge("ticks.current")).unwrap_err();
+        assert!(
+            error.contains("E_MIXIN_INVALID: sample:ticks.current: invalid id; a bridge id is ASCII letters, digits, `_` and `-`"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn two_bridge_ids_with_one_accessor_name_are_refused() {
+        let bridge = |id: &str| {
+            format!(
+                "[[native.bridge]]\nid='{id}'\nkind='GET'\ntarget='game::Game'\nmember='world'\n"
+            )
+        };
+        let error = parse(
+            &native(),
+            &format!("{}{}", bridge("ticks-a"), bridge("Ticks_A")),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("E_MIXIN_INVALID: sample:Ticks_A: invalid id; it gives the same accessor name as bridge `ticks-a`"),
+            "{error}"
+        );
+    }
 }

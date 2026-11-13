@@ -82,7 +82,7 @@ mod tests {
                 .unwrap();
             }
         }
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("example", Box::new(RegistryMod))].into(),
             || {
                 super::super::native_entity_refs::tests::with_game(|game| {
@@ -93,7 +93,7 @@ mod tests {
                             mod_api::__private::datapack_registry_declarations(),
                             &[(
                                 "data/addon/example/spell/fire.json".into(),
-                                vec![br#"{"power":7}"#.to_vec()],
+                                vec![("pack".to_owned(), br#"{"power":7}"#.to_vec())],
                             )],
                         )
                         .unwrap()

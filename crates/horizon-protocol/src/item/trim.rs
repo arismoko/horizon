@@ -21,6 +21,14 @@ pub struct TrimPattern {
     pub description: Tag,
     pub decal: bool,
 }
+impl<T: crate::retained::OwnedHeap> crate::retained::OwnedHeap for TrimHolder<T> {
+    fn owned_heap_bytes(&self) -> usize {
+        match self {
+            Self::Id(_) => 0,
+            Self::Direct(v) => v.owned_heap_bytes(),
+        }
+    }
+}
 impl<T> TrimHolder<T> {
     pub(super) fn read(
         r: &mut Reader,
@@ -68,3 +76,30 @@ impl TrimPattern {
         w.bool(self.decal);
     }
 }
+
+// Generated retained-allocation traversals; regenerate with protocol-retained-gen.
+impl crate::retained::OwnedHeap for TrimMaterial {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self {
+            palette_id,
+            description,
+        } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(palette_id))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(description))
+    }
+}
+impl crate::retained::OwnedHeap for TrimPattern {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self {
+            asset_id,
+            description,
+            decal,
+        } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(asset_id))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(description))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(decal))
+    }
+}
+// End generated retained traversals.

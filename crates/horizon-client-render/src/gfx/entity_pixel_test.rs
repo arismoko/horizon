@@ -234,6 +234,7 @@ pub fn render(
             &shader,
             &buffers,
             wgpu::TextureFormat::Rgba8Unorm,
+            false,
         )(EntityPipelineOptions {
             label: "Entities",
             cull_mode: None,
@@ -522,6 +523,7 @@ fn cpu_quad(
             &shader,
             &buffers,
             wgpu::TextureFormat::Rgba8Unorm,
+            false,
         )(EntityPipelineOptions {
             label: "Entities",
             cull_mode: None,

@@ -17,7 +17,7 @@ use std::sync::Mutex;
 /// `with_mods` for the mods, `install_parts` for what they register,
 /// `resolve_parts` for the game's own table.
 fn install_game_mods() {
-    mod_api::__private::install(vec![ModEntry::new("test", Box::new(Mod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("test", Box::new(Mod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("test", Box::new(Mod))]).unwrap();
 }
 
@@ -233,14 +233,16 @@ fn two_mobs_keep_independent_state_and_random_streams() {
         game.mobs[1].ai.goals.clear();
         mobs::part_goals::attach(&mut game.mobs[0]);
         mobs::part_goals::attach(&mut game.mobs[1]);
+        // Construction already consumed the living entity's yaw draw.
+        // Snapshot at the goal boundary, not before the entity constructor.
+        let mut after_first = game.mobs[0].random.clone();
+        let mut after_second = game.mobs[1].random.clone();
         tick_goals(game, 0);
         tick_goals(game, 1);
         assert_eq!(calls(10), ["can_use", "start", "tick"]);
         assert_eq!(calls(11), ["can_use", "start", "tick"]);
         // Each start drew once from its own mob's generator: the next draws
-        // match fresh copies advanced by one, and the two drew differently.
-        let mut after_first = mobs::entity_random(10, Vec3::new(3.5, 65.0, 3.5));
-        let mut after_second = mobs::entity_random(11, Vec3::new(23.5, 65.0, 23.5));
+        // match the pre-tick copies advanced by one, and the two drew differently.
         let (first_draw, second_draw) = (
             after_first.next_int_bound(1000).unwrap(),
             after_second.next_int_bound(1000).unwrap(),
@@ -363,7 +365,7 @@ fn set_target_follows_the_write_rules() {
         }
     }
     EVENTS.lock().unwrap().clear();
-    mod_api::__private::install(vec![ModEntry::new("targets", Box::new(TargetMod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("targets", Box::new(TargetMod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("targets", Box::new(TargetMod))])
         .unwrap();
     with_game(|game| {
@@ -477,7 +479,7 @@ fn the_host_answers_without_panicking() {
         }
     }
     EVENTS.lock().unwrap().clear();
-    mod_api::__private::install(vec![ModEntry::new("reader", Box::new(ReaderMod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("reader", Box::new(ReaderMod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("reader", Box::new(ReaderMod))])
         .unwrap();
     with_game(|game| {
@@ -648,7 +650,7 @@ fn a_goal_jump_goes_through_the_jump_control_input() {
             r.entity_part("minecraft:zombie", Jumpers);
         }
     }
-    mod_api::__private::install(vec![ModEntry::new("jumps", Box::new(JumpMod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("jumps", Box::new(JumpMod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("jumps", Box::new(JumpMod))]).unwrap();
     with_game(|game| {
         zombie(game, 82, [3.5, 65.0, 3.5]);
@@ -708,7 +710,7 @@ fn set_target_refuses_what_the_write_handle_refuses() {
         }
     }
     ANSWERS.lock().unwrap().clear();
-    mod_api::__private::install(vec![ModEntry::new("golems", Box::new(TargetMod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("golems", Box::new(TargetMod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("golems", Box::new(TargetMod))])
         .unwrap();
     with_game(|game| {
@@ -822,7 +824,7 @@ fn move_and_look_inputs_pass_the_navigation_boundary() {
         }
     }
     RESULTS.lock().unwrap().clear();
-    mod_api::__private::install(vec![ModEntry::new("moves", Box::new(MoveMod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("moves", Box::new(MoveMod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("moves", Box::new(MoveMod))]).unwrap();
     with_game(|game| {
         zombie(game, 83, [3.5, 65.0, 3.5]);
@@ -884,7 +886,7 @@ fn the_player_the_tick_sees_resolves_by_its_captured_identity() {
         }
     }
     READS.lock().unwrap().clear();
-    mod_api::__private::install(vec![ModEntry::new("players", Box::new(PlayerMod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("players", Box::new(PlayerMod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("players", Box::new(PlayerMod))])
         .unwrap();
     with_game(|game| {
@@ -1019,7 +1021,7 @@ fn a_finalize_spawn_listener_keeps_the_mod_goals() {
     // the parts of whatever is installed, and the worker block metadata
     // with them (installing inside the game leaves it unpublished).
     let entries = vec![ModEntry::new("finalize-goals", Box::new(GoalsAndFinalize))];
-    mod_api::__private::install(entries.into());
+    mod_platform::__private::install(entries.into());
     crate::game::api_values::install_parts(&[ModEntry::new(
         "finalize-goals",
         Box::new(GoalsAndFinalize),

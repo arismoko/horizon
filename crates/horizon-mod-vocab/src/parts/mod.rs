@@ -24,8 +24,5 @@ include!(concat!(env!("OUT_DIR"), "/parts_modules.rs"));
 
 impl CapabilityProviders for InstalledProviders {}
 
-#[cfg(any(test, feature = "testing"))]
-use std::cell::Cell;
-
 #[cfg(test)]
 use std::sync::atomic::AtomicBool;

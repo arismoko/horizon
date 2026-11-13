@@ -160,7 +160,7 @@ impl Game<'_> {
                 .as_ref()
                 .is_some_and(|(w, _)| *w == window)
         {
-            play.crafting.machine = None;
+            *play.crafting.machine = None;
         }
         // sendAllDataToRemote: the client predicted the game's routing. A mod
         // that removed its own block leaves no menu to send: it closes, and

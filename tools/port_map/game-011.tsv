@@ -10,12 +10,12 @@ AbstractHorse.eating	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game:
 AbstractHorse.causeFallDamage	inline	crates/horizon-client/src/mobs/living.rs::Mob::cause_fall_damage_at	a landing of more than a block thuds (entity.horse.land, entity.baby_horse.land), then the horse takes its own fall damage and passes the fall to its riders when it was hurt; gap: minor: the mount's own damage uses its safe distance of 6
 AbstractHorse.createInventory	skip:java		resizes a SimpleContainer; Horizon sizes the chest items when the menu opens
 AbstractHorse.getEquipSound	port	crates/horizon-client/src/game/blocks/dispenser.rs::equip_sound	saddle slot plays entity.horse.saddle
-AbstractHorse.hurtServer	port	crates/horizon-client/src/mobs/equine.rs::after_hurt_server	
-AbstractHorse.playStepSound	port	crates/horizon-client/src/mobs/equine.rs::play_step	
-AbstractHorse.isWoodSoundType	port	crates/horizon-client/src/mobs/equine.rs::is_wood_sound_type	
+AbstractHorse.hurtServer	port	crates/horizon-client/src/mobs/equine.rs::after_hurt_server
+AbstractHorse.playStepSound	port	crates/horizon-client/src/mobs/equine.rs::play_step
+AbstractHorse.isWoodSoundType	port	crates/horizon-client/src/mobs/equine.rs::is_wood_sound_type
 AbstractHorse.fedFood	port	crates/horizon-client/src/game/mobs/mounts.rs::Game::feed_mount	handleEating and consuming one item; llamas use llamas.rs feed_llama
 AbstractHorse.doPlayerRide	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game::interact_mount	clears eating and standing, turns the player to the mount and mounts; the block at the end of interact_mount
-AbstractHorse.isImmobile	port	crates/horizon-client/src/mobs/equine.rs::immobile	
+AbstractHorse.isImmobile	port	crates/horizon-client/src/mobs/equine.rs::immobile
 AbstractHorse.dropEquipment	inline	crates/horizon-client/src/mobs/drops.rs::die	the equine branch drops the inventory items and a donkey's or mule's chest
 AbstractHorse.followMommy	inline	crates/horizon-client/src/mobs/equine.rs::ai_step	follow_mommy: a bred foal that is not eating keeps a path to the nearest bred AbstractHorse within 16 blocks and more than 2 away (createPath(entity, 0), which leaves the speed modifier alone); Bred is NBT-only in 26.3, so only a save or a summon gives it
 AbstractHorse.openMouth	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game::feed_mount	gap: minor: sets the mouth animation to 1 once, it closes after 3 ticks; the mouth flag is not synced to a remote client
@@ -30,9 +30,9 @@ AbstractHorse.setOffspringAttribute	port	crates/horizon-client/src/mobs/equine.r
 AbstractHorse.onPlayerJump	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game::tick_mount_riding	gap: minor: the rear and the jump sound; donkeys and mules play the horse jump sound
 AbstractHorse.handleEntityEvent	port	crates/horizon-client-render/src/particles.rs::entity_event_burst	events 7 and 6: hearts and smoke around the mount
 AbstractHorse.positionRider	port	crates/horizon-client/src/game/mobs/mounts.rs::Game::position_rider	gap: minor: the player's own body yaw is not copied (its model is drawn by solveBodyRot); mob riders take it in riders::takes_vehicle_body
-AbstractHorse.generateMaxHealth	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::horse_health	
-AbstractHorse.generateJumpStrength	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::horse_jump	
-AbstractHorse.generateSpeed	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::horse_speed	
+AbstractHorse.generateMaxHealth	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::horse_health
+AbstractHorse.generateJumpStrength	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::horse_jump
+AbstractHorse.generateSpeed	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::horse_speed
 AbstractHorse.getSlot	missing		minor: /item cannot reach the mount slots horse.0 to horse.14
 AbstractHorse.getControllingPassenger	port	crates/horizon-client/src/mobs/equine.rs::controlled	gap: player: a tamed skeleton horse obeys its rider without a saddle
 AbstractHorse.getDismountLocationInDirection	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game::dismount_mount	gap: minor: no climb up to 0.75 above the mount and no pose boxes, only block checks beside the mount
@@ -45,7 +45,7 @@ Horse.setVariantAndMarkings	inline	crates/horizon-client/src/mobs/finalize.rs::C
 Horse.setVariant	port	crates/horizon-client/src/entity_nbt.rs::apply_item_components	the `minecraft:horse/variant` name sets the coat colour (`setTypeVariant(id & 0xFF | getTypeVariant() & -256)`), the markings the spawn picked stay
 Horse.get	port	crates/horizon-client/src/mobs/finalize.rs::species_variant_component	horse/variant component
 Horse.applyImplicitComponent	port	crates/horizon-client/src/entity_nbt.rs::apply_item_components	the `minecraft:horse/variant` name of an egg or item sets the coat colour and leaves the markings
-Horse.playGallopSound	port	crates/horizon-client/src/mobs/equine.rs::play_step	
+Horse.playGallopSound	port	crates/horizon-client/src/mobs/equine.rs::play_step
 Horse.mobInteract	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game::interact_mount	gap: player: an untamed horse with a non-food item in hand is mounted instead of rearing angrily, a full health tame horse with food in hand is mounted instead of ignoring the click, and a golden dandelion on a foal does nothing
 Horse.canMate	inline	crates/horizon-client/src/mobs/goals.rs::Breed::can_use	horse or donkey partner, both tame, adult, not ridden and at full health
 Horse.hurtArmor	port	crates/horizon-client/src/mobs.rs::Mob::damage_with	a hit that lands on a body-armour mob reports the wear (MobEvent::ArmorHurt); game/mobs/creatures/mod.rs::Game::hurt_mob_armor takes max(1, damage / 4) off it, Unbreaking and the fire-resistant spare applied
@@ -53,7 +53,7 @@ Horse.finalizeSpawn	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::finali
 Llama.setStrength	inline	crates/horizon-client/src/mobs/llama.rs::from_nbt	strength kept in variant2 and clamped to 1 to 5 where it is set (from_nbt, offspring, apply_offspring)
 Llama.setRandomStrength	inline	crates/horizon-client/src/mobs/finalize.rs::Ctx::finalize	one in 25 llamas rolls up to 5, else up to 3
 Llama.addAdditionalSaveData	port	crates/horizon-client/src/mobs/llama.rs::to_nbt	Variant and Strength
-Llama.readAdditionalSaveData	port	crates/horizon-client/src/mobs/llama.rs::from_nbt	
+Llama.readAdditionalSaveData	port	crates/horizon-client/src/mobs/llama.rs::from_nbt
 Llama.registerGoals	port	crates/horizon-client/src/mobs/llama.rs::register	goals and targets as vanilla, path length 40
 Llama.defineSynchedData	port	crates/horizon-client/src/game/network/lan/mod.rs::mob_meta	strength and variant entries
 Llama.get	port	crates/horizon-client/src/mobs/finalize.rs::species_variant_component	llama/variant component, a trader llama too
@@ -71,7 +71,7 @@ SkeletonHorse.playSwimSound	port	crates/horizon-client/src/mobs/equine.rs::swim_
 SkeletonHorse.playJumpSound	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game::tick_mount_riding	the jump sound: skeleton_horse.jump_water in water, the horse jump otherwise
 SkeletonHorse.aiStep	inline	crates/horizon-client/src/game/entities/passengers.rs::Game::tick_skeleton_traps	a trap horse that is not persistent is removed after 18000 ticks
 SkeletonHorse.addAdditionalSaveData	port	crates/horizon-client/src/mobs/riders.rs::write_nbt	SkeletonTrap and SkeletonTrapTime
-SkeletonHorse.readAdditionalSaveData	port	crates/horizon-client/src/mobs/riders.rs::read_nbt	
+SkeletonHorse.readAdditionalSaveData	port	crates/horizon-client/src/mobs/riders.rs::read_nbt
 SkeletonHorse.setTrap	inline	crates/horizon-client/src/game/entities/passengers.rs::Game::spring_skeleton_trap	the trap flag is a plain bool polled every tick instead of adding and removing a goal; lightning.rs sets it
 SkeletonTrapGoal.canUse	inline	crates/horizon-client/src/game/entities/passengers.rs::Game::tick_skeleton_traps	a living player within 10 blocks
 SkeletonTrapGoal.tick	port	crates/horizon-client/src/game/entities/passengers.rs::Game::spring_skeleton_trap	lightning, a skeleton on the horse and three more horse and skeleton pairs
@@ -85,29 +85,29 @@ ZombieHorse.generateZombieHorseJumpStrength	inline	crates/horizon-client/src/mob
 ZombieHorse.generateZombieHorseSpeed	inline	crates/horizon-client/src/mobs/finalize.rs::Ctx::horse	(9 plus three draws) over 42.16
 ZombieHorse.addBehaviourGoals	inline	crates/horizon-client/src/mobs/equine.rs::register	float and tempt with the zombie horse food, no mount panic
 ZombieHorse.mobInteract	inline	crates/horizon-client/src/game/mobs/mounts.rs::Game::interact_mount	gap: player: an untamed zombie horse with a non-food item in hand is mounted instead of rearing angrily, and food that is not eaten still mounts it
-Cat.getSoundSet	port	crates/horizon-client/src/mobs/finalize.rs::variant_sound	
+Cat.getSoundSet	port	crates/horizon-client/src/mobs/finalize.rs::variant_sound
 Cat.defineSynchedData	port	crates/horizon-client/src/game/network/lan/mod.rs::mob_meta	gap: minor: variant, lying, relax and collar are sent, the sound variant entry is not
 Cat.addAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_to_nbt	variant, sound_variant and CollarColor
-Cat.readAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_from_nbt	
+Cat.readAdditionalSaveData	port	crates/horizon-client/src/entity_nbt.rs::mob_from_nbt
 Cat.getAmbientSound	inline	crates/horizon-client/src/mobs/ai.rs::play_ambient	gap: minor: purr when in love and the stray sound are used; a tame cat never plays the purreow variant
 Cat.createAttributes	skip:data		attributes come from entity-types.json
 Cat.handleLieDown	inline	crates/horizon-client/src/mobs/tame.rs::cat_ai_step	gap: minor: purring and the amounts are ported; lying on top of a sleeping player (a 0.15 shift of the pose) is not tracked
-Cat.updateLieDownAmount	port	crates/horizon-client/src/mobs/tame.rs::cat_amounts	
-Cat.updateRelaxStateOneAmount	port	crates/horizon-client/src/mobs/tame.rs::cat_amounts	
+Cat.updateLieDownAmount	port	crates/horizon-client/src/mobs/tame.rs::cat_amounts
+Cat.updateRelaxStateOneAmount	port	crates/horizon-client/src/mobs/tame.rs::cat_amounts
 Cat.canMate	inline	crates/horizon-client/src/mobs/goals.rs::Breed::can_use	both tamed; the seeker's sitting pose does not matter, and only a wolf's partner is refused while it sits
 Cat.removeWhenFarAway	port	crates/horizon-client/src/mobs/ai.rs::feline_removed_when_far	`!isTame() && tickCount > 2400`, read by check_despawn's removable flag
 Cat.reassessTameGoals	inline	crates/horizon-client/src/mobs/tame.rs::register_cat	the player avoidance goal is conditioned on being untamed instead of added and removed
 Cat.tryToTame	inline	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::interact_mob	one chance in three, then tame, sitting, event 7 or 6 and the advancement trigger
-Cat.CatAvoidEntityGoal.canContinueToUse	inline	crates/horizon-client/src/mobs/goals.rs::AvoidEntity::can_continue	gap: minor: a cat tamed mid flight finishes its escape path, the untamed check is only in can_use
+Cat.CatAvoidEntityGoal.canContinueToUse	port	crates/horizon-client/src/mobs/tame.rs::CatAvoid::can_continue	the untamed check is repeated on continue
 Cat.CatRelaxOnOwnerGoal.spaceIsOccupied	port	crates/horizon-client/src/mobs/tame.rs::CatRelaxOnOwner::occupied	another lying or relaxing cat within 2 blocks of the spot
 Cat.CatRelaxOnOwnerGoal.canContinueToUse	port	crates/horizon-client/src/mobs/tame.rs::CatRelaxOnOwner::can_continue	tame, not sitting, owner still asleep and the spot free
 Cat.CatTemptGoal.canScare	port	crates/horizon-client/src/mobs/tame.rs::CatTempt::can_continue	the player that tempted it is never the one that scares it
 CatVariants.bootstrap	skip:data		variant registry bootstrap; Horizon reads cat variants from data
-Ocelot.registerGoals	port	crates/horizon-client/src/mobs/tame.rs::register_ocelot	
+Ocelot.registerGoals	port	crates/horizon-client/src/mobs/tame.rs::register_ocelot
 Ocelot.customServerAiStep	port	crates/horizon-client/src/mobs/tame.rs::cat_anim	crouch and sprint pose from the move speed, shared with cats; nothing sets those speeds for an ocelot yet
 Ocelot.removeWhenFarAway	port	crates/horizon-client/src/mobs/ai.rs::feline_removed_when_far	`!isTrusting() && tickCount > 2400`, the same rule as the cat's
 Ocelot.createAttributes	skip:data		attributes come from entity-types.json
-Ocelot.mobInteract	inline	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::interact_mob	
+Ocelot.mobInteract	inline	crates/horizon-client/src/game/mobs/creatures/mod.rs::Game::interact_mob
 Ocelot.handleEntityEvent	port	crates/horizon-client-render/src/particles.rs::entity_event_burst	events 41 and 40: hearts and smoke; nothing sends them without the trust roll
 Ocelot.reassessTrustingGoals	port	crates/horizon-client/src/mobs/tame.rs::register_cat	gap: player: the player-avoidance and tempt goals are always registered; trust is not modelled, so a trusting ocelot keeps them
 Ocelot.checkSpawnObstruction	port	crates/horizon-client/src/mobs/spawn_selection.rs::spawn_obstruction	unobstructed, no liquid, at or above sea level on grass or leaves
@@ -148,4 +148,5 @@ TropicalFish.applyImplicitComponents	port	crates/horizon-client/src/entity_nbt.r
 TropicalFish.finalizeSpawn	port	crates/horizon-client/src/mobs/finalize.rs::Ctx::finalize	one in ten is a lone random fish, else a shared common variant
 TropicalFish.checkTropicalFishSpawnRules	port	crates/horizon-client/src/mobs/spawn_rules.rs::check_spawn_rules	water below and above, and any height biomes or the surface rule
 TropicalFish.Pattern.addToTooltip	port	crates/horizon-client/src/item_tooltip.rs::PlayerHeadName::tropical_fish_lines	ticked in #3512; `TropicalFish.Pattern.addToTooltip` is cited at crates/horizon-client/src/item_tooltip.rs:362
+TraderLlama.TraderLlamaDefendWanderingTraderGoal.canUse	port	crates/horizon-client/src/mobs/caravan.rs::DefendTrader::can_use	spectator attackers are refused by TargetingConditions.DEFAULT
 OwnerHurtByTargetGoal.canUse	port	crates/horizon-client/src/mobs/tame.rs::wants_to_attack	dead attackers are refused by canBeSeenByAnyone

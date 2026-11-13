@@ -17,7 +17,9 @@ use super::{
     biome::BiomeId,
     biome_chunk::{BiomeChunk, BiomeRegion},
     biome_chunks::BiomeChunks,
-    biome_source::{BiomeSourceCatalog, ResolvedBiomeSource},
+    biome_source::{
+        BiomeSourceCatalog, BiomeSourceDefinition, ResolvedBiomeSource, regions::RegionLayout,
+    },
     biome_temperature::{BiomeTemperature, BiomeTemperatureSettings},
     carver::{CarverCatalog, WorldCarver, generate_carving_mask},
     carving::{CarvingBlocks, apply_carving_mask_shared},
@@ -1047,6 +1049,7 @@ where
         settings_json: &Value,
         with_structures: bool,
         level: Option<(i32, i32)>,
+        regions: Option<&RegionLayout>,
     ) -> Result<Self, GeneratorError> {
         let registry = data.registry;
         let noise = &settings_json["noise"];
@@ -1151,12 +1154,26 @@ where
                 .collect::<Result<_, GeneratorError>>()?,
             _ => Vec::new(),
         };
-        let source_json = generator["biome_source"].to_string();
-        let source = data
-            .source_catalog
-            .decode(&source_json)?
+        let mut source_json = generator["biome_source"].to_string();
+        let definition = data.source_catalog.decode(&source_json)?;
+        let source = definition
             .resolve(&data.presets)
             .map_err(|e| resource(format!("biome source: {e}")))?;
+        // Only the multi-noise presets (Overworld, Nether) take regions, not inline point lists.
+        let source = if matches!(definition, BiomeSourceDefinition::Preset { .. }) {
+            source
+                .with_regions(regions, &root)
+                .map_err(|e| resource(format!("biome regions: {e}")))?
+        } else {
+            source
+        };
+        // Regions add biomes, so their decoration is cached apart from the bare preset's.
+        if let ResolvedBiomeSource::Regions(layered) = &source {
+            for biome in layered.biomes() {
+                source_json.push(' ');
+                source_json.push_str(biome);
+            }
+        }
         let climate = router.climate_sampler();
         let mut noises = BTreeMap::new();
         for (name, json) in &data.noises {
@@ -3329,96 +3346,10 @@ where
     }
 }
 
-/// A `JigsawPlacement.generateJigsaw` request (`/place jigsaw`).
-pub struct JigsawQuery<'a> {
-    pub pool: &'a str,
-    pub target: &'a str,
-    pub max_depth: i32,
-    pub position: [i32; 3],
-}
-/// The assembled pieces of a jigsaw and the templates they place.
-pub struct JigsawPieces {
-    pub pieces: Vec<super::structure::jigsaw::PoolPiece>,
-    pub resources: Arc<super::structure::StructureResources>,
-}
-
-/// A `findClosestBiome3d` query.
-pub struct BiomeSearch<'a> {
-    pub allowed: &'a dyn Fn(&str) -> bool,
-    pub origin: [i32; 3],
-    pub radius: i32,
-    pub horizontal: i32,
-    pub vertical: i32,
-    /// `level.getMinY()` and `level.getMaxY()`.
-    pub min_y: i32,
-    pub max_y: i32,
-}
-
-/// `Mth.outFromOrigin(origin, lower, upper, step)`.
-pub fn out_from_origin(origin: i32, lower: i32, upper: i32, step: i32) -> Vec<i32> {
-    assert!(lower <= upper, "outFromOrigin requires ordered bounds");
-    assert!(step > 0, "outFromOrigin requires a positive step");
-    // Public generator callers may supply any positive i32 step. Intermediates can
-    // exceed the coordinate range even though every emitted height stays within it.
-    let (lower, upper, step) = (i64::from(lower), i64::from(upper), i64::from(step));
-    let center = i64::from(origin).clamp(lower, upper);
-    let mut out = Vec::new();
-    let mut cursor = center;
-    loop {
-        let distance = (center - cursor).abs();
-        if !(center - distance >= lower || center + distance <= upper) {
-            return out;
-        }
-        out.push(cursor as i32);
-        let negative = cursor <= center;
-        let can_move_positive = center + distance + step <= upper;
-        let mut next = center + distance + step;
-        if !negative || !can_move_positive {
-            let attempt = center - distance - if negative { step } else { 0 };
-            if attempt >= lower {
-                next = attempt;
-            }
-        }
-        cursor = next;
-    }
-}
-
-/// `BlockPos.spiralAround(ZERO, radius, EAST, SOUTH)` as (x, z) offsets.
-pub fn spiral_around(radius: i32) -> impl Iterator<Item = [i32; 2]> {
-    const DIRS: [[i32; 2]; 4] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-    let legs = 4 * radius;
-    let (mut leg, mut leg_size, mut leg_index) = (-1i32, 0i32, 0i32);
-    let mut last = [0, 1];
-    std::iter::from_fn(move || {
-        let d = DIRS[((leg + 4) % 4) as usize];
-        let cursor = [last[0] + d[0], last[1] + d[1]];
-        last = cursor;
-        if leg_index >= leg_size {
-            if leg >= legs {
-                return None;
-            }
-            leg += 1;
-            leg_index = 0;
-            leg_size = leg / 2 + 1;
-        }
-        leg_index += 1;
-        Some(cursor)
-    })
-}
-
-/// Counters from one FEATURES pass.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct DecorateStats {
-    /// Placed-feature roots executed (including those that placed nothing).
-    pub placed: usize,
-    /// Roots skipped because their algorithm or bindings are not implemented.
-    pub unsupported: usize,
-    /// Roots that started but failed on an unavailable world query or error.
-    /// Their partial writes are kept, as each root reseeds its own random.
-    pub failed: usize,
-    /// Identifiers of skipped or failed roots, for diagnostics.
-    pub skipped: BTreeSet<String>,
-}
+mod queries;
+pub use queries::{
+    BiomeSearch, DecorateStats, JigsawPieces, JigsawQuery, out_from_origin, spiral_around,
+};
 
 /// A seed-bound generator for one dimension, shareable across worker threads.
 #[derive(Clone)]
@@ -3509,6 +3440,7 @@ impl OverworldGenerator {
             &settings_json,
             structures,
             Some((level_min_y, level_height)),
+            None,
         )?;
         let mut states = Vec::new();
         let mut null = Vec::new();
@@ -3591,10 +3523,11 @@ impl OverworldGenerator {
         dimension: &str,
         with_structures: bool,
     ) -> Result<Self, GeneratorError> {
-        Self::for_world_with_settings(data, seed, preset, dimension, with_structures, None)
+        Self::for_world_with_settings(data, seed, preset, dimension, with_structures, None, None)
     }
     /// A saved level stem supplies the generator and dimension type when no data
     /// pack replaces that dimension. Worlds without one use the preset's stem.
+    /// `regions` is the dimension's saved region layout, if it has one.
     pub fn for_world_with_settings(
         data: Arc<GeneratorData>,
         seed: i64,
@@ -3602,6 +3535,7 @@ impl OverworldGenerator {
         dimension: &str,
         with_structures: bool,
         saved_stem: Option<&Value>,
+        regions: Option<Arc<RegionLayout>>,
     ) -> Result<Self, GeneratorError> {
         let stem = if let Some(json) = data.dimensions.get(dimension) {
             serde_json::from_str(json)?
@@ -3661,6 +3595,7 @@ impl OverworldGenerator {
                 &settings_json,
                 with_structures,
                 level,
+                regions.as_deref(),
             )?)
         } else {
             Arc::new(Pipeline::new(
@@ -3671,6 +3606,7 @@ impl OverworldGenerator {
                 &settings_json,
                 with_structures,
                 level,
+                regions.as_deref(),
             )?)
         };
         Ok(Self {
@@ -3936,6 +3872,8 @@ impl GeneratorWorker {
 }
 
 #[cfg(test)]
+mod region_tests;
+#[cfg(test)]
 mod tests {
     use super::super::biome_chunks::CACHE_LIMIT;
     use super::*;
@@ -4110,6 +4048,7 @@ mod tests {
             &preset["dimensions"]["minecraft:the_end"]["generator"],
             &settings,
             false,
+            None,
             None,
         )
         .unwrap();
@@ -4847,6 +4786,7 @@ mod tests {
                     &settings,
                     true,
                     Some((-64, 384)),
+                    None,
                 )
                 .expect("pipeline"),
             ),
@@ -4923,6 +4863,7 @@ mod tests {
                 &settings,
                 true,
                 Some((-64, 384)),
+                None,
             )
             .expect("pipeline"),
         );
@@ -5027,11 +4968,13 @@ mod tests {
                         "igloo",
                         "ruined_portal",
                         "mansion",
+                        "mineshaft",
+                        "stronghold",
                     ][..],
                 ),
                 (
                     "minecraft:the_nether",
-                    &["bastion_remnant", "nether_fossil"][..],
+                    &["bastion_remnant", "nether_fossil", "fortress"][..],
                 ),
                 ("minecraft:the_end", &["end_city"][..]),
             ] {
@@ -5066,6 +5009,10 @@ mod tests {
                 }
                 let mut saved = HashMap::<(i32, i32), Compound>::new();
                 worker.forget_structure_starts();
+                // A fortress start's first piece is built through the `BridgeCrossing`
+                // constructor, so vanilla saves it as `nebcr`, which the registry reads
+                // back as a plain bridge crossing: only the kind's name differs.
+                let kinds = |s: String| s.replace("kind: Start,", "kind: BridgeCrossing,");
                 for original in &mut originals {
                     // Locating a generated start can increment its count. A nonzero value also
                     // proves that loading did not silently fall back to seed-identical generation.
@@ -5081,6 +5028,10 @@ mod tests {
                                     | "minecraft:nefos"
                                     | "minecraft:ecp"
                             )
+                            // The mineshaft, fortress and stronghold pieces read their own tags.
+                            || ["minecraft:ms", "minecraft:ne", "minecraft:sh"]
+                                .iter()
+                                .any(|prefix| p.type_name().starts_with(prefix))
                     }) {
                         Arc::get_mut(original)
                             .expect("uncached placement start")
@@ -5106,8 +5057,8 @@ mod tests {
                         original.name
                     );
                     assert_eq!(
-                        format!("{loaded:?}"),
-                        format!("{original:?}"),
+                        kinds(format!("{loaded:?}")),
+                        kinds(format!("{original:?}")),
                         "{seed} {}: every runtime field",
                         original.name
                     );

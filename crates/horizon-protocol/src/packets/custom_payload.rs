@@ -1,5 +1,32 @@
 //! Directional discard-fallback limits for configuration and play custom payloads.
 //! Existing registered engine channels retain their own codec constraints.
+mod registry;
+pub use registry::{PayloadCodecs, PayloadFlow, PayloadProtocol};
+
+// Generated retained-allocation traversals; regenerate with protocol-retained-gen.
+impl crate::retained::OwnedHeap for CustomPayload {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self { channel, data } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(channel))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(data))
+    }
+}
+impl crate::retained::OwnedHeap for PayloadTooLarge {
+    fn owned_heap_bytes(&self) -> usize {
+        let Self { id, size, limit } = self;
+        0usize
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(id))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(size))
+            .saturating_add(crate::retained::OwnedHeap::owned_heap_bytes(limit))
+    }
+}
+// End generated retained traversals.
+
+#[cfg(test)]
+#[path = "custom_payload/registry_tests.rs"]
+mod registry_tests;
+
 use crate::{
     Error, Result,
     buf::{Codec, Ident, Reader, Writer},
@@ -48,38 +75,57 @@ fn uses_registered_payload_codec(channel: &str, play: bool, clientbound: bool) -
                 clientbound
             }
         }
-        crate::mod_net::CHANNEL | "horizon:lod" => play || clientbound,
+        "horizon:lod" => play || clientbound,
         crate::attachment_sync::CHANNEL
         | crate::menu_extra::CHANNEL
         | crate::anvil_cost::CHANNEL
         | "horizon:recipe_content" => play && clientbound,
-        "horizon:recipe_transfer" | "horizon:recipe_book_settings" => play,
+        "horizon:recipe_transfer" => play,
+        crate::custom_book::CHANNEL => play || clientbound,
         _ => false,
     }
 }
 
+/// Channels owned by engine services or transport control, not mod registrations
+/// or the generic mod packet API. Reuse the codec authority in every direction.
+pub fn is_reserved_channel(channel: &str) -> bool {
+    channel == crate::payload_negotiation::CHANNEL
+        || [false, true].into_iter().any(|play| {
+            [false, true]
+                .into_iter()
+                .any(|clientbound| uses_registered_payload_codec(channel, play, clientbound))
+        })
+}
+
 impl<const CLIENTBOUND: bool, const PLAY: bool> PayloadCodec<CLIENTBOUND, PLAY> {
-    fn check(channel: &str, size: usize) -> Result<()> {
+    fn check(channel: &str, size: usize, codecs: Option<&PayloadCodecs>) -> Result<()> {
         let limit = if CLIENTBOUND {
             CLIENTBOUND_LIMIT
         } else {
             SERVERBOUND_LIMIT
         };
-        if !uses_registered_payload_codec(channel, PLAY, CLIENTBOUND) && size > limit {
+        let registered = codecs.map_or_else(
+            || uses_registered_payload_codec(channel, PLAY, CLIENTBOUND),
+            |codecs| codecs.contains(channel, PLAY, CLIENTBOUND),
+        );
+        if !registered && size > limit {
             return Err(Error::payload_too_large(channel, size, limit));
         }
         Ok(())
     }
 
     fn validate_body(channel: &str, body: &[u8]) -> Result<()> {
-        if !PLAY
-            && CLIENTBOUND
-            && matches!(channel, crate::quiet::CHANNEL | crate::mod_net::CHANNEL)
-            && !body.is_empty()
-        {
+        if !PLAY && CLIENTBOUND && channel == crate::quiet::CHANNEL && !body.is_empty() {
             return Err(Error::new(format!(
                 "{channel} configuration advertisement must be empty"
             )));
+        }
+        if !PLAY
+            && CLIENTBOUND
+            && channel == crate::custom_book::CHANNEL
+            && body != crate::custom_book::CAPABILITY
+        {
+            return Err(Error::new("invalid custom-book capability version"));
         }
         validate_brand(channel, body)
     }
@@ -91,7 +137,7 @@ impl<const CLIENTBOUND: bool, const PLAY: bool> Codec<CustomPayload>
     fn read(r: &mut Reader) -> Result<CustomPayload> {
         let channel = Ident::read(r)?;
         let size = r.remaining();
-        Self::check(&channel, size)?;
+        Self::check(&channel, size, r.payload_codecs())?;
         let body = r.rest();
         Self::validate_body(&channel, body)?;
         Ok(CustomPayload {
@@ -101,7 +147,12 @@ impl<const CLIENTBOUND: bool, const PLAY: bool> Codec<CustomPayload>
     }
 
     fn validate(v: &CustomPayload) -> Result<()> {
-        Self::check(&v.channel, v.data.len())?;
+        Self::check(&v.channel, v.data.len(), None)?;
+        Self::validate_body(&v.channel, &v.data)
+    }
+
+    fn validate_with_payload_codecs(v: &CustomPayload, codecs: &PayloadCodecs) -> Result<()> {
+        Self::check(&v.channel, v.data.len(), Some(codecs))?;
         Self::validate_body(&v.channel, &v.data)
     }
 
@@ -168,7 +219,6 @@ mod tests {
         for (channel, expected) in [
             ("minecraft:brand", [true, true, true, true]),
             ("horizon:quiet_commands", [false, true, true, false]),
-            ("horizon:mod_net", [false, true, true, true]),
             ("horizon:mod_list", [true, false, false, false]),
             ("horizon:attachment_sync", [false, false, false, true]),
             ("horizon:menu_extra", [false, false, false, true]),
@@ -177,7 +227,7 @@ mod tests {
             ("horizon:block_registry", [true, true, false, false]),
             ("horizon:recipe_content", [false, false, false, true]),
             ("horizon:recipe_transfer", [false, false, true, true]),
-            ("horizon:recipe_book_settings", [false, false, true, true]),
+            ("horizon:recipe_book_settings", [false, true, true, true]),
         ] {
             for ((play, clientbound), registered) in
                 [(false, false), (false, true), (true, false), (true, true)]
@@ -195,14 +245,14 @@ mod tests {
             "horizon:not_registered",
             "farmersdelight:flip_skillet",
             "minecraft:unknown",
-            "other:mod_net",
+            "other:application",
         ] {
             assert!(
                 !uses_registered_payload_codec(channel, false, false),
                 "{channel}"
             );
-            assert!(ServerboundPayload::check(channel, 32_768).is_err());
-            assert!(ClientboundPayload::check(channel, 1_048_577).is_err());
+            assert!(ServerboundPayload::check(channel, 32_768, None).is_err());
+            assert!(ClientboundPayload::check(channel, 1_048_577, None).is_err());
         }
     }
 
@@ -244,35 +294,70 @@ mod tests {
 
     #[test]
     fn configuration_feature_advertisements_have_empty_body_codecs() {
-        for channel in ["horizon:quiet_commands", "horizon:mod_net"] {
-            let mut payload = CustomPayload {
-                channel: channel.into(),
-                data: vec![],
+        let channel = "horizon:quiet_commands";
+        let mut payload = CustomPayload {
+            channel: channel.into(),
+            data: vec![],
+        };
+        assert!(
+            configuration::Clientbound::CustomPayload(payload.clone())
+                .try_encode()
+                .is_ok()
+        );
+        payload.data.push(1);
+        assert!(
+            configuration::Clientbound::CustomPayload(payload)
+                .try_encode()
+                .unwrap_err()
+                .0
+                .contains("must be empty")
+        );
+        let mut body = Writer::new();
+        body.string(channel);
+        body.bytes(&vec![0; 1_048_577]);
+        let error = configuration::Clientbound::decode(
+            ids::configuration::clientbound::CUSTOM_PAYLOAD,
+            &body.data,
+        )
+        .unwrap_err();
+        assert!(error.0.contains("must be empty"));
+        assert!(error.payload_limit().is_none());
+    }
+
+    #[test]
+    fn custom_book_capability_requires_exact_version_in_configuration() {
+        for bytes in [vec![], vec![0], vec![2], vec![1, 0], vec![1; 1_048_577]] {
+            let payload = CustomPayload {
+                channel: crate::custom_book::CHANNEL.into(),
+                data: bytes,
             };
             assert!(
                 configuration::Clientbound::CustomPayload(payload.clone())
                     .try_encode()
-                    .is_ok()
-            );
-            payload.data.push(1);
-            assert!(
-                configuration::Clientbound::CustomPayload(payload)
-                    .try_encode()
-                    .unwrap_err()
-                    .0
-                    .contains("must be empty")
+                    .is_err()
             );
             let mut body = Writer::new();
-            body.string(channel);
-            body.bytes(&vec![0; 1_048_577]);
-            let error = configuration::Clientbound::decode(
-                ids::configuration::clientbound::CUSTOM_PAYLOAD,
-                &body.data,
-            )
-            .unwrap_err();
-            assert!(error.0.contains("must be empty"));
-            assert!(error.payload_limit().is_none());
+            body.string(&payload.channel);
+            body.bytes(&payload.data);
+            assert!(
+                configuration::Clientbound::decode(
+                    ids::configuration::clientbound::CUSTOM_PAYLOAD,
+                    &body.data
+                )
+                .is_err()
+            );
         }
+        let packet = configuration::Clientbound::CustomPayload(CustomPayload {
+            channel: crate::custom_book::CHANNEL.into(),
+            data: crate::custom_book::CAPABILITY.to_vec(),
+        });
+        let encoded = packet.try_encode().unwrap();
+        let mut reader = Reader::new(&encoded);
+        let id = reader.varint().unwrap();
+        assert_eq!(
+            configuration::Clientbound::decode(id, reader.rest()).unwrap(),
+            packet
+        );
     }
 
     #[test]

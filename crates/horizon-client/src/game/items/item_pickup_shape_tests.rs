@@ -6,7 +6,8 @@ use horizon_client::join_seq::{
 };
 use horizon_client::motion::PlayerMotion;
 use horizon_core::geometry::Vec3;
-use mod_api::{Flow, Hooks, ItemPickedUpEvent, ModEntry, ServerHost, testing::with_mods};
+use mod_api::{Flow, Hooks, ItemPickedUpEvent, ModEntry, ServerHost};
+use mod_platform::testing::with_mods;
 use std::sync::{Arc, Mutex};
 
 /// What `item_picked_up_post` heard: the original count and what remained.
@@ -131,7 +132,9 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
                 heard.lock().unwrap().clear();
                 notifications.lock().unwrap().clear();
                 posts.lock().unwrap().clear();
-                game.world.random = horizon_core::random::LegacyRandom::new(12345);
+                game.world.random = horizon_core::random::LevelRandom::for_level(
+                    horizon_core::random::LegacyRandom::new(12345),
+                );
                 let mut round = game.native_tick_round();
                 game.tick_dropped_items(&mut round);
                 assert_eq!(

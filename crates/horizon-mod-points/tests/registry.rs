@@ -3,7 +3,7 @@
 // Generated fixtures exercise every shape; TODO(#2273): make the generator emit clippy-clean code.
 #![allow(clippy::all, unused_comparisons, unreachable_patterns, dead_code)]
 use mod_api::__private::points::register;
-use mod_points::__private::{POINTS, seal};
+use mod_points::__private::POINTS;
 use mod_points::{PointId, RegisterError, stop};
 use std::sync::atomic::Ordering;
 
@@ -84,7 +84,12 @@ fn one_list_registered_sealed_and_stopped() {
         !POINTS[PointId::Tick as usize].load(Ordering::Acquire),
         "nothing listens before the seal"
     );
-    seal();
+    horizon_engine_slots::install_seal(mod_points::__private::seal).unwrap();
+    horizon_engine_slots::seal().unwrap();
+    assert_eq!(
+        horizon_engine_slots::seal(),
+        Err(horizon_engine_slots::Refusal::Sealed)
+    );
     assert_eq!(
         register(&mod_points::listeners::tick("late", 0, "head", tick)),
         Err(RegisterError::Sealed)

@@ -10,12 +10,32 @@ fn snake(owner: &str) -> String {
     owner.rsplit("::").next().unwrap().to_snake_case()
 }
 
+fn serves(supers: &[(&str, Vec<String>)], child: &str, parent: &str) -> bool {
+    let mut stack = vec![child];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(name) = stack.pop() {
+        if name == parent {
+            return true;
+        }
+        if !visited.insert(name) {
+            continue;
+        }
+        if let Some((_, parents)) = supers
+            .iter()
+            .find(|(owner, _)| owner.rsplit("::").next() == Some(name))
+        {
+            stack.extend(parents.iter().map(String::as_str));
+        }
+    }
+    false
+}
+
 fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
     use crate::index::Found;
     let types = &mut surface.types;
     let api = types.index.module("mod_api", &[])?;
     let mut supers = Vec::new();
-    for owner in super::IMPORTS {
+    for owner in super::imports() {
         let path = owner.split("::").map(str::to_string).collect::<Vec<_>>();
         let Found::Item(id) = types.index.resolve_path(api, &path)? else {
             return Err(format!("{owner} is not a trait"));
@@ -35,7 +55,7 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
     }
     let mut fields = String::new();
     let mut methods = String::new();
-    for owner in super::IMPORTS {
+    for owner in super::imports() {
         let name = snake(owner);
         let path = trait_path(owner);
         if let Some((_, from, expr)) = super::REACHED.iter().find(|(o, ..)| o == owner) {
@@ -70,25 +90,15 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
         writeln!(methods, "pub fn set_{name}(&mut self, v: &(dyn {path} + '_)) {{ self.{name} = Some((unsafe {{ std::mem::transmute(v as *const (dyn {path} + '_)) }}, false)); }} pub fn set_{name}_mut(&mut self, v: &mut (dyn {path} + '_)) {{ self.{name} = Some((unsafe {{ std::mem::transmute(v as *mut (dyn {path} + '_)) }}, true)); }}").unwrap();
         for mutable in [false, true] {
             let mut choices = Vec::new();
-            for sub in super::IMPORTS {
+            for sub in super::imports() {
                 if super::REACHED.iter().any(|(o, ..)| o == sub) {
                     continue;
                 }
-                let mut stack = vec![sub.rsplit("::").next().unwrap().to_string()];
-                let mut serves = false;
-                while let Some(t) = stack.pop() {
-                    if t == owner.rsplit("::").next().unwrap() {
-                        serves = true;
-                        break;
-                    }
-                    if let Some((_, parents)) = supers
-                        .iter()
-                        .find(|(o, _)| o.rsplit("::").next() == Some(t.as_str()))
-                    {
-                        stack.extend(parents.iter().cloned());
-                    }
-                }
-                if serves {
+                if serves(
+                    &supers,
+                    sub.rsplit("::").next().unwrap(),
+                    owner.rsplit("::").next().unwrap(),
+                ) {
                     choices.push(format!(
                         "self.{}{filter}.map(|(p, _)| unsafe {{ &{m}*p as &{m}dyn {path} }})",
                         snake(sub),
@@ -101,13 +111,17 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
             // from a stored source pointer, not recursively through getters: cyclic
             // accessor graphs cannot recurse when no source is present.
             for method in &surface.methods {
-                let Ty::Dyn(target, ret_mut) = &method.ret else {
-                    continue;
+                let (target, ret_mut, fallible) = match &method.ret {
+                    Ty::Dyn(target, mutable) => (target.as_str(), *mutable, false),
+                    _ => match super::fallible_frame_accessor(method) {
+                        Some((target, mutable, _)) => (target, mutable, true),
+                        None => continue,
+                    },
                 };
-                if target != owner.rsplit("::").next().unwrap()
+                if !serves(&supers, target, owner.rsplit("::").next().unwrap())
                     || (mutable && !ret_mut)
                     || !method.params.is_empty()
-                    || !super::IMPORTS.contains(&method.owner)
+                    || !super::imports().contains(&method.owner)
                     || method.owner == *owner
                     || super::REACHED.iter().any(|(o, ..)| *o == method.owner)
                 {
@@ -115,7 +129,14 @@ fn frame(surface: &mut super::Surface<'_>) -> Result<String, String> {
                 }
                 let source = snake(method.owner);
                 let source_mut = method.receiver == Some(true);
-                choices.push(format!("self.{source}{filter}.map(|(p,_)| unsafe {{ (&{s}*p).{}() as &{m}dyn {path} }})",method.name,filter=if source_mut {".filter(|(_,m)|*m)"} else {""},s=if source_mut {"mut "} else {""},m=if mutable {"mut "} else {""}));
+                let filter = if source_mut { ".filter(|(_,m)|*m)" } else { "" };
+                let s = if source_mut { "mut " } else { "" };
+                let m = if mutable { "mut " } else { "" };
+                if fallible {
+                    choices.push(format!("self.{source}{filter}.and_then(|(p,_)| unsafe {{ (&{s}*p).{}().ok().map(|host| host as &{m}dyn {path}) }})", method.name));
+                } else {
+                    choices.push(format!("self.{source}{filter}.map(|(p,_)| unsafe {{ (&{s}*p).{}() as &{m}dyn {path} }})", method.name));
+                }
             }
             let expr = choices.join(".or_else(|| ");
             let expr = format!("{expr}{}", ")".repeat(choices.len().saturating_sub(1)));
@@ -236,12 +257,22 @@ fn event_input(
         }
     }
 }
-fn fallback(types: &super::ty::Types<'_>, m: &Method) -> &'static str {
+/// What a proxy answers when its guest call answers nothing. `reason`, where there was a call,
+/// is the expression naming why (`crate::wasm_call_refusal()`, the including crate's).
+fn fallback(types: &super::ty::Types<'_>, m: &Method, reason: Option<&str>) -> String {
     match &m.ret {
-        Ty::Result(ok, _) if **ok == Ty::Unit => "Ok(())",
-        Ty::Result(..) => "Err(call_refused())",
-        Ty::Named(d) if types.defs[*d].rust.ends_with("::Flow") => "mod_api::Flow::Continue",
-        _ => "NoAnswer::no_answer()",
+        // String-error operations can report a refused VM call directly. In particular,
+        // callbacks must not turn a trap after staged effects into a successful commit.
+        Ty::Result(_, error) if matches!(**error, Ty::Str(super::ty::Str::Owned)) => match reason {
+            Some(reason) => {
+                format!("Err(format!(\"wasm call refused or trapped: {{}}\", {reason}))")
+            }
+            None => "Err(String::from(\"wasm call refused or trapped\"))".into(),
+        },
+        Ty::Result(ok, _) if **ok == Ty::Unit => "Ok(())".into(),
+        Ty::Result(..) => "Err(call_refused())".into(),
+        Ty::Named(d) if types.defs[*d].rust.ends_with("::Flow") => "mod_api::Flow::Continue".into(),
+        _ => "NoAnswer::no_answer()".into(),
     }
 }
 
@@ -400,8 +431,9 @@ impl Cx {
         .enumerate()
     {
         let is_held = id >= imports.len();
-        if (resource(&m.ret) && !supported_resource(&m.ret))
-            || (has_frame(&m.ret) && !resource(&m.ret))
+        if (super::fallible_frame_accessor(m).is_none()
+            && ((resource(&m.ret) && !supported_resource(&m.ret))
+                || (has_frame(&m.ret) && !resource(&m.ret))))
             || m.params
                 .iter()
                 .any(|(_, t)| !matches!(t, Ty::Dyn(..)) && has_frame(t) && !supported_resource(t))
@@ -464,7 +496,9 @@ impl Cx {
             };
             args.push(arg);
         }
-        let mut answer: String = if m.ret == Ty::Str(super::ty::Str::Static) {
+        let mut answer: String = if super::fallible_frame_accessor(m).is_some() {
+            "out.put_owned(answer.map(|_| ()));".into()
+        } else if m.ret == Ty::Str(super::ty::Str::Static) {
             "unsafe { (&mut *cx).put_static(out,answer,static_ack)?; }".into()
         } else if resource(&m.ret) {
             "out.put_owned(answer);".into()
@@ -590,7 +624,7 @@ impl Cx {
                 }
                 if surface.dropped.iter().any(|d| std::ptr::eq(d, m)) || !dispatchable(types, m) {
                     gaps.push(format!("{}::{}", m.owner, m.name));
-                    writeln!(code, "{sig} {{ {} }}", fallback(types, m)).unwrap();
+                    writeln!(code, "{sig} {{ {} }}", fallback(types, m, None)).unwrap();
                     continue;
                 }
                 let (mut setup, mut put, mut take, mut apply) =
@@ -667,7 +701,7 @@ impl Cx {
                 let class =
                     super::call_class(types, m).replace("super::Call::", "crate::CallClass::");
                 let tuple = format!("({},)", backs.join(","));
-                writeln!(code,"{sig} {{ let mut frame = Frame::default(); {setup} match self{module}.call({class}, frame, {id}, {}, |w| {{ {put} }}, |r| {{ let answer: {} = r.take()?; {take} if !r.rest().is_empty() {{ return Err(WireError::Tag(u32::MAX)); }} Ok({tuple}) }}) {{ Some({tuple}) => {{ {apply} answer }}, None => {} }} }}",if receiver=="WasmMod" {"None"} else {"Some(self.index)"},rust_ty(types,&m.ret,true),fallback(types,m),module=if receiver=="WasmMod" {""} else {".module"}).unwrap();
+                writeln!(code,"{sig} {{ let mut frame = Frame::default(); {setup} match self{module}.call({class}, frame, {id}, {}, |w| {{ {put} }}, |r| {{ let answer: {} = r.take()?; {take} if !r.rest().is_empty() {{ return Err(WireError::Tag(u32::MAX)); }} Ok({tuple}) }}) {{ Some({tuple}) => {{ {apply} answer }}, None => {} }} }}",if receiver=="WasmMod" {"None"} else {"Some(self.index)"},rust_ty(types,&m.ret,true),fallback(types,m,Some("crate::wasm_call_refusal()")),module=if receiver=="WasmMod" {""} else {".module"}).unwrap();
             }
             code.push_str("}\n");
         }
@@ -681,6 +715,7 @@ impl Cx {
         .replace("mod_api::CallClass", "crate::CallClass")
         .replace("mod_api::refused", "crate::refused")
         .replace("mod_api::NoAnswer", "crate::NoAnswer")
+        .replace("mod_api::wasm_call_refusal", "crate::wasm_call_refusal")
         .replace(
             "use mod_api::{NoAnswer, call_refused}",
             "use crate::{NoAnswer, call_refused}",

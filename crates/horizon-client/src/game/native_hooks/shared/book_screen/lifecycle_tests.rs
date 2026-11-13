@@ -27,11 +27,7 @@ impl mod_api::Hooks for BookMod {
     }
 }
 fn receive(game: &mut Game<'_>, message: Message) {
-    game.remote_book_or_mod_payload(
-        horizon_client::recipe_book::settings_sync::CHANNEL,
-        &settings_codec::encode(&message).unwrap(),
-    )
-    .unwrap();
+    game.remote_book_settings(&settings_codec::encode(&message).unwrap());
 }
 struct BoundBookMod;
 #[mod_api::__subscriptions]
@@ -65,13 +61,13 @@ impl mod_api::Hooks for BoundBookMod {
 #[ignore = "needs prepared resources and isolated homes"]
 fn entering_inventory_requests_catalogue_for_preinstalled_bound_screen() {
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("bound", Box::new(BoundBookMod))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         crate::game::native_entity_refs::tests::with_client_game(|game| {
             mod_api::__private::resolve_menus(["bound:menu"]).unwrap();
             let (pipe, _server) = horizon_protocol::connection::Pipe::pair();
             game.connect_local(pipe, "Bound").unwrap();
             let remote = game.remote.as_mut().unwrap();
-            remote.mod_net = true;
+            remote.custom_books = true;
             remote.joined = true;
             remote.menu.set(Some((1, "bound:menu".into())));
             game.screen = Screen::Playing;
@@ -119,7 +115,7 @@ fn geometry(game: &Game<'_>) -> ((f32, f32), Vec<(usize, [f32; 4])>) {
 #[ignore = "needs prepared resources and isolated homes"]
 fn authoritative_custom_book_rebuilds_cached_geometry_without_observe_screen() {
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("geometry", Box::new(BookMod))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         crate::game::native_entity_refs::tests::with_client_game(|game| {
             let key = KEY.get().unwrap().clone();
             // The lightweight Game fixture does not run the launcher/content
@@ -128,9 +124,12 @@ fn authoritative_custom_book_rebuilds_cached_geometry_without_observe_screen() {
             let (pipe, _server) = horizon_protocol::connection::Pipe::pair();
             game.connect_local(pipe, "Geometry").unwrap();
             let remote = game.remote.as_mut().unwrap();
-            remote.mod_net = true;
             remote.joined = true;
             remote.menu.set(Some((1, "geometry:menu".into())));
+            // A registered book alone must not authorize the private protocol.
+            receive(game, Message::Ready);
+            assert!(!game.native_net.book_ready);
+            game.remote.as_mut().unwrap().custom_books = true;
             game.settings.gui_scale = 1;
             // The fixture has no renderer; layout still needs the same viewport
             // used by geometry() to evaluate toggle gutters and book placement.

@@ -20,7 +20,8 @@ impl Game<'_> {
 mod customize_chat_overlay_tests {
     use horizon_client::hud::HudBatch;
     use horizon_client::text::Text;
-    use mod_api::{ClientHost, CustomizeChatOverlayEvent, Hooks, ModEntry, testing::with_mods};
+    use mod_api::{ClientHost, CustomizeChatOverlayEvent, Hooks, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     type Seen = Arc<Mutex<Vec<(i32, i32, bool, i32, i32)>>>;

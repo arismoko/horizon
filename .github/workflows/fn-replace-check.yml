@@ -4,33 +4,23 @@ name: fn-replace-check
 # (tools/ci/fn_replace_check.sh): function replacement, bridges, support modules, a published loop,
 # a mod with registry dependencies, and the refusals by name. So a change that breaks native mods
 # fails here and not on a player's machine (#1102). Build and link only: no game runs and no vanilla
-# data is read. Checked on main pushes, dispatches, and pull requests that touch what it builds.
+# data is read. Checked on main pushes and by dispatch, never on pull requests.
 on:
   push:
     branches: [main]
-  pull_request:
-    paths:
-      - launcher/**
-      - crates/horizon-mod-api-gen/**
-      - crates/horizon-mod-api-macros/**
-      - crates/horizon-mod-points/**
-      - crates/horizon-mod-point-emit/**
-      - tools/ci/fn_replace_check.sh
-      - tools/ci/fn-replace-check/**
-      - tools/prebuilt_game.py
-      - .github/workflows/fn-replace-check.yml
   workflow_dispatch:
 permissions:
   contents: read
+# Main pushes coalesce: a started run always finishes, and only the newest waiting push runs next, so
+# the newest finished main run proves every commit before it. A red is attributed by reading the error,
+# with a manual dispatch on a suspect commit (through a branch pointing at it) when needed. Dispatches
+# queue in their own group per ref and never displace main's runs.
 concurrency:
-  # One run per ref, queued: a started run finishes, and a newer main push replaces only the waiting one.
-  group: fn-replace-check-${{ github.ref }}
+  group: fn-replace-check-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 env:
   # sccache (shared per Dyna host) cannot cache incremental compiles, so every Rust job builds non-incremental.
   CARGO_INCREMENTAL: 0
-  # The 16 GB runner is short of memory for the game's release build with more.
-  CARGO_BUILD_JOBS: 2
 jobs:
   route:
     runs-on: ubuntu-latest
@@ -42,7 +32,8 @@ jobs:
         env:
           ENABLED: ${{ vars.DYNA_CI_SELF_HOSTED }}
           LEASE: ${{ vars.DYNA_CI_POOL_UNTIL }}
-          SAME_REPO: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          # Only main pushes and dispatches run this workflow, both from this repository.
+          SAME_REPO: true
           EVENT: ${{ github.event_name }}
         run: bash tools/ci/dyna_ci_runner.sh >> "$GITHUB_OUTPUT"
   fn-replace-check:
@@ -51,6 +42,17 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      # GitHub's 16 GB runner is short of memory for the game's release build with more than two crates at once.
+      # A Dyna runner builds as many as its CPU quota allows within its memory, 4 GiB per release rustc
+      # (tools/ci/cargo_jobs.py). CARGO_BUILD_JOBS, not a flag: it must also reach the launcher's mod builds.
+      - name: Choose build parallelism
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+            jobs=2
+          else
+            jobs=$(python3 tools/ci/cargo_jobs.py --job-mib 4096)
+          fi
+          echo "CARGO_BUILD_JOBS=$jobs" | tee -a "$GITHUB_ENV"
       - name: Free disk the build does not need
         if: runner.environment == 'github-hosted'
         run: |
@@ -76,7 +78,7 @@ jobs:
             echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
             export PATH="$CARGO_HOME/bin:$PATH"
           fi
-          pinned=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' launcher/src/rust_toolchain.rs)
+          pinned=$(cat tools/ci/rust-version)
           rustup toolchain install "$pinned" --profile minimal
           echo "RUSTUP_TOOLCHAIN=$pinned" >> "$GITHUB_ENV"
       # On a Dyna runner RUNNER_TEMP is a small tmpfs and the build volume is shared: the SDK and the
@@ -100,13 +102,23 @@ jobs:
       - name: Function replacement check (build and link)
         run: |
           launcher="${CARGO_TARGET_DIR:-launcher/target}/release/horizon-launcher"
-          FNR_MODS="alpha beta one ten fdshape support registry lower loop" tools/ci/fn_replace_check.sh \
+          FNR_MODS="alpha beta one ten fdshape support registry lower loop loop_second" tools/ci/fn_replace_check.sh \
             "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check" 2>&1 | tee "$FNR_SCRATCH/fnr-check.log"
           grep -F 'Function replacement:' "$FNR_SCRATCH/fnr-check.log" >> "$GITHUB_STEP_SUMMARY"
+      # It also builds horizon-mixins from source, where the runs before it download the prebuilt tool.
+      # On its own: with no mod filling the loop, a mixin on the loop's function is compiled for the
+      # empty slot. Beside the `loop` mod it would be compiled for that mod's slots instead.
+      - name: A mixin on a published loop's function, no slot filled (build and link)
+        run: |
+          launcher="${CARGO_TARGET_DIR:-launcher/target}/release/horizon-launcher"
+          FNR_KEEP=1 FNR_MIXINS_FROM_SOURCE=1 FNR_MODS="loop_generic_head" tools/ci/fn_replace_check.sh \
+            "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check"
       - name: Refusals by name
         run: |
           launcher="${CARGO_TARGET_DIR:-launcher/target}/release/horizon-launcher"
-          for set in "alpha overwrite2" refused refused_state loop_refused; do
+          # Each set, then every code it must be refused with.
+          while read -r set codes; do
+            set=${set//+/ }
             log="$FNR_SCRATCH/refusal-${set// /_}.log"
             if FNR_KEEP=1 FNR_MODS="$set" tools/ci/fn_replace_check.sh "$launcher" "$FNR_SCRATCH/prebuilt" \
               "$FNR_SCRATCH/check" > "$log" 2>&1; then
@@ -114,8 +126,15 @@ jobs:
               exit 1
             fi
             grep -E 'E_[A-Z_]+' "$log" | head -5 | tee -a "$GITHUB_STEP_SUMMARY"
-            grep -qE 'E_[A-Z_]+' "$log" || { echo "$set failed without a named refusal"; tail -40 "$log"; exit 1; }
-          done
+            for code in $codes; do
+              grep -qF "$code: " "$log" || { echo "$set was not refused with $code"; tail -40 "$log"; exit 1; }
+            done
+          done <<'SETS'
+          alpha+overwrite2 E_OVERWRITE_CONFLICT
+          refused E_MIXIN_TARGET_MISSING E_MIXIN_NOT_REPLACEABLE
+          refused_state E_MIXIN_STATE_LAYOUT
+          loop_refused E_LOOP_UNKNOWN E_LOOP_ENTRY_REPLACED
+          SETS
       - name: Clean private scratch
         if: always()
         run: |
@@ -130,4 +149,6 @@ jobs:
             sudo dmesg 2>/dev/null | grep -iE 'out of memory|oom|killed process' | tail -5 || true
           else
             dmesg 2>/dev/null | grep -iE 'out of memory|oom|killed process' | tail -5 || true
+            grep usage_usec /sys/fs/cgroup/cpu.stat || true
+            echo "memory.peak $(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo unavailable)"
           fi

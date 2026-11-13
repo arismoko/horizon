@@ -10,7 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools/ci/vendor/pyyaml-6.0.3.zip"))
 import yaml
 
-WORKFLOW = ROOT / ".github/workflows/dyna-ci.yml"
+WORKFLOWS = [ROOT / ".github/workflows/dyna-ci.yml"]
+# Main pushes and dispatch only, one run per commit (owner, 2026-11-12).
+MAIN_ONLY = [ROOT / ".github/workflows" / name for name in ("wasm-mods.yml", "fn-replace-check.yml")]
 
 
 def expression_value(expression, github):
@@ -42,10 +44,10 @@ def expression_value(expression, github):
     return evaluate(ast.parse(expression.replace("&&", " and ").replace("||", " or ").strip(), mode="eval").body)
 
 
-def concurrency_for(event, sha, number=None):
-    workflow = yaml.safe_load(WORKFLOW.read_text())
+def concurrency_for(path, event, sha, number=None, ref="refs/heads/main"):
+    workflow = yaml.safe_load(path.read_text())
     policy = workflow["concurrency"]
-    github = {"event_name": event, "sha": sha, "ref": "refs/heads/main",
+    github = {"event_name": event, "sha": sha, "ref": ref,
               "event": {"pull_request": {"number": number or ""}}}
     if number is not None:
         github["ref"] = f"refs/pull/{number}/merge"
@@ -64,23 +66,47 @@ def concurrency_for(event, sha, number=None):
 
 class ConcurrencyTests(unittest.TestCase):
     def test_main_pushes_share_one_non_cancelling_group(self):
-        first = concurrency_for("push", "a" * 40)
-        next_push = concurrency_for("push", "b" * 40)
-        self.assertEqual(first[0], next_push[0], "main pushes must queue behind the running group")
-        self.assertIs(first[1], False, "a main push must not cancel the running run")
-        self.assertIs(next_push[1], False)
+        for path in WORKFLOWS:
+            with self.subTest(workflow=path.name):
+                first = concurrency_for(path, "push", "a" * 40)
+                next_push = concurrency_for(path, "push", "b" * 40)
+                self.assertEqual(first[0], next_push[0], "main pushes must queue behind the running group")
+                self.assertIs(first[1], False, "a main push must not cancel the running run")
+                self.assertIs(next_push[1], False)
 
     def test_pr_updates_cancel_only_the_same_pr_group(self):
-        first = concurrency_for("pull_request", "a" * 40, 101)
-        update = concurrency_for("pull_request", "b" * 40, 101)
-        other_pr = concurrency_for("pull_request", "c" * 40, 102)
-        main = concurrency_for("push", "d" * 40)
-        self.assertEqual(first[0], update[0], "updates must replace checks for the same PR")
-        self.assertNotEqual(first[0], other_pr[0], "one PR must not cancel another PR")
-        self.assertNotEqual(first[0], main[0], "a PR must not cancel main")
-        for _, cancel in (first, update, other_pr):
-            self.assertIs(cancel, True, "PR events must still cancel their previous checks")
+        for path in WORKFLOWS:
+            with self.subTest(workflow=path.name):
+                first = concurrency_for(path, "pull_request", "a" * 40, 101)
+                update = concurrency_for(path, "pull_request", "b" * 40, 101)
+                other_pr = concurrency_for(path, "pull_request", "c" * 40, 102)
+                main = concurrency_for(path, "push", "d" * 40)
+                self.assertEqual(first[0], update[0], "updates must replace checks for the same PR")
+                self.assertNotEqual(first[0], other_pr[0], "one PR must not cancel another PR")
+                self.assertNotEqual(first[0], main[0], "a PR must not cancel main")
+                for _, cancel in (first, update, other_pr):
+                    self.assertIs(cancel, True, "PR events must still cancel their previous checks")
 
+
+    def test_main_only_checks_never_run_on_pull_requests(self):
+        for path in MAIN_ONLY:
+            with self.subTest(workflow=path.name):
+                triggers = yaml.load(path.read_text(), Loader=yaml.BaseLoader)["on"]
+                self.assertEqual(set(triggers), {"push", "workflow_dispatch"})
+                self.assertEqual(triggers["push"], {"branches": ["main"]})
+
+    def test_main_only_checks_coalesce_main_and_keep_dispatches_apart(self):
+        for path in MAIN_ONLY:
+            with self.subTest(workflow=path.name):
+                first = concurrency_for(path, "push", "a" * 40)
+                next_push = concurrency_for(path, "push", "b" * 40)
+                dispatch_main = concurrency_for(path, "workflow_dispatch", "c" * 40)
+                dispatch_branch = concurrency_for(path, "workflow_dispatch", "d" * 40, ref="refs/heads/suspect")
+                self.assertEqual(first[0], next_push[0], "main pushes share one group: only the newest waits")
+                self.assertNotIn(dispatch_main[0], (first[0], dispatch_branch[0]),
+                                 "a dispatch never displaces a main push run or another ref's dispatch")
+                for _, cancel in (first, next_push, dispatch_main, dispatch_branch):
+                    self.assertIs(cancel, False, "a started run always finishes")
 
 if __name__ == "__main__":
     unittest.main()

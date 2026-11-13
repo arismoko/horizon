@@ -121,7 +121,7 @@ fn progress_events_capture_each_players_full_mutation_state() {
         Box::new(Observer(observed.clone())),
     )]
     .into();
-    mod_api::__private::install(mods);
+    mod_platform::__private::install(mods);
     let scratch = std::env::current_dir().unwrap().join("progress-data");
     let dir = scratch.join("data/testmod/advancement");
     std::fs::create_dir_all(&dir).unwrap();

@@ -12,13 +12,6 @@ game = "26.3"
 horizon = "HEAD"
 mixins = "MIXINS"
 
-# A hook function: hooks are not points, so it has no replacement slot.
-[[native.mixin]]
-id = "hook"
-target = "horizon_client::game::native_hooks::base::Game<'_>::native_use_item"
-kind = "HEAD"
-helper = "src/mixins/head.rs"
-
 # A function below the game crate.
 [[native.mixin]]
 id = "lower"

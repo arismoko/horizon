@@ -118,8 +118,8 @@ NbtIo.writeUnnamedTag	port	crates/horizon-core/src/nbt.rs::write_named	written w
 NbtIo.readUnnamedTag	port	crates/horizon-core/src/nbt.rs::read_network	type byte then the payload, no name
 NbtIo.readTagSafe	port	crates/horizon-core/src/nbt.rs::read_network	an IOException becomes an Error value, not a crash report
 NbtIo.StringFallbackDataOutput.writeUTF	port	crates/horizon-core/src/nbt.rs::Writer::string	gap: minor: a string over 65535 bytes fails the write; vanilla writes "" and logs
-NbtOps.getNumberValue	port	crates/horizon-world/src/datafix/dynamic.rs::as_number	
-NbtOps.getStringValue	port	crates/horizon-world/src/datafix/dynamic.rs::as_str	
+NbtOps.getNumberValue	port	crates/horizon-world/src/datafix/dynamic.rs::as_number
+NbtOps.getStringValue	port	crates/horizon-world/src/datafix/dynamic.rs::as_str
 NbtOps.mergeToList	skip:java		DynamicOps list builder used by codecs; Horizon builds lists directly in datafix
 NbtOps.mergeToMap	port	crates/horizon-world/src/datafix/dynamic.rs::set	gap: minor: one field; returns no error for a non-map or a non-string key
 NbtOps.getMapValues	port	crates/horizon-world/src/datafix/dynamic.rs::map	the (key, value) pairs are built by the caller
@@ -127,11 +127,11 @@ NbtOps.getMapEntries	port	crates/horizon-world/src/datafix/dynamic.rs::map	the e
 NbtOps.getMap	port	crates/horizon-world/src/datafix/dynamic.rs::map	the MapLike view is built by the caller
 NbtOps.createMap	port	crates/horizon-core/src/nbt.rs::Tag::compound	builds a compound from name and value pairs
 NbtOps.getList	port	crates/horizon-world/src/datafix/dynamic.rs::stream	gap: minor: returns copies of the elements; number arrays also pass
-NbtOps.getByteBuffer	port	crates/horizon-world/src/datafix/dynamic.rs::as_byte_buffer	
+NbtOps.getByteBuffer	port	crates/horizon-world/src/datafix/dynamic.rs::as_byte_buffer
 NbtOps.createByteList	skip:java		builds a Tag::ByteArray from a buffer; Horizon constructs the array directly
-NbtOps.getIntStream	port	crates/horizon-world/src/datafix/dynamic.rs::as_int_stream	
-NbtOps.getLongStream	port	crates/horizon-world/src/datafix/dynamic.rs::as_long_stream	
-NbtOps.remove	port	crates/horizon-world/src/datafix/dynamic.rs::remove	
+NbtOps.getIntStream	port	crates/horizon-world/src/datafix/dynamic.rs::as_int_stream
+NbtOps.getLongStream	port	crates/horizon-world/src/datafix/dynamic.rs::as_long_stream
+NbtOps.remove	port	crates/horizon-world/src/datafix/dynamic.rs::remove
 NbtOps.createCollector	skip:java		typed-list collector for list merges (keeps byte, int and long arrays); Horizon has no DynamicOps list builder
 NbtOps.ByteListCollector.accept	skip:java		collector builder for typed byte lists
 NbtOps.IntListCollector.accept	skip:java		collector builder for typed int lists

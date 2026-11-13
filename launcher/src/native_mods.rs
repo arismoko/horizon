@@ -53,7 +53,13 @@ const PREFIX: &str = "native-";
 const STAGING: &str = "area-aware-mixins-input-v1";
 /// horizon-mixins, for bundles that don't name the revision they were tested with.
 const MIXINS_GIT: &str = "https://github.com/horizon-rust/horizon-mixins";
-pub const MIXINS_REV: &str = horizon_mod_package::index::native::MIXINS_REV;
+pub const MIXINS_REV: &str = horizon_mod_package::mixins_tool::REV;
+
+/// `native-build --mixins-from-source`: this process builds the horizon-mixins tool from its
+/// pinned source and never looks for the prebuilt one, so CI keeps that path proven.
+pub fn mixins_from_source(on: bool) {
+    mixins_patch::FROM_SOURCE.store(on, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// Native mods use the SDK's optimized compilation settings.
 #[derive(
@@ -1764,6 +1770,7 @@ fn pipeline(
         linker()?;
         let rust = rust_toolchain::install(|f| progress(Step::Rust(f)))?;
         progress(Step::PrebuiltMods);
+        let compiling = std::time::Instant::now();
         let (binary, libraries) = prebuilt::compile(
             &rust,
             game,
@@ -1773,6 +1780,15 @@ fn pipeline(
             &resolution,
             options.registry_consent,
         )
+        .map_err(blame)?;
+        // The whole step; the tool's own build and the function replacement have their lines.
+        append_log(&trf(
+            "Mods compiled against the prebuilt game in {seconds} s",
+            &[(
+                "seconds",
+                &format!("{:.1}", compiling.elapsed().as_secs_f64()),
+            )],
+        ))
         .map_err(blame)?;
         check_cancelled()?;
         progress(Step::Install);

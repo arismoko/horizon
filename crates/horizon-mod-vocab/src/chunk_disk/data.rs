@@ -6,6 +6,7 @@ use super::*;
 /// Any refused operation poisons the job even if the listener ignores its error.
 #[derive(Clone, Debug, PartialEq, horizon_mod_api_macros::Wire)]
 #[wire(via = ChunkDiskDataWire)]
+#[non_exhaustive]
 pub struct ChunkDiskData {
     entries: Compound,
     failure: Option<ChunkDiskFailure>,
@@ -13,8 +14,10 @@ pub struct ChunkDiskData {
 
 /// Checked transport for a disk snapshot. Decoding validates all budgets before
 /// accepting the store; a forged response cannot bypass the native checks.
+// hidden: engine transport only; decoding re-validates every budget
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, horizon_mod_api_macros::Wire)]
+#[non_exhaustive]
 pub struct ChunkDiskDataWire {
     entries: Compound,
     failure: Option<ChunkDiskFailure>,

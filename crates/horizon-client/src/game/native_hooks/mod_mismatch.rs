@@ -92,7 +92,7 @@ mod tests {
             }
         }
         let heard = Arc::new(Mutex::new(0));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("listener", Box::new(Listener(heard.clone())))].into(),
             || {
                 for role in [

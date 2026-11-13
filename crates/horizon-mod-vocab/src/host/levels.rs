@@ -202,6 +202,13 @@ pub trait LevelsBackend {
     #[access(WorldOnly)]
     fn chunk_status(&self, chunk: ChunkRef) -> Option<ChunkStatus>;
     /// Side: server.
+    /// Whether the chunk passes vanilla's seeded slime-chunk test, independent of
+    /// dimension, height, biome and other spawn conditions. Works for unloaded chunks
+    /// in active or parked open levels. None for a stale level, a client or a chunk
+    /// outside world bounds. Does not load chunks or advance the world's random stream.
+    #[access(WorldOnly)]
+    fn chunk_is_slime_chunk(&self, chunk: ChunkRef) -> Option<bool>;
+    /// Side: server.
     /// `ChunkMap.getPlayers(pos, false)`: the players watching this chunk, those
     /// it is inside the view of and was sent to, in the order the server keeps
     /// its players. A player watches it from its `chunk_watch` until it leaves

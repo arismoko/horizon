@@ -4,7 +4,7 @@ RateKickingConnection.tickSecond	inline	crates/horizon-client/src/lan/conn.rs::P
 UnconfiguredPipelineHandler.Inbound.channelRead	skip:other		Netty guard for packets before a protocol is set; Horizon's connection loops only read their own phase
 UnconfiguredPipelineHandler.Inbound.write	skip:other		Netty guard for configuration tasks on the inbound pipeline; no pipeline in Horizon
 UnconfiguredPipelineHandler.Outbound.write	skip:other		Netty guard for packets sent before a protocol is set; no pipeline in Horizon
-VarInt.getByteSize	port	crates/horizon-protocol/src/buf.rs::varint_size	
+VarInt.getByteSize	port	crates/horizon-protocol/src/buf.rs::varint_size
 VarLong.getByteSize	skip:java		byte-size helper with no caller here; Horizon writes varlongs and measures the buffer
 Varint21FrameDecoder.copyVarint	inline	crates/horizon-protocol/src/frame.rs::split	the 3-byte length read and the 'length wider than 21 bits' error
 Varint21FrameDecoder.decode	port	crates/horizon-protocol/src/frame.rs::split	the length prefix is read by frame::header, which refuses a zero frame as corrupted, and split cuts the frame at it
@@ -43,7 +43,7 @@ FilterMask.applyWithFormatting	missing		minor: masks are ignored, so filtered wo
 FilterMask.equals	skip:java		value equality
 FilterMask.hashCode	skip:java		hashing
 FormattedText.of	skip:java		adapter from a String to FormattedText
-FormattedText.getString	port	crates/horizon-client-core/src/text.rs::Text::plain	
+FormattedText.getString	port	crates/horizon-client-core/src/text.rs::Text::plain
 HoverEvent.Action.filterForSerialization	port	crates/horizon-client-core/src/component.rs::object_style	show_text, show_item and show_entity are kept; a show_entity hover draws its tooltip in chat with advanced item tooltips on
 HoverEvent.EntityTooltipInfo.getTooltipLines	port	crates/horizon-client/src/game/interface/chat.rs::Game::entity_tooltip_lines	the name when the event has one, then the entity type and the uuid, for a show_entity hover
 HoverEvent.EntityTooltipInfo.equals	skip:java		value equality
@@ -51,16 +51,16 @@ HoverEvent.EntityTooltipInfo.hashCode	skip:java		hashing
 LastSeenMessages.updateSignature	inline	crates/horizon-protocol/src/secure_chat.rs::signed_payload	the last-seen list written into the signed payload
 LastSeenMessages.Packed.unpack	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	PlayerChat arm
 LastSeenMessages.Update.verifyChecksum	inline	crates/horizon-protocol/src/secure_chat.rs::LastSeenValidator::apply_update	the checksum check; 0 means not checked
-LastSeenMessagesTracker.addPending	port	crates/horizon-protocol/src/secure_chat.rs::LastSeenTracker::add_pending	
+LastSeenMessagesTracker.addPending	port	crates/horizon-protocol/src/secure_chat.rs::LastSeenTracker::add_pending
 LastSeenMessagesTracker.addEntry	port	crates/horizon-protocol/src/secure_chat.rs::LastSeenTracker::add_pending	inlined
 LastSeenMessagesTracker.ignorePending	port	crates/horizon-protocol/src/secure_chat.rs::LastSeenTracker::ignore_pending	handle_delete_chat calls it
-LastSeenMessagesTracker.generateAndApplyUpdate	port	crates/horizon-protocol/src/secure_chat.rs::LastSeenTracker::update	
+LastSeenMessagesTracker.generateAndApplyUpdate	port	crates/horizon-protocol/src/secure_chat.rs::LastSeenTracker::update
 LastSeenTrackedEntry.acknowledge	missing		minor: part of the client-side last-seen tracker, which is absent
-LocalChatSession.createMessageEncoder	port	crates/horizon-protocol/src/secure_chat.rs::Encoder::new	
+LocalChatSession.createMessageEncoder	port	crates/horizon-protocol/src/secure_chat.rs::Encoder::new
 MessageSignature.equals	skip:java		value equality
-MessageSignature.Packed.unpack	port	crates/horizon-protocol/src/secure_chat.rs::SignatureCache::unpack	
-MessageSignatureCache.push	port	crates/horizon-protocol/src/secure_chat.rs::SignatureCache::push	
-MutableComponent.withColor	port	crates/horizon-client-core/src/text.rs::Text::with_color	
+MessageSignature.Packed.unpack	port	crates/horizon-protocol/src/secure_chat.rs::SignatureCache::unpack
+MessageSignatureCache.push	port	crates/horizon-protocol/src/secure_chat.rs::SignatureCache::push
+MutableComponent.withColor	port	crates/horizon-client-core/src/text.rs::Text::with_color
 MutableComponent.getVisualOrderText	skip:ui		bidi reordering for drawing; Horizon lays text out in logical order
 MutableComponent.equals	skip:java		value equality
 MutableComponent.hashCode	skip:java		hashing
@@ -79,7 +79,7 @@ ResolutionContext.Builder.build	skip:java		builder
 SignableCommand.getArgument	port	crates/horizon-client/src/lan/hub/chat.rs::Hub::signed_arguments	the command's message arguments, looked up by name
 SignedMessageBody.updateSignature	inline	crates/horizon-protocol/src/secure_chat.rs::signed_payload	salt, time, content and last seen in the signed payload
 SignedMessageBody.Packed.unpack	inline	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	PlayerChat arm: the last seen only, the body is not kept
-SignedMessageChain.encoder	port	crates/horizon-protocol/src/secure_chat.rs::Encoder::sign	
+SignedMessageChain.encoder	port	crates/horizon-protocol/src/secure_chat.rs::Encoder::sign
 SignedMessageChain.Decoder.unsigned	port	crates/horizon-protocol/src/secure_chat.rs::Chain::unpack	no session: unsigned, or refused when the server enforces secure chat
 SignedMessageLink.updateSignature	inline	crates/horizon-protocol/src/secure_chat.rs::signed_payload	sender, session and index in the signed payload
 SignedMessageLink.isDescendantOf	port	crates/horizon-protocol/src/secure_chat.rs::MessageValidator::update_and_validate	a greater index, from the same sender in the same session (the server's Chain::unpack still requires the exact next index, as SignedMessageChain.Decoder does)

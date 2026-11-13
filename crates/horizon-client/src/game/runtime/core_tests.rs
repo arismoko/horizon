@@ -24,9 +24,9 @@ fn reload_resolves_parts_against_reloaded_tags() {
     }
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("reload", Box::new(ReloadMod))].into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::__private::install(mods);
+    mod_platform::__private::install(mods);
     super::native_entity_refs::tests::with_game(|game| {
-        let stone_key = mod_api::__private::part_tests::block_key("stone");
+        let stone_key = mod_platform::__private::part_tests::block_key("stone");
         let name = stone_key.id(game);
         let dir = std::env::temp_dir().join(format!("horizon-key-tags-{}", std::process::id()));
         game.session_lock = Some(horizon_client::save::SessionLock::acquire(&dir).unwrap());
@@ -66,7 +66,7 @@ fn reload_resolves_parts_against_reloaded_tags() {
         assert_eq!(stone_key.id(game), name);
         assert_eq!(
             stone_key,
-            mod_api::__private::part_tests::block_key("minecraft:stone")
+            mod_platform::__private::part_tests::block_key("minecraft:stone")
         );
         assert_eq!(game.block_in_tag(stone_key, "test:reload"), Some(true));
         assert_eq!(game.block_in_tag(stone_key, "minecraft:logs"), Some(false));
@@ -252,7 +252,7 @@ fn right_click_block_controls_cauldron_use() {
         "right-click-observer",
         Box::new(Observer(allowed.clone(), cancel.clone(), calls.clone())),
     )]);
-    mod_api::__private::install(mods);
+    mod_platform::__private::install(mods);
     super::native_entity_refs::tests::with_game(|game| {
         game.options.dedicated = Some(Vec::new());
         game.world

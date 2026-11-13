@@ -13,7 +13,8 @@ impl Game<'_> {
 #[cfg(test)]
 mod server_tick_rate_changed_tests {
     use crate::game::native_guest_turn_tests::with_guests;
-    use mod_api::{Hooks, ModEntry, ServerHost, ServerTickRateChangedEvent, testing::with_mods};
+    use mod_api::{Hooks, ModEntry, ServerHost, ServerTickRateChangedEvent};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// A scheduling mod: logs the rate each notification reads, and runs `retune` on the first.

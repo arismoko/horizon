@@ -45,7 +45,7 @@ impl mod_api::Hooks for Declare {
 fn with_types(test: impl FnOnce(&mut Game<'_>)) {
     let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::Registration);
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("mymod", Box::new(Declare))].into();
-    mod_api::testing::with_mods(mods, || with_game(test));
+    mod_platform::testing::with_mods(mods, || with_game(test));
 }
 
 /// One record's save tag, the format `to_tag` writes.
@@ -323,7 +323,7 @@ fn quarantine_preserves_a_missing_mods_record_byte_for_byte() {
 fn loaded_mods_unknown_type_skips() {
     // The package inventory is what owns a namespace: "mymod" is a loaded
     // package here, while no type of it was ever declared.
-    mod_api::__private::with_test_packages(&["mymod"], || {
+    mod_platform::__private::with_test_packages(&["mymod"], || {
         // No fixture declaration: the type is unknown precisely because no
         // loaded mod declared it.
         with_game(|game| {

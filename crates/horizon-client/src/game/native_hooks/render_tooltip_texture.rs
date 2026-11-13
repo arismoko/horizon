@@ -22,9 +22,8 @@ impl Game<'_> {
 mod render_tooltip_texture_tests {
     use super::ItemStack;
     use horizon_client::hud::{HudBatch, Rect};
-    use mod_api::{
-        ClientHost, Hooks, Identifier, ModEntry, RenderTooltipTextureEvent, testing::with_mods,
-    };
+    use mod_api::{ClientHost, Hooks, Identifier, ModEntry, RenderTooltipTextureEvent};
+    use mod_platform::testing::with_mods;
 
     /// Gives a stick's tooltip the `lobby:gold` style and a text tooltip a red background.
     struct Gold;

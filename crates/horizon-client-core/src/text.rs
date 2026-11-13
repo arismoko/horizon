@@ -62,6 +62,8 @@ pub enum ClickEvent {
     /// A local file to open with the system handler.
     /// Only allow this in locally constructed messages, never server/LAN text.
     OpenFile(String),
+    /// A `/profiler` line the client's own buttons run; never decoded from a server's text, so only they reach the local profiler.
+    Profiler(String),
 }
 
 /// A non-character `minecraft:object` embedded in a text component.
@@ -379,7 +381,10 @@ impl Text {
         text
     }
     pub fn styled(s: impl Into<String>, style: Style) -> Self {
-        Self::literal(s).with_style(&style)
+        // `inherit` never passes an object on, but a styled span's own style carries it.
+        Self::literal(s).with_style(&style).map_styles(|own| {
+            own.inline_object.clone_from(&style.inline_object);
+        })
     }
     pub fn colored(s: impl Into<String>, color: u32) -> Self {
         Self::styled(s, Style::color(color))
@@ -477,28 +482,41 @@ impl Text {
     pub fn push(&mut self, other: impl Into<Text>) {
         let mut other = other.into();
         let sibling = other.component();
-        let mut origins = BTreeMap::new();
-        self.copy_origins("", &mut origins);
-        let mut root = if self.rendered.spans.is_empty() && self.source.is_none() {
-            json!({ "text": "" })
+        let mut origins = if self.source.is_some() {
+            std::sync::Arc::try_unwrap(std::mem::take(&mut self.origins))
+                .unwrap_or_else(|origins| (*origins).clone())
         } else {
-            let c = self.component();
-            if !c.is_object()
-                || STYLE_KEYS
-                    .iter()
-                    .chain(["clickEvent", "hoverEvent"].iter())
-                    .any(|k| c.get(*k).is_some())
-            {
-                origins = origins
-                    .into_iter()
-                    .map(|(p, o)| (format!("/extra/0{p}"), o))
-                    .collect();
-                json!({ "text": "", "extra": [c] })
-            } else {
-                c
-            }
+            let mut origins = BTreeMap::new();
+            self.copy_origins("", &mut origins);
+            origins
         };
-        if let Value::Object(o) = &mut root {
+        let root = match self.source.take() {
+            None if self.rendered.spans.is_empty() => std::sync::Arc::new(json!({ "text": "" })),
+            None => std::sync::Arc::new(self.component()),
+            Some(c) => c,
+        };
+        let mut root = if !root.is_object()
+            || STYLE_KEYS
+                .iter()
+                .chain(["clickEvent", "hoverEvent"].iter())
+                .any(|k| root.get(*k).is_some())
+        {
+            origins = origins
+                .into_iter()
+                .map(|(p, o)| (format!("/extra/0{p}"), o))
+                .collect();
+            let c = std::sync::Arc::try_unwrap(root)
+                .unwrap_or_else(|c| crate::component::clone_value(&c));
+            std::sync::Arc::new(json!({ "text": "", "extra": [c] }))
+        } else {
+            root
+        };
+        // Shared trees may be deeply nested mod input: clone iteratively, not through Value's
+        // recursive Clone implementation inside Arc::make_mut.
+        if std::sync::Arc::get_mut(&mut root).is_none() {
+            root = std::sync::Arc::new(crate::component::clone_value(&root));
+        }
+        if let Some(Value::Object(o)) = std::sync::Arc::get_mut(&mut root) {
             match o.get_mut("extra") {
                 Some(Value::Array(a)) => {
                     other.copy_origins(&format!("/extra/{}", a.len()), &mut origins);
@@ -511,7 +529,7 @@ impl Text {
             }
         }
         self.origins = origins.into();
-        self.replace_component(root);
+        self.source = Some(root);
         self.rendered.spans.append(&mut other.rendered.spans);
         discard_text(other);
     }
@@ -1099,6 +1117,9 @@ fn style_json_with(
                     }
                     event
                 }
+                ClickEvent::Profiler(command) => {
+                    json!({ "action": "run_command", "command": command })
+                }
                 ClickEvent::OpenFile(path) => json!({ "action": "open_file", "path": path }),
             })
         })();
@@ -1183,16 +1204,26 @@ pub(crate) fn format_translatable_origin(
     };
     format_translation_origin(&template, args, origin)
 }
+/// The most spans one translation expands to. Vanilla's `TranslatableContents.decompose` keeps
+/// references to its arguments, so its cost stays linear in the input; copying them here makes
+/// nested `%1$s` templates multiply (`k` references nested `D` deep: `k^D` copies), and a server's
+/// `fallback` template is any text it likes.
+const MAX_TRANSLATION_SPANS: usize = 1 << 15;
+/// The most text one translation expands to: one long argument referenced many times multiplies
+/// bytes, not spans.
+const MAX_TRANSLATION_BYTES: usize = 1 << 22;
 
 /// TranslatableContents.decomposeTemplate: `%s` takes the next argument,
 /// `%n$s` a numbered one and `%%` is a percent sign. Malformed templates are
-/// shown verbatim.
+/// shown verbatim, and so is one that would expand past [`MAX_TRANSLATION_SPANS`] or
+/// [`MAX_TRANSLATION_BYTES`].
 pub fn format_translation(template: &str, args: &[Text]) -> Text {
     let text = format_translation_origin(template, args, Origin::Local);
     Text::from_spans(text.rendered.spans)
 }
 pub(crate) fn format_translation_origin(template: &str, args: &[Text], origin: Origin) -> Text {
     let mut out = Text::default();
+    let mut bytes = 0usize;
     let mut literal = String::new();
     let mut next = 0usize;
     let chars: Vec<char> = template.chars().collect();
@@ -1246,6 +1277,23 @@ pub(crate) fn format_translation_origin(template: &str, args: &[Text], origin: O
                         origin,
                     }]);
                 };
+                bytes = bytes
+                    .saturating_add(literal.len())
+                    .saturating_add(arg.rendered.spans.iter().map(|s| s.text.len()).sum());
+                if out
+                    .rendered
+                    .spans
+                    .len()
+                    .saturating_add(arg.rendered.spans.len())
+                    >= MAX_TRANSLATION_SPANS
+                    || bytes > MAX_TRANSLATION_BYTES
+                {
+                    return Text::from_spans(vec![Span {
+                        text: template.into(),
+                        style: Style::default(),
+                        origin,
+                    }]);
+                }
                 if !literal.is_empty() {
                     out.rendered.spans.push(Span {
                         origin,
@@ -1702,6 +1750,63 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_styled_object_span_keeps_its_object_through_append_and_slice() {
+        let object = InlineObject::Atlas {
+            atlas: "minecraft:gui".into(),
+            sprite: "horizon:gui/mark".into(),
+            fallback: "H".into(),
+        };
+        let sprite = Text::styled(
+            "\u{fffc}",
+            Style {
+                inline_object: Some(object.clone()),
+                ..Style::color(WHITE)
+            },
+        );
+        let line = Text::colored("[", DARK_GRAY)
+            .append(sprite)
+            .append(Text::colored("] ", DARK_GRAY));
+        let line = line.slice(0, 3);
+        assert_eq!(line.spans[1].style.inline_object, Some(object));
+        assert_eq!(line.plain(), "[H]");
+    }
+    #[test]
+    fn appending_builds_the_same_tree_in_linear_time() {
+        // A styled text is wrapped once, so its style doesn't reach what follows; a plain one
+        // takes the siblings itself; a copy taken before an append keeps its own tree.
+        let mut styled = Text::literal("a").with_style(&Style {
+            bold: Some(true),
+            ..Style::default()
+        });
+        styled.push(Text::literal("b"));
+        let before = styled.clone();
+        styled.push(Text::literal("c"));
+        assert_eq!(
+            styled.component(),
+            json!({"text": "", "extra": [{"text": "a", "bold": true}, {"text": "b"}, {"text": "c"}]})
+        );
+        assert_eq!(
+            before.component(),
+            json!({"text": "", "extra": [{"text": "a", "bold": true}, {"text": "b"}]})
+        );
+        let mut plain = Text::default();
+        plain.push(Text::literal("x"));
+        plain.push(Text::literal("y"));
+        assert_eq!(
+            plain.component(),
+            json!({"text": "", "extra": [{"text": "x"}, {"text": "y"}]})
+        );
+        // 20 000 siblings, as a server's chat may carry: 76 s before, as each append cloned the
+        // whole tree.
+        let started = std::time::Instant::now();
+        let mut long = Text::default();
+        for _ in 0..20_000 {
+            long.push(Text::literal("a"));
+        }
+        assert_eq!(long.rendered.spans.len(), 20_000);
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    }
     #[test]
     fn click_events_serialize_and_inherit_as_one_style_field() {
         for (event, json) in [

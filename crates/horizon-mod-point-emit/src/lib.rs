@@ -169,7 +169,6 @@ id = "before"
 at = "horizon_client::game::Game<'_>::tick"
 kind = "head"
 with = "head"
-access = "api"
 priority = 12
 hash = "pin"
 [[inject]]
@@ -177,7 +176,6 @@ id = "after"
 at = "horizon_client::game::Game::tick"
 kind = "return"
 with = "tail"
-access = "api"
 hash = "pin"
 "#,
         )

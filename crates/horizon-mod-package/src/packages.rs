@@ -10,6 +10,8 @@ use std::{
 pub struct AdjacentManifest {
     pub path: PathBuf,
     pub manifest: Manifest,
+    /// Whether the package carries an `icon.png`.
+    pub has_icon: bool,
 }
 
 #[derive(Debug)]
@@ -55,6 +57,7 @@ pub fn read_native(path: &Path) -> Result<AdjacentManifest, ReadError> {
     Ok(AdjacentManifest {
         path: path.to_owned(),
         manifest: package.manifest,
+        has_icon: package.icon.is_some(),
     })
 }
 

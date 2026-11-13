@@ -131,7 +131,7 @@ fn parts_grant_and_deny_the_abilities_vanilla_asks_of_an_item_isolated() {
         ])),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         with_game(|game| {
             field(game);

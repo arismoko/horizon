@@ -68,7 +68,7 @@ fn interaction_key_literal_matrix_preserves_actions_and_swing_independently() {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_interaction_game(true, |game| {
                     let stone = game
                         .pack
@@ -154,7 +154,7 @@ fn pick_keeps_packet_veto_and_never_swings() {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_interaction_game(true, |game| {
                 let stone = game
                     .pack
@@ -184,7 +184,7 @@ fn pick_keeps_packet_veto_and_never_swings() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn no_listener_preserves_natural_swing_and_unsuccessful_use_stays_quiet() {
-    mod_api::testing::with_mods(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         with_interaction_game(true, |game| {
             let stone = game
                 .pack
@@ -222,7 +222,7 @@ fn no_listener_preserves_natural_swing_and_unsuccessful_use_stays_quiet() {
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(true, |game| {
             game.inventory[game.selected] = None;
             game.offhand = None;
@@ -255,7 +255,7 @@ fn silent_policy_does_not_leak_into_next_ordinary_use() {
         Box::new(FirstSilent(std::sync::atomic::AtomicBool::new(false))),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(true, |game| {
             let stone = game
                 .pack
@@ -292,7 +292,7 @@ fn silent_policy_does_not_leak_into_next_ordinary_use() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn no_interaction_listener_attack_mining_offhand_and_pick() {
     for path in 0..4 {
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             with_interaction_game(true, |game| {
                 let stone = game
                     .pack

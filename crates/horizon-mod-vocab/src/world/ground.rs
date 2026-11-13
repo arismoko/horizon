@@ -1,6 +1,7 @@
 //! The ground a tree decorator places (vanilla's `AlterGroundDecorator`, the
 //! podzol under a big spruce), and the provider a mod puts in its place in
-//! `alter_ground` (NeoForge's `AlterGroundEvent`).
+//! `alter_ground` (NeoForge's `AlterGroundEvent`); the block a trunk places
+//! under itself, which the soil's parts answer in `on_tree_grow`.
 //!
 //! The decorator asks its provider once per ground position it tries, on the
 //! worldgen worker threads (and on the server thread when a sapling grows), so a
@@ -8,7 +9,7 @@
 //! tree stands in and draws from the decorator's own random through
 //! [`GroundLevel`], so with the decorator's own provider kept, the blocks and the
 //! draws are vanilla's.
-use crate::{BlockStateId, StructureRandom};
+use crate::{BlockState, BlockStateId, StructureRandom};
 use std::sync::Arc;
 
 /// A mod's ground provider: NeoForge's `AlterGroundEvent.StateProvider`.
@@ -82,4 +83,19 @@ pub fn native_alter_ground(
     provider: &mut GroundProvider,
 ) {
     crate::dispatch_alter_ground(context, logs, leaves, roots, positions, provider);
+}
+
+/// `TrunkPlacer.placeBelowTrunkBlock` is about to place the block under a
+/// trunk at `pos`, where `state` stands: the parts of `state`'s block answer
+/// `soil`, drawing from the tree's `random`.
+#[inline(never)]
+#[allow(clippy::option_option)]
+pub fn native_on_tree_grow(
+    context: &crate::OwningWorldgen<'_>,
+    state: BlockState,
+    pos: [i32; 3],
+    random: &mut dyn StructureRandom,
+    soil: &mut Option<Option<BlockState>>,
+) {
+    crate::dispatch_on_tree_grow(context, state, pos, random, soil);
 }

@@ -13,6 +13,10 @@ pub const DEFAULT_CAPACITY: u32 = 4096;
 
 /// The stages a frame draws primitives at, in frame order (`RenderLevelStage`).
 pub const STAGES: usize = 5;
+/// world_primitives.wgsl after what it shares with the frame's other shaders (`frame_stored`).
+pub(super) fn shader() -> String {
+    include_str!("../hdr_light.wgsl").to_owned() + include_str!("world_primitives.wgsl")
+}
 
 /// A frame's primitives, camera-relative, as the game tessellated them: quads of 4 vertices
 /// from the shared atlas (plain colours on its white texel, text on its glyphs, beams on the
@@ -70,7 +74,7 @@ pub struct WorldPrimitives {
     /// The batch's `stage_ends`, clamped to `counts`.
     stage_ends: [[u32; 4]; STAGES - 1],
     /// Mods' own pipelines and their quads, drawn after each stage's primitives.
-    pipelines: super::mod_pipelines::ModPipelines,
+    pub(super) pipelines: super::mod_pipelines::ModPipelines,
 }
 
 struct AtlasGroup {
@@ -83,11 +87,12 @@ struct AtlasGroup {
 pub type Upload<'u> = &'u mut dyn FnMut(&wgpu::Buffer, &[u8]);
 
 impl WorldPrimitives {
-    /// Pipelines drawing into `color_format` over a reversed Depth32Float depth.
-    pub fn new(device: &wgpu::Device, color_format: wgpu::TextureFormat) -> Self {
+    /// Pipelines drawing into `color_format` over a reversed Depth32Float depth, decoding their
+    /// colours where the frame holds linear light (`linear`).
+    pub fn new(device: &wgpu::Device, (color_format, linear): (wgpu::TextureFormat, bool)) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("World primitives"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("world_primitives.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(shader().into()),
         });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("World primitives"),
@@ -176,7 +181,10 @@ impl WorldPrimitives {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: Some(entry[1]),
-                    compilation_options: Default::default(),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                        constants: &super::linear_blend::frame_constants(color_format, linear),
+                        ..Default::default()
+                    },
                     targets: &[Some(wgpu::ColorTargetState {
                         format: color_format,
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -310,7 +318,8 @@ impl WorldPrimitives {
         let lines = [batch.lines, batch.lines_through].map(|l| l.len() as u32);
         self.counts = [quads[0], quads[1], lines[0], lines[1]];
         self.stage_ends = clamped_ends(batch.stage_ends, self.counts);
-        // Before the empty check: a new load's pipelines are built here, not when first drawn.
+        // Before the empty check, which counts the pipeline runs this queues; the pipelines
+        // themselves were built with the renderer (`Renderer::build_mod_pipelines`).
         let pipeline_quads =
             self.pipelines
                 .prepare(device, upload, &batch.pipelines, view_proj, viewport);
@@ -553,7 +562,8 @@ mod tests {
             view_formats: &[],
         });
         let atlas_view = atlas.create_view(&Default::default());
-        let mut primitives = WorldPrimitives::new(&device, wgpu::TextureFormat::Rgba8Unorm);
+        let mut primitives =
+            WorldPrimitives::new(&device, (wgpu::TextureFormat::Rgba8Unorm, false));
         let view_proj = Mat4::IDENTITY;
         let red = quad(view_proj, [0.0, 0.0, 32.0, 32.0], 2.0, RED);
         let blue = quad(view_proj, [32.0, 32.0, 64.0, 64.0], 2.0, BLUE);
@@ -793,7 +803,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut primitives = WorldPrimitives::new(&device, format);
+        let mut primitives = WorldPrimitives::new(&device, (format, false));
         let atlas_view = atlas.create_view(&Default::default());
         assert!(primitives.prepare(
             &device,

@@ -24,6 +24,7 @@ pub mod local_control;
 #[cfg(feature = "runtime-process")]
 pub mod locks;
 pub mod manifest;
+pub mod mixins_tool;
 pub mod mod_list;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod modpack;

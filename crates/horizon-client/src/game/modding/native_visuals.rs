@@ -180,9 +180,8 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_mod_built_rim_and_light_reach_the_frame() {
-        use mod_api::{
-            BlockRim, ClientHost, ColoredLight, Hooks, ModEntry, VisualsEvent, testing::with_mods,
-        };
+        use mod_api::{BlockRim, ClientHost, ColoredLight, Hooks, ModEntry, VisualsEvent};
+        use mod_platform::testing::with_mods;
 
         struct Mod;
         #[mod_api::__subscriptions]

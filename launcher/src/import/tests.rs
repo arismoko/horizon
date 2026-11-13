@@ -103,6 +103,17 @@ fn says_what_a_dropped_file_is() {
             (p, Ok(Dropped::Modpack))
         },
         {
+            let p = dir.join("prism.zip");
+            zip_file(
+                &p,
+                &[
+                    ("Example/mmc-pack.json", b"{}"),
+                    ("Example/.minecraft/mods/example.jar", b""),
+                ],
+            );
+            (p, Ok(Dropped::Modpack))
+        },
+        {
             let p = dir.join("rp.zip");
             zip_file(&p, &[("pack.mcmeta", b"{}"), ("assets/a.png", b"")]);
             (p, Ok(Dropped::Pack(packs::Kind::Resource)))

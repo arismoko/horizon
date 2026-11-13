@@ -607,6 +607,7 @@ mod tests {
 
             game.orbs.push(ExperienceOrb {
                 attachment_lifetime: Default::default(),
+                fall_distance: 0.0,
                 rotation: [0.0, 0.0],
                 join: Default::default(),
                 id: 43,
@@ -619,6 +620,7 @@ mod tests {
                 count: 1,
                 ticks: 21,
                 health: 5,
+                air: 300,
                 no_gravity: true,
                 following: None,
             });
@@ -699,6 +701,7 @@ mod tests {
             let item = game.dropped[0].id;
             game.orbs.push(ExperienceOrb {
                 attachment_lifetime: Default::default(),
+                fall_distance: 0.0,
                 rotation: [0.0, 0.0],
                 join: Default::default(),
                 no_gravity: false,
@@ -712,6 +715,7 @@ mod tests {
                 count: 1,
                 ticks: 0,
                 health: 5,
+                air: 300,
                 following: None,
             });
             game.boats

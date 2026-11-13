@@ -128,6 +128,7 @@ impl LaunchArguments {
                 }
                 "--developer-single-player"
                 | "--fullscreen"
+                | "--profile"
                 | "--session-stdin"
                 | "--creative"
                 | "--test-terrain"

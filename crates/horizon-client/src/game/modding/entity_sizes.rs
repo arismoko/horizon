@@ -159,7 +159,7 @@ mod tests {
             Box::new(Grow(calls.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let id = game
                     .spawn_mob_spawned(
@@ -211,7 +211,7 @@ mod tests {
             Box::new(SetSize(size.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let id = game
                     .spawn_mob_spawned(
@@ -290,7 +290,7 @@ mod tests {
                 Box::new(SetSize(size.clone())),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_game(|game| {
                     use horizon_client::mobs::path::{Evaluator, Finder, PathType};
                     game.world

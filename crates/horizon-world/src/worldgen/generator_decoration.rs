@@ -93,6 +93,7 @@ fn possible_biomes(source: &ResolvedBiomeSource) -> Vec<String> {
             .iter()
             .map(|(_, name)| name.clone())
             .collect(),
+        ResolvedBiomeSource::Regions(source) => source.biomes().map(str::to_owned).collect(),
         ResolvedBiomeSource::End(source) => [
             &source.center,
             &source.highlands,

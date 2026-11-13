@@ -1020,7 +1020,7 @@ impl Pass {
                     }
                 }
             }
-            Item::Const(value) => {
+            Item::Const(value) if value.ident != "_" => {
                 let (ident, generics, ty) = (&value.ident, &value.generics, &value.ty);
                 expose!(
                     value,
@@ -2343,6 +2343,7 @@ struct Tuple(#[allow(dead_code)] u8, pub(crate) u16);
 enum Kind { Named { value: u8 }, Tuple(u16) }
 union Bits { byte: u8, word: u32 }
 const LIMIT: u32 = 4;
+const _: () = assert!(LIMIT == 4);
 static COUNT: u32 = 0;
 type Alias = u32;
 trait Trait { fn call(&self); }
@@ -2385,7 +2386,9 @@ const LABEL: &str = "é"; struct AfterUnicode;
                 "missing {expected:?} in {source}"
             );
         }
+        assert!(!source.contains("pub const _:"));
         for unchanged in [
+            "const _: () = assert!(LIMIT == 4);",
             "use std::fmt;",
             "struct Local;",
             "#[cfg(test)] fn test_method() {}",
@@ -2419,7 +2422,8 @@ const LABEL: &str = "é"; struct AfterUnicode;
                 .any(|entry| entry.path.contains("TestItem")
                     || entry.path.contains("Local")
                     || entry.path.ends_with("test_function")
-                    || entry.path.ends_with("bench_function"))
+                    || entry.path.ends_with("bench_function")
+                    || entry.path.ends_with("::_"))
         );
     }
 

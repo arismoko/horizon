@@ -60,6 +60,7 @@ pub(super) fn synchronous_startup(options: &Options) -> bool {
         || std::env::var_os("HORIZON_SCREEN_BUILD_FIXTURE").is_some()
         || std::env::var_os("HORIZON_DISPENSE_FIXTURE").is_some()
         || std::env::var_os("HORIZON_SCULK_FIXTURE").is_some()
+        || std::env::var_os("HORIZON_HOT_PATHS").is_some()
         || std::env::var_os("HORIZON_COMMAND_SCRIPT").is_some()
         || std::env::var_os("HORIZON_NET_REPORT").is_some()
 }
@@ -89,7 +90,7 @@ pub(super) fn named_scope<'scope, T: Send + 'scope>(
     let inherited = mod_api::testing::inherit_mods(move |_: &()| f());
     #[cfg(test)]
     let f = move || inherited(&());
-    std::thread::Builder::new()
+    horizon_guest_stack::builder()
         // Linux keeps 15 bytes of a thread name: a short prefix keeps them apart
         // ("horizon-load-core" and "horizon-load-collision" would both read
         // "horizon-load-co").
@@ -521,7 +522,13 @@ pub(super) fn load_resources(
         if headless {
             UiResources::server(source)
         } else {
-            UiResources::load(source)
+            UiResources::load(source).map(|ui| {
+                ui.with_splashes(
+                    source,
+                    vanilla_root,
+                    settings.extras.skip_modded_splashes_if_vanilla_modified,
+                )
+            })
         }
     };
     // The menu bundle loads on this thread while workers build the world
@@ -683,7 +690,7 @@ pub(super) fn load_resources(
         let entity_models = entity_models.clone();
         let rest_progress = progress.clone();
         let progress = progress.clone();
-        let handle = std::thread::Builder::new()
+        let handle = horizon_guest_stack::builder()
             .name("world-rest-loader".into())
             .spawn(move || {
                 let _step = startup::step("rest");
@@ -813,7 +820,7 @@ pub(super) fn write_prepared_files(root: PathBuf) {
     if prepared_files::open(&root).is_some() || !root.join("horizon-resources.json").is_file() {
         return;
     }
-    let spawned = std::thread::Builder::new()
+    let spawned = horizon_guest_stack::builder()
         .name("Prepared data file".into())
         .spawn(move || {
             horizon_threads::idle_current();

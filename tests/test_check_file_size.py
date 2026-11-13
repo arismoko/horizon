@@ -164,6 +164,53 @@ class GitTests(unittest.TestCase):
             self.assertIn("big.rs: 3101 lines without test modules (3100 on the base)", out.getvalue())
 
 
+    def test_a_pull_request_merge_is_measured_against_main_as_merged(self):
+        """main grew a file over the limit after the branch's base (a sync's growth): a pull request that doesn't
+        touch it stays green, measured on its merge into that main; one that grows it further still fails."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t.invalid",
+                       GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t.invalid")
+
+            def run(*args):
+                return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, env=env,
+                                      encoding="utf-8").stdout.strip()
+
+            def numbered(start, stop):
+                return "".join(f"line {i}\n" for i in range(start, stop))
+
+            run("init", "-q", "-b", "main")
+            (root / "big.rs").write_text(numbered(0, 3100))
+            (root / "small.rs").write_text("x\n")
+            run("add", ".")
+            run("commit", "-q", "-m", "base")
+            base = run("rev-parse", "HEAD")
+            run("checkout", "-q", "-b", "untouched")
+            (root / "small.rs").write_text("x\ny\n")
+            run("commit", "-q", "-am", "small change")
+            run("checkout", "-q", "-b", "grows", base)
+            (root / "big.rs").write_text("line -1\n" + numbered(0, 3100))
+            run("commit", "-q", "-am", "grow the big file at its top")
+            run("checkout", "-q", "main")
+            (root / "big.rs").write_text(numbered(0, 3200))
+            run("commit", "-q", "-am", "main grows the big file at its end")
+            out = io.StringIO()
+            with mock.patch.object(check_file_size, "ROOT", root), contextlib.redirect_stdout(out):
+                for branch, expected in (("untouched", 0), ("grows", 1)):
+                    run("checkout", "-q", "--detach", "main")
+                    run("merge", "-q", "--no-ff", "-m", f"merge {branch}", branch)
+                    with self.subTest(branch=branch):
+                        self.assertEqual(check_file_size.main(["--base", base, "--pull-request-merge"]), expected)
+                    if branch == "untouched":
+                        # Against the branch's old base, main's own growth was charged to the pull request.
+                        self.assertEqual(check_file_size.main(["--base", base]), 1)
+            self.assertIn("big.rs: 3201 lines without test modules (3200 on the base)", out.getvalue())
+            with mock.patch.object(check_file_size, "ROOT", root), contextlib.redirect_stdout(io.StringIO()) as log:
+                run("checkout", "-q", "grows")
+                self.assertEqual(check_file_size.main(["--base", base, "--pull-request-merge"]), 1)
+            self.assertIn("--pull-request-merge needs HEAD to merge the pull request", log.getvalue())
+
+
 
 class SyncBaselineTests(unittest.TestCase):
     def test_the_cap_allows_equal_or_lower_but_not_growth(self):

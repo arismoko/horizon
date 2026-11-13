@@ -7,8 +7,10 @@ pub trait Hooks {
     /// `visibility`. It comes in as vanilla's percent (sneaking 0.8,
     /// invisibility by armour cover, a worn head's `mob_visibility`: 0.5 to
     /// its own mob type); multiply it to scale. Values below 0 count as 0,
-    /// and the result is clamped to 10. Asked for a player, by the mobs whose targeting checks scale by
-    /// visibility (hostile targeting, sensors, the happy ghast's tempt).
+    /// and the result is clamped to 10. Asked for any living target, by the
+    /// mobs whose targeting checks scale by visibility (hostile targeting,
+    /// sensors, the happy ghast's tempt). A mob target comes in without the
+    /// sneaking factor, which vanilla reads through `isDiscrete`.
     /// Server-side.
     #[hook(
         side = "server",

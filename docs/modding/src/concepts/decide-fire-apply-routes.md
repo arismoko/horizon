@@ -45,11 +45,11 @@ Two consequences a reviewer should keep in mind:
 | `living_jump_power` | `hooks/living_motion_values.rs:17` | `motion.rs:59` | both, listen | value transform (`&mut f32`) | motion exclusion |
 | `living_speed` | `hooks/living_motion_values.rs:28` | `motion.rs:67` | both, listen | value transform (`&mut f32`) | motion exclusion |
 | `living_flying_speed` | `hooks/living_motion_values.rs:39` | `motion.rs:75` | both, listen | value transform (`&mut f32`) | motion exclusion |
-| `block_jump_factor` | `hooks/block_factors.rs:18` | `motion.rs:83` | both, listen, block Part | value transform (`&mut f32`) | motion exclusion |
-| `block_speed_factor` | `hooks/block_factors.rs:30` | `motion.rs:91` | both, listen, block Part | value transform (`&mut f32`) | motion exclusion |
-| `fluid_flow` | `hooks/fluid_flow.rs:17` | `motion.rs:140` | both, listen | value transform (`&mut [f64; 3]`) | motion exclusion |
-| `player_stays_on_ground_surface` | `hooks/player_stays_on_ground_surface.rs:17` | `motion.rs:128` | both, listen | boolean query, written back | motion exclusion |
-| `is_ladder` | `hooks/is_ladder.rs:15` | `motion.rs:100` | both, listen, block Part | boolean query, written back | read-only fire |
+| `block_jump_factor` | `hooks/block_factors.rs:18` | `motion/surface.rs:48` | both, listen, block Part | value transform (`&mut f32`) | motion exclusion |
+| `block_speed_factor` | `hooks/block_factors.rs:30` | `motion/surface.rs:56` | both, listen, block Part | value transform (`&mut f32`) | motion exclusion |
+| `fluid_flow` | `hooks/fluid_flow.rs:17` | `motion.rs:95` | both, listen | value transform (`&mut [f64; 3]`) | motion exclusion |
+| `player_stays_on_ground_surface` | `hooks/player_stays_on_ground_surface.rs:17` | `motion.rs:83` | both, listen | boolean query, written back | motion exclusion |
+| `is_ladder` | `hooks/is_ladder.rs:15` | `motion/surface.rs:65` | both, listen, block Part | boolean query, written back | read-only fire |
 | `item_stacked_on_other` | `hooks/item_stacked_on_other.rs:15` | `menu.rs:388` | both, cancel | cancel + slot/cursor write-back | typed decision |
 | `menu_slot_rules` | `hooks/menu_slot_rules.rs:23` | `menu.rs:615` | both, listen, menu Part | query + write-back (`may_place`, `max_stack`) | typed decision |
 | `living_heal` | `hooks/living_heal.rs:16` | `hunger.rs:23` | both, cancel | value transform + cancel | typed decision |

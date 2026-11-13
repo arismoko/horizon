@@ -464,17 +464,21 @@ mod tests {
                 .is_none()
             );
             assert_eq!(
-                host.block_item(mod_api::__private::part_tests::block_key("minecraft:stone"))
-                    .and_then(mod_api::__private::item_key_id),
+                host.block_item(mod_platform::__private::part_tests::block_key(
+                    "minecraft:stone"
+                ))
+                .and_then(mod_api::__private::item_key_id),
                 Some("minecraft:stone")
             );
             assert_eq!(
-                host.block_item(mod_api::__private::part_tests::block_key("minecraft:water"))
-                    .and_then(mod_api::__private::item_key_id),
+                host.block_item(mod_platform::__private::part_tests::block_key(
+                    "minecraft:water"
+                ))
+                .and_then(mod_api::__private::item_key_id),
                 Some("minecraft:air")
             );
             let item = |id| mod_api::__private::item_key(id).unwrap();
-            let block = mod_api::__private::part_tests::block_key;
+            let block = mod_platform::__private::part_tests::block_key;
             assert_eq!(
                 host.item_block(item("minecraft:oak_planks")),
                 Some(block("minecraft:oak_planks"))
@@ -521,16 +525,14 @@ mod tests {
                 _context: &mod_api::RegistrationContext,
                 event: &mut mod_api::BlocksEvent<'_>,
             ) {
-                event.blocks.push({
-                    let mut draft = mod_api::Block::new(CRATE, "minecraft:stone");
-                    draft.item = true;
-                    draft
-                });
+                event
+                    .blocks
+                    .push(mod_api::Block::new(CRATE, "minecraft:stone"));
             }
         }
         let mods: mod_api::Mods =
             Arc::from([mod_api::ModEntry::new("item_test", Box::new(TestMod))]);
-        mod_api::__private::install(mods.clone());
+        mod_platform::__private::install(mods.clone());
         crate::game::api_values::install_parts(&mods).unwrap();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let root = super::super::mods::content_root(&base, &Default::default())
@@ -938,9 +940,9 @@ mod tests {
 
     #[test]
     fn a_block_key_resolves_its_default_state() {
-        use mod_api::__private::part_tests;
+        use mod_platform::__private::part_tests;
         let (_, registry) = blocks();
-        mod_api::__private::install(Default::default());
+        mod_platform::__private::install(Default::default());
         crate::game::api_values::register_game_keys([
             "minecraft:oak_stairs".to_owned(),
             "minecraft:wheat".to_owned(),
@@ -1017,13 +1019,13 @@ mod facts_tests {
             // Oak stairs: facing 4 × half 2 × shape 5 × waterlogged 2 = 80 states, its default
             // among them; stone has one.
             let range = facts
-                .states_of(mod_api::__private::part_tests::block_key(
+                .states_of(mod_platform::__private::part_tests::block_key(
                     "minecraft:oak_stairs",
                 ))
                 .unwrap();
             assert_eq!(range.len(), 80);
             assert!(range.contains(stairs));
-            let key = mod_api::__private::part_tests::block_key("minecraft:oak_stairs");
+            let key = mod_platform::__private::part_tests::block_key("minecraft:oak_stairs");
             assert!(range.iter().all(|state| state.block() == key));
             assert_eq!(
                 range
@@ -1034,7 +1036,9 @@ mod facts_tests {
             );
             assert_eq!(
                 facts
-                    .states_of(mod_api::__private::part_tests::block_key("minecraft:stone"))
+                    .states_of(mod_platform::__private::part_tests::block_key(
+                        "minecraft:stone"
+                    ))
                     .map(|r| (r.first(), r.len())),
                 Some((stone, 1))
             );
@@ -1112,7 +1116,7 @@ mod crafting_remainder_tests {
     fn crafting_remainder_without_parts_matches_data() {
         let mods: mod_api::Mods = Vec::new().into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 assert!(!mod_api::__private::has_part_hook(
                     mod_api::HookId::CraftingRemainder
@@ -1145,7 +1149,7 @@ mod crafting_remainder_tests {
         let mods: mod_api::Mods =
             vec![mod_api::ModEntry::new("remainder", Box::new(RemainderMod))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 super::super::native_entity_refs::tests::resolve_parts(game).unwrap();
                 let mut tool = ItemStack {

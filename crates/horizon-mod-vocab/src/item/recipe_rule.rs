@@ -1,7 +1,8 @@
 //! Typed rules for recipes whose result is not a fixed crafting stack.
 
 use crate::{Ingredient, ItemStack, Tag};
-/// The explosion shape selected by a firework recipe.
+/// A firework explosion's shape: what a firework recipe selects and a
+/// [`crate::FireworkExplosion`] draws.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 #[derive(horizon_mod_api_macros::Wire)]

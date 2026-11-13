@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn server_mods_uses_canonical_inventory_order() {
-        mod_api::__private::with_test_packages(&["second", "first"], || {
+        mod_platform::__private::with_test_packages(&["second", "first"], || {
             assert_eq!(
                 server_mods(),
                 json!({"mods": [
@@ -219,7 +219,7 @@ mod tests {
                 ]})
             );
         });
-        mod_api::__private::with_test_packages(&[], || {
+        mod_platform::__private::with_test_packages(&[], || {
             assert_eq!(server_mods(), json!({"mods": []}));
         });
     }

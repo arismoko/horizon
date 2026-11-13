@@ -14,10 +14,15 @@ pub trait Hooks {
     /// make no endermite draw; their `damage` starts at zero and is player-only.
     /// An owner moved, removed, killed or put to sleep by a listener is not moved
     /// again using the old decision. The impact hook still hears the hit.
+    /// What the pearl hit (`getHitResult`), in `projectile_impact`'s shape:
+    /// the entity `hit_entity` (a dragon part is the dragon), or, with it
+    /// None, the block `hit_block` on its `hit_face` (the face's normal); `hit_at`
+    /// is the hit point. For an entity, `hit_block` is the cell of `hit_at`
+    /// and `hit_face` is `[0, 0, 0]`.
     #[hook(
         side = "server",
         contract = "cancel",
-        version = 2,
+        version = 3,
         out = "cancel",
         neoforge = "EntityTeleportEvent.EnderPearl",
         cancellable = true
@@ -29,6 +34,10 @@ pub trait Hooks {
         target: &mut [f64; 3],
         damage: &mut f32,
         cancel: &mut bool,
+        hit_entity: Option<u32>,
+        hit_block: [i32; 3],
+        hit_face: [i32; 3],
+        hit_at: [f64; 3],
     );
     /// Entities from `chunk` finished loading into the server world. `count`
     /// is the number of saved entity records read.

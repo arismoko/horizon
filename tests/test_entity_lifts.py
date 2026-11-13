@@ -22,6 +22,10 @@ class EntityLifts(unittest.TestCase):
         source = ROOT / "crates/horizon-client/src"
         violations = []
         for path in [source / "game.rs", *sorted((source / "game").rglob("*.rs"))]:
+            # Byte-identical upstream source, excluded from discovery and compiled
+            # only by the unsupported upstream-parallel-mobs retention feature.
+            if path == source / "game/creatures/mob_islands.rs":
+                continue
             text = path.read_text()
             for match in RAW_TAKE.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1

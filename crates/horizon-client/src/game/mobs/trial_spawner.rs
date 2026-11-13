@@ -18,7 +18,7 @@ use horizon_client::{
 use horizon_core::nbt::Tag;
 use horizon_core::{
     geometry::Vec3,
-    random::{LegacyRandom, RandomSource},
+    random::{LegacyRandom, LevelRandom, RandomSource},
 };
 use std::collections::HashMap;
 
@@ -177,7 +177,10 @@ impl Game<'_> {
         ominous: bool,
     ) -> Result<()> {
         let pos = [key.0, key.1, key.2];
-        let mut random = std::mem::replace(&mut self.world.random, LegacyRandom::new(0));
+        let mut random = std::mem::replace(
+            &mut self.world.random,
+            LevelRandom::for_level(LegacyRandom::new(0)),
+        );
         let mut sequences = std::mem::take(&mut self.rand_sequences);
         let mut events = Vec::new();
         let mut planned: Vec<Planned> = Vec::new();
@@ -194,7 +197,7 @@ impl Game<'_> {
             });
             let loot = self.server_loot.get();
             let seed = self.level.seed;
-            let mut spawn = |l: &GameLevel, r: &SpawnerSpawn, rng: &mut LegacyRandom| {
+            let mut spawn = |l: &GameLevel, r: &SpawnerSpawn, rng: &mut LevelRandom| {
                 let added = l.game.plan_spawner_mob(l, r, source, &mut planned, rng)?;
                 let uuid = match planned.last_mut() {
                     Some(Planned::Loaded(Tag::Compound(tag), _, _)) => {
@@ -213,7 +216,7 @@ impl Game<'_> {
             };
             // TrialSpawner.ejectReward: the table's items, each thrown up out
             // of the spawner (DefaultDispenseItemBehavior.spawnItem, accuracy 2).
-            let mut eject = |table: &str, random: &mut LegacyRandom| {
+            let mut eject = |table: &str, random: &mut LevelRandom| {
                 let Some(loot) = &loot else {
                     return false;
                 };
@@ -268,7 +271,7 @@ impl Game<'_> {
         // Vec3.atBottomCenterOf(pos).relative(UP, 1.2), lowered by spawnItem.
         let above = [center[0], center[1] + 0.7 - 0.125, center[2]];
         for (stack, v) in ejected {
-            self.spawn_item(stack, above, v, 0);
+            self.spawn_item_thrown(stack, above, v);
         }
         if next != current || ominous != spawner.is_ominous {
             self.set_trial_spawner_state(key, next, spawner.is_ominous)?;

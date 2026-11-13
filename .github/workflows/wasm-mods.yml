@@ -1,31 +1,22 @@
 name: wasm-mods
+# Main pushes and manual dispatch only, never pull requests (owner, 2026-11-12): root dispatches it on a PR
+# branch that changes what it builds.
 on:
   push:
     branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'crates/cargo-horizon-mod/**'
-      - 'crates/horizon-mod-*/**'
-      - '.github/workflows/wasm-mods.yml'
-      - 'tools/generate_wire_enum_goldens.py'
-      - 'tools/capture_wire_enum_layouts.py'
-      - 'tools/fixtures/wire_enum_layouts.json'
-      - 'tools/fixtures/wire_enum_baseline_identities.json'
-      - 'tests/test_wire_enum_goldens.py'
-      - 'Cargo.lock'
   workflow_dispatch:
 permissions:
   contents: read
-# Finish running main checks; keep only the newest pending push. Obsolete PR runs still cancel.
+# Main pushes coalesce: a started run always finishes, and only the newest waiting push runs next, so
+# the newest finished main run proves every commit before it. A red is attributed by reading the error,
+# with a manual dispatch on a suspect commit (through a branch pointing at it) when needed. Dispatches
+# queue in their own group per ref and never displace main's runs.
 concurrency:
-  group: wasm-mods-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main') || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: wasm-mods-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   fixture:
-    # Drafts skip it: the shared runners go to ready PRs (CI rule, 2026-11-08).
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'dyna-large' }}
+    runs-on: dyna-large
     timeout-minutes: 120
     env:
       CARGO_INCREMENTAL: 0
@@ -34,25 +25,20 @@ jobs:
       - name: Configure persistent build targets
         shell: bash
         run: |
-          # Dyna supplies a persistent target mount; hosted runners use the checkout.
+          # Dyna supplies a persistent target mount.
           target="${CARGO_TARGET_DIR:-$GITHUB_WORKSPACE/target}"
           mkdir -p "$target"
           if [[ "$target" != "$GITHUB_WORKSPACE/target" ]]; then
             ln -s "$target" "$GITHUB_WORKSPACE/target"
           fi
           echo "CARGO_TARGET_DIR=$target" >> "$GITHUB_ENV"
-          if [[ '${{ runner.environment }}' != 'github-hosted' ]]; then
-            # build-std fingerprints rust-src mtimes, including its build scripts.
-            # Keep the toolchain beside its artifacts across ephemeral runners.
-            echo "RUSTUP_HOME=$target/rustup" >> "$GITHUB_ENV"
-          fi
+          # build-std fingerprints rust-src mtimes, including its build scripts.
+          # Keep the toolchain beside its artifacts across ephemeral runners.
+          echo "RUSTUP_HOME=$target/rustup" >> "$GITHUB_ENV"
           cache="$target/wasm-fixtures"
-          if [[ '${{ runner.environment }}' == 'github-hosted' ]]; then
-            cache="$GITHUB_WORKSPACE/.wasm-fixture-targets"
-          fi
           # Keep generated workspaces real: Cargo cannot discover their members
           # through a target symlink. Each member still has its own workspace and
-          # link invocation. PRs reuse dependency artifacts; main also exercises
+          # link invocation. Dispatches on other branches reuse dependency artifacts; main also exercises
           # independent dependency compilation in the original per-member targets.
           for member in fixture library-fixture/{library,observer,dependent} groups/{counter_lib,alpha,beta,gamma,hog}; do
             root="$GITHUB_WORKSPACE/crates/horizon-mod-wasm/tests/$member/target/horizon-mod"
@@ -66,16 +52,15 @@ jobs:
               ln -s "$artifacts/$artifact" "$root/$artifact"
             done
           done
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.99.1
+          toolchain: ${{ steps.rust.outputs.version }}
           components: rust-src, rustfmt
           targets: wasm32-unknown-unknown
-      - if: runner.environment == 'github-hosted'
-        uses: Swatinem/rust-cache@v2
-        with:
-          # These custom-profile targets belong to staged, independent workspaces.
-          cache-directories: .wasm-fixture-targets
       - name: Check fieldless Wire layout coverage and hashes
         shell: bash
         run: |
@@ -107,6 +92,55 @@ jobs:
           cargo test -p horizon-mod-points --features listener-fixture --test registry --test replace --test order
           cargo test -p horizon-mod-wasm --features listener-fixture --test real_member --test unstaged --test self_refusal --test native_listener --test no_wire_registration --test chunk_disk -- --include-ignored --nocapture
           cargo test -p horizon-mod-wasm --features listener-fixture --lib guest_input_pool_stays_flat_for_100k_no_import_calls -- --ignored --nocapture
+      # The client tests that load this run's compiled fixture into a real game. The slow shards refuse them by
+      # name (`needs` rows in tools/ci/ignored-tests-known-failures.txt): only this job has the artifacts.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Prepare checkout-keyed vanilla data
+        run: |
+          for dir in minecraft datagen horizon-client tools; do
+            if [ ! -d "/cache/horizon-local/$dir" ]; then
+              echo "::error::prepared data unavailable on this runner: $dir"
+              exit 1
+            fi
+          done
+          HORIZON_DYNA_CACHE=true HORIZON_PREPARED_CACHE="$DYNA_CI_BUILD/vanilla" HORIZON_SHARED_SOURCE=/cache/horizon-local bash tools/ci/vanilla-data.sh
+      - name: Run the client tests that load the compiled fixture
+        shell: bash
+        env:
+          HORIZON_WASM_FIXTURE: ${{ github.workspace }}/crates/horizon-mod-wasm/tests/fixture/target/horizon-mod/wasm_fixture.hmod
+          HORIZON_WASM_STD: ${{ github.workspace }}/target/horizon-wasm-std.wasm
+          HORIZON_NO_AUDIO: '1'
+          HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
+        run: |
+          set -euo pipefail
+          export HORIZON_TEST_RESOURCES="$PWD/.local/horizon-client/26.3"
+          # The runner's CPU quota within its memory (as verify): horizon-client rustc processes take ~2.6 GB each.
+          jobs="-j$(python3 tools/ci/cargo_jobs.py --job-mib 3072)"
+          # Fresh homes: the game tests write logs and saves there, never into the runner's own folders.
+          for key in HORIZON_HOME HORIZON_LAUNCHER_HOME XDG_DATA_HOME XDG_CONFIG_HOME; do
+            export "$key=$(mktemp -d "$RUNNER_TEMP/${key,,}.XXXXXX")"
+          done
+          # Each run must report every named test passed: a renamed test would otherwise match nothing and pass.
+          run_exact() {
+            local count=$1; shift
+            cargo test "$jobs" "$@" 2>&1 | tee "$RUNNER_TEMP/client-wasm.log"
+            grep -q "^test result: ok. $count passed" "$RUNNER_TEMP/client-wasm.log" || {
+              echo "::error::expected $count passing tests from: cargo test $*"; exit 1; }
+          }
+          # Each alone in its process: each initializes the fixture mod, and the points table is sealed once per
+          # process, so a second initialization there refuses the fixture's replace listener as already owned.
+          run_exact 1 -p horizon-client-lib --lib -- --ignored --exact \
+            raw_payloads::wasm_tests::compiled_guest_observes_physical_provider_pressure
+          for test in \
+            game::native_server::wasm_selector_tests::wasm_selectors_resolve_in_game_and_refuse_before_guest_dispatch \
+            game::native_server::wasm_selector_tests::wasm_server_tick_messages_reach_dedicated_game \
+            game::payload_transport::wasm_tests::compiled_guest_runs_in_actual_game_roots \
+            game::remote::interaction_event_tests::interaction_event_wasm_tests::wasm_interaction_shared_matrix; do
+            run_exact 1 -p horizon-client --lib -- --ignored --exact "$test"
+          done
       - name: Build independent library members
         run: |
           tool="$GITHUB_WORKSPACE/target/debug/cargo-horizon-mod"
@@ -140,3 +174,24 @@ jobs:
           HORIZON_WASM_FIXTURE: ${{ github.workspace }}/crates/horizon-mod-wasm/tests/fixture/target/horizon-mod/wasm_fixture.hmod
           HORIZON_WASM_STD: ${{ github.workspace }}/target/horizon-wasm-std.wasm
         run: cargo test --release -p horizon-mod-wasm --features listener-fixture --test bench block_entity_ticks -- --ignored --nocapture
+
+  guest-stack:
+    name: Guest stack / ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+      - run: cargo test --locked -p horizon-guest-stack --lib
+      - run: cargo test --locked -p horizon-mod-wasm --lib deep_guest_stack_and_overflow_attribution
+      - run: cargo test --locked -p horizon-mod-wasm --lib sixty_thousand_frames_exceed_wasmtime_default
+      - run: cargo test --locked -p horizon-mod-wasm --lib generated_client_and_server_hooks_complete_sixty_thousand_frames
+      - run: cargo test --locked -p horizon-mod-wasm --features runtime-fixture --test main_stack_probe -- --nocapture

@@ -418,7 +418,7 @@ mod tests {
             let model = grass(game);
             horizon_client::gfx::cap_prepared_instance_slots(16_384);
             let _owner =
-                mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+                mod_platform::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
                     id: "a",
                     hook: "test",
                     part: None,
@@ -453,12 +453,13 @@ mod tests {
             ]));
             let mut draw = WorldGeometry::default();
             {
-                let _other =
-                    mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+                let _other = mod_platform::content::crash::enter_native_mod(
+                    mod_api::content::crash::ModCall {
                         id: "b",
                         hook: "test",
                         part: None,
-                    });
+                    },
+                );
                 assert_eq!(group.write(game, 0, &[near]), Err(GroupError::Stale));
                 assert_eq!(group.set_len(game, 0), Err(GroupError::Stale));
                 assert_eq!(
@@ -668,7 +669,7 @@ mod tests {
             let _restore = Restore;
             let model = grass(game);
             let _owner =
-                mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+                mod_platform::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
                     id: "group-owner",
                     hook: "test",
                     part: None,
@@ -807,12 +808,13 @@ mod tests {
                 Err(GroupError::CapacityExceeded)
             );
             let other_group = {
-                let _other =
-                    mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+                let _other = mod_platform::content::crash::enter_native_mod(
+                    mod_api::content::crash::ModCall {
                         id: "unaffected-owner",
                         hook: "test",
                         part: None,
-                    });
+                    },
+                );
                 assert_eq!(released.set_len(game, 1), Err(GroupError::Stale));
                 game.create_group(model, 1).unwrap()
             };
@@ -825,12 +827,13 @@ mod tests {
             );
             assert_eq!(draw.copy_count(), 0);
             {
-                let _other =
-                    mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+                let _other = mod_platform::content::crash::enter_native_mod(
+                    mod_api::content::crash::ModCall {
                         id: "unaffected-owner",
                         hook: "test",
                         part: None,
-                    });
+                    },
+                );
                 other_group.set_len(game, 1).unwrap();
                 other_group.destroy(game).unwrap();
             }
@@ -1197,7 +1200,9 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn each_stage_is_asked_in_frame_order_and_its_lines_draw_there() {
         super::super::native_entity_refs::tests::with_client_game(|game| {
-            mod_api::__private::install(vec![ModEntry::new("staged", Box::new(Staged))].into());
+            mod_platform::__private::install(
+                vec![ModEntry::new("staged", Box::new(Staged))].into(),
+            );
             STAGES_ARMED.store(true, Ordering::Relaxed);
             let mut draw = WorldGeometry::default();
             game.fill_world_geometry(
@@ -1246,7 +1251,9 @@ mod tests {
             let model = grass(game);
             horizon_client::gfx::cap_prepared_instance_slots(8);
             *FILL_MODEL.lock().unwrap() = Some(model);
-            mod_api::__private::install(vec![ModEntry::new("batch", Box::new(FillBatch))].into());
+            mod_platform::__private::install(
+                vec![ModEntry::new("batch", Box::new(FillBatch))].into(),
+            );
             FILL_ARMED.store(true, Ordering::Relaxed);
             let mut draw = WorldGeometry::default();
             let mut entities = vec![<Vertex as bytemuck::Zeroable>::zeroed(); 4];

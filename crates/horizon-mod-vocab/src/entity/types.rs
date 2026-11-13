@@ -98,6 +98,11 @@ pub struct ServerPlayer {
     pub address: String,
 }
 
+/// A persistent entity UUID in the same bit order as the value from `EntityRef::uuid`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, horizon_mod_api_macros::Wire)]
+// exhaustive: a UUID is exactly one public 128-bit value
+pub struct EntityUuid(pub u128);
+
 /// An entity of the open world, for the `Host` methods that read or change one
 /// (`entity.position(host)`). It holds the world's epoch and the entity's id: ids
 /// are shared by every server level and never reused while the server world is
@@ -1022,6 +1027,28 @@ impl PlayerRef {
 impl From<PlayerRef> for EntityRef {
     fn from(player: PlayerRef) -> Self {
         player.entity
+    }
+}
+
+/// The original player lent to `player_clone`. Every read expires when the hook returns;
+/// this is deliberately not a live player or entity handle.
+// exhaustive: its field is private, so mods cannot build or destructure it
+#[derive(horizon_mod_api_macros::Wire)]
+#[wire(internal_field_layouts)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct OriginalPlayerRef {
+    pub(crate) token: u64,
+}
+
+impl OriginalPlayerRef {
+    /// Read the original's attachment, including nonpersistent and non-copy-on-death data.
+    /// A missing value answers its default without changing the replacement player.
+    pub fn attachment<T: Clone + Send + Sync + 'static>(
+        self,
+        host: &mut dyn crate::Host,
+        key: &crate::AttachmentType<T>,
+    ) -> Result<T, crate::AttachmentError> {
+        key.get(host, crate::Holder::OriginalPlayer(self.token))
     }
 }
 

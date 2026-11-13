@@ -116,7 +116,7 @@ fn mob_despawn_listener_panic_preserves_owned_rows_and_lent_random() {
                 std::process::id(),
                 std::thread::current().id()
             ));
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 crate::game::native_entity_refs::tests::with_game(|game| {
                     game.world_root = root.clone();
                     game.enter_level(dimension).unwrap();
@@ -184,7 +184,8 @@ fn mob_despawn_listener_panic_preserves_owned_rows_and_lent_random() {
                         .unwrap();
                     game.world.set(4, 80, 4, stone).unwrap();
                     let expected_writes = game.world.path_writes.clone();
-                    game.world.random = LegacyRandom::new(0x5eed);
+                    game.world.random =
+                        horizon_core::random::LevelRandom::for_level(LegacyRandom::new(0x5eed));
                     let expected_draw = game.world.random.clone().next_long();
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         game.tick_creature_entities()
