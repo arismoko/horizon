@@ -15,6 +15,7 @@ pub mod projectile_owner;
 pub mod replace;
 pub mod runtime_environment;
 pub mod selector_command;
+pub mod storage_attempts;
 pub mod turn;
 pub use matrix::{mirrors, sum_return};
 pub mod shutdown;
@@ -192,6 +193,9 @@ impl Hooks for Mod {
         runtime_environment::register(cx);
         game_payload::register(registrar);
         interaction::register(registrar);
+        if cx.mods().get("wasm_storage_attempt_observer").is_some() {
+            storage_attempts::register(registrar);
+        }
         registrar
             .declare_datapack_registry(
                 "spell",

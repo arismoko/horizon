@@ -2,9 +2,10 @@
 //! a vanilla container): a block entity's slots as one of its sides reaches them, numbered from
 //! 0 for that side, by the rules hoppers follow. It acts where the world is simulated, never on
 //! a client's copy, and only on the level in place.
-use super::{Game, Kind, View};
+use super::{Game, Kind, Pos, View};
 use crate::game::transactions::After;
 use horizon_client::items::ItemStack;
+use mod_api::__private::game::CapabilityChecked;
 use mod_api::{BlockSide, LevelRef, Transaction};
 
 /// Whether the item capability reaches this container's slots: not a composter's, nor a block
@@ -14,6 +15,65 @@ fn takes_from(view: &View) -> bool {
 }
 
 impl Game<'_> {
+    /// Vanilla containers and `WorldlyContainerHolder`s keep their direct automation path.
+    /// This owner check borrows storage; it never builds a container view on the tick path.
+    pub(super) fn vanilla_automation_container(&self, pos: Pos) -> bool {
+        use horizon_client::containers::BlockEntity;
+        match self.world.block_entities.get(&pos) {
+            Some(
+                BlockEntity::Mod(_)
+                | BlockEntity::Beehive(_)
+                | BlockEntity::Campfire(_)
+                | BlockEntity::Brushable(_)
+                | BlockEntity::EndPortal,
+            ) => false,
+            Some(entity) if !entity.slots().is_empty() => true,
+            _ => matches!(
+                self.res
+                    .facts()
+                    .get(self.world.block(pos.0, pos.1, pos.2))
+                    .name
+                    .as_ref(),
+                "minecraft:composter" | "minecraft:decorated_pot"
+            ),
+        }
+    }
+    /// `HopperBlockEntity.inventoryFull`: every slot holds exactly a full item stack.
+    pub(super) fn hopper_is_stacked(&self, view: &View) -> bool {
+        let c = self.containers();
+        (0..view.len()).all(|slot| {
+            c.get(view, slot)
+                .is_some_and(|stack| stack.count == c.max_stack(stack))
+        })
+    }
+    /// `DropperBlock.dispenseFrom`: always commit a storage attempt, including refusal.
+    /// Accepted source removal precedes root-commit callbacks that can re-enter the source.
+    pub(super) fn dropper_into_part(
+        &mut self,
+        part: &mod_api::Capability<dyn mod_api::ResourceHandler<mod_api::ItemResource>>,
+        stack: &ItemStack,
+        at: [i32; 3],
+        source: &View,
+        slot: usize,
+    ) -> bool {
+        use crate::game::api_values::TryIntoApi;
+        let Ok(snapshot) = stack.try_into_api() else {
+            return false;
+        };
+        let resource = mod_api::ItemResource::of(&snapshot);
+        mod_api::run_transaction(self, |game, tx| {
+            let went = part.insert_any(game, tx, &resource, 1);
+            let accepted = part.checked(went, 1, &at) == Some(1);
+            if accepted {
+                if let Some((pos, index)) = source.locate(slot) {
+                    game.journal_block_entity_slot(pos, index);
+                }
+                let _ = game.take_one(source, slot);
+            }
+            Ok::<_, ()>(accepted)
+        })
+        .unwrap_or(false)
+    }
     /// The level in place (`minecraft:overworld`), for a hook that isn't told
     /// which it runs in.
     pub(in crate::game) fn dimension(&self) -> &'static str {
@@ -96,9 +156,8 @@ impl Game<'_> {
     /// write there changes nothing else, else each block entity of the view whole.
     fn journal_view_slot(&mut self, view: &View, slot: usize) {
         let slot_only = match view.kind {
-            // A chest's, barrel's, dispenser's, dropper's or shelf's slot, a shulker box's, a
-            // mod container's: the slot is all a write changes (setChanged waits for the root
-            // commit).
+            // Plain item slots: no state beside the slot changes. Vanilla containers defer
+            // their implicit notice; mod-owned storage writes remain silent.
             Kind::Generic | Kind::Shulker | Kind::Mod => true,
             // State beside the slot: filling an empty input restarts a furnace's cooking; an
             // insert into an empty hopper sets its cooldown; a jukebox's disc starts its song;
@@ -119,9 +178,9 @@ impl Game<'_> {
             self.journal_block_entity(part);
         }
     }
-    /// `view_changed` of a capability write, at the root commit of its transaction.
+    /// Game-held vanilla containers coalesce their implicit notice at the root commit.
     fn view_told(&mut self, view: &View) {
-        if let Kind::Composter(_) = view.kind {
+        if matches!(view.kind, Kind::Composter(_) | Kind::Mod) {
             return;
         }
         for &(pos, _) in &view.parts {
@@ -415,3 +474,11 @@ mod tests {
         assert_eq!(view(Kind::Furnace, 3).slots_to_add(None), [0, 1, 2]);
     }
 }
+
+#[cfg(test)]
+#[path = "storage_attempt_tests.rs"]
+mod storage_attempt_tests;
+
+#[cfg(test)]
+#[path = "storage_attempt_wasm_tests.rs"]
+mod storage_attempt_wasm_tests;

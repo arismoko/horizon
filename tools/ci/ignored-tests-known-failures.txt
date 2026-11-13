@@ -39,6 +39,7 @@ horizon-client game::native_server::wasm_selector_tests::wasm_server_tick_messag
 horizon-client game::native_hooks::math::tests::compiled_wasm_math_profile_import_matches_actual_game_host HORIZON_WASM_FIXTURE needs
 horizon-client game::payload_transport::wasm_tests::compiled_guest_runs_in_actual_game_roots HORIZON_WASM_FIXTURE needs
 horizon-client game::payload_transport::wasm_config_tests::compiled_guest_runs_on_configuration_connection_thread HORIZON_WASM_FIXTURE needs
+horizon-client game::machines::native_items::storage_attempt_wasm_tests::compiled_guest_storage_notifies_reentrantly_before_actual_hopper_abort HORIZON_WASM_FIXTURE needs
 horizon-client game::remote::interaction_event_tests::interaction_event_wasm_tests::wasm_interaction_shared_matrix HORIZON_WASM_FIXTURE needs
 horizon-client-lib raw_payloads::wasm_tests::compiled_guest_observes_physical_provider_pressure HORIZON_WASM_FIXTURE needs
 

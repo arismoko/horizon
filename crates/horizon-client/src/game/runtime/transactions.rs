@@ -1,13 +1,13 @@
 //! `host.transaction` (#41 §7): NeoForge 26.3's `Transaction` and `SnapshotJournal`, kept by
 //! the game at the storage level, so a mod's handlers hold no state and write no journal.
 //!
-//! A write through a capability helper inside a transaction applies in place, so later steps
-//! see it; the first write to a storage at each depth keeps that storage as it was. What a
-//! write would tell the world (`setChanged` and comparators, a jukebox starting or stopping, a
-//! cauldron's block update, an item dropped) waits for the root commit and then runs once,
-//! as `SnapshotJournal.onRootCommit` does. A nested commit hands its snapshots and waiting
-//! work to the transaction around it; an abort puts every storage back quietly and drops the
-//! waiting work, which nothing outside had seen.
+//! A capability write applies in place and keeps its storage's first before-image per depth.
+//! Game-held vanilla containers defer implicit changed/comparator effects to root commit;
+//! nested commits hand their snapshots and waiting work to the parent. An abort restores
+//! storage quietly and discards those commit effects. Raw mod-owned storage writes and
+//! restores synthesize no notice. Explicit notifications a mod issues run immediately and
+//! survive abort: the journal restores storage, not observer calls or scheduled comparator
+//! ticks that already happened.
 //!
 //! Covered here: block entities (slots, saved compound, custom name, lock, loot roll, attachments), a hopper's cooldown and
 //! cauldron block states. The attachment map of every other holder (an entity, a player, a
@@ -41,6 +41,8 @@ type Pos = (i32, i32, i32);
 pub(super) struct OpenTransactions {
     levels: Vec<Level>,
     closing: Option<TransactionLifecycle>,
+    #[cfg(test)]
+    pub(in crate::game) trace: Option<std::sync::Arc<std::sync::Mutex<Vec<String>>>>,
 }
 
 impl std::ops::Deref for OpenTransactions {
@@ -196,10 +198,6 @@ pub(super) enum After {
     Cauldron(super::cauldron_interactions::Effects),
     /// `BlockEntity.setChanged`.
     Changed(Pos),
-    /// `BlockEntity.setChanged` and `Level.sendBlockUpdated` after its data was loaded.
-    Updated(Pos),
-    /// `Level.sendBlockUpdated` alone, without marking the save dirty.
-    NotifyClients(Pos),
     /// A provider's answer changed here (`level_invalidate_capabilities`): the capability
     /// generation moves on.
     Capabilities(Pos),
@@ -266,6 +264,13 @@ impl Level {
 }
 
 impl Game<'_> {
+    /// Actual transaction/restore events for storage-attempt regression traces.
+    #[cfg(test)]
+    pub(in crate::game) fn trace_storage_attempt(&self, entry: String) {
+        if let Some(trace) = &self.transactions.trace {
+            trace.lock().unwrap().push(entry);
+        }
+    }
     /// Opens a transaction, nested in the open one if any (`Transaction.open`), and gives back
     /// the seal that ends it.
     pub(in crate::game) fn transaction_open(&mut self) -> TransactionSeal {
@@ -284,6 +289,8 @@ impl Game<'_> {
             dimension: Some(self.dim),
             ..Level::default()
         });
+        #[cfg(test)]
+        self.trace_storage_attempt("open".into());
         if let Some(key) = &mut self.block_entity_tick_key {
             key.unbalanced = true;
         }
@@ -356,6 +363,10 @@ impl Game<'_> {
         // that panics leaves the phase as it was.
         let outer = self.transactions.closing.replace(closing);
         let guard = ClosingPhase { game: self, outer };
+        #[cfg(test)]
+        guard
+            .game
+            .trace_storage_attempt(if commit { "commit" } else { "abort" }.into());
         guard.game.close_level(level, commit);
     }
     /// What closing `level` does, with the closing phase already set.
@@ -664,8 +675,6 @@ impl Game<'_> {
             After::Packet(packet) => packet.publish(),
             After::Cauldron(effects) => self.commit_cauldron_effects(effects),
             After::Changed(pos) => self.container_changed(pos),
-            After::Updated(pos) => self.block_entity_updated(pos),
-            After::NotifyClients(pos) => self.notify_block_clients(pos),
             After::Capabilities(pos) => self.world.capability_generations.invalidate(pos),
 
             After::BreakProgress(breaker, pos, progress) => {
@@ -842,6 +851,13 @@ impl Game<'_> {
                 .and_then(|entity| entity.slots_mut().get_mut(slot))
             {
                 *target = kept.stack;
+                #[cfg(test)]
+                if let Some(trace) = &self.transactions.trace {
+                    trace
+                        .lock()
+                        .unwrap()
+                        .push(format!("restore:{},{},{}:{slot}", pos.0, pos.1, pos.2));
+                }
             }
         }
         let bottom_quart = self.world.bottom_y() >> 2;

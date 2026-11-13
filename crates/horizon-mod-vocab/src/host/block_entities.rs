@@ -122,9 +122,9 @@ pub trait BlockEntitiesBackendMut {
         data: Compound,
     ) -> Result<bool, BlockEntityError>;
     /// Side: server.
-    /// `BlockEntity.setChanged`: the chunk is saved again and comparators re-read the
-    /// container (`updateNeighbourForOutputSignal`). Inside a transaction it runs once at the
-    /// root commit. Returns Stale for an invalidated handle or a level not writable here.
+    /// `BlockEntity.setChanged`: mark the chunk and notify comparators immediately, even
+    /// inside a transaction and for equal contents. Aborting storage does not undo an issued
+    /// notification. Returns Stale for an invalidated handle or a level not writable here.
     #[access(WorldOnly)]
     fn block_entity_set_changed(
         &mut self,
@@ -142,9 +142,9 @@ pub trait BlockEntitiesBackendMut {
         name: Option<&str>,
     ) -> Result<bool, BlockEntityError>;
     /// Side: server.
-    /// Set a mod block entity's menu data slot in place, joining the current transaction
-    /// and its setChanged notice. Ok(false) for a vanilla entity, an invalid slot or
-    /// no change; Stale for an invalidated or unwritable handle. Does not resize slots.
+    /// Set a mod block entity's menu data slot in place, joining the current transaction.
+    /// This raw storage write issues no notification; call set_changed explicitly if needed.
+    /// Ok(false) for a vanilla entity, invalid slot or no change. Does not resize slots.
     #[access(WorldOnly)]
     fn block_entity_set_data_slot(
         &mut self,
@@ -153,8 +153,8 @@ pub trait BlockEntitiesBackendMut {
         value: i32,
     ) -> Result<bool, BlockEntityError>;
     /// Side: server.
-    /// Sizes a mod block entity's menu data explicitly, using the same write
-    /// target, journal and Changed notice as scalar data-slot writes.
+    /// Sizes a mod block entity's menu data explicitly, using the same silent storage write
+    /// and journal as scalar data-slot writes.
     /// Removed, replaced or reloaded holders return BlockEntityDataError::Stale.
     #[access(WorldOnly)]
     fn block_entity_set_data_slots(
@@ -163,8 +163,8 @@ pub trait BlockEntitiesBackendMut {
         values: Vec<i32>,
     ) -> Result<bool, BlockEntityDataError>;
     /// Side: server.
-    /// Replace internal storage under the existing transaction; external ITEMS routing is separate.
-    /// Removed, replaced or reloaded holders return BlockEntityItemError::Stale.
+    /// Replace internal storage silently under the existing transaction; ITEMS routing is
+    /// separate. Removed, replaced or reloaded holders return BlockEntityItemError::Stale.
     #[access(WorldOnly)]
     fn block_entity_set_item_slot(
         &mut self,
