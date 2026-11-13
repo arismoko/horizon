@@ -107,6 +107,12 @@ fn intangible_projectile_recipe_decodes_maps_and_matches_borrowed_units() {
             .is_none()
     );
     assert!(absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+    let mut populated = ItemStack::new("minecraft:stone", 1);
+    populated.data_mut().set_other(
+        "minecraft:intangible_projectile",
+        Some(Tag::Compound(Default::default())),
+    );
+    assert!(!absent.test_in(&context, &populated));
 }
 
 #[test]
@@ -116,44 +122,65 @@ fn intangible_projectile_invalid_payload_rejects_whole_recipe_with_component_err
     let load = load();
     for value in [
         serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
         serde_json::json!(0),
         serde_json::json!("unit"),
         serde_json::json!([]),
     ] {
-        let patch = serde_json::json!({"minecraft:intangible_projectile":value});
-        let rule = IngredientRule::Components {
-            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
-            removed: vec![],
-            strict: false,
-        };
-        assert!(
-            super::components::validate(&rule, &items)
-                .unwrap_err()
-                .contains("component minecraft:intangible_projectile:")
-        );
         let ingredient = serde_json::json!({
             "type":"neoforge:components",
             "items":"minecraft:arrow",
-            "components":patch
+            "components":{"minecraft:intangible_projectile":value}
         });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:intangible_projectile:"),
+            "{value}: {error}"
+        );
         assert!(Ingredient::parse(&ingredient, &items).is_none());
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
             &horizon_world::loot::PackOverlay::NONE,
-            vec![(
-                "fixture:invalid_intangible_projectile".into(),
-                serde_json::json!({
-                    "type":"minecraft:crafting_shapeless",
-                    "ingredients":[ingredient],
-                    "result":{"id":"minecraft:diamond"}
-                }),
-            )],
+            vec![
+                (
+                    "fixture:invalid_intangible_projectile".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless",
+                        "ingredients":[ingredient],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_companion".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless",
+                        "ingredients":["minecraft:arrow"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
             &load,
         )
         .unwrap();
-        assert!(recipes.crafting.is_empty());
-        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+        assert_eq!(recipes.crafting.len(), 1, "{value}");
+        let context = load.loop_context(LoopSide::Server, []);
+        let grid = [Some(ItemStack::new("minecraft:arrow", 1))];
+        assert!(recipes.recipe_matches(&context, "fixture:valid_companion", &grid, 1));
+        assert!(!recipes.recipe_matches(
+            &context,
+            "fixture:invalid_intangible_projectile",
+            &grid,
+            1
+        ));
+        let indexed: Vec<_> = recipes
+            .by_type
+            .values()
+            .flat_map(|recipes| recipes.iter())
+            .map(|recipe| recipe.id.as_str())
+            .collect();
+        assert_eq!(indexed, ["fixture:valid_companion"], "{value}");
     }
 }
 #[test]
