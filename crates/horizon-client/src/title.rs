@@ -4117,20 +4117,6 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
         if self.rules.get_mut().is_some() {
             return;
         }
-        if matches!(self.mode, Mode::MissingMods { .. })
-            && self.focused_button.is_none()
-            && matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown)
-        {
-            let before = self.scroll.get().amount;
-            self.scroll_worlds(
-                if key == KeyCode::ArrowUp { 1.0 } else { -1.0 },
-                (0.0, 0.0),
-                size,
-            );
-            if self.scroll.get().amount != before {
-                return;
-            }
-        }
         if self.has_caret_field() {
             return;
         }

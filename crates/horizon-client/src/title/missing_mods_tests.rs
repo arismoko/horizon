@@ -184,7 +184,7 @@ fn long_text_keeps_all_three_actions_inside_narrow_viewport() {
 }
 
 #[test]
-fn arrow_keys_scroll_overflow_but_navigate_actions_when_text_fits() {
+fn page_keys_scroll_independently_of_action_focus() {
     let mut f = Fixture::new();
     f.title.ask_missing_mods("Gone", vec![gone()]);
     f.title.message_lines.set(100);

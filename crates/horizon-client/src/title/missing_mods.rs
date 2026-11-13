@@ -41,6 +41,30 @@ pub(super) fn screen_info(missing: &[MissingMod]) -> crate::widgets::ScreenInfo 
 }
 
 impl Title {
+    /// Page keys scroll the complete warning regardless of which action has focus.
+    /// Arrow keys remain available for ordinary action navigation.
+    pub fn page_missing_mods(&mut self, key: winit::keyboard::KeyCode, (w, h): (f32, f32)) -> bool {
+        use winit::keyboard::KeyCode;
+        if !matches!(self.mode, Mode::MissingMods { .. }) {
+            return false;
+        }
+        let top = 36.0;
+        let bottom = top + ((h - if w < 324.0 { 88.0 } else { 64.0 } - top) / 9.0).floor() * 9.0;
+        let content = self.message_lines.get() as f32 * 9.0;
+        let mut scroll = self.scroll.get();
+        let page = (bottom - top).max(9.0);
+        scroll.amount = match key {
+            KeyCode::PageUp => scroll.amount - page,
+            KeyCode::PageDown => scroll.amount + page,
+            KeyCode::Home => 0.0,
+            KeyCode::End => content,
+            _ => return false,
+        };
+        scroll.clamp(top, bottom, content);
+        self.scroll.set(scroll);
+        true
+    }
+
     /// Shows the question for the world in `folder`, whose `missing` mods no listener resolved.
     pub fn ask_missing_mods(&mut self, folder: &str, missing: Vec<MissingMod>) {
         let world = list_worlds(&self.saves)
