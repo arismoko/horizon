@@ -18,7 +18,7 @@ use horizon_core::{
 use mod_api::ExplosionStart;
 #[cfg(test)]
 use mod_api::ItemDrop;
-use std::{cmp::Ordering, io};
+use std::{cmp::Ordering, collections::HashSet, io};
 use {
     horizon_core::java_hash_map::{JavaHashMap, JavaKey},
     horizon_world::{
@@ -160,6 +160,14 @@ pub(super) enum BlockInteraction {
     Keep,
     Destroy,
     DestroyWithDecay,
+    /// `TRIGGER_BLOCK`: nothing breaks; buttons, doors and the like react.
+    Trigger,
+}
+impl BlockInteraction {
+    /// `Explosion.BlockInteraction.shouldAffectBlocklikeEntities`.
+    fn affects_blocklike(self) -> bool {
+        matches!(self, Self::Destroy | Self::DestroyWithDecay)
+    }
 }
 
 /// Properties of the direct entity passed to `ServerLevel.explode`.
@@ -201,7 +209,7 @@ pub(super) fn blast_reaches(center: [f64; 3], diameter: f64, at: [f64; 3]) -> bo
 /// blast that keeps blocks; with it on, none (no wind charge goes through
 /// `server_explode`).
 fn items_ignore_explosion(mob_griefing: bool, interaction: BlockInteraction) -> bool {
-    !mob_griefing && interaction == BlockInteraction::Keep
+    !mob_griefing && !interaction.affects_blocklike()
 }
 
 /// Whether a blast leaves item frames, paintings, cushions and armour stands
@@ -218,7 +226,7 @@ pub(super) fn blast_spares_decorations(
     source_in_water: bool,
 ) -> bool {
     // `BlockAttachedEntity.ignoreExplosion`: a source in water first.
-    source_in_water || mob_refused || (!mob_griefing && interaction == BlockInteraction::Keep)
+    source_in_water || mob_refused || (!mob_griefing && !interaction.affects_blocklike())
 }
 
 /// How far the blast's `center` is from `p`.
@@ -479,23 +487,30 @@ impl Game<'_> {
         }
         hits as f32 / count as f32
     }
-    /// What a ray's step through the block at `pos` takes from its power
-    /// (`ExplosionDamageCalculator.getBlockExplosionResistance`), and whether
-    /// the block is spared.
-    fn blast_step<S: std::hash::BuildHasher>(
+    /// What the cell at `pos` resists the blast `explosion` with
+    /// (`ExplosionDamageCalculator.getBlockExplosionResistance` and the
+    /// calculators that replace it, as `rules` has them): None for no
+    /// resistance at all, which costs a ray only its step. Also whether the
+    /// block is spared. With `answers`, a state whose parts declare their
+    /// answer pure is asked once and answered from there after. The level is
+    /// not changed.
+    pub(super) fn cell_explosion_resistance(
         &mut self,
         pos: [i32; 3],
-        resists: Option<([i32; 3], f32)>,
-        cap: Option<f32>,
-        portal_proof: bool,
-        wither_immune: Option<&std::collections::HashSet<String, S>>,
+        rules: &BlastRules,
         explosion: &ExplosionStart<'_>,
-    ) -> (f32, bool) {
+        answers: Option<&mut PartAnswers>,
+    ) -> (Option<f32>, bool) {
         let state = self.world.block(pos[0], pos[1], pos[2]);
         let f = self.res.facts().get(state);
+        // SimpleExplosionDamageCalculator: its immune blocks resist, and
+        // nothing else does, a fluid included.
+        if let Some(immune) = &rules.immune {
+            return (immune.contains(&*f.name).then_some(3_600_000.0), false);
+        }
         // USED_PORTAL_DAMAGE_CALCULATOR returns no resistance and never explodes a portal.
-        if portal_proof && &*f.name == "minecraft:nether_portal" {
-            return (0.0, true);
+        if rules.portal_proof && &*f.name == "minecraft:nether_portal" {
+            return (None, true);
         }
         let fluid = if f.fluid != Fluid::None {
             100.0f32
@@ -504,17 +519,20 @@ impl Game<'_> {
         };
         // A primed TNT minecart's rails and the blocks they
         // stand on: no resistance, and never blown up.
-        let spared = self.combat.rail_proof_blast
+        let spared = rules.rail_proof
             && (self.rail(None, pos[0], pos[1], pos[2]).is_some()
                 || self.rail(None, pos[0], pos[1] + 1, pos[2]).is_some());
-        let taken = match resists {
-            Some((at, resistance)) if at == pos => (resistance + 0.3) * 0.3,
+        let resistance = match rules.resists {
+            Some((at, resistance)) if at == pos => Some(resistance),
             _ if !self.res.facts().is_air(state) || f.fluid != Fluid::None => {
-                let immune = wither_immune.is_some_and(|t| t.contains(&*f.name));
+                let immune = rules
+                    .wither_immune
+                    .as_ref()
+                    .is_some_and(|t| t.contains(&*f.name));
                 let own = f.explosion_resistance;
                 // WitherBoss.canDestroy for the skull's cap, or what the
                 // block's parts answer for the skull.
-                let kept = match (cap, self.combat.explosion_direct) {
+                let kept = match (rules.cap, rules.direct) {
                     (Some(_), Some(skull)) => !self.entity_may_destroy(skull, pos, !immune),
                     _ => immune,
                 };
@@ -522,15 +540,45 @@ impl Game<'_> {
                 let base = if spared {
                     0.0
                 } else {
-                    self.part_explosion_resistance(pos, state, explosion)
-                        .unwrap_or(own)
-                        .max(fluid)
+                    let asked = match answers {
+                        Some(answers)
+                            if crate::game::api_values::block_state::explosion_resistance_pure(
+                                state,
+                            ) =>
+                        {
+                            *answers.entry(state).or_insert_with(|| {
+                                self.part_explosion_resistance(pos, state, explosion)
+                            })
+                        }
+                        _ => self.part_explosion_resistance(pos, state, explosion),
+                    };
+                    asked.unwrap_or(own).max(fluid)
                 };
-                (blast_resistance(base, cap, kept) + 0.3) * 0.3
+                Some(blast_resistance(base, rules.cap, kept))
             }
-            _ => 0.0,
+            _ => None,
         };
-        (taken, spared)
+        (resistance, spared)
+    }
+    /// The rules of the blast going off now, `resists` overriding one block's
+    /// resistance and `portal_proof` as its source has it.
+    fn blast_rules(&self, resists: Option<([i32; 3], f32)>, portal_proof: bool) -> BlastRules {
+        let cap = self.combat.blast_resistance_cap;
+        BlastRules {
+            resists,
+            cap,
+            direct: self.combat.explosion_direct,
+            // WitherSkull.getBlockExplosionResistance: a dangerous skull's blast
+            // caps a block the wither may destroy at 0.8.
+            wither_immune: cap.and_then(|_| self.block_tag_blocks("minecraft:wither_immune")),
+            rail_proof: self.combat.rail_proof_blast,
+            portal_proof,
+            immune: None,
+        }
+    }
+    /// The blocks of tag `tag`, if the game has it.
+    pub(super) fn block_tag_blocks(&self, tag: &str) -> Option<HashSet<String>> {
+        self.res.items().block_tags.get(tag).cloned()
     }
     /// `ServerExplosion.calculateExplodedPositions`; `resists` overrides one
     /// block's resistance (`ExplosionDamageCalculator.getBlockExplosionResistance`).
@@ -546,16 +594,7 @@ impl Game<'_> {
             use horizon_world::level::LevelAccess;
             (level.min_y(), level.max_y())
         });
-        // WitherSkull.getBlockExplosionResistance: a dangerous skull's blast
-        // caps a block the wither may destroy at 0.8.
-        let cap = self.combat.blast_resistance_cap;
-        let wither_immune = cap.and_then(|_| {
-            self.res
-                .items()
-                .block_tags
-                .get("minecraft:wither_immune")
-                .cloned()
-        });
+        let rules = self.blast_rules(resists, portal_proof);
         let mut set: JavaHashMap<Key, ()> = JavaHashMap::default();
         for xx in 0..16 {
             for yy in 0..16 {
@@ -589,14 +628,9 @@ impl Game<'_> {
                         let (taken, spared, again) = match last {
                             Some((at, taken, spared)) if at == pos => (taken, spared, true),
                             _ => {
-                                let (taken, spared) = self.blast_step(
-                                    pos,
-                                    resists,
-                                    cap,
-                                    portal_proof,
-                                    wither_immune.as_ref(),
-                                    explosion,
-                                );
+                                let (resistance, spared) =
+                                    self.cell_explosion_resistance(pos, &rules, explosion, None);
+                                let taken = resistance.map_or(0.0, |r| (r + 0.3) * 0.3);
                                 last = Some((pos, taken, spared));
                                 (taken, spared, false)
                             }
@@ -655,6 +689,11 @@ impl Game<'_> {
         .sqrt()
             / diameter;
         if dist > 1.0 {
+            return None;
+        }
+        // `getEntities(this.source, ...)`: a player that is the blast's source is spared.
+        let acting = self.lan_acting_entity.or(Some(p.entity_id as u32));
+        if self.combat.explosion_source_named && exploding == acting {
             return None;
         }
         // ServerPlayer.onExplosionHit: the blast that hit the player is theirs.
@@ -1410,6 +1449,33 @@ impl Game<'_> {
         }
     }
 
+    /// The blast going off now as the hooks hear it, with the source and
+    /// causing entity the combat state holds.
+    pub(super) fn explosion_start<'a>(
+        &self,
+        center: [f64; 3],
+        radius: f32,
+        interaction: BlockInteraction,
+        fire: bool,
+        damage_type: &'a str,
+    ) -> ExplosionStart<'a> {
+        ExplosionStart::from(mod_api::__private::built::ExplosionStart {
+            dimension: self.dim.id(),
+            center,
+            radius,
+            fire,
+            interaction: match interaction {
+                BlockInteraction::Keep => mod_api::BlockInteraction::Keep,
+                BlockInteraction::Destroy => mod_api::BlockInteraction::Destroy,
+                BlockInteraction::DestroyWithDecay => mod_api::BlockInteraction::DestroyWithDecay,
+                BlockInteraction::Trigger => mod_api::BlockInteraction::TriggerBlock,
+            },
+            damage_type,
+            source: self.combat.explosion_source,
+            // `getIndirectSourceEntity`, as the blast's attacker is.
+            owner: self.blast_attacker().map(|(id, _)| id),
+        })
+    }
     /// `server_explode` with the damage type the player takes and a block
     /// whose explosion resistance the damage calculator overrides.
     pub(super) fn server_explode_as(
@@ -1441,21 +1507,7 @@ impl Game<'_> {
         resists: Option<([i32; 3], f32)>,
         source: ExplosionSource,
     ) -> Result<()> {
-        let start = ExplosionStart::from(mod_api::__private::built::ExplosionStart {
-            dimension: self.dim.id(),
-            center,
-            radius,
-            fire,
-            interaction: match interaction {
-                BlockInteraction::Keep => mod_api::BlockInteraction::Keep,
-                BlockInteraction::Destroy => mod_api::BlockInteraction::Destroy,
-                BlockInteraction::DestroyWithDecay => mod_api::BlockInteraction::DestroyWithDecay,
-            },
-            damage_type,
-            source: self.combat.explosion_source,
-            // `getIndirectSourceEntity`, as the blast's attacker is.
-            owner: self.blast_attacker().map(|(id, _)| id),
-        });
+        let start = self.explosion_start(center, radius, interaction, fire, damage_type);
         if self.serving.is_some() || self.options.dedicated.is_some() {
             if self.explosion_start_cancelled(&start) {
                 return Ok(());
@@ -1483,7 +1535,9 @@ impl Game<'_> {
         self.native_explosion_detonate(dimension, center, &mut targets);
         let pushed =
             self.explosion_hurt_entities(center, radius, damage_type, interaction, &targets);
-        if interaction != BlockInteraction::Keep {
+        if interaction == BlockInteraction::Trigger {
+            self.explosion_trigger_blocks(&mut targets)?;
+        } else if interaction != BlockInteraction::Keep {
             // Util.shuffle(list, level.random)
             for i in (2..=targets.len()).rev() {
                 let swap = self.world.random.next_int_bound(i as i32).unwrap_or(0) as usize;
@@ -1721,7 +1775,8 @@ impl Game<'_> {
                         (Some(Who::Player), self.combat.blast_guest)
                     }
                     Some((id, _)) => (Some(Who::Mob(*id)), None),
-                    None => (None, None),
+                    // The mob that causes it (a creeper, a mod blast's source).
+                    None => (self.blast_attacker().map(|(id, _)| Who::Mob(id)), None),
                 },
             };
             self.add_primed_tnt(
@@ -1935,6 +1990,33 @@ fn add_or_append_stack(
     }
     piece(stacks.len(), stack.count);
     stacks.push((pos, stack));
+}
+
+/// The answers of the parts that declare their explosion resistance pure, by
+/// state, for one read.
+pub(super) type PartAnswers = std::collections::HashMap<BlockStateId, Option<f32>>;
+
+/// What decides a blast's resistance in a cell besides the cell itself: the
+/// damage calculator's overrides (`ExplosionDamageCalculator` and the ones
+/// that replace it).
+#[derive(Default)]
+pub(super) struct BlastRules {
+    /// One block that resists this much (a respawn anchor's water cell).
+    pub(super) resists: Option<([i32; 3], f32)>,
+    /// A dangerous wither skull's cap on what the wither may destroy.
+    pub(super) cap: Option<f32>,
+    /// The blast's direct source, which `cap` asks about the block.
+    pub(super) direct: Option<u32>,
+    /// `#wither_immune`, read while `cap` is set.
+    pub(super) wither_immune: Option<HashSet<String>>,
+    /// A primed TNT minecart's: its rails and the blocks under them neither
+    /// resist nor break.
+    pub(super) rail_proof: bool,
+    /// `USED_PORTAL_DAMAGE_CALCULATOR`: a nether portal neither resists nor breaks.
+    pub(super) portal_proof: bool,
+    /// `SimpleExplosionDamageCalculator`'s immune blocks, which replace every
+    /// other rule: they resist 3,600,000 and nothing else resists, a fluid included.
+    pub(super) immune: Option<HashSet<String>>,
 }
 
 /// `WitherSkull.getBlockExplosionResistance`: `isDangerous() &&
@@ -2858,6 +2940,7 @@ mod explicit_source_tests {
                     let level = game.level("minecraft:overworld").unwrap();
                     assert!(game.level_explode(
                         level,
+                        None,
                         center,
                         2.0,
                         false,

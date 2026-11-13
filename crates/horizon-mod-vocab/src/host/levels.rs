@@ -1226,21 +1226,72 @@ pub trait LevelsBackendMut {
         b: i32,
     ) -> bool;
     /// Side: server.
-    /// Explodes at `center` with no source entity, as `Level.explode(null,
-    /// x, y, z, radius, fire, interaction)` does (`native_explode`): `fire`
-    /// lights some of the air around, `interaction` says what happens to
-    /// blocks: `None`, `Block` or `Tnt` (vanilla's `Mob` and `Trigger` aren't
-    /// offered yet). False for a chunk that isn't loaded or a radius outside
-    /// `0 < radius <= 32`.
+    /// Explodes at `center` as `Level.explode(source, x, y, z, radius, fire,
+    /// interaction)` does (`native_explode`), `source` being the exploding
+    /// entity, or none. The causing entity comes from it, never from the
+    /// caller: a primed TNT's owner, a living entity itself, a projectile's
+    /// owner when that is living, else none. With both the damage is
+    /// `minecraft:player_explosion`, else `minecraft:explosion`, and a kill
+    /// credits the causing entity. `interaction` says what happens to blocks
+    /// (`Mob` asks the source's `entity_mob_griefing`, `Trigger` only works
+    /// buttons, levers, doors and the like); `fire` lights some of the air
+    /// around whatever it is. False, with nothing exploded, for a stale
+    /// `source` or one in another level, a chunk that isn't loaded or a
+    /// radius outside `0 < radius <= 32`.
     #[access(WorldOnly)]
     fn level_explode(
         &mut self,
         level: LevelRef,
+        source: Option<EntityRef>,
         center: [f64; 3],
         radius: f32,
         fire: bool,
         interaction: ExplosionInteraction,
     ) -> bool;
+    /// Side: server.
+    /// The resistance the blast `level.explode(host, source, center, radius, fire, interaction)`
+    /// would set off would meet in the cell at `pos`, as its rays read it
+    /// (`ExplosionDamageCalculator.getBlockExplosionResistance`), without exploding anything. The
+    /// larger of the block's answer (its parts' `explosion_resistance` first, then its own value)
+    /// and the fluid's (water and lava 100); `NoResistance` for air with no fluid. The blast's
+    /// calculator follows its source as vanilla's does: a wind charge's names the
+    /// `#blocks_wind_charge_explosions` blocks, which resist 3,600,000, and nothing else resists,
+    /// a fluid included; a primed TNT minecart's rails and the blocks under them resist 0; a
+    /// dangerous wither skull caps a block it may destroy at 0.8. A respawn anchor's water cell
+    /// belongs to the anchor's own sourceless blast, which no description names, so no read sees
+    /// it. The causing entity and damage type come from `source` as for `explode`, and parts are
+    /// asked with that `ExplosionStart`. `Unavailable` for a stale level or `source`, a chunk
+    /// that isn't loaded (it is never loaded) or a state the game doesn't know; None only from a
+    /// host without a game. The level does not change.
+    #[access(WorldOnly)]
+    fn level_explosion_resistance(
+        &mut self,
+        level: LevelRef,
+        pos: [i32; 3],
+        source: Option<EntityRef>,
+        center: [f64; 3],
+        radius: f32,
+        fire: bool,
+        interaction: ExplosionInteraction,
+    ) -> Option<ExplosionResistance>;
+    /// Side: server.
+    /// `level_explosion_resistance` for every cell of `cells`, one answer a cell in the order
+    /// `cells` gives them. A part that declares its answer pure
+    /// (`BlockPart::explosion_resistance_is_pure`) is asked once a state per call; any other once
+    /// a cell. Refused, with nothing read, for an inverted area or more than
+    /// `ResistanceCells::MAX` (262,144) cells: it runs on the server tick, so read big areas in
+    /// pieces.
+    #[access(WorldOnly)]
+    fn level_explosion_resistances(
+        &mut self,
+        level: LevelRef,
+        cells: &ResistanceCells,
+        source: Option<EntityRef>,
+        center: [f64; 3],
+        radius: f32,
+        fire: bool,
+        interaction: ExplosionInteraction,
+    ) -> Result<Vec<ExplosionResistance>, ResistanceCellsError>;
     /// Side: server.
     /// Strikes lightning at `at`, as summoning a `minecraft:lightning_bolt`
     /// does: it sets fire, hurts and converts what it hits (a pig to a
