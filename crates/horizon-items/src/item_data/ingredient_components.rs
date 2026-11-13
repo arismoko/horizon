@@ -430,9 +430,7 @@ mod tests {
             "minecraft:ominous_bottle_amplifier",
         ] {
             let mut candidate = ItemStack::new("minecraft:stone", 1);
-            candidate
-                .data_mut()
-                .set_loot_component(id, &Some(Tag::Int(3)));
+            candidate.data_mut().set_other(id, Some(Tag::Int(3)));
             match id {
                 "minecraft:map_id" => candidate.data_mut().map_id = Some(4),
                 "minecraft:dyed_color" => candidate.data_mut().dyed_color = Some(4),
