@@ -240,7 +240,9 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         },
         // DyeColor.CODEC -> StringRepresentable.fromEnum: ordinary NbtOps uses
         // exact names, not the ordinal codec selected by compressMaps().
-        "minecraft:dye" | "minecraft:base_color" | "minecraft:sheep/color" => dye_color(t).map(|_| ()),
+        "minecraft:dye" | "minecraft:base_color" | "minecraft:sheep/color" => {
+            dye_color(t).map(|_| ())
+        }
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
         // DataComponents.ENCHANTMENT_GLINT_OVERRIDE: Codec.BOOL through NbtOps.
         "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)
@@ -1079,7 +1081,6 @@ mod tests {
             assert!(
                 decode_component(
                     "minecraft:dye",
-    "minecraft:sheep/color",
                     &Tag::String(name.to_uppercase().as_str().into()),
                     &registry
                 )
