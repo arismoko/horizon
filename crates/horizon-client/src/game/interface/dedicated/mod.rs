@@ -363,9 +363,8 @@ pub(super) fn preflight(options: &mut Options) -> Result<bool> {
     let mut world = None;
     let mut port = None;
     let mut init_settings = false;
-    let mut it = args.iter();
-    while let Some(arg) = it.next() {
-        let name = arg.trim_start_matches('-');
+    for argument in crate::entry::dedicated_arguments::parse(&args) {
+        let (name, value) = argument?;
         match name {
             "nogui"
             | "demo"
@@ -374,27 +373,28 @@ pub(super) fn preflight(options: &mut Options) -> Result<bool> {
             | "eraseCache"
             | "recreateRegionFiles"
             | "safeMode"
-            | "jfrProfile" => {}
+            | "jfrProfile"
+            | "game-tests" => {}
             "initSettings" => init_settings = true,
             "help" => {
                 eprintln!(
-                    "Option                Description\n------                -----------\n--help\n--initSettings        Initializes 'server.properties' and 'eula.txt', then quits\n--nogui\n--port <Integer>      (default: -1)\n--universe <String>   (default: .)\n--world <String>"
+                    "Option                Description\n------                -----------\n--help\n--game-tests          Enables test-only mod content (or HORIZON_GAME_TESTS=1/true)\n--initSettings        Initializes 'server.properties' and 'eula.txt', then quits\n--nogui\n--port <Integer>      (default: -1)\n--universe <String>   (default: .)\n--world <String>"
                 );
                 return Ok(false);
             }
-            "universe" => universe = PathBuf::from(it.next().ok_or("--universe needs a value")?),
-            "world" => world = Some(it.next().ok_or("--world needs a value")?.clone()),
+            "universe" => universe = PathBuf::from(value.expect("parsed operand")),
+            "world" => world = Some(value.expect("parsed operand").to_owned()),
             "port" => {
-                let v: i32 = it.next().ok_or("--port needs a value")?.parse()?;
+                let v: i32 = value.expect("parsed operand").parse()?;
                 port = u16::try_from(v).ok();
             }
             "serverId" | "pidFile" => {
-                let value = it.next().ok_or("missing value")?;
+                let value = value.expect("parsed operand");
                 if name == "pidFile" {
                     std::fs::write(value, std::process::id().to_string())?;
                 }
             }
-            _ => return Err(format!("{arg} is not a recognized option").into()),
+            _ => return Err(format!("{name} is not a recognized option").into()),
         }
     }
     let started = Instant::now();

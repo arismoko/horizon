@@ -21,7 +21,7 @@ pub trait Hooks {
     /// a breeze's deflection, for a hit on a wind charge, for fireworks or for
     /// fishing bobbers. A dragon part or End crystal is told by the id of the
     /// dragon or crystal. Heard only when a mod also sets
-    /// `native_hears_projectile_impacts`. Server-side.
+    /// `hears_projectile_impacts`. Server-side.
     #[hook(
         side = "server",
         contract = "cancel",

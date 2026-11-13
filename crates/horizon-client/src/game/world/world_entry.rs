@@ -478,6 +478,7 @@ impl Game<'_> {
         self.structure_spawns = structure_spawns;
         self.health_resources = health;
         self.server_items = None;
+        self.refresh_infiniburn();
         self.install_parts(parts);
         self.damage_tag_generation = self.damage_tag_generation.wrapping_add(1);
         self.forget_book();

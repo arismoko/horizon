@@ -2,7 +2,7 @@ use super::*;
 use crate::Sentiment;
 
 /// An attribute type a mod declares, as the game reads it when it grows the
-/// attribute catalog (`Catalog::with_attributes`, #812).
+/// attribute catalog (`Catalog::with_attributes`, ).
 #[derive(Clone, Debug)]
 // exhaustive: only registration builds it; the game reads it
 #[derive(horizon_mod_api_macros::Wire)]

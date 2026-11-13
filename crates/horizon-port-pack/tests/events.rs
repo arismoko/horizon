@@ -513,6 +513,7 @@ fn the_built_in_catalog_parses() {
         ("RenderTooltipEvent.Pre", "render_tooltip_pre"),
         // The system subclass is a name of its own to a tool reading listeners.
         ("ClientChatReceivedEvent.System", "client_chat_received"),
+        ("ClientChatReceivedEvent.Player", "client_chat_received"),
     ] {
         let (Status::Hooked(hooks), None) = c.status(counterpart) else {
             panic!("{counterpart} has no hook");

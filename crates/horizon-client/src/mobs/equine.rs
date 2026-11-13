@@ -1728,7 +1728,7 @@ mod follow_mommy_tests {
                 .map(|(i, (name, x, bred))| {
                     let mut m = mob(i as u32 + 2, name, Vec3::new(*x, 1.0, 0.5));
                     m.extra.bred = *bred;
-                    m.seen(None)
+                    m.seen(None, &crate::items::Items::empty())
                 })
                 .collect();
             let mut foal = mob(1, "minecraft:horse", Vec3::new(0.5, 1.0, 0.5));

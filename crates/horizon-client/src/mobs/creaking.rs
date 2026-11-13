@@ -545,7 +545,7 @@ mod tests {
     #[ignore = "requires prepared entity resources in .local/horizon-client"]
     fn activation_target_hook_cancels_and_redirects_without_suppressing_side_effects() {
         use super::super::TargetChange;
-        let others = [creaking().seen(None)];
+        let others = [creaking().seen(None, &crate::items::Items::empty())];
         assert!(with_world(&others, |world, _| {
             for outcome in [
                 TargetChange::Keep,

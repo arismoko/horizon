@@ -18,7 +18,7 @@ class AbortContext(unittest.TestCase):
                      "\n"
                      "thread 'game::capture' has overflowed its stack\n"
                      "fatal runtime error: stack overflow, aborting\n")
-        self.assertIn("  failed test: game::capture\n  process aborted: stack overflow\n", log)
+        self.assertIn("  failed test: game::capture\n  process aborted: stack overflow on test game::capture\n", log)
         self.assertNotIn("panic context missing", log)
 
     def test_a_server_threads_panic_and_the_abort_after_it_are_shown_without_payload(self):
@@ -26,7 +26,7 @@ class AbortContext(unittest.TestCase):
                      "thread 'Server thread' panicked at private.rs:1:1:\n"
                      "PRIVATE world name SecretWorld\n"
                      "thread 'Server thread' panicked while processing panic. aborting.\n")
-        self.assertIn("  process aborted: a panic while panicking\n"
+        self.assertIn("  process aborted: a panic while panicking on thread 'Server thread'\n"
                       "  on a non-test thread:\n"
                       "  panic location withheld (not a bounded tracked Rust location)\n"
                       "  panic reason: custom panic; payload withheld (resource privacy)\n", log)
@@ -35,6 +35,31 @@ class AbortContext(unittest.TestCase):
     def test_nothing_known_stays_missing(self):
         self.assertIn("panic context missing from captured output",
                       render("test game::capture ... FAILED\nsomething else\n"))
+
+
+class ProcessLevel(unittest.TestCase):
+    def test_a_crash_with_no_failed_test_still_names_the_abort_and_the_panicking_thread(self):
+        log = render("test game::a ... ok\n"
+                     "thread 'game::capture' has overflowed its stack\n"
+                     "fatal runtime error: stack overflow, aborting\n"
+                     "thread 'Server thread' panicked at private.rs:1:1:\n"
+                     "PRIVATE text\n")
+        self.assertIn("  no failed test named; process-level:\n"
+                      "  process aborted: stack overflow on test game::capture\n"
+                      "  panic on thread 'Server thread':\n", log)
+        self.assertNotIn("PRIVATE", log)
+
+    def test_an_odd_thread_name_is_withheld(self):
+        log = render("thread 'x\x1b[31m' has overflowed its stack\n")
+        self.assertIn("stack overflow on a thread (name withheld)", log)
+
+    def test_the_crash_report_names_long_runners_and_unreported_tests(self):
+        with contextlib.redirect_stdout(io.StringIO()) as log:
+            ci.crash_report("pkg", "test game::slow has been running for over 60 seconds\ntest game::a ... ok\n",
+                            {"game::a", "game::slow", "game::never"}, {"game::a": True})
+        out = log.getvalue()
+        self.assertIn("pkg: still running past 60 s when it crashed: game::slow\n", out)
+        self.assertIn("pkg: 2 listed tests never reported: game::never, game::slow\n", out)
 
 
 if __name__ == "__main__":

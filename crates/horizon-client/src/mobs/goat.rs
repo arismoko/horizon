@@ -736,7 +736,7 @@ mod ram_tests {
         let kind = fake_goat();
         let mut partner = Mob::new(9, kind.clone(), Vec3::new(2.5, 64.0, 0.5), 0.0);
         partner.extra.in_love = 600;
-        let others = [partner.seen(None)];
+        let others = [partner.seen(None, &crate::items::Items::empty())];
         let ran = with_test_world(&others, |w, _| {
             let mut damage = crate::health::TestLevel::new(0);
             let mut events = Vec::new();

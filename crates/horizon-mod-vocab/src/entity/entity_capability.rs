@@ -302,7 +302,7 @@ impl PlayerItems {
     fn place(&self, host: &dyn Host, index: usize) -> Option<ItemPlace> {
         live(host, self.entity).then(|| self.slot(index)).flatten()
     }
-    /// Index `index` as the player's slot, numbered as `native_inventory_tick` numbers them.
+    /// Index `index` as the player's slot, numbered as `inventory_tick` numbers them.
     fn slot(&self, index: usize) -> Option<ItemPlace> {
         let slot = match index {
             OFF_HAND => -106,

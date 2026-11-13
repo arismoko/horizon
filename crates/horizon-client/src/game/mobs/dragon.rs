@@ -3000,15 +3000,12 @@ impl Game<'_> {
                 }
             }
         }
-        // checkWalls over head, neck and body.
-        let griefing = self
-            .ui
-            .rules
-            .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING);
+        // checkWalls over head, neck and body (`canEntityGrief` for the dragon).
         let mut in_wall = false;
         let Some(d) = self.dragon.as_ref() else {
             return;
         };
+        let griefing = self.can_entity_grief(Some(d.id));
         let boxes = [d.part_box(0), d.part_box(1), d.part_box(2)];
         let dragon_id = d.id;
         let tags = &self.items().block_tags;

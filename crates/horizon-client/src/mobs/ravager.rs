@@ -143,8 +143,7 @@ pub fn ai_step(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) {
     // Entity.checkInsideBlocks -> CropBlock.entityInside: a ravager walking
     // through a crop destroys it, drops and all, with mobGriefing; a pitcher
     // crop (PitcherCropBlock.entityInside) goes the same way, both halves.
-    // Mods are asked through `can_grief` for each crop; a pitcher crop reads
-    // the rule alone.
+    // Mods are asked through `can_grief` for each crop, the pitcher crop too.
     if w.griefing_possible() {
         let b = m
             .bounds()
@@ -159,7 +158,7 @@ pub fn ai_step(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) {
                         | "minecraft:potatoes"
                         | "minecraft:beetroots"
                         | "minecraft:torchflower_crop" => w.can_grief(m.id),
-                        "minecraft:pitcher_crop" => w.mob_griefing,
+                        "minecraft:pitcher_crop" => w.can_grief(m.id),
                         _ => false,
                     };
                     if breaks {
@@ -416,6 +415,72 @@ mod tests {
                             breaker: Some(1),
                         }
                     )));
+                },
+            ));
+        }
+    }
+
+    /// A mod that lets the ravager grief against the rule (`canEntityGrief`)
+    /// has it trample a crop and a pitcher crop with `mobGriefing` off.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_mod_lets_the_ravager_trample_crops_with_the_rule_off() {
+        struct Allow;
+        impl crate::mobs::MobHooks for Allow {
+            fn enderman_anger_suppressed(&self, _: u32, _: &crate::mobs::PlayerView) -> bool {
+                false
+            }
+            fn can_grief(&self, _: u32, _: bool) -> bool {
+                true
+            }
+            fn grief_hooked(&self) -> bool {
+                true
+            }
+            fn living_visibility(&self, _: &crate::mobs::PlayerView, _: u32, v: f64) -> f64 {
+                v
+            }
+        }
+        for crop in ["minecraft:wheat", "minecraft:pitcher_crop"] {
+            let build =
+                |world: &mut crate::world::World,
+                 registry: &horizon_world::registry::BlockRegistry| {
+                    world
+                        .chunks
+                        .insert((0, 0), Arc::new(crate::chunk::Chunk::empty(0, 0)));
+                    let state = registry.default_state(crop).unwrap();
+                    world.set(0, 64, 0, state).unwrap();
+                };
+            assert!(super::super::world::with_built_test_world_rules(
+                &[],
+                false,
+                true,
+                build,
+                |world, types| {
+                    let ravager = || {
+                        Mob::new(
+                            1,
+                            Arc::new(types.types.get("minecraft:ravager").unwrap().clone()),
+                            Vec3::new(0.5, 64.0, 0.5),
+                            0.0,
+                        )
+                    };
+                    let tramples = |world: &MobWorld<'_>| {
+                        let mut events = Vec::new();
+                        ai_step(&mut ravager(), world, &mut events);
+                        events.iter().any(|e| {
+                            matches!(
+                                e,
+                                MobEvent::BreakBlock {
+                                    pos: [0, 64, 0],
+                                    ..
+                                }
+                            )
+                        })
+                    };
+                    assert!(!tramples(world), "{crop}: the rule off keeps it");
+                    let mut world = world.clone();
+                    world.mob_hooks = Some(&Allow);
+                    assert!(tramples(&world), "{crop}: the mod lets it trample");
                 },
             ));
         }

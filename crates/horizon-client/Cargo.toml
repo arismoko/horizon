@@ -173,6 +173,10 @@ path = "tests/mod_biome_sync.rs"
 name = "mod_api_hooks"
 path = "tests/mod_api_hooks.rs"
 
+[[test]]
+name = "skull_models"
+path = "tests/skull_models.rs"
+
 [lints]
 workspace = true
 

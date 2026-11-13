@@ -8,20 +8,20 @@ impl Game<'_> {
     /// when `overlay` is set; otherwise a player or disguised message in its
     /// chat type `chat_type` (`getBoundChatType`, its registry name; `None`
     /// for a system message or an inline chat type). `sender` is the player's
-    /// UUID, 0 (`Util.NIL_UUID`) for system and disguised messages. `message`
+    /// UUID, 0 (`Util.NIL_UUID`) for system and disguised messages.
+    /// `player_message` is the message as the player signed it
+    /// (`ClientChatReceivedEvent.Player.getPlayerChatMessage`): its body,
+    /// whether a signature validated, timestamp, salt, the server's unsigned
+    /// replacement and the filter mask; `None` for system and disguised
+    /// messages. `message`
     /// starts as the decorated line; replace it and the chat shows the new
     /// one, while the narrator still says the original. Set `cancel` and it
     /// doesn't show: a delayed message lets the next one through. Lines the
     /// client adds itself and validation errors are not told. Client-side.
     pub(in crate::game) fn native_client_chat_received(
         &mut self,
-        system: bool,
-        overlay: bool,
-        sender: u128,
-        chat_type: Option<&str>,
-        message: &mut Text,
-        cancel: &mut bool,
+        call: mod_api::__private::ClientChatReceivedCall<'_>,
     ) {
-        self.fire_client_chat_received(system, overlay, sender, chat_type, message, cancel);
+        self.fire_client_chat_received(call);
     }
 }

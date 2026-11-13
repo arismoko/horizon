@@ -3,13 +3,13 @@
 pub trait Hooks {
     /// Register client asset reload listeners before a reload stages its
     /// assets (NeoForge's `AddClientReloadListenersEvent`, the client's
-    /// counterpart of `native_add_server_reload_listeners`): the first load
+    /// counterpart of `add_server_reload_listeners`): the first load
     /// on the loader thread, then every later reload — the player
     /// changed resource packs, F3+T was pressed, or a server sent its packs.
     /// The listener's `prepare` then reads the merged asset view with
     /// resource-pack overrides resolved, and its returned apply publishes the
     /// parsed state, all applies after all prepares, before
-    /// `native_client_resources_reloaded`. A listener that returns an error
+    /// `client_resources_reloaded`. A listener that returns an error
     /// aborts the reload and keeps every listener's previous assets.
     /// Client-side, in Reloading nested in Setup initially and World later.
     /// Later registration is on the render thread, prepare on the loader,

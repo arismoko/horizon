@@ -12,8 +12,11 @@ pub trait Hooks {
     /// entering stone, a snow golem's snow, a fox's berries, a rabbit's
     /// carrots, a villager's farming, an evoker's sheep, a zombie trampling
     /// eggs, an allay's pickup, and a mob's arrow or small fireball changing
-    /// a block (asked for its owner). For doors, the dragon, pitcher crops,
-    /// weaving, and decorations and items in explosions, the rule decides. Asked often: answer fast. Server-side.
+    /// a block (asked for its owner), a zombie breaking a door, the dragon
+    /// breaking blocks, a ravager breaking pitcher crops, a burning mob
+    /// melting powder snow, a weaving mob's cobwebs, and decorations and items
+    /// in explosions (asked for the exploding entity, and for the mob that
+    /// causes the blast). Asked often: answer fast. Server-side.
     #[hook(
         side = "server",
         contract = "listen",

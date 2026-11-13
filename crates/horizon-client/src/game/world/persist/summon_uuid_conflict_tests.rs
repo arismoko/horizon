@@ -711,6 +711,7 @@ fn dimension_travel_admits_the_duplicate_child_before_the_copied_root() {
                 [4.5, 200.0, 4.5],
                 None,
                 false,
+                crate::game::vehicle_teleport::TeleportMotion::Stop,
             )
             .unwrap()
         );
@@ -922,6 +923,7 @@ fn vehicle_root_travel(expected: &RootTravel, dismount: Option<&str>) {
                 [1.5, 200.0, 1.5],
                 None,
                 false,
+                crate::game::vehicle_teleport::TeleportMotion::Stop,
             )
             .unwrap()
         );

@@ -318,21 +318,24 @@ impl Game<'_> {
     }
     /// `ServerLevel.globalLevelEvent`: heard by every player on the server
     /// (an end portal opening, the dragon's death roar): here, and sent to
-    /// every guest whatever their dimension.
+    /// every guest whatever their dimension, each at their own position
+    /// (`Hub::global_level_event`).
     pub(super) fn global_level_event(&mut self, id: i32, pos: [i32; 3], data: i32) {
         // ServerLevel.globalLevelEvent: without global_sound_events it is a
-        // plain level event, which the client has no sound for (1023, 1028
-        // and 1038 are only in `LevelEventHandler.globalLevelEvent`).
+        // plain level event (`levelEvent(null, ...)`), sent to the players
+        // near `pos`; the vanilla client has no plain sound for 1023, 1028
+        // and 1038 (they are only in `LevelEventHandler.globalLevelEvent`).
         if !self
             .ui
             .rules
             .bool_at(horizon_client::gamerules::vanilla::GLOBAL_SOUND_EVENTS)
         {
+            self.level_event_at(id, pos, data);
             return;
         }
         self.global_level_event_sound(id, pos);
         if self.audio.capture.is_some() {
-            self.lan_global_events.push((id, pos, data));
+            self.lan_global_events.push((self.dim.id(), id, pos, data));
         }
     }
     /// `LevelEventHandler.globalLevelEvent`: the sound two blocks from the

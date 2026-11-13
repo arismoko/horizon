@@ -1858,7 +1858,10 @@ mod tests {
                 m
             })
             .collect();
-        let seen: Vec<Seen> = mobs.iter().map(|m| m.seen(None)).collect();
+        let seen: Vec<Seen> = mobs
+            .iter()
+            .map(|m| m.seen(None, &crate::items::Items::empty()))
+            .collect();
         let grid = SeenGrid::new(seen.iter().map(|s| s.bounds));
         with_test_world(&seen, |w, _| {
             let indexed = MobWorld {
@@ -2210,7 +2213,7 @@ mod tests {
         ] {
             let mut seeker = named(species, name, 1, seeker_sat);
             let partner = named(species, name, 2, partner_sat);
-            let seen = [partner.seen(None)];
+            let seen = [partner.seen(None, &crate::items::Items::empty())];
             with_test_world(&seen, |w, _| {
                 let mut events = Vec::new();
                 let mut test_level = crate::health::TestLevel::new(0);
@@ -2301,7 +2304,7 @@ mod tests {
                 if !alive {
                     attacker.health = 0.0;
                 }
-                let seen = [attacker.seen(None)];
+                let seen = [attacker.seen(None, &crate::items::Items::empty())];
                 let world = crate::mobs::MobWorld {
                     others: &seen,
                     ..world
@@ -2618,13 +2621,13 @@ mod non_tame_tests {
             m.ai.goals = goals;
             running
         };
-        let land = [turtle.seen(None)];
+        let land = [turtle.seen(None, &crate::items::Items::empty())];
         let mut started = None;
         if !with_test_world(&land, |w, _| started = Some(tick(&mut m, w))) {
             return;
         }
         turtle.fluids.in_water = true;
-        let water = [turtle.seen(None)];
+        let water = [turtle.seen(None, &crate::items::Items::empty())];
         let mut stopped = None;
         if !with_test_world(&water, |w, _| stopped = Some(!tick(&mut m, w))) {
             return;

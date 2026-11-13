@@ -1,4 +1,4 @@
-//! `host.transaction` (#41 §7): NeoForge 26.3's `Transaction`. Changes made through the
+//! `host.transaction` ( §7): NeoForge 26.3's `Transaction`. Changes made through the
 //! capability helpers inside one are kept by the game and made final only when the outermost
 //! transaction commits; an abort puts back everything its closure changed.
 use crate::ServerHost;

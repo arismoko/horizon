@@ -116,23 +116,14 @@ impl<'a> From<ExplosionStart<'a>> for super::ExplosionStart<'a> {
 }
 // exhaustive: the game builds it with a literal; mods only read it
 // no wire: borrowed game-to-hook adapter; its call fields cross separately.
-pub struct ItemFished<'a> {
+pub struct ItemFished {
     pub hook: u32,
     pub position: [f64; 3],
-    pub drops: &'a [ItemStack],
 }
-impl<'a> From<ItemFished<'a>> for super::ItemFished<'a> {
-    fn from(v: ItemFished<'a>) -> Self {
-        let ItemFished {
-            hook,
-            position,
-            drops,
-        } = v;
-        Self {
-            hook,
-            position,
-            drops,
-        }
+impl From<ItemFished> for super::ItemFished {
+    fn from(v: ItemFished) -> Self {
+        let ItemFished { hook, position } = v;
+        Self { hook, position }
     }
 }
 // exhaustive: the game builds it with a literal; mods only read it

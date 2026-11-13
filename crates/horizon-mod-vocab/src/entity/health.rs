@@ -191,7 +191,7 @@ pub struct Victim {
     pub position: [f64; 3],
     pub view: [f64; 3],
 }
-/// What a player's raised blocking item does to a hit, as `native_living_shield_block`
+/// What a player's raised blocking item does to a hit, as `living_shield_block`
 /// may change it (`LivingShieldBlockEvent`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 // exhaustive: the game builds it with a literal; mods only read it

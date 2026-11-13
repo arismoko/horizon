@@ -415,6 +415,7 @@ impl PackageInfo {
 // exhaustive: its fields are private, so mods cannot build or destructure it
 pub struct RegistrationData {
     instance_dir: crate::InstanceDirectory,
+    runtime: crate::RuntimeEnvironment,
     /// Built-in registry names in ID order, by registry name.
     pub(crate) registries: Arc<[(String, Arc<[String]>)]>,
     /// Each loaded mod's settings, by mod ID then key.
@@ -428,9 +429,11 @@ impl RegistrationData {
         registries: BTreeMap<String, Vec<String>>,
         settings: BTreeMap<String, BTreeMap<String, String>>,
         instance_dir: crate::InstanceDirectory,
+        runtime: crate::RuntimeEnvironment,
     ) -> Self {
         Self {
             instance_dir,
+            runtime,
             registries: registries
                 .into_iter()
                 .map(|(name, ids)| (name, ids.into()))
@@ -562,19 +565,44 @@ pub struct RegistrationContext {
     pub(crate) declaration_refusals: std::sync::Mutex<Vec<String>>,
     pub(crate) self_refusal: std::sync::Mutex<Option<String>>,
     pub(crate) instance_dir: Option<crate::InstanceDirectory>,
+    pub(crate) runtime: Option<crate::RuntimeEnvironment>,
 }
 
 impl RegistrationContext {
     pub(crate) fn new() -> Self {
         let data = registration_data();
         let instance_dir = data.as_ref().map(|data| data.instance_dir.clone());
+        let runtime = data.as_ref().map(|data| data.runtime.clone());
         Self {
             mods: LoadedMods::new(),
             data,
             declaration_refusals: Default::default(),
             self_refusal: Default::default(),
             instance_dir,
+            runtime,
         }
+    }
+
+    /// Physical process, independent of the logical side of a hook.
+    pub fn dist(&self) -> crate::Dist {
+        self.runtime().dist()
+    }
+    /// Exact Minecraft version captured before registration.
+    pub fn game_version(&self) -> &str {
+        self.runtime().game_version()
+    }
+    /// Horizon version, identical to the crash report's version.
+    pub fn horizon_version(&self) -> &str {
+        self.runtime().horizon_version()
+    }
+    /// Startup opt-in for test-only content; does not gate test registration.
+    pub fn game_tests_enabled(&self) -> bool {
+        self.runtime().game_tests_enabled()
+    }
+    fn runtime(&self) -> &crate::RuntimeEnvironment {
+        self.runtime
+            .as_ref()
+            .expect("registration runtime environment is installed")
     }
 
     /// The instance directory captured before registration, identically on native

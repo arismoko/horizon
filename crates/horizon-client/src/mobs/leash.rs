@@ -810,7 +810,7 @@ mod tests {
                 };
                 let mut mob = new(1, kind, Vec3::new(-7.5, 100.0, -4.5), 90.0);
                 let holder = new(2, holder_kind, Vec3::new(0.5, 104.0, 0.5), 30.0);
-                let others = [holder.seen(None)];
+                let others = [holder.seen(None, &crate::items::Items::empty())];
                 let mut w = world.clone();
                 w.others = &others;
                 mob.extra.leash = Some(Holder::Mob(holder.id));

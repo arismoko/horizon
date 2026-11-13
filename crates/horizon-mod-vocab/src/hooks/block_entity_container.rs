@@ -11,7 +11,7 @@ pub trait Hooks {
     /// (`data/<id>/horizon/menu/`) with as many
     /// slots, opens when the block is used (its template must open a menu, as
     /// a chest or a furnace does); another is left out. A mod menu type shows
-    /// on Horizon clients through the mod's `native_screen` only.
+    /// on Horizon clients through the mod's `screen` only.
     #[hook(
         side = "both",
         contract = "replace",

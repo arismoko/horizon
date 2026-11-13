@@ -2911,11 +2911,11 @@ impl Mob {
         self.ticks_frozen >= crate::motion::PlayerMotion::TICKS_REQUIRED_TO_FREEZE
     }
 
-    /// What other mobs see of this one this tick (`_player` is unused: it keyed the villager
-    /// reputation that nothing read). Inline: the game's snapshot of every mob writes each one in
-    /// its slot, not through a copy.
+    /// What other mobs see of this one this tick, its villager food counted by `items` (`_player`
+    /// is unused: it keyed the villager reputation that nothing read). Inline: the game's snapshot
+    /// of every mob writes each one in its slot, not through a copy.
     #[inline]
-    pub fn seen(&self, _player: Option<[i32; 4]>) -> Seen {
+    pub fn seen(&self, _player: Option<[i32; 4]>, items: &crate::items::Items) -> Seen {
         let m = self;
         let villager = m.species() == Species::Villager;
         Seen {
@@ -2933,7 +2933,7 @@ impl Mob {
             baby: m.is_baby(),
             // A villager is "in love" when it is willing to breed (`canBreed`).
             in_love: if villager {
-                villager::can_breed(m)
+                villager::can_breed(m, items)
             } else {
                 m.extra.in_love > 0
             },
@@ -2975,7 +2975,7 @@ impl Mob {
             custom_profession: villager::seen_profession_name(m, villager),
             secondary_variant: m.extra.variant2,
             xp: villager::xp(m),
-            villager: villager.then(|| Arc::new(villager::seen(m))),
+            villager: villager.then(|| Arc::new(villager::seen(m, items))),
             stats: [
                 f64::from(m.attrs.max_health),
                 m.extra.vector[0],
@@ -5599,7 +5599,7 @@ pub(crate) mod sensor_scan_tests {
                     pen = Vec3::new(next(side), 64.0, next(side));
                 }
                 let at = Vec3::new(pen.x + next(8.0), 64.0, pen.z + next(8.0));
-                Mob::new(id, kind.clone(), at, 0.0).seen(None)
+                Mob::new(id, kind.clone(), at, 0.0).seen(None, &crate::items::Items::empty())
             })
             .collect();
         let grid = seen_grid::SeenGrid::new(seen.iter().map(|s| s.bounds));

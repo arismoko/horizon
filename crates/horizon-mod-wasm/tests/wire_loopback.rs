@@ -392,6 +392,20 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
                 event.value = mod_api::GameRuleValue::Bool(false);
             }
         }
+        fn item_fished(
+            &self,
+            _: &mut dyn mod_api::ServerHost,
+            event: &mut mod_api::ItemFishedEvent<'_>,
+        ) -> mod_api::Flow {
+            assert_eq!(event.fished.hook, 19);
+            assert_eq!(event.drops.len(), 1);
+            event.drops.clear();
+            event
+                .drops
+                .push(mod_api::ItemStack::new(REGISTERED_ITEM.get().unwrap(), 2).unwrap());
+            event.rod_damage = 5;
+            mod_api::Flow::Continue
+        }
         fn loot_drops(
             &self,
             host: &mut dyn mod_api::ServerHost,
@@ -1285,6 +1299,42 @@ fn wire_loopback_borrowed_tuple_inside_optional_context() {
         },
     );
     assert!(drops.is_empty());
+}
+#[test]
+fn wire_loopback_item_fished_edits_catch() {
+    mod_api::__private::initialize().unwrap();
+    let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
+    struct World;
+    impl mod_api::Host for World {}
+    mod_api::impl_host_areas!(World);
+    impl mod_api::ServerHost for World {}
+    mod_api::impl_server_host_areas!(World);
+    install_counter();
+    let key = REGISTERED_ITEM.get().unwrap();
+    let mut drops = vec![mod_api::ItemStack::new(key, 1).unwrap()];
+    let fished = mod_api::ItemFished::from(mod_api::__private::built::ItemFished {
+        hook: 19,
+        position: [1.0, 64.0, 2.0],
+    });
+    let mut event = mod_api::ItemFishedEvent {
+        player: 7,
+        player_entity_id: 3,
+        fished: &fished,
+        drops: &mut drops,
+        rod_damage: 1,
+        cancelled: false,
+    };
+    let flow = WasmMod {
+        subscribed: &[],
+        listeners: &[],
+        group: 0,
+        corrupt: false,
+    }
+    .item_fished(&mut World, &mut event);
+    assert!(matches!(flow, mod_api::Flow::Continue));
+    assert_eq!(event.rod_damage, 5);
+    assert!(!event.cancelled);
+    assert_eq!(drops, vec![mod_api::ItemStack::new(key, 2).unwrap()]);
 }
 #[test]
 fn wire_loopback_nested_tuple_reference_writes_back() {
@@ -2424,6 +2474,9 @@ mod client_fireworks;
 mod play_hit_sound;
 #[path = "wire_loopback/server_has_time.rs"]
 mod server_has_time;
+
+#[path = "wire_loopback/datafix_upgrades.rs"]
+mod datafix_upgrades;
 
 #[path = "wire_loopback/friction.rs"]
 mod friction;

@@ -2,7 +2,7 @@
 // catalog-order: 0156
 
 pub trait Hooks {
-    /// Whether a mod listens to `native_entity_tick_pre` and `native_entity_tick_post`: a mod
+    /// Whether a mod listens to `entity_tick_pre` and `entity_tick_post`: a mod
     /// that hooks them hooks this one too and sets `listened` (HEAD, `*listened = true`).
     /// Without it the game tells no entity's tick, and keeps no list of them. Asked once for
     /// each family (mobs, items, minecarts, boats) each tick. Server-side.

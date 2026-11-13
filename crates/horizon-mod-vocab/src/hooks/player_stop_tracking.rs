@@ -7,8 +7,8 @@ pub trait Hooks {
     /// `ServerEntity.removePairing`): it went out of range, left the level or
     /// died, or `player` (`name`) left, changed level or respawned, which
     /// stops everything they tracked. `entity`, `uuid` and `kind` are as
-    /// `native_player_start_tracking` told. Once for each start, a leaving
-    /// player's after `native_player_logged_out`. The entity is not
+    /// `player_start_tracking` told. Once for each start, a leaving
+    /// player's after `player_logged_out`. The entity is not
     /// necessarily still there, and a player who left is gone: no player's
     /// state is swapped in. Server-side.
     #[hook(

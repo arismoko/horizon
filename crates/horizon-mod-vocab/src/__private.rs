@@ -42,13 +42,13 @@ pub fn enabled_listened(hook: HookId) -> bool {
 }
 
 /// A read backend wrapper for a host the game builds narrowed: the mob tick's
-/// goal view hands itself out as its own backend (#1077).
+/// goal view hands itself out as its own backend.
 pub fn backend_ref(inner: &dyn Backend) -> crate::BackendRef<'_> {
     crate::BackendRef::of(inner)
 }
 /// Call `read` on `host`'s real backend, or `None` where the host has none:
 /// the mob tick's goal view forwards the level's own reads — blocks, loaded
-/// chunks, time, height, weather, block entities — through it (#1077); the
+/// chunks, time, height, weather, block entities — through it; the
 /// entity data its snapshot does not carry stays refused. Returned borrows stay tied to the host.
 pub fn backend_read<'a, R>(
     host: &'a dyn crate::Host,

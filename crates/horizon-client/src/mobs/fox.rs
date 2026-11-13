@@ -2288,7 +2288,8 @@ mod seek_shelter_tests {
     fn villager_of_the_bell() -> Seen {
         let mut kind = (*kind()).clone();
         kind.species = Species::Villager;
-        let mut seen = Mob::new(2, Arc::new(kind), Vec3::new(5.5, 1.0, 5.5), 0.0).seen(None);
+        let mut seen = Mob::new(2, Arc::new(kind), Vec3::new(5.5, 1.0, 5.5), 0.0)
+            .seen(None, &crate::items::Items::empty());
         seen.meeting = Some([5, 1, 5]);
         seen
     }
@@ -2346,7 +2347,8 @@ mod defend_tests {
     fn zombie() -> Seen {
         let mut kind = (*kind()).clone();
         kind.species = Species::Zombie;
-        Mob::new(ZOMBIE, Arc::new(kind), Vec3::new(0.5, 64.0, 3.5), 0.0).seen(None)
+        Mob::new(ZOMBIE, Arc::new(kind), Vec3::new(0.5, 64.0, 3.5), 0.0)
+            .seen(None, &crate::items::Items::empty())
     }
 
     /// `Fox.DefendTrustedTargetGoal`: a fox whose trusted player was hit takes

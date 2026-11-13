@@ -153,6 +153,7 @@ mod carrier_store_tests;
 pub mod scoreboard_cmd;
 pub mod screen_layout;
 pub mod screen_narrator;
+pub mod skull_models;
 pub mod social_screen;
 pub mod world_geometry;
 pub use horizon_server_files as server;

@@ -1108,7 +1108,8 @@ mod tests {
                 (5, "zombie", 1),
             ] {
                 let kind = std::sync::Arc::new(types.types[&format!("minecraft:{name}")].clone());
-                let mut seen = Mob::new(id, kind, Vec3::new(1.5, 64.0, 0.5), 0.0).seen(None);
+                let mut seen = Mob::new(id, kind, Vec3::new(1.5, 64.0, 0.5), 0.0)
+                    .seen(None, &crate::items::Items::empty());
                 seen.size = size;
                 others.push(seen);
             }

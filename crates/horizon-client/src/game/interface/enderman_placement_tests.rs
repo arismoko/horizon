@@ -12,7 +12,7 @@ use std::sync::Arc;
 /// they read its blocks. Keep that ownership boundary in the registered-goal test.
 fn tick_registered_goals(game: &mut Game<'_>, mob: &mut Mob) -> Vec<MobEvent> {
     let mut goals = std::mem::take(&mut mob.ai.goals);
-    let snapshot = [super::creatures::seen(mob, None)];
+    let snapshot = [super::creatures::seen(mob, None, game.items())];
     let mut events = Vec::new();
     let mut lent = horizon_client::health::LentLevel::take(&mut game.world);
     {

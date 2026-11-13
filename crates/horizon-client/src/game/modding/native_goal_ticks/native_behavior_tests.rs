@@ -116,7 +116,7 @@ fn with_mob_world(
     let mut mobs = game.mobs.lift();
     let snapshot: Vec<_> = mobs
         .iter()
-        .map(|m| creatures::seen(m, game.level.player_uuid))
+        .map(|m| creatures::seen(m, game.level.player_uuid, game.items()))
         .collect();
     let mut w = game.mob_world_base(&snapshot);
     w.goal_host = Some(&*game);
@@ -398,7 +398,7 @@ fn with_villager_tick(
     let mut mobs = game.mobs.lift();
     let snapshot: Vec<_> = mobs
         .iter()
-        .map(|m| creatures::seen(m, game.level.player_uuid))
+        .map(|m| creatures::seen(m, game.level.player_uuid, game.items()))
         .collect();
     let mut w = game.mob_world_base(&snapshot);
     w.goal_host = Some(&*game);

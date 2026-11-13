@@ -147,7 +147,7 @@ fn tick_goals_as(
     let mut mobs = game.mobs.lift();
     let snapshot: Vec<_> = mobs
         .iter()
-        .map(|m| creatures::seen(m, game.level.player_uuid))
+        .map(|m| creatures::seen(m, game.level.player_uuid, game.items()))
         .collect();
     let mut index_by_id = horizon_client::fast_hash::FxHashMap::<u32, u32>::default();
     for (i, s) in snapshot.iter().enumerate() {
@@ -951,7 +951,7 @@ fn mod_goal_tick_cost() {
         let mut mobs = game.mobs.lift();
         let snapshot: Vec<_> = mobs
             .iter()
-            .map(|m| creatures::seen(m, game.level.player_uuid))
+            .map(|m| creatures::seen(m, game.level.player_uuid, game.items()))
             .collect();
         let mut test_level = horizon_client::health::TestLevel::new(0);
         let mut level = test_level.level();

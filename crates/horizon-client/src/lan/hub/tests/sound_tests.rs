@@ -507,3 +507,77 @@ fn captured_and_direct_sounds_share_the_server_seed_stream_and_synced_registry()
     };
     assert_eq!(packet.seed, random.next_long());
 }
+
+/// The global level event packet a lone guest at `at` in `dimension` gets for
+/// an End portal opening at `[10, 64, -3]` in the overworld.
+fn global_event_sent_to(at: [f64; 3], dimension: &str) -> play::LevelEvent {
+    global_event_sent_while(at, dimension, "minecraft:overworld")
+}
+
+/// `global_event_sent_to` with level `in_place` in place when the event is sent.
+fn global_event_sent_while(at: [f64; 3], dimension: &str, in_place: &str) -> play::LevelEvent {
+    let (mut hub, rx) = hub_with_a_guest();
+    hub.config.dimension = in_place.into();
+    hub.guests.update(0, |g| {
+        g.position = at;
+        g.dimension = dimension.into();
+    });
+    while rx.try_recv().is_ok() {}
+    hub.global_level_event("minecraft:overworld", 1038, [10, 64, -3], 0);
+    let C::LevelEvent(packet) = next_sent_packet(&rx) else {
+        panic!("expected a level event")
+    };
+    assert!(rx.try_recv().is_err(), "one packet per player");
+    packet
+}
+
+/// `ServerLevel.globalLevelEvent`: a player in the level within 32 blocks of
+/// the event's centre gets the event's own position, with the global flag.
+#[test]
+fn a_global_level_event_reaches_a_near_player_at_its_position() {
+    assert_eq!(
+        global_event_sent_to([30.5, 64.0, -3.5], "minecraft:overworld"),
+        play::LevelEvent {
+            kind: 1038,
+            pos: [10, 64, -3],
+            data: 0,
+            global: true,
+        }
+    );
+}
+
+/// A player in the level further away gets the block 32 blocks from them
+/// towards the event's centre: from (70.5, 144.5, -2.5) the centre is
+/// (-60, -80, 0) away, 100 blocks, so 32 of them land at (51.3, 118.9, -2.5).
+#[test]
+fn a_global_level_event_reaches_a_far_player_32_blocks_towards_it() {
+    assert_eq!(
+        global_event_sent_to([70.5, 144.5, -2.5], "minecraft:overworld").pos,
+        [51, 118, -3]
+    );
+}
+
+/// A player in another level gets the block they stand in, whatever the
+/// distance: the event is heard as if it came from them.
+#[test]
+fn a_global_level_event_reaches_a_player_in_another_level_at_their_own_block() {
+    let packet = global_event_sent_to([-7.3, 40.0, 12.9], "minecraft:the_nether");
+    assert_eq!(packet.pos, [-8, 40, 12]);
+    assert!(packet.global);
+}
+
+/// An event queued during the overworld's pass and sent during the Nether's
+/// keeps its own level: an overworld player near it gets its position, not
+/// their own block as a player of another level would.
+#[test]
+fn a_global_level_event_keeps_its_level_when_another_level_is_in_place() {
+    assert_eq!(
+        global_event_sent_while(
+            [30.5, 64.0, -3.5],
+            "minecraft:overworld",
+            "minecraft:the_nether"
+        )
+        .pos,
+        [10, 64, -3]
+    );
+}

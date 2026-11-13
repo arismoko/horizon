@@ -649,11 +649,16 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             self.remove_block(pos, false);
         }
         let below_state = self.below_state(pos);
-        let infiniburn = match self.level.dimension_type().infiniburn.as_str() {
-            "#minecraft:infiniburn_nether" => &b.tags.infiniburn_nether,
-            "#minecraft:infiniburn_end" => &b.tags.infiniburn_end,
-            _ => &b.tags.infiniburn_overworld,
-        };
+        static EMPTY: std::sync::LazyLock<super::data::BlockSet> =
+            std::sync::LazyLock::new(super::data::BlockSet::default);
+        let infiniburn = self
+            .level
+            .infiniburn()
+            .or_else(|| {
+                let name = &self.level.dimension_type().infiniburn;
+                b.tag(name.strip_prefix('#').unwrap_or(name))
+            })
+            .unwrap_or(&EMPTY);
         let mut infini = None;
         self.level
             .before_is_fire_source(below_state, below(pos), &mut infini);

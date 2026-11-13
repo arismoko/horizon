@@ -485,7 +485,7 @@ fn plan_unloads(world: &World, unload: impl Fn(i32, i32) -> bool) -> Vec<(i32, i
 
 fn commit_unloads(world: &mut World, keys: &[(i32, i32)]) -> Vec<Arc<Chunk>> {
     keys.iter()
-        .filter_map(|key| world.chunks.remove(key))
+        .filter_map(|&key| world.unload_chunk(key))
         .collect()
 }
 

@@ -3758,8 +3758,8 @@ impl Game<'_> {
         for (id, event) in std::mem::take(&mut self.lan_entity_events) {
             host.hub.entity_event(id, event);
         }
-        for (kind, pos, data) in std::mem::take(&mut self.lan_global_events) {
-            host.hub.global_level_event(kind, pos, data);
+        for (level, kind, pos, data) in std::mem::take(&mut self.lan_global_events) {
+            host.hub.global_level_event(level, kind, pos, data);
         }
         self.lan_broadcast_effects();
         let Some(host) = self.lan.as_mut() else {

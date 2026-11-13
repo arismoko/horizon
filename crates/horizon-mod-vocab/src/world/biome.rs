@@ -12,7 +12,7 @@ pub struct SpawnEntry {
     /// A `ConstantInt` count (sampling draws nothing).
     pub constant: bool,
 }
-/// A biome's colours as a mod may change them (`native_biome_colors`), each
+/// A biome's colours as a mod may change them (`biome_colors`), each
 /// 0xRRGGBB: what tints grass (before the dark forest's modifier; the swamp's
 /// noise colours replace it), leaves and vines, dry foliage (leaf litter) and
 /// water.

@@ -1,5 +1,5 @@
 //! A mob the game has made but not yet added to a level, lent to one hook call
-//! (`finalize_spawn`'s `mob`, docs/modding/src/how-to/spawning.md): the lend,
+//! (`finalize_spawn`'s `mob`, docs/modding/src/how-to/world/spawning.md): the lend,
 //! the handle's reads (`UnspawnedMobRef`), the scoped editor handed out with it
 //! (`UnspawnedMobEdits`), and the spawn group data at the API boundary
 //! (`SpawnGroup`).

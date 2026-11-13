@@ -7,6 +7,7 @@
 //! Speed's `location_changed` and `tick` effects and the
 //! `minecraft:location_changed` disk effect (frost walker).
 use super::Game;
+use super::durability::Wearer;
 use horizon_client::{
     enchant::{EffectContext, Enchantments, level_value},
     items::ItemStack,
@@ -161,10 +162,16 @@ impl Game<'_> {
         }
         (0.2 * (1.0 + total)) as f32
     }
-    /// The wear `ItemStack.hurtAndBreak` goes on to apply for `amount` points:
-    /// what Unbreaking leaves (`EnchantmentHelper.processDurabilityChange`),
-    /// then what the item's parts make of it (`IItemExtension.damageItem`).
-    pub(super) fn durability_loss(&mut self, stack: &ItemStack, amount: u32) -> u32 {
+    /// The wear `ItemStack.hurtAndBreak` goes on to apply for `amount` points
+    /// on the stack `wearer` wears or uses: what Unbreaking leaves
+    /// (`EnchantmentHelper.processDurabilityChange`), then what the item's
+    /// parts make of it (`IItemExtension.damageItem`).
+    pub(super) fn durability_loss(
+        &mut self,
+        stack: &ItemStack,
+        amount: u32,
+        wearer: Wearer,
+    ) -> u32 {
         let loss = self.unbreaking_loss(stack, amount);
         if loss == 0 || self.remote.is_some() {
             return loss;
@@ -174,10 +181,7 @@ impl Game<'_> {
         if !mod_api::__private::item_listens(mod_api::HookId::DamageItem, &stack.item) {
             return loss;
         }
-        let mut points = loss.min(i32::MAX as u32) as i32;
-        let mut canceled = false;
-        self.native_damage_item(stack, &mut points, &mut canceled);
-        if canceled { 0 } else { points.max(0) as u32 }
+        self.damage_item_loss(stack, loss, wearer)
     }
     /// `EnchantmentHelper.processDurabilityChange` (unbreaking) for `amount` points.
     fn unbreaking_loss(&mut self, stack: &ItemStack, amount: u32) -> u32 {
@@ -211,7 +215,7 @@ impl Game<'_> {
         {
             return 0;
         }
-        let loss = self.durability_loss(stack, amount);
+        let loss = self.durability_loss(stack, amount, Wearer::Player);
         if loss > 0 {
             self.trigger_item_durability(stack, (stack.damage as i32).wrapping_add(loss as i32));
         }
@@ -958,7 +962,7 @@ impl Game<'_> {
         }) else {
             return;
         };
-        let loss = self.durability_loss(&stack, amount);
+        let loss = self.durability_loss(&stack, amount, Wearer::Living(id));
         if loss == 0 {
             return;
         }

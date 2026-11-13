@@ -17,7 +17,7 @@ fn courtship(mates: &[[f64; 3]]) -> Option<(bool, Option<[i32; 3]>)> {
         .map(|(i, [x, y, z])| {
             let mut p = Mob::new(i as u32 + 2, kind.clone(), Vec3::new(*x, *y, *z), 0.0);
             p.extra.in_love = 600;
-            p.seen(None)
+            p.seen(None, &crate::items::Items::empty())
         })
         .collect();
     let mut out = None;

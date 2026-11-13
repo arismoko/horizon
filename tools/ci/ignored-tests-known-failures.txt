@@ -36,6 +36,7 @@ horizon-client game::potions::arrow_contents::actual_arrow_contents_match_pinned
 horizon-client game::special_attack_fixture::tests::special_attack_cases_without_world_startup HORIZON_SPECIAL_ATTACK_CASES needs
 horizon-client game::native_server::wasm_selector_tests::wasm_selectors_resolve_in_game_and_refuse_before_guest_dispatch HORIZON_WASM_FIXTURE needs
 horizon-client game::native_server::wasm_selector_tests::wasm_server_tick_messages_reach_dedicated_game HORIZON_WASM_FIXTURE needs
+horizon-client game::native_hooks::math::tests::compiled_wasm_math_profile_import_matches_actual_game_host HORIZON_WASM_FIXTURE needs
 horizon-client game::payload_transport::wasm_tests::compiled_guest_runs_in_actual_game_roots HORIZON_WASM_FIXTURE needs
 horizon-client game::remote::interaction_event_tests::interaction_event_wasm_tests::wasm_interaction_shared_matrix HORIZON_WASM_FIXTURE needs
 horizon-client-lib raw_payloads::wasm_tests::compiled_guest_observes_physical_provider_pressure HORIZON_WASM_FIXTURE needs

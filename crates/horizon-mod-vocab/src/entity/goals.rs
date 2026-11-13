@@ -1,4 +1,4 @@
-//! Custom mob goals (arismoko/horizon#1077): code a mod attaches to one entity
+//! Custom mob goals: code a mod attaches to one entity
 //! type at startup, asked at every `Mob` construction, spawning or loading, the
 //! moment vanilla's `registerGoals` fan-out ends. A mod's goals join the two
 //! selectors as vanilla's own do — same priorities, same flag locks, same

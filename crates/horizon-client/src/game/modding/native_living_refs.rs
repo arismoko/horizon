@@ -799,7 +799,8 @@ impl Game<'_> {
                 .flatten();
         }
         let stack = self.living_equipment(living, slot)?;
-        let (updated, broken) = self.damage_stack(&stack, amount, false);
+        let wearer = super::durability::Wearer::Living(living.id());
+        let (updated, broken) = self.damage_stack_worn(&stack, amount, wearer);
         if updated.as_ref() == Some(&stack) {
             return None;
         }

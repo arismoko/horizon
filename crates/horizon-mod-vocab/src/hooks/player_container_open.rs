@@ -12,7 +12,7 @@ pub trait Hooks {
     /// and is told as `horizon:mount_inventory`). The player's own inventory
     /// is not one. Heard once a tick, so a menu opened and closed again
     /// inside one tick is not; one that replaces another comes after that
-    /// one's close. The player's state is swapped in. `native_player_container_close`
+    /// one's close. The player's state is swapped in. `player_container_close`
     /// follows. Server-side.
     #[hook(
         side = "server",

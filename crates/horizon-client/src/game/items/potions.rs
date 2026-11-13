@@ -472,13 +472,8 @@ impl Game<'_> {
                 }
             }
         }
-        if effects.contains(&"weaving")
-            && (player
-                || self
-                    .ui
-                    .rules
-                    .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING))
-        {
+        // `WeavingMobEffect.onMobRemoved`: `canEntityGrief` for the dying mob.
+        if effects.contains(&"weaving") && (player || self.can_entity_grief(bearer)) {
             self.spawn_cobwebs_around(
                 [
                     feet.x.floor() as i32,

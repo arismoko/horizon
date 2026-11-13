@@ -277,7 +277,11 @@ mod tests {
             ] {
                 let state = game.pack.assets.registry.default_state(block).unwrap();
                 game.world.set(5, 64, 5, state).unwrap();
-                let snapshot: Vec<_> = game.mobs.iter().map(|m| m.seen(None)).collect();
+                let snapshot: Vec<_> = game
+                    .mobs
+                    .iter()
+                    .map(|m| m.seen(None, game.items()))
+                    .collect();
                 {
                     let world = game.mob_world_base(&snapshot);
                     let mut mob = Mob::new(10, horse.clone(), at, 0.0);

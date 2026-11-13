@@ -103,6 +103,7 @@
   "crate::parts::shared::ProvidedBy",
   "crate::content::content_declarations::PushReaction",
   "crate::world::types::RaidStatus",
+  "crate::block::rail_shape::RailShape",
   "crate::content::content_declarations::Rarity",
   "crate::item::crafting::RecipeLookupError",
   "crate::item::recipe_book::RecipeTransferResult",

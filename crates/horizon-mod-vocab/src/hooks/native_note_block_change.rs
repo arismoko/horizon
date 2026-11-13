@@ -1,4 +1,4 @@
-//! The `native_note_block_change` hooks and helpers: declarations the mod API generator reads (see `hooks/mod.rs`).
+//! The `note_block_change` hooks and helpers: declarations the mod API generator reads (see `hooks/mod.rs`).
 
 pub trait Hooks {
     /// A player is tuning a note block on the authoritative server, not in

@@ -66,7 +66,7 @@ pub trait RecipesClientHost {
     /// Shows the panel beside container screens with these items (at most
     /// 8192), as the game's own slots in pages, with a search box; the
     /// player's clicks, searches and keys over items come back as
-    /// `native_panel_event`. The panel is the last mod's to show one; empty
+    /// `panel_event`. The panel is the last mod's to show one; empty
     /// items and no recipe page take yours away.
     #[access(WorldOnly)]
     fn panel_items(&mut self, mod_id: &str, items: Vec<Stack>);

@@ -6,7 +6,7 @@ pub trait Hooks {
     /// the block `state` at `pos`, `face` the side that touches the comparator
     /// (or the conductor in front of it). `output` holds vanilla's answer:
     /// change it when the block is yours (0 to 15; anything else is clamped).
-    /// Asked only for blocks `native_has_analog_output` answered for, from
+    /// Asked only for blocks `has_analog_output` answered for, from
     /// inside the level's update: don't change the world here. When the
     /// answer changes without the block's state changing, call
     /// `level.update_neighbors(host, pos, state, NeighbourUpdate::OutputSignal)`; a change of

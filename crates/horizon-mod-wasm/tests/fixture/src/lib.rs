@@ -13,6 +13,7 @@ pub mod matrix;
 pub mod movement;
 pub mod projectile_owner;
 pub mod replace;
+pub mod runtime_environment;
 pub mod selector_command;
 pub mod turn;
 pub use matrix::{mirrors, sum_return};
@@ -28,6 +29,22 @@ pub struct Mod;
 impl Hooks for Mod {
     fn movement_input(&self, _: &dyn mod_api::ClientHost, event: &mut mod_api::MovementInputEvent) {
         movement::movement_input(event);
+    }
+
+    fn tick_target_millis(
+        &self,
+        host: &dyn mod_api::ClientHost,
+        event: &mut mod_api::TickTargetMillisEvent,
+    ) {
+        let profile = host.math_profile();
+        assert_eq!(profile, host.math_profile());
+        event.millis = match profile {
+            mod_api::MathProfile::LibmRounding => 1.0,
+            mod_api::MathProfile::CorrectlyRounded => 2.0,
+            mod_api::MathProfile::Aarch64Fma => 3.0,
+            mod_api::MathProfile::StrictMath => 4.0,
+            _ => panic!("fixture does not support the new math profile"),
+        };
     }
 
     fn server_tick(
@@ -155,6 +172,7 @@ impl Hooks for Mod {
         host: &mut dyn mod_api::ServerHost,
         _: &mut mod_api::ServerStartedEvent,
     ) {
+        runtime_environment::started(host);
         if host.is_loaded("datapack_fixture") {
             datapack::read(host);
         }
@@ -171,6 +189,7 @@ impl Hooks for Mod {
     }
 
     fn register(&self, registrar: &mut dyn mod_api::Registrar, cx: &mod_api::RegistrationContext) {
+        runtime_environment::register(cx);
         game_payload::register(registrar);
         interaction::register(registrar);
         registrar

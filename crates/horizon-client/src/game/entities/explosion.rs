@@ -197,26 +197,28 @@ pub(super) fn blast_reaches(center: [f64; 3], diameter: f64, at: [f64; 3]) -> bo
 /// `ItemEntity.ignoreExplosion` through
 /// `ServerExplosion.shouldAffectBlocklikeEntities`: an explosion that does not
 /// affect blocklike entities is ignored entirely by a dropped item. With
-/// `mobGriefing` off that is every blast that keeps blocks; with it on, none
-/// (no wind charge goes through `server_explode`).
+/// `mobGriefing` off (`canEntityGrief` for the exploding entity) that is every
+/// blast that keeps blocks; with it on, none (no wind charge goes through
+/// `server_explode`).
 fn items_ignore_explosion(mob_griefing: bool, interaction: BlockInteraction) -> bool {
     !mob_griefing && interaction == BlockInteraction::Keep
 }
 
 /// Whether a blast leaves item frames, paintings, cushions and armour stands
-/// alone. Without `mobGriefing`, a blast that keeps blocks is ignored
-/// (`ServerExplosion.shouldAffectBlocklikeEntities` through their
-/// `ignoreExplosion`; no wind charge goes through `server_explode`), and one a
-/// mob causes does no harm (`BlockAttachedEntity.hurtServer` and
-/// `ArmorStand.hurtServer`: `source.getEntity() instanceof Mob`).
+/// alone. Without `mobGriefing` (`canEntityGrief` for the exploding entity), a
+/// blast that keeps blocks is ignored (`ServerExplosion.shouldAffectBlocklikeEntities`
+/// through their `ignoreExplosion`; no wind charge goes through `server_explode`).
+/// `mob_refused`: a mob causes the blast and may not grief, so it does no harm
+/// (`BlockAttachedEntity.hurtServer` and `ArmorStand.hurtServer`:
+/// `source.getEntity() instanceof Mob`, with `canEntityGrief` for that mob).
 pub(super) fn blast_spares_decorations(
     mob_griefing: bool,
     interaction: BlockInteraction,
-    by_mob: bool,
+    mob_refused: bool,
     source_in_water: bool,
 ) -> bool {
     // `BlockAttachedEntity.ignoreExplosion`: a source in water first.
-    source_in_water || (!mob_griefing && (interaction == BlockInteraction::Keep || by_mob))
+    source_in_water || mob_refused || (!mob_griefing && interaction == BlockInteraction::Keep)
 }
 
 /// How far the blast's `center` is from `p`.
@@ -502,8 +504,8 @@ impl Game<'_> {
         // A primed TNT minecart's rails and the blocks they
         // stand on: no resistance, and never blown up.
         let spared = self.combat.rail_proof_blast
-            && (self.rail(pos[0], pos[1], pos[2]).is_some()
-                || self.rail(pos[0], pos[1] + 1, pos[2]).is_some());
+            && (self.rail(None, pos[0], pos[1], pos[2]).is_some()
+                || self.rail(None, pos[0], pos[1] + 1, pos[2]).is_some());
         let taken = match resists {
             Some((at, resistance)) if at == pos => (resistance + 0.3) * 0.3,
             _ if !self.res.facts().is_air(state) || f.fluid != Fluid::None => {
@@ -924,12 +926,7 @@ impl Game<'_> {
                     .ui
                     .rules
                     .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
-            items_ignore: items_ignore_explosion(
-                self.ui
-                    .rules
-                    .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
-                interaction,
-            ),
+            items_ignore: items_ignore_explosion(self.blast_griefs(), interaction),
             spared: exploding.filter(|_| self.combat.explosion_source_named),
         };
         let (items_len, orbs_len) = (self.dropped.len(), self.orbs.len());
@@ -1156,12 +1153,6 @@ impl Game<'_> {
         self.explosion_breaks_decorations(center, diameter, interaction);
         pushed
     }
-    fn blast_damage_caused_by_mob(&self) -> bool {
-        self.combat.explicit_explosion_cause.as_ref().map_or_else(
-            || self.blast_attacker().is_some(),
-            |cause| cause.as_ref().is_some_and(|c| c.species.is_some()),
-        )
-    }
 
     /// Decoration kills credit `DamageSource.getEntity`: the explicit blast
     /// cause, including a TNT igniter or the player who broke an end crystal.
@@ -1183,15 +1174,39 @@ impl Game<'_> {
     /// Decoration hurt checks use the damage source's cause (`instanceof Mob`),
     /// unlike vehicles, which use the explosion's indirect source.
     pub(super) fn blast_spares_decorations(&self, interaction: BlockInteraction) -> bool {
-        let by_mob = self.blast_damage_caused_by_mob();
         blast_spares_decorations(
-            self.ui
-                .rules
-                .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
+            self.blast_griefs(),
             interaction,
-            by_mob,
+            self.blast_mob_refused(),
             self.combat.explosion_in_water,
         )
+    }
+    /// `ServerExplosion.shouldAffectBlocklikeEntities`'s griefing read:
+    /// `canEntityGrief` for the exploding entity (`this.source`), the rule without one.
+    fn blast_griefs(&self) -> bool {
+        self.can_entity_grief(self.combat.explosion_source)
+    }
+    /// A mob causes the blast (`source.getEntity() instanceof Mob`) and
+    /// `canEntityGrief` refuses it: decorations take no harm.
+    fn blast_mob_refused(&self) -> bool {
+        // No listener and the rule on: no mob is refused, and no cause is looked up.
+        if !Game::grief_hooked(self)
+            && self
+                .ui
+                .rules
+                .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING)
+        {
+            return false;
+        }
+        // The mob the damage names (an explicit cause only when it is a mob), found once.
+        let mob = match &self.combat.explicit_explosion_cause {
+            Some(cause) => cause
+                .as_ref()
+                .filter(|c| c.species.is_some())
+                .map(|c| c.entity.0),
+            None => self.blast_attacker().map(|(id, _)| id),
+        };
+        mob.is_some_and(|id| !self.can_entity_grief(Some(id)))
     }
     /// `Entity.isInWater` for an entity box: `updateFluidInteraction` over the box.
     pub(super) fn bounds_in_water(&self, bounds: horizon_core::geometry::Aabb) -> bool {
@@ -1213,13 +1228,10 @@ impl Game<'_> {
         interaction: BlockInteraction,
     ) {
         // An armour stand is no `BlockAttachedEntity`: a source in water does not spare it.
-        let by_mob = self.blast_damage_caused_by_mob();
         let spares_stands = blast_spares_decorations(
-            self.ui
-                .rules
-                .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
+            self.blast_griefs(),
             interaction,
-            by_mob,
+            self.blast_mob_refused(),
             false,
         );
         if !self.blast_spares_decorations(interaction) {
@@ -2397,10 +2409,10 @@ mod tests {
         assert!(!blast_spares_decorations(
             true,
             DestroyWithDecay,
-            true,
+            false,
             false
         ));
-        assert!(!blast_spares_decorations(true, Keep, true, false));
+        assert!(!blast_spares_decorations(true, Keep, false, false));
         // Off: TNT still breaks them (ExplosionInteraction.TNT destroys blocks).
         assert!(!blast_spares_decorations(false, Destroy, false, false));
         assert!(!blast_spares_decorations(
@@ -2409,7 +2421,7 @@ mod tests {
             false,
             false
         ));
-        // Off: a blast that keeps blocks, or one a mob causes, does not.
+        // Off: a blast that keeps blocks, or one a refused mob causes, does not.
         assert!(blast_spares_decorations(false, Keep, false, false));
         assert!(blast_spares_decorations(false, Destroy, true, false));
         // A source in water spares them whatever the rules (`BlockAttachedEntity.ignoreExplosion`).

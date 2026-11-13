@@ -92,7 +92,7 @@ pub(crate) fn import_with_jars(path: &Path, work: Option<&Path>) -> Result<Pack,
         return modlist(&list);
     }
     let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut zip = crate::zip_intake::open(file).map_err(|e| format!("{}: {e}", path.display()))?;
     if let Some(index) = read_json(&mut zip, "modrinth.index.json")? {
         return Ok(mrpack(&index, &names(&zip)?));
     }
@@ -154,7 +154,7 @@ pub fn prism_archive_layout<S: AsRef<str>>(names: &[S]) -> Result<Option<(&str, 
 
 fn prism_archive(
     source: &Path,
-    zip: &mut zip::ZipArchive<fs::File>,
+    zip: &mut crate::zip_intake::Archive<fs::File>,
     names: &[String],
     root: &str,
     game: &str,
@@ -181,7 +181,7 @@ fn prism_archive(
         return Err("mmc-pack.json does not name a Minecraft version".into());
     }
     if work.is_some() {
-        crate::resourcepacks::reject_duplicate_entries(source, zip)?;
+        crate::resourcepacks::reject_duplicate_entries(zip)?;
     }
     let prefix = format!("{game}mods/");
     let mut budget = crate::entry::Budget::archive();
@@ -235,14 +235,17 @@ fn prism_archive(
     Ok(pack)
 }
 
-fn names(zip: &zip::ZipArchive<fs::File>) -> Result<Vec<String>, String> {
+fn names(zip: &crate::zip_intake::Archive<fs::File>) -> Result<Vec<String>, String> {
     zip.file_names()
         .map(|name| name.map(|name| name.into_owned()))
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())
 }
 
-fn read_json(zip: &mut zip::ZipArchive<fs::File>, name: &str) -> Result<Option<Value>, String> {
+fn read_json(
+    zip: &mut crate::zip_intake::Archive<fs::File>,
+    name: &str,
+) -> Result<Option<Value>, String> {
     let Ok(entry) = zip.by_name(name) else {
         return Ok(None);
     };

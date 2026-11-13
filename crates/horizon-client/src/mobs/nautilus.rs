@@ -897,7 +897,8 @@ mod hostile_target_tests {
             |_, _| {},
             |_, types| {
                 let kind = Arc::new(types.types["minecraft:pufferfish"].clone());
-                fish = Some(Mob::new(2, kind, fish_at, 0.0).seen(None));
+                fish =
+                    Some(Mob::new(2, kind, fish_at, 0.0).seen(None, &crate::items::Items::empty()));
             },
         );
         let fish = fish?;

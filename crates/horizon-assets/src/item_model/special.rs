@@ -77,6 +77,26 @@ fn one_of(v: &Value, names: &[&str]) -> Result<String> {
     }
 }
 
+/// `SkullBlock.Type`: vanilla's kinds and those native mods registered
+/// (`register_skull_kinds`).
+fn skull_kind(v: &Value) -> Result<String> {
+    const VANILLA: [&str; 7] = [
+        "skeleton",
+        "wither_skeleton",
+        "player",
+        "zombie",
+        "creeper",
+        "piglin",
+        "dragon",
+    ];
+    let s = string(v)?;
+    if VANILLA.contains(&s.as_str()) || super::is_skull_kind(&s) {
+        Ok(s)
+    } else {
+        Err(err("invalid enum name"))
+    }
+}
+
 impl SpecialModel {
     /// A special model type of another namespace, which Horizon has no renderer for.
     pub fn is_foreign(v: &Value) -> bool {
@@ -138,18 +158,7 @@ impl SpecialModel {
                 effect: one_of(required(m, "effect")?, &["portal", "gateway"])?,
             },
             "minecraft:head" => SpecialKind::Head {
-                kind: one_of(
-                    required(m, "kind")?,
-                    &[
-                        "skeleton",
-                        "wither_skeleton",
-                        "player",
-                        "zombie",
-                        "creeper",
-                        "piglin",
-                        "dragon",
-                    ],
-                )?,
+                kind: skull_kind(required(m, "kind")?)?,
                 texture: get(m, "texture").map(ident).transpose()?,
                 animation: float_or("animation", 0.0)?,
             },

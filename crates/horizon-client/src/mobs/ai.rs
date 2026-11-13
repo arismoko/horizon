@@ -1542,9 +1542,9 @@ impl crate::block_contact::InsideWalk for MobInside<'_, '_, '_> {
             crate::block_contact::inside_written(state, at, writes);
         }
         // PowderSnowBlock.entityInside: a burning mob destroys the
-        // block (with `mob_griefing`), then EXTINGUISH puts it out.
+        // block (`canEntityGrief` for the mob), then EXTINGUISH puts it out.
         if self.w.block_name(x, y, z) == "minecraft:powder_snow" {
-            if self.m.is_on_fire() && self.w.mob_griefing {
+            if self.m.is_on_fire() && self.w.can_grief(self.m.id) {
                 self.events.push(MobEvent::BreakBlock {
                     pos: p,
                     drop: false,
@@ -4865,9 +4865,12 @@ mod same_vehicle_push_tests {
                 let mut husk = mob(2, "minecraft:husk", Vec3::new(0.5, 65.5, 1.0));
                 camel.extra.rider = Some(husk.id);
                 husk.extra.mount = Some(camel.id);
-                riders.push(husk.seen(None));
+                riders.push(husk.seen(None, &crate::items::Items::empty()));
                 if zombie_too {
-                    riders.push(mob(3, "minecraft:zombie", Vec3::new(0.5, 64.0, 0.0)).seen(None));
+                    riders.push(
+                        mob(3, "minecraft:zombie", Vec3::new(0.5, 64.0, 0.0))
+                            .seen(None, &crate::items::Items::empty()),
+                    );
                 }
                 out = Some(camel);
             });
@@ -4920,21 +4923,24 @@ mod same_vehicle_push_tests {
             return;
         };
         let mut events = Vec::new();
-        let ran = with_test_world(&[villager.seen(None)], |w, _| {
-            push_entities(
-                &mut cow,
-                w,
-                &mut crate::health::TestLevel::new(0).level(),
-                &mut events,
-            );
-        });
+        let ran = with_test_world(
+            &[villager.seen(None, &crate::items::Items::empty())],
+            |w, _| {
+                push_entities(
+                    &mut cow,
+                    w,
+                    &mut crate::health::TestLevel::new(0).level(),
+                    &mut events,
+                );
+            },
+        );
         // Without the vanilla data under .local/horizon-client the world
         // cannot be built: the test has nothing to check.
         let _ = ran;
         assert!(events.is_empty());
         assert_eq!(cow.velocity, Vec3::ZERO);
 
-        let ran = with_test_world(&[cow.seen(None)], |w, _| {
+        let ran = with_test_world(&[cow.seen(None, &crate::items::Items::empty())], |w, _| {
             push_entities(
                 &mut villager,
                 w,
@@ -4978,7 +4984,7 @@ mod same_vehicle_push_tests {
             return;
         };
         let mut events = Vec::new();
-        let ran = with_test_world(&[fox.seen(None)], |w, _| {
+        let ran = with_test_world(&[fox.seen(None, &crate::items::Items::empty())], |w, _| {
             push_entities(
                 &mut cow,
                 w,
@@ -4993,7 +4999,7 @@ mod same_vehicle_push_tests {
         assert_eq!(cow.velocity, Vec3::ZERO);
 
         fox.extra.ints[0] &= !super::super::fox::SLEEPING;
-        let ran = with_test_world(&[fox.seen(None)], |w, _| {
+        let ran = with_test_world(&[fox.seen(None, &crate::items::Items::empty())], |w, _| {
             push_entities(
                 &mut cow,
                 w,
@@ -5048,7 +5054,7 @@ mod same_vehicle_push_tests {
             return;
         };
         let mut events = Vec::new();
-        with_test_world(&[cow.seen(None)], |w, _| {
+        with_test_world(&[cow.seen(None, &crate::items::Items::empty())], |w, _| {
             push_entities(&mut horse, w, level, &mut events)
         });
         assert_eq!(pushed(&events), vec![2], "the ridden horse pushes the cow");
@@ -5060,9 +5066,10 @@ mod same_vehicle_push_tests {
 
         let (horse, mut cow) = pair(true).unwrap();
         let mut events = Vec::new();
-        with_test_world(&[horse.seen(None)], |w, _| {
-            push_entities(&mut cow, w, level, &mut events)
-        });
+        with_test_world(
+            &[horse.seen(None, &crate::items::Items::empty())],
+            |w, _| push_entities(&mut cow, w, level, &mut events),
+        );
         assert_eq!(
             pushed(&events),
             Vec::<u32>::new(),
@@ -5072,9 +5079,10 @@ mod same_vehicle_push_tests {
 
         let (horse, mut cow) = pair(false).unwrap();
         let mut events = Vec::new();
-        with_test_world(&[horse.seen(None)], |w, _| {
-            push_entities(&mut cow, w, level, &mut events)
-        });
+        with_test_world(
+            &[horse.seen(None, &crate::items::Items::empty())],
+            |w, _| push_entities(&mut cow, w, level, &mut events),
+        );
         assert_eq!(
             pushed(&events),
             vec![1],
@@ -5107,11 +5115,15 @@ mod warden_push_tests {
                 set_pose(&mut warden, pose);
                 let standing = pose == Pose::Standing;
                 assert_eq!(warden.pushable(), standing, "{pose:?}");
-                assert_eq!(warden.seen(None).pushable, standing, "{pose:?}");
+                assert_eq!(
+                    warden.seen(None, &crate::items::Items::empty()).pushable,
+                    standing,
+                    "{pose:?}"
+                );
 
                 // The warden's tick: an overlapping mob must not move it.
                 let mut cow = mob(2, "minecraft:cow", 1.0);
-                let others = [cow.seen(None)];
+                let others = [cow.seen(None, &crate::items::Items::empty())];
                 let mut w = world.clone();
                 w.others = &others;
                 let mut events = Vec::new();
@@ -5127,7 +5139,7 @@ mod warden_push_tests {
                 )));
 
                 // The other mob's tick: the warden's Seen must exclude it.
-                let others = [warden.seen(None)];
+                let others = [warden.seen(None, &crate::items::Items::empty())];
                 w.others = &others;
                 events.clear();
                 push_entities(&mut cow, &w, level, &mut events);
@@ -6413,7 +6425,7 @@ mod iron_golem_push_tests {
         // CI has no prepared 26.3 data, so a world that does not build skips
         // the whole check rather than asserting the data exists.
         let mut hits = |victim: Mob| -> Option<u32> {
-            let seen = victim.seen(None);
+            let seen = victim.seen(None, &crate::items::Items::empty());
             let mut hits = 0;
             let ran = with_test_world(&[seen], |w, _| {
                 let mut golem = mob(1, Species::IronGolem, "monster");
@@ -7390,7 +7402,10 @@ mod trader_llama_no_ai_tests {
                     Vec3::new(40.5, 200.0, 40.5),
                     0.0,
                 );
-                let seen = [trader.seen(None), cow.seen(None)];
+                let seen = [
+                    trader.seen(None, &crate::items::Items::empty()),
+                    cow.seen(None, &crate::items::Items::empty()),
+                ];
                 assert_eq!(seen[0].delay, 13);
                 let view = MobWorld {
                     others: &seen,

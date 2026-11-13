@@ -7,7 +7,7 @@ pub trait Hooks {
     /// the item without slots, and vanilla's items have none. Asked at each
     /// call of the item container helpers (`native_item_container_slots`,
     /// `native_item_container_insert`, `native_item_container_extract`, in
-    /// `native_item_container.rs`). The contents are kept in the stack's
+    /// `item_container.rs`). The contents are kept in the stack's
     /// `minecraft:container`, as a shulker box item keeps them.
     #[hook(
         side = "both",

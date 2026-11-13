@@ -18,7 +18,7 @@ pub trait ProjectilesServerHost {
     /// Does not consume the stack or apply item-use cooldowns or statistics.
     /// None for an unavailable owner or one in another level, unsupported type,
     /// invalid stack or non-finite shot parameter. Also refuses a stack with a
-    /// `projectile_spawned` effect the engine does not apply yet: `ignite`,
+    /// `projectile_spawned` effect the engine does not apply: `ignite`,
     /// `apply_impulse`, `play_sound` and `all_of` of those apply
     /// (`apply_mob_effect` and `apply_exhaustion` do nothing to a projectile,
     /// as in vanilla); the block, damage, explosion, particle, summon,

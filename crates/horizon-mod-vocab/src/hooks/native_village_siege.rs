@@ -1,4 +1,4 @@
-//! The `native_village_siege` hooks and helpers: declarations the mod API generator reads (see `hooks/mod.rs`).
+//! The `village_siege` hooks and helpers: declarations the mod API generator reads (see `hooks/mod.rs`).
 
 pub trait Hooks {
     /// A village siege found a spawn position on the server. Set `canceled`

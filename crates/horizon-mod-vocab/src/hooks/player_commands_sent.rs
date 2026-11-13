@@ -9,7 +9,7 @@ pub trait Hooks {
     /// mods'; take a name out and that client gets the tree without it
     /// (and without what it leads to), so it neither completes nor
     /// highlights it. This hides the command from the client only: the
-    /// server still runs a typed one, `native_player_command` stops it.
+    /// server still runs a typed one, `player_command` stops it.
     /// For a player who is already on, their state is swapped in and the
     /// helpers (`PlayerRef::tell`...) work; for one who is joining it is not, and
     /// their client has no world to tell yet. The tree the hub sends again by

@@ -1369,14 +1369,14 @@ impl Game<'_> {
             c[2] + f64::from(s[2]) * 1.125,
         );
         let front = offset(pos, facing);
-        let y_offset = if let Some(rail) = self.rail(front.0, front.1, front.2) {
+        let y_offset = if let Some(rail) = self.rail(None, front.0, front.1, front.2) {
             if rail.shape.is_slope() { 0.6 } else { 0.1 }
         } else {
             if !self.res.facts().is_air(self.block_at(front)) {
                 return (self.dispense_default_in_level(pos, facing, stack), CLICK);
             }
             let below = (front.0, front.1 - 1, front.2);
-            let Some(rail) = self.rail(below.0, below.1, below.2) else {
+            let Some(rail) = self.rail(None, below.0, below.1, below.2) else {
                 return (self.dispense_default_in_level(pos, facing, stack), CLICK);
             };
             if facing != Direction::Down && rail.shape.is_slope() {

@@ -120,14 +120,7 @@ impl Game<'_> {
         let now = self.world.game_time;
         let items = world_items!(self);
         let professions = self.stations().professions.clone();
-        let meeting = villager::meet(
-            &mut self.mobs,
-            ia,
-            ib,
-            now,
-            |item| items.get(item).map_or(64, |i| i.max_stack),
-            &professions,
-        );
+        let meeting = villager::meet(&mut self.mobs, ia, ib, now, items, &professions);
         for stack in meeting.thrown {
             self.villager_throw(meeting.from, meeting.eye, meeting.to, stack);
         }
@@ -199,7 +192,7 @@ impl Game<'_> {
         else {
             return;
         };
-        villager::ext_mut(&mut self.mobs[ib]).eat_and_digest();
+        villager::ext_mut(&mut self.mobs[ib]).eat_and_digest(world_items!(self));
         let from = self.mobs[ia].position;
         let Some((bed, variant)) = child else {
             // VillagerMakeLove: entity event 13 for the partner, then the parent.
@@ -363,7 +356,7 @@ impl Game<'_> {
                     continue;
                 }
                 let item = &e.stack.item;
-                let wants = villager::food_points(item) > 0
+                let wants = villager::food_points(world_items!(self), item) > 0
                     || picks_up.as_ref().is_some_and(|t| t.contains(&**item))
                     || requested.iter().any(|key| key == &**item);
                 let fits =
@@ -437,7 +430,7 @@ impl Game<'_> {
                     continue;
                 }
                 let item = e.stack.item.clone();
-                let wants = villager::food_points(&item) > 0
+                let wants = villager::food_points(world_items!(self), &item) > 0
                     || picks_up.as_ref().is_some_and(|t| t.contains(&*item))
                     || requested.iter().any(|key| key == &*item);
                 if !wants {
@@ -532,7 +525,11 @@ impl Game<'_> {
         let Some(uuid) = self.player_uuid_of(killer) else {
             return;
         };
-        let snapshot: Vec<_> = self.mobs.iter().map(|m| m.seen(None)).collect();
+        let snapshot: Vec<_> = self
+            .mobs
+            .iter()
+            .map(|m| m.seen(None, self.items()))
+            .collect();
         let witnesses =
             villager_brain::murder_witnesses(&mut victim.clone(), &self.mob_world_base(&snapshot));
         for id in witnesses {

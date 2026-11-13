@@ -6,7 +6,7 @@ pub trait Hooks {
     /// `LivingEntity.baseTick` every tick for a living entity with the generic
     /// air logic): `entity` is its ID and `kind` its type (`minecraft:player`,
     /// `minecraft:zombie`). `can_breathe`, `consume` and `refill` come in as
-    /// Horizon does it today (a mod-free game changes nothing); set them to
+    /// Horizon does it (a mod-free game changes nothing); set them to
     /// change this tick. With `can_breathe` the air rises by `refill`, up to its
     /// maximum (300); without, it falls by `consume`, and at -20 it is set to 0
     /// and the entity takes 2 drowning damage. Negative amounts count as 0.

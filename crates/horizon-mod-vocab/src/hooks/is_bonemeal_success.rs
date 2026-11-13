@@ -3,7 +3,7 @@
 
 pub trait Hooks {
     /// `BonemealableBlock.isBonemealSuccess` for a block that answered
-    /// `native_is_valid_bonemeal_target`, after it did: set `success` to grow
+    /// `is_valid_bonemeal_target`, after it did: set `success` to grow
     /// it this time. Vanilla draws the level's random here
     /// (`isBonemealSuccess(Level, RandomSource, BlockPos, BlockState)`), so
     /// draw from `native_level_random` to keep vanilla's order.

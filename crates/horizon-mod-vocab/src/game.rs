@@ -36,7 +36,7 @@ pub struct BlockEdit {
     pub filters: Vec<StatePredicate>,
     pub runs: Vec<BlockRun>,
 }
-/// The camera shake native mods ask for (`native_camera_shake`): turns in
+/// The camera shake native mods ask for (`camera_shake`): turns in
 /// degrees, and an offset in blocks along the camera's right, up and back.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 // exhaustive: the game builds it with a literal; mods only read it
@@ -104,7 +104,7 @@ pub enum ConfigKind {
     /// server when it starts. A single player's server thread shares the
     /// window's.
     Common,
-    /// The server, before `native_server_about_to_start`, for each world it
+    /// The server, before `server_about_to_start`, for each world it
     /// opens: the world's `serverconfig/<file>` when there is one, else
     /// `config/<file>`.
     Server,
@@ -189,7 +189,7 @@ pub struct ModMismatch {
 // exhaustive: the game builds it with a literal; mods only read it
 #[derive(horizon_mod_api_macros::Wire)]
 pub struct ExperienceOrb {
-    /// The entity's ID, as `native_entity_join_level` names it.
+    /// The entity's ID, as `entity_join_level` names it.
     pub id: u32,
     pub position: [f64; 3],
     /// `ExperienceOrb.value`: the signed points value saved by vanilla.
@@ -259,7 +259,7 @@ pub enum ModEvent {
     UseStop(HeldItemSlot, u32),
 }
 // no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// A map as a native mod sees it when `native_map_decorations` is asked.
+/// A map as a native mod sees it when `map_decorations` is asked.
 // Native mods read it; nothing in Horizon does.
 #[derive(Clone, Copy, Debug)]
 // exhaustive: the game builds it with a literal; mods only read it
@@ -334,8 +334,8 @@ pub struct MobRender<'a> {
     pub on_ground: bool,
 }
 // no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// Which player a [`MobRender`] is, for `native_player_submit` and
-/// `native_mob_layer`.
+/// Which player a [`MobRender`] is, for `player_submit` and
+/// `mob_layer`.
 // Native mods read it; nothing in Horizon does.
 #[derive(Clone, Copy, Debug)]
 // exhaustive: the game builds it with a literal; mods only read it

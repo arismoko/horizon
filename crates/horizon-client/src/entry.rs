@@ -3,6 +3,8 @@
 mod horizon_look;
 use crate::{crash, game, logging};
 use horizon_mod_package::selection::{Argument, LaunchArguments};
+pub(crate) mod dedicated_arguments;
+pub(crate) mod runtime_environment;
 
 /// Validated startup state. No native hooks or workers may run before prepare returns.
 pub struct Startup {
@@ -102,6 +104,7 @@ pub fn start<G>(
         options,
         _capture,
     } = startup;
+    runtime_environment::capture(&launch);
     horizon_threads::configure_allocator();
     horizon_chat_filter::install();
     horizon_look::give();

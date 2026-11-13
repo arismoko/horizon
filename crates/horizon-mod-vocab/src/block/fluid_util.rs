@@ -1,4 +1,4 @@
-//! Fluid interaction helpers, as NeoForge 26.3's `FluidUtil` (arismoko/horizon#3382): the common
+//! Fluid interaction helpers, as NeoForge 26.3's `FluidUtil`: the common
 //! case of a player right-clicking a tank with a bucket or any fluid container, in one call, with
 //! the bucket's sound and game event. Pure vocabulary over [`FLUIDS`], [`ITEM_FLUIDS`] at
 //! [`ItemPlace::PlayerHand`] and the move step of [`move_resources`](crate::move_resources): nothing changes until a mod calls them.

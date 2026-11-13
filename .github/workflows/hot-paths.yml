@@ -58,10 +58,9 @@ jobs:
         run: echo "CARGO_BUILD_JOBS=$(python3 tools/ci/cargo_jobs.py --job-mib 4096)" | tee -a "$GITHUB_ENV"
       - name: Self-hosted image headers or rootless fallback
         run: bash tools/ci/dyna_ci_deps.sh
-      - name: The launcher's pinned Rust
+      - name: The pinned Rust (tools/ci/rust-version)
         id: rust
-        run: |
-          echo "version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' launcher/src/rust_toolchain.rs)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(cat tools/ci/rust-version)" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.rust.outputs.version }}

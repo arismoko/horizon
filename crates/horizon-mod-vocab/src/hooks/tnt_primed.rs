@@ -10,7 +10,7 @@ pub trait Hooks {
     /// arrow, a dispenser). Set `cancel` and it is not primed: a TNT block
     /// stays where it is (one that fire or a signal had already taken out is
     /// put back, without a block update), a dispenser's TNT item stays in it.
-    /// Not asked: TNT set off by a blast (`native_explosion_detonate` spares
+    /// Not asked: TNT set off by a blast (`explosion_detonate` spares
     /// blocks), a TNT minecart and a sulfur cube. Server-side and in single
     /// player.
     #[hook(

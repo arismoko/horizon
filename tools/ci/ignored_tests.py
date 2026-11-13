@@ -177,6 +177,15 @@ DIAGNOSTIC_CONTEXTS = 4096
 _active_budget = None
 
 
+def thread_identity(name):
+    """A thread's name as a test identity, a short plain name (`Server thread`), or withheld."""
+    if "::" in name:
+        return f"test {safe_identity(name)}"
+    if re.fullmatch(r"[A-Za-z0-9 <>_.-]{1,40}", name):
+        return f"thread '{name}'"
+    return "a thread (name withheld)"
+
+
 def safe_identity(name):
     # Rust path segments only, not arbitrary libtest payloads or GitHub tokens.
     if re.fullmatch(r"(?:r#)?[^\W\d]\w*(?:::(?:r#)?[^\W\d]\w*)*", name) and not re.search(
@@ -269,8 +278,12 @@ def failure_diagnostics(output):
             continue
         line = line.rstrip("\r\n")
         abort = next((label for pattern, label in ABORTS if pattern.match(line.strip())), None)
-        if abort and abort not in aborts:
-            aborts.append(abort)
+        if abort:
+            thread = re.match(r"thread '([^']*)'", line.strip())
+            if thread:
+                abort += f" on {thread_identity(thread[1])}"
+            if abort not in aborts:
+                aborts.append(abort)
         if RESULT.match(line) or SUMMARY.match(line) or TARGET.match(line):
             panic_reason_pending = False
         if panic_reason_pending and line.strip():
@@ -361,6 +374,14 @@ def failure_diagnostics(output):
         emitted, cut = bounded_record(record, remaining)
         shown += emitted
         shortened += cut
+    if not failures and (aborts or contexts):
+        # The process died without libtest naming a failed test: what the runtime said, and every
+        # thread's panic, unattributed.
+        details = [f"  process aborted: {abort}" for abort in aborts]
+        for thread, other in contexts.items():
+            details += [f"  panic on {thread_identity(thread)}:"] + other
+        emitted, cut = bounded_record("  no failed test named; process-level:\n" + "\n".join(details) + "\n", remaining)
+        shortened += cut
     print(f"failure diagnostics: {shown} shown; {len(failures) - shown} failing tests not shown "
           f"(total byte budget {FAILURE_TOTAL_BYTES}); {shortened} records shortened "
           f"(per-test byte budget {FAILURE_BYTES}); {missing} missing context; {withheld} withheld context/identity; "
@@ -368,6 +389,26 @@ def failure_diagnostics(output):
           f"{locations_withheld} locations withheld; {payloads_withheld} payloads withheld (expected privacy filtering); "
           f"{skipped_lines} lines skipped (line/count bounds; failure count unknown there); "
           f"{skipped_contexts} contexts skipped (retention bound)")
+
+
+RUNNING_LONG = re.compile(r"^test (\S+) has been running for over 60 seconds$")
+CRASH_NAMES = 20
+
+
+def crash_report(package, output, expected, results):
+    """After a crash: the tests that ran long and the listed ones that never reported, by name only."""
+    long = []
+    for line in output.splitlines():
+        if (found := RUNNING_LONG.match(line.strip())) and found[1] not in results and found[1] not in long:
+            long.append(found[1])
+    if long:
+        print(f"{package}: still running past 60 s when it crashed: "
+              + ", ".join(safe_identity(name) for name in long[:CRASH_NAMES]))
+    unreported = sorted(set(expected) - set(results))
+    if unreported:
+        shown = ", ".join(safe_identity(name) for name in unreported[:CRASH_NAMES])
+        more = f" (and {len(unreported) - CRASH_NAMES} more)" if len(unreported) > CRASH_NAMES else ""
+        print(f"{package}: {len(unreported)} listed tests never reported: {shown}{more}")
 
 
 def missing_result_framing(output, name):
@@ -552,6 +593,7 @@ def run(package, skip, number=None, count=None):
     finish_target()
     if crashed:
         print(f"{package}: a test process crashed (cargo exit {process.returncode})")
+        crash_report(package, process.stdout, expected, results)
         return None
     # A fixture that reruns its own test executable (`run_fresh_cases`, the death-weapon cases) prints the
     # child's result record for the same name beside the parent's. Several records for one name are expected

@@ -1,17 +1,17 @@
 use super::*;
 
-/// The design's provisional bounds for general entity types (#792), declared
+/// The bounds for general entity types, declared
 /// once so the registrar, the codecs and the tests quote the same numbers.
 /// The payload bound applies to mod-owned payload bytes only, never to a
-/// record of a vanilla type. The quarantine bounds (provisional, no vanilla
-/// analogue) cap what stage 3 preserves of a missing mod's records.
+/// record of a vanilla type. The quarantine bounds (with no vanilla
+/// analogue) cap what the game preserves of a missing mod's records.
 // exhaustive: the design's limits are one block; no further constants join it
 pub mod limits {
     /// The most payload bytes one general entity record may carry. A payload
     /// one byte larger is refused, never truncated into a valid-looking
     /// entity.
     pub const PAYLOAD_LIMIT: usize = 65_536;
-    /// The deepest nesting of a general entity's decoded data. Stage 3's
+    /// The deepest nesting of a general entity's decoded data. The
     /// payload decode checks it; the record tree itself has the stricter
     /// passenger-depth bound.
     pub const MAX_NESTING: u32 = 32;
@@ -19,17 +19,17 @@ pub mod limits {
     pub const MAX_PASSENGER_DEPTH: u32 = 16;
     /// The largest record a missing mod's quarantined general entity may
     /// occupy, as its encoded NBT size. A larger record is skipped with a
-    /// warning rather than preserved. Provisional, no vanilla analogue:
+    /// warning rather than preserved. There is no vanilla analogue:
     /// vanilla deletes unknown-mod entities outright, and Horizon's quarantine
-    /// is a #792 stage-3 choice pending Ari's decision on the issue.
+    /// preserves records for missing mods.
     pub const QUARANTINE_RECORD_LIMIT: u64 = 69_632;
     /// The most quarantined general entity records one chunk may carry. The
-    /// next one is skipped with a warning. Provisional, no vanilla analogue:
+    /// next one is skipped with a warning. There is no vanilla analogue:
     /// vanilla has no quarantine to bound.
     pub const QUARANTINE_CHUNK_LIMIT: usize = 256;
 }
 
-/// A general entity type's spawn category (#792's design supplies category at
+/// A general entity type's spawn category (supplied at
 /// declaration; general types start as `MISC`, which never gains natural
 /// spawning implicitly).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,7 +52,7 @@ pub enum GeneralSavePolicy {
 }
 
 /// A general entity type a mod declares, as the game reads it when it freezes
-/// the type registry (#792). The registry is data: no mod type adds an entry
+/// the type registry. The registry is data: no mod type adds an entry
 /// to any hand-kept engine list.
 #[derive(Clone, Debug)]
 // exhaustive: only registration builds it; the game reads it
@@ -133,7 +133,7 @@ pub fn general_entity_type_declarations() -> &'static [GeneralEntityTypeDeclarat
     installed().map_or(&[], |installed| &installed.general_entity_types)
 }
 
-/// Registration of general entity types (#792): one frozen registry of
+/// Registration of general entity types: one frozen registry of
 /// namespaced types, filled before worlds or connections open.
 pub trait GeneralTypesRegistrar {
     /// Declare a general entity type of the mod's own (vanilla's

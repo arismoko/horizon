@@ -235,7 +235,13 @@ fn end_portal_rotation(into_end: bool, [yaw, pitch]: [f32; 2], spawn: [f32; 2]) 
     [yaw, pitch.clamp(-90.0, 90.0)]
 }
 /// Apply a resolved destination to the entity tree without resetting its cooldown.
-fn set_arrival_pose(tag: &mut Tag, at: Vec3, motion: Vec3, [yaw, pitch]: [f32; 2], yaw_turn: f32) {
+pub(super) fn set_arrival_pose(
+    tag: &mut Tag,
+    at: Vec3,
+    motion: Vec3,
+    [yaw, pitch]: [f32; 2],
+    yaw_turn: f32,
+) {
     if let Some(was) = horizon_client::entity_nbt::position(tag) {
         move_passengers(tag, at.subtract(was), yaw_turn);
     }
@@ -1199,18 +1205,54 @@ impl Game<'_> {
             self.detach_entity(id);
         }
     }
-
-    fn send_through_portal(&mut self, id: u32, entry: BlockPos) {
-        let arrivals = self.portals.arrivals.len();
-        // `Entity.handlePortal`: setPortalCooldown before the teleport, which
-        // restoreFrom copies to the arriving entity.
-        let cooldown = self.dimension_changing_delay(id);
-        if let Some(i) = self.dropped.iter().position(|e| e.id == id) {
-            let e = &self.dropped[i];
-            let plan = self.entity_plan(entry, e.position, 0.25, 0.25, false);
-            if !self.may_travel_through(id, &plan) {
-                return;
-            }
+    /// Where an entity that changes level alone stands, and the width and
+    /// height of its box: an item, a primed TNT, a trident, a firework, an
+    /// experience orb, or an arrow or other projectile a chunk saves
+    /// (`is_portal_projectile`). None for every other entity: a mob, a boat or
+    /// a minecart crosses as a vehicle tree with its riders.
+    pub(super) fn lone_traveller_box(&self, id: u32) -> Option<(Vec3, f32, f32)> {
+        if let Some(e) = self.dropped.iter().find(|e| e.id == id) {
+            return Some((e.position, 0.25, 0.25));
+        }
+        if let Some(t) = self.tnts.iter().find(|t| t.id == id) {
+            return Some((t.position, 0.98, 0.98));
+        }
+        if let Some(t) = self.tridents.iter().find(|t| t.id == id) {
+            return Some((t.position, 0.5, 0.5));
+        }
+        if let Some(r) = self.rockets.iter().find(|r| r.id == id) {
+            return Some((r.position, 0.25, 0.25));
+        }
+        if let Some(o) = self.orbs.iter().find(|o| o.id == id) {
+            return Some((o.position, 0.5, 0.5));
+        }
+        let p = self
+            .creatures
+            .projectiles
+            .iter()
+            .find(|p| p.id == id && (is_arrow(p) || is_portal_projectile(p)))?;
+        let (width, height) = projectile_box(p);
+        Some((p.position, width, height))
+    }
+    /// `Entity.teleportCrossDimension` for an entity that changes level alone
+    /// (`lone_traveller_box`): its saved compound, with its attachments, and
+    /// the live state its copy takes over (`restoreFrom`), as it leaves the
+    /// level in place (`removeAfterChangingDimensions`). None, with the entity
+    /// left where it is, for any other entity or a projectile with no saved
+    /// form.
+    pub(super) fn take_lone_traveller(
+        &mut self,
+        id: u32,
+    ) -> Option<(Tag, super::entity_initialization::TransferredEntityState)> {
+        enum List {
+            Item,
+            Tnt,
+            Trident,
+            Rocket,
+            Orb,
+            Projectile,
+        }
+        let (mut tag, list, i) = if let Some(i) = self.dropped.iter().position(|e| e.id == id) {
             let uuid = self.uuid_for(id);
             let tag = horizon_client::entity_nbt::item_entity_to_nbt_with_items(
                 &self.dropped[i],
@@ -1218,84 +1260,90 @@ impl Game<'_> {
                 self.persist_raw(id),
                 self.items(),
             );
-            let mut tag = tag;
-            super::persist::write_attachments(&mut tag, id, &self.entity_attachments);
-            let state = self.take_transferred_entity_state(id);
-            self.remove_dropped(i);
-            self.detach_entity(id);
-            self.portals.arrivals.push(Arrival {
-                plan,
-                tag,
-                transferred: Some(TransferredArrivalState::Entity(state)),
-            });
-            self.portals.dirty = true;
+            (tag, List::Item, i)
         } else if let Some(i) = self.tnts.iter().position(|t| t.id == id) {
-            let t = &self.tnts[i];
-            let plan = self.entity_plan(entry, t.position, 0.98, 0.98, false);
-            if !self.may_travel_through(id, &plan) {
-                return;
-            }
-            let tag = self.tnt_nbt(i);
-            let mut tag = tag;
-            super::persist::write_attachments(&mut tag, id, &self.entity_attachments);
-            let state = self.take_transferred_entity_state(id);
-            self.tnts.remove(i);
-            self.forget_entity(id);
-            self.portals.arrivals.push(Arrival {
-                plan,
-                tag,
-                transferred: Some(TransferredArrivalState::Entity(state)),
-            });
-            self.portals.dirty = true;
+            (self.tnt_nbt(i), List::Tnt, i)
         } else if let Some(i) = self.tridents.iter().position(|t| t.id == id) {
-            let plan = self.entity_plan(entry, self.tridents[i].position, 0.5, 0.5, false);
-            if !self.may_travel_through(id, &plan) {
-                return;
-            }
             let uuid = self.uuid_for(id);
             let tag =
                 self.tridents[i].to_nbt(uuid, self.pack.assets.registry, self.persist_raw(id));
-            let mut tag = tag;
-            super::persist::write_attachments(&mut tag, id, &self.entity_attachments);
-            let state = self.take_transferred_entity_state(id);
-            self.tridents.remove(i);
-            self.forget_entity(id);
-            self.portals.arrivals.push(Arrival {
-                plan,
-                tag,
-                transferred: Some(TransferredArrivalState::Entity(state)),
-            });
-            self.portals.dirty = true;
+            (tag, List::Trident, i)
         } else if let Some(i) = self.rockets.iter().position(|r| r.id == id) {
-            let plan = self.entity_plan(entry, self.rockets[i].position, 0.25, 0.25, false);
-            if !self.may_travel_through(id, &plan) {
-                return;
-            }
             let uuid = self.uuid_for(id);
             let tag = self.rockets[i].to_nbt(uuid, self.level.player_uuid, self.persist_raw(id));
-            let mut tag = tag;
-            super::persist::write_attachments(&mut tag, id, &self.entity_attachments);
-            let state = self.take_transferred_entity_state(id);
-            self.rockets.remove(i);
-            self.forget_entity(id);
-            self.portals.arrivals.push(Arrival {
-                plan,
-                tag,
-                transferred: Some(TransferredArrivalState::Entity(state)),
-            });
-            self.portals.dirty = true;
+            (tag, List::Rocket, i)
         } else if let Some(i) = self.orbs.iter().position(|o| o.id == id) {
-            let plan = self.entity_plan(entry, self.orbs[i].position, 0.5, 0.5, false);
+            let uuid = self.uuid_for(id);
+            let tag = horizon_client::entity_nbt::orb_to_nbt(&self.orbs[i], uuid);
+            (tag, List::Orb, i)
+        } else {
+            let i = self
+                .creatures
+                .projectiles
+                .iter()
+                .position(|p| p.id == id && (is_arrow(p) || is_portal_projectile(p)))?;
+            let uuid = self.uuid_for(id);
+            let p = &self.creatures.projectiles[i];
+            let in_block = p
+                .arrow
+                .as_ref()
+                .and_then(|a| a.last_state)
+                .map(|s| self.state_to_nbt(s));
+            let raw = self.persist_raw(id);
+            let tag =
+                horizon_client::entity_nbt::arrow_to_nbt(p, uuid, p.owner_uuid, in_block, raw)
+                    .or_else(|| {
+                        horizon_client::entity_nbt::fireball_to_nbt(p, uuid, p.owner_uuid, raw)
+                    })
+                    .or_else(|| {
+                        horizon_client::entity_nbt::throwable_to_nbt(p, uuid, p.owner_uuid, raw)
+                    })?;
+            (tag, List::Projectile, i)
+        };
+        super::persist::write_attachments(&mut tag, id, &self.entity_attachments);
+        let state = self.take_transferred_entity_state(id);
+        match list {
+            List::Item => {
+                self.remove_dropped(i);
+                self.detach_entity(id);
+            }
+            List::Tnt => {
+                self.tnts.remove(i);
+                self.forget_entity(id);
+            }
+            List::Trident => {
+                self.tridents.remove(i);
+                self.forget_entity(id);
+            }
+            List::Rocket => {
+                self.rockets.remove(i);
+                self.forget_entity(id);
+            }
+            List::Orb => {
+                self.orbs.remove(i);
+                self.forget_entity(id);
+            }
+            List::Projectile => {
+                self.creatures.projectiles.remove(i);
+                self.forget_entity(id);
+            }
+        }
+        Some((tag, state))
+    }
+
+    fn send_through_portal(&mut self, id: u32, entry: BlockPos) {
+        let arrivals = self.portals.arrivals.len();
+        // `Entity.handlePortal`: setPortalCooldown before the teleport, which
+        // restoreFrom copies to the arriving entity.
+        let cooldown = self.dimension_changing_delay(id);
+        if let Some((at, width, height)) = self.lone_traveller_box(id) {
+            let plan = self.entity_plan(entry, at, width, height, false);
             if !self.may_travel_through(id, &plan) {
                 return;
             }
-            let uuid = self.uuid_for(id);
-            let tag = horizon_client::entity_nbt::orb_to_nbt(&self.orbs[i], uuid);
-            let mut tag = tag;
-            super::persist::write_attachments(&mut tag, id, &self.entity_attachments);
-            let state = self.take_transferred_entity_state(id);
-            self.orbs.remove(i);
-            self.forget_entity(id);
+            let Some((tag, state)) = self.take_lone_traveller(id) else {
+                return;
+            };
             self.portals.arrivals.push(Arrival {
                 plan,
                 tag,
@@ -1360,14 +1408,12 @@ impl Game<'_> {
             let Some(mut tag) = self.vehicle_tree_nbt(id) else {
                 return;
             };
-            // `PositionMoveRotation.of(this)` takes the cart's `getKnownMovement`:
-            // `OldMinecartBehavior` clamps it to 0.4 either way along x and z.
-            let m = horizon_client::entity_nbt::motion(&tag);
+            // `PositionMoveRotation.of(this)` takes the cart's `getKnownMovement`.
+            let m = super::vehicle_teleport::cart_known_movement(
+                horizon_client::entity_nbt::motion(&tag),
+            );
             if let Tag::Compound(c) = &mut tag {
-                c.insert(
-                    "Motion".into(),
-                    doubles([m.x.clamp(-0.4, 0.4), m.y, m.z.clamp(-0.4, 0.4)]),
-                );
+                c.insert("Motion".into(), doubles([m.x, m.y, m.z]));
             }
             let Some(state) = self.capture_vehicle_tree_state(id) else {
                 return;
@@ -1377,48 +1423,6 @@ impl Game<'_> {
                 plan,
                 tag,
                 transferred: Some(TransferredArrivalState::VehicleTree(state)),
-            });
-            self.portals.dirty = true;
-        } else if let Some(i) = self
-            .creatures
-            .projectiles
-            .iter()
-            .position(|p| p.id == id && (is_arrow(p) || is_portal_projectile(p)))
-        {
-            let p = &self.creatures.projectiles[i];
-            let (width, height) = projectile_box(p);
-            let plan = self.entity_plan(entry, p.position, width, height, false);
-            if !self.may_travel_through(id, &plan) {
-                return;
-            }
-            let uuid = self.uuid_for(id);
-            let p = &self.creatures.projectiles[i];
-            let in_block = p
-                .arrow
-                .as_ref()
-                .and_then(|a| a.last_state)
-                .map(|s| self.state_to_nbt(s));
-            let raw = self.persist_raw(id);
-            let Some(tag) =
-                horizon_client::entity_nbt::arrow_to_nbt(p, uuid, p.owner_uuid, in_block, raw)
-                    .or_else(|| {
-                        horizon_client::entity_nbt::fireball_to_nbt(p, uuid, p.owner_uuid, raw)
-                    })
-                    .or_else(|| {
-                        horizon_client::entity_nbt::throwable_to_nbt(p, uuid, p.owner_uuid, raw)
-                    })
-            else {
-                return;
-            };
-            let mut tag = tag;
-            super::persist::write_attachments(&mut tag, id, &self.entity_attachments);
-            let state = self.take_transferred_entity_state(id);
-            self.creatures.projectiles.remove(i);
-            self.forget_entity(id);
-            self.portals.arrivals.push(Arrival {
-                plan,
-                tag,
-                transferred: Some(TransferredArrivalState::Entity(state)),
             });
             self.portals.dirty = true;
         }

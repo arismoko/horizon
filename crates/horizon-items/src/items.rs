@@ -777,32 +777,6 @@ fn worn_mob_visibility(
         parse_mob_visibility(components.get("minecraft:mob_visibility")?, tags)?,
     ))
 }
-/// Every item of the last game registry loaded ([`Items::load`]) with its
-/// `villager_food` nutrition (0 without the component): what the mobs' villagers
-/// read, since a mob does not hold the registry (`None` until one is loaded).
-/// [`Items::catalog`] leaves it alone, so a headless or test catalog of other
-/// items never replaces the game's table.
-static VILLAGER_FOOD: std::sync::RwLock<Option<HashMap<Arc<str>, i32>>> =
-    std::sync::RwLock::new(None);
-fn set_villager_food(items: &HashMap<Arc<str>, ItemInfo>) {
-    let food = items
-        .values()
-        .map(|i| (i.id.clone(), i.villager_food.unwrap_or(0)))
-        .collect();
-    *VILLAGER_FOOD
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(food);
-}
-/// `item`'s `villager_food` nutrition (`DataComponents.VILLAGER_FOOD`): its
-/// value in the loaded registry (0 for an item without the component), or
-/// `None` while no registry is loaded or the loaded one lacks the item (a
-/// test's content root without the vanilla items).
-pub fn villager_food(item: &str) -> Option<i32> {
-    let food = VILLAGER_FOOD
-        .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    food.as_ref().and_then(|f| f.get(item).copied())
-}
 
 impl Items {
     pub fn load(
@@ -856,7 +830,6 @@ impl Items {
             }
         }
         let mut items = Self::load_with(root, &block_for_item, overlay, defaults)?;
-        set_villager_food(&items.items);
         let path = root.join(MOD_ITEM_BLOCKS);
         match fs::read(&path) {
             Ok(bytes) => {
@@ -1147,6 +1120,12 @@ impl Items {
 
     pub fn get(&self, id: &str) -> Option<&ItemInfo> {
         self.items.get(id)
+    }
+    /// `item`'s `villager_food` nutrition (`DataComponents.VILLAGER_FOOD`) in
+    /// this registry: 0 for an item without the component, `None` for an item
+    /// the registry lacks.
+    pub fn villager_food(&self, item: &str) -> Option<i32> {
+        self.get(item).map(|i| i.villager_food.unwrap_or(0))
     }
     /// `ItemStack.get(DataComponents.MOB_VISIBILITY).visibility()` when the
     /// prototype's equippable slot is `slot` and `targeting` is in
@@ -4776,8 +4755,56 @@ mod villager_food_tests {
                 ("minecraft:apple", None),
             ]
         );
-        // Loading the registry hands the mobs the same table.
-        assert_eq!(villager_food("minecraft:bread"), Some(4));
-        assert_eq!(villager_food("minecraft:apple"), Some(0));
+        // The registry hands its villagers the same table.
+        assert_eq!(items.villager_food("minecraft:bread"), Some(4));
+        assert_eq!(items.villager_food("minecraft:apple"), Some(0));
+    }
+
+    /// A catalog over a content root of its own (`name`) whose bread feeds a villager `bread`
+    /// points and whose apple feeds none.
+    fn bread_catalog(name: &str, bread: i32) -> Items {
+        let root = std::env::temp_dir().join(format!(
+            "horizon-villager-food-{name}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("data/minecraft/loot_table")).unwrap();
+        let items = format!(
+            r#"{{"minecraft:bread": {{"minecraft:villager_food": {{"nutrition": {bread}}}}}, "minecraft:apple": {{}}}}"#
+        );
+        fs::write(root.join("items.json"), items).unwrap();
+        let defaults = horizon_world::item_defaults::read(&root).unwrap();
+        let catalog = Items::catalog(&root, &PackOverlay::NONE, &defaults).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        catalog
+    }
+
+    /// Each registry answers from its own table: catalogs built after it, or while it is read
+    /// on another thread, never change its answers (the last catalog built used to replace the
+    /// table every villager read).
+    #[test]
+    fn other_catalogs_never_change_a_registrys_villager_food() {
+        let vanilla = bread_catalog("vanilla", 4);
+        let starved = bread_catalog("starved", 0);
+        let answers = |items: &Items| {
+            [
+                items.villager_food("minecraft:bread"),
+                items.villager_food("minecraft:apple"),
+                items.villager_food("minecraft:carrot"),
+            ]
+        };
+        assert_eq!(answers(&vanilla), [Some(4), Some(0), None]);
+        assert_eq!(answers(&starved), [Some(0), Some(0), None]);
+        std::thread::scope(|s| {
+            for i in 0..4 {
+                s.spawn(move || bread_catalog(&format!("fixture-{i}"), 9 + i));
+            }
+            for _ in 0..200 {
+                assert_eq!(answers(&vanilla), [Some(4), Some(0), None]);
+                assert_eq!(answers(&starved), [Some(0), Some(0), None]);
+            }
+        });
+        assert_eq!(answers(&vanilla), [Some(4), Some(0), None]);
+        assert_eq!(answers(&starved), [Some(0), Some(0), None]);
     }
 }

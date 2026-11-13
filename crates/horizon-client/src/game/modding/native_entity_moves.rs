@@ -7,6 +7,7 @@ use super::entity::{Entity as _, EntityHandle, with_entity_mut};
 use super::{
     Dim, Game,
     commands::{Target, entity_pitch},
+    vehicle_teleport::TeleportMotion,
 };
 use horizon_core::geometry::Vec3;
 use mod_api::EntityRef;
@@ -44,13 +45,13 @@ impl Game<'_> {
         self.teleport_stops(t);
         true
     }
-    /// Sends the entity to `pos` in the level `dimension`
-    /// (`Entity.teleportTo(ServerLevel, ..)`), as `/execute in <dimension> run
-    /// tp` does: the level opens if it isn't, a player arrives after the
+    /// Sends the entity to `pos` in the level `dimension` (`Entity.teleport`
+    /// with a portal's transition, `TeleportMotion::Keep`): the level opens if
+    /// it isn't, the entity keeps its motion, a player arrives after the
     /// current tick, a vehicle takes its passengers along. In the entity's own
-    /// level it is `entity_teleport_to`. False for what `entity_teleport_to`
-    /// refuses, a dimension that isn't registered, and kinds that cannot change
-    /// level here (anything but a server guest, a mob, a boat or a minecart).
+    /// level it is `entity_teleport_to` with the motion kept. False for what
+    /// `entity_teleport_to` refuses, a dimension that isn't registered, and
+    /// kinds that cannot change level here (`teleport_target_across`).
     pub(super) fn entity_teleport_to_level(
         &mut self,
         entity: EntityRef,
@@ -65,6 +66,31 @@ impl Game<'_> {
             return false;
         }
         self.teleport_to_level(t, Dim::from_id(dimension), pos, rotation)
+    }
+    /// A mod sends `t` to `pos` in `level` (`Entity.teleport` with a
+    /// `TeleportTransition` that keeps the motion, `TeleportMotion::Keep`): in
+    /// its own level when that is `level`, else as `/tp` into another level
+    /// does. False for a kind that only moves within its level (armor stands,
+    /// falling blocks, ...; `teleport_target_across`), a player who is not a
+    /// server guest, or a transfer the game could not make. A fake player
+    /// stays, and the call is true.
+    pub(in crate::game) fn teleport_to_level(
+        &mut self,
+        t: Target,
+        level: Dim,
+        pos: [f64; 3],
+        rotation: Option<[f32; 2]>,
+    ) -> bool {
+        if self.target_level(t) == level {
+            let motion = self.transition_motion(t);
+            self.teleport_to(t, pos, rotation, true);
+            if let Some(motion) = motion {
+                self.restore_transition_motion(t, motion);
+            }
+            return true;
+        }
+        self.teleport_across(t, level, pos, rotation, true, TeleportMotion::Keep)
+            .unwrap_or(false)
     }
     /// What a teleport of `entity` to `pos` moves, when `/tp` could place it there.
     fn teleport_target(

@@ -62,3 +62,54 @@ pub(crate) fn server_loop_context() -> &'static LoopContext {
 pub(crate) fn loop_context(side: LoopSide) -> std::sync::Arc<LoopContext> {
     std::sync::Arc::new(server_load().loop_context(side, []))
 }
+
+/// Vanilla's villager foods (`DataComponents.VILLAGER_FOOD` nutrition), for the registries of
+/// villager fixtures.
+#[allow(
+    dead_code,
+    reason = "standalone probes that include this file may not feed villagers"
+)]
+pub(crate) const VANILLA_VILLAGER_FOOD: [(&str, i32); 4] = [
+    ("minecraft:bread", 4),
+    ("minecraft:carrot", 1),
+    ("minecraft:potato", 1),
+    ("minecraft:beetroot", 1),
+];
+
+/// An item registry of only `food`, each item with its `villager_food` nutrition, catalogued
+/// from a content root of its own: the registry a villager fixture lives with.
+#[allow(
+    dead_code,
+    reason = "standalone probes that include this file may not feed villagers"
+)]
+pub(crate) fn villager_food_items(food: &[(&str, i32)]) -> horizon_client::items::Items {
+    let root = std::env::temp_dir().join(format!(
+        "horizon-villager-food-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("data/minecraft/loot_table")).unwrap();
+    let items: serde_json::Map<String, serde_json::Value> = food
+        .iter()
+        .map(|&(item, nutrition)| {
+            let components =
+                serde_json::json!({"minecraft:villager_food": {"nutrition": nutrition}});
+            (item.to_owned(), components)
+        })
+        .collect();
+    std::fs::write(
+        root.join("items.json"),
+        serde_json::Value::Object(items).to_string(),
+    )
+    .unwrap();
+    let defaults = horizon_world::item_defaults::read(&root).unwrap();
+    let items = horizon_client::items::Items::catalog(
+        &root,
+        &horizon_world::loot::PackOverlay::NONE,
+        &defaults,
+    )
+    .unwrap();
+    std::fs::remove_dir_all(&root).unwrap();
+    items
+}

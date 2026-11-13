@@ -1,8 +1,8 @@
 //! `BlockCapabilityCache`: a block capability looked up once and kept, for a pipe that asks its
 //! neighbours every tick (NeoForge's `BlockCapabilityCache`, without its listener: this cache is
 //! polled). Its check is constant time: whether the level is in place, the block entity at the
-//! position, the block state there and the game's count of mod switches, each compared with what
-//! they were at the lookup.
+//! position, the block state there, the capability generation there and the game's count of mod
+//! switches, each compared with what they were at the lookup.
 use crate::{
     BlockEntityRef, BlockSide, BlockState, Capability, CapabilityKey, Direction, LevelRef,
     ServerHost,
@@ -12,11 +12,11 @@ use crate::{
 /// the level is as in place as it was ([`LevelRef::in_place`]: a parked level lends nothing, as a
 /// fresh lookup there finds nothing), the block entity at its position is the same one (not
 /// replaced, removed or unloaded with its chunk), the block state there is the same (a chest
-/// turned is asked again), and no mod has been switched on or off; otherwise it looks the
-/// capability up again. A level that closes
-/// leaves its handles stale, and the cache then finds nothing. A provider whose answer changes
-/// with none of that (a machine's side configuration) is told with
-/// [`invalidate`](Self::invalidate).
+/// turned is asked again), no provider has said its answer there changed
+/// ([`LevelRef::invalidate_capabilities`], for an answer that changes with none of that, such as
+/// a machine's side configuration), and no mod has been switched on or off; otherwise it looks
+/// the capability up again. A level that closes leaves its handles stale, and the cache then
+/// finds nothing. Its owner forgets the kept handler with [`invalidate`](Self::invalidate).
 // no wire: holds an owned handler a lookup made in this process; a mod keeps it, never sends it.
 // exhaustive: its fields are private, so mods cannot build or destructure it
 pub struct BlockCapabilityCache<T: ?Sized + 'static> {
@@ -30,6 +30,7 @@ struct Kept<T: ?Sized> {
     in_place: bool,
     entity: Option<BlockEntityRef>,
     state: Option<BlockState>,
+    generation: Option<u64>,
     mods: u64,
     handler: Option<Capability<T>>,
 }
@@ -54,11 +55,13 @@ impl<T: ?Sized + 'static> BlockCapabilityCache<T> {
         let in_place = self.at.level.in_place(&*host);
         let entity = host.block_entity(self.at.level, self.at.pos);
         let state = self.at.level.block_state(&*host, self.at.pos);
+        let generation = self.at.level.capability_generation(&*host, self.at.pos);
         let mods = host.capability_providers().mods_switched();
         let valid = |kept: &Kept<T>| {
             kept.in_place == in_place
                 && kept.entity == entity
                 && kept.state == state
+                && kept.generation == generation
                 && kept.mods == mods
         };
         if !self.kept.as_ref().is_some_and(valid) {
@@ -70,6 +73,7 @@ impl<T: ?Sized + 'static> BlockCapabilityCache<T> {
                 in_place,
                 entity,
                 state,
+                generation,
                 mods,
                 handler,
             });

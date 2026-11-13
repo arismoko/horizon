@@ -17,6 +17,8 @@ pub(in crate::game) enum Rule {
     Set(i32),
     /// No wear at all.
     Cancel,
+    /// Break the item now (`break_now`), whatever durability it has left.
+    Break,
 }
 
 /// The part of one item: it applies its `rule` and records the points it was asked about.
@@ -25,6 +27,8 @@ pub(in crate::game) struct Wear {
     item: &'static str,
     pub(in crate::game) rule: Arc<Mutex<Rule>>,
     pub(in crate::game) asked: Arc<Mutex<Vec<i32>>>,
+    /// The entity id each wear named (`event.entity`).
+    worn_by: Arc<Mutex<Vec<Option<u32>>>>,
 }
 
 #[mod_api::horizon_part]
@@ -35,11 +39,14 @@ impl ItemPart for Wear {
         event: &mut DamageItemEvent<'_>,
     ) -> Flow {
         self.asked.lock().unwrap().push(event.amount);
+        let entity = event.entity.map(mod_api::LivingRef::id);
+        self.worn_by.lock().unwrap().push(entity);
         match *self.rule.lock().unwrap() {
             Rule::Halve => event.amount /= 2,
             Rule::Times(factor) => event.amount *= factor,
             Rule::Set(amount) => event.amount = amount,
             Rule::Cancel => return Flow::Cancel,
+            Rule::Break => event.break_now = true,
         }
         Flow::Continue
     }
@@ -59,6 +66,10 @@ impl Wear {
     pub(in crate::game) fn take_asked(&self) -> Vec<i32> {
         std::mem::take(&mut *self.asked.lock().unwrap())
     }
+    /// The entities the wears since the last call named.
+    pub(in crate::game) fn take_worn_by(&self) -> Vec<Option<u32>> {
+        std::mem::take(&mut *self.worn_by.lock().unwrap())
+    }
     pub(in crate::game) fn set(&self, rule: Rule) {
         *self.rule.lock().unwrap() = rule;
     }
@@ -74,6 +85,7 @@ pub(in crate::game) fn with_wear_part(
         item,
         rule: Arc::new(Mutex::new(rule)),
         asked: Arc::default(),
+        worn_by: Arc::default(),
     };
     let mods: mod_api::Mods = vec![ModEntry::new("wear", Box::new(Mod(wear.clone())))].into();
     mod_platform::testing::with_mods(mods.clone(), || {
@@ -206,5 +218,84 @@ fn a_part_is_asked_after_unbreaking() {
         assert!(asked.iter().all(|points| (1..=2).contains(points)));
         let expected: i32 = asked.iter().map(|points| points / 2).sum();
         assert_eq!(game.inventory[0].as_ref().unwrap().damage as i32, expected);
+    });
+}
+
+/// `break_now` breaks a pickaxe at full durability on its first wear, through the vanilla break:
+/// the slot empties, the break event goes out and the stat counts it. The part is told who wears
+/// the tool: the player.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES; process-wide parts, run this test alone"]
+fn a_part_breaks_its_tool_now() {
+    with_wear_part("minecraft:iron_pickaxe", Rule::Break, |game, wear| {
+        game.player = Some(
+            horizon_client::motion::PlayerMotion::new(
+                game.motion,
+                horizon_core::geometry::Vec3::new(0.0, 64.0, 0.0),
+            )
+            .unwrap(),
+        );
+        game.lan_acting = Some(1);
+        game.guest_equipment_breaks.clear();
+        let broken_before = game.stats.get("broken", "minecraft:iron_pickaxe");
+        assert_eq!(used(game, "minecraft:iron_pickaxe", 1), u32::MAX);
+        assert_eq!(wear.take_asked(), [1]);
+        assert_eq!(game.guest_equipment_breaks, [47]);
+        assert_eq!(
+            game.stats.get("broken", "minecraft:iron_pickaxe"),
+            broken_before + 1
+        );
+        let player = game
+            .native_lifecycle
+            .epoch()
+            .map(|_| game.own_entity_id() as u32);
+        assert_eq!(wear.take_worn_by(), [player]);
+    });
+}
+
+/// A zombie's helmet names the zombie as the entity wearing it.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES; process-wide parts, run this test alone"]
+fn a_mob_armour_wear_names_the_mob() {
+    use crate::game::creatures::SpawnSite;
+    use mod_api::{EntityRef, EquipmentSlot, LivingRef};
+    with_wear_part("minecraft:iron_helmet", Rule::Times(1), |game, wear| {
+        let zombie = game
+            .spawn_mob("minecraft:zombie", [3.5, 64.0, 6.5], true, SpawnSite::Raw)
+            .unwrap();
+        let helmet = Some(ItemStack::new("minecraft:iron_helmet", 1));
+        let mob = game.mobs.iter_mut().find(|m| m.id == zombie).unwrap();
+        mob.set_equipment_stack(EquipmentSlot::Head as usize, helmet);
+        let epoch = game.native_lifecycle.epoch().unwrap();
+        let living = LivingRef::new(EntityRef::new(epoch, zombie));
+        game.living_hurt_and_break(living, EquipmentSlot::Head, 1);
+        assert_eq!(wear.take_asked(), [1]);
+        assert_eq!(wear.take_worn_by(), [Some(zombie)]);
+    });
+}
+
+/// A part's `break_now` on a mob's glider breaks it through the vanilla
+/// break: the slot empties instead of keeping the stack at its maximum damage.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES; process-wide parts, run this test alone"]
+fn a_part_breaks_a_mobs_glider_now() {
+    use crate::game::creatures::SpawnSite;
+    use horizon_core::equipment_slot::EquipmentSlot;
+    with_wear_part("minecraft:elytra", Rule::Break, |game, wear| {
+        let zombie = game
+            .spawn_mob("minecraft:zombie", [3.5, 64.0, 6.5], true, SpawnSite::Raw)
+            .unwrap();
+        let elytra = Some(ItemStack::new("minecraft:elytra", 1));
+        let mob = game.mobs.iter_mut().find(|m| m.id == zombie).unwrap();
+        mob.set_equipment_stack(EquipmentSlot::Chest as usize, elytra);
+        game.wear_mob_glider(zombie, EquipmentSlot::Chest);
+        assert_eq!(wear.take_asked(), [1]);
+        assert_eq!(wear.take_worn_by(), [Some(zombie)]);
+        let mob = game.mobs.iter().find(|m| m.id == zombie).unwrap();
+        assert_eq!(
+            mob.item_by_slot(EquipmentSlot::Chest),
+            None,
+            "the glider broke"
+        );
     });
 }

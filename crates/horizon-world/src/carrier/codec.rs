@@ -2,7 +2,7 @@
 //!
 //! Slice 1 of the moving structures design (board issue 1, "Carrier data
 //! model and bounded codec", in
-//! `docs/modding/src/concepts/moving-structures.md`): versioned
+//! `docs/design/mod-api/moving-structures.md`): versioned
 //! persistence of [`Carrier`] using the crate's existing Java Edition
 //! NBT (`horizon_core::nbt`), with no gameplay integration. The design's
 //! save contract applies: "Persist versioned cells, canonical registry

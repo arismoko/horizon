@@ -410,7 +410,7 @@ pub(super) enum Shape {
     NorthEast,
 }
 impl Shape {
-    fn parse(s: &str) -> Self {
+    pub(super) fn parse(s: &str) -> Self {
         match s {
             "east_west" => Self::EastWest,
             "ascending_east" => Self::AscendingEast,
@@ -449,9 +449,9 @@ impl Shape {
     }
 }
 pub(super) struct Rail {
-    name: Arc<str>,
+    pub(super) name: Arc<str>,
     pub(super) shape: Shape,
-    powered: bool,
+    pub(super) powered: bool,
 }
 impl Minecart {
     /// `Minecart.tick`: stationary rotation does not turn the passenger.
@@ -595,27 +595,6 @@ impl CartModels {
     }
 }
 impl Game<'_> {
-    pub(super) fn rail(&self, x: i32, y: i32, z: i32) -> Option<Rail> {
-        let state = self.world.block(x, y, z);
-        let name = self.res.facts().get(state).name.clone();
-        if !matches!(
-            &*name,
-            "minecraft:rail"
-                | "minecraft:powered_rail"
-                | "minecraft:detector_rail"
-                | "minecraft:activator_rail"
-        ) {
-            return None;
-        }
-        let s = self.pack.assets.registry.state(state)?;
-        let shape = Shape::parse(s.properties.get("shape").map_or("", String::as_str));
-        let powered = s.properties.get("powered").is_some_and(|v| v == "true");
-        Some(Rail {
-            name,
-            shape,
-            powered,
-        })
-    }
     /// `getCurrentBlockPosOrRailBelow`.
     fn rail_block(&self, p: Vec3) -> [i32; 3] {
         let (x, y, z) = (p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
@@ -624,7 +603,7 @@ impl Game<'_> {
         } else {
             y - 1
         };
-        if self.rail(x, below, z).is_some() {
+        if self.rail(None, x, below, z).is_some() {
             [x, below, z]
         } else {
             [x, y, z]
@@ -637,10 +616,11 @@ impl Game<'_> {
             & horizon_world::level::data::state_flags::CONDUCTOR
             != 0
     }
-    /// `OldMinecartBehavior.getPos`: the point on the rail under (x, y, z).
-    fn rail_pos(&self, x: f64, y: f64, z: f64) -> Option<[f64; 3]> {
+    /// `OldMinecartBehavior.getPos`: the point on the rail under (x, y, z), on the track the
+    /// rail lays for `cart`.
+    fn rail_pos(&self, cart: Option<u32>, x: f64, y: f64, z: f64) -> Option<[f64; 3]> {
         let [xt, yt, zt] = self.rail_block(Vec3::new(x, y, z));
-        let rail = self.rail(xt, yt, zt)?;
+        let rail = self.rail(cart, xt, yt, zt)?;
         let (e0, e1) = rail.shape.exits();
         let (fx, fy, fz) = (f64::from(xt), f64::from(yt), f64::from(zt));
         let x0 = fx + 0.5 + f64::from(e0[0]) * 0.5;
@@ -666,9 +646,16 @@ impl Game<'_> {
         Some(out)
     }
     /// `OldMinecartBehavior.getPosOffs`.
-    fn rail_pos_offs(&self, mut x: f64, y: f64, mut z: f64, offs: f64) -> Option<[f64; 3]> {
+    fn rail_pos_offs(
+        &self,
+        cart: Option<u32>,
+        mut x: f64,
+        y: f64,
+        mut z: f64,
+        offs: f64,
+    ) -> Option<[f64; 3]> {
         let [xt, yt, zt] = self.rail_block(Vec3::new(x, y, z));
-        let rail = self.rail(xt, yt, zt)?;
+        let rail = self.rail(cart, xt, yt, zt)?;
         let mut y = f64::from(yt) + if rail.shape.is_slope() { 1.0 } else { 0.0 };
         let (e0, e1) = rail.shape.exits();
         let (mut xd, mut zd) = (f64::from(e1[0] - e0[0]), f64::from(e1[2] - e0[2]));
@@ -683,7 +670,7 @@ impl Game<'_> {
         } else if e1[1] != 0 && at(e1) {
             y += f64::from(e1[1]);
         }
-        self.rail_pos(x, y, z)
+        self.rail_pos(cart, x, y, z)
     }
     /// `AbstractMinecart.canCollideWith`, for `Entity.collide`'s `getEntityCollisions`:
     /// `AbstractBoat.canVehicleCollide` takes any other cart, boat, shulker or pushable mob and
@@ -870,7 +857,7 @@ impl Game<'_> {
         c.fall_distance = 0.0;
         let ridden = self.cart_is_vehicle(c.id);
         let (x, z) = (c.position.x, c.position.z);
-        let old = self.rail_pos(x, c.position.y, z);
+        let old = self.rail_pos(Some(c.id), x, c.position.y, z);
         let mut y = f64::from(pos[1]);
         let (mut power, mut halt) = (false, false);
         if &*rail.name == "minecraft:powered_rail" {
@@ -952,9 +939,10 @@ impl Game<'_> {
             c.position.y += f64::from(e1[1]);
         }
         c.velocity = self.natural_slowdown(c, ridden, 0.96);
-        if let (Some(new), Some(old)) =
-            (self.rail_pos(c.position.x, c.position.y, c.position.z), old)
-        {
+        if let (Some(new), Some(old)) = (
+            self.rail_pos(Some(c.id), c.position.x, c.position.y, c.position.z),
+            old,
+        ) {
             let speed = (old[1] - new[1]) * 0.05;
             let h = c.horizontal();
             if h > 0.0 {
@@ -1196,7 +1184,7 @@ impl Game<'_> {
         while first || movement_left > f64::from(1.0e-5_f32) {
             let initial = c.velocity;
             let pos = self.rail_block(c.position);
-            let Some(rail) = self.rail(pos[0], pos[1], pos[2]) else {
+            let Some(rail) = self.rail(Some(c.id), pos[0], pos[1], pos[2]) else {
                 c.on_rails = false;
                 self.come_off_track(c);
                 self.finish_cart_step(c, step_start, initial);
@@ -1368,7 +1356,8 @@ impl Game<'_> {
                 new_pos.y.floor() as i32,
                 new_pos.z.floor() as i32,
             ];
-            if let Some(new_rail) = self.rail(new_block[0], new_block[1], new_block[2]) {
+            if let Some(new_rail) = self.rail(Some(c.id), new_block[0], new_block[1], new_block[2])
+            {
                 // restAtVShape: opposing slopes rest a slow cart.
                 if c.velocity.length_squared() < 0.005
                     && new_rail.shape.is_slope()
@@ -1512,7 +1501,7 @@ impl Game<'_> {
         // NewMinecartBehavior.tick snaps a newly created cart before gravity.
         if self.minecart_improvements() && c.first_tick {
             let pos = self.rail_block(c.position);
-            if let Some(rail) = self.rail(pos[0], pos[1], pos[2]) {
+            if let Some(rail) = self.rail(Some(c.id), pos[0], pos[1], pos[2]) {
                 c.on_rails = true;
                 Self::adjust_cart_to_rails(c, pos, rail.shape);
             } else {
@@ -1524,7 +1513,7 @@ impl Game<'_> {
         let pos = self.rail_block(c.position);
         if self.minecart_improvements() {
             self.move_along_track_new(c, intent);
-        } else if let Some(rail) = self.rail(pos[0], pos[1], pos[2]) {
+        } else if let Some(rail) = self.rail(Some(c.id), pos[0], pos[1], pos[2]) {
             self.move_along_track(c, pos, &rail, intent, slot);
             self.note_cart_pass(c, pos);
             if &*rail.name == "minecraft:activator_rail" {
@@ -2364,7 +2353,7 @@ impl Game<'_> {
         let Some(kind) = CartKind::from_id(&stack.item) else {
             return false;
         };
-        let Some(rail) = self.rail(hit.pos[0], hit.pos[1], hit.pos[2]) else {
+        let Some(rail) = self.rail(None, hit.pos[0], hit.pos[1], hit.pos[2]) else {
             return false;
         };
         let offset = if rail.shape.is_slope() { 0.5 } else { 0.0 };
@@ -2865,11 +2854,11 @@ impl Game<'_> {
             let mut offset = glam::DVec3::ZERO;
             if new_render {
                 (yaw, pitch) = lerp.map_or((c.yaw, c.pitch), |(_, yaw, pitch)| (yaw, pitch));
-            } else if let Some(on) = self.rail_pos(x, y, z) {
+            } else if let Some(on) = self.rail_pos(Some(c.id), x, y, z) {
                 // getPosOffs(..., 0.3F): the float widened.
                 let half = f64::from(0.3_f32);
-                let front = self.rail_pos_offs(x, y, z, half).unwrap_or(on);
-                let back = self.rail_pos_offs(x, y, z, -half).unwrap_or(on);
+                let front = self.rail_pos_offs(Some(c.id), x, y, z, half).unwrap_or(on);
+                let back = self.rail_pos_offs(Some(c.id), x, y, z, -half).unwrap_or(on);
                 offset = glam::DVec3::new(on[0] - x, (front[1] + back[1]) / 2.0 - y, on[2] - z);
                 let d =
                     glam::DVec3::new(back[0] - front[0], back[1] - front[1], back[2] - front[2]);

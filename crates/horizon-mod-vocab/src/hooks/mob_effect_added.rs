@@ -4,7 +4,7 @@
 pub trait Hooks {
     /// NeoForge's `MobEffectEvent.Added`, vanilla's `MobEffect.onEffectStarted`:
     /// every `LivingEntity.addEffect` of the content mod's effect `effect`,
-    /// new or not, changed or not, after `native_on_effect_added`.
+    /// new or not, changed or not, after `on_effect_added`.
     /// Server-side.
     #[hook(
         side = "server",

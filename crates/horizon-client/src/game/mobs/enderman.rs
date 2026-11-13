@@ -62,7 +62,7 @@ impl Game<'_> {
             let others: Vec<_> = if shulker {
                 self.mobs
                     .iter()
-                    .map(|m| super::creatures::seen(m, uuid))
+                    .map(|m| super::creatures::seen(m, uuid, self.items()))
                     .collect()
             } else {
                 Vec::new()

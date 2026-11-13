@@ -12,6 +12,7 @@
 use crate::backend::{self, CLIENT};
 use crate::i18n::{tr, trf};
 use crate::native_mods::{self, Target};
+use horizon_port_pack::zip_intake::{self, Archive};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{Cursor, Read, Seek};
@@ -154,7 +155,7 @@ fn read_program(path: &Path, file: &str) -> Result<Vec<u8>, String> {
     if lower.ends_with(".tar.gz") || lower.ends_with(".tgz") {
         return from_tar(open()?, file);
     }
-    let zip = match zip::ZipArchive::new(open()?) {
+    let zip = match zip_intake::open(open()?) {
         Ok(zip) => zip,
         // A download cut short, say.
         Err(e) if lower.ends_with(".zip") => return Err(format!("{file}: {e}")),
@@ -173,7 +174,7 @@ fn holds_no_game(file: &str) -> String {
 
 /// The game in `zip`, else (`nested`) in the first zip or .tar.gz it holds.
 fn from_zip<R: Read + Seek>(
-    mut zip: zip::ZipArchive<R>,
+    mut zip: Archive<R>,
     file: &str,
     nested: bool,
 ) -> Result<Vec<u8>, String> {
@@ -207,7 +208,7 @@ fn from_zip<R: Read + Seek>(
     if !name.ends_with(".zip") {
         return from_tar(&archive[..], file);
     }
-    let zip = zip::ZipArchive::new(Cursor::new(archive)).map_err(|e| format!("{name}: {e}"))?;
+    let zip = zip_intake::open(Cursor::new(archive)).map_err(|e| format!("{name}: {e}"))?;
     from_zip(zip, file, false)
 }
 

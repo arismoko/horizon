@@ -11,7 +11,7 @@ pub trait Hooks {
     /// item's (`Item.useOn`, `native_use_on`).
     ///
     /// `use_block`: False skips; True overrides sneak; Default skips when sneaking with either hand full
-    /// (the both-stacks sneak-bypass exception remains open in #2934). `use_item`: False skips; True forces
+    /// (sneaking still blocks use when both stacks bypass sneak use). `use_item`: False skips; True forces
     /// even an empty hand or cooldown; Default requires a held stack off cooldown. Empty hands reach
     /// ItemAfterBlock with no stack, but no item Part. Adventure restrictions still apply; block consumption ends the click. Cancelling
     /// skips both and answers `cancellation_result` in their place:

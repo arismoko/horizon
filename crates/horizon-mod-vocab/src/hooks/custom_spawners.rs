@@ -11,8 +11,7 @@ pub trait Hooks {
     /// because an object a guest implements cannot cross to a wasm mod (Beyond NeoForge). With
     /// no listener, or one that leaves the list alone, the level ticks exactly vanilla's
     /// spawners. The phantom spawner runs after the level's mobs have ticked, as the game runs
-    /// it today, wherever it is in the list; moving the others to vanilla's order is a separate
-    /// parity change. It fires once per level, on the server, and listeners run on replayed ticks,
+    /// it, wherever it is in the list. It fires once per level, on the server, and listeners run on replayed ticks,
     /// so they must be pure functions of their inputs. Not cancellable.
     #[notes = r#"## Custom spawners
 

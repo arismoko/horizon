@@ -259,6 +259,7 @@ pub(super) fn install_registration_data(root: &Path) -> horizon_client::Result<(
                 packages.ids(),
             ),
             directory,
+            crate::entry::runtime_environment::get().clone(),
         ),
     );
     Ok(())
@@ -420,6 +421,16 @@ pub(super) fn register_layer_definitions(role: ExecutionRole) {
     let mut layers = Vec::new();
     Game::native_register_layer_definitions(&RegistrationContext::new(), &mut layers);
     horizon_client::mobs::model_layers::register(layers);
+}
+/// The native mods' skull types (`native_create_skull_models`), baked once at start after the
+/// model layers they name, so `minecraft:head` item models may name their kinds.
+pub(super) fn register_skull_models(role: ExecutionRole, vanilla_root: &std::path::Path) {
+    if !role.is_client() {
+        return;
+    }
+    let mut models = Vec::new();
+    Game::native_create_skull_models(&RegistrationContext::new(), &mut models);
+    horizon_client::skull_models::register(models, vanilla_root);
 }
 /// The native mods' F3 debug entries (`native_register_debug_entries`), kept once at start.
 pub(super) fn register_debug_entries(role: ExecutionRole) {

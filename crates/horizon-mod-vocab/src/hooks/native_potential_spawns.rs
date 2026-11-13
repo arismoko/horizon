@@ -1,4 +1,4 @@
-//! The `native_potential_spawns` hooks and helpers: declarations the mod API generator reads (see `hooks/mod.rs`).
+//! The `potential_spawns` hooks and helpers: declarations the mod API generator reads (see `hooks/mod.rs`).
 
 pub trait Hooks {
     /// Possible natural spawns at a server position (NeoForge's

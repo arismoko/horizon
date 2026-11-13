@@ -1043,7 +1043,7 @@ mod tests {
                         .unwrap();
                 }
                 let mobs: Vec<Mob> = std::mem::take(&mut game.mobs).into();
-                let snapshot = mobs.iter().map(|m| m.seen(None)).collect();
+                let snapshot = mobs.iter().map(|m| m.seen(None, game.items())).collect();
                 let base = game.mob_world_base(&[]);
                 let players = super::super::super::natural_spawning::NearestPlayers::new(&[]);
                 let nearest = super::super::prep::MobsNearest::new(&players, &mobs, false);
@@ -1071,6 +1071,7 @@ mod tests {
                 };
                 let shared = Shared {
                     uuid: None,
+                    items: game.items(),
                     level_id: "minecraft:overworld",
                     path_changes: &[],
                     guest_ids: &[],
@@ -1125,7 +1126,10 @@ mod tests {
         game.spawn_mob("minecraft:cow", [0.5, 65.0, 0.5], true)
             .unwrap();
         let mobs = game.mobs.to_vec();
-        let snapshot = mobs.iter().map(|m| m.seen(None)).collect::<Vec<_>>();
+        let snapshot = mobs
+            .iter()
+            .map(|m| m.seen(None, game.items()))
+            .collect::<Vec<_>>();
         let mut random = horizon_core::random::LegacyRandom::new(7);
         random.next_gaussian();
         let start = Start {
@@ -1291,7 +1295,7 @@ mod tests {
                 Mob::new(i, Arc::clone(&kind), Vec3::new(x, 65.0, z), 0.0)
             })
             .collect();
-        let mut snapshot: Vec<_> = mobs.iter().map(|m| m.seen(None)).collect();
+        let mut snapshot: Vec<_> = mobs.iter().map(|m| m.seen(None, game.items())).collect();
         let base = game.mob_world_base(&[]);
         let players = super::super::super::natural_spawning::NearestPlayers::new(&[]);
         let nearest = super::super::prep::MobsNearest::new(&players, &mobs, false);
@@ -1386,7 +1390,7 @@ mod tests {
         let mut game = super::super::super::native_machines::tests::server_game();
         game.spawn_mob("minecraft:cow", [0.5, 65.0, 0.5], true)
             .unwrap();
-        let template = game.mobs[0].seen(None);
+        let template = game.mobs[0].seen(None, game.items());
         let (sent, finished) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let draws = OrderedDraws::new(&horizon_core::random::LegacyRandom::new(7), 2);
@@ -1479,7 +1483,7 @@ mod tests {
             .collect();
         horizon_client::mobs::riders::link(&mut mobs, 11, 10);
         horizon_client::mobs::riders::link(&mut mobs, 13, 12);
-        let snapshot: Vec<_> = mobs.iter().map(|m| m.seen(None)).collect();
+        let snapshot: Vec<_> = mobs.iter().map(|m| m.seen(None, game.items())).collect();
         // A passenger is repositioned after the initial snapshot: one enters the ticking area,
         // another leaves the loaded area. The turn must not reuse those initial roles.
         mobs[1].position.x = 1.5;
@@ -1510,6 +1514,7 @@ mod tests {
         };
         let shared = Shared {
             uuid: None,
+            items: game.items(),
             level_id: "minecraft:overworld",
             path_changes: &[],
             guest_ids: &[],
@@ -1852,7 +1857,7 @@ mod tests {
                 Mob::new(i, Arc::clone(&kind), Vec3::new(x, 65.0, z), 0.0)
             })
             .collect();
-        let snapshot: Vec<_> = mobs.iter().map(|m| m.seen(None)).collect();
+        let snapshot: Vec<_> = mobs.iter().map(|m| m.seen(None, game.items())).collect();
         let base = game.mob_world_base(&[]);
         let players = super::super::super::natural_spawning::NearestPlayers::new(&[]);
         let nearest = super::super::prep::MobsNearest::new(&players, &mobs, false);

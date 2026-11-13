@@ -1170,7 +1170,7 @@ mod tests {
                 if invisible {
                     sheep.add_effect("minecraft:invisibility", 200, 0);
                 }
-                let seen = [sheep.seen(None)];
+                let seen = [sheep.seen(None, &crate::items::Items::empty())];
                 let world = crate::mobs::MobWorld {
                     others: &seen,
                     ..world

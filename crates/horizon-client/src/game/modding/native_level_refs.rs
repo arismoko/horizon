@@ -695,6 +695,34 @@ impl Game<'_> {
         self.world.light_edits.push(((x, y, z), state, state));
         true
     }
+    /// The capability generation at `pos`, in an active or parked level. None for a stale
+    /// handle, a client, an unloaded position and one outside build height.
+    pub(super) fn level_capability_generation(
+        &self,
+        level: LevelRef,
+        [x, y, z]: [i32; 3],
+    ) -> Option<u64> {
+        let world = self.native_level_world(level)?;
+        (world.loaded(x, z) && world.shape.contains_y(y))
+            .then(|| world.capability_generations.get((x, y, z)))
+    }
+    /// Moves the capability generation at `pos` on, at the root commit inside a transaction.
+    /// False off the level in place, for a stale handle, on a client and for a position that
+    /// isn't loaded.
+    pub(super) fn level_invalidate_capabilities(
+        &mut self,
+        level: LevelRef,
+        [x, y, z]: [i32; 3],
+    ) -> bool {
+        if !self.level_in_place(level)
+            || !self.world.loaded(x, z)
+            || !self.world.shape.contains_y(y)
+        {
+            return false;
+        }
+        self.after_commit(super::transactions::After::Capabilities((x, y, z)));
+        true
+    }
     /// `LivingEntity.hasLineOfSight`'s clip between two points (collider shapes, no fluids):
     /// whether it misses. None as for `level_clip`.
     pub(super) fn level_line_of_sight(

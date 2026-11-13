@@ -71,6 +71,8 @@ jobs:
           python3 tools/generate_wire_enum_goldens.py \
             --expanded "$CARGO_TARGET_DIR/wire-goldens/expanded.rs" --check
           cargo test --locked -p horizon-mod-vocab --lib existing_fieldless_enum_layouts_match_baseline
+          cargo test --locked -p horizon-mod-api --test wire_math_profile
+          cargo test --locked -p horizon-client --lib math_profile_selection_matches_platform_and_is_stable
       - name: Compile and test emitted point records
         run: |
           manifest=crates/horizon-mod-point-shape/tests/record-wire/Cargo.toml
@@ -137,6 +139,7 @@ jobs:
           for test in \
             game::native_server::wasm_selector_tests::wasm_selectors_resolve_in_game_and_refuse_before_guest_dispatch \
             game::native_server::wasm_selector_tests::wasm_server_tick_messages_reach_dedicated_game \
+            game::native_hooks::math::tests::compiled_wasm_math_profile_import_matches_actual_game_host \
             game::payload_transport::wasm_tests::compiled_guest_runs_in_actual_game_roots \
             game::remote::interaction_event_tests::interaction_event_wasm_tests::wasm_interaction_shared_matrix; do
             run_exact 1 -p horizon-client --lib -- --ignored --exact "$test"

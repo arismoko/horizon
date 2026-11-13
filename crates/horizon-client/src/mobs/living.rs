@@ -3041,7 +3041,7 @@ mod tests {
         // Where a zombie starting 3 blocks above `below`'s top ends after 20
         // falling moves, with `below` in the mobs it sees.
         let mut landing = |below: &Mob| -> f64 {
-            let others = [below.seen(None)];
+            let others = [below.seen(None, &crate::items::Items::empty())];
             let w = MobWorld {
                 professions: crate::mobs::villager::profession_table(),
                 loop_context: crate::test_resources::server_loop_context(),

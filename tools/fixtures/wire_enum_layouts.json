@@ -631,6 +631,12 @@
       "canonical_path": "crate::world::types::RaidStatus"
     },
     {
+      "name": "RailShape",
+      "path": "crate::block::rail_shape::RailShape",
+      "hash": "d5b1c18674ac3799",
+      "canonical_path": "crate::block::rail_shape::RailShape"
+    },
+    {
       "name": "Rarity",
       "path": "crate::content::content_declarations::Rarity",
       "hash": "52de7b6c1b10c3e0",

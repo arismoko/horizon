@@ -2,7 +2,7 @@
 // catalog-order: 0030
 
 pub trait Hooks {
-    /// The tooltip at `at` (as in `native_screen_click`) on block `block`'s
+    /// The tooltip at `at` (as in `screen_click`) on block `block`'s
     /// screen, a mod's, over no item: push its lines when it is over
     /// something of yours. Legacy colour codes (§) work.
     #[hook(

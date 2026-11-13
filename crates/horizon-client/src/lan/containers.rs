@@ -194,15 +194,20 @@ impl Hub {
         );
     }
 
-    /// `ServerLevel.globalLevelEvent`: the packet with its global flag, for
-    /// every player on the server (`PlayerList.broadcastAll`).
-    pub fn global_level_event(&self, kind: i32, pos: [i32; 3], data: i32) {
-        self.broadcast(&C::LevelEvent(play::LevelEvent {
-            kind,
-            pos,
-            data,
-            global: true,
-        }));
+    /// `ServerLevel.globalLevelEvent` for an event in level `level`: the packet
+    /// with its global flag for every player on the server
+    /// (`PlayerList.getPlayers`), each at a position of their own
+    /// (`global_level_event_position`). The level is the event's, not the one in
+    /// place: an event queued during one level's pass may be sent during another's.
+    pub fn global_level_event(&self, level: &str, kind: i32, pos: [i32; 3], data: i32) {
+        for g in self.online_players() {
+            g.send(&C::LevelEvent(play::LevelEvent {
+                kind,
+                pos: global_level_event_position(pos, g.position, g.placed_in(level)),
+                data,
+                global: true,
+            }));
+        }
     }
 
     /// ClientboundBlockEventPacket (`PlayerList.broadcast` within 64 blocks).
@@ -1008,6 +1013,34 @@ fn next_sound_seed(g: &mut impl RandomSource) -> i64 {
 pub fn within_range(at: [f64; 3], pos: [f64; 3], range: f64) -> bool {
     let d: f64 = (0..3).map(|k| (pos[k] - at[k]).powi(2)).sum();
     d < range * range
+}
+
+/// The position `ServerLevel.globalLevelEvent` sends a player whose feet are
+/// at `player` for an event at `pos` (its lambda): `pos` for a player in the
+/// event's level (`same_level`) whose squared distance to the block's centre is
+/// below `Mth.square(32)`, the block 32 blocks from a further one towards that
+/// centre, and the block a player in another level stands in. The client
+/// places the sound from it (`LevelEventHandler.globalLevelEvent`).
+fn global_level_event_position(pos: [i32; 3], player: [f64; 3], same_level: bool) -> [i32; 3] {
+    use horizon_core::{geometry::Vec3, position::BlockPos};
+    let feet = Vec3::new(player[0], player[1], player[2]);
+    let at = if same_level {
+        let center = Vec3::new(
+            f64::from(pos[0]) + 0.5,
+            f64::from(pos[1]) + 0.5,
+            f64::from(pos[2]) + 0.5,
+        );
+        // Entity.distanceToSqr against the int square widened (`i2d`, `dcmpg`, `ifge`).
+        if feet.distance_squared(center) < f64::from(32 * 32) {
+            center
+        } else {
+            feet.add_vector(center.subtract(feet).normalize().scale(32.0))
+        }
+    } else {
+        feet
+    };
+    let block = BlockPos::containing(at);
+    [block.x, block.y, block.z]
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@
 //! an item through an `ItemAccess`; here the place is an [`ItemPlace`], read and written as one
 //! ([`ItemPlace::insert`], [`extract`](ItemPlace::extract) and
 //! [`exchange`](ItemPlace::exchange)), so the inventory holding the stack is the one changed.
-//! Handlers hold no borrow of the game, as block entity capabilities don't (#71).
+//! Handlers hold no borrow of the game, as block entity capabilities don't.
 //!
 //! A write runs in a transaction of its own, nested in the caller's, and changes the place where
 //! it is, journaled: an abort puts it back, at every level of an item inside an item. A handler
@@ -21,7 +21,7 @@ use std::{fmt::Debug, marker::PhantomData};
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ItemPlace {
-    /// Slot `slot` of a player's inventory, by `native_inventory_tick`'s numbers: 0..36 (0..9
+    /// Slot `slot` of a player's inventory, by `inventory_tick`'s numbers: 0..36 (0..9
     /// the hotbar), the armour 100..=103 (feet to head), the off hand -106
     /// (`ItemAccess.forPlayerSlot`).
     PlayerSlot {

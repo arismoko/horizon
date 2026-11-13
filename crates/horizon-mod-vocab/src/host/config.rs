@@ -5,6 +5,15 @@ use std::path::PathBuf;
 /// The host's methods both sides share of the `config` area, implemented by the game and reached through [`Host`].
 #[horizon_mod_api_macros::host_area]
 pub trait ConfigHost {
+    /// Physical process, not the logical side of this hook.
+    #[access(Metadata)]
+    fn dist(&self) -> Dist;
+    /// Exact Minecraft version supported by this process.
+    #[access(Metadata)]
+    fn game_version(&self) -> &'static str;
+    /// Horizon version printed in crash reports.
+    #[access(Metadata)]
+    fn horizon_version(&self) -> &'static str;
     /// Side: both.
     /// Whether the player left mod `mod_id` on in Options > Mods. A mod
     /// turned off does nothing (check this first in each hook) until the
@@ -63,6 +72,9 @@ pub trait ConfigHost {
 /// The server host's methods of the `config` area, implemented by the game and reached through [`ServerHost`].
 #[horizon_mod_api_macros::host_area]
 pub trait ConfigServerHost {
+    /// Startup opt-in for test-only content. Test registration runs regardless.
+    #[access(Metadata)]
+    fn game_tests_enabled(&self) -> bool;
     /// Side: server.
     /// The server's tick rate (20 unless `/tick rate` changed it) and the
     /// milliseconds its ticks took on average lately, as `/tick query`

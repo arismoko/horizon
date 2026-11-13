@@ -8,7 +8,7 @@ pub trait Hooks {
     /// one `host.block_entity` gave while it was loaded) and `entity` its data.
     /// Release what your mod keeps for it here. On a server its chunk may have
     /// left the level already, so don't count on the handle's reads. As
-    /// with `native_chunk_unload`, changes made in it aren't saved: the chunk
+    /// with `chunk_unload`, changes made in it aren't saved: the chunk
     /// was saved before it unloads. Not told when the world closes, or on a
     /// client when its level goes (a respawn, a dimension change, leaving).
     #[notes = r##"### When a block entity's chunk unloads
@@ -24,12 +24,12 @@ It fires on each side that holds a copy of the block entity. On a server it fire
 level, a level that closes for being empty included, after the chunk was saved and before the block entity is
 dropped. A chunk the server streams out has already left the level by then, so the handle's reads and writes
 find nothing there (`None`, `Stale`): read what you need from the event. Changes made here, through the handle or
-otherwise, aren't saved, as for `native_chunk_unload`. On a client (the window's own in single player included)
+otherwise, aren't saved, as for `chunk_unload`. On a client (the window's own in single player included)
 it fires when the server forgets a chunk or the view moves away from it, while the chunk is still there.
 
 It fires once per block entity per unload and never for a vanilla block entity. It does not fire when the world
-closes (that moment has `native_world_lifecycle`), nor on a client when its whole level goes (a respawn, a
-dimension change, leaving the server). The chunk-wide notice stays `native_chunk_unload`, a server hook: on a server
+closes (that moment has `world_lifecycle`), nor on a client when its whole level goes (a respawn, a
+dimension change, leaving the server). The chunk-wide notice stays `chunk_unload`, a server hook: on a server
 it is told after the chunk's block entities, and a client is told of them alone. A chunk unload with no part
 subscribed costs one check."##]
     #[hook(

@@ -20,7 +20,7 @@ pub trait Hooks {
     /// replaying a client's tick ask again. The answer must be a pure function of the host
     /// and the event: no random draws, no part state that changes per call, and no counting
     /// calls. The same inputs must give the same factor.
-    /// Dropped items keep their own slime rule for now. With no part attached to the state, the
+    /// Dropped items keep their own slime rule. With no part attached to the state, the
     /// owning game checks the hook subscription and prepared API block key before any event
     /// conversion, so the cost is one table lookup. Diverges from upstream: new hook.
     #[hook(

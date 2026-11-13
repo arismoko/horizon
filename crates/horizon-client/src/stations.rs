@@ -67,13 +67,14 @@ impl StationData {
 
 // ---------------------------------------------------------------- enchanting
 
-/// `EnchantingTableBlock.BOOKSHELF_OFFSETS`: the 5x5 ring two blocks out, two high.
+/// `EnchantingTableBlock.BOOKSHELF_OFFSETS`: the 5x5 ring two blocks out, two high, in
+/// `BlockPos.betweenClosed` order (x fastest, then y, then z), which a float power sum can see.
 pub fn bookshelf_offsets() -> Vec<[i32; 3]> {
     let mut v = Vec::new();
-    for x in -2i32..=2 {
-        for z in -2i32..=2 {
-            if x.abs() == 2 || z.abs() == 2 {
-                for y in 0..=1 {
+    for z in -2i32..=2 {
+        for y in 0..=1 {
+            for x in -2i32..=2 {
+                if x.abs() == 2 || z.abs() == 2 {
                     v.push([x, y, z]);
                 }
             }
@@ -1361,6 +1362,12 @@ mod tests {
         let o = bookshelf_offsets();
         assert_eq!(o.len(), 32);
         assert!(o.contains(&[-2, 0, -2]) && o.contains(&[2, 1, 0]) && !o.contains(&[1, 0, 1]));
+        // BlockPos.betweenClosed(-2, 0, -2, 2, 1, 2): x fastest, then y, then z.
+        let start = [[-2, 0, -2], [-1, 0, -2], [0, 0, -2], [1, 0, -2], [2, 0, -2]];
+        assert_eq!(o[..5], start);
+        assert_eq!(o[5], [-2, 1, -2]);
+        assert_eq!(o[10..12], [[-2, 0, -1], [2, 0, -1]]);
+        assert_eq!(o[31], [2, 1, 2]);
     }
 
     /// `EnchantmentLevelSetEvent`: each row is asked once, in order, with the

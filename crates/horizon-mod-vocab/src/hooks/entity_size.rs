@@ -15,7 +15,7 @@ pub trait Hooks {
     ///
     /// Asked on the server for its mobs (before and after their ticks) and for each LAN
     /// guest's player (once a tick), and on a client for its own player (after its tick):
-    /// a size changed within a tick takes the answer at the next of those. Not asked yet:
+    /// a size changed within a tick takes the answer at the next of those. Does not fire for:
     /// other kinds of entity, whose vanilla sizes are fixed, and a client's copies of other
     /// entities, which keep vanilla's size. Not cancellable.
     #[hook(

@@ -826,12 +826,12 @@ mod tests {
             game.mobs[0].health = 20.0;
             assert!(game.mobs[0].invulnerable_time > 0);
             assert!(game.mobs[0].is_invulnerable());
-            assert!(game.mobs[0].seen(None).invulnerable);
+            assert!(game.mobs[0].seen(None, game.items()).invulnerable);
             // ...and once the window has run out, the enemy sees it again.
             game.mobs[0].invulnerable_time = 1;
             game.tick_mobs().unwrap();
             assert_eq!(game.mobs[0].invulnerable_time, 0);
-            assert!(!game.mobs[0].seen(None).invulnerable);
+            assert!(!game.mobs[0].seen(None, game.items()).invulnerable);
             let _ = enemy;
             keep(game);
         });

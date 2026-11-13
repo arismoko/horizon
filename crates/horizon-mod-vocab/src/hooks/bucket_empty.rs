@@ -8,7 +8,7 @@ pub trait Hooks {
     /// the fluid goes into and the player may build there, right before it is
     /// placed. Set `cancel` and nothing is poured and the bucket stays full.
     /// The player's state is swapped in, so `PlayerRef::tell` answers them. Only
-    /// for guests of a server. `native_fill_bucket` hears this click too (and
+    /// for guests of a server. `fill_bucket` hears this click too (and
     /// the filling one) without the player and the fluid. Not heard: a
     /// dispenser, a cauldron, and a fluid a block places itself.
     #[hook(

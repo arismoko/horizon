@@ -5,7 +5,7 @@ pub trait Hooks {
     /// A mouse button went up over the open screen
     /// (`ScreenEvent.MouseButtonReleased.Pre`, vanilla's
     /// `Screen.mouseReleased`), with the same `screen`, `button` and
-    /// `modifiers` as `native_screen_mouse_button_pressed_pre` and fired at
+    /// `modifiers` as `screen_mouse_button_pressed_pre` and fired at
     /// the same point. Set `canceled` and the release goes no further: a
     /// pressed slot keeps what it took and no drag, slider or scrollbar lets
     /// go.

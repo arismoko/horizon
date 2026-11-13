@@ -454,6 +454,32 @@ fn registered_node_draws_the_models_the_mod_answers_per_stack() {
 }
 
 #[test]
+fn a_head_model_names_a_skull_kind_only_once_a_mod_registers_it() {
+    let head = |kind: &str| SpecialModel::decode(&json!({"type": "minecraft:head", "kind": kind}));
+    // Before registration a mod's kind is refused, as an unknown vanilla kind is.
+    assert!(head("skulltest:goblin").is_err());
+    assert!(head("goblin").is_err());
+    let kept = register_skull_kinds(vec![
+        "skulltest:goblin".into(),
+        "minecraft:goblin".into(),
+        "zombie".into(),
+        "skulltest:goblin".into(),
+    ]);
+    // Vanilla's namespace, an unnamespaced name and a second registration are left out.
+    assert_eq!(kept, ["skulltest:goblin"]);
+    assert!(register_skull_kinds(vec!["skulltest:goblin".into()]).is_empty());
+    assert!(is_skull_kind("skulltest:goblin"));
+    assert!(!is_skull_kind("minecraft:goblin"));
+    let goblin = head("skulltest:goblin").unwrap();
+    assert!(matches!(&goblin.kind, SpecialKind::Head { kind, .. } if kind == "skulltest:goblin"));
+    assert_eq!(goblin.to_json()["kind"], "skulltest:goblin");
+    assert!(head("minecraft:goblin").is_err());
+    assert!(head("skulltest:orc").is_err());
+    // Vanilla's kinds are unchanged.
+    assert!(head("zombie").is_ok());
+}
+
+#[test]
 fn last_index_less_or_equal_linear_and_binary() {
     use super::last_index_less_or_equal;
     let make = |thresholds: &[f32]| -> Vec<(f32, ItemModelNode)> {

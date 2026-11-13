@@ -812,7 +812,7 @@ pub fn loader_biome_tags(work: &Path) -> BTreeMap<String, Value> {
     for jar in dir.flatten().map(|e| e.path()) {
         let Some(mut zip) = std::fs::File::open(&jar)
             .ok()
-            .and_then(|f| zip::ZipArchive::new(f).ok())
+            .and_then(|f| crate::zip_intake::open(f).ok())
         else {
             continue;
         };

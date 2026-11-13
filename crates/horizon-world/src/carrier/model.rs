@@ -1,7 +1,7 @@
 //! Carrier data model: identity, transform and local cells.
 //!
 //! Slice 1 of the moving structures design
-//! (`docs/modding/src/concepts/moving-structures.md`, board issue 1:
+//! (`docs/design/mod-api/moving-structures.md`, board issue 1:
 //! "Carrier data model and bounded codec"): the persisted shape of a
 //! carrier — UUID, generation, simulation revision, transform and local
 //! cells — with no gameplay integration. The transform reuses

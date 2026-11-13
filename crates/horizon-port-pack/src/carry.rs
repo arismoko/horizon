@@ -783,7 +783,7 @@ const NOT_CLAIMED: [&str; 6] = ["minecraft", "c", "horizon", "forge", "neoforge"
 /// and the namespaces already claimed) name ids in it, and no mod of the
 /// pack (`pack_mod`) has it as its id.
 fn extra_namespaces(
-    zip: &mut zip::ZipArchive<fs::File>,
+    zip: &mut crate::zip_intake::Archive<fs::File>,
     id: &str,
     pack_mod: &dyn Fn(&str) -> bool,
 ) -> Vec<String> {
@@ -859,7 +859,7 @@ pub fn namespaces_claimed(
     pack_mod: &dyn Fn(&str) -> bool,
 ) -> Result<Vec<String>, String> {
     let file = fs::File::open(jar).map_err(|e| format!("{}: {e}", jar.display()))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", jar.display()))?;
+    let mut zip = crate::zip_intake::open(file).map_err(|e| format!("{}: {e}", jar.display()))?;
     Ok(extra_namespaces(&mut zip, id, pack_mod))
 }
 
@@ -995,7 +995,7 @@ pub fn carry(
         ));
     }
     let file = fs::File::open(jar).map_err(|e| format!("{}: {e}", jar.display()))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", jar.display()))?;
+    let mut zip = crate::zip_intake::open(file).map_err(|e| format!("{}: {e}", jar.display()))?;
     // The previous harness verdict describes the content we are about to replace.
     let verdict = out.join("harness/result.json");
     if let Err(e) = fs::remove_file(&verdict)

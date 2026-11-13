@@ -5,7 +5,7 @@ pub trait Hooks {
     /// The client dropped its level for `dimension` (`LevelEvent.Unload`
     /// from `Minecraft.setLevel` and `disconnect`): replaced by another
     /// dimension's, or on leaving the server. Once for each
-    /// `native_client_level_load`. Not told when the game itself quits.
+    /// `client_level_load`. Not told when the game itself quits.
     /// Client-side.
     #[hook(
         side = "client",

@@ -29,7 +29,7 @@ pub trait Hooks {
     /// screen open then, so a key that closes the screen (the inventory key)
     /// leaves none to hear its character, where vanilla's closed screen hears
     /// nothing, and one that moves the focus types into the box it moved to.
-    /// They fire even when `native_screen_key_pressed_pre` cancelled the press
+    /// They fire even when `screen_key_pressed_pre` cancelled the press
     /// that carried the text, as NeoForge delivers `CharacterTyped.Pre` for a
     /// cancelled `KeyPressed.Pre`: the characters left reach the text box
     /// without the key's own effects. Cancelling one character drops only that

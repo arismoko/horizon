@@ -4,7 +4,7 @@
 use crate::manifest::{MANIFEST, Manifest};
 use std::{
     collections::BTreeMap,
-    io::{Read, Write},
+    io::{Read, Seek, Write},
     path::Path,
 };
 
@@ -53,30 +53,36 @@ pub fn is_pack(path: &Path) -> bool {
         || (path.is_file() && path.extension().is_some_and(|e| e == EXTENSION))
 }
 
+fn parse_manifest(reader: impl Read) -> Result<Manifest, String> {
+    let mut text = String::new();
+    reader
+        .take(MAX_OTHER + 1)
+        .read_to_string(&mut text)
+        .map_err(|e| e.to_string())?;
+    if text.len() as u64 > MAX_OTHER {
+        return Err("shader manifest is too large".into());
+    }
+    Manifest::parse(&text)
+}
+
 impl Pack {
     /// Reads only the manifest, without loading or validating shader source.
     pub fn read_manifest(path: &Path) -> Result<Manifest, String> {
-        let file = std::fs::File::open(if path.is_dir() {
-            path.join(MANIFEST)
-        } else {
-            path.to_path_buf()
-        })
-        .map_err(|e| e.to_string())?;
-        let mut text = String::new();
         if path.is_dir() {
-            file.take(MAX_OTHER + 1).read_to_string(&mut text)
+            let file = std::fs::File::open(path.join(MANIFEST)).map_err(|e| e.to_string())?;
+            parse_manifest(file)
         } else {
+            let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
             let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-            zip.by_name(MANIFEST)
-                .map_err(|e| e.to_string())?
-                .take(MAX_OTHER + 1)
-                .read_to_string(&mut text)
+            Self::read_zip_manifest(&mut zip)
         }
-        .map_err(|e| e.to_string())?;
-        if text.len() as u64 > MAX_OTHER {
-            return Err("shader manifest is too large".into());
-        }
-        Manifest::parse(&text)
+    }
+
+    /// Reads the manifest from an already-open ZIP, using the same size limit as a folder.
+    pub fn read_zip_manifest<R: Read + Seek>(
+        zip: &mut zip::ZipArchive<R>,
+    ) -> Result<Manifest, String> {
+        parse_manifest(zip.by_name(MANIFEST).map_err(|e| e.to_string())?)
     }
 
     /// Reads `path`: a `.hshader` file, or a folder (its hidden files and

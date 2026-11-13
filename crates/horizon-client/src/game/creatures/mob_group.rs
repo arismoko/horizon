@@ -13,6 +13,8 @@ use horizon_core::random::LegacyRandom;
 /// What every mob of the loop reads and none writes.
 pub(super) struct Shared<'a> {
     pub uuid: Option<[i32; 4]>,
+    /// The item registry the mobs live with: what a villager's snapshot counts its food by.
+    pub items: &'a horizon_client::items::Items,
     pub level_id: &'static str,
     /// The blocks whose collision changed since the last tick: mobs re-path around them.
     pub path_changes: &'a [[i32; 3]],
@@ -447,7 +449,7 @@ impl<M: MobSlot> Group<M> {
         self.keep.push(kept);
         // ServerLevel ticks entities one after another: the ones
         // after this mob see it as it is now.
-        self.snapshot[i] = seen(m, shared.uuid);
+        self.snapshot[i] = seen(m, shared.uuid, shared.items);
         self.snapshot[i].alive &= kept;
         self.grid.update(i, self.snapshot[i].bounds);
         horizon_client::mobs::apply_brain_events(&mut self.mobs, &mut self.events, from);

@@ -22,6 +22,7 @@ impl Game<'_> {
         if let Some(r) = self.remote.as_ref() {
             self.server_items = self.server_items(&r.registries);
         }
+        self.refresh_infiniburn();
         self.install_remote_tags();
     }
 

@@ -1,4 +1,4 @@
-//! Parts (arismoko/horizon#41): code a mod attaches to one block, block entity, item or mod
+//! Parts: code a mod attaches to one block, block entity, item or mod
 //! menu type at startup. The scoped hooks ask the parts attached to the thing they are about,
 //! after every mod's `Hooks` method. Parts attached by tag are resolved by each game against its
 //! own tags, at world open and on `/reload`, into a table kept by that game's thread; that table

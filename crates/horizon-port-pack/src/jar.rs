@@ -2,6 +2,7 @@
 //! (`neoforge.mods.toml`, `mods.toml`, `fabric.mod.json`, `mcmod.info`) and a
 //! census of its data, assets and classes. Legacy metadata contributes identity
 //! only; license and dependency fields are not interpreted.
+use crate::zip_intake::{self, Archive};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
@@ -92,30 +93,29 @@ pub fn read(path: &Path) -> Result<JarInfo, String> {
 
 fn read_inner(path: &Path, strict: bool) -> Result<(JarInfo, Option<JarLoader>), String> {
     let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", path.display()))?;
-    let text =
-        |zip: &mut zip::ZipArchive<fs::File>, name: &str| -> Result<Option<String>, String> {
-            let entry = match zip.by_name(name) {
-                Ok(entry) => entry,
-                Err(zip::result::ZipError::FileNotFound) => return Ok(None),
-                Err(e) if strict => return Err(format!("{}: {name}: {e}", path.display())),
-                Err(_) => return Ok(None),
-            };
-            const MAX_METADATA_BYTES: u64 = 1024 * 1024;
-            let declared = entry.size();
-            let cap = if strict {
-                MAX_METADATA_BYTES
-            } else {
-                crate::entry::MAX_TEXT
-            };
-            match crate::entry::read_text(entry, declared, cap) {
-                Ok(s) => Ok(Some(s)),
-                Err(e) if strict || crate::entry::is_too_big(&e) => {
-                    Err(format!("{}: {name}: {e}", path.display()))
-                }
-                Err(_) => Ok(None),
-            }
+    let mut zip = zip_intake::open(file).map_err(|e| format!("{}: {e}", path.display()))?;
+    let text = |zip: &mut Archive<fs::File>, name: &str| -> Result<Option<String>, String> {
+        let entry = match zip.by_name(name) {
+            Ok(entry) => entry,
+            Err(zip::result::ZipError::FileNotFound) => return Ok(None),
+            Err(e) if strict => return Err(format!("{}: {name}: {e}", path.display())),
+            Err(_) => return Ok(None),
         };
+        const MAX_METADATA_BYTES: u64 = 1024 * 1024;
+        let declared = entry.size();
+        let cap = if strict {
+            MAX_METADATA_BYTES
+        } else {
+            crate::entry::MAX_TEXT
+        };
+        match crate::entry::read_text(entry, declared, cap) {
+            Ok(s) => Ok(Some(s)),
+            Err(e) if strict || crate::entry::is_too_big(&e) => {
+                Err(format!("{}: {name}: {e}", path.display()))
+            }
+            Err(_) => Ok(None),
+        }
+    };
     let neo = text(&mut zip, "META-INF/neoforge.mods.toml")?;
     let (mut info, loader) = if strict {
         if let Some(t) = neo {

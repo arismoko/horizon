@@ -279,14 +279,13 @@ impl StatType {
 /// A fishing catch, for `item_fished` (`ItemFishedEvent`).
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
-pub struct ItemFished<'a> {
+#[derive(horizon_mod_api_macros::Wire)]
+#[wire(internal_field_layouts)]
+pub struct ItemFished {
     /// The bobber's entity id and position.
     pub hook: u32,
     /// The position.
     pub position: [f64; 3],
-    /// The items the fishing loot table rolled, which the player receives
-    /// (`getDrops`: they can't be changed here; loot tables change them).
-    pub drops: &'a [ItemStack],
 }
 
 /// The slots an item's attribute modifier applies in (vanilla's

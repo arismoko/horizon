@@ -5,10 +5,10 @@ pub trait Hooks {
     /// `Item.onUseTick` of `stack`, used by `entity` with `remaining` ticks
     /// left, always above 0: what a mod's own item does each tick it is used
     /// (cook, charge, drain). It comes where `ItemStack.onUseTick` calls the
-    /// item, once `native_living_entity_use_item_tick` let the use go on:
+    /// item, once `living_entity_use_item_tick` let the use go on:
     /// after a consumable's crumbs, for consumables, shields and mods' items
     /// (vanilla's other items do their own, and a kinetic weapon has none on
-    /// the server). Both sides, as `native_living_entity_use_item_tick`:
+    /// the server). Both sides, as `living_entity_use_item_tick`:
     /// change the world only where this `Game` runs the world, not on a
     /// server's client. Runs every tick of every use: check the item first.
     #[hook(

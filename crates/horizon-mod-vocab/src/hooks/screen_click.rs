@@ -6,7 +6,7 @@ pub trait Hooks {
     /// top left, so outside it too) on block `block`'s screen, a mod's, over
     /// no slot: set `button` to a menu button id when it is on one of yours.
     /// Horizon sends it to the server (`ContainerButtonClick`,
-    /// `native_menu_button` there) and the press goes no further.
+    /// `menu_button` there) and the press goes no further.
     #[hook(
         side = "client",
         contract = "replace",

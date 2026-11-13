@@ -182,7 +182,7 @@ impl Game<'_> {
         let snapshot: Vec<_> = self
             .mobs
             .iter()
-            .map(|m| super::creatures::seen(m, self.level.player_uuid))
+            .map(|m| super::creatures::seen(m, self.level.player_uuid, self.items()))
             .collect();
         let mut mobs = self.mobs.lift();
         #[cfg(test)]
@@ -637,7 +637,7 @@ mod tests {
             let mut mobs = game.mobs.lift();
             let snapshot: Vec<_> = mobs
                 .iter()
-                .map(|m| super::super::creatures::seen(m, game.level.player_uuid))
+                .map(|m| super::super::creatures::seen(m, game.level.player_uuid, game.items()))
                 .collect();
             let mut test_level = horizon_client::health::TestLevel::new(0);
             let mut level = test_level.level();
@@ -683,7 +683,7 @@ mod tests {
             mobs[0].ai.target = Some(Who::Player);
             let snapshot: Vec<_> = mobs
                 .iter()
-                .map(|m| super::super::creatures::seen(m, game.level.player_uuid))
+                .map(|m| super::super::creatures::seen(m, game.level.player_uuid, game.items()))
                 .collect();
             let mut test_level = horizon_client::health::TestLevel::new(0);
             let mut level = test_level.level();
@@ -722,7 +722,7 @@ mod tests {
             mobs[1].extra.followers = 1;
             let snapshot: Vec<_> = mobs
                 .iter()
-                .map(|m| m.seen(game.level.player_uuid))
+                .map(|m| m.seen(game.level.player_uuid, game.items()))
                 .collect();
             let mut test_level = horizon_client::health::TestLevel::new(0);
             let mut level = test_level.level();

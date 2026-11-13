@@ -27,7 +27,7 @@ mod test_runs;
 mod text_commands;
 mod world_cmds;
 
-use super::{Dim, Game, Screen, chat::PLAYER_NAME};
+use super::{Dim, Game, Screen, chat::PLAYER_NAME, vehicle_teleport::TeleportMotion};
 use horizon_client::{
     command::{
         Arg, CommandError, Context, Reader,
@@ -1812,37 +1812,20 @@ impl Game<'_> {
         from
     }
 
-    /// A mod sends `t` to `pos` in `level` (`Entity.teleportTo(ServerLevel, ..)`):
-    /// as `/tp` into another level does, or in its own level when that is
-    /// `level`. False for a kind that only moves within its level (items,
-    /// orbs, projectiles, ...), a player who is not a server guest, or a
-    /// transfer the game could not make. A fake player stays, and the call is true.
-    pub(in crate::game) fn teleport_to_level(
-        &mut self,
-        t: Target,
-        level: super::Dim,
-        pos: [f64; 3],
-        rotation: Option<[f32; 2]>,
-    ) -> bool {
-        if self.target_level(t) == level {
-            self.teleport_to(t, pos, rotation, true);
-            return true;
-        }
-        self.teleport_across(t, level, pos, rotation, true)
-            .unwrap_or(false)
-    }
-    /// A server's player teleported into another level than theirs
-    /// (ServerPlayer.teleport): queued to move after the command. False
-    /// when `t` is not a player in another level.
-    fn teleport_across(
+    /// `t` teleported into another level than its own: an entity crosses at
+    /// once (`teleport_target_across`), a server's player is queued to move
+    /// after the command (ServerPlayer.teleport). False when `t` cannot
+    /// change level or is already in `level`.
+    pub(in crate::game) fn teleport_across(
         &mut self,
         t: Target,
         level: super::Dim,
         pos: [f64; 3],
         rotation: Option<[f32; 2]>,
         turn_riders: bool,
+        motion: TeleportMotion,
     ) -> R<bool> {
-        match self.teleport_target_across(t, level, pos, rotation, turn_riders) {
+        match self.teleport_target_across(t, level, pos, rotation, turn_riders, motion) {
             Ok(Some(moved)) => return Ok(moved),
             Ok(None) => {}
             Err(error) => {
@@ -1985,7 +1968,7 @@ impl Game<'_> {
                 let Some(pos) = self.teleport_command_target(t, level, pos) else {
                     continue;
                 };
-                if !self.teleport_across(t, level, pos, rotation, true)? {
+                if !self.teleport_across(t, level, pos, rotation, true, TeleportMotion::Stop)? {
                     // TeleportCommand.teleportToEntity: the destination's angles,
                     // which the riders turn to as well.
                     self.teleport_to(t, pos, rotation, true);
@@ -2093,7 +2076,14 @@ impl Game<'_> {
                     }
                 }))
             });
-            if self.teleport_across(t, source_level, pos, rotation, turn_riders)? {
+            if self.teleport_across(
+                t,
+                source_level,
+                pos,
+                rotation,
+                turn_riders,
+                TeleportMotion::Stop,
+            )? {
                 continue;
             }
             self.teleport_to_relative(t, pos, rotation, relative, turn_riders);
@@ -4688,6 +4678,10 @@ mod teleport_mob_tests;
 mod teleport_item_tests;
 
 #[cfg(test)]
+#[path = "teleport_level_tests.rs"]
+mod teleport_level_tests;
+
+#[cfg(test)]
 mod teleport_player_tests {
     use crate::game::native_entity_refs::tests::with_game;
     use horizon_client::motion::PlayerMotion;
@@ -4767,7 +4761,14 @@ mod fake_travel_tests {
             let (fake, real) = (conn(2), conn(1));
             let to_nether = |game: &mut super::super::Game<'_>, conn| {
                 game.as_guest(conn, |g| {
-                    g.teleport_across(Target::Player, Dim::Nether, [0.0, 64.0, 0.0], None, false)
+                    g.teleport_across(
+                        Target::Player,
+                        Dim::Nether,
+                        [0.0, 64.0, 0.0],
+                        None,
+                        false,
+                        super::super::vehicle_teleport::TeleportMotion::Stop,
+                    )
                 })
             };
             // Taken (true), so no same-level teleport stands in for it, and nothing queued.
@@ -4780,10 +4781,10 @@ mod fake_travel_tests {
     }
 
     /// A mod's `teleport_to_level`: a player to another level goes on the queue; to their own
-    /// level, nothing is queued; what cannot change level is refused.
+    /// level, nothing is queued; an entity no level holds is refused.
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-    fn a_mod_sends_a_player_to_another_level_and_not_an_item() {
+    fn a_mod_sends_a_player_to_another_level_and_not_a_missing_entity() {
         super::super::native_entity_refs::tests::with_game(|game| {
             super::super::bossbars::audience_tests::add_real_and_fake(game);
             let conn = game
@@ -4807,7 +4808,7 @@ mod fake_travel_tests {
             let home = game.target_level(Target::Guest(conn));
             assert_eq!(sent(game, home), Some(true));
             assert_eq!(game.level_teleports.len(), 1);
-            // An item only moves within its level.
+            // No level holds this item.
             assert!(!game.teleport_to_level(Target::Item(9_999), Dim::Nether, [0.0; 3], None));
         });
     }

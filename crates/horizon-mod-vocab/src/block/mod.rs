@@ -22,5 +22,6 @@ pub(crate) mod fluid_states;
 pub mod fluid_util;
 pub(crate) mod item_place;
 pub(crate) mod poi_types;
+pub(crate) mod rail_shape;
 pub(crate) mod types;
 pub(crate) mod unresolved_fluid;

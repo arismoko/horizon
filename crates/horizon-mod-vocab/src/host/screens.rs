@@ -17,14 +17,14 @@ pub trait ScreensClientHost {
     #[access(ClientSetup)]
     fn set_preset_editor_dimensions(&self, dimensions: Compound) -> bool;
     /// Side: client.
-    /// The block of the mod screen that is open (`native_screen`), as the
+    /// The block of the mod screen that is open (`screen`), as the
     /// server named it when the block opened its menu type; None when no mod
     /// screen is open. 401.
     #[access(ClientSetup)]
     fn screen_pos(&self) -> Option<[i32; 3]>;
     /// Side: client.
     /// What the block's mod wrote for the mod screen that is open
-    /// (`native_menu_extra_data` on the server), empty when it wrote nothing;
+    /// (`menu_extra_data` on the server), empty when it wrote nothing;
     /// None when no mod screen is open. @API:menu_extra_data@.
     /// Not on wasm: it returns a borrowed view of the screen's bytes, which crosses only as a resource.
     #[access(ClientSetup)]
@@ -32,7 +32,7 @@ pub trait ScreensClientHost {
     /// Side: client.
     /// Where the open screen draws outside its `rect`, and where mods draw
     /// over it: the recipe book's panel, the creative tab rows, the active
-    /// effects beside the inventory, then whatever `native_screen_exclusion_areas`
+    /// effects beside the inventory, then whatever `screen_exclusion_areas`
     /// adds. Each is `[x, y, width, height]` in GUI pixels; an empty or
     /// non-finite one is dropped. A mod that lays out its own panels
     /// (a recipe viewer) keeps them clear of these. Client-side; empty with
@@ -59,7 +59,7 @@ pub trait ScreensClientHost {
     /// Side: client.
     /// Opens a screen of mod `mod_id`'s own over the world: the screen hooks
     /// fire over it as over any other, so the mod draws it in
-    /// `native_screen_render_post` and takes its clicks, scroll, keys and
+    /// `screen_render_post` and takes its clicks, scroll, keys and
     /// typing there; the mouse is freed, and Escape closes it. Every mod's own
     /// screen has the `ScreenView.id` `mod`, so a mod's screen hooks
     /// check `native_mod_screen()` is its own before drawing. It doesn't pause

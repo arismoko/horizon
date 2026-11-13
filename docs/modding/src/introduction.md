@@ -1,33 +1,52 @@
 # Modding Horizon
 
-Horizon is Minecraft: Java Edition 26.3 rewritten in Rust. A Horizon mod is one `.hmod` package. It is one of:
+<p class="lede">Horizon is Minecraft: Java Edition 26.3 written in Rust. This book shows you how to make mods
+for it: new blocks and items from data files, and Rust code that hooks into the game.</p>
 
-| Kind | Holds | Runs |
+![A Horizon mod is one .hmod package. Its horizon-mod.toml manifest, assets/ and data/ are read by every
+game. A content mod stops there; a code mod adds a Rust crate, built either natively by the launcher or to
+mod.wasm for the game's sandbox.](images/mod-kinds.svg)
+
+## Three kinds of mod, one package
+
+Every Horizon mod ships as one `.hmod` file: a zip holding a `horizon-mod.toml` manifest, the mod's
+`assets/` and `data/` folders, and, for a code mod, its Rust source or compiled `mod.wasm`.
+
+| Kind | What it holds | How it runs |
 | --- | --- | --- |
-| **Content mod** | `assets/` and `data/`: blocks, items, recipes, loot, tags, models, textures | read when the game starts |
-| **Native mod** | a Rust crate (`Cargo.toml`, `src/`) beside the content, using the mod API | compiled into a game the launcher builds for the player |
-| **WebAssembly mod** | a `mod.wasm` beside the content, built from the same Rust source | in the game's one sandboxed runtime, with no rebuild |
+| **Content mod** | `assets/` and `data/`: blocks, items, recipes, loot, tags, models, textures, world generation | The game reads it at start-up. No code. |
+| **Native mod** | A Rust crate using the mod API, beside its content | The launcher compiles it on the player's machine against the exact game build it runs with. Full speed, full trust. |
+| **WebAssembly mod** | `mod.wasm`, built from the same Rust source | The game runs it in a sandbox with limits on time and memory. No compiler on the player's machine. |
 
-Native and WebAssembly mods are written against one API, `mod_api`, and share one dependency model: the only
-difference between them is the build target.
+Native and WebAssembly mods are written against the same API, `mod_api` (the `horizon-mod-api` crate),
+with the same hooks, Parts, attachments and `[dependencies]`. The build target is the only difference.
+
+## Where to start
+
+<div class="cards">
+
+[**Install and play with mods**](start/installing.md)
+Where mods go, how to turn them on, and what the Mods screen shows.
+
+[**Make a content mod**](start/first-content-mod.md)
+A new block with its item, model, recipe and loot, in a few files.
+
+[**Make a native mod**](start/first-mod.md)
+A Rust mod that answers a hook, built and run by the launcher.
+
+[**Make a WebAssembly mod**](start/first-wasm-mod.md)
+The same Rust, built to `mod.wasm` and run in the game's sandbox.
+
+</div>
 
 ## How this book is organised
 
-The book follows [Diátaxis](https://diataxis.fr): each page is one of four kinds, and says so by where it lives:
-**Start** (a tutorial), **Concepts** (explanation), **How-to** and **Reference**. See
-[where each doc lives](contributing.md).
+- **Getting started** walks you from nothing to a running mod.
+- **Concepts** explains how the pieces fit: hooks and the `Host`, Parts, capabilities, attachments,
+  transactions, and the routes a mod has into the game's own code.
+- **How-to** pages each solve one task, grouped by what you are changing.
+- **Reference** lists the manifest, the package and registry formats, and links the
+  [API reference](reference/api.md), which documents every hook, event and `Host` method.
 
-An [agents page](agents.md) and `llms.txt` give a coding agent the rules in one place.
-
-A native mod that has to change the game's own code, beyond what hooks and [injections](injections.md) reach,
-uses [the native route](native-route.md): `[[native.mixin]]`, `[[native.loop]]`, `[[native.bridge]]` and
-`[[native.module]]`, each with its own page.
-
-## Where things are
-
-- The API reference is `cargo doc -p horizon-mod-api`: every hook, event and `Host` method, with its side,
-  its NeoForge 26.3 counterpart and its cancel contract.
-- The end-to-end example mod is
-  [horizon-machine-sample](https://github.com/arismoko/horizon-machine-sample).
-- Design and milestones: [#26](https://github.com/arismoko/horizon/issues/26) and
-  [#44](https://github.com/arismoko/horizon/issues/44).
+The complete example mod is [horizon-machine-sample](https://github.com/arismoko/horizon-machine-sample).
+A coding agent can start from [`llms.txt`](llms.txt).

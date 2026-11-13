@@ -622,29 +622,6 @@ impl Game<'_> {
             _ => &mut self.scratch_slot,
         }
     }
-    pub(super) fn count_bookshelves(&self, pos: [i32; 3]) -> i32 {
-        let tags = &self.items().block_tags;
-        let is = |p: [i32; 3], tag: &str| {
-            let name = &self
-                .res
-                .facts()
-                .get(self.world.block(p[0], p[1], p[2]))
-                .name;
-            tags.get(tag).is_some_and(|t| t.contains(&**name))
-        };
-        stations::bookshelf_offsets()
-            .into_iter()
-            .filter(|o| {
-                is(
-                    [pos[0] + o[0], pos[1] + o[1], pos[2] + o[2]],
-                    "minecraft:enchantment_power_provider",
-                ) && is(
-                    [pos[0] + o[0] / 2, pos[1] + o[1], pos[2] + o[2] / 2],
-                    "minecraft:enchantment_power_transmitter",
-                )
-            })
-            .count() as i32
-    }
     /// The anvil name the menu works with (`AnvilScreen.onNameChanged`).
     pub(super) fn anvil_item_name(&self, s: &Station) -> String {
         match &s.inputs[0] {

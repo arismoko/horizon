@@ -152,6 +152,48 @@ mod model_layers {
     }
 }
 
+mod skull_models {
+    use mod_api::{CreateSkullModelsEvent, Hooks, ModEntry, RegistrationContext, SkullModel};
+
+    struct Heads(&'static str);
+    #[mod_api::__subscriptions]
+    impl Hooks for Heads {
+        // ANCHOR: create_skull_models
+        fn create_skull_models(
+            &self,
+            _context: &RegistrationContext,
+            event: &mut CreateSkullModelsEvent<'_>,
+        ) {
+            event.models.push(SkullModel {
+                kind: format!("{}:goblin", self.0),
+                layer: format!("{}:goblin_head#main", self.0),
+                texture: format!("{}:entity/goblin", self.0),
+            });
+        }
+        // ANCHOR_END: create_skull_models
+    }
+
+    #[test]
+    fn create_skull_models_collects_each_mods_types_in_order() {
+        use mod_api::__private::game::RegistrationContextNew;
+        mod_platform::testing::with_mods(
+            vec![
+                ModEntry::new("first", Box::new(Heads("first"))),
+                ModEntry::new("second", Box::new(Heads("second"))),
+            ]
+            .into(),
+            || {
+                let mut models = Vec::new();
+                mod_api::dispatch_create_skull_models(&RegistrationContext::new(), &mut models);
+                let kinds: Vec<_> = models.iter().map(|m| m.kind.as_str()).collect();
+                assert_eq!(kinds, ["first:goblin", "second:goblin"]);
+                assert_eq!(models[1].layer, "second:goblin_head#main");
+                assert_eq!(models[1].texture, "second:entity/goblin");
+            },
+        );
+    }
+}
+
 /// Each mod changes the prior answer, vanilla's stays readable, and cancel
 /// stops later mods. The fork's existing typed event owns this moment.
 #[test]
