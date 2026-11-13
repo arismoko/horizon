@@ -49,6 +49,14 @@ pub(super) fn layout(w: f32, h: f32) -> (f32, f32, bool) {
 }
 
 impl Title {
+    /// The controller draws its own focus mark, so remove the keyboard's mark
+    /// when control passes to the existing pad focus path (including its first stop).
+    pub fn missing_mods_pad_focus(&mut self) {
+        if matches!(self.mode, Mode::MissingMods { .. }) {
+            self.focused_button = None;
+        }
+    }
+
     /// Page keys scroll the complete warning regardless of which action has focus.
     /// Arrow keys remain available for ordinary action navigation.
     pub fn page_missing_mods(&mut self, key: winit::keyboard::KeyCode, (w, h): (f32, f32)) -> bool {
@@ -97,8 +105,12 @@ impl Title {
         let mut lines = wrapped(atlas, &lang::get("horizon.missing_mods.description"), width);
         let description_lines = lines.len();
         lines.push(String::new());
+        let mut rows = Vec::with_capacity(missing.len());
         for m in missing {
-            lines.extend(wrapped(atlas, &entry(m), width));
+            let label = entry(m);
+            let start = lines.len();
+            lines.extend(wrapped(atlas, &label, width));
+            rows.push((label, start, lines.len() - start));
             lines.push(String::new());
         }
         self.message_lines.set(lines.len());
@@ -113,12 +125,12 @@ impl Title {
             12.0,
             rgba(255, 85, 85, 255),
         );
+        for (label, start, count) in rows {
+            let y = top + start as f32 * 9.0 - (scroll.amount / 9.0).floor() * 9.0;
+            super::flat::row_target(&label, [16.0, y, width, count as f32 * 9.0], top, bottom);
+        }
         let first = batch.vertices.len();
         for (i, line) in lines.iter().enumerate() {
-            let y = top + i as f32 * 9.0 - (scroll.amount / 9.0).floor() * 9.0;
-            if !line.is_empty() {
-                super::flat::row_target(line, [16.0, y, width, 9.0], top, bottom);
-            }
             centered(
                 atlas,
                 batch,

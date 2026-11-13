@@ -269,3 +269,38 @@ fn missing_mod_scrollbar_uses_existing_press_drag_release() {
     f.title.drag((233.0, 50.0), (240.0, 240.0));
     assert_eq!(f.title.scroll.get().amount, released);
 }
+
+#[test]
+fn controller_rows_group_wrapped_mods_and_exclude_the_description() {
+    let mut f = Fixture::new();
+    let mut wrapped_mod = gone();
+    wrapped_mod.id = "a_very_long_missing_mod_identifier_that_wraps_across_multiple_lines".into();
+    f.title.ask_missing_mods("Gone", vec![wrapped_mod, gone()]);
+    let atlas = HudAtlas::build(&horizon_assets::resource_source::ResourceSource::directory(
+        "/nonexistent/horizon-test-assets".into(),
+    ))
+    .unwrap();
+    let mut batch = HudBatch::new(
+        [240, 480],
+        crate::hud::GuiScale {
+            requested: 1,
+            unicode: false,
+        },
+    );
+    crate::widgets::end_frame(100);
+    let Mode::MissingMods { missing, .. } = &f.title.mode else {
+        unreachable!()
+    };
+    f.title
+        .draw_missing_mods(&atlas, &mut batch, (240.0, 480.0), missing);
+    crate::widgets::end_frame(101);
+    let rows: Vec<_> = crate::widgets::last_targets()
+        .into_iter()
+        .filter(|t| t.kind == crate::widgets::Kind::Row)
+        .collect();
+    assert_eq!(rows.len(), 2);
+    assert!(rows[0].rect[3] > 9.0);
+    assert_eq!(f.title.focused_button, Some(101));
+    f.title.missing_mods_pad_focus();
+    assert_eq!(f.title.focused_button, None);
+}
