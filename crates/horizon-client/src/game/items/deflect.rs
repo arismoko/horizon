@@ -129,9 +129,9 @@ impl Game<'_> {
             Some(self.creatures.projectiles[i].id),
         );
         let sweep = self.sweep_before_hit("minecraft:shulker_bullet", false);
-        let p = self.creatures.projectiles[i].clone();
-        self.remove_projectile(p.id);
-        let at = [p.position.x, p.position.y, p.position.z];
+        let p = &self.creatures.projectiles[i];
+        let (id, at, bounds) = (p.id, [p.position.x, p.position.y, p.position.z], p.aabb());
+        self.remove_projectile(id);
         self.audio
             .play("minecraft:entity.shulker_bullet.hurt", Some(at), 1.0, 1.0);
         if let Some(ty) = horizon_client::particles::ParticleType::from_name("crit") {
@@ -140,7 +140,7 @@ impl Game<'_> {
                 .send_particles(&options, at, [0.2, 0.2, 0.2], 0.0, 15);
             self.lan_level_particles(&options, at, [0.2, 0.2, 0.2], 0.0, 15, None);
         }
-        self.vehicle_attack_sounds(p.aabb(), sweep, magic.then_some(p.id as i32));
+        self.vehicle_attack_sounds(bounds, sweep, magic.then_some(id as i32));
         self.reset_attack_strength();
         self.swing_arm();
     }
