@@ -94,8 +94,10 @@ the validated id and nothing else.
   removing the parent would remove the child, which may be open, with players or a save waiting.
   A level is below when its id continues the id with `/` and it is open, waiting, a level of the
   world, or has a folder under the level's own. A folder under it is any folder other than
-  `region`, `entities`, `poi` and `data`, or one of the first three holding a folder; what is in
-  `data` is not looked into. Delete the level below first.
+  `region`, `entities`, `poi` and `data`, one of the first three holding a folder, or a folder in
+  `data` with a level's shape somewhere below it (a folder holding `region`, `entities` or `poi`,
+  or a link); the other files a mod keeps in `data` are not in the way. A folder that cannot be
+  read counts as a level below. Delete the level below first.
 
 The removal happens on the server thread, in the pass that applies the queue, after the level
 has been saved and dropped, so no save is running against the files. A request in the queue is

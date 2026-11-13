@@ -319,14 +319,24 @@ fn portable_level_id(id: &str) -> bool {
     })
 }
 
+/// The entries of `folder`, or what to answer for it when it cannot be listed: a folder that is
+/// not there holds nothing, one that cannot be read may hold a level.
+fn listing(folder: &Path) -> Result<std::fs::ReadDir, bool> {
+    std::fs::read_dir(folder).map_err(|error| error.kind() != std::io::ErrorKind::NotFound)
+}
+
 /// Whether `folder`, or a folder below it, has the shape of a level: it holds a folder named
 /// `region`, `entities` or `poi`, as every level's save writes. A link counts, since it cannot be
-/// looked into.
+/// looked into, and so does anything that cannot be read.
 fn tree_has_level_shape(folder: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(folder) else {
-        return false;
+    let entries = match listing(folder) {
+        Ok(entries) => entries,
+        Err(unreadable) => return unreadable,
     };
-    entries.flatten().any(|entry| {
+    entries.into_iter().any(|entry| {
+        let Ok(entry) = entry else {
+            return true;
+        };
         let Ok(kind) = entry.file_type() else {
             return true;
         };
@@ -346,12 +356,17 @@ fn tree_has_level_shape(folder: &Path) -> bool {
 /// save writes (`region`, `entities`, `poi`, `data`), one of the first three holding a folder, as
 /// the level `mymod:a/region` does under `mymod:a`, or a folder of `data` with a level's shape
 /// somewhere below (`mymod:a/data/ab`). Plain files are not levels, and what else `data` holds
-/// (mods keep their own files there) is not in the way.
+/// (mods keep their own files there) is not in the way. What cannot be read counts as a level:
+/// the delete is refused rather than remove what it could not look at.
 fn folder_holds_levels(folder: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(folder) else {
-        return false;
+    let entries = match listing(folder) {
+        Ok(entries) => entries,
+        Err(unreadable) => return unreadable,
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return true;
+        };
         let Ok(kind) = entry.file_type() else {
             return true;
         };
@@ -363,12 +378,14 @@ fn folder_holds_levels(folder: &Path) -> bool {
         let own = !kind.is_symlink()
             && match name.to_str() {
                 Some("data") => !tree_has_level_shape(&entry.path()),
-                Some("region" | "entities" | "poi") => !std::fs::read_dir(entry.path())
-                    .is_ok_and(|inner| {
-                        inner.flatten().any(|child| {
-                            child.file_type().map_or(true, |kind| !kind.is_file())
-                        })
+                Some("region" | "entities" | "poi") => match listing(&entry.path()) {
+                    Ok(inner) => !inner.into_iter().any(|child| {
+                        child
+                            .and_then(|child| child.file_type())
+                            .map_or(true, |kind| !kind.is_file())
                     }),
+                    Err(unreadable) => !unreadable,
+                },
                 _ => false,
             };
         if !own {
@@ -419,7 +436,11 @@ fn ensure_no_links(path: &Path, stop: &Path, include_path: bool) -> std::io::Res
 /// file, with the folders they leave empty. Whatever is not there is not an error; a link on the
 /// way is, before anything is removed. `id` has passed `owned_level_id`; the folder comes from it
 /// alone.
-pub(in crate::game) fn erase_level_files(root: &Path, id: &str, references: bool) -> std::io::Result<()> {
+pub(in crate::game) fn erase_level_files(
+    root: &Path,
+    id: &str,
+    references: bool,
+) -> std::io::Result<()> {
     let dimensions = root.join("dimensions");
     let folder = horizon_client::save::dimension_dir(root, id);
     // Never the folder of anything but a level: `dimension_dir` gives one under `dimensions/`.
@@ -632,16 +653,17 @@ impl Game<'_> {
             || folder_holds_levels(&horizon_client::save::dimension_dir(&self.world_root, id))
     }
 
-    /// Whether the structure references file of `id` is also the file of a level that exists.
+    /// Whether the structure references file of `id` is also the file of a level that exists. A
+    /// folder that cannot be looked at may be one: only one that is not there is no level.
     fn references_file_shared(&self, id: &str) -> bool {
         sharing_references_file(id).iter().any(|other| {
             self.levels.runtime.knows(other)
                 || Dim::exists(other)
-                || std::fs::symlink_metadata(horizon_client::save::dimension_dir(
+                || !std::fs::symlink_metadata(horizon_client::save::dimension_dir(
                     &self.world_root,
                     other,
                 ))
-                .is_ok()
+                .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
         })
     }
 
