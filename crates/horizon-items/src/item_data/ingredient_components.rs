@@ -124,7 +124,7 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             b.data().and_then(|d| d.other(id)),
         ),
         "minecraft:item_name" => item_name_equal(a, b),
-        "minecraft:item_model" | "minecraft:tooltip_style" => identifier_equal(
+        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => identifier_equal(
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
         ),

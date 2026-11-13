@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+"minecraft:note_block_sound",
     "minecraft:tooltip_style",
     "minecraft:waxed",
     "minecraft:damage",
@@ -60,7 +61,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     if id == "minecraft:potion_duration_scale" {
         return potion_duration_scale(value).map(|value| Tag::Float(value.to_bits()));
     }
-    if matches!(id, "minecraft:item_model" | "minecraft:tooltip_style") {
+    if matches!(id, "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound") {
         return identifier_payload(value);
     }
     decode_component(id, value, reg)?;
@@ -230,7 +231,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             .map(|_| ())
             .ok_or_else(|| "Not a number".into()),
         "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t),
-        "minecraft:item_model" | "minecraft:tooltip_style" => identifier_payload(t).map(|_| ()),
+        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => identifier_payload(t).map(|_| ()),
         // TypedEntityData.codec: the type is the compound's id.
         "minecraft:block_entity_data" => match t {
             Tag::Compound(c) => match c.get(&"id".into()) {
@@ -872,6 +873,66 @@ pub fn suggest_predicate(builder: &mut SuggestionsBuilder, reg: &Registries) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn note_block_sound_identifier_codec_normalizes_and_validates() {
+        use super::{Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        for (input, canonical) in [
+            ("unregistered/sound", "minecraft:unregistered/sound"),
+            (":unregistered/sound", "minecraft:unregistered/sound"),
+            (
+                "minecraft:unregistered/sound",
+                "minecraft:unregistered/sound",
+            ),
+            ("fixture:unregistered/sound", "fixture:unregistered/sound"),
+            ("", "minecraft:"),
+            (":", "minecraft:"),
+            ("minecraft:", "minecraft:"),
+            ("fixture:", "fixture:"),
+            (".:..", ".:.."),
+            ("a-z_0.9:/a.._-0", "a-z_0.9:/a.._-0"),
+        ] {
+            let value = Tag::String(input.into());
+            assert_eq!(
+                decoded_component_value("minecraft:note_block_sound", &value, &registry),
+                Ok(Tag::String(canonical.into())),
+                "{input:?}",
+            );
+            assert!(decode_component("minecraft:note_block_sound", &value, &registry).is_ok());
+        }
+        for input in [
+            "Minecraft:sound",
+            "minecraft:Sound",
+            "bad namespace:sound",
+            "bad/namespace:sound",
+            "..:sound",
+            "a:b:c",
+            "sound with spaces",
+            "café",
+            "sound\u{0}",
+        ] {
+            let value = Tag::String(input.into());
+            assert!(
+                decoded_component_value("minecraft:note_block_sound", &value, &registry).is_err(),
+                "{input:?}",
+            );
+            assert!(decode_component("minecraft:note_block_sound", &value, &registry).is_err());
+        }
+        for value in [
+            Tag::Int(1),
+            Tag::compound([] as [(&str, Tag); 0]),
+            Tag::List(vec![]),
+            Tag::String(horizon_core::nbt::JavaString(vec![0xd800])),
+            Tag::String(horizon_core::nbt::JavaString(vec![0xdc00])),
+            Tag::String(horizon_core::nbt::JavaString(vec![0xd83d, 0xde00])),
+        ] {
+            assert!(
+                decoded_component_value("minecraft:note_block_sound", &value, &registry).is_err(),
+                "{value:?}",
+            );
+        }
+    }
+
     #[test]
     fn tooltip_style_identifier_codec_normalizes_and_rejects_malformed_utf16() {
         use super::{Registries, Tag, decoded_component_value};
