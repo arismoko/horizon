@@ -362,7 +362,7 @@ mod tests {
     /// Through the public host: literal valid components read, literal invalid ones are
     /// `Ok(None)`, and a text over the nesting limit is the named refusal.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn the_host_reads_components_and_returns_none_for_the_rest() {
         use super::super::native_entity_refs::tests::with_game;
         with_game(|game| {

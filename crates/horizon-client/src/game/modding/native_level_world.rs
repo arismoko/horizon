@@ -705,7 +705,7 @@ mod tests {
     /// A rule a mod sets reaches `game_rule_changed` once, with no actor; the same value again
     /// reaches nothing.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn a_mod_set_game_rule_has_no_actor() {
         let told = Arc::new(Told::default());
         let mods: mod_api::Mods = vec![ModEntry::new(
@@ -729,7 +729,7 @@ mod tests {
     /// A `time_skip` listener that cancels keeps the old time: the call says `false`, the
     /// listener heard the jump with cause `mod`, and the clock has not moved.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn a_canceled_time_skip_keeps_the_clock() {
         let told = Arc::new(Told::default());
         let mods: mod_api::Mods = vec![ModEntry::new(
