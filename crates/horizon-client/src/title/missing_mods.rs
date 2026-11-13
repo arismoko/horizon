@@ -10,12 +10,21 @@ use crate::save::level_mods::{self, MissingMod};
 #[path = "missing_mods_tests.rs"]
 mod tests;
 
+/// The same player-facing entry for visible text and narration.
+fn entry(m: &MissingMod) -> String {
+    if m.saved_version.is_empty() {
+        lang::tr("horizon.missing_mods.entry_unknown", &[&m.id])
+    } else {
+        lang::tr("horizon.missing_mods.entry", &[&m.id, &m.saved_version])
+    }
+}
+
 /// The prompt's text: what opening does, then each missing mod.
 fn message(missing: &[MissingMod]) -> String {
     let mut message = lang::get("horizon.missing_mods.description");
     for m in missing {
         message.push('\n');
-        message.push_str(&level_mods::describe(m));
+        message.push_str(&entry(m));
     }
     message
 }
@@ -56,16 +65,7 @@ impl Title {
         let description_lines = lines.len();
         lines.push(String::new());
         for m in missing {
-            let version = if m.saved_version.is_empty() {
-                lang::get("horizon.missing_mods.unknown_version")
-            } else {
-                m.saved_version.clone()
-            };
-            lines.extend(wrapped(
-                atlas,
-                &lang::tr("horizon.missing_mods.entry", &[&m.id, &version]),
-                width,
-            ));
+            lines.extend(wrapped(atlas, &entry(m), width));
             lines.push(String::new());
         }
         self.message_lines.set(lines.len());

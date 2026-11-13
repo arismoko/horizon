@@ -182,3 +182,19 @@ fn long_text_keeps_all_three_actions_inside_narrow_viewport() {
         }
     }
 }
+
+#[test]
+fn arrow_keys_scroll_overflow_but_navigate_actions_when_text_fits() {
+    let mut f = Fixture::new();
+    f.title.ask_missing_mods("Gone", vec![gone()]);
+    f.title.message_lines.set(100);
+    f.title
+        .arrow_key(winit::keyboard::KeyCode::ArrowDown, (240.0, 240.0), false);
+    assert_eq!(f.title.scroll.get().amount, 18.0);
+    assert!(f.title.focused_button.is_none());
+    f.title.scroll.set(Default::default());
+    f.title.message_lines.set(3);
+    f.title
+        .arrow_key(winit::keyboard::KeyCode::ArrowDown, (240.0, 240.0), false);
+    assert!(f.title.focused_button.is_some());
+}

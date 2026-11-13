@@ -366,6 +366,7 @@
   "horizon.missing_mods.kind.content": "content mod",
   "horizon.missing_mods.mod": "%s (saved with %s): %s",
   "horizon.missing_mods.entry": "%s, version %s",
+  "horizon.missing_mods.entry_unknown": "%s, version unknown",
   "horizon.missing_mods.open": "Open Without a Backup",
   "horizon.missing_mods.server.help": "Opens a world saved with mods that are not loaded now, removing their blocks",
   "horizon.missing_mods.server.allowed": "Opening the world anyway, as --%s or [missing_mods] allow in server.toml says: those mods' blocks are removed",
