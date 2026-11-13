@@ -197,7 +197,7 @@ fn remote_reload_never_decodes_local_registry_files() {
                 game.world_root = root.to_owned();
                 game.reload_datapacks(true, &[]).unwrap();
                 assert!(game.mods.datapack_registries.is_none());
-                assert!(game.mods.datapack_candidate.is_none());
+                assert!(game.world_tables.is_none());
             });
         },
     );

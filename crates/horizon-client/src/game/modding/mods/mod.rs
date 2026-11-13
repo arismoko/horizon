@@ -110,9 +110,6 @@ pub(super) struct ModsState {
     /// The entries of the mods' datapack registries this world session has published, at the
     /// generation of the load or reload that built them; `None` when no mod declared one.
     pub(super) datapack_registries: Option<Arc<mod_api::DatapackRegistrySet>>,
-    /// The entries a table load decoded and checked, until its world open or reload takes them
-    /// to publish.
-    pub(super) datapack_candidate: Option<mod_api::DatapackCandidate>,
 }
 
 impl ModsState {
