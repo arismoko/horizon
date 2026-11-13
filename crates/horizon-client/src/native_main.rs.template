@@ -2,6 +2,10 @@
 #![forbid(unsafe_code)]
 static GAME_IDENTITY: [u8; horizon_mod_package::game_identity::MARK.len()] =
     horizon_mod_package::game_identity::MARK;
+// The executable's own copy: the library's `holder::CAPABILITY` is not in this file, and the
+// launcher reads only this file to choose the holder start.
+static HOLDER_CAPABILITY: [u8; horizon_mod_package::holder::MARKER.len()] =
+    horizon_mod_package::holder::MARKER;
 macro_rules! native_mods {
     ($($id:literal => $hooks:path,)*) => {
         vec![$(mod_api::ModEntry::new($id, $hooks()),)*]
@@ -17,7 +21,7 @@ fn main() {
     horizon_client::entry::installed(&[
 /* MOD_REDIRECTS */
     ]);
-    std::hint::black_box(&horizon_mod_package::holder::CAPABILITY);
+    std::hint::black_box(&HOLDER_CAPABILITY);
     std::hint::black_box(&GAME_IDENTITY);
     let mods: Vec<mod_api::ModEntry> = native_mods! {
     /* MOD_ENTRIES */

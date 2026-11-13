@@ -16,10 +16,14 @@ use std::{
 };
 pub const ENV: &str = "HORIZON_RUNTIME_HOLDER";
 pub const ENTRY: &str = "HORIZON_RUNTIME_ENTRY";
+/// The bytes the launcher finds in a game executable that supports the private holder. A native
+/// build links this crate dynamically, so `CAPABILITY` lives in a library: its generated `main`
+/// keeps its own copy of `MARKER` (native_main.rs.template).
+pub const MARKER: [u8; 26] = *b"horizon-private-holder-v2;";
 // Keep the scanner's wire bytes contiguous even when release optimization lowers
 // comparisons to several immediate constants (notably on Apple Silicon).
 #[used]
-pub static CAPABILITY: [u8; 26] = *b"horizon-private-holder-v2;";
+pub static CAPABILITY: [u8; MARKER.len()] = MARKER;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Tree {
