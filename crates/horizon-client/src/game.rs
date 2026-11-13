@@ -7668,10 +7668,6 @@ impl Game<'_> {
         batch
     }
     /// Slot ids: 0..36 player inventory, 100..109 crafting grid, 200 result.
-    fn container_kind(&self) -> Option<&BlockEntity> {
-        self.container
-            .and_then(|k| self.world.block_entities.get(&k))
-    }
     /// 300.. are the open container's slots.
     fn slots(&self) -> Vec<usize> {
         if self.creative_inventory_open() {
@@ -8136,6 +8132,9 @@ impl Game<'_> {
         }
         if let [(Some(slot), button, input)] = ops {
             self.crafter_slot_clicked(*slot, *button, *input);
+        }
+        if let Some(done) = self.stacked_menu_ops(ops) {
+            return done;
         }
         let ops = ops.to_vec();
         let done = self.menu_session(move |menu, env, to_menu| {

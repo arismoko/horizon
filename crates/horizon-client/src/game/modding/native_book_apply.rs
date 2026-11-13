@@ -183,6 +183,7 @@ impl Game<'_> {
                 can_equip: None,
                 known_recipes: Some(&known),
                 slot_rules: None,
+                stacked: None,
                 limited_crafting: limited,
                 ..self.menu_env()
             };

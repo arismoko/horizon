@@ -131,6 +131,15 @@ impl ActionHost for GameHost<'_, '_> {
         if self.game.native_lifecycle.epoch() != Some(holder.epoch()) {
             return Residence::Missing;
         }
+        // The body in place is the acting player's, whoever it is: it is here by being in place.
+        if self
+            .game
+            .player
+            .as_ref()
+            .is_some_and(|body| u32::try_from(body.entity_id) == Ok(holder.id()))
+        {
+            return Residence::Found;
+        }
         if self.identity().side == Side::Client {
             return if self.game.native_client_entity_target(holder).is_some() {
                 Residence::Found

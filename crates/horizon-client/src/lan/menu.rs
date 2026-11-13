@@ -42,6 +42,11 @@ pub trait Rules {
     fn slot_rules(&self) -> Option<&dyn crate::menu::SlotRules> {
         None
     }
+    /// What the mods decided about this pickup click (`item_stacked_on_other`), made by the game
+    /// before the click (none: no listener, so the plain click).
+    fn stacked(&self) -> Option<&crate::menu::StackedOutcome> {
+        None
+    }
 }
 
 /// An open block container.
@@ -518,6 +523,39 @@ impl View<'_> {
     fn enabled(&self, i: usize) -> bool {
         (self.container.is_some() || i >= 5) && !self.hidden.contains(&i)
     }
+    /// The pickup click on menu slot `slot` with `button`, as `item_stacked_on_other` is asked
+    /// about it: the stacks it finds, before any listener. `None` for a click that never asks
+    /// (not a slot, not enabled, not a pickup button).
+    pub fn stacked_click(&self, slot: i32, button: i32) -> Option<crate::menu::StackedClick> {
+        let i = usize::try_from(slot).ok()?;
+        if i >= self.len() || !self.enabled(i) || !is_container_click_button(button) {
+            return None;
+        }
+        let (container, container_slot) = match &self.container {
+            Some(c) if i < c.len() => (crate::menu::MAIN, i),
+            Some(c) => (crate::menu::PLAYER, player_slot(i - c.len())),
+            None => (
+                crate::menu::PLAYER,
+                match i {
+                    5..=8 => 44 - i,
+                    9..=35 => i,
+                    36..=44 => i - 36,
+                    45 => 40,
+                    _ => i,
+                },
+            ),
+        };
+        Some(crate::menu::StackedClick {
+            player: Some(self.guest.uuid),
+            player_entity_id: Some(self.guest.entity_id),
+            slot: i,
+            container,
+            container_slot,
+            primary: button != 1,
+            carried: self.guest.carried.clone(),
+            clicked: self.get(i),
+        })
+    }
     fn vanilla_may_place(&self, i: usize, stack: &ItemStack, rules: &dyn Rules) -> bool {
         if self.container.is_none() && (5..=8).contains(&i) {
             // `ArmorSlot.mayPlace`: `LivingEntity.isEquippableInSlot` for the guest, from the
@@ -986,47 +1024,17 @@ fn pickup(view: &mut View, slot: i32, button: i32, rules: &dyn Rules) {
         return;
     }
     let right = button == 1;
-    let mut canceled = false;
-    let mut handled = false;
-    if crate::native_client_hooks::has_mods() {
-        let (container, container_slot) = match &view.container {
-            Some(c) if i < c.len() => (crate::menu::MAIN, i),
-            Some(c) => (crate::menu::PLAYER, player_slot(i - c.len())),
-            None => (
-                crate::menu::PLAYER,
-                match i {
-                    5..=8 => 44 - i,
-                    9..=35 => i,
-                    36..=44 => i - 36,
-                    45 => 40,
-                    _ => i,
-                },
-            ),
-        };
-        let context = view.loop_context;
-        let player = view.guest.uuid;
-        let player_entity_id = view.guest.entity_id;
-        let mut carried = view.guest.carried.take();
-        let mut slot_view = HostedSlotView {
-            view,
-            slot: i,
-            rules,
-            staged: None,
-        };
-        let mut event = crate::menu::StackedOnOther {
-            player: Some(player),
-            player_entity_id: Some(player_entity_id),
-            slot: i,
-            container,
-            container_slot,
-            primary: !right,
-            carried: crate::menu::CarriedAccess(&mut carried),
-            clicked: &mut slot_view,
-            cancellation_result: false,
-        };
-        crate::menu::native_item_stacked_on_other(context, &mut event, &mut canceled);
-        handled = event.cancellation_result;
-        view.guest.carried = carried;
+    let (mut canceled, mut handled) = (false, false);
+    if let Some(outcome) = rules.stacked() {
+        (canceled, handled) = (outcome.canceled, outcome.handled);
+        if canceled && handled {
+            if let Some(carried) = outcome.carried.clone() {
+                view.guest.carried = carried;
+            }
+            if let Some(clicked) = outcome.clicked.clone() {
+                view.set(i, clicked);
+            }
+        }
     }
     let handled = if canceled {
         handled

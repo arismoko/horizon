@@ -6,7 +6,6 @@
 //! the inventory when the menu closes (`AbstractContainerMenu.clearContainer`).
 use super::{
     Game,
-    lan_crafting::input,
     stations::{Kind as StationKind, Station},
 };
 use horizon_client::{
@@ -131,6 +130,18 @@ impl Game<'_> {
         window: Option<i32>,
         op: impl FnOnce(&mut Menu, &horizon_client::menu::Env),
     ) -> bool {
+        self.lan_station_op_clicked(conn, window, None, op)
+    }
+
+    /// `lan_station_op` for `op` that makes `click`, which the mods decide first when it is a
+    /// pickup they listen to (`guest_menu_op_decided`).
+    fn lan_station_op_clicked(
+        &mut self,
+        conn: u32,
+        window: Option<i32>,
+        click: Option<super::lan_pickup::Click>,
+        op: impl FnOnce(&mut Menu, &horizon_client::menu::Env),
+    ) -> bool {
         let Some(mut gs) = self
             .lan
             .as_mut()
@@ -170,7 +181,7 @@ impl Game<'_> {
             });
             let mut undo = None;
             let hook = gs.menu.anvil_hook;
-            self.guest_menu_op(gi, &mut gs.menu, |menu, env| {
+            self.guest_menu_op_decided(gi, &mut gs.menu, click, None, |menu, env| {
                 undo = hook.then(|| menu.anvil_undo());
                 op(menu, env);
             });
@@ -405,6 +416,17 @@ impl Game<'_> {
         window: i32,
         op: impl FnOnce(&mut Menu, &horizon_client::menu::Env),
     ) -> bool {
+        self.lan_lectern_op_clicked(conn, window, None, op)
+    }
+
+    /// `lan_lectern_op` for `op` that makes `click` (see `lan_station_op_clicked`).
+    fn lan_lectern_op_clicked(
+        &mut self,
+        conn: u32,
+        window: i32,
+        click: Option<super::lan_pickup::Click>,
+        op: impl FnOnce(&mut Menu, &horizon_client::menu::Env),
+    ) -> bool {
         let Some(key) = self
             .lan
             .as_ref()
@@ -433,7 +455,7 @@ impl Game<'_> {
                 .lan
                 .as_ref()
                 .is_some_and(|host| matches!(host.hub.guests[gi].game_mode, 0 | 1));
-            self.guest_menu_op(gi, &mut menu, |menu, env| {
+            self.guest_menu_op_decided(gi, &mut menu, click, None, |menu, env| {
                 menu.may_build = may_build;
                 op(menu, env);
             });
@@ -445,8 +467,9 @@ impl Game<'_> {
 
     /// A click on the guest's lectern window; false for other windows.
     pub(super) fn lan_lectern_click(&mut self, conn: u32, p: &play::ContainerClick) -> bool {
-        self.lan_lectern_op(conn, p.container, |menu, env| {
-            let _ = menu.click(env, i32::from(p.slot), i32::from(p.button), input(p.input));
+        let click = super::lan_pickup::click_of(p);
+        self.lan_lectern_op_clicked(conn, p.container, Some(click), |menu, env| {
+            let _ = menu.click(env, click.0, click.1, click.2);
         })
     }
 
@@ -704,8 +727,9 @@ impl Game<'_> {
 
     /// A click on the guest's station window; false for other windows.
     pub(super) fn lan_station_click(&mut self, conn: u32, p: &play::ContainerClick) -> bool {
-        self.lan_station_op(conn, Some(p.container), |menu, env| {
-            let _ = menu.click(env, i32::from(p.slot), i32::from(p.button), input(p.input));
+        let click = super::lan_pickup::click_of(p);
+        self.lan_station_op_clicked(conn, Some(p.container), Some(click), |menu, env| {
+            let _ = menu.click(env, click.0, click.1, click.2);
         })
     }
 

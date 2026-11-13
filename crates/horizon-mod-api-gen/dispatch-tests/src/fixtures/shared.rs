@@ -573,9 +573,6 @@ mod stubs {
         pub(super) answer: T,
         pub(super) mod_id: &'static str,
     }
-    pub(super) struct StackedOnOther<'a> {
-        pub(super) _lifetime: std::marker::PhantomData<&'a mut ()>,
-    }
     pub(super) struct ClientPacket;
     #[derive(Default)]
     pub(super) struct HudBatch(pub Vec<u32>);
@@ -755,6 +752,8 @@ mod api {
             pub struct AnvilUpdate;
             pub struct GrindstonePlace;
             pub struct GrindstoneTake;
+            pub struct StackedOnOther;
+            pub struct StackedOnOtherResult;
         }
         pub mod stations {
             pub struct EnchantmentRow<'a>(std::marker::PhantomData<&'a ()>);

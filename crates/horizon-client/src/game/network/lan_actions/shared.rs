@@ -282,6 +282,7 @@ struct ItemRules<'a>(
     &'a horizon_client::items::Items,
     &'a horizon_client::enchant::Enchantments,
     Option<&'a dyn horizon_client::menu::SlotRules>,
+    Option<&'a horizon_client::menu::StackedOutcome>,
 );
 impl Rules for ItemRules<'_> {
     fn items(&self) -> &horizon_client::items::Items {
@@ -295,6 +296,9 @@ impl Rules for ItemRules<'_> {
     }
     fn slot_rules(&self) -> Option<&dyn horizon_client::menu::SlotRules> {
         self.2
+    }
+    fn stacked(&self) -> Option<&horizon_client::menu::StackedOutcome> {
+        self.3
     }
 }
 

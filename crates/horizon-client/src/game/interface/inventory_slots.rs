@@ -329,6 +329,10 @@ impl Game<'_> {
         let (sx, sy) = self.slot_position(slot);
         self.draw_slot_highlight(batch, front, ox + sx, oy + sy);
     }
+    pub(in crate::game) fn container_kind(&self) -> Option<&BlockEntity> {
+        self.container
+            .and_then(|k| self.world.block_entities.get(&k))
+    }
     pub(super) fn slot_mut(&mut self, i: usize) -> &mut Option<ItemStack> {
         if i >= mount_menu::SADDLE {
             return self.mount_slot_mut(i);

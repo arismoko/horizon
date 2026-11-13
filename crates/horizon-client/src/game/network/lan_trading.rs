@@ -36,6 +36,17 @@ fn uuid_words(uuid: u128) -> [i32; 4] {
     ]
 }
 
+/// How a merchant menu op runs: as it is, only looking (the menu as a click finds it, kept
+/// nowhere), or as a decision asks (the slot rules its plan kept and the mods' answer).
+enum MerchantRun<'a> {
+    Plain,
+    Probe(&'a mut dyn FnMut(&mut Menu, &Env)),
+    Decided(
+        &'a dyn horizon_client::menu::SlotRules,
+        Option<&'a horizon_client::menu::StackedOutcome>,
+    ),
+}
+
 impl Game<'_> {
     /// Development oracle: observe the actual open guest merchant, never a synthetic menu.
     pub(super) fn harness_merchant(
@@ -252,6 +263,18 @@ impl Game<'_> {
         refresh_offers: bool,
         op: impl FnOnce(&mut Menu, &Env),
     ) -> bool {
+        self.lan_merchant_op_with(conn, window, refresh_offers, MerchantRun::Plain, op)
+    }
+
+    /// `lan_merchant_op`, run as a decision asks (see `MerchantRun`).
+    fn lan_merchant_op_with(
+        &mut self,
+        conn: u32,
+        window: Option<i32>,
+        refresh_offers: bool,
+        run: MerchantRun<'_>,
+        op: impl FnOnce(&mut Menu, &Env),
+    ) -> bool {
         let Some(mut gm) = self
             .lan
             .as_mut()
@@ -311,6 +334,7 @@ impl Game<'_> {
             can_equip: None,
             known_recipes: Some(&g.recipe_book),
             slot_rules: Some(self),
+            stacked: None,
         };
         let mut menu = Menu::new(Kind::Merchant);
         menu.set_registry_id(Some("minecraft:merchant"));
@@ -328,6 +352,22 @@ impl Game<'_> {
             menu.set_slot(&env, i, s.clone());
         }
         menu.merchant = Some(session);
+        let env = match &run {
+            MerchantRun::Decided(rules, stacked) => Env {
+                slot_rules: Some(*rules),
+                stacked: *stacked,
+                ..env
+            },
+            _ => env,
+        };
+        if let MerchantRun::Probe(probe) = run {
+            // Only look: the menu as the click finds it, and nothing of it kept.
+            probe(&mut menu, &env);
+            if let Some(host) = self.lan.as_mut() {
+                host.play.entry(conn).or_default().merchant = Some(gm);
+            }
+            return true;
+        }
         op(&mut menu, &env);
         let made = maps.made.take();
         let session = menu.merchant.take().expect("attached");
@@ -442,9 +482,62 @@ impl Game<'_> {
             _ => Input::PickupAll,
         };
         let (slot, button) = (i32::from(p.slot), i32::from(p.button));
-        self.lan_merchant_op(conn, Some(p.container), false, |menu, env| {
+        let op = move |menu: &mut Menu, env: &Env| {
             let _ = menu.click(env, slot, button, input);
-        })
+        };
+        if !Self::stacked_listened() || input != Input::Pickup {
+            return self.lan_merchant_op(conn, Some(p.container), false, op);
+        }
+        // Plan: what the click finds in the menu as the guest's trade state makes it, and what
+        // the slot rules say to it, on copies; nothing is kept.
+        let answers = std::rc::Rc::new(horizon_client::menu::RuleAnswers::default());
+        let mut found = None;
+        let mut probe = |menu: &mut Menu, env: &Env| {
+            found = menu.stacked_click(env, slot, button, input);
+            if found.is_some() {
+                super::stacked_on_other::plan_click(menu, env, slot, button, &answers);
+            }
+        };
+        let open = self.lan_merchant_op_with(
+            conn,
+            Some(p.container),
+            false,
+            MerchantRun::Probe(&mut probe),
+            |_, _| {},
+        );
+        let Some(frozen) = found.filter(|_| open) else {
+            return self.lan_merchant_op(conn, Some(p.container), false, op);
+        };
+        let route = match self.lan.as_mut() {
+            Some(host) => host.menus.entry(conn).or_default().hub.id(),
+            None => return true,
+        };
+        let gi = self
+            .lan
+            .as_ref()
+            .and_then(|host| host.hub.guests.iter().position(|g| g.conn == conn));
+        let (carried, same) = (frozen.carried.clone(), frozen.clone());
+        let mut handled = true;
+        self.stacked_pickup(
+            route,
+            frozen,
+            move |game| {
+                let now = game.lan.as_ref()?.hub.guests.get(gi?)?.carried.clone();
+                (now == carried).then(|| same.clone())
+            },
+            |game, answer| {
+                game.journal_guest_click(conn);
+                let rules = horizon_client::menu::StoredRules(&answers);
+                handled = game.lan_merchant_op_with(
+                    conn,
+                    Some(p.container),
+                    false,
+                    MerchantRun::Decided(&rules, answer),
+                    op,
+                );
+            },
+        );
+        handled
     }
     /// ServerboundSelectTradePacket: the selection hint, then tryMoveItems.
     pub(super) fn lan_select_trade(&mut self, conn: u32, index: i32) {
