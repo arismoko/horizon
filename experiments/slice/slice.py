@@ -189,7 +189,7 @@ def main() -> None:
         if OS == "Windows":
             text = run(["objdump", "-p", path])
             table = text.split("[Ordinal/Name Pointer] Table", 1)[-1]
-            return sorted(set(re.findall(r"\]\s+(_R\S*horizon_native_mods\S*)", table)))
+            return sorted(set(re.findall(r"(_R\S*19horizon_native_mods\S*)", table)))
         text = run(["nm", "-gU" if OS == "Darwin" else "-D", *([] if OS == "Darwin" else ["--defined-only"]), path])
         return sorted({l.split()[-1] for l in text.splitlines() if "19horizon_native_mods" in l})
 
@@ -224,6 +224,25 @@ def main() -> None:
     if OS == "Linux":
         print(run(["ldd", rundir / "horizon-client"], env={**os.environ, "LD_LIBRARY_PATH": str(rundir)}))
 
+    # Control: today's route (the package's template, the mod linked into the executable against
+    # horizon_client), started the same way, so a stop that is not the slice design's shows in both.
+    control = work / "control"
+    control.mkdir()
+    template = (sdk / "native_main.rs.template").read_text()
+    (control / "main.rs").write_text(template.replace("/* MOD_ENTRIES */", '"slice_smoke" => mod_0::hooks,').replace(
+        "/* BUILT_MODS */", 'horizon_mod_package::runtime::BuiltMod { id: "slice_smoke", version: "0.1.0", side: horizon_mod_package::Side::Both },'))
+    run(["rustc", *sdk_flags, "-L", f"dependency={out}", "--crate-type", "bin", "--crate-name", "horizon_native_game",
+         *(f for a in origin + link_args for f in ("-C", f"link-arg={a}")),
+         *(f for c in ("horizon_client", "mod_api", "mod_points", "horizon_mod_package") for f in ("--extern", f"{c}={rmeta(deps, c)}")),
+         "--extern", f"horizon_mod_host={host_lib}", "--extern", f"mod_0={out / 'libmod_0.rlib'}",
+         "-o", control / f"horizon-client{EXE}", control / "main.rs"], "control: today's route executable")
+    for f in (host_lib, wasm_lib, std):
+        shutil.copy2(f, control)
+    for f in rundir.iterdir():
+        if f.name.startswith("lib") and f.suffix == ".dll":
+            shutil.copy2(f, control)
+    shutil.copytree(rundir / "horizon-native-mods" / "slice_smoke", control / "horizon-native-mods" / "slice_smoke")
+
     home = Path(tempfile.mkdtemp(prefix="slice-home-"))
     env = {**os.environ, "HORIZON_HOME": str(home / "home"), "XDG_DATA_HOME": str(home / "data"),
            "XDG_CONFIG_HOME": str(home / "config"), "HORIZON_LAUNCHER_HOME": str(home / "launcher"),
@@ -236,6 +255,22 @@ def main() -> None:
     # Game options first: everything after --dedicated is the server's own.
     resources = args.resources.resolve() if args.resources else home / "no-resources"
     cmd = [str(rundir / f"horizon-client{EXE}"), "--resources", str(resources), "--dedicated", "--nogui"]
+    if not args.resources:
+        for exe_dir in (control, rundir):
+            cg = exe_dir / "game-control"
+            cg.mkdir()
+            (cg / "eula.txt").write_text("eula=true\n")
+            ccmd = [str(exe_dir / f"horizon-client{EXE}"), *cmd[1:]]
+            cenv = {**env, "LD_LIBRARY_PATH": str(exe_dir)} if OS == "Linux" else env
+            r = subprocess.run(ccmd, cwd=cg, env=cenv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)
+            print(f"control|{exe_dir.name}| exit {r.returncode}")
+            for line in r.stdout.splitlines()[:20]:
+                print(f"control|{exe_dir.name}| {line}")
+            if OS == "Darwin" and r.returncode < 0 and shutil.which("lldb"):
+                d = subprocess.run(["lldb", "--batch", "-o", "run", "-k", "bt 40", "-k", "quit", "--", *ccmd],
+                                   cwd=cg, env=cenv, capture_output=True, text=True, timeout=300)
+                for line in (d.stdout + d.stderr).splitlines()[-80:]:
+                    print(f"lldb|{exe_dir.name}| {line}")
     print("+", " ".join(cmd), flush=True)
     t = time.monotonic()
     proc = subprocess.Popen(cmd, cwd=game, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
