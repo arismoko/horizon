@@ -456,8 +456,12 @@ def start(out: Path) -> None:
     installed = out.parent / SMOKE
     with tempfile.TemporaryDirectory(dir=out.parent) as scratch:
         scratch = Path(scratch)
-        # Never a real player's folders: lab.game_env gives the game fresh homes and no audio.
-        environment = lab.game_env(RUST_BACKTRACE="1")
+        # Never a real player's folders, even ones this process inherited: every home is a folder of the scratch.
+        homes = {key: scratch / key.lower() for key in
+                 ("HORIZON_HOME", "HORIZON_LAUNCHER_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME")}
+        for home in homes.values():
+            home.mkdir()
+        environment = lab.game_env(RUST_BACKTRACE="1", **homes)
         game = scratch / "game"
         game.mkdir()
         command = [str(installed / EXECUTABLE), "--resources", str(scratch / "no-resources"), "--dedicated", "--nogui"]
@@ -466,7 +470,8 @@ def start(out: Path) -> None:
                                 encoding="utf-8", errors="replace", timeout=300)
     print(result.stdout, end="")
     print(f"start: exit {result.returncode}")
-    if result.returncode < 0 or NO_RESOURCES not in result.stdout or "panicked" in result.stdout:
+    # The prepared-files check exits with status 1; any other status is a different stop.
+    if result.returncode != 1 or NO_RESOURCES not in result.stdout or "panicked" in result.stdout:
         sys.exit(f"start: the executable stopped before the prepared-files check (exit {result.returncode})")
     print(f"start: the executable loaded the game's libraries and the mods' runtime and stopped at: {NO_RESOURCES}")
 
