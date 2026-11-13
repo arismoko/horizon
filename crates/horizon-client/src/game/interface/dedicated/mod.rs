@@ -1,3 +1,4 @@
+// game-module-visibility: pub(crate)
 //! The dedicated server (net.minecraft.server.Main and DedicatedServer):
 //! `horizon-client --dedicated [--nogui] [--port N] [--world NAME]
 //! [--universe DIR] [--initSettings]`. It reads server.properties and
@@ -38,6 +39,7 @@ use std::{
 
 mod biome_regions;
 mod missing_mods;
+pub(crate) use missing_mods::is_missing_mods_refusal;
 pub(super) mod events;
 mod management;
 mod predicate_graph;

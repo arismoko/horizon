@@ -6,6 +6,22 @@
 use super::{Game, Result, log};
 use horizon_client::save::level_mods;
 
+/// An intentional refusal to open a world without its saved mods, not a crash.
+#[derive(Debug)]
+struct MissingModsRefusal(pub String);
+
+impl std::fmt::Display for MissingModsRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for MissingModsRefusal {}
+
+/// Whether this error is the already-explained, intentional world refusal.
+pub(crate) fn is_missing_mods_refusal(error: &anyhow::Error) -> bool {
+    error.is::<MissingModsRefusal>()
+}
+
 /// `server.toml`'s `[missing_mods]`.
 #[derive(Debug, Default, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -82,7 +98,7 @@ impl Game<'_> {
         for line in last.lines() {
             log("ERROR", line);
         }
-        Err(crate::game::MissingModsRefusal(last).into())
+        Err(MissingModsRefusal(last).into())
     }
 }
 

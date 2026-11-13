@@ -49,6 +49,67 @@ pub(super) fn layout(w: f32, h: f32) -> (f32, f32, bool) {
 }
 
 impl Title {
+    /// The right stick's scroll: the open list moves wherever the hidden pointer
+    /// is, and Create World's buttons don't take the step.
+    pub fn stick_scroll(&mut self, delta: f32, cursor: (f32, f32), size: (f32, f32)) {
+        self.step_scroll(delta, crate::widgets::over_scroll_area(cursor), size);
+    }
+    /// A focus step past a list's edge: what the pointer is over scrolls, and
+    /// Create World's buttons don't take the step.
+    pub fn step_scroll(&mut self, delta: f32, cursor: (f32, f32), size: (f32, f32)) {
+        let open_rules = self.rules.get_mut().is_some();
+        if matches!(self.mode, Mode::Create { .. }) && !open_rules {
+            return;
+        }
+        self.scroll_worlds(delta, cursor, size);
+    }
+    fn drag_missing_mods(&mut self, cursor: (f32, f32), size: (f32, f32)) -> bool {
+        if !matches!(self.mode, Mode::MissingMods { .. }) {
+            return false;
+        }
+        let (top, bottom, _) = layout(size.0, size.1);
+        let mut scroll = self.scroll.get();
+        scroll.drag(cursor.1, top, bottom, self.message_lines.get() as f32 * 9.0);
+        self.scroll.set(scroll);
+        true
+    }
+    fn wheel_missing_mods(&mut self, delta: f32, size: (f32, f32)) -> bool {
+        if !matches!(self.mode, Mode::MissingMods { .. }) {
+            return false;
+        }
+        let (top, bottom, _) = layout(size.0, size.1);
+        let mut scroll = self.scroll.get();
+        scroll.wheel(
+            delta,
+            18.0,
+            top,
+            bottom,
+            self.message_lines.get() as f32 * 9.0,
+        );
+        self.scroll.set(scroll);
+        true
+    }
+    fn press_missing_mods(&mut self, cursor: (f32, f32), size: (f32, f32)) -> Action {
+        let (top, bottom, _) = layout(size.0, size.1);
+        self.scroll.get_mut().press(
+            cursor,
+            size.0 - 10.0,
+            top,
+            bottom,
+            self.message_lines.get() as f32 * 9.0,
+        );
+        Action::None
+    }
+    fn confirm_missing_mods(&mut self) -> Option<(Action, bool)> {
+        let Mode::MissingMods { world, .. } = &self.mode else {
+            return None;
+        };
+        Some((
+            self.answer_missing_mods(world.clone(), self.focused_button.unwrap_or(101)),
+            true,
+        ))
+    }
+
     /// The controller draws its own focus mark, so remove the keyboard's mark
     /// when control passes to the existing pad focus path (including its first stop).
     pub fn missing_mods_pad_focus(&mut self) {
