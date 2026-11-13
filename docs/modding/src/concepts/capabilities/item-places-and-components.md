@@ -11,7 +11,13 @@ Register an item's capability with
 `r.item_capability(&ITEM_ITEMS, "mymod:backpack", |host, place| Some(Box::new(Backpack)))`.
 Your provider returns a `ResourceHandler<ItemResource>` for that place. Use
 `r.item_capability_before_game` to answer ahead of the game's provider, which handles
-slots declared with `r.item_container(&item, provider)`. `place.capability(host, &ITEM_ITEMS)` queries these providers in order.
+slots declared with `r.item_container(&item, provider)`, then items carrying
+`minecraft:bundle_contents`. Bundle handlers use the shared vanilla weight rules and insert
+at slot 0, moving the inserted stack to the front. Only slot 0 can be extracted; reads expose
+all contents in front-first order. An empty bundle exposes one empty insertion slot.
+A mod can return `Some(Box::new(BundleItems::new(place.clone())))` from its own
+`ITEM_ITEMS` provider for an item carrying `minecraft:bundle_contents`. All writes exchange
+one item through the place and roll back with the caller's transaction. `place.capability(host, &ITEM_ITEMS)` queries these providers in order.
 The registered `ItemContainerProvider::slots(&dyn Host)` callback returns `Option<u32>` dynamically;
 it is not called by registration-time coverage queries. `ITEM_ITEMS` covers the declared item type
 even when that callback currently returns `None`. A closure `|host: &dyn Host| …` can be the provider.

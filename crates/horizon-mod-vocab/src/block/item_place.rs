@@ -10,9 +10,9 @@
 //! answering more than it was asked is a mod bug, named once, and the write aborts.
 use crate::HostTransaction;
 use crate::{
-    Capability, Direction, ENTITY_ITEMS, EquipmentSlot, Hand, ITEMS, ItemResource, ItemStack,
-    LevelRef, MenuRef, MenuSlotBacking, ResourceHandler, ServerHost, Transaction, backend_mut_of,
-    backend_of,
+    BundleItems, Capability, Direction, ENTITY_ITEMS, EquipmentSlot, Hand, ITEMS, ItemResource,
+    ItemStack, LevelRef, MenuRef, MenuSlotBacking, ResourceHandler, ServerHost, Transaction,
+    backend_mut_of, backend_of,
 };
 use std::{fmt::Debug, marker::PhantomData};
 
@@ -318,13 +318,16 @@ impl<T: ?Sized + 'static> ItemCapabilityKey<T> {
 /// Items held by an item, as NeoForge 26.3's `Capabilities.Item.ITEM`: a handler for the item at
 /// one place, whose changes rewrite the item there with an [`exchange`](ItemPlace::exchange) of
 /// one, so from a stack of more than one the changed item splits off. The game answers it for an item with `item_container`
-/// slots, kept in its `minecraft:container`.
+/// slots, kept in its `minecraft:container`, or `minecraft:bundle_contents`.
 pub const ITEM_ITEMS: ItemCapabilityKey<dyn ResourceHandler<ItemResource>> = ItemCapabilityKey {
     name: "horizon:item_items",
     default: Some(|host, place, stack| {
-        backend_of(host)?.item_container_slots(stack).map(|_| {
-            Box::new(GameItemItems(place.clone())) as Box<dyn ResourceHandler<ItemResource>>
-        })
+        if backend_of(host)?.item_container_slots(stack).is_some() {
+            Some(Box::new(GameItemItems(place.clone())))
+        } else {
+            backend_of(host)?.item_bundle_slots(stack)?;
+            Some(Box::new(BundleItems::new(place.clone())))
+        }
     }),
     handler: PhantomData,
 };
