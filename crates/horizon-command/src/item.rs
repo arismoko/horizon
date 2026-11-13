@@ -42,6 +42,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:potion_duration_scale",
     "minecraft:minimum_attack_charge",
     "minecraft:dyed_color",
+    "minecraft:unbreakable",
 ];
 
 /// Validate and decode a component into the value representation shared with stacks.
@@ -67,6 +68,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         }
     }
     Ok(match id {
+        "minecraft:unbreakable" => Tag::Compound(Compound::new()),
         "minecraft:damage"
         | "minecraft:repair_cost"
         | "minecraft:max_damage"
@@ -124,6 +126,11 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         "minecraft:dyed_color" => horizon_core::color::rgb_color_from_tag(t)
             .map(|_| ())
             .ok_or_else(|| "Expected a number or a list of three numeric RGB channels".into()),
+        // `Unit.CODEC` uses MapCodec.unitCodec: a map is required, its fields are ignored.
+        "minecraft:unbreakable" => match t {
+            Tag::Compound(_) => Ok(()),
+            _ => Err(not_map(t)),
+        },
         "minecraft:damage" | "minecraft:repair_cost" => {
             let v = int_of(t).ok_or("Not a number")?;
             if v < 0 {
@@ -888,6 +895,35 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn unbreakable_unit_codec_requires_maps_and_discards_unknown_fields() {
+        use super::{Compound, Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        let empty = Tag::Compound(Compound::new());
+        for value in [
+            empty.clone(),
+            Tag::compound([
+                ("show_in_tooltip", Tag::Byte(0)),
+                ("unknown", Tag::List(vec![Tag::Int(7)])),
+            ]),
+        ] {
+            assert_eq!(
+                decoded_component_value("minecraft:unbreakable", &value, &registry).unwrap(),
+                empty
+            );
+        }
+        for value in [
+            Tag::Byte(1),
+            Tag::Int(0),
+            Tag::String("unit".into()),
+            Tag::List(vec![]),
+            Tag::IntArray(vec![]),
+        ] {
+            assert!(decode_component("minecraft:unbreakable", &value, &registry).is_err());
+            assert!(decoded_component_value("minecraft:unbreakable", &value, &registry).is_err());
+        }
     }
 
     #[test]

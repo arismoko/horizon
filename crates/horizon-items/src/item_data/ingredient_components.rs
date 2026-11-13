@@ -40,6 +40,8 @@ pub fn removed(stack: &ItemStack, id: &str) -> bool {
 /// Presence is checked by the caller, so empty decoded enchantment maps compare equal.
 pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
     match id {
+        // `Unit.CODEC` has a single value; the caller already checked effective presence.
+        "minecraft:unbreakable" => true,
         "minecraft:damage" => a.damage == b.damage,
         "minecraft:map_id" => map_id(a) == map_id(b),
         "minecraft:repair_cost" => {

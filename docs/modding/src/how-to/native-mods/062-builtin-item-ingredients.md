@@ -54,7 +54,7 @@ Native registrations retain their persistent NBT validation contract.
 
 The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
 `max_stack_size`, `rarity`, `enchantments`, `stored_enchantments`, `custom_name`,
-`enchantment_glint_override`, `item_name`, `item_model`, `dyed_color`, `block_entity_data`, `enchantable`, `map_id`,
+`enchantment_glint_override`, `item_name`, `item_model`, `dyed_color`, `unbreakable`, `block_entity_data`, `enchantable`, `map_id`,
 `ominous_bottle_amplifier`, `potion_duration_scale`, and `minimum_attack_charge` in the `minecraft` namespace.
 `enchantable` requires a positive integer `value`; extra record fields are ignored
 and equivalent numeric NBT widths match, including item defaults. Map ids accept
@@ -77,7 +77,10 @@ zero (including negative zero) is false; nonzero values, fractions and NaN are
 true. Displays retain canonical byte 0 or 1.
 `dyed_color` accepts packed integer colors or three numeric RGB channels,
 matching the decoded values without copying candidate payloads.
-The other 104 registered built-ins use stored-value matching while their shared
+`unbreakable` requires an object, ignores its fields and normalizes to `{}`;
+scalars and lists are rejected. Matching requires effective presence, including
+item defaults, while an explicit removal suppresses that default.
+The other 103 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference
