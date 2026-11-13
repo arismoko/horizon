@@ -96,8 +96,9 @@ jobs:
       # self-update switch and development overrides, which no test reaches), and debug adds overflow checks.
       - run: "cargo test --no-fail-fast --locked -p horizon-mod-package --features runtime-process --lib output::"
         working-directory: .
-      # Every test target (the library, the binary, tests/), as launcher.yml runs them.
-      - run: cargo test --no-fail-fast --locked
+      # Every test target (the library, the binary, tests/), as launcher.yml runs them. Release: a debug
+      # launcher binary overflows Windows' 1 MiB main-thread stack at startup, so every test that spawns it fails.
+      - run: cargo test --no-fail-fast --release --locked
 
   runtime-leases:
     # The daily run's call (and a hand dispatch): it starts child processes, so it is a daily test.
