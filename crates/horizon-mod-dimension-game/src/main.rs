@@ -8,7 +8,8 @@
 //!
 //! A crate and not an example of horizon-client: an example builds with the dev-dependencies, whose
 //! `testing` feature keeps the mods per thread, and the server thread would see none.
-use horizon_mod_package::{Side, runtime::BuiltMod};
+use mod_api::__private::native::BuiltMod;
+use mod_api::Side;
 use mod_api::{
     BlockKey, ChunkAccess, ChunkGenerator, CommandArgumentValue, CommandSource, DimensionSettings,
     Flow, Hooks, ModEntry, RegisterCommandsEvent, Registrar, RegistrationContext,

@@ -16,6 +16,7 @@ use std::sync::Arc;
 use horizon_mod_package::dependencies;
 
 mod api;
+mod api_route;
 mod inject;
 mod planning;
 mod slots;
@@ -1810,10 +1811,17 @@ fn pipeline(
         timed("Checking the Rust toolchain", checking)?;
         progress(Step::PrebuiltMods);
         let compiling = std::time::Instant::now();
+        let route = prebuilt::Route::of(&projects);
+        append_log(&trf(
+            "Native mods route: {route}.",
+            &[("route", route.name())],
+        ))
+        .map_err(blame)?;
         let (binary, libraries) = prebuilt::compile(
             &rust,
             game,
             &root().join("prebuilt-build"),
+            route,
             &projects,
             &declared,
             &resolution,
@@ -1838,7 +1846,7 @@ fn pipeline(
             target,
             &binary,
             &libraries,
-            &about("prebuilt", &internals::Catalog::read(game)?),
+            &about(route.name(), &internals::Catalog::read(&game.api)?),
             &ordered,
         )?;
         timed("Installing the build", installing)?;
@@ -2498,7 +2506,7 @@ mod tests {
 
     /// The launcher's toolchain in `dir` for every host it ships one for: the build commands are
     /// checked for each host on whichever machine runs the tests, not only for its own.
-    fn toolchains(dir: impl Into<PathBuf>) -> Vec<Toolchain> {
+    pub(super) fn toolchains(dir: impl Into<PathBuf>) -> Vec<Toolchain> {
         let dir = dir.into();
         rust_toolchain::hosts()
             .iter()
@@ -3270,10 +3278,10 @@ mod tests {
         eprintln!("NATIVE_SERVER_EXPORT_STEP=load_runtime");
         let runtime = horizon_mod_package::runtime::Runtime::load(
             &output.join(Target::Server.binary()),
-            &[horizon_mod_package::runtime::BuiltMod {
+            &[mod_vocab::__private::native::BuiltMod {
                 id: "exported",
                 version: "0.1.0",
-                side: horizon_mod_package::Side::Client,
+                side: mod_vocab::Side::Client,
             }],
         )
         .unwrap();

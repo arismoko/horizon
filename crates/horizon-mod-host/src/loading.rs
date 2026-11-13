@@ -5,7 +5,7 @@ use mod_api::__private::game::Fields;
 pub fn main_with(
     mods: Vec<mod_api::ModEntry>,
     slots: &[crate::SlotListener],
-    built: &'static [horizon_mod_package::runtime::BuiltMod],
+    built: &'static [mod_api::__private::native::BuiltMod],
     startup: horizon_client::entry::Startup,
 ) {
     horizon_engine_slots::install_seal(mod_points::__private::seal)

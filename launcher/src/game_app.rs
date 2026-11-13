@@ -117,11 +117,13 @@ pub fn ensure(version: &Path) -> io::Result<PathBuf> {
     Ok(programs.join(PROGRAMS[0]))
 }
 
-// Runtime libraries installed by the native route; keep bundle discovery in one place.
+// Runtime libraries installed by the native routes; keep bundle discovery in one place. The API
+// route adds its mods library, `horizon_native_mods`, beside the game's.
 fn runtime_library(name: &str) -> bool {
     name.ends_with(".dylib")
         && (name.starts_with("libhorizon_mod_")
             || name == "libhorizon_client.dylib"
+            || name == "libhorizon_native_mods.dylib"
             || name.starts_with("libstd-"))
 }
 
@@ -206,12 +208,17 @@ mod tests {
         fs::write(&library, b"old").unwrap();
         fs::write(version.join("libstd-test.dylib"), b"std").unwrap();
         fs::write(version.join("libhorizon_client.dylib"), b"game").unwrap();
+        fs::write(version.join("libhorizon_native_mods.dylib"), b"mods").unwrap();
         fs::create_dir_all(version.join("horizon-native-mods/example")).unwrap();
         let program = ensure(&version).unwrap();
         let bundled = program.with_file_name("libhorizon_mod_host.dylib");
         assert!(same_file(&library, &bundled));
         assert!(program.with_file_name("libstd-test.dylib").exists());
         assert!(program.with_file_name("libhorizon_client.dylib").exists());
+        // The API route's mods library is found beside the bundled executable too.
+        assert!(program
+            .with_file_name("libhorizon_native_mods.dylib")
+            .exists());
         assert!(program
             .with_file_name("horizon-native-mods/example")
             .is_dir());

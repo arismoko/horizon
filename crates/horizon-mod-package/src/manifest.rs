@@ -185,15 +185,7 @@ pub struct Module {
     pub visibility: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum Side {
-    /// Local content, not compared with the server's mods when joining.
-    #[default]
-    Client,
-    /// Both, and the server tells clients which version it expects.
-    Both,
-}
+use mod_vocab::Side;
 
 /// What a content mod adds; the player sees it before turning the mod on.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]

@@ -1,3 +1,4 @@
+{"schema": 1, "build": {"commit": "fixture"}, "internals":
 [
   {"path":"horizon_client::game::Game","kind":"struct","signature":"struct Game<'a> { world: World }","hash":"1111"},
   {"path":"horizon_client::game::Game<'_>::reach","kind":"method","signature":"impl Game<'_> { fn reach(&self) -> f64 }","hash":"2222"},
@@ -8,3 +9,4 @@
   {"path":"horizon_client::game::debug","kind":"fn","signature":"fn debug()","hash":"7777"},
   {"path":"horizon_client::game::conditional","kind":"fn","signature":"fn conditional()","hash":"8888"}
 ]
+}

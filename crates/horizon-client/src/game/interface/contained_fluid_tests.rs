@@ -93,10 +93,7 @@ fn resource_root(scratch: &std::path::Path) -> std::path::PathBuf {
             jars: vec![],
         }],
         &root,
-        &horizon_mod_package::enabled::EnabledMods::new([(
-            "tank".into(),
-            horizon_mod_package::Side::Both,
-        )]),
+        &horizon_mod_package::enabled::EnabledMods::new([("tank".into(), mod_api::Side::Both)]),
     )
     .unwrap();
     root

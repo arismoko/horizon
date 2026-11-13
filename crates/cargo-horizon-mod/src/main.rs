@@ -237,7 +237,7 @@ fn newest_prebuilt(releases: &serde_json::Value) -> Option<String> {
         let readable = release["assets"].as_array()?.iter().any(|asset| {
             asset["name"]
                 .as_str()
-                .is_some_and(|name| name.starts_with(native::PREBUILT_ARCHIVE))
+                .is_some_and(|name| name.starts_with(&native::prebuilt_prefix()))
         });
         (readable && horizon_mod_package::manifest::revision(commit)).then(|| commit.to_string())
     })

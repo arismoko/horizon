@@ -10,7 +10,6 @@ mod interface_cache_tests;
 mod listener_output_fixture;
 #[cfg(feature = "mixed-output-fixture")]
 mod mixed_output_fixture;
-pub mod sdk_catalog;
 #[doc(hidden)]
 pub use dispatch_fixtures::layout as dispatch_fixture_layout;
 pub use game_modules::materialize_game_modules;
@@ -671,9 +670,11 @@ pub(crate) fn rerun_if_changed(path: &impl std::fmt::Display) {
     }
 }
 pub use wire::generate_host as generate_wire_host;
+pub mod functions;
 pub mod internals;
 pub mod internals_view;
 pub mod loops;
+pub mod mod_uses;
 pub mod notes;
 pub mod patch;
 pub mod points;

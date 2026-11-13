@@ -4184,10 +4184,7 @@ mod tests {
                 jars: Vec::new(),
             }],
             &root,
-            &horizon_mod_package::enabled::EnabledMods::new([(
-                "ruby".into(),
-                horizon_mod_package::Side::Both,
-            )]),
+            &horizon_mod_package::enabled::EnabledMods::new([("ruby".into(), mod_api::Side::Both)]),
         )
         .unwrap();
         let settings = Settings::default();

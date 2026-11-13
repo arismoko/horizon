@@ -1,5 +1,8 @@
 //! One source staging pass for the launcher and `horizon-stage`.
 use crate::{internals, points, replace};
+/// The build a staged copy is of, named in each build-data file's header.
+pub use point_shape::build_data::Build;
+use point_shape::build_data::Document;
 use std::{path::Path, time::Instant};
 
 /// Discovery instrumentation must never be used to build or publish a game.
@@ -22,8 +25,10 @@ pub struct Staged {
     pub internals: internals::Widened,
 }
 
-/// Expose internals, mark points, give functions their replacement slots and write the manifests
-/// in a disposable source copy. Internals precede points so their catalog contains only the
+/// Expose internals, mark points, give functions their replacement slots and write the build
+/// data (`points.json`, `internals.json`, `loops.json`, `functions.json`, each with the header
+/// naming `build`) in a
+/// disposable source copy. Internals precede points so their catalog contains only the
 /// original game items, and points precede the slots so only game functions are points.
 /// A pass stamps the copy before edits; even a failed pass requires fresh source for a retry.
 pub fn stage(
@@ -31,19 +36,7 @@ pub fn stage(
     points_json: &Path,
     internals_json: &Path,
     mode: Mode,
-    api_version: &str,
-) -> Result<Staged, String> {
-    stage_with_catalog(root, points_json, internals_json, mode, || {
-        crate::sdk_catalog::sdk_catalog(root, api_version)
-    })
-}
-
-fn stage_with_catalog(
-    root: &Path,
-    points_json: &Path,
-    internals_json: &Path,
-    mode: Mode,
-    catalog: impl FnOnce() -> Result<String, String>,
+    build: &Build,
 ) -> Result<Staged, String> {
     let stamp = root.join(".horizon-source-staged");
     if stamp.exists() {
@@ -54,27 +47,36 @@ fn stage_with_catalog(
         "Source staging started. Use a fresh copy to stage again.\n",
     )
     .map_err(|error| format!("{}: {error}", stamp.display()))?;
-    if matches!(mode, Mode::Build) {
-        let started = Instant::now();
-        let catalog = catalog()?;
-        let destination = points_json.with_file_name(point_shape::SDK_CATALOG_FILE);
-        std::fs::write(&destination, catalog)
-            .map_err(|e| format!("{}: {e}", destination.display()))?;
-        eprintln!(
-            "stage_phase=catalog seconds={:.3}",
-            started.elapsed().as_secs_f64()
-        );
-    }
     // Listed before any pass rewrites the source: the markers are the source's.
     let started = Instant::now();
-    write(
-        &points_json.with_file_name(crate::loops::FILE),
-        &crate::loops::collect(root)?,
-    )?;
+    #[derive(serde::Serialize)]
+    struct Loops {
+        loops: Vec<crate::loops::PublishedLoop>,
+    }
+    let loops = Loops {
+        loops: crate::loops::collect(root)?,
+    };
     eprintln!(
         "stage_phase=loops seconds={:.3}",
         started.elapsed().as_secs_f64()
     );
+    // Indexed before any pass edits a file: its spans and hashes are of the source a mixin
+    // build downloads.
+    let started = Instant::now();
+    let generic: std::collections::BTreeSet<String> = loops
+        .loops
+        .iter()
+        .map(|l| crate::functions::key(&l.generic_target()))
+        .collect();
+    let mut functions = crate::functions::index(root, &generic)?;
+    eprintln!(
+        "stage_phase=functions seconds={:.3}",
+        started.elapsed().as_secs_f64()
+    );
+    write(
+        &points_json.with_file_name(crate::loops::FILE),
+        &Document::new(build, loops),
+    )?;
     let started = Instant::now();
     let mut internals = match mode {
         Mode::Build => internals::widen(root)?,
@@ -83,7 +85,19 @@ fn stage_with_catalog(
     internals
         .entries
         .extend(crate::crossing::foreign_internals());
-    write(internals_json, &internals.entries)?;
+    #[derive(serde::Serialize)]
+    struct Internals<'a> {
+        internals: &'a [internals::Internal],
+    }
+    write(
+        internals_json,
+        &Document::new(
+            build,
+            Internals {
+                internals: &internals.entries,
+            },
+        ),
+    )?;
     eprintln!(
         "stage_phase=internals seconds={:.3}",
         started.elapsed().as_secs_f64()
@@ -109,10 +123,13 @@ fn stage_with_catalog(
     }
     write(
         points_json,
-        &Manifest {
-            points: records,
-            wire,
-        },
+        &Document::new(
+            build,
+            Manifest {
+                points: records,
+                wire,
+            },
+        ),
     )?;
     eprintln!(
         "stage_phase=point_manifest seconds={:.3}",
@@ -124,6 +141,12 @@ fn stage_with_catalog(
         "stage_phase=replace seconds={:.3}",
         started.elapsed().as_secs_f64()
     );
+    functions.retain_slotted(&replace.slots, &generic);
+    // One line: the index is the largest build-data file, and only programs read it.
+    let path = points_json.with_file_name(crate::functions::FILE);
+    let text = serde_json::to_string(&Document::new(build, &functions))
+        .map_err(|error| error.to_string())?;
+    std::fs::write(&path, text + "\n").map_err(|error| format!("{}: {error}", path.display()))?;
     Ok(Staged {
         points,
         replace,
@@ -140,9 +163,11 @@ fn write(path: &Path, value: &impl serde::Serialize) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    // Point staging fixtures isolate source rewriting from full hook resolution.
     fn stage(root: &Path, points: &Path, internals: &Path, mode: Mode) -> Result<Staged, String> {
-        stage_with_catalog(root, points, internals, mode, || Ok("{}\n".into()))
+        let build = Build {
+            commit: "c".repeat(40),
+        };
+        super::stage(root, points, internals, mode, &build)
     }
 
     #[test]
@@ -191,17 +216,21 @@ mod tests {
                 assert!(stage(&root, &output, &root.join("internals.json"), Mode::Build).is_err());
             } else {
                 stage(&root, &output, &root.join("internals.json"), Mode::Build).unwrap();
-                assert_eq!(
-                    std::fs::read_to_string(root.join(point_shape::SDK_CATALOG_FILE)).unwrap(),
-                    "{}\n"
-                );
                 let bytes = std::fs::read(&output).unwrap();
                 assert_eq!(bytes.last(), Some(&b'\n'));
                 let manifest: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                // Every build-data file opens with the header naming the build.
+                for file in point_shape::build_data::FILES {
+                    let text = std::fs::read_to_string(root.join(file)).unwrap();
+                    let (build, _): (Build, serde_json::Value) =
+                        point_shape::build_data::read(file, &text).unwrap();
+                    assert_eq!(build.commit, "c".repeat(40), "{file}");
+                }
                 let points = manifest["points"].as_array().unwrap();
                 for (name, returns) in [("unit", "cancel"), ("optional", "result")] {
                     let point = points.iter().find(|point| point["name"] == name).unwrap();
                     assert_eq!(point["returns"], returns);
+                    assert_eq!(point["signature_hash"].as_str().unwrap().len(), 32);
                 }
             }
             let before = std::fs::read(&source).unwrap();

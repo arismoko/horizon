@@ -1,5 +1,7 @@
 # The daily tests of horizon-mod-api-gen: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
 # where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+horizon-mod-api-gen a_parse_that_overflows_ends_the_child_and_names_the_file test:scan_child daily child-process
+horizon-mod-api-gen a_program_that_is_not_a_scans_child_is_stopped test:scan_child daily child-process
 horizon-mod-api-gen build::listed_render_slots_have_eligible_points lib daily slow
 horizon-mod-api-gen crossing::tests::a_stale_crossing_foreign_path_fails_with_its_name lib daily slow
 horizon-mod-api-gen crossing::tests::checked_in_foreign_layouts_match_the_locked_source lib daily slow
@@ -13,6 +15,7 @@ horizon-mod-api-gen dispatch::tests::setting_changes_notify_only_the_owner lib d
 horizon-mod-api-gen dispatch::writeback_tests::untouched_writeback_runtime_and_mutants lib daily slow
 horizon-mod-api-gen game_modules::tests::existing_game_exports_keep_their_visibility lib daily slow
 horizon-mod-api-gen hook_targets::tests::every_catalog_target_resolves_and_missing_function_is_rejected lib daily slow
+horizon-mod-api-gen horizon_stage_scans_through_its_child test:scan_child daily child-process
 horizon-mod-api-gen patch::tests::a_filled_loops_entry_runs_the_loop_with_the_mods_slots_in_order lib daily slow
 horizon-mod-api-gen patch::tests::a_lower_crate_function_gets_a_patch_crate_of_its_own lib daily slow
 horizon-mod-api-gen patch::tests::a_method_moves_into_a_trait_of_its_own_type lib daily slow
@@ -23,6 +26,7 @@ horizon-mod-api-gen points::tests::point_inventory lib daily slow
 horizon-mod-api-gen surface::tests::the_real_tree_exports lib daily slow
 horizon-mod-api-gen tests::fragment_hooks_generate lib daily slow
 horizon-mod-api-gen tests::new_hook_placeholder_is_reported_then_filled lib daily slow
+horizon-mod-api-gen the_child_refuses_input_that_is_not_a_scans test:scan_child daily child-process
 horizon-mod-api-gen wire::append::tests::append_shape_requires_public_untransformed_typed_pushes lib daily slow
 horizon-mod-api-gen wire::calls::a_reborrowed_array_has_no_redundant_parentheses lib daily slow
 horizon-mod-api-gen wire::host::tests::host_generation_asks_cargo_to_watch_the_vocabulary_hook_sources lib daily slow

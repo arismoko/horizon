@@ -91,9 +91,11 @@ fn add(dir: &Path, args: &[String]) -> Result<(), String> {
         horizon_mod_package::internals::read(&directory.join("internals.json"))?
     };
     let points = directory.join("points.json");
-    let catalog: Catalog =
-        serde_json::from_str(&crate::bounded::read(&points, crate::bounded::MAX_CATALOG)?)
-            .map_err(|e| format!("{}: {e}", points.display()))?;
+    let (_, catalog): (_, Catalog) = horizon_mod_package::build_data::read(
+        horizon_mod_package::build_data::POINTS,
+        &crate::bounded::read(&points, crate::bounded::MAX_CATALOG)?,
+    )
+    .map_err(|e| format!("{}: {e}", points.display()))?;
     let candidate = append(&original, &manifest, &request, &internals, &catalog)?;
     crate::internals::atomic_write_manifest(&path, candidate)?;
     println!("{}", availability(&catalog, &request));

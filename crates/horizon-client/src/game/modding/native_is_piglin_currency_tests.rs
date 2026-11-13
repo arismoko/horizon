@@ -352,10 +352,8 @@ fn loved_emerald_root(scratch: &std::path::Path) -> std::path::PathBuf {
         content: horizon_mod_package::content::Content::read(&dir, &package.manifest).unwrap(),
         jars: Vec::new(),
     };
-    let inventory = horizon_mod_package::enabled::EnabledMods::new([(
-        "loved".to_owned(),
-        horizon_mod_package::Side::Both,
-    )]);
+    let inventory =
+        horizon_mod_package::enabled::EnabledMods::new([("loved".to_owned(), mod_api::Side::Both)]);
     horizon_client::mod_content::resource_root(
         &base,
         std::path::Path::new(""),

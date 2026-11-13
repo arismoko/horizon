@@ -3223,7 +3223,8 @@ mod tests {
 
     #[test]
     fn tag_conditions_use_enabled_server_ids_before_each_replace_and_reload() {
-        use horizon_mod_package::{Side, enabled::EnabledMods};
+        use horizon_mod_package::enabled::EnabledMods;
+        use mod_vocab::Side;
         let root = std::env::temp_dir().join(format!(
             "horizon-conditional-tags-{}-{}",
             std::process::id(),

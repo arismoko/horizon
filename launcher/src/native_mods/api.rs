@@ -58,7 +58,7 @@ pub(super) fn main_rs(
         .map(|(i, m)| format!("        {:?} => mod_{i}::hooks,\n", m.id))
         .collect::<String>();
     let inventory = mods.iter().map(|m| format!(
-        "    horizon_mod_package::runtime::BuiltMod {{ id: {:?}, version: {:?}, side: horizon_mod_package::Side::{:?} }},\n",
+        "    mod_api::__private::native::BuiltMod {{ id: {:?}, version: {:?}, side: mod_api::Side::{:?} }},\n",
         m.id, m.version, m.side,
     )).collect::<String>();
     let api_points = listed
@@ -718,11 +718,11 @@ mod tests {
         let mut base = horizon_mod_package::Package::read(&dir).unwrap().manifest;
         base.id = "base".into();
         base.version = "1.2.3".into();
-        base.side = horizon_mod_package::Side::Both;
+        base.side = mod_vocab::Side::Both;
         let mut extra = base.clone();
         extra.id = "extra".into();
         extra.version = "2.0.0".into();
-        extra.side = horizon_mod_package::Side::Client;
+        extra.side = mod_vocab::Side::Client;
         let mods = [&base, &extra];
         for count in 0..=2 {
             let text = main_rs(template, &mods[..count], &internals::Catalog::default());
@@ -754,8 +754,8 @@ mod tests {
             assert_eq!(
                 inventory,
                 &[
-                    "    horizon_mod_package::runtime::BuiltMod { id: \"base\", version: \"1.2.3\", side: horizon_mod_package::Side::Both },",
-                    "    horizon_mod_package::runtime::BuiltMod { id: \"extra\", version: \"2.0.0\", side: horizon_mod_package::Side::Client },",
+                    "    mod_api::__private::native::BuiltMod { id: \"base\", version: \"1.2.3\", side: mod_api::Side::Both },",
+                    "    mod_api::__private::native::BuiltMod { id: \"extra\", version: \"2.0.0\", side: mod_api::Side::Client },",
                 ][..count]
             );
         }

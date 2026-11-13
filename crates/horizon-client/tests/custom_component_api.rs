@@ -142,7 +142,7 @@ fn registration_limits_and_defaults_are_bound_to_the_connection() {
         &horizon_mod_package::enabled::EnabledMods::new(
             accepted
                 .iter()
-                .map(|package| (package.id.clone(), horizon_mod_package::Side::Both)),
+                .map(|package| (package.id.clone(), mod_api::Side::Both)),
         ),
     )
     .unwrap();

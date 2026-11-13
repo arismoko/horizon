@@ -21,7 +21,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = std::env::args_os().nth(1).ok_or("expected output path")?;
     std::fs::write(
         output,
-        serde_json::to_vec(&serde_json::json!({"points": points}))?,
+        serde_json::to_vec(&serde_json::json!({
+            "schema": point_shape::build_data::SCHEMA,
+            "build": {"commit": "fixture"},
+            "points": points,
+        }))?,
     )?;
     Ok(())
 }

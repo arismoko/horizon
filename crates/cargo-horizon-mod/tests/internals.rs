@@ -30,6 +30,12 @@ impl Project {
     fn catalog(&self, revision: &str, text: &str) {
         let dir = self.dir.join("target/horizon-mod/prebuilt").join(revision);
         fs::create_dir_all(&dir).unwrap();
+        // A bare entry list gets the build-data header of `revision`.
+        let text = if text.trim_start().starts_with('[') {
+            format!(r#"{{"schema":1,"build":{{"commit":"{revision}"}},"internals":{text}}}"#)
+        } else {
+            text.to_owned()
+        };
         fs::write(dir.join("internals.json"), text).unwrap();
     }
     fn run(&self, args: &[&str]) -> Output {

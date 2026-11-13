@@ -45,7 +45,7 @@
 //! trait's supertrait bounds are in its hash too; a trait mods only call is its method set, so
 //! gaining or losing a supertrait (a sub-host trait of `Host`) changes no existing record's hash,
 //! and a method that goes shows as that method removed. [`Surface::closure`] does not follow a
-//! called trait's supertraits. A hook's hash covers what every listener
+//! called trait's supertraits; [`Surface::reach`] does. A hook's hash covers what every listener
 //! relies on (side, kind, scope, cancellable, context, host, owner, whether it has an output),
 //! not its arguments, which are member records, nor its `version`. A struct's field set is never
 //! in its hash; its `fields_hash` says whether a full literal still builds. A type's `impls` are a set, derived and
@@ -68,9 +68,15 @@
 //! typed [`ReadError`], and ignores fields it does not know. It does not recompute record
 //! hashes: a newer writer may hash contract fields this reader does not know, and the file's
 //! integrity is the signature's job.
+pub mod child;
 pub mod diff;
 pub mod records;
+pub mod scan;
 pub mod shape;
+// On wasm the scan answers "cannot judge" before parsing, which leaves the reader unused.
+#[cfg_attr(target_family = "wasm", allow(dead_code))]
+mod syntax;
+pub mod uses;
 
 pub use diff::{Diff, Verdict, diff};
 pub use records::*;
@@ -487,7 +493,21 @@ impl Surface {
     /// references are those of its fields, variants and alias target; a trait's, those of its
     /// supertraits when mods implement it, and none otherwise. Unknown ids are kept and lead nowhere.
     pub fn closure<'a>(&self, ids: impl IntoIterator<Item = &'a str>) -> BTreeSet<String> {
-        let refs = self.refs();
+        self.walk(ids, false)
+    }
+
+    /// [`Surface::closure`], also through the supertraits of traits mods only call: what a mod
+    /// can reach, as when it calls a sub-host trait's method on `&mut dyn ServerHost`.
+    pub fn reach<'a>(&self, ids: impl IntoIterator<Item = &'a str>) -> BTreeSet<String> {
+        self.walk(ids, true)
+    }
+
+    fn walk<'a>(
+        &self,
+        ids: impl IntoIterator<Item = &'a str>,
+        supertraits: bool,
+    ) -> BTreeSet<String> {
+        let refs = self.refs(supertraits);
         let mut out = BTreeSet::new();
         let mut pending: Vec<String> = ids.into_iter().map(str::to_owned).collect();
         while let Some(id) = pending.pop() {
@@ -504,7 +524,7 @@ impl Surface {
     }
 
     /// Each record's direct references, the edges [`Surface::closure`] follows.
-    pub(crate) fn refs(&self) -> BTreeMap<&str, Vec<&str>> {
+    pub(crate) fn refs(&self, supertraits: bool) -> BTreeMap<&str, Vec<&str>> {
         let mut refs: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
         for hook in &self.hooks {
             refs.insert(
@@ -520,8 +540,8 @@ impl Surface {
         }
         for item in &self.traits {
             // A trait mods may implement leads to its supertraits: implementing it means
-            // implementing them. A called trait's do not.
-            let own = if item.contract.role != Role::Call {
+            // implementing them. A called trait's lead there only with `supertraits`.
+            let own = if supertraits || item.contract.role != Role::Call {
                 item.contract.refs.iter().map(String::as_str).collect()
             } else {
                 Vec::new()
@@ -610,4 +630,10 @@ impl Surface {
 }
 
 #[cfg(test)]
+mod counterexamples_tests;
+#[cfg(test)]
+mod scan_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod uses_tests;

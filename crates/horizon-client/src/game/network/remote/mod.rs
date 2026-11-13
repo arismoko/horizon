@@ -14678,7 +14678,7 @@ pub(crate) mod tests {
         }];
         let inventory = horizon_mod_package::enabled::EnabledMods::new([(
             "ruby".to_owned(),
-            horizon_mod_package::Side::Both,
+            mod_api::Side::Both,
         )]);
         build(&base, std::path::Path::new(""), &mods, &root, &inventory).unwrap();
         let (registry, _) = horizon_world::level::data::load_registry_with_flags(&root).unwrap();

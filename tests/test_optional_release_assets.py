@@ -42,8 +42,6 @@ class OptionalReleaseAssetsTests(unittest.TestCase):
                 dist = root / "dist"
                 dist.mkdir()
                 present = REQUIRED | {name for i, name in enumerate(OPTIONAL) if mask & (1 << i)}
-                if repository == "arismoko/horizon":
-                    present |= {"mod-catalog.json"}
                 for name in present:
                     (dist / name).write_text(name)
                 script_dir = root / "tools/ci"

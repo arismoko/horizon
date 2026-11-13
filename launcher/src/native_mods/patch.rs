@@ -238,8 +238,17 @@ fn loop_slots(game: &Path, bundles: &[&Bundle]) -> Result<Vec<api_gen::patch::Lo
         .collect();
     let path = game.join(api_gen::loops::FILE);
     // A game built before published loops has no list, and so no loop a row can name.
-    let published: Vec<api_gen::loops::PublishedLoop> = match fs::read_to_string(&path) {
-        Ok(text) => serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?,
+    #[derive(serde::Deserialize)]
+    struct Loops {
+        loops: Vec<api_gen::loops::PublishedLoop>,
+    }
+    let published = match fs::read_to_string(&path) {
+        Ok(text) => {
+            horizon_mod_package::build_data::read::<Loops>(api_gen::loops::FILE, &text)
+                .map_err(|e| format!("{}: {e}", path.display()))?
+                .1
+                .loops
+        }
         Err(_) => Vec::new(),
     };
     let mut refusals = Vec::new();
@@ -327,6 +336,30 @@ fn loop_slots(game: &Path, bundles: &[&Bundle]) -> Result<Vec<api_gen::patch::Lo
     }
 }
 
+/// The game build's function index (`functions.json`), from its SDK at `game`: where each function
+/// a row may target is in the source, and whether it can be copied. With no index for this build
+/// nothing is copied: the source is never walked instead.
+fn function_index(game: &Path, commit: &str) -> Result<api_gen::functions::FunctionIndex, String> {
+    use api_gen::functions::FILE;
+    let path = game.join(FILE);
+    let text = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "E_MIXIN_INDEX: {}: {e}: the game build's SDK has no function index, so no function can be copied; fetch the SDK again",
+            path.display()
+        )
+    })?;
+    let (build, index): (_, api_gen::functions::FunctionIndex) =
+        horizon_mod_package::build_data::read(FILE, &text)
+            .map_err(|e| format!("E_MIXIN_INDEX: {e}"))?;
+    if build.commit != commit {
+        return Err(format!(
+            "E_MIXIN_INDEX: {FILE} describes game build {}, not {commit}; fetch the SDK again",
+            build.commit
+        ));
+    }
+    index.checked().map_err(|e| format!("E_MIXIN_INDEX: {e}"))
+}
+
 /// Copies, generates and transforms the patch crates for `projects` into `out`, without
 /// compiling them; `None` when no mod has a mixin, module, bridge or loop.
 pub(super) fn prepare<'a>(
@@ -377,6 +410,7 @@ pub(super) fn prepare<'a>(
     };
     let source = super::source(sdk.commit())?;
     let started = std::time::Instant::now();
+    let index = function_index(game, sdk.commit())?;
     // A filled loop's entry, or one whose loop function has rows, is copied like a mixin's target,
     // with the loop's body.
     let targets: Vec<String> = rows
@@ -389,7 +423,7 @@ pub(super) fn prepare<'a>(
     // The generator refuses targets the staged game cannot replace.
     let mut extras = extras(&bundles)?;
     extras.loops = loops;
-    let generated = api_gen::patch::generate(&source, CRATE, &targets, &extras);
+    let generated = api_gen::patch::generate(&source, CRATE, &targets, &extras, &index);
     let refusals: Vec<String> = match &generated {
         Ok(_) => Vec::new(),
         Err(refused) => refused
@@ -543,6 +577,50 @@ pub(super) fn prepare<'a>(
 
 #[cfg(test)]
 mod refusal_tests {
+    #[test]
+    fn a_missing_or_foreign_function_index_is_refused_by_name() {
+        let game = tempfile::tempdir().unwrap();
+        let commit = "c".repeat(40);
+        let error = super::function_index(game.path(), &commit).unwrap_err();
+        assert!(
+            error.starts_with("E_MIXIN_INDEX: ") && error.contains("no function index"),
+            "{error}"
+        );
+        let write = |commit: &str| {
+            std::fs::write(
+                game.path().join("functions.json"),
+                format!(
+                    r#"{{"schema":1,"build":{{"commit":"{commit}"}},"crates":{{}},"functions":{{}},"refused":{{}}}}"#
+                ),
+            )
+            .unwrap();
+        };
+        write(&"d".repeat(40));
+        let error = super::function_index(game.path(), &commit).unwrap_err();
+        assert!(
+            error.starts_with("E_MIXIN_INDEX: functions.json describes game build dddd"),
+            "{error}"
+        );
+        write(&commit);
+        assert_eq!(
+            super::function_index(game.path(), &commit).unwrap(),
+            Default::default()
+        );
+        // A tampered index whose module the copy would write as Rust is refused, not a panic.
+        std::fs::write(
+            game.path().join("functions.json"),
+            format!(
+                r#"{{"schema":1,"build":{{"commit":"{commit}"}},"crates":{{"horizon_client":{{"library":"horizon_client","modules":{{"horizon_client::game":[]}}}}}},"functions":{{"horizon_client::game::f":{{"module":"horizon_client::not a path!","file":"crates/horizon-client/src/game.rs","span":[0,1],"signature_hash":"","sha256":""}}}},"refused":{{}}}}"#
+            ),
+        )
+        .unwrap();
+        let error = super::function_index(game.path(), &commit).unwrap_err();
+        assert!(
+            error.starts_with("E_MIXIN_INDEX: functions.json: function `horizon_client::game::f` is in `horizon_client::not a path!`"),
+            "{error}"
+        );
+    }
+
     #[test]
     fn generated_install_passes_owners_and_result_to_startup_gate() {
         assert_eq!(

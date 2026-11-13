@@ -122,10 +122,17 @@ jobs:
       - name: Function replacement check (build and link)
         run: |
           launcher="${CARGO_TARGET_DIR:-launcher/target}/release/horizon-launcher"
-          FNR_MODS="alpha beta one ten fdshape support registry lower loop loop_second" tools/ci/fn_replace_check.sh \
-            "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check" 2>&1 | tee "$FNR_SCRATCH/fnr-check.log"
+          # api_only has no [native] row; beside alpha the mixed set still takes the engine route.
+          FNR_ROUTE=prebuilt FNR_MODS="alpha beta one ten fdshape support registry lower loop loop_second api_only" \
+            tools/ci/fn_replace_check.sh "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check" 2>&1 \
+            | tee "$FNR_SCRATCH/fnr-check.log"
           grep -E 'Function replacement:|: [0-9]+ ms$|^Mods compiled against the prebuilt game in |^Runner load:' \
             "$FNR_SCRATCH/fnr-check.log" >> "$GITHUB_STEP_SUMMARY"
+      - name: An API-only set takes the API route (build and link)
+        run: |
+          launcher="${CARGO_TARGET_DIR:-launcher/target}/release/horizon-launcher"
+          FNR_KEEP=1 FNR_ROUTE=prebuilt-api FNR_MODS="api_only" tools/ci/fn_replace_check.sh \
+            "$launcher" "$FNR_SCRATCH/prebuilt" "$FNR_SCRATCH/check"
       # It also builds horizon-mixins from source, where the runs before it download the prebuilt tool.
       # On its own: with no mod filling the loop, a mixin on the loop's function is compiled for the
       # empty slot. Beside the `loop` mod it would be compiled for that mod's slots instead.
