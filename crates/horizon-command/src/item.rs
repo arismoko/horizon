@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:waxed",
     "minecraft:damage",
     "minecraft:repair_cost",
     "minecraft:max_damage",
@@ -70,7 +71,7 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         }
     }
     Ok(match id {
-        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" => {
+        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" | "minecraft:waxed" => {
             Tag::Compound(Compound::new())
         }
         "minecraft:damage"
@@ -131,7 +132,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             .map(|_| ())
             .ok_or_else(|| "Expected a number or a list of three numeric RGB channels".into()),
         // `Unit.CODEC` uses MapCodec.unitCodec: a map is required, its fields are ignored.
-        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" => match t
+        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" | "minecraft:waxed" => match t
         {
             Tag::Compound(_) => Ok(()),
             _ => Err(not_map(t)),
