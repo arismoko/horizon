@@ -178,7 +178,9 @@ fn handle_records_have_declared_field_bytes() {
     let entity = EntityRef::new(epoch, 29);
     let player = crate::__private::game::player_ref(entity, 0x1234);
     let pos = BlockPos { x: 7, y: -8, z: 9 };
-    fields(level, (epoch, DimensionKey::OVERWORLD));
+    fields(level, (epoch, DimensionKey::OVERWORLD, 0u32));
+    let reopened = LevelRef::with_generation(epoch, DimensionKey::NETHER, 5);
+    fields(reopened, (epoch, DimensionKey::NETHER, 5u32));
     fields(ChunkRef::new(level, [3, -4]), (level, [3i32, -4]));
     fields(RaidRef::new(level, 53), (level, 53i32));
     fields(RaidRef::new(level, -1), (level, -1i32));

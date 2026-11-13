@@ -308,7 +308,7 @@ impl Game<'_> {
         if !self.is_logical_server() {
             return Err(mod_api::LevelReadError::Unavailable);
         }
-        if self.native_lifecycle.epoch() != Some(level.epoch()) {
+        if !self.level_handle_current(level) {
             return Err(mod_api::LevelReadError::Stale);
         }
         if level.dimension() == self.dim.key() {
@@ -326,7 +326,7 @@ impl Game<'_> {
             return self.native_level_world(level);
         }
         (self.remote.as_ref().is_some_and(|r| r.logged_in)
-            && self.native_lifecycle.epoch() == Some(level.epoch())
+            && self.level_handle_current(level)
             && level.dimension() == self.native_level_key())
         .then_some(&self.world)
     }
@@ -641,7 +641,7 @@ impl Game<'_> {
     /// client.
     pub(super) fn level_in_place(&self, level: LevelRef) -> bool {
         self.is_logical_server()
-            && self.native_lifecycle.epoch() == Some(level.epoch())
+            && self.level_handle_current(level)
             && self.dim.key() == level.dimension()
     }
     /// `f` over the game's own `SignalGetter` for the level in place, as the level's blocks
@@ -791,7 +791,7 @@ impl Game<'_> {
     /// Whether `level` is a current handle on the server: what the world's own data (its
     /// respawn data and maps, shared by its levels) needs.
     fn native_world_data_allowed(&self, level: LevelRef) -> bool {
-        self.is_logical_server() && self.native_lifecycle.epoch() == Some(level.epoch())
+        self.is_logical_server() && self.level_handle_current(level)
     }
     /// `LevelData.getRespawnData`: the world spawn and its facing. None on a client, for a
     /// stale handle, and before the world has chosen its spawn.

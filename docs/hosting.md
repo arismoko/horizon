@@ -266,6 +266,19 @@ The four caps limit what mods can ask for, counted per level:
 0 refuses every area of that kind. A request over a cap is refused whole, and the mod is told which cap and
 its value. Areas end when the player leaves.
 
+### Levels a mod opens: `horizon-max-runtime-levels`
+
+A mod can open levels of its own while the server runs ([runtime levels](modding/src/how-to/world/runtime-levels.md)).
+The server keeps at most 64 of them open at once, for all mods together; the 65th request is refused
+with `CapReached`. Set another number under `[properties]` in `server.toml`:
+
+```toml
+[properties]
+horizon-max-runtime-levels = 128
+```
+
+A level frees its place when its mod unloads it. After 300 ticks with nobody in it, it leaves memory, as any level does, but keeps its place: it opens again when someone enters it.
+
 Already have a vanilla server? Run `horizon-server init` in its folder, or `horizon-server import
 server.properties` to write `server.toml` from it. The world, `ops.json`, `whitelist.json` and the ban lists
 keep vanilla's names and formats, so going back to vanilla works too.

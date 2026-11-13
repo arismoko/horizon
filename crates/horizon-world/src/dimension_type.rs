@@ -266,6 +266,23 @@ impl DimensionFacts {
         Self::vanilla(id).unwrap_or_else(Self::overworld)
     }
 
+    /// Adds the dimension type of one level opened while the world runs (`set_levels` made the
+    /// table at its load). Leaked like the others: one small entry per level opened.
+    pub fn add_level(level: LevelKey, facts: Self) {
+        LEVELS
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(level, Box::leak(Box::new(facts)));
+    }
+
+    /// Drops the type of a level opened while the world runs, when it closes.
+    pub fn remove_level(level: LevelKey) {
+        LEVELS
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&level);
+    }
+
     /// Replaces the levels' own dimension types, at a world's load. The table is leaked, as
     /// `LevelKey`s are: one small entry per level and world load.
     pub fn set_levels(levels: Vec<(LevelKey, Self)>) {

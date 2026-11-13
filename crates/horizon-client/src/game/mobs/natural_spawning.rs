@@ -451,7 +451,7 @@ impl GameLevel<'_, '_> {
     }
     /// The handle of this pass's level, which the spawn checks are told.
     fn level_ref(&self) -> mod_api::LevelRef {
-        mod_api::LevelRef::new(self.game.lend_epoch(), self.game.dim.key())
+        self.game.level_ref(self.game.lend_epoch(), self.game.dim.key())
     }
     /// The mob the position check of this spawn created, when one did and it
     /// is the one asked for (`entity` at `position`, facing `yaw`): the spawn

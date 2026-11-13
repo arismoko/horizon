@@ -196,7 +196,7 @@ impl Game<'_> {
         let dim = std::iter::once(self.dim)
             .chain(self.levels.parked_dims())
             .find(|d| d.id() == dimension)?;
-        Some(LevelRef::new(epoch, dim.key()))
+        Some(self.level_ref(epoch, dim.key()))
     }
     /// The client level in place as a handle: the level this window shows and
     /// ticks. None before login, while reconfiguring, or with no world open.
@@ -254,7 +254,7 @@ impl Game<'_> {
         min: [f64; 3],
         max: [f64; 3],
     ) -> Option<Vec<EntityRef>> {
-        if self.native_lifecycle.epoch() != Some(level.epoch())
+        if !self.level_handle_current(level)
             || !min.iter().chain(&max).all(|v| v.is_finite())
         {
             return None;
@@ -413,7 +413,7 @@ impl Game<'_> {
         entity: Option<EntityRef>,
     ) -> Option<Vec<ItemStack>> {
         if !self.is_logical_server()
-            || self.native_lifecycle.epoch() != Some(level.epoch())
+            || !self.level_handle_current(level)
             || self.dim.key() != level.dimension()
             || !world_items!(self).has_loot_table(table)
         {
@@ -647,7 +647,7 @@ impl Game<'_> {
         // through the level gate refuses while the operation runs.
         !self.world.carrier_fences.locks_cell(&pos)
             && self.is_logical_server()
-            && self.native_lifecycle.epoch() == Some(level.epoch())
+            && self.level_handle_current(level)
             && self.world.loaded(pos[0], pos[2])
             && self.world.shape.contains_y(pos[1])
     }
@@ -662,7 +662,7 @@ impl Game<'_> {
         pos: [i32; 3],
         kind: BlockShapeKind,
     ) -> Option<Vec<[f64; 6]>> {
-        if !self.is_logical_server() || self.native_lifecycle.epoch() != Some(level.epoch()) {
+        if !self.is_logical_server() || !self.level_handle_current(level) {
             return None;
         }
         let (world, anims) = if self.dim.key() == level.dimension() {
@@ -871,7 +871,7 @@ impl Game<'_> {
                 .native_client_tracked(entity)
                 .map(|_| self.native_level_key())?,
         };
-        Some(LevelRef::new(entity.epoch(), key))
+        Some(self.level_ref(entity.epoch(), key))
     }
 }
 

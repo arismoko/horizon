@@ -1199,7 +1199,7 @@ impl Game<'_> {
     /// the client's level. None for a stale or unavailable player.
     pub(super) fn player_level(&self, player: PlayerRef) -> Option<LevelRef> {
         let dim = self.player_dimension_key(player)?;
-        Some(LevelRef::new(player.fields().entity.epoch(), dim))
+        Some(self.level_ref(player.fields().entity.epoch(), dim))
     }
 
     /// The dimension the online player is in (`ServerPlayer.level().dimension()`):

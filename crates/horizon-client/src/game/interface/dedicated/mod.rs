@@ -1333,7 +1333,7 @@ impl Game<'_> {
         let anticheat_on = anticheat.enabled;
         let chat_filter = load_chat_filter();
         self.set_pvp_legacy_rules(load_combat());
-        // Horizon's far ring (docs/hosting.md): server.toml's `max_view_distance`.
+        self.read_runtime_level_cap(|key| props.raw.get(key));
         let far = props
             .raw
             .get(FAR_PROPERTY)
