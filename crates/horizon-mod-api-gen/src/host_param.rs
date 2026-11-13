@@ -80,6 +80,7 @@ pub(super) fn context_param(
         PhaseContext::DataLoad => "LoadContext",
         PhaseContext::Loop => "LoopContext",
         PhaseContext::Worldgen => "OwningWorldgen",
+        PhaseContext::ChunkDisk => "OwningChunkDisk",
     };
     let valid = args.first().is_some_and(|(name, ty)| {
         name == "context"
@@ -99,6 +100,7 @@ pub(super) fn context_param(
             PhaseContext::DataLoad => "&dyn DataLoadContext",
             PhaseContext::Loop => "&dyn LoopContext",
             PhaseContext::Worldgen => "&dyn WorldgenHost",
+            PhaseContext::ChunkDisk => "&dyn ChunkDiskHost",
         }
         .into(),
         call: "context",

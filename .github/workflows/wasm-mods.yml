@@ -107,7 +107,7 @@ jobs:
           cargo test -p horizon-mod-vocab --lib strict_math_seeded_reference_vectors_match_exact_bits
           cargo test -p horizon-mod-wasm --features listener-fixture --test strict_math -- --ignored --nocapture
           cargo test -p horizon-mod-points --features listener-fixture --test registry --test replace --test order
-          cargo test -p horizon-mod-wasm --features listener-fixture --test real_member --test unstaged --test self_refusal --test native_listener --test no_wire_registration --test capability_registration -- --include-ignored --nocapture
+          cargo test -p horizon-mod-wasm --features listener-fixture --test real_member --test unstaged --test self_refusal --test native_listener --test no_wire_registration --test capability_registration --test chunk_disk -- --include-ignored --nocapture
           cargo test -p horizon-mod-wasm --features listener-fixture --lib guest_input_pool_stays_flat_for_100k_no_import_calls -- --ignored --nocapture
       - name: Build and test the isolated mixed-output boundary
         env:

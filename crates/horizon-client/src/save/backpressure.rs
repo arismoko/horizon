@@ -38,8 +38,7 @@ pub(super) fn compress_records(
                 .ensure_saveable()
                 .map_err(std::io::Error::other)?;
         }
-        record
-            .tag()
+        super::chunk_disk::encode_record(record)?
             .map(|tag| ChunkRecord::from_nbt(&tag, compression, timestamp, Limits::saved()))
             .transpose()
     };

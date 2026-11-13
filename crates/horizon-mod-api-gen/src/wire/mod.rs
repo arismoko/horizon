@@ -52,6 +52,7 @@ pub(super) const IMPORTS: &[&str] = &[
     "DataLoadContext",
     "LoopContext",
     "WorldgenHost",
+    "ChunkDiskHost",
     "GenerationContext",
     "PieceContext",
     "StructureRandom",
@@ -197,7 +198,7 @@ const WORKERS: &[&str] = &[
 /// What a call of `method` is to the runtime, for its limits and its wait. A method given the
 /// worldgen context (`alter_ground`, a worldgen Part method) runs on the worldgen workers too.
 pub(super) fn call_class(types: &ty::Types<'_>, method: &Method) -> &'static str {
-    if WORKERS.contains(&method.owner) || takes(types, method, &["WorldgenHost"]) {
+    if WORKERS.contains(&method.owner) || takes(types, method, &["WorldgenHost", "ChunkDiskHost"]) {
         "super::Call::Worker"
     } else if takes(types, method, LOAD_CONTEXTS) {
         "super::Call::Load"

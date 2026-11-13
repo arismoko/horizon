@@ -1450,6 +1450,7 @@ fn hook_records(hooks: &[catalog::Hook], types: &[Type], notes: &mut Vec<String>
                         catalog::PhaseContext::DataLoad => "data_load",
                         catalog::PhaseContext::Loop => "loop",
                         catalog::PhaseContext::Worldgen => "worldgen",
+                        catalog::PhaseContext::ChunkDisk => "chunk_disk",
                     }
                     .to_owned()
                 }),

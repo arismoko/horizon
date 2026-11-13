@@ -680,6 +680,7 @@ impl Game<'_> {
                 .clone(),
             generate.as_ref(),
         )?;
+        self.bind_chunk_disk_worker(&save, dim);
         save.install_profession_snapshot(self.stations().professions.clone());
         let mut world = Game::world_for_mods(self.res.facts().air, seed);
         world.attachments = save.load_attachments();

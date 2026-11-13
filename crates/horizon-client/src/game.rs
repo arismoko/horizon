@@ -6642,6 +6642,7 @@ impl Game<'_> {
         self.streaming = streaming;
         self.world = world;
         self.inventory = inventory;
+        self.bind_chunk_disk_worker(&save, dim);
         self.save = self.with_profession_save_snapshot(save);
         // MinecraftServer.prepareLevels: the saved tickets come back.
         self.tickets = if self.options.execution_role.is_client() {
@@ -8162,52 +8163,6 @@ impl Game<'_> {
             }
         }
         inventory
-    }
-    /// `ChunkMap.saveChunksEagerly`: snapshot only while the tick and writer
-    /// have room. NBT encoding, compression and durable writes stay on workers.
-    fn save_chunks_eagerly(&mut self) {
-        // No world open (`world_root` is set by `finish_open_world`): the save
-        // is `Game::new`'s placeholder under the working directory.
-        if self.world.carrier_fences.is_broken()
-            || self.remote.is_some()
-            || self.world_root.as_os_str().is_empty()
-            || self.agent.hold_server
-            || self.clock.sprinting()
-            || self
-                .server_lists
-                .as_ref()
-                .is_some_and(|lists| !lists.lock().unwrap().autosave)
-        {
-            return;
-        }
-        let deadline = self
-            .server_tick_deadline
-            .unwrap_or_else(|| Instant::now() + self.clock.tick_duration());
-        let mut modified = std::mem::take(&mut self.world.modified);
-        modified.save_eagerly(
-            Instant::now(),
-            || Instant::now() < deadline && self.save.active_chunk_writes() < 128,
-            |key| self.world.chunks.contains_key(&key),
-            |key| {
-                // `saveChunkIfNeeded` saves only a LevelChunk, so a lit one; a
-                // column still waiting for its light keeps its queue entry.
-                let Some(chunk) = self.world.chunks.get(&key).filter(|c| c.lit) else {
-                    return false;
-                };
-                let chunks = self.with_entities([chunk]);
-                match self
-                    .save
-                    .save_later(&chunks, self.pack.assets.registry, world_biomes!(self))
-                {
-                    Ok(_) => true,
-                    Err(e) => {
-                        log::warn!("Horizon: failed to save changed chunks: {e}");
-                        false
-                    }
-                }
-            },
-        );
-        self.world.modified = modified;
     }
     fn render(&mut self) -> Result<bool> {
         if self.screenshot_sequence.is_some() {

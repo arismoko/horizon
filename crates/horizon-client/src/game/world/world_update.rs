@@ -192,6 +192,9 @@ impl Game<'_> {
         if self.options.headless {
             self.streaming.mesh = self.renderer.is_some();
         }
+        if self.defer_chunk_disk_save() {
+            return;
+        }
         let areas = self.streaming.extra.len();
         let waiting = std::mem::take(&mut self.spawn_wait);
         self.streaming

@@ -7,6 +7,7 @@ static ENTITY_POST_CALLS: AtomicU32 = AtomicU32::new(0);
 pub mod area_macros;
 pub mod capability_registration;
 pub mod cauldron;
+pub mod chunk_disk;
 pub mod datapack;
 pub mod game_payload;
 pub mod interaction;
@@ -165,6 +166,20 @@ impl Hooks for Mod {
         event: &mut mod_api::MenuLinksEvent<'_>,
     ) {
         lending::Lender.menu_links(host, event);
+    }
+    fn chunk_data_save(
+        &self,
+        host: &dyn mod_api::ChunkDiskHost,
+        event: &mut mod_api::ChunkDataSaveEvent<'_>,
+    ) {
+        chunk_disk::save(host, event.data);
+    }
+    fn chunk_data_load(
+        &self,
+        host: &dyn mod_api::ChunkDiskHost,
+        event: &mut mod_api::ChunkDataLoadEvent<'_>,
+    ) {
+        chunk_disk::load(host, event.data);
     }
 
     fn register_json_animation_types(
