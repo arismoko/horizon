@@ -4422,7 +4422,9 @@ impl Game<'_> {
         let mut trails = Vec::new();
         let mut bubble_tops = Vec::new();
         let mut snow_contacts = Vec::new();
-        let mut section_steps = Vec::new();
+        let mut section_steps = self
+            .entity_section_scope()
+            .map(|_| Vec::<(u32, Vec3, Vec3)>::new());
         let mut keep_flags = vec![true; projectiles.len()];
         let mut winds = std::mem::take(&mut self.creatures.pickable_projectile_targets);
         // The impacts the mods may cancel (`native_projectile_impact`), on a server.
@@ -4683,6 +4685,7 @@ impl Game<'_> {
                 }
                 if let Some(p) = projectiles.get(i)
                     && p.position != at
+                    && let Some(section_steps) = section_steps.as_mut()
                 {
                     section_steps.push((p.id, at, p.position));
                 }
@@ -4757,11 +4760,13 @@ impl Game<'_> {
             projectiles,
             horizon_client::join_seq::RestoreOrder::SpawnsFirst,
         );
-        for (id, from, to) in section_steps {
-            if self.creatures.projectiles.iter().any(|p| p.id == id) {
-                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-            } else {
-                self.entity_section_forget(id);
+        if let Some(section_steps) = section_steps {
+            for (id, from, to) in section_steps {
+                if self.creatures.projectiles.iter().any(|p| p.id == id) {
+                    self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+                } else {
+                    self.entity_section_forget(id);
+                }
             }
         }
         for (p, hit) in hits {

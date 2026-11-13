@@ -82,9 +82,17 @@ pub(super) struct EntitySections {
     busy: bool,
     /// The mobs' position updates during their family's tick; kept for its capacity.
     pub(super) ticked: Vec<PositionWrite>,
+    /// A mob tick's intermediate position while its live row remains at the tick's final state.
+    /// Entity reads use this only during the synchronous crossing callback.
+    position_override: Option<(u32, Vec3)>,
 }
 
 impl EntitySections {
+    pub(super) fn position_override(&self, id: u32) -> Option<[f64; 3]> {
+        let (_, position) = self.position_override.filter(|(current, _)| *current == id)?;
+        Some([position.x, position.y, position.z])
+    }
+
     /// The table for `scope`'s world: another world's entries are dropped.
     fn table(&mut self, scope: Scope) -> &mut HashMap<u32, (DimensionKey, [i32; 3])> {
         if self.epoch != Some(scope.epoch) {
@@ -183,13 +191,6 @@ impl Game<'_> {
             epoch: self.native_lifecycle.epoch()?,
             level: self.native_level_key(),
         })
-    }
-
-    /// An entity joined at `at`: filed untold.
-    pub(super) fn entity_section_placed(&mut self, id: u32, at: [f64; 3]) {
-        if let Some(scope) = self.entity_section_scope() {
-            self.native_lifecycle.entity_sections.placed(scope, id, at);
-        }
     }
 
     /// Entity `id` was put from `from` (when known) at `to`; tell it immediately after filing.
@@ -331,14 +332,22 @@ impl Game<'_> {
             moves.clear();
             return;
         };
+        let id = moves.first().map(|write| write.id);
+        let live = id.and_then(|id| {
+            self.mobs
+                .iter()
+                .position(|mob| mob.id == id && !mob.removed)
+        });
         for write in moves.drain(..) {
-            let Some(index) = self.mobs.iter().position(|m| m.id == write.id && !m.removed)
-            else {
+            if Some(write.id) != id || live.is_none() {
                 self.native_lifecycle.entity_sections.forget(write.id);
                 continue;
-            };
+            }
             let to = write.to;
-            self.mobs.update(index, |mob| mob.position = to);
+            // The lifted list has already been restored with the tick's final position. Keep
+            // that live state intact: listeners observe this write through the temporary read
+            // override, so a listener's own position change cannot be overwritten by replay.
+            self.native_lifecycle.entity_sections.position_override = Some((write.id, to));
             self.native_lifecycle.entity_sections.moved(
                 scope,
                 write.id,
@@ -346,6 +355,7 @@ impl Game<'_> {
                 [to.x, to.y, to.z],
             );
             self.tell_entity_sections();
+            self.native_lifecycle.entity_sections.position_override = None;
         }
     }
 
@@ -378,6 +388,18 @@ impl Game<'_> {
             self.entity_section_moved(entity as u32, from, to);
         }
         from
+    }
+
+    /// Tell item writes after their lifted pass has been restored. Items that merged, expired or
+    /// were picked up are forgotten rather than producing a crossing for a removed entity.
+    pub(super) fn tell_dropped_item_sections(&mut self, steps: Vec<(u32, Vec3, Vec3)>) {
+        for (id, from, to) in steps {
+            if self.dropped.iter().any(|item| item.id == id) {
+                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+            } else {
+                self.entity_section_forget(id);
+            }
+        }
     }
 
     /// An entity joined (`addEntity`): filed untold where it is now, which a join listener may
@@ -432,24 +454,10 @@ impl Game<'_> {
         &mut self,
         packet: horizon_protocol::packets::play::Clientbound,
     ) -> super::Result<()> {
-        use horizon_protocol::packets::play::{self, Clientbound as C};
+        use horizon_protocol::packets::play::Clientbound as C;
         if self.entity_section_scope().is_none() {
             return self.apply_packet(packet);
         }
-        let moved = match &packet {
-            C::MoveEntityPos(play::MoveEntityPos(m))
-            | C::MoveEntityPosRot(play::MoveEntityPosRot(m)) => Some(m.id),
-            C::EntityPositionSync(play::EntityPositionSync { id, .. })
-            | C::TeleportEntity(play::TeleportEntity { id, .. })
-            | C::MoveMinecartAlongTrack(play::MoveMinecartAlongTrack { id, .. }) => Some(*id),
-            C::PlayerPosition(_) => Some(self.own_entity_id()),
-            C::MoveVehicle(_) => self.driven_mount().map(|m| m.id as i32),
-            _ => None,
-        };
-        let added = match &packet {
-            C::AddEntity(p) => Some((p.id, p.position)),
-            _ => None,
-        };
         if let C::RemoveEntities(p) = &packet {
             for &id in &p.ids {
                 self.entity_section_forget(id as u32);
@@ -457,14 +465,8 @@ impl Game<'_> {
         }
         let respawned = matches!(packet, C::Respawn(_));
         let result = self.apply_packet(packet);
-        if let Some((id, at)) = added.filter(|&(id, _)| id > 0) {
-            self.entity_section_placed(id as u32, at);
-        }
         if respawned {
             self.entity_section_forget(self.own_entity_id() as u32);
-        }
-        if let Some(id) = moved.filter(|&id| id > 0) {
-            self.entity_section_moved_id(id as u32);
         }
         result
     }

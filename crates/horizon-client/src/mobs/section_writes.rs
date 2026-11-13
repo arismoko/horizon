@@ -6,6 +6,7 @@
 
 use horizon_core::geometry::Vec3;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PositionWrite {
@@ -31,7 +32,7 @@ impl PositionWrite {
 #[derive(Default)]
 struct State {
     enabled: bool,
-    writes: Vec<PositionWrite>,
+    writes: VecDeque<PositionWrite>,
 }
 
 thread_local! {
@@ -52,7 +53,9 @@ pub fn record(id: u32, from: Vec3, to: Vec3) {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
         if state.enabled {
-            state.writes.push(PositionWrite::captured(id, from, to));
+            state
+                .writes
+                .push_back(PositionWrite::captured(id, from, to));
         }
     });
 }
@@ -61,12 +64,13 @@ pub fn record(id: u32, from: Vec3, to: Vec3) {
 pub fn drain_for(id: u32, out: &mut Vec<PositionWrite>) -> usize {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
-        let count = state
-            .writes
-            .iter()
-            .take_while(|write| write.id == id)
-            .count();
-        out.extend(state.writes.drain(..count));
+        let mut count = 0;
+        while state.writes.front().is_some_and(|write| write.id == id) {
+            // Writes are recorded in tick order, so the current mob owns a contiguous prefix.
+            // Pop that prefix without rescanning the records already handed to the game.
+            out.push(state.writes.pop_front().expect("checked above"));
+            count += 1;
+        }
         count
     })
 }

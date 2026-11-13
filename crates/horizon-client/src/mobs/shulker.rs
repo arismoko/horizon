@@ -390,7 +390,6 @@ fn teleport(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) -> bool {
             1.0,
             1.0,
         ));
-        let from = m.position;
         super::living::teleports::snap_to(
             m,
             Vec3::new(
@@ -399,7 +398,6 @@ fn teleport(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEvent>) -> bool {
                 f64::from(t[2]) + 0.5,
             ),
         );
-        super::section_writes::record(m.id, from, m.position);
         // `level.gameEvent(GameEvent.TELEPORT, oldPos, Context.of(this))`:
         // the BlockPos overload uses `Vec3.atCenterOf(oldPos)`, between the
         // sound and the level event.
