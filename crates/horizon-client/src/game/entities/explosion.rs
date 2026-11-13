@@ -512,6 +512,12 @@ impl Game<'_> {
             _ if !self.res.facts().is_air(state) || f.fluid != Fluid::None => {
                 let immune = wither_immune.is_some_and(|t| t.contains(&*f.name));
                 let own = f.explosion_resistance;
+                // WitherBoss.canDestroy for the skull's cap, or what the
+                // block's parts answer for the skull.
+                let kept = match (cap, self.combat.explosion_direct) {
+                    (Some(_), Some(skull)) => !self.entity_may_destroy(skull, pos, !immune),
+                    _ => immune,
+                };
                 // Block.getExplosionResistance, or what the block's parts answer.
                 let base = if spared {
                     0.0
@@ -520,7 +526,7 @@ impl Game<'_> {
                         .unwrap_or(own)
                         .max(fluid)
                 };
-                (blast_resistance(base, cap, immune) + 0.3) * 0.3
+                (blast_resistance(base, cap, kept) + 0.3) * 0.3
             }
             _ => 0.0,
         };
@@ -1933,10 +1939,11 @@ fn add_or_append_stack(
 
 /// `WitherSkull.getBlockExplosionResistance`: `isDangerous() &&
 /// WitherBoss.canDestroy(state) ? min(0.8, resistance) : resistance`. Air has
-/// no resistance to begin with, and `#wither_immune` blocks keep theirs.
-fn blast_resistance(base: f32, cap: Option<f32>, wither_immune: bool) -> f32 {
+/// no resistance to begin with, and a block the skull may not destroy
+/// (`kept`: `#wither_immune`, or as its parts answer) keeps its own.
+fn blast_resistance(base: f32, cap: Option<f32>, kept: bool) -> f32 {
     match cap {
-        Some(cap) if !wither_immune => base.min(cap),
+        Some(cap) if !kept => base.min(cap),
         _ => base,
     }
 }

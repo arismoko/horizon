@@ -41,14 +41,43 @@ impl ConfigSender {
     }
 }
 
+/// The engine's channels that every configuration loop reads itself, kept into play.
+#[derive(Default)]
+pub(super) struct EngineChannels {
+    /// What the client announced in `minecraft:register`. Allocated on the first
+    /// `minecraft:register` / `minecraft:unregister`: most connections never send one.
+    pub announced: Option<Arc<super::announced_channels::AnnouncedChannels>>,
+    /// Its `horizon:levels` answer.
+    pub viewed_levels: super::viewed_levels::capability::Capability,
+}
+impl EngineChannels {
+    /// Whether `payload` was one of these channels' and is taken, or the reason that closes the
+    /// connection.
+    pub fn receive(&mut self, payload: &cfg::CustomPayload) -> Result<bool, String> {
+        // ServerCommonPacketListenerImpl hands the lists to the plugin messenger, in
+        // configuration as in play: they stay on the connection.
+        if super::announced_channels::is_list_channel(&payload.channel) {
+            self.announced
+                .get_or_insert_with(Arc::default)
+                .apply(&payload.channel, &payload.data);
+            return Ok(true);
+        }
+        if payload.channel == horizon_protocol::viewed_levels::CHANNEL {
+            self.viewed_levels
+                .receive(&payload.data)
+                .map_err(|error| error.to_string())?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+}
+
 pub(super) struct ConfigIo<'a> {
     connection: &'a mut Connection,
     pub sender: Option<ConfigSender>,
     events: crate::net::ingress::Producer<super::NetEvent>,
     handed_off: bool,
-    /// What the client announced in `minecraft:register`, kept into play. Allocated on the
-    /// first `minecraft:register` / `minecraft:unregister`: most connections never send one.
-    pub announced: Option<Arc<super::announced_channels::AnnouncedChannels>>,
+    pub channels: EngineChannels,
 }
 impl<'a> ConfigIo<'a> {
     pub fn new(
@@ -69,7 +98,7 @@ impl<'a> ConfigIo<'a> {
             sender,
             events,
             handed_off: false,
-            announced: None,
+            channels: EngineChannels::default(),
         })
     }
     pub fn send(&mut self, body: &[u8]) -> horizon_protocol::Result<()> {
@@ -78,10 +107,23 @@ impl<'a> ConfigIo<'a> {
             None => self.connection.send(body),
         }
     }
+    /// Asks a Horizon-branded client how many levels besides its own it can view.
+    pub fn ask_viewed_levels(&mut self) -> horizon_protocol::Result<()> {
+        let query = self.channels.viewed_levels.query();
+        self.send(&cfg::Clientbound::CustomPayload(query).encode())
+    }
     pub fn application(
-        &self,
+        &mut self,
         payload: cfg::CustomPayload,
     ) -> Result<Option<cfg::CustomPayload>, String> {
+        match self.channels.receive(&payload) {
+            Ok(true) => return Ok(None),
+            Ok(false) => {}
+            Err(error) => {
+                self.disconnect(horizon_core::nbt::Tag::String(error.as_str().into()));
+                return Err(error);
+            }
+        }
         let Some(sender) = &self.sender else {
             return Ok(Some(payload));
         };

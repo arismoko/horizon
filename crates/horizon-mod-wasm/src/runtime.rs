@@ -197,6 +197,42 @@ struct Running {
     group: Mutex<Group<State>>,
     poisoned: AtomicBool,
     lending: Arc<AtomicUsize>,
+    /// The last top-level call to take `group`: who a refused caller waited on.
+    holder: Mutex<Option<Holder>>,
+}
+
+/// A top-level call holding a group: its mod, export, thread and when it took the lock.
+struct Holder {
+    module: Arc<str>,
+    export: u32,
+    thread: std::thread::Thread,
+    since: Instant,
+}
+
+impl Running {
+    /// Why a caller that waited `waited` for this group is refused, naming the call holding it.
+    fn busy(&self, waited: Duration) -> String {
+        let holder = self.holder.lock().unwrap_or_else(|e| e.into_inner());
+        match holder.as_ref() {
+            Some(h) => format!(
+                "{}: held by mod {} export {} on thread {} for {} ms; this call waited {} ms",
+                Refusal::Busy,
+                h.module,
+                h.export,
+                h.thread.name().map_or_else(
+                    || format!("{:?}", h.thread.id()),
+                    |name| format!("'{name}'")
+                ),
+                h.since.elapsed().as_millis(),
+                waited.as_millis()
+            ),
+            None => format!(
+                "{}: held outside a guest call; this call waited {} ms",
+                Refusal::Busy,
+                waited.as_millis()
+            ),
+        }
+    }
 }
 thread_local! {
     /// Why this thread's last guest call answered nothing, for the caller's typed error.
@@ -776,7 +812,7 @@ impl WasmMod {
                 _ => None,
             }
         })
-        .map_err(|e| Refusal::Runtime(e.to_string()))?;
+        .map_err(Refusal::from_link)?;
         group.store.data_mut().memory = Some(group.memory);
         let mut exports = Vec::new();
         for (name, instance) in group.members.clone() {
@@ -839,6 +875,7 @@ impl WasmMod {
             lending,
             group: Mutex::new(group),
             poisoned: AtomicBool::new(false),
+            holder: Mutex::new(None),
         });
         running
             .group
@@ -911,7 +948,7 @@ impl WasmMod {
         let mut locked = None;
         if resumed.is_none() {
             // Start the busy timeout on contention, not on the uncontended hot path.
-            let mut start = None;
+            let mut start: Option<Instant> = None;
             loop {
                 match self.running.group.try_lock() {
                     Ok(group) => {
@@ -932,14 +969,29 @@ impl WasmMod {
                                     >= Duration::from_secs(5)) =>
                     {
                         if id != crate::prepared::RELEASE {
-                            log::warn!("wasm mod {}: {}", self.id, Refusal::Busy);
-                            note(Refusal::Busy.to_string());
+                            let why = self
+                                .running
+                                .busy(start.map_or(Duration::ZERO, |start| start.elapsed()));
+                            log::warn!("wasm mod {} export {id}: {why}", self.id);
+                            note(why);
                         }
                         return Err(Busy);
                     }
                     Err(_) => std::thread::sleep(Duration::from_millis(1)),
                 }
             }
+        }
+        if locked.is_some() {
+            *self
+                .running
+                .holder
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Some(Holder {
+                module: self.id.clone(),
+                export: id,
+                thread: std::thread::current(),
+                since: Instant::now(),
+            });
         }
         // Deferred releases run only on a top-level call: a resumed nested call is still
         // inside another export of the guest.

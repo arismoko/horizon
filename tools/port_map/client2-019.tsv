@@ -81,7 +81,7 @@ EditWorldScreen.<init>	port	crates/horizon-client/src/title.rs::Title::buttons	E
 EditWorldScreen.keyPressed	port	crates/horizon-client/src/game/interface/startup_menu.rs::StartupMenu::title_key	Enter confirms a focused name box through confirm_edit; Escape goes back through Title::escape
 EditWorldScreen.onRename	port	crates/horizon-client/src/title/world_management.rs::rename	saves the trimmed name to level.dat; Save (arm 35) and Enter reach it, then return to the list
 EditWorldScreen.makeBackupAndShowToast	port	crates/horizon-client/src/title.rs::Title::start_backup	gap: minor: the success or failure toast and the return to the list are in Title::poll_backup
-EditWorldScreen.extractRenderState	port	crates/horizon-client/src/title.rs::Title::draw	draws the centred Edit World title
+EditWorldScreen.extractRenderState	port	crates/horizon-client/src/title/draw.rs::Title::draw	draws the centred Edit World title
 ExperimentsScreen.init	port	crates/horizon-client/src/title/experiments.rs::ExperimentsScreen::new	one switch per flag of the selected packs, with vanilla's warning over them
 ExperimentsScreen.getHumanReadableTitle	port	crates/horizon-client/src/title/experiments.rs::ExperimentsScreen::new	each pack's own title, translated when the language has it
 ExperimentsScreen.repositionElements	skip:ui		layout only

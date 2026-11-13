@@ -1,4 +1,6 @@
-use super::Game;
+use super::api_values::TryIntoApi;
+use super::{Game, answered_wear, armor_slot, durability_damage};
+use horizon_client::{items::ItemStack, motion::MotionEvent};
 
 impl Game<'_> {
     /// Run equipment continuations with the acting player installed on the real host.
@@ -35,7 +37,8 @@ impl Game<'_> {
                 !self.combat.refuse_player_hit,
             )?;
         if let Some(damage) = hit.helmet_damage() {
-            self.hurt_helmet(source, damage);
+            let hit_source = hit.source(attack);
+            self.hurt_helmet(&hit_source, damage);
             self.refresh_armor_protection();
         }
         let armor_damage = self
@@ -49,7 +52,8 @@ impl Game<'_> {
                 &mut hit,
             )?;
         if let Some(damage) = armor_damage {
-            self.hurt_armor(source, damage);
+            let hit_source = hit.source(attack);
+            self.hurt_armor(&hit_source, damage);
             self.refresh_armor_protection();
         }
         self.player
@@ -61,5 +65,156 @@ impl Game<'_> {
                 rules,
                 hit,
             )
+    }
+    /// The armor hits among a tick's motion events (`Player.hurtArmor` from
+    /// `getDamageAfterArmorAbsorb`), whatever the damage: a mob, an explosion,
+    /// a cactus, lava, a campfire.
+    pub(in crate::game) fn wear_armor(&mut self, events: &[MotionEvent]) {
+        for event in events {
+            if let MotionEvent::Health(horizon_client::health::HealthEvent::ArmorHurt {
+                source,
+                causing,
+                direct,
+                position,
+                amount,
+            }) = event
+            {
+                let Some(name) = self
+                    .health_resources
+                    .damage
+                    .definition(*source)
+                    .map(|d| d.name.clone())
+                else {
+                    continue;
+                };
+                let source = horizon_client::health::HurtSource {
+                    damage_type: &name,
+                    causing: *causing,
+                    direct: *direct,
+                    position: *position,
+                };
+                self.hurt_armor(&source, *amount);
+            }
+        }
+    }
+    /// `Player.hurtArmor`: every armor slot wears.
+    pub(in crate::game) fn hurt_armor(
+        &mut self,
+        source: &horizon_client::health::HurtSource<'_>,
+        damage: f32,
+    ) {
+        self.hurt_equipment(source, damage, &[3, 2, 1, 0]);
+    }
+    /// `Player.hurtHelmet`: the head slot alone wears.
+    pub(in crate::game) fn hurt_helmet(
+        &mut self,
+        source: &horizon_client::health::HurtSource<'_>,
+        damage: f32,
+    ) {
+        self.hurt_equipment(source, damage, &[0]);
+    }
+    /// `LivingEntity.doHurtEquipment` of the `slots` of `armor`: each worn piece that
+    /// wears when its wearer is hurt loses max(1, damage / 4) durability, except
+    /// to a fire source when the piece resists fire (`ItemStack.canBeHurtBy`).
+    pub(in crate::game) fn hurt_equipment(
+        &mut self,
+        source: &horizon_client::health::HurtSource<'_>,
+        damage: f32,
+        slots: &[usize],
+    ) {
+        if damage <= 0.0 {
+            return;
+        }
+        let amount = if damage.is_nan() {
+            0
+        } else {
+            (damage / 4.0).max(1.0) as i32
+        };
+        if amount <= 0 {
+            return;
+        }
+        let amount = amount as u32;
+        let name = source.damage_type;
+        // The pieces that may wear (`doHurtEquipment`'s checks).
+        let mut eligible: [Option<ItemStack>; 4] = std::array::from_fn(|i| {
+            let stack = self.armor[i].clone().filter(|_| slots.contains(&i))?;
+            let info = world_items!(self).get(&stack.item)?;
+            let component = |id| stack.data().and_then(|data| data.other(id));
+            // ItemStack.isDamageableItem: component removal and
+            // unbreakable are checked before enchantment RNG or hooks.
+            if stack.count == 0
+                || !horizon_client::item_sync::damage_on_hurt(&stack, info.equip_damage_on_hurt)
+                || component("minecraft:unbreakable").is_some()
+                || component("!minecraft:max_damage").is_some()
+                || component("!minecraft:damage").is_some()
+                || !self.stack_can_be_hurt_by(&stack, name).unwrap_or(true)
+            {
+                return None;
+            }
+            let max = match component("minecraft:max_damage") {
+                Some(horizon_core::nbt::Tag::Int(value)) => u32::try_from(*value).ok()?,
+                _ => info.max_damage,
+            };
+            if max == 0 {
+                return None;
+            }
+            Some(stack)
+        });
+        // No equipment can wear: there is no armor damage event to dispatch.
+        if eligible.iter().all(Option::is_none) {
+            return;
+        }
+        // ArmorHurtEvent: once for the pieces that would wear, a server player's only.
+        let mut amounts = [amount; 4];
+        if mod_api::__private::listened(mod_api::HookId::ArmorHurt)
+            && let (Some(uuid), Some(player)) = (self.lan_acting_uuid, self.lan_acting_entity)
+        {
+            let mut entries: Vec<mod_api::ArmorHurt> = eligible
+                .iter()
+                .enumerate()
+                .filter_map(|(i, e)| {
+                    Some(mod_api::ArmorHurt {
+                        slot: armor_slot(i),
+                        stack: e.as_ref()?.try_into_api().ok()?,
+                        damage: durability_damage(damage),
+                        new_damage: durability_damage(damage),
+                    })
+                })
+                .collect();
+            let mut cancel = false;
+            self.native_armor_hurt(
+                Some(uuid),
+                player,
+                "minecraft:player",
+                source,
+                &mut entries,
+                &mut cancel,
+            );
+            if cancel {
+                return;
+            }
+            for (i, amount) in amounts.iter_mut().enumerate() {
+                *amount = answered_wear(&entries, armor_slot(i), *amount);
+            }
+        }
+        // Each break is applied before the next slot's hook and RNG draw.
+        for &index in slots {
+            let Some(before) = eligible[index].take() else {
+                continue;
+            };
+            if amounts[index] == 0 || self.armor[index].as_ref() != Some(&before) {
+                continue;
+            }
+            let (updated, broken) =
+                self.damage_stack(&before, amounts[index].min(i32::MAX as u32) as i32, true);
+            if updated.as_ref() != Some(&before) && self.armor[index].as_ref() == Some(&before) {
+                self.armor[index] = updated;
+                if let Some(stack) = broken {
+                    self.player_equipment_broke(armor_slot(index), &stack);
+                    self.award_stat("broken", &stack.item, 1);
+                    self.apply_equipment();
+                }
+            }
+        }
     }
 }

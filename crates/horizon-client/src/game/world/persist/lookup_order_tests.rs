@@ -110,15 +110,17 @@ fn chunk_loaded_families_keep_vanilla_lookup_and_save_order() {
             ),
             saved("minecraft:snowball", 12, [21.5, 70.0, 2.5], vec![]),
         ];
-        game.world.loaded_entities.push((a, first));
-        game.world.loaded_entities.push((b, second));
+        game.world.queue_entity_nbt(a, first);
+        game.world.queue_entity_nbt(b, second);
         game.spawn_loaded_entities();
         let mut lookup = vec![snapshot(game)];
         // The chunk unloads with what it stores, then loads that again.
         let unloaded = game.entity_chunks(&HashSet::from([a]), true);
         let unload = saved_order(&unloaded);
         lookup.push(snapshot(game));
-        game.world.loaded_entities.extend(unloaded);
+        for (key, tags) in unloaded {
+            game.world.queue_entity_nbt(key, tags);
+        }
         game.spawn_loaded_entities();
         lookup.push(snapshot(game));
         // The pig leaves through a portal and comes back.

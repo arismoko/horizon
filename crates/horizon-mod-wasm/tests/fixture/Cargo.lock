@@ -160,6 +160,7 @@ dependencies = [
  "heck",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -208,6 +209,15 @@ name = "horizon-mod-runtime"
 version = "0.1.0"
 dependencies = [
  "horizon-core",
+]
+
+[[package]]
+name = "horizon-mod-surface"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

@@ -13,6 +13,7 @@ dimensions at the same time.
 - [Saving](#saving)
 - [What's checked](#whats-checked)
 - [A data pack's levels](#a-data-packs-levels)
+- [Viewed levels](#viewed-levels)
 - [Not done yet](#not-done-yet)
 
 ## How the single-level `Game` maps onto vanilla's levels
@@ -106,9 +107,27 @@ client takes the level's build height from it. The generator reads the stem as i
 level's, so only `minecraft:noise` generators and those a native mod registered work. The sky and
 the fog are the Overworld's.
 
+## Viewed levels
+
+A viewed level is a level besides its own that a player's client keeps, so that the server can send it
+that level's chunks and updates: what Immersive Portals needs to show other dimensions through its
+portals. The spec is #3716. Built so far: the channel, the client's capability answer, the client's worlds and the server's areas.
+
+| Side | Where | What it does |
+|---|---|---|
+| Both | `horizon-protocol/src/viewed_levels.rs` | The codec of `horizon:levels`, an engine channel mods cannot register (`is_reserved_channel`). Configuration: the query and the answer. Play, clientbound only: `open`, `run` (packets of one level, each of a level-scoped kind) and `close`. |
+| Server | `lan/viewed_levels/capability.rs`, called from `lan/conn.rs` | Asks a client whose brand is Horizon's, in configuration, how many other levels it can view, and keeps the answer in `PlayerSender::max_viewed_levels`. No answer, or another revision, is 0. A second answer, or one it did not ask for, closes the connection. |
+| Client | `viewed_levels_net.rs`, called from `net.rs` | Answers the query before acknowledging `FinishConfiguration`: 2, the other two of vanilla's three dimensions. |
+| Client | `game/network/viewed_worlds/` | On `open`, a world for the level, built from the dimension type the server synced for it. A `run`'s packets change that world: its chunks, light, biomes, blocks, time and weather. `close` drops it. An `open` past the client's 2, a `run` or `close` of a level not open, or a new column past 2048 in one world (the server's default `Loaded` cap per player and level) closes the connection. A Login, a Respawn or a new configuration drops them all. The player's own level (`host.level`) is never one of them, and nothing is drawn yet. |
+| Server | `lan/viewed_levels/{areas,view,send}.rs` | A mod's areas for one player (`Hub::set_viewed_areas`), each `Loaded` or `Ticking`, within the caps (`max_viewed_*`, [hosting](hosting.md)), with centres at most 1,875,000 chunks (the world border's limit) from (0, 0). A client that can view the level is sent `open`, its chunks in runs inside a plain batch, its block, light and block-entity changes, block and level events, its time every 20 ticks and its weather; chunks no area covers are forgotten 52 ticks later, then `close`. A view holds at most 2048 columns, fixed for this protocol revision (#3894 tracks sending the cap in `open`). |
+| Server | `ticket_levels.rs` (`Sources::viewed`), `game/network/lan/viewed_areas.rs` | The areas' own tickets and `Streaming.extra` squares, never forced chunks or mod chunk tickets. A `Ticking` area puts its level in the tick list, for its chunks only. |
+| Server | `game/world/view_pass.rs` | A level that only `Loaded` areas name is not ticked: after the ticked levels a view pass streams it and sends it, and nothing in it ticks. |
+
+An area is not a player: it stays out of `Guest::placed_in` and `Guest::watches_level`, so spawning,
+sleeping, raids, spawners and the dragon fight count real players only. A vanilla client is never asked,
+and an older Horizon client ignores the query, so both view none and are sent nothing.
+
 ## Not done yet
 
 - **Entities through portals between levels.** Mobs, items and minecarts that enter a portal on a
   server, and portal tickets (`TeleportTransition.PLACE_PORTAL_TICKET`), are not handled.
-- **Unlimited selectors.** `@e` without a distance or volume reads only the source's level. Vanilla's
-  reads every level.

@@ -101,14 +101,17 @@ pub struct DimensionSettings {
     /// Whether the level has a bedrock ceiling, as the Nether does.
     pub has_ceiling: bool,
     /// The chunk generator's id: `minecraft:noise`, or one a mod registered
-    /// with `register_chunk_generator`, which takes no noise settings.
+    /// with `register_chunk_generator`, which reads noise settings only for the
+    /// vanilla stages it asks for.
     pub generator: String,
-    /// The noise settings' id (`minecraft:overworld`, or a data pack's).
+    /// The noise settings' id (`minecraft:overworld`, or a data pack's). A
+    /// mod's chunk generator takes the surface, the carvers' aquifer and the
+    /// structures' base height from them (`ChunkGenerator::vanilla_stages`).
     pub noise_settings: String,
     /// The one biome the level has, with the `Fixed` biome source.
     pub biome: String,
-    /// How the level chooses its biomes. Only `Fixed` suits a mod's own chunk generator, which
-    /// writes terrain only. Not read when `mod_biome_source` is set.
+    /// How the level chooses its biomes. Only `Fixed` suits a mod's own chunk generator. Not read
+    /// when `mod_biome_source` is set.
     pub biome_source: BiomeSourceKind,
     /// A biome source a mod registered with `register_biome_source` (`mymod:chaos`), which then
     /// chooses the level's biomes in place of `biome_source` and the fields it reads. It suits the
@@ -164,8 +167,9 @@ pub struct DimensionSettings {
     /// `Level.getSeaLevel`: the sea level mob spawning, rain and snow, maps and phantoms use. With
     /// `None` it is the noise settings' own for `minecraft:noise`, and the Overworld's 63 for a
     /// chunk generator a mod registered, which reads none; `Some` is for that generator, whose
-    /// terrain the game cannot read a sea level from. A level of `minecraft:noise` keeps its noise
-    /// settings' sea level, which the terrain is built with.
+    /// terrain the game cannot read a sea level from. A level of `minecraft:noise`, and one whose
+    /// chunk generator asks for vanilla stages, keeps its noise settings' sea level, which the
+    /// stages are built with.
     pub sea_level: Option<i32>,
     /// When a player can sleep in a bed here (`BedRule.canSleep`): `always`, `when_dark` or `never`.
     pub bed_can_sleep: String,

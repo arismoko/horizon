@@ -334,8 +334,8 @@ pub struct MobRender<'a> {
     pub on_ground: bool,
 }
 // no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// Which player a [`MobRender`] is, for `player_submit` and
-/// `mob_layer`.
+/// Which player a [`MobRender`] is, for `render_player_pre` and
+/// `render_player_post`.
 // Native mods read it; nothing in Horizon does.
 #[derive(Clone, Copy, Debug)]
 // exhaustive: the game builds it with a literal; mods only read it

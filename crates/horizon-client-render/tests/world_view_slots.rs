@@ -54,8 +54,8 @@ fn world_view_slot_delivers_only_drawable_requests() {
     assert!(render_slots::world_views_hooked());
     let mut asked = Vec::new();
     render_slots::world_views(&mut asked);
-    let views = render_slots::drawable_world_views(asked, 4096);
-    for view in views {
+    render_slots::drawable_world_views(&mut asked, 4096);
+    for view in asked {
         render_slots::world_view_drawn(&mut WorldViewDrawn {
             id: view.id,
             device: &device,

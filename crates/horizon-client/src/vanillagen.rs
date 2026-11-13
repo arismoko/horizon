@@ -87,6 +87,15 @@ pub struct VanillaTerrain {
     created: std::time::Instant,
     /// A superflat generator (`FlatLevelSource`).
     flat: bool,
+    /// A mod's chunk generator with vanilla stages: its terrain is no noise to draw far away.
+    mod_terrain: bool,
+}
+/// The far ring of a mod's terrain: none, as for the mod's terrain alone.
+struct NoFarGround;
+impl LodSampler for NoFarGround {
+    fn sample(&mut self, _: i32, _: i32) -> Option<crate::lod::Surface> {
+        None
+    }
 }
 /// A proto chunk, or the position of one whose generation failed.
 enum VanillaProto {
@@ -288,13 +297,34 @@ impl VanillaTerrain {
         terrain.flat = true;
         Ok(terrain)
     }
+    /// A level of a mod's chunk generator that asks for vanilla stages: its terrain, then the
+    /// stages, over the noise settings and biome source of `stem` (the level's, as a pack or
+    /// the save gives it). `structures` is the world's `generate_structures`.
+    pub fn for_mod(
+        resources: TerrainResources<'_>,
+        overrides: &WorldgenOverrides,
+        seed: i64,
+        dimension: &str,
+        stem: &serde_json::Value,
+        generator: Arc<dyn horizon_world::worldgen::mod_generators::ModChunkGenerator>,
+        structures: bool,
+    ) -> crate::Result<Self> {
+        let data: Arc<GeneratorData> = shared_resource_data(resources, overrides)?;
+        let generator = OverworldGenerator::for_mod(data, seed, stem, generator, structures)?;
+        let mut terrain =
+            Self::assemble(resources, generator, seed, "minecraft:normal", dimension)?;
+        terrain.mod_terrain = true;
+        Ok(terrain)
+    }
     /// `ChunkGenerator.getSeaLevel`: the active generator's loaded setting.
     pub fn sea_level(&self) -> i32 {
         self.generator.sea_level()
     }
-    /// Whether this is a superflat generator, whose `spawnOriginalMobs` places nothing.
-    pub fn is_flat(&self) -> bool {
-        self.flat
+    /// Whether the terrain is the noise's: not a superflat world's layers or a mod's chunk
+    /// generator's terrain, whose `spawnOriginalMobs` places nothing and whose far ring is not
+    /// the noise's.
+    pub fn noise_ground(&self) -> bool {
+        !self.flat && !self.mod_terrain
     }
     /// `NoiseGeneratorSettings.disableMobGeneration`: whether the generator
     /// adds the creature packs of a freshly generated chunk. The End's preset
@@ -398,6 +428,7 @@ impl VanillaTerrain {
             last_proto: std::sync::atomic::AtomicU64::new(0),
             created: std::time::Instant::now(),
             flat: false,
+            mod_terrain: false,
         })
     }
     /// The column the dimension's chunks hold (its build range's).
@@ -912,6 +943,9 @@ impl ChunkGenerator for VanillaTerrain {
         worker
     }
     fn lod_sampler(self: Arc<Self>) -> Box<dyn LodSampler> {
+        if self.mod_terrain {
+            return Box::new(NoFarGround);
+        }
         Box::new(VanillaLodSampler::new(self))
     }
     fn idle(&self, worker: &mut GeneratorWorker) {
@@ -926,6 +960,9 @@ impl ChunkGenerator for VanillaTerrain {
         x: i32,
         z: i32,
     ) -> Option<crate::lod::Surface> {
+        if self.mod_terrain {
+            return None;
+        }
         Some(self.client_surface(worker.surface_sample(x, z)?))
     }
     /// The structure starts a saved chunk references, as vanilla reads them

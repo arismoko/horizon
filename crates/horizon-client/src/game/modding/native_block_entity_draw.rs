@@ -351,7 +351,7 @@ pub(super) fn place_turning(
 impl BlockEntityDraw {
     /// A frame drawn from `pose` (relative to the camera), lit by `light` and
     /// `lights`, adding to `vertices`; `block` is where `native_draw_item`'s
-    /// owner stands. A mob's frame (`native_mob_submit`) is made this way.
+    /// owner stands. A mob's frame (`native_render_living_pre`) is made this way.
     pub(super) fn posed(
         partial: f32,
         game_time: i64,
@@ -528,7 +528,7 @@ impl BlockEntityDraw {
     /// With a new speed, pass `old_angle - animation * new_speed` as the
     /// phase, or it jumps. Quads drawn while it is active are lit where they
     /// turn to (`quad`). Until `still` or the next `spin`. A block entity's
-    /// frame only: a mob's (`native_mob_submit`) draws it at rest. API
+    /// frame only: a mob's (`native_render_living_pre`) draws it at rest. API
     /// @API:spinning_geometry@.
     pub fn spin(&mut self, axis: [f32; 3], pivot: [f32; 3], degrees_per_tick: f32, phase: f32) {
         let spin = Spin {
@@ -1241,7 +1241,7 @@ impl Game<'_> {
     /// `entity/zombie/zombie`) times the 0xRRGGBB `tint`. A part that isn't
     /// `visible` draws nothing, one that skips drawing (`skip_draw`) only its
     /// children. A mob's model is built in the model's own frame (+y down,
-    /// its front towards -z, its feet 24 texels down): in `native_mob_submit`,
+    /// its front towards -z, its feet 24 texels down): in `native_render_living_pre`,
     /// `draw.scale([1.0, -1.0, -1.0])` then `draw.translate([0.0, -1.501,
     /// 0.0])` first, as `LivingEntityRenderer` does. False for an unknown
     /// sprite. API @API:model_layers@.

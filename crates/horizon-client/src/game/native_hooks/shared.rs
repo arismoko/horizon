@@ -1453,7 +1453,10 @@ impl Game<'_> {
             attacker,
             held,
             projectile: None,
+            projectile_is_arrow: false,
             direct: None,
+            position: None,
+            projectile_weapon: None,
             player_uuid,
         }
     }
@@ -1479,29 +1482,27 @@ pub(super) fn knockback(level: DamageLevel<'_>, pushed: Hurting<'_>, knock: &mut
     if !mod_api::__private::listened(mod_api::HookId::LivingKnockback) {
         return false;
     }
+    let attack = level.attack();
     let attacker = match &pushed {
         Hurting::Mob(mob, damage) => match damage.attacker.or(mob.ai.last_hurt_by) {
             Some(Who::Mob(id)) => id as i32,
-            _ => level.attack().attacker,
+            _ => attack.attacker,
         },
         Hurting::Player(_, source)
         | Hurting::Dragon(_, source)
         | Hurting::ArmorStand(_, source)
-        | Hurting::Entity(_, _, source) => {
-            if source.causing != 0 {
-                source.causing
-            } else {
-                level.attack().attacker
-            }
-        }
+        | Hurting::Entity(_, _, source) => match source.causing {
+            0 => attack.attacker,
+            causing => causing,
+        },
     };
-    let attack = level.attack();
     let (entity, kind, source) = hurt_server_args(pushed, level.attack());
     let mut canceled = false;
     let [main, off] = &attack.held;
     let (Ok(main), Ok(off)) = (main.try_into_api(), off.try_into_api()) else {
         return false;
     };
+    let entry = level.knockback_entry();
     HitLevel(level).native_living_knockback(mod_api::__private::LivingKnockbackCall {
         entity,
         kind,
@@ -1509,6 +1510,7 @@ pub(super) fn knockback(level: DamageLevel<'_>, pushed: Hurting<'_>, knock: &mut
         attacker,
         attacker_main: main.as_ref(),
         attacker_off: off.as_ref(),
+        entry,
         strength: &mut knock.strength,
         x: &mut knock.x,
         z: &mut knock.z,
@@ -1526,6 +1528,7 @@ pub(super) const DAMAGE_HOOKS: DamageHooks = DamageHooks {
     knockback: Some(knockback),
     totem: Some(use_totem),
     shield: Some(shield_block),
+    accepted: Some(living_death::capture_hit),
 };
 /// The contacts of a simulating entity with a block, as the simulation's own code (client-lib)
 /// reports them.
@@ -1615,46 +1618,8 @@ pub(super) const BLOCK_CONTACT_HOOKS: horizon_client::block_contact::Hooks =
             *movement = horizon_core::geometry::Vec3::new(answer[0], answer[1], answer[2]);
         },
     };
-
-/// `native_living_incoming_damage`'s entity, entity type and source for a hit.
-fn hurt_server_args<'a>(hurting: Hurting<'a>, attack: &Attack) -> (i32, &'a str, HurtSource<'a>) {
-    match hurting {
-        Hurting::Player(entity, source) => (entity, "minecraft:player", source),
-        Hurting::Mob(mob, damage) => (
-            mob.id as i32,
-            mob.kind.id.as_str(),
-            mob_source(damage, attack),
-        ),
-        Hurting::Dragon(entity, source) => (entity, "minecraft:ender_dragon", source),
-        Hurting::ArmorStand(entity, source) => (entity, "minecraft:armor_stand", source),
-        Hurting::Entity(entity, kind, source) => (entity, kind, source),
-    }
-}
-/// A mob's damage as its `DamageSource`: the causing entity is known when it
-/// is a mob, or the player whose attack the level lends. The direct entity is
-/// the attacker in melee, or the projectile when this damage type names one
-/// (`arrow`, `wither_skull`). `magic()` does not, even during the impact.
-fn mob_source(damage: &Damage, attack: &Attack) -> HurtSource<'static> {
-    let causing = match damage.attacker {
-        Some(Who::Mob(id)) => id as i32,
-        Some(Who::Player) => attack.attacker,
-        None => 0,
-    };
-    let damage_type = super::creatures::source_damage_type(*damage);
-    let melee = super::creatures::melee(damage.kind);
-    HurtSource {
-        damage_type,
-        causing,
-        direct: if let Some(direct) = attack.direct {
-            direct
-        } else if melee {
-            causing
-        } else {
-            attack.projectile_direct(damage_type)
-        },
-        position: damage.from,
-    }
-}
+pub(super) use horizon_client::health::mob_source;
+pub(super) use living_death::hurt_server_args;
 
 /// Whether `id` is a sound event's id, `namespace:path` as `Identifier`
 /// allows: the namespace of `[a-z0-9_.-]`, the path also with `/`.
@@ -4843,6 +4808,7 @@ mod tests {
                     direct: None,
                     player_uuid: None,
                     held: Default::default(),
+                    ..Default::default()
                 },
             );
             (s.damage_type, s.causing, s.direct)
@@ -4869,6 +4835,7 @@ mod tests {
                     direct: None,
                     player_uuid: None,
                     held: Default::default(),
+                    ..Default::default()
                 },
             );
             (s.damage_type, s.direct)

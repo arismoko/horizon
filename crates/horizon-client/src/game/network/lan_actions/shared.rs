@@ -60,10 +60,6 @@ pub(super) struct GuestPlay {
     mount: super::mounts::MountState,
     /// The trading screen the guest has open.
     pub(super) merchant: Option<super::lan_trading::GuestMerchant>,
-    /// The inventory menu and the crafting table the guest crafts in.
-    pub(super) crafting: super::lan_crafting::GuestCrafting,
-    /// The workstation menu the guest has open (game/network/lan_stations.rs).
-    pub(super) station: MenuOwner<Option<super::lan_stations::GuestStation>>,
     /// The mount inventory the guest has open (game/network/lan_mount_menu.rs).
     pub(super) mount_window: Option<super::lan_mount_menu::GuestMount>,
     /// The lectern the guest reads (game/network/lan_stations.rs).
@@ -938,7 +934,7 @@ mod tests {
                 .lan
                 .as_ref()
                 .unwrap()
-                .play
+                .menus
                 .get(&12)
                 .unwrap()
                 .crafting
@@ -1449,6 +1445,7 @@ mod tests {
                             ticks: 0,
                             playing: false,
                             song_clock_present: false,
+                            loaded_clock: false,
                         },
                     ),
                 );

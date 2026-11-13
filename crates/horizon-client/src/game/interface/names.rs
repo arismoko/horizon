@@ -187,6 +187,7 @@ impl Game<'_> {
             || self.sleeping.is_some()
             || self.spectator()
             || self.own_invisible()
+            || self.own_render_canceled()
         {
             return None;
         }
@@ -220,7 +221,7 @@ impl Game<'_> {
         camera: glam::DVec3,
         alpha: f64,
         hooks: bool,
-        frustum: Option<&horizon_client::gfx::Frustum>,
+        frustum: Option<&horizon_client::gfx::JoinedFrusta>,
     ) -> Vec<NameTag> {
         let target = self.mob_hit().map(|(i, _, _)| self.mobs[i].id);
         let viewer = self.player_team();
@@ -229,8 +230,8 @@ impl Game<'_> {
         let player_ids = named_by_player_list(&players);
         let named = self.mobs.iter().filter_map(|m| {
             // Already named by the player list: a second tag would sit on the
-            // first (`named_by_player_list`).
-            if player_ids.contains(&m.id) {
+            // first (`named_by_player_list`). A mob a mod's pre hook canceled has none.
+            if player_ids.contains(&m.id) || self.render_canceled(m.id) {
                 return None;
             }
             // A mannequin with no name still shows its description.
@@ -252,6 +253,7 @@ impl Game<'_> {
         let own_id = own.as_ref().map(|(m, _)| m.id);
         let players = players
             .into_iter()
+            .filter(|(m, _)| !self.render_canceled(m.id))
             .chain(own)
             .map(|(m, name)| (m, name, true));
         // Who is riding whom: asked once per tag below, and rescanning every entity

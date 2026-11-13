@@ -530,9 +530,9 @@ impl Sprites {
     ) -> Result<Vec<Option<u32>>> {
         let path = crate::atlas_sources::texture_resource(name, "textures");
         let metadata = match self.source.read_to_string(&format!("{path}.mcmeta")) {
-            Ok(text) => Some(serde_json::from_str::<
+            Ok(text) => Some(crate::packs::first_json::<
                 BTreeMap<String, Box<serde_json::value::RawValue>>,
-            >(&text)?),
+            >(text.as_bytes())?),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => return Err(error.into()),
         };
@@ -651,9 +651,9 @@ impl Sprites {
         png: Option<&[u8]>,
     ) -> Result<crate::sprite_cache::Decoded> {
         let metadata = match source.read_to_string(&format!("{path}.mcmeta")) {
-            Ok(text) => Some(serde_json::from_str::<
+            Ok(text) => Some(crate::packs::first_json::<
                 BTreeMap<String, Box<serde_json::value::RawValue>>,
-            >(&text)?),
+            >(text.as_bytes())?),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => return Err(error.into()),
         };

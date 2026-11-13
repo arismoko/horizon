@@ -11,7 +11,12 @@ Register an item's capability with
 `r.item_capability(&ITEM_ITEMS, "mymod:backpack", |host, place| Some(Box::new(Backpack)))`.
 Your provider returns a `ResourceHandler<ItemResource>` for that place. Use
 `r.item_capability_before_game` to answer ahead of the game's provider, which handles
-`item_container` slots. `place.capability(host, &ITEM_ITEMS)` queries these providers in order.
+slots declared with `r.item_container(&item, provider)`. `place.capability(host, &ITEM_ITEMS)` queries these providers in order.
+The registered `ItemContainerProvider::slots(&dyn Host)` callback returns `Option<u32>` dynamically;
+it is not called by registration-time coverage queries. `ITEM_ITEMS` covers the declared item type
+even when that callback currently returns `None`. A closure `|host: &dyn Host| …` can be the provider.
+Declarations may target vanilla or mod items. Enabled callbacks run in registration order;
+`None` falls through to the next provider, and the first `Some` supplies the slot count.
 
 Keep the contents in the stack and use these methods to access it:
 

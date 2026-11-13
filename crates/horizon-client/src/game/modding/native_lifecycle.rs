@@ -223,6 +223,7 @@ impl Game<'_> {
             remote.attachments.clear();
         }
         self.attachment_indexes.clear();
+        self.passages.retire_world();
         self.native_lifecycle
             .begin_open(self.native_lifecycle_authority());
     }
@@ -243,6 +244,7 @@ impl Game<'_> {
             self.native_world_lifecycle(&context, WorldPhase::WorldOpenFailed, error_text);
         }
         self.attachment_indexes.clear();
+        self.passages.retire_world();
         self.resident_entities.table.get_mut().reset();
     }
 
@@ -255,6 +257,7 @@ impl Game<'_> {
             self.native_world_lifecycle(&context, WorldPhase::WorldCloseFailed, error_text);
         }
         self.attachment_indexes.clear();
+        self.passages.retire_world();
         self.resident_entities.table.get_mut().reset();
     }
 
@@ -270,6 +273,7 @@ impl Game<'_> {
             self.native_world_lifecycle(&context, WorldPhase::WorldCloseFinal, "");
         }
         self.attachment_indexes.clear();
+        self.passages.retire_world();
         self.resident_entities.table.get_mut().reset();
         super::cauldron_interactions::clear();
         mod_api::__private::clear_game_parts();

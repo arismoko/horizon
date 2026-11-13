@@ -80,6 +80,9 @@ pub(super) struct Level {
     dimension: Option<super::Dim>,
     /// Each block entity as it was before this transaction first wrote it.
     block_entities: HashMap<Pos, Kept>,
+    /// The block entities this transaction removed (`journal_remove_block_entity`): an abort
+    /// puts them back as `block_entities` keeps them.
+    removed_block_entities: std::collections::HashSet<Pos>,
     /// Each item slot (block entity, slot) a slot-only write changed, as it was before this
     /// transaction first wrote it, for a block entity not kept whole in `block_entities`: a
     /// move through a container keeps the slot it touches, not the entity's whole saved data.
@@ -93,7 +96,7 @@ pub(super) struct Level {
     /// Synced player health and its unpublished update events before set_health.
     player_health: HashMap<u128, KeptPlayerHealth>,
     /// Mob health and synchronization dirtiness before set_health.
-    mob_health: HashMap<u32, (f32, bool)>,
+    mob_health: HashMap<u32, KeptMobHealth>,
     /// Each entity's inventory (`entity_slots`) before this transaction first wrote it.
     entities: HashMap<u32, Vec<Option<ItemStack>>>,
     /// Each mob's or armor stand's equipment before this transaction first
@@ -161,6 +164,16 @@ impl Kept {
 struct KeptPlayerHealth {
     data: horizon_world::synced_floats::SyncedFloats,
     events_len: usize,
+    dead: bool,
+    guest: Option<(u32, bool, u32)>,
+}
+
+struct KeptMobHealth {
+    health: f32,
+    needs_sync: bool,
+    death_time: i32,
+    death_canceled: bool,
+    processed: bool,
 }
 
 #[derive(Clone)]
@@ -194,6 +207,11 @@ pub(super) enum After {
     /// A mod's validated vanilla packet, bound to its physical protocol incarnation.
     Packet(horizon_client::net::PreparedPacket),
     Cauldron(super::cauldron_interactions::Effects),
+    /// A mod's world pickup or placement of fluid, its block already set: what is left of it
+    /// (`Game::commit_fluid_write`).
+    FluidWrite(Box<super::world_fluids::WrittenFluid>),
+    /// A bucket's sound and fluid game event (`level_play_fluid_effects`).
+    FluidEffects(Box<super::world_fluids::FluidEffects>),
     /// `BlockEntity.setChanged`.
     Changed(Pos),
     /// `BlockEntity.setChanged` and `Level.sendBlockUpdated` after its data was loaded.
@@ -385,6 +403,9 @@ impl Game<'_> {
                 for (pos, kept) in level.block_entities {
                     outer.block_entities.entry(pos).or_insert(kept);
                 }
+                outer
+                    .removed_block_entities
+                    .extend(level.removed_block_entities);
                 for (pos, state) in level.blocks {
                     outer.blocks.entry(pos).or_insert(state);
                 }
@@ -442,6 +463,32 @@ impl Game<'_> {
             .block_entities
             .entry(pos)
             .or_insert_with(|| Kept::capture(&self.world, &self.hoppers, pos));
+    }
+    /// Puts back the block entity at `pos` that a transaction removed, as `kept` holds it, with
+    /// its generation, where none stands there now.
+    fn restore_removed_block_entity(&mut self, pos: Pos, kept: &Kept) {
+        let Some(entity) = &kept.entity else {
+            return;
+        };
+        if self.world.block_entities.get(&pos).is_some() {
+            return;
+        }
+        self.world.block_entities.insert(pos, entity.clone());
+        if let Some(generation) = kept.generation {
+            self.world
+                .block_entities
+                .restore_generation(pos, generation);
+        }
+    }
+    /// Removes the block entity at `pos`, kept whole by the open transaction, which puts it back
+    /// if it aborts: a block write in the transaction that drops it, so later reads in it see
+    /// none. Outside a transaction, it just goes.
+    pub(super) fn journal_remove_block_entity(&mut self, pos: Pos) {
+        self.journal_block_entity(pos);
+        if let Some(level) = self.transactions.last_mut() {
+            level.removed_block_entities.insert(pos);
+        }
+        self.world.block_entities.remove(&pos);
     }
     /// How many block entities the open transactions keep whole, and how many single slots:
     /// what a test reads to tell a slot journal from a whole capture without timing it.
@@ -544,23 +591,39 @@ impl Game<'_> {
         let Some(player) = self.player.as_ref() else {
             return;
         };
-        level
-            .player_health
-            .entry(uuid)
-            .or_insert_with(|| KeptPlayerHealth {
-                data: player.health.data.clone(),
-                events_len: player.events.len(),
-            });
+        let std::collections::hash_map::Entry::Vacant(entry) = level.player_health.entry(uuid)
+        else {
+            return;
+        };
+        let guest = self.lan_acting.and_then(|conn| {
+            let guest = self
+                .lan
+                .as_ref()?
+                .hub
+                .guests
+                .iter()
+                .find(|guest| guest.conn == conn)?;
+            Some((conn, guest.death_canceled, guest.death_time))
+        });
+        entry.insert(KeptPlayerHealth {
+            data: player.health.data.clone(),
+            events_len: player.events.len(),
+            dead: player.health.dead,
+            guest,
+        });
     }
     pub(super) fn journal_mob_health(&mut self, id: u32) {
         let Some(level) = self.transactions.last_mut() else {
             return;
         };
         if let Some(mob) = self.mobs.iter().find(|m| m.id == id && !m.removed) {
-            level
-                .mob_health
-                .entry(id)
-                .or_insert((mob.health, mob.needs_sync));
+            level.mob_health.entry(id).or_insert(KeptMobHealth {
+                health: mob.health,
+                needs_sync: mob.needs_sync,
+                death_time: mob.death_time,
+                death_canceled: mob.death_canceled,
+                processed: self.died.contains(&id),
+            });
         }
     }
     /// Keeps `player`'s menu storage as it is, if a transaction is open and hasn't yet.
@@ -663,6 +726,8 @@ impl Game<'_> {
             After::Payload(payload) => payload.publish(),
             After::Packet(packet) => packet.publish(),
             After::Cauldron(effects) => self.commit_cauldron_effects(effects),
+            After::FluidWrite(written) => self.commit_fluid_write(*written),
+            After::FluidEffects(effects) => self.commit_fluid_effects(*effects),
             After::Changed(pos) => self.container_changed(pos),
             After::Updated(pos) => self.block_entity_updated(pos),
             After::NotifyClients(pos) => self.notify_block_clients(pos),
@@ -736,6 +801,15 @@ impl Game<'_> {
                     }
                     let now = self.world.block(pos.0, pos.1, pos.2);
                     let was = level.blocks[&pos];
+                    // A block entity the transaction removed comes back where a later write
+                    // there put back a block of the kind that had it.
+                    let b = self.res.behaviours();
+                    if level.removed_block_entities.contains(&pos)
+                        && b.block(now) == b.block(was)
+                        && let Some(kept) = level.block_entities.get(&pos)
+                    {
+                        self.restore_removed_block_entity(pos, kept);
+                    }
                     if now != was {
                         // The stored state back, so the one real write sees the change.
                         self.world.set_stored(pos.0, pos.1, pos.2, was);
@@ -807,13 +881,18 @@ impl Game<'_> {
         }
 
         for (pos, kept) in level.block_entities {
-            if let (Some(entity), Some(now)) =
-                (kept.entity, self.world.block_entities.get_mut(&pos))
-            {
-                *now = entity;
-                self.world
-                    .block_entities
-                    .restore_generation(pos, kept.generation.unwrap());
+            match (&kept.entity, self.world.block_entities.get_mut(&pos)) {
+                (Some(entity), Some(now)) => {
+                    *now = entity.clone();
+                    self.world
+                        .block_entities
+                        .restore_generation(pos, kept.generation.unwrap());
+                }
+                // One this transaction removed comes back.
+                (Some(_), None) if level.removed_block_entities.contains(&pos) => {
+                    self.restore_removed_block_entity(pos, &kept);
+                }
+                _ => {}
             }
             self.world
                 .block_entities
@@ -900,10 +979,17 @@ impl Game<'_> {
                 });
             }
         }
-        for (id, (health, needs_sync)) in level.mob_health {
+        for (id, kept) in level.mob_health {
             if let Some(mob) = self.mobs.iter_mut().find(|m| m.id == id) {
-                mob.health = health;
-                mob.needs_sync = needs_sync;
+                mob.health = kept.health;
+                mob.needs_sync = kept.needs_sync;
+                mob.death_time = kept.death_time;
+                mob.death_canceled = kept.death_canceled;
+                if kept.processed {
+                    self.died.insert(id);
+                } else {
+                    self.died.remove(&id);
+                }
             }
         }
         for (uuid, kept) in level.player_health {
@@ -922,6 +1008,17 @@ impl Game<'_> {
                     if let Some(player) = g.player.as_mut() {
                         player.health.data = kept.data;
                         player.events.truncate(kept.events_len);
+                        player.health.dead = kept.dead;
+                    }
+                    if let Some((conn, canceled, time)) = kept.guest
+                        && let Some(host) = g.lan.as_mut()
+                        && let Some(gi) =
+                            host.hub.guests.iter().position(|guest| guest.conn == conn)
+                    {
+                        host.hub.guests.update(gi, |guest| {
+                            guest.death_canceled = canceled;
+                            guest.death_time = time;
+                        });
                     }
                 });
             }
@@ -985,7 +1082,7 @@ mod tests {
                 host: &mut dyn ServerHost,
                 event: &mut PlayerStatAwardEvent<'_>,
             ) -> Flow {
-                if event.stat != "minecraft:fill_cauldron" {
+                if event.stat.as_str() != "minecraft:fill_cauldron" {
                     return Flow::Continue;
                 }
                 let level = host.level("minecraft:overworld").unwrap();

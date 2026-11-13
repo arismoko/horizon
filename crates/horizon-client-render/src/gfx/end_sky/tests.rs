@@ -45,6 +45,7 @@ fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
 
 #[test]
 fn resident_buffer_survives_frames_and_refreshes_with_the_atlas() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some((device, _)) = device() else {
         eprintln!("no GPU adapter: skipped");
         return;
@@ -85,6 +86,7 @@ fn resident_buffer_survives_frames_and_refreshes_with_the_atlas() {
 /// vertex stream with a resident sky draw followed by a separate flash draw.
 #[test]
 fn separate_draws_match_combined_celestial_pixels() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some((device, queue)) = device() else {
         eprintln!("no GPU adapter: skipped");
         return;

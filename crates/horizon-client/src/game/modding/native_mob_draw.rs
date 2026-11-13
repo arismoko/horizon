@@ -1,23 +1,53 @@
-//! Mobs drawn by native mods on the client: `native_mob_submit` (vanilla's
-//! `EntityRenderer.submit` for a mob, NeoForge's `RenderLivingEvent.Pre` when
-//! it cancels) gets the mob's render state and a [`BlockEntityDraw`] posed at
-//! its feet and turned with its body, so a mod draws a model of its own with
-//! the helpers block entities draw with (`native_draw_cube`,
-//! `native_draw_quad`, `native_draw_block`, `native_draw_item`). A player
-//! has `native_player_submit` (`RenderPlayerEvent.Pre`). After its vanilla
-//! model and layers, in the same frame, a mob or player in view gets the layers
-//! mods added to its type or player model (`register_entity_layers`,
-//! `EntityRenderersEvent.AddLayers`), then `native_mob_layer`
-//! (`RenderLivingEvent.Post`).
+//! Mobs and players drawn with the mods' render hooks on the client, the pair NeoForge has around
+//! a living entity's render: `render_player_pre` (a player's, `RenderPlayerEvent.Pre`) then
+//! `render_living_pre` (`RenderLivingEvent.Pre`) before its model, each with the entity's render
+//! state and a [`BlockEntityDraw`] posed at its feet and turned with its body, so a mod draws with
+//! the helpers block entities draw with; after its vanilla model and layers, the layers mods added
+//! to its type or player model (`register_entity_layers`, `EntityRenderersEvent.AddLayers`), then
+//! `render_living_post` and `render_player_post`. A canceled pre hook skips all of the entity's
+//! drawing this frame, the later passes' name tag, shadow, flames and leash included: they ask
+//! [`Game::render_canceled`], which the frame's entity pass starts afresh.
 pub use mod_api::game::{MobRender, PlayerRender};
 
 use super::{Game, native_block_entity_draw::BlockEntityDraw};
 use glam::{DVec3, Mat4};
 use horizon_client::{
     block_entity_render::diffuse_lights,
+    fast_hash::FxHashSet,
     mesher::Vertex,
     mobs::{Mob, anim},
 };
+use mod_api::{HiddenParts, HookId, PosedParts};
+use std::cell::RefCell;
+
+/// What the frame's entity pass decided about the mods' render hooks: whether any mod listens to
+/// the pair (asked once a frame), and the entities a pre hook canceled.
+#[derive(Default)]
+struct EntityFrame {
+    listened: bool,
+    canceled: FxHashSet<u32>,
+}
+
+thread_local! {
+    /// The frame being drawn on this thread.
+    static FRAME: RefCell<EntityFrame> = RefCell::default();
+}
+
+/// Starts a frame's entity pass: asks once whether any mod listens to the render hook pair, and
+/// forgets the last frame's canceled entities.
+pub(in crate::game) fn begin_entity_frame() {
+    let hooks = [
+        HookId::RenderLivingPre,
+        HookId::RenderLivingPost,
+        HookId::RenderPlayerPre,
+        HookId::RenderPlayerPost,
+    ];
+    let listened = hooks.into_iter().any(mod_api::__private::listened);
+    FRAME.with_borrow_mut(|frame| {
+        frame.listened = listened;
+        frame.canceled.clear();
+    });
+}
 
 /// The entity id a mod is told for a drawn mob. This window's own player is
 /// drawn from a model made for the frame (`Mob::new(0, ..)`), so it is told
@@ -63,73 +93,80 @@ pub(super) fn mob_pose(at: DVec3, body_yaw: f32) -> Mat4 {
 }
 
 impl Game<'_> {
-    /// `native_mob_submit` for `mob`, lit by `light` (packed as the entity
-    /// pass packs it): true when a mod drew it, and its vanilla model, armour
-    /// and held items are left out; else the parts of the vanilla model mods
-    /// hid. The name tag, shadow, fire and a glowing outline still draw as for
-    /// any mob.
-    pub(super) fn mod_mob_geometry(
-        &self,
-        mob: &Mob,
-        partial: f32,
-        camera: DVec3,
-        light: u32,
-        out: &mut Vec<Vertex>,
-    ) -> (bool, mod_api::HiddenParts) {
-        let mut hidden = mod_api::HiddenParts::default();
-        let drawn =
-            self.mod_entity_draw(mob, false, partial, camera, light, out, |render, draw| {
-                let mut drawn = false;
-                self.native_mob_submit(render, draw, &mut hidden, &mut drawn);
-                drawn
-            });
-        (drawn, hidden)
-    }
-    /// `native_player_submit` for the player `mob` (`who` says which): true
-    /// when a mod drew it and the vanilla model, armour, held items, cape and
-    /// other layers are left out; else the parts of the vanilla model mods hid.
-    pub(super) fn mod_player_geometry(
-        &self,
-        mob: &Mob,
-        who: PlayerRender<'_>,
-        partial: f32,
-        camera: DVec3,
-        light: u32,
-        out: &mut Vec<Vertex>,
-    ) -> (bool, mod_api::HiddenParts) {
-        // Posing a player for the mods costs, each frame: only when one listens.
-        if !self.mob_render_listened() {
-            return (false, mod_api::HiddenParts::default());
-        }
-        let mut hidden = mod_api::HiddenParts::default();
-        let local = who.local;
-        let drawn =
-            self.mod_entity_draw(mob, local, partial, camera, light, out, |render, draw| {
-                let mut drawn = false;
-                self.native_player_submit(render, &who, draw, &mut hidden, &mut drawn);
-                drawn
-            });
-        (drawn, hidden)
-    }
-    /// Whether a mod listens to the mob and player render hooks this frame: the
-    /// draw keeps what they read (`mob_layer`'s posed parts) only then.
+    /// Whether a mod listens to the render hook pair this frame (asked once, when the frame's
+    /// entity pass began): with none, nothing is posed or built for the hooks per entity.
     pub(super) fn mob_render_listened(&self) -> bool {
-        let mut listened = false;
-        self.native_player_render_listened(&mut listened);
-        listened
+        FRAME.with_borrow(|frame| frame.listened)
     }
-    /// The mods' layers over `mob` (`who` set for a player), drawn after the
-    /// vanilla model and its layers: `layers`, the ones added to its type or
-    /// player model (`register_entity_layers`, looked up once for the mob by
-    /// `mod_layers`, whose answer also decided whether the draw kept its parts),
-    /// then `native_mob_layer`. `parts` are the humanoid parts as the vanilla
-    /// draw posed them this frame, kept by it.
+    /// Whether a mod's pre hook canceled the drawing of entity `id` this frame: the later passes
+    /// (flames, name tags, shadows, leashes) leave it out too.
+    pub(in crate::game) fn render_canceled(&self, id: u32) -> bool {
+        FRAME.with_borrow(|frame| !frame.canceled.is_empty() && frame.canceled.contains(&id))
+    }
+    /// Whether this window's own player was canceled this frame.
+    pub(in crate::game) fn own_render_canceled(&self) -> bool {
+        u32::try_from(self.own_entity_id()).is_ok_and(|id| self.render_canceled(id))
+    }
+    /// The mobs of the level a pre hook didn't cancel this frame.
+    pub(in crate::game) fn drawn_mobs(&self) -> impl Iterator<Item = &Mob> {
+        self.mobs.iter().filter(|m| !self.render_canceled(m.id))
+    }
+    /// The mods' pre hooks for `mob`, before any of its model is drawn, lit by `light` (packed as
+    /// the entity pass packs it): `render_player_pre` for a player (`who`: its name, and whether
+    /// it is this window's own), then `render_living_pre`, each from a draw posed at the feet and
+    /// turned with the body, whose geometry is kept. None when one canceled: the entity draws
+    /// nothing more this frame and its post hooks aren't asked, but for a player whose living pre
+    /// alone canceled, whose `render_player_post` is asked here. Else the parts of the vanilla
+    /// model the hooks hid. `listened` is the frame's [`Game::mob_render_listened`].
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn mod_render_pre(
+        &self,
+        mob: &Mob,
+        who: Option<PlayerRender<'_>>,
+        listened: bool,
+        partial: f32,
+        camera: DVec3,
+        light: u32,
+        out: &mut Vec<Vertex>,
+    ) -> Option<HiddenParts> {
+        let mut hidden = HiddenParts::default();
+        if !listened {
+            return Some(hidden);
+        }
+        let local = who.as_ref().is_some_and(|who| who.local);
+        let mut canceled = false;
+        if let Some(who) = &who {
+            self.mod_entity_draw(mob, local, partial, camera, light, out, |render, draw| {
+                self.native_render_player_pre(render, who, draw, &mut hidden, &mut canceled);
+            });
+        }
+        if !canceled {
+            self.mod_entity_draw(mob, local, partial, camera, light, out, |render, draw| {
+                self.native_render_living_pre(render, draw, &mut hidden, &mut canceled);
+            });
+            if canceled && let Some(who) = &who {
+                self.mod_entity_draw(mob, local, partial, camera, light, out, |render, draw| {
+                    self.native_render_player_post(render, who, None, draw);
+                });
+            }
+        }
+        if !canceled {
+            return Some(hidden);
+        }
+        let id = render_id(mob.id, local, self.own_entity_id());
+        FRAME.with_borrow_mut(|frame| frame.canceled.insert(id));
+        None
+    }
+    /// The layers mods added to `mob`'s type or player model (`register_entity_layers`), drawn
+    /// after its vanilla model and layers: `layers`, looked up once for the mob by `mod_layers`,
+    /// whose answer also decided whether the draw kept its parts. `who` is set for a player, and
+    /// `parts` are the humanoid parts as the vanilla draw posed them this frame, kept by it.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn mod_layer_geometry(
         &self,
         mob: &Mob,
         who: Option<PlayerRender<'_>>,
-        parts: Option<mod_api::PosedParts>,
+        parts: Option<PosedParts>,
         layers: Option<super::native_entity_layers::Layers>,
         partial: f32,
         camera: DVec3,
@@ -137,28 +174,43 @@ impl Game<'_> {
         out: &mut Vec<Vertex>,
     ) {
         if let Some(layers) = layers {
-            // This window's player is drawn from a model made for the frame (`Mob::new(0, ..)`):
-            // its layers are told its own network id.
-            let id = match &who {
-                Some(who) if who.local => u32::try_from(self.own_entity_id()).unwrap_or(mob.id),
-                _ => mob.id,
-            };
+            let local = who.as_ref().is_some_and(|who| who.local);
+            let id = render_id(mob.id, local, self.own_entity_id());
             let parts = parts.as_ref();
             self.registered_layer_geometry(mob, id, &layers, parts, partial, camera, light, out);
         }
+    }
+    /// The mods' post hooks for `mob`, whose pre hooks weren't canceled: `render_living_post`,
+    /// then, for a player (`who`), `render_player_post`. Asked whether or not its layers drew (a
+    /// spectating player draws none). `parts` are the humanoid parts as the vanilla draw posed
+    /// them this frame, kept by it.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn mod_render_post(
+        &self,
+        mob: &Mob,
+        who: Option<PlayerRender<'_>>,
+        parts: Option<PosedParts>,
+        partial: f32,
+        camera: DVec3,
+        light: u32,
+        out: &mut Vec<Vertex>,
+    ) {
         // Every mob in view each frame: only when a mod listens.
         if !self.mob_render_listened() {
             return;
         }
         let local = who.as_ref().is_some_and(|who| who.local);
         self.mod_entity_draw(mob, local, partial, camera, light, out, |render, draw| {
-            self.native_mob_layer(render, who.as_ref(), parts.as_ref(), draw);
-            true
+            self.native_render_living_post(render, parts.as_ref(), draw);
         });
+        if let Some(who) = &who {
+            self.mod_entity_draw(mob, local, partial, camera, light, out, |render, draw| {
+                self.native_render_player_post(render, who, parts.as_ref(), draw);
+            });
+        }
     }
-    /// Gives `hook` the frame of `mob` and a draw posed at its feet; what it
-    /// added to `out` stays when it answers true. `local` marks this window's
-    /// own player, whose frame carries its own entity id.
+    /// Gives `hook` the frame of `mob` and a draw posed at its feet, whose geometry is added to
+    /// `out`. `local` marks this window's own player, whose frame carries its own entity id.
     #[allow(clippy::too_many_arguments)]
     fn mod_entity_draw(
         &self,
@@ -168,13 +220,12 @@ impl Game<'_> {
         camera: DVec3,
         light: u32,
         out: &mut Vec<Vertex>,
-        hook: impl FnOnce(&MobRender<'_>, &mut BlockEntityDraw) -> bool,
-    ) -> bool {
+        hook: impl FnOnce(&MobRender<'_>, &mut BlockEntityDraw),
+    ) {
         let render = mob_render(mob, render_id(mob.id, local, self.own_entity_id()), partial);
         let a = f64::from(partial);
         let feet = mob.previous.lerp(mob.position, a);
         let feet = DVec3::new(feet.x, feet.y, feet.z);
-        let start = out.len();
         let mut draw = BlockEntityDraw::posed(
             partial,
             self.world.game_time,
@@ -185,12 +236,8 @@ impl Game<'_> {
             std::mem::take(out),
         )
         .animated(self.animation_time());
-        let keep = hook(&render, &mut draw);
+        hook(&render, &mut draw);
         *out = draw.into_vertices();
-        if !keep {
-            out.truncate(start);
-        }
-        keep
     }
 }
 

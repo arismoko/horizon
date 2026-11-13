@@ -145,11 +145,12 @@ impl Game<'_> {
                                             a == from || b == from
                                         }
                                         _ => m.pos == Some(from),
-                                    }) || h.play.get(&g.conn).is_some_and(|p| {
-                                        p.station
+                                    }) || h.menus.get(&g.conn).is_some_and(|m| {
+                                        m.station
                                             .as_ref()
                                             .is_some_and(|s| s.pos == [from.0, from.1, from.2])
-                                            || p.lectern.as_ref().is_some_and(|l| l.key == from)
+                                    }) || h.play.get(&g.conn).is_some_and(|p| {
+                                        p.lectern.as_ref().is_some_and(|l| l.key == from)
                                     })
                                 })
                                 .map(|g| g.conn)

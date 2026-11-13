@@ -33,8 +33,9 @@ impl dyn Registrar + '_ {
     /// Register chunk generator `name` (`void` or `mymod:void`) once at
     /// startup: a level whose stem names `mymod:void` then has the terrain of
     /// `generator`, whose [`build_terrain`](crate::ChunkGenerator::build_terrain)
-    /// runs on the worldgen worker threads. The level gets no surface, carvers
-    /// or features. The id may use any manifest-owned namespace. An unowned
+    /// runs on the worldgen worker threads. The level gets the vanilla stages
+    /// its [`vanilla_stages`](crate::ChunkGenerator::vanilla_stages) asks for,
+    /// read here, once. The id may use any manifest-owned namespace. An unowned
     /// namespace, an empty name, a name that is no folder of the world and an id
     /// registered twice refuse the mods at startup, naming the mod.
     pub fn register_chunk_generator<T: crate::ChunkGenerator>(&mut self, name: &str, generator: T) {

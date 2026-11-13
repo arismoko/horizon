@@ -8,6 +8,6 @@ pub use horizon_core::{
 /// [`Host::math_profile`](crate::Host) describes the engine selection on both native and wasm;
 /// it does not make these functions available to a guest.
 pub mod java_math;
-/// Platform-independent StrictMath functions with established exact bits.
+/// Platform-independent, host-call-free StrictMath functions, including sin/cos/tan/exp/pow.
 pub mod strict_math;
 pub use horizon_core::nbt::{Error as NbtError, NETWORK_NBT_QUOTA};

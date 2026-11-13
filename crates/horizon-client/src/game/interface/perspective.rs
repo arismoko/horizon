@@ -807,24 +807,21 @@ impl Game<'_> {
         let lookup = |name: &str| atlas.sprites.get(name).map(|r| [r.u0, r.v0, r.u1, r.v1]);
         let start = out.len();
         let body = self.own_body_visible();
-        // `native_player_submit`: a native mod's own model for this player,
-        // in place of the vanilla one and its layers (an invisible player is
-        // not asked, as for the others).
+        // The mods' pre hooks (`render_player_pre`, then `render_living_pre`), as for the other
+        // players: a cancel skips the rest of this player's drawing and its post hooks, and the
+        // frame's later passes (flames, name tag) leave it out too.
         let name = self.own_profile_name();
         let who = PlayerRender {
             name: &name,
             local: true,
         };
-        let (drawn, hidden) = match body {
-            true => self.mod_player_geometry(m, who, alpha as f32, camera, packed, out),
-            false => (false, mod_api::HiddenParts::default()),
-        };
-        if drawn {
+        let listened = self.mob_render_listened();
+        let pre = self.mod_render_pre(m, Some(who), listened, alpha as f32, camera, packed, out);
+        let Some(hidden) = pre else {
             return;
-        }
+        };
         // The mods' layers' posed parts, kept from the draw below while they want them.
         let (mut parts, layers) = (None, self.mod_layers(m));
-        let listened = self.mob_render_listened();
         // A spectator still draws its own model in third person: the poses'
         // visibility (set by player_model_visibility) hides body parts, and
         // translucent_body marks the body OIT for the ghostly look. Only first
@@ -879,7 +876,7 @@ impl Game<'_> {
             self.held_item_geometry(m, camera, alpha, packed, true, None, out);
             // CustomHeadLayer: a pumpkin, skull or other head item.
             self.head_item_geometry(m, camera, alpha, packed, true, out);
-            // Mods' layers (`register_entity_layers`, `native_mob_layer`), over vanilla's.
+            // Mods' layers (`register_entity_layers`), over vanilla's.
             self.mod_layer_geometry(
                 m,
                 Some(who),
@@ -891,6 +888,8 @@ impl Game<'_> {
                 out,
             );
         }
+        // The post hooks, whether or not the layers drew (a spectator draws none).
+        self.mod_render_post(m, Some(who), parts, alpha as f32, camera, packed, out);
         // LivingEntity.isCurrentlyGlowing: the Glowing effect.
         let vanilla = self
             .potions

@@ -141,6 +141,8 @@ mod update;
 mod weather;
 
 #[cfg(test)]
+mod fertile_tests;
+#[cfg(test)]
 mod fire_tests;
 #[cfg(test)]
 mod growth_tests;
@@ -154,7 +156,10 @@ mod survive_tests;
 mod tests;
 
 pub use bonemeal::{BonemealCheck, TemplateSettings};
-pub use buckets::{BucketContent, fluid_bucket, fluid_empty_sound, fluid_pickup_sound};
+pub use buckets::{
+    BucketContent, Douse, Drain, FluidChange, FluidWrite, PlacedLiquid, fluid_bucket,
+    fluid_empty_sound, fluid_pickup_sound,
+};
 pub use data::{BlockData, ItemBinding, ItemKind, Named, Props, PushReaction, StateFacts, Tags};
 pub use falling::Landing;
 pub use fluids::{
@@ -229,19 +234,19 @@ pub fn vanilla_sea_level(level: LevelKey) -> i32 {
     }
 }
 
-/// The sea levels of the levels a mod registered, from the noise settings their stems name, by
-/// level key: set at each world's load (`set_sea_levels`), as the dimension types' facts are.
+/// The sea level each level's generator builds with (`ChunkGenerator.getSeaLevel`), by level key.
+/// Filled when a world opens from the noise settings its data packs replace (`set_sea_levels`),
+/// and by each level's generator as it opens (`register_sea_level`).
 static SEA_LEVELS: std::sync::LazyLock<RwLock<HashMap<LevelKey, i32>>> =
     std::sync::LazyLock::new(Default::default);
 
-/// Replaces the registered levels' sea levels, at a world's load.
+/// Replaces every registered sea level, as a world opens.
 pub fn set_sea_levels(levels: Vec<(LevelKey, i32)>) {
     *SEA_LEVELS.write().unwrap_or_else(|e| e.into_inner()) = levels.into_iter().collect();
 }
 
-/// Registers one level's sea level, as a server told a client the level of a mod or a data pack
-/// has (`CommonPlayerSpawnInfo.seaLevel`); the levels of a world's own load are set by
-/// `set_sea_levels`.
+/// Registers one level's sea level: its generator's, or the one a server sent
+/// (`CommonPlayerSpawnInfo.seaLevel`).
 pub fn register_sea_level(level: LevelKey, sea_level: i32) {
     SEA_LEVELS
         .write()
@@ -775,6 +780,34 @@ pub trait LevelAccess: BlockEntityNeighbors {
         _ground: BlockStateId,
         _ground_pos: BlockPos,
         _sustains: &mut Option<bool>,
+    ) {
+    }
+    /// Whether a part may answer `IBlockExtension.isFertile`: asked once per
+    /// `CropBlock.getGrowthSpeed`, so with none the speed is vanilla's loop.
+    /// The default is false.
+    fn asks_is_fertile(&self) -> bool {
+        false
+    }
+    /// `IBlockExtension.isFertile` for the soil `state` at `pos`, a block in
+    /// `#grows_crops` under a crop: `fertile` starts at vanilla's answer
+    /// (`moisture > 0`). The default does nothing.
+    fn before_is_fertile(&self, _state: BlockStateId, _pos: BlockPos, _fertile: &mut bool) {}
+    /// Whether a part may answer `IBlockExtension.canBeHydrated` for the
+    /// farmland `state`: asked once before its scan, so with none the scan is
+    /// vanilla's. The default is false.
+    fn asks_can_be_hydrated(&self, _state: BlockStateId) -> bool {
+        false
+    }
+    /// `IBlockExtension.canBeHydrated` for the farmland `state` at `pos` and
+    /// the non-empty `fluid` at `fluid_pos`: an answer put in `hydrates`
+    /// decides, left `None` the `#water` rule does. The default does nothing.
+    fn before_can_be_hydrated(
+        &self,
+        _state: BlockStateId,
+        _pos: BlockPos,
+        _fluid: FluidState,
+        _fluid_pos: BlockPos,
+        _hydrates: &mut Option<bool>,
     ) {
     }
     /// `VegetationBlock.mayPlaceOn(ground, level, groundPos)` for the plant
@@ -1453,6 +1486,18 @@ impl Behaviours {
     ) -> bool {
         self.sim(level, ticks)
             .destroy_block(pos, drop, flags::UPDATE_LIMIT)
+    }
+    /// `Block.dropResources(state, level, pos)`: the loot of `state` at `pos`, with what the
+    /// block entity there copies into it, as `destroy_block` drops it (nothing under
+    /// `doTileDrops` false), without touching the block.
+    pub fn drop_resources<L: LevelAccess + ?Sized>(
+        &self,
+        level: &mut L,
+        ticks: &mut Ticks,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) {
+        self.sim(level, ticks).drop_resources(state, pos);
     }
     /// A player breaking a block (`playerWillDestroy` + `Level.destroyBlock`
     /// without drops; the caller handles the player's loot/tool). Double

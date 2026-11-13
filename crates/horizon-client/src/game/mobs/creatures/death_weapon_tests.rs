@@ -169,6 +169,7 @@ fn weapon_case(item: &str, enchantment: &str, level: u32, projectile: bool, swap
                     }
                 };
                 let mut shot = Projectile::new(kind, Vec3::ZERO, Some(Who::Mob(41)));
+                shot.id = 912;
                 let arrow = shot.arrow.as_mut().unwrap();
                 if trident {
                     arrow.pickup_item = weapon;
@@ -185,6 +186,7 @@ fn weapon_case(item: &str, enchantment: &str, level: u32, projectile: bool, swap
                 victim.health = 20.0;
                 victim.last_damage = None;
                 game.mobs.push(victim);
+                damage.kind = game.projectile_damage_kind(&shot);
                 assert!(game.damage_projectile_with_weapon(&shot, 70, 100.0, damage, None));
                 victim = game.mobs.iter().find(|mob| mob.id == 70).unwrap().clone();
                 drop(shot);

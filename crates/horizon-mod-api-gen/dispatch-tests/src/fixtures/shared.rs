@@ -599,6 +599,11 @@ mod stubs {
     pub(super) struct TooltipDisplay<'a>(pub &'a ());
     pub(super) struct TriState;
     pub(super) struct InteractionResult;
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) enum KnockbackEntry {
+        Short,
+        Full,
+    }
     pub(super) struct HurtSource<'a> {
         pub(super) damage_type: &'a str,
         pub(super) position: Option<[f64; 3]>,

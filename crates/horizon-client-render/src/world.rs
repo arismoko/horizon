@@ -9,6 +9,9 @@ use horizon_core::random::{LegacyRandom, LevelRandom};
 use horizon_world::registry::BlockStateId;
 use std::sync::Arc;
 
+mod pending_entity;
+pub use pending_entity::{EntityLoadReason, PendingEntity};
+
 mod modified;
 pub use modified::ModifiedChunks;
 
@@ -95,7 +98,7 @@ pub struct World {
     /// set. An index that no longer holds its position (drained, rolled back) is ignored.
     pub light_checks: crate::fast_hash::FxHashMap<(i32, i32, i32), usize>,
     /// Saved entities of chunks that just loaded, spawned by the game.
-    pub loaded_entities: Vec<((i32, i32), Vec<horizon_core::nbt::Tag>)>,
+    pub loaded_entities: Vec<((i32, i32), Vec<PendingEntity>)>,
     /// Chunks loaded since the level's last pass, their entity sections not
     /// ready yet (`PersistentEntitySectionManager`'s PENDING), empty ones too:
     /// the pass ends by readying them (`processPendingLoads`).
@@ -237,6 +240,30 @@ impl Weather {
             self.thunder_level.0 + (self.thunder_level.1 - self.thunder_level.0) * partial;
         (rain, thunder * rain)
     }
+    /// `ClientPacketListener.handleGameEvent`'s weather events, the player's level's or a viewed
+    /// level's: START_RAINING (1), STOP_RAINING (2), RAIN_LEVEL_CHANGE (7) and
+    /// THUNDER_LEVEL_CHANGE (8), with the event's `param`. Any other event is not the weather's.
+    pub fn game_event(&mut self, event: u8, param: f32) {
+        match event {
+            1 => {
+                self.raining = true;
+                self.rain_level = (0.0, 0.0);
+            }
+            2 => {
+                self.raining = false;
+                self.rain_level = (1.0, 1.0);
+            }
+            7 => {
+                self.rain_level = (param, param);
+                self.raining = param > 0.0;
+            }
+            8 => {
+                self.thunder_level = (param, param);
+                self.thundering = param > 0.0;
+            }
+            _ => {}
+        }
+    }
 }
 impl World {
     /// Install loaded instances, retiring an existing column's block entities even
@@ -255,6 +282,11 @@ impl World {
                 .unload(|p| (p.0 >> 4, p.2 >> 4) == chunk && !incoming.contains(p));
         }
         self.block_entities.load_chunk(entities);
+    }
+    /// Queue ordinary NBT; transient transfer state is never decoded from it.
+    pub fn queue_entity_nbt(&mut self, key: (i32, i32), tags: Vec<horizon_core::nbt::Tag>) {
+        self.loaded_entities
+            .push((key, tags.into_iter().map(PendingEntity::from).collect()));
     }
 
     pub fn new(air: BlockStateId, seed: i64) -> Self {

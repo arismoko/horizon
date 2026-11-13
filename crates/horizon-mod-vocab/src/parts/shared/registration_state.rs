@@ -8,6 +8,7 @@ pub(crate) struct Installed {
     pub(crate) recipe_book_types: HashMap<String, String>,
     pub(crate) game_rule_categories: Vec<String>,
     pub(crate) game_rules: Vec<crate::GameRuleDecl>,
+    pub(crate) custom_stats: Vec<String>,
     pub(crate) game_rule_slots: Vec<u32>,
     pub(crate) keys: Parts,
     pub(crate) tags: TagParts,
@@ -28,6 +29,7 @@ pub(crate) struct Installed {
     pub(crate) resolved_block_entity_types: OnceLock<horizon_mod_runtime::registry_keys::Names>,
     pub(crate) fluids: OnceLock<horizon_mod_runtime::registry_keys::Names>,
     pub(crate) resolved_items: OnceLock<horizon_mod_runtime::registry_keys::Names>,
+    pub(crate) resolved_entity_types: OnceLock<horizon_mod_runtime::registry_keys::Names>,
     pub(crate) resolved_blocks: OnceLock<horizon_mod_runtime::block_definitions::Blocks>,
     pub(crate) particles: OnceLock<horizon_mod_runtime::registry_keys::Particles>,
     /// The ticket controllers the mods registered; a [`TicketController`]'s slot indexes it.

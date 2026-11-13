@@ -1,4 +1,4 @@
-use glam::{DVec3, Mat4};
+use glam::{DVec3, Mat4, Vec4};
 
 /// The most world views ([`crate::render_slots::world_views`]) one frame draws.
 pub const MAX_WORLD_VIEWS: usize = 4;
@@ -25,6 +25,10 @@ pub struct WorldView {
     pub fov_degrees: f32,
     /// The target's width and height, in pixels (1 to [`MAX_WORLD_VIEW_SIDE`]).
     pub size: [u32; 2],
+    /// The plane behind which nothing is drawn ([`WorldView::with_clip_plane`]).
+    pub clip_plane: Option<[f64; 4]>,
+    /// The picture is mirrored left to right ([`WorldView::with_mirror`]).
+    pub mirror: bool,
 }
 
 impl WorldView {
@@ -44,6 +48,8 @@ impl WorldView {
             roll: 0.0,
             fov_degrees,
             size,
+            clip_plane: None,
+            mirror: false,
         }
     }
 
@@ -51,7 +57,33 @@ impl WorldView {
         Self { roll, ..self }
     }
 
-    /// Whether it can be drawn: every value finite and in range, no side over `max_side`.
+    /// Draws only what lies in front of a world-space plane `[x, y, z, d]`: the points `p` with
+    /// `x * p.x + y * p.y + z * p.z + d >= 0`. Terrain, entities and block entities behind it are
+    /// left out, as a wall behind a portal's far side is. The camera must be behind the plane
+    /// (where `x * camera.x + y * camera.y + z * camera.z + d < 0`): the plane becomes the
+    /// view's near plane, which every backend draws. A view whose camera is not behind it, or
+    /// whose plane has a normal `[x, y, z]` of zero, a value that is not finite, or a scaled form
+    /// or distance from the camera that is not (as f32 too), is out of range and left out.
+    pub fn with_clip_plane(self, plane: [f64; 4]) -> Self {
+        Self {
+            clip_plane: Some(plane),
+            ..self
+        }
+    }
+
+    /// The camera's picture mirrored left to right, as a mirror shows it: give the camera
+    /// reflected through the mirror. A mirrored picture turns every triangle's winding round,
+    /// so the view draws with face culling flipped to make up for it: the faces culled are the
+    /// ones an unmirrored view culls, and back faces stay hidden.
+    pub fn with_mirror(self) -> Self {
+        Self {
+            mirror: true,
+            ..self
+        }
+    }
+
+    /// Whether it can be drawn: every value finite and in range, no side over `max_side`, the
+    /// camera behind its clip plane.
     fn valid(&self, max_side: u32) -> bool {
         self.camera.is_finite()
             && [self.yaw, self.pitch, self.roll]
@@ -62,6 +94,22 @@ impl WorldView {
                 .size
                 .iter()
                 .all(|&s| (1..=max_side.min(MAX_WORLD_VIEW_SIDE)).contains(&s))
+            && (self.clip_plane.is_none() || self.camera_clip_plane().is_some())
+    }
+
+    /// The clip plane relative to the camera, as the projection takes it: a unit normal and the
+    /// camera's distance in front of the plane (below 0, behind it), worked out in f64 so far
+    /// from the origin it loses nothing. `None` without one, or for one out of range: a normal
+    /// of zero, a value or its scaled or camera-relative form not finite (in f32 too), or the
+    /// camera not behind it.
+    pub(crate) fn camera_clip_plane(&self) -> Option<Vec4> {
+        let [x, y, z, d] = self.clip_plane?;
+        let length = DVec3::new(x, y, z).length();
+        let normal = DVec3::new(x, y, z) / length;
+        let plane = normal
+            .as_vec3()
+            .extend((normal.dot(self.camera) + d / length) as f32);
+        (length > 0.0 && length.is_finite() && plane.is_finite() && plane.w < 0.0).then_some(plane)
     }
 }
 
@@ -84,7 +132,9 @@ pub struct WorldViewDrawn<'a> {
     pub size: [u32; 2],
     /// Its depth (Depth32Float, reversed: 0 is the sky), sampleable.
     pub depth: &'a wgpu::TextureView,
-    /// World relative to [`WorldViewDrawn::camera`] to clip space.
+    /// World relative to [`WorldViewDrawn::camera`] to clip space, as the picture and `depth`
+    /// were drawn: its near plane is the view's clip plane when it has one, and its x is
+    /// flipped when the view is mirrored.
     pub view_proj: Mat4,
     /// The view's camera.
     pub camera: DVec3,
@@ -92,17 +142,17 @@ pub struct WorldViewDrawn<'a> {
 
 /// The views of those asked for ([`crate::render_slots::world_views`]) that can be drawn on a device whose textures
 /// are at most `max_side` pixels a side (`max_texture_dimension_2d`; never above
-/// [`MAX_WORLD_VIEW_SIDE`]).
-pub fn drawable_world_views(mut views: Vec<WorldView>, max_side: u32) -> Vec<WorldView> {
-    let mut ids = Vec::new();
+/// [`MAX_WORLD_VIEW_SIDE`]), kept in `views` in place, without allocating.
+pub fn drawable_world_views(views: &mut Vec<WorldView>, max_side: u32) {
+    let mut ids = [0; MAX_WORLD_VIEWS];
+    let mut kept = 0;
     views.retain(|v| {
-        v.valid(max_side) && !ids.contains(&v.id) && {
-            ids.push(v.id);
+        kept < MAX_WORLD_VIEWS && v.valid(max_side) && !ids[..kept].contains(&v.id) && {
+            ids[kept] = v.id;
+            kept += 1;
             true
         }
     });
-    views.truncate(MAX_WORLD_VIEWS);
-    views
 }
 
 #[cfg(test)]
@@ -128,20 +178,32 @@ mod tests {
                 70.0,
                 [64, 64],
             ),
+            // clip planes: a zero normal, values not finite, the camera (at z -3) in front of
+            // the plane or on it
+            view(30, 70.0, [64, 64]).with_clip_plane([0.0, 0.0, 0.0, 1.0]),
+            view(31, 70.0, [64, 64]).with_clip_plane([0.0, f64::NAN, 1.0, 0.0]),
+            view(32, 70.0, [64, 64]).with_clip_plane([0.0, 0.0, 1.0, f64::INFINITY]),
+            view(33, 70.0, [64, 64]).with_clip_plane([0.0, 0.0, -1.0, 0.0]),
+            view(34, 70.0, [64, 64]).with_clip_plane([0.0, 0.0, 2.0, 6.0]),
+            // finite values whose scaled or camera-relative form is not (camera at 0)
+            WorldView::new(35, DVec3::ZERO, 0.0, 0.0, 70.0, [64, 64])
+                .with_clip_plane([0.0, 0.0, 1.0, -1e40]),
+            WorldView::new(36, DVec3::ZERO, 0.0, 0.0, 70.0, [64, 64])
+                .with_clip_plane([1e-160, 0.0, 0.0, -1e308]),
+            // the camera behind the plane z = 0, mirrored too
+            view(8, 70.0, [64, 64])
+                .with_clip_plane([0.0, 0.0, 0.5, 0.0])
+                .with_mirror(),
         ];
         asked.extend((10..20).map(|id| view(id, 170.0, [1, MAX_WORLD_VIEW_SIDE])));
-        let drawn: Vec<u64> = drawable_world_views(asked, MAX_WORLD_VIEW_SIDE)
-            .iter()
-            .map(|v| v.id)
-            .collect();
+        drawable_world_views(&mut asked, MAX_WORLD_VIEW_SIDE);
+        let drawn: Vec<u64> = asked.iter().map(|v| v.id).collect();
         // the first id 1 only; the out-of-range ones left out; at most four in all
-        assert_eq!(drawn, [1, 10, 11, 12]);
+        assert_eq!(drawn, [1, 8, 10, 11]);
         // A device with smaller textures (downlevel, GL: 2048) leaves out what it cannot hold.
-        let small = vec![view(20, 70.0, [2049, 64]), view(21, 70.0, [2048, 2048])];
-        let drawn: Vec<u64> = drawable_world_views(small, 2048)
-            .iter()
-            .map(|v| v.id)
-            .collect();
+        let mut small = vec![view(20, 70.0, [2049, 64]), view(21, 70.0, [2048, 2048])];
+        drawable_world_views(&mut small, 2048);
+        let drawn: Vec<u64> = small.iter().map(|v| v.id).collect();
         assert_eq!(drawn, [21]);
     }
 }

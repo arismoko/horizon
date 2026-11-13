@@ -19,13 +19,19 @@ struct Probe {
 struct ProbeMod(Arc<Probe>);
 #[mod_api::__subscriptions]
 impl Hooks for ProbeMod {
-    fn living_death(&self, _: &mut dyn ServerHost, e: &mut LivingDeathEvent<'_>) -> mod_api::Flow {
+    fn living_death(
+        &self,
+        host: &mut dyn ServerHost,
+        e: &mut LivingDeathEvent<'_>,
+    ) -> mod_api::Flow {
         self.0
             .calls
             .lock()
             .unwrap()
-            .push((e.entity, e.damage_type.to_owned()));
+            .push((e.entity, e.source.damage_type.to_owned()));
         if self.0.veto.load(Ordering::Relaxed) {
+            let living = host.living(host.entity(e.entity).unwrap()).unwrap();
+            assert!(living.set_health(host, 5.0));
             mod_api::Flow::Cancel
         } else {
             mod_api::Flow::Continue
@@ -85,7 +91,11 @@ fn a_vetoed_kill_keeps_the_mob_and_a_later_kill_dies_once_isolated() {
             assert_eq!(calls(&probe).len(), 1, "the veto is asked during /kill");
             assert_eq!(posted, [], "no event for a vetoed death");
             let m = game.mobs.iter().find(|m| m.id == pig).unwrap();
-            assert_eq!((m.health, m.death_time), (1.0, 0), "alive at 1 health");
+            assert_eq!(
+                (m.health, m.death_time),
+                (5.0, 0),
+                "listener's healing survives"
+            );
             assert_eq!(porkchops(game), 0, "no loot");
             let later = deaths(game, |g| g.tick_creature_entities().unwrap());
             assert_eq!((calls(&probe).len(), later), (0, vec![]), "nothing more");

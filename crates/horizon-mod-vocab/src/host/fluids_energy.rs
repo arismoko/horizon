@@ -78,4 +78,68 @@ pub trait FluidsEnergyBackendMut {
         max: u32,
         tx: &Transaction,
     ) -> Option<FluidStack>;
+    /// Side: server.
+    /// `BucketPickup.pickupBlock` for a mod's fluid container (NeoForge's
+    /// `FluidUtil.tryPickupFluid`): takes the fluid source at `pos` in the level in place, a
+    /// waterlogged block's water or a bubble column's, as an empty bucket would, `player`
+    /// picking it up when given (only a creative player drains a barrier). What came out, a
+    /// bucket of it. None, with nothing done, where the block gives no fluid (a flowing fluid,
+    /// powder snow, any other block), in another level, a chunk that isn't loaded, or a
+    /// transaction that isn't open.
+    ///
+    /// Kept by transaction `tx`: the block is decided and written at the call, so later reads
+    /// in the transaction see it drained and a second pickup there gets nothing; its updates, a
+    /// drained block's drops when it no longer survives, and the bucket's fill sound and
+    /// `minecraft:fluid_pickup` (from `player`) follow at the outermost commit. An abort leaves
+    /// the world as it was, with no drop, sound or event, where NeoForge's may have changed it.
+    #[access(WorldOnly)]
+    fn level_pickup_fluid(
+        &mut self,
+        level: LevelRef,
+        pos: [i32; 3],
+        player: Option<PlayerRef>,
+        tx: &Transaction,
+    ) -> Option<FluidStack>;
+    /// Side: server.
+    /// `BucketItem.emptyContents` of a bucket of `fluid` for a mod's fluid container (NeoForge's
+    /// `FluidUtil.tryPlaceFluid`), with no hit result: at `pos` in the level in place, its source
+    /// into air or a block it replaces (broken with its drops), water into a waterloggable
+    /// block (a lit campfire or candle put out), or hissing away where water evaporates (the
+    /// Nether). `validate` refuses a waterloggable block that won't take it (one waterlogged
+    /// already), which a bucket empties into all the same (NeoForge's `validatePlaced`). True
+    /// when it was placed or hissed away; false, with nothing done, for a fluid with no world
+    /// form, where it can't be placed, in another level, a chunk that isn't loaded, or a
+    /// transaction that isn't open.
+    ///
+    /// Kept by transaction `tx` as [`level_pickup_fluid`](Self::level_pickup_fluid) is: the
+    /// block written at the call, its updates, the fluid tick, a replaced block's drops, a doused
+    /// block's sound and the bucket's empty sound and `minecraft:fluid_place` (from `player`) at
+    /// the outermost commit, nothing of it after an abort.
+    #[access(WorldOnly)]
+    fn level_place_fluid(
+        &mut self,
+        level: LevelRef,
+        pos: [i32; 3],
+        fluid: FluidKey,
+        player: Option<PlayerRef>,
+        validate: bool,
+        tx: &Transaction,
+    ) -> bool;
+    /// Side: server.
+    /// The bucket's sound and game event for `fluid` at the centre of `pos` in the level in
+    /// place, as `FluidUtil.triggerSoundAndGameEvent` plays them (`pickup`: the fill sound and
+    /// `minecraft:fluid_pickup`, else the empty sound and `minecraft:fluid_place`; a tank-only
+    /// fluid has no sound), from `player` when given, at the outermost commit of transaction
+    /// `tx`: nothing if it aborts. False, with nothing queued, in another level or for a
+    /// transaction that isn't open.
+    #[access(WorldOnly)]
+    fn level_play_fluid_effects(
+        &mut self,
+        level: LevelRef,
+        pos: [i32; 3],
+        fluid: FluidKey,
+        pickup: bool,
+        player: Option<PlayerRef>,
+        tx: &Transaction,
+    ) -> bool;
 }

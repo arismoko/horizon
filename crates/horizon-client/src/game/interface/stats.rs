@@ -14,6 +14,9 @@ use std::{
 #[cfg(test)]
 #[path = "tests/phantom_spawn_tests.rs"]
 mod phantom_spawn_tests;
+#[cfg(test)]
+#[path = "tests/stat_award_tests.rs"]
+mod stat_award_tests;
 
 /// One player `PhantomSpawner.tick` visits. `identity` is the server player's uuid and
 /// name, absent for a game's own player, which no server player stands for.
@@ -233,7 +236,84 @@ pub(super) fn locate_player_json(world: &Path, dir: &str, uuid: [i32; 4], name: 
         }
     }
 }
+
+/// The value registry owned by each vanilla statistic type.
+fn stat_registry(ty: &str) -> Option<&'static str> {
+    Some(match ty {
+        "minecraft:mined" => "minecraft:block",
+        "minecraft:crafted"
+        | "minecraft:used"
+        | "minecraft:broken"
+        | "minecraft:picked_up"
+        | "minecraft:dropped" => "minecraft:item",
+        "minecraft:killed" | "minecraft:killed_by" => "minecraft:entity_type",
+        "minecraft:custom" => "minecraft:custom_stat",
+        _ => return None,
+    })
+}
+
 impl Game<'_> {
+    /// Resolve a hook's complete award before any statistic, scoreboard or packet is changed.
+    /// Only listener calls allocate; ordinary per-tick awards keep their borrowed identifiers.
+    pub(in crate::game) fn edited_stat_award(
+        &mut self,
+        player: u128,
+        name: &str,
+        ty: &str,
+        key: &str,
+        n: i32,
+    ) -> Option<(String, String, i32)> {
+        let mut new_ty = ty.to_owned();
+        let mut new_key = key.to_owned();
+        let mut amount = n;
+        let mut cancel = false;
+        self.native_player_stat_award(
+            player,
+            name,
+            &mut new_ty,
+            &mut new_key,
+            &mut amount,
+            &mut cancel,
+        );
+        if cancel {
+            return None;
+        }
+        let valid = amount >= 0
+            && stat_registry(&new_ty).is_some_and(|registry| {
+                let known = |registry: &str, id: &str| {
+                    if let Some(host) = self.lan.as_ref() {
+                        use horizon_core::identifier::Identifier;
+                        // Parsing aliases here would let counters, criteria and packets
+                        // disagree about the spelling of the same statistic.
+                        let (Some(registry), Some(id)) = (
+                            Identifier::parse_namespaced(registry),
+                            Identifier::parse_namespaced(id),
+                        ) else {
+                            return false;
+                        };
+                        return host.hub.synced_id(&registry, &id).is_some();
+                    }
+                    self.ui
+                        .registries
+                        .ids(registry)
+                        .iter()
+                        .any(|entry| entry == id)
+                };
+                known("minecraft:stat_type", &new_ty) && known(registry, &new_key)
+            });
+        if valid {
+            Some((new_ty, new_key, amount))
+        } else {
+            static WARNED: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                log::warn!(
+                    "player_stat_award refused invalid rewrite ({new_ty}/{new_key}, {amount}); retaining original award"
+                );
+            }
+            Some((ty.to_owned(), key.to_owned(), n))
+        }
+    }
     fn stats_path(&self) -> Option<PathBuf> {
         Some(locate_player_json(
             &self.world_root,
@@ -274,13 +354,14 @@ impl Game<'_> {
             self.lan_acting_uuid.zip(self.lan_acting_name.clone())
         };
         if let Some((player, name)) = acting {
-            let mut cancel = false;
-            namespaced(ty, |stat_type| {
-                self.native_player_stat_award(player, &name, stat_type, key, n, &mut cancel)
+            let award = namespaced(ty, |stat_type| {
+                self.edited_stat_award(player, &name, stat_type, key, n)
             });
-            if cancel {
-                return;
+            if let Some((ty, key, amount)) = award {
+                self.stats
+                    .add(ty.strip_prefix("minecraft:").unwrap_or(&ty), &key, amount);
             }
+            return;
         }
         self.stats.add(ty, key, n);
     }

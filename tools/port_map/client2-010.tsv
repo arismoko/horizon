@@ -131,7 +131,7 @@ ItemDisplayWidget.updateWidgetNarration	inline	crates/horizon-client/src/game/in
 LoadingDotsWidget.extractWidgetRenderState	port	crates/horizon-client/src/multiplayer.rs::Screen::draw	the scanning label and the animated dots under it on the LAN row
 LockIconButton.createNarrationMessage	inline	crates/horizon-client/src/game/network/lan_screen.rs::WorldOptions::narration	gui.narrate.button(narrator.button.difficulty_lock) joined for narration with narrator.button.difficulty_lock.locked or .unlocked (Button::Lock)
 LockIconButton.extractContents	port	crates/horizon-client/src/game/network/lan_screen.rs::Game::draw_options_view	lock or unlock sprite by state
-LogoRenderer.extractRenderState	port	crates/horizon-client/src/title.rs::Title::draw	logo top 44 rows and edition banner; gap: minor: no easter-egg logo variant
+LogoRenderer.extractRenderState	port	crates/horizon-client/src/title/draw.rs::Title::draw	logo top 44 rows and edition banner; gap: minor: no easter-egg logo variant
 MultiLineEditBox.updateWidgetNarration	inline	crates/horizon-client/src/screen_narrator.rs::narrate	narrate's edit-box arm: gui.narrate.editBox(message, value), the two things MultiLineEditBox adds; books and dialogs record their multi-line boxes as Narratable::edit_box
 MultiLineEditBox.onClick	port	crates/horizon-client-render/src/screen_draw.rs::TextField::click	click places the cursor; gap: minor: no double-click word select
 MultiLineEditBox.onDrag	port	crates/horizon-client-render/src/multiline_edit.rs::MultiLineEdit::drag	the selection follows the pointer, or the held scroll bar does

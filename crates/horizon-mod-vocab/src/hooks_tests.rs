@@ -856,3 +856,10 @@ fn spawn_policy_writes_take_a_server_host(
         SpawnReason::Command,
     );
 }
+
+/// Compile-only: a passage is registered and removed through its level on a server host.
+#[allow(dead_code)]
+fn passages_take_a_server_host(server: &mut dyn ServerHost, level: LevelRef, passage: Passage) {
+    let id: Result<PassageId, PassageRegistrationError> = level.register_passage(server, passage);
+    let _: bool = level.remove_passage(server, id.unwrap());
+}

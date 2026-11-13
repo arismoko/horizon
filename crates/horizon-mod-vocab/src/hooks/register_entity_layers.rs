@@ -58,17 +58,17 @@ A layer attaches only to a living renderer, a mod's own included: `add` refuses 
 type, a type whose renderer isn't a living one (a boat, a display, a projectile), `minecraft:player`,
 whose layers go to a player model, and a living type that draws through a route of its own which doesn't
 run layers yet (the armour stand, the ender dragon); the `Err` names the target, and the game logs it. An
-entity a mod draws itself (`mob_submit` or `player_submit` setting `drawn`) draws none of its layers, as
-NeoForge's cancelled `RenderLivingEvent.Pre` skips them. Several mods may add to one target: their layers
+entity whose `render_living_pre` or `render_player_pre` a mod canceled draws none of its layers, as
+NeoForge's canceled `RenderLivingEvent.Pre` skips them. Several mods may add to one target: their layers
 draw in the order they were added, after the entity's model and its vanilla layers, each from the entity's
-frame (at its feet, turned with its body, as `mob_submit` draws). `entity.yaw` is the body's turn and
-`entity.pitch` the head's; `parts` has a humanoid model's posed parts, to attach to an arm or the head;
-they are kept from the model's draw only for a type or player model with a layer (or while a `mob_layer`
-listener exists). A layer that returns an `Err`, panics, or (in a wasm mod) has its call refused or
-trapped is logged once with the error and asked no more until the next resource load adds it again; what
-it drew that frame is dropped. The layers draw on the mobs (vanilla's and the content mods' living types)
-and the players; the armour stand and the ender dragon take them once their own draws run layers, in a
-follow-up of #860, which lifts their refusal."#]
+frame (at its feet, turned with its body, as `render_living_pre` draws). `entity.yaw` is the body's turn
+and `entity.pitch` the head's; `parts` has a humanoid model's posed parts, to attach to an arm or the
+head; they are kept from the model's draw only for a type or player model with a layer (or while a mod
+listens to the render hook pair). A layer that returns an `Err`, panics, or (in a wasm mod) has its call
+refused or trapped is logged once with the error and asked no more until the next resource load adds it
+again; what it drew that frame is dropped. The layers draw on the mobs (vanilla's and the content mods'
+living types) and the players; the armour stand and the ender dragon take them once their own draws run
+layers, in a follow-up of #860, which lifts their refusal."#]
     #[hook(
         side = "client",
         contract = "listen",

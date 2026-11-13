@@ -12,7 +12,6 @@ use super::{
     lan_crafting::MenuRemoval,
     level_sounds::LevelSound,
     respawn_anchor::RespawnConfig,
-    transactions::decision::MenuOwner,
 };
 use horizon_client::{
     containers::BlockEntity,

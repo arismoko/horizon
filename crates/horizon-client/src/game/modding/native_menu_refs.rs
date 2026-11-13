@@ -159,11 +159,11 @@ impl Game<'_> {
             (open.window == menu.fields().window && open.hidden.is_empty()).then_some(guest)
         } else {
             let play = host.play.get(&guest.conn);
+            let menus = host.menus.get(&guest.conn);
             if menu.fields().window != 0
                 || play.is_some_and(|p| {
                     p.merchant.is_some()
-                        || p.crafting.table.is_some()
-                        || p.station.is_some()
+                        || menus.is_some_and(|m| m.crafting.table.is_some() || m.station.is_some())
                         || p.lectern.is_some()
                         || p.mount_window.is_some()
                 })
@@ -864,7 +864,7 @@ mod tests {
             assert_eq!(newer.slot_count(game), None);
             let inventory = game.player_container_menu(player).unwrap();
             let host = game.lan.as_mut().unwrap();
-            *host.play.entry(1).or_default().crafting.table = Some((
+            *host.menus.entry(1).or_default().crafting.table = Some((
                 7,
                 0,
                 Box::new(horizon_client::menu::Menu::new(
@@ -876,6 +876,7 @@ mod tests {
             assert_eq!(inventory.slot_count(game), None);
             let host = game.lan.as_mut().unwrap();
             host.play.clear();
+            host.menus.clear();
             host.hub.guests.replace(0, guest());
             assert_eq!(inventory.slot_count(game), None);
 

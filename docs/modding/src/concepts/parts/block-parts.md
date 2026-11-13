@@ -50,3 +50,26 @@ Read the committed items through the typed level:
 ```rust,ignore
 {{#include ../../../../../crates/horizon-client/src/game/blocks/machines/contents_changed_tests.rs:contents_changed_listener}}
 ```
+
+## Crop fertility and farmland hydration
+
+Two `BlockPart` methods let a block change what vanilla's crops and farmland ask of the blocks around them.
+Both run on an authoritative server with a read-only `LevelHost`, and a block with no part answers as vanilla does.
+
+`BlockPart::is_fertile` is asked for the soil of a growing crop. On its random tick a crop, stem or pitcher
+crop asks each of the 3 × 3 blocks under it, but only a block in `#minecraft:grows_crops`: a block outside the tag is
+never asked. `fertile` starts as vanilla's answer, `moisture > 0`, and the contract is `collect`: set it to decide. A
+fertile block adds 3 to the growth speed and any other tagged block 1 (a quarter of either off-centre).
+
+`BlockPart::can_be_hydrated` belongs to a farmland block. On the farmland's random tick the game scans the 9 × 2 × 9 box
+from its position (x and z from −4 to 4, y 0 and 1) in x, then y, then z order, and asks only at a position whose fluid
+is not empty, passing the fluid (`FluidState`) and its position. The contract is `replace`:
+
+| Answer | Meaning |
+|---|---|
+| `Some(true)` | This position waters the farmland; the first one ends the scan and moisture goes to 7. |
+| `Some(false)` | This position does not water it, whatever the fluid. |
+| `None` | Vanilla's rule for this position: a fluid in `#minecraft:water`. |
+
+Rain on the block above, the watered-area ticket, moisture changes and drying out are unchanged. With no part on the
+farmland the scan is vanilla's.

@@ -128,7 +128,7 @@ impl Game<'_> {
         // (`lan_machine_click`), not in `menu.drag`: a shift-click during it
         // goes there too, to only end the drag.
         if host
-            .play
+            .menus
             .get(&conn)
             .and_then(|play| play.crafting.machine.as_ref())
             .is_some_and(|(w, m)| *w == window && m.quick_crafting())
@@ -153,7 +153,7 @@ impl Game<'_> {
         let Some(host) = self.lan.as_mut() else {
             return false;
         };
-        if let Some(play) = host.play.get_mut(&conn)
+        if let Some(play) = host.menus.get_mut(&conn)
             && play
                 .crafting
                 .machine

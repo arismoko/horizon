@@ -707,7 +707,7 @@ pub trait PlayersBackendMut {
     fn player_remove_fake(&mut self, player: PlayerRef) -> bool;
     /// Side: server.
     /// `Player.awardStat(stat, amount)`: adds `amount`, as the game does
-    /// for its own counts, so `player_stat_award` hears it and may cancel
+    /// for its own counts, so `player_stat_award` hears it and may rewrite or cancel
     /// it, and scoreboard criteria follow. False for a player it can't
     /// reach.
     #[access(WorldOnly)]

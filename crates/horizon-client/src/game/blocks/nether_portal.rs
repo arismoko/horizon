@@ -13,6 +13,7 @@ use super::entity::{Entity as _, entity_lists_of, for_each_entity};
 use super::{Dim, Game, Screen};
 use horizon_client::fast_hash::FxHashMap;
 use horizon_client::nether_portal::{ENTITY_DELAY, PortalState};
+use horizon_client::world::PendingEntity;
 use horizon_core::{
     geometry::{Aabb, Axis, Vec3},
     position::BlockPos,
@@ -84,6 +85,8 @@ enum TransferredArrivalState {
 
 #[derive(Debug)]
 struct Arrival {
+    /// Teleport-only state; deliberately absent from arrival_tag.
+    tnt_used_portal: bool,
     plan: Plan,
     tag: Tag,
     transferred: Option<TransferredArrivalState>,
@@ -295,6 +298,7 @@ fn arrival_from_tag(a: &Tag) -> Option<Arrival> {
         return None;
     };
     Some(Arrival {
+        tnt_used_portal: false,
         transferred: None,
         plan: Plan {
             dim,
@@ -588,6 +592,7 @@ impl Game<'_> {
             self.tickets.add_portal(chunk);
         }
     }
+
     /// `NetherPortalBlock.createDimensionTransition`: the arrival position
     /// and the yaw turned by.
     pub(super) fn arrival(&self, plan: &Plan, exit: FoundRectangle) -> (Vec3, f32) {
@@ -1341,10 +1346,12 @@ impl Game<'_> {
             if !self.may_travel_through(id, &plan) {
                 return;
             }
+            let tnt_used_portal = self.tnts.iter().any(|t| t.id == id);
             let Some((tag, state)) = self.take_lone_traveller(id) else {
                 return;
             };
             self.portals.arrivals.push(Arrival {
+                tnt_used_portal,
                 plan,
                 tag,
                 transferred: Some(TransferredArrivalState::Entity(state)),
@@ -1368,6 +1375,7 @@ impl Game<'_> {
             };
             self.remove_portal_vehicle_tree(id);
             self.portals.arrivals.push(Arrival {
+                tnt_used_portal: false,
                 plan,
                 tag,
                 transferred: Some(TransferredArrivalState::VehicleTree(state)),
@@ -1389,6 +1397,7 @@ impl Game<'_> {
             };
             self.remove_portal_vehicle_tree(id);
             self.portals.arrivals.push(Arrival {
+                tnt_used_portal: false,
                 plan,
                 tag,
                 transferred: Some(TransferredArrivalState::VehicleTree(state)),
@@ -1420,6 +1429,7 @@ impl Game<'_> {
             };
             self.remove_portal_vehicle_tree(id);
             self.portals.arrivals.push(Arrival {
+                tnt_used_portal: false,
                 plan,
                 tag,
                 transferred: Some(TransferredArrivalState::VehicleTree(state)),
@@ -1485,6 +1495,7 @@ impl Game<'_> {
                 plan,
                 mut tag,
                 transferred,
+                tnt_used_portal,
             } = self.portals.arrivals.remove(i);
             self.portals.dirty = true;
             let motion = horizon_client::entity_nbt::motion(&tag);
@@ -1518,16 +1529,22 @@ impl Game<'_> {
                 continue;
             }
             super::persist::mark_fresh(&mut tag);
+            let immediate = matches!(
+                horizon_client::entity_nbt::kind(&tag).as_deref(),
+                Some("minecraft:item" | "minecraft:tnt")
+            );
+            let tag = if tnt_used_portal {
+                PendingEntity::after_tnt_portal(tag)
+            } else {
+                tag.into()
+            };
             let key = ((at.x.floor() as i32) >> 4, (at.z.floor() as i32) >> 4);
             if let Some(TransferredArrivalState::Entity(state)) = transferred {
                 self.spawn_teleported_entity(key, tag, Some(state));
                 self.native_entities_load(self.dim.id(), [key.0, key.1], 1);
                 continue;
             }
-            if matches!(
-                horizon_client::entity_nbt::kind(&tag).as_deref(),
-                Some("minecraft:item" | "minecraft:tnt")
-            ) {
+            if immediate {
                 self.spawn_teleported_entity(key, tag, None);
                 self.native_entities_load(self.dim.id(), [key.0, key.1], 1);
                 continue;
@@ -1549,15 +1566,18 @@ impl Game<'_> {
     pub(super) fn spawn_teleported_entity(
         &mut self,
         key: (i32, i32),
-        tag: Tag,
+        pending: PendingEntity,
         transferred: Option<super::entity_initialization::TransferredEntityState>,
     ) {
+        // The portal's runtime reason must reach admission before join callbacks;
+        // saved NBT alone cannot request TNT's transient blast immunity.
+        let (tag, reason) = pending.into_parts();
         let uuid = horizon_client::entity_nbt::uuid(&tag);
         let is_item = matches!(tag.get("id"), Some(Tag::String(kind))
             if kind.0.iter().copied().eq("minecraft:item".encode_utf16()));
         let is_tnt = matches!(tag.get("id"), Some(Tag::String(kind))
             if kind.0.iter().copied().eq("minecraft:tnt".encode_utf16()));
-        self.spawn_loaded_entity(key, tag, transferred);
+        self.spawn_loaded_entity_reason(key, tag, transferred, reason);
         if !is_item && !is_tnt {
             return;
         }
@@ -1688,6 +1708,7 @@ impl Game<'_> {
             None
         };
         self.portals.arrivals.push(Arrival {
+            tnt_used_portal: false,
             plan,
             tag,
             transferred,
@@ -2238,6 +2259,21 @@ mod tests {
     }
 
     #[test]
+    fn portal_transfer_pending_arrival_does_not_save_transient_tnt_immunity() {
+        let arrival = Arrival {
+            plan: Plan::end_portal(Dim::End, BlockPos::new(0, 64, 0), 0.98, 0.98),
+            tag: Tag::compound([("id", Tag::String("minecraft:tnt".into()))]),
+            tnt_used_portal: true,
+            transferred: None,
+        };
+        assert!(
+            !arrival_from_tag(&arrival_tag(&arrival))
+                .unwrap()
+                .tnt_used_portal
+        );
+    }
+
+    #[test]
     fn end_portals_lead_to_the_end_spawn_and_back_to_the_world_spawn() {
         let spawn = BlockPos::new(-7, 70, 12);
         for from in [Dim::Overworld, Dim::Nether] {
@@ -2317,6 +2353,7 @@ mod tests {
                 transferred: None,
                 plan: Plan::end_portal(Dim::Overworld, BlockPos::new(0, 64, 0), 1.375, 0.5625),
                 tag,
+                tnt_used_portal: false,
             };
             let restored = arrival_from_tag(&arrival_tag(&arrival)).unwrap();
             let expected = old.filter(|n| *n > 0).unwrap_or(ENTITY_DELAY);
@@ -2332,6 +2369,7 @@ mod tests {
         let tag = Tag::compound([("id", Tag::String("minecraft:cow".into()))]);
         for (from, dim) in [(Dim::Overworld, Dim::End), (Dim::End, Dim::Overworld)] {
             let arrival = Arrival {
+                tnt_used_portal: false,
                 transferred: None,
                 plan: Plan::end_portal(from, BlockPos::new(3, 64, -5), 0.9, 1.4),
                 tag: tag.clone(),
@@ -2344,6 +2382,7 @@ mod tests {
         }
         // Arrivals saved before End portals were Nether portal plans.
         let mut old = arrival_tag(&Arrival {
+            tnt_used_portal: false,
             transferred: None,
             plan: Plan::end_portal(Dim::End, BlockPos::new(0, 64, 0), 0.25, 0.25),
             tag,

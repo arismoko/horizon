@@ -25,6 +25,7 @@ pub mod conn;
 pub mod containers;
 pub mod data;
 pub mod discovery;
+mod effect_meta;
 pub mod entity;
 pub mod equipment_cache;
 pub mod far;
@@ -45,6 +46,7 @@ mod registry_names;
 pub mod scoreboard;
 mod sound_order;
 pub mod tracking;
+pub mod viewed_levels;
 pub mod waypoints;
 
 pub use conn::{Holding, PlayerSender, flush_all};

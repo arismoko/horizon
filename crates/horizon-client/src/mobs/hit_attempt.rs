@@ -2,6 +2,17 @@
 use super::*;
 
 impl Mob {
+    pub(super) fn remember_accepted_hit(
+        &mut self,
+        level: &DamageLevel<'_>,
+        source: &Damage,
+        accepted: bool,
+    ) {
+        if accepted {
+            self.death_canceled = false;
+            self.accepted_hit = level.accepted_hit(crate::health::Hurting::Mob(self, source));
+        }
+    }
     /// WitherBoss refuses its friends after asking isInvulnerableTo, not at the caller.
     pub(super) fn attacker_allows_damage(&self, source: &Damage) -> bool {
         !source

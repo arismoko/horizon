@@ -716,7 +716,6 @@ impl Game<'_> {
                 }
             }
             S::ContainerClick(p) => {
-                let rules = ItemRules(world_items!(self), &world_stations!(self).enchantments);
                 let Some(host) = self.lan.as_mut() else {
                     return;
                 };
@@ -726,7 +725,7 @@ impl Game<'_> {
                     .filter(|m| m.window == p.container)
                     .map(|m| m.slots);
                 let before = slots.and_then(|s| s.read(&self.world, &host.hub.guests[gi]));
-                let drops = host.hub.container_click(conn, &p, &mut self.world, &rules);
+                let drops = self.lan_hub_click(conn, &p);
                 // A click that changed the container's slots: BlockEntity.setChanged,
                 // so comparators read it again (a double chest's other half follows).
                 let Some(host) = self.lan.as_ref() else {

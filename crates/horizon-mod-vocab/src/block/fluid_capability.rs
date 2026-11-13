@@ -155,7 +155,14 @@ impl FluidIngredient {
             keys.borrow_mut().insert(canonical.clone(), key);
             Some(canonical)
         });
-        let source = source.ok_or_else(|| {
+        fn nonempty_tree(source: &WalkedIngredient) -> bool {
+            !source.order.is_empty()
+                && source
+                    .children
+                    .as_ref()
+                    .is_none_or(|(_, children)| children.iter().all(nonempty_tree))
+        }
+        let source = source.filter(nonempty_tree).ok_or_else(|| {
             unknown.into_inner().map_or(
                 FluidIngredientError::Invalid,
                 FluidIngredientError::UnknownFluid,
@@ -219,7 +226,7 @@ impl SizedFluidIngredient {
 
 /// Fluid tanks, as NeoForge 26.3's `Capabilities.Fluid.BLOCK`: a block's tanks as one side
 /// reaches them, numbered from 0 for that side, as [`ITEMS`](crate::ITEMS)' slots. The game
-/// answers it for a mod block's tanks (`block_entity_fluids`) and for a cauldron: one tank
+/// answers it for a mod block's tanks (`Registrar::block_fluids`) and for a cauldron: one tank
 /// holding the content its block has, vanilla's water (a bucket in thirds) and lava (a bucket
 /// only whole) or a content a mod registered through `register_cauldron_fluid_content`, filled
 /// and drained by whole levels; an empty cauldron takes any fluid that has a content. A
@@ -324,6 +331,11 @@ static BUCKET_IDS: std::sync::LazyLock<[crate::Identifier; 3]> = std::sync::Lazy
     ]
     .map(|id| crate::Identifier::parse_namespaced(id).expect("vanilla identifier"))
 });
+
+/// Type-only coverage uses the very identifiers resolved by the default bucket provider.
+pub(crate) fn builtin_bucket(item: &str) -> bool {
+    crate::Identifier::parse_namespaced(item).is_some_and(|item| BUCKET_IDS.contains(&item))
+}
 
 /// A bucket holds this much, all or nothing.
 const BUCKET: u32 = 1000;

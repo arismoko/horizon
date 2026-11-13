@@ -132,6 +132,7 @@ const MOUNT_MENU: &str = "horizon:mount_inventory";
 pub(super) fn open_menu_of(host: &LanHost, conn: u32) -> Option<(i32, &str, Option<[i32; 3]>)> {
     let g = host.hub.guest(conn)?;
     let play = host.play.get(&conn);
+    let menus = host.menus.get(&conn);
     if let Some(m) = &g.menu {
         let menu = host.hub.registry_name("minecraft:menu", m.kind)?;
         // A vehicle's menu is keyed by a stand-in, not a block.
@@ -144,9 +145,9 @@ pub(super) fn open_menu_of(host: &LanHost, conn: u32) -> Option<(i32, &str, Opti
     let play = play?;
     let (window, menu, pos) = if let Some(gm) = &play.merchant {
         (gm.window, "minecraft:merchant", None)
-    } else if let Some((window, _, _, pos)) = play.crafting.table.as_ref() {
+    } else if let Some((window, _, _, pos)) = menus.and_then(|m| m.crafting.table.as_ref()) {
         (*window, "minecraft:crafting", Some(*pos))
-    } else if let Some(st) = play.station.as_ref() {
+    } else if let Some(st) = menus.and_then(|m| m.station.as_ref()) {
         (
             st.window,
             super::lan_stations::menu_of(st.kind)?.0,

@@ -185,6 +185,10 @@ pub struct WorldView {
     pub fov_degrees: f32,
     /// The target's width and height, in pixels (1 to [`MAX_WORLD_VIEW_SIDE`]).
     pub size: [u32; 2],
+    /// The plane behind which nothing is drawn ([`WorldView::with_clip_plane`]).
+    pub clip_plane: Option<[f64; 4]>,
+    /// The picture is mirrored left to right ([`WorldView::with_mirror`]).
+    pub mirror: bool,
 }
 
 impl WorldView {
@@ -204,11 +208,38 @@ impl WorldView {
             roll: 0.0,
             fov_degrees,
             size,
+            clip_plane: None,
+            mirror: false,
         }
     }
 
     pub fn with_roll(self, roll: f32) -> Self {
         Self { roll, ..self }
+    }
+
+    /// Draws only what lies in front of a world-space plane `[x, y, z, d]`: the points `p` with
+    /// `x * p.x + y * p.y + z * p.z + d >= 0`. Terrain, entities and block entities behind it are
+    /// left out, as a wall behind a portal's far side is. The camera must be behind the plane
+    /// (where `x * camera.x + y * camera.y + z * camera.z + d < 0`): the plane becomes the
+    /// view's near plane, which every backend draws. A view whose camera is not behind it, or
+    /// whose plane has a normal `[x, y, z]` of zero, a value that is not finite, or a scaled form
+    /// or distance from the camera that is not (as f32 too), is out of range and left out.
+    pub fn with_clip_plane(self, plane: [f64; 4]) -> Self {
+        Self {
+            clip_plane: Some(plane),
+            ..self
+        }
+    }
+
+    /// The camera's picture mirrored left to right, as a mirror shows it: give the camera
+    /// reflected through the mirror. A mirrored picture turns every triangle's winding round,
+    /// so the view draws with face culling flipped to make up for it: the faces culled are the
+    /// ones an unmirrored view culls, and back faces stay hidden.
+    pub fn with_mirror(self) -> Self {
+        Self {
+            mirror: true,
+            ..self
+        }
     }
 }
 
@@ -232,16 +263,18 @@ pub struct WorldViewDrawn<'a> {
     pub size: [u32; 2],
     /// Its depth (Depth32Float, reversed: 0 is the sky), sampleable.
     pub depth: &'a wgpu::TextureView,
-    /// World relative to [`WorldViewDrawn::camera`] to clip space.
+    /// World relative to [`WorldViewDrawn::camera`] to clip space, as the picture and `depth`
+    /// were drawn: its near plane is the view's clip plane when it has one, and its x is
+    /// flipped when the view is mirrored.
     pub view_proj: Mat4,
     /// The view's camera.
     pub camera: DVec3,
 }
 
-/// Asked as each frame is built and drawn (not on the title screen's panorama), more than once:
-/// push the world views your mod wants drawn this frame, the same each time. The first
-/// [`MAX_WORLD_VIEWS`] valid ones draw; one with a value out of range, or an `id` already asked
-/// for, is left out. Keep it cheap.
+/// Asked once as each frame is built (not on the title screen's panorama): push the world views
+/// your mod wants drawn this frame. The first
+/// [`MAX_WORLD_VIEWS`] valid ones draw; one with a value out of range (its clip plane's too,
+/// [`WorldView::with_clip_plane`]), or an `id` already asked for, is left out. Keep it cheap.
 #[inline(never)]
 #[horizon_mod_api_macros::replaceable]
 pub fn world_views(views: &mut Vec<WorldView>) {
@@ -326,8 +359,18 @@ pub fn install() {
             *views = requested
                 .into_iter()
                 .map(|v| {
-                    engine::WorldView::new(v.id, v.camera, v.yaw, v.pitch, v.fov_degrees, v.size)
-                        .with_roll(v.roll)
+                    let mut view = engine::WorldView::new(
+                        v.id,
+                        v.camera,
+                        v.yaw,
+                        v.pitch,
+                        v.fov_degrees,
+                        v.size,
+                    )
+                    .with_roll(v.roll);
+                    view.clip_plane = v.clip_plane;
+                    view.mirror = v.mirror;
+                    view
                 })
                 .collect();
         },

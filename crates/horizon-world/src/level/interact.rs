@@ -537,13 +537,22 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     /// `ComposterBlock.extractProduce`: the bone meal pops out, the composter
     /// empties and its sound plays.
     fn composter_extract_produce(&mut self, pos: BlockPos, state: BlockStateId) {
-        let b = self.b;
+        let next = self.b.composter_state_after_extract(state);
+        self.composter_extract_effects(pos, state, next);
+    }
+
+    fn composter_extract_effects(
+        &mut self,
+        pos: BlockPos,
+        state: BlockStateId,
+        next: BlockStateId,
+    ) {
         self.player_effect(
             pos,
             state,
             PlayerEffect::DropItem("minecraft:bone_meal".into()),
         );
-        self.set_block_and_update(pos, b.table.set_int(state, b.props.level, 0));
+        self.set_block_and_update(pos, next);
         self.game_event(pos, "minecraft:block_change");
         self.emit(LevelEvent::Sound {
             pos,
@@ -556,20 +565,21 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     /// `ComposterBlock.addLayer` once its `compostable` provider gave
     /// `layers`: the new state (the old one when no layer is added).
     fn composter_add_layer(&mut self, pos: BlockPos, layers: i32) -> BlockStateId {
-        let b = self.b;
         let state = self.state(pos);
-        if layers <= 0 {
-            return state;
-        }
-        let level = b.table.int(state, b.props.level);
-        let next_level = (level + layers).clamp(0, 7);
-        let next = b.table.set_int(state, b.props.level, next_level);
-        self.set_block_and_update(pos, next);
-        self.game_event_state(pos, "minecraft:block_change", next);
-        if next_level == 7 {
-            self.schedule_tick(pos, b.block(state), 20);
+        let next = self.b.composter_state_after_layers(state, layers);
+        if layers > 0 {
+            self.set_block_and_update(pos, next);
+            self.composter_layer_effects(pos, state, next);
         }
         next
+    }
+
+    fn composter_layer_effects(&mut self, pos: BlockPos, state: BlockStateId, next: BlockStateId) {
+        let b = self.b;
+        self.game_event_state(pos, "minecraft:block_change", next);
+        if b.table.int(next, b.props.level) == 7 {
+            self.schedule_tick(pos, b.block(state), 20);
+        }
     }
 
     /// `DragonEggBlock.teleport`.
@@ -599,6 +609,21 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
 }
 
 impl Behaviours {
+    /// Pure state portion of `ComposterBlock.addLayer`; no write or effects.
+    pub fn composter_state_after_layers(&self, state: BlockStateId, layers: i32) -> BlockStateId {
+        if layers <= 0 {
+            return state;
+        }
+        let level = self.table.int(state, self.props.level);
+        self.table
+            .set_int(state, self.props.level, (level + layers).clamp(0, 7))
+    }
+
+    /// Pure state portion of `ComposterBlock.empty`; no write or effects.
+    pub fn composter_state_after_extract(&self, state: BlockStateId) -> BlockStateId {
+        self.table.set_int(state, self.props.level, 0)
+    }
+
     /// `ComposterBlock.addLayer` at `pos` with the layers its item's
     /// `compostable` provider gave, followed by level event 1500 (fill
     /// particles and sound; data 1 when a layer was added) as every caller
@@ -664,7 +689,7 @@ impl Behaviours {
     ) {
         let mut sim = self.sim(level, ticks);
         let state = sim.state(pos);
-        let next = self.table.set_int(state, self.props.level, 0);
+        let next = self.composter_state_after_extract(state);
         sim.set_block_and_update(pos, next);
         sim.game_event_state(pos, "minecraft:block_change", next);
     }

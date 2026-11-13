@@ -8,6 +8,8 @@
 //! encrypts the connection (ClientHandshakePacketListenerImpl.handleHello).
 use crate::auth::AuthSession;
 pub mod ingress;
+mod known_packs;
+use known_packs::{fill_known_entries, select_known_packs};
 #[cfg(test)]
 #[path = "net/mod_packet_tests.rs"]
 mod mod_packet_tests;
@@ -24,7 +26,6 @@ use horizon_protocol::{
 };
 use queued_writer::QueuedWriter;
 pub use queued_writer::{PreparedPacket, PreparedPayload};
-use std::path::Path;
 #[cfg(test)]
 use std::sync::mpsc::channel;
 use std::{
@@ -1395,6 +1396,9 @@ fn configure(
                     data: hash.to_vec(),
                 }))?;
             }
+            cfg::Clientbound::CustomPayload(p) if crate::viewed_levels_net::asked(&p) => {
+                reply(crate::viewed_levels_net::answer(&p.data).map_err(Reason::plain)?)?
+            }
             cfg::Clientbound::CustomPayload(p) if p.channel == crate::datapack_net::CHANNEL => {
                 crate::datapack_net::accept_chunk(&p.data).map_err(Reason::plain)?;
             }
@@ -1538,71 +1542,6 @@ fn configure(
                 return Ok(registries);
             }
             _ => {}
-        }
-    }
-}
-
-/// `KnownPacksManager.trySelectingPacks`: the packs of the server's list the
-/// client has too. Horizon carries vanilla's core pack (the prepared
-/// resources' `data/`), so it names that one when the server offers it, and
-/// the server leaves that pack's entries' data out (`fill_known_entries`).
-fn select_known_packs(offered: Vec<cfg::KnownPack>) -> Vec<cfg::KnownPack> {
-    let (namespace, id, version) = crate::lan::data::CORE_PACK;
-    offered
-        .into_iter()
-        .filter(|p| p.namespace == namespace && p.id == id && p.version == version)
-        .collect()
-}
-
-fn valid_resource_segment(s: &str, allow_slash: bool) -> bool {
-    !s.is_empty()
-        && !s.starts_with('/')
-        && !s.ends_with('/')
-        && !s.contains("//")
-        && s.split('/')
-            .all(|part| !part.is_empty() && part != "." && part != "..")
-        && s.bytes().all(|b| {
-            b.is_ascii_lowercase()
-                || b.is_ascii_digit()
-                || matches!(b, b'_' | b'-' | b'.')
-                || (allow_slash && b == b'/')
-        })
-}
-
-/// `RegistryDataCollector`: an entry of a pack both sides know comes without
-/// its data, which the client reads from its own copy of the pack
-/// (`data/<namespace>/<registry path>/<path>.json`, `Registries.elementsDirPath`).
-fn fill_known_entries(r: &mut cfg::RegistryData, resources: &Path) {
-    let (registry_ns, registry_path) = r
-        .registry
-        .split_once(':')
-        .unwrap_or(("minecraft", r.registry.as_str()));
-    if !valid_resource_segment(registry_ns, false) || !valid_resource_segment(registry_path, true) {
-        return;
-    }
-    let dir = if registry_ns == "minecraft" {
-        registry_path.to_owned()
-    } else {
-        format!("{registry_ns}/{registry_path}")
-    };
-    for entry in r.entries.iter_mut().filter(|e| e.data.is_none()) {
-        let (ns, path) = entry
-            .id
-            .split_once(':')
-            .unwrap_or(("minecraft", entry.id.as_str()));
-        if !valid_resource_segment(ns, false) || !valid_resource_segment(path, true) {
-            continue;
-        }
-        let file = resources
-            .join("data")
-            .join(ns)
-            .join(&dir)
-            .join(format!("{path}.json"));
-        let json = std::fs::read(&file)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
-        if let Some(json) = json {
-            entry.data = Some(crate::lan::data::json_to_nbt(&json));
         }
     }
 }
@@ -2397,6 +2336,53 @@ mod tests {
             lost(horizon_protocol::Error::new("Bad VarInt")),
             "Internal Exception: Bad VarInt"
         );
+    }
+
+    /// #3716: a client asked about viewed levels answers in configuration, before its
+    /// acknowledgement, that it views two levels besides its own.
+    #[test]
+    fn configuration_answers_the_viewed_levels_query_with_its_cap() {
+        let (root, data) = empty_item_data("viewed-levels");
+        let (client, server) = horizon_protocol::connection::Pipe::pair();
+        let (mut reader, writer) = Connection::local(client).split();
+        let writer = Arc::new(Mutex::new(Some(QueuedWriter::new(writer).unwrap())));
+        let client_writer = writer.clone();
+        let thread = std::thread::spawn(move || {
+            let (send, _events) = event_channel();
+            configure(
+                &mut reader,
+                &client_writer,
+                &Arc::new(AtomicBool::new(true)),
+                &Language::new(),
+                &send,
+                &Cookies::default(),
+                &data,
+                &crate::raw_payloads::Transport::empty(),
+            )
+        });
+        let mut server = Connection::local(server);
+        for packet in [
+            cfg::Clientbound::CustomPayload(cfg::CustomPayload {
+                channel: "horizon:levels".into(),
+                data: vec![0, 1],
+            }),
+            cfg::Clientbound::FinishConfiguration(Empty),
+        ] {
+            server.send(&packet.encode()).unwrap();
+        }
+        for expected in [
+            cfg::Serverbound::CustomPayload(cfg::CustomPayload {
+                channel: "horizon:levels".into(),
+                data: vec![1, 1, 2],
+            }),
+            cfg::Serverbound::FinishConfiguration(Empty),
+        ] {
+            let (id, body) = server.recv().unwrap();
+            assert_eq!(cfg::Serverbound::decode(id, &body).unwrap(), expected);
+        }
+        assert!(thread.join().unwrap().is_ok());
+        drop(writer);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

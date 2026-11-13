@@ -109,6 +109,8 @@ impl DimensionsRegistrar for PartRegistrar {
         }
         self.chunk_generators.push(ChunkGeneratorInfo {
             id: id.into(),
+            // ChunkGenerator.vanilla_stages, asked once.
+            stages: generator.vanilla_stages(),
             generator,
         });
     }

@@ -242,6 +242,17 @@ impl Game<'_> {
         dimension: DimensionKey,
         target: Target,
     ) -> bool {
+        let player = match target {
+            Target::Guest(conn) => Some(conn),
+            Target::Player => self.lan_acting,
+            _ => None,
+        };
+        if player
+            .and_then(|conn| self.command_guest(conn))
+            .is_some_and(|guest| !guest.body_present())
+        {
+            return false;
+        }
         if dimension == self.dim.key() {
             return !self.persist.removals.contains(&target)
                 && !self.persist.destroying_vehicles.contains(&target);
@@ -1221,6 +1232,10 @@ impl Game<'_> {
                 }
             }
         }
+        // The levels only `Loaded` areas name: streamed and sent, never ticked.
+        if result.is_ok() {
+            result = self.run_view_passes(&order);
+        }
         if let Some(&first) = order.first()
             && self.dim != first
         {
@@ -1370,6 +1385,8 @@ impl Game<'_> {
                     // A portal ticket keeps its dimension active
                     // (`TicketType.shouldKeepDimensionActive`).
                     || !self.portal_tickets_in(*d).is_empty()
+                    // So does a viewed `Ticking` area (#3716), for its chunks only.
+                    || self.viewed_level(*d) == Some(true)
             })
             .collect();
         if dims.is_empty() {
@@ -1407,7 +1424,9 @@ impl Game<'_> {
     /// Count the parked levels' empty ticks, and save and close the ones
     /// (other than the Overworld) nobody has been in for a while.
     pub(super) fn close_idle_levels(&mut self) -> Result<()> {
-        let occupied = self.levels_to_tick();
+        let mut occupied = self.levels_to_tick();
+        // A level a viewed area names, ticked or not, or one a client still holds chunks of.
+        occupied.extend(Dim::all().into_iter().filter(|d| self.needs_view_pass(*d)));
         // A vehicle waiting there for its rider's arrival in another level.
         let waiting: Vec<Dim> = self
             .levels
@@ -1490,6 +1509,7 @@ impl Game<'_> {
             world.water_tickets.clear();
         }
         self.attachment_indexes.remove(&dim);
+        self.passages.retire_level(dim.key());
     }
 
     /// Every level still open closes with the server, however it ends

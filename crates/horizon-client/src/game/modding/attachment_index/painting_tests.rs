@@ -147,7 +147,9 @@ fn saved_painting_membership_follows_transactions_and_chunk_unload() {
         let saved = game.entity_chunks(&HashSet::from([(0, 0)]), true);
         assert!(game.paintings.is_empty());
         assert!(index.lock().unwrap().snapshot(&key).is_empty());
-        game.world.loaded_entities.extend(saved);
+        for (key, tags) in saved {
+            game.world.queue_entity_nbt(key, tags);
+        }
         game.spawn_loaded_entities();
         assert_eq!(game.paintings.len(), 1);
         assert_eq!(index.lock().unwrap().snapshot(&key).len(), 1);

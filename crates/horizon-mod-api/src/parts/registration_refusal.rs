@@ -41,6 +41,7 @@ impl PartRegistrar {
         checkpoint!(
             game_rule_categories,
             game_rules,
+            custom_stats,
             block_entity_types,
             entity_attributes,
             general_entity_types,

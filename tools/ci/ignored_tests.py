@@ -2,6 +2,7 @@
 """Run every library test, ignored or not, with the prepared vanilla data, against a list of known failures.
 
 Usage: ignored_tests.py SHARD...  (HORIZON_TEST_RESOURCES points at the prepared 26.3 data)
+       ignored_tests.py --needs VARIABLE (--one-process-each | --list) [--jobs N]
 
 A SHARD is a package, or one leg of it written `PACKAGE#NofM` (tools/ci/ignored_shards.py splits the biggest
 package so one process does not hold every test's memory). A leg runs the tests whose name hashes to its
@@ -12,34 +13,47 @@ retained fixture memory between processes without adding a matrix job.
 Each package's library tests run with `--include-ignored`: the #[ignore]d ones that need the data, and the
 ones that return early without it, which `verify` (no data) passes without checking anything. The packages
 in INTEGRATION_TESTS also run their `tests/` integration tests. The job fails when a test fails that
-tools/ci/ignored-tests-known-failures.txt doesn't list, when a listed test passes (take it off the
-list: the list only shrinks), and when a listed test no longer exists. A test marked `flaky` there
+no file in tools/ci/ignored-tests/ lists, when a listed test passes (take it off its file: the lists only
+shrink), and when a listed test no longer exists. A test marked `flaky` there
 may pass or fail; one marked `harness` is a parity harness's step, run by its harness with the
 environment it sets, and is skipped here; one marked `needs` reads an input only its parity harness provides
 (REFERENCE names the environment variable): without that variable it is refused by name at the start of the
 shard, and with it, it runs and must pass; one marked `gpu` needs a graphics adapter and runs only where
 the runner has a Vulkan driver (an ICD file), and must pass there.
 
+`--needs VARIABLE --one-process-each` runs the tests marked `needs VARIABLE`, each alone in its own process
+(`--list` prints those commands instead), and fails unless every run reports exactly one test passed: a
+renamed test would otherwise match nothing and pass. Every test runs, then the step fails if any did.
+Every reader refuses a malformed row, a test listed twice, a folder with no rows or with a file other than `*.txt`
+and README.md, and a file at the retired single-list path (tools/ci/check_ignored_test_rows.py checks this alone).
+
 Runtime diagnostics expose identities and allowlisted panic categories, never arbitrary assertion
 payloads: the prepared data is Mojang's. Compile/list failures expose bounded compiler headings.
 """
 
+import argparse
 import os
 import errno
 import io
 from functools import lru_cache
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 import time
 import zlib
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools import lab
 
-KNOWN = Path(__file__).with_name("ignored-tests-known-failures.txt")
+# One file per topic, read in file-name order (README.md there gives the row format).
+POLICY = Path(__file__).with_name("ignored-tests")
+POLICY_PATH = "tools/ci/ignored-tests"  # as messages name it
+# The single list these files replaced: a file there again fails every reader, naming the folder.
+RETIRED = Path(__file__).with_name("ignored-tests-known-failures.txt")
 RESULT = re.compile(r"^test (\S+)(?: - should panic)? \.\.\. (ok|FAILED)$")
 SUMMARY = re.compile(r"^test result: \S+\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured;")
 TARGET = re.compile(r"^\s+Running (?:unittests|tests/)")
@@ -147,25 +161,81 @@ def in_leg(test, number, count):
     return number is None or zlib.crc32(test.encode()) % count == number - 1
 
 
+class Row(NamedTuple):
+    package: str
+    test: str
+    reference: str
+    mark: str | None
+    file: str  # `ignored-tests/<topic>.txt`, for messages
+
+
 def listed_entries():
-    """(package, test, reference, mark) for each line of the checked-in list."""
-    for number, line in enumerate(KNOWN.read_text().splitlines(), 1):
-        line = line.split(" # ", 1)[0].split()
-        if not line or line[0].startswith("#"):
-            continue
-        if len(line) < 3 or line[3:] not in ([], ["flaky"], ["harness"], ["gpu"], ["needs"]):
-            sys.exit(f"{KNOWN.name}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu|needs]`")
-        yield line[0], line[1], line[2], line[3] if len(line) > 3 else None
+    """Every row of the policy files, in file-name order; exits on a malformed row or a test listed twice."""
+    if RETIRED.exists():
+        sys.exit(f"tools/ci/{RETIRED.name} is retired: write its rows into {POLICY_PATH}/<topic>.txt "
+                 f"(one file per policy or tracked failure; {POLICY_PATH}/README.md gives the format)")
+    if not POLICY.is_dir():
+        sys.exit(f"{POLICY_PATH}/ is missing: it holds the ignored-test policy rows")
+    if stray := sorted(path.name for path in POLICY.iterdir() if path.suffix != ".txt" and path.name != "README.md"):
+        sys.exit(f"{POLICY_PATH}/ holds only <topic>.txt files and README.md; not read: {', '.join(stray)}")
+    seen = {}
+    rows = []
+    for path in sorted(POLICY.glob("*.txt")):
+        file = f"{POLICY_PATH}/{path.name}"
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            line = line.split(" # ", 1)[0].split()
+            if not line or line[0].startswith("#"):
+                continue
+            if len(line) < 3 or line[3:] not in ([], ["flaky"], ["harness"], ["gpu"], ["needs"]):
+                sys.exit(f"{file}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu|needs]`")
+            if (line[0], line[1]) in seen:
+                sys.exit(f"{file}:{number}: {line[0]} {line[1]} is already listed in {seen[line[0], line[1]]}; "
+                         "a test belongs to one file")
+            seen[line[0], line[1]] = f"{file}:{number}"
+            rows.append(Row(line[0], line[1], line[2], line[3] if len(line) > 3 else None, file))
+    if not rows:
+        sys.exit(f"{POLICY_PATH}/ has no rows")
+    return rows
 
 
 def known_failures():
-    """(package, test) -> its mark (None, "flaky", "harness" or "gpu"), from the checked-in list."""
-    return {(package, test): mark for package, test, _, mark in listed_entries() if mark != "needs"}
+    """(package, test) -> its mark (None, "flaky", "harness" or "gpu"), from the policy files."""
+    return {(row.package, row.test): row.mark for row in listed_entries() if row.mark != "needs"}
 
 
 def harness_inputs():
     """(package, test) -> the environment variable it reads that only its parity harness provides."""
-    return {(package, test): variable for package, test, variable, mark in listed_entries() if mark == "needs"}
+    return {(row.package, row.test): row.reference for row in listed_entries() if row.mark == "needs"}
+
+
+def needs_commands(variable, jobs=None):
+    """One `cargo test` command per test marked `needs variable`, each selecting exactly that test."""
+    commands = [
+        ["cargo", "test", *([f"-j{jobs}"] if jobs else []), "-p", row.package, "--lib", "--", "--ignored", "--exact", row.test]
+        for row in listed_entries() if row.mark == "needs" and row.reference == variable
+    ]
+    if not commands:
+        sys.exit(f"no `needs` row in {POLICY_PATH}/ names {variable}")
+    return commands
+
+
+def run_one_process_each(variable, jobs=None):
+    """Run each test that needs `variable` in its own process; 1 unless every run reports exactly one passed test."""
+    if not os.environ.get(variable):
+        sys.exit(f"{variable} is unset: these tests need it")
+    failed = []
+    for command in needs_commands(variable, jobs):
+        print(f"$ {shlex.join(command)}", flush=True)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+        passed = False
+        for line in process.stdout:
+            print(line, end="", flush=True)
+            passed |= line.startswith("test result: ok. 1 passed;")
+        if process.wait() or not passed:
+            print(f"::error::expected 1 passing test from: {shlex.join(command)}", flush=True)
+            failed.append(command)
+    print(f"{variable}: {len(failed)} of the runs failed" if failed else f"{variable}: every run passed its one test")
+    return 1 if failed else 0
 
 
 # Budgets include UTF-8 newlines; summary metadata is outside the payload budget.
@@ -654,6 +724,7 @@ def main(shards):
     _active_budget = [FAILURE_TOTAL_BYTES]
     known = known_failures()
     inputs = harness_inputs()
+    files = {(row.package, row.test): row.file for row in listed_entries()}
     skipped = {"harness"} if has_vulkan() else {"harness", "gpu"}
     if "gpu" in skipped:
         print("no Vulkan driver on this runner: the tests marked `gpu` are skipped")
@@ -687,7 +758,7 @@ def main(shards):
             test = safe_identity(test)
             if not passed and listed and known[(package, policy_test)] != "gpu":
                 emitted, _ = bounded_record(
-                    f"{package} {test}: accepted failure policy={KNOWN.name} "
+                    f"{package} {test}: accepted failure policy={files.get((package, policy_test), POLICY_PATH)} "
                     f"mark={known[(package, policy_test)] or 'known'}\n", _active_budget)
                 accepted_unshown += not emitted
             if not passed and not listed:
@@ -695,10 +766,10 @@ def main(shards):
             elif not passed and known[(package, policy_test)] == "gpu":
                 problems.append(f"{package} {test}: failed with a Vulkan driver present")
             elif passed and listed and known[(package, policy_test)] is None:
-                problems.append(f"{package} {test}: passes now; take it off {KNOWN.name}")
+                problems.append(f"{package} {test}: passes now; take it off {files.get((package, policy_test), POLICY_PATH)}")
         for (listed, test), mark in known.items():
             if listed == package and mark not in skipped and in_leg(test, number, count) and test not in results:
-                problems.append(f"{package} {safe_identity(test)}: listed in {KNOWN.name} but no longer runs")
+                problems.append(f"{package} {safe_identity(test)}: listed in {files.get((package, test), POLICY_PATH)} but no longer runs")
     shown = 0
     for problem in problems:
         emitted, _ = bounded_record(f"::error::{problem}\n", _active_budget)
@@ -712,4 +783,19 @@ def main(shards):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("shards", nargs="*", metavar="SHARD")
+    parser.add_argument("--needs", metavar="VARIABLE", help="the tests marked `needs VARIABLE`")
+    each = parser.add_mutually_exclusive_group()
+    each.add_argument("--one-process-each", action="store_true", help="run them, each alone in its own process")
+    each.add_argument("--list", action="store_true", help="print their commands")
+    parser.add_argument("--jobs", type=int, help="cargo's -j for --needs")
+    args = parser.parse_args()
+    if args.needs and args.list:
+        print("\n".join(shlex.join(command) for command in needs_commands(args.needs, args.jobs)))
+    elif args.needs and args.one_process_each:
+        sys.exit(run_one_process_each(args.needs, args.jobs))
+    elif args.needs or args.one_process_each or args.list:
+        parser.error("--needs takes --one-process-each or --list, and they take --needs")
+    else:
+        sys.exit(main(args.shards))

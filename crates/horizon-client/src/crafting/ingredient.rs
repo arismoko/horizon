@@ -32,7 +32,7 @@ fn is_custom(kind: &str) -> bool {
 #[derive(Clone, Debug)]
 // exhaustive: the game builds it with a literal; mods only read it
 pub struct Ingredient {
-    /// The items it accepts, however the source shape named them.
+    /// Enumerable placement candidates; an empty custom list retains its predicate.
     pub items: HashSet<String>,
     /// The same items in `HolderSet` order (`display`).
     pub order: Vec<String>,
@@ -131,12 +131,20 @@ impl Ingredient {
         // A mod's own kind: `resolve` asked the hook once at load and left
         // the item list it matches with the occurrence; one no load
         // resolved fails the file.
-        Self::of_walked(WalkedIngredient::walk(
-            v,
-            &items.item_tag_order,
-            &resolved_items,
-            &|data| crate::json_nbt::json_to_compound(data).ok(),
-        )?)
+        let Some(walked) =
+            WalkedIngredient::walk(v, &items.item_tag_order, &resolved_items, &|data| {
+                crate::json_nbt::json_to_compound(data).ok()
+            })
+        else {
+            log::error!("recipes: invalid ingredient (unresolved tag or malformed input): {v}");
+            return None;
+        };
+        if walked.order.is_empty() {
+            log::warn!(
+                "recipes: ingredient has no placement candidates; recipe cannot be placed: {v}"
+            );
+        }
+        Self::of_walked(walked)
     }
     /// The walk of an item ingredient's answer: NeoForge's standard shapes
     /// keep their children, and a mod's own kind keeps its kind and NBT metadata,
@@ -154,7 +162,7 @@ impl Ingredient {
             )),
             None => None,
         };
-        (!walked.order.is_empty()).then(|| Self {
+        Some(Self {
             items: walked.set,
             order: walked.order,
             custom: walked.custom,

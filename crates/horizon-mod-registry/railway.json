@@ -13,6 +13,7 @@
       "/crates/horizon-mod-runtime/**",
       "/crates/horizon-mod-api-macros/**",
       "/crates/horizon-mod-point-shape/**",
+      "/crates/horizon-mod-surface/**",
       "/crates/horizon-release-sign/**",
       "/crates/horizon-shader-api/**",
       "/crates/horizon-mod-registry/**",

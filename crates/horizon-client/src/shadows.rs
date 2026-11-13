@@ -92,16 +92,21 @@ pub fn mob_shadow_radius(m: &Mob) -> f32 {
 /// `alpha`, with their type's shadow radius and strength.
 /// `EntityRenderer.extractShadow` skips an entity whose
 /// `EntityRenderState.isInvisible` is set (`Entity.isInvisible`).
-pub fn mob_casters(mobs: &[Mob], alpha: f64) -> impl Iterator<Item = (DVec3, f32, f32)> {
-    mobs.iter().filter(|m| !m.is_invisible()).map(move |m| {
-        let (p, q) = (m.previous, m.position);
-        let pos = DVec3::new(
-            p.x + (q.x - p.x) * alpha,
-            p.y + (q.y - p.y) * alpha,
-            p.z + (q.z - p.z) * alpha,
-        );
-        (pos, mob_shadow_radius(m), shadow_params(&m.kind.id).1)
-    })
+pub fn mob_casters<'a>(
+    mobs: impl IntoIterator<Item = &'a Mob>,
+    alpha: f64,
+) -> impl Iterator<Item = (DVec3, f32, f32)> {
+    mobs.into_iter()
+        .filter(|m| !m.is_invisible())
+        .map(move |m| {
+            let (p, q) = (m.previous, m.position);
+            let pos = DVec3::new(
+                p.x + (q.x - p.x) * alpha,
+                p.y + (q.y - p.y) * alpha,
+                p.z + (q.z - p.z) * alpha,
+            );
+            (pos, mob_shadow_radius(m), shadow_params(&m.kind.id).1)
+        })
 }
 
 /// `DisplayRenderer.getShadowRadius` and `DisplayRenderer.getShadowStrength`:
@@ -134,7 +139,7 @@ fn shadow_gates(radius: f32, strength: f32, dist_sq: f64) -> Option<(f32, f32)> 
 /// model bounds. Keep the distance/strength gate before the frustum test: most
 /// entities are too far away to cast a shadow at all.
 pub fn in_view(
-    view: &crate::gfx::Frustum,
+    view: &crate::gfx::JoinedFrusta,
     camera: DVec3,
     pos: DVec3,
     radius: f32,

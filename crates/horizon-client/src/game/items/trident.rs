@@ -719,7 +719,13 @@ impl Game<'_> {
     /// `ThrownTrident.onHitEntity` on the guest `conn`: the hurt runs as them and
     /// `ServerPlayer.hurtServer` refuses it when the `pvp` game rule or their
     /// teams forbid it (`canHarmPlayer`); the trident bounces off either way.
-    fn trident_hits_guest(&mut self, t: &ThrownTrident, conn: u32, damage: f32) {
+    fn trident_hits_guest(
+        &mut self,
+        t: &ThrownTrident,
+        conn: u32,
+        damage: f32,
+        attack: horizon_client::health::Attack,
+    ) {
         let Some(host) = self.lan.as_ref() else {
             return;
         };
@@ -733,11 +739,13 @@ impl Game<'_> {
         let shooter = self.player_attacker(t.guest);
         let from = [t.previous.x, t.previous.y, t.previous.z];
         self.guest_hit_by(conn, |g| {
-            g.combat.refuse_player_hit = refused;
-            g.combat.projectile_attacker = shooter;
-            g.mob_hits_player(damage, from, "minecraft:trident");
-            g.combat.refuse_player_hit = false;
-            g.combat.projectile_attacker = None;
+            g.with_attack(attack, |g| {
+                g.combat.refuse_player_hit = refused;
+                g.combat.projectile_attacker = shooter;
+                g.mob_hits_player(damage, from, "minecraft:trident");
+                g.combat.refuse_player_hit = false;
+                g.combat.projectile_attacker = None;
+            })
         });
     }
     /// The players tridents fly back to or land at: this game's player and the
@@ -1092,15 +1100,25 @@ impl Game<'_> {
                             self.evaluate_weapon_damage(&t.stack, Some((attacker, id)), ctx, 8.0);
                         t.dealt_damage = true;
                         let mut hurt_at = None;
-                        let mut accepted_source = None;
                         let aim = self.attacker_aim(Some(Who::Player));
+                        let mut attack = self.attack_of(attacker as i32);
+                        attack.projectile = Some(t.id as i32);
+                        attack.projectile_is_arrow = true;
+                        Self::set_projectile_weapon(&mut attack, Some(&t.stack));
+                        let trident_source = DamageKind::Named(
+                            horizon_client::mobs::NamedDamage::registered(
+                                &self.health_resources.damage,
+                                "minecraft:trident",
+                            )
+                            .expect("registered vanilla trident damage"),
+                        );
                         if let Some(m) = self.mobs.iter_mut().find(|m| m.id == id) {
                             let from = Some([t.position.x, t.position.y, t.position.z]);
                             let hurt = m.damage_projectile(
-                                crate::game::entity::damage_level_of!(self),
+                                crate::game::entity::damage_level_of!(self, &attack),
                                 damage,
                                 Damage {
-                                    kind: DamageKind::Arrow,
+                                    kind: trident_source,
                                     attacker: Some(Who::Player),
                                     from,
                                     attacker_species: None,
@@ -1109,16 +1127,8 @@ impl Game<'_> {
                                 [t.velocity.x, t.velocity.z],
                             );
                             if hurt {
-                                if mod_api::__private::listened(mod_api::HookId::LootDrops)
-                                    && m.projectile_damage_committed
-                                {
-                                    accepted_source = m.last_damage;
-                                }
                                 hurt_at = Some([m.position.x, m.position.y, m.position.z]);
                             }
-                        }
-                        if let Some(source) = accepted_source {
-                            self.capture_projectile_weapon(id, source, Some(&t.stack));
                         }
                         self.thrower_dealt_absorbed(t.guest);
                         // ThrownTrident.onHitEntity on a boat or minecart:
@@ -1171,7 +1181,7 @@ impl Game<'_> {
                         }
                         // ThrownTrident.onHitEntity on another player.
                         if let Some(conn) = self.trident_guest_conn(id) {
-                            self.trident_hits_guest(&t, conn, damage);
+                            self.trident_hits_guest(&t, conn, damage, attack);
                         }
                         // `minecraft:post_attack` of Channeling, on the victim.
                         if let Some(at) = hurt_at

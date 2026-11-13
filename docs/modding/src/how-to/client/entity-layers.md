@@ -34,7 +34,7 @@ impl EntityRenderLayer for Halo {
 ```
 
 The pose stack starts in the entity's frame: at its feet, turned with its body, +z the way it faces,
-+x its left, +y up, in blocks, as `mob_submit` draws. `entity.yaw` is the body's turn and
++x its left, +y up, in blocks, as `render_living_pre` draws. `entity.yaw` is the body's turn and
 `entity.pitch` the head's; `parts` has a humanoid model's parts as vanilla posed them this frame, to
 attach to an arm or the head (None for a model that isn't humanoid). `draw` also has the partial tick,
 the game time and the entity's light. Every entity of a target shares the one layer, so keep
@@ -78,8 +78,8 @@ carry over, so add them each time. The event also tells what renderers this load
   target, and the game logs it too.
 - Several mods may add to one target: the layers draw in the order they were added, after the
   entity's model and its vanilla layers.
-- An entity a mod draws itself (`mob_submit` or `player_submit` setting `drawn`) draws none of its
-  layers, as NeoForge's cancelled `RenderLivingEvent.Pre` skips them.
+- An entity whose `render_living_pre` or `render_player_pre` a mod canceled draws none of its layers,
+  as NeoForge's canceled `RenderLivingEvent.Pre` skips them.
 - `submit` returns `Ok(())` to keep what it drew. A layer that returns an `Err`, panics, or (in a wasm
   mod) has its call refused or trapped is logged once and asked no more until the next resource load
   adds it again; what it drew that frame is dropped.
@@ -89,11 +89,12 @@ carry over, so add them each time. The event also tells what renderers this load
 The game resolves each target's layers when they are added, so a frame finds an entity's layers with
 no lookup by name and no scan over the mods; with no layer at all, it checks one flag per entity and
 builds nothing. A humanoid model's posed parts are kept from its draw only for a type or player model
-that has a layer (or while a `mob_layer` listener exists), so a layer on one type costs the other mobs
-nothing. The layers draw on the mobs (vanilla's and the content mods' living types) and on the players,
+that has a layer (or while a mod listens to the render hook pair), so a layer on one type costs the
+other mobs nothing. The layers draw on the mobs (vanilla's and the content mods' living types) and on the players,
 this window's own in third person included. The armour stand and the ender dragon have draws of their
 own that don't run layers, so `add` refuses them.
 
-`mob_layer` is a different moment: it is asked for every mob and player in view each frame, after
-their layers (NeoForge's `RenderLivingEvent.Post`), for a mod that draws over every entity rather than
-over one type's renderer.
+`render_living_post` and `render_player_post` are a different moment: they are asked for every mob
+and player in view each frame, after their layers (NeoForge's `RenderLivingEvent.Post` and
+`RenderPlayerEvent.Post`), for a mod that draws over every entity rather than over one type's renderer
+([model drawing](model-drawing.md)).

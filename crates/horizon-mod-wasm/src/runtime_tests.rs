@@ -1543,7 +1543,28 @@ fn nested_busy_refusal_survives() {
         let started = Instant::now();
         assert_eq!(call(&module), None);
         assert!(started.elapsed() < Duration::from_secs(2));
-        assert_eq!(take_refusal(), Refusal::Busy.to_string());
+        assert!(take_refusal().starts_with(&Refusal::Busy.to_string()));
+        // A refusal names the call holding the group, so a busy failure says who it waited on.
+        *module.running.holder.lock().unwrap() = Some(Holder {
+            module: "holder_mod".into(),
+            export: 7,
+            thread: std::thread::current(),
+            since: Instant::now() - Duration::from_secs(3),
+        });
+        assert_eq!(call(&module), None);
+        let refusal = take_refusal();
+        let thread = std::thread::current();
+        let thread = thread
+            .name()
+            .map_or_else(|| format!("{:?}", thread.id()), |name| format!("'{name}'"));
+        assert!(
+            refusal.starts_with(&format!(
+                "{}: held by mod holder_mod export 7 on thread {thread} for 3",
+                Refusal::Busy
+            )),
+            "{refusal}"
+        );
+        assert!(refusal.contains("; this call waited "), "{refusal}");
         assert!(!module.is_stopped());
         drop(loan);
         module.running.lending.store(0, Ordering::Relaxed);

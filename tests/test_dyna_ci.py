@@ -378,16 +378,24 @@ class DynaRoutingTests(unittest.TestCase):
         script = textwrap.dedent(aggregate.split("run: |\n", 1)[1])
         with tempfile.TemporaryDirectory() as directory:
             summary = Path(directory) / "summary"
-            for result in ("success", "skipped", "failure", "cancelled", ""):
-                for route in ("true", "false"):
-                    env = dict(os.environ, RESULT=result, ROUTE=route,
-                               REASON="enabled=true; lease=0; live=unreadable",
-                               CHANGES="success", FORCED_GITHUB="false",
-                               GITHUB_STEP_SUMMARY=str(summary))
+            stale = "snapshot rejected: run age outside 0..3600 s"
+            cases = [(event, result, route, reason)
+                     for event in ("push", "workflow_dispatch")
+                     for result in ("success", "skipped", "failure", "cancelled", "")
+                     for route in ("true", "false")
+                     for reason in ("enabled=true; lease=0; live=unreadable", stale)]
+            for event, result, route, reason in cases:
+                # Only a main push may pass without its own coverage: a newer push's shards carry it when this
+                # run's were superseded (cancelled) or skipped because it outwaited its routing snapshot.
+                neutral = event == "push" and (result == "cancelled" or (result == "skipped" and reason == stale))
+                # The runner's own GITHUB_EVENT_NAME (push on main) must not leak into the cases.
+                env = dict(os.environ, GITHUB_EVENT_NAME=event, RESULT=result, ROUTE=route, REASON=reason,
+                           CHANGES="success", FORCED_GITHUB="false", GITHUB_STEP_SUMMARY=str(summary))
+                with self.subTest(event=event, result=result, route=route, reason=reason):
                     run = subprocess.run(["bash", "-e", "-c", script], env=env,
                                          capture_output=True, text=True)
-                    self.assertEqual(run.returncode, 0 if result == "success" else 1)
-                    self.assertIn("live=unreadable", summary.read_text())
+                    self.assertEqual(run.returncode, 0 if result == "success" or neutral else 1)
+                    self.assertIn(reason, summary.read_text())
                     self.assertIn(f"Shard result: {result}", summary.read_text())
                     summary.unlink()
 

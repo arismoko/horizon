@@ -12,6 +12,7 @@ pub struct Requests {
     pub effects: Names,
     pub particles: Names,
     pub block_entity_types: Names,
+    pub entity_types: Names,
 }
 
 #[derive(Clone, Default)]

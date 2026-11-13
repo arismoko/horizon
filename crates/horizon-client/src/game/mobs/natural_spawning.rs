@@ -1338,8 +1338,9 @@ impl<'a> Game<'a> {
         let Some(terrain) = self.end.locator() else {
             return;
         };
-        // `FlatLevelSource.spawnOriginalMobs` is empty: a superflat world places no packs.
-        if terrain.is_flat() {
+        // `FlatLevelSource.spawnOriginalMobs` is empty: a superflat world places no packs, and
+        // neither does a mod's chunk generator, whose own `spawnOriginalMobs` the API has none of.
+        if !terrain.noise_ground() {
             return;
         }
         // `NoiseGeneratorSettings.disableMobGeneration`: the shipped End preset

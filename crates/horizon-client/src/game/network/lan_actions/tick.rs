@@ -75,7 +75,9 @@ impl Game<'_> {
             let Some(host) = self.lan.as_mut() else {
                 return;
             };
-            if host.hub.guests[gi].dead {
+            if host.hub.guests[gi].dead
+                || (host.hub.guests[gi].health <= 0.0 && host.hub.guests[gi].death_canceled)
+            {
                 self.guest_tick_death(gi);
                 if let Some(host) = self.lan.as_ref() {
                     refresh_building_player(host, conn);

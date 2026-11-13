@@ -449,13 +449,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         if self.b.is_air(state) {
             return false;
         }
-        // Block.spawnDestroyParticles: fire spawns none, straw beds their own.
-        let data = self.b.data(state);
-        if data.is(Class::StrawBed) {
-            self.level_event(2014, pos, state.0 as i32);
-        } else if !(data.is(Class::BaseFire) || data.is(Class::Fire) || data.is(Class::SoulFire)) {
-            self.level_event(2001, pos, state.0 as i32);
-        }
+        self.destroy_particles(pos, state);
         if drop {
             self.drop_resources(state, pos);
         }
@@ -466,6 +460,15 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             self.game_event_state(pos, "minecraft:block_destroy", state);
         }
         destroyed
+    }
+    /// `Block.spawnDestroyParticles`: fire spawns none, straw beds their own.
+    pub(crate) fn destroy_particles(&mut self, pos: BlockPos, state: BlockStateId) {
+        let data = self.b.data(state);
+        if data.is(Class::StrawBed) {
+            self.level_event(2014, pos, state.0 as i32);
+        } else if !(data.is(Class::BaseFire) || data.is(Class::Fire) || data.is(Class::SoulFire)) {
+            self.level_event(2001, pos, state.0 as i32);
+        }
     }
     pub fn drop_resources(&mut self, state: BlockStateId, pos: BlockPos) {
         // `MovingPistonBlock.getDrops`: a moving piston's loot is the loot of

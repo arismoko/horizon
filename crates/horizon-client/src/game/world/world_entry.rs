@@ -286,7 +286,7 @@ impl Game<'_> {
             &items,
             &overlay,
             self.res.item_defaults(),
-            &sources,
+            (&sources, &recipes),
         );
         self.prepare_professions(root, &items, &mut stations)?;
         let data_maps = native_data_maps::DataMaps::load(

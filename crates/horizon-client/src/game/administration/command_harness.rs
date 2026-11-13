@@ -122,13 +122,13 @@ impl Game<'_> {
                 return Ok((guest.conn, menu.size, menu.window));
             }
             if let Some((window, _, menu, _)) = host
-                .play
+                .menus
                 .get(&guest.conn)
                 .and_then(|p| p.crafting.table.as_ref())
             {
                 return Ok((guest.conn, menu.slot_count() - 36, *window));
             }
-            if let Some(station) = host.play.get(&guest.conn).and_then(|p| p.station.as_ref()) {
+            if let Some(station) = host.menus.get(&guest.conn).and_then(|p| p.station.as_ref()) {
                 return Ok((guest.conn, station.menu.slot_count() - 36, station.window));
             }
             Ok((guest.conn, 0, 0))
@@ -869,7 +869,7 @@ impl Game<'_> {
                             .ok_or("craft fixture: no connected owner")?;
                         (|| -> Result<Value> {
                             let host = g.lan.as_ref().ok_or("no hub")?;
-                            let (window, revision, _, _) = host.play.get(&conn)
+                            let (window, revision, _, _) = host.menus.get(&conn)
                                 .and_then(|p| p.crafting.table.as_ref())
                                 .ok_or("craft fixture: crafting menu not open")?;
                             let (window, revision) = (*window, *revision);
@@ -893,7 +893,7 @@ impl Game<'_> {
                                         horizon_protocol::packets::play::ContainerClose { container: window }));
                                 return Ok(Value::Null);
                             }
-                            let (_, _, menu, _) = host.play.get(&conn)
+                            let (_, _, menu, _) = host.menus.get(&conn)
                                 .and_then(|p| p.crafting.table.as_ref()).unwrap();
                             if menu.kind() != horizon_client::menu::Kind::Crafting {
                                 return Err("craft fixture: wrong menu kind".into());

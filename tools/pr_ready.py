@@ -72,6 +72,7 @@ state="$HOME/.cache/pr-ready/$(basename "$PWD")"
 mkdir -p "$state/parity-runner" "$state/parity-target"
 ln -sfn "$state/parity-runner" .local/parity-runner && ln -sfn "$state/parity-target" .local/parity-target""",
 }
+DISCOVERED_RUST = "crates/horizon-mod-wasm/wire-loopback/tests/wire_loopback"
 ROOT_RUST = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rustfmt.toml", "clippy.toml"}
 LAUNCHER_FEATURES = """export features=""
 if [ "$(uname)" = Darwin ] && ! xcrun metal --version > /dev/null 2>&1; then features="--features gpui_platform/runtime_shaders"; fi
@@ -396,9 +397,13 @@ def plan(args, base, changed, crates_of, libraries, dependencies):
         Step("Layers", f"python3 tools/check_layers.py --base {shlex.quote(base)}", where="here"),
         Step("Addresses", f"python3 tools/check_addresses.py --base {shlex.quote(base)}", where="here"),
         Step("File size", f"python3 tools/check_file_size.py --base {shlex.quote(base)}", where="here"),
+        # tools/hotspots/README.md: export brace lists stay at 12 names or under; longer ones only shrink.
+        Step("Export lists", "python3 tools/hotspots/check_lists.py", where="here"),
         # Always, as in CI: some read the crates, the roadmap or the workflows.
         Step("Python tests", "python3 -m unittest discover -s tests", where="here", summary=unittest_passed),
         Step("rustfmt", "cargo fmt --all -- --check", skip=None if rust else no_rust),
+        # Discovered by a build script, so no mod line leads cargo fmt to them (CI checks them by path too).
+        Step("rustfmt by path", f"rustfmt --edition 2024 --check {DISCOVERED_RUST}/*.rs", skip=None if rust else no_rust),
         Step("clippy", clippy, skip=None if rust else no_rust),
         Step("holder actor", HOLDER_ACTOR,
              skip=None if crates is None or "horizon-mod-package" in crates or launcher
@@ -547,10 +552,14 @@ def run_windows(steps, verbose, environment=None):
             command = [sys.executable, "tools/check_addresses.py", *command[2:]]
         elif step.name == "File size":
             command = [sys.executable, "tools/check_file_size.py", *command[2:]]
+        elif step.name == "Export lists":
+            command = [sys.executable, "tools/hotspots/check_lists.py"]
         elif step.name == "Python tests":
             command = [sys.executable, "-m", "unittest", "discover", "-s", "tests"]
         elif step.name == "rustfmt":
             command = ["cargo", "fmt", "--all", "--", "--check"]
+        elif step.name == "rustfmt by path":
+            command = ["rustfmt", "--edition", "2024", "--check", *sorted(map(str, ROOT.glob(f"{DISCOVERED_RUST}/*.rs")))]
         elif step.name == "clippy":
             command = shlex.split(CI_CLIPPY)  # the server build's clippy runs in CI (Linux)
         elif step.name.startswith("tests"):

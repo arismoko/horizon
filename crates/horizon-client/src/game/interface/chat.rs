@@ -934,7 +934,7 @@ impl Game<'_> {
             .collect();
         self.sync_enchantment_registries();
         // After the export, which keys the registry with vanilla's tags.
-        self.ui.registries.sync_damage_type_ids();
+        self.sync_stat_registries();
     }
     /// The block the player is looking at, for coordinate suggestions, and
     /// the entity, for entity arguments (ClientSuggestionProvider).

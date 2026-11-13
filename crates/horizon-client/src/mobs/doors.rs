@@ -153,8 +153,11 @@ impl BreakDoor {
     /// `BreakDoorGoal.canUse` after `DoorInteractGoal.canUse`.
     fn can_break(&mut self, m: &Mob, w: &MobWorld) -> bool {
         self.interact.can_use(m, w)
-            // NeoForge: `EventHooks.canEntityGrief` for the zombie.
+            // NeoForge: `EventHooks.canEntityGrief` for the zombie, then the
+            // door's `canEntityDestroy`; `LivingDestroyBlockEvent` comes at
+            // the break.
             && w.can_grief(m.id)
+            && w.can_entity_destroy(m.id, self.interact.door, true)
             && self.valid_difficulty(w)
             && !self.interact.is_open(w)
     }
@@ -417,7 +420,61 @@ mod tests {
                 assert!(goal.can_break(&mob, &world), "the rule lets it break");
                 world.mob_hooks = Some(&deny);
                 assert!(!goal.can_break(&mob, &world), "the mod keeps the door");
+                // The door's own answer comes after griefing: no keeps it, yes
+                // breaks it, and with griefing off a yes breaks nothing.
+                for (door, breaks) in [
+                    (
+                        &Door {
+                            griefing: true,
+                            may: false,
+                        },
+                        false,
+                    ),
+                    (
+                        &Door {
+                            griefing: true,
+                            may: true,
+                        },
+                        true,
+                    ),
+                    (
+                        &Door {
+                            griefing: false,
+                            may: true,
+                        },
+                        false,
+                    ),
+                ] {
+                    world.mob_hooks = Some(door);
+                    assert_eq!(goal.can_break(&mob, &world), breaks, "{}", door.may);
+                }
             }
         ));
+    }
+
+    /// Griefing as `griefing`, and `may` for whether the zombie may destroy
+    /// the door at (0, 65, 0).
+    struct Door {
+        griefing: bool,
+        may: bool,
+    }
+    impl crate::mobs::MobHooks for Door {
+        fn enderman_anger_suppressed(&self, _: u32, _: &crate::mobs::PlayerView) -> bool {
+            false
+        }
+        fn can_grief(&self, _: u32, _: bool) -> bool {
+            self.griefing
+        }
+        fn grief_hooked(&self) -> bool {
+            true
+        }
+        fn living_visibility(&self, _: &crate::mobs::PlayerView, _: u32, v: f64) -> f64 {
+            v
+        }
+        fn can_entity_destroy(&self, _: u32, pos: [i32; 3], vanilla: bool) -> bool {
+            assert_eq!(pos, [0, 65, 0]);
+            assert!(vanilla);
+            self.may
+        }
     }
 }

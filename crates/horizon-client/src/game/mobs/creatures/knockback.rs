@@ -1,4 +1,5 @@
 use super::*;
+use mod_api::KnockbackEntry;
 
 impl Game<'_> {
     /// `LivingEntity.knockback` on the player: pushed `power` away from the
@@ -15,9 +16,9 @@ impl Game<'_> {
         zd: f64,
         source: HurtSource<'_>,
         attack: &Attack,
-        damage: f32,
+        _damage: f32,
     ) {
-        self.knock_back_player_full(power, xd, zd, source, attack, damage, false);
+        self.knock_back_player_entry(power, xd, zd, source, attack, KnockbackEntry::Short);
     }
 
     /// Full living knockback entry. Effect pushes enter here directly.
@@ -32,6 +33,19 @@ impl Game<'_> {
         _damage: f32,
         _comes_from_effect: bool,
     ) {
+        self.knock_back_player_entry(power, xd, zd, source, attack, KnockbackEntry::Full);
+    }
+
+    /// The player's push, entered through `entry`: what `living_knockback` tells its listener.
+    fn knock_back_player_entry(
+        &mut self,
+        power: f64,
+        xd: f64,
+        zd: f64,
+        source: HurtSource<'_>,
+        attack: &Attack,
+        entry: KnockbackEntry,
+    ) {
         // No attacker named: the mob the player was last hurt by.
         let credited;
         let attack = if attack.attacker == 0
@@ -45,7 +59,13 @@ impl Game<'_> {
         let legacy = self.legacy_rules();
         if let Some(p) = self.player.as_mut() {
             let level = crate::game::entity::damage_level_of!(self, attack);
-            apply_player_knockback(p, level, power, (xd, zd), source, legacy);
+            let mut push = |level: &mut horizon_client::health::DamageLevel<'_>| {
+                apply_player_knockback(p, level, power, (xd, zd), source, legacy);
+            };
+            match entry {
+                KnockbackEntry::Short => level.through_short_knockback(push),
+                KnockbackEntry::Full => push(level),
+            }
         }
     }
 }

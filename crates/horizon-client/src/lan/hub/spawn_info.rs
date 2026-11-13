@@ -5,7 +5,7 @@ use horizon_protocol::packets::play;
 
 impl Hub {
     /// `CommonPlayerSpawnInfo`, with the player's `portalCooldown`.
-    pub(super) fn spawn_info(
+    pub(in crate::lan) fn spawn_info(
         &self,
         i: usize,
         portal_cooldown: i32,

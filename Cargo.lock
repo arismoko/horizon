@@ -2427,6 +2427,7 @@ dependencies = [
  "horizon-client-core",
  "horizon-core",
  "horizon-guest-stack",
+ "horizon-java-properties",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
@@ -2445,6 +2446,20 @@ dependencies = [
  "wasmparser 0.261.0",
  "wasmtime",
  "wat",
+]
+
+[[package]]
+name = "horizon-mod-wasm-wire-loopback"
+version = "0.1.0"
+dependencies = [
+ "horizon-core",
+ "horizon-game-discovery",
+ "horizon-mod-api",
+ "horizon-mod-api-gen",
+ "horizon-mod-runtime",
+ "horizon-world",
+ "log",
+ "serde_json",
 ]
 
 [[package]]

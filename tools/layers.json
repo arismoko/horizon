@@ -72,6 +72,7 @@
     "horizon-bots": "tool",
     "horizon-perf": "tool",
     "horizon-mod-api-gen-tests": "tool",
+    "horizon-mod-wasm-wire-loopback": "tool",
     "xtask": "tool",
     "horizon-internals": "platform",
     "horizon-mod-api": "platform",

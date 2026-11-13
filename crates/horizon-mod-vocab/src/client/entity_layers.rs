@@ -46,8 +46,8 @@ pub trait EntityRenderLayer: Send + Sync + 'static {
     /// humanoid model's parts as vanilla posed them this frame, to attach to an arm or the head;
     /// None for a model that isn't humanoid. `draw` also has the partial tick, the game time and
     /// the entity's light. Asked once a frame for each entity of the target in view, but not for
-    /// one a mod drew itself (`mob_submit` or `player_submit` setting `drawn`): as with NeoForge's
-    /// cancelled `RenderLivingEvent.Pre`, none of its layers draw then. A frame is
+    /// one whose `render_living_pre` or `render_player_pre` a mod canceled: as with NeoForge's
+    /// canceled `RenderLivingEvent.Pre`, none of its layers draw then. A frame is
     /// drawn afresh: `draw.keep()` does nothing here. `Ok(())` keeps what it drew. An `Err`, a
     /// panic, and a wasm call that is refused or traps all mean the same: what it drew this frame
     /// is dropped, the error is logged once, and the layer is asked no more until the next

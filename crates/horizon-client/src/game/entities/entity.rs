@@ -2059,7 +2059,7 @@ impl Entity for ArmorStand {
         ArmorStand::fluid_eye_y(self)
     }
     fn native_type(&self) -> Cow<'static, str> {
-        "minecraft:armor_stand".into()
+        super::armor_stands::TYPE_ID.into()
     }
     fn save_nbt(
         game: &mut Game<'_>,

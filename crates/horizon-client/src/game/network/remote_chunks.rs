@@ -35,7 +35,7 @@ pub(super) struct ChunkFormat {
     column: ColumnLayout,
     min_y: i32,
     sections: usize,
-    has_skylight: bool,
+    pub(super) has_skylight: bool,
     biome_map: Vec<u16>,
     biome_bits: u8,
 }
@@ -67,7 +67,7 @@ impl ChunkFormat {
     }
 
     /// LevelChunkSection data into the client's column.
-    fn column(&self, p: &play::LevelChunkWithLight) -> Result<Chunk, String> {
+    pub(super) fn column(&self, p: &play::LevelChunkWithLight) -> Result<Chunk, String> {
         let sections = p
             .chunk
             .sections(self.sections, 16, self.biome_bits)
@@ -152,7 +152,11 @@ impl ChunkFormat {
 
     /// `LevelChunk.replaceBiomes`: each of the dimension's sections reads
     /// its biome container from the packet's buffer, in order.
-    fn replace_biomes(&self, chunk: &mut Chunk, data: &play::ChunkBiomeData) -> Result<(), String> {
+    pub(super) fn replace_biomes(
+        &self,
+        chunk: &mut Chunk,
+        data: &play::ChunkBiomeData,
+    ) -> Result<(), String> {
         let biomes = data
             .biomes(self.sections, self.biome_bits)
             .map_err(|e| e.to_string())?;
@@ -186,6 +190,23 @@ impl ChunkFormat {
         }
         (layers, above)
     }
+}
+
+/// `ClientboundSectionBlocksUpdatePacket.runUpdates`: each changed block's position (the
+/// packed local position within the section) and its state.
+pub(super) fn section_blocks(
+    p: &play::SectionBlocksUpdate,
+) -> impl Iterator<Item = ([i32; 3], i32)> + '_ {
+    let [sx, sy, sz] = p.section;
+    p.changes.iter().map(move |&change| {
+        let local = (change & 0xFFF) as i32;
+        let pos = [
+            sx * 16 + (local >> 8 & 15),
+            sy * 16 + (local & 15),
+            sz * 16 + (local >> 4 & 15),
+        ];
+        (pos, (change >> 12) as i32)
+    })
 }
 
 type Decoded = (Box<C>, Result<Chunk, String>);
@@ -387,8 +408,9 @@ impl Game<'_> {
     /// A resident column was freed, whichever route freed it — the last
     /// event for it, its data still there. Tells `client_chunk_unload` and,
     /// when the level stays (`level_stays`), `on_chunk_unloaded`: a level that
-    /// goes takes its block entities with it.
+    /// goes takes its block entities with it. Its passages go with it.
     pub(in crate::game) fn client_chunk_unload(&mut self, x: i32, z: i32, level_stays: bool) {
+        self.forget_chunk_passages(x, z);
         if mod_api::__private::listened(mod_api::HookId::ClientChunkUnload)
             && let Some(dimension) = self.client_chunk_dimension()
         {

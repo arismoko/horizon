@@ -146,18 +146,44 @@ draw.fluid_box(&tank.stack, [0.125, 0.0625, 0.125, 0.875, level, 0.875], options
   `FluidBoxError::InvalidBox`. Missing fluid sprites return
   `FluidBoxError::MissingSprite`. A refusal draws nothing.
 
+## Before and after a living entity draws
+
+Each mob and player in view gets the render hook pair once a frame, NeoForge's
+`RenderLivingEvent` and `RenderPlayerEvent`:
+
+1. `render_player_pre(player, who, draw, hidden, canceled)`, for a player only (`who` is its
+   profile name and whether it is this window's own);
+2. `render_living_pre(entity, draw, hidden, canceled)`, before the entity's model;
+3. the model, its vanilla layers and the layers mods added to its type
+   ([entity layers](entity-layers.md));
+4. `render_living_post(entity, parts, draw)`;
+5. `render_player_post(player, who, parts, draw)`, for a player only.
+
+The order today: the model and the layers are drawn before the post hooks; the entity's name tag, leash, flames
+and shadow are drawn in the frame's later passes, after them. The reference draws the leash and the name tag
+before the post (and queues the flames and the shadow after it): tracked in #3915.
+
+`draw` starts at the entity's feet, turned with its body (+z the way it faces, +x its left, +y up,
+in blocks), and keeps what each hook draws. Setting `canceled` in a pre hook skips everything else
+of that entity this frame: its model, its layers, its name tag, shadow, flames, leash and glowing
+outline, and the post hooks. A mod that draws a model of its own draws it in `render_living_pre` and
+cancels; one that wants the name tag or the shadow then draws them itself, or doesn't cancel.
+Canceling only `render_living_pre` of a player still asks its `render_player_post`. An entity the
+frame culls gets neither hook. The game asks once a frame whether any mod listens to the four, and
+with none builds nothing for them.
+
 ## A player's or humanoid's parts
 
-`mob_layer` gets a humanoid's parts as vanilla posed them this frame (`parts`,
+`render_living_post` and `render_player_post` get a humanoid's parts as vanilla posed them this frame (`parts`,
 `HumanoidModel.setupAnim`), read-only, to attach geometry to an arm or the head without
 animating it again. Only `HumanoidMobRenderer`'s families have them (players, zombies and their
 kin, skeletons, piglins); every other mob gets `None`, a cow included, though its model has a
 head and a body. `PosedParts` is a fixed-size snapshot: `get(part)` or `iter()`. It is taken
-from the vanilla body's own draw, so a part `player_submit` hid (below) has `visible` false.
+from the vanilla body's own draw, so a part `render_player_pre` hid (below) has `visible` false.
 
-`player_submit` can hide single parts of the vanilla player model instead of replacing all of
+`render_player_pre` can hide single parts of the vanilla player model instead of replacing all of
 it: `hidden.hide(HumanoidPart::Head)`, as a mod drawing its own outer skin layer does.
-`mob_submit` hides parts of any mob's vanilla model the same way, by their names in the model:
+`render_living_pre` hides parts of any mob's vanilla model the same way, by their names in the model:
 `hidden.hide_named("nose")` leaves a villager's nose out, as a level of detail for a far crowd
 does. A frame holds at most `MAX_HIDDEN_PARTS` (8) names of at most `MAX_PART_NAME` (24) bytes;
 `hide_named` says `HideError::Full` or `HideError::BadName` past that. An unknown name refuses the draw at first use, reporting the mob type and part name.

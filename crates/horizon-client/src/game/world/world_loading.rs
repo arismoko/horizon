@@ -919,22 +919,33 @@ fn set_level_types(
     horizon_client::environment::Environment::set_level_attributes(attributes);
 }
 
-/// The terrain of a level whose stem names a generator a mod registered, the
+/// What generates a level whose stem names a generator a mod registered.
+enum ModLevel {
+    /// The generator's terrain alone.
+    Terrain(horizon_client::modgen::ModTerrain),
+    /// Its terrain and the vanilla stages it asks for.
+    Staged(VanillaTerrain),
+}
+
+/// The generation of a level whose stem names a generator a mod registered, the
 /// stem being read as the game's own generator reads it: a pack's or mod's,
 /// else the saved one. A stem naming any other generator is left to that
 /// generator, which refuses all but noise. A biome source a mod registered
-/// that names a biome the world lacks refuses the level.
+/// that names a biome the world lacks refuses the level, and so does a stage
+/// the generator asks for that the level cannot supply. `structures` is the
+/// world's `generate_structures`.
 fn mod_terrain(
     world_root: &std::path::Path,
     resources: &std::path::Path,
     additional: &[Arc<horizon_client::datapack::DataPack>],
     enabled_features: &[String],
-    registry: &'static horizon_world::registry::BlockRegistry,
+    terrain_resources: TerrainResources<'_>,
     biomes: &horizon_client::biome::Biomes,
     dim: Dim,
     shape: horizon_client::chunk::LevelShape,
     seed: i64,
-) -> Option<std::result::Result<horizon_client::modgen::ModTerrain, String>> {
+    structures: bool,
+) -> Option<std::result::Result<ModLevel, String>> {
     use horizon_world::worldgen::{
         mod_biome_sources::mod_biome_sources, mod_generators::mod_chunk_generators,
         overrides::DIMENSIONS,
@@ -954,15 +965,54 @@ fn mod_terrain(
                 .and_then(|s| s.get("dimensions")?.get(dim.id()).cloned())
                 .map(|stem| horizon_client::scoreboard::tag_to_json(&stem))
         })?;
+    if let Some(generator) = stem["generator"]["type"]
+        .as_str()
+        .and_then(|id| generators.get(id))
+        && generator.vanilla_stages().any()
+    {
+        let staged = VanillaTerrain::for_mod(
+            terrain_resources,
+            &overrides,
+            seed,
+            dim.id(),
+            &stem,
+            generator.clone(),
+            structures,
+        );
+        return Some(
+            staged
+                .map(ModLevel::Staged)
+                .map_err(|e| format!("{}: {e}", dim.id())),
+        );
+    }
     horizon_client::modgen::ModTerrain::for_stem(
         &stem,
         generators,
         mod_biome_sources(),
-        registry,
+        terrain_resources.registry,
         |biome| biomes.contains(biome).then(|| biomes.id(biome)),
         shape,
         seed,
     )
+    .map(|terrain| terrain.map(ModLevel::Terrain))
+}
+
+/// Where `inner` keeps the structure references an explorer map skips, and how it reads a
+/// saved chunk's.
+fn keep_structure_references(
+    inner: &VanillaTerrain,
+    world_root: &std::path::Path,
+    dim: Dim,
+    save: &Arc<SaveDir>,
+) {
+    inner.set_reference_file(world_root.join("data").join(format!(
+        "horizon_structure_references_{}.json",
+        dim.id().replace(':', "_")
+    )));
+    let save = save.clone();
+    inner.set_saved_references(Arc::new(move |name, x, z| {
+        save.start_references(x, z, name)
+    }));
 }
 
 pub(super) fn make_streaming(
@@ -1093,16 +1143,7 @@ pub(super) fn make_streaming(
         if automatic_structures {
             inner.search_rings_behind();
         }
-        inner.set_reference_file(world_root.join("data").join(format!(
-            "horizon_structure_references_{}.json",
-            dim.id().replace(':', "_")
-        )));
-        {
-            let save = save.clone();
-            inner.set_saved_references(Arc::new(move |name, x, z| {
-                save.start_references(x, z, name)
-            }));
-        }
+        keep_structure_references(&inner, world_root, dim, &save);
         locator = Some(inner.clone());
         Streaming::new(
             Arc::new(Persistent {
@@ -1140,29 +1181,50 @@ pub(super) fn make_streaming(
             pack.context_with(biomes.clone()),
             res.threads(),
         )
-    } else if let Some(inner) = mod_terrain(
+    } else if let Some(level) = mod_terrain(
         world_root,
         &options.resources,
         &pack.additional_data,
         enabled_features,
-        pack.assets.registry,
+        terrain_resources,
         &biomes,
         dim,
         shape,
         seed,
+        automatic_structures,
     )
     .transpose()?
     {
-        Streaming::new(
-            Arc::new(Persistent {
-                inner: Arc::new(inner),
-                save: save.clone(),
-                registry: pack.assets.clone(),
-                biomes: biomes.clone(),
-            }),
-            pack.context_with(biomes.clone()),
-            res.threads(),
-        )
+        match level {
+            ModLevel::Terrain(inner) => Streaming::new(
+                Arc::new(Persistent {
+                    inner: Arc::new(inner),
+                    save: save.clone(),
+                    registry: pack.assets.clone(),
+                    biomes: biomes.clone(),
+                }),
+                pack.context_with(biomes.clone()),
+                res.threads(),
+            ),
+            ModLevel::Staged(mut inner) => {
+                inner.add_mod_signs(res.facts());
+                register_sea_level(inner.sea_level());
+                let inner = Arc::new(inner);
+                inner.load_structure_mobs_behind();
+                keep_structure_references(&inner, world_root, dim, &save);
+                locator = Some(inner.clone());
+                Streaming::new(
+                    Arc::new(Persistent {
+                        inner,
+                        save: save.clone(),
+                        registry: pack.assets.clone(),
+                        biomes: biomes.clone(),
+                    }),
+                    pack.context_with(biomes.clone()),
+                    res.threads(),
+                )
+            }
+        }
     } else {
         // WorldOptions.generateStructures, from the world's settings.
         let structures =
@@ -1214,16 +1276,7 @@ pub(super) fn make_streaming(
             }));
             inner.set_old_world(old);
         }
-        inner.set_reference_file(world_root.join("data").join(format!(
-            "horizon_structure_references_{}.json",
-            dim.id().replace(':', "_")
-        )));
-        {
-            let save = save.clone();
-            inner.set_saved_references(Arc::new(move |name, x, z| {
-                save.start_references(x, z, name)
-            }));
-        }
+        keep_structure_references(&inner, world_root, dim, &save);
         locator = Some(inner.clone());
         Streaming::new(
             Arc::new(Persistent {
@@ -1719,14 +1772,42 @@ mod tests {
         std::fs::create_dir_all(&world).unwrap();
         let (overrides, _) = worldgen_overrides_of(&world, &root, &biomes, &[], &[]);
         let shapes = shapes_of(&overrides);
+        use horizon_world::native_load_context::{DataLoadOrigin, LoadContext, LoadInputs};
+        let inputs = LoadInputs::new(Default::default(), root.join("settings"));
+        let item_data = Arc::new(
+            horizon_world::item_defaults::ItemData::load(
+                &root,
+                LoadContext::new(DataLoadOrigin::ServerDataLoad, Arc::new(inputs), []),
+            )
+            .unwrap(),
+        );
+        let worldgen = root.join("worldgen");
+        let resources = TerrainResources {
+            data: None,
+            dir: &worldgen,
+            registry,
+            biomes: &biomes,
+            item_data: &item_data,
+        };
         let open = |dim: Dim| {
             let shape = shapes.get(dim.id());
-            mod_terrain(&world, &root, &[], &[], registry, &biomes, dim, shape, 0)
+            mod_terrain(
+                &world,
+                &root,
+                &[],
+                &[],
+                resources,
+                &biomes,
+                dim,
+                shape,
+                0,
+                true,
+            )
         };
         let pocket = Dim::Extra(mod_api::__private::dimension_key("test:pocket"));
-        let terrain = open(pocket)
-            .expect("the stem names a registered generator")
-            .unwrap();
+        let Some(Ok(ModLevel::Terrain(terrain))) = open(pocket) else {
+            panic!("the stem names a registered generator that asks for no stage");
+        };
         let chunk = terrain.finish(terrain.proto(&mut (), 0, 0));
         assert_eq!(
             chunk.block(0, -128, 0),

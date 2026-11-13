@@ -619,6 +619,7 @@ impl Game<'_> {
     /// Discard state belonging to an already removed connectionless guest.
     pub(super) fn cleanup_fake_player(&mut self, host: &mut super::lan::LanHost, guest: &Guest) {
         host.play.remove(&guest.conn);
+        host.forget_menus(guest.conn);
         host.poses.remove(&guest.conn);
         host.mob_players.retain(|_, conn| *conn != guest.conn);
         self.destroying.remove(&guest.entity_id);
@@ -691,6 +692,7 @@ impl Game<'_> {
         let host = self.lan.as_mut().expect("validated fake's host");
         host.hub.guests.update(gi, |guest| state.swap(guest));
         let play = host.play.insert(conn, Default::default());
+        let menus = host.menus.insert(conn, Default::default());
         let outcome = self.perform_fake_action(gi, conn, action);
         let host = self.lan.as_mut().expect("guest turns retain the host");
         let (held, other) = host.hub.guests.update(gi, |guest| {
@@ -710,6 +712,10 @@ impl Game<'_> {
             state.swap(guest);
             (held, other)
         });
+        host.menus.remove(&conn);
+        if let Some(menus) = menus {
+            host.menus.insert(conn, menus);
+        }
         host.play.remove(&conn);
         if let Some(play) = play {
             host.play.insert(conn, play);
@@ -879,13 +885,17 @@ impl Game<'_> {
 
     /// The chunks players started and stopped watching that the hub
     /// recorded (`lan::chunk_watch`), told to the mods in the hub's order,
-    /// with no player's state swapped in. The player handle is built from
-    /// the record, so an unwatch after a disconnect still names them.
+    /// with no player's state swapped in, and a sent chunk's passages sent
+    /// after it. The player handle is built from the record, so an unwatch
+    /// after a disconnect still names them. Nothing while the log is empty.
     pub(super) fn run_chunk_watches(&mut self) {
         use horizon_client::lan::chunk_watch::ChunkWatchKind;
         let Some(host) = self.lan.as_mut() else {
             return;
         };
+        if host.hub.chunk_watches.is_empty() {
+            return;
+        }
         let runs = host.hub.chunk_watches.take();
         let Some(epoch) = self.native_lifecycle.epoch() else {
             return;
@@ -906,7 +916,10 @@ impl Game<'_> {
                 let chunk = mod_api::ChunkRef::new(level, watch.chunk);
                 match watch.kind {
                     ChunkWatchKind::Watch => self.native_chunk_watch(player, chunk),
-                    ChunkWatchKind::Sent => self.native_chunk_sent(player, chunk),
+                    ChunkWatchKind::Sent => {
+                        self.native_chunk_sent(player, chunk);
+                        self.send_chunk_passages(level, watch.uuid, watch.chunk);
+                    }
                     ChunkWatchKind::Unwatch => self.native_chunk_unwatch(player, chunk),
                 }
             }
@@ -4555,6 +4568,53 @@ pub(super) mod fake_action_tests {
                     .is_on_cooldown("minecraft:bucket")
             );
             assert_eq!(game.lan.as_ref().unwrap().hub.guests.len(), 2);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn scoped_fake_use_restores_the_persistent_menu_owner() {
+        super::super::native_entity_refs::tests::with_game(|game| {
+            let (player, conn, _) = fake(game, Some("minecraft:diamond"), 1);
+            let mut menu = Box::new(horizon_client::menu::Menu::new(
+                horizon_client::menu::Kind::Inventory,
+            ));
+            menu.carried = Some(ItemStack::new("minecraft:stick", 3));
+            let owner = (&*menu) as *const horizon_client::menu::Menu;
+            *game
+                .lan
+                .as_mut()
+                .unwrap()
+                .menus
+                .entry(conn)
+                .or_default()
+                .crafting
+                .inventory = Some(menu);
+            place(game, [1, 64, 0], "minecraft:chest");
+            let setup = mod_api::PlayerActionSetup::new(
+                Some(crate::game::api_values::test_snapshot(&ItemStack::new(
+                    "minecraft:oak_log",
+                    1,
+                ))),
+                [0.5, 64.0 + f64::from(1.62_f32), 0.5],
+                0.0,
+                90.0,
+                false,
+            );
+            let result = game
+                .player_perform_action_scoped(player, on_top([1, 64, 0]), setup)
+                .unwrap();
+            assert_eq!(
+                result.outcome,
+                ActionOutcome::EffectBlocked(FakeEffect::Menu)
+            );
+            let restored = game.lan.as_ref().unwrap().menus[&conn]
+                .crafting
+                .inventory
+                .as_ref()
+                .unwrap();
+            assert_eq!((&**restored) as *const horizon_client::menu::Menu, owner);
+            assert_eq!(restored.carried, Some(ItemStack::new("minecraft:stick", 3)));
         });
     }
 

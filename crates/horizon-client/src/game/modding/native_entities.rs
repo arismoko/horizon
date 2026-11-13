@@ -751,6 +751,7 @@ mod tests {
                 );
 
                 game.crystals.push(super::super::dragon::Crystal {
+                    fall: Default::default(),
                     attachment_lifetime: Default::default(),
                     join: Default::default(),
                     id: base + 4,

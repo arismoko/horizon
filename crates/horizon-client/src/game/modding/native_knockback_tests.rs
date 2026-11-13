@@ -17,8 +17,11 @@ type Held = (i32, Option<String>, Option<String>);
 #[derive(Default)]
 struct Heard {
     knocks: Vec<Held>,
+    /// The entry of `LivingEntity.knockback` each push came through, as the hook named it.
+    entries: Vec<mod_api::KnockbackEntry>,
     incoming_causing: Vec<i32>,
     cancel: bool,
+    repeat_short: bool,
 }
 
 struct Probe(Arc<Mutex<Heard>>);
@@ -39,7 +42,11 @@ impl Hooks for Probe {
             id(event.attacker_main),
             id(event.attacker_off),
         ));
+        heard.entries.push(event.entry);
         event.strength *= 2.0;
+        if heard.repeat_short && event.entry == mod_api::KnockbackEntry::Short {
+            event.strength *= 2.0;
+        }
         event.x = -event.x;
         if heard.cancel {
             return mod_api::Flow::Cancel;
@@ -128,6 +135,7 @@ fn the_bridge_names_the_attacker_and_what_it_holds() {
             direct: None,
             player_uuid: None,
             held: Default::default(),
+            ..Default::default()
         };
         for pushed in [
             Hurting::Mob(&mob, &by_player),
@@ -155,6 +163,7 @@ fn the_bridge_names_the_attacker_and_what_it_holds() {
             direct: None,
             player_uuid: None,
             held: [Some(ItemStack::new("minecraft:iron_sword", 1)), None],
+            ..Default::default()
         };
         push(Hurting::Player(12, source(0)), &sword);
         push(Hurting::Player(12, source(0)), &NO_ATTACK);
@@ -302,6 +311,7 @@ fn the_attack_scope_nests_restores_and_a_guest_swap_hides_it() {
                             direct: None,
                             player_uuid: None,
                             held: Default::default(),
+                            ..Default::default()
                         };
                         game.with_attack(inner.clone(), |game| {
                             assert_eq!(game.current_attack(), inner);
@@ -456,4 +466,64 @@ fn a_mobs_fireball_on_the_player_names_the_shooter_and_its_bow() {
         "heard {:?}",
         heard.knocks
     );
+}
+
+/// The hook fires once per call of the full entry and names the entry the push came through:
+/// `Short` for `knockback(power, x, z)` (which delegates to the full entry), `Full` for a direct
+/// call of the full entry. A listener that wants a mixin's double change on the short entry
+/// applies its change twice on `Short`.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn the_hook_names_the_entry_a_push_came_through_once_per_full_entry_call() {
+    use mod_api::KnockbackEntry::{Full, Short};
+    let heard = heard(|game, log| {
+        log.lock().unwrap().repeat_short = true;
+        let hit = Damage::of(DamageKind::Generic);
+        zombie_at(game, 42, Vec3::ZERO);
+        let mut mob = game.mobs.pop().unwrap();
+        mob.velocity = Vec3::ZERO;
+        mob.on_ground = false;
+        mob.knockback(damage_level_of!(game), 0.4, 1.0, 0.0, &hit, 0.0);
+        assert_eq!(mob.velocity, Vec3::new(1.6, 0.0, 0.0));
+        mob.velocity = Vec3::ZERO;
+        assert_eq!(log.lock().unwrap().entries, [Short], "mob, short entry");
+        mob.knockback_full(damage_level_of!(game), 0.4, 1.0, 0.0, &hit, 0.0, false);
+        assert_eq!(
+            log.lock().unwrap().entries,
+            [Short, Full],
+            "mob, full entry"
+        );
+        assert_eq!(mob.velocity, Vec3::new(0.8, 0.0, 0.0));
+        mob.knockback_full(damage_level_of!(game), 0.4, 1.0, 0.0, &hit, 0.0, true);
+        assert_eq!(
+            log.lock().unwrap().entries,
+            [Short, Full, Full],
+            "mob, full entry for an effect push"
+        );
+
+        player_with_sword(game);
+        game.player.as_mut().unwrap().ground.on_ground = false;
+        let attack = &NO_ATTACK;
+        game.knock_back_player(0.4, 1.0, 0.0, source(0), attack, 0.0);
+        assert_eq!(
+            game.player.as_ref().unwrap().velocity,
+            Vec3::new(1.6, 0.0, 0.0)
+        );
+        game.player.as_mut().unwrap().velocity = Vec3::ZERO;
+        game.knock_back_player_full(0.4, 1.0, 0.0, source(0), attack, 0.0, false);
+        assert_eq!(
+            game.player.as_ref().unwrap().velocity,
+            Vec3::new(0.8, 0.0, 0.0)
+        );
+        let entries = log.lock().unwrap().entries.clone();
+        assert_eq!(
+            &entries[3..],
+            [Short, Full],
+            "player, short then full entry"
+        );
+        // The short entry leaves nothing behind: a full call after it is `Full` again.
+        mob.knockback_full(damage_level_of!(game), 0.4, 1.0, 0.0, &hit, 0.0, false);
+        assert_eq!(log.lock().unwrap().entries.last(), Some(&Full));
+    });
+    assert_eq!(heard.entries.len(), 6, "one event per full-entry call");
 }

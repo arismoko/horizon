@@ -1,11 +1,9 @@
-//! Opaque scalar identities for registration contract fixtures.
-/// Construct an explicit test token.
-#[cfg(any(test, feature = "testing"))]
+//! Cold authoring access to opaque entity type tokens.
+/// Construct a registration-owned token.
 pub fn entity_type_key(slot: u32) -> crate::EntityTypeKey {
     crate::EntityTypeKey(slot)
 }
 /// Its opaque slot for round-trip assertions.
-#[cfg(any(test, feature = "testing"))]
 pub fn entity_type_key_slot(key: crate::EntityTypeKey) -> u32 {
     key.0
 }

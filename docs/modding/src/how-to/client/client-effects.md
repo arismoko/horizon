@@ -25,9 +25,19 @@ request's `advanced` and `creative` flags on native and wasm alike.
 Native internals mods can request extra world cameras through `world_views` and
 consume their textures in `world_view_drawn`. These are raw renderer callbacks, not
 portable API callbacks: wasm mods cannot use them. Construct a `WorldView` with a
-stable ID, camera, yaw, pitch, field of view and pixel size. Return the same
-requests whenever the frame asks; at most four valid, distinct IDs draw, with
-sides limited to 4096 pixels and the device limit.
+stable ID, camera, yaw, pitch, field of view and pixel size. The hook is asked
+once a frame; at most four valid, distinct IDs draw, with sides limited to 4096
+pixels and the device limit. Each view culls the world with its own frustum, and
+the player's view keeps its own culling.
+
+For a view through a portal, add `with_clip_plane([x, y, z, d])`: nothing behind
+that world-space plane is drawn, and the camera must be behind it. In such a view
+an entity wins the depth test against terrain up to 1/1024 of its distance in
+front of it (about 1 block at 1024 blocks). For a mirror,
+give the camera reflected through it and add `with_mirror()`: the picture is
+flipped left to right, with face culling flipped to match, so the same faces are
+culled as in an unmirrored view. A clip plane with a zero normal, a value that is
+not finite, or the camera in front of it leaves the view out.
 
 Use `world_view_drawn` to copy a still to your own buffer or draw into the supplied
 target with its encoder. Copy a picture you need to preserve: targets are reused

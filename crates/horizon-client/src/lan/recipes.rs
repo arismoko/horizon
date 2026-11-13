@@ -60,36 +60,42 @@ fn registration_order<V>(all: &BTreeMap<String, V>) -> Vec<&V> {
     ordered.into_iter().map(|(_, v)| v).collect()
 }
 
-/// The network copy's recipes: every recipe file and overlay recipe, each
-/// ingredient object — NeoForge's shapes, a brewing slot's item predicate —
-/// replaced by the flat item list the crafting copy resolves it to. The
-/// crafting copy resolves these shapes where it loads them; this copy reads
-/// the files again, and `holder_set` writes any object it meets as an empty
-/// list. A recipe that keeps an object the loader cannot parse (a mod's own
-/// ingredient kind) is left out: the server does not load it, and an empty
-/// ingredient in its place misleads the client.
+/// The network copy of the already-resolved load cohort. Only recipes accepted
+/// by the canonical loader participate in display numbering, keeping client
+/// display ids aligned with the server's recipe index. Accepted ingredients
+/// become flat holder sets, including empty sets, without interpreting custom metadata.
 pub(super) fn network_recipes(
     resources: &Path,
     overlay: &horizon_world::loot::PackOverlay,
     defaults: &horizon_world::item_defaults::ItemDefaults,
     sources: &horizon_client::crafting::ResolvedSources,
-) -> (BTreeMap<String, Box<str>>, HashMap<String, i32>) {
+) -> crate::Result<(BTreeMap<String, Box<str>>, HashMap<String, i32>)> {
     // The resolved copy: the load's `ingredient` answers are in place, and
     // none of them leaves it (`forget_answers` below).
+    let items = horizon_client::items::Items::catalog(resources, overlay, defaults)?;
+    let accepted =
+        horizon_client::crafting::Recipes::from_resolved(resources, &items, overlay, sources)?;
+    let accepted: std::collections::HashSet<&str> = accepted
+        .by_type
+        .values()
+        .flat_map(|recipes| {
+            recipes
+                .iter()
+                .filter(|recipe| recipe.has_placement_candidates())
+                .map(|recipe| recipe.id.as_str())
+        })
+        .collect();
     let mut all: BTreeMap<_, _> = sources
         .recipes
         .iter()
-        .map(|r| {
-            (
-                horizon_client::crafting::qualified(&r.name),
-                (*r.resolved).clone(),
-            )
+        .filter_map(|recipe| {
+            let id = horizon_client::crafting::qualified(&recipe.name);
+            accepted
+                .contains(id.as_str())
+                .then(|| (id, (*recipe.resolved).clone()))
         })
         .collect();
-    match horizon_client::items::Items::catalog(resources, overlay, defaults) {
-        Ok(items) => all.retain(|_, r| normalize_ingredients(r, &items)),
-        Err(e) => log::warn!("recipes: NeoForge's ingredient shapes stay unresolved: {e}"),
-    }
+    all.retain(|_, recipe| normalize_ingredients(recipe, &items));
     all.values_mut().for_each(|r| {
         horizon_client::crafting::Ingredient::forget_answers(r);
     });
@@ -109,7 +115,7 @@ pub(super) fn network_recipes(
         .into_iter()
         .map(|(id, r)| (id, r.to_string().into_boxed_str()))
         .collect();
-    (all, groups)
+    Ok((all, groups))
 }
 
 /// An ingredient object's flat item list: the shape NeoForge's standard
@@ -119,12 +125,17 @@ fn flat(ing: &Value, items: &horizon_client::items::Items) -> Option<Value> {
     if !ing.is_object() {
         return None;
     }
-    let parsed = horizon_client::crafting::Ingredient::parse(ing, items).or_else(|| {
-        // A brewing slot's item predicate: its `ingredient`, as the
-        // property sets have always read it.
-        ing.get("item")
-            .and_then(|v| horizon_client::crafting::Ingredient::parse(v, items))
-    })?;
+    let value = if ing
+        .get("type")
+        .or_else(|| ing.get("neoforge:ingredient_type"))
+        .is_some()
+    {
+        ing
+    } else {
+        // Only an untyped brewing wrapper gives `item` a structural meaning.
+        ing.get("item").unwrap_or(ing)
+    };
+    let parsed = horizon_client::crafting::Ingredient::parse(value, items)?;
     Some(Value::Array(
         parsed
             .order
@@ -145,42 +156,42 @@ fn normalize_ingredients(r: &mut Value, items: &horizon_client::items::Items) ->
         return true;
     }
     let mut parsed = true;
-    // The shaped recipe's key: a map of symbols to ingredients.
-    if let Some(map) = r.get_mut("key").and_then(|k| k.as_object_mut()) {
+    // Both ingredient maps use the canonical load's role list.
+    for key in crate::crafting::INGREDIENT_MAPS {
+        let Some(map) = r.get_mut(key).and_then(Value::as_object_mut) else {
+            continue;
+        };
         for ing in map.values_mut() {
             if let Some(replacement) = flat(ing, items) {
                 *ing = replacement;
-            } else if ing.is_object() {
+            } else if horizon_client::crafting::Ingredient::parse(ing, items).is_none() {
                 parsed = false;
             }
         }
     }
     // The list and single-ingredient keys, the smithing trio, the brewing
     // pair.
-    for key in [
-        "ingredients",
-        "ingredient",
-        "base",
-        "addition",
-        "template",
-        "input",
-        "reagent",
-    ] {
+    for key in crate::crafting::INGREDIENT_KEYS {
         let Some(ing) = r.get_mut(key) else { continue };
         if let Some(replacement) = flat(ing, items) {
             *ing = replacement;
             continue;
         }
-        if let Value::Array(a) = ing {
-            for entry in a.iter_mut() {
+        if key == "ingredients" {
+            let Some(entries) = ing.as_array_mut() else {
+                parsed = false;
+                continue;
+            };
+            for entry in entries {
                 if let Some(replacement) = flat(entry, items) {
                     *entry = replacement;
-                } else if entry.is_object() {
+                } else if horizon_client::crafting::Ingredient::parse(entry, items).is_none() {
                     parsed = false;
                 }
             }
-        } else if ing.is_object() {
-            parsed = false;
+        } else {
+            let value = ing.get("item").unwrap_or(ing);
+            parsed &= horizon_client::crafting::Ingredient::parse(value, items).is_some();
         }
     }
     parsed
@@ -218,6 +229,21 @@ pub fn update_recipes(
             Ingredient::Items(list) => list.iter().filter_map(|n| item(n)).collect(),
         }
     };
+    // A recipe with any required empty ingredient contributes to no property
+    // set and never appears in the selectable stonecutter list.
+    let placeable = |recipe: &Value| {
+        [
+            "ingredient",
+            "template",
+            "base",
+            "addition",
+            "input",
+            "reagent",
+        ]
+        .into_iter()
+        .filter_map(|key| recipe.get(key))
+        .all(|value| ingredient(value).is_some_and(|i| !items(&i).is_empty()))
+    };
     let mut w = Writer::new();
     let custom: BTreeMap<_, _> = additions.custom().collect();
     w.varint((PROPERTY_SETS.len() + custom.len()) as i32);
@@ -230,7 +256,7 @@ pub fn update_recipes(
             } else {
                 t == *kind
             };
-            if matches {
+            if matches && placeable(recipe) {
                 for field in *fields {
                     if let Some(i) = ingredient(&recipe[*field]) {
                         set.extend(items(&i));
@@ -264,7 +290,7 @@ pub fn update_recipes(
     // its result as an ItemStackSlotDisplay.
     let stonecutting: Vec<&Value> = chosen
         .iter()
-        .filter(|r| r["type"] == "minecraft:stonecutting")
+        .filter(|r| r["type"] == "minecraft:stonecutting" && placeable(r))
         .collect();
     let item_stack = sync
         .id("minecraft:slot_display", "minecraft:item_stack")
@@ -864,5 +890,62 @@ mod per_player_tests {
             sources
         );
         assert!(vanilla.payloads.is_empty());
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn empty_ingredient_network_consumers_exclude_whole_unplaceable_recipes() {
+    use horizon_protocol::{
+        buf::{Codec, Reader},
+        packets::recipes::UpdateRecipes,
+        registry::Ids,
+    };
+    use serde_json::json;
+    let mut catalog = horizon_client::items::Items::for_tests(Default::default());
+    catalog
+        .item_tag_order
+        .insert("fixture:empty".into(), vec![]);
+    let mut sync = SyncData::empty();
+    sync.builtin.registries.insert(
+        "minecraft:item".into(),
+        Ids::from_names(vec![
+            "minecraft:air".into(),
+            "minecraft:stone".into(),
+            "minecraft:stick".into(),
+        ]),
+    );
+    for (source, retained) in [
+        (json!([]), false),
+        (json!("#fixture:missing"), false),
+        (json!("#fixture:empty"), true),
+        (
+            json!({"type":"fixture:predicate", "item":"minecraft:stone", "horizon:resolved_items":[]}),
+            true,
+        ),
+    ] {
+        let mut all = BTreeMap::new();
+        for kind in [
+            "minecraft:stonecutting",
+            "minecraft:smelting",
+            "minecraft:smithing_transform",
+        ] {
+            let mut recipe = json!({"type":kind, "ingredient":source,
+                "base":"minecraft:stone", "addition":source, "result":{"id":"minecraft:stick"}});
+            assert_eq!(normalize_ingredients(&mut recipe, &catalog), retained);
+            if retained {
+                // This copy is only a network HolderSet. The canonical recipe
+                // map retains predicates; metadata must not become candidates.
+                if source.is_object() {
+                    assert_eq!(recipe["ingredient"], json!([]));
+                }
+                horizon_client::crafting::Ingredient::forget_answers(&mut recipe);
+                all.insert(kind.into(), recipe.to_string().into_boxed_str());
+            }
+        }
+        let bytes = update_recipes(&all, &sync, &Default::default());
+        let packet = UpdateRecipes::read(&mut Reader::new(&bytes)).unwrap();
+        assert!(packet.stonecutter.is_empty());
+        assert!(packet.properties.iter().all(|(_, ids)| ids.is_empty()));
     }
 }

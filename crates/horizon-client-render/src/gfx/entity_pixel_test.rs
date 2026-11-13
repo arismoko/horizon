@@ -205,6 +205,7 @@ pub fn render(
     view_proj: Mat4,
     hdr: bool,
 ) -> std::result::Result<Vec<u8>, String> {
+    let _gpu = crate::gfx::test_gpu::lock();
     let frame = software_frame(atlas_size, atlas, view_proj, 0.0)?;
     let shader = frame
         .device
@@ -342,6 +343,7 @@ pub struct PreparedInstanceDraw<'a> {
 
 /// One prepared instance plus its HDR mark. The geometry is dropped before submit.
 pub fn render_instance(draw: PreparedInstanceDraw<'_>) -> std::result::Result<Vec<u8>, String> {
+    let _gpu = crate::gfx::test_gpu::lock();
     let PreparedInstanceDraw {
         vertices,
         ranges,
@@ -754,6 +756,7 @@ pub fn render_pack(
     vertices: &[Vertex],
     spans: &[pack_draw::EntitySpan],
 ) -> std::result::Result<Vec<[u8; 4]>, String> {
+    let _gpu = crate::gfx::test_gpu::lock();
     use std::io::Write;
     let colour = |[r, g, b, _]: [u8; 4]| format!("vec4({r}.0, {g}.0, {b}.0, 255.0) / 255.0");
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
@@ -1008,6 +1011,7 @@ mod scrgb {
     #[test]
     #[ignore = "needs software Vulkan"]
     fn an_instanced_lit_texel_matches_cpu_scrgb() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let dark =
             |instanced| super::scrgb_center(instanced, 0).expect("software Vulkan scRGB draw");
         let (cpu_dark, gpu_dark) = (dark(false), dark(true));

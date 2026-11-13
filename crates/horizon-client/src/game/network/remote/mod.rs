@@ -9,6 +9,7 @@
 mod attack_target;
 mod fall_sound;
 mod interaction_actions;
+mod level_format;
 mod raw_ingress;
 mod recipe_properties;
 mod use_item;
@@ -217,8 +218,7 @@ fn menu_title(tag: &Tag) -> horizon_client::text::Text {
     remote_text(tag).resolve_legacy()
 }
 
-/// `ChatTrustLevel`; a modified message keeps the signed content it was
-/// changed from.
+/// `ChatTrustLevel`; a modified message keeps the signed content it was changed from.
 pub(super) enum ChatTrust {
     Secure,
     Modified(String),
@@ -261,8 +261,7 @@ pub(super) struct Tracked {
     /// this base, so the server's next delta still lands where it means.
     codec_base: [f64; 3],
     silent: bool,
-    /// `Entity.vehicle`: the entity it rides (`SetPassengers`), whatever
-    /// either one's type.
+    /// `Entity.vehicle`: the entity it rides (`SetPassengers`), whatever either one's type.
     pub(in crate::game) vehicle: Option<u32>,
 }
 
@@ -549,6 +548,8 @@ pub(super) struct Remote {
     /// `ClientPlayerNetworkEvent.LoggingOut` was fired for this connection: every way out
     /// of a world reports it once.
     logged_out: bool,
+    /// The other levels' worlds the server opened on `horizon:levels` (`viewed_worlds`).
+    pub(in crate::game) viewed: super::viewed_worlds::ViewedWorlds,
     /// The level's hashed seed (login, respawn): the folder of its kept chunks
     /// (`server_terrain::level_dir`).
     pub(super) hashed_seed: i64,
@@ -639,8 +640,7 @@ pub(super) struct Remote {
     pub(super) first_passenger: bool,
     /// The player's place in its vehicle's `getPassengers`.
     pub(super) passenger_index: usize,
-    /// Item entities waiting for their item data: where they are and their
-    /// motion.
+    /// Item entities waiting for their item data: where they are and their motion.
     pub(super) pending_items: HashMap<i32, ([f64; 3], Vec3)>,
     health: (f32, i32, f32),
     /// `LocalPlayer.flashOnSetHealth`: set by the first health the server
@@ -714,8 +714,7 @@ pub(super) struct Remote {
     /// Entities with shared flag 6 (`Entity.isCurrentlyGlowing` on a client); mobs keep
     /// theirs in `Mob::glowing`.
     pub(super) glowing: std::collections::HashSet<i32>,
-    /// The player's own shared flag 5 (`Entity.isInvisible`) as the server
-    /// last set it.
+    /// The player's own shared flag 5 (`Entity.isInvisible`) as the server last set it.
     pub(super) own_invisible: bool,
     /// The player's own shared flag 0 (`Entity.isOnFire`) as the server last
     /// set it: its fire (blaze fireballs, fire aspect, lightning) never
@@ -1158,6 +1157,7 @@ impl Game<'_> {
             level_facts: None,
             level_environment: None,
             facts_cache: Default::default(),
+            viewed: Default::default(),
             hashed_seed: 0,
             chunk_format: Arc::new(ChunkFormat::new(
                 &DimensionType::vanilla("minecraft:overworld"),
@@ -1397,6 +1397,7 @@ impl Game<'_> {
             level_facts: None,
             level_environment: None,
             facts_cache: Default::default(),
+            viewed: Default::default(),
             hashed_seed: 0,
             chunk_format: Arc::new(ChunkFormat::new(
                 &DimensionType::vanilla("minecraft:overworld"),
@@ -2352,6 +2353,7 @@ impl Game<'_> {
                     // offers its own far terrain, or none, and announces its
                     // own features again.
                     if let Some(remote) = &mut self.remote {
+                        remote.viewed.clear();
                         remote.far_terrain = None;
                         remote.quiet_commands = false;
                         remote.custom_books = false;
@@ -2641,76 +2643,11 @@ impl Game<'_> {
         // A Horizon server's bulk edit sends whole columns with the light
         // from before its relight; any other server's packet light is final.
         let relight_resent = r.quiet_commands;
-        let dimension = r.registries.dimension(spawn.dimension_type);
-        // The server's dimension type gives the level's shape, and its
-        // chunks the shape's column.
-        let shape = horizon_client::chunk::LevelShape::new(
-            dimension.min_y,
-            dimension.height,
-            dimension.logical_height,
-            dimension.has_skylight,
-            dimension.has_ceiling,
-        )
-        .unwrap_or_else(|_| super::Dim::from_id(&dimension.name).shape());
-        r.chunk_format = Arc::new(
-            r.chunk_format
-                .with_dimension(&dimension)
-                .in_column(shape.column()),
-        );
-        // The server's dimension type gives the level's facts (what it does to fluids, mobs,
-        // beds and time), not only its shape: a level of a mod the server runs is no
-        // longer taken for the Overworld.
-        r.level_facts = None;
-        r.level_environment = None;
-        if let Some((name, json)) = r.registries.dimension_json(spawn.dimension_type) {
-            if !matches!(
-                spawn.dimension.as_str(),
-                "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
-            ) {
-                r.level_environment = horizon_client::environment::Environment::with_type(
-                    self.res.environment(),
-                    &json,
-                );
-            }
-            let cached = r
-                .facts_cache
-                .get(&spawn.dimension)
-                .filter(|(old_name, old, _)| *old_name == name && *old == json)
-                .map(|(_, _, facts)| facts.clone());
-            r.level_facts = cached.or_else(|| {
-                use horizon_world::dimension_type::DimensionFacts;
-                let base = DimensionFacts::base_for_type(&name);
-                let facts = (|| {
-                    for field in ["coordinate_scale", "ambient_light"] {
-                        if json.get(field).is_some()
-                            && !json[field].as_f64().is_some_and(f64::is_finite)
-                        {
-                            return Err(format!("invalid {field}"));
-                        }
-                    }
-                    if json.get("monster_spawn_block_light_limit").is_some()
-                        && json["monster_spawn_block_light_limit"].as_i64().is_none()
-                    {
-                        return Err("invalid monster_spawn_block_light_limit".into());
-                    }
-                    DimensionFacts::patched(base, &name, &json)
-                })()
-                .map_err(|why| log::warn!("the server's dimension type {name} is refused ({why})"))
-                .unwrap_or_else(|_| base.clone());
-                if !sane_facts(&facts) {
-                    log::warn!(
-                        "the server's dimension type {name} is refused (a value out of range)"
-                    );
-                    return Some(Arc::new(base.clone()));
-                }
-                let facts = Arc::new(facts);
-                r.facts_cache.insert(
-                    spawn.dimension.clone(),
-                    (name.clone(), json.clone(), facts.clone()),
-                );
-                Some(facts)
-            });
-        }
+        let format = r.level_format(spawn, self.res.environment());
+        let (dimension, shape) = (format.dimension, format.shape);
+        r.chunk_format = format.chunk_format;
+        r.level_facts = format.facts;
+        r.level_environment = format.environment;
         r.dimension = dimension;
         r.resolve_clocks();
         self.world.day_time = r.clock_time(r.default_clock);
@@ -3415,11 +3352,11 @@ impl Game<'_> {
                 d.on_ground = on_ground;
                 return;
             }
-            if let Some(i) = self.falling.iter().position(|f| f.id == id as u32) {
+            if let Some(i) = self.falling.iter().rposition(|f| f.id == id as u32) {
                 self.falling.update(i, |f| f.position = at);
                 return;
             }
-            if let Some(t) = self.tnts.iter_mut().find(|t| t.id == id as u32) {
+            if let Some(t) = self.tnts.iter_mut().rev().find(|t| t.id == id as u32) {
                 t.position = at;
                 t.on_ground = on_ground;
                 return;
@@ -3644,6 +3581,10 @@ impl Game<'_> {
             C::CustomPayload(p) if p.channel == horizon_client::datapack_net::CHANNEL => {
                 horizon_client::datapack_net::accept_chunk(&p.data)?;
             }
+            // Another level's world: its open, its packets and its close (`viewed_worlds`).
+            C::CustomPayload(p) if p.channel == horizon_protocol::viewed_levels::CHANNEL => {
+                self.viewed_levels_payload(&p.data)?;
+            }
             // Private custom recipe-book settings and placement protocol.
             C::CustomPayload(p)
                 if p.channel == horizon_client::recipe_book::settings_sync::CHANNEL =>
@@ -3677,6 +3618,10 @@ impl Game<'_> {
             C::CustomPayload(p) if p.channel == horizon_client::lan::recipes::CONTENT_CHANNEL => {
                 self.remote_recipe_content(&p.data);
             }
+            // The passages of the chunks the server shows the window.
+            C::CustomPayload(p) if p.channel == horizon_protocol::passage_sync::CHANNEL => {
+                self.remote_passage_sync(&p.data);
+            }
             // PingDebugMonitor.onPongReceived.
             C::PongResponse(p) => {
                 let delay = self.debug_millis() - p.time;
@@ -3698,6 +3643,7 @@ impl Game<'_> {
                 if let Some(r) = self.remote.as_mut() {
                     r.reconfiguring = None;
                     r.attachments.clear();
+                    r.viewed.clear();
                     // A new ClientPacketListener owns a fresh clock manager.
                     r.clocks.clear();
                     r.clock_game_time = 0;
@@ -3769,8 +3715,10 @@ impl Game<'_> {
                 // A new player, without effects (the server sends them
                 // again) and with no item in use.
                 self.potions.effects.clear();
-                // The server sends the level, chunks and entities again.
+                // The server sends the level, chunks and entities again, and opens again
+                // the levels it views: none is kept through a Respawn.
                 if let Some(r) = self.remote.as_mut() {
+                    r.viewed.clear();
                     r.attachments
                         .retain(|holder, _| matches!(holder, Holder::Player(_)));
                 }
@@ -3849,20 +3797,7 @@ impl Game<'_> {
                 }
             }
             C::PlayerPosition(p) => self.remote_teleport(&p)?,
-            C::PlayerRotation(p) => {
-                self.yaw = if p.relative_yaw {
-                    self.yaw + p.yaw
-                } else {
-                    p.yaw
-                };
-                self.pitch = (if p.relative_pitch {
-                    self.pitch + p.pitch
-                } else {
-                    p.pitch
-                })
-                .clamp(-90.0, 90.0);
-                self.snap_player_model_pitch();
-            }
+            C::PlayerRotation(p) => self.remote_rotation(&p),
             C::PlayerLookAt(p) => self.remote_look_at(&p),
             // ClientCommonPacketListenerImpl.handlePostEffects.
             C::PostEffects(p) => self.post_effects = p.effects,
@@ -3887,15 +3822,8 @@ impl Game<'_> {
                 self.destroy_block_progress(p.id, p.pos, i32::from(p.progress));
             }
             C::SectionBlocksUpdate(p) => {
-                let [sx, sy, sz] = p.section;
-                for change in p.changes {
-                    let local = (change & 0xFFF) as i32;
-                    let pos = [
-                        sx * 16 + (local >> 8 & 15),
-                        sy * 16 + (local & 15),
-                        sz * 16 + (local >> 4 & 15),
-                    ];
-                    self.server_block(pos, (change >> 12) as i32);
+                for (pos, state) in super::remote_chunks::section_blocks(&p) {
+                    self.server_block(pos, state);
                 }
             }
             C::BlockChangedAck(p) => self.end_predictions(p.sequence),
@@ -4013,6 +3941,7 @@ impl Game<'_> {
                     Holder::Entity(p.id as u32)
                 };
                 self.initialize_entity(holder, &kind);
+                let replace = self.tracks_remote_entity(p.id);
                 self.spawn_entity(p.id, &kind, p.position, rotation);
                 if let Some(r) = self.remote.as_mut() {
                     r.cart_lerps.remove(&p.id);
@@ -4025,7 +3954,7 @@ impl Game<'_> {
                     (rotation[0], rotation[1]),
                     p.data,
                 ) {
-                    self.spawn_remote_projectile(&kind, &p, (rotation[0], rotation[1]));
+                    self.spawn_added_projectile(&p, &kind, (rotation[0], rotation[1]), replace);
                 }
                 // Entity.recreateFromPacket: objects must exist before applying motion.
                 self.remote_motion(p.id, p.velocity);
@@ -5014,14 +4943,8 @@ impl Game<'_> {
                 4 if self.screen != Screen::Win => {
                     self.open_win_screen(true, super::win::Finish::RemoteRespawn);
                 }
-                1 => {
-                    self.world.weather.raining = true;
-                    self.world.weather.rain_level = (0.0, 0.0);
-                }
-                2 => {
-                    self.world.weather.raining = false;
-                    self.world.weather.rain_level = (1.0, 1.0);
-                }
+                // START_RAINING, STOP_RAINING, RAIN_LEVEL_CHANGE and THUNDER_LEVEL_CHANGE.
+                event @ (1 | 2 | 7 | 8) => self.world.weather.game_event(event, p.param),
                 3 => {
                     let mode = p.param as i32;
                     self.set_mode_id(mode);
@@ -5044,16 +4967,6 @@ impl Game<'_> {
                                 .in_source(mod_api::SoundSource::Players),
                         );
                     }
-                }
-                // RAIN_LEVEL_CHANGE: ClientPacketListener.handleGameEvent.
-                7 => {
-                    self.world.weather.rain_level = (p.param, p.param);
-                    self.world.weather.raining = p.param > 0.0;
-                }
-                // THUNDER_LEVEL_CHANGE: ClientPacketListener.handleGameEvent.
-                8 => {
-                    self.world.weather.thunder_level = (p.param, p.param);
-                    self.world.weather.thundering = p.param > 0.0;
                 }
                 // PUFFER_FISH_STING: ClientPacketListener.handleGameEvent
                 // plays PUFFER_FISH_STING at player position.
@@ -6299,14 +6212,16 @@ impl Game<'_> {
     fn remote_motion(&mut self, id: i32, velocity: [f64; 3]) {
         self.remote_dragon_motion(id, velocity);
         let v = Vec3::new(velocity[0], velocity[1], velocity[2]);
+        // `falling` and `tnts` are searched from the back: AddEntity calls this right after
+        // appending the block or TNT, so a spawn doesn't walk the whole list.
         if let Some(m) = self.mob_index.get_mut(&mut self.mobs, id as u32) {
             // Squid.aiStep derives its body pitch and roll from network motion.
             m.velocity = v;
         } else if let Some(d) = self.dropped.iter_mut().find(|d| d.id == id as u32) {
             d.velocity = v;
-        } else if let Some(i) = self.falling.iter().position(|f| f.id == id as u32) {
+        } else if let Some(i) = self.falling.iter().rposition(|f| f.id == id as u32) {
             self.falling.update(i, |f| f.velocity = v);
-        } else if let Some(t) = self.tnts.iter_mut().find(|t| t.id == id as u32) {
+        } else if let Some(t) = self.tnts.iter_mut().rev().find(|t| t.id == id as u32) {
             t.velocity = v;
         } else if let Some(o) = self.orbs.iter_mut().find(|o| o.id == id as u32) {
             o.velocity = v;
@@ -16456,38 +16371,3 @@ mod movement_input_tests;
 #[cfg(test)]
 #[path = "player_tick_tests.rs"]
 mod player_tick_tests;
-
-/// Whether a synchronized dimension type's values are inside the codec's ranges
-/// (`DimensionType.java`: a coordinate scale of `1.0E-5F` to `3.0E7`, a monster spawn block light
-/// limit of 0 to 15; the ambient light has no range), so a portal's ratio of two scales is finite.
-fn sane_facts(facts: &horizon_world::dimension_type::DimensionFacts) -> bool {
-    (f64::from(1.0e-5_f32)..=3.0e7).contains(&facts.coordinate_scale)
-        && (0..=15).contains(&facts.monster_spawn_block_light_limit)
-        && facts.ambient_light.is_finite()
-}
-
-#[cfg(test)]
-mod level_facts_tests {
-    use super::sane_facts;
-    use horizon_world::dimension_type::DimensionFacts;
-
-    /// A type outside the codec's ranges is not taken; the vanilla ones are.
-    #[test]
-    fn a_type_outside_the_codecs_ranges_is_refused() {
-        let mut facts = DimensionFacts::overworld().clone();
-        assert!(sane_facts(&facts));
-        assert!(sane_facts(DimensionFacts::of_builtin_level(
-            horizon_core::LevelKey::NETHER
-        )));
-        for scale in [0.0, f64::from_bits(1), -1.0, 3.1e7, f64::NAN] {
-            facts.coordinate_scale = scale;
-            assert!(!sane_facts(&facts), "{scale}");
-        }
-        facts.coordinate_scale = 1.0;
-        // the codec sets no range on the ambient light
-        facts.ambient_light = 1.5;
-        assert!(sane_facts(&facts));
-        facts.monster_spawn_block_light_limit = 16;
-        assert!(!sane_facts(&facts));
-    }
-}

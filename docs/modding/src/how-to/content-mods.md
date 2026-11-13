@@ -669,7 +669,7 @@ behaviour, with its own attributes. It saves what its template's class saves und
 table is its own, `<id>:entities/<name>` (vanilla's `EntityType.getDefaultLootTable`). It is not in vanilla's entity type
 tags (`#minecraft:undead`, `#minecraft:zombies`...) unless the mod adds it. Its row in `entity-types.json` is its
 template's, with `template` added and its attributes in place of the template's. To draw a custom model or texture,
-use `mob_submit`; the content declaration inherits the template's goals.
+use `render_living_pre`; the content declaration inherits the template's goals.
 
 #### Menu types
 
@@ -682,7 +682,7 @@ from (`results`, as a furnace's result slot):
 ```
 
 It is the menu type `<id>:<name>`, with its network id after vanilla's. A mod block's container opens it when its
-`menu` names it with as many slots ([native mods](native-mods.md), `block_entity_container`). The menu holds
+`menu` names it with as many slots ([native mods](native-mods.md), `r.block_container(&block, container)`). The menu holds
 its slots, then the player's 36. A shift-click from the inventory goes to the first slots with room, never a result
 slot, and one on the container goes to the inventory, as a chest's does. `results` fence players only: hoppers follow the
 container's faces and `inputs`, so leave result slots out of `inputs`. The data slots are the block entity's `data`

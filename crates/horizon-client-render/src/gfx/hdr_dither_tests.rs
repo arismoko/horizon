@@ -166,6 +166,7 @@ fn rows_are_flat(bytes: &[u8]) -> bool {
 
 #[test]
 fn a_slow_gradient_gets_grain_instead_of_bands_on_hdr10() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = gpu() else {
         return;
     };
@@ -232,6 +233,7 @@ fn a_slow_gradient_gets_grain_instead_of_bands_on_hdr10() {
 
 #[test]
 fn hdr10s_dither_keeps_both_ends_exact_and_leans_to_them_in_their_last_code() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = gpu() else {
         return;
     };
@@ -302,6 +304,7 @@ fn hdr10s_dither_keeps_both_ends_exact_and_leans_to_them_in_their_last_code() {
 
 #[test]
 fn scrgb_and_screenshots_get_no_dither() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = gpu() else {
         return;
     };

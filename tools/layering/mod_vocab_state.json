@@ -39,11 +39,6 @@
     "category": "Parts lookup table",
     "reason": "Resolved engine registry identity lookup, replaced on registry reload; it stores installed slot mappings, not authoring requests."
   },
-  "content/registry_keys.rs::ENTITY_TYPES": {
-    "type": "std::sync::LazyLock<std::sync::RwLock<Option<horizon_mod_runtime::registry_keys::Names>>,>",
-    "category": "Parts lookup table",
-    "reason": "Resolved engine registry identity lookup, replaced on registry reload; it stores installed slot mappings, not authoring requests."
-  },
   "content/registry_keys.rs::MENUS": {
     "type": "std::sync::LazyLock<std::sync::RwLock<Option<horizon_mod_runtime::registry_keys::Names>>,>",
     "category": "Parts lookup table",
@@ -51,6 +46,11 @@
   },
   "content/registry_keys.rs::resolved_block_keys::EMPTY": {
     "type": "std::sync::OnceLock<horizon_mod_runtime::block_definitions::Blocks>",
+    "category": "immutable cache",
+    "reason": "Empty or set-once resolved registry lookup returned when no installed Parts inventory supplies one."
+  },
+  "content/registry_keys.rs::resolved_entity_types::EMPTY": {
+    "type": "std::sync::OnceLock<horizon_mod_runtime::registry_keys::Names>",
     "category": "immutable cache",
     "reason": "Empty or set-once resolved registry lookup returned when no installed Parts inventory supplies one."
   },

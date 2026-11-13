@@ -40,6 +40,7 @@ use {
 
 /// GameEvent types (ClientboundGameEventPacket).
 pub mod advancements;
+mod block_changes;
 pub mod chat;
 pub mod chat_filter;
 mod item_particles;
@@ -458,6 +459,8 @@ pub struct Hub {
     /// Server mods' commands, a root in the commands report's format, sent
     /// after vanilla's; the key the game last set them for.
     mod_commands: (serde_json::Value, Option<u64>),
+    /// Players' areas in other levels and what their clients view of them (#3716).
+    pub viewed: super::viewed_levels::ViewedLevels,
 }
 
 fn string(s: &str) -> Tag {
@@ -835,6 +838,7 @@ impl Hub {
             teams: Vec::new(),
             nicknames: std::collections::HashMap::new(),
             former_names: std::collections::HashMap::new(),
+            viewed: Default::default(),
         }
     }
 
@@ -1458,7 +1462,7 @@ impl Hub {
     }
 
     /// The levels of a server, in MinecraftServer.levelKeys order.
-    fn level_keys(&self) -> Vec<String> {
+    pub(in crate::lan) fn level_keys(&self) -> Vec<String> {
         ["overworld", "the_end", "the_nether"]
             .map(|l| format!("minecraft:{l}"))
             .into_iter()
@@ -1665,7 +1669,7 @@ impl Hub {
             .center
             .is_some_and(|c| c != self.guests[i].chunk());
         if recentered {
-            self.update_view(i, super::chunk_watch::listened());
+            self.update_view(i, self.chunk_watches.recording());
         }
         let g = &self.guests[i];
         g.send(&C::GameEvent(play::GameEvent {
@@ -2217,7 +2221,7 @@ impl Hub {
     /// ServerClockManager.createFullSyncPacket: every clock. Horizon keeps the
     /// overworld clock (the day time); the End's clock runs with the game
     /// time. Clocks do not advance without the advance_time rule.
-    fn time_packet(&self, world: &World, rate: f32) -> C {
+    pub(in crate::lan) fn time_packet(&self, world: &World, rate: f32) -> C {
         let overworld = self
             .sync
             .id("minecraft:world_clock", "minecraft:overworld")
@@ -2458,6 +2462,9 @@ impl Hub {
                 self.ticking = (ctx.tick_rate, ctx.tick_frozen);
                 self.stepping = ctx.tick_steps.revision;
             }
+            if self.viewed_pass(ctx) {
+                return events;
+            }
             if !self
                 .guests
                 .iter()
@@ -2480,6 +2487,7 @@ impl Hub {
         }
         crate::spans::time("lan_sync_world", || self.sync_world(ctx));
         crate::spans::time("lan_chunks", || self.update_chunks(ctx));
+        crate::spans::time("lan_viewed_levels", || self.send_viewed(ctx));
         crate::spans::time("lan_block_changes", || {
             self.broadcast_light_changes(ctx.world);
             self.broadcast_block_changes(ctx.world);
@@ -2770,7 +2778,7 @@ impl Hub {
         if let Some(far) = self.far.as_mut() {
             far.poll();
         }
-        let watching = super::chunk_watch::listened();
+        let watching = self.chunk_watches.recording();
         let mut batches = Vec::new();
         for i in 0..self.guests.len() {
             if self.watches(&self.guests[i]) {
@@ -3077,234 +3085,9 @@ impl Hub {
     /// tick's block events, entities and block entities, this tick's
     /// scheduled and random ticks), as it is now.
     pub fn broadcast_changes(&mut self, world: &mut World) {
-        if self.guests.iter().any(|g| self.here(g)) {
+        if self.guests.iter().any(|g| self.here(g)) || self.viewed_here() {
             self.broadcast_light_changes(world);
             self.broadcast_block_changes(world);
-        }
-    }
-    /// `ChunkHolder.broadcastChanges`' light part: the light sections that
-    /// changed in a column go to the players for whom it is on the border of
-    /// what they track (`ChunkMap.isChunkOnTrackedBorder`); the others light
-    /// the blocks they are sent themselves.
-    fn broadcast_light_changes(&mut self, world: &mut World) {
-        let Some(log) = world.light_log.as_mut() else {
-            return;
-        };
-        if log.is_empty() {
-            return;
-        }
-        let mut changes: Vec<_> = log.drain().collect();
-        // One entry per column, so the order is the columns'.
-        changes.sort_unstable_by_key(|&(column, _)| column);
-        for ((x, z), sections) in changes {
-            if let Some(far) = self.far.as_mut() {
-                far.changed(x, z);
-            }
-            let tracked = |g: &Guest, x: i32, z: i32| g.sent_chunks.contains(&(x, z));
-            let viewers: Vec<usize> = (0..self.guests.len())
-                .filter(|&i| {
-                    let g = &self.guests[i];
-                    self.watches(g)
-                        && tracked(g, x, z)
-                        && (-1..=1).any(|dz| (-1..=1).any(|dx| !tracked(g, x + dx, z + dz)))
-                })
-                .collect();
-            if viewers.is_empty() {
-                continue;
-            }
-            let Some(chunk) = world.chunks.get(&(x, z)) else {
-                continue;
-            };
-            let body = self.encoder.light_update(chunk, sections);
-            for &i in &viewers {
-                self.guests[i].sender.send(body.clone());
-            }
-        }
-    }
-
-    fn broadcast_block_changes(&mut self, world: &mut World) {
-        // Chunks changed in bulk (`World::edit_runs`) go whole to those who see them: one packet each, where a
-        // change of each block would be thousands (the client lights and meshes them once, on its workers).
-        let bulk: Vec<(i32, i32)> = if world.bulk_log.is_empty() {
-            Vec::new()
-        } else {
-            let mut keys: Vec<_> = world.bulk_log.drain().collect();
-            keys.sort_unstable();
-            keys
-        };
-        if !bulk.is_empty() {
-            // The single-player window's far terrain draws a column it isn't sent as the window last saw it: it is
-            // handed the column to summarize again (`handoff::changed`).
-            let unsent = |g: &Guest, key: &(i32, i32)| {
-                self.here(g)
-                    && g.address == super::conn::MEMORY_ADDRESS
-                    && !g.sent_chunks.contains(key)
-            };
-            for key in &bulk {
-                if let Some(chunk) = world.chunks.get(key)
-                    && self.guests.iter().any(|g| unsent(g, key))
-                {
-                    super::handoff::changed(chunk);
-                }
-            }
-            let recording = self.recording();
-            let columns: Vec<&Chunk> = bulk
-                .iter()
-                .filter_map(|k| world.chunks.get(k).map(|c| &**c))
-                .collect();
-            self.encoder.warm(&columns);
-            for chunk in columns {
-                let key = (chunk.x, chunk.z);
-                if let Some(far) = self.far.as_mut() {
-                    far.changed(key.0, key.1);
-                }
-                let viewers: Vec<usize> = (0..self.guests.len())
-                    .filter(|&i| {
-                        self.watches(&self.guests[i]) && self.guests[i].sent_chunks.contains(&key)
-                    })
-                    .collect();
-                if viewers.is_empty() {
-                    continue;
-                }
-                let body = self.encoder.body_in(chunk, world);
-                for &i in &viewers {
-                    self.guests[i].sender.send(body.clone());
-                }
-                if recording {
-                    // The prediction's replay excuses a client near the column: any of its blocks may have
-                    // changed, so the one nearest the player stands for them.
-                    for &i in &viewers {
-                        self.guests.update(i, |g| {
-                            let Some(record) = g.record.as_deref_mut() else {
-                                return;
-                            };
-                            let slack = super::prediction::slack(std::array::from_fn(|i| {
-                                g.position[i] - g.previous_position[i]
-                            }));
-                            let column =
-                                |c: f64, at: i32| (c.floor() as i32).clamp(at * 16, at * 16 + 15);
-                            let at = [
-                                column(g.position[0], key.0),
-                                g.position[1].floor() as i32,
-                                column(g.position[2], key.1),
-                            ];
-                            if super::prediction::near(g.position, at, slack) {
-                                record.changed_near(self.ticks, at);
-                            }
-                        });
-                    }
-                }
-            }
-        }
-        let Some(log) = world.block_log.as_mut() else {
-            return;
-        };
-        if !bulk.is_empty() {
-            // (what changed in them one at a time went with them, but for one-shot fields: a chunk has none)
-            log.retain(|p| {
-                bulk.binary_search(&(p.0 >> 4, p.2 >> 4)).is_err()
-                    || matches!(
-                        world.block_entities.get(p),
-                        Some(crate::containers::BlockEntity::Mod(m)) if m.has_client_update_fields()
-                    )
-            });
-        }
-        if log.is_empty() {
-            return;
-        }
-        let mut changes = std::mem::take(log);
-        changes.sort_unstable();
-        changes.dedup();
-        // The prediction's replay excuses a client that hadn't seen a change near it.
-        let recording = self.recording();
-        // Group by section.
-        let mut sections: std::collections::BTreeMap<(i32, i32, i32), Vec<(i32, i32, i32)>> =
-            Default::default();
-        for p in changes {
-            sections
-                .entry((p.0 >> 4, p.1 >> 4, p.2 >> 4))
-                .or_default()
-                .push(p);
-        }
-        for ((sx, sy, sz), positions) in sections {
-            if let Some(far) = self.far.as_mut() {
-                far.changed(sx, sz);
-            }
-            let viewers: Vec<usize> = (0..self.guests.len())
-                .filter(|&i| {
-                    self.watches(&self.guests[i]) && self.guests[i].sent_chunks.contains(&(sx, sz))
-                })
-                .collect();
-            if viewers.is_empty() {
-                continue;
-            }
-            let packet = if positions.len() == 1 {
-                let (x, y, z) = positions[0];
-                C::BlockUpdate(play::BlockUpdate {
-                    pos: [x, y, z],
-                    state: world.block(x, y, z).0 as i32,
-                })
-            } else {
-                C::SectionBlocksUpdate(play::SectionBlocksUpdate {
-                    section: [sx, sy, sz],
-                    changes: positions
-                        .iter()
-                        .map(|&(x, y, z)| {
-                            let state = i64::from(world.block(x, y, z).0);
-                            state << 12
-                                | i64::from(x & 15) << 8
-                                | i64::from(z & 15) << 4
-                                | i64::from(y & 15)
-                        })
-                        .collect(),
-                })
-            };
-            let body = packet.encode();
-            for &i in &viewers {
-                self.guests[i].sender.send(body.clone());
-            }
-            if recording {
-                let bounds = super::prediction::bounds(&positions);
-                for &i in &viewers {
-                    self.guests.update(i, |g| {
-                        super::prediction::note_changes(g, self.ticks, bounds, &positions);
-                    });
-                }
-            }
-            // Block entities with data the client shows.
-            for &(x, y, z) in &positions {
-                let state = world.block(x, y, z).0;
-                if !self
-                    .encoder
-                    .entity_matches(state, world.block_entities.get(&(x, y, z)))
-                {
-                    continue;
-                }
-                // A decorated pot is no block entity: its tag is the chunk's saved one.
-                let state = world.block(x, y, z).0;
-                let tag = match world.block_entities.get(&(x, y, z)) {
-                    Some(entity) => self.encoder.change_tag((x, y, z), state, entity),
-                    None => world
-                        .chunks
-                        .get(&(x >> 4, z >> 4))
-                        .and_then(|c| super::chunks::pot_tag(c, (x, y, z))),
-                };
-                let Some(tag) = tag else {
-                    continue;
-                };
-                let Some(kind) = self.encoder.entity_type(state) else {
-                    continue;
-                };
-                let body = C::BlockEntityData(play::BlockEntityData {
-                    pos: [x, y, z],
-                    kind,
-                    tag,
-                })
-                .encode();
-                for &i in &viewers {
-                    self.guests[i].sender.send(body.clone());
-                }
-            }
         }
     }
 
@@ -3602,7 +3385,7 @@ impl Hub {
         let modified_particles =
             mod_api::__private::listened(mod_api::HookId::EffectParticleModification);
         let placed: Vec<usize> = (0..self.guests.len())
-            .filter(|&i| self.here(&self.guests[i]))
+            .filter(|&i| self.here(&self.guests[i]) && self.guests[i].body_present())
             .collect();
         let guest_states: Vec<_> = placed
             .into_iter()
@@ -5108,6 +4891,7 @@ impl Hub {
             g.far_sent_chunks.clear();
             g.chunk_queue.clear();
             g.far_queue.clear();
+            g.viewed.forget_views();
             g.entity_id
         });
         self.respawned(id);
@@ -5249,6 +5033,7 @@ impl Hub {
             g.far_sent_chunks.clear();
             g.chunk_queue.clear();
             g.far_queue.clear();
+            g.viewed.forget_views();
             g.center = None;
             g.yaw = yaw;
             if let Some(pitch) = pitch {
@@ -5485,6 +5270,7 @@ fn equipment_source(g: &Guest, index: usize) -> Option<&ItemStack> {
 mod tests {
     mod cave_air_tests;
     mod collision_exclusion_tests;
+    mod effect_meta_tests;
     #[path = "../far_tests.rs"]
     mod far_tests;
     mod ordered_inbox_tests;
@@ -7766,6 +7552,30 @@ mod tests {
                 })
             })
             .collect()
+    }
+
+    /// With no mod listening, a registered passage (`record_for_passages`) makes the hub
+    /// record the chunks it sends from then on, for the passages the game sends with them.
+    #[test]
+    fn a_passage_makes_the_hub_record_the_chunks_it_sends() {
+        use super::super::chunk_watch::ChunkWatchKind::{Sent, Watch};
+        let (mut hub, _rx) = hub_with_a_guest();
+        let mut world = floor_at(1);
+        {
+            let value = 2;
+            hub.guests.update(0, |g| g.view_distance = value);
+        }
+        hub.chunk_watches.record_for_passages();
+        send_chunks(&mut hub, &mut world);
+        let mut got = watches(&mut hub);
+        got.sort_by_key(|(k, _, c)| (*k as u8, *c));
+        let overworld = "minecraft:overworld".to_string();
+        let four = [[-1, -1], [-1, 0], [0, -1], [0, 0]];
+        let expected: Vec<_> = [Watch, Sent]
+            .into_iter()
+            .flat_map(|kind| four.map(|c| (kind, overworld.clone(), c)))
+            .collect();
+        assert_eq!(got, expected);
     }
 
     /// `ChunkWatchEvent`: each near chunk sent is watched then sent, once;

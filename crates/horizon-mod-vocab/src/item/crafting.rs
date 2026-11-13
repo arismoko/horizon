@@ -35,7 +35,7 @@ impl RecipePropertyAddition {
 // exhaustive: placement providers and the game construct complete ingredient values
 #[derive(horizon_mod_api_macros::Wire)]
 pub struct Ingredient {
-    /// The items it accepts, however the source shape named them.
+    /// Enumerable placement candidates; an empty custom list retains its predicate.
     pub items: HashSet<String>,
     /// The same items in `HolderSet` order (`display`).
     pub order: Vec<String>,
@@ -96,10 +96,10 @@ impl Ingredient {
             children: None,
         }
     }
-    /// `Ingredient.test`: whether `stack` fits: a stack the list names, and
-    /// for a mod's own kind one the match-time hook accepts
-    /// (`ICustomIngredient.test`). The game answers with the loop context of
-    /// the side `host` runs on; a host without a game refuses every stack.
+    /// `Ingredient.test`: whether `stack` fits the candidate list and custom
+    /// predicate (`ICustomIngredient.test`). An empty custom list retains the
+    /// predicate without item filtering, but cannot be placed by the recipe book.
+    /// An empty tag never matches; a host without a game refuses every stack.
     pub fn test(&self, host: &dyn Host, stack: &ItemStack) -> bool {
         backend_of(host).is_some_and(|backend| backend.recipe_ingredient_test(self, stack))
     }
@@ -228,5 +228,29 @@ impl RecipeMatch {
             experience,
             processing_time,
         }
+    }
+}
+
+#[cfg(test)]
+mod empty_candidate_tests {
+    use super::*;
+
+    #[test]
+    fn empty_custom_predicate_survives_native_wasm_wire() {
+        use crate::wire::{Reader, Wire, Writer};
+        let mut ingredient = Ingredient::of(vec![]);
+        ingredient.custom = Some((
+            "fixture:predicate".into(),
+            [("required_damage".into(), horizon_core::nbt::Tag::Int(7))]
+                .into_iter()
+                .collect(),
+        ));
+        let mut writer = Writer::default();
+        ingredient.put(&mut writer);
+        let decoded: Ingredient = Reader::decode(&writer.into_bytes()).unwrap();
+        assert_eq!(decoded, ingredient);
+        assert!(decoded.items.is_empty());
+        assert!(decoded.order.is_empty());
+        assert!(decoded.custom.is_some());
     }
 }

@@ -17,6 +17,7 @@ use crate::mod_chunk_tickets::{ModTicket, ModTickets, TicketOwner};
 mod backpressure;
 use backpressure::compress_records;
 pub mod biome_regions;
+mod block_entity_order;
 pub mod level_mods;
 mod respawn;
 
@@ -52,7 +53,7 @@ use {
     },
     horizon_world::{
         DATA_VERSION,
-        chunk::BlockState,
+        chunk::{BlockState, block_entity_pos},
         chunk_status::ChunkStatus,
         compression::Compression,
         heightmap::{Heightmap, HeightmapChunk, HeightmapState, HeightmapType},
@@ -962,18 +963,17 @@ pub fn decode_block_entity(tag: &Tag) -> Option<((i32, i32, i32), crate::contain
     if id == "minecraft:jukebox" {
         let record = tag.get("RecordItem").and_then(item_from_nbt);
         let clock = number(tag.get("ticks_since_song_started"));
-        let ticks = clock.unwrap_or(0);
-        // JukeboxBlockEntity.loadAdditional adopts a saved clock separately
-        // from a record-only load. Catalog-dependent load validation is separate.
-        let song_clock_present = record.is_some() && clock.is_some();
-        let playing = record.is_some();
+        // `JukeboxBlockEntity.loadAdditional` -> `setSongWithoutPlaying`: only a
+        // saved clock brings a song back, and it comes back without playing.
+        let clocked = record.is_some() && clock.is_some();
         return Some((
             pos,
             BlockEntity::Jukebox(crate::containers::Jukebox {
                 items: [record],
-                ticks,
-                song_clock_present,
-                playing,
+                ticks: clock.unwrap_or(0),
+                song_clock_present: clocked,
+                playing: clocked,
+                loaded_clock: clocked,
             }),
         ));
     }
@@ -1827,13 +1827,16 @@ fn decode_column(
     };
     if let Some(Tag::List(entities)) = tag.get("block_entities") {
         for e in entities {
+            if let Some(at) = block_entity_order::saved_at(e, [*x, *z]) {
+                extras.block_entity_order.push(at);
+            }
             let int = |k: &str| number(e.get(k)).map(|v| v as i32);
             let decoded = if let (Some(x), Some(y), Some(z)) = (int("x"), int("y"), int("z")) {
-                extras.block_entity_order.push((x, y, z));
                 let state = chunk.block(x & 15, y, z & 15);
                 registry
                     .state(state)
                     .and_then(|block| decode_block_entity_for_block(e, &block.name))
+                    .map(|(_, be)| (block_entity_pos((x, y, z), [chunk.x, chunk.z]), be))
             } else {
                 None
             };
@@ -6220,6 +6223,55 @@ mod tests {
         assert_eq!(short.get(0, -64, 0), stone.0);
     }
 
+    /// `BlockEntity.getPosFromTag`: a block entity saved under another chunk's
+    /// coordinates is read into the chunk that saved it (vanilla warns and
+    /// keeps the low four bits), instead of landing where that chunk has no
+    /// block.
+    #[test]
+    fn a_block_entity_saved_under_another_chunks_coordinates_moves_here() {
+        let Some(root) = std::env::var_os("HORIZON_TEST_RESOURCES") else {
+            return;
+        };
+        let root = PathBuf::from(root);
+        let assets = crate::assets::Assets::load(&root).expect("assets");
+        let biomes = Biomes::load(&horizon_assets::resource_source::ResourceRoot::directory(
+            root.clone(),
+        ))
+        .expect("biomes");
+        // The destination must contain a chest: the fork validates saved block
+        // entity membership before loading, independently of position repair.
+        // The current saved block-state codec uses `id`, not the old `Name` key.
+        let tag = horizon_core::nbt::parse_snbt(
+            r#"{xPos:0,zPos:0,yPos:-4,Status:"minecraft:full",sections:[{Y:4b,block_states:{palette:[{id:"minecraft:chest"}]}}],block_entities:[{id:"minecraft:chest",x:37,y:70,z:-3,Items:[]}]}"#,
+        )
+        .unwrap()
+        .0;
+        let chunk = decode_with(
+            &NamedTag {
+                name: "".into(),
+                tag,
+            },
+            assets.registry,
+            &biomes,
+            None,
+            ColumnLayout::VANILLA,
+        )
+        .expect("chunk");
+        let positions: Vec<(i32, i32, i32)> =
+            chunk.block_entities.iter().map(|(p, _)| *p).collect();
+        assert_eq!(
+            positions,
+            [(5, 70, 13)],
+            "moved into the chunk that saved it"
+        );
+        let order = &chunk.saved.as_ref().expect("extras").block_entity_order;
+        assert_eq!(
+            order,
+            &[(5, 70, 13)],
+            "load order follows the moved position"
+        );
+    }
+
     #[test]
     fn nether_and_end_chunks_save_with_their_own_height() {
         let Some(root) = std::env::var_os("HORIZON_TEST_RESOURCES") else {
@@ -9943,8 +9995,9 @@ mod jukebox_song_clock_tests {
             };
             assert_eq!(j.record().is_some(), with_record);
             assert_eq!(j.ticks, clock.unwrap_or(0));
-            // H032 must preserve the separate legacy record-only adoption policy.
-            assert_eq!(j.playing, with_record);
+            // `setSongWithoutPlaying`: a saved clock, unstarted; else no song.
+            assert_eq!(j.playing, clock.is_some());
+            assert_eq!(j.loaded_clock, clock.is_some());
             let saved = encode_block_entity(pos, &model, "minecraft:jukebox");
             let command = block_entity_data(pos, &model, "minecraft:jukebox", None);
             check(label, &saved, clock);

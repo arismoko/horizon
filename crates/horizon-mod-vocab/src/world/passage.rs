@@ -1,0 +1,141 @@
+//! Passages within one level (#3775): an opening a mod's server side registers with
+//! `LevelRef::register_passage`, which the engine tells the clients that hold its chunk
+//! (docs/modding/src/how-to/passages.md).
+use crate::Vec3;
+
+/// An opening in a level that leads to another place in the same level, as Immersive
+/// Portals' portal: a rectangle centred on `origin`, `width` blocks along `axis_w` and
+/// `height` along `axis_h`, whose centre comes out at `destination`, turned by `turn`.
+/// It leads one way: a way back is a second passage. Built with a literal ending in
+/// `..Passage::default()`; the default (no size, at the origin) is refused until given a size
+/// and axes.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+// exhaustive: the opening's rectangle and where it leads; mods build it with a literal
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct Passage {
+    /// The centre of the opening.
+    pub origin: Vec3,
+    /// The direction of the opening's width: a unit vector.
+    pub axis_w: Vec3,
+    /// The direction of the opening's height: a unit vector at a right angle to `axis_w`.
+    pub axis_h: Vec3,
+    /// The opening's size along `axis_w`, in blocks.
+    pub width: f64,
+    /// The opening's size along `axis_h`, in blocks.
+    pub height: f64,
+    /// Where `origin` comes out.
+    pub destination: Vec3,
+    /// How the far side is turned about the vertical axis.
+    pub turn: PassageTurn,
+}
+
+impl Passage {
+    /// The chunk the engine keys the passage to (`[x, z]`): the one that holds `origin`.
+    /// A client is told of the passage while it holds this chunk, and the per-chunk cap
+    /// counts here.
+    pub fn chunk(&self) -> [i32; 2] {
+        // `as` saturates: a registered origin is inside the world, far within `i32`.
+        [self.origin.x, self.origin.z].map(|v| (v.floor() as i32) >> 4)
+    }
+    /// `v` turned by the passage's turn about the vertical axis.
+    pub fn turned(&self, v: Vec3) -> Vec3 {
+        match self.turn {
+            PassageTurn::None => v,
+            PassageTurn::Clockwise90 => Vec3::new(-v.z, v.y, v.x),
+            PassageTurn::Clockwise180 => Vec3::new(-v.x, v.y, -v.z),
+            PassageTurn::Counterclockwise90 => Vec3::new(v.z, v.y, -v.x),
+        }
+    }
+}
+
+/// A turn about the vertical axis, seen from above, as vanilla's `Rotation`: a clockwise
+/// quarter turn takes south (+z) to west (-x).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum PassageTurn {
+    /// No turn.
+    #[default]
+    None,
+    /// A clockwise quarter turn.
+    Clockwise90,
+    /// A half turn.
+    Clockwise180,
+    /// A counterclockwise quarter turn.
+    Counterclockwise90,
+}
+
+/// A registered passage, from `register_passage`: what `remove_passage` takes, and what a
+/// client names when it crosses. Never given again while the game runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+// exhaustive: its field is private, so mods cannot build or destructure it
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct PassageId {
+    pub(crate) id: u64,
+}
+
+impl PassageId {
+    /// The passage the server numbered `id`. For the game.
+    // hidden: a game-side helper, not part of the mod surface
+    #[doc(hidden)]
+    pub fn from_raw(id: u64) -> Self {
+        Self { id }
+    }
+    /// The server's number for the passage. For the game.
+    // hidden: a game-side helper, not part of the mod surface
+    #[doc(hidden)]
+    pub fn raw(self) -> u64 {
+        self.id
+    }
+}
+
+/// Why `register_passage` refused a passage; nothing was registered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum PassageRegistrationError {
+    /// The level is gone or its handle belongs to an earlier open of the world.
+    Stale,
+    /// Not on a server.
+    Unavailable,
+    /// A coordinate or a size is NaN or infinite.
+    NotFinite,
+    /// An axis is not a unit vector, or the two are not at a right angle.
+    BadAxes,
+    /// The width or the height is not above 0 and at most `max` blocks.
+    BadSize {
+        /// The largest side, in blocks: 32.
+        max: u32,
+    },
+    /// A corner of the opening or of where it comes out is past the positions vanilla's
+    /// server accepts from a client (`ServerGamePacketListenerImpl.clampHorizontal`,
+    /// `clampVertical`): 30,000,000 blocks across, 20,000,000 up or down.
+    OutsideWorld,
+    /// The level already has `limit` passages: 256.
+    LevelFull {
+        /// Passages per level at most.
+        limit: u32,
+    },
+    /// The passage's chunk ([`Passage::chunk`]) already has `limit` passages: 8.
+    ChunkFull {
+        /// Passages per chunk at most.
+        limit: u32,
+    },
+    /// Every number was given: an id is never given twice.
+    NoIdsLeft,
+}
+
+impl From<crate::LevelReadError> for PassageRegistrationError {
+    fn from(error: crate::LevelReadError) -> Self {
+        match error {
+            crate::LevelReadError::Stale => Self::Stale,
+            crate::LevelReadError::Unavailable => Self::Unavailable,
+        }
+    }
+}
+
+impl crate::NoBackend for PassageRegistrationError {
+    fn no_backend() -> Self {
+        Self::Unavailable
+    }
+}

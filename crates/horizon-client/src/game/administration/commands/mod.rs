@@ -455,9 +455,7 @@ impl Game<'_> {
         // the server's own source, "Server".
         let who = match self.command_source.and_then(|s| s.entity) {
             Some(entity) => self.target_name(entity),
-            None if self.console_broadcast.is_some() => {
-                Text::literal(if self.rcon_source { "Rcon" } else { "Server" }.to_owned())
-            }
+            None if self.console_broadcast.is_some() => self.server_name(),
             None => self.player_display_name(),
         };
         let line = Text::translate("chat.type.admin", &[who, message])
@@ -1689,7 +1687,7 @@ impl Game<'_> {
             }
             Target::Crystal(id) => {
                 if let Some(c) = self.crystals.iter_mut().find(|c| c.id == id) {
-                    c.position = v;
+                    (c.position, c.fall.0) = (v, true); // performTeleport: setOnGround(true)
                 }
             }
             Target::Dragon(id) => {
@@ -1700,6 +1698,8 @@ impl Game<'_> {
             }
             Target::Tnt(id) => {
                 if let Some(t) = self.tnts.iter_mut().find(|t| t.id == id) {
+                    // `PrimedTnt.teleport` includes same-level command teleports.
+                    t.used_portal = true;
                     t.position = v;
                     t.previous = v;
                     if let Some(r) = rotation {
@@ -1859,7 +1859,7 @@ impl Game<'_> {
     pub(in crate::game) fn network_entity_id(&self, t: Target) -> Option<i32> {
         let host = self.lan.as_ref();
         match t {
-            Target::Player => host?.hub.guest(self.lan_acting?).map(|g| g.entity_id),
+            Target::Player => self.player_entity_id_by_connection(self.lan_acting),
             Target::Guest(conn) => host?.hub.guest(conn).map(|g| g.entity_id),
             other => targets::non_player_entity_id(other),
         }
@@ -2336,9 +2336,6 @@ impl Game<'_> {
                         m.last_damage = Some((source, i64::from(m.age)));
                     }
                     m.health = 0.0;
-                    if m.death_time == 0 {
-                        m.death_time = 1;
-                    }
                     killed = alive.then(|| m.clone());
                 }
                 // The hit runs LivingEntity.die before the command returns:
@@ -2526,16 +2523,9 @@ impl Game<'_> {
                     self.next_entity += 1;
                     let at = Vec3::new(pos[0], pos[1], pos[2]);
                     let drawn = self.world.random.next_int_bound(100_000).unwrap_or(0);
-                    self.crystals.push(super::dragon::Crystal {
-                        attachment_lifetime: Default::default(),
-                        join: Default::default(),
-                        id: self.next_entity,
-                        position: at,
-                        show_bottom: true,
-                        time: super::dragon::Crystal::start_time(at, drawn, self.clock.still()),
-                        beam: None,
-                        invulnerable: false,
-                    });
+                    let time = super::dragon::Crystal::start_time(at, drawn, self.clock.still());
+                    let crystal = super::dragon::Crystal::new(self.next_entity, at, true, time);
+                    self.crystals.push(crystal);
                     // tryAddFreshEntityWithPassengers refused: ERROR_DUPLICATE_UUID.
                     if !self.native_joins_flush(false, self.next_entity) {
                         return Err(err("commands.summon.failed.uuid", &[]));
@@ -4184,7 +4174,7 @@ impl Game<'_> {
                                 .map(|cart| cart.command.name())
                         })
                     })
-                    .unwrap_or_else(|| Text::literal("Server")),
+                    .unwrap_or_else(|| self.server_name()),
             },
             None => self.player_display_name(),
         };

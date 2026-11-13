@@ -64,7 +64,6 @@ impl CombatTracker {
 }
 #[derive(Default)]
 pub(super) struct CombatTracker {
-    pub(super) death_weapons: std::collections::HashMap<u32, super::creatures::AcceptedWeapon>,
     /// The arrows and bee stingers stuck in the body.
     pub(super) stuck: Stuck,
     entries: Vec<Entry>,
@@ -200,8 +199,7 @@ impl CombatTracker {
             .or_else(|| e.direct.as_ref().map(Text::plain));
         Some((self.last_damage, e.damage_type.clone(), Some(e.damage), by))
     }
-    /// The last blow taken: its damage type and the causing entity's id (0
-    /// for none), for `LivingDeathEvent`.
+    /// The scalar death-tail/death-message fallback, not the full accepted killing source.
     pub(super) fn last_blow(&self) -> Option<(&str, u32)> {
         let e = self.entries.last()?;
         Some((&e.damage_type, e.attacker.as_ref().map_or(0, |a| a.0)))
@@ -428,6 +426,9 @@ impl Game<'_> {
                         "resisted" => self.award_custom_stat("damage_resisted", *amount),
                         "absorbed" => self.award_custom_stat("damage_absorbed", *amount),
                         "blocked" => self.award_custom_stat("damage_blocked_by_shield", *amount),
+                        // MotionWorld emits the authoritative jump award here too.
+                        // Both local and guest event drains share this consumer.
+                        "jump" => self.award_custom_stat("jump", *amount),
                         _ => {}
                     }
                     continue;

@@ -11,7 +11,6 @@ impl Mob {
         aim: Option<Aim>,
         motion: [f64; 2],
     ) -> bool {
-        self.projectile_damage_committed = false;
         self.projectile_motion = Some(motion);
         let hurt = self.damage_aimed(level, amount, source, aim);
         self.projectile_motion = None;

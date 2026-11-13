@@ -157,6 +157,30 @@ impl FakeHost {
         self.players.join(uuid, entity, self.level.level())
     }
 
+    /// A queued bucket sound and game event, as the game plays them at the outermost commit.
+    fn play_fluid_effects(&mut self, queued: level::QueuedFluidEffects) {
+        if let Some(sound) = self.registries.fluid_sound(queued.fluid, queued.pickup) {
+            self.sounds.push(FakeSound {
+                sound: sound.to_owned(),
+                at: queued.at,
+                source: crate::SoundSource::Blocks,
+                volume: 1.0,
+                pitch: 1.0,
+            });
+        }
+        self.game_events.push(FakeGameEvent {
+            event: match queued.pickup {
+                true => "minecraft:fluid_pickup",
+                false => "minecraft:fluid_place",
+            }
+            .to_owned(),
+            at: queued.at,
+            context: crate::GameEventContext {
+                source_entity: queued.player.map(PlayerRef::entity),
+                affected_state: None,
+            },
+        });
+    }
     fn max_stack(&self, resource: &crate::ItemResource) -> u32 {
         match resource.value_id(self, "minecraft:max_stack_size") {
             Some(Tag::Int(size)) if (1..=99).contains(&size) => size as u32,
@@ -269,6 +293,12 @@ impl crate::prelude::ModStateServerHost for FakeHost {
     fn transaction_close(&mut self, seal: &TransactionSeal, commit: bool) {
         if let Some((players, level)) = self.journal.close(seal, commit) {
             (self.players, self.level) = (players, level);
+        }
+        // The outermost commit plays what waited for it.
+        if self.journal.depth() == 0 {
+            for queued in std::mem::take(&mut self.level.fluid_effects) {
+                self.play_fluid_effects(queued);
+            }
         }
     }
     fn transaction_lifecycle(&self) -> crate::TransactionLifecycle {
@@ -632,6 +662,57 @@ impl crate::prelude::FluidsEnergyBackendMut for FakeHost {
         standing
             .and_then(|standing| standing.energy.as_mut())
             .map_or(0, |energy| energy.extract(amount))
+    }
+    /// The source block at `pos` ([`FakeLevel::set_block`]), a bucket of it; the fake plays no
+    /// sound or game event for it.
+    fn level_pickup_fluid(
+        &mut self,
+        level: LevelRef,
+        pos: [i32; 3],
+        _: Option<PlayerRef>,
+        tx: &Transaction,
+    ) -> Option<FluidStack> {
+        if !self.journal.holds(tx) {
+            return None;
+        }
+        let fluid = self.level.take_source(level, pos)?;
+        Some(FluidStack::new(fluid, 1000))
+    }
+    /// A source of `fluid` where nothing is; the fake plays no sound or game event for it.
+    fn level_place_fluid(
+        &mut self,
+        level: LevelRef,
+        pos: [i32; 3],
+        fluid: crate::FluidKey,
+        _: Option<PlayerRef>,
+        _: bool,
+        tx: &Transaction,
+    ) -> bool {
+        self.journal.holds(tx) && self.level.put_source(level, pos, fluid)
+    }
+    /// Queued with the level for the outermost commit, which plays it as the game does.
+    fn level_play_fluid_effects(
+        &mut self,
+        level: LevelRef,
+        pos: [i32; 3],
+        fluid: crate::FluidKey,
+        pickup: bool,
+        player: Option<PlayerRef>,
+        tx: &Transaction,
+    ) -> bool {
+        let Some(id) = crate::content::registry_keys::fluid_id(fluid) else {
+            return false;
+        };
+        if !self.journal.holds(tx) || level != self.level.level() {
+            return false;
+        }
+        self.level.fluid_effects.push(level::QueuedFluidEffects {
+            at: pos.map(|c| f64::from(c) + 0.5),
+            fluid: id,
+            pickup,
+            player,
+        });
+        true
     }
 }
 impl crate::prelude::EntitiesBackendMut for FakeHost {

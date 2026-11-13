@@ -9,6 +9,7 @@ mod mob_metadata;
 mod mob_states;
 mod raw_inbox;
 mod residency;
+mod viewed_areas;
 
 use super::{
     Game,
@@ -16,7 +17,7 @@ use super::{
     shield::OFFHAND_SLOT,
 };
 use crate::game::api_values::{TryIntoApi, TryIntoEngine};
-use event_timings::EventTimings;
+use event_timings::{EventTimings, UseDetail, describe_burst, event_kind, note_event};
 use horizon_client::crafting::ResolvedSources;
 use horizon_client::{
     Result,
@@ -452,6 +453,8 @@ pub(super) struct LanHost {
     pub players_told_left: bool,
     pub settings: LanSettings,
     pub play: HashMap<u32, super::lan_actions::GuestPlay>,
+    /// Each guest's menu owners, outside `play` (`as_guest` lifts that).
+    pub menus: HashMap<u32, super::lan_menus::GuestMenus>,
     /// Blocks broken this tick (their sound is a level event for the guests).
     pub broken: Vec<[f64; 3]>,
     /// Hurt time, death and swing time (while swinging) of the mobs guests
@@ -507,17 +510,17 @@ impl Game<'_> {
         if std::mem::replace(&mut play.left_game, true) {
             return;
         }
-        let mut cancel = false;
-        self.native_player_stat_award(
-            player,
-            name,
-            "minecraft:custom",
-            "minecraft:leave_game",
-            1,
-            &mut cancel,
-        );
-        if !cancel && let Some(play) = self.lan.as_mut().and_then(|host| host.play.get_mut(&conn)) {
+        let award = if mod_api::__private::listened(mod_api::HookId::PlayerStatAward) {
+            self.edited_stat_award(player, name, "minecraft:custom", "minecraft:leave_game", 1)
+        } else {
             play.stats.custom("leave_game", 1);
+            return;
+        };
+        if let Some((ty, key, n)) = award
+            && let Some(play) = self.lan.as_mut().and_then(|host| host.play.get_mut(&conn))
+        {
+            play.stats
+                .add(ty.strip_prefix("minecraft:").unwrap_or(&ty), &key, n);
         }
     }
 
@@ -1679,6 +1682,7 @@ impl Game<'_> {
             hub,
             settings: LanSettings { port, ..settings },
             play: HashMap::new(),
+            menus: HashMap::new(),
             broken: Vec::new(),
             mob_state: HashMap::new(),
             poses: HashMap::new(),
@@ -2709,6 +2713,7 @@ impl Game<'_> {
                     self.save_guest(&mut guest);
                     let host = self.lan.as_mut()?;
                     host.play.remove(&guest.conn);
+                    host.forget_menus(guest.conn);
                     self.clear_guest_book_connection(guest.conn);
                     // A held player was recorded as joined at its login: it leaves too.
                     if self.is_dedicated_server() && (guest.placed || guest.held) {
@@ -3318,13 +3323,8 @@ impl Game<'_> {
         {
             self.run_native_menu_events();
         }
-        if self
-            .lan
-            .as_ref()
-            .is_some_and(|host| !host.hub.chunk_watches.is_empty())
-        {
-            self.run_chunk_watches();
-        }
+        self.run_chunk_watches();
+        self.flush_passages();
         if let Some(host) = self.lan.as_mut() {
             host.hub.collect_tracking();
         }
@@ -3862,13 +3862,12 @@ impl Game<'_> {
         let Some(host) = self.lan.as_ref() else {
             return;
         };
-        // DistanceManager.PlayerTicketTracker: every chunk within the server's
-        // view distance (Chebyshev) of a player holds a PLAYER_LOADING ticket
-        // at the entity-ticking level (31), whatever the player asked for;
-        // levels rise by one a chunk, so FULL (33) reaches two chunks past
-        // it. An extra area finishes its chunks out to its radius + 1. That
-        // covers what the player tracks (`ChunkTrackingView`, within its view
-        // distance + 1) and those chunks' lit neighbours.
+        // DistanceManager.PlayerTicketTracker: every chunk within the server's view distance
+        // (Chebyshev) of a player holds a PLAYER_LOADING ticket at the entity-ticking level (31),
+        // whatever the player asked for; levels rise by one a chunk, so FULL (33) reaches two
+        // chunks past it. An extra area finishes its chunks out to its radius + 1. That covers what
+        // the player tracks (`ChunkTrackingView`, within its view distance + 1) and those chunks'
+        // lit neighbours. The viewed areas (#3716) are squares of their own.
         let radius = host.hub.config.view_distance + 1;
         let rule = self
             .ui
@@ -3882,12 +3881,12 @@ impl Game<'_> {
             .chain(
                 self.arrival_chunks(self.dim)
                     .into_iter()
-                    // An arrival keeps only its landing spot lit enough to
-                    // resolve (the 3x3 `resolve_arrivals` checks), where it
-                    // then ticks without a player.
+                    // An arrival keeps only its landing spot lit enough to resolve (the 3x3
+                    // `resolve_arrivals` checks), where it then ticks without a player.
                     .map(|chunk| (chunk, 1)),
             )
             .chain(self.portal_ticket_areas())
+            .chain(self.viewed_extra())
             .collect();
     }
 
@@ -4002,97 +4001,8 @@ fn equipment_slot_name(slot: horizon_core::equipment_slot::EquipmentSlot) -> &'s
     }
 }
 
-/// What a hub event is, whose connection, and the name of a player who left (no longer in the
-/// hub once it is handled): for a slow tick's notes.
-type EventKind = (&'static str, Option<u32>, Option<String>);
-
-fn event_kind(event: &HostEvent) -> EventKind {
-    match event {
-        HostEvent::Joined(c) => ("join", Some(*c), None),
-        HostEvent::Left(g) => ("leave", None, Some(g.name.clone())),
-        HostEvent::Packet(c, p) => (p.name(), Some(*c), None),
-        HostEvent::InputCredits(_) => ("input credits", None, None),
-        HostEvent::RawPayload(_) => ("raw payload", None, None),
-        HostEvent::ClientInformation(c, _, _) => ("client settings", Some(*c), None),
-        HostEvent::ChatSubmitted { .. } => ("chat submitted", None, None),
-        HostEvent::ChatSessionStarted(_) => ("chat session", None, None),
-        HostEvent::Jump { conn, .. } => ("jump", Some(*conn), None),
-        HostEvent::PlayerLoaded(c) => ("loaded", Some(*c), None),
-        HostEvent::RecipeBookSettings { conn, .. } => ("recipe book", Some(*conn), None),
-        HostEvent::Sneak { conn, .. } => ("sneak", Some(*conn), None),
-        HostEvent::Input { conn, .. } => ("input", Some(*conn), None),
-        HostEvent::Kicked { name, .. } => ("kick", None, Some(name.clone())),
-        HostEvent::Flight { conn, .. } => ("flight", Some(*conn), None),
-        HostEvent::Chat { .. } => ("chat line", None, None),
-        HostEvent::PlayerChat { .. } => ("chat", None, None),
-        HostEvent::ChatFiltered { name, .. } => ("filtered chat", None, Some(name.clone())),
-        HostEvent::Warn(_) => ("warning", None, None),
-        HostEvent::Error(_) => ("error", None, None),
-        HostEvent::Ban { name, .. } => ("ban", None, Some(name.clone())),
-    }
-}
-
 #[cfg(test)]
 use level_event_targets::level_event_except;
-
-/// Notes how long the event that started at `started` took (`spans::note`), with what it
-/// was about when [`Game::event_detail`] said.
-fn note_event(
-    host: &LanHost,
-    started: Option<(Instant, EventKind, Option<UseDetail>)>,
-    timings: &mut EventTimings<(Option<u32>, Option<String>), UseDetail>,
-) {
-    let Some((started, kind, detail)) = started else {
-        return;
-    };
-    let ms = started.elapsed().as_secs_f32() * 1000.0;
-    horizon_client::spans::note(ms, || describe_event(host, &kind, detail.as_ref()));
-    let (name, conn, player) = kind;
-    timings.add(name, (conn, player), detail, ms);
-}
-
-/// The player an event came from: its name, else its connection.
-fn who(host: &LanHost, conn: Option<u32>, name: Option<String>) -> Option<String> {
-    name.or_else(|| conn.and_then(|c| host.hub.guest(c)).map(|g| g.name.clone()))
-        .or_else(|| conn.map(|c| format!("connection {c}")))
-}
-
-/// A burst's note: `213 x UseItemOn under 10 ms each (…); most from Steve: 140 of them, 710.0 ms`.
-fn describe_burst(
-    host: &LanHost,
-    burst: &event_timings::Burst<(Option<u32>, Option<String>), UseDetail>,
-) -> String {
-    let mut line = format!(
-        "{} x {} under {} ms each",
-        burst.count,
-        burst.kind,
-        horizon_client::spans::NOTE_MS
-    );
-    if let Some(d) = &burst.detail {
-        line.push_str(&format!(" ({d})"));
-    }
-    if let Some(((conn, name), count, ms)) = &burst.top
-        && let Some(who) = who(host, *conn, name.clone())
-    {
-        line.push_str(&format!("; most from {who}: {count} of them, {ms:.1} ms"));
-    }
-    line
-}
-
-fn describe_event(
-    host: &LanHost,
-    (kind, conn, name): &EventKind,
-    detail: Option<&UseDetail>,
-) -> String {
-    let line = match who(host, *conn, name.clone()) {
-        Some(who) => format!("{kind} of {who}"),
-        None => (*kind).to_owned(),
-    };
-    match detail {
-        Some(d) => format!("{line} ({d})"),
-        None => line,
-    }
-}
 
 /// A client's settings as the mod API names them.
 pub(in crate::game) fn client_info(
@@ -4120,28 +4030,6 @@ pub(in crate::game) fn client_info(
             1 => mod_api::ParticleStatus::Decreased,
             _ => mod_api::ParticleStatus::Minimal,
         },
-    }
-}
-
-/// What a use packet was about, taken before it ran (the use may consume the item or change
-/// the block): the item in the hand it names and, on a block, that block, where, and the face.
-#[derive(PartialEq)]
-struct UseDetail {
-    item: Option<Arc<str>>,
-    block: Option<(Arc<str>, [i32; 3], i32)>,
-}
-
-impl std::fmt::Display for UseDetail {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.item.as_deref().unwrap_or("empty hand"))?;
-        if let Some((block, [x, y, z], face)) = &self.block {
-            let face = ["down", "up", "north", "south", "west", "east"]
-                .get(*face as usize)
-                .copied()
-                .unwrap_or("?");
-            write!(f, " on {block} at {x} {y} {z} {face}")?;
-        }
-        Ok(())
     }
 }
 
@@ -4320,6 +4208,7 @@ mod tests {
                 force_game_mode: false,
             },
             play: Default::default(),
+            menus: Default::default(),
             broken: Default::default(),
             mob_state: Default::default(),
             poses: Default::default(),
@@ -5188,6 +5077,42 @@ mod tests {
                 assert_eq!(received(&sender), ["system heard hello", "player"]);
                 assert_eq!(received(&other), ["player"]);
             });
+        });
+    }
+
+    /// A guest who left takes its menu owners with it: the hub's leave event (`HostEvent::Left`)
+    /// removes them with the play state, and another guest's stay.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_guest_who_left_has_no_menu_owners() {
+        use super::super::transactions::decision::{
+            Admission,
+            engine::{Owner, Target},
+        };
+        use horizon_client::lan::hub::HostEvent;
+        use horizon_client::menu::{Kind, Menu};
+        super::super::native_guest_turn_tests::with_guests(|game| {
+            let host = game.lan.as_mut().unwrap();
+            for conn in [12, 13] {
+                *host.menus.entry(conn).or_default().crafting.inventory =
+                    Some(Box::new(Menu::new(Kind::Inventory)));
+                host.play.entry(conn).or_default();
+            }
+            // The hub takes a guest out of its list before it reports the leave.
+            let guest = host.hub.guests.remove(0);
+            assert_eq!(guest.conn, 12);
+            let event = HostEvent::Left(Box::new(guest));
+            let host = game.lan.take().unwrap();
+            game.lan = game.lan_process_events(host, [event], &[], [0.5, 64.0, 0.5]);
+            let host = game.lan.as_ref().unwrap();
+            assert!(!host.menus.contains_key(&12));
+            assert!(!host.play.contains_key(&12));
+            assert!(host.menus.contains_key(&13));
+            assert!(matches!(
+                Target::admit(game, 12, Owner::Inventory),
+                Err(Admission::MissingHolder)
+            ));
+            assert!(Target::admit(game, 13, Owner::Inventory).is_ok());
         });
     }
 
@@ -6390,6 +6315,7 @@ mod merchant_packet_tests {
                     force_game_mode: false,
                 },
                 play: Default::default(),
+                menus: Default::default(),
                 broken: Default::default(),
                 mob_state: Default::default(),
                 poses: Default::default(),

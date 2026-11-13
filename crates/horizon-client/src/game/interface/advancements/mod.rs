@@ -2720,8 +2720,9 @@ mod tests {
             let mut helmet = ItemStack::new("minecraft:iron_helmet", 1);
             helmet.damage = 164;
             game.armor[0] = Some(helmet);
-            let source = game.motion.health.damage.id("minecraft:falling_anvil");
-            game.hurt_helmet(source.unwrap(), 8.0);
+            let source =
+                horizon_client::health::NO_ATTACK.player_source("minecraft:falling_anvil", 0);
+            game.hurt_helmet(&source, 8.0);
             assert_eq!(game.armor[0], None);
             assert!(game.adv.progress.has(ID, "worn"));
         });

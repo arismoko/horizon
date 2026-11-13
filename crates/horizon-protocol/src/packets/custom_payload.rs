@@ -79,9 +79,12 @@ fn uses_registered_payload_codec(channel: &str, play: bool, clientbound: bool) -
         crate::attachment_sync::CHANNEL
         | crate::menu_extra::CHANNEL
         | crate::anvil_cost::CHANNEL
+        | crate::passage_sync::CHANNEL
         | "horizon:recipe_content" => play && clientbound,
         "horizon:recipe_transfer" => play,
         crate::custom_book::CHANNEL => play || clientbound,
+        // Configuration both ways (the capability), play clientbound only.
+        crate::viewed_levels::CHANNEL => !play || clientbound,
         _ => false,
     }
 }
@@ -126,6 +129,9 @@ impl<const CLIENTBOUND: bool, const PLAY: bool> PayloadCodec<CLIENTBOUND, PLAY> 
             && body != crate::custom_book::CAPABILITY
         {
             return Err(Error::new("invalid custom-book capability version"));
+        }
+        if PLAY && !CLIENTBOUND && channel == crate::viewed_levels::CHANNEL {
+            return Err(Error::new(format!("{channel} is clientbound only in play")));
         }
         validate_brand(channel, body)
     }
@@ -223,11 +229,13 @@ mod tests {
             ("horizon:attachment_sync", [false, false, false, true]),
             ("horizon:menu_extra", [false, false, false, true]),
             ("horizon:anvil_cost", [false, false, false, true]),
+            ("horizon:passage_sync", [false, false, false, true]),
             ("horizon:lod", [false, true, true, true]),
             ("horizon:block_registry", [true, true, false, false]),
             ("horizon:recipe_content", [false, false, false, true]),
             ("horizon:recipe_transfer", [false, false, true, true]),
             ("horizon:recipe_book_settings", [false, true, true, true]),
+            ("horizon:levels", [true, true, false, true]),
         ] {
             for ((play, clientbound), registered) in
                 [(false, false), (false, true), (true, false), (true, true)]
@@ -322,6 +330,33 @@ mod tests {
         .unwrap_err();
         assert!(error.0.contains("must be empty"));
         assert!(error.payload_limit().is_none());
+    }
+
+    #[test]
+    fn a_serverbound_play_payload_on_the_viewed_levels_channel_is_refused() {
+        let payload = CustomPayload {
+            channel: "horizon:levels".into(),
+            data: vec![1, 1, 2],
+        };
+        assert!(is_reserved_channel(&payload.channel));
+        let error = play::Serverbound::CustomPayload(payload.clone())
+            .try_encode()
+            .unwrap_err();
+        assert_eq!(error.0, "horizon:levels is clientbound only in play");
+        let mut body = Writer::new();
+        body.string(&payload.channel);
+        body.bytes(&payload.data);
+        let error = play::Serverbound::decode(ids::play::serverbound::CUSTOM_PAYLOAD, &body.data)
+            .unwrap_err();
+        assert_eq!(error.0, "horizon:levels is clientbound only in play");
+        // The same bytes are an answer in configuration.
+        assert!(
+            configuration::Serverbound::decode(
+                ids::configuration::serverbound::CUSTOM_PAYLOAD,
+                &body.data
+            )
+            .is_ok()
+        );
     }
 
     #[test]

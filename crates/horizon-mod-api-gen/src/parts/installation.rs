@@ -257,7 +257,8 @@ impl Schema {
                     Type::Path(path) if path.path.segments.len() == 1 && matches!(
                         path.path.segments[0].ident.to_string().as_str(),
                         "bool" | "char" | "usize" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128" |
-                        "i8" | "i16" | "i32" | "i64" | "i128" | "f32" | "f64" | "HandlerThread"
+                        "i8" | "i16" | "i32" | "i64" | "i128" | "f32" | "f64" | "HandlerThread" |
+                        "VanillaStages"
                     ));
                 reverse.push(if copied {
                     quote!(#field_name: input.#field_name)

@@ -53,6 +53,7 @@ fn quad(z: f32) -> [crate::mesher::Vertex; 4] {
 
 #[test]
 fn the_sun_leaves_its_own_alpha_over_the_sky() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let color = gpu.texture(T::Rgba8Unorm);
     let depth = gpu.texture(T::Depth32Float);

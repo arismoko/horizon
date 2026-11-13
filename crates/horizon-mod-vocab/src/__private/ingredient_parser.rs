@@ -49,8 +49,8 @@ pub fn dedup_keep_order(items: &mut Vec<String>) {
 /// ids it matches in the order the sources named them. A kind outside the
 /// shapes is answered by the wrapper's `custom` as the walk meets it, so a
 /// shape sees its ids like any child's: the item ingredient gives the list
-/// its hook left at load, a fluid one none, which fails the file. An empty
-/// result is no ingredient, as an empty list or an unloaded tag is.
+/// its hook left at load, a fluid one none, which fails the file. Existing
+/// empty tags and custom answers retain their predicate but cannot be placed.
 #[derive(Clone, Debug)]
 // hidden: shared parser output for the game-owned ingredient adapter, not a mod-facing recipe.
 #[doc(hidden)]
@@ -101,9 +101,17 @@ impl WalkedIngredient {
     ) -> Option<Self> {
         let mut list: Vec<String> = Vec::new();
         let mut valid = true;
+        let mut named = false;
         let mut add = |s: &str| {
+            named = true;
             let more: Vec<String> = match s.strip_prefix('#') {
-                Some(tag) => tags.get(tag).cloned().unwrap_or_default(),
+                Some(tag) => match tags.get(tag) {
+                    Some(items) => items.clone(),
+                    None => {
+                        valid = false;
+                        return;
+                    }
+                },
                 None => vec![s.to_owned()],
             };
             for i in more {
@@ -120,17 +128,26 @@ impl WalkedIngredient {
             Value::Object(o) => return Self::walk_object(o, tags, custom, convert, resolve),
             _ => return None,
         }
-        valid.then(|| Self::flat(list)).flatten()
+        (valid && named).then(|| Self::flat(list))
     }
-    /// A plain list's answer: its ids in order, no shapes.
-    fn flat(list: Vec<String>) -> Option<Self> {
-        (!list.is_empty()).then(|| Self {
+    /// A resolved plain ingredient, including an existing empty tag.
+    fn flat(list: Vec<String>) -> Self {
+        Self {
             set: list.iter().cloned().collect(),
             order: list,
             children: None,
             custom: None,
-        })
+        }
     }
+    fn allows_empty(&self) -> bool {
+        self.custom.is_some()
+            || (self.order.is_empty() && self.children.is_none())
+            || self
+                .children
+                .as_ref()
+                .is_some_and(|(_, children)| children.iter().any(Self::allows_empty))
+    }
+
     /// NeoForge's ingredient types (`NeoForgeRegistries.Keys.INGREDIENT_TYPES`),
     /// the standard shapes mods' recipes carry, each answered by the flat id
     /// list it matches, with the children kept for matching a concrete
@@ -205,7 +222,7 @@ impl WalkedIngredient {
             k if is_custom(k) => {
                 let mut data = convert(o)?;
                 let list = custom(&mut data)?;
-                return (!list.is_empty()).then(|| Self {
+                return Some(Self {
                     set: list.iter().cloned().collect(),
                     order: list,
                     children: None,
@@ -214,7 +231,11 @@ impl WalkedIngredient {
             }
             _ => return None,
         };
-        (!kept.is_empty()).then(|| Self {
+        (!kept.is_empty()
+            || nested
+                .as_ref()
+                .is_some_and(|(_, children)| children.iter().any(Self::allows_empty)))
+        .then(|| Self {
             set: kept.iter().cloned().collect(),
             order: kept,
             children: nested,

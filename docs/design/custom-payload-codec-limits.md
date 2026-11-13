@@ -54,6 +54,7 @@ Existing codec constraints remain with their owners:
 | `horizon:recipe_content` | `lan::recipes`, content parts at most 1,047,552 bytes |
 | `horizon:recipe_transfer` | `lan::recipes`, request has a VarInt window, a 512-character recipe id and at most one flag byte; reply is empty or a VarInt window and one result byte; no trailing bytes |
 | `horizon:recipe_book_settings` | `recipe_book::settings_codec`, 524,288 body bytes |
+| `horizon:levels` | `viewed_levels`, configuration both ways: exactly a 2-byte query and a 3-byte answer for the known revision, while another revision's bytes after its revision are ignored; play clientbound only: one level's packets, each of a level-scoped kind and read exactly by its play codec; a serverbound play payload is refused |
 
 This finite engine-only classification is replaced, not extended, by mod payload
 registration. It does not authorize sending to an unnegotiated peer. The current
