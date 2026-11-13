@@ -238,7 +238,10 @@ impl StartCache {
     }
 }
 
-fn biome_set(data: &GeneratorData, value: &Value) -> Result<BTreeSet<BiomeId>, super::DecodeError> {
+pub(super) fn biome_set(
+    data: &GeneratorData,
+    value: &Value,
+) -> Result<BTreeSet<BiomeId>, super::DecodeError> {
     let names: Vec<&str> = match value {
         Value::String(s) => vec![s.as_str()],
         Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
@@ -257,6 +260,23 @@ fn biome_set(data: &GeneratorData, value: &Value) -> Result<BTreeSet<BiomeId>, s
     }
     Ok(out)
 }
+impl GeneratorData {
+    pub(in crate::worldgen) fn structure_block_bindings(
+        &self,
+    ) -> Result<FeatureBlockBindings<'static>, super::DecodeError> {
+        let mut bindings = self.feature_block_bindings()?;
+        // Processors that test what a block is made of read canOcclude.
+        if let Some(blocks) = self
+            .feature_resources
+            .as_ref()
+            .and_then(|r| r.blocks.as_ref())
+        {
+            bindings = bindings.with_block_properties(&blocks.properties)?;
+        }
+        Ok(bindings)
+    }
+}
+
 impl StructureState {
     pub(super) fn new(
         data: &Arc<GeneratorData>,
@@ -288,15 +308,7 @@ impl StructureState {
         for (i, def) in registry.structures.iter().enumerate() {
             by_step[def.step].push(i);
         }
-        let mut bindings = data.feature_block_bindings()?;
-        // Processors that test what a block is made of read canOcclude.
-        if let Some(blocks) = data
-            .feature_resources
-            .as_ref()
-            .and_then(|r| r.blocks.as_ref())
-        {
-            bindings = bindings.with_block_properties(&blocks.properties)?;
-        }
+        let bindings = data.structure_block_bindings()?;
         let zone_reach = registry.zone_reach();
         Ok(Some(Self {
             zone_reach,

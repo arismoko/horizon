@@ -332,7 +332,10 @@ impl Game<'_> {
                 }
             })
             .collect();
-        let datapack_candidate = self.datapack_candidate(stack, &conditions)?;
+        let mut datapack_candidate = self.datapack_candidate(stack, &conditions)?;
+        if let Some(candidate) = &mut datapack_candidate {
+            native_registry_entries::bind_datapack_tags(root, &overlay, candidate)?;
+        }
         conditions.check_errors()?;
         self.mods.datapack_candidate = datapack_candidate;
         Ok((
