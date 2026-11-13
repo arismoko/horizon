@@ -240,7 +240,7 @@ impl Hub {
         if g.viewed.views.contains_key(dimension) {
             return true;
         }
-        if g.viewed.views.len() >= usize::from(g.sender.max_viewed_levels) {
+        if g.viewed.views.len() >= usize::from(g.sender.viewed_levels.max_levels) {
             return false;
         }
         let spawn = self.spawn_info(i, 0, ctx.sea_level);

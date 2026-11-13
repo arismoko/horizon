@@ -2364,7 +2364,7 @@ mod tests {
         for packet in [
             cfg::Clientbound::CustomPayload(cfg::CustomPayload {
                 channel: "horizon:levels".into(),
-                data: vec![0, 1],
+                data: vec![0, 2],
             }),
             cfg::Clientbound::FinishConfiguration(Empty),
         ] {
@@ -2373,7 +2373,7 @@ mod tests {
         for expected in [
             cfg::Serverbound::CustomPayload(cfg::CustomPayload {
                 channel: "horizon:levels".into(),
-                data: vec![1, 1, 2],
+                data: vec![1, 2, 2],
             }),
             cfg::Serverbound::FinishConfiguration(Empty),
         ] {

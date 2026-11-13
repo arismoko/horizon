@@ -478,23 +478,7 @@ impl Game<'_> {
         self.world
             .block_entities
             .unload(|k| (k.0 >> 4, k.2 >> 4) == (x, z));
-        for info in &p.chunk.block_entities {
-            let pos = (
-                x * 16 + i32::from(info.packed_xz as u8 >> 4),
-                i32::from(info.y),
-                z * 16 + i32::from(info.packed_xz as u8 & 15),
-            );
-            let state = self.world.block(pos.0, pos.1, pos.2);
-            self.sync_block_entity(pos, None, state);
-            // LevelChunk.replaceWithPacketData: the block entity loads its update tag.
-            self.remote_block_entity_data(
-                [pos.0, pos.1, pos.2],
-                info.kind,
-                mod_api::BlockEntityDataSource::Chunk,
-                &info.tag,
-            );
-            self.bind_remote_attachment(Holder::BlockEntity([pos.0, pos.1, pos.2]));
-        }
+        self.load_block_entities((x, z), &p.chunk.block_entities);
         // After the column's block entities load: an attachment keeps its block entity if the
         // packet sent it again, and one left from a forgotten column goes.
         if let Some(r) = self.remote.as_mut() {
@@ -512,6 +496,32 @@ impl Game<'_> {
         // The client chunk seam: one load per packet adoption, a re-sent position included,
         // once the column and its block entities are in. A biome packet takes neither path.
         self.client_chunk_load(x, z);
+    }
+
+    /// `LevelChunk.replaceWithPacketData`'s block entities of column `(x, z)`, as its chunk
+    /// packet lists them: each made for its block, then loading its update tag.
+    pub(in crate::game) fn load_block_entities(
+        &mut self,
+        (x, z): (i32, i32),
+        infos: &[horizon_protocol::chunk::BlockEntityInfo],
+    ) {
+        for info in infos {
+            let pos = (
+                x * 16 + i32::from(info.packed_xz as u8 >> 4),
+                i32::from(info.y),
+                z * 16 + i32::from(info.packed_xz as u8 & 15),
+            );
+            let state = self.world.block(pos.0, pos.1, pos.2);
+            self.sync_block_entity(pos, None, state);
+            // LevelChunk.replaceWithPacketData: the block entity loads its update tag.
+            self.remote_block_entity_data(
+                [pos.0, pos.1, pos.2],
+                info.kind,
+                mod_api::BlockEntityDataSource::Chunk,
+                &info.tag,
+            );
+            self.bind_remote_attachment(Holder::BlockEntity([pos.0, pos.1, pos.2]));
+        }
     }
 
     /// `ClientPacketListener.handleChunksBiomes`: each loaded column takes

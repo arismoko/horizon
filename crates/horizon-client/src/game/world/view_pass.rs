@@ -206,7 +206,10 @@ pub(in crate::game) mod tests {
         game.lan_host(settings, net, hub).unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
         let mut sender = PlayerSender::new(tx, std::sync::Arc::default());
-        sender.max_viewed_levels = 2;
+        sender.viewed_levels = horizon_protocol::viewed_levels::Answer {
+            revision: horizon_protocol::viewed_levels::REVISION,
+            max_levels: 2,
+        };
         let joined = Joined {
             conn: 2,
             uuid: 2,
@@ -539,6 +542,202 @@ pub(in crate::game) mod tests {
             t.moves.iter().all(|&at| at == [648.5, 130.0, 648.5]),
             "no move: {:?}",
             t.moves
+        );
+    }
+
+    /// A packet a client was sent: a plain one, or what `horizon:levels` carried.
+    #[derive(Debug)]
+    enum Got {
+        Plain(C),
+        Open(i32),
+        Wrapped(i32, C),
+        Close(i32),
+    }
+
+    /// Everything the viewer was sent since the last call, in order, each packet decoded.
+    fn every(rx: &std::sync::mpsc::Receiver<horizon_client::lan::Out>) -> Vec<Got> {
+        let bodies = rx.try_iter().flat_map(|o| match o {
+            horizon_client::lan::Out::Packet(body) => vec![body],
+            horizon_client::lan::Out::Packets(bodies) => bodies,
+            horizon_client::lan::Out::Disconnect(_) => Vec::new(),
+        });
+        let mut got = Vec::new();
+        for body in bodies {
+            let mut r = Reader::new(&body);
+            let id = r.varint().unwrap();
+            let Ok(packet) = C::decode(id, r.rest()) else {
+                continue;
+            };
+            let C::CustomPayload(p) = &packet else {
+                got.push(Got::Plain(packet));
+                continue;
+            };
+            if p.channel != CHANNEL {
+                continue;
+            }
+            match Message::decode(&p.data).unwrap() {
+                Message::Open { level, .. } => got.push(Got::Open(level)),
+                Message::Close { level } => got.push(Got::Close(level)),
+                Message::Run { level, packets } => got.extend(
+                    (packets.into_iter())
+                        .filter_map(|(id, body)| C::decode(id, body).ok())
+                        .map(|packet| Got::Wrapped(level, packet)),
+                ),
+            }
+        }
+        got
+    }
+
+    /// The viewer, a server player.
+    fn viewer<'h>(game: &'h Game<'_>) -> &'h horizon_client::lan::guest::Guest {
+        let hub = &game.lan.as_ref().unwrap().hub;
+        hub.guests.iter().find(|g| g.uuid == 2).unwrap()
+    }
+
+    /// Sends the viewer (connection 2) into level `dim` at `at`, as `/tp` into another level
+    /// does (`ServerPlayer.teleport(TeleportTransition)`).
+    fn travel(game: &mut Game<'_>, dim: Dim, at: [f64; 3]) {
+        game.level_teleports
+            .push(crate::game::server_travel::LevelTeleport {
+                conn: 2,
+                dim,
+                at,
+                rotation: None,
+                vehicle: None,
+            });
+        game.run_level_teleports();
+    }
+
+    /// The Respawns the viewer was sent: their level and what they keep.
+    fn respawns(got: &[Got]) -> Vec<(String, i8)> {
+        (got.iter())
+            .filter_map(|g| match g {
+                Got::Plain(C::Respawn(p)) => Some((p.spawn.dimension.clone(), p.keep)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// A travel into the viewed Nether: a Respawn keeping all data, and none of the Nether's
+    /// chunks sent again, plain or wrapped: they are the player's own now. The Overworld's chunks
+    /// are a view of level 0 instead of being forgotten: no plain forget, no `open`; nothing
+    /// covers them, so 52 ticks on they are forgotten wrapped and the level is closed.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and a scratch HORIZON_HOME"]
+    fn a_travel_into_the_viewed_nether_sends_no_chunk_again_and_keeps_the_overworld_viewed() {
+        let mut resources = None;
+        let (mut game, rx, all) = stream_the_nether(&mut resources, "view-travel");
+        assert_eq!(all.chunks, square());
+        // The Overworld's chunks the player's client holds, around the spawn.
+        let overworld: Vec<(i32, i32)> = (-1..=1)
+            .flat_map(|x| (-1..=1).map(move |z| (x, z)))
+            .collect();
+        let hub = &mut game.lan.as_mut().unwrap().hub;
+        let i = hub.guests.iter().position(|g| g.uuid == 2).unwrap();
+        hub.guests
+            .update(i, |g| g.sent_chunks = overworld.iter().copied().collect());
+        let _ = every(&rx);
+        travel(&mut game, Dim::Nether, [648.5, 130.0, 648.5]);
+        let g = viewer(&game);
+        assert_eq!(g.dimension, Dim::Nether.id());
+        assert!(square().iter().all(|c| g.sent_chunks.contains(c)));
+        assert!(g.viewed.view(Dim::Nether.id()).is_none(), "its own level");
+        let kept = g
+            .viewed
+            .view(Dim::Overworld.id())
+            .expect("the Overworld, viewed");
+        let mut kept_sent: Vec<(i32, i32)> = kept.sent.iter().copied().collect();
+        kept_sent.sort_unstable();
+        assert_eq!((kept.level, kept_sent), (0, overworld.clone()));
+        let mut got = every(&rx);
+        for _ in 0..70 {
+            game.tick_server(false).unwrap();
+            got.extend(every(&rx));
+        }
+        assert_eq!(respawns(&got), vec![(Dim::Nether.id().to_owned(), 3)]);
+        let resent: Vec<(i32, i32)> = (got.iter())
+            .filter_map(|g| match g {
+                Got::Plain(C::LevelChunkWithLight(c))
+                | Got::Wrapped(_, C::LevelChunkWithLight(c)) => Some((c.x, c.z)),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            square().iter().all(|c| !resent.contains(c)),
+            "sent again: {resent:?}"
+        );
+        let plain_forgets: Vec<(i32, i32)> = (got.iter())
+            .filter_map(|g| match g {
+                Got::Plain(C::ForgetLevelChunk(f)) => Some((f.pos[0], f.pos[1])),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            overworld.iter().all(|c| !plain_forgets.contains(c)),
+            "{plain_forgets:?}"
+        );
+        assert!(!got.iter().any(|g| matches!(g, Got::Open(0))), "no open");
+        let mut forgotten: Vec<(i32, i32)> = (got.iter())
+            .filter_map(|g| match g {
+                Got::Wrapped(0, C::ForgetLevelChunk(f)) => Some((f.pos[0], f.pos[1])),
+                _ => None,
+            })
+            .collect();
+        forgotten.sort_unstable();
+        assert_eq!(forgotten, overworld, "forgotten wrapped after the linger");
+        let last_forget = got
+            .iter()
+            .rposition(|g| matches!(g, Got::Wrapped(0, C::ForgetLevelChunk(_))));
+        let close = got.iter().position(|g| matches!(g, Got::Close(0)));
+        assert!(close > last_forget, "closed once forgotten");
+        assert!(viewer(&game).viewed.view(Dim::Overworld.id()).is_none());
+    }
+
+    /// A travel into a level the client does not view drops its views: the Nether is forgotten
+    /// without `close` and, its area still asking for it, opened again after the Respawn and its
+    /// chunks sent again; the Overworld left is not kept.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and a scratch HORIZON_HOME"]
+    fn a_travel_into_a_level_not_viewed_drops_the_views() {
+        let mut resources = None;
+        let (mut game, rx, all) = stream_the_nether(&mut resources, "view-travel-end");
+        assert_eq!(all.chunks, square());
+        travel(&mut game, Dim::End, [8.5, 80.0, 8.5]);
+        let g = viewer(&game);
+        assert_eq!(g.dimension, Dim::End.id());
+        assert!(g.viewed.view(Dim::Nether.id()).is_none(), "forgotten");
+        assert!(g.viewed.view(Dim::Overworld.id()).is_none(), "not kept");
+        let mut got = every(&rx);
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let nether_chunks = |got: &[Got]| {
+            let mut c: Vec<(i32, i32)> = (got.iter())
+                .filter_map(|g| match g {
+                    Got::Wrapped(2, C::LevelChunkWithLight(c)) => Some((c.x, c.z)),
+                    _ => None,
+                })
+                .collect();
+            c.sort_unstable();
+            c
+        };
+        while nether_chunks(&got).len() < 9 && Instant::now() < deadline {
+            game.tick_server(false).unwrap();
+            got.extend(every(&rx));
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(respawns(&got), vec![(Dim::End.id().to_owned(), 3)]);
+        let respawn = got
+            .iter()
+            .position(|g| matches!(g, Got::Plain(C::Respawn(_))))
+            .unwrap();
+        let open = got.iter().position(|g| matches!(g, Got::Open(2)));
+        assert!(
+            open.is_some_and(|o| o > respawn),
+            "opened again after the Respawn"
+        );
+        assert_eq!(nether_chunks(&got), square(), "sent again");
+        assert!(
+            !got.iter()
+                .any(|g| matches!(g, Got::Close(_) | Got::Open(0)))
         );
     }
 

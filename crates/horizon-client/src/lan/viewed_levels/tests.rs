@@ -13,7 +13,7 @@ use horizon_protocol::{
     buf::{Reader, Writer},
     ids::play::clientbound as ids,
     packets::play::Clientbound as C,
-    viewed_levels::{CHANNEL, Message},
+    viewed_levels::{self, Answer, CHANNEL, Message},
 };
 use std::sync::mpsc::Receiver;
 
@@ -22,8 +22,20 @@ const NETHER: &str = "minecraft:the_nether";
 const NETHER_INDEX: i32 = 2;
 
 /// A hub with the players `uuids`, each placed in the Overworld at (0.5, 64, 0.5) with a client
-/// that views up to `max_levels` other levels and a batch quota of 9; each one's packets.
+/// of this revision that views up to `max_levels` other levels and a batch quota of 9; each one's
+/// packets.
 fn hub_with(uuids: &[u128], max_levels: u8) -> (Hub, Vec<Receiver<Out>>) {
+    hub_answered(
+        uuids,
+        Answer {
+            revision: viewed_levels::REVISION,
+            max_levels,
+        },
+    )
+}
+
+/// [`hub_with`], each client having given `answer`.
+fn hub_answered(uuids: &[u128], answer: Answer) -> (Hub, Vec<Receiver<Out>>) {
     let config = crate::lan::NetConfig {
         announce: false,
         ..crate::lan::NetConfig::loopback(0, "ViewedLevelsTest".into(), 4)
@@ -62,7 +74,7 @@ fn hub_with(uuids: &[u128], max_levels: u8) -> (Hub, Vec<Receiver<Out>>) {
     for &uuid in uuids {
         let (tx, rx) = std::sync::mpsc::channel();
         let mut sender = crate::lan::PlayerSender::new(tx, std::sync::Arc::default());
-        sender.max_viewed_levels = max_levels;
+        sender.viewed_levels = answer;
         let mut g = Guest::new(
             crate::lan::Joined {
                 conn: uuid as u32,
@@ -116,8 +128,8 @@ fn lit_columns(r: i32) -> World {
     world
 }
 
-/// One level pass of the level in place.
-fn run_level(hub: &mut Hub, world: &mut World) {
+/// `f` with the level in place's tick context over `world`.
+fn in_ctx<R>(world: &mut World, f: impl FnOnce(&mut TickCtx) -> R) -> R {
     let mut next_entity = 100;
     let border = crate::worldborder::WorldBorder::default();
     let mut ctx = TickCtx {
@@ -137,7 +149,14 @@ fn run_level(hub: &mut Hub, world: &mut World) {
         border: &border,
         streaming: None,
     };
-    let _ = hub.tick_level(&mut ctx);
+    f(&mut ctx)
+}
+
+/// One level pass of the level in place.
+fn run_level(hub: &mut Hub, world: &mut World) {
+    in_ctx(world, |ctx| {
+        let _ = hub.tick_level(ctx);
+    });
 }
 
 /// A packet a client was sent: a plain one, or what `horizon:levels` carried.
@@ -588,4 +607,152 @@ fn a_column_too_large_to_wrap_is_not_counted_as_sent() {
     assert_eq!(columns, vec![(0, 0), (1, 0)]);
     let (payloads, sent) = batch_runs(NETHER_INDEX, &[(0, ())], &[oversized.data]);
     assert!(payloads.is_empty() && sent.is_empty(), "no empty batch");
+}
+
+/// The level `id`'s wrapped chunks and forgets of `level`, in order.
+fn columns_of(got: &[Got], level: i32, kind: i32) -> Vec<(i32, i32)> {
+    got.iter()
+        .filter_map(|g| match g {
+            Got::Wrapped { level: l, id, body } if *l == level && *id == kind => {
+                match C::decode(*id, body).unwrap() {
+                    C::LevelChunkWithLight(p) => Some((p.x, p.z)),
+                    C::ForgetLevelChunk(p) => Some((p.pos[0], p.pos[1])),
+                    other => panic!("{other:?}"),
+                }
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// A travel (`change_level`, Respawn keep 3) into the Nether the client views: the Nether's
+/// sent chunks are the player's own and are not sent again; the Overworld's two sent chunks are
+/// a view of level 0, forgotten wrapped once they lingered 52 ticks, then closed. A second
+/// travel, into the End it does not view, drops every view without `close`.
+#[test]
+fn a_travel_into_a_viewed_level_swaps_it_with_the_level_left() {
+    let (mut hub, rx) = hub_with(&[1], 2);
+    hub.set_viewed_areas(1, "test:portal", nether(1)).unwrap();
+    hub.guests
+        .update(0, |g| g.sent_chunks.extend([(0, 0), (1, 0)]));
+    hub.set_dimension(NETHER);
+    let mut nether_world = lit_columns(1);
+    run_level(&mut hub, &mut nether_world);
+    assert_eq!(
+        wrapped_columns(&got(&rx[0]), ids::LEVEL_CHUNK_WITH_LIGHT).len(),
+        9
+    );
+    in_ctx(&mut nether_world, |ctx| {
+        hub.change_level(0, [8.5, 64.0, 8.5], 0.0, None, false, 0, ctx);
+    });
+    let g = &hub.guests[0];
+    assert_eq!(g.dimension, NETHER);
+    let mut own: Vec<_> = g.sent_chunks.iter().copied().collect();
+    own.sort_unstable();
+    let square: Vec<_> = (-1..=1)
+        .flat_map(|x| (-1..=1).map(move |z| (x, z)))
+        .collect();
+    assert_eq!(own, square, "the view's chunks, the player's own");
+    assert!(g.viewed.view(NETHER).is_none());
+    let overworld = g.viewed.view("minecraft:overworld").unwrap();
+    let mut kept: Vec<_> = overworld.sent.iter().copied().collect();
+    kept.sort_unstable();
+    assert_eq!((overworld.level, kept), (0, vec![(0, 0), (1, 0)]));
+    let sent = got(&rx[0]);
+    assert!(sent.contains(&Got::Plain(ids::RESPAWN)));
+    // The Nether's pass sends none of its chunks again.
+    hub.ticks += 1;
+    hub.guests.update(0, |g| {
+        g.batch_quota = 9.0;
+        g.unacknowledged = 0;
+    });
+    run_level(&mut hub, &mut nether_world);
+    let sent = got(&rx[0]);
+    assert!(
+        !sent.contains(&Got::Plain(ids::LEVEL_CHUNK_WITH_LIGHT)),
+        "{sent:?}"
+    );
+    assert!(
+        !sent.contains(&Got::Plain(ids::FORGET_LEVEL_CHUNK)),
+        "{sent:?}"
+    );
+    // The Overworld's pass starts the linger; 52 ticks on, its chunks are forgotten, wrapped.
+    hub.set_dimension("minecraft:overworld");
+    let mut overworld_world = lit_columns(1);
+    let start = hub.ticks;
+    run_level(&mut hub, &mut overworld_world);
+    hub.ticks = start + 51;
+    run_level(&mut hub, &mut overworld_world);
+    assert!(columns_of(&got(&rx[0]), 0, ids::FORGET_LEVEL_CHUNK).is_empty());
+    hub.ticks = start + 52;
+    run_level(&mut hub, &mut overworld_world);
+    let last = got(&rx[0]);
+    let mut forgotten = columns_of(&last, 0, ids::FORGET_LEVEL_CHUNK);
+    forgotten.sort_unstable();
+    assert_eq!(forgotten, vec![(0, 0), (1, 0)]);
+    let close = last.iter().position(|g| *g == Got::Close(0));
+    let last_forget = last.iter().rposition(
+        |g| matches!(g, Got::Wrapped { level: 0, id, .. } if *id == ids::FORGET_LEVEL_CHUNK),
+    );
+    assert!(close > last_forget, "closed once forgotten: {last:?}");
+    // Into the End, not viewed: the Nether's view goes without `close`.
+    hub.set_dimension(NETHER);
+    run_level(&mut hub, &mut nether_world);
+    assert!(hub.guests[0].viewed.view(NETHER).is_none(), "its own");
+    hub.set_dimension("minecraft:the_end");
+    let mut end_world = lit_columns(1);
+    in_ctx(&mut end_world, |ctx| {
+        hub.change_level(0, [8.5, 64.0, 8.5], 0.0, None, false, 0, ctx);
+    });
+    let g = &hub.guests[0];
+    assert!(g.viewed.views.is_empty(), "the Nether left is not kept");
+    assert!(g.sent_chunks.is_empty());
+    let sent = got(&rx[0]);
+    assert!(!sent.iter().any(|g| matches!(g, Got::Close(_))), "{sent:?}");
+}
+
+/// A client of revision 1 does not swap worlds on a travel: into the Nether it views, the server
+/// drops its views and the Overworld left, and sends the Nether's chunks again, plain, as its own.
+#[test]
+fn a_revision_1_client_is_not_switched() {
+    let older = Answer {
+        revision: 1,
+        max_levels: 2,
+    };
+    let (mut hub, rx) = hub_answered(&[1], older);
+    hub.set_viewed_areas(1, "test:portal", nether(1)).unwrap();
+    hub.guests
+        .update(0, |g| g.sent_chunks.extend([(0, 0), (1, 0)]));
+    hub.set_dimension(NETHER);
+    let mut nether_world = lit_columns(1);
+    run_level(&mut hub, &mut nether_world);
+    assert_eq!(
+        wrapped_columns(&got(&rx[0]), ids::LEVEL_CHUNK_WITH_LIGHT).len(),
+        9,
+        "a revision-1 client still views levels"
+    );
+    in_ctx(&mut nether_world, |ctx| {
+        hub.change_level(0, [8.5, 64.0, 8.5], 0.0, None, false, 0, ctx);
+    });
+    let g = &hub.guests[0];
+    assert!(g.viewed.views.is_empty(), "no view kept, none taken over");
+    assert!(g.sent_chunks.is_empty());
+    hub.ticks += 1;
+    hub.guests.update(0, |g| {
+        g.batch_quota = 9.0;
+        g.unacknowledged = 0;
+    });
+    run_level(&mut hub, &mut nether_world);
+    let sent = got(&rx[0]);
+    assert!(sent.contains(&Got::Plain(ids::RESPAWN)));
+    let plain = sent
+        .iter()
+        .filter(|g| **g == Got::Plain(ids::LEVEL_CHUNK_WITH_LIGHT))
+        .count();
+    assert_eq!(plain, 9, "the Nether sent again as its own: {sent:?}");
+    assert!(
+        !sent
+            .iter()
+            .any(|g| matches!(g, Got::Open(_) | Got::Close(_)))
+    );
 }

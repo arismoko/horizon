@@ -5,13 +5,15 @@ use super::{
     entities::MAX_TABLE,
     worlds::{MAX_COLUMNS, ViewedWorld},
 };
-use crate::game::Game;
+use crate::game::{Game, remote::Remote};
+use horizon_client::blocks::BlockFacts;
 use horizon_client::{text::Text, viewed_levels_net::MAX_LEVELS, world::World};
 use horizon_protocol::{
     packets::play::{Clientbound as C, SpawnInfo},
+    registry::DimensionType,
     viewed_levels::{CHANNEL, MAX_ENTITIES, Message, ViewedLevelsError},
 };
-use horizon_world::dimension_type::DimensionFacts;
+use horizon_world::{dimension_type::DimensionFacts, registry::BlockStateId};
 
 /// Why a `horizon:levels` play payload closes the connection.
 #[derive(Clone, Debug, PartialEq)]
@@ -76,6 +78,23 @@ impl From<ViewedLevelsError> for RouteError {
     }
 }
 
+/// Whether a block of `state` has a block entity (`EntityBlock`), as `block_entity_for_block`
+/// decides it for the player's world: a declared type's block, a sign, or a vanilla block entity's
+/// block. A mod's state-aware block is asked at the travel, where its block entity is made.
+fn block_entity_block(facts: &BlockFacts, state: BlockStateId) -> bool {
+    let block = facts.get(state);
+    horizon_client::block_entity_types::type_for(&block.name).is_some()
+        || block.sign_form().is_some()
+        || horizon_client::containers::BlockEntity::for_block(&block.name).is_some()
+}
+
+/// The id of the world clock a level of `dimension` follows (its `default_clock`) in the
+/// server's registry.
+pub(super) fn default_clock(r: &Remote, dimension: &DimensionType) -> Option<i32> {
+    let name = dimension.default_clock.as_deref()?;
+    r.registries.id("minecraft:world_clock", name)
+}
+
 impl Game<'_> {
     /// A `horizon:levels` play payload's data: routed, or the connection closes with the reason.
     pub(in crate::game) fn viewed_levels_payload(
@@ -97,6 +116,7 @@ impl Game<'_> {
         match Message::decode(data)? {
             Message::Open { level, spawn } => self.open_viewed_level(level, &spawn),
             Message::Run { level, packets } => {
+                let facts = self.res.facts();
                 let Some(world) = self.remote.as_mut().and_then(|r| r.viewed.get_mut(level)) else {
                     return Err(RouteError::NotOpen(level));
                 };
@@ -104,6 +124,12 @@ impl Game<'_> {
                     // The codec read each one exactly already.
                     let packet =
                         C::decode(id, body).map_err(|_| ViewedLevelsError::MalformedPacket(id))?;
+                    if let C::BlockEntityData(p) = packet {
+                        let [x, y, z] = p.pos;
+                        let entity_block = block_entity_block(facts, world.world.block(x, y, z));
+                        world.block_entity_data(p, entity_block);
+                        continue;
+                    }
                     world.apply(packet)?;
                 }
                 Ok(())
@@ -136,11 +162,7 @@ impl Game<'_> {
             });
         }
         let format = r.level_format(spawn, self.res.environment());
-        let default_clock = format
-            .dimension
-            .default_clock
-            .as_deref()
-            .and_then(|name| r.registries.id("minecraft:world_clock", name));
+        let default_clock = default_clock(r, &format.dimension);
         let facts = format.facts.clone().unwrap_or_else(|| {
             let key = horizon_core::LevelKey::parse(&spawn.dimension)
                 .unwrap_or(horizon_core::LevelKey::OVERWORLD);
