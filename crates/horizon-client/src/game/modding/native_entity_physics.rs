@@ -522,6 +522,129 @@ mod tests {
         });
     }
 
+    /// `/kill` (and the native discard that shares `kill_target_in_level`)
+    /// takes a shulker bullet out of its list: the `noPhysics` write stored
+    /// for it has to leave with it.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn no_physics_entry_is_cleared_when_a_command_kills_a_shulker_bullet() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::projectiles::Projectile;
+        use horizon_core::geometry::Vec3;
+
+        with_game(|game| {
+            let mut bullet = Projectile::new(
+                ProjectileKind::ShulkerBullet {
+                    target: None,
+                    dir: None,
+                    steps: 0,
+                    delta: [0.0; 3],
+                    seed: 0,
+                },
+                Vec3::new(4.5, 200.0, 4.5),
+                None,
+            );
+            bullet.id = game.take_entity_id();
+            let id = bullet.id;
+            game.creatures.projectiles.push(bullet);
+            let bullet = game.entity(id).expect("the bullet handle");
+            assert!(bullet.set_no_physics(game, false));
+            assert!(game.persist.no_physics.contains_key(&id));
+
+            game.set_allow_commands(true);
+            assert!(
+                game.run_command("kill @e[type=minecraft:shulker_bullet]"),
+                "the command found and removed the bullet"
+            );
+            assert!(!game.creatures.projectiles.iter().any(|p| p.id == id));
+            assert!(
+                !game.persist.no_physics.contains_key(&id),
+                "the entry left with the entity the command killed"
+            );
+        });
+    }
+
+    /// A breath cloud that runs out of time is taken away by `tick_breath`,
+    /// not by a command: its entry goes with it.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn no_physics_entry_is_cleared_when_a_breath_cloud_expires() {
+        use super::super::dragon::Breath;
+        use super::super::native_entity_refs::tests::with_game;
+
+        with_game(|game| {
+            let id = game.take_entity_id();
+            game.breath_clouds.push(Breath {
+                attachment_lifetime: Default::default(),
+                join: Default::default(),
+                id,
+                at: [0.0, 80.0, 0.0],
+                motion: [0.0; 3],
+                radius: 3.0,
+                age: 20,
+                duration: 1,
+                from_dragon: false,
+                victims: Vec::new(),
+                potion: None,
+            });
+            game.persist.no_physics.insert(id, false);
+            assert!(game.persist.no_physics.contains_key(&id));
+
+            game.tick_breath();
+            assert!(
+                !game.breath_clouds.iter().any(|c| c.id == id),
+                "the cloud expired"
+            );
+            assert!(
+                !game.persist.no_physics.contains_key(&id),
+                "the entry left with the cloud that expired"
+            );
+        });
+    }
+
+    /// Leaving the flaming phase removes the dragon's flame cloud
+    /// (`end_dragon_flame`): its entry leaves with it too.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn no_physics_entry_is_cleared_when_the_dragons_flame_is_removed() {
+        use super::super::dragon::{Breath, Dragon};
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_core::geometry::Vec3;
+
+        with_game(|game| {
+            let mut dragon = Dragon::new(Vec3::ZERO, 0.0, 0);
+            dragon.id = game.take_entity_id();
+            game.dragon.replace(dragon);
+            let id = game.take_entity_id();
+            game.breath_clouds.push(Breath {
+                attachment_lifetime: Default::default(),
+                join: Default::default(),
+                id,
+                at: [0.0, 80.0, 0.0],
+                motion: [0.0; 3],
+                radius: 3.0,
+                age: 0,
+                duration: 600,
+                from_dragon: true,
+                victims: Vec::new(),
+                potion: None,
+            });
+            game.persist.no_physics.insert(id, false);
+            assert!(game.persist.no_physics.contains_key(&id));
+
+            game.dragon.as_mut().unwrap().flame_ended = true;
+            game.tick_breath();
+            assert!(
+                !game.breath_clouds.iter().any(|c| c.id == id),
+                "the flame cloud is gone"
+            );
+            assert!(
+                !game.persist.no_physics.contains_key(&id),
+                "the entry left with the flame cloud"
+            );
+        });
+    }
+
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn no_physics_write_is_refused_on_a_client() {

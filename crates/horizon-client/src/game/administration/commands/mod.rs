@@ -2360,6 +2360,9 @@ impl Game<'_> {
             }
             Target::Projectile(id) => {
                 self.creatures.projectiles.retain(|p| p.id != id);
+                // A shulker bullet's `noPhysics` write lives in the sweep
+                // memory, not the projectile: it leaves with the entity.
+                self.forget_entity(id);
             }
             Target::Stand(id) => self.armor_stands.retain(|a| a.id != id),
             Target::Frame(id) => {
@@ -2387,8 +2390,16 @@ impl Game<'_> {
             Target::Falling(id) => self.falling.retain(|f| f.id != id),
             Target::Rocket(id) => self.rockets.retain(|r| r.id != id),
             Target::Trident(id) => self.tridents.retain(|t| t.id != id),
-            Target::Spawner(id) => self.ominous_spawners.retain(|s| s.id != id),
-            Target::Cloud(id) => self.breath_clouds.retain(|c| c.id != id),
+            Target::Spawner(id) => {
+                self.ominous_spawners.retain(|s| s.id != id);
+                self.forget_entity(id);
+            }
+            Target::Cloud(id) => {
+                // A cloud's or a spawner's `noPhysics` write is in the same
+                // sweep memory as a shulker bullet's.
+                self.breath_clouds.retain(|c| c.id != id);
+                self.forget_entity(id);
+            }
             Target::Hook(id) => self.remove_fishing_hook(id),
             Target::Knot(_) => {}
             // No command names a part, and `kill` on one would not stop its dragon.
