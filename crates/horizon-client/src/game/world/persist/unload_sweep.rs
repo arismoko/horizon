@@ -20,8 +20,13 @@ impl Game<'_> {
             keep
         });
         self.crystals.retain(|c| !gone(c.position));
-        self.ominous_spawners
-            .retain(|s| !gone(Vec3::new(s.position[0], s.position[1], s.position[2])));
+        self.ominous_spawners.retain(|s| {
+            let keep = !gone(Vec3::new(s.position[0], s.position[1], s.position[2]));
+            if !keep {
+                removed.push(s.id);
+            }
+            keep
+        });
         if self.dragon.as_ref().is_some_and(|d| gone(d.position)) {
             self.discard_resident_dragon();
         }
@@ -144,7 +149,11 @@ impl Game<'_> {
         // the ones saved with the chunk go with it (a trident too, unsaved).
         self.creatures.projectiles.retain(|p| {
             let leaves = entity_nbt::saved_with_chunk(p) || p.arrow.is_some();
-            !leaves || !gone(p.position)
+            let keep = !leaves || !gone(p.position);
+            if !keep {
+                removed.push(p.id);
+            }
+            keep
         });
         self.falling.retain(|f| !gone(f.position));
         self.rockets.retain(|r| !gone(r.position));

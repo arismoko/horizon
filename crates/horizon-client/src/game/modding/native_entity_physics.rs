@@ -376,7 +376,7 @@ mod tests {
             );
             let loaded = horizon_client::entity_nbt::armor_stand_from_nbt(&saved, 44).unwrap();
             assert!(
-                !loaded.no_physics(),
+                !loaded.no_physics(None),
                 "a stand recomputes the flag on load"
             );
 
@@ -411,6 +411,114 @@ mod tests {
             assert_eq!(dragon.no_physics(game), Some(true));
             assert!(dragon.set_no_physics(game, false));
             assert_eq!(dragon.no_physics(game), Some(false));
+        });
+    }
+
+    /// The write is what the movement code reads, not only the read-back: a
+    /// shulker's lid (`piston_push::lid_push`, the gate that asks
+    /// `Entity::no_physics`) pushes a bullet whose flag a mod cleared and
+    /// spares one left at the kind's default `true`.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_mod_cleared_no_physics_shulker_bullet_is_pushed_by_a_shulker_lid() {
+        use super::super::native_entity_refs::tests::with_game;
+        use crate::game::piston_push::Lid;
+        use horizon_client::mobs::Mob;
+        use horizon_client::projectiles::Projectile;
+        use horizon_core::geometry::{Aabb, Vec3};
+
+        let bullet = |game: &mut Game<'_>, at: Vec3| {
+            let mut bullet = Projectile::new(
+                ProjectileKind::ShulkerBullet {
+                    target: None,
+                    dir: None,
+                    steps: 0,
+                    delta: [0.0; 3],
+                    seed: 0,
+                },
+                at,
+                None,
+            );
+            bullet.id = game.take_entity_id();
+            let id = bullet.id;
+            game.creatures.projectiles.push(bullet);
+            id
+        };
+
+        with_game(|game| {
+            let kind = game
+                .res
+                .mob_types()
+                .get("minecraft:shulker")
+                .expect("the shulker type")
+                .clone();
+            game.mobs
+                .push(Mob::new(24, kind, Vec3::new(24.0, 200.0, 24.0), 0.0));
+            let cleared = bullet(game, Vec3::new(10.5, 200.0, 10.5));
+            let left_alone = bullet(game, Vec3::new(13.5, 200.0, 10.5));
+            let handle = game.entity(cleared).expect("the bullet handle");
+            assert!(handle.set_no_physics(game, false));
+            assert_eq!(handle.no_physics(game), Some(false));
+
+            let area = Aabb::new(Vec3::new(9.0, 200.0, 9.0), Vec3::new(15.0, 201.0, 12.0));
+            game.lid_push(Lid::Shulker(24), area, Vec3::new(0.0, 0.25, 0.0));
+            let y = |id: u32| {
+                game.creatures
+                    .projectiles
+                    .iter()
+                    .find(|p| p.id == id)
+                    .expect("the bullet")
+                    .position
+                    .y
+            };
+            assert_eq!(
+                y(cleared),
+                200.25,
+                "a cleared flag lets a shulker's lid push the bullet"
+            );
+            assert_eq!(
+                y(left_alone),
+                200.0,
+                "a bullet left at its default noPhysics is spared"
+            );
+        });
+    }
+
+    /// The stored value leaves the world with its entity: a projectile unloaded
+    /// with its chunk is removed without `forget_entity` on the removal path,
+    /// so the sweep has to drop the entry itself.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn no_physics_entry_is_cleared_when_the_bullet_leaves_with_its_chunk() {
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_client::projectiles::Projectile;
+        use horizon_core::geometry::Vec3;
+        use std::collections::HashSet;
+
+        with_game(|game| {
+            let mut bullet = Projectile::new(
+                ProjectileKind::ShulkerBullet {
+                    target: None,
+                    dir: None,
+                    steps: 0,
+                    delta: [0.0; 3],
+                    seed: 0,
+                },
+                Vec3::new(4.5, 200.0, 4.5),
+                None,
+            );
+            bullet.id = game.take_entity_id();
+            let id = bullet.id;
+            game.creatures.projectiles.push(bullet);
+            let bullet = game.entity(id).expect("the bullet handle");
+            assert!(bullet.set_no_physics(game, false));
+            assert!(game.persist.no_physics.contains_key(&id));
+
+            let _ = game.entity_chunks(&HashSet::from([(0, 0)]), true);
+            assert!(
+                !game.persist.no_physics.contains_key(&id),
+                "the entry left with its entity"
+            );
         });
     }
 
