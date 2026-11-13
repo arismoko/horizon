@@ -63,7 +63,10 @@ enum Storage {
         source: ResourceSource,
         prefix: String,
     },
-    Index(BTreeMap<String, Resource>),
+    Index {
+        files: BTreeMap<String, Resource>,
+        layers: Vec<ResourceSource>,
+    },
 }
 
 /// A winning resource keeps its source alive; merged resources keep only their
@@ -116,7 +119,7 @@ impl std::fmt::Debug for ResourceSource {
             #[cfg(not(target_arch = "wasm32"))]
             Storage::Archive(_) => "Archive",
             Storage::Prefix { .. } => "Prefix",
-            Storage::Index(_) => "Index",
+            Storage::Index { .. } => "Index",
         };
         f.debug_tuple("ResourceSource").field(&kind).finish()
     }
@@ -311,7 +314,7 @@ impl ResourceSource {
             Storage::Archive(archive) => {
                 collect(archive.names().filter(|name| stays_inside(name)), top)
             }
-            Storage::Index(files) => collect(files.keys().map(String::as_str), top),
+            Storage::Index { files, .. } => collect(files.keys().map(String::as_str), top),
             _ => collect(
                 self.list(&format!("{top}/")).iter().map(String::as_str),
                 top,
@@ -319,7 +322,38 @@ impl ResourceSource {
         }
     }
     pub fn indexed(files: BTreeMap<String, Resource>) -> Self {
-        Self(Arc::new(Storage::Index(files)))
+        Self::indexed_with_layers(files, Vec::new())
+    }
+    /// Keep an index's original layers for singleton stacks. Ordinary resource
+    /// reads and listings still use only the index's resolved winning files.
+    pub fn indexed_with_layers(
+        files: BTreeMap<String, Resource>,
+        layers: Vec<ResourceSource>,
+    ) -> Self {
+        Self(Arc::new(Storage::Index { files, layers }))
+    }
+    /// Singleton resources across namespaces, lowest layer first, including
+    /// lower copies at the same path. Namespace order breaks ties within a layer.
+    pub fn singleton_resources(&self, top: &str, name: &str) -> Vec<Resource> {
+        if !stays_inside(top) || !stays_inside(name) || name.contains('/') {
+            return Vec::new();
+        }
+        if let Storage::Index { layers, .. } = self.0.as_ref()
+            && !layers.is_empty()
+        {
+            return layers
+                .iter()
+                .flat_map(|layer| layer.singleton_resources(top, name))
+                .collect();
+        }
+        self.namespaces(top)
+            .into_iter()
+            .filter_map(|namespace| {
+                let path = format!("{top}/{namespace}/{name}");
+                self.contains(&path)
+                    .then(|| Resource::file(self.clone(), path))
+            })
+            .collect()
     }
     pub fn directory(root: PathBuf) -> Self {
         Self(Arc::new(Storage::Directory(root)))
@@ -365,7 +399,7 @@ impl ResourceSource {
             #[cfg(not(target_arch = "wasm32"))]
             Storage::Archive(archive) => archive.read(name),
             Storage::Prefix { source, prefix } => source.read(&format!("{prefix}{name}")),
-            Storage::Index(files) => files
+            Storage::Index { files, .. } => files
                 .get(name)
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, name.to_owned()))?
                 .read(),
@@ -382,7 +416,7 @@ impl ResourceSource {
             #[cfg(not(target_arch = "wasm32"))]
             Storage::Archive(_) => None,
             Storage::Prefix { source, prefix } => source.folder_of(&format!("{prefix}{name}")),
-            Storage::Index(files) => match &files.get(name)?.0 {
+            Storage::Index { files, .. } => match &files.get(name)?.0 {
                 ResourceStorage::File { source, name } => source.folder_of(name),
                 ResourceStorage::Bytes(_) => None,
             },
@@ -407,7 +441,7 @@ impl ResourceSource {
             Storage::Prefix { source, prefix } => {
                 source.copy_to(&format!("{prefix}{name}"), out, budget)
             }
-            Storage::Index(files) => match &files
+            Storage::Index { files, .. } => match &files
                 .get(name)
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, name.to_owned()))?
                 .0
@@ -441,7 +475,7 @@ impl ResourceSource {
             #[cfg(not(target_arch = "wasm32"))]
             Storage::Archive(archive) => archive.read_head(name, max),
             Storage::Prefix { source, prefix } => source.read_head(&format!("{prefix}{name}"), max),
-            Storage::Index(files) => match &files
+            Storage::Index { files, .. } => match &files
                 .get(name)
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, name.to_owned()))?
                 .0
@@ -470,7 +504,7 @@ impl ResourceSource {
             #[cfg(not(target_arch = "wasm32"))]
             Storage::Archive(archive) => archive.contains(name),
             Storage::Prefix { source, prefix } => source.contains(&format!("{prefix}{name}")),
-            Storage::Index(files) => files.contains_key(name),
+            Storage::Index { files, .. } => files.contains_key(name),
         }
     }
     /// Read only when the complete resource fits the limit. Bounds actual bytes
@@ -491,7 +525,7 @@ impl ResourceSource {
             Storage::Prefix { source, prefix } => {
                 return source.read_limited(&format!("{prefix}{name}"), max);
             }
-            Storage::Index(files) => match &files
+            Storage::Index { files, .. } => match &files
                 .get(name)
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, name.to_owned()))?
                 .0
@@ -547,7 +581,7 @@ impl ResourceSource {
                 .into_iter()
                 .filter_map(|name| name.strip_prefix(base).map(str::to_owned))
                 .collect(),
-            Storage::Index(files) => files
+            Storage::Index { files, .. } => files
                 .range(prefix.to_owned()..)
                 .map_while(|(name, _)| name.starts_with(prefix).then(|| name.clone()))
                 .collect(),
@@ -635,7 +669,7 @@ impl ResourceSource {
             Storage::Prefix { source, prefix } => {
                 source.file_fingerprint(&format!("{prefix}{name}"), archives)
             }
-            Storage::Index(files) => match &files.get(name)?.0 {
+            Storage::Index { files, .. } => match &files.get(name)?.0 {
                 ResourceStorage::File { source, name } => source.file_fingerprint(name, archives),
                 ResourceStorage::Bytes(bytes) => {
                     let mut hash = DefaultHasher::new();
@@ -948,6 +982,64 @@ mod tests {
         assert_eq!(
             read_winning_resource(&sources, "../data/demo/config.json", 64),
             None
+        );
+    }
+
+    #[test]
+    fn indexed_singletons_keep_layer_order_without_changing_resource_winners() {
+        let fixture = Fixture::new();
+        let directory = fixture.0.join("directory");
+        fs::create_dir_all(directory.join("data/zbase")).unwrap();
+        fs::create_dir_all(directory.join("data/shared")).unwrap();
+        fs::write(directory.join("data/zbase/config.json"), b"zbase").unwrap();
+        fs::write(directory.join("data/shared/config.json"), b"lower").unwrap();
+        let lower = ResourceSource::directory(directory);
+        let archive = fixture.archive(
+            "higher.jar",
+            &[
+                ("data/alpha/config.json", b"alpha"),
+                ("data/shared/config.json", b"higher"),
+            ],
+        );
+        let higher = ResourceSource::archive(&archive).unwrap();
+        let mut files = BTreeMap::new();
+        for layer in [&lower, &higher] {
+            for name in layer.list("data/") {
+                files.insert(name.clone(), Resource::file(layer.clone(), name));
+            }
+        }
+        let index = ResourceSource::indexed_with_layers(files, vec![lower, higher]);
+        assert_eq!(index.read("data/shared/config.json").unwrap(), b"higher");
+        assert_eq!(
+            index.list("data/"),
+            [
+                "data/alpha/config.json",
+                "data/shared/config.json",
+                "data/zbase/config.json",
+            ],
+        );
+        assert_eq!(
+            index
+                .singleton_resources("data", "config.json")
+                .into_iter()
+                .map(|resource| resource.read().unwrap())
+                .collect::<Vec<_>>(),
+            [
+                b"lower".to_vec(),
+                b"zbase".to_vec(),
+                b"alpha".to_vec(),
+                b"higher".to_vec()
+            ],
+        );
+        assert!(
+            index
+                .singleton_resources("../data", "config.json")
+                .is_empty()
+        );
+        assert!(
+            index
+                .singleton_resources("data", "../config.json")
+                .is_empty()
         );
     }
 

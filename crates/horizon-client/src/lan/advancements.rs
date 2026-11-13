@@ -1519,6 +1519,138 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// Both peers number the matching stonecutter buttons from the same
+    /// resolved load; priorities must not be lost in the network's id map.
+    #[test]
+    fn stonecutter_packet_buttons_select_the_same_server_results_with_priorities() {
+        use crate::{
+            banner::Banners,
+            brewing::Brewing,
+            crafting::Recipes,
+            items::{ItemStack, Items},
+            menu::{Env, Kind, Menu},
+            stations::StationRecipes,
+        };
+        use horizon_world::loot::PackOverlay;
+
+        let root = resources(
+            "stonecutter_priority_buttons",
+            &[
+                (
+                    "a_cut",
+                    r#"{"type":"minecraft:stonecutting","ingredient":"minecraft:raw_copper",
+                    "result":{"id":"minecraft:copper_ingot","count":2}}"#,
+                ),
+                (
+                    "b_cut",
+                    r#"{"type":"minecraft:stonecutting","ingredient":"minecraft:raw_copper",
+                    "result":{"id":"minecraft:redstone","count":3}}"#,
+                ),
+                (
+                    "smelt",
+                    r#"{"type":"minecraft:smelting","ingredient":"minecraft:raw_copper",
+                    "result":{"id":"minecraft:copper_ingot"}}"#,
+                ),
+            ],
+        );
+        let defaults = horizon_world::item_defaults::read(&root).unwrap();
+        let items = Items::catalog(&root, &PackOverlay::NONE, &defaults).unwrap();
+        let brewing = Brewing::load(&root, &items, &PackOverlay::NONE);
+        let banners = Banners::default();
+        let enchantments = crate::enchant::Enchantments::default();
+        let names = crate::creative::Names::default();
+        // Literal registry ids, counts and item names, independent of either
+        // projection's order. With no file, retain vanilla registration order.
+        for (priority_file, expected) in [
+            (
+                None,
+                [
+                    (1, "minecraft:copper_ingot", 2),
+                    (3, "minecraft:redstone", 3),
+                ],
+            ),
+            (
+                Some(r#"{"entries":{"minecraft:b_cut":5}}"#),
+                [
+                    (3, "minecraft:redstone", 3),
+                    (1, "minecraft:copper_ingot", 2),
+                ],
+            ),
+        ] {
+            if let Some(file) = priority_file {
+                std::fs::write(root.join("data/minecraft/recipe_priorities.json"), file).unwrap();
+            }
+            let sources = crate::test_resources::server_sources(&root, &PackOverlay::NONE);
+            let sync = SyncData::load(&root, &PackOverlay::NONE, &defaults, &sources).unwrap();
+            let recipes =
+                Recipes::from_resolved(&root, &items, &PackOverlay::NONE, &sources).unwrap();
+            let stations = StationRecipes::from_sources(&root, &items, &sources);
+            let env = Env {
+                crafting_remainder: None,
+                player: None,
+                player_entity_id: None,
+                loop_context: crate::test_resources::server_loop_context(),
+                can_equip: None,
+                items: &items,
+                recipes: &recipes,
+                brewing: &brewing,
+                banners: &banners,
+                station_recipes: &stations,
+                enchantments: &enchantments,
+                names: &names,
+                trade: None,
+                maps: None,
+                limited_crafting: false,
+                known_recipes: None,
+            };
+            let mut menu = Menu::new(Kind::Stonecutter);
+            menu.set_slot(&env, 0, Some(ItemStack::new("minecraft:raw_copper", 1)));
+
+            let mut reader = Reader::new(&sync.recipes);
+            let mut properties = BTreeMap::new();
+            for _ in 0..reader.varint().unwrap() {
+                let key = reader.string(64).unwrap().to_owned();
+                let ids: Vec<_> = (0..reader.varint().unwrap())
+                    .map(|_| reader.varint().unwrap())
+                    .collect();
+                assert!(properties.insert(key, ids).is_none());
+            }
+            assert_eq!(
+                properties,
+                BTreeMap::from([
+                    ("minecraft:smithing_addition".to_owned(), vec![]),
+                    ("minecraft:smithing_base".to_owned(), vec![]),
+                    ("minecraft:smithing_template".to_owned(), vec![]),
+                    ("minecraft:furnace_input".to_owned(), vec![0]),
+                    ("minecraft:blast_furnace_input".to_owned(), vec![]),
+                    ("minecraft:smoker_input".to_owned(), vec![]),
+                    ("minecraft:campfire_input".to_owned(), vec![]),
+                    ("minecraft:brewing_input".to_owned(), vec![]),
+                    ("minecraft:brewing_reagent".to_owned(), vec![]),
+                ])
+            );
+            assert_eq!(reader.varint().unwrap(), 2, "two stonecutter buttons");
+            for (index, (item_id, item_name, count)) in expected.into_iter().enumerate() {
+                assert_eq!(reader.varint().unwrap(), 2, "one explicit input");
+                assert_eq!(reader.varint().unwrap(), 0, "raw copper input");
+                assert_eq!(reader.varint().unwrap(), 5, "item-stack display");
+                assert_eq!(reader.varint().unwrap(), item_id, "button {index}");
+                assert_eq!(reader.varint().unwrap(), count, "result count");
+                assert_eq!(reader.varint().unwrap(), 0, "no added components");
+                assert_eq!(reader.varint().unwrap(), 0, "no removed components");
+                // Public server button handling invokes stone_setup_result.
+                assert!(menu.button(&env, index as i32));
+                let result = menu.slot(1).expect("selected server result");
+                assert_eq!(&*result.item, item_name, "button {index}");
+                assert_eq!(result.count, count as u32, "button {index}");
+                assert_eq!(result.damage, 0);
+                assert!(result.extra.is_none());
+            }
+            assert_eq!(reader.remaining(), 0, "the complete packet was decoded");
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     /// A world's own load over the data its packs gave (`SyncData::load_over`, which keeps
     /// that data's recipes) sends what a full read of the same packs sends: their recipes too.
     #[test]

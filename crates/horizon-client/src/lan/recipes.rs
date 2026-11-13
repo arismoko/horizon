@@ -186,19 +186,23 @@ fn normalize_ingredients(r: &mut Value, items: &horizon_client::items::Items) ->
     parsed
 }
 
-/// The packet's payload for the network copy's recipes (`network_recipes`).
+/// The packet's payload for the network copy's recipes (`network_recipes`),
+/// projected in the owning load's resolved priority order.
 pub fn update_recipes(
     all: &BTreeMap<String, Box<str>>,
     sync: &SyncData,
-    additions: &horizon_client::crafting::PropertyAdditions,
+    sources: &horizon_client::crafting::ResolvedSources,
 ) -> Vec<u8> {
     // The copy is already filtered and swapped (`network_recipes`); the
     // filters never run twice, so one swap cannot feed a later one again.
     // Parsing every recipe takes about a millisecond.
-    let chosen: Vec<Value> = registration_order(all)
-        .into_iter()
+    let chosen: Vec<Value> = sources
+        .recipes
+        .iter()
+        .filter_map(|recipe| all.get(&horizon_client::crafting::qualified(&recipe.name)))
         .filter_map(|text| serde_json::from_str::<Value>(text).ok())
         .collect();
+    let additions = &sources.property_additions;
     let tags: BTreeMap<&str, &[i32]> = sync
         .tags
         .registries
@@ -260,8 +264,9 @@ pub fn update_recipes(
             w.varint(id);
         }
     }
-    // SelectableRecipe.SingleInputSet: each stonecutting recipe's input and
-    // its result as an ItemStackSlotDisplay.
+    // SelectableRecipe.SingleInputSet: keep the resolved source order, just
+    // like StationRecipes, so a client's button selects the server's result.
+    // Each entry is its input and result as an ItemStackSlotDisplay.
     let stonecutting: Vec<&Value> = chosen
         .iter()
         .filter(|r| r["type"] == "minecraft:stonecutting")

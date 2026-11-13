@@ -592,11 +592,7 @@ impl SyncData {
             },
         };
         sync.recipes = startup::time("sync.update_recipes", || {
-            super::recipes::update_recipes(
-                &sync.advancements.recipes,
-                &sync,
-                &sources.property_additions,
-            )
+            super::recipes::update_recipes(&sync.advancements.recipes, &sync, sources)
         });
         Ok(sync)
     }

@@ -1863,6 +1863,13 @@ mod tests {
         ));
     }
 
+    mod recipe_priorities {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/game/modding/mods/recipe_priorities_tests.rs"
+        ));
+    }
+
     const BUILT: &[BuiltMod] = &[BuiltMod {
         id: "machine_sample",
         version: "0.3.0",

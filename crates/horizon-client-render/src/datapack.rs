@@ -830,6 +830,21 @@ impl DataStore {
     ) -> Self {
         let mut s = Self::default();
         for pack in packs {
+            // Singleton files share one stack across namespaces, preserving pack
+            // order even when a higher pack uses a different namespace.
+            if pack.id != "vanilla" {
+                for resource in pack
+                    .source()
+                    .singleton_resources("data", "recipe_priorities.json")
+                {
+                    if let Ok(bytes) = resource.read() {
+                        s.files
+                            .entry("recipe_priorities".into())
+                            .or_default()
+                            .push(bytes);
+                    }
+                }
+            }
             // `tags` walks the whole tags tree, so a `tags/function` file is
             // listed by both kinds: handle every file once.
             let mut seen = std::collections::BTreeSet::new();
@@ -1215,6 +1230,41 @@ pub fn worldgen_overrides_over(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    #[test]
+    fn recipe_priority_singletons_keep_pack_order_across_namespaces() {
+        let root =
+            std::env::temp_dir().join(format!("horizon-priority-packs-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for (pack, namespace, bytes) in [
+            ("a", "zzz", r#"{"entries":{"test:b":5}}"#),
+            ("b", "aaa", r#"{"replace":true}"#),
+        ] {
+            let dir = root.join(format!("datapacks/{pack}"));
+            fs::create_dir_all(dir.join(format!("data/{namespace}"))).unwrap();
+            fs::write(
+                dir.join("pack.mcmeta"),
+                r#"{"pack":{"description":"","pack_format":15}}"#,
+            )
+            .unwrap();
+            fs::write(
+                dir.join(format!("data/{namespace}/recipe_priorities.json")),
+                bytes,
+            )
+            .unwrap();
+        }
+        let packs = discover(&root);
+        let store = DataStore::load(&packs.iter().collect::<Vec<_>>());
+        assert_eq!(
+            store.files["recipe_priorities"],
+            [
+                br#"{"entries":{"test:b":5}}"#.to_vec(),
+                br#"{"replace":true}"#.to_vec(),
+            ]
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn a_pack_level_outside_the_worlds_folder_is_not_a_level() {
