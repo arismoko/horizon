@@ -796,11 +796,11 @@ fn shulker_color_components_compile_match_and_distinguish_absence_from_defaults(
                     .is_none()
             );
         }
-        let removal = Tag::compound([(
+        stack = ItemStack::new("minecraft:shulker_spawn_egg", 1);
+        stack.data_mut().set_loot_component(
             "!minecraft:shulker/color",
-            Tag::Compound(Default::default()),
-        )]);
-        (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+            &Some(Tag::Compound(Default::default())),
+        );
         assert!(!ingredient.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
         let absent = parse(
@@ -818,6 +818,16 @@ fn malformed_shulker_color_payloads_omit_recipes_with_component_errors() {
     let items = Items::empty();
     let load = load();
     let root = tempfile::tempdir().unwrap();
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::Byte(0), Tag::End, Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:shulker/color".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:shulker/color"), "{error}");
+    }
     for value in [
         serde_json::json!("PURPLE"),
         serde_json::json!("silver"),
@@ -830,41 +840,62 @@ fn malformed_shulker_color_payloads_omit_recipes_with_component_errors() {
         serde_json::json!(15),
         serde_json::json!(16),
         serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
         serde_json::json!({}),
         serde_json::json!([]),
     ] {
         let patch = serde_json::json!({"minecraft:shulker/color":value});
-        let rule = IngredientRule::Components {
-            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
-            removed: vec![],
-            strict: false,
-        };
-        let error = components::validate(&rule, &items).unwrap_err();
-        assert!(
-            error.contains("component minecraft:shulker/color:"),
-            "{error}"
-        );
         let source = serde_json::json!({
-            "type":"neoforge:components", "items":"minecraft:shulker_spawn_egg",
-            "components":patch
+            "type":"neoforge:components", "items":"minecraft:shulker_spawn_egg", "components":patch
         });
+        let error = components::validate_recipe_components(&source, &items).unwrap_err();
+        assert!(error.contains("minecraft:shulker/color"), "{error}");
         assert!(Ingredient::parse(&source, &items).is_none());
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
             &horizon_world::loot::PackOverlay::NONE,
-            vec![(
-                "fixture:invalid_shulker_color".into(),
-                serde_json::json!({
-                    "type":"minecraft:crafting_shapeless", "ingredients":[source],
-                    "result":{"id":"minecraft:diamond"}
-                }),
-            )],
+            vec![
+                (
+                    "fixture:invalid_shulker_color".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":[source],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+                (
+                    "fixture:valid_sibling".into(),
+                    serde_json::json!({
+                        "type":"minecraft:crafting_shapeless", "ingredients":["minecraft:stick"],
+                        "result":{"id":"minecraft:diamond"}
+                    }),
+                ),
+            ],
             &load,
         )
         .unwrap();
-        assert!(recipes.crafting.is_empty());
-        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(recipes.recipe_matches(
+            &context,
+            "fixture:valid_sibling",
+            &[Some(ItemStack::new("minecraft:stick", 1))],
+            1
+        ));
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(
+                    &context,
+                    &[Some(ItemStack::new("minecraft:shulker_spawn_egg", 1))],
+                    1
+                )
+                .is_none()
+        );
     }
     for value in [
         Tag::End,
