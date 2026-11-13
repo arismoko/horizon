@@ -407,6 +407,9 @@ fn sheep_color_components_compile_recipes_and_match_live_values() {
         assert!(!ingredient.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     }
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:sheep/color", &None);
     stack.data_mut().set_loot_component(
         "!minecraft:sheep/color",
         &Some(Tag::Compound(Default::default())),
@@ -445,6 +448,9 @@ fn sheep_color_components_compile_recipes_and_match_live_values() {
         .set_loot_component("minecraft:sheep/color", &Some(Tag::String("red".into())));
     assert!(!default_absent.test_in(&context, &populated));
     assert!(!default_ingredient.test_in(&context, &populated));
+    populated
+        .data_mut()
+        .set_loot_component("minecraft:sheep/color", &None);
     populated.data_mut().set_loot_component(
         "!minecraft:sheep/color",
         &Some(Tag::Compound(Default::default())),
@@ -603,6 +609,7 @@ fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
         assert!(!ingredient.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     }
+    stack.data_mut().set_loot_component("minecraft:dye", &None);
     stack
         .data_mut()
         .set_loot_component("!minecraft:dye", &Some(Tag::Compound(Default::default())));
@@ -2720,6 +2727,9 @@ fn tooltip_style_recipe_decodes_identifiers_and_matches_borrowed_values() {
         let plain = ItemStack::new("minecraft:stone", 1);
         assert!(plain_absent.test_in(&context, &plain));
         assert!(!plain_positive.test_in(&context, &plain));
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:tooltip_style", &None);
         stack.data_mut().set_loot_component(
             "!minecraft:tooltip_style",
             &Some(Tag::Compound(Default::default())),
@@ -3259,6 +3269,9 @@ fn villager_food_codec_compiles_recipes_and_matches_borrowed_nutrition() {
     .unwrap();
     assert!(!absent.test_in(&context, &carrot));
     assert!(!absent.test_in(&context, &ItemStack::new("minecraft:carrot", 1)));
+    carrot
+        .data_mut()
+        .set_loot_component("minecraft:villager_food", &None);
     carrot.data_mut().set_loot_component(
         "!minecraft:villager_food",
         &Some(Tag::Compound(Default::default())),
@@ -3597,6 +3610,9 @@ fn wolf_collar_components_compile_recipes_match_live_values_and_preserve_default
         assert!(!loose.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     }
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:wolf/collar", &None);
     stack.data_mut().set_loot_component(
         "!minecraft:wolf/collar",
         &Some(Tag::Compound(Default::default())),
