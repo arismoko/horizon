@@ -51,6 +51,9 @@ pub(super) fn validate(rule: &IngredientRule, items: &Items) -> Result<(), Strin
         .chain(removed.iter().cloned())
     {
         let id = component_id(&id)?;
+        if horizon_world::item_defaults::is_transient_component(&id) {
+            return Err(format!("'{id}' is not a persistent component"));
+        }
         if !visited.insert(id.clone()) {
             return Err(format!("repeated component {id}"));
         }
@@ -252,4 +255,81 @@ pub(super) fn validate_recipe(value: &Value, items: &Items, recipe: &str) -> boo
             .all(|value| validate_recipe(value, items, recipe)),
         _ => true,
     }
+}
+
+/// Validate only recipe/ingredient codecs; a native ingredient's own JSON is opaque.
+pub(super) fn persistent_recipe(value: &Value) -> Result<(), String> {
+    if !value["type"]
+        .as_str()
+        .is_some_and(|kind| kind.starts_with("minecraft:"))
+    {
+        return Ok(());
+    }
+    horizon_world::item_defaults::validate_stack(&value["result"])?;
+    for key in crate::crafting::INGREDIENT_KEYS {
+        persistent_ingredient(&value[key])?;
+    }
+    for key in crate::crafting::INGREDIENT_MAPS {
+        for ingredient in value[key]
+            .as_object()
+            .into_iter()
+            .flat_map(|map| map.values())
+        {
+            persistent_ingredient(ingredient)?;
+        }
+    }
+    Ok(())
+}
+fn persistent_ingredient(value: &Value) -> Result<(), String> {
+    if let Some(values) = value.as_array() {
+        for value in values {
+            persistent_ingredient(value)?;
+        }
+    } else if let Some(object) = value.as_object() {
+        match ingredient_kind(object) {
+            Some("neoforge:components") => {
+                horizon_world::item_defaults::validate_component_map(&value["components"])?
+            }
+            Some("neoforge:compound" | "neoforge:intersection") => {
+                for key in ["children", "ingredients"] {
+                    persistent_ingredient(&value[key])?;
+                }
+            }
+            Some("neoforge:difference") => {
+                persistent_ingredient(&value["base"])?;
+                persistent_ingredient(&value["subtracted"])?;
+            }
+            Some("neoforge:custom_display") => {
+                persistent_ingredient(&value["base"])?;
+                persistent_display(&value["display"])?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+fn persistent_display(value: &Value) -> Result<(), String> {
+    match value["type"].as_str().unwrap_or("") {
+        "minecraft:item_stack" => horizon_world::item_defaults::validate_stack(&value["item"])?,
+        "minecraft:composite" => {
+            for display in value["contents"].as_array().into_iter().flatten() {
+                persistent_display(display)?;
+            }
+        }
+        "minecraft:with_any_potion" | "minecraft:only_with_component" => {
+            persistent_display(&value["contents"])?
+        }
+        "minecraft:dyed" => persistent_display(&value["target"])?,
+        "minecraft:smithing_trim" => {
+            for key in ["base", "material", "pattern"] {
+                persistent_display(&value[key])?;
+            }
+        }
+        "minecraft:with_remainder" => {
+            persistent_display(&value["input"])?;
+            persistent_display(&value["remainder"])?;
+        }
+        _ => {}
+    }
+    Ok(())
 }

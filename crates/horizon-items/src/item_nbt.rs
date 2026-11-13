@@ -90,6 +90,9 @@ pub fn item_to_nbt_with_items(stack: &crate::items::ItemStack, items: &crate::it
 /// command's NBT often leaves the namespace out), and an id that is no valid
 /// identifier makes no stack.
 pub fn item_from_nbt(tag: &Tag) -> Option<crate::items::ItemStack> {
+    if let Some(components) = tag.get("components") {
+        horizon_world::item_defaults::validate_component_map_tag(components).ok()?;
+    }
     let (namespace, path) = horizon_world::datafix::identifier(&text(tag.get("id"))?)?;
     let id = format!("{namespace}:{path}");
     if id == "minecraft:air" {

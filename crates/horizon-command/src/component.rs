@@ -353,10 +353,12 @@ fn component(t: &Tag) -> R {
 }
 /// ComponentSerialization.CODEC.parse: the error message on failure.
 pub fn decode(t: &Tag) -> Result<(), String> {
+    horizon_world::item_defaults::validate_text_tag(t)?;
     component(t).map_err(|e| e.msg)
 }
 /// Style.Serializer.CODEC.parse.
 pub fn decode_style(t: &Tag) -> Result<(), String> {
+    horizon_world::item_defaults::validate_style_tag(t)?;
     match t {
         Tag::Compound(map) => style_fields(map).map_err(|e| e.msg),
         _ => Err(not_map(t)),

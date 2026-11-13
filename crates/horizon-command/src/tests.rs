@@ -428,6 +428,227 @@ fn vanilla_error_messages() {
     let e = run("setblock 1 2 3 oak_stairs[facing=up]").unwrap_err();
     assert_eq!(e.message.plain(), "argument.block.property.invalid");
 }
+
+fn component_command_reg(component: &str, persistent: bool) -> Registries {
+    let mut registry = reg();
+    registry.by_registry.insert(
+        "minecraft:data_component_type".into(),
+        RegistryIds {
+            ids: vec![component.into()],
+            tags: Vec::new(),
+        },
+    );
+    if persistent {
+        registry.persistent_components.push(component.into());
+    }
+    registry
+}
+
+fn assert_nonpersistent_command_error(error: &CommandError, id: &str, reason: &str) {
+    assert_eq!(error.key, "arguments.item.component.malformed");
+    let message = error.message.source_component().unwrap();
+    assert_eq!(message["with"][0]["text"].as_str(), Some(id));
+    assert_eq!(message["with"][1]["text"].as_str(), Some(reason));
+}
+
+fn transient_component_commands(id: &str, set: &str, remove: &str, reason: &str) {
+    let registry = component_command_reg(id, false);
+    let dispatcher = vanilla::dispatcher();
+    for prefix in ["give @s ", "item replace entity @s hotbar.0 with "] {
+        for stack in [set, remove] {
+            let input = format!("{prefix}{stack}");
+            let parse = dispatcher.parse(&input, &registry);
+            let error = parse.executable().unwrap_err();
+            assert_nonpersistent_command_error(&error, id, reason);
+            assert_eq!(error.input.as_deref(), Some(input.as_str()));
+        }
+    }
+    // Exact comparisons decode a value, including under predicate negation.
+    for stack in [set.to_owned(), set.replacen('[', "[!", 1)] {
+        let input = format!("clear @s {stack}");
+        let parse = dispatcher.parse(&input, &registry);
+        assert_nonpersistent_command_error(&parse.executable().unwrap_err(), id, reason);
+    }
+    // Presence, absence and any-value subpredicates only refer to a type.
+    for condition in [
+        id.to_owned(),
+        format!("!{id}"),
+        format!("{id}~{{}}"),
+        format!("!{id}~{{}}"),
+    ] {
+        let input = format!("clear @s stone[{condition}]");
+        let parse = dispatcher.parse(&input, &registry);
+        assert_eq!(parse.executable().unwrap().1, "clear", "{input}");
+    }
+    let value = horizon_core::nbt::Tag::compound([] as [(&str, horizon_core::nbt::Tag); 0]);
+    assert_eq!(
+        item::decode_component(id, &value, &registry).unwrap_err(),
+        reason
+    );
+    assert_eq!(
+        item::decoded_component_value(id, &value, &registry).unwrap_err(),
+        reason
+    );
+}
+
+#[test]
+fn creative_slot_lock_commands_require_a_persistent_component() {
+    transient_component_commands(
+        "minecraft:creative_slot_lock",
+        "stone[creative_slot_lock={}]",
+        "stone[!creative_slot_lock]",
+        "'minecraft:creative_slot_lock' is not a persistent component",
+    );
+}
+
+#[test]
+fn additional_trade_cost_commands_require_a_persistent_component() {
+    transient_component_commands(
+        "minecraft:additional_trade_cost",
+        "stone[minecraft:additional_trade_cost=1]",
+        "stone[!minecraft:additional_trade_cost]",
+        "'minecraft:additional_trade_cost' is not a persistent component",
+    );
+}
+
+#[test]
+fn map_post_processing_commands_require_a_persistent_component() {
+    transient_component_commands(
+        "minecraft:map_post_processing",
+        "stone[map_post_processing=\"scale\"]",
+        "stone[!map_post_processing]",
+        "'minecraft:map_post_processing' is not a persistent component",
+    );
+}
+
+#[test]
+fn transient_component_names_fail_before_reading_a_payload() {
+    let registry = component_command_reg("minecraft:map_post_processing", false);
+    let input = "give @s stone[map_post_processing={";
+    let parse = vanilla::dispatcher().parse(input, &registry);
+    let error = parse.executable().unwrap_err();
+    assert_nonpersistent_command_error(
+        &error,
+        "minecraft:map_post_processing",
+        "'minecraft:map_post_processing' is not a persistent component",
+    );
+    assert_eq!(error.cursor, input.find("map_post_processing").unwrap());
+}
+
+#[test]
+fn unknown_component_names_stay_unknown() {
+    let registry = component_command_reg("minecraft:creative_slot_lock", false);
+    let dispatcher = vanilla::dispatcher();
+    for input in [
+        "give @s stone[example:missing={}]",
+        "give @s stone[!example:missing]",
+        "item replace entity @s hotbar.0 with stone[example:missing={}]",
+        "item replace entity @s hotbar.0 with stone[!example:missing]",
+        "clear @s stone[example:missing={}]",
+        "clear @s stone[example:missing]",
+        "clear @s stone[!example:missing]",
+    ] {
+        let parse = dispatcher.parse(input, &registry);
+        let error = parse.executable().unwrap_err();
+        assert_eq!(error.key, "arguments.item.component.unknown", "{input}");
+        assert_eq!(
+            error.message.source_component().unwrap()["with"][0]["text"].as_str(),
+            Some("example:missing"),
+            "{input}"
+        );
+    }
+}
+
+#[test]
+fn registered_persistent_components_keep_the_stored_value_fallback() {
+    let registry = component_command_reg("example:stored", true);
+    let dispatcher = vanilla::dispatcher();
+    for input in [
+        "give @s stone[example:stored={custom:[1,2,3]}]",
+        "give @s stone[!example:stored]",
+        "item replace entity @s hotbar.0 with stone[example:stored={custom:[1,2,3]}]",
+        "item replace entity @s hotbar.0 with stone[!example:stored]",
+        "clear @s stone[example:stored={custom:[1,2,3]}]",
+    ] {
+        assert!(
+            dispatcher.parse(input, &registry).executable().is_ok(),
+            "{input}"
+        );
+    }
+    let value = horizon_core::nbt::parse_snbt("{custom:[1,2,3]}").unwrap().0;
+    assert_eq!(
+        item::decoded_component_value("example:stored", &value, &registry).unwrap(),
+        value
+    );
+}
+
+#[test]
+fn nested_stack_and_exact_predicate_components_require_persistence() {
+    let dispatcher = vanilla::dispatcher();
+    for (component, payload, reason) in [
+        (
+            "minecraft:container",
+            r#"[{slot:0,item:{id:"minecraft:stone",components:{"minecraft:creative_slot_lock":{}}}}]"#,
+            "'minecraft:creative_slot_lock' is not a persistent component",
+        ),
+        (
+            "minecraft:bundle_contents",
+            r#"[{id:"minecraft:stone",components:{"!minecraft:map_post_processing":{}}}]"#,
+            "'minecraft:map_post_processing' is not a persistent component",
+        ),
+        (
+            "minecraft:charged_projectiles",
+            r#"[{id:"minecraft:stone",components:{additional_trade_cost:1}}]"#,
+            "'minecraft:additional_trade_cost' is not a persistent component",
+        ),
+        (
+            "minecraft:use_remainder",
+            r#"{id:"minecraft:stone",components:{creative_slot_lock:{}}}"#,
+            "'minecraft:creative_slot_lock' is not a persistent component",
+        ),
+        (
+            "minecraft:can_break",
+            r#"[{blocks:"minecraft:stone",components:{map_post_processing:"scale"}}]"#,
+            "'minecraft:map_post_processing' is not a persistent component",
+        ),
+        (
+            "minecraft:can_place_on",
+            r#"[{blocks:"minecraft:stone",components:{additional_trade_cost:1}}]"#,
+            "'minecraft:additional_trade_cost' is not a persistent component",
+        ),
+    ] {
+        let registry = component_command_reg(component, true);
+        for prefix in [
+            "give @s ",
+            "item replace entity @s hotbar.0 with ",
+            "clear @s ",
+        ] {
+            let input = format!("{prefix}stone[{component}={payload}]");
+            let parse = dispatcher.parse(&input, &registry);
+            assert_nonpersistent_command_error(&parse.executable().unwrap_err(), component, reason);
+        }
+        let value = horizon_core::nbt::parse_snbt(payload).unwrap().0;
+        assert_eq!(
+            item::decode_component(component, &value, &registry).unwrap_err(),
+            reason
+        );
+        assert_eq!(
+            item::decoded_component_value(component, &value, &registry).unwrap_err(),
+            reason
+        );
+    }
+}
+
+#[test]
+fn arbitrary_component_payload_data_is_not_a_component_map() {
+    let dispatcher = vanilla::dispatcher();
+    for component in ["minecraft:custom_data", "example:container"] {
+        let registry = component_command_reg(component, true);
+        let input =
+            format!("give @s stone[{component}={{components:{{creative_slot_lock:{{}}}}}}]");
+        assert!(dispatcher.parse(&input, &registry).executable().is_ok());
+    }
+}
 #[test]
 fn commands_need_allow_commands() {
     // IntegratedServer.getProfilePermissions: the owner of a world without
@@ -1606,4 +1827,218 @@ fn a_servers_own_profiler_keeps_its_node_and_is_not_horizons() {
         .collect();
     assert_eq!(offered, ["open"]);
     assert!(!vanilla::game_dispatcher().has_horizon_profiler());
+}
+
+#[test]
+fn text_commands_refuse_nested_transient_hover_stacks() {
+    let dispatcher = vanilla::dispatcher();
+    let registry = reg();
+    for text in [
+        r#"{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}"#,
+        r#"{text:"root",extra:[{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}]}"#,
+        r#"{translate:"chat.type.text",with:[{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}]}"#,
+        r#"{selector:"@s",separator:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}"#,
+        r#"{text:"outer",hover_event:{action:"show_text",value:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}}"#,
+        r#"{text:"outer",hover_event:{action:"show_entity",id:"minecraft:pig",uuid:"00000000-0000-0000-0000-000000000001",name:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}}"#,
+        r#"{text:"dialog",click_event:{action:"show_dialog",dialog:{type:"minecraft:notice",title:"Item",body:{type:"minecraft:item",item:{id:"minecraft:stone",components:{creative_slot_lock:{}}}}}}}"#,
+    ] {
+        let input = format!("tellraw @s {text}");
+        let parse = dispatcher.parse(&input, &registry);
+        let error = parse.executable().unwrap_err();
+        assert_eq!(error.key, "argument.component.invalid", "{input}");
+        assert_eq!(
+            error.message.source_component().unwrap()["with"][0]["text"].as_str(),
+            Some("'minecraft:creative_slot_lock' is not a persistent component"),
+            "{input}"
+        );
+    }
+}
+
+#[test]
+fn styled_number_formats_refuse_transient_hover_stacks() {
+    let dispatcher = vanilla::dispatcher();
+    let mut registry = reg();
+    registry.objectives.push("points".into());
+    let input = r#"scoreboard players display numberformat @s points styled {hover_event:{action:"show_item",id:"minecraft:stone",components:{"!minecraft:map_post_processing":{}}}}"#;
+    let parse = dispatcher.parse(input, &registry);
+    let error = parse.executable().unwrap_err();
+    assert_eq!(error.key, "argument.style.invalid");
+    assert_eq!(
+        error.message.source_component().unwrap()["with"][0]["text"].as_str(),
+        Some("'minecraft:map_post_processing' is not a persistent component")
+    );
+}
+
+#[test]
+fn text_bearing_item_components_refuse_transient_hover_stacks() {
+    let dispatcher = vanilla::dispatcher();
+    for (component, payload) in [
+        (
+            "minecraft:custom_name",
+            r#"{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}"#,
+        ),
+        (
+            "minecraft:item_name",
+            r#"{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}"#,
+        ),
+        (
+            "minecraft:lore",
+            r#"[{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}]"#,
+        ),
+        (
+            "minecraft:written_book_content",
+            r#"{title:"Book",author:"Author",pages:[{raw:"plain",filtered:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}]}"#,
+        ),
+        (
+            "minecraft:attribute_modifiers",
+            r#"[{type:"minecraft:max_health",id:"example:bonus",amount:1,operation:"add_value",display:{type:"override",value:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}}]"#,
+        ),
+    ] {
+        let registry = component_command_reg(component, true);
+        let input = format!("give @s stone[{component}={payload}]");
+        let parse = dispatcher.parse(&input, &registry);
+        assert_nonpersistent_command_error(
+            &parse.executable().unwrap_err(),
+            component,
+            "'minecraft:creative_slot_lock' is not a persistent component",
+        );
+    }
+}
+
+#[test]
+fn sulfur_cube_contents_refuse_transient_nested_components() {
+    let registry = component_command_reg("minecraft:sulfur_cube_content", true);
+    let input = r#"give @s stone[sulfur_cube_content={id:"minecraft:stone",components:{additional_trade_cost:1}}]"#;
+    let parse = vanilla::dispatcher().parse(input, &registry);
+    assert_nonpersistent_command_error(
+        &parse.executable().unwrap_err(),
+        "minecraft:sulfur_cube_content",
+        "'minecraft:additional_trade_cost' is not a persistent component",
+    );
+}
+
+#[test]
+fn text_literals_custom_data_and_tooltip_type_names_remain_opaque() {
+    let dispatcher = vanilla::dispatcher();
+    let registry = reg();
+    for input in [
+        r#"tellraw @s "{components:{creative_slot_lock:{}}}""#,
+        r#"tellraw @s {text:"literal",components:{creative_slot_lock:{}}}"#,
+        r#"tellraw @s {text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{custom_data:{components:{creative_slot_lock:{}}}}}}"#,
+    ] {
+        assert!(
+            dispatcher.parse(input, &registry).executable().is_ok(),
+            "{input}"
+        );
+    }
+    let registry = component_command_reg("minecraft:tooltip_display", true);
+    let input =
+        r#"give @s stone[tooltip_display={hidden_components:["minecraft:creative_slot_lock"]}]"#;
+    assert!(dispatcher.parse(input, &registry).executable().is_ok());
+}
+
+#[test]
+fn partial_collection_predicates_refuse_nested_transient_exact_values() {
+    let dispatcher = vanilla::dispatcher();
+    for component in [
+        "minecraft:container",
+        "minecraft:bundle_contents",
+        "minecraft:charged_projectiles",
+    ] {
+        let mut registry = reg();
+        registry
+            .by_registry
+            .entry("minecraft:data_component_predicate_type".into())
+            .or_default()
+            .ids = vec![component.into()];
+        let payload = r#"{items:{contains:[{components:{creative_slot_lock:{}}}]}}"#;
+        let input = format!("clear @s stone[{component}~{payload}]");
+        let parse = dispatcher.parse(&input, &registry);
+        let error = parse.executable().unwrap_err();
+        assert_eq!(error.key, "arguments.item.predicate.malformed", "{input}");
+        assert_eq!(
+            error.message.source_component().unwrap()["with"][1]["text"].as_str(),
+            Some("'minecraft:creative_slot_lock' is not a persistent component"),
+            "{input}"
+        );
+    }
+}
+
+#[test]
+fn lock_predicates_refuse_transient_exact_values_but_accept_type_only_tests() {
+    let dispatcher = vanilla::dispatcher();
+    let registry = component_command_reg("minecraft:lock", true);
+    let input = "give @s stone[lock={components:{creative_slot_lock:{}}}]";
+    let parse = dispatcher.parse(input, &registry);
+    assert_nonpersistent_command_error(
+        &parse.executable().unwrap_err(),
+        "minecraft:lock",
+        "'minecraft:creative_slot_lock' is not a persistent component",
+    );
+    let input = r#"give @s stone[lock={predicates:{"minecraft:creative_slot_lock":{}}}]"#;
+    assert!(dispatcher.parse(input, &registry).executable().is_ok());
+}
+
+#[test]
+fn inline_holder_and_sign_descriptions_refuse_transient_hover_stacks() {
+    let dispatcher = vanilla::dispatcher();
+    for (component, payload) in [
+        (
+            "minecraft:instrument",
+            r#"{sound_event:"minecraft:block.note_block.harp",use_duration:1,range:16,description:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}"#,
+        ),
+        (
+            "minecraft:provides_trim_material",
+            r#"{palette_id:"minecraft:quartz",description:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}"#,
+        ),
+        (
+            "minecraft:trim",
+            r#"{material:"minecraft:quartz",pattern:{asset_id:"minecraft:sentry",description:{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}}}"#,
+        ),
+        (
+            "minecraft:sign_text_front",
+            r#"{messages:[{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}},"","",""]}"#,
+        ),
+        (
+            "minecraft:sign_text_back",
+            r#"{messages:["","","",""],filtered_messages:["","","",{text:"item",hover_event:{action:"show_item",id:"minecraft:stone",components:{creative_slot_lock:{}}}}]}"#,
+        ),
+    ] {
+        let registry = component_command_reg(component, true);
+        let input = format!("give @s stone[{component}={payload}]");
+        let parse = dispatcher.parse(&input, &registry);
+        assert_nonpersistent_command_error(
+            &parse.executable().unwrap_err(),
+            component,
+            "'minecraft:creative_slot_lock' is not a persistent component",
+        );
+    }
+}
+
+#[test]
+fn item_particles_refuse_transient_nested_stack_patches() {
+    let dispatcher = vanilla::dispatcher();
+    let registry = reg();
+    for input in [
+        r#"particle item{item:{id:"minecraft:stone",components:{creative_slot_lock:{}}}}"#,
+        r#"particle item{item:{id:"minecraft:stone",components:{"!minecraft:creative_slot_lock":{}}}}"#,
+    ] {
+        let parse = dispatcher.parse(input, &registry);
+        let error = parse.executable().unwrap_err();
+        assert_eq!(error.key, "particle.invalidOptions", "{input}");
+        assert_eq!(
+            error.message.source_component().unwrap()["with"][0]["text"].as_str(),
+            Some("'minecraft:creative_slot_lock' is not a persistent component"),
+            "{input}"
+        );
+    }
+    for input in [
+        r#"particle item{item:{id:"minecraft:stone",components:{custom_data:{components:{creative_slot_lock:{}}}}}}"#,
+        r#"particle item{item:{id:"minecraft:stone",components:{tooltip_display:{hidden_components:["minecraft:creative_slot_lock"]}}}}"#,
+    ] {
+        assert!(
+            dispatcher.parse(input, &registry).executable().is_ok(),
+            "{input}"
+        );
+    }
 }

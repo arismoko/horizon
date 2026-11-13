@@ -8,8 +8,22 @@
 //! maps are kept as found (structure search is not run); conditions that
 //! need an entity, tool or damage source fail when the context has none, as
 //! they do for containers.
+mod component_validation;
 mod fill;
 pub mod query;
+use component_validation::retain_valid;
+pub use component_validation::{
+    validate_entity_predicate, validate_item_modifier, validate_item_predicate,
+    validate_loot_condition, validate_loot_table, validate_slot_source,
+};
+mod component_validation_nbt;
+pub use component_validation_nbt::{
+    validate_item_modifier_tag, validate_loot_condition_tag, validate_loot_table_tag,
+};
+mod number_validation;
+pub use number_validation::{
+    number as validate_number_provider, number_tag as validate_number_provider_tag,
+};
 #[path = "loot_query.rs"]
 mod query_context;
 pub use fill::ContainerLootContext;
@@ -731,6 +745,7 @@ pub fn shared_tables(root: &Path, overlay: &PackOverlay) -> io::Result<Arc<LootT
     let mut tables = HashMap::new();
     load_kind(&root.join("data"), "loot_table", &mut tables)?;
     overlay_map(overlay, "loot_table", &mut tables);
+    tables.retain(|id, table| retain_valid("loot table", id, validate_loot_table(table)));
     let tables: LootTables = tables.into_iter().collect();
     let mut loaded = LOADED.lock().unwrap_or_else(|e| e.into_inner());
     // Another thread may have loaded the same tables meanwhile: keep one.
@@ -813,6 +828,7 @@ fn load_dir(
     }
     Ok(())
 }
+
 fn cost(v: &Value) -> (i32, i32) {
     (
         v["base"].as_i64().unwrap_or(0) as i32,
@@ -835,9 +851,13 @@ impl LootData {
         let mut modifiers = HashMap::new();
         load_kind(&all, "item_modifier", &mut modifiers)?;
         overlay_map(overlay, "item_modifier", &mut modifiers);
+        modifiers
+            .retain(|id, value| retain_valid("item modifier", id, validate_item_modifier(value)));
         let mut predicates = HashMap::new();
         load_kind(&all, "predicate", &mut predicates)?;
         overlay_map(overlay, "predicate", &mut predicates);
+        predicates
+            .retain(|id, value| retain_valid("predicate", id, validate_loot_condition(value)));
         let items = defaults
             .entries()
             .iter()
@@ -931,6 +951,14 @@ impl LootData {
         let mut recipes = HashMap::new();
         load_kind(&all, "recipe", &mut recipes)?;
         overlay_map(overlay, "recipe", &mut recipes);
+        recipes.retain(|id, value| {
+            value["type"] != "minecraft:smelting"
+                || retain_valid(
+                    "recipe",
+                    id,
+                    crate::item_defaults::validate_stack(&value["result"]),
+                )
+        });
         let mut ids: Vec<&String> = recipes.keys().collect();
         ids.sort();
         let smelting = ids
@@ -966,10 +994,11 @@ impl LootData {
         ids.sort();
         self.tables = Arc::new(
             ids.into_iter()
-                .map(|id| {
+                .filter_map(|id| {
                     let mut table = self.tables[id.as_str()].clone();
                     native_loot_table_load(context, id, &mut table);
-                    (id.clone(), table)
+                    retain_valid("loot table", id, validate_loot_table(&table))
+                        .then(|| (id.clone(), table))
                 })
                 .collect(),
         );

@@ -2,7 +2,9 @@
 //! progress (`PlayerAdvancements`) and the predicates criteria test
 //! (`EntityPredicate`, `ItemPredicate`, `LocationPredicate`, the loot
 //! conditions advancements use).
+mod data;
 mod state_ranges;
+use data::parse;
 
 use horizon_world::lazy_json::LazyJson;
 use serde_json::Value;
@@ -431,69 +433,6 @@ impl InventoryIndex {
         out.dedup();
         out
     }
-}
-fn parse(id: &str, v: &Value) -> Option<Advancement> {
-    let criteria: Vec<Criterion> = v["criteria"]
-        .as_object()?
-        .iter()
-        .map(|(name, c)| Criterion {
-            name: name.clone(),
-            trigger: c["trigger"]
-                .as_str()
-                .map_or(String::new(), |t| full(t).into_owned()),
-            conditions: LazyJson::new(&c["conditions"]),
-        })
-        .collect();
-    let requirements = match v["requirements"].as_array() {
-        Some(r) => r
-            .iter()
-            .map(|group| {
-                group
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|s| s.as_str().map(str::to_owned))
-                    .collect()
-            })
-            .collect(),
-        // AdvancementRequirements.allOf: every criterion.
-        None => criteria.iter().map(|c| vec![c.name.clone()]).collect(),
-    };
-    let d = &v["display"];
-    let display = d.is_object().then(|| Display {
-        icon: d["icon"]["id"]
-            .as_str()
-            .unwrap_or("minecraft:air")
-            .to_owned(),
-        title: d["title"].clone(),
-        description: d["description"].clone(),
-        frame: frame(&d["frame"]),
-        background: d["background"].as_str().map(str::to_owned),
-        show_toast: d["show_toast"].as_bool().unwrap_or(true),
-        announce: d["announce_to_chat"].as_bool().unwrap_or(true),
-        hidden: d["hidden"].as_bool().unwrap_or(false),
-    });
-    let r = &v["rewards"];
-    let strings = |v: &Value| -> Vec<String> {
-        v.as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|s| s.as_str().map(str::to_owned))
-            .collect()
-    };
-    Some(Advancement {
-        id: id.to_owned(),
-        parent: v["parent"].as_str().map(|p| full(p).into_owned()),
-        display,
-        criteria,
-        requirements,
-        rewards: Rewards {
-            recipes: strings(&r["recipes"]),
-            experience: r["experience"].as_i64().unwrap_or(0) as i32,
-            loot: strings(&r["loot"]),
-            function: r["function"].as_str().map(|id| full(id).into_owned()),
-        },
-    })
 }
 
 /// `CriterionProgress`'s date as saved, "yyyy-MM-dd HH:mm:ss Z", in UTC.

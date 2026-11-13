@@ -207,6 +207,19 @@ fn pack_entries(
     }
 }
 
+/// Validate the winning dialog files, after pack selection and load conditions.
+fn persistent_dialog_entries(entries: &mut Vec<((String, String), Value, bool)>) {
+    entries.retain(|((namespace, path), value, _)| {
+        match horizon_world::item_defaults::validate_dialog(value) {
+            Ok(()) => true,
+            Err(error) => {
+                log::warn!("dialog {namespace}:{path} rejected: {error}");
+                false
+            }
+        }
+    });
+}
+
 /// The mods' dimension types, below the packs': the overworld's with the
 /// mod's fields over it. No client knows them, so their data is always sent.
 fn mod_dimension_types(
@@ -520,6 +533,9 @@ impl SyncData {
                 overlay.conditions,
                 path,
             );
+            if *key == "minecraft:dialog" {
+                persistent_dialog_entries(&mut entries);
+            }
             // A biome the mods' modifiers changed is not the client's own file any more:
             // its data is sent, as a pack's biome is.
             let modified = match *key == BIOME_REGISTRY {
@@ -1487,3 +1503,50 @@ mod component_tests {
 
 #[path = "data_condition_filter.rs"]
 mod condition_filter;
+
+#[cfg(test)]
+mod transient_dialog_tests {
+    use super::*;
+    #[test]
+    fn dialog_resource_load_drops_bad_winning_files_and_keeps_other_entries() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("dialog");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("overridden.json"),
+            r#"{"type":"minecraft:notice","title":"lower pack"}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.join("z_good.json"),
+            r#"{"type":"minecraft:notice","title":"kept","body":[{"type":"minecraft:item","item":{"id":"minecraft:stone","components":{"minecraft:tooltip_display":{"hidden_components":["minecraft:creative_slot_lock"]}}}}]}"#).unwrap();
+        let mut found = BTreeMap::new();
+        walk(&dir, &mut found);
+        let mut entries: Vec<_> = found
+            .into_iter()
+            .map(|(path, value)| (("minecraft".into(), path), value, false))
+            .collect();
+        let files = [
+            ("dialog/minecraft:overridden".into(), vec![br#"{"type":"minecraft:notice","title":"bad","body":[{"type":"minecraft:item","item":{"id":"minecraft:stone","components":{"!minecraft:map_post_processing":{}}}}]}"#.to_vec()]),
+            ("dialog/test:bad_hover".into(), vec![br#"{"type":"minecraft:notice","title":{"text":"bad","hover_event":{"action":"show_item","id":"minecraft:stone","components":{"minecraft:additional_trade_cost":3}}}}"#.to_vec()]),
+            ("dialog/test:custom".into(), vec![br#"{"type":"test:native","body":{"components":{"minecraft:creative_slot_lock":{}}}}"#.to_vec()]),
+        ];
+        pack_entries(
+            "dialog",
+            &horizon_world::loot::PackOverlay::new(&files),
+            &mut entries,
+        );
+        persistent_dialog_entries(&mut entries);
+        file_order(&mut entries);
+        let names: Vec<_> = entries
+            .iter()
+            .map(|((ns, path), _, _)| format!("{ns}:{path}"))
+            .collect();
+        assert_eq!(names, ["test:custom", "minecraft:z_good"]);
+        let encoded: Vec<_> = entries
+            .iter()
+            .map(|(_, value, _)| json_to_nbt(value))
+            .collect();
+        assert_eq!(encoded.len(), 2);
+        assert!(encoded.iter().all(|value| value.get("type").is_some()));
+    }
+}

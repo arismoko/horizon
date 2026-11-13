@@ -264,6 +264,10 @@ path = "../horizon-client/tests/tall_column.rs"
 name = "wide_states"
 path = "../horizon-client/tests/wide_states.rs"
 
+[[test]]
+name = "transient_component_data"
+path = "../horizon-client/tests/transient_component_data.rs"
+
 [[example]]
 name = "chunk_encoding_bench"
 path = "../horizon-client/examples/chunk_encoding_bench.rs"

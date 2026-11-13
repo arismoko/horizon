@@ -133,3 +133,6 @@ FormattedCharSequence.composite	port	crates/horizon-client-core/src/text.rs::Tex
 FormattedCharSequence.fromPair	port	crates/horizon-client-core/src/text.rs::Text::append	concatenation of two sequences
 FutureChain.append	skip:other		ordering helper for the async chat-signature checks in ServerGamePacketListenerImpl; a scheduling wrapper, no game behaviour of its own
 Graph.depthFirstSearch	inline	crates/horizon-world/src/worldgen/feature_sort.rs::build_features_per_step	iterative DFS with colours; finds the cycle and emits the reverse topological order
+DamageSourcePredicate.<clinit>	skip:java		RecordCodecBuilder CODEC construction only; runtime DamageSourcePredicate.matches remains mapped separately
+DialogTypes.bootstrap	skip:java		registers five Java MapCodec instances; serialized dialog schemas are decoded natively
+LootPoolEntries.bootstrap	skip:java		registers nine Java MapCodec instances; serialized loot-entry schemas are decoded natively

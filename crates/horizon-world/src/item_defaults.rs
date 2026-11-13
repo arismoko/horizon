@@ -12,6 +12,12 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
 };
+mod component_text;
+pub use component_text::{strip_transient_component_map_tag, strip_transient_component_tag};
+pub use component_text::{
+    validate_component_text, validate_component_text_tag, validate_dialog, validate_dialog_tag,
+    validate_style, validate_style_tag, validate_text, validate_text_tag,
+};
 
 /// An immutable default-component snapshot. Kept only while a resource load
 /// holds it: a later load reads the files and applies native hooks afresh.
@@ -30,6 +36,201 @@ static IN_FLIGHT: OnceLock<Mutex<std::collections::HashMap<PathBuf, Arc<InFlight
 
 fn in_flight() -> &'static Mutex<std::collections::HashMap<PathBuf, Arc<InFlight>>> {
     IN_FLIGHT.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
+/// `DataComponentType.codec`: these vanilla types have no persistent data form.
+/// Value/removal readers reject them; type-only lookups and network codecs do not.
+pub fn is_transient_component(id: &str) -> bool {
+    matches!(
+        id,
+        "minecraft:creative_slot_lock"
+            | "minecraft:additional_trade_cost"
+            | "minecraft:map_post_processing"
+    )
+}
+
+/// `DataComponentPatch.PatchKey.CODEC`: resolve a persistent SET or REMOVE name.
+/// Registration and payload validation remain the owning codec's responsibility.
+pub fn validate_component_name(name: &str) -> Result<(), String> {
+    let name = name.strip_prefix('!').unwrap_or(name);
+    let mut scratch = [0u8; 128];
+    let id = if name.contains(':') {
+        name
+    } else {
+        // Stock transient names fit this buffer; longer unknown names are
+        // left to the owning registry codec without allocating a temporary ID.
+        let prefix = b"minecraft:";
+        let length = prefix.len() + name.len();
+        if length > scratch.len() {
+            return Ok(());
+        }
+        scratch[..prefix.len()].copy_from_slice(prefix);
+        scratch[prefix.len()..length].copy_from_slice(name.as_bytes());
+        std::str::from_utf8(&scratch[..length]).expect("UTF-8 namespace and component")
+    };
+    if is_transient_component(id) {
+        return Err(format!("'{id}' is not a persistent component"));
+    }
+    Ok(())
+}
+
+/// A known `DataComponentPatch` or exact-value map, not arbitrary JSON.
+/// Only component codecs containing stacks or exact predicates recurse.
+pub fn validate_component_map(value: &Value) -> Result<(), String> {
+    let Some(map) = value.as_object() else {
+        return Ok(());
+    };
+    for (name, payload) in map {
+        validate_component_name(name)?;
+        let name = name.strip_prefix("minecraft:").unwrap_or(name);
+        match name {
+            "container" => {
+                for slot in payload.as_array().into_iter().flatten() {
+                    validate_stack(&slot["item"])?;
+                }
+            }
+            "bundle_contents" | "charged_projectiles" => {
+                for stack in payload.as_array().into_iter().flatten() {
+                    validate_stack(stack)?;
+                }
+            }
+            "use_remainder" | "sulfur_cube_content" => validate_stack(payload)?,
+            "lock" => crate::loot::validate_item_predicate(payload)?,
+            "can_break" | "can_place_on" => {
+                if let Some(predicates) = payload.as_array() {
+                    for predicate in predicates {
+                        crate::loot::validate_item_predicate(predicate)?;
+                    }
+                } else {
+                    crate::loot::validate_item_predicate(payload)?;
+                }
+            }
+            _ => {}
+        }
+        component_text::validate_component_text(name, payload)?;
+    }
+    Ok(())
+}
+
+/// `ItemStack.CODEC` / `ItemStackTemplate.CODEC`'s persistent component patch.
+pub fn validate_stack(value: &Value) -> Result<(), String> {
+    validate_component_map(&value["components"])
+}
+
+/// NBT counterpart of the persistent map boundary. It borrows payloads rather
+/// than converting them to JSON; runtime/network component decoding stays separate.
+pub fn validate_component_tag(id: &str, payload: &horizon_core::nbt::Tag) -> Result<(), String> {
+    use horizon_core::nbt::Tag;
+    validate_component_name(id)?;
+    match id.strip_prefix("minecraft:").unwrap_or(id) {
+        "container" => {
+            if let Tag::List(slots) = payload {
+                for slot in slots {
+                    if let Some(item) = slot.get("item") {
+                        validate_stack_tag(item)?;
+                    }
+                }
+            }
+        }
+        "bundle_contents" | "charged_projectiles" => {
+            if let Tag::List(stacks) = payload {
+                for stack in stacks {
+                    validate_stack_tag(stack)?;
+                }
+            }
+        }
+        "use_remainder" | "sulfur_cube_content" => validate_stack_tag(payload)?,
+        "lock" => validate_item_predicate_tag(payload)?,
+        "can_break" | "can_place_on" => {
+            if let Tag::List(predicates) = payload {
+                for predicate in predicates {
+                    validate_item_predicate_tag(predicate)?;
+                }
+            } else {
+                validate_item_predicate_tag(payload)?;
+            }
+        }
+        _ => {}
+    }
+    component_text::validate_component_text_tag(id, payload)?;
+    Ok(())
+}
+/// Borrowed persistent component-map boundary. Unknown/native payloads stay opaque.
+pub fn validate_component_map_tag(value: &horizon_core::nbt::Tag) -> Result<(), String> {
+    if let horizon_core::nbt::Tag::Compound(map) = value {
+        let mut scratch = [0u8; 128];
+        for (id, payload) in map {
+            if let Some(id) = ascii_name(id, &mut scratch) {
+                validate_component_tag(id, payload)?;
+            }
+        }
+    }
+    Ok(())
+}
+/// `ItemStackTemplate.CODEC` / `ItemStack.CODEC`, not their network codecs.
+pub fn validate_stack_tag(value: &horizon_core::nbt::Tag) -> Result<(), String> {
+    if let Some(components) = value.get("components") {
+        validate_component_map_tag(components)?;
+    }
+    Ok(())
+}
+/// Known vanilla codec names are ASCII; long/native or non-ASCII names are opaque.
+pub(crate) fn ascii_name<'a>(
+    name: &horizon_core::nbt::JavaString,
+    scratch: &'a mut [u8; 128],
+) -> Option<&'a str> {
+    if name.0.len() > scratch.len() {
+        return None;
+    }
+    for (out, unit) in scratch.iter_mut().zip(&name.0) {
+        if *unit > 127 {
+            return None;
+        }
+        *out = *unit as u8;
+    }
+    std::str::from_utf8(&scratch[..name.0.len()]).ok()
+}
+/// Persistent exact item/block predicate names; any-value type predicates stay valid.
+pub fn validate_item_predicate_tag(value: &horizon_core::nbt::Tag) -> Result<(), String> {
+    use horizon_core::nbt::Tag;
+    validate_stack_tag(value)?;
+    if let Some(Tag::Compound(predicates)) = value.get("predicates") {
+        for (name, value) in predicates {
+            let mut scratch = [0u8; 128];
+            let Some(name) = ascii_name(name, &mut scratch) else {
+                continue;
+            };
+            validate_partial_predicate_tag(name, value)?;
+        }
+    }
+    Ok(())
+}
+
+/// Only the stock collection sub-predicates contain nested item predicates.
+pub fn validate_partial_predicate_tag(
+    id: &str,
+    value: &horizon_core::nbt::Tag,
+) -> Result<(), String> {
+    use horizon_core::nbt::Tag;
+    if matches!(
+        id.strip_prefix("minecraft:").unwrap_or(id),
+        "container" | "bundle_contents" | "charged_projectiles"
+    ) && let Some(items) = value.get("items")
+    {
+        if let Some(Tag::List(contains)) = items.get("contains") {
+            for item in contains {
+                validate_item_predicate_tag(item)?;
+            }
+        }
+        if let Some(Tag::List(counts)) = items.get("count") {
+            for count in counts {
+                if let Some(test) = count.get("test") {
+                    validate_item_predicate_tag(test)?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Share parsed defaults with the other tables built during this load. Callers

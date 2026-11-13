@@ -922,6 +922,33 @@ impl DataStore {
             s.item_modifiers
                 .retain(|id, value| conditions.allows_id(value, "item_modifier", id));
         }
+        s.predicates.retain(|id, value| {
+            match horizon_world::loot::validate_loot_condition(value) {
+                Ok(()) => true,
+                Err(error) => {
+                    log::warn!("predicate {id} rejected: {error}");
+                    false
+                }
+            }
+        });
+        s.item_modifiers.retain(|id, value| {
+            match horizon_world::loot::validate_item_modifier(value) {
+                Ok(()) => true,
+                Err(error) => {
+                    log::warn!("item modifier {id} rejected: {error}");
+                    false
+                }
+            }
+        });
+        s.slot_sources.retain(
+            |id, value| match horizon_world::loot::validate_slot_source(value) {
+                Ok(()) => true,
+                Err(error) => {
+                    log::warn!("slot source {id} rejected: {error}");
+                    false
+                }
+            },
+        );
         s
     }
     /// `ServerFunctionLibrary.getTag`: only valid function tags expand

@@ -63,7 +63,18 @@ pub struct Ingredient {
 impl Ingredient {
     /// Reject malformed component patches before any part of a recipe is published.
     pub fn validate_recipe(value: &Value, items: &Items, recipe: &str) -> bool {
+        if !Self::validate_persistence(value, recipe) {
+            return false;
+        }
         components::validate_recipe(value, items, recipe)
+    }
+    pub(crate) fn validate_persistence(value: &Value, recipe: &str) -> bool {
+        if let Err(error) = components::persistent_recipe(value) {
+            let recipe = horizon_items::recipe_sources::qualified(recipe);
+            log::warn!("recipe {recipe} rejected: {error}");
+            return false;
+        }
+        true
     }
     /// Decode built-in rules and materialize display stacks at a load boundary.
     pub fn prepare_components(&mut self, items: &Items) -> Option<()> {

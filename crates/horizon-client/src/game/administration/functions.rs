@@ -1382,7 +1382,10 @@ impl Game<'_> {
         let json = if id.starts_with('{') {
             let (tag, _) = horizon_core::nbt::parse_snbt(id)
                 .map_err(|e| err("argument.nbt.invalid", &[&e]))?;
-            horizon_client::scoreboard::tag_to_json(&tag)
+            let value = horizon_client::scoreboard::tag_to_json(&tag);
+            horizon_world::loot::validate_loot_condition(&value)
+                .map_err(|e| err("argument.nbt.invalid", &[&e]))?;
+            value
         } else {
             self.fns
                 .store

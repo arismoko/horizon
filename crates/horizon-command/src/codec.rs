@@ -147,8 +147,8 @@ fn predicate_fields(id: &str, map: &Compound, t: &Tag, reg: &Registries) -> Resu
                 reg,
             )
         }
-        // Other predicate families retain their existing codec/evaluator paths.
-        _ => Ok(()),
+        // Leaf codecs own their typed item/entity predicates; custom payloads stay opaque.
+        _ => horizon_world::loot::validate_loot_condition_tag(t),
     }
 }
 
@@ -282,7 +282,10 @@ pub fn decode(registry: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
                 return Ok(());
             }
             let ty = format!("{registry}_type");
-            let second = dispatch(t, reg, &ty, &provider_fields);
+            let second = dispatch(t, reg, &ty, &|id, map, value| {
+                provider_fields(id, map, value)?;
+                horizon_world::loot::validate_number_provider_tag(value)
+            });
             second.map_err(|e| either("Not a number".into(), e))
         }
         "minecraft:predicate" => {
@@ -291,7 +294,9 @@ pub fn decode(registry: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
             })
         }
         "minecraft:item_modifier" => element_or_list(t, &|x| {
-            dispatch(x, reg, "minecraft:loot_function_type", &|_, _, _| Ok(()))
+            dispatch(x, reg, "minecraft:loot_function_type", &|_, _, value| {
+                horizon_world::loot::validate_item_modifier_tag(value)
+            })
         }),
         "minecraft:slot_source" => slot_sources::decode(t, reg),
         // Dialog types: CommonDialogData's title, then each type's own.
@@ -305,7 +310,8 @@ pub fn decode(registry: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
             let keys: Vec<&str> = std::iter::once("title")
                 .chain(own.iter().copied())
                 .collect();
-            require(map, t, &keys)
+            require(map, t, &keys)?;
+            horizon_world::item_defaults::validate_dialog_tag(t)
         }),
         // The ConfiguredFeature codec, where the source has the live features.
         "minecraft:worldgen/feature" => {
@@ -316,7 +322,10 @@ pub fn decode(registry: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
             Ok(())
         }
         "minecraft:loot_table" => match t {
-            Tag::Compound(_) => loot_table_references(t, reg),
+            Tag::Compound(_) => {
+                loot_table_references(t, reg)?;
+                horizon_world::loot::validate_loot_table_tag(t)
+            }
             _ => Err(not_map(t)),
         },
         _ => Ok(()),
@@ -581,6 +590,135 @@ mod slot_range_tests {
                     message.clone(),
                     either("Not a string".into(), either(not_list(&raw), message))
                 ))
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod transient_value_tests {
+    use super::*;
+
+    fn refuse(registry: &str, input: &str, reason: &str) {
+        let mut reader = Reader::new(input);
+        let error = resource_or_id(&mut reader, &Registries::default(), registry).unwrap_err();
+        assert_eq!(
+            error.key, "argument.resource_or_id.failed_to_parse",
+            "{input}"
+        );
+        assert_eq!(error.input.as_deref(), Some(input));
+        assert!(
+            error.message.source_component().unwrap()["with"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains(reason),
+            "{input}"
+        );
+    }
+
+    #[test]
+    fn inline_modifiers_refuse_transient_sets_and_removals() {
+        for input in [
+            r#"{type:"minecraft:set_components",components:{"minecraft:creative_slot_lock":{}}}"#,
+            r#"{type:"minecraft:set_components",components:{"!minecraft:creative_slot_lock":{}}}"#,
+            r#"{type:"minecraft:sequence",functions:[{type:"minecraft:set_components",components:{creative_slot_lock:{}}}]}"#,
+            r#"{type:"minecraft:filtered",item_filter:{components:{creative_slot_lock:{}}},on_pass:[],on_fail:[]}"#,
+        ] {
+            refuse(
+                "minecraft:item_modifier",
+                input,
+                "'minecraft:creative_slot_lock' is not a persistent component",
+            );
+        }
+    }
+
+    #[test]
+    fn inline_predicates_refuse_transient_exact_components() {
+        for input in [
+            r#"{type:"minecraft:match_tool",predicate:{components:{additional_trade_cost:1}}}"#,
+            r#"{type:"minecraft:entity_properties",entity:"this",predicate:{equipment:{mainhand:{components:{additional_trade_cost:1}}}}}"#,
+            r#"{type:"minecraft:all_of",terms:[{type:"minecraft:match_tool",predicate:{components:{additional_trade_cost:1}}}]}"#,
+        ] {
+            refuse(
+                "minecraft:predicate",
+                input,
+                "'minecraft:additional_trade_cost' is not a persistent component",
+            );
+        }
+    }
+
+    #[test]
+    fn inline_loot_tables_refuse_nested_transient_components() {
+        refuse(
+            "minecraft:loot_table",
+            r#"{pools:[{entries:[{type:"minecraft:item",name:"minecraft:stone",modifier:{type:"minecraft:set_components",components:{"!minecraft:map_post_processing":{}}}}]}]}"#,
+            "'minecraft:map_post_processing' is not a persistent component",
+        );
+    }
+
+    #[test]
+    fn inline_dialogs_refuse_typed_item_body_components() {
+        refuse(
+            "minecraft:dialog",
+            r#"{type:"minecraft:notice",title:"Inventory",body:{type:"minecraft:item",item:{id:"minecraft:stone",components:{creative_slot_lock:{}}}}}"#,
+            "'minecraft:creative_slot_lock' is not a persistent component",
+        );
+    }
+
+    #[test]
+    fn inline_codecs_keep_type_only_components_and_opaque_payloads() {
+        for (registry, input) in [
+            (
+                "minecraft:item_modifier",
+                r#"{type:"minecraft:copy_components",source:"block_entity",include:["minecraft:creative_slot_lock"]}"#,
+            ),
+            (
+                "minecraft:item_modifier",
+                r#"{type:"minecraft:set_custom_data",tag:{components:{creative_slot_lock:{}}}}"#,
+            ),
+            (
+                "minecraft:item_modifier",
+                r#"{type:"example:custom",components:{creative_slot_lock:{}}}"#,
+            ),
+            (
+                "minecraft:predicate",
+                r#"{type:"minecraft:match_tool",predicate:{predicates:{"minecraft:creative_slot_lock":{}}}}"#,
+            ),
+            (
+                "minecraft:dialog",
+                r#"{type:"example:custom",title:"Custom",body:{type:"minecraft:item",item:{components:{creative_slot_lock:{}}}}}"#,
+            ),
+            (
+                "minecraft:dialog",
+                r#"{type:"minecraft:notice",title:"Custom",body:{type:"example:custom",item:{components:{creative_slot_lock:{}}}}}"#,
+            ),
+        ] {
+            let mut reader = Reader::new(input);
+            resource_or_id(&mut reader, &Registries::default(), registry).unwrap();
+            assert_eq!(reader.cursor, input.len(), "{input}");
+        }
+    }
+
+    #[test]
+    fn conditional_number_providers_refuse_transient_exact_predicates() {
+        for (registry, input) in [
+            (
+                "minecraft:context_int_provider",
+                r#"{type:"minecraft:conditional",on_true:1,condition:{type:"minecraft:match_tool",predicate:{components:{creative_slot_lock:{}}}}}"#,
+            ),
+            (
+                "minecraft:context_float_provider",
+                r#"{type:"minecraft:add",inputs:[1,{type:"minecraft:conditional",on_true:1,condition:{type:"minecraft:match_tool",predicate:{components:{creative_slot_lock:{}}}}}]}"#,
+            ),
+            (
+                "minecraft:context_int_provider",
+                r#"{type:"minecraft:number_dispatcher",cases:[{condition:{type:"minecraft:match_tool",predicate:{components:{creative_slot_lock:{}}}},value:1}]}"#,
+            ),
+        ] {
+            refuse(
+                registry,
+                input,
+                "'minecraft:creative_slot_lock' is not a persistent component",
             );
         }
     }

@@ -1076,6 +1076,11 @@ fn particle_options(id: &str, t: &horizon_core::nbt::Tag) -> Result<(), String> 
         let _ = snbt;
         return Err(super::codec::either(first, "Not a string".into()));
     }
+    if id == "minecraft:item"
+        && let Some(item) = get(map, "item")
+    {
+        horizon_world::item_defaults::validate_stack_tag(item)?;
+    }
     Ok(())
 }
 /// TimeArgument units.

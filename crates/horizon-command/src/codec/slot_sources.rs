@@ -102,6 +102,9 @@ fn typed(t: &Tag, reg: &Registries) -> Result<(), String> {
                 if !matches!(get(map, "item_filter"), Some(Tag::Compound(_))) {
                     return Err("Not an item predicate map".into());
                 }
+                horizon_world::item_defaults::validate_item_predicate_tag(
+                    get(map, "item_filter").expect("required item filter"),
+                )?;
             }
             _ => {}
         }
@@ -159,5 +162,38 @@ mod tests {
             let (tag, _) = horizon_core::nbt::parse_snbt(input).unwrap();
             assert!(decode(&tag, &reg).is_err(), "{input}");
         }
+    }
+
+    #[test]
+    fn filtered_sources_reject_transient_exact_values_and_removals() {
+        let reg = Registries::default();
+        for input in [
+            r#"{type:"minecraft:filtered",item_filter:{components:{"minecraft:creative_slot_lock":{}}},slot_source:{type:"minecraft:slot_range",slots:"container.0"}}"#,
+            r#"{type:"minecraft:filtered",item_filter:{components:{"!minecraft:creative_slot_lock":{}}},slot_source:{type:"minecraft:slot_range",slots:"container.0"}}"#,
+        ] {
+            let mut reader = Reader::new(input);
+            let error = resource_or_id(&mut reader, &reg, "minecraft:slot_source").unwrap_err();
+            assert_eq!(error.key, "argument.resource_or_id.failed_to_parse");
+            assert_eq!(error.input.as_deref(), Some(input));
+            assert!(
+                error.message.source_component().unwrap()["with"][0]["text"]
+                    .as_str()
+                    .unwrap()
+                    .contains("'minecraft:creative_slot_lock' is not a persistent component")
+            );
+        }
+    }
+
+    #[test]
+    fn filtered_sources_accept_type_only_transient_predicates() {
+        let mut reg = Registries::default();
+        reg.by_registry
+            .entry("minecraft:data_component_type".into())
+            .or_default()
+            .ids = vec!["minecraft:creative_slot_lock".into()];
+        let input = r#"{type:"minecraft:filtered",item_filter:{predicates:{"minecraft:creative_slot_lock":{}}},slot_source:{type:"minecraft:slot_range",slots:"container.0"}}"#;
+        let mut reader = Reader::new(input);
+        resource_or_id(&mut reader, &reg, "minecraft:slot_source").unwrap();
+        assert_eq!(reader.cursor, input.len());
     }
 }

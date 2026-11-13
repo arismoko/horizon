@@ -3,8 +3,10 @@
 //! `trim`, with their NBT form in vanilla's `components` compound.
 #[path = "item_data/ingredient_components.rs"]
 pub mod ingredient_components;
+mod persistence;
 use crate::items::{ItemInfo, ItemStack};
 use horizon_core::nbt::{JavaString, Tag};
+use persistence::encode_stack_components;
 
 /// One item attribute modifier, as `ItemAttributeModifiers.Entry` holds it.
 #[derive(Clone, Debug, PartialEq)]
@@ -1212,65 +1214,6 @@ pub fn encode_extra_components(stack: &ItemStack) -> Option<Tag> {
     encode_stack_components(stack, false)
 }
 
-fn encode_stack_components(stack: &ItemStack, include_damage: bool) -> Option<Tag> {
-    let mut components = components_tag_inner(stack.damage, stack.data(), include_damage)?;
-    // MobEffectInstance.Details' codec always saves the resolved icon flag.
-    // An omitted icon follows show_particles, whose default is true.
-    if let Some(Tag::List(effects)) = components
-        .get_mut("minecraft:potion_contents")
-        .and_then(|potion| potion.get_mut("custom_effects"))
-    {
-        for effect in effects {
-            let shown = effect.get("show_particles").and_then(int).unwrap_or(1) != 0;
-            if let Tag::Compound(fields) = effect {
-                fields
-                    .entry(JavaString::from("show_icon"))
-                    .or_insert(Tag::Byte(i8::from(shown)));
-            }
-        }
-    }
-    // LodestoneTracker.CODEC: optionalFieldOf("tracked", true).
-    if let Some(Tag::Compound(tracker)) = components.get_mut("minecraft:lodestone_tracker")
-        && tracker.get(&JavaString::from("tracked")) == Some(&Tag::Byte(1))
-    {
-        tracker.remove(&JavaString::from("tracked"));
-    }
-    if &*stack.item == "minecraft:filled_map"
-        && matches!(components.get("minecraft:map_decorations"), Some(Tag::Compound(entries)) if entries.is_empty())
-        && let Tag::Compound(entries) = &mut components
-    {
-        entries.remove(&JavaString::from("minecraft:map_decorations"));
-        if entries.is_empty() {
-            return None;
-        }
-    }
-    // Items.ENCHANTED_BOOK has empty stored enchantments in its prototype.
-    // Keep the live presence marker; only the saved component patch elides it.
-    if &*stack.item == "minecraft:enchanted_book"
-        && matches!(components.get("minecraft:stored_enchantments"), Some(Tag::Compound(entries)) if entries.is_empty())
-        && let Tag::Compound(entries) = &mut components
-    {
-        entries.remove(&JavaString::from("minecraft:stored_enchantments"));
-        if entries.is_empty() {
-            return None;
-        }
-    }
-    // Items.BEEHIVE/BEE_NEST use this whole block-state map as their prototype.
-    // Empty maps and maps with extra properties are distinct, nondefault patches.
-    if matches!(&*stack.item, "minecraft:beehive" | "minecraft:bee_nest")
-        && matches!(components.get("minecraft:block_state"), Some(Tag::Compound(state))
-            if state.len() == 1
-                && matches!(state.get(&JavaString::from("honey_level")),
-                    Some(Tag::String(level)) if level.to_string_lossy() == "0"))
-        && let Tag::Compound(entries) = &mut components
-    {
-        entries.remove(&JavaString::from("minecraft:block_state"));
-        if entries.is_empty() {
-            return None;
-        }
-    }
-    Some(components)
-}
 /// Saved patch with the loaded item's prototype available.
 /// Context-free callers and the live `components_tag` view stay unchanged.
 pub fn encode_components_with_items(stack: &ItemStack, items: &crate::items::Items) -> Option<Tag> {
@@ -1776,6 +1719,7 @@ pub fn command_components(text: &str) -> Result<Tag, String> {
     while !rest.is_empty() {
         let end = rest.find(['=', ',']).unwrap_or(rest.len());
         let key = rest[..end].trim();
+        horizon_world::item_defaults::validate_component_name(key)?;
         rest = &rest[end..];
         if let Some(value) = rest.strip_prefix('=') {
             let (tag, used) = horizon_core::nbt::parse_snbt(value)?;
@@ -1784,6 +1728,7 @@ pub fn command_components(text: &str) -> Result<Tag, String> {
             } else {
                 format!("minecraft:{key}")
             };
+            horizon_world::item_defaults::validate_component_tag(&id, &tag)?;
             entries.insert(JavaString::from(id.as_str()), tag);
             rest = &value[used..];
         } else if let Some(key) = key.strip_prefix('!') {
