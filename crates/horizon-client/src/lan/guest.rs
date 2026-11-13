@@ -181,13 +181,15 @@ pub struct Guest {
     /// The hub tick the guest entered its level (a join or a level change): `player_move` does not
     /// hear the tick after it.
     pub level_entered: u64,
+    /// The last location a movement report was heard at, or a server-side teleport sent the player
+    /// to (position, `[yaw, pitch]`): what `player_move` compares reports with and reports as `from`.
+    /// It is kept apart from the accepted position and may differ from it.
+    pub last_reported: ([f64; 3], [f32; 2]),
     /// The chunk cache centre placeNewPlayer already sent.
     pub center_sent: Option<(i32, i32)>,
     /// Why the connection closed (the console's "lost connection").
     pub left_reason: String,
     /// A validated movement report the mods have not ruled on yet (`player_move`).
-    /// Last validated connection report, separate from accepted movement.
-    pub move_baseline: ([f64; 3], [f32; 2]),
     pub pending_move: Option<super::hub::PendingMove>,
     /// A disconnect was started ([`Guest::begin_disconnect`]); the connection closes when the
     /// server next polls it, and until then no other disconnect is sent.
@@ -687,9 +689,9 @@ impl Guest {
             signatures: Default::default(),
             placed_at: 0,
             level_entered: 0,
+            last_reported: (position, [0.0, 0.0]),
             center_sent: None,
             left_reason: String::new(),
-            move_baseline: (position, [0.0, 0.0]),
             pending_move: None,
             disconnect_pending: false,
             uuid: j.uuid,

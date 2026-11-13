@@ -45,19 +45,17 @@ fn hold(game: &mut super::Game<'_>, conn: u32, to: [f64; 3], yaw: f32) {
     };
     let held = PendingMove {
         report,
-        from: (
-            hub.guests[i].position,
-            [hub.guests[i].yaw, hub.guests[i].pitch],
-        ),
         since: hub.ticks,
         teleports,
         dimension,
+        from: hub.guests[i].last_reported,
+        paused: true,
     };
     hub.guests.update(i, |g| g.pending_move = Some(held));
 }
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_veto_corrects_the_player_and_a_pass_commits_the_report() {
     let heard = Heard::default();
     let mods = vec![mod_api::ModEntry::new(
@@ -130,6 +128,7 @@ fn two_turns_waiting(game: &mut super::Game<'_>) {
         g.first_good = g.position;
         (g.yaw, g.pitch) = (0.0, 0.0);
         g.level_entered = 0;
+        g.last_reported = (g.position, [0.0, 0.0]);
         for yaw in [10.0, 20.0] {
             let turn = S::MovePlayerRot(play::MovePlayerRot {
                 yaw,
@@ -161,7 +160,7 @@ fn state(game: &super::Game<'_>) -> ([f32; 2], usize, bool) {
 const AT: [f64; 3] = [3.0, 64.0, 5.0];
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn two_reports_in_one_tick_are_heard_in_order_each_from_the_one_before_when_both_pass() {
     let heard = Heard::default();
     let mods = vec![mod_api::ModEntry::new(
@@ -175,13 +174,11 @@ fn two_reports_in_one_tick_are_heard_in_order_each_from_the_one_before_when_both
             game_tick(game);
             assert_eq!(
                 std::mem::take(&mut *heard.lock().unwrap()),
-                [(13, AT, [0.0, 0.0], AT, [10.0, 0.0])]
-            );
-            assert_eq!(state(game), ([10.0, 0.0], 1, false), "the second waits");
-            game_tick(game);
-            assert_eq!(
-                std::mem::take(&mut *heard.lock().unwrap()),
-                [(13, AT, [10.0, 0.0], AT, [20.0, 0.0])]
+                [
+                    (13, AT, [0.0, 0.0], AT, [10.0, 0.0]),
+                    (13, AT, [10.0, 0.0], AT, [20.0, 0.0])
+                ],
+                "both in the one tick, the second from the first's destination"
             );
             assert_eq!(state(game), ([20.0, 0.0], 0, false));
         });
@@ -189,7 +186,7 @@ fn two_reports_in_one_tick_are_heard_in_order_each_from_the_one_before_when_both
 }
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_veto_of_the_first_of_two_reports_in_one_tick_corrects_and_the_second_is_not_heard() {
     let heard = Heard::default();
     let mods = vec![mod_api::ModEntry::new(
@@ -203,18 +200,20 @@ fn a_veto_of_the_first_of_two_reports_in_one_tick_corrects_and_the_second_is_not
             game_tick(game);
             assert_eq!(
                 std::mem::take(&mut *heard.lock().unwrap()),
-                [(13, AT, [0.0, 0.0], AT, [10.0, 0.0])]
+                [(13, AT, [0.0, 0.0], AT, [10.0, 0.0])],
+                "only the first: the second is not heard while the correction is unconfirmed"
             );
-            assert_eq!(state(game), ([0.0, 0.0], 1, true), "corrected, not applied");
-            game_tick(game);
-            assert!(heard.lock().unwrap().is_empty(), "no teleport is heard");
-            assert_eq!(state(game), ([0.0, 0.0], 0, true));
+            assert_eq!(
+                state(game),
+                ([0.0, 0.0], 0, true),
+                "corrected and not applied; the second report met the unconfirmed teleport"
+            );
         });
     });
 }
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn two_reports_in_one_tick_with_no_listener_are_committed_in_the_one_pass() {
     with_guests(|game| {
         two_turns_waiting(game);

@@ -2,7 +2,9 @@
 //!
 //! With a listener, a validated report that changes the player's position or look is not committed
 //! in the poll. The hub keeps it on the guest, tells the game ([`HostEvent::PlayerMove`]) and stops
-//! reading that guest's inbox, so the player's later reports stay in order behind it. The game
+//! reading that guest's inbox, so the player's later reports stay in order behind it; the game rules
+//! on it in the same tick and the inbox goes on from there (the turn pauses as it does for a raw
+//! payload). The game
 //! fires the hook with nothing of the hub borrowed and calls [`Hub::resolve_move`]: commit, or drop
 //! and correct the client to the accepted position and look. With no listener nothing is held:
 //! [`Hub::accept_move`] commits at once, as it did before the hook existed.
@@ -24,8 +26,11 @@ pub const MOVE_PENDING_TICKS: u64 = 20;
 pub enum Hearing {
     /// A report from the player's own movement: heard when a mod listens and it changes something.
     Heard,
-    /// A report the hub applies in place: the confirmation of a teleport, a passage crossing.
-    Unheard,
+    /// The confirmation of a teleport: validated and committed in place. The last reported
+    /// location stays the teleport's destination.
+    Confirmation,
+    /// A passage crossing, whose caller reads the position at once: committed in place.
+    Crossing,
 }
 
 /// A movement report that passed the server's own checks (`handlePlayerPositionChange`).
@@ -45,15 +50,19 @@ pub struct Accepted {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PendingMove {
     pub report: Accepted,
-    pub from: ([f64; 3], [f32; 2]),
     /// The hub tick it was held at.
     pub since: u64,
     /// The guest's teleport counter and level then: a teleport or a level change since drops it.
     pub teleports: i32,
     pub dimension: String,
+    /// The last reported location when it was held: what the hook is told it moves from.
+    pub from: ([f64; 3], [f32; 2]),
+    /// The hub paused the guest's turn for the ruling already (once: a report nobody rules on does
+    /// not pause it again, so it cannot stall the tick).
+    pub paused: bool,
 }
 
-/// What the hook is told: the accepted state and the report.
+/// What the hook is told: the last reported location and the report.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MoveReport {
     pub player: u128,
@@ -74,12 +83,7 @@ impl Hub {
         hearing: Hearing,
         events: &mut Vec<HostEvent>,
     ) {
-        let changed = self.move_changes(i, &m);
-        let from = self.guests[i].move_baseline;
-        self.guests.update(i, |g| {
-            g.move_baseline = (m.to, [m.yaw, m.pitch.clamp(-90.0, 90.0)]);
-        });
-        if hearing == Hearing::Heard && self.moves_listened && changed {
+        if hearing == Hearing::Heard && self.moves_listened && self.move_changes(i, &m) {
             let (since, conn) = (self.ticks, self.guests[i].conn);
             let (teleports, dimension) = {
                 let g = &self.guests[i];
@@ -87,25 +91,37 @@ impl Hub {
             };
             let held = PendingMove {
                 report: m,
-                from,
                 since,
                 teleports,
                 dimension,
+                from: self.guests[i].last_reported,
+                paused: false,
             };
-            self.guests.update(i, |g| g.pending_move = Some(held));
+            // The report is the new baseline before the listener runs.
+            let heard = (m.to, [m.yaw, m.pitch.clamp(-90.0, 90.0)]);
+            self.guests.update(i, |g| {
+                g.last_reported = heard;
+                g.pending_move = Some(held);
+            });
             events.push(HostEvent::PlayerMove(conn));
             return;
         }
         self.commit_move(i, m, events);
+        // Committed in place: the baseline follows it, except on a teleport's confirmation, which
+        // leaves it at the teleport's destination.
+        if hearing != Hearing::Confirmation {
+            let seen = (m.to, [m.yaw, m.pitch.clamp(-90.0, 90.0)]);
+            self.guests.update(i, |g| g.last_reported = seen);
+        }
     }
 
-    /// The report differs from the accepted position or look, and is not of the player's first tick
+    /// The report differs from the last reported location, and is not of the player's first tick
     /// in its level: the tick after it entered (a join, a level change) is not heard, the next is.
     fn move_changes(&self, i: usize, m: &Accepted) -> bool {
         let g = &self.guests[i];
         self.ticks > g.level_entered + 1
-            && (m.to != g.move_baseline.0
-                || [m.yaw, m.pitch.clamp(-90.0, 90.0)] != g.move_baseline.1)
+            && (m.to != g.last_reported.0
+                || [m.yaw, m.pitch.clamp(-90.0, 90.0)] != g.last_reported.1)
     }
 
     /// `handlePlayerPositionChange`'s commit: the report becomes the player's state.
@@ -164,6 +180,27 @@ impl Hub {
             self.correct_move(i);
             return false;
         }
+        true
+    }
+
+    /// Whether guest `i`'s turn pauses for the game's ruling on its held report (the turn goes on in
+    /// the same tick once the game has ruled), with the credits of what it read handed to `events`.
+    /// The first time only: a report nobody rules on does not pause it again.
+    pub(super) fn pause_for_move(
+        &mut self,
+        i: usize,
+        credits: &mut Vec<crate::net::ingress::ReceiveLease<crate::lan::NetEvent>>,
+        events: &mut Vec<HostEvent>,
+    ) -> bool {
+        let Some(_) = self.guests[i].pending_move.as_ref().filter(|p| !p.paused) else {
+            return false;
+        };
+        self.guests.update(i, |g| {
+            if let Some(p) = g.pending_move.as_mut() {
+                p.paused = true;
+            }
+        });
+        events.push(HostEvent::InputCredits(std::mem::take(credits)));
         true
     }
 

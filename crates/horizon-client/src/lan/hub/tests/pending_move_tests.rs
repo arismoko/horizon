@@ -62,9 +62,9 @@ pub(super) fn standing(listened: bool, inbox: Vec<S>) -> Hub {
         g.load_timeout = 0;
         g.position = [0.0, 64.0, 0.0];
         g.first_good = g.position;
-        g.move_baseline = (g.position, [0.0, 0.0]);
         g.yaw = 0.0;
         g.pitch = 0.0;
+        g.last_reported = (g.position, [0.0, 0.0]);
         g.ticks = 1;
         g.inbox.extend(inbox.into_iter().map(InboxItem::uncredited));
     });
@@ -83,12 +83,6 @@ pub(super) fn moves(events: &[HostEvent]) -> Vec<u32> {
             _ => None,
         })
         .collect()
-}
-
-/// The next hub tick: the guest's packets that waited are read again.
-pub(super) fn next_tick(hub: &mut Hub) -> Vec<HostEvent> {
-    hub.ticks += 1;
-    drain(hub)
 }
 
 pub(super) fn tick_end() -> S {
@@ -118,7 +112,7 @@ fn two_reports_in_one_tick_are_heard_in_order_each_from_the_one_before_when_both
     );
     hub.resolve_move(conn, true);
     assert_eq!(look(&hub), [10.0, 0.0]);
-    assert_eq!(moves(&next_tick(&mut hub)), [conn]);
+    assert_eq!(moves(&drain(&mut hub)), [conn]);
     let second = hub.pending_move_report(conn).unwrap();
     assert_eq!(
         (second.from_rotation, second.to_rotation),
@@ -139,7 +133,7 @@ fn a_veto_of_the_first_of_two_reports_in_one_tick_corrects_and_the_second_is_not
     assert!(hub.guests[0].awaiting_teleport.is_some());
     // The second waited behind it, and meets the unconfirmed correction: only the server's own
     // handling of a report that arrives then, no hearing.
-    assert!(moves(&next_tick(&mut hub)).is_empty());
+    assert!(moves(&drain(&mut hub)).is_empty());
     assert!(hub.guests[0].pending_move.is_none());
     assert!(hub.guests[0].inbox.is_empty());
     assert_eq!(look(&hub), [0.0, 0.0]);
@@ -165,7 +159,7 @@ fn the_end_of_the_client_tick_and_the_next_report_keep_their_order_behind_a_held
         "the tick end has not been read"
     );
     hub.resolve_move(conn, true);
-    assert_eq!(moves(&next_tick(&mut hub)), [conn]);
+    assert_eq!(moves(&drain(&mut hub)), [conn]);
     let g = &hub.guests[0];
     assert!(
         !g.disconnect_pending,
@@ -234,7 +228,7 @@ fn with_no_listener_the_report_is_committed_in_place_and_nothing_is_held() {
 }
 
 /// What a vetoed report does to the counters: the server's own checks and the anticheat's record
-/// of the client's ticks saw it before the hook, and the packets behind it are read a tick late.
+/// of the client's ticks saw it before the hook, and the packets behind it are read after the ruling, in order.
 #[test]
 fn a_vetoed_report_is_counted_before_the_hook_and_adds_no_violation() {
     let mut hub = standing(true, vec![walking(0.5), tick_end()]);
@@ -258,10 +252,10 @@ fn a_vetoed_report_is_counted_before_the_hook_and_adds_no_violation() {
         hub.guests[0].moves.is_empty(),
         "its bookkeeping was skipped"
     );
-    assert!(moves(&next_tick(&mut hub)).is_empty());
+    assert!(moves(&drain(&mut hub)).is_empty());
     let g = &hub.guests[0];
     let record = g.record.as_ref().unwrap();
-    assert_eq!(record.ended(), 1, "the tick end was read a tick late");
+    assert_eq!(record.ended(), 1, "the tick end was read after the ruling");
     assert_eq!(
         record.ticks().last().and_then(|t| t.position),
         Some([0.5, 64.0, 0.0]),
@@ -271,33 +265,4 @@ fn a_vetoed_report_is_counted_before_the_hook_and_adds_no_violation() {
     for check in horizon_anticheat::Check::ALL {
         assert_eq!(g.anticheat.vl(&config, *check, hub.ticks), 0.0, "{check:?}");
     }
-}
-
-#[test]
-fn connection_report_baseline_advances_before_hearing_and_resets_on_correction() {
-    let mut hub = standing(true, vec![]);
-    hub.guests
-        .update(0, |g| g.move_baseline = ([1.0, 64.0, 0.0], [10.0, 0.0]));
-    let mut events = Vec::new();
-    hub.accept_move(
-        0,
-        Accepted {
-            to: [2.0, 64.0, 0.0],
-            yaw: 20.0,
-            pitch: 0.0,
-            flags: 0,
-            stands: false,
-            floating: false,
-        },
-        Hearing::Heard,
-        &mut events,
-    );
-    let conn = hub.guests[0].conn;
-    let report = hub.pending_move_report(conn).unwrap();
-    assert_eq!(report.from, [1.0, 64.0, 0.0]);
-    assert_eq!(report.from_rotation, [10.0, 0.0]);
-    assert_eq!(hub.guests[0].position, [0.0, 64.0, 0.0]);
-    assert_eq!(hub.guests[0].move_baseline, ([2.0, 64.0, 0.0], [20.0, 0.0]));
-    hub.resolve_move(conn, false);
-    assert_eq!(hub.guests[0].move_baseline, ([0.0, 64.0, 0.0], [0.0, 0.0]));
 }

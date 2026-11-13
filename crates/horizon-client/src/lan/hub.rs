@@ -1627,6 +1627,7 @@ impl Hub {
             g.center_sent = Some((cx, cz));
             g.placed_at = self.ticks;
             g.level_entered = self.ticks;
+            g.last_reported = (g.position, [g.yaw, g.pitch]);
         });
         self.send_active_effects(i);
         // ServerPlayer.sendPostEffects and initInventoryMenu.
@@ -1750,6 +1751,7 @@ impl Hub {
             g.placed = true;
             g.placed_at = self.ticks;
             g.level_entered = self.ticks;
+            g.last_reported = (g.position, [g.yaw, g.pitch]);
         });
         // The player list entry of the newcomer, to everyone placed or held (itself included).
         let newcomer = C::PlayerInfoUpdate(play::PlayerInfoUpdate {
@@ -2125,7 +2127,7 @@ impl Hub {
                 g.position = p;
                 g.previous_position = p;
             }
-            g.move_baseline = (g.position, [g.yaw, g.pitch]);
+            g.last_reported = (g.position, [g.yaw, g.pitch]);
             g.teleport_counter = (g.teleport_counter + 1) & 0x7FFF_FFFF;
             let id = g.teleport_counter;
             g.awaiting_teleport = Some((id, g.position));
@@ -3999,6 +4001,9 @@ impl Hub {
         // (the swing starts the attack strength again, #7817).
         loop {
             if self.discard_closed_input(i) || self.holds_for_move(i) {
+                if self.pause_for_move(i, &mut credits, events) {
+                    return true;
+                }
                 break;
             }
             if *held
@@ -4096,9 +4101,7 @@ impl Hub {
                             }
                         });
                         let rot = (p.yaw, p.pitch);
-                        // The confirmation of a teleport is validated, never heard (`player_move`).
-                        let at = [p.x, p.y, p.z];
-                        self.position_change(i, at, rot, 0, Hearing::Unheard, ctx, events);
+                        self.position_change(i, at, rot, 0, Hearing::Confirmation, ctx, events);
                     }
                 }
                 // handlePlayerAbilities: the client flies only if it may.
@@ -4986,7 +4989,6 @@ impl Hub {
             self.guests.update(i, |g| {
                 g.landing = true;
                 g.awaiting_teleport = None;
-                g.move_baseline = (g.position, [g.yaw, g.pitch]);
                 g.teleport_counter = (g.teleport_counter + 1) & 0x7FFF_FFFF;
             });
         } else {
