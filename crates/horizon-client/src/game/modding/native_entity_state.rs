@@ -382,6 +382,35 @@ impl Game<'_> {
             _ => return None,
         })
     }
+    /// Sets the ticks the entity has lived (`Entity.tickCount`): mobs, item
+    /// entities, experience orbs and minecarts. Values keep their sign, as
+    /// vanilla's `int` does. False for the other kinds, a stale handle or on
+    /// a client.
+    pub(super) fn entity_set_tick_count(&mut self, entity: EntityRef, ticks: i32) -> bool {
+        match self.native_entity_target(entity) {
+            Some(Target::Mob(id)) => self.mobs.iter_mut().find(|m| m.id == id).is_some_and(|m| {
+                m.age = ticks as u32;
+                true
+            }),
+            Some(Target::Item(id)) => self.dropped.iter_mut().find(|i| i.id == id).is_some_and(|i| {
+                i.ticks = ticks as u32;
+                true
+            }),
+            Some(Target::Orb(id)) => self.orbs.iter_mut().find(|o| o.id == id).is_some_and(|o| {
+                o.ticks = ticks as u32;
+                true
+            }),
+            Some(Target::Cart(id)) => self
+                .carts
+                .iter()
+                .position(|c| c.id == id)
+                .is_some_and(|index| {
+                    self.carts.update(index, |c| c.tick_count = ticks);
+                    true
+                }),
+            _ => false,
+        }
+    }
     /// Sets the mob's persistent glowing tag (`Entity.setGlowingTag`). Returns false for players and guests.
     pub(super) fn entity_set_glowing(&mut self, entity: EntityRef, glowing: bool) -> bool {
         let Some(Target::Mob(id)) = self.native_entity_target(entity) else {
@@ -643,6 +672,54 @@ mod tests {
             assert_eq!(boat.tick_count(game), None);
             let stale = EntityRef::new(WorldEpoch::new(mob.epoch().get() + 1), mob.id());
             assert_eq!(stale.tick_count(game), None);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn tick_count_write_is_counted_by_the_next_mob_tick() {
+        use super::super::boats::Boat;
+        use super::super::native_entity_refs::tests::with_game;
+        use horizon_core::geometry::Vec3;
+        use mod_api::WorldEpoch;
+
+        with_game(|game| {
+            game.options.dedicated = Some(Vec::new());
+            game.world.chunks.insert(
+                (0, 0),
+                std::sync::Arc::new(horizon_client::chunk::Chunk::empty(0, 0)),
+            );
+            let kind = game
+                .res
+                .mob_types()
+                .get("minecraft:cow")
+                .unwrap()
+                .clone();
+            game.mobs
+                .push(Mob::new(40, kind, Vec3::new(0.5, 64.0, 0.5), 0.0));
+            let mob = game.entity(40).unwrap();
+            assert_eq!(mob.tick_count(game), Some(0));
+
+            assert!(mob.set_tick_count(game, 40));
+            assert_eq!(mob.tick_count(game), Some(40));
+            game.tick_creature_entities().unwrap();
+            assert_eq!(
+                mob.tick_count(game),
+                Some(41),
+                "the next tick counts on from the written age"
+            );
+
+            // A signed count keeps its sign, and the next tick wraps as vanilla's `int`.
+            assert!(mob.set_tick_count(game, -1));
+            game.tick_creature_entities().unwrap();
+            assert_eq!(mob.tick_count(game), Some(0));
+
+            // Kinds the operation does not cover, and a stale handle.
+            game.boats.push(Boat::new(41, "oak".into(), Vec3::ZERO, 0.0));
+            let boat = game.entity(41).unwrap();
+            assert!(!boat.set_tick_count(game, 3));
+            let stale = EntityRef::new(WorldEpoch::new(mob.epoch().get() + 1), mob.id());
+            assert!(!stale.set_tick_count(game, 3));
         });
     }
 

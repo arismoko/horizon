@@ -88,7 +88,9 @@ pub fn set_synced_pose_tick(m: &mut Mob, tick: i64) {
 /// A mob's age counts up by one in its tick; a camel also notes the game time
 /// that age matches.
 pub fn tick_age(m: &mut Mob, game_time: i64) {
-    m.age += 1;
+    // `Entity.tickCount++`: a Java `int`, so a negative count wraps at
+    // `i32::MAX` exactly as vanilla's does.
+    m.age = m.age.wrapping_add(1);
     if is_camel(m.species()) {
         note_tick(m, game_time);
     }
@@ -724,6 +726,17 @@ mod tests {
             tick_age(&mut m, 5001);
             assert_eq!(synced_pose_tick(&m, 5001), tick);
         }
+    }
+
+    /// `Entity.tickCount` is a Java `int`: `tickCount++` wraps there, so a
+    /// count written as -1 ticks to 0 instead of panicking on an overflow
+    /// (`entity_set_tick_count` accepts signed values).
+    #[test]
+    fn a_mob_age_wraps_like_vanillas_tick_count() {
+        let mut m = camel();
+        m.age = (-1i32) as u32;
+        tick_age(&mut m, 0);
+        assert_eq!(m.age as i32, 0);
     }
 
     /// `Camel.canMate`: both sides answer `AbstractHorse.canParent` — not a

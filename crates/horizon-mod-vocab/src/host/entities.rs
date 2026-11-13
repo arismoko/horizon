@@ -876,6 +876,13 @@ pub trait EntitiesBackendMut {
     #[access(WorldOnly)]
     fn entity_set_ticks_frozen(&mut self, entity: EntityRef, ticks: i32) -> bool;
     /// Side: server.
+    /// Sets the ticks the entity has lived (`Entity.tickCount`): mobs, item
+    /// entities, experience orbs and minecarts. Values keep their sign, as
+    /// vanilla's `int` does. False for the other kinds, a stale handle or on
+    /// a client.
+    #[access(WorldOnly)]
+    fn entity_set_tick_count(&mut self, entity: EntityRef, ticks: i32) -> bool;
+    /// Side: server.
     /// Sets the entity's shared invisibility flag (`Entity.setInvisible`). Returns false for players and guests.
     #[access(WorldOnly)]
     fn entity_set_invisible(&mut self, entity: EntityRef, invisible: bool) -> bool;
