@@ -53,7 +53,7 @@ allocating or converting them to JSON. Removal keys require registration only.
 Native registrations retain their persistent NBT validation contract.
 
 The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
-`max_stack_size`, `rarity`, `enchantments`, `stored_enchantments`, `custom_name`,
+`max_stack_size`, `rarity`, `base_color`, `enchantments`, `stored_enchantments`, `custom_name`,
 `enchantment_glint_override`, `item_name`, `item_model`, `dyed_color`, `unbreakable`, `glider`, `intangible_projectile`, `tooltip_style`, `note_block_sound`, `dye`, `waxed`, `block_entity_data`, `enchantable`, `map_id`,
 `ominous_bottle_amplifier`, `potion_duration_scale`, and `minimum_attack_charge` in the `minecraft` namespace.
 `enchantable` requires a positive integer `value`; extra record fields are ignored
@@ -84,7 +84,9 @@ item defaults, while an explicit removal suppresses that default.
 `tooltip_style` and `note_block_sound`, like `item_model`, accept identifiers
 without a registry lookup; empty paths are accepted and missing or empty namespaces
 normalize to `minecraft`. Matching borrows candidate strings without allocation.
-The other 97 registered built-ins use stored-value matching while their shared
+`base_color` uses the same strict dye palette as `dye`, retains its dedicated
+shield value, and remains absent on banners without that component.
+The other 96 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference

@@ -130,6 +130,10 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
                 b.data().and_then(|d| d.other(id)),
             )
         }
+        "minecraft:base_color" => {
+            a.data().and_then(|d| d.base_color.as_deref())
+                == b.data().and_then(|d| d.base_color.as_deref())
+        }
         "minecraft:rarity" => rarity(a) == rarity(b),
         "minecraft:ominous_bottle_amplifier" => ominous_amplifier(a) == ominous_amplifier(b),
         // Unit.CODEC ignores map fields; borrow only the map shape, not its contents.
@@ -444,5 +448,18 @@ mod tests {
         assert!(component_equal("minecraft:item_name", &a, &b));
         b.data_mut().enchantments[0].1 = 3;
         assert!(!component_equal("minecraft:enchantments", &a, &b));
+    }
+
+    #[test]
+    fn decoded_base_color_equality_uses_the_dedicated_field() {
+        let mut a = ItemStack::new("minecraft:shield", 1);
+        let mut b = ItemStack::new("minecraft:shield", 1);
+        a.data_mut().base_color = Some("red".into());
+        b.data_mut().base_color = Some("red".into());
+        assert!(component_equal("minecraft:base_color", &a, &b));
+        b.data_mut().base_color = Some("blue".into());
+        assert!(!component_equal("minecraft:base_color", &a, &b));
+        b.data_mut().base_color = None;
+        assert!(!component_equal("minecraft:base_color", &a, &b));
     }
 }
