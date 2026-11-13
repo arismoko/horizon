@@ -640,7 +640,11 @@ impl Game<'_> {
     /// The attack a player-owned blast's hits land in: its causing player's,
     /// so a mob it kills is that player's kill.
     pub(super) fn blast_owner_attack(&self) -> horizon_client::health::Attack {
-        let id = self.combat.blast_owner.as_ref().map_or(0, |(id, _)| *id as i32);
+        let id = self
+            .combat
+            .blast_owner
+            .as_ref()
+            .map_or(0, |(id, _)| *id as i32);
         let mut attack = self.attack_of(id);
         attack.player_uuid = self.player_uuid_of(self.combat.blast_guest);
         attack

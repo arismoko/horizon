@@ -1190,7 +1190,8 @@ impl Game<'_> {
     pub(super) fn explosion_kill_credit(&self) -> Option<super::commands::Target> {
         use super::commands::Target;
         // A primed TNT's owner (a player) names the blast before any mob does.
-        let player = self.combat.blast_owner_player || self.combat.explicit_explosion_cause.is_some();
+        let player =
+            self.combat.blast_owner_player || self.combat.explicit_explosion_cause.is_some();
         if self.combat.blast_owner.is_some() && player {
             return Some(
                 self.combat

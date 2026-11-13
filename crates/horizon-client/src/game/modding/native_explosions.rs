@@ -85,7 +85,8 @@ impl Game<'_> {
             self.attribute_native_blast(id, target);
         }
         // Only the source's `isSilent` keeps the blast quiet.
-        let blast = ExplosionSource::default().with_silence(id.is_some_and(|id| self.entity_silent(id)));
+        let blast =
+            ExplosionSource::default().with_silence(id.is_some_and(|id| self.entity_silent(id)));
         let done = self
             .server_explode_from(center, radius, interaction, fire, blast)
             .is_ok();

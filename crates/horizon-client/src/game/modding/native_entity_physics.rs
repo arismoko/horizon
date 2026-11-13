@@ -613,9 +613,7 @@ mod tests {
         });
     }
 
-    /// `/kill` (and the native discard that shares `kill_target_in_level`)
-    /// takes a shulker bullet out of its list: the `noPhysics` write stored
-    /// for it has to leave with it.
+    /// A player blow destroys the bullet and its stored override together.
     #[test]
     #[ignore = "daily"]
     fn no_physics_entry_is_cleared_when_a_blow_destroys_a_shulker_bullet() {
@@ -646,7 +644,7 @@ mod tests {
             assert!(!game.creatures.projectiles.iter().any(|p| p.id == id));
             assert!(
                 !game.persist.no_physics.contains_key(&id),
-                "the entry left with the entity the command killed"
+                "the entry left with the entity the blow destroyed"
             );
         });
     }
