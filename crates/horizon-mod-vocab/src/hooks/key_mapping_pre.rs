@@ -8,13 +8,17 @@ pub trait Hooks {
     /// acts on nothing. A release cannot be canceled, so what the game holds is always let go.
     /// Told for the keys and mouse buttons the window takes (agent control's included), after the
     /// window's own shortcuts (fullscreen, screenshot, debug keys), and only with no screen open;
-    /// not for a controller, whose presses go straight to the mappings. No NeoForge counterpart.
+    /// not for a controller, whose presses go straight to the mappings. The nearest NeoForge
+    /// moments are `InputEvent.InteractionKeyMappingTriggered`, which can cancel a triggered
+    /// mapping, and `InputEvent.Key`, the raw key event; neither fires before the game applies a
+    /// bound key's state the way this hook does, so the key names them as the closest moments.
     /// Client-side.
     #[hook(
         side = "client",
         contract = "cancel",
         out = "canceled",
-        neoforge = "InputEvent.InteractionKeyMappingTriggered, InputEvent.Key"
+        neoforge = "InputEvent.InteractionKeyMappingTriggered, InputEvent.Key",
+        cancellable = true
     )]
     fn key_mapping_pre();
 }
