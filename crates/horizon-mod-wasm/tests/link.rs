@@ -54,133 +54,141 @@ fn call(group: &mut Group, member: &str, function: &str) -> i32 {
 
 #[test]
 fn a_mod_calls_its_library_and_reads_its_static_over_one_shared_std() {
-    let (std, lib, user) = (bytes(STD), bytes(LIB), bytes(MOD));
-    let mut group = Group::link(
-        &Engine::default(),
-        &[
-            Member {
-                name: "std",
-                module: &std,
-            },
-            Member {
-                name: "lib",
-                module: &lib,
-            },
-            Member {
-                name: "mod",
-                module: &user,
-            },
-        ],
-    )
-    .unwrap();
-    // The static's initial 40, and the call's 2 + 3.
-    assert_eq!(call(&mut group, "mod", "run"), 45);
-    // Three bumps of one counter: the mod's own, the library's, and this one. Two copies of std
-    // would have counted separately.
-    assert_eq!(call(&mut group, "mod", "bumps"), 3);
+    crate::test_stack::on_guest_stack(|| {
+        let (std, lib, user) = (bytes(STD), bytes(LIB), bytes(MOD));
+        let mut group = Group::link(
+            &Engine::default(),
+            &[
+                Member {
+                    name: "std",
+                    module: &std,
+                },
+                Member {
+                    name: "lib",
+                    module: &lib,
+                },
+                Member {
+                    name: "mod",
+                    module: &user,
+                },
+            ],
+        )
+        .unwrap();
+        // The static's initial 40, and the call's 2 + 3.
+        assert_eq!(call(&mut group, "mod", "run"), 45);
+        // Three bumps of one counter: the mod's own, the library's, and this one. Two copies of std
+        // would have counted separately.
+        assert_eq!(call(&mut group, "mod", "bumps"), 3);
+    })
 }
 
 #[test]
 fn an_import_no_earlier_member_has_is_refused_naming_the_member() {
-    let (std, user) = (bytes(STD), bytes(MOD));
-    let err = Group::link(
-        &Engine::default(),
-        &[
-            Member {
-                name: "std",
-                module: &std,
-            },
-            Member {
-                name: "mod",
-                module: &user,
-            },
-        ],
-    )
-    .err()
-    .unwrap();
-    assert_eq!(
-        err,
-        LinkError::Unresolved {
-            member: "mod".into(),
-            symbol: "env.lib_add".into()
-        }
-    );
+    crate::test_stack::on_guest_stack(|| {
+        let (std, user) = (bytes(STD), bytes(MOD));
+        let err = Group::link(
+            &Engine::default(),
+            &[
+                Member {
+                    name: "std",
+                    module: &std,
+                },
+                Member {
+                    name: "mod",
+                    module: &user,
+                },
+            ],
+        )
+        .err()
+        .unwrap();
+        assert_eq!(
+            err,
+            LinkError::Unresolved {
+                member: "mod".into(),
+                symbol: "env.lib_add".into()
+            }
+        );
+    })
 }
 
 #[test]
 fn two_members_exporting_one_name_are_refused() {
-    let std = bytes(STD);
-    let err = Group::link(
-        &Engine::default(),
-        &[
-            Member {
-                name: "std",
-                module: &std,
-            },
-            Member {
-                name: "again",
-                module: &std,
-            },
-        ],
-    )
-    .err()
-    .unwrap();
-    assert!(matches!(err, LinkError::Duplicate { ref symbol, .. } if symbol == "bump"));
+    crate::test_stack::on_guest_stack(|| {
+        let std = bytes(STD);
+        let err = Group::link(
+            &Engine::default(),
+            &[
+                Member {
+                    name: "std",
+                    module: &std,
+                },
+                Member {
+                    name: "again",
+                    module: &std,
+                },
+            ],
+        )
+        .err()
+        .unwrap();
+        assert!(matches!(err, LinkError::Duplicate { ref symbol, .. } if symbol == "bump"));
+    })
 }
 
 #[test]
 fn bytes_that_are_not_a_shared_module_are_refused_without_a_panic() {
-    let plain = bytes("(module)");
-    let engine = Engine::default();
-    let err = Group::link(
-        &engine,
-        &[Member {
-            name: "plain",
-            module: &plain,
-        }],
-    )
-    .err();
-    assert_eq!(
-        err,
-        Some(LinkError::NoDylink {
-            member: "plain".into()
-        })
-    );
-    for junk in [
-        &b""[..],
-        b"\0asm",
-        b"not wasm at all",
-        b"\0asm\x01\0\0\0\x00\x05\x04dyli",
-    ] {
-        assert!(
-            Group::link(
-                &engine,
-                &[Member {
-                    name: "junk",
-                    module: junk
-                }]
-            )
-            .is_err()
+    crate::test_stack::on_guest_stack(|| {
+        let plain = bytes("(module)");
+        let engine = Engine::default();
+        let err = Group::link(
+            &engine,
+            &[Member {
+                name: "plain",
+                module: &plain,
+            }],
+        )
+        .err();
+        assert_eq!(
+            err,
+            Some(LinkError::NoDylink {
+                member: "plain".into()
+            })
         );
-    }
-    // A member that asks for more memory than a group has.
-    let huge = bytes(
-        r#"(module (@custom "dylink.0" "\01\08\ff\ff\ff\ff\0f\02\00\00") (import "env" "memory" (memory 1)))"#,
-    );
-    let err = Group::link(
-        &engine,
-        &[Member {
-            name: "huge",
-            module: &huge,
-        }],
-    )
-    .err();
-    assert_eq!(
-        err,
-        Some(LinkError::TooLarge {
-            member: "huge".into()
-        })
-    );
+        for junk in [
+            &b""[..],
+            b"\0asm",
+            b"not wasm at all",
+            b"\0asm\x01\0\0\0\x00\x05\x04dyli",
+        ] {
+            assert!(
+                Group::link(
+                    &engine,
+                    &[Member {
+                        name: "junk",
+                        module: junk
+                    }]
+                )
+                .is_err()
+            );
+        }
+        // A member that asks for more memory than a group has.
+        let huge = bytes(
+            r#"(module (@custom "dylink.0" "\01\08\ff\ff\ff\ff\0f\02\00\00") (import "env" "memory" (memory 1)))"#,
+        );
+        let err = Group::link(
+            &engine,
+            &[Member {
+                name: "huge",
+                module: &huge,
+            }],
+        )
+        .err();
+        assert_eq!(
+            err,
+            Some(LinkError::TooLarge {
+                member: "huge".into()
+            })
+        );
+    })
 }
 
 const SELF_GOT: &str = r#"(module
@@ -202,28 +210,49 @@ const SELF_GOT: &str = r#"(module
 
 #[test]
 fn self_got_function_and_data_relocations_are_ready_before_constructors() {
-    let module = bytes(SELF_GOT);
-    let mut group = Group::link(
-        &Engine::default(),
-        &[Member {
-            name: "self",
-            module: &module,
-        }],
-    )
-    .unwrap();
-    assert_eq!(call(&mut group, "self", "run"), 42);
+    crate::test_stack::on_guest_stack(|| {
+        let module = bytes(SELF_GOT);
+        let mut group = Group::link(
+            &Engine::default(),
+            &[Member {
+                name: "self",
+                module: &module,
+            }],
+        )
+        .unwrap();
+        assert_eq!(call(&mut group, "self", "run"), 42);
+    })
 }
 
 #[test]
 fn self_got_requires_an_actual_export_of_the_right_kind() {
-    for source in [
-        SELF_GOT.replace("(export \"answer\")", ""),
-        SELF_GOT.replace(
-            "(func $answer (export \"answer\")",
-            "(global (export \"answer\") i32 (i32.const 0)) (func $answer",
-        ),
-    ] {
-        let module = bytes(&source);
+    crate::test_stack::on_guest_stack(|| {
+        for source in [
+            SELF_GOT.replace("(export \"answer\")", ""),
+            SELF_GOT.replace(
+                "(func $answer (export \"answer\")",
+                "(global (export \"answer\") i32 (i32.const 0)) (func $answer",
+            ),
+        ] {
+            let module = bytes(&source);
+            let error = Group::link(
+                &Engine::default(),
+                &[Member {
+                    name: "self",
+                    module: &module,
+                }],
+            )
+            .err()
+            .unwrap();
+            assert_eq!(
+                error,
+                LinkError::Unresolved {
+                    member: "self".into(),
+                    symbol: "GOT.func.answer".into()
+                }
+            );
+        }
+        let module = bytes(&SELF_GOT.replace("(global (export \"SELF_DATA\")", "(global"));
         let error = Group::link(
             &Engine::default(),
             &[Member {
@@ -237,107 +266,101 @@ fn self_got_requires_an_actual_export_of_the_right_kind() {
             error,
             LinkError::Unresolved {
                 member: "self".into(),
-                symbol: "GOT.func.answer".into()
+                symbol: "GOT.mem.SELF_DATA".into()
             }
         );
-    }
-    let module = bytes(&SELF_GOT.replace("(global (export \"SELF_DATA\")", "(global"));
-    let error = Group::link(
-        &Engine::default(),
-        &[Member {
-            name: "self",
-            module: &module,
-        }],
-    )
-    .err()
-    .unwrap();
-    assert_eq!(
-        error,
-        LinkError::Unresolved {
-            member: "self".into(),
-            symbol: "GOT.mem.SELF_DATA".into()
-        }
-    );
+    })
 }
 
 #[test]
 fn self_got_does_not_allow_a_start_function_to_observe_unrelocated_state() {
-    let module = bytes(&SELF_GOT.replace("(func $ctor", "(start $ctor) (func $ctor"));
-    let error = Group::link(
-        &Engine::default(),
-        &[Member {
-            name: "self",
-            module: &module,
-        }],
-    )
-    .err()
-    .unwrap();
-    assert!(matches!(error, LinkError::Malformed { member, .. } if member == "self"));
+    crate::test_stack::on_guest_stack(|| {
+        let module = bytes(&SELF_GOT.replace("(func $ctor", "(start $ctor) (func $ctor"));
+        let error = Group::link(
+            &Engine::default(),
+            &[Member {
+                name: "self",
+                module: &module,
+            }],
+        )
+        .err()
+        .unwrap();
+        assert!(matches!(error, LinkError::Malformed { member, .. } if member == "self"));
+    })
 }
 
 #[test]
 fn self_got_delayed_start_runs_after_relocation_and_before_constructors() {
-    let source = SELF_GOT.replace("(func $ctor",
+    crate::test_stack::on_guest_stack(|| {
+        let source = SELF_GOT.replace("(func $ctor",
         "(func (export \"__wasm_start\") (i32.store (global.get $data) (i32.const 50))) (func $ctor");
-    let module = bytes(&source);
-    let mut group = Group::link(
-        &Engine::default(),
-        &[Member {
-            name: "self",
-            module: &module,
-        }],
-    )
-    .unwrap();
-    assert_eq!(call(&mut group, "self", "run"), 52);
+        let module = bytes(&source);
+        let mut group = Group::link(
+            &Engine::default(),
+            &[Member {
+                name: "self",
+                module: &module,
+            }],
+        )
+        .unwrap();
+        assert_eq!(call(&mut group, "self", "run"), 52);
+    })
 }
 
 #[test]
 fn self_got_private_helpers_and_data_belong_to_each_member() {
-    let source = SELF_GOT.replacen("(type $get", "(@custom \"horizon.private\" \"[\\22answer\\22,\\22SELF_DATA\\22,\\22run\\22]\") (type $get", 1);
-    let first = bytes(&source);
-    let second = bytes(&source.replace("(i32.const 2))", "(i32.const 3))"));
-    let mut group = Group::link(
-        &Engine::default(),
-        &[
-            Member {
-                name: "first",
-                module: &first,
-            },
-            Member {
-                name: "second",
-                module: &second,
-            },
-        ],
-    )
-    .unwrap();
-    assert_eq!(call(&mut group, "first", "run"), 42);
-    assert_eq!(call(&mut group, "second", "run"), 43);
+    crate::test_stack::on_guest_stack(|| {
+        let source = SELF_GOT.replacen("(type $get", "(@custom \"horizon.private\" \"[\\22answer\\22,\\22SELF_DATA\\22,\\22run\\22]\") (type $get", 1);
+        let first = bytes(&source);
+        let second = bytes(&source.replace("(i32.const 2))", "(i32.const 3))"));
+        let mut group = Group::link(
+            &Engine::default(),
+            &[
+                Member {
+                    name: "first",
+                    module: &first,
+                },
+                Member {
+                    name: "second",
+                    module: &second,
+                },
+            ],
+        )
+        .unwrap();
+        assert_eq!(call(&mut group, "first", "run"), 42);
+        assert_eq!(call(&mut group, "second", "run"), 43);
+    })
 }
 
 #[test]
 fn self_got_private_function_does_not_bind_an_earlier_public_function() {
-    let first = bytes(&SELF_GOT.replacen(
-        "(type $get",
-        r#"(@custom "horizon.private" "[\22SELF_DATA\22,\22run\22]") (type $get"#,
-        1,
-    ));
-    let second = bytes(&SELF_GOT.replacen("(type $get",
+    crate::test_stack::on_guest_stack(|| {
+        let first = bytes(&SELF_GOT.replacen(
+            "(type $get",
+            r#"(@custom "horizon.private" "[\22SELF_DATA\22,\22run\22]") (type $get"#,
+            1,
+        ));
+        let second = bytes(&SELF_GOT.replacen("(type $get",
         r#"(@custom "horizon.private" "[\22answer\22,\22SELF_DATA\22,\22run\22]") (type $get"#, 1)
         .replace("(i32.const 2))", "(i32.const 3))"));
-    let mut group = Group::link(
-        &Engine::default(),
-        &[
-            Member {
-                name: "first",
-                module: &first,
-            },
-            Member {
-                name: "second",
-                module: &second,
-            },
-        ],
-    )
-    .unwrap();
-    assert_eq!(call(&mut group, "first", "run"), 42);
-    assert_eq!(call(&mut group, "second", "run"), 43);
+        let mut group = Group::link(
+            &Engine::default(),
+            &[
+                Member {
+                    name: "first",
+                    module: &first,
+                },
+                Member {
+                    name: "second",
+                    module: &second,
+                },
+            ],
+        )
+        .unwrap();
+        assert_eq!(call(&mut group, "first", "run"), 42);
+        assert_eq!(call(&mut group, "second", "run"), 43);
+    })
 }
+
+#[path = "../src/test_stack.rs"]
+mod test_stack;

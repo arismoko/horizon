@@ -701,7 +701,7 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn recipe_for_dispatches_cooking_and_stonecutting_and_pack_recipes() {
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             with_game(|game| {
                 let level = game.level(game.dim.id()).unwrap();
                 let kind = |name| mod_api::Identifier::parse(name).unwrap();
@@ -803,7 +803,7 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn recipe_for_preserves_smithing_order_and_damage() {
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             with_game(|game| {
                 let level = game.level(game.dim.id()).unwrap();
                 let kind = |name| mod_api::Identifier::parse(name).unwrap();
@@ -855,7 +855,7 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn recipe_for_refuses_mod_owned_types_instead_of_empty_matches() {
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             with_game(|game| {
                 let level = game.level(game.dim.id()).unwrap();
                 let kind = mod_api::Identifier::parse("test:crusher").unwrap();

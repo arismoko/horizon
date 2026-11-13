@@ -10,7 +10,7 @@ fn item_part_results_control_real_server_and_client_use() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         for client in [false, true] {
             with_interaction_game(client, |game| {
                 for guest in [false, true] {
@@ -57,7 +57,7 @@ fn failed_item_part_still_tries_the_off_hand() {
     let mods: mod_api::Mods =
         vec![mod_api::ModEntry::new("failed", Box::new(observer.clone()))].into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         for client in [false, true] {
             with_interaction_game(client, |game| {
                 *observer.0.lock().unwrap() = Controls {
@@ -95,7 +95,7 @@ fn failed_item_part_still_tries_the_off_hand() {
 #[test]
 #[ignore = "requires prepared game resources"]
 fn default_part_answer_preserves_vanilla_shield_use() {
-    mod_api::testing::with_mods(Vec::<mod_api::ModEntry>::new().into(), || {
+    mod_platform::testing::with_mods(Vec::<mod_api::ModEntry>::new().into(), || {
         for client in [false, true] {
             with_interaction_game(client, |game| {
                 game.inventory[game.selected] = Some(ItemStack::new("minecraft:shield", 1));

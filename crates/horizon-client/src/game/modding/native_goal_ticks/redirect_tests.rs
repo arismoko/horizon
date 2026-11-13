@@ -31,7 +31,7 @@ fn redirect_to_another_guest_switches_view_and_tags_subsequent_events() {
         Box::new(Redirect(redirect.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             use crate::game::native_item_places::tests::{guest, open_to_lan};
 

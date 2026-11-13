@@ -48,7 +48,7 @@ fn the_item_phase_criterion_sees_the_stack_from_before_the_block_phase() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(false, |game| {
             install_criteria(game, &[1, 2], "minecraft:stick");
             let registry = game.pack.assets.registry;
@@ -89,7 +89,7 @@ fn compass_criterion_sees_two_compasses_before_the_block_takes_one() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(false, |game| {
             install_criteria(game, &[1, 2], "minecraft:compass");
             let registry = game.pack.assets.registry;

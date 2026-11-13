@@ -155,6 +155,10 @@ impl Outbox {
             worker: worker.clone(),
         }))
     }
+    /// The packets queued and not taken by the thread yet.
+    pub(super) fn queued(&self) -> usize {
+        self.queue().bodies.len()
+    }
     fn queue(&self) -> MutexGuard<'_, Queue> {
         self.queue.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -322,9 +326,8 @@ fn start(threads: usize) -> std::io::Result<Pool> {
             load: AtomicUsize::new(0),
         });
         let mine = worker.clone();
-        std::thread::Builder::new()
-            .name(format!("horizon-net-{n}"))
-            .spawn(move || run(poll, &mine))?;
+        // Payload handlers of wasm mods run on these threads (the server's network root).
+        horizon_guest_stack::spawn(format!("horizon-net-{n}"), move || run(poll, &mine))?;
         workers.push(worker);
     }
     Ok(Pool { workers })

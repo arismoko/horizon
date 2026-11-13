@@ -4,16 +4,10 @@
 use crate::{native_load_context::WorldgenContext, registry::BlockStateId};
 use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
-/// What a mod's ground provider reads while the tree decorator asks it for
-/// one ground position: the region being decorated, the decorator's own random
-/// (vanilla's `TreeDecorator.Context.random()`, so draws keep vanilla's order)
-/// and the decorator's own provider.
-pub trait GroundAccess {
-    /// The block at `pos` in the region being decorated.
-    fn block_state(&mut self, pos: [i32; 3]) -> BlockStateId;
-    /// The decorator's own provider at `pos` (`BlockStateProvider.getOptionalState`),
-    /// drawing from the same random: None where it places nothing.
-    fn decorator_state(&mut self, pos: [i32; 3]) -> Option<BlockStateId>;
+/// The random of the feature that asks a mod, as the mod draws from it: its
+/// draws fall between the feature's own, in call order, so the same seed gives
+/// the same world.
+pub trait WorldgenRandom {
     /// `nextInt(bound)`; 0 for a bound below 1.
     fn next_int_bound(&mut self, bound: i32) -> i32;
     /// `nextLong`.
@@ -24,6 +18,27 @@ pub trait GroundAccess {
     fn next_double(&mut self) -> f64;
     /// `nextBoolean`.
     fn next_boolean(&mut self) -> bool;
+}
+
+/// What a mod's ground provider reads while the tree decorator asks it for
+/// one ground position: the region being decorated, the decorator's own random
+/// (vanilla's `TreeDecorator.Context.random()`, so draws keep vanilla's order)
+/// and the decorator's own provider.
+pub trait GroundAccess: WorldgenRandom {
+    /// The block at `pos` in the region being decorated.
+    fn block_state(&mut self, pos: [i32; 3]) -> BlockStateId;
+    /// The decorator's own provider at `pos` (`BlockStateProvider.getOptionalState`),
+    /// drawing from the same random: None where it places nothing.
+    fn decorator_state(&mut self, pos: [i32; 3]) -> Option<BlockStateId>;
+}
+
+/// What the `on_tree_grow` parts read while a trunk placer asks them for the
+/// block under its trunk: the region the tree grows in and the tree's own random
+/// (`TrunkPlacer.placeBelowTrunkBlock`'s).
+pub trait TreeGrowAccess: WorldgenRandom {
+    /// The block at `pos` in the region the tree grows in; None where it cannot
+    /// be read, an error the trunk placer reports once the parts answered.
+    fn block_state(&mut self, pos: [i32; 3]) -> Option<BlockStateId>;
 }
 
 /// A ground provider a mod put in place of the tree decorator's own, as the
@@ -50,6 +65,15 @@ pub struct AlterGroundTree<'a> {
 pub struct NativeWorldgenHooks {
     /// `alter_ground`: leaves `provider` None to keep the decorator's own.
     pub alter_ground: fn(&AlterGroundTree<'_>, &mut Option<Arc<dyn ModGroundProvider>>),
+    /// `on_tree_grow`: the block the parts place under a growing trunk at `pos`,
+    /// `Some(None)` for none, or None to leave it to the tree's own
+    /// `below_trunk_provider`.
+    #[allow(clippy::option_option)]
+    pub on_tree_grow: fn(&mut dyn TreeGrowAccess, [i32; 3]) -> Option<Option<BlockStateId>>,
+    /// Runs one feature, whose Part lookups read the tables the server published
+    /// when it started: a feature that started before a `/reload` finishes with
+    /// the tables it started with.
+    pub feature: fn(&mut dyn FnMut()),
 }
 
 static HOOKS: OnceLock<NativeWorldgenHooks> = OnceLock::new();
@@ -82,4 +106,30 @@ pub(crate) fn alter_ground(tree: &AlterGroundTree<'_>) -> Option<Arc<dyn ModGrou
     let mut provider = None;
     (hooks.alter_ground)(tree, &mut provider);
     provider
+}
+
+/// The block the parts of the block at `pos` place under a growing trunk:
+/// `Some(None)` for none, or None to leave it to the tree's own provider.
+#[allow(clippy::option_option)]
+pub(crate) fn on_tree_grow(
+    access: &mut dyn TreeGrowAccess,
+    pos: [i32; 3],
+) -> Option<Option<BlockStateId>> {
+    (HOOKS.get()?.on_tree_grow)(access, pos)
+}
+
+/// Run one feature with the Part tables published when it started.
+pub(crate) fn feature<T>(place: impl FnOnce() -> T) -> T {
+    let Some(hooks) = HOOKS.get() else {
+        return place();
+    };
+    let mut place = Some(place);
+    let mut placed = None;
+    (hooks.feature)(&mut || placed = place.take().map(|place| place()));
+    match (placed, place) {
+        (Some(placed), _) => placed,
+        // The callback did not run it: run it here, with the tables at hand.
+        (None, Some(place)) => place(),
+        (None, None) => unreachable!("a feature that ran has a result"),
+    }
 }

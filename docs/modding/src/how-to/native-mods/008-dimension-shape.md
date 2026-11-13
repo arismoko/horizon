@@ -82,7 +82,7 @@ The level's biomes are the one `biome` everywhere unless `biome_source` says oth
 erosion, depth and weirdness, and an `offset` from 0 to 1. The biome whose point is nearest to the level's
 climate at a position wins, as in a data pack's `minecraft:multi_noise` source with an inline `biomes` list;
 the biomes can be the mod's own or vanilla's. A mod's points shape its own level only: placing a mod's biomes
-among vanilla's in the Overworld or the Nether is a separate design (#2554). Only `Fixed` suits a chunk
+among vanilla's in the Overworld or the Nether is a [biome region](../biome-regions.md). Only `Fixed` suits a chunk
 generator of the mod's own, which writes terrain only.
 
 A dimension in another mod's namespace, an empty name, a name that is not a folder of the world

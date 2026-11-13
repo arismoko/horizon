@@ -639,6 +639,7 @@ impl Game<'_> {
         if self.dimension_type().has_ender_dragon_fight {
             self.ensure_exit_portal()?;
         }
+        self.entity_sections_stepped(super::entity_sections::Family::Dragon);
         Ok(())
     }
 
@@ -1346,6 +1347,8 @@ impl Game<'_> {
             let next = eye.position + eye.velocity;
             eye.velocity = EyeOfEnder::update_delta(eye.velocity, next, eye.target);
             eye.position = next;
+            // Its move is filed at once (told with the dragon's step), also for one about to go.
+            self.entity_section_step(eye.id, eye.previous.to_array(), next.to_array());
             eye.life += 1;
             if eye.life <= 80 {
                 return true;

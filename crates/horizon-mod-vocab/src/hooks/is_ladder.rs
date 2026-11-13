@@ -9,7 +9,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "horizon_client_lib::motion::native_is_ladder",
+        target = "horizon_client_lib::motion::surface::native_is_ladder",
         neoforge = "IBlockExtension.isLadder"
     )]
     fn is_ladder();

@@ -4,12 +4,15 @@
 
 use quote::ToTokens;
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
 use syn::{Item, Type};
 
 /// A source file of the game's crates, with its module path and the `cfg`s it is compiled under.
+#[derive(Clone)]
 pub(crate) struct GameFile {
     pub(crate) module: String,
     pub(crate) path: PathBuf,
@@ -46,6 +49,46 @@ type Pending = (String, PathBuf, PathBuf, Vec<String>);
 /// compiles); without, it is kept with its conditions (the internals, listed with the builds they
 /// exist in). Test-only modules are always left out, including files gated by inner attributes.
 pub(crate) fn module_files(
+    module: String,
+    path: PathBuf,
+    dir: PathBuf,
+    every_build: bool,
+) -> Result<Vec<GameFile>, String> {
+    let key = (module.clone(), path.clone(), dir.clone(), every_build);
+    if let Some(files) = WALKS.with(|walks| walks.borrow().as_ref()?.get(&key).cloned()) {
+        return Ok(files);
+    }
+    let files = walk_module_files(module, path, dir, every_build)?;
+    WALKS.with(|walks| {
+        if let Some(walks) = walks.borrow_mut().as_mut() {
+            walks.insert(key, files.clone());
+        }
+    });
+    Ok(files)
+}
+
+type WalkKey = (String, PathBuf, PathBuf, bool);
+
+thread_local! {
+    static WALKS: RefCell<Option<HashMap<WalkKey, Vec<GameFile>>>> = const { RefCell::new(None) };
+}
+
+/// Runs `run` with [`module_files`] remembering each walk, for one generation whose sources don't
+/// change while it runs (a build script's): it walks and parses the same module trees several
+/// times, once to list what to track and again to read them. Never around a pass that edits the
+/// files it walks, such as staging.
+pub(crate) fn with_walk_cache<T>(run: impl FnOnce() -> T) -> T {
+    struct Reset(Option<HashMap<WalkKey, Vec<GameFile>>>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            WALKS.with(|walks| *walks.borrow_mut() = self.0.take());
+        }
+    }
+    let _reset = Reset(WALKS.with(|walks| walks.replace(Some(HashMap::new()))));
+    run()
+}
+
+fn walk_module_files(
     module: String,
     path: PathBuf,
     dir: PathBuf,
@@ -342,6 +385,30 @@ mod tests {
         // Every build compiles neither, so the point walk leaves the module out.
         let every = module_files("k".into(), src.join("lib.rs"), src, true).unwrap();
         assert_eq!(every.len(), 1);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Inside one generation a walk is read once; outside it, every walk reads the tree again.
+    #[test]
+    fn a_generation_reuses_its_module_walks_and_only_inside_its_scope() {
+        let dir = std::env::temp_dir().join(format!("points-walk-cache-{}", std::process::id()));
+        let src = dir.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("lib.rs"), "mod a;\n").unwrap();
+        std::fs::write(src.join("a.rs"), "pub fn a() {}").unwrap();
+        let modules = |files: Vec<GameFile>| {
+            let mut modules: Vec<_> = files.into_iter().map(|file| file.module).collect();
+            modules.sort();
+            modules
+        };
+        let walk = || module_files("k".into(), src.join("lib.rs"), src.clone(), true).unwrap();
+        with_walk_cache(|| {
+            assert_eq!(modules(walk()), ["k", "k::a"]);
+            // The tree is read once: an edit during the generation is not seen.
+            std::fs::write(src.join("lib.rs"), "").unwrap();
+            assert_eq!(modules(walk()), ["k", "k::a"]);
+        });
+        assert_eq!(modules(walk()), ["k"]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

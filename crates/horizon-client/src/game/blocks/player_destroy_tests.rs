@@ -58,7 +58,7 @@ fn dropped(game: &Game<'_>, item: &str) -> u32 {
 fn a_block_part_decides_whether_a_player_breaking_a_block_destroyed_it() {
     // The fixture's parts: snow loses one layer per break and stays, down to the last, which
     // vanilla removes; glass is removed by its part, which answers that it was destroyed.
-    mod_api::__private::part_tests::destroyed_by_player_game_thread();
+    mod_platform::__private::part_tests::destroyed_by_player_game_thread();
     with_game(|game| {
         let scratch = breaking_player(game);
         let registry = game.pack.assets.registry;
@@ -87,7 +87,7 @@ fn a_block_part_decides_whether_a_player_breaking_a_block_destroyed_it() {
         // snowballs are the only ones.
         assert_eq!(dropped(game, "minecraft:snowball"), 2);
         assert_eq!(
-            mod_api::__private::part_tests::take_destroys(),
+            mod_platform::__private::part_tests::take_destroys(),
             vec![(false, 0); 3]
         );
 
@@ -97,7 +97,7 @@ fn a_block_part_decides_whether_a_player_breaking_a_block_destroyed_it() {
         assert_eq!(at(game), air);
         // Glass needs no tool, so a bare hand harvests it.
         assert_eq!(
-            mod_api::__private::part_tests::take_destroys(),
+            mod_platform::__private::part_tests::take_destroys(),
             vec![(true, 0)]
         );
 
@@ -107,7 +107,7 @@ fn a_block_part_decides_whether_a_player_breaking_a_block_destroyed_it() {
         game.break_block(POS).unwrap();
         assert_eq!(at(game), air);
         assert_eq!(dropped(game, "minecraft:dirt"), 1);
-        assert_eq!(mod_api::__private::part_tests::take_destroys(), vec![]);
+        assert_eq!(mod_platform::__private::part_tests::take_destroys(), vec![]);
         std::fs::remove_dir_all(scratch).unwrap();
     });
 }
@@ -116,7 +116,7 @@ fn a_block_part_decides_whether_a_player_breaking_a_block_destroyed_it() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_part_keeping_the_block_replaces_player_will_destroy_in_creative() {
     // The fixture's parts keep a shulker box and a tripwire (`Some(false)`).
-    mod_api::__private::part_tests::destroyed_by_player_game_thread();
+    mod_platform::__private::part_tests::destroyed_by_player_game_thread();
     with_game(|game| {
         let scratch = breaking_player(game);
         assert!(game.run_command("gamemode creative"));
@@ -154,7 +154,7 @@ fn a_part_keeping_the_block_replaces_player_will_destroy_in_creative() {
         assert_eq!(at(game), tripwire);
         // Creative never harvests; the shears are the tool.
         assert_eq!(
-            mod_api::__private::part_tests::take_destroys(),
+            mod_platform::__private::part_tests::take_destroys(),
             vec![(false, 0), (false, 1)]
         );
         std::fs::remove_dir_all(scratch).unwrap();
@@ -166,7 +166,7 @@ fn a_part_keeping_the_block_replaces_player_will_destroy_in_creative() {
 fn the_parts_answer_decides_the_tool_wear_and_the_statistics() {
     // The fixture's parts: snow of two layers or more loses one and stays (`Some(false)`), glass
     // is removed by its part (`Some(true)`), dirt has none.
-    mod_api::__private::part_tests::destroyed_by_player_game_thread();
+    mod_platform::__private::part_tests::destroyed_by_player_game_thread();
     with_game(|game| {
         let scratch = breaking_player(game);
         let registry = game.pack.assets.registry;
@@ -204,7 +204,7 @@ fn the_parts_answer_decides_the_tool_wear_and_the_statistics() {
         }
         // The shovel harvests snow, the pickaxe glass; dirt has no part to ask.
         assert_eq!(
-            mod_api::__private::part_tests::take_destroys(),
+            mod_platform::__private::part_tests::take_destroys(),
             vec![(true, 1), (true, 1)]
         );
         std::fs::remove_dir_all(scratch).unwrap();
@@ -218,7 +218,7 @@ fn the_mods_harvest_answer_is_read_once_after_the_removal() {
     // is read, and leaves the removal to vanilla. The harvest is read once, after
     // playerWillDestroy and the removal; the part is told `will_harvest` from the tool alone
     // before it.
-    mod_api::__private::part_tests::destroyed_by_player_game_thread();
+    mod_platform::__private::part_tests::destroyed_by_player_game_thread();
     with_game(|game| {
         let scratch = breaking_player(game);
         let air = game
@@ -235,12 +235,12 @@ fn the_mods_harvest_answer_is_read_once_after_the_removal() {
             game.break_block(POS).unwrap();
             assert_eq!(at(game), air, "{tool:?}: vanilla's removal");
             assert_eq!(
-                mod_api::__private::part_tests::take_harvest_reads(),
+                mod_platform::__private::part_tests::take_harvest_reads(),
                 vec![false],
                 "{tool:?}: one harvest read, after the removal"
             );
             assert_eq!(
-                mod_api::__private::part_tests::take_destroys(),
+                mod_platform::__private::part_tests::take_destroys(),
                 vec![(harvests, u32::from(tool.is_some()))],
                 "{tool:?}"
             );
@@ -259,14 +259,14 @@ fn the_mods_harvest_answer_is_read_once_after_the_removal() {
 fn a_pots_harvest_listener_runs_once_and_sees_it_cracked() {
     // playerWillDestroy cracks a pot broken with a pickaxe before the removal, and the harvest is
     // asked of that adjusted state, once.
-    mod_api::__private::part_tests::destroyed_by_player_game_thread();
+    mod_platform::__private::part_tests::destroyed_by_player_game_thread();
     with_game(|game| {
         let scratch = breaking_player(game);
         place(game, "minecraft:decorated_pot");
         *game.held_mut() = Some(ItemStack::new("minecraft:iron_pickaxe", 1));
         game.break_block(POS).unwrap();
         assert_eq!(
-            mod_api::__private::part_tests::take_pot_harvest_reads(),
+            mod_platform::__private::part_tests::take_pot_harvest_reads(),
             vec![true],
             "one harvest read, of the cracked pot"
         );
@@ -277,7 +277,7 @@ fn a_pots_harvest_listener_runs_once_and_sees_it_cracked() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn denied_ice_does_not_melt_above_solid_ground() {
-    mod_api::__private::part_tests::destroyed_by_player_game_thread();
+    mod_platform::__private::part_tests::destroyed_by_player_game_thread();
     with_game(|game| {
         let scratch = breaking_player(game);
         let stone = game

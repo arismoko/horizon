@@ -7,6 +7,7 @@
 //! network pays nothing.
 pub mod abilities;
 mod advancements;
+pub mod announced_channels;
 pub mod config_payloads;
 pub use advancements::ServerAdvancements;
 pub mod anticheat;
@@ -25,6 +26,7 @@ pub mod containers;
 pub mod data;
 pub mod discovery;
 pub mod entity;
+pub mod equipment_cache;
 pub mod far;
 pub mod forwarding;
 pub mod guest;
@@ -835,15 +837,14 @@ impl Lan {
     pub fn connect_local(&self) -> io::Result<horizon_protocol::connection::Pipe> {
         let (client, server) = horizon_protocol::connection::Pipe::pair();
         let shared = self.shared.clone();
-        std::thread::Builder::new()
-            .name("horizon-local-conn".into())
-            .spawn(move || {
-                if let Err(e) = conn::serve_local(server, shared)
-                    && std::env::var_os("HORIZON_NET_DEBUG").is_some()
-                {
-                    log::warn!("[lan] local: {e}");
-                }
-            })?;
+        // Configuration payload handlers of wasm mods run on this thread.
+        horizon_guest_stack::spawn("horizon-local-conn".into(), move || {
+            if let Err(e) = conn::serve_local(server, shared)
+                && std::env::var_os("HORIZON_NET_DEBUG").is_some()
+            {
+                log::warn!("[lan] local: {e}");
+            }
+        })?;
         Ok(client)
     }
     /// Everything the connection threads reported since the last call.
@@ -1057,12 +1058,11 @@ fn accept_loop(listener: TcpListener, shared: Arc<Shared>, stop: &AtomicBool) {
                     continue;
                 };
                 shared.wait(&counted, &stream);
-                let _ = std::thread::Builder::new()
-                    .name("horizon-lan-conn".into())
-                    .spawn(move || {
-                        WAITING.set(Some(counted.2));
-                        handle(stream, addr, counted);
-                    });
+                // Configuration payload handlers of wasm mods run on this thread.
+                let _ = horizon_guest_stack::spawn("horizon-lan-conn".into(), move || {
+                    WAITING.set(Some(counted.2));
+                    handle(stream, addr, counted);
+                });
             }
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                 std::thread::sleep(Duration::from_millis(25));

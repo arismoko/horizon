@@ -1299,13 +1299,15 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             return b.default_of(b.named.soul_fire);
         }
         let fire = b.default_of(b.named.fire);
-        if !self.can_burn(below_state) && !b.is_face_sturdy(below_state, Direction::Up) {
+        if !self.can_burn(below_state, below_pos, Direction::Up)
+            && !b.is_face_sturdy(below_state, Direction::Up)
+        {
             let mut result = fire;
             for direction in Direction::ALL {
                 if direction == Direction::Down {
                     continue;
                 }
-                let burn = self.can_burn(self.rel_state(pos, direction));
+                let burn = self.neighbour_can_burn(pos, direction);
                 result = b
                     .table
                     .set_bool(result, self.direction_prop(direction), burn);

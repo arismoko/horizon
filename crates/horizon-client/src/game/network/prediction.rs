@@ -1,7 +1,6 @@
 //! The movement prediction's replay on the server (`lan::prediction`): each guest's client ticks
 //! played again with the client's own movement code, in the guest's level.
 use super::Game;
-use horizon_client::items::{ItemStack, Items};
 use horizon_client::lan::entity::EntityState;
 use horizon_client::lan::guest::Guest;
 use horizon_client::lan::prediction::{Replay, near, slack};
@@ -55,20 +54,17 @@ impl Game<'_> {
                 // A teleport not yet accepted (a setback): the client still moves on its own until it
                 // hears it, and the replay follows, but nothing counts.
                 let waiting = g.awaiting_teleport.is_some();
-                // The server's copy of a guest doesn't follow its armor (Game.glider_worn).
-                let hand = |stack: Option<&horizon_client::items::ItemStack>, slot: &str| {
-                    stack.is_some_and(|s| {
-                        horizon_client::item_sync::can_glide_using(s, slot, self.res.items())
-                    })
-                };
-                let glider = super::gliding_pieces(self.res.items(), &g.armor).contains(&true)
-                    || hand(
-                        g.inventory.get(g.selected).and_then(Option::as_ref),
-                        "mainhand",
-                    )
-                    || hand(g.offhand.as_ref(), "offhand");
+                let glider = super::glide_wear::gliding_slots(
+                    self.res.items(),
+                    &g.armor,
+                    g.inventory.get(g.selected).and_then(Option::as_ref),
+                    g.offhand.as_ref(),
+                )
+                .next()
+                .is_some();
                 if let Some(motion) = g.motion.as_deref_mut() {
                     motion.glider = glider;
+                    motion.leather_boots = super::worn_boots::leather_boots(&g.armor);
                     motion.item_use_speed = item_use.map(|(speed, _)| speed);
                     motion.item_use_slows_sprint = item_use.is_some_and(|(_, slows)| slows);
                 }
@@ -207,21 +203,6 @@ fn entity_near(entities: &[EntityState], own: i32, at: [f64; 3], slack: f64) -> 
                 e.kind.as_str(),
                 "minecraft:item" | "minecraft:experience_orb"
             )
-    })
-}
-
-/// `LivingEntity.canGlideUsing`: for each worn piece (head, chest, legs,
-/// feet), whether it is a glider (its own component, or one the server
-/// patched onto the stack) in the slot its `equippable` names, and will not
-/// break with its next point of wear (`ItemStack.nextDamageWillBreak`).
-pub(super) fn gliding_pieces(items: &Items, armor: &[Option<ItemStack>; 4]) -> [bool; 4] {
-    const SLOTS: [&str; 4] = ["head", "chest", "legs", "feet"];
-    // `canGlideUsing`: the stack's own `glider` and `equippable` (its
-    // components, a server's patch), else its item's.
-    std::array::from_fn(|i| {
-        armor[i]
-            .as_ref()
-            .is_some_and(|s| horizon_client::item_sync::can_glide_using(s, SLOTS[i], items))
     })
 }
 

@@ -34,6 +34,18 @@ pub(super) fn chat_tree(
         None => horizon_client::command::vanilla::game_dispatcher(),
     }
 }
+/// The arguments of a typed `/profiler` the client answers itself: only when the chat tree's `profiler` is Horizon's, else the server or mod that owns the name runs it.
+fn horizon_profiler_args<'a>(
+    message: &'a str,
+    server_tree: Option<&horizon_client::command::Dispatcher>,
+) -> Option<&'a str> {
+    let args = message
+        .strip_prefix('/')
+        .and_then(super::profile_capture::profiler_args)?;
+    server_tree
+        .is_none_or(|tree| tree.has_horizon_profiler())
+        .then_some(args)
+}
 use winit::{
     event::KeyEvent,
     keyboard::{KeyCode, PhysicalKey},
@@ -181,7 +193,7 @@ impl Game<'_> {
             horizon_client::command::MOD_COMMAND,
             &arguments,
         );
-        with_studio_commands(&with_native_commands(&tree_with_mods, &["studio"]))
+        with_studio_commands(&with_native_commands(&tree_with_mods, &["studio"])).with_profiler()
     }
 }
 
@@ -491,6 +503,15 @@ fn overworld_timelines(root: &Path) -> (Vec<(String, Option<i64>)>, Vec<(String,
         }
     }
     (timelines, markers)
+}
+
+/// Whether `id` is one of `entity-types.json`'s entity types under `root`: vanilla's and the content
+/// mods' (read once per root, as the command registries read it).
+pub(in crate::game) fn is_entity_type(root: &Path, id: &str) -> bool {
+    resource_ids(root)
+        .entity_types
+        .binary_search_by(|t| t.as_str().cmp(id))
+        .is_ok()
 }
 
 fn resource_ids(root: &Path) -> Arc<ResourceIds> {
@@ -1362,6 +1383,12 @@ impl Game<'_> {
             return;
         }
         self.ui.chat.add_recent(&message);
+        if let Some(args) =
+            horizon_profiler_args(&message, self.remote.as_ref().map(|r| &r.chat_tree))
+        {
+            self.profiler_chat(args);
+            return;
+        }
         // On a server (single player's own included) the server runs it,
         // unless a client mod owns the command.
         if self.remote.is_some() {
@@ -1498,6 +1525,14 @@ impl Game<'_> {
                 }
             }
             Some(ClickEvent::RunCommand(command)) => self.click_command(&command),
+            Some(ClickEvent::Profiler(command)) => {
+                if let Some(args) = command
+                    .strip_prefix('/')
+                    .and_then(super::profile_capture::profiler_args)
+                {
+                    self.profiler_chat(args);
+                }
+            }
             // Screen.defaultHandleGameClickEvent: the dialog opens over the
             // screen, and closes back to it.
             Some(ClickEvent::ShowDialog(dialog)) => self.show_dialog_ref(&dialog),
@@ -2348,6 +2383,31 @@ const LINK_COPY: usize = 1;
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_typed_profiler_is_the_clients_unless_the_server_owns_the_name() {
+        let vanilla = horizon_client::command::vanilla::game_dispatcher();
+        let ours = vanilla.with_profiler();
+        assert_eq!(
+            super::horizon_profiler_args("/profiler share", Some(&ours)),
+            Some(" share")
+        );
+        assert_eq!(super::horizon_profiler_args("/profiler", None), Some(""));
+        assert_eq!(
+            super::horizon_profiler_args("/profilers", Some(&ours)),
+            None
+        );
+        let mut server = vanilla.clone();
+        let node = server.literal(0, "profiler");
+        server.executes(node, "server:profiler");
+        let theirs = server.with_profiler();
+        assert_eq!(
+            super::horizon_profiler_args("/profiler share", Some(&theirs)),
+            None
+        );
+    }
+
+    /// A mod's text reaches the chat box as typing would leave it: emoji and
+    /// accents stay, control characters, DEL and the section sign go.
     #[test]
     fn canceled_screenshot_keeps_a_custom_line_or_the_default_reason() {
         let custom = Text::literal("kept");

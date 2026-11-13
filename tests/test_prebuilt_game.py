@@ -214,9 +214,9 @@ class ExecutableLinkPolicyTests(unittest.TestCase):
             subprocess.run([compiler, "--edition=2024",
                             str(prebuilt_game.ROOT / "crates/horizon-client/build.rs"),
                             *externs, "-o", str(binary)], check=True)
-            for target_os, env, expected in [("windows", "msvc", ["/STACK:8388608"]),
-                                      ("windows", "gnu", ["-Wl,--stack,8388608"]),
-                                      ("linux", "gnu", []), ("macos", "", [])]:
+            for target_os, env, expected in [("windows", "msvc", ["/STACK:142606336"]),
+                                      ("windows", "gnu", ["-Wl,--stack,142606336"]),
+                                      ("linux", "gnu", []), ("macos", "", ["-Wl,-stack_size,0x8800000"])]:
                 with self.subTest(os=target_os, env=env):
                     output = root / "output"
                     output.write_text(subprocess.check_output([str(binary)], text=True, env={

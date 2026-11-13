@@ -91,6 +91,7 @@ pub fn parse_consumable(
         animation: crate::use_animation::consumable_animation(cons),
         sound: cons["sound"]
             .as_str()
+            .or_else(|| cons["sound"]["sound_id"].as_str())
             .unwrap_or("minecraft:entity.generic.eat")
             .to_owned(),
         particles: cons["has_consume_particles"].as_bool().unwrap_or(true),
@@ -188,7 +189,6 @@ pub fn parse_consume_effect(effect: &serde_json::Value) -> Option<ConsumeEffect>
 
 #[derive(Clone, Debug)]
 pub struct ItemInfo {
-    pub fire_resistant: bool,
     pub id: Arc<str>,
     pub max_stack: u32,
     pub max_damage: u32,
@@ -777,9 +777,11 @@ fn worn_mob_visibility(
         parse_mob_visibility(components.get("minecraft:mob_visibility")?, tags)?,
     ))
 }
-/// Every item of the last item registry loaded with its `villager_food`
-/// nutrition (0 without the component): what the mobs' villagers read, since
-/// a mob does not hold the registry (`None` until one is loaded).
+/// Every item of the last game registry loaded ([`Items::load`]) with its
+/// `villager_food` nutrition (0 without the component): what the mobs' villagers
+/// read, since a mob does not hold the registry (`None` until one is loaded).
+/// [`Items::catalog`] leaves it alone, so a headless or test catalog of other
+/// items never replaces the game's table.
 static VILLAGER_FOOD: std::sync::RwLock<Option<HashMap<Arc<str>, i32>>> =
     std::sync::RwLock::new(None);
 fn set_villager_food(items: &HashMap<Arc<str>, ItemInfo>) {
@@ -803,56 +805,6 @@ pub fn villager_food(item: &str) -> Option<i32> {
 }
 
 impl Items {
-    pub fn resists_fire(&self, stack: &ItemStack, source: &str) -> bool {
-        if let Some(data) = stack.data()
-            && let Some((_, v)) = data
-                .other
-                .iter()
-                .find(|(key, _)| key == "minecraft:damage_resistant")
-        {
-            return match v.get("types") {
-                Some(horizon_core::nbt::Tag::String(tag)) => {
-                    tag.to_string().is_ok_and(|id|id=="#minecraft:is_fire" || id==source)
-                }
-                Some(horizon_core::nbt::Tag::List(tags)) => tags.iter().any(
-                    |t| matches!(t,horizon_core::nbt::Tag::String(id) if id.to_string().is_ok_and(|id|id==source)),
-                ),
-                _ => false,
-            };
-        }
-        self.get(&stack.item).is_some_and(|i| i.fire_resistant)
-    }
-
-    /// `ItemStack.canBeHurtBy` for the cactus damage type: a `damage_resistant`
-    /// component naming `minecraft:cactus`, or a damage type tag that holds it.
-    /// (`#minecraft:is_fire`, as on netherite gear, does not.)
-    pub fn resists_cactus(&self, stack: &ItemStack) -> bool {
-        const CACTUS_TAGS: [&str; 5] = [
-            "#minecraft:bypasses_shield",
-            "#minecraft:no_knockback",
-            "#minecraft:panic_environmental_causes",
-            "#minecraft:panic_causes",
-            "#minecraft:sulfur_cube_with_block_immune_to",
-        ];
-        let Some((_, v)) = stack.data().and_then(|data| {
-            data.other
-                .iter()
-                .find(|(key, _)| key == "minecraft:damage_resistant")
-        }) else {
-            return false;
-        };
-        match v.get("types") {
-            Some(horizon_core::nbt::Tag::String(id)) => id
-                .to_string()
-                .is_ok_and(|id| id == "minecraft:cactus" || CACTUS_TAGS.contains(&id.as_str())),
-            Some(horizon_core::nbt::Tag::List(ids)) => ids.iter().any(|t| {
-                matches!(t, horizon_core::nbt::Tag::String(id)
-                    if id.to_string().is_ok_and(|id| id == "minecraft:cactus"))
-            }),
-            _ => false,
-        }
-    }
-
     pub fn load(
         root: &Path,
         registry: &BlockRegistry,
@@ -904,6 +856,7 @@ impl Items {
             }
         }
         let mut items = Self::load_with(root, &block_for_item, overlay, defaults)?;
+        set_villager_food(&items.items);
         let path = root.join(MOD_ITEM_BLOCKS);
         match fs::read(&path) {
             Ok(bytes) => {
@@ -1004,8 +957,6 @@ impl Items {
             items.insert(
                 id.clone(),
                 ItemInfo {
-                    fire_resistant: c["minecraft:damage_resistant"]["types"].as_str()
-                        == Some("#minecraft:is_fire"),
                     id: id.clone(),
                     max_stack: c["minecraft:max_stack_size"].as_u64().unwrap_or(64) as u32,
                     max_damage: c["minecraft:max_damage"].as_u64().unwrap_or(0) as u32,
@@ -1170,7 +1121,6 @@ impl Items {
         // game's own: one map with the loot data of the same root and packs.
         let loot = horizon_world::loot::shared_tables(root, overlay)?;
         let registry_order = registry_order(root, &order);
-        set_villager_food(&items);
         Ok(Self {
             items,
             mob_visibility,
@@ -2524,7 +2474,8 @@ impl<R: RandomSource> LootContext<'_, R> {
                     } else {
                         0
                     };
-                    stack.count = (base + n).max(0) as u32;
+                    let total = base.saturating_add(n).max(0);
+                    stack.count = total as u32;
                 }
                 // SetItemDamageFunction.run: check damageability before the
                 // float provider, so ineligible stacks do not draw randomness.
@@ -2569,7 +2520,7 @@ impl<R: RandomSource> LootContext<'_, R> {
                         }
                         "minecraft:uniform_bonus_count" => {
                             let multiplier = params["bonusMultiplier"].as_i64().unwrap_or(1) as i32;
-                            let bound = multiplier.saturating_mul(level).saturating_add(1);
+                            let bound = multiplier.saturating_mul(level).saturating_add(1).max(1);
                             count.saturating_add(random.next_int_bound(bound).unwrap_or(0))
                         }
                         "minecraft:binomial_with_bonus_count" => {
@@ -2649,7 +2600,7 @@ impl<R: RandomSource> LootContext<'_, R> {
                     let cost = Self::int_number(&f["levels"], random);
                     let e = &self.items.enchantments;
                     let pool = Self::enchant_pool(e, &f["options"]);
-                    let chosen = e.select(self.items, random, &stack.item, cost, &pool);
+                    let chosen = e.select(self.items, random, stack, cost, &pool);
                     // EnchantmentHelper.enchantItem: a book becomes one
                     // enchanted book (the fresh stack's count).
                     if &*stack.item == "minecraft:book" {
@@ -3146,6 +3097,9 @@ mod consume_effect_tests {
 
 #[cfg(test)]
 mod tests {
+    mod enchant_select_tests {
+        include!("enchant_select_tests.rs");
+    }
     use super::*;
     use horizon_core::random::LegacyRandom;
     use serde_json::json;

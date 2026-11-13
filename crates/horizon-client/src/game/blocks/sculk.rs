@@ -2762,8 +2762,8 @@ mod tests {
     #[ignore = "needs prepared resources"]
     fn vanilla_game_event_carries_the_affected_state() {
         use crate::game::native_entity_refs::tests::with_game;
-        use mod_api::testing::with_mods;
         use mod_api::{Hooks, ModEntry, VanillaGameEventEvent};
+        use mod_platform::testing::with_mods;
         use std::sync::{Arc, Mutex};
 
         struct Heard(Arc<Mutex<Vec<Option<BlockStateId>>>>);

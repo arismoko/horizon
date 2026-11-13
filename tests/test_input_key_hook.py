@@ -65,12 +65,26 @@ mod input_trace {
 mod horizon_client {
     pub mod keybinds {
         pub fn key_name(code: i32) -> Option<&'static str> { (code == 1).then_some("key.keyboard.a") }
+        pub fn layout_key_name(_: super::super::PhysicalKey, layout: &&'static str) -> Option<&'static str> {
+            (*layout == "z").then_some("key.keyboard.z")
+        }
+        pub fn raw_key_code(key: super::super::PhysicalKey) -> u32 {
+            match key { super::super::PhysicalKey::Code(c) => c as u32, super::super::PhysicalKey::Unidentified(c) => 100 + c as u32 }
+        }
     }
 }
 mod winit {
     pub mod event {
         #[derive(Clone, Copy, Debug, PartialEq)]
         pub enum ElementState { Pressed, Released }
+    }
+    pub mod platform {
+        pub mod modifier_supplement {
+            pub trait KeyEventExtModifierSupplement { fn key_without_modifiers(&self) -> &'static str; }
+            impl KeyEventExtModifierSupplement for super::super::super::KeyEvent {
+                fn key_without_modifiers(&self) -> &'static str { self.text }
+            }
+        }
     }
 }
 mod mod_api {
@@ -79,14 +93,14 @@ mod mod_api {
 }
 use mod_api::KeyAction;
 use winit::event::ElementState;
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum PhysicalKey { Code(i32), Unidentified(i32) }
 #[derive(Clone, Debug, PartialEq)]
 struct KeyEvent { physical_key: PhysicalKey, text: &'static str, state: ElementState, repeat: bool }
 enum WindowEvent { KeyboardInput { event: KeyEvent, is_synthetic: bool }, Other }
 fn glfw_modifiers(bits: u32) -> u32 { bits }
 struct Game { window: Option<Window>, modifiers: u32, early: bool, input: bool,
-              calls: Vec<&'static str>, observed: Vec<(&'static str, KeyAction, u32)> }
+              calls: Vec<&'static str>, observed: Vec<(&'static str, Option<&'static str>, u32, KeyAction, u32)> }
 impl Game {
     fn scripted_run(&self) -> bool { false }
     fn with_user_input<R>(&mut self, input: bool, f: impl FnOnce(&mut Self) -> R) -> R {
@@ -102,10 +116,11 @@ impl Game {
         if self.early { return; }
         self.calls.push("finish");
     }
-    fn native_input_key(&mut self, name: &'static str, action: KeyAction, modifiers: u32) {
+    fn native_input_key(&mut self, name: &'static str, layout: Option<&'static str>, raw: u32, action: KeyAction,
+                        modifiers: u32) {
         // The key's hook runs as input: a mod there may reach the clipboard.
         assert!(self.input);
-        self.calls.push("hook"); self.observed.push((name, action, modifiers));
+        self.calls.push("hook"); self.observed.push((name, layout, raw, action, modifiers));
     }
     METHOD
 }
@@ -113,8 +128,9 @@ impl Game {
 fn all_actions_consumption_and_window_gates() {
     for (state, repeat, action) in [(ElementState::Pressed, false, KeyAction::Press),
         (ElementState::Pressed, true, KeyAction::Repeat), (ElementState::Released, false, KeyAction::Release)] {
-        for (physical_key, name) in [(PhysicalKey::Code(1), "key.keyboard.a"),
-            (PhysicalKey::Code(2), "key.keyboard.unknown"), (PhysicalKey::Unidentified(3), "key.keyboard.unknown")] {
+        // The handler blanks its copy's text; the hook still sees the original layout key.
+        for (physical_key, name, raw) in [(PhysicalKey::Code(1), "key.keyboard.a", 1),
+            (PhysicalKey::Code(2), "key.keyboard.unknown", 2), (PhysicalKey::Unidentified(3), "key.keyboard.unknown", 103)] {
             for early in [false, true] {
                 let original = KeyEvent { physical_key: physical_key.clone(), text: "z", state, repeat };
                 for (window, id, synthetic, fires) in [(true,7,false,true), (true,8,false,false),
@@ -126,7 +142,7 @@ fn all_actions_consumption_and_window_gates() {
                     if !early { expected.push("finish"); }
                     if fires { expected.push("hook"); }
                     assert_eq!(game.calls, expected);
-                    assert_eq!(game.observed, if fires { vec![(name, action, 5)] } else { vec![] });
+                    assert_eq!(game.observed, if fires { vec![(name, Some("key.keyboard.z"), raw, action, 5)] } else { vec![] });
                 }
             }
         }

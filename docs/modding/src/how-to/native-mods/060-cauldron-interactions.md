@@ -44,6 +44,23 @@ block or item keys refuse registration. On water cauldrons, vanilla's dye tag
 always precedes exact-item entries: even washing that returns Pass does not fall
 through to the mod's entry.
 
+An item tag answers for many items at once (NeoForge's `register(id, TagKey, …)`
+and `registerToAll(TagKey, …)`):
+
+```rust,ignore
+// One block's dispatcher:
+event.interactions.register_tag(self.water_cauldron, "c:buckets/milk", handler.clone()).unwrap();
+// Or every dispatcher, in place of that (the same tag twice on a block is refused):
+event.interactions.register_tag_to_all("#c:buckets/milk", handler).unwrap();
+```
+
+The tag is read when the item is used, against the tags loaded then, so a data
+pack that adds an item to it covers that item after `/reload`. An exact item entry
+always wins over a tag entry; tag entries on one block are asked in registration
+order (those `register_tag_to_all` queued come after the block's own). The same
+tag twice on one block is `Duplicate`; a string that is not a resource location
+is `InvalidTag`.
+
 Implement `Interaction::decide(&dyn Host, &CauldronUse)` for eligibility. It reads
 the complete captured held stack, target state, actor, hand, dimension, creative
 flag and underwater flag. Return `Pass` to leave normal item use available,

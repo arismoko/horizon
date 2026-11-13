@@ -205,43 +205,46 @@ mod tests {
     #[test]
     #[cfg(not(feature = "listener-fixture"))]
     fn unstaged_build_refuses_api_listener_by_mod_and_target() {
-        const { assert!(!mod_points::STAGED) };
-        let manifest: Manifest = serde_json::from_value(serde_json::json!({
+        crate::test_stack::on_guest_stack(|| {
+            const { assert!(!mod_points::STAGED) };
+            let manifest: Manifest = serde_json::from_value(serde_json::json!({
             "id": "site_test", "name": "Sites", "version": "1.0.0", "description": "", "api": "0.2", "capabilities": [],
             "inject": [{"id": "head", "at": "game::tick", "kind": "head", "with": "listener"}]
         }))
         .unwrap();
-        let bytes = wat::parse_str(format!(
-            r#"(module
+            let bytes = wat::parse_str(format!(
+                r#"(module
             (@custom "dylink.0" "\01\04\00\00\00\00")
             (import "env" "memory" (memory 1))
             (func (export "horizon_layout") (result i64) i64.const {})
             (func (export "horizon_in") (param i32) (result i32) i32.const 0)
             (func (export "horizon_hook") (param i32) (result i64) i64.const 0))"#,
-            *mod_api::wire::LAYOUT
-        ))
-        .unwrap();
-        let mut modules = WasmMod::instantiate(
-            &crate::runtime::engine().unwrap(),
-            &[("libsite.so", &manifest)],
-            &[crate::link::Member {
-                name: "libsite.so",
-                module: &bytes,
-            }],
-            None,
-        )
-        .unwrap();
-        assert_eq!(
-            listen_checked(&manifest, &modules.remove(0)).unwrap_err(),
-            "site_test: game::tick: this build has no point sites; start the game through the launcher's mod build"
-        );
+                *mod_api::wire::LAYOUT
+            ))
+            .unwrap();
+            let mut modules = WasmMod::instantiate(
+                &crate::runtime::engine().unwrap(),
+                crate::runtime::DEFAULT_GROUP_MEMORY_MIB,
+                &[crate::link::Member {
+                    name: "libsite.so",
+                    module: &bytes,
+                }],
+                None,
+            )
+            .unwrap();
+            assert_eq!(
+                listen_checked(&manifest, &modules.remove(0)).unwrap_err(),
+                "site_test: game::tick: this build has no point sites; start the game through the launcher's mod build"
+            );
+        })
     }
 
     #[test]
     #[cfg(feature = "listener-fixture")]
     fn wasm_loader_refuses_no_wire_by_mod_target_and_type() {
-        let manifest = Manifest::parse(&format!(
-            r#"id='refused_fixture'
+        crate::test_stack::on_guest_stack(|| {
+            let manifest = Manifest::parse(&format!(
+                r#"id='refused_fixture'
 name='Refused fixture'
 version='1.0.0'
 api='0.2'
@@ -255,36 +258,37 @@ at='listener_fixture::no_wire'
 kind='head'
 with='no_wire'
 "#,
-            "0".repeat(128)
-        ))
-        .unwrap();
-        let bytes = wat::parse_str(format!(
-            r#"(module
+                "0".repeat(128)
+            ))
+            .unwrap();
+            let bytes = wat::parse_str(format!(
+                r#"(module
             (@custom "dylink.0" "\01\04\00\00\00\00")
             (import "env" "memory" (memory 1))
             (func (export "horizon_layout") (result i64) i64.const {})
             (func (export "horizon_in") (param i32) (result i32) i32.const 0)
             (func (export "horizon_hook") (param i32) (result i64) i64.const 0))"#,
-            *mod_api::wire::LAYOUT
-        ))
-        .unwrap();
-        let mut modules = WasmMod::instantiate(
-            &crate::runtime::engine().unwrap(),
-            &[("refused.so", &manifest)],
-            &[crate::link::Member {
-                name: "refused.so",
-                module: &bytes,
-            }],
-            None,
-        )
-        .unwrap();
-        let error = listen(&manifest, &modules.remove(0))
-            .unwrap_err()
-            .to_string();
-        assert_eq!(
-            error,
-            "refused_fixture:no_wire: no API listener at listener_fixture::no_wire: argument 1 `value` (`&RegistrationData`) has no API type yet"
-        );
+                *mod_api::wire::LAYOUT
+            ))
+            .unwrap();
+            let mut modules = WasmMod::instantiate(
+                &crate::runtime::engine().unwrap(),
+                crate::runtime::DEFAULT_GROUP_MEMORY_MIB,
+                &[crate::link::Member {
+                    name: "refused.so",
+                    module: &bytes,
+                }],
+                None,
+            )
+            .unwrap();
+            let error = listen(&manifest, &modules.remove(0))
+                .unwrap_err()
+                .to_string();
+            assert_eq!(
+                error,
+                "refused_fixture:no_wire: no API listener at listener_fixture::no_wire: argument 1 `value` (`&RegistrationData`) has no API type yet"
+            );
+        })
     }
 
     #[test]

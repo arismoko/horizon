@@ -262,6 +262,7 @@ mod tests {
         assert_eq!(b.max_position().y, 66.0);
     }
 
+    /// A wind charge past its first five ticks (`noDeflectTicks` run out).
     fn wind_charge() -> Projectile {
         let mut p = Projectile::new(
             ProjectileKind::WindCharge,

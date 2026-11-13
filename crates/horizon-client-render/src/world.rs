@@ -868,8 +868,8 @@ mod tests {
 }
 
 /// A block entity's fields kept beside its model ([`World::block_entity_extras`]).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct BlockEntityExtras {
-    source: Option<horizon_core::nbt::Tag>,
-    rolled_loot: Option<crate::chunk::RolledLoot>,
+    pub source: Option<horizon_core::nbt::Tag>,
+    pub rolled_loot: Option<crate::chunk::RolledLoot>,
 }

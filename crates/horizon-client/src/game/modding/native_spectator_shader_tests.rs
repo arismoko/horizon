@@ -65,7 +65,7 @@ fn a_mods_entity_type_puts_its_chain_on_while_spectated() {
     use horizon_protocol::packets::play::{self, Clientbound as C};
 
     let mods: mod_api::Mods = vec![ModEntry::new("vision", Box::new(Vision))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::mods::register_entity_spectator_shaders(ExecutionRole::Client);
         with_client_game(|game| {
             let _server = logged_client(game);

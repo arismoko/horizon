@@ -335,7 +335,7 @@ impl Game<'_> {
                     self.add_cooldown(group, ticks as i32);
                 }
             }
-            self.using = None;
+            self.stop_active_item_use();
             if let Some(sound) = &component.disabled_sound {
                 let pitch = 0.8 + self.world.random.next_float() * 0.4;
                 self.audio.play(sound, at, 0.8, pitch);

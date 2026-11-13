@@ -73,6 +73,13 @@ impl Hooks for Native {
 #[test]
 #[ignore = "requires prepared resources and compiled HORIZON_WASM_FIXTURE/HORIZON_WASM_STD"]
 fn compiled_guest_runs_in_actual_game_roots() {
+    // Enters the guest: libtest's thread is smaller than the guest stack policy requires.
+    horizon_guest_stack::run_on_guest_stack(
+        compiled_guest_runs_in_actual_game_roots_on_guest_stack,
+    );
+}
+
+fn compiled_guest_runs_in_actual_game_roots_on_guest_stack() {
     super::tests::require_resources();
     if super::super::native_entity_refs::tests::run_fresh_cases(
         TEST,
@@ -121,138 +128,172 @@ fn compiled_guest_runs_in_actual_game_roots() {
     loaded.initialize(&[info]).unwrap();
     let mut mods = loaded.mods;
     mods.push(ModEntry::new("raw_probe", Box::new(Native)));
-    mod_api::testing::with_mods(mods.into(), || {
-        super::super::native_entity_refs::tests::with_client_game(|game| {
-            game.settings.render_distance = 2;
-            game.settings.simulation_distance = 2;
-            let options = horizon_client::title::WorldOptions {
-                world_type: horizon_client::save::WorldPreset::Flat,
-                ..Default::default()
-            };
-            game.open_integrated(
-                "wasm_raw_transport",
-                Some("Wasm raw transport"),
-                Some(1),
-                true,
-                Some(&options),
-            )
-            .unwrap();
-            let deadline = Instant::now() + Duration::from_secs(60);
-            while !game
-                .remote
-                .as_ref()
-                .is_some_and(|r| r.logged_in && r.joined)
-            {
-                game.poll_remote().unwrap();
-                assert!(Instant::now() < deadline, "integrated play not ready");
-                std::thread::yield_now();
+    // A megabyte through a debug-built host on a loaded runner can pass a hook's 100 ms; this
+    // checks where the guest runs and what it publishes, not how fast. Each case has its process.
+    // This case's process keeps the runtime's warnings and errors, so a failure can say what
+    // trapped or refused (the guest's panic, a deadline, a refusal).
+    struct Kept;
+    impl log::Log for Kept {
+        fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+            metadata.level() <= log::Level::Warn
+        }
+        fn log(&self, record: &log::Record<'_>) {
+            if self.enabled(record.metadata()) {
+                LOGGED
+                    .lock()
+                    .unwrap()
+                    .push(format!("{}: {}", record.level(), record.args()));
             }
-            ROOTS.lock().unwrap().clear();
-            PUBLICATIONS.store(0, Ordering::SeqCst);
-            STAGED_REPLIES.store(0, Ordering::SeqCst);
-            ACTIVE.store(true, Ordering::SeqCst);
-            struct Scope;
-            impl Drop for Scope {
-                fn drop(&mut self) {
-                    ACTIVE.store(false, Ordering::SeqCst);
-                    ROOTS.lock().unwrap().clear();
-                }
-            }
-            let _scope = Scope;
-            let channel = if case == "network_handler_trap" {
-                "wasm_fixture:network_trap"
-            } else if network {
-                "wasm_fixture:game_network"
-            } else {
-                "wasm_fixture:game_main"
-            };
-            let staging = horizon_client::raw_payloads::staging_probe::Watch::begin(channel);
-            let bytes = if trap {
-                vec![1]
-            } else {
-                (0..1 << 20).map(|i| ((i * 31 + 7) % 251) as u8).collect()
-            };
-            let wire_hits = Arc::new(AtomicUsize::new(0));
-            if !trap {
-                game.remote.as_ref().unwrap().session.start_recording(
-                    super::tests::WireReceipt {
-                        channel: "raw_probe:receipt",
-                        expected: Arc::new(bytes.clone()),
-                        hits: wire_hits.clone(),
-                        observed: None,
-                    },
-                    |_| {},
-                );
-            }
-            let host: &mut dyn mod_api::ClientHost = game;
-            assert_eq!(
-                host.send_payload_to_server(&PayloadId(channel.into()), PayloadBytes(bytes)),
-                Ok(PayloadAccepted::Queued)
-            );
-            loop {
-                game.poll_remote().unwrap();
-                let observed = !ROOTS.lock().unwrap().is_empty();
-                if (trap && game.remote.is_none())
-                    || (!trap && observed && RECEIPTS.load(Ordering::SeqCst) == 1)
+        }
+        fn flush(&self) {}
+    }
+    static LOGGED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    if log::set_logger(&Kept).is_ok() {
+        log::set_max_level(log::LevelFilter::Warn);
+    }
+    horizon_mod_wasm::copy_probe::with_load_budget(|| {
+        mod_platform::testing::with_mods(mods.into(), || {
+            super::super::native_entity_refs::tests::with_client_game(|game| {
+                game.settings.render_distance = 2;
+                game.settings.simulation_distance = 2;
+                let options = horizon_client::title::WorldOptions {
+                    world_type: horizon_client::save::WorldPreset::Flat,
+                    ..Default::default()
+                };
+                game.open_integrated(
+                    "wasm_raw_transport",
+                    Some("Wasm raw transport"),
+                    Some(1),
+                    true,
+                    Some(&options),
+                )
+                .unwrap();
+                let deadline = Instant::now() + Duration::from_secs(60);
+                while !game
+                    .remote
+                    .as_ref()
+                    .is_some_and(|r| r.logged_in && r.joined)
                 {
-                    break;
+                    game.poll_remote().unwrap();
+                    assert!(Instant::now() < deadline, "integrated play not ready");
+                    std::thread::yield_now();
                 }
-                assert!(
-                    Instant::now() < deadline,
-                    "actual wasm Game root did not finish"
+                ROOTS.lock().unwrap().clear();
+                PUBLICATIONS.store(0, Ordering::SeqCst);
+                STAGED_REPLIES.store(0, Ordering::SeqCst);
+                ACTIVE.store(true, Ordering::SeqCst);
+                struct Scope;
+                impl Drop for Scope {
+                    fn drop(&mut self) {
+                        ACTIVE.store(false, Ordering::SeqCst);
+                        ROOTS.lock().unwrap().clear();
+                    }
+                }
+                let _scope = Scope;
+                let channel = if case == "network_handler_trap" {
+                    "wasm_fixture:network_trap"
+                } else if network {
+                    "wasm_fixture:game_network"
+                } else {
+                    "wasm_fixture:game_main"
+                };
+                let staging = horizon_client::raw_payloads::staging_probe::Watch::begin(channel);
+                let bytes = if trap {
+                    vec![1]
+                } else {
+                    (0..1 << 20).map(|i| ((i * 31 + 7) % 251) as u8).collect()
+                };
+                let wire_hits = Arc::new(AtomicUsize::new(0));
+                if !trap {
+                    game.remote.as_ref().unwrap().session.start_recording(
+                        super::tests::WireReceipt {
+                            channel: "raw_probe:receipt",
+                            expected: Arc::new(bytes.clone()),
+                            hits: wire_hits.clone(),
+                            observed: None,
+                        },
+                        |_| {},
+                    );
+                }
+                let host: &mut dyn mod_api::ClientHost = game;
+                assert_eq!(
+                    host.send_payload_to_server(&PayloadId(channel.into()), PayloadBytes(bytes)),
+                    Ok(PayloadAccepted::Queued)
                 );
-                std::thread::yield_now();
-            }
-            assert_eq!(
-                wire_hits.load(Ordering::SeqCst),
-                usize::from(!trap),
-                "independently inspected compiled-guest wire receipt"
-            );
-            let prepared = staging.snapshot();
-            assert_eq!(
-                prepared.work,
-                usize::from(network || case == "network_handler_trap"),
-                "the guest must successfully prepare work before its intentional trap"
-            );
-            assert_eq!(
-                prepared.replies,
-                usize::from(case == "network_handler_trap")
-            );
-            assert_eq!(
-                STAGED_REPLIES.load(Ordering::SeqCst),
-                usize::from(case != "network_handler_trap"),
-                "the actual Game root must successfully stage its reply before failure"
-            );
-            assert_eq!(
-                PUBLICATIONS.load(Ordering::SeqCst),
-                usize::from(!trap),
-                "actual Game deferred publication must follow the root outcome, before teardown can suppress delivery"
-            );
-            let roots = ROOTS.lock().unwrap().clone();
-            if case == "network_handler_trap" {
-                assert!(
-                    roots.is_empty(),
-                    "NETWORK handler trap must cancel staged main work before Game dispatch"
+                loop {
+                    game.poll_remote().unwrap();
+                    let observed = !ROOTS.lock().unwrap().is_empty();
+                    // A root that ran and rolled back will never send its receipt: say so now.
+                    assert!(
+                        trap || ROOTS.lock().unwrap().iter().all(|&(_, _, commit)| commit),
+                        "the wasm Game root ran and failed: {:?}",
+                        ROOTS.lock().unwrap()
+                    );
+                    if (trap && game.remote.is_none())
+                        || (!trap && observed && RECEIPTS.load(Ordering::SeqCst) == 1)
+                    {
+                        break;
+                    }
+                    assert!(
+                        Instant::now() < deadline,
+                        "actual wasm Game root did not finish"
+                    );
+                    std::thread::yield_now();
+                }
+                assert_eq!(
+                    wire_hits.load(Ordering::SeqCst),
+                    usize::from(!trap),
+                    "independently inspected compiled-guest wire receipt"
                 );
-                assert_eq!(RECEIPTS.load(Ordering::SeqCst), 0);
-                return;
-            }
-            assert_eq!(
-                roots.len(),
-                1,
-                "only the authoritative request/work root is observed"
-            );
-            let &(before, after, commit) = &roots[0];
-            assert_eq!(commit, !trap);
-            assert_eq!(
-                after,
-                if trap { before } else { before - 1.0 },
-                "actual authoritative player mutation must follow root outcome"
-            );
-            assert_eq!(RECEIPTS.load(Ordering::SeqCst), usize::from(!trap));
-            if game.remote.is_some() {
-                game.leave_server(None).unwrap();
-            }
-        });
+                let prepared = staging.snapshot();
+                assert_eq!(
+                    prepared.work,
+                    usize::from(network || case == "network_handler_trap"),
+                    "the guest must successfully prepare work before its intentional trap; \
+                     endpoints {:?}; runtime log {:#?}",
+                    staging.diagnostics(),
+                    LOGGED.lock().unwrap()
+                );
+                assert_eq!(
+                    prepared.replies,
+                    usize::from(case == "network_handler_trap")
+                );
+                assert_eq!(
+                    STAGED_REPLIES.load(Ordering::SeqCst),
+                    usize::from(case != "network_handler_trap"),
+                    "the actual Game root must successfully stage its reply before failure"
+                );
+                assert_eq!(
+                    PUBLICATIONS.load(Ordering::SeqCst),
+                    usize::from(!trap),
+                    "actual Game deferred publication must follow the root outcome, before teardown can suppress delivery"
+                );
+                let roots = ROOTS.lock().unwrap().clone();
+                if case == "network_handler_trap" {
+                    assert!(
+                        roots.is_empty(),
+                        "NETWORK handler trap must cancel staged main work before Game dispatch"
+                    );
+                    assert_eq!(RECEIPTS.load(Ordering::SeqCst), 0);
+                    return;
+                }
+                assert_eq!(
+                    roots.len(),
+                    1,
+                    "only the authoritative request/work root is observed"
+                );
+                let &(before, after, commit) = &roots[0];
+                assert_eq!(commit, !trap);
+                assert_eq!(
+                    after,
+                    if trap { before } else { before - 1.0 },
+                    "actual authoritative player mutation must follow root outcome"
+                );
+                assert_eq!(RECEIPTS.load(Ordering::SeqCst), usize::from(!trap));
+                if game.remote.is_some() {
+                    game.leave_server(None).unwrap();
+                }
+            });
+        })
     });
 }

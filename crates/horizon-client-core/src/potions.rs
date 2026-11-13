@@ -22,6 +22,9 @@ pub struct EffectDef {
     pub color: u32,
     pub category: Category,
     pub instant: bool,
+    /// `IMobEffectExtension.getSortOrder`: where the effect sits in the HUD and inventory
+    /// lists. The colour, unless a content mod declared an order.
+    pub sort_order: i32,
 }
 /// The colours resource packs give effects (Polytone's `effect.<id>`), by the table's id.
 static PACK_COLORS: RwLock<Option<HashMap<String, u32>>> = RwLock::new(None);
@@ -46,6 +49,7 @@ const fn fx(index: usize, id: &'static str, color: u32, category: Category) -> E
         color,
         category,
         instant: false,
+        sort_order: color as i32,
     }
 }
 use Category::{Beneficial as B, Harmful as H, Neutral as N};
@@ -57,18 +61,12 @@ pub const EFFECTS: &[EffectDef] = &[
     fx(3, "mining_fatigue", 4866583, H),
     fx(4, "strength", 16762624, B),
     EffectDef {
-        index: 5,
-        id: "instant_health",
-        color: 16262179,
-        category: B,
         instant: true,
+        ..fx(5, "instant_health", 16262179, B)
     },
     EffectDef {
-        index: 6,
-        id: "instant_damage",
-        color: 11101546,
-        category: H,
         instant: true,
+        ..fx(6, "instant_damage", 11101546, H)
     },
     fx(7, "jump_boost", 16646020, B),
     fx(8, "nausea", 5578058, H),
@@ -86,11 +84,8 @@ pub const EFFECTS: &[EffectDef] = &[
     fx(20, "health_boost", 16284963, B),
     fx(21, "absorption", 2445989, B),
     EffectDef {
-        index: 22,
-        id: "saturation",
-        color: 16262179,
-        category: B,
         instant: true,
+        ..fx(22, "saturation", 16262179, B)
     },
     fx(23, "glowing", 9740385, N),
     fx(24, "levitation", 13565951, H),
@@ -115,21 +110,28 @@ static MOD_EFFECTS: OnceLock<Vec<EffectDef>> = OnceLock::new();
 /// Registers the content mods' effects, `<ns>:<path>` ids in registry order.
 /// The list is set once per process: false when it already was, and the
 /// effects stay those of the first call until the game restarts.
-pub fn register_mod_effects(effects: impl IntoIterator<Item = (String, u32, Category)>) -> bool {
+/// Each comes with its declared sort order, none for its colour.
+pub fn register_mod_effects(
+    effects: impl IntoIterator<Item = (String, u32, Category, Option<i32>)>,
+) -> bool {
     if MOD_EFFECTS.get().is_some() {
         return false;
     }
     let defs: Vec<EffectDef> = effects
         .into_iter()
         .enumerate()
-        .map(|(index, (id, color, category))| {
+        .map(|(index, (id, color, category, sort_order))| {
             debug_assert!(id.contains(':'), "{id} has no namespace");
-            fx(
+            let def = fx(
                 EFFECTS.len() + index,
                 Box::leak(id.into_boxed_str()),
                 color,
                 category,
-            )
+            );
+            EffectDef {
+                sort_order: sort_order.unwrap_or(def.sort_order),
+                ..def
+            }
         })
         .collect();
     MOD_EFFECTS.set(defs).is_ok()
@@ -395,28 +397,37 @@ mod tests {
     /// The only test that registers: the registry is set once per process.
     #[test]
     fn mod_effects_follow_vanilla_once_registered() {
-        assert!(register_mod_effects([(
-            "ruby:glow".to_owned(),
-            0xFF0000,
-            Category::Neutral
-        )]));
+        assert!(register_mod_effects([
+            ("ruby:glow".to_owned(), 0xFF0000, Category::Neutral, None),
+            (
+                "ruby:first".to_owned(),
+                0x0000FF,
+                Category::Neutral,
+                Some(-5)
+            ),
+        ]));
         assert!(!register_mod_effects([(
             "ruby:late".to_owned(),
             1,
-            Category::Harmful
+            Category::Harmful,
+            None
         )]));
         let glow = effect("ruby:glow").unwrap();
         assert_eq!(
             (glow.color, glow.category, glow.instant),
             (0xFF0000, Category::Neutral, false)
         );
+        // The HUD and inventory sort by this: the colour unless the mod declared an order.
+        assert_eq!(glow.sort_order, 0xFF0000);
+        assert_eq!(effect("ruby:first").unwrap().sort_order, -5);
+        assert_eq!(effect("speed").unwrap().sort_order, 3402751);
         assert!(effect("glow").is_none() && effect("ruby:late").is_none());
         assert!(is_mod_effect(glow.id) && !is_mod_effect("speed"));
         assert!(!is_mod_effect(namespaced("speed")));
         assert_eq!(namespaced(glow.id), "ruby:glow");
         assert_eq!(effect("minecraft:speed").unwrap().id, "speed");
         let ids: Vec<_> = all_effects().map(|e| e.id).collect();
-        assert_eq!(ids.len(), EFFECTS.len() + 1);
-        assert_eq!(ids.last(), Some(&"ruby:glow"));
+        assert_eq!(ids.len(), EFFECTS.len() + 2);
+        assert_eq!(ids.last(), Some(&"ruby:first"));
     }
 }

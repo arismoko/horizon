@@ -1,6 +1,6 @@
 //! Accepted native block entity membership, frozen before resources or worlds load.
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::{Arc, OnceLock},
 };
 
@@ -19,6 +19,8 @@ pub struct BlockEntityTypes {
     /// Names in protocol order: a reload may not change numeric wire IDs either.
     wire: Vec<Arc<str>>,
     keys: BTreeSet<Arc<str>>,
+    /// Each registered name's numeric wire ID, its place in `wire`.
+    numeric_ids: HashMap<Arc<str>, u32>,
 }
 
 impl BlockEntityTypes {
@@ -26,6 +28,11 @@ impl BlockEntityTypes {
     pub fn new(blocks: BTreeMap<String, String>, wire: Vec<String>) -> Self {
         let wire: Vec<Arc<str>> = wire.into_iter().map(Into::into).collect();
         let keys = wire.iter().filter(|id| !id.is_empty()).cloned().collect();
+        let numeric_ids = (0..)
+            .zip(&wire)
+            .filter(|(_, id)| !id.is_empty())
+            .map(|(numeric, id)| (id.clone(), numeric))
+            .collect();
         let blocks = blocks
             .into_iter()
             .map(|(block, kind)| {
@@ -40,7 +47,12 @@ impl BlockEntityTypes {
                 )
             })
             .collect();
-        Self { blocks, wire, keys }
+        Self {
+            blocks,
+            wire,
+            keys,
+            numeric_ids,
+        }
     }
 
     /// The declared native factory; added validity never changes this selection.
@@ -142,6 +154,17 @@ impl BlockEntityTypes {
         self.keys.get(id).cloned()
     }
 
+    /// The numeric wire ID of the registered type `id`: a small integer that names it for this
+    /// run, below [`Self::numeric_id_bound`].
+    pub fn numeric_id(&self, id: &str) -> Option<u32> {
+        self.numeric_ids.get(id).copied()
+    }
+
+    /// One more than the largest numeric wire ID.
+    pub fn numeric_id_bound(&self) -> usize {
+        self.wire.len()
+    }
+
     /// Whether a mod declared the block entity type `id`.
     /// Wire keys include vanilla types; `mod_content::Plan::new` refuses native
     /// declarations in `minecraft:`.
@@ -181,6 +204,11 @@ pub fn factory_block(block: &str) -> &str {
 
 pub fn current() -> Option<&'static BlockEntityTypes> {
     TYPES.get()
+}
+
+/// The numeric wire ID of the registered type `id` (none before startup installs the table).
+pub fn numeric_id(id: &str) -> Option<u32> {
+    current()?.numeric_id(id)
 }
 
 /// Whether a mod declared the block entity type `id` (none before startup
@@ -262,6 +290,10 @@ mod tests {
                 "test:empty".into(),
             ],
         );
+        assert_eq!(types.numeric_id("minecraft:chest"), Some(0));
+        assert_eq!(types.numeric_id("test:empty"), Some(3));
+        assert_eq!(types.numeric_id("test:press"), None);
+        assert_eq!(types.numeric_id(""), None);
         for (id, declared) in [
             ("test:machine", true),
             ("test:single", true),

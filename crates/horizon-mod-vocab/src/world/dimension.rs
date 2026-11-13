@@ -64,7 +64,7 @@ pub struct BiomePoint {
 impl BiomePoint {
     /// Whether the point is one the codec accepts: finite intervals inside -2 to 2, ordered, and
     /// an offset inside 0 to 1.
-    fn is_valid(&self) -> bool {
+    pub(crate) fn is_valid(&self) -> bool {
         let interval = |(min, max): (f32, f32)| {
             (-2.0..=2.0).contains(&min) && (-2.0..=2.0).contains(&max) && min <= max
         };

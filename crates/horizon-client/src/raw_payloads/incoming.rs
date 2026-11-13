@@ -25,10 +25,15 @@ pub struct Incoming {
     /// A queued work resource may retain its original payload buffer. Keep that
     /// original credit as well as this additional work record's envelope credit.
     pub work_lease: Option<IngressLease>,
+    /// A raw channel's delivery to one of its declaring mods: a handler's
+    /// error is that mod's fault, not the peer's, and doesn't end the session.
+    pub raw: bool,
 }
 const _: () = assert!(std::mem::size_of::<Incoming>() <= 256);
 pub enum Classified {
     Application(Incoming),
+    /// A raw channel's message, once for each declaring mod in load order.
+    Raw(Vec<Incoming>),
     Other(CustomPayload),
 }
 #[derive(Debug)]
@@ -63,6 +68,10 @@ impl Incoming {
     ) -> Result<Self, PayloadSendError> {
         match Self::classify(transport, phase, packet).map_err(|failure| failure.error)? {
             Classified::Application(incoming) => Ok(incoming),
+            Classified::Raw(mut incoming) if incoming.len() == 1 => Ok(incoming.remove(0)),
+            Classified::Raw(_) => Err(PayloadSendError::EncodeFailed(
+                "a raw channel has several receivers".into(),
+            )),
             Classified::Other(packet) => {
                 Err(PayloadSendError::UnknownPayload(PayloadId(packet.channel)))
             }
@@ -99,7 +108,9 @@ impl Incoming {
         }
         let receiver = match epoch.peer.receiver(phase, &packet.channel) {
             Ok(receiver) => receiver.clone(),
-            Err(PayloadSendError::UnknownPayload(_)) => return Ok(Classified::Other(packet)),
+            Err(PayloadSendError::UnknownPayload(_)) => {
+                return Self::raw(transport, &epoch, phase, packet);
+            }
             Err(error) => return Err(fail(error, packet)),
         };
         let owned = packet
@@ -119,7 +130,41 @@ impl Incoming {
             main,
             lease: Arc::new(lease),
             work_lease: None,
+            raw: false,
         }))
+    }
+    /// A serverbound play message on a raw channel: one delivery for each
+    /// declaring mod, in load order, each charged its own ingress credit. An
+    /// undeclared or send-only channel stays an unrelated plugin channel.
+    fn raw(
+        transport: &Transport,
+        epoch: &Arc<Epoch>,
+        phase: Phase,
+        packet: CustomPayload,
+    ) -> Result<Classified, Failure> {
+        let receivers = transport.local.raw_receivers(&packet.channel);
+        if phase != Phase::Play || epoch.peer.side != super::Side::Server || receivers.is_empty() {
+            return Ok(Classified::Other(packet));
+        }
+        let mut deliveries = Vec::with_capacity(receivers.len());
+        for receiver in receivers {
+            let owned = packet.channel.capacity().saturating_add(packet.data.len());
+            let lease = transport.reserve_ingress(owned).map_err(|error| Failure {
+                id: PayloadId(packet.channel.clone()),
+                error,
+            })?;
+            deliveries.push(Self {
+                epoch: epoch.clone(),
+                id: PayloadId(packet.channel.clone()),
+                body: Body::Payload(PayloadBytes(packet.data.clone())),
+                receiver: receiver.clone(),
+                main: epoch.main_task(),
+                lease: Arc::new(lease),
+                work_lease: None,
+                raw: true,
+            });
+        }
+        Ok(Classified::Raw(deliveries))
     }
     /// Reserve before cloning the channel or retaining the guest's work resource.
     pub fn work(
@@ -144,6 +189,7 @@ impl Incoming {
             body: Body::Work(work),
             lease: self.lease.clone(),
             work_lease: Some(lease),
+            raw: self.raw,
         })
     }
 }

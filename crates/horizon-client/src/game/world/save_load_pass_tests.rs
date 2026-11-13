@@ -70,7 +70,7 @@ fn loaded_queue_join_save_refuses_without_losing_remaining_rows() {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             mod_api::__private::mark_game_thread();
             game.spawn_loaded_entities();
         });

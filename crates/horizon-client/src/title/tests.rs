@@ -5,12 +5,12 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-struct Fixture {
+pub(super) struct Fixture {
     root: PathBuf,
-    title: Title,
+    pub(super) title: Title,
 }
 impl Fixture {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let root = std::env::temp_dir().join(format!(
             "horizon-world-menu-{}-{}",
@@ -19,11 +19,11 @@ impl Fixture {
         ));
         fs::create_dir_all(root.join("saves")).unwrap();
         Self {
-            title: Title::new(root.join("saves"), &root),
+            title: Title::new(root.join("saves"), &root, ""),
             root,
         }
     }
-    fn world(&self, folder: &str, name: &str) {
+    pub(super) fn world(&self, folder: &str, name: &str) {
         crate::save::write_dat(
             &self.title.saves.join(folder).join("level.dat"),
             Tag::compound([
@@ -50,7 +50,7 @@ impl Fixture {
         )
         .unwrap();
     }
-    fn click(&mut self, label: &str) -> Action {
+    pub(super) fn click(&mut self, label: &str) -> Action {
         self.click_with_sound(label).0
     }
     fn click_with_sound(&mut self, label: &str) -> (Action, bool) {
@@ -2046,7 +2046,7 @@ fn set_world_gen(f: &Fixture, folder: &str, change: impl FnOnce(&mut Tag)) {
     crate::save::write_dat(&path, root).unwrap();
 }
 
-fn only_world(f: &Fixture) -> WorldEntry {
+pub(super) fn only_world(f: &Fixture) -> WorldEntry {
     let worlds = list_worlds(&f.title.saves);
     assert_eq!(worlds.len(), 1);
     worlds[0].clone()
@@ -3041,4 +3041,38 @@ fn cancelling_a_realms_new_world_returns_to_the_realm() {
         crate::realms::SubScreen::Configure { .. }
     ));
     let _ = fs::remove_dir_all(&f.root);
+}
+#[cfg(test)]
+mod hidden_features {
+    use super::*;
+    #[test]
+    fn experiments_done_preserves_hidden_selection_when_visible_switch_changes() {
+        let mut f = Fixture::new();
+        f.enter_create_world_for_packs();
+        if let Mode::Create { options, .. } = &mut f.title.mode {
+            options.data_packs = vec!["vanilla".into(), "hidden".into(), "visible".into()];
+        } else {
+            panic!("expected Create mode");
+        }
+        *f.title.experiments.borrow_mut() = Some(experiments::ExperimentsScreen::new(vec![
+            experiments::Flag {
+                id: "visible".into(),
+                title: Text::literal("Visible"),
+                description: Text::literal("Feature fixture"),
+                enabled: false,
+            },
+        ]));
+        let atlas = crate::hud::HudAtlas::build(
+            &horizon_assets::resource_source::ResourceSource::directory(
+                "/nonexistent/horizon-test-assets".into(),
+            ),
+        )
+        .unwrap();
+        f.title.press_rules(&atlas, (100.0, 240.0), (480.0, 262.0));
+        assert!(f.title.experiments.borrow().is_none());
+        assert_eq!(
+            f.title.creation_packs().map(|(_, ids)| ids),
+            Some(vec!["vanilla".to_owned(), "hidden".to_owned()])
+        );
+    }
 }

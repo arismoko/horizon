@@ -296,7 +296,7 @@ impl Game<'_> {
         self.command_source = outer;
         ok
     }
-    pub(super) fn syntax_failure(&mut self, e: &CommandError, command: &str) {
+    pub(in crate::game) fn syntax_failure(&mut self, e: &CommandError, command: &str) {
         self.command_failure(e.message.clone());
         let Some(input) = &e.input else { return };
         let cursor = e.cursor.min(input.len());
@@ -943,7 +943,7 @@ impl Game<'_> {
         self.enter_command_level(back);
         Some(result)
     }
-    fn entity_tag_matches(&self, tag: &str, ty: &str) -> bool {
+    pub(in crate::game) fn entity_tag_matches(&self, tag: &str, ty: &str) -> bool {
         let path = self.options.resources.join(format!(
             "data/minecraft/tags/entity_type/{}.json",
             tag.trim_start_matches("minecraft:")
@@ -1157,16 +1157,16 @@ impl Game<'_> {
             _ => Ok(0),
         }
     }
-    pub(super) fn set_game_mode(&mut self, mode: GameMode) -> bool {
+    pub(super) fn set_game_mode(&mut self, mut mode: GameMode) -> bool {
         if self.mode == mode {
             return false;
         }
-        // A server player's change is heard by the mods first, who may keep it.
+        // A server player's change is heard by the mods first, who may keep or redirect it.
         if let Some(uuid) = self.lan_acting_uuid {
             let name = self.acting_player_name().to_owned();
             let mut cancel = false;
-            self.native_player_game_mode_changed(uuid, &name, self.mode, mode, &mut cancel);
-            if cancel {
+            self.native_player_game_mode_changed(uuid, &name, self.mode, &mut mode, &mut cancel);
+            if cancel || self.mode == mode {
                 return false;
             }
         }
@@ -1497,10 +1497,9 @@ impl Game<'_> {
         relative: [bool; 3],
         turn_riders: bool,
     ) {
-        let from = self.place_teleport_in_level(t, pos, rotation, relative, turn_riders);
-        if self.options.dedicated.is_some()
-            && let (Some(entity), Some(from), Some(to)) =
-                (self.network_entity_id(t), from, self.target_position(t))
+        let from = self.place_teleport_filed(t, pos, rotation, relative, turn_riders);
+        if let (Some(entity), Some(to)) = (self.network_entity_id(t), self.target_position(t))
+            && let (true, Some(from)) = (self.options.dedicated.is_some(), from)
         {
             self.native_entity_teleport(self.dim.id(), entity as u32, from, to);
         }
@@ -2524,24 +2523,14 @@ impl Game<'_> {
                     // `new ExperienceOrb(level, pos, Vec3.ZERO, 0)`, unstuck like any orb spawn.
                     let at = self.unstuck_orb(pos);
                     self.next_entity += 1;
-                    self.orbs.push(horizon_client::entities::ExperienceOrb {
-                        attachment_lifetime: Default::default(),
-                        rotation: [0.0, 0.0],
-                        join: Default::default(),
-                        no_gravity: false,
-                        id: self.next_entity,
-                        position: Vec3::new(at[0], at[1], at[2]),
-                        previous: Vec3::new(at[0], at[1], at[2]),
-                        velocity: Vec3::new(0.0, 0.0, 0.0),
-                        value: 0,
-                        age: 0,
-                        on_ground: false,
-                        count: 1,
-                        ticks: 0,
-                        health: 5,
-                        air: 300,
-                        following: None,
-                    });
+                    let at = Vec3::new(at[0], at[1], at[2]);
+                    let orb = horizon_client::entities::ExperienceOrb::new(
+                        self.next_entity,
+                        at,
+                        Vec3::ZERO,
+                        0,
+                    );
+                    self.orbs.push(orb);
                     // tryAddFreshEntityWithPassengers refused: ERROR_DUPLICATE_UUID.
                     if !self.native_joins_flush(false, self.next_entity) {
                         return Err(err("commands.summon.failed.uuid", &[]));
@@ -4709,6 +4698,7 @@ mod teleport_player_tests {
     fn command_moves_velocity_per_axis_and_keeps_fall_distance() {
         with_game(|game| {
             game.player = Some(PlayerMotion::new(game.motion, Vec3::ZERO).unwrap());
+            crate::game::native_entity_refs::tests::bind_local_player(game, 1, 99);
             let player = game.player.as_mut().unwrap();
             player.position = Vec3::new(0.0, 64.0, 0.0);
             player.velocity = Vec3::new(1.0, -2.0, 3.0);

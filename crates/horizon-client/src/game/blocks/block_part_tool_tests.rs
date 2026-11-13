@@ -21,7 +21,7 @@ fn a_block_part_allows_replaces_or_denies_a_tool_action_and_a_preview_changes_no
 
     // The fixture's parts: an axe on an oak log makes a stripped spruce log, a birch log and a
     // campfire are left alone, and glass strips to a stripped oak log.
-    mod_api::__private::part_tests::tool_modified_state_game_thread();
+    mod_platform::__private::part_tests::tool_modified_state_game_thread();
     native_guest_turn_tests::with_guests(|game| {
         game.world
             .chunks
@@ -81,7 +81,7 @@ fn a_block_part_allows_replaces_or_denies_a_tool_action_and_a_preview_changes_no
             );
             assert_eq!(at(game), state(block), "{block}: the preview wrote");
             assert_eq!(
-                mod_api::__private::part_tests::take_tool_simulations(),
+                mod_platform::__private::part_tests::take_tool_simulations(),
                 if part { vec![true] } else { vec![] },
                 "{block}: the part hears the simulation"
             );
@@ -96,7 +96,7 @@ fn a_block_part_allows_replaces_or_denies_a_tool_action_and_a_preview_changes_no
             .unwrap();
             assert_eq!(at(game), state(made.unwrap_or(block)), "{block}: result");
             assert_eq!(
-                mod_api::__private::part_tests::take_tool_simulations(),
+                mod_platform::__private::part_tests::take_tool_simulations(),
                 if part { vec![false] } else { vec![] },
                 "{block}: the part hears the real action"
             );
@@ -108,7 +108,7 @@ fn a_block_part_allows_replaces_or_denies_a_tool_action_and_a_preview_changes_no
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_block_part_can_deny_a_shovel_putting_out_a_campfire() {
     // The fixture's parts: a campfire is left alone by every tool.
-    mod_api::__private::part_tests::tool_modified_state_game_thread();
+    mod_platform::__private::part_tests::tool_modified_state_game_thread();
     native_guest_turn_tests::with_guests(|game| {
         game.world
             .chunks

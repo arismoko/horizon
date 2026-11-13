@@ -485,7 +485,7 @@ impl Game<'_> {
     }
     /// `ItemFrame.setItem` / `setRotation`: `updateNeighbourForOutputSignal`, so
     /// the comparators reading the frame take its new signal.
-    fn frame_output_changed(&mut self, pos: [i32; 3]) {
+    pub(in crate::game) fn frame_output_changed(&mut self, pos: [i32; 3]) {
         let at = BlockPos::new(pos[0], pos[1], pos[2]);
         self.with_level(|b, level, ticks| b.update_neighbour_for_output_signal(level, ticks, at));
     }
@@ -565,27 +565,40 @@ impl Game<'_> {
                 ((c[0] - blast[0]).powi(2) + (c[1] - blast[1]).powi(2) + (c[2] - blast[2]).powi(2))
                     .sqrt()
                     / diameter;
-            let (kind, pos) = (self.item_frames[i].kind(), self.item_frames[i].pos);
             if dist > 1.0
                 || self.item_frames[i].fixed
-                || self.hanging_break_cancelled(kind, pos, false)
+                || !self.break_frame_by(i, self.explosion_kill_credit())
             {
                 i += 1;
-                continue;
-            }
-            let mut f = self.item_frames.remove(i);
-            self.entity_killed_event_by(center(&f), self.explosion_kill_credit());
-            self.audio
-                .play(&sound(&f, "break"), Some(center(&f)), 1.0, 1.0);
-            self.drop_frame_items(&mut f, true, false, false);
-            // ItemFrame.dropItem(level, causedBy): BLOCK_CHANGE after the drops.
-            let ctx = self.who_context(None, None);
-            self.post_game_event("minecraft:block_change", center(&f), ctx);
-            self.world.modified.insert((f.pos[0] >> 4, f.pos[2] >> 4));
-            if f.item.is_some() {
-                self.frame_output_changed(f.pos);
             }
         }
+    }
+    /// `BlockAttachedEntity.kill`, then `ItemFrame.dropItem(level, causedBy)`
+    /// for the frame at `index`, the kill credited to `source`: the break
+    /// sound, the frame and its item, then `BLOCK_CHANGE`. False when a mod
+    /// kept it (`native_hanging_break`): it stays at `index`.
+    pub(super) fn break_frame_by(
+        &mut self,
+        index: usize,
+        source: Option<super::commands::Target>,
+    ) -> bool {
+        let (kind, pos) = (self.item_frames[index].kind(), self.item_frames[index].pos);
+        if self.hanging_break_cancelled(kind, pos, false) {
+            return false;
+        }
+        let mut f = self.item_frames.remove(index);
+        self.entity_killed_event_by(center(&f), source);
+        self.audio
+            .play(&sound(&f, "break"), Some(center(&f)), 1.0, 1.0);
+        self.drop_frame_items(&mut f, true, false, false);
+        // ItemFrame.dropItem(level, causedBy): BLOCK_CHANGE after the drops.
+        let ctx = self.who_context(None, None);
+        self.post_game_event("minecraft:block_change", center(&f), ctx);
+        self.world.modified.insert((f.pos[0] >> 4, f.pos[2] >> 4));
+        if f.item.is_some() {
+            self.frame_output_changed(f.pos);
+        }
+        true
     }
     /// BlockAttachedEntity.tick for frames.
     pub(super) fn tick_item_frames(&mut self) {

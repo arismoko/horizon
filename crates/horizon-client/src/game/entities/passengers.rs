@@ -6,7 +6,7 @@ use super::Game;
 use horizon_client::mobs::{Species, riders};
 use horizon_core::{
     geometry::{Aabb, Vec3},
-    random::RandomSource,
+    random::{LegacyRandom, RandomSource},
 };
 use std::collections::HashMap;
 
@@ -19,6 +19,10 @@ const TRAP_LIFETIME: i32 = 18000;
 const TRAP_RANGE: f64 = 10.0;
 /// Ticks of invulnerability the trap's riders and horses start with.
 const TRAP_INVULNERABLE: i32 = 60;
+
+fn trap_horse_scatter(random: &mut LegacyRandom) -> (f64, f64) {
+    (random.triangle(0.0, 1.1485), random.triangle(0.0, 1.1485))
+}
 
 impl Game<'_> {
     /// Keep the actual removed object only while a passenger still refers to it.
@@ -677,18 +681,20 @@ impl Game<'_> {
             ) else {
                 continue;
             };
-            let (dx, dz) = (
-                self.world.random.triangle(0.0, 1.1485),
-                self.world.random.triangle(0.0, 1.1485),
-            );
             if let Some(h) = self.mobs.iter_mut().find(|m| m.id == other) {
                 h.invulnerable_time = TRAP_INVULNERABLE;
                 h.extra.tame = true;
                 h.extra.age = 0;
-                h.velocity = Vec3::new(h.velocity.x + dx, h.velocity.y, h.velocity.z + dz);
             }
             if let Some(rider) = self.trap_skeleton(at) {
                 self.mount_mob(rider, other);
+                let Some(horse) = self.mobs.iter_mut().find(|m| m.id == id) else {
+                    continue;
+                };
+                let (dx, dz) = trap_horse_scatter(&mut horse.random);
+                if let Some(h) = self.mobs.iter_mut().find(|m| m.id == other) {
+                    h.velocity = Vec3::new(h.velocity.x + dx, h.velocity.y, h.velocity.z + dz);
+                }
             }
         }
     }
@@ -711,20 +717,13 @@ impl Game<'_> {
                 Some("minecraft:iron_helmet".into()),
             );
         }
-        let finalize = horizon_client::mobs::finalize::item;
-        let (weapon, helmet) = (
-            finalize(m, horizon_client::mobs::finalize::MAINHAND),
-            finalize(m, horizon_client::mobs::finalize::HEAD),
-        );
         let special = self.local_difficulty(at).special();
         // `SkeletonTrapGoal.enchant`: the weapon and the helmet, always.
-        for (slot, item) in [
-            (horizon_client::mobs::gear::MAIN, weapon),
-            (horizon_client::mobs::gear::HEAD, helmet),
+        for slot in [
+            horizon_client::mobs::finalize::MAINHAND,
+            horizon_client::mobs::finalize::HEAD,
         ] {
-            if let Some(item) = item {
-                self.enchant_item(id, slot, &item, special);
-            }
+            self.enchant_item(id, slot, special);
         }
         Some(id)
     }
@@ -931,7 +930,7 @@ mod off_level_tests {
                 Box::new(CountCanceledDismount(cancel.clone())),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 crate::game::native_entity_refs::tests::with_game(|game| {
                     game.options.dedicated = Some(Vec::new());
                     let at = Vec3::new(10.0, 200.0, 20.0);
@@ -1005,7 +1004,7 @@ mod off_level_tests {
             } else {
                 Vec::new().into()
             };
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 crate::game::native_entity_refs::tests::with_game(|game| {
                     game.options.dedicated = Some(Vec::new());
                     let pig = game.res.mob_types().get("minecraft:pig").unwrap().clone();
@@ -1147,7 +1146,7 @@ mod nested_vehicle_discard_tests {
             Box::new(DiscardVehicleOnDismount(count.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 let at = Vec3::new(10.0, 200.0, 20.0);
@@ -1243,6 +1242,9 @@ mod nested_vehicle_discard_tests {
             child.extra.mount = Some(72);
             child.age = 19;
             game.mobs.push(child);
+            // These manually installed owners bypass the normal allocator.
+            // Destruction drops must not reuse the removed vehicle's ID.
+            game.next_entity = game.next_entity.max(73);
             test(game);
         });
     }
@@ -1311,7 +1313,7 @@ mod nested_vehicle_discard_tests {
                 ),
             ]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     game.settings.simulation_distance = 4;
                     game.settings.render_distance = 12;
@@ -1407,7 +1409,7 @@ mod nested_vehicle_discard_tests {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     game.mobs.clear();
                     game.player = Some(
@@ -1458,7 +1460,7 @@ mod nested_vehicle_discard_tests {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     game.mobs.clear();
                     super::super::native_player_death::tests::add_guest(game);
@@ -1521,7 +1523,7 @@ mod nested_vehicle_discard_tests {
                 Box::new(RepositionCanceledPassenger(calls.clone())),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     super::super::native_player_death::tests::add_guest(game);
                     game.build_registries();
@@ -1694,7 +1696,7 @@ mod nested_vehicle_discard_tests {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, true, |game| {
                     super::super::native_player_death::tests::add_guest(game);
                     game.native_level_opened(super::super::Dim::Overworld);
@@ -1843,7 +1845,7 @@ mod nested_vehicle_discard_tests {
                     ),
                 ]
                 .into();
-                mod_api::testing::with_mods(mods, || {
+                mod_platform::testing::with_mods(mods, || {
                     with_vehicle_tree(cart, true, |game| {
                         game.next_entity = game.next_entity.max(100);
                         let items = vec![Some(horizon_client::items::ItemStack::new(
@@ -1944,7 +1946,7 @@ mod nested_vehicle_discard_tests {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     super::super::native_player_death::tests::add_guest(game);
                     game.native_level_opened(super::super::Dim::Overworld);
@@ -1982,7 +1984,7 @@ mod nested_vehicle_discard_tests {
                 Box::new(CancelUntilAllowed { cancel, calls }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     game.native_level_opened(super::super::Dim::Overworld);
                     game.build_registries();
@@ -2029,7 +2031,7 @@ mod nested_vehicle_discard_tests {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(mode != 0, true, |game| {
                     let uuid = [160, 0, 0, 71];
                     let holder = horizon_client::save::uuid_text(uuid);
@@ -2098,7 +2100,7 @@ mod nested_vehicle_discard_tests {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, true, |game| {
                     let camel = game.res.mob_types().get("minecraft:camel").unwrap().clone();
                     let pig = game.res.mob_types().get("minecraft:pig").unwrap().clone();
@@ -2151,7 +2153,7 @@ mod nested_vehicle_discard_tests {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     let vehicle = game.entity(71).unwrap();
                     let rider = game.entity(72).unwrap();
@@ -2216,7 +2218,7 @@ mod nested_vehicle_discard_tests {
                     }),
                 )]
                 .into();
-                mod_api::testing::with_mods(mods, || {
+                mod_platform::testing::with_mods(mods, || {
                     with_vehicle_tree(cart, true, |game| {
                         if discard {
                             assert!(game.entity(71).unwrap().discard(game));
@@ -2282,7 +2284,7 @@ mod nested_vehicle_discard_tests {
                 Box::new(ReparentLater(count.clone())),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 with_vehicle_tree(cart, false, |game| {
                     game.mob_object_mut(72).unwrap().extra.vehicle_order = 1;
                     let later = game.mob_object_mut(73).unwrap();
@@ -2329,7 +2331,7 @@ mod nested_vehicle_discard_tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_vehicle_tree(false, false, |game| {
                 if cross_level {
                     // The console service requires an active server hub.
@@ -2421,7 +2423,7 @@ mod nested_vehicle_discard_tests {
             Box::new(ReparentSelf(count.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_vehicle_tree(false, false, |game| {
                 let kind = game.res.mob_types().get("minecraft:cow").unwrap().clone();
                 game.mobs.push(Mob::new(74, kind, Vec3::ZERO, 0.0));
@@ -2461,7 +2463,7 @@ mod nested_vehicle_discard_tests {
             Box::new(ReviewKillOnMount),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_vehicle_tree(false, false, |game| {
                 game.mob_object_mut(72).unwrap().extra.mount = None;
                 let ok = game.start_riding_target(
@@ -2520,5 +2522,86 @@ mod content_seat_tests {
                 [-1.0, 4.0, 5.0]
             );
         });
+    }
+}
+
+#[cfg(test)]
+mod trap_scatter_tests {
+    use super::*;
+    #[test]
+    fn trap_horse_scatter_draws_two_triangles_from_original_horse_random() {
+        let mut horse_random = LegacyRandom::new(0x5DEECE66D);
+        let mut expected = horse_random.clone();
+        for _ in 0..3 {
+            let (dx, dz) = trap_horse_scatter(&mut horse_random);
+            assert_eq!(dx, expected.triangle(0.0, 1.1485));
+            assert_eq!(dz, expected.triangle(0.0, 1.1485));
+        }
+        assert_eq!(horse_random.next_long(), expected.next_long());
+    }
+
+    /// `SkeletonTrapGoal.tick`: springing a skeleton trap draws the three
+    /// additional horses' horizontal velocity scatter from the original trap
+    /// horse's own `random` after each rider is created.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn spring_skeleton_trap_draws_scatter_from_trap_horse_after_each_rider() {
+        use horizon_client::chunk::Chunk;
+        use std::sync::Arc;
+
+        let mut resources = None;
+        let mut game = super::super::game_tests::tests::server_game(&mut resources);
+        // Mounting resolves epoch-scoped resident handles, just as in an open world.
+        game.native_lifecycle
+            .begin_open(super::super::native_lifecycle::Authority::IntegratedServer);
+        game.world
+            .chunks
+            .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+        let at = [8.5, 64.0, 8.5];
+        let trap_id = game
+            .spawn_mob_raw("minecraft:skeleton_horse", at, false)
+            .unwrap();
+        let mut expected_horse_rng = LegacyRandom::new(777);
+        if let Some(horse) = game.mobs.iter_mut().find(|m| m.id == trap_id) {
+            horse.extra.trap = true;
+            horse.random = expected_horse_rng.clone();
+        }
+        game.spring_skeleton_trap(trap_id);
+
+        let expected_pushes: Vec<(f64, f64)> = (0..3)
+            .map(|_| trap_horse_scatter(&mut expected_horse_rng))
+            .collect();
+        let horse = game.mobs.iter_mut().find(|m| m.id == trap_id).unwrap();
+        assert!(!horse.extra.trap);
+        assert_eq!(horse.random.next_long(), expected_horse_rng.next_long());
+
+        let extra_horses: Vec<&horizon_client::mobs::Mob> = game
+            .mobs
+            .iter()
+            .filter(|m| m.species() == Species::SkeletonHorse && m.id != trap_id)
+            .collect();
+        assert_eq!(extra_horses.len(), 3);
+        for (h, (dx, dz)) in extra_horses.iter().zip(expected_pushes) {
+            assert_eq!((h.velocity.x, h.velocity.z), (dx, dz));
+            assert!(h.extra.rider.is_some());
+        }
+    }
+
+    /// `EnchantmentsByCostWithDifficulty.enchant` reads the stack the mob
+    /// holds: an empty slot draws nothing from the world's random.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn enchant_item_on_an_empty_slot_draws_nothing() {
+        let mut resources = None;
+        let mut game = super::super::game_tests::tests::server_game(&mut resources);
+        let id = game
+            .spawn_mob_raw("minecraft:skeleton_horse", [8.5, 64.0, 8.5], false)
+            .unwrap();
+        let seeded = || {
+            horizon_core::random::LevelRandom::for_level(horizon_core::random::LegacyRandom::new(5))
+        };
+        game.world.random = seeded();
+        game.enchant_item(id, horizon_client::mobs::finalize::MAINHAND, 0.5);
+        assert_eq!(game.world.random.next_long(), seeded().next_long());
     }
 }

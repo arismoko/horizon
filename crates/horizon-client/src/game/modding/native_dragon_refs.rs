@@ -170,7 +170,7 @@ mod tests {
             }
         }
         let mods = vec![mod_api::ModEntry::new("cancel-target", Box::new(Cancel))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let (_, dragon) = dragon_in(game);
                 assert!(!dragon.mob().set_target(game, None));
@@ -317,6 +317,9 @@ mod tests {
             assert_eq!(dragon.alive_crystals(game), None, "not in the End");
             assert_eq!(dragon.previously_killed(game), None);
             game.dim = Dim::End;
+            // This fixture relocates the level in place rather than loading
+            // another one. Rebind its owners to the new dimension as well.
+            game.reset_entity_residency();
             assert_eq!(dragon.alive_crystals(game), Some(3));
             assert_eq!(dragon.previously_killed(game), Some(true));
 

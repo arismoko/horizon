@@ -50,6 +50,8 @@ pub(super) fn game() -> Game<'static> {
         None,
     )
     .unwrap();
+    game.native_lifecycle
+        .begin_open(mod_api::Authority::IntegratedServer);
     game.build_registries();
     game.set_allow_commands(true);
     for x in 0..2 {
@@ -109,6 +111,9 @@ pub(super) fn game() -> Game<'static> {
     // Its view, as the client sent it: straight down.
     guest.pitch = 90.0;
     game.lan.as_mut().unwrap().hub.guests.push(guest);
+    // This fixture installs the guest without the normal login allocator.
+    // Reserve its entity ID before commands allocate the camel and sensor mob.
+    game.next_entity = game.next_entity.max(2);
     game
 }
 

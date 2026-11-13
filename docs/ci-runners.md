@@ -133,3 +133,30 @@ running at all (offline, not just busy), it opens one issue, "CI: self-hosted ru
 each pool, what stops and what to do, and keeps its text current; it closes the issue once nothing waits. It needs
 only the workflow token (`actions: read`, `issues: write`). What the Team and the council do meanwhile:
 [operations.md](operations.md#self-hosted-runners-are-offline).
+
+## Rust version
+
+CI, the launcher's native-mod toolchain and the wasm mods' toolchain use one Rust release, written once in
+`tools/ci/rust-version`: the prebuilt game must be built by the compiler that builds native mods against it, and a
+floating `stable` changed the lints and the build layout under running jobs. `tools/ci/rustup_install.sh` installs it
+and makes it each job's toolchain; `launcher/src/rust_toolchain.rs` and `crates/cargo-horizon-mod/src/wasm.rs` read it
+at compile time; `tests/test_rust_pin.py` fails on a workflow that names a channel or a release of its own.
+
+To move to a new release, in one pull request:
+1. write the new number in `tools/ci/rust-version`;
+2. update `DIST` and each platform's component checksums in `launcher/src/rust_toolchain.rs` for that release;
+3. fix what the new compiler and Clippy report, and anything the release changed (build layout, warnings).
+
+## Cheap checks on contributors' pull requests
+
+A pull request whose head branch is in a contributor's fork gets only the cheap checks: `verify-static` and
+`format` (repository hygiene, the mod API boundary scan and rustfmt; nothing compiles). `lint`, `verify`,
+`launcher`, the Windows launcher tests, the modding book and cargo-horizon-mod's builds are skipped, and a skipped job
+counts as passed for a required check. Everything runs on main's pushes, on dispatches, and on pull requests from
+this repository's own branches (rollups, syncs, fast-path fixes, our sessions' work), which carry contributors'
+changes into one heavy run. The rule is `tools/ci/pr_gate.py`; `tests/test_pr_gate.py` keeps the workflows to it.
+
+A reviewer runs the heavy gate on one contributor's pull request with `gh workflow run dyna-ci.yml -f pr=<number>`.
+Main's workflow checks out that pull request's head commit on GitHub's runners (never ours) with a read-only token,
+and the `pr-status` job, which runs none of its code and alone may write commit statuses, posts `dispatched/lint`,
+`dispatched/verify`, `dispatched/verify-static` and `dispatched/launcher` on that commit.

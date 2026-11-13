@@ -96,7 +96,6 @@ impl Game<'_> {
             }
         });
         if let Some(broken) = broken {
-            self.award_stat("broken", &broken.item, 1);
             self.player_equipment_broke(break_slot, &broken);
         }
     }

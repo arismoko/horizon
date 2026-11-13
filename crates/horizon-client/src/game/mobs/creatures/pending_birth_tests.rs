@@ -55,7 +55,7 @@ fn with_split(
         Box::new(Split(Box::new(listener))),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || with_game(run));
+    mod_platform::testing::with_mods(mods, || with_game(run));
 }
 
 fn with_baby(
@@ -70,7 +70,7 @@ fn with_baby(
         Box::new(Baby(Box::new(listener))),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || with_game(run));
+    mod_platform::testing::with_mods(mods, || with_game(run));
 }
 
 const AT: [f64; 3] = [10.0, 64.0, 20.0];
@@ -175,7 +175,7 @@ fn cancelled_split_spawns_nothing_but_keeps_the_construction_draws() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn no_listener_split_is_exactly_vanilla() {
     let mods: mod_api::Mods = Vec::new().into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             let mut dying = cube(game, "minecraft:slime", 4, SEED);
             let first = game.next_entity + 1;
@@ -546,6 +546,7 @@ pub(super) fn breed_pair_credited(
         base + 2,
         None,
         None,
+        None,
         horizon_client::mobs::BreedExperience::Deferred,
     );
     (base + 1, base + 2, child)
@@ -709,7 +710,7 @@ fn egg_layers_never_ask_baby_entity_spawn() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn breeding_without_a_listener_is_vanilla() {
     let mods: mod_api::Mods = Vec::new().into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             let (parent, partner, child) = breed_pair(game, "minecraft:cow");
             let baby = find(game, child.expect("a baby joined"));
@@ -762,7 +763,7 @@ fn with_splits(listeners: Vec<SplitFn>, run: impl FnOnce(&mut Game<'_>)) {
             )
         })
         .collect();
-    mod_api::testing::with_mods(entries.into(), || with_game(run));
+    mod_platform::testing::with_mods(entries.into(), || with_game(run));
 }
 
 #[test]

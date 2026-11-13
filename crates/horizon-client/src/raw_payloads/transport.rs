@@ -17,7 +17,7 @@ impl Transport {
     }
     /// A listener shares Local, never mutable connection epochs, across guests.
     pub fn new(local: Arc<Local>, side: Side) -> Arc<Self> {
-        if local.manifest.entries().is_empty() {
+        if !local.has_declarations() {
             return Self::empty();
         }
         Arc::new(Self {

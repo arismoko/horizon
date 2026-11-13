@@ -7,6 +7,7 @@ publish = false
 description = "The runtime for wasm mods: groups packages by their dependencies and refuses what cannot load"
 
 [dependencies]
+horizon-guest-stack = { path = "../horizon-guest-stack" }
 horizon-core = { path = "../horizon-core" }
 horizon-mod-runtime = { path = "../horizon-mod-runtime" }
 mod_points = { package = "horizon-mod-points", path = "../horizon-mod-points" }
@@ -27,7 +28,9 @@ rustix = { version = "1", default-features = false, features = ["std", "process"
 
 [dev-dependencies]
 horizon-world = { path = "../horizon-world" }
+horizon-threads = { path = "../horizon-threads" }
 tempfile = "3.27.0"
+libc = "0.2"
 horizon-mod-api-gen = { path = "../horizon-mod-api-gen" }
 mod_points = { package = "horizon-mod-points", path = "../horizon-mod-points" }
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
@@ -61,3 +64,8 @@ required-features = ["listener-fixture"]
 [[test]]
 name = "bench"
 required-features = ["listener-fixture"]
+
+[[test]]
+name = "main_stack_probe"
+harness = false
+required-features = ["runtime-fixture"]

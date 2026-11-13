@@ -136,6 +136,15 @@ impl Endpoint {
             return Err(PayloadSendError::StaleEpoch);
         }
         epoch.peer.can_send(epoch.phase, id)?;
+        // A raw channel keeps vanilla's clientbound custom-payload limit, by name.
+        let limit = horizon_protocol::packets::custom_payload::CLIENTBOUND_LIMIT;
+        if epoch.peer.local.is_raw(&id.0) && bytes.0.len() > limit {
+            return Err(PayloadSendError::PayloadTooLarge {
+                id: id.clone(),
+                size: bytes.0.len() as u64,
+                limit: limit as u64,
+            });
+        }
         let len = encoded_len(epoch.phase, self.side(), id, bytes.0.len());
         match &self.0 {
             Target::Client {

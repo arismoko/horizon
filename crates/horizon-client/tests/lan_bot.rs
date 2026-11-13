@@ -1305,9 +1305,6 @@ fn a_spectators_container_click_is_taken_back() {
         fn max_stack(&self, _: &str) -> u32 {
             64
         }
-        fn armor_index(&self, _: &str) -> Option<usize> {
-            None
-        }
     }
     let Some(resources) = resources() else {
         return;
@@ -1468,9 +1465,6 @@ fn a_click_past_the_menu_is_ignored() {
         }
         fn max_stack(&self, _: &str) -> u32 {
             64
-        }
-        fn armor_index(&self, _: &str) -> Option<usize> {
-            None
         }
     }
     let Some(resources) = resources() else {

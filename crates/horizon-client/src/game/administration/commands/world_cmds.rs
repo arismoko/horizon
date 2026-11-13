@@ -338,7 +338,7 @@ impl Game<'_> {
                     self.command_damage_mob(id, amount, damage)
                 }
             }
-            Target::Item(id) => self.command_damage_item(id, amount, ty, by, cause.or(by), from),
+            Target::Item(id) => self.hurt_item_entity(id, amount, ty, by, cause.or(by), from),
             Target::Boat(_) | Target::Cart(_) => {
                 self.command_damage_vehicle(target, amount, ty, by, cause.or(by), from)
             }
@@ -437,121 +437,6 @@ impl Game<'_> {
                 .is_some_and(|i| self.hurt_cart_result(i, amount, creative, ignites)),
             _ => false,
         }
-    }
-
-    /// `ItemEntity.hurtServer`: the item branch reached by `DamageCommand.damage`.
-    fn command_damage_item(
-        &mut self,
-        id: u32,
-        amount: f32,
-        damage_type: &str,
-        direct: Option<Target>,
-        causing: Option<Target>,
-        position: Option<[f64; 3]>,
-    ) -> bool {
-        let Some(index) = self.dropped.iter().position(|item| item.id == id) else {
-            return false;
-        };
-        let Some(kind) = self.motion.health.damage.id(damage_type) else {
-            return false;
-        };
-        let creative = self.creative_source_of(causing);
-        let vanilla = self.saved_refuses_damage(id, damage_type, creative);
-        let entity_id = |target| match target {
-            Some(Target::Player) => self.own_entity_id(),
-            Some(Target::Guest(conn)) => self.command_guest(conn).map_or(0, |g| g.entity_id),
-            Some(target) => {
-                crate::game::native_entities::target_id(target).map_or(0, |id| id as i32)
-            }
-            None => 0,
-        };
-        let causing_id = entity_id(causing);
-        let source = horizon_client::health::HurtSource {
-            damage_type,
-            causing: causing_id,
-            direct: entity_id(direct),
-            position,
-        };
-        if crate::game::entity::damage_level_of!(self, scoped).invulnerability_check(
-            horizon_client::health::Hurting::Entity(id as i32, "minecraft:item", source),
-            vanilla,
-        ) {
-            return false;
-        }
-        let registry = &self.motion.health.damage;
-        if !self
-            .ui
-            .rules
-            .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING)
-            && matches!(causing, Some(Target::Mob(_)))
-            || registry.in_tag(kind, "minecraft:is_fall")
-                && self.entity_tag_matches("minecraft:fall_damage_immune", "minecraft:item")
-        {
-            return false;
-        }
-        // Use the same defaults and stack patch as the component resolver,
-        // including defaults changed by native mods and removed components.
-        let components =
-            self.pack
-                .item_renderer
-                .models
-                .components(&horizon_client::item_render::stack_view(
-                    &self.dropped[index].stack,
-                ));
-        let resistant = |source: &str| {
-            let matches = |value: &str| {
-                let (tag, value) = value
-                    .strip_prefix('#')
-                    .map_or((false, value), |v| (true, v));
-                let name = if value.contains(':') {
-                    value.to_owned()
-                } else {
-                    format!("minecraft:{value}")
-                };
-                if tag {
-                    registry
-                        .id(source)
-                        .is_some_and(|id| registry.in_tag(id, &name))
-                } else {
-                    source == name
-                }
-            };
-            match components
-                .get("minecraft:damage_resistant")
-                .and_then(|v| v.get("types"))
-            {
-                Some(serde_json::Value::String(value)) => matches(value),
-                Some(serde_json::Value::Array(values)) => {
-                    values.iter().any(|v| v.as_str().is_some_and(matches))
-                }
-                _ => false,
-            }
-        };
-        if resistant(damage_type)
-            || registry.in_tag(kind, "minecraft:is_fire") && resistant("minecraft:in_fire")
-        {
-            return false;
-        }
-        let item = &mut self.dropped[index];
-        // Java subtracts in float before truncating to int, including fractions
-        // and accepted zero-damage hits.
-        item.health = (item.health as f32 - amount) as i32;
-        item.needs_sync = true;
-        let at = item.position;
-        self.sculk_prepare();
-        let who = match causing {
-            Some(Target::Player) => Some(Who::Player),
-            Some(Target::Mob(id)) => Some(Who::Mob(id)),
-            _ => None,
-        };
-        let context = self.who_context(who, None);
-        self.post_game_event("minecraft:entity_damage", [at.x, at.y, at.z], context);
-        if self.dropped[index].health <= 0 {
-            let contents = self.dropped[index].hurt(0).unwrap_or_default();
-            self.dropped.remove(index);
-            self.spawn_destroyed_contents(contents.into_iter().map(|stack| (stack, at)).collect());
-        }
-        true
     }
 
     /// `DamageCommand.damage`: retain the accepted hit's player context and run
@@ -2720,6 +2605,7 @@ mod vehicle_damage_command_tests {
         use horizon_core::geometry::Vec3;
         with_game(|game| {
             game.player = Some(PlayerMotion::new(game.motion, Vec3::new(4.5, 100.0, 4.5)).unwrap());
+            crate::game::native_entity_refs::tests::bind_local_player(game, 1, 99);
             game.creative = true;
             assert!(game.run_command("fill 0 99 0 15 99 15 stone"));
             assert!(game.run_command("attribute @s minecraft:armor base set 2"));
@@ -2846,6 +2732,7 @@ mod vehicle_damage_command_tests {
         use horizon_core::geometry::Vec3;
         with_game(|game| {
             game.player = Some(PlayerMotion::new(game.motion, Vec3::new(4.5, 200.0, 4.5)).unwrap());
+            crate::game::native_entity_refs::tests::bind_local_player(game, 1, 99);
             assert!(
                 game.run_command("summon pig 6.5 200 4.5 {UUID:[I;82,0,0,1],NoAI:1b,NoGravity:1b}")
             );

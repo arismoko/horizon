@@ -13,10 +13,11 @@ description = "Reusable client systems, control tool and parity probes"
 path = "../horizon-client/src/client_lib.rs"
 
 [dependencies]
+horizon-guest-stack = { path = "../horizon-guest-stack" }
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
 horizon-hooks = { path = "../horizon-hooks" }
 horizon-mod-runtime = { path = "../horizon-mod-runtime" }
-horizon-mod-api = { path = "../horizon-mod-api" }
+mod_api = { package = "horizon-mod-vocab", path = "../horizon-mod-vocab" }
 horizon-assets = { path = "../horizon-assets" }
 horizon-client-core = { path = "../horizon-client-core" }
 horizon-client-input = { path = "../horizon-client-input" }
@@ -29,6 +30,8 @@ horizon-mcp = { path = "../horizon-mcp" }
 # The server thread ahead of the workers (MinecraftServer.spin's Thread.setPriority).
 horizon-optifine = { path = "../horizon-optifine" }
 horizon-threads = { path = "../horizon-threads" }
+# The .hzperf capture format and writer (docs/perf-platform.md).
+horizon-perf-format = { path = "../horizon-perf-format" }
 # One pool of helper threads for the server tick's parallel phases (`parallel.rs`): threads made
 # once, not for every phase of every tick.
 rayon = "1.10"
@@ -115,6 +118,10 @@ wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
 [features]
 # Scoped observations for compiled-guest executor tests only.
 test-payload-probe = []
+# Isolated server-publication slots for resource-backed game fixtures only.
+test-publication-scope = []
+# Non-consuming residency journal observation for game fixtures only.
+test-residency-observer = []
 default = ["audio", "controllers"]
 # Sound output. Without it (and `controllers`) the program links neither libasound nor libudev on
 # Linux: the server build (`--no-default-features`, released as horizon-engine; docs/server.md).
@@ -135,11 +142,13 @@ workspace = true
 horizon-threads = { path = "../horizon-threads", features = ["test-allocation-probe"] }
 horizon-mod-wasm = { path = "../horizon-mod-wasm", features = ["listener-fixture", "test-copy-probe"] }
 tempfile = "3"
-horizon-mod-api = { path = "../horizon-mod-api", features = ["testing"] }
+mod_platform = { package = "horizon-mod-api", path = "../horizon-mod-api", features = ["testing"] }
 # ui_theme's unit tests draw text in the design system's fonts.
 horizon-theme = { path = "../horizon-theme" }
 horizon-client-render = { path = "../horizon-client-render", features = ["test-support"] }
 horizon-items = { path = "../horizon-items", features = ["test-support"] }
+# Reads back the captures the server_perf tests write.
+horizon-perf = { path = "../horizon-perf" }
 # Every WGSL shader translated as wgpu's DirectX 12 backend does (gfx.rs tests).
 naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out", "msl-out", "spv-out"] }
 

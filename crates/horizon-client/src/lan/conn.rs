@@ -287,6 +287,8 @@ pub struct PlayerSender {
     wire: Option<Arc<Counters>>,
     /// Registry negotiation belongs to this live connection, never a process-wide UUID cache.
     pub datapack_offer: Option<Arc<[u8]>>,
+    /// The plugin channels the client announced, in configuration and play.
+    pub announced: Arc<super::announced_channels::AnnouncedChannels>,
 }
 #[derive(Clone)]
 enum To {
@@ -356,6 +358,7 @@ impl PlayerSender {
             wire: None,
             payload_transport: Transport::empty(),
             datapack_offer: None,
+            announced: Arc::default(),
         }
     }
     #[cfg(test)]
@@ -391,6 +394,7 @@ impl PlayerSender {
             ),
             wire: None,
             datapack_offer: None,
+            announced: Arc::default(),
         };
         (sender, move || inspect.queued_contents())
     }
@@ -405,6 +409,7 @@ impl PlayerSender {
             wire: None,
             payload_transport: Transport::empty(),
             datapack_offer: None,
+            announced: Arc::default(),
         }
     }
     /// The bytes received from and sent to the client on the wire so far.
@@ -498,6 +503,20 @@ impl PlayerSender {
                 To::Pool(outbox, _) => outbox.send(vec![body], None),
             }
         }
+    }
+    /// Packets queued for the network thread or held by the tick, and their bytes.
+    pub fn queued(&self) -> (usize, usize) {
+        if matches!(self.to, To::Disabled) {
+            return (0, 0);
+        }
+        let waiting = match &self.to {
+            To::Pool(outbox, _) => outbox.queued(),
+            To::Channel(_) | To::Disabled => 0,
+        };
+        (
+            waiting + self.held().len(),
+            self.pending.load(Ordering::Relaxed),
+        )
     }
     /// Several packets in order, as [`Self::send`] each: under one lock
     /// while the tick holds them.
@@ -1160,6 +1179,7 @@ struct Parts {
     info: ClientInformation,
     brand: String,
     datapack_offer: Option<Vec<u8>>,
+    announced: Option<Arc<super::announced_channels::AnnouncedChannels>>,
 }
 
 fn login_and_configure(
@@ -1544,8 +1564,10 @@ fn login_and_configure(
         }
     }
     payload_transport.finish_configuration()?;
+    let announced = c.announced.clone();
     c.finish()?;
     Ok(Some(Parts {
+        announced,
         payload_transport,
         uuid,
         name: name.to_owned(),
@@ -1603,6 +1625,16 @@ fn receive_configuration(
         return Ok(None);
     }
     match packet {
+        // ServerCommonPacketListenerImpl hands these to the plugin messenger, in
+        // configuration as in play: the list stays on the connection.
+        cfg::Serverbound::CustomPayload(payload)
+            if super::announced_channels::is_list_channel(&payload.channel) =>
+        {
+            c.announced
+                .get_or_insert_with(Arc::default)
+                .apply(&payload.channel, &payload.data);
+            Ok(None)
+        }
         cfg::Serverbound::CustomPayload(payload) => c
             .application(payload)
             .map(|payload| payload.map(cfg::Serverbound::CustomPayload)),
@@ -1814,6 +1846,8 @@ fn wait_alive<T>(
             result
         });
     }
+    // The list lives on ConfigIo, which the wait below borrows as a plain connection.
+    let mut announced = c.announced.take();
     let result = {
         let connection = &mut **c;
         let writer = Mutex::new(&mut connection.writer);
@@ -1878,6 +1912,15 @@ fn wait_alive<T>(
                     }
                     continue;
                 }
+                // As receive_configuration does: the plugin messenger keeps the lists.
+                if let Ok(cfg::Serverbound::CustomPayload(payload)) = &packet
+                    && super::announced_channels::is_list_channel(&payload.channel)
+                {
+                    announced
+                        .get_or_insert_with(Arc::default)
+                        .apply(&payload.channel, &payload.data);
+                    continue;
+                }
                 if let Some(result) = answer(packet) {
                     break result;
                 }
@@ -1886,6 +1929,7 @@ fn wait_alive<T>(
             result
         })
     };
+    c.announced = announced;
     result.map_err(|error| payload_disconnect(c, error))
 }
 
@@ -1926,6 +1970,7 @@ fn play(
         wire: Some(c.reader.counters.clone()),
         payload_transport: parts.payload_transport.clone(),
         datapack_offer: parts.datapack_offer.map(Into::into),
+        announced: parts.announced.clone().unwrap_or_default(),
     };
     let required_pack = shared
         .config
@@ -2075,6 +2120,31 @@ impl io_pool::Session for PlayConn {
                                         conn: Some(self.conn),
                                     },
                                 );
+                                return Verdict::Go;
+                            }
+                            Ok(crate::raw_payloads::Classified::Raw(deliveries)) => {
+                                for incoming in deliveries {
+                                    let endpoint = crate::raw_payloads::Endpoint::server(
+                                        self.payload_sender.clone(),
+                                    );
+                                    crate::raw_payloads::dispatch(
+                                        incoming,
+                                        endpoint.clone(),
+                                        crate::raw_payloads::MainQueue::Server {
+                                            events: self.shared.events.clone(),
+                                            endpoint,
+                                            conn: Some(self.conn),
+                                        },
+                                    );
+                                }
+                                return Verdict::Go;
+                            }
+                            Ok(crate::raw_payloads::Classified::Other(payload))
+                                if self
+                                    .payload_sender
+                                    .announced
+                                    .apply(&payload.channel, &payload.data) =>
+                            {
                                 return Verdict::Go;
                             }
                             Ok(crate::raw_payloads::Classified::Other(payload)) => {
@@ -2232,6 +2302,11 @@ impl SharedFrames {
     fn cache(&self) -> std::sync::MutexGuard<'_, FrameCache> {
         self.frames.lock().unwrap_or_else(PoisonError::into_inner)
     }
+    /// The frames kept and the bytes of their contents.
+    fn census(&self) -> (usize, usize) {
+        let cache = self.cache();
+        (cache.frames.len(), cache.bytes)
+    }
     /// `frame::contents(body, Some(threshold))`, compressed only when no
     /// connection has sent the same body lately or compresses it now.
     fn contents(&self, body: &[u8], threshold: usize) -> horizon_protocol::Result<Arc<[u8]>> {
@@ -2278,6 +2353,11 @@ impl SharedFrames {
         }
         Ok(contents)
     }
+}
+
+/// The compressed frames shared by every connection: how many and their bytes.
+pub fn shared_frame_census() -> (usize, usize) {
+    SharedFrames::get().census()
 }
 
 /// Frame one packet body into `out`: a large one compressed through
@@ -2348,6 +2428,43 @@ mod tests {
         assert!(big.handed(size));
     }
     use super::*;
+
+    /// #3209: a client may announce its channels while the server waits on a configuration
+    /// task (here the code of conduct). With no typed declaration the wait reads packets
+    /// itself; the list must still be kept.
+    #[test]
+    fn channels_announced_during_a_configuration_wait_are_kept() {
+        use horizon_protocol::connection::Pipe;
+        use horizon_protocol::packets::custom_payload::CustomPayload;
+        let (client, server) = Pipe::pair();
+        let mut client = Connection::local(client);
+        let mut server = Connection::local(server);
+        for packet in [
+            cfg::Serverbound::CustomPayload(CustomPayload {
+                channel: "minecraft:register".into(),
+                data: b"voicechat:secret\0bungeecord:main".to_vec(),
+            }),
+            cfg::Serverbound::CustomPayload(CustomPayload {
+                channel: "minecraft:unregister".into(),
+                data: b"bungeecord:main".to_vec(),
+            }),
+            cfg::Serverbound::AcceptCodeOfConduct(horizon_protocol::packets::Empty),
+        ] {
+            client.send(&packet.encode()).unwrap();
+        }
+        let transport = Transport::empty();
+        let (events, _receiver) = super::super::event_channel_with_capacity(1 << 20);
+        let mut io = ConfigIo::new(&mut server, transport.clone(), events).unwrap();
+        assert!(io.sender.is_none(), "the wait reads packets itself");
+        let mut negotiation = horizon_protocol::payload_negotiation::Negotiation::new(
+            transport.local.manifest.clone(),
+        );
+        let mut info = ClientInformation::new(10);
+        accept_code_of_conduct(&mut io, "Be kind.", &mut info, &transport, &mut negotiation)
+            .unwrap();
+        let announced = io.announced.as_ref().map(|list| list.list());
+        assert_eq!(announced, Some(vec!["voicechat:secret".to_owned()]));
+    }
 
     #[test]
     fn mod_refusal_translates_on_the_client_and_names_every_difference() {
@@ -3257,6 +3374,7 @@ mod outgoing_budget_tests {
             ),
             wire: None,
             datapack_offer: None,
+            announced: Arc::default(),
         }
     }
     #[test]

@@ -20,7 +20,7 @@ static TEST: Mutex<()> = Mutex::new(());
 
 /// The mods of these tests, installed with their parts, as a game's open does.
 fn install_game_mods() {
-    mod_api::__private::install(vec![ModEntry::new("test", Box::new(Mod))].into());
+    mod_platform::__private::install(vec![ModEntry::new("test", Box::new(Mod))].into());
     crate::game::api_values::install_parts(&[ModEntry::new("test", Box::new(Mod))]).unwrap();
 }
 
@@ -683,7 +683,7 @@ fn a_villager_without_mod_behaviors_draws_what_a_parts_free_one_does() {
     }
     // Phase A: no parts at all (each game resolves whatever is installed as
     // it opens, so the phases install between games, as the goal tests do).
-    mod_api::__private::install(Vec::new().into());
+    mod_platform::__private::install(Vec::new().into());
     let bare = with_game_states(fifty_ticks);
     // Phase B: the mods installed, a part on the villager that adds no
     // behavior (and one on a zombie besides).

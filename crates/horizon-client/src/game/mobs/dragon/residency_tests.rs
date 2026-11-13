@@ -195,7 +195,7 @@ fn singleton_join_rejection_discards_the_installed_dragon() {
             }
         }
     }
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new("dragon-veto", Box::new(Veto))].into(),
         || {
             with_game(|game| {
@@ -231,7 +231,7 @@ fn singleton_live_owner_is_not_reported_as_departed() {
         }
     }
     let leaves = Arc::new(AtomicUsize::new(0));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "dragon-leaves",
             Box::new(Witness(leaves.clone())),

@@ -23,7 +23,7 @@ impl Hooks for Dry {
 #[ignore = "needs prepared resources and an isolated process for native mods"]
 fn a_mod_keeps_one_source_from_counting() {
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("dry", Box::new(Dry))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::native_guest_turn_tests::with_guests(|game| {
             game.options.dedicated = Some(Vec::new());
             game.world.chunks.insert(

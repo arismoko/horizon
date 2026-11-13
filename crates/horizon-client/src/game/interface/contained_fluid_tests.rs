@@ -148,7 +148,7 @@ fn a_mod_container_draws_the_fluid_its_part_reports_isolated() {
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("tank", Box::new(part.clone()))].into();
     let scratch = tempfile::tempdir().unwrap();
     let root = resource_root(scratch.path());
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         crate::game::native_entity_refs::tests::with_game_at(root, |game| {
             let answer = |a| *part.answer.lock().unwrap() = a;

@@ -71,6 +71,27 @@ impl<'a> PayloadRegistrar<'a> {
     }
 }
 
+impl PayloadRegistrar<'_> {
+    /// Declare a raw play channel by its exact id (`bungeecord:main`,
+    /// `voicechat:secret`): opaque bytes towards any peer, a vanilla client
+    /// included, as a Paper plugin channel. It is not a negotiated payload:
+    /// it is absent from the negotiation offer, makes no client mod-required
+    /// and ignores this view's version and optional settings. The server sends
+    /// on it with `PlayerRef::send_payload` (vanilla's 1,048,576-byte limit)
+    /// and `server`, when given, receives what a client sends on it (vanilla's
+    /// 32,767-byte limit), on the main thread. Several mods may declare one raw
+    /// channel; each receives it once, in mod load order. `minecraft:` and
+    /// `horizon:` ids, and an id a typed payload uses, refuse load.
+    pub fn play_raw(
+        &mut self,
+        id: PayloadId,
+        server: Option<Arc<dyn IPayloadHandler>>,
+    ) -> &mut Self {
+        self.registrar.borrow_mut().add_raw_payload(id, server);
+        self
+    }
+}
+
 macro_rules! methods {
     ($to_client:ident, $to_server:ident, $both:ident, $protocol:ident) => {
         impl PayloadRegistrar<'_> {

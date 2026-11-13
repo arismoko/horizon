@@ -18,13 +18,13 @@ jobs:
         working-directory: crates/horizon-telemetry-server
     steps:
       - uses: actions/checkout@v7
-      - run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - run: bash ../../tools/ci/rustup_install.sh --profile minimal --component rustfmt --component clippy
       # Ours keep their build folder between jobs.
       - uses: Swatinem/rust-cache@v2
         if: runner.environment == 'github-hosted'
         with:
           workspaces: crates/horizon-telemetry-server
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo +stable fmt --check
-      - run: cargo +stable clippy --all-targets --locked -- -D warnings
-      - run: cargo +stable test --locked
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked

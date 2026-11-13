@@ -11,7 +11,7 @@ pub trait Hooks {
     #[hook(
         side = "server",
         contract = "listen",
-        neoforge = "LivingEquipmentChangeEvent"
+        neoforge = "none (vanilla's `LivingEntity.onEquipItem`; `living_equipment_change` is the `LivingEquipmentChangeEvent` counterpart)"
     )]
     fn on_equip();
 }

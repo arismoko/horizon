@@ -169,6 +169,11 @@ mod tests {
                 "[package]\nname = 'horizon-client'\n",
             )
             .unwrap();
+            std::fs::write(
+                root.join("Cargo.lock"),
+                "version = 4\n\n[[package]]\nname = \"horizon-client\"\nversion = \"0.1.0\"\n",
+            )
+            .unwrap();
             let lists = root.join("crates/horizon-mod-api-gen");
             std::fs::create_dir_all(&lists).unwrap();
             std::fs::write(lists.join("internals.txt"), "").unwrap();

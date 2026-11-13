@@ -165,8 +165,9 @@ impl LootDrops<'_> {
     }
 }
 
-/// An item that drops where a living entity died, before it is an item entity
-/// in the level (`living_drops`): what `ItemEntity`'s constructor was given.
+/// An item that drops where a living entity died or a block broke, before it is
+/// an item entity in the level (`living_drops`, `block_drops`): what `ItemEntity`'s
+/// constructor was given, and the item-entity state it joins the level with.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 #[derive(horizon_mod_api_macros::Wire)]
@@ -179,6 +180,16 @@ pub struct ItemDrop {
     pub velocity: [f64; 3],
     /// Ticks before a player may pick it up.
     pub pickup_delay: u32,
+    /// `ItemEntity.setThrower`: the UUID of the entity that threw it, none by default.
+    pub thrower: Option<u128>,
+    /// `ItemEntity.setTarget`: the UUID of the only player who may pick it up, none (anyone)
+    /// by default.
+    pub target: Option<u128>,
+    /// `Entity.setNoGravity`: the item entity floats where it moves; false by default.
+    pub no_gravity: bool,
+    /// The item entity's starting `age` in ticks, 0 by default. It despawns at 6000;
+    /// [`ItemDrop::UNLIMITED_LIFETIME`] (vanilla's `setUnlimitedLifetime`) never does.
+    pub age: i32,
 }
 
 impl ItemDrop {
@@ -194,7 +205,29 @@ impl ItemDrop {
             position,
             velocity,
             pickup_delay,
+            thrower: None,
+            target: None,
+            no_gravity: false,
+            age: 0,
         }
+    }
+    /// The `age` that keeps an item entity from despawning (`ItemEntity.setUnlimitedLifetime`).
+    pub const UNLIMITED_LIFETIME: i32 = -32768;
+    /// The same drop, thrown by `thrower` (`ItemEntity.setThrower`).
+    pub fn with_thrower(self, thrower: Option<u128>) -> Self {
+        Self { thrower, ..self }
+    }
+    /// The same drop, which only `target` may pick up (`ItemEntity.setTarget`).
+    pub fn with_target(self, target: Option<u128>) -> Self {
+        Self { target, ..self }
+    }
+    /// The same drop, with or without gravity (`Entity.setNoGravity`).
+    pub fn with_no_gravity(self, no_gravity: bool) -> Self {
+        Self { no_gravity, ..self }
+    }
+    /// The same drop, starting at `age` ticks ([`ItemDrop::UNLIMITED_LIFETIME`] never despawns).
+    pub fn with_age(self, age: i32) -> Self {
+        Self { age, ..self }
     }
 }
 

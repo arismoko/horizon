@@ -34,6 +34,9 @@ pub(super) struct OrderedTicks {
     /// entity lists can change between passes, so this only retains capacity;
     /// entries are rebuilt from the live lists every time.
     pending_buf: Vec<(JoinSeq, Pending)>,
+    /// The falling blocks (id, join) that ended a tick still falling with a part listening to
+    /// `falling_tick`, delivered after the pass.
+    pub(super) falling_ticked: Vec<(u32, JoinSeq)>,
 }
 
 /// The batches of the other kinds, in the order they tick.
@@ -70,6 +73,8 @@ impl Game<'_> {
     pub(super) fn begin_ordered_ticks(&mut self) {
         let _span = horizon_client::spans::guard("ordered_ticks");
         let pending_buf = std::mem::take(&mut self.ordered.pending_buf);
+        let mut falling_ticked = std::mem::take(&mut self.ordered.falling_ticked);
+        falling_ticked.clear();
         let firsts = [
             first_join(&self.armor_stands),
             first_join(&self.boats),
@@ -95,6 +100,7 @@ impl Game<'_> {
             suffix_min,
             lava_random: None,
             pending_buf,
+            falling_ticked,
         };
     }
 
@@ -233,7 +239,7 @@ impl Game<'_> {
                             .get_or_insert_with(random_source::entity)
                             .next_float()
                     };
-                    let stays = {
+                    let (stays, step) = {
                         let audio = &mut self.audio;
                         let mut on_sound = |pos: [f64; 3], pitch: f32| {
                             audio.play("minecraft:entity.generic.burn", Some(pos), 0.4, pitch);
@@ -279,6 +285,10 @@ impl Game<'_> {
                     // orb that is done is removed.
                     let snow = (o.previous, o.position, o.bounds(), o.velocity);
                     self.entity_powder_snow_particles(snow.0, snow.1, snow.2, snow.3, false);
+                    // Its move is filed at once, also for an orb about to go.
+                    let (from, to) = (snow.0, snow.1);
+                    self.entity_section_step(orb_id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+                    self.orb_moved(i, step);
                     if !stays {
                         self.orbs.remove(i);
                     }
@@ -286,9 +296,11 @@ impl Game<'_> {
             }
         }
         self.ordered.pending_buf = pending;
+        self.deliver_falling_ticks();
         if events && let Err(e) = self.process_level_events() {
             first_error.get_or_insert(e);
         }
+        self.entity_sections_stepped(super::entity_sections::Family::Ordered);
         first_error.map_or(Ok(()), Err)
     }
 
@@ -300,6 +312,30 @@ impl Game<'_> {
             return Ok(());
         }
         self.run_ordered_ticks(cut, false)
+    }
+}
+
+impl Game<'_> {
+    /// `Entity.move`'s fall bookkeeping after orb `i`'s move: a move of a
+    /// block or more casts for a reset block or water, `checkFallDamage` adds
+    /// the drop outside water and, on the ground after a fall, posts
+    /// HIT_GROUND, then forgets it. `Block.fallOn` (farmland's random draw,
+    /// honey's slide) is not run for an orb yet, nor for the other entities
+    /// that are not living.
+    pub(super) fn orb_moved(&mut self, i: usize, step: horizon_client::entities::OrbMove) {
+        let o = &self.orbs[i];
+        let mut fall = self.vehicle_fall_reset(o.fall_distance, step.from, step.moved);
+        if !step.in_water && step.moved.y < 0.0 {
+            fall -= f64::from(step.moved.y as f32);
+        }
+        if o.on_ground {
+            if fall > 0.0 {
+                let (position, bounds) = (o.position, o.bounds());
+                self.post_landing_event(position, bounds, false);
+            }
+            fall = 0.0;
+        }
+        self.orbs[i].fall_distance = fall;
     }
 }
 

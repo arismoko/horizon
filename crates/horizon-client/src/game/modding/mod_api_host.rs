@@ -153,6 +153,12 @@ impl Game<'_> {
     ) -> Result<(), mod_api::AttachmentError> {
         use mod_api::AttachmentError;
         let id = std::num::NonZeroU32::new(id).ok_or(AttachmentError::MissingHolder)?;
+        if matches!(
+            self.with_resident_slot(&self.dim.key(), id, |slot| slot.is_bound()),
+            super::entity_residency::SlotAccess::Done(true)
+        ) {
+            return Ok(());
+        }
         if !matches!(
             self.server_resident_entity(id.get()),
             horizon_client::join_seq::residency::table::EntityLookup::Found {
@@ -330,8 +336,25 @@ impl Game<'_> {
     }
 }
 
-pub(super) fn level_side<'a>(level: &'a super::GameLevel<'_>) -> mod_api::LevelSide<'a> {
-    if horizon_world::level::LevelAccess::is_client_side(level) {
+/// A level a both-side level hook reads, which knows the side it is on.
+pub(super) trait SidedLevel: mod_api::LevelHost {
+    fn client_side(&self) -> bool;
+}
+
+impl SidedLevel for super::GameLevel<'_> {
+    fn client_side(&self) -> bool {
+        horizon_world::level::LevelAccess::is_client_side(self)
+    }
+}
+
+impl SidedLevel for super::native_hooks::HitLevel<'_> {
+    fn client_side(&self) -> bool {
+        self.0.client_side()
+    }
+}
+
+pub(super) fn level_side(level: &impl SidedLevel) -> mod_api::LevelSide<'_> {
+    if level.client_side() {
         mod_api::LevelSide::Client(level)
     } else {
         mod_api::LevelSide::Server(level)

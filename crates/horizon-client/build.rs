@@ -31,6 +31,11 @@ fn main() {
         "cargo:rerun-if-changed={}",
         root.join("packaging/executable_link.rs").display()
     );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("crates/horizon-guest-stack/src/guest_stack_constants.rs")
+            .display()
+    );
     for arg in windows_exe::executable_link::arguments(&target_os, &target_env) {
         println!("cargo:horizon-executable-link-arg={arg}");
     }

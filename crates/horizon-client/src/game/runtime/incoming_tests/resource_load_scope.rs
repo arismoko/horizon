@@ -32,13 +32,14 @@ fn loader_workers_keep_owning_mod_sets_and_share_only_matching_numeric_payloads(
             .into_iter()
             .map(|mods| {
                 owners.spawn(move || {
-                    mod_api::testing::with_mods(mods, || {
-                        mod_api::__private::part_tests::install_parts_fixture(
+                    mod_platform::testing::with_mods(mods, || {
+                        mod_platform::__private::part_tests::install_parts_fixture(
                             mod_api::__private::mods(),
                         )
                         .unwrap();
                         let ids: Vec<_> = mod_api::__private::installed_code_ids().collect();
-                        let stone = mod_api::__private::part_tests::block_key("minecraft:stone");
+                        let stone =
+                            mod_platform::__private::part_tests::block_key("minecraft:stone");
                         let installation = mod_api::__private::registry_installation_identity();
                         assert!(installation.1.is_some());
                         std::thread::scope(|workers| {
@@ -59,7 +60,9 @@ fn loader_workers_keep_owning_mod_sets_and_share_only_matching_numeric_payloads(
                                     ids
                                 );
                                 assert_eq!(
-                                    mod_api::__private::part_tests::block_key("minecraft:stone"),
+                                    mod_platform::__private::part_tests::block_key(
+                                        "minecraft:stone"
+                                    ),
                                     stone
                                 );
                                 horizon_client::assets::Assets::load(root).unwrap().registry

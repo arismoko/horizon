@@ -60,7 +60,14 @@ enum NoticeAction {
     Observe,
     Write,
     Panic,
+    /// Records the transaction lifecycle the notice runs in.
+    Lifecycle,
+    /// Opens and closes a transaction of its own, then records the lifecycle.
+    NestedLifecycle,
 }
+
+/// The lifecycle each notice ran in, for [`NoticeAction::Lifecycle`].
+static LIFECYCLES: Mutex<Vec<TransactionLifecycle>> = Mutex::new(Vec::new());
 
 #[derive(Clone)]
 struct Observed {
@@ -74,6 +81,21 @@ impl BlockPart for Observed {
         self.changes.contents_changed(host, event);
         match self.action {
             NoticeAction::Observe => return,
+            NoticeAction::Lifecycle => {
+                LIFECYCLES
+                    .lock()
+                    .unwrap()
+                    .push(host.transaction_lifecycle());
+                return;
+            }
+            NoticeAction::NestedLifecycle => {
+                assert_eq!(host.transaction(|_, _| Ok::<_, ()>(())), Ok(()));
+                LIFECYCLES
+                    .lock()
+                    .unwrap()
+                    .push(host.transaction_lifecycle());
+                return;
+            }
             NoticeAction::Panic => panic!("contents notice panic probe"),
             NoticeAction::Write => {}
         }
@@ -143,7 +165,7 @@ fn with_changes(
         }),
     )]
     .into();
-    mod_api::__private::install(mods.clone());
+    mod_platform::__private::install(mods.clone());
     crate::game::api_values::install_parts(&mods).unwrap();
     let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let root = crate::game::mods::content_root(&base, &Default::default())
@@ -576,6 +598,123 @@ fn notices_come_in_first_write_order_once_each_whatever_the_journal_keeps() {
                 .map(|notice| (notice.pos, notice.amount))
                 .collect();
             assert_eq!(told, [(a, 3), (b, 5)]);
+        },
+    );
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_mod_reads_the_open_transaction_its_depth_and_the_root_commits_phase() {
+    with_changes(
+        "game::machines::contents_changed_tests::a_mod_reads_the_open_transaction_its_depth_and_the_root_commits_phase",
+        NoticeAction::Lifecycle,
+        |game, level, _| {
+            let pos = [0, 64, 0];
+            place(game, level, pos, "minecraft:chest");
+            let items = level.capability(game, &ITEMS, pos, None).unwrap();
+            let entity = game.block_entity(level, pos).unwrap();
+            let sticks = ItemResource::of(
+                &mod_api::ItemStack::new(
+                    mod_api::__private::item_key("minecraft:stick").unwrap(),
+                    1,
+                )
+                .unwrap(),
+            );
+            let host: &mut dyn ServerHost = game;
+            assert_eq!(host.transaction_lifecycle(), TransactionLifecycle::None);
+            assert_eq!(host.transaction_current(), None);
+            // A helper given no transaction writes in the open one, which the abort undoes.
+            let aborted = host.transaction(|host, outer| {
+                assert_eq!(host.transaction_lifecycle(), TransactionLifecycle::Open);
+                assert_eq!(host.transaction_depth(outer), Some(0));
+                host.transaction(|host, inner| {
+                    assert_eq!(host.transaction_depth(inner), Some(1));
+                    assert_eq!(host.transaction_current().as_ref(), Some(inner));
+                    let current = host.transaction_current().unwrap();
+                    assert_eq!(items.insert(host, &current, 0, &sticks, 4), 4);
+                    Ok::<_, ()>(())
+                })?;
+                assert_eq!(items.amount(host, 0), 4);
+                Err::<(), ()>(())
+            });
+            assert!(aborted.is_err());
+            assert_eq!(items.amount(host, 0), 0);
+            // The closed transaction is no longer open.
+            let closed =
+                host.transaction(|_, tx| Ok::<_, ()>(mod_api::__private::transaction_token(tx)));
+            let closed = mod_api::__private::transaction_of(closed.unwrap());
+            assert_eq!(host.transaction_depth(&closed), None);
+            // The notice of a committed write runs while the root closes.
+            LIFECYCLES.lock().unwrap().clear();
+            let committed = host.transaction(|host, tx| {
+                assert_eq!(items.insert(host, tx, 0, &sticks, 2), 2);
+                assert!(entity.set_changed(host).unwrap());
+                Ok::<_, ()>(())
+            });
+            assert_eq!(committed, Ok(()));
+            assert_eq!(
+                *LIFECYCLES.lock().unwrap(),
+                [TransactionLifecycle::RootClosing]
+            );
+            assert_eq!(host.transaction_lifecycle(), TransactionLifecycle::None);
+        },
+    );
+}
+
+/// A notice that opens and closes a transaction of its own leaves the root's closing phase as it
+/// was, and the phase ends with the root.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_notice_that_opens_a_transaction_keeps_the_root_closing_phase() {
+    with_changes(
+        "game::machines::contents_changed_tests::a_notice_that_opens_a_transaction_keeps_the_root_closing_phase",
+        NoticeAction::NestedLifecycle,
+        |game, level, _| {
+            let pos = [0, 64, 0];
+            place(game, level, pos, "minecraft:chest");
+            let entity = game.block_entity(level, pos).unwrap();
+            LIFECYCLES.lock().unwrap().clear();
+            let host: &mut dyn ServerHost = game;
+            let committed = host.transaction(|host, _| {
+                assert!(entity.set_changed(host).unwrap());
+                Ok::<_, ()>(())
+            });
+            assert_eq!(committed, Ok(()));
+            assert_eq!(
+                *LIFECYCLES.lock().unwrap(),
+                [TransactionLifecycle::RootClosing]
+            );
+            assert_eq!(host.transaction_lifecycle(), TransactionLifecycle::None);
+        },
+    );
+}
+
+/// A notice that panics while the root commits leaves no closing phase behind: after the caught
+/// panic nothing is open, and the next transaction reads Open.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_panicking_root_commit_notice_leaves_the_phase_none() {
+    with_changes(
+        "game::machines::contents_changed_tests::a_panicking_root_commit_notice_leaves_the_phase_none",
+        NoticeAction::Panic,
+        |game, level, _| {
+            let pos = [0, 64, 0];
+            place(game, level, pos, "minecraft:chest");
+            let entity = game.block_entity(level, pos).unwrap();
+            let host: &mut dyn ServerHost = game;
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                host.transaction(|host, _| {
+                    entity.set_changed(host).unwrap();
+                    Ok::<_, ()>(())
+                })
+            }));
+            assert!(caught.is_err());
+            assert_eq!(host.transaction_lifecycle(), TransactionLifecycle::None);
+            let next = host.transaction(|host, _| {
+                assert_eq!(host.transaction_lifecycle(), TransactionLifecycle::Open);
+                Ok::<_, ()>(())
+            });
+            assert_eq!(next, Ok(()));
         },
     );
 }

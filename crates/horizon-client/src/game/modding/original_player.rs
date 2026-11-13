@@ -251,7 +251,7 @@ mod tests {
         check("Backend", "original_player_experience", input(), expected);
         let mut expected = Writer::new();
         expected.put(&Some(vec![mod_api::ActiveEffect::new(
-            mod_api::__private::part_tests::effect_key("minecraft:speed"),
+            mod_platform::__private::part_tests::effect_key("minecraft:speed"),
             200,
             1,
             false,
@@ -432,7 +432,7 @@ mod tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_guests(|game| {
                 game.options.dedicated = Some(Vec::new());
                 let dimension = if death { Dim::Nether } else { Dim::End };
@@ -454,7 +454,9 @@ mod tests {
                         .push(horizon_client::effects::EffectInstance::from_def(
                             horizon_client_core::potions::effect_by_index(
                                 mod_api::__private::effect_index(
-                                    mod_api::__private::part_tests::effect_key("minecraft:speed"),
+                                    mod_platform::__private::part_tests::effect_key(
+                                        "minecraft:speed",
+                                    ),
                                 )
                                 .unwrap(),
                             )
@@ -520,20 +522,24 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn death_clone_retains_original_and_expires_after_dispatch() {
-        clone_case(true, false);
-        clone_case(true, true);
+        crate::game::native_entity_refs::tests::run_on_guest_stack(|| {
+            clone_case(true, false);
+            clone_case(true, true);
+        });
     }
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn end_return_clone_retains_end_state_and_expires_after_dispatch() {
-        clone_case(false, true);
+        crate::game::native_entity_refs::tests::run_on_guest_stack(|| {
+            clone_case(false, true);
+        });
     }
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn unsubscribed_clone_does_not_capture() {
-        mod_api::testing::with_mods(Vec::<mod_api::ModEntry>::new().into(), || {
+        mod_platform::testing::with_mods(Vec::<mod_api::ModEntry>::new().into(), || {
             with_guests(|game| assert!(game.capture_original_player(12).is_none()));
         });
     }

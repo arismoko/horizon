@@ -255,6 +255,19 @@ fn launching_from_a_block_and_while_gliding_use_the_rocket_up() {
 #[ignore = "prepared resources; actual registered load, Game tick and posted events"]
 fn a_falling_rocket_hits_the_ground_and_one_in_water_splashes() {
     with_game(|game| {
+        // Commands and collisions need resident terrain for both rocket columns.
+        // Use the shared chunk fixture and the player's real ticket sources.
+        crate::game::native_entity_refs::tests::prepare_entity_ticking_neighborhood(
+            game,
+            ChunkPos::new(0, 0),
+        );
+        game.build_registries();
+        game.set_allow_commands(true);
+        game.update_chunk_tickets();
+        assert!(game.run_command("setblock 6 199 10 stone"));
+        // Keep the falling rocket submerged through the sixth move: one
+        // floating source block ends at y = 200, above its final position.
+        assert!(game.run_command("setblock 20 199 10 water"));
         assert!(game.run_command("setblock 20 200 10 water"));
         for x in [6, 20] {
             assert!(game.run_command(&format!(

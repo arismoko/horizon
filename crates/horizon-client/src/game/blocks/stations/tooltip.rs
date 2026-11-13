@@ -384,7 +384,7 @@ mod tests {
         }
         let mods: Mods = vec![ModEntry::new("image", Box::new(Mod))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 DRAWN.store(false, Ordering::Relaxed);
                 game.draw_stack_tooltip(

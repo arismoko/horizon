@@ -14,6 +14,7 @@ on:
       - 'packaging/executable_link.rs'
       - 'rust-toolchain*'
       - 'launcher/src/rust_toolchain.rs'
+      - 'tools/ci/rust-version'
       - 'tools/prebuilt_game.py'
       - 'tools/native_dylib_probe.py'
       - 'tools/native_dylib_probe/**'
@@ -96,7 +97,7 @@ jobs:
         id: rust
         run: |
           git rev-parse HEAD
-          echo "version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' launcher/src/rust_toolchain.rs)" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat tools/ci/rust-version)" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.rust.outputs.version }}-${{ matrix.target }}

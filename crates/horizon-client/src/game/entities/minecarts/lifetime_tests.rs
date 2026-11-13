@@ -173,7 +173,7 @@ fn exploding_driven_cart_does_not_reseat_a_player_moved_by_its_dismount_hook() {
         Box::new(TeleportPlayerOnCartDismount(calls.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::super::native_entity_refs::tests::with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.player = Some(
@@ -233,7 +233,7 @@ fn activator_respects_canceled_player_dismount() {
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::super::native_entity_refs::tests::with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.player =
@@ -332,7 +332,7 @@ fn destroyed_carts_retain_authoritative_state_and_retire_their_registration() {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.tickets.update(None);

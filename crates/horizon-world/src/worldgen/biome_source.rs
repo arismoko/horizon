@@ -1,5 +1,9 @@
 //! Fixed, checkerboard and End biome-source queries. Registry codecs are separate.
 mod codec;
+pub mod region_selector;
+#[cfg(test)]
+mod region_selector_tests;
+pub mod regions;
 mod runtime;
 pub use codec::{BiomeSet, BiomeSourceCatalog, BiomeSourceDefinition};
 use horizon_core::density::{DensitySampler, SampleError, SamplerContext};

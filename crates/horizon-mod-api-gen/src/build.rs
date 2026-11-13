@@ -46,10 +46,7 @@ pub fn generate(root: &Path, out_dir: &Path, target: Target) -> Result<(), Strin
         std::collections::BTreeSet::new()
     };
     if matches!(&target, Target::Client) {
-        println!(
-            "cargo:rerun-if-changed={}",
-            root.join(".horizon-source-staged").display()
-        );
+        crate::rerun_if_staged(root);
     }
     let generated = sources(root, super::FillMode::Require)?;
     let outputs = match target {
@@ -331,16 +328,25 @@ pub(super) fn wire_types_from_sources(
 /// `horizon-mod-points`' generated file: each point's record, `PointId` and typed function constructors,
 /// from the game's source, tracking the game module's files.
 pub fn generate_points(root: &Path, out_dir: &Path) -> Result<(), String> {
-    crate::interface_cache::with_cache(out_dir, || generate_points_inner(root, out_dir))
+    crate::interface_cache::with_cache(out_dir, || {
+        crate::source::with_walk_cache(|| generate_points_inner(root, out_dir))
+    })
 }
 
 pub(super) fn generate_points_inner(root: &Path, out_dir: &Path) -> Result<(), String> {
+    // Phase durations for CI's build report (points-timing.txt beside the output); never read back.
+    let started = std::time::Instant::now();
+    let mut timing = String::new();
+    let mut phase = |name: &str| {
+        timing.push_str(&format!("{name} {:.2}s\n", started.elapsed().as_secs_f64()));
+    };
     let src = root.join("crates/horizon-client/src");
     crate::rerun_if_changed(&src.join("game.rs").display());
     crate::rerun_if_changed(&src.join("game").display());
     for path in super::points::tracked(root)? {
         crate::rerun_if_changed(&path.display());
     }
+    phase("tracked");
     println!("cargo:rerun-if-env-changed=HORIZON_POINT_NAMES");
     let selected = std::env::var("HORIZON_POINT_NAMES")
         .ok()
@@ -351,15 +357,16 @@ pub(super) fn generate_points_inner(root: &Path, out_dir: &Path) -> Result<(), S
         .transpose()?;
     // Only a staged copy compiles the points' sites into the game; the wasm host's listener
     // fixture brings its own.
-    let stamp = root.join(".horizon-source-staged");
-    crate::rerun_if_changed(&stamp.display());
-    let staged = stamp.is_file() || cfg!(feature = "listener-fixture");
-    let code = super::points::records_selected(
-        &super::points::game_points(root)?,
-        selected.as_ref(),
-    ) + &format!(
-        "/// Whether this build compiled the points' sites into the game: only the prebuilt game, built from a staged copy of the source, has them. A build without them refuses every listener at load.\npub const STAGED: bool = {staged};\n"
-    );
+    crate::rerun_if_staged(root);
+    let staged =
+        root.join(".horizon-source-staged").is_file() || cfg!(feature = "listener-fixture");
+    let points = super::points::game_points(root)?;
+    phase("game_points");
+    let code = super::points::records_selected(&points, selected.as_ref())
+        + &format!(
+            "/// Whether this build compiled the points' sites into the game: only the prebuilt game, built from a staged copy of the source, has them. A build without them refuses every listener at load.\npub const STAGED: bool = {staged};\n"
+        );
+    phase("records");
     let generated = syn::parse_file(&code).map_err(|e| format!("generated Rust: points: {e}"))?;
     // A single multi-megabyte line makes Clippy's source lookups prohibitively slow.
     let mut code = String::new();
@@ -367,7 +374,10 @@ pub(super) fn generate_points_inner(root: &Path, out_dir: &Path) -> Result<(), S
         code.push_str(&item.to_token_stream().to_string());
         code.push('\n');
     }
-    write_if_changed(out_dir.join("points_generated.rs"), code).map_err(|e| e.to_string())
+    phase("format");
+    write_if_changed(out_dir.join("points_generated.rs"), code).map_err(|e| e.to_string())?;
+    phase("written");
+    fs::write(out_dir.join("points-timing.txt"), timing).map_err(|e| e.to_string())
 }
 
 pub(super) fn track(root: &Path, all_game: bool) -> Result<(), String> {

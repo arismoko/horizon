@@ -22,6 +22,15 @@ pub(crate) struct Registered {
 #[non_exhaustive]
 pub struct Payloads {
     pub(crate) phases: [HashMap<String, Registered>; 2],
+    /// Raw play channels by exact id, each with its declaring mods in load order.
+    pub(crate) raw: HashMap<String, Vec<RawRegistered>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct RawRegistered {
+    pub(crate) owner: &'static str,
+    pub(crate) owner_index: usize,
+    pub(crate) server: Option<Arc<dyn IPayloadHandler>>,
 }
 
 // no wire: resolved process-local callback and its owning mod's live enable guard.
@@ -38,6 +47,10 @@ pub struct PayloadReceiver {
 }
 
 impl PayloadReceiver {
+    /// The receiving mod's id, for diagnostics.
+    pub fn owner(&self) -> &'static str {
+        self.owner
+    }
     /// Recheck the owner without scanning registrations or resolving the id again.
     pub fn enabled(&self) -> bool {
         crate::mod_index_on(self.owner_index)
@@ -115,6 +128,35 @@ impl Payloads {
             PayloadDirection::Bidirectional => None,
         }
     }
+    /// The raw play channels an enabled mod declared, by exact id.
+    pub fn raw_channels(&self) -> impl Iterator<Item = &str> {
+        self.raw
+            .iter()
+            .filter(|(_, owners)| {
+                owners
+                    .iter()
+                    .any(|owner| crate::mod_index_on(owner.owner_index))
+            })
+            .map(|(id, _)| id.as_str())
+    }
+    /// The enabled mods receiving raw channel `id` from clients, in load order,
+    /// each on the main thread. Empty for an undeclared or send-only channel.
+    pub fn raw_receivers(&self, id: &str) -> Vec<PayloadReceiver> {
+        self.raw.get(id).map_or_else(Vec::new, |owners| {
+            owners
+                .iter()
+                .filter(|owner| crate::mod_index_on(owner.owner_index))
+                .filter_map(|owner| {
+                    Some(PayloadReceiver {
+                        handler: owner.server.clone()?,
+                        owner: owner.owner,
+                        thread: HandlerThread::Main,
+                        owner_index: owner.owner_index,
+                    })
+                })
+                .collect()
+        })
+    }
     /// Validate the client-only handler requirement before a client starts its
     /// connection. Dedicated servers do not require unused client callbacks.
     pub fn validate_client_handlers(&self) -> Result<(), Vec<String>> {
@@ -167,4 +209,8 @@ pub trait PayloadsRegistrar {
         thread: HandlerThread,
         handler: Arc<dyn IPayloadHandler>,
     );
+    /// Declare a raw play channel by exact id, with an optional server receiver.
+    /// Reserved namespaces, a second declaration by the same mod and an id a
+    /// typed payload uses refuse startup, naming the mods involved.
+    fn add_raw_payload(&mut self, id: PayloadId, server: Option<Arc<dyn IPayloadHandler>>);
 }

@@ -211,7 +211,7 @@ fn a_registered_type_picks_each_states_model_and_again_on_reload() {
     let post = names(&["rendtest:block/post", "rendtest:block/dim"]);
     let none = Vec::new();
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("lamps", Box::new(Lamps))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         let mut ids = Vec::new();
         mod_api::dispatch_register_block_state_models(&RegistrationContext::new(), &mut ids);
         assert_eq!(register(ids), ["rendtest:by_power"]);
@@ -252,7 +252,7 @@ fn a_registered_type_picks_each_states_model_and_again_on_reload() {
     fixture.lamp(
         r#"{"neoforge:definition_type":"rendtest:by_power","on":"rendtest:block/on","off":"rendtest:block/off"}"#,
     );
-    mod_api::testing::with_mods(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         assert_eq!(load(&fixture), [none.clone(), none.clone(), post.clone()]);
     });
 }
@@ -282,7 +282,7 @@ fn a_typed_layer_over_vanilla_replaces_only_the_states_it_picks() {
     fixture.lamp(&stacked.to_string());
     register(vec!["rendtest:powered_only".into()]);
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("on", Box::new(PoweredOnly))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         let picked = load(&fixture);
         assert_eq!(picked[0], ["rendtest:block/off"]);
         assert_eq!(picked[1], ["rendtest:block/on"]);

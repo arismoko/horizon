@@ -20,7 +20,7 @@ ServerChunkCache.getChunkFutureMainThread	inline	crates/horizon-client-render/sr
 ServerChunkCache.hasChunk	port	crates/horizon-client-render/src/world.rs::World::loaded
 ServerChunkCache.getChunkForLighting	inline	crates/horizon-client-render/src/streaming.rs::Streaming::light_region	the 3x3 region handed to the light workers
 ServerChunkCache.runDistanceManagerUpdates	inline	crates/horizon-client/src/game.rs::Game::update_chunk_tickets	ticket levels are recomputed once a tick from players and forced chunks
-ServerChunkCache.isPositionTicking	port	crates/horizon-client/src/game.rs::GameLevel::is_ticking_chunk	block-ticking ticket level and a lit chunk with its neighbours loaded
+ServerChunkCache.isPositionTicking	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::is_ticking_chunk	block-ticking ticket level and a lit chunk with its neighbours loaded
 ServerChunkCache.close	inline	crates/horizon-client/src/game/world/autosave.rs::Game::save_game	save with wait; nothing else to close
 ServerChunkCache.broadcastChangedChunks	port	crates/horizon-client/src/lan/hub.rs::Hub::broadcast_block_changes	block changes grouped by section as BlockUpdate or SectionBlocksUpdate, plus block entity data; light is in broadcast_light_changes
 ServerChunkCache.getFullChunk	inline	crates/horizon-client/src/game/mobs/natural_spawning.rs::Game::spawn_natural	the spawn pass reads World::chunks directly

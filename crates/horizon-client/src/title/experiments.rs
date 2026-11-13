@@ -206,6 +206,9 @@ pub fn repository_flags(
 ) -> Vec<Flag> {
     crate::datapack::feature_repository(resources, additional)
         .into_iter()
+        // A mod's hidden pack stays out (`PackRegistration::hidden`); Done only touches the
+        // listed packs, so a hidden one keeps its selection.
+        .filter(|pack| !pack.selection.as_ref().is_some_and(|info| info.hidden))
         .map(|pack| {
             let id = pack.id.clone();
             // `ExperimentsScreen.getHumanReadableTitle`.
@@ -228,4 +231,48 @@ pub fn repository_flags(
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub(super) fn feature(id: &str, hidden: bool) -> std::sync::Arc<crate::datapack::DataPack> {
+        let mut pack = crate::datapack::DataPack::from_source(
+            id.into(),
+            horizon_assets::resource_source::ResourceSource::directory(
+                "/nonexistent/horizon-test-assets".into(),
+            ),
+        );
+        pack.selection = Some(crate::pack_screen::PackInfo {
+            id: id.into(),
+            title: Text::literal(id),
+            description: Text::literal("Feature fixture"),
+            description_style: Default::default(),
+            source: crate::pack_screen::Source::Feature,
+            compat: crate::pack_screen::Compat::Compatible,
+            icon: None,
+            required: false,
+            position: crate::packs::Position::Bottom,
+            fixed: false,
+            hidden,
+        });
+        std::sync::Arc::new(pack)
+    }
+
+    #[test]
+    fn selected_hidden_feature_is_not_a_switch() {
+        let flags = repository_flags(
+            std::path::Path::new("/nonexistent/horizon-test-assets"),
+            &["hidden".into(), "visible".into()],
+            &[feature("hidden", true), feature("visible", false)],
+        );
+        assert_eq!(
+            flags
+                .iter()
+                .map(|f| (f.id.as_str(), f.enabled))
+                .collect::<Vec<_>>(),
+            [("visible", true)]
+        );
+    }
 }

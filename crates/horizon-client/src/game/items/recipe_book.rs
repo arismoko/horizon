@@ -384,6 +384,7 @@ impl Game<'_> {
                 trade: None,
                 maps: None,
                 limited_crafting: self.limited_crafting(),
+                can_equip: None,
                 known_recipes: Some(&self.level.recipe_book),
             };
             for i in 0..36 {

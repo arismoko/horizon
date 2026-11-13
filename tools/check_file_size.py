@@ -280,9 +280,28 @@ def scan(base):
     return merge_base, entries
 
 
+PULL_REQUEST_MERGE_HELP = ("HEAD is the pull request merged into its base branch (CI's pull_request checkout): "
+                           "compare with that merge's first parent, the base branch as it is now")
+
+
+def pull_request_base(base, merged):
+    """(the ref to compare HEAD with, error). With `merged`, HEAD merges the pull request into a descendant of `base`
+    (the event's base, where the branch last met main): main has changed since, and the merge holds those changes too,
+    so only the merge's own change, against its first parent, is the pull request's. Shared by the gates that take
+    --base (check_addresses.py, check_layers.py)."""
+    if not merged:
+        return base, None
+    parents = git("rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
+    if len(parents) != 2 or subprocess.run(["git", "merge-base", "--is-ancestor", base, parents[0]],
+                                           cwd=ROOT).returncode != 0:
+        return base, "--pull-request-merge needs HEAD to merge the pull request into a descendant of --base."
+    return parents[0], None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base", help="the git ref the branch starts from (CI: the pull request's base)")
+    parser.add_argument("--pull-request-merge", action="store_true", help=PULL_REQUEST_MERGE_HELP)
     args = parser.parse_args(argv)
     if not args.base:
         print("File size: no base to compare with, nothing checked.")
@@ -290,7 +309,11 @@ def main(argv=None):
     if git("rev-parse", "--is-shallow-repository").strip() == "true":
         print("File size check failed: provenance needs full history; fetch --unshallow before checking.")
         return 1
-    merge_base, entries = scan(args.base)
+    base, error = pull_request_base(args.base, args.pull_request_merge)
+    if error:
+        print(f"File size check failed: {error}")
+        return 1
+    merge_base, entries = scan(base)
     baseline_path = "tools/file_size_baseline.txt"
     file = ROOT / baseline_path
     marker, sizes = parse_baseline(file.read_text() if file.exists() else "")

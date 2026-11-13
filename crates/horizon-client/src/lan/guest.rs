@@ -364,6 +364,8 @@ pub struct Guest {
     pub offhand: Option<ItemStack>,
     /// `EquipmentSlot.BODY` and `SADDLE`, kept and saved like `Game::equipment`.
     pub equipment: horizon_items::equipment::Equipment,
+    /// Converted tracking stacks, invalidated when their full source stack changes.
+    pub equipment_cache: super::equipment_cache::EquipmentCache,
     pub selected: usize,
     pub carried: Option<ItemStack>,
     /// The inventory menu's crafting grid (2x2) and its result
@@ -728,6 +730,7 @@ impl Guest {
             location_armor: [None, None, None, None],
             offhand: None,
             equipment: Default::default(),
+            equipment_cache: Default::default(),
             selected: 0,
             carried: None,
             craft_grid: Default::default(),

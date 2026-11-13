@@ -14,6 +14,8 @@ WORKFLOWS = ROOT / ".github/workflows"
 LIGHT = ("horizon-light", "playhorizon-light", "playhorizon-ci")
 CHECKS = ("horizon-checks",)
 FORK_GUARD = "github.event.pull_request.head.repo.full_name == github.repository"
+# dyna-ci.yml decides trust once, in its changes job (a fork's pull request, dispatched with `pr` or not).
+TRUSTED = "needs.changes.outputs.trusted == 'true'"
 TRUSTED_WRITES = re.compile(r"^\s*(contents|actions|packages|id-token|deployments|attestations): write", re.M)
 # actions: write can start workflows too; cancel-on-close needs it to cancel runs and runs no checkout at all.
 CANCELS_RUNS = {"cancel-on-close.yml cancel"}
@@ -81,7 +83,7 @@ class OwnRunnerTests(unittest.TestCase):
             if "dyna-ci.yml" in where:
                 self.assertIn("needs.changes.outputs.self_hosted == 'true'", value, where)
                 self.assertIn("vars.SELF_HOSTED_CI == 'all'", value, where)
-                self.assertIn(FORK_GUARD, value, where)
+                self.assertIn(TRUSTED, value, where)
             else:
                 self.assertIn("vars.SELF_HOSTED_CI != 'off'", value, where)
             # Both labels select a GitHub-hosted Ubuntu runner when our pools are disabled.
@@ -98,9 +100,8 @@ class OwnRunnerTests(unittest.TestCase):
             if "pull_request" in on:
                 # The guard lives in the job's `if` upstream; dyna-ci.yml (ours)
                 # puts it in `runs-on`, before the self-hosted labels.
-                guarded = FORK_GUARD in next(
-                    (l for l in block.splitlines() if l.strip().startswith("if:")), ""
-                ) or FORK_GUARD in value
+                condition = next((l for l in block.splitlines() if l.strip().startswith("if:")), "")
+                guarded = any(guard in condition or guard in value for guard in (FORK_GUARD, TRUSTED))
                 self.assertTrue(guarded, f"{where}: a fork's pull request")
             if "pull_request_target" in on:
                 # main's code only: every checkout is main's.

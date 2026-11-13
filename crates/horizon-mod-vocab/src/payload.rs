@@ -145,6 +145,16 @@ pub enum PayloadSendError {
     },
     /// A connection codec could not prepare the packet.
     EncodeFailed(String),
+    /// A raw channel's body is above vanilla's custom-payload limit for this
+    /// direction (`ClientboundCustomPayloadPacket.MAX_PAYLOAD_SIZE`, 1,048,576 bytes).
+    PayloadTooLarge {
+        /// Raw channel.
+        id: PayloadId,
+        /// Body size in bytes, excluding the channel.
+        size: u64,
+        /// Inclusive vanilla limit.
+        limit: u64,
+    },
 }
 
 impl crate::NoBackend for PayloadSendError {

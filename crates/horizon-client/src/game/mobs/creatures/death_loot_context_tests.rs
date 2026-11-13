@@ -67,7 +67,7 @@ fn death_loot_uses_call_scoped_source_and_hand() {
             Box::new(Probe(seen.clone())) as Box<dyn mod_api::Hooks>,
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             let ty = game
                 .res
                 .mob_types()
@@ -150,7 +150,7 @@ fn death_loot_uses_call_scoped_source_and_hand() {
                 ),
             ]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 let before = seen.lock().unwrap().len();
                 game.mob_died(&victim);
                 assert_eq!(seen.lock().unwrap().len(), before);
@@ -251,7 +251,7 @@ fn death_loot_killer_is_not_the_acting_guest() {
             mod_api::ModEntry::new("guest_death_loot_probe", Box::new(Probe(seen.clone()))),
         ]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             let ty = game
                 .res
                 .mob_types()
@@ -346,7 +346,7 @@ fn death_loot_nested_death_keeps_outer_context() {
             mod_api::ModEntry::new("nested_probe", Box::new(Probe(seen.clone()))),
         ]
         .into();
-        mod_api::testing::with_mods(mods, || game.mob_died(&victim));
+        mod_platform::testing::with_mods(mods, || game.mob_died(&victim));
         assert_eq!(
             *seen.lock().unwrap(),
             [
@@ -386,7 +386,7 @@ fn death_loot_change_preserves_block_tool() {
             Box::new(BlockTool(expected)),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             game.native_block_loot([0, 64, 0], stone, None, Some(&tool), None, &mut Vec::new());
         });
     });

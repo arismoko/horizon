@@ -18,11 +18,9 @@ impl Game<'_> {
         }
         self.perf.world_opening();
         if self.title.is_none() {
-            let title = Title::new(
-                std::env::current_dir()?.join("saves"),
-                &self.options.resources,
-            )
-            .with_user(|| self.options.player_name());
+            let title = self
+                .new_title(std::env::current_dir()?.join("saves"))
+                .with_user(|| self.options.player_name());
             self.show_title(title);
         }
         self.pending_entry = Some(entry);
@@ -111,7 +109,7 @@ impl Game<'_> {
                 })
                 .unwrap_or_default();
             let data_source = self.pack.data_changes.clone();
-            self.creation_job = std::thread::Builder::new()
+            let job = horizon_guest_stack::builder()
                 .name("world-creation".into())
                 .spawn(move || {
                     horizon_client::vanillagen::shared_data_from(
@@ -122,8 +120,20 @@ impl Game<'_> {
                     )
                     .map(|_| ())
                     .map_err(|e| e.to_string())
-                })
-                .ok();
+                });
+            match job {
+                Ok(job) => self.creation_job = Some(job),
+                Err(error) => {
+                    log::warn!("Horizon: world creation worker could not start: {error}");
+                    if let Some(title) = self.title.as_mut() {
+                        title.finish_preparing();
+                        title.failed(format!(
+                            "{}: {error}",
+                            horizon_client::lang::get("createWorld.preparing")
+                        ));
+                    }
+                }
+            }
             return;
         }
         if !self
@@ -575,7 +585,7 @@ impl Game<'_> {
     pub(super) fn prepare_parts(&self, items: &Items) -> Result<PreparedParts> {
         let registry = self.pack.assets.registry;
         let block_tags = &items.block_tags;
-        let tags = native_world_read::prepare_block_tags(block_tags);
+        let tags = self.block_tag_sets(items);
         let parts = mod_api::__private::prepare_parts(
             block_tags,
             &items.item_tags,
@@ -679,13 +689,18 @@ impl Game<'_> {
         Ok(())
     }
     /// Ask the parts of each block `isPathfindable` once per state and type: the answer depends
-    /// on nothing else, so path finding and spawning read it with no dispatch.
+    /// on nothing else, so path finding and spawning read it with no dispatch. A server also
+    /// publishes its parts for its world generation.
     pub(super) fn install_parts(&self, prepared: PreparedParts) {
         cauldron_interactions::install(prepared.cauldrons);
+        if self.is_logical_server() {
+            native_worldgen_parts::publish(prepared.parts.as_ref(), &prepared.block_states);
+        }
         api_values::install_block_states(prepared.block_states);
         native_world_read::install_block_tags(prepared.tags);
         mod_api::__private::install_resolved_parts(prepared.parts);
         self.resolve_pathfindable();
+        self.resolve_piston_reactions();
     }
     pub(super) fn resolve_pathfindable(&self) {
         let asked = mod_api::__private::has_scoped_hook(mod_api::HookId::IsPathfindable);

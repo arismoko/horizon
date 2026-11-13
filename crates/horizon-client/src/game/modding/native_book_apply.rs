@@ -180,6 +180,7 @@ impl Game<'_> {
             let env = Env {
                 player: Some(before.uuid),
                 player_entity_id: Some(before.entity_id),
+                can_equip: None,
                 known_recipes: Some(&known),
                 limited_crafting: limited,
                 ..self.menu_env()

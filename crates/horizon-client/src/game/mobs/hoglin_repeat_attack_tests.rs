@@ -50,6 +50,8 @@ fn game<'a>(resources: &'a mut Option<std::sync::Arc<crate::game::Resources>>) -
     )
     .unwrap();
     game.build_registries();
+    game.native_lifecycle
+        .begin_open(super::native_lifecycle::Authority::IntegratedServer);
     game.set_allow_commands(true);
     for cx in 0..2 {
         game.world
@@ -347,7 +349,7 @@ fn hoglin_broadcast_obeys_target_cancellation_and_redirection() {
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             let kind = game
@@ -489,7 +491,14 @@ fn set_target(game: &mut Game<'_>, id: u32, target: Option<horizon_client::mobs:
 }
 
 fn place_player(game: &mut Game<'_>, x: f64, z: f64) {
-    game.player = Some(PlayerMotion::new(game.motion, Vec3::new(x, 100.0, z)).unwrap());
+    if let Some(player) = game.player.as_mut() {
+        player.position = Vec3::new(x, 100.0, z);
+    } else {
+        game.next_entity += 1;
+        let id = game.next_entity;
+        game.player = Some(PlayerMotion::new(game.motion, Vec3::new(x, 100.0, z)).unwrap());
+        super::native_entity_refs::tests::bind_local_player(game, id, 1);
+    }
 }
 
 /// A player on either side is placed and compared like a mob
@@ -577,7 +586,13 @@ fn host_with_guest(game: &mut Game<'_>, guest_at: [f64; 3]) {
         address: "127.0.0.1:25565".parse().unwrap(),
         expected: false,
     };
-    let mut guest = Guest::new(joined, 2, guest_at, 0);
+    game.next_entity += 1;
+    let mut guest = Guest::new(
+        joined,
+        i32::try_from(game.next_entity).expect("fixture entity ID fits the protocol"),
+        guest_at,
+        0,
+    );
     guest.placed = true;
     guest.loaded = true;
     game.lan.as_mut().unwrap().hub.guests.push(guest);

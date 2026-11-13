@@ -4,7 +4,7 @@
 //! its moving piston's saved tag, and a client's copy. `BlockEntities` holds
 //! what is carried (`carry`, `land`).
 use super::{Game, GameLevel};
-use horizon_client::{block_entities::Carried, containers::BlockEntity, save::ChunkExtras};
+use horizon_client::{block_entities::Carried, save::ChunkExtras};
 use horizon_core::{geometry::Direction, nbt::Tag, position::BlockPos};
 use horizon_mod_runtime::attachments::{ATTACHMENTS_KEY, Attachments, attachment_compound};
 use horizon_world::{level::MovingPiston, registry::BlockStateId};
@@ -13,9 +13,6 @@ use horizon_world::{level::MovingPiston, registry::BlockStateId};
 /// attachments. Horizon's own, written only while it carries one, so a
 /// vanilla moving piston's tag is unchanged; vanilla reads only its own keys.
 const CARRIED_KEY: &str = "horizon:carried_block_entity";
-/// Where a mod block entity's custom name rides while it is carried, as in
-/// its saved data.
-const CUSTOM_NAME: &str = "CustomName";
 
 impl GameLevel<'_> {
     /// Whether the piston at `piston` may push `push` one step `direction` and
@@ -68,6 +65,20 @@ impl GameLevel<'_> {
     ) -> Option<bool> {
         let mut movable = None;
         self.native_piston_carries_block_entity(self.dimension, pos, state, &mut movable);
+        if movable == Some(true) {
+            let at = (pos.x, pos.y, pos.z);
+            if self.world.block_entities.is_taken(&at) {
+                return Some(false);
+            }
+            // A live owned payload is required. Raw-only/lazy native stores cannot be
+            // transferred by BlockEntities::carry and must remain refused, with their data intact.
+            if (self.facts.get(state).block_entity
+                || self.world.block_entities.stateful_entity(state.0))
+                && self.world.block_entities.get(&at).is_none()
+            {
+                return Some(false);
+            }
+        }
         movable
     }
     /// Takes the block entity at `from` out of the world for the moving piston
@@ -75,27 +86,73 @@ impl GameLevel<'_> {
     /// name, its loaded tag) but none of its side effects.
     pub(super) fn carry_mod_block_entity(&mut self, from: BlockPos, to: BlockPos) {
         let (from, to) = ((from.x, from.y, from.z), (to.x, to.y, to.z));
-        if let Some(name) = self.world.block_names.remove(&from)
-            && let Some(BlockEntity::Mod(entity)) = self.world.block_entities.get_mut(&from)
-        {
-            entity.nbt.insert(CUSTOM_NAME.into(), name);
+        let partner = self
+            .registry
+            .state(self.world.block(from.0, from.1, from.2))
+            .and_then(|state| super::storage::chest_connected_pos(state, [from.0, from.1, from.2]))
+            .map(|p| (p[0], p[1], p[2]));
+        let mut data = super::piston_carry_state::take_position_data(self.world, from);
+        let cached = self.positions.hoppers.remove(&from).map(|h| h.cooldown);
+        let is_hopper = horizon_client::block_entity_types::factory_block(
+            &self
+                .facts
+                .get(self.world.block(from.0, from.1, from.2))
+                .name,
+        ) == "minecraft:hopper";
+        let cooldown = if is_hopper {
+            cached.or_else(|| {
+                data.get(&"Source".into())
+                    .and_then(|t| t.get("TransferCooldown"))
+                    .and_then(|t| match t {
+                        Tag::Int(n) => Some(*n),
+                        _ => None,
+                    })
+            })
+        } else {
+            None
+        };
+        if let Some(n) = cooldown {
+            data.insert("HopperCooldown".into(), Tag::Int(n));
         }
-        self.world.forget_block_entity_source(from);
         self.world.block_entities.carry(from, to);
+        if let Some(carried) = self.world.block_entities.carried_mut(&to) {
+            carried.position_data = data;
+        }
+        self.lid_openers.remove(&from);
+        self.world.chest_openers.remove(&from);
+        self.world.shulkers.remove(&[from.0, from.1, from.2]);
+        self.spill
+            .piston_positions
+            .push(super::piston_carry_state::PositionChange::Carry { from, to, partner });
     }
     /// Installs the block entity the moving piston at `pos` carried there; its
     /// custom name is the block's again, as for one loaded there, and on a
     /// server its synced attachments go whole to the players who see it.
     pub(super) fn land_carried_block_entity(&mut self, pos: BlockPos) -> bool {
         let key = (pos.x, pos.y, pos.z);
+        let data = self
+            .world
+            .block_entities
+            .carried(&key)
+            .map(|c| c.position_data.clone())
+            .unwrap_or_default();
         if !self.world.block_entities.land(key) {
             return false;
         }
-        if let Some(BlockEntity::Mod(entity)) = self.world.block_entities.get(&key)
-            && let Some(name) = entity.nbt.get(&CUSTOM_NAME.into())
-        {
-            self.world.block_names.insert(key, name.clone());
+        super::piston_carry_state::land_position_data(self.world, key, &data);
+        let cooldown = match data.get(&"HopperCooldown".into()) {
+            Some(Tag::Int(n)) => Some(*n),
+            _ => None,
+        };
+        self.positions.hoppers.remove(&key);
+        if let Some(n) = cooldown {
+            self.positions
+                .hoppers
+                .insert(key, super::machines::HopperState::with_cooldown(n));
         }
+        self.spill
+            .piston_positions
+            .push(super::piston_carry_state::PositionChange::Land { at: key });
         if self.native_authoritative && self.world.block_entities.attachments(key).is_some() {
             self.world.attachment_landings.insert(
                 horizon_mod_runtime::attachments::Holder::BlockEntity([pos.x, pos.y, pos.z]),
@@ -113,6 +170,7 @@ impl Game<'_> {
         if let Some(Carried {
             entity,
             attachments,
+            position_data,
         }) = self.world.block_entities.carried(&(pos.x, pos.y, pos.z))
             && let Tag::Compound(map) = &mut tag
         {
@@ -120,6 +178,10 @@ impl Game<'_> {
             let mut carried =
                 horizon_client::save::encode_block_entity((pos.x, pos.y, pos.z), entity, block);
             if let Tag::Compound(fields) = &mut carried {
+                fields.insert(
+                    "horizon:position_data".into(),
+                    Tag::Compound(position_data.clone()),
+                );
                 match attachments.as_ref().map(Attachments::to_nbt) {
                     Some(data) if !data.is_empty() => {
                         fields.insert(ATTACHMENTS_KEY.into(), Tag::Compound(data));
@@ -172,6 +234,10 @@ impl Game<'_> {
                     (pos.x, pos.y, pos.z),
                     Carried {
                         entity,
+                        position_data: match tag.get("horizon:position_data") {
+                            Some(Tag::Compound(data)) => data.clone(),
+                            _ => Default::default(),
+                        },
                         attachments,
                     },
                 );
@@ -198,7 +264,7 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use horizon_client::{chunk::Chunk, items::ItemStack};
+    use horizon_client::{chunk::Chunk, containers::BlockEntity, items::ItemStack};
     use std::sync::Arc;
 
     #[test]

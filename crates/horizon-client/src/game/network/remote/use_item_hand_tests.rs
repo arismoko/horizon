@@ -10,7 +10,7 @@ fn identical_instant_stacks_report_the_selected_interaction_hand() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(false, |game| {
             game.inventory[game.selected] = Some(ItemStack::new("minecraft:stick", 1));
             game.offhand = Some(ItemStack::new("minecraft:stick", 1));

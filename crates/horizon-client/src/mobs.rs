@@ -112,6 +112,8 @@ pub mod vex;
 pub mod villager;
 pub mod villager_brain;
 pub mod villager_hats;
+pub mod visibility;
+pub use visibility::mob_visibility;
 pub mod warden;
 pub mod warden_brain;
 pub mod witch;
@@ -190,47 +192,14 @@ pub enum Brain {
 pub use anim::Anim;
 pub use species::Species;
 
-pub fn draws_parent_variant(species: Species) -> bool {
-    matches!(
-        species,
-        Species::Pig
-            | Species::Cow
-            | Species::Chicken
-            | Species::Fox
-            | Species::Cat
-            | Species::Wolf
-    )
-}
+mod breeding;
+pub use breeding::{draws_parent_variant, orb_after_child};
 
-pub fn orb_after_child(species: Species) -> bool {
-    species == Species::Fox
-}
-
-/// Per-type behaviour switches derived from vanilla classes and tags.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Flags {
-    /// WaterAnimal / fish: not affected by fluid physics (swims with its own control).
-    pub aquatic_swimmer: bool,
-    pub fall_immune: bool,
-    /// FlyingMob-style travel (ghast, phantom): travelFlying without gravity.
-    pub flying: bool,
-    /// Spiders: onClimbable while colliding horizontally.
-    pub climber: bool,
-    /// Striders stand on lava.
-    pub lava_walker: bool,
-    /// LivingEntity.omnidirectionalAirMover (bees and parrots).
-    pub omnidirectional: bool,
-    pub fire_immune: bool,
-    /// EntityTypeTags.BURN_IN_DAYLIGHT
-    pub burns_in_day: bool,
-    pub undead: bool,
-    pub breathes_water: bool,
-    /// Drowns out of water (fish, squid, dolphins after their air runs out).
-    pub needs_water: bool,
-    /// Hurt by water (endermen, blazes, striders out of lava, snow golems).
-    pub water_sensitive: bool,
-    pub animal: bool,
-}
+mod collision_subject;
+mod flags;
+pub use flags::Flags;
+#[cfg(test)]
+mod powder_snow_move_tests;
 
 /// The fields of [`MobType`] its type's attribute row gives, built by
 /// [`MobType::attribute_fields`]: the one map from an attribute to the
@@ -480,6 +449,8 @@ impl MobTypes {
                 }
             })
             .transpose()?;
+        let entity_type_tags =
+            crate::items::load_tags(root, "entity_type", &horizon_world::loot::PackOverlay::NONE)?;
         let empty_model = Arc::new(Part::parse("root", &Value::Null));
         let item_tags =
             crate::items::load_tags(root, "item", &horizon_world::loot::PackOverlay::NONE)
@@ -581,7 +552,10 @@ impl MobTypes {
                 }
             }
             let category = t["category"].as_str().unwrap_or("creature").to_owned();
-            let flags = def.flags(t["fire_immune"].as_bool().unwrap_or(false));
+            let mut flags = def.flags(t["fire_immune"].as_bool().unwrap_or(false));
+            flags.powder_snow_walkable = entity_type_tags
+                .get("minecraft:powder_snow_walkable_mobs")
+                .is_some_and(|members| members.contains(&id));
             let passenger_attachments =
                 riders::parse_passenger_attachments(&t["passenger_attachments"]);
             out.insert(
@@ -2030,15 +2004,9 @@ pub enum MobEvent {
         from: [f64; 3],
         direction: [f64; 3],
     },
-    /// `Entity.move(MoverType.SHULKER, delta)`: shift a target's position
-    /// (an opening shulker lifts what stands on its shell).
-    Shift {
-        target: Who,
-        delta: [f64; 3],
-    },
-    /// `Shulker.onPeekAmountChange` for the entities kept outside the mob
-    /// list: the opening lid of `shulker` moves every armor stand with
-    /// physics whose box meets `area` (the box the lid swept) by `delta`.
+    /// `Shulker.onPeekAmountChange`: the opening lid of `shulker` moves every
+    /// entity it may push whose box meets `area` (the box the lid swept) by
+    /// `Entity.move(MoverType.SHULKER, delta)`.
     LidPush {
         shulker: u32,
         area: Aabb,
@@ -2433,6 +2401,8 @@ pub enum MobEvent {
         equine: Option<Box<equine::Offspring>>,
         /// Whether the parent supplies the variant, if already drawn.
         parent_variant: Option<bool>,
+        /// Wolf voice drawn before experience, unless baby-spawn approval defers inheritance.
+        wolf_voice: Option<u8>,
         /// The parent-RNG experience decision, if already made.
         experience: BreedExperience,
     },
@@ -2751,6 +2721,8 @@ pub struct Seen {
     pub hurt_by: Option<(Who, i32)>,
     /// `Entity.isInvisible`: the flag, or the invisibility effect.
     pub invisible: bool,
+    /// What decides how visible it is to a mob that looks for it.
+    pub cover: visibility::Cover,
     /// `PathfinderMob.isPanicking`: a running panic goal or the brain's
     /// `IS_PANICKING` memory.
     pub panicking: bool,
@@ -2986,6 +2958,7 @@ impl Mob {
             section: (m.extra.section, m.extra.section_seq),
             delay: m.extra.ints[5],
             hurt_by: m.ai.last_hurt_by.map(|w| (w, m.ai.last_hurt_by_time)),
+            cover: visibility::cover(m),
             panicking: m.ai.panicking,
             active_raid: raider::has_active_raid(m),
             opened_chest: m.extra.opened_chest,
@@ -3400,22 +3373,6 @@ impl PlayerView {
         self.effects.contains(&effect)
     }
 }
-/// The `mob_visibility` component vanilla gives an item by default
-/// (`Item.Properties.loweredMobVisibility`): how visible its wearer is to a
-/// mob of type `looking`, 1 for every other item and mob. Only the mob
-/// heads have one, each for exactly the types named (a skeleton skull fools
-/// a skeleton, not a stray or a bogged), and all four are head equipment,
-/// the slot `PlayerView::head` holds.
-pub fn mob_visibility(item: &str, looking: Species) -> f32 {
-    let lowered = match item {
-        "minecraft:skeleton_skull" => looking == Species::Skeleton,
-        "minecraft:zombie_head" => looking == Species::Zombie,
-        "minecraft:creeper_head" => looking == Species::Creeper,
-        "minecraft:piglin_head" => matches!(looking, Species::Piglin | Species::PiglinBrute),
-        _ => false,
-    };
-    if lowered { 0.5 } else { 1.0 }
-}
 /// `Animal.finalizeSpawnChildFromBreeding`: draw only when mob drops are enabled.
 pub fn breeding_experience(parent: &mut Mob, mob_drops: bool) -> Option<u32> {
     mob_drops.then(|| 1 + parent.random.next_int_bound(7).unwrap_or(0) as u32)
@@ -3573,6 +3530,11 @@ pub trait MobHooks {
     /// `LivingVisibilityEvent`: `visibility`, the player's visibility
     /// percent as mob `looking` targets it, as mods scale it.
     fn living_visibility(&self, player: &PlayerView, looking: u32, visibility: f64) -> f64;
+    /// `LivingVisibilityEvent` for a mob target `target`: its visibility
+    /// percent as mob `looking` targets it, as mods scale it.
+    fn living_visibility_mob(&self, _target: u32, _looking: u32, visibility: f64) -> f64 {
+        visibility
+    }
     /// A proposed target change. A listener may cancel or substitute a target.
     fn living_change_target(
         &self,
@@ -4898,7 +4860,7 @@ impl Mob {
         self.extra.hand_protection = None;
         self.health = 1.0;
         for effect in &effects {
-            self.apply_death_effect(level, effect);
+            self.apply_consume_effect(level, effect);
         }
         let at = [self.position.x, self.position.y, self.position.z];
         self.outbox.push(MobEvent::EntityEvent {
@@ -4908,9 +4870,10 @@ impl Mob {
         });
         true
     }
-    /// One `ConsumeEffect` of a `death_protection` component on the mob.
-    /// Teleporting, sounds and a mod's own kinds are not applied to mobs.
-    fn apply_death_effect(
+    /// One `ConsumeEffect` of death protection or a fox's consumed item.
+    /// Damage uses the owning typed level. Teleporting and sounds belong to
+    /// the consumption caller; mod-defined kinds are not applied here.
+    pub fn apply_consume_effect(
         &mut self,
         level: &mut DamageLevel<'_>,
         effect: &crate::items::ConsumeEffect,
@@ -6758,12 +6721,12 @@ mod totem_tests {
                     show_icon: true,
                 }],
             };
-            mob.apply_death_effect(&mut level.level(), &effect);
+            mob.apply_consume_effect(&mut level.level(), &effect);
             assert_eq!(mob.health, 9.0);
-            mob.apply_death_effect(&mut level.level(), &effect);
+            mob.apply_consume_effect(&mut level.level(), &effect);
             assert_eq!(mob.health, 10.0);
             mob.health = 0.0;
-            mob.apply_death_effect(&mut level.level(), &effect);
+            mob.apply_consume_effect(&mut level.level(), &effect);
             assert_eq!(
                 mob.health, 0.0,
                 "instant healing does not revive a dead mob"
@@ -7518,7 +7481,7 @@ mod hidden_speed_mob_tick_tests {
         assert_eq!(to.extra.effect_chains, m.extra.effect_chains);
         to.extra.effect_chains[0].duration = 222;
         assert_eq!(m.extra.effect_chains[0].duration, 300);
-        m.apply_death_effect(
+        m.apply_consume_effect(
             &mut crate::health::TestLevel::new(0).level(),
             &crate::items::ConsumeEffect::RemoveEffects(vec!["minecraft:speed".into()]),
         );
@@ -7535,7 +7498,7 @@ mod hidden_speed_mob_tick_tests {
         assert!(m.extra.effect_chains.is_empty());
         m.add_effect("speed", 5, 1);
         assert_eq!(m.extra.effect_chains[0].duration, 20);
-        m.apply_death_effect(
+        m.apply_consume_effect(
             &mut crate::health::TestLevel::new(0).level(),
             &crate::items::ConsumeEffect::ClearAllEffects,
         );
@@ -7561,7 +7524,7 @@ mod hidden_speed_mob_tick_tests {
         m.add_effect("health_boost", 200, 1);
         assert_eq!(m.attrs.max_health, 18.0);
         m.health = 18.0;
-        m.apply_death_effect(
+        m.apply_consume_effect(
             &mut crate::health::TestLevel::new(0).level(),
             &crate::items::ConsumeEffect::ClearAllEffects,
         );
@@ -7596,7 +7559,7 @@ mod hidden_speed_mob_tick_tests {
         m0.add_effect("absorption", 600, 0);
         assert_eq!(armor::max_absorption(&m0), 4.0);
         assert_eq!(m0.absorption, 4.0);
-        m0.apply_death_effect(
+        m0.apply_consume_effect(
             &mut crate::health::TestLevel::new(0).level(),
             &crate::items::ConsumeEffect::ClearAllEffects,
         );
@@ -7616,7 +7579,7 @@ mod hidden_speed_mob_tick_tests {
         m20.add_effect("absorption", 600, 0);
         assert_eq!(armor::max_absorption(&m20), 24.0);
         assert_eq!(m20.absorption, 4.0);
-        m20.apply_death_effect(
+        m20.apply_consume_effect(
             &mut crate::health::TestLevel::new(0).level(),
             &crate::items::ConsumeEffect::ClearAllEffects,
         );
@@ -7636,7 +7599,7 @@ mod hidden_speed_mob_tick_tests {
         m20_clamp.extra.armor_attributes = Some(Box::new(attrs3));
         m20_clamp.add_effect("absorption", 600, 0);
         m20_clamp.absorption = 24.0;
-        m20_clamp.apply_death_effect(
+        m20_clamp.apply_consume_effect(
             &mut crate::health::TestLevel::new(0).level(),
             &crate::items::ConsumeEffect::RemoveEffects(vec!["minecraft:absorption".into()]),
         );
@@ -7651,7 +7614,7 @@ mod hidden_speed_mob_tick_tests {
         let mut m0_remove = Mob::new(4, kind.clone(), Vec3::ZERO, 0.0);
         m0_remove.add_effect("absorption", 600, 0);
         assert_eq!(m0_remove.absorption, 4.0);
-        m0_remove.apply_death_effect(
+        m0_remove.apply_consume_effect(
             &mut crate::health::TestLevel::new(0).level(),
             &crate::items::ConsumeEffect::RemoveEffects(vec!["minecraft:absorption".into()]),
         );

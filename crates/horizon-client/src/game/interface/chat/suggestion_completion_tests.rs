@@ -74,7 +74,7 @@ fn chat_completion_reaches_mods_from_keyboard_and_mouse_isolated() {
         Box::new(Listener(calls.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         game.screen = Screen::Chat;
         game.ui.registries.players = vec!["Steve".into(), "Steven".into()];
         game.ui.chat_screen = Some(ChatScreen::new(

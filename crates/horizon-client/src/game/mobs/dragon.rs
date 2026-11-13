@@ -398,7 +398,7 @@ pub(in crate::game) struct Dragon {
     pub id: u32,
     pub position: Vec3,
     pub previous: Vec3,
-    velocity: Vec3,
+    pub(super) velocity: Vec3,
     pub yaw: f32,
     pub previous_yaw: f32,
     yaw_accel: f32,
@@ -1002,14 +1002,14 @@ impl Dragon {
     /// `ServerExplosion.hurtEntities` knockback on the dragon itself:
     /// `pushFromExplosion` adds `(1 - dist) * exposure` along the blast to
     /// its eye to the motion (`Entity.push`); the parts are not pushed.
-    fn whole_box(&self) -> Aabb {
+    pub(super) fn whole_box(&self) -> Aabb {
         let p = self.position;
         Aabb::new(
             Vec3::new(p.x - 8.0, p.y, p.z - 8.0),
             Vec3::new(p.x + 8.0, p.y + 8.0, p.z + 8.0),
         )
     }
-    fn explosion_knockback(
+    pub(super) fn explosion_knockback(
         &self,
         center: [f64; 3],
         radius: f32,
@@ -5243,7 +5243,7 @@ mod tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.dragon.discard();
                 game.native_joins_skip();
@@ -5330,7 +5330,7 @@ mod tests {
                         }),
                     )]
                     .into();
-                    let result = mod_api::testing::with_mods(mods, || {
+                    let result = mod_platform::testing::with_mods(mods, || {
                         game.spawn_dragon_spawned([4.5, 200.0, 4.5], SpawnSite::Finalizing(reason))
                     });
                     assert_eq!(calls.load(Ordering::Relaxed), 1);
@@ -5433,7 +5433,7 @@ mod tests {
                         }),
                     )]
                     .into();
-                    let result = mod_api::testing::with_mods(mods, || {
+                    let result = mod_platform::testing::with_mods(mods, || {
                         game.build_registries();
                         game.set_allow_commands(true);
                         let suffix = nbt.map(|tag| format!(" {tag}")).unwrap_or_default();
@@ -6146,7 +6146,7 @@ mod tests {
             Box::new(Probe(heard.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.dragon.replace(dragon(Phase::Scanning { time: 0 }));
                 let arrow = ProjectileKind::Trident;
@@ -6483,7 +6483,6 @@ mod thorns_tests;
 mod dragon_fireball_spawn_tests {
     include!("dragon/fireball_spawn_tests.rs");
 }
-
 #[cfg(test)]
 #[path = "dragon/wing_push_tests.rs"]
 mod wing_push_tests;

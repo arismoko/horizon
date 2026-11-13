@@ -21,7 +21,8 @@ impl Game<'_> {
 #[cfg(test)]
 mod item_toss_tests {
     use super::*;
-    use mod_api::{Flow, Hooks, ItemTossEvent, ModEntry, ServerHost, testing::with_mods};
+    use mod_api::{Flow, Hooks, ItemTossEvent, ModEntry, ServerHost};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// Counts the tosses it hears and cancels each.

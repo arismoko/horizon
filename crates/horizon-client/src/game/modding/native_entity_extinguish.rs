@@ -62,8 +62,8 @@ impl Game<'_> {
                     return false;
                 };
                 let immune = self
-                    .items()
-                    .resists_fire(&self.dropped[index].stack, "minecraft:in_fire");
+                    .stack_can_be_hurt_by(&self.dropped[index].stack, "minecraft:in_fire")
+                    == Some(false);
                 let item = &mut self.dropped[index];
                 if item.fire_ticks > 0 && !immune {
                     let at = [item.position.x, item.position.y, item.position.z];

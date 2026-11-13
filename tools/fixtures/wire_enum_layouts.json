@@ -613,7 +613,8 @@
     {
       "name": "ProvidedBy",
       "path": "crate::ProvidedBy",
-      "hash": "5d265204eef1d102",
+      "hash": "fe10e188155f9b86",
+      "contract_change": "arismoko/horizon#3519 appends ProvidedBy::Block; the frozen hash was 5d265204eef1d102",
       "canonical_path": "crate::parts::shared::ProvidedBy",
       "alias_provenance": "rustc E0603 public re-export suggestion from generated direct-type test compilation"
     },

@@ -512,7 +512,7 @@ fn existing_fieldless_enum_layouts_match_baseline() {
     );
     assert_eq!(
         <crate::ProvidedBy as Wire>::layout(&mut vec![]),
-        0x5d265204eef1d102,
+        0xfe10e188155f9b86,
         "ProvidedBy"
     );
     assert_eq!(

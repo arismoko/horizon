@@ -23,12 +23,12 @@ impl Hooks for Probe {
 }
 /// Keep the real owning mod enabled for the entire actor test, not just setup.
 pub(crate) fn with_peer<R>(run: impl FnOnce(Arc<Transport>) -> R) -> R {
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![ModEntry::new("raw_hub_probe", Box::new(Probe))].into(),
         || {
             // with_mods installs callback ownership, not the load-owned Parts table.
             // Use the real registrar/installer before freezing this connection.
-            mod_api::__private::part_tests::install_parts_fixture(mod_api::__private::mods())
+            mod_platform::__private::part_tests::install_parts_fixture(mod_api::__private::mods())
                 .unwrap();
             let transport = Transport::capture(Side::Server).unwrap();
             assert!(

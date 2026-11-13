@@ -274,8 +274,8 @@ fn structure_transform_placement_rotations_mirrors_unset_and_refusal() {
         Box::new(Registration(calls.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
+    mod_platform::testing::with_mods(mods.clone(), || {
+        mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
         let dir = tempfile::tempdir().unwrap();
         let resources = resources(dir.path());
         prepare(resources.registry);
@@ -464,8 +464,8 @@ fn structure_transform_hostile_output_keeps_original_identity() {
         Box::new(Registration(Calls::default())),
     )]
     .into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
+    mod_platform::testing::with_mods(mods.clone(), || {
+        mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
         let dir = tempfile::tempdir().unwrap();
         let resources = resources(dir.path());
         prepare(resources.registry);
@@ -501,7 +501,7 @@ fn structure_transform_survives_real_datapack_reload_with_its_registry() {
         Box::new(Registration(calls.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             let dir = tempfile::tempdir().unwrap();
             let mut request = WorldRequest::new(

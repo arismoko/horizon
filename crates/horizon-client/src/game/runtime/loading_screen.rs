@@ -213,7 +213,8 @@ impl Loading {
             .options
             .as_ref()
             .map_or_else(Vec::new, |options| pack_finders::data_packs(&options.mods));
-        self.menu.set_root(root, &self.settings, additional.into());
+        self.menu
+            .set_root(root, &self.settings, additional.into(), &gui.splashes);
         self.gui = Some(gui);
         self.title_drawn = false;
         horizon_client::ui_theme::reset_atlas();

@@ -372,14 +372,7 @@ impl Game<'_> {
             return;
         }
         if play_sound {
-            let sounds = self.res.facts().get(state).sounds.clone();
-            // Each guest plays it from the level event itself.
-            self.audio.play_unshared(
-                &sounds.hit,
-                Some(pos.map(|v| f64::from(v) + 0.5)),
-                (sounds.volume + 1.0) / 8.0,
-                sounds.pitch * 0.5,
-            );
+            self.play_mining_hit_sound(state, pos, face, true);
         }
         self.crack_particle(pos, face, state);
     }

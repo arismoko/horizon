@@ -115,7 +115,7 @@ fn a_players_completed_break_is_heard_once_with_the_removed_state() {
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             let take = || std::mem::take(&mut *heard.lock().unwrap());
 
@@ -323,7 +323,7 @@ fn with_order_probe(
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || test(game, player));
+        mod_platform::testing::with_mods(mods, || test(game, player));
     });
     std::mem::take(&mut *seen.lock().unwrap())
 }

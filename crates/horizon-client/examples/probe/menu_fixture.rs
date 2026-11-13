@@ -131,6 +131,7 @@ pub fn main() -> horizon_client::Result<()> {
         trade: None,
         maps: Some(&case_maps),
         limited_crafting: false,
+        can_equip: None,
         known_recipes: None,
     };
     // The mob effects' network ids (BeaconMenu.encodeEffect).

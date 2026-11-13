@@ -3,17 +3,33 @@ mod stubs {
     // This fixture tests attribution and applying/refusing boundary results, not
     // the namespace validator (the API's own tests exercise that boundary).
     pub(super) mod declaration_ownership {
-        pub(in crate::tests) fn owned_declaration_id(
+        use crate::tests::mod_api::mod_api::{Block, Item};
+        pub(in crate::tests) trait Declaration {
+            fn id(&mut self) -> &mut String;
+        }
+        impl Declaration for Block {
+            fn id(&mut self) -> &mut String {
+                &mut self.id
+            }
+        }
+        impl Declaration for Item {
+            fn id(&mut self) -> &mut String {
+                &mut self.id
+            }
+        }
+        pub(in crate::tests) fn own_declaration(
             owner: &str,
-            id: &str,
-        ) -> Result<String, String> {
+            declaration: &mut impl Declaration,
+        ) -> Result<(), String> {
+            let id = declaration.id();
             super::super::DECLARATION_OWNERS.with_borrow_mut(|calls| {
-                calls.push((owner.to_owned(), id.to_owned()));
+                calls.push((owner.to_owned(), id.clone()));
             });
             if id == "reject" {
                 Err(format!("{owner}: refused declaration"))
             } else {
-                Ok(format!("{owner}/checked/{id}"))
+                *id = format!("{owner}/checked/{id}");
+                Ok(())
             }
         }
     }

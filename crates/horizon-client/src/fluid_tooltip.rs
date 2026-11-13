@@ -59,7 +59,7 @@ mod tests {
     use super::*;
 
     fn stack(id: &str, amount: u32) -> FluidStack {
-        mod_api::__private::part_tests::game_thread();
+        mod_platform::__private::part_tests::game_thread();
         FluidStack::new(mod_api::__private::fluid_key(id).unwrap(), amount)
     }
     fn plain(lines: &[(Text, u32)]) -> Vec<String> {

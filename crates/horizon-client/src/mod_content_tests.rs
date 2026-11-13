@@ -1,4 +1,6 @@
 use super::*;
+#[path = "mod_content_item_metadata_tests.rs"]
+mod item_metadata_tests;
 use crate::{assets::Assets, blocks::BlockFacts, crafting::CraftingRemainder, items::Items};
 use horizon_mod_package::manifest::JarRef;
 use horizon_world::native_load_context::DataLoadOrigin;
@@ -1420,14 +1422,7 @@ fn content_root_loads_with_every_table() {
 
     let defaults = horizon_world::item_defaults::read(&root).unwrap();
     let items = Items::load(&root, new, &facts, &overlay, &defaults).unwrap();
-    let ruby_block = &items.items["ruby:ruby_block"];
-    assert_eq!(ruby_block.block, Some(ruby));
-    let iron_block = &items.items["minecraft:iron_block"];
-    assert_eq!((ruby_block.max_stack, iron_block.max_stack), (16, 64));
-    assert!(ruby_block.fire_resistant && !iron_block.fire_resistant);
-    let gem = &items.items["ruby:ruby"];
-    assert_eq!(gem.max_stack, 16);
-    assert_eq!(gem.block, Some(BlockStateId(n + 65)));
+    item_metadata_tests::assert_metadata(&root, &items, &defaults, ruby, n);
     let binding = independent_behaviours.item_binding("ruby:ruby").unwrap();
     assert_eq!(
         binding.block,

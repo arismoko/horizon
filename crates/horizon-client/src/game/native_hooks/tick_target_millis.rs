@@ -11,7 +11,8 @@ impl Game<'_> {
 
 #[cfg(test)]
 mod tick_target_millis_tests {
-    use mod_api::{ClientHost, Hooks, ModEntry, TickTargetMillisEvent, testing::with_mods};
+    use mod_api::{ClientHost, Hooks, ModEntry, TickTargetMillisEvent};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// A "timer": logs vanilla's tick length and answers `answer(millis)`.

@@ -612,7 +612,7 @@ fn native_click(click: engine::ClickEvent) -> Result<Option<TextClick>, Error> {
             id,
             payload: payload.map(take_data).transpose()?,
         },
-        E::OpenFile(_) => return Ok(None),
+        E::OpenFile(_) | E::Profiler(_) => return Ok(None),
     }))
 }
 fn captured_style(node: &Node<'_>) -> Result<TextStyle, Error> {

@@ -951,7 +951,7 @@ impl Game<'_> {
                     id,
                     payload: payload.map(std::sync::Arc::unwrap_or_clone),
                 },
-                Some(ClickEvent::OpenFile(_)) | None => return Ok(()),
+                Some(ClickEvent::OpenFile(_) | ClickEvent::Profiler(_)) | None => return Ok(()),
             };
             let after = open.dialog.after_action;
             return self.run_dialog_action(Some(click), after);

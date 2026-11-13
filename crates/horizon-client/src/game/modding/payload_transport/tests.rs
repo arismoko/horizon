@@ -389,7 +389,7 @@ fn integrated_memory_delivers_registered_raw_payload_and_reply() {
         }),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::super::native_entity_refs::tests::with_client_game(|game| {
             game.settings.render_distance = 2;
             game.settings.simulation_distance = 2;

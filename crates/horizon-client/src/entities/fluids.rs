@@ -151,14 +151,18 @@ impl ItemEntity {
 }
 impl ExperienceOrb {
     /// `Entity.updateFluidInteraction`: refreshes fluid immersion over the
-    /// orb's box and pushes its velocity by any water or lava current.
+    /// orb's box and pushes its velocity by any water or lava current; water
+    /// resets its fall, and `Entity.baseTick` halves it in lava (`isInLava`
+    /// is false on the orb's first tick, `Entity.firstTick`). Answers
+    /// `isEyeInFluid(FluidTags.WATER)` for the eye the scan reads, `0.425`
+    /// above the orb's feet, and `isInWater`.
     pub fn update_fluids(
         &mut self,
         world: &World,
         fluids: &FluidResources,
         context: &LoopContext,
-    ) -> bool {
-        update_entity_fluids(
+    ) -> (bool, bool) {
+        let (water, lava, eye) = update_entity_fluids(
             self.bounds(),
             self.position,
             self.position.y + f64::from(0.425f32),
@@ -166,8 +170,15 @@ impl ExperienceOrb {
             world,
             fluids,
             context,
-        )
-        .2
+        );
+        if water > 0.0 {
+            self.fall_distance = 0.0;
+        }
+        // `tick_among` counts this tick first: `tickCount` is 1 on the first.
+        if lava > 0.0 && self.ticks > 1 {
+            self.fall_distance *= 0.5;
+        }
+        (eye, water > 0.0)
     }
 }
 impl ArmorStand {
@@ -333,6 +344,7 @@ mod tests {
             .join("../../.local/horizon-client")
             .join(horizon_core::VANILLA_VERSION);
         if !root.join("movement-properties.nbt").exists() {
+            crate::test_fixtures::report_missing();
             return;
         }
         let assets = crate::assets::Assets::load(&root).unwrap();
@@ -381,6 +393,7 @@ mod tests {
             .join("../../.local/horizon-client")
             .join(horizon_core::VANILLA_VERSION);
         if !root.join("movement-properties.nbt").exists() {
+            crate::test_fixtures::report_missing();
             return;
         }
         let assets = crate::assets::Assets::load(&root).unwrap();
@@ -494,6 +507,7 @@ mod tests {
             .join("../../.local/horizon-client")
             .join(horizon_core::VANILLA_VERSION);
         if !root.join("movement-properties.nbt").exists() {
+            crate::test_fixtures::report_missing();
             return;
         }
         let assets = crate::assets::Assets::load(&root).unwrap();
@@ -520,6 +534,7 @@ mod tests {
         let at = Vec3::new(20.5, 4.0, 20.5);
         let orb = ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             rotation: [0.0, 0.0],
             join: Default::default(),
             no_gravity: false,
@@ -598,6 +613,7 @@ mod tests {
             .join("../../.local/horizon-client")
             .join(horizon_core::VANILLA_VERSION);
         if !root.join("movement-properties.nbt").exists() {
+            crate::test_fixtures::report_missing();
             return;
         }
         let assets = crate::assets::Assets::load(&root).unwrap();
@@ -619,6 +635,7 @@ mod tests {
         let at = Vec3::new(20.5, 4.6, 20.5);
         let mut orb = ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             rotation: [0.0, 0.0],
             join: Default::default(),
             no_gravity: false,
@@ -664,6 +681,7 @@ mod tests {
             .join("../../.local/horizon-client")
             .join(horizon_core::VANILLA_VERSION);
         if !root.join("movement-properties.nbt").exists() {
+            crate::test_fixtures::report_missing();
             return;
         }
         let assets = crate::assets::Assets::load(&root).unwrap();
@@ -728,6 +746,7 @@ mod tests {
             .join("../../.local/horizon-client")
             .join(horizon_core::VANILLA_VERSION);
         if !root.join("movement-properties.nbt").exists() {
+            crate::test_fixtures::report_missing();
             return;
         }
         let assets = crate::assets::Assets::load(&root).unwrap();

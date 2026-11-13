@@ -44,7 +44,7 @@ fn a_mods_fluid_is_placed_flows_is_collected_and_saved() {
         return;
     }
     let mods: mod_api::Mods = vec![ModEntry::new("oily", Box::new(Oily))].into();
-    mod_api::__private::install(mods.clone());
+    mod_platform::__private::install(mods.clone());
     crate::game::api_values::install_parts(&mods).unwrap();
     {
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());

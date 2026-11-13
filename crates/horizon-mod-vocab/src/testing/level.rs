@@ -49,6 +49,10 @@ impl FakeLevel {
     pub fn block_entity(&mut self, pos: [i32; 3]) -> &mut FakeBlockEntity {
         self.block_entities.entry(pos).or_default()
     }
+    /// Takes the block entity at `pos` away, as breaking its block does.
+    pub fn remove_block_entity(&mut self, pos: [i32; 3]) -> Option<FakeBlockEntity> {
+        self.block_entities.remove(&pos)
+    }
     /// The block entity at `pos`, if one stands there.
     pub fn block_entity_at(&self, pos: [i32; 3]) -> Option<&FakeBlockEntity> {
         self.block_entities.get(&pos)

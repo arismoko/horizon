@@ -55,7 +55,7 @@ fn spawn_batches_refuse_saves_until_all_rows_are_published() {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 mod_api::__private::mark_game_thread();
                 if planned {
                     game.add_planned(

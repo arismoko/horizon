@@ -1,3 +1,6 @@
+pub use world::package_details::{
+    PackageDependency, PackageDetails, PackageRuntime, PropertyValue,
+};
 pub use world::phase::{
     DataLoadContext, DataLoadOrigin, LoadReader, LoadedMods, LoopContext, LoopReader, LoopSide,
     OwningLoad, OwningLoop, OwningWorldgen, PackageInfo, PackageKind, RegistrationContext,

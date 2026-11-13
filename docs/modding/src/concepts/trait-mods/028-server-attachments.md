@@ -113,7 +113,12 @@ they stay server-only there, though their changes on a server are synced.
 
 `copy_on_death` requires a codec. Player respawn copies opted-in entries via their
 encoded representation, including raw entries of an absent mod; other entries are
-removed. Living-entity conversion is not supported. This follows the default supplier,
+removed. A mob's conversion (a villager struck into a witch, a zombie villager cured, a
+piglin zombified, a tadpole grown) copies every entry with a codec, raw entries of an absent
+mod included, to the new mob through its encoded form, over what its construction set; entries
+without a codec stay on the removed mob. A cancelled `living_conversion_pre` copies nothing,
+`living_conversion_post` sees the copy, and the copy is not synced on its own (the new mob's
+spawn carries its synced entries). This follows the default supplier,
 optional server-side persistence, player-respawn option and `sync` with a `StreamCodec`
 (with `syncData`) of NeoForge 26.3's public `AttachmentType.Builder` contract, and
 `IAttachmentHolder`'s `hasData`/`getExistingData`, but not its holder-aware supplier,

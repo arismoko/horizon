@@ -32,6 +32,8 @@ jobs:
         run: echo "platforms=$(python3 -c 'import json, os, tools.horizon_mod_binstall as m; print(json.dumps([p for p in m.PLATFORMS if os.environ["EVENT_NAME"] != "pull_request" or p["run"]]))')" >> "$GITHUB_OUTPUT"
   build:
     needs: plan
+    # A contributor's pull request (its head in a fork) skips what compiles; a reviewer dispatches it (tools/ci/pr_gate.py).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: build ${{ matrix.target }}
     strategy:
       fail-fast: false
@@ -41,8 +43,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ steps.rust.outputs.version }}
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:

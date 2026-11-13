@@ -12,7 +12,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "horizon_client_lib::motion::native_block_jump_factor",
+        target = "horizon_client_lib::motion::surface::native_block_jump_factor",
         neoforge = "none (vanilla Block.getJumpFactor; NeoForge adds no event or extension for it)"
     )]
     fn block_jump_factor();
@@ -24,7 +24,7 @@ pub trait Hooks {
         scope = "block",
         key = "state",
         cancellable = false,
-        target = "horizon_client_lib::motion::native_block_speed_factor",
+        target = "horizon_client_lib::motion::surface::native_block_speed_factor",
         neoforge = "none (vanilla Block.getSpeedFactor; NeoForge adds no event or extension for it)"
     )]
     fn block_speed_factor();

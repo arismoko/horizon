@@ -515,11 +515,11 @@ impl ItemStack {
         info: Option<&'a ItemInfo>,
     ) -> Option<&'a crate::items::ItemConsumable> {
         if let Some(data) = self.data() {
-            if let Some(consumable) = &data.consumable {
-                return Some(&consumable.value);
-            }
             if data.other("!minecraft:consumable").is_some() {
                 return None;
+            }
+            if let Some(consumable) = &data.consumable {
+                return Some(&consumable.value);
             }
         }
         info.and_then(|item| item.consumable.as_ref())

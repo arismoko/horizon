@@ -320,7 +320,7 @@ mod tests {
             Box::new(Probe(log.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods.clone(), || {
+        mod_platform::testing::with_mods(mods.clone(), || {
             crate::game::api_values::install_parts(&mods).unwrap();
             with_game(|game| {
                 game.lan_acting_uuid = Some(123);

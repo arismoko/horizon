@@ -117,6 +117,11 @@ impl Game<'_> {
             let mut done = false;
             let sent = self.lan_trade_edit(conn, |session| {
                 done = edit(&mut session.offers, &mut session.xp, &mut session.level);
+                if done {
+                    session
+                        .events
+                        .push(horizon_client::merchant::Event::OffersRefreshed);
+                }
             });
             return sent && done;
         }

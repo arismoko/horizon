@@ -1447,12 +1447,8 @@ impl Game<'_> {
                     self.observe_fullscreen();
                     self.sync_ime();
                     let now = Instant::now();
-                    let frame_cpu = self
-                        .options
-                        .spikes
-                        .and_then(|_| horizon_client::spans::thread_cpu());
+                    horizon_threads::work::tick_start();
                     let elapsed = now.duration_since(self.previous);
-                    let between = now.saturating_duration_since(self.frame_end);
                     self.frame_ticks = elapsed.as_secs_f32() * 20.0;
                     self.previous = now;
                     self.studio_fly(elapsed);
@@ -1539,39 +1535,13 @@ impl Game<'_> {
                     } else {
                         Vec::new()
                     };
-                    if horizon_client::spans::trace::due() {
-                        horizon_client::spans::trace::stop();
-                    }
-                    if let Some(threshold) = self.options.spikes
-                        && let Some(r) = self.renderer.as_ref()
-                    {
-                        let cpu = now.elapsed().saturating_sub(r.last_wait).as_secs_f32() * 1000.0;
-                        // Spans timed between frames (`idle`) come first.
-                        let spans = horizon_client::spans::merge(&frame_spans);
-                        let between = between.as_secs_f32() * 1000.0;
-                        if cpu > threshold || between > threshold {
-                            // The render thread's own CPU time in the frame:
-                            // far below the wall time, the frame waited.
-                            let worked = horizon_client::spans::thread_cpu()
-                                .zip(frame_cpu)
-                                .map_or_else(String::new, |(end, start)| {
-                                    format!(", cpu {:.1} ms", (end - start).as_secs_f32() * 1000.0)
-                                });
-                            let gap = if between > threshold {
-                                format!(", {between:.1} ms before it")
-                            } else {
-                                String::new()
-                            };
-                            log::info!(
-                                "Horizon: slow frame {cpu:.1} ms{worked}{gap} ({steps} ticks): {}",
-                                horizon_client::spans::describe(&spans)
-                            );
-                        }
-                    }
+                    let mut perf_times = None;
                     if let Some(r) = self.renderer.as_mut() {
                         let cpu = now.elapsed().saturating_sub(r.last_wait);
+                        horizon_threads::work::tick_end(cpu.as_nanos() as u64);
                         if rendered {
                             let ms = |d: Duration| d.as_secs_f32() * 1000.0;
+                            perf_times = Some((ms(cpu), r.gpu_times.last().copied()));
                             self.frame_graph.record(
                                 ms(elapsed),
                                 ms(cpu),
@@ -1668,6 +1638,17 @@ impl Game<'_> {
                     }
                     if rendered {
                         self.frame_stats.record(elapsed.as_secs_f32() * 1000.0);
+                        if let Some((cpu, gpu)) = perf_times {
+                            self.record_perf_frame(
+                                elapsed.as_secs_f32() * 1000.0,
+                                cpu,
+                                gpu,
+                                &frame_spans,
+                            );
+                        }
+                        if horizon_threads::alloc_count::ON {
+                            self.record_frame_allocs();
+                        }
                         self.debug_charts.frame_times.log(elapsed.as_nanos() as i64);
                         if self.frames == 0 {
                             // The launcher times Play to this line (launcher/src/perf.rs).
@@ -1712,7 +1693,6 @@ impl Game<'_> {
                             self.fps_frames = 0;
                             self.fps_at = Instant::now();
                         }
-                        self.frame_end = Instant::now();
                         if self.options.frames.is_some_and(|f| self.frames >= f)
                             || self
                                 .options
@@ -1755,6 +1735,7 @@ impl Game<'_> {
         if let Err(e) = self.save_for_exit() {
             log::warn!("Horizon: failed to save the world on exit: {e}");
         }
+        self.finish_profile();
         // The client's last moment: its world is left and saved, its options and
         // resources are still held. A dedicated server and a splitscreen guest skip
         // it, as `client_setup` does.
@@ -1945,10 +1926,16 @@ impl ApplicationHandler for Game<'_> {
         };
         self.handle_window_event(event_loop, id, event, input_trace::InputOrigin::User);
         if let Some((event, modifiers)) = key {
+            use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
             let name = match event.physical_key {
                 PhysicalKey::Code(code) => horizon_client::keybinds::key_name(code),
                 PhysicalKey::Unidentified(_) => None,
             };
+            let layout_key = horizon_client::keybinds::layout_key_name(
+                event.physical_key,
+                &event.key_without_modifiers(),
+            );
+            let raw_code = horizon_client::keybinds::raw_key_code(event.physical_key);
             let action = match (event.state, event.repeat) {
                 (winit::event::ElementState::Released, _) => mod_api::KeyAction::Release,
                 (_, false) => mod_api::KeyAction::Press,
@@ -1956,7 +1943,13 @@ impl ApplicationHandler for Game<'_> {
             };
             // Still the key's handling: a mod's key hook may reach the clipboard.
             self.with_user_input(true, |game| {
-                game.native_input_key(name.unwrap_or("key.keyboard.unknown"), action, modifiers);
+                game.native_input_key(
+                    name.unwrap_or("key.keyboard.unknown"),
+                    layout_key,
+                    raw_code,
+                    action,
+                    modifiers,
+                );
             });
         }
     }
@@ -1988,6 +1981,9 @@ impl ApplicationHandler for Game<'_> {
         }
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // Every event-loop pass, drawn or not: a window that stops redrawing (a lost
+        // device, an occluded window) must still end after a server crash.
+        self.exit_after_server_crash();
         self.idle(event_loop);
     }
     /// The application is ending. On macOS, Quit (Cmd+Q) ends it through

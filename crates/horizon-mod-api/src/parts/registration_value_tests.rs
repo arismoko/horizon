@@ -328,7 +328,7 @@ fn conversion_post_reports_both_entities_once() {
 }
 
 #[test]
-fn game_mode_change_dispatches_the_shared_type_and_honors_cancellation() {
+fn game_mode_change_dispatches_the_shared_type_and_honors_cancellation_and_redirects() {
     struct VetoSpectator;
     #[mod_api::__subscriptions]
     impl Hooks for VetoSpectator {
@@ -339,26 +339,33 @@ fn game_mode_change_dispatches_the_shared_type_and_honors_cancellation() {
         ) -> Flow {
             assert_eq!((event.player, event.name), (7, "Probe"));
             assert_eq!(event.from, horizon_core::game_mode::GameMode::Adventure);
-            if event.to == GameMode::Spectator {
-                Flow::Cancel
-            } else {
-                Flow::Continue
+            match *event.to {
+                GameMode::Spectator => Flow::Cancel,
+                GameMode::Creative => {
+                    *event.to = GameMode::Survival;
+                    Flow::Continue
+                }
+                _ => Flow::Continue,
             }
         }
     }
     install(vec![ModEntry::new("mode-veto", Box::new(VetoSpectator))].into());
     let mut host = FakeHost::new();
-    for (to, expected_cancel) in [(GameMode::Spectator, true), (GameMode::Survival, false)] {
+    for (mut to, expected_cancel, applied) in [
+        (GameMode::Spectator, true, GameMode::Spectator),
+        (GameMode::Survival, false, GameMode::Survival),
+        (GameMode::Creative, false, GameMode::Survival),
+    ] {
         let mut cancel = false;
         dispatch_player_game_mode_changed(
             &mut host,
             7,
             "Probe",
             horizon_core::game_mode::GameMode::Adventure,
-            to,
+            &mut to,
             &mut cancel,
         );
-        assert_eq!(cancel, expected_cancel);
+        assert_eq!((cancel, to), (expected_cancel, applied));
     }
 }
 
@@ -1153,4 +1160,87 @@ fn an_ability_question_reaches_only_the_parts_of_the_asked_item_and_names_the_ab
         *stones.asked.lock().unwrap(),
         ["my_mod:chop", "minecraft:shield_block"]
     );
+}
+
+/// Whether `stack` carries `minecraft:custom_data` (a "coin").
+fn carries_custom_data(stack: &ItemStack) -> bool {
+    stack.components().is_some_and(|c| {
+        c.as_nbt()
+            .contains_key(&horizon_core::nbt::JavaString::from(
+                "minecraft:custom_data",
+            ))
+    })
+}
+
+/// `stack` with `minecraft:custom_data={coin:1b}`.
+fn coin(item: &str) -> ItemStack {
+    use horizon_core::nbt::{Compound, JavaString, Tag};
+    let mut stack = crate::__private::part_tests::stack(item, 1, 0);
+    let data = Compound::from([(JavaString::from("coin"), Tag::Byte(1))]);
+    stack
+        .set_components(Compound::from([(
+            JavaString::from("minecraft:custom_data"),
+            Tag::Compound(data),
+        )]))
+        .unwrap();
+    stack
+}
+
+#[test]
+fn piglin_answers_reach_only_the_asked_items_parts_and_write_back_both_ways() {
+    /// Currency and gold armour exactly when the stack carries custom data; records the wearer.
+    #[derive(Clone)]
+    struct Coins(Arc<Mutex<Vec<u32>>>);
+    #[mod_api::horizon_part]
+    impl ItemPart for Coins {
+        fn is_piglin_currency(&self, _: &dyn Host, event: &mut IsPiglinCurrencyEvent<'_>) {
+            event.currency = carries_custom_data(event.stack);
+        }
+        fn makes_piglins_neutral(&self, _: &dyn Host, event: &mut MakesPiglinsNeutralEvent<'_>) {
+            self.0.lock().unwrap().push(event.wearer.id());
+            event.neutral = carries_custom_data(event.stack);
+        }
+    }
+    struct CoinMod(Coins);
+    #[mod_api::__subscriptions]
+    impl Hooks for CoinMod {
+        fn register(&self, r: &mut dyn Registrar, _: &crate::RegistrationContext) {
+            let emerald = r.item_key("minecraft:emerald");
+            r.item_part(emerald, self.0.clone());
+        }
+    }
+    mark_game_thread();
+    let wearers = Arc::new(Mutex::new(Vec::new()));
+    let mods: Mods = vec![ModEntry::new(
+        "coins",
+        Box::new(CoinMod(Coins(wearers.clone()))),
+    )]
+    .into();
+    install(mods.clone());
+    install_parts(&mods, &crate::parts::tests::rule_schema(), |_| false).unwrap();
+    let host = FakeHost::new();
+    let wearer = LivingRef::new(EntityRef::new(WorldEpoch::new(1), 77));
+    let currency = |stack: &ItemStack, vanilla: bool| {
+        let mut currency = vanilla;
+        dispatch_is_piglin_currency(&host, stack, &mut currency);
+        currency
+    };
+    let neutral = |stack: &ItemStack, vanilla: bool| {
+        let mut neutral = vanilla;
+        dispatch_makes_piglins_neutral(&host, stack, wearer, &mut neutral);
+        neutral
+    };
+    let plain = crate::__private::part_tests::stack("minecraft:emerald", 1, 0);
+    let gold = crate::__private::part_tests::stack("minecraft:gold_ingot", 1, 0);
+    // The part's `true` and `false` both replace the answer it was given.
+    assert!(currency(&coin("minecraft:emerald"), false));
+    assert!(!currency(&plain, true));
+    assert!(neutral(&coin("minecraft:emerald"), false));
+    assert!(!neutral(&plain, true));
+    assert_eq!(*wearers.lock().unwrap(), [77, 77]);
+    // An item with no part keeps vanilla's answer, whatever it carries.
+    assert!(currency(&gold, true));
+    assert!(!currency(&coin("minecraft:gold_ingot"), false));
+    assert!(!neutral(&coin("minecraft:gold_ingot"), false));
+    assert_eq!(wearers.lock().unwrap().len(), 2);
 }

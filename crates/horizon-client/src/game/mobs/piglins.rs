@@ -9,10 +9,10 @@ use horizon_client::{
         Mob, Species,
         equip::{self, Slot},
         finalize::{
-            OFFHAND, SLOT_NAMES, item_stack, set_drop_chance, set_item, set_item_stack,
-            set_slot_enchantments, slot_enchantments, stored_drop_chance,
+            OFFHAND, SLOT_NAMES, item_stack, set_drop_chance, set_item_stack,
+            set_slot_enchantments, stored_drop_chance,
         },
-        piglin::{ADMIRE, eat, has_eaten_recently, is_idle},
+        piglin::{ADMIRE, BARTERING_ITEM, eat, has_eaten_recently, is_idle},
     },
 };
 use horizon_core::{geometry::Vec3, random::RandomSource};
@@ -64,8 +64,18 @@ impl Game<'_> {
             .get(tag)
             .is_some_and(|t| t.contains(item))
     }
-    fn piglin_loved(&self, item: &str) -> bool {
+    pub(in crate::game) fn piglin_loved(&self, item: &str) -> bool {
         self.item_in_tag("minecraft:piglin_loved", item)
+    }
+    /// `PiglinAi.isBarterCurrency`: vanilla's answer (`BARTERING_ITEM`), then the
+    /// parts of the stack's item (`ItemPart::is_piglin_currency`). An item with no
+    /// part for it costs one table lookup.
+    pub(in crate::game) fn piglin_currency(&self, stack: &ItemStack) -> bool {
+        let mut currency = &*stack.item == BARTERING_ITEM;
+        if mod_api::__private::item_listens(mod_api::HookId::IsPiglinCurrency, &stack.item) {
+            self.native_is_piglin_currency(stack, &mut currency);
+        }
+        currency
     }
     /// `ItemStack.has(DataComponents.BLOCKS_ATTACKS)` for an item id.
     fn item_blocks_attacks(&self, item: &str) -> bool {
@@ -146,7 +156,7 @@ impl Game<'_> {
             return false;
         }
         let holds_loved = m.extra.off_hand_id().is_some_and(|o| self.piglin_loved(o));
-        if item == "minecraft:gold_ingot" {
+        if self.piglin_currency(stack) {
             return !holds_loved;
         }
         let space = self.piglin_can_add(m, stack);
@@ -176,21 +186,24 @@ impl Game<'_> {
             return false;
         }
         let m = &mut self.mobs[index];
-        let old = horizon_client::mobs::finalize::item(m, slot);
+        let old = item_stack(m, slot);
         let chance = stored_drop_chance(m, slot);
         let drop_old = old.is_some() && (m.random.next_float() - 0.1).max(0.0) < chance;
-        let old_enchantments = slot_enchantments(m, slot);
-        set_item(m, slot, item);
-        // The piglin keeps what the stack carried (Protection IV stays on).
-        set_slot_enchantments(m, slot, stack.enchantments().to_vec());
+        // The piglin keeps the stack whole: its components, enchantments and trim.
+        set_item_stack(
+            m,
+            slot,
+            ItemStack {
+                count: 1,
+                ..stack.clone()
+            },
+        );
         // setItemSlotAndDropWhenKilled, then persistenceRequired.
         set_drop_chance(m, slot, 2.0);
         m.persistent = true;
         let at = [m.position.x, m.position.y, m.position.z];
         if let (true, Some(old)) = (drop_old, old) {
-            let mut dropped = ItemStack::new(&old, 1);
-            dropped.set_crafting_enchantments(old_enchantments);
-            self.spawn_item_own(dropped, at, 10);
+            self.spawn_item_own(old, at, 10);
         }
         true
     }
@@ -255,17 +268,29 @@ impl Game<'_> {
         ];
         self.spawn_item(stack, from, v, 10);
     }
-    /// `PiglinAi.isWearingSafeArmor`.
+    /// `PiglinAi.isWearingSafeArmor` for the acting player: a stack in an armour
+    /// slot (feet, legs, chest, head, `EquipmentSlotGroup.ARMOR`'s order) in
+    /// `#minecraft:piglin_safe_armor`, once the parts of its item answered
+    /// (`ItemPart::makes_piglins_neutral`). An item with no part for it costs one
+    /// table lookup.
     pub(super) fn wearing_gold(&self) -> bool {
         let tag = self
             .res
             .items()
             .item_tags
             .get("minecraft:piglin_safe_armor");
-        self.armor
-            .iter()
-            .flatten()
-            .any(|s| tag.is_some_and(|t| t.contains(&*s.item)))
+        self.armor.iter().rev().flatten().any(|s| {
+            let mut neutral = tag.is_some_and(|t| t.contains(&*s.item));
+            if mod_api::__private::item_listens(mod_api::HookId::MakesPiglinsNeutral, &s.item)
+                && let Some(epoch) = self.native_lifecycle.epoch()
+                && let Some(p) = self.player.as_ref()
+            {
+                let wearer =
+                    mod_api::LivingRef::new(mod_api::EntityRef::new(epoch, p.entity_id as u32));
+                self.native_makes_piglins_neutral(s, wearer, &mut neutral);
+            }
+            neutral
+        })
     }
     /// Piglins notice wanted items on the ground within 9 blocks (`PiglinAi.wantsToPickup`:
     /// gold and other loved items, nuggets, food, gear), walk to them and
@@ -349,7 +374,7 @@ impl Game<'_> {
                 one
             };
             if self.piglin_loved(&item) {
-                self.start_admiring(i, item);
+                self.start_admiring(i, stack);
             } else if self.item_in_tag("minecraft:piglin_food", &item)
                 && !has_eaten_recently(&self.mobs[i])
             {
@@ -373,7 +398,9 @@ impl Game<'_> {
         }
         m.extra.piglin.admire_seen(holding, nearest, loved);
     }
-    fn start_admiring(&mut self, index: usize, item: std::sync::Arc<str>) {
+    /// `PiglinAi.holdInOffhand` and `admireGoldItem`: the piglin holds `stack`, the one item it
+    /// took (`split(1)` from the ground, `consumeAndReturn(1)` from a hand), with its components.
+    fn start_admiring(&mut self, index: usize, stack: ItemStack) {
         // PiglinAi.holdInOffhand: what the off hand held is dropped, whole.
         if let Some(old) = item_stack(&self.mobs[index], OFFHAND) {
             let m = &mut self.mobs[index];
@@ -386,49 +413,59 @@ impl Game<'_> {
         let m = &mut self.mobs[index];
         // The memory is set again, for the item it holds now.
         m.extra.piglin.seen_admire = 0;
-        horizon_client::mobs::piglin::hold_in_offhand(m, item);
+        horizon_client::mobs::piglin::hold_in_offhand(m, stack);
         m.extra.using_item = ADMIRE;
         m.extra.point = None;
         m.nav_stop();
         // The admiring grunt is `PiglinAi.updateActivity`'s: `piglin::brain_step`
         // plays it when the activity changes.
     }
-    /// `PiglinAi.mobInteract`: hand a piglin a gold ingot (only piglin
-    /// currency is accepted from the hand; other loved items are passed over).
-    pub(super) fn give_piglin(&mut self, index: usize, item: &str) -> bool {
+    /// `PiglinAi.mobInteract`: hand a piglin the held `stack` (`canAdmire`: only
+    /// piglin currency is accepted from the hand; other loved items are passed over).
+    pub(super) fn give_piglin(&mut self, index: usize, stack: &ItemStack) -> bool {
         let m = &self.mobs[index];
         if m.species() != Species::Piglin
             || m.is_baby()
             || m.extra.using_item > 0
             || m.extra.piglin.seen_admire > 0
             || m.extra.piglin.admire_disabled > 0
-            || item != "minecraft:gold_ingot"
+            || !self.piglin_currency(stack)
         {
             return false;
         }
-        self.start_admiring(index, item.into());
+        self.start_admiring(
+            index,
+            ItemStack {
+                count: 1,
+                ..stack.clone()
+            },
+        );
         true
     }
-    /// `PiglinAi.stopHoldingOffHandItem` after admiring: gold ingots buy a
-    /// roll of the bartering table for adults. Babies equip the admired item,
-    /// or hold it in the main hand after stashing or throwing the old item.
+    /// `PiglinAi.stopHoldingOffHandItem`, when the admiring ran out or a hit
+    /// stopped it (`piglin::stop_admiring`, which bars the barter). An adult
+    /// barters currency after admiring it, loses it to a hit, and equips or keeps
+    /// anything else. Babies equip the admired item, or hold it in the main hand
+    /// after stashing or throwing the old item. An empty off hand (a second stop
+    /// of the same hit) does nothing.
     pub(super) fn finish_admiring(&mut self, mob: u32) {
         let Some(i) = self.mobs.iter().position(|m| m.id == mob) else {
             return;
         };
+        let barter = !std::mem::take(&mut self.mobs[i].extra.piglin.hit_stop);
         if let Some(item) = self.mobs[i].extra.off_hand_id()
             && self.item_blocks_attacks(item)
         {
             return;
         }
-        let Some(item) = self.mobs[i]
-            .extra
-            .take_slot_id(horizon_items::equipment::OFFHAND)
-        else {
+        let Some(stack) = item_stack(&self.mobs[i], OFFHAND) else {
             return;
         };
+        let m = &mut self.mobs[i];
+        m.extra
+            .set_slot_stack(horizon_items::equipment::OFFHAND, None);
+        set_slot_enchantments(m, OFFHAND, Vec::new());
         if self.mobs[i].is_baby() {
-            let stack = ItemStack::new(&item, 1);
             if !self.piglin_equip(i, &stack) {
                 if let Some(old) = item_stack(&self.mobs[i], 0) {
                     if self.piglin_loved(&old.item) {
@@ -444,8 +481,11 @@ impl Game<'_> {
             }
             return;
         }
-        if &*item != "minecraft:gold_ingot" {
-            self.piglin_keep(i, ItemStack::new(&item, 1));
+        if !self.piglin_currency(&stack) {
+            self.piglin_keep(i, stack);
+            return;
+        }
+        if !barter {
             return;
         }
         let items = world_items!(self).loot_table(

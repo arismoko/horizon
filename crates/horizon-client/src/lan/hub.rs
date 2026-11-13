@@ -10,6 +10,7 @@ use super::{
     chunks::ChunkEncoder,
     data::SyncData,
     entity::{Entities, EntityState},
+    equipment_cache,
     guest::{Guest, InboxItem, SentEffect, stack_to_network},
 };
 use crate::{
@@ -2395,13 +2396,12 @@ impl Hub {
         events
     }
 
-    /// Keeps, in a frozen player's inbox, the packets that answer the server
-    /// (teleport, chunk batch, loaded, keep-alive, ping, tick end, client
-    /// information) and drops the rest. A chat message or signed command is
-    /// dropped too, but the messages it says the client has seen are taken
-    /// first (`unpackAndApplyLastSeen`), and a chat acknowledgement is handled
-    /// here, in the order they came: the client counts them as acknowledged,
-    /// and its next message after the freeze would not validate otherwise.
+    /// Keeps server-answer packets in a frozen player's inbox (teleport, chunk batch,
+    /// loaded, keep-alive, ping, tick end, client information) and drops the rest.
+    /// Chat messages and signed commands are dropped, but their last-seen messages
+    /// are taken first (`unpackAndApplyLastSeen`). Chat acknowledgements are handled
+    /// here in arrival order: the client counts them as acknowledged, and its next
+    /// message after the freeze would not validate otherwise.
     pub(crate) fn keep_acknowledgements(&mut self, i: usize, events: &mut Vec<HostEvent>) {
         let inbox = self.guests.update(i, |g| std::mem::take(&mut g.inbox));
         let mut credits = Vec::new();
@@ -2429,6 +2429,7 @@ impl Hub {
                 | S::ClientInformation(_)
                 | S::ClientTickEnd(_)
                 | S::KeepAlive(_)
+                | S::PingRequest(_)
                 | S::Pong(_) => {
                     self.guests
                         .update(i, |g| g.inbox.push_back(InboxItem::Packet(packet, credit)));
@@ -3527,21 +3528,20 @@ impl Hub {
         }
     }
 
-    /// `LivingEntity.collectEquipmentChanges`: what a player holds and wears,
-    /// walking `EquipmentSlot.VALUES`, body and saddle included. `slots` is
-    /// indexed by the slot's ordinal, which is its wire slot; empty slots are
-    /// left out (the tracker sends a slot that empties as empty).
-    fn equipment_of(
-        &mut self,
-        slots: [&Option<ItemStack>; 8],
-    ) -> Vec<(u8, Option<horizon_protocol::item::Stack>)> {
-        let mut out = Vec::new();
-        for (slot, item) in (0u8..).zip(slots) {
-            if item.is_some() {
-                out.push((slot, self.stack(item)));
+    /// Convert only equipment whose full typed source changed, including body and saddle.
+    fn guest_equipment(&mut self, i: usize) -> Vec<(u8, Option<horizon_protocol::item::Stack>)> {
+        for index in 0..equipment_cache::SLOTS {
+            let g = &self.guests[i];
+            let source = equipment_source(g, index);
+            if !g.equipment_cache.is_stale(index, source) {
+                continue;
             }
+            let source = source.cloned();
+            let converted = self.stack(&source);
+            self.guests
+                .update(i, |g| g.equipment_cache.store(index, source, converted));
         }
-        out
+        self.guests[i].equipment_cache.equipment()
     }
 
     /// Whether an entity is tracked by the current dimension's level.
@@ -3609,21 +3609,7 @@ impl Hub {
         let guest_states: Vec<_> = placed
             .into_iter()
             .map(|i| {
-                use horizon_items::equipment::{BODY, SADDLE};
-                let (main, off, armor, body, saddle) = {
-                    let g = &self.guests[i];
-                    (
-                        g.inventory.get(g.selected).cloned().flatten(),
-                        g.offhand.clone(),
-                        g.armor.clone(),
-                        g.equipment[BODY].clone(),
-                        g.equipment[SADDLE].clone(),
-                    )
-                };
-                // Armor is kept head..feet; the slots run feet, legs, chest, head.
-                let equipment = self.equipment_of([
-                    &main, &off, &armor[3], &armor[2], &armor[1], &armor[0], &body, &saddle,
-                ]);
+                let equipment = self.guest_equipment(i);
                 let g = &self.guests[i];
                 let mut state = self.player_state(
                     g.entity_id,
@@ -3994,6 +3980,9 @@ impl Hub {
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_millis() as i64);
         for i in 0..self.guests.len() {
+            // Converted under the old registries, even if advancements are not loaded.
+            self.guests
+                .update(i, |g| g.equipment_cache = Default::default());
             // PlayerAdvancements.reload: isFirstPacket again, the progress
             // read against the new tree; a player whose advancements were
             // never loaded does that on their first tick.
@@ -5606,6 +5595,18 @@ fn listed_properties(
     }
 }
 
+/// The source in wire slot order: hands, armor feet..head, body, saddle.
+fn equipment_source(g: &Guest, index: usize) -> Option<&ItemStack> {
+    match index {
+        0 => g.inventory.get(g.selected)?.as_ref(),
+        1 => g.offhand.as_ref(),
+        2..=5 => g.armor[5 - index].as_ref(),
+        6 => g.equipment[horizon_items::equipment::BODY].as_ref(),
+        7 => g.equipment[horizon_items::equipment::SADDLE].as_ref(),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     mod cave_air_tests;
@@ -6753,6 +6754,73 @@ mod tests {
         assert_eq!(update.entries[0].uuid, 1);
     }
 
+    /// Exercise the compiled conversion path, including full component equality,
+    /// selection, removals and registry reload invalidation.
+    #[test]
+    fn equipment_is_converted_again_only_when_a_stack_changes() {
+        use horizon_items::equipment::{BODY, SADDLE};
+        let (mut hub, _rx) = hub_with_a_guest();
+        hub.guests.update(0, |g| {
+            g.inventory[0] = Some(ItemStack::new("minecraft:stone", 1));
+            g.selected = 0;
+            g.offhand = Some(ItemStack::new("minecraft:shield", 1));
+            g.armor[0] = Some(ItemStack::new("minecraft:iron_helmet", 1));
+            g.equipment[BODY] = Some(ItemStack::new("minecraft:white_carpet", 1));
+            g.equipment[SADDLE] = Some(ItemStack::new("minecraft:saddle", 1));
+        });
+        let first = hub.guest_equipment(0);
+        assert_eq!(
+            first.iter().map(|(slot, _)| *slot).collect::<Vec<_>>(),
+            [0, 1, 5, 6, 7]
+        );
+        for _ in 0..3 {
+            assert_eq!(hub.guest_equipment(0), first);
+            for slot in 0..equipment_cache::SLOTS {
+                assert!(
+                    !hub.guests[0]
+                        .equipment_cache
+                        .is_stale(slot, equipment_source(&hub.guests[0], slot))
+                );
+            }
+        }
+        hub.guests
+            .update(0, |g| g.inventory[0].as_mut().unwrap().count = 3);
+        let changed = hub.guest_equipment(0);
+        assert_ne!(changed, first);
+        let mut component_stack = ItemStack::new("minecraft:stone", 3);
+        let mut data = crate::item_data::StackData::default();
+        data.repair_cost = 7;
+        component_stack.extra = Some(Box::new(data));
+        hub.guests
+            .update(0, |g| g.inventory[0] = Some(component_stack.clone()));
+        assert!(
+            hub.guests[0]
+                .equipment_cache
+                .is_stale(0, Some(&component_stack))
+        );
+        let expected = hub.stack(&Some(component_stack));
+        assert_eq!(hub.guest_equipment(0)[0], (0, expected));
+        hub.guests.update(0, |g| {
+            g.selected = 1;
+            g.offhand = None;
+            g.equipment[BODY] = None;
+            g.equipment[SADDLE] = None;
+        });
+        let cleared = hub.guest_equipment(0);
+        assert_eq!(
+            cleared.iter().map(|(slot, _)| *slot).collect::<Vec<_>>(),
+            [5]
+        );
+        assert!(!hub.guests[0].equipment_cache.is_stale(1, None));
+        hub.reload_resources(hub.sync.clone(), &mut Default::default());
+        assert!(
+            hub.guests[0]
+                .equipment_cache
+                .is_stale(5, hub.guests[0].armor[0].as_ref())
+        );
+        assert_eq!(hub.guest_equipment(0), cleared);
+    }
+
     /// `LivingEntity.collectEquipmentChanges` walks every `EquipmentSlot`: a
     /// player's body (wire slot 6) and saddle (7) reach the players who see
     /// them, with the hands and armor.
@@ -7855,7 +7923,7 @@ mod tests {
         assert!(hub.chunk_watches.is_empty() && hub.guests[0].watched.is_empty());
 
         let mods = vec![mod_api::ModEntry::new("watch", Box::new(Watcher))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             let (mut hub, _rx) = hub_with_a_guest();
             {
                 let value = 2;

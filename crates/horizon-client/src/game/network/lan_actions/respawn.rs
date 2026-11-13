@@ -14,7 +14,7 @@ impl Game<'_> {
         if !host.hub.guests[i].dead {
             return;
         }
-        let uuid = host.hub.guests[i].uuid;
+        let (uuid, entity_id) = (host.hub.guests[i].uuid, host.hub.guests[i].entity_id);
         let original = self.capture_original_player(conn);
         // PlayerList.respawn replaces the player, retaining only opted-in data.
         if let Some(attachments) = self
@@ -26,6 +26,8 @@ impl Game<'_> {
             attachments.replace_contents(copy);
         }
         self.reinitialize_server_player(uuid, conn);
+        // The new `ServerPlayer` is filed where it is placed, untold.
+        self.entity_section_forget(entity_id as u32);
         // PlayerList.respawn removes the dead player (Player.remove).
         self.guest_drop_carried(i);
         // AbstractContainerScreen.tick / ServerPlayer.closeContainer: the dead
@@ -188,19 +190,15 @@ impl Game<'_> {
                     crate::game::game_mode::mode_from_id(g.game_mode),
                 )
             };
-            let mut cancel = false;
+            let (mut cancel, mut to) = (false, GameMode::Spectator);
             if from != GameMode::Spectator {
-                self.native_player_game_mode_changed(
-                    uuid,
-                    &name,
-                    from,
-                    GameMode::Spectator,
-                    &mut cancel,
-                );
+                self.native_player_game_mode_changed(uuid, &name, from, &mut to, &mut cancel);
+                // A redirect to the mode the player has is no change: nothing is sent.
+                cancel |= to == from;
             }
             if !cancel && let Some(host) = self.lan.as_mut() {
                 host.hub
-                    .set_game_mode(conn, SPECTATOR, &self.world, Some(self.collision));
+                    .set_game_mode(conn, to.id(), &self.world, Some(self.collision));
             }
         }
         // PlayerList.respawn: `copyRespawnPosition` hands the new player the

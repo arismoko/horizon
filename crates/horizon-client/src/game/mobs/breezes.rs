@@ -121,14 +121,14 @@ mod tests {
             &settings,
             std::time::Instant::now(),
             false,
-            crate::game::execution_role::ExecutionRole::IntegratedServer,
+            crate::game::execution_role::ExecutionRole::Client,
             &Progress::new(),
             &mut |_, _| unreachable!(),
         )
         .unwrap();
         let mut options = Options::parse(std::iter::empty()).unwrap().unwrap();
         options.resources = root.clone();
-        options.execution_role = crate::game::execution_role::ExecutionRole::IntegratedServer;
+        options.execution_role = crate::game::execution_role::ExecutionRole::Client;
         let res: &'static _ = Box::leak(Box::new(loaded.resources));
         let mut game = Game::new(
             res,

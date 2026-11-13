@@ -15,6 +15,7 @@
 //! `level.dat`) are migrated on open.
 use crate::mod_chunk_tickets::{ModTicket, ModTickets, TicketOwner};
 mod backpressure;
+pub mod biome_regions;
 pub mod level_mods;
 mod respawn;
 
@@ -3663,18 +3664,8 @@ fn write_dat_as(path: &Path, tag: Tag, durable: bool) -> Result<()> {
     }
     Ok(())
 }
-/// `SavedDataStorage`: `{data: ..., DataVersion}` under `data/minecraft/`.
-fn saved_data_path(world: &Path, name: &str) -> PathBuf {
-    world
-        .join("data")
-        .join("minecraft")
-        .join(format!("{name}.dat"))
-}
-fn read_saved_data(world: &Path, name: &str) -> Option<Tag> {
-    read_dat(&saved_data_path(world, name))?
-        .get("data")
-        .cloned()
-}
+mod saved_data;
+use saved_data::{read_saved_data, saved_data_path, write_saved_data};
 /// The world's generator settings: world_gen_settings.dat (26.3) or
 /// level.dat's Data.WorldGenSettings.
 pub fn world_gen_settings(world: &Path) -> Option<Tag> {
@@ -3691,12 +3682,6 @@ pub fn world_gen_settings(world: &Path) -> Option<Tag> {
     })
 }
 include!("save/preset_saved.rs");
-fn write_saved_data(world: &Path, name: &str, data: Tag) -> Result<()> {
-    write_dat(
-        &saved_data_path(world, name),
-        Tag::compound([("data", data), ("DataVersion", Tag::Int(DATA_VERSION))]),
-    )
-}
 pub use horizon_client_core::uuid::{uuid_from_text, uuid_text};
 /// A random (version 4) UUID as vanilla's four-int form.
 ///

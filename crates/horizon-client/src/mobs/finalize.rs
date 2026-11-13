@@ -438,6 +438,11 @@ pub struct Attributes {
     /// The transient modifiers mods added: in the value and synced, never
     /// saved.
     pub transient: Vec<Modifier>,
+    /// `NAME_TAG_DISTANCE` from a server attribute update: the client reads
+    /// it for nameplates and a save never writes it.
+    pub name_tag_distance: Option<f64>,
+    /// `BELOW_NAME_DISTANCE` from a server attribute update.
+    pub below_name_distance: Option<f64>,
     /// The transient minecraft:baby speed modifier was taken away
     /// (`/attribute ... modifier remove`) until the next setBaby. Not
     /// saved: a load runs setBaby again.
@@ -1053,7 +1058,7 @@ pub const SLOT_NAMES: [&str; 8] = super::drops::SLOTS;
 pub use horizon_items::equipment::{CHEST, FEET, HEAD, LEGS, MAINHAND, OFFHAND};
 const SADDLE: usize = horizon_items::equipment::SADDLE;
 /// The `gear` slot of an `EquipmentSlot`.
-fn gear_slot(slot: usize) -> usize {
+pub fn gear_slot(slot: usize) -> usize {
     match slot {
         MAINHAND => gear::MAIN,
         OFFHAND => gear::OFF,
@@ -1443,7 +1448,13 @@ impl<L: FinalizeLevel + ?Sized, R: RandomSource> Ctx<'_, L, R> {
         let d = self.level.spawn_data();
         let e = d.enchantments;
         let pool = e.tag("minecraft:on_mob_spawn_equipment");
-        let picked = e.select(d.items, self.random, id, cost, pool);
+        let picked = e.select(
+            d.items,
+            self.random,
+            &item_stack(m, slot).unwrap_or_else(|| crate::items::ItemStack::new(id, 1)),
+            cost,
+            pool,
+        );
         for (enchantment, level) in picked {
             gear::upgrade(m, gear_slot(slot), &enchantment, level);
         }

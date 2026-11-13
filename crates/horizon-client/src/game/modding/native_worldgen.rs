@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn retained_worker_snapshots_keep_distinct_reordered_indices_without_tls() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let facts = r#"{"defaults":{"minecraft:air":0,"minecraft:stairs":2},"states":[["a",true,false,"","minecraft:air"],["s",false,false,"",{"id":"minecraft:stairs","properties":{"facing":"north"}}],["s",false,false,"",{"id":"minecraft:stairs","properties":{"facing":"east"}}]]}"#;
         let first = BlockRegistry::from_facts_json(facts.as_bytes()).unwrap();
         crate::game::api_values::resolve_block_definitions(&first).unwrap();
@@ -192,7 +192,7 @@ mod tests {
                 let registry = registry.clone();
                 let barrier = barrier.clone();
                 std::thread::spawn(move || {
-                    mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+                    mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
                     let properties = std::collections::BTreeMap::new();
                     mod_api::__private::resolve_block_keys(
                         ["minecraft:air", "minecraft:stone"],

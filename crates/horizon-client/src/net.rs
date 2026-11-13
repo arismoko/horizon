@@ -380,45 +380,52 @@ impl Session {
         let recorder = Arc::new(Mutex::new(None));
         let thread_recorder = recorder.clone();
         let (address_owned, name_owned) = (address.to_owned(), name.to_owned());
-        let thread = std::thread::Builder::new()
-            .name("horizon-net".into())
-            .spawn(move || {
-                horizon_threads::favour_current();
-                let result = captured_payloads.map_err(Reason::plain).and_then(|_| {
-                    run(
-                        local,
-                        &address_owned,
-                        &name_owned,
-                        auth.as_deref(),
-                        info,
-                        &lang,
-                        &send,
-                        &thread_writer,
-                        &thread_configuring,
-                        &thread_counters,
-                        &thread_cookies,
-                        &thread_far,
-                        transferred,
-                        &resources,
-                        lan,
-                        &thread_recorder,
-                        &thread_payloads,
-                    )
-                });
-                thread_payloads.close();
-                thread_far.cancel();
-                let from_server = result.is_ok();
-                let why = result.unwrap_or_else(|e| e);
-                if let Some(w) = thread_writer.lock().unwrap().take() {
-                    w.shutdown();
-                }
-                let _ = send.send(Event::Disconnected {
-                    reason: why.text,
-                    key: why.key,
-                    from_server,
-                });
-            })
-            .ok();
+        // Payload handlers of wasm mods run on this thread (the client's network root).
+        let thread = horizon_guest_stack::spawn("horizon-net".into(), move || {
+            horizon_threads::favour_current();
+            let result = captured_payloads.map_err(Reason::plain).and_then(|_| {
+                run(
+                    local,
+                    &address_owned,
+                    &name_owned,
+                    auth.as_deref(),
+                    info,
+                    &lang,
+                    &send,
+                    &thread_writer,
+                    &thread_configuring,
+                    &thread_counters,
+                    &thread_cookies,
+                    &thread_far,
+                    transferred,
+                    &resources,
+                    lan,
+                    &thread_recorder,
+                    &thread_payloads,
+                )
+            });
+            thread_payloads.close();
+            thread_far.cancel();
+            let from_server = result.is_ok();
+            let why = result.unwrap_or_else(|e| e);
+            if let Some(w) = thread_writer.lock().unwrap().take() {
+                w.shutdown();
+            }
+            let _ = send.send(Event::Disconnected {
+                reason: why.text,
+                key: why.key,
+                from_server,
+            });
+        })
+        .inspect_err(|error| {
+            // No reader runs to report the end: say it here, or the session waits forever.
+            let _ = payload_events.send(Event::Disconnected {
+                reason: format!("network thread: {error}"),
+                key: None,
+                from_server: false,
+            });
+        })
+        .ok();
         let debug = std::env::var_os("HORIZON_NET_DEBUG").is_some();
         Self {
             events,
@@ -1306,6 +1313,8 @@ fn receive_application(
             );
             Ok(None)
         }
+        // Raw channels are server-side: a client's table has none.
+        crate::raw_payloads::Classified::Raw(_) => Ok(None),
     }
 }
 

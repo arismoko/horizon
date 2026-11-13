@@ -12,6 +12,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TEST = re.compile(r'#\[test\]\s*(?:#\[[^\n]*\]\s*)*fn (\w+)\([^)]*\)\s*\{')
 DISPATCH = re.compile(r'\bdispatch_(?!workgroups\b)\w+\s*\(|\bwith_dispatch\s*\(|__private::enter\s*\(|matrix_checks::baseline\s*\(')
+# Qualified mod_platform:: helpers and imported helper names both match.
 # These helpers initialize before invoking user code or publishing registrations.
 READY = re.compile(r'\b(?:initialize|with_mods|install|install_parts|stick_part|install_counter|with_game|with_test_game)\s*\(')
 ISOLATED = {
@@ -56,6 +57,10 @@ def violations(root):
 class ModDispatchInitialization(unittest.TestCase):
     def test_real_dispatch_tests_initialize_first(self):
         self.assertEqual(violations(ROOT), [])
+
+    def test_guard_accepts_platform_helpers(self):
+        for helper in ("initialize", "with_mods", "install", "install_parts"):
+            self.assertIsNotNone(READY.search(f"mod_platform::__private::{helper}(mods);"))
 
     def test_guard_rejects_uninitialized_dispatch(self):
         source = '#[test]\nfn poison() { mod_api::dispatch_client_tick_pre(&mut host); }'

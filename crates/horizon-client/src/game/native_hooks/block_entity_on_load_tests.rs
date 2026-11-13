@@ -77,7 +77,7 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn block_entity_on_load_saved_data_placement_rewrite_and_reload() {
         let log = Log::default();
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("test", Box::new(User(log.clone())))].into(),
             || {
                 with_game(|game| {
@@ -141,7 +141,7 @@ mod tests {
         use horizon_client::level_loading::Reason;
         use horizon_protocol::packets::play::SpawnInfo;
         let log = Log::default();
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("test", Box::new(User(log.clone())))].into(),
             || {
                 with_client_game(|game| {
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn block_entity_on_load_without_listener_preserves_data_and_never_queues() {
-        mod_api::testing::with_mods(vec![].into(), || {
+        mod_platform::testing::with_mods(vec![].into(), || {
             with_game(|game| {
                 game.world
                     .chunks

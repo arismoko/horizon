@@ -123,6 +123,7 @@ pub fn main() -> horizon_client::Result<()> {
                         Position::Bottom
                     },
                     fixed: p["fixed"].as_bool().unwrap_or(false),
+                    hidden: false,
                 }
             })
             .collect();

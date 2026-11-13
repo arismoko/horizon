@@ -2,13 +2,18 @@
 use super::{
     BiomeSourceDefinition, CheckerboardBiomeSource, CheckerboardError, EndBiomeSource,
     FixedBiomeSource,
+    region_selector::{RegionBiomeSource, RegionError, RegionResolver},
+    regions::RegionLayout,
 };
 use crate::worldgen::{
     DecodeError,
     biome::{BiomeError, BiomeResolver, MultiNoiseBiomeSource},
     climate::{ClimateSampler, ClimateVolume},
 };
-use horizon_core::density::{DensitySampler, SampleError, SamplerContext};
+use horizon_core::{
+    density::{DensitySampler, SampleError, SamplerContext},
+    random::{PositionalRandom, RandomSource},
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug)]
@@ -17,6 +22,7 @@ pub enum BiomeSourceError {
     Biome(BiomeError),
     Checkerboard(CheckerboardError),
     Sample(SampleError),
+    Regions(RegionError),
     MissingPreset,
 }
 impl std::fmt::Display for BiomeSourceError {
@@ -45,6 +51,11 @@ impl From<SampleError> for BiomeSourceError {
         Self::Sample(e)
     }
 }
+impl From<RegionError> for BiomeSourceError {
+    fn from(e: RegionError) -> Self {
+        Self::Regions(e)
+    }
+}
 
 #[derive(Debug)]
 pub enum ResolvedBiomeSource {
@@ -52,6 +63,8 @@ pub enum ResolvedBiomeSource {
     Checkerboard(CheckerboardBiomeSource<String>),
     End(EndBiomeSource<String>),
     MultiNoise(MultiNoiseBiomeSource),
+    /// A multi-noise preset with a world's mod regions.
+    Regions(RegionBiomeSource),
 }
 impl BiomeSourceDefinition {
     /// Resolve a decoded definition using immutable, authenticated quantized
@@ -104,7 +117,27 @@ impl ResolvedBiomeSource {
                 .iter()
                 .map(|(_, name)| name.as_str())
                 .collect(),
+            Self::Regions(source) => source.biomes().collect(),
         }
+    }
+    /// A multi-noise source with `layout`'s regions over it, read from the generator's
+    /// positional random `root` without advancing it. Without regions, or for any other
+    /// source, `self` unchanged: no region stream is drawn.
+    pub fn with_regions<P>(
+        self,
+        layout: Option<&RegionLayout>,
+        root: &P,
+    ) -> Result<Self, BiomeSourceError>
+    where
+        P: PositionalRandom,
+        <P::Source as RandomSource>::Positional: Send + Sync + 'static,
+    {
+        Ok(match (self, layout) {
+            (Self::MultiNoise(vanilla), Some(layout)) if !layout.regions.is_empty() => {
+                Self::Regions(RegionBiomeSource::new(vanilla, layout, root)?)
+            }
+            (source, _) => source,
+        })
     }
     /// Keep one resolver per worker to retain native previous-leaf tie behavior.
     /// Climate and erosion roots must share the worker's compiler/context namespace.
@@ -118,6 +151,7 @@ impl ResolvedBiomeSource {
             Self::Checkerboard(source) => BiomeSourceResolver::Checkerboard(source),
             Self::End(source) => BiomeSourceResolver::End(source, erosion),
             Self::MultiNoise(source) => BiomeSourceResolver::MultiNoise(source.resolver(climate)),
+            Self::Regions(source) => BiomeSourceResolver::Regions(source.resolver(climate)),
         }
     }
 }
@@ -127,6 +161,7 @@ pub enum BiomeSourceResolver<'a> {
     Checkerboard(&'a CheckerboardBiomeSource<String>),
     End(&'a EndBiomeSource<String>, &'a dyn DensitySampler),
     MultiNoise(BiomeResolver<'a>),
+    Regions(RegionResolver<'a>),
 }
 impl<'a> BiomeSourceResolver<'a> {
     pub fn sample(
@@ -139,6 +174,7 @@ impl<'a> BiomeSourceResolver<'a> {
             Self::Checkerboard(source) => source.noise_biome(quart)?.as_str(),
             Self::End(source, erosion) => source.noise_biome(quart, *erosion, context)?.as_str(),
             Self::MultiNoise(source) => source.sample(context, quart)?,
+            Self::Regions(source) => source.sample(context, quart)?,
         })
     }
     /// Native fixed/checkerboard/End sources do not pre-sample a climate volume.
@@ -151,6 +187,7 @@ impl<'a> BiomeSourceResolver<'a> {
     ) -> Result<Option<ClimateVolume>, BiomeSourceError> {
         match self {
             Self::MultiNoise(source) => Ok(Some(source.prepare_volume(context, minimum, extents)?)),
+            Self::Regions(source) => Ok(Some(source.prepare_volume(context, minimum, extents)?)),
             _ => Ok(None),
         }
     }
@@ -160,10 +197,14 @@ impl<'a> BiomeSourceResolver<'a> {
         volume: Option<&ClimateVolume>,
         quart: [i32; 3],
     ) -> Result<&'a str, BiomeSourceError> {
-        if let Self::MultiNoise(source) = self
-            && let Some(volume) = volume
-        {
-            return Ok(source.sample_prepared(volume, quart)?);
+        match (&mut *self, volume) {
+            (Self::MultiNoise(source), Some(volume)) => {
+                return Ok(source.sample_prepared(volume, quart)?);
+            }
+            (Self::Regions(source), Some(volume)) => {
+                return Ok(source.sample_prepared(volume, quart)?);
+            }
+            _ => {}
         }
         self.sample(context, quart)
     }

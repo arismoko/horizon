@@ -91,7 +91,7 @@ fn load_conditions_recipe_reload_counts_and_failed_candidates_keep_old_recipes()
     let scratch = tempfile::tempdir().unwrap();
     let count = Arc::new(AtomicUsize::new(0));
     let mode = Arc::new(AtomicUsize::new(0));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![ModEntry::new(
             "testmod",
             Box::new(Registrant {
@@ -256,7 +256,7 @@ fn load_conditions_registration_refuses_duplicates_and_foreign_namespace_even_if
             .iter()
             .map(|owner| ModEntry::new(owner, Box::new(Duplicate)))
             .collect();
-        mod_api::testing::with_mods(entries.into(), || {
+        mod_platform::testing::with_mods(entries.into(), || {
             let mut registrar = mod_api::LoadConditionDeclarations::default();
             mod_api::dispatch_register_load_conditions(&RegistrationContext::new(), &mut registrar);
             let error = registrar.finish().err().unwrap().message;
@@ -274,7 +274,7 @@ fn load_conditions_registration_refuses_duplicates_and_foreign_namespace_even_if
 #[test]
 fn load_conditions_disabled_owner_does_not_execute_registered_handler() {
     let count = Arc::new(AtomicUsize::new(0));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![ModEntry::new(
             "testmod",
             Box::new(Registrant {

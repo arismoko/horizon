@@ -54,7 +54,7 @@ fn datapack_game_reload_delivers_only_successful_generations_and_disconnects_ref
         &root.join("datapacks.json"),
         r#"{"enabled":["vanilla","file/base"],"disabled":[]}"#,
     );
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![ModEntry::new("registry_test", Box::new(Synced))].into(),
         || {
             with_game(|game| {

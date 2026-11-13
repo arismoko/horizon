@@ -29,37 +29,7 @@ pub const IDLE_RELEASE: std::time::Duration = std::time::Duration::from_secs(5);
 /// Worker CPU time and job counts by kind, for benchmarks
 /// (`examples/gen_light_bench.rs`). Off unless enabled: a relaxed load per
 /// job then.
-pub mod job_stats {
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    pub const KINDS: [&str; 7] = [
-        "load", "generate", "decorate", "finish", "light", "mesh", "other",
-    ];
-    static ENABLED: AtomicBool = AtomicBool::new(false);
-    static NANOS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
-    static COUNT: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
-    pub fn enable(on: bool) {
-        ENABLED.store(on, Ordering::Relaxed);
-    }
-    pub(super) fn enabled() -> bool {
-        ENABLED.load(Ordering::Relaxed)
-    }
-    pub(super) fn add(kind: usize, nanos: u64) {
-        NANOS[kind].fetch_add(nanos, Ordering::Relaxed);
-        COUNT[kind].fetch_add(1, Ordering::Relaxed);
-    }
-    /// (kind, nanoseconds, count) since the last call; resets them.
-    pub fn take() -> Vec<(&'static str, u64, u64)> {
-        (0..KINDS.len())
-            .map(|i| {
-                (
-                    KINDS[i],
-                    NANOS[i].swap(0, Ordering::Relaxed),
-                    COUNT[i].swap(0, Ordering::Relaxed),
-                )
-            })
-            .collect()
-    }
-}
+pub mod job_stats;
 /// A chunk under generation, opaque to the streamer.
 pub type Proto = Box<dyn std::any::Any + Send>;
 
@@ -1173,6 +1143,8 @@ pub struct WorkerContext {
 }
 mod bounded;
 mod dynamic_emission;
+mod queue_census;
+pub use queue_census::QueueCensus;
 mod forced_cover;
 mod forced_ring;
 mod relight_now;
@@ -1810,6 +1782,7 @@ impl Streaming {
 
     /// Start planning, yielding before any late-generated column is saved.
     pub fn begin_plan_update(&mut self, world: &mut World) -> PlanStep {
+        let mut hz_laps = crate::spans::laps();
         if self.paused {
             return PlanStep::Ready(StreamingUpdate {
                 uploads: Vec::new(),
@@ -1830,6 +1803,7 @@ impl Streaming {
         self.scan_age = if sweep { 0 } else { self.scan_age + 1 };
         self.requeue();
         self.relight_edits(world);
+        hz_laps.lap("st_relight_edits");
         let deferred = std::mem::take(&mut self.deferred).into_iter();
         let received = self.shared.done.take();
         self.resume_plan_update(
@@ -1846,6 +1820,7 @@ impl Streaming {
 
     /// Resume processing the same batch after the caller saves a late column.
     pub fn resume_plan_update(&mut self, world: &mut World, mut resume: PlanResume) -> PlanStep {
+        let mut hz_laps = crate::spans::laps();
         while let Some(done) = resume
             .deferred
             .next()
@@ -1900,6 +1875,7 @@ impl Streaming {
                 }
             }
         }
+        hz_laps.lap("st_results");
         self.free(resume.stale);
         let far = if resume.sweep {
             plan_unloads(world, |x, z| {
@@ -1949,6 +1925,7 @@ impl Streaming {
                 Vec::new(),
             );
         }
+        let mut hz_laps = crate::spans::laps();
         let mut removed = Vec::new();
         let mut proto_saves = Vec::new();
         if sweep {
@@ -2009,6 +1986,7 @@ impl Streaming {
             }
             proto_saves = self.checkout_protos(written);
         }
+        hz_laps.lap("st_sweep");
         (
             StreamingCommit {
                 uploads,
@@ -2041,6 +2019,7 @@ impl Streaming {
         candidates.clear();
         let mut columns = std::mem::take(&mut self.mesh_columns_scratch);
         columns.clear();
+        let mut hz_laps = crate::spans::laps();
         let (protos, finishing) = (&self.protos, &self.finishing);
         self.decorated.retain(|k| {
             protos.contains_key(k) || finishing.contains(k) || world.chunks.contains_key(k)
@@ -2072,6 +2051,7 @@ impl Streaming {
                 self.submit(Some((x, z)), 0, Job::Finish(proto));
             }
         }
+        hz_laps.lap("st_finalize");
         // Decorate chunks whose 3x3 proto neighbourhood is available, in
         // vanilla's order: decoration is order dependent where write regions
         // overlap (see `DecorationOrder`).
@@ -2196,7 +2176,9 @@ impl Streaming {
                 self.submit(Some((x, z)), 1, Job::Decorate(x, z, region, finals));
             }
         }
+        hz_laps.lap("st_decorate");
         self.schedule_generation(world, workers);
+        hz_laps.lap("st_generate");
         // Lighting once all neighbours exist, nearest first and only as
         // much of it as the workers can chew. Vanilla's light engine also
         // hands a bounded queue to its workers and reschedules what did
@@ -2232,6 +2214,7 @@ impl Streaming {
                 Job::Light(x, z, region, self.sequence, self.sky_light),
             );
         }
+        hz_laps.lap("st_light");
         // A server draws nothing: its sections are never meshed.
         if !self.mesh {
             world.dirty_sections.clear();
@@ -2267,6 +2250,7 @@ impl Streaming {
                 !back
             });
         }
+        hz_laps.lap("st_waiting");
         // Column by column: the checks below hold for all of a column's
         // sections, and columns waiting for light cost one look per frame.
         columns.extend(world.dirty_sections.columns());
@@ -2299,6 +2283,7 @@ impl Streaming {
             }
             candidates.push((self.distance(x, z), x, z, sections));
         }
+        hz_laps.lap("st_candidates");
         // Nearest first, and only as many sections as the workers can chew.
         // Every ready column used to be submitted at once, so at a wide
         // render distance the queue — and `meshing`, and each job's 3x3

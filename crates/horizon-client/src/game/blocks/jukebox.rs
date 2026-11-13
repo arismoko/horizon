@@ -577,6 +577,15 @@ mod jukebox_play_tests {
             Some(mod_api::InteractionResult::Success),
             "the disc goes in"
         );
+        let insertion = crate::game::dispense_fixture::stop_recording();
+        assert!(
+            insertion
+                .iter()
+                .any(|line| line == "G 0,64,0 minecraft:block_change"),
+            "using the jukebox must publish the insertion event: {insertion:?}"
+        );
+        // Observe the ticking interval separately from the asserted insertion.
+        crate::game::dispense_fixture::start_recording();
         for _ in 0..ticks {
             game.tick_jukebox((0, 64, 0));
         }

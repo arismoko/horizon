@@ -82,17 +82,17 @@ Level.isInWorldBoundsHorizontal	inline	crates/horizon-world/src/level/update.rs:
 Level.isInValidBoundsHorizontal	inline	crates/horizon-world/src/level/update.rs::Sim::is_in_valid_bounds	chunk validity folded into the block range
 Level.getChunk	missing		unsure: no getter for a full chunk object found; block reads go through World::block
 Level.getFluidState	port	crates/horizon-client/src/game.rs::Column::state	gap: minor: the isInValidBounds check is not repeated here
-Level.isDarkOutside	port	crates/horizon-client/src/game.rs::GameLevel::sky_darken	gap: minor: the sky darkness value; the fixed-time dimension check is not here
+Level.isDarkOutside	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::sky_darken	gap: minor: the sky darkness value; the fixed-time dimension check is not here
 Level.playSound	port	crates/horizon-world/src/level/update.rs::Sim::sound
 Level.playSeededSound	missing		unsure: no seeded sound path found; Sim::sound takes no seed
-Level.addBlockEntityTicker	port	crates/horizon-client/src/game.rs::GameLevel::load_block_entity	the ticker comes with the block entity load
+Level.addBlockEntityTicker	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::load_block_entity	the ticker comes with the block entity load
 Level.guardEntityTick	skip:debug		crash-report wrapper around an entity tick
 Level.getBlockEntity	skip:other		bare block_entities map lookup at each caller; no port of its own
-Level.setBlockEntity	port	crates/horizon-client/src/game.rs::GameLevel::load_block_entity
+Level.setBlockEntity	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::load_block_entity
 Level.loadedAndEntityCanStandOnFace	inline	crates/horizon-client/src/mobs/shulker.rs::can_stay_at	the supporting block's face toward the shell is tested for sturdiness (`BlockState.entityCanStandOnFace`) before the opened shell's box; the chunk is loaded by construction where the sim asks
 Level.getWorldBorderAdjustedRespawnData	missing		unsure: respawn clamp to the world border not found
 Level.hasEntities	missing		unsure: no entity-in-box test found for this use
-Level.getClockTimeTicks	port	crates/horizon-client/src/game.rs::GameLevel::day_time	day time; no separate clock time
+Level.getClockTimeTicks	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::day_time	day time; no separate clock time
 Level.getThunderLevel	port	crates/horizon-client-render/src/world.rs::World::levels	thunder scaled by rain
 Level.setThunderLevel	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	weather game event sets the thunder level
 Level.setRainLevel	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::handle_packet	weather game event sets the rain level
@@ -113,7 +113,7 @@ ChunkPos.getBlockAt	skip:other		no caller in 26.3 code
 ChunkPos.contains	port	crates/horizon-core/src/position.rs::BlockPos::chunk	a block is in a chunk when its chunk() is that chunk
 ChunkPos.getChessboardDistance	inline	crates/horizon-client/src/ticket_levels.rs::compute	Chebyshev distance folded into the ticket level loop
 ChunkPos.distanceSquared	inline	crates/horizon-client/src/lan/hub.rs::requeue_ring	the pending chunk queue is sorted by the squared chunk distance, the only use vanilla makes of it (PlayerChunkSender.collectChunksToSend)
-CollisionGetter.isUnobstructed	port	crates/horizon-client/src/game.rs::GameLevel::is_unobstructed	the state-based overload
+CollisionGetter.isUnobstructed	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::is_unobstructed	the state-based overload
 CollisionGetter.noBorderCollision	port	crates/horizon-client-render/src/collisions.rs::EntityCollisions::movement_border	border shape when inside close to the border
 CollisionGetter.getPreMoveCollisions	inline	crates/horizon-client-render/src/collisions.rs::SceneCollisions::resolve_with_context	gap: minor: entity and block shapes are not returned as a list; the resolver takes them together
 CollisionGetter.getBlockAndLiquidCollisions	port	crates/horizon-client-render/src/collisions.rs::no_collision_or_liquid	gap: minor: a yes or no test, not the shape list

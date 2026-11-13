@@ -99,7 +99,7 @@ pub fn enchantment_list(
 ) -> Levels {
     let mut random = LegacyRandom::new(i64::from(seed.wrapping_add(slot as i32)));
     let pool = e.tag("minecraft:in_enchanting_table").to_vec();
-    let mut list = e.select_of(items, &mut random, stack, cost, &pool);
+    let mut list = e.select(items, &mut random, stack, cost, &pool);
     if &*stack.item == "minecraft:book" && list.len() > 1 {
         let i = random.next_int_bound(list.len() as i32).unwrap_or(0) as usize;
         list.remove(i);
@@ -173,7 +173,7 @@ pub fn enchant_clue(
     // getEnchantmentList reseeds the menu random; the clue draws continue from it.
     let mut list_random = LegacyRandom::new(i64::from(seed.wrapping_add(slot as i32)));
     let pool = e.tag("minecraft:in_enchanting_table").to_vec();
-    let mut list = e.select_of(items, &mut list_random, stack, cost, &pool);
+    let mut list = e.select(items, &mut list_random, stack, cost, &pool);
     if &*stack.item == "minecraft:book" && list.len() > 1 {
         let r = list_random.next_int_bound(list.len() as i32).unwrap_or(0) as usize;
         list.remove(r);
@@ -2097,6 +2097,7 @@ mod tests {
             trade: None,
             maps: None,
             limited_crafting: false,
+            can_equip: None,
             known_recipes: None,
         };
         let mut menu = menu::Menu::new(menu::Kind::Smithing);

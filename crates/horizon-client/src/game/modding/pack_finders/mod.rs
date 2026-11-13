@@ -95,6 +95,7 @@ impl PackFinders for Registry {
                 _ => return Err(PackFinderError::InvalidMetadata),
             },
             fixed: false,
+            hidden: entry.hidden,
         });
         self.packs.push(pack);
         Ok(())

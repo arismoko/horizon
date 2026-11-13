@@ -10,6 +10,7 @@ pub mod game_payload;
 pub mod interaction;
 pub mod lending;
 pub mod matrix;
+pub mod movement;
 pub mod projectile_owner;
 pub mod replace;
 pub mod selector_command;
@@ -25,6 +26,10 @@ pub struct Mod;
 
 #[mod_api::horizon_mod]
 impl Hooks for Mod {
+    fn movement_input(&self, _: &dyn mod_api::ClientHost, event: &mut mod_api::MovementInputEvent) {
+        movement::movement_input(event);
+    }
+
     fn server_tick(
         &self,
         host: &mut dyn mod_api::ServerHost,

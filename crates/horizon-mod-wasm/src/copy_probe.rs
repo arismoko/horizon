@@ -34,3 +34,20 @@ pub fn measure<R>(run: impl FnOnce() -> R) -> (R, Counts) {
     let result = run();
     (result, COUNTS.with(|c| c.get().unwrap()))
 }
+/// Runs `run` with every non-load guest call in this process given the load budget (30 000
+/// epoch ticks, about 30 s) instead of a hook's 100, on whichever thread the game makes it. For
+/// tests that each run alone in their process and measure work, not time: a debug build on a
+/// loaded runner can take past 100 ms over a megabyte-sized call. A guest that never returns
+/// still stops at the load budget.
+pub fn with_load_budget<R>(run: impl FnOnce() -> R) -> R {
+    use std::sync::atomic::Ordering;
+    struct Guard;
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            crate::runtime::CALL_BUDGET.store(0, Ordering::Relaxed);
+        }
+    }
+    crate::runtime::CALL_BUDGET.store(30_000, Ordering::Relaxed);
+    let _guard = Guard;
+    run()
+}

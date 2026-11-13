@@ -143,7 +143,10 @@ mod tests {
                 g.boats
                     .push(Boat::new(2, "oak".into(), Vec3::new(0.5, y, 0.5), 0.0));
                 assert!(g.boat_bubble_columns(0).is_empty());
-                assert_eq!(g.boat_ground_friction(g.boats[0].bounds()), 0.0);
+                assert_eq!(
+                    g.boat_ground_friction(&g.boats[0], g.boats[0].bounds()),
+                    0.0
+                );
                 g.boats.clear();
             }
         });

@@ -5,6 +5,7 @@ import unittest
 import sys
 from unittest.mock import patch
 import os
+import re
 import tempfile
 import io
 import json
@@ -424,6 +425,10 @@ class BoatRoutingTests(unittest.TestCase):
         read.assert_not_called()
 
 
+def rust_pin():
+    return (Path(__file__).parents[1] / "tools/ci/rust-version").read_text().strip()
+
+
 class RustupRetryTests(unittest.TestCase):
     def run_script(self, failures):
         script = Path(__file__).parents[1] / "tools/ci/rustup_install.sh"
@@ -434,18 +439,59 @@ class RustupRetryTests(unittest.TestCase):
             (bin_dir / "sleep").write_text("#!/bin/sh\n")
             for name in ("rustup", "sleep"):
                 (bin_dir / name).chmod(0o755)
-            result = subprocess.run(["bash", str(script), "stable", "--profile", "minimal"], capture_output=True, text=True,
-                                    env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"})
+            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+            env.pop("GITHUB_ENV", None)
+            result = subprocess.run(["bash", str(script), "--profile", "minimal"], capture_output=True, text=True,
+                                    env=env)
             return result.returncode, count.read_text().splitlines()
 
     @unittest.skipIf(os.name == "nt", "a bash script for Linux runners")
     def test_transient_failures_are_retried_then_bounded(self):
+        pin = rust_pin()
         status, calls = self.run_script(failures=2)
-        self.assertEqual((status, len(calls)), (0, 3))
-        self.assertEqual(calls[0], "toolchain install stable --profile minimal")
+        installs = [call for call in calls if call.startswith("toolchain install")]
+        self.assertEqual((status, len(installs)), (0, 3))
+        self.assertEqual(installs[0], f"toolchain install {pin} --profile minimal")
         status, calls = self.run_script(failures=10)
         self.assertNotEqual(status, 0)
-        self.assertEqual(len(calls), 4)
+        self.assertEqual(calls, [f"toolchain install {pin} --profile minimal"] * 4)
+
+
+class PinnedToolchainTests(unittest.TestCase):
+    """The job runs on the pin, with rustfmt and clippy: the mod API generator runs rustfmt under it."""
+
+    def run_script(self, installed):
+        root = Path(__file__).parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            bin_dir = Path(directory)
+            calls = bin_dir / "calls"
+            job_env = bin_dir / "github_env"
+            components = "\\n".join(f"{c}-x86_64-unknown-linux-gnu" for c in installed)
+            (bin_dir / "rustup").write_text(
+                f'#!/bin/sh\necho "$@" >> {calls}\n'
+                f'case "$1 $2" in "component list") printf "{components}\\n";; esac\n')
+            (bin_dir / "rustup").chmod(0o755)
+            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "GITHUB_ENV": str(job_env)}
+            # From another folder: a job may run its steps in a subfolder.
+            result = subprocess.run(["bash", str(root / "tools/ci/rustup_install.sh"), "--profile", "minimal"],
+                                    cwd=directory, capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return calls.read_text().splitlines(), job_env.read_text()
+
+    @unittest.skipIf(os.name == "nt", "a bash script for Linux runners")
+    def test_the_pin_becomes_the_jobs_toolchain(self):
+        pin = rust_pin()
+        calls, job_env = self.run_script(installed=["rustfmt", "clippy"])
+        self.assertEqual(calls[:2], [f"toolchain install {pin} --profile minimal", f"default {pin}"])
+        self.assertEqual(job_env, f"RUSTUP_TOOLCHAIN={pin}\n")
+
+    @unittest.skipIf(os.name == "nt", "a bash script for Linux runners")
+    def test_missing_components_are_added_and_present_ones_cost_nothing(self):
+        pin = rust_pin()
+        calls, _ = self.run_script(installed=["rust-src", "rustfmt"])
+        self.assertIn(f"component add --toolchain {pin} clippy", calls)
+        calls, _ = self.run_script(installed=["rustfmt", "clippy"])
+        self.assertFalse([call for call in calls if call.startswith("component add")])
 
 
 class RunnerPackagesTests(unittest.TestCase):

@@ -89,7 +89,7 @@ fn visibility_listener_unwind_does_not_block_an_outside_save() {
             }),
         )]
         .into();
-        let panic = mod_api::testing::with_mods(mods, || {
+        let panic = mod_platform::testing::with_mods(mods, || {
             mod_api::__private::mark_game_thread();
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| game.tick_items()))
                 .unwrap_err()

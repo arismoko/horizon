@@ -190,27 +190,28 @@ const WORKERS: &[&str] = &[
     "SectionGeometry",
 ];
 
-/// What a call of `method` is to the runtime, for its limits and its wait.
+/// What a call of `method` is to the runtime, for its limits and its wait. A method given the
+/// worldgen context (`alter_ground`, a worldgen Part method) runs on the worldgen workers too.
 pub(super) fn call_class(types: &ty::Types<'_>, method: &Method) -> &'static str {
-    if WORKERS.contains(&method.owner) {
+    if WORKERS.contains(&method.owner) || takes(types, method, &["WorldgenHost"]) {
         "super::Call::Worker"
-    } else if loads(types, method) {
+    } else if takes(types, method, LOAD_CONTEXTS) {
         "super::Call::Load"
     } else {
         "super::Call::Hook"
     }
 }
 
-/// Whether `method` is a load-phase call: one of its arguments is a load-phase context.
-fn loads(types: &ty::Types<'_>, method: &Method) -> bool {
+/// Whether one of `method`'s arguments is one of `contexts`.
+fn takes(types: &ty::Types<'_>, method: &Method, contexts: &[&str]) -> bool {
     method.params.iter().any(|(_, ty)| {
         let ty = match ty {
             ty::Ty::Ref(inner, _) => &**inner,
             ty => ty,
         };
         match ty {
-            ty::Ty::Dyn(name, _) => LOAD_CONTEXTS.contains(&name.as_str()),
-            ty::Ty::Named(def) => LOAD_CONTEXTS
+            ty::Ty::Dyn(name, _) => contexts.contains(&name.as_str()),
+            ty::Ty::Named(def) => contexts
                 .iter()
                 .any(|name| types.defs[*def].rust.rsplit("::").next() == Some(*name)),
             _ => false,
@@ -865,6 +866,40 @@ mod tests {
                     );
                 }
                 super::generate(&root, &included).unwrap();
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn a_worldgen_part_method_crosses_and_waits_for_its_group_as_a_worker_call() {
+        std::thread::Builder::new()
+            .stack_size(64 << 20)
+            .spawn(|| {
+                let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+                let generated = crate::sources(&root, crate::FillMode::Require).unwrap();
+                let included = [
+                    ("mod_api_generated.rs", generated.hooks.as_str()),
+                    ("mod_api_generated_host.rs", generated.host.as_str()),
+                    ("mod_api_host_areas.rs", generated.areas.as_str()),
+                ];
+                let providers = crate::capability_providers::generate(&root, &included)
+                    .unwrap()
+                    .0;
+                let mut surface_included = included.to_vec();
+                surface_included.push(("capability_providers_generated.rs", providers.as_str()));
+                let surface = super::surface(&root, &surface_included).unwrap();
+                let class = |name: &str| {
+                    let method = surface
+                        .methods
+                        .iter()
+                        .find(|method| method.owner == "BlockPart" && method.name == name)
+                        .unwrap_or_else(|| panic!("BlockPart::{name} does not cross"));
+                    super::call_class(&surface.types, method)
+                };
+                assert_eq!(class("on_tree_grow"), "super::Call::Worker");
+                assert_eq!(class("is_ladder"), "super::Call::Hook");
             })
             .unwrap()
             .join()

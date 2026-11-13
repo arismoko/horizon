@@ -858,7 +858,7 @@ mod tests {
     }
 
     fn fluid(amount: u32) -> Well {
-        mod_api::__private::part_tests::game_thread();
+        mod_platform::__private::part_tests::game_thread();
         Well::new(&mod_api::FluidStack::new(
             mod_api::__private::fluid_key("minecraft:water").unwrap(),
             amount,
@@ -957,7 +957,7 @@ mod tests {
     /// to the prettified path.
     #[test]
     fn a_well_names_its_fluid_and_amount() {
-        mod_api::__private::part_tests::game_thread();
+        mod_platform::__private::part_tests::game_thread();
         let well = Well::new(&mod_api::FluidStack::new(
             mod_api::__private::fluid_key("test:potion").unwrap(),
             250,

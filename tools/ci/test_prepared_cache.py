@@ -58,7 +58,7 @@ class PreparedCacheTest(unittest.TestCase):
             seeded = subprocess.check_output(["python3", ROOT / "tools/prepare_output.py", "digest",
                                               work / ".local/horizon-client/26.3"], text=True).strip()
             self.assertEqual((tmp / "export.digest").read_text().strip(), seeded)
-            self.assertTrue(run().startswith("prepared key fixture fresh\n"))
+            self.assertTrue(run().startswith("prepared key fixture fresh (manifest "))
             lock = cache / "prepared/.lock-file"
             holder = subprocess.Popen(["bash", "-c", 'exec 9>"$1"; flock 9; echo locked; exec sleep 60', "holder", str(lock)],
                                       stdout=subprocess.PIPE, text=True)
@@ -72,7 +72,7 @@ class PreparedCacheTest(unittest.TestCase):
             holder.stdout.close()
             out, err = waiter.communicate(timeout=5)
             self.assertEqual(waiter.returncode, 0, err)
-            self.assertTrue(out.startswith("prepared key fixture fresh\n"))
+            self.assertTrue(out.startswith("prepared key fixture fresh (manifest "))
             # A job dying during seed leaves no completion marker; the next job rebuilds.
             other = dict(env, HORIZON_PREPARE_KEY="interrupted", SEED_STARTED=str(root / "seed-started"),
                          REAL_PYTHON=sys.executable)

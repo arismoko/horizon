@@ -24,6 +24,16 @@ Before installation, `mod_api::mods()` still returns an empty list. Parts retain
 id for startup errors and hook panics. The game stops. A point listener's panic names its mod and
 method; render hooks are not named yet.
 
+A mod adds its own lines to every crash report from `Hooks::register` (NeoForge's `CrashReportCallables`):
+`r.crash_section("caches", Arc::new(Caches))` lists `<mod id>: caches: <value>` in the report's system details,
+after Horizon's own, and `r.crash_header(Arc::new(Banner))` puts `<mod id>: <value>` under the report's title.
+Both take a `CrashSection`, whose `value()` is asked once when a report is written, not when it was
+registered; `None` leaves the line out of that report. Lines come in registration order, on native and wasm
+mods alike, on the client and the dedicated server. The report asks them on a thread of its own and waits at
+most two seconds for the headers and another two for the system-detail sections: a line that panics, traps or doesn't answer in time reads `~~ERROR~~`, and the
+report is still written. The lines of the mod the crash is attributed to are not asked. Each value is kept on one
+line, control characters as spaces, cut to 4096 bytes.
+
 A native runtime that hosts converted packages (Portizon's wasm packages, a Java interpreter's jars)
 declares the packages it loaded with `mod_api::content::crash::ConvertedPackages::new(runtime_id, ids)` and
 marks a guest call with `mod_api::content::crash::ConvertedPackage::enter(export, site)`. The scope nests,

@@ -45,6 +45,92 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// A borrowed counting view: no resident-table scans and no allocation for gauges.
+pub(super) struct EntityCountView<'a> {
+    pub(super) fixed: [(&'static str, usize); 19],
+    pub(super) mobs: &'a [Mob],
+    pub(super) projectiles: &'a [horizon_client::projectiles::Projectile],
+    pub(super) general: &'a super::general::GeneralRows,
+    pub(super) others: &'a [commands::OtherEntity],
+}
+impl EntityCountView<'_> {
+    pub(super) fn total(&self) -> usize {
+        self.fixed.iter().map(|(_, n)| n).sum::<usize>()
+            + self.projectiles.len()
+            + self.mobs.len()
+            + self.general.len()
+            + self.others.len()
+    }
+    pub(super) fn registry_counts(&self) -> Vec<(String, u32)> {
+        let mut counts = std::collections::BTreeMap::<String, u32>::new();
+        for &(id, n) in &self.fixed {
+            if n > 0 {
+                *counts.entry(id.to_owned()).or_default() += n as u32;
+            }
+        }
+        for projectile in self.projectiles {
+            *counts.entry(projectile.kind.id().to_owned()).or_default() += 1;
+        }
+        for mob in self.mobs.iter().filter(|mob| !mob.removed) {
+            *counts.entry(mob.kind.id.clone()).or_default() += 1;
+        }
+        for row in self.general.iter() {
+            *counts
+                .entry(
+                    super::general::general_type_catalog()
+                        .key(row.type_slot)
+                        .to_owned(),
+                )
+                .or_default() += 1;
+        }
+        for row in self.others {
+            *counts.entry(row.kind.clone()).or_default() += 1;
+        }
+        counts.into_iter().collect()
+    }
+}
+
+// Both Game and Parked own these typed families. Keep their instrumentation in one list.
+macro_rules! entity_count_view {
+    ($level:expr, $projectiles:expr, $general:expr, $knots:expr) => {
+        crate::game::levels::EntityCountView {
+            fixed: [
+                ("minecraft:item", $level.dropped.len()),
+                ("minecraft:experience_orb", $level.orbs.len()),
+                ("minecraft:minecart", $level.carts.len()),
+                ("minecraft:boat", $level.boats.len()),
+                ("minecraft:falling_block", $level.falling.len()),
+                ("minecraft:painting", $level.paintings.len()),
+                ("minecraft:item_frame", $level.item_frames.len()),
+                ("minecraft:armor_stand", $level.armor_stands.len()),
+                ("minecraft:trident", $level.tridents.len()),
+                ("minecraft:firework_rocket", $level.rockets.len()),
+                ("minecraft:tnt", $level.tnts.len()),
+                ("minecraft:end_crystal", $level.crystals.len()),
+                ("minecraft:leash_knot", $knots.len()),
+                (
+                    "minecraft:ominous_item_spawner",
+                    $level.ominous_spawners.len(),
+                ),
+                ("minecraft:cushion", $level.cushions.len()),
+                ("minecraft:area_effect_cloud", $level.breath_clouds.len()),
+                ("minecraft:lightning_bolt", $level.bolts.len()),
+                ("minecraft:evoker_fangs", $level.fangs.perf_count()),
+                // Multipart hitboxes are not independently admitted world entities.
+                (
+                    "minecraft:ender_dragon",
+                    usize::from($level.dragon.as_ref().is_some()),
+                ),
+            ],
+            mobs: &$level.mobs,
+            projectiles: $projectiles,
+            general: $general,
+            others: &$level.others,
+        }
+    };
+}
+pub(super) use entity_count_view;
+
 /// Server ticks a level other than the Overworld stays loaded with no player
 /// in it, before it is saved and closed (vanilla unloads a level's chunks
 /// once no ticket holds them; the Overworld stays loaded).
@@ -313,6 +399,14 @@ impl Default for Pass {
     }
 }
 
+/// How long a server tick took and what it spent the time in.
+pub(super) struct TickTiming {
+    pub wall_ms: f32,
+    pub cpu_ms: Option<f32>,
+    /// Spans recorded inside the tick only, in observation order.
+    pub raw: Vec<horizon_client::spans::Span>,
+}
+
 /// The levels not in place, by dimension.
 #[derive(Default)]
 pub(super) struct Levels {
@@ -435,6 +529,13 @@ impl Levels {
         self.parked.values().map(|level| &level.world)
     }
 
+    /// The streamers of the levels not in place.
+    pub(super) fn parked_streamings(
+        &self,
+    ) -> impl Iterator<Item = &horizon_client::streaming::Streaming> {
+        self.parked.values().map(|level| &level.streaming)
+    }
+
     /// The level not in place, in `dim`.
     pub(super) fn parked_mut(&mut self, dim: Dim) -> Option<&mut Parked> {
         self.parked.get_mut(&dim)
@@ -495,6 +596,18 @@ impl Levels {
     /// The mobs of a parked level.
     pub(super) fn parked_mobs(&self, dim: Dim) -> Option<&[Mob]> {
         self.parked.get(&dim).map(|level| &*level.mobs)
+    }
+
+    pub(super) fn parked_perf_views(
+        &self,
+    ) -> impl Iterator<Item = (Dim, &World, EntityCountView<'_>)> {
+        self.parked.iter().map(|(&dim, level)| {
+            (
+                dim,
+                &level.world,
+                entity_count_view!(level, &level.projectiles, &level.general.rows, &level.knots),
+            )
+        })
     }
 
     /// A parked level's loose entities, for `horizon-report`: items, experience orbs,
@@ -1030,7 +1143,14 @@ impl Game<'_> {
         let n = dims.len();
         let mut result = Ok(());
         for (k, dim) in dims.into_iter().enumerate() {
-            // Each level's share of the tick, recorded in local reports.
+            // Each level's share of the tick (the first one also reads the network and runs the
+            // tick's shared parts): `horizon-report`'s `level_*` spans.
+            horizon_threads::work::set_dim(match dim {
+                Dim::Overworld => 1,
+                Dim::Nether => 2,
+                Dim::End => 3,
+                Dim::Extra(_) => 0,
+            });
             let _level_span = horizon_client::spans::guard(match dim {
                 Dim::Overworld => "level_overworld",
                 Dim::Nether => "level_the_nether",
@@ -1124,27 +1244,34 @@ impl Game<'_> {
         Ok(())
     }
 
-    /// `tick_server` as a server thread runs it. With `HORIZON_SPIKES=MS`, a
-    /// tick longer than MS is logged with its thread CPU time and spans.
+    /// `tick_server` as a server thread runs it, timed whenever spans are on.
     pub(super) fn tick_server_timed(&mut self, paused: bool) -> Result<()> {
-        self.tick_server_spans(paused, |_, _, _, _| {})
+        self.tick_server_spans(paused, |_| {})
     }
 
-    /// `tick_server_timed`, handing the tick's wall time, thread CPU time
-    /// and spans (milliseconds, summed by name) to `record` while spans are on, with how many
-    /// spans the tick itself recorded: a dedicated server's performance report turns them on to
-    /// record its ticks.
+    /// `tick_server_timed`, handing the tick's timing to `record` while spans are on.
     pub(super) fn tick_server_spans(
         &mut self,
         paused: bool,
-        record: impl FnOnce(f32, Option<f32>, Vec<horizon_client::spans::Span>, usize),
+        record: impl FnOnce(TickTiming),
     ) -> Result<()> {
-        if self.options.spikes.is_none() && !horizon_client::spans::enabled() {
+        let started = Instant::now();
+        horizon_threads::work::tick_start();
+        let result = self.tick_server_recorded(paused, record);
+        horizon_threads::work::tick_end(started.elapsed().as_nanos() as u64);
+        result
+    }
+
+    fn tick_server_recorded(
+        &mut self,
+        paused: bool,
+        record: impl FnOnce(TickTiming),
+    ) -> Result<()> {
+        if self.options.spikes.is_none() && !horizon_client::spans::recording_here() {
             return self.tick_server(paused);
         }
-        // Spans recorded since the last tick ran between ticks (the chunk pump of the wait): they
-        // stay in the tick's list, but only the tick's own count as recorded in it.
-        let between = horizon_client::spans::take_raw();
+        // Discard between-tick work (such as the chunk pump) before timing this tick.
+        horizon_client::spans::take_raw();
         let (started, cpu) = (Instant::now(), horizon_client::spans::thread_cpu());
         let result = self.tick_server(paused);
         let wall = started.elapsed().as_secs_f32() * 1000.0;
@@ -1153,25 +1280,22 @@ impl Game<'_> {
             .map(|(end, start)| (end - start).as_secs_f32() * 1000.0);
         // Taken every tick: nothing else takes this thread's spans.
         let raw = horizon_client::spans::take_raw();
-        let in_tick = raw.len();
-        let spans = if between.is_empty() {
-            horizon_client::spans::merge(&raw)
-        } else {
-            horizon_client::spans::merge(&[between, raw].concat())
-        };
+        // The spans go to the slow ring; whose packets or events took the tick stays in the owner's log.
         let notes = horizon_client::spans::take_notes();
         if let Some(threshold) = self.options.spikes
             && wall > threshold
+            && !notes.is_empty()
         {
-            let cpu = cpu.map_or_else(String::new, |c| format!(", cpu {c:.1} ms"));
             log::info!(
-                "Horizon: slow tick {wall:.1} ms{cpu} ({} mobs): {}{}",
-                self.mobs.len(),
-                horizon_client::spans::describe(&spans),
+                "Horizon: {wall:.1} ms tick was busy with: {}",
                 slowest_steps(&notes)
             );
         }
-        record(wall, cpu, spans, in_tick);
+        record(TickTiming {
+            wall_ms: wall,
+            cpu_ms: cpu,
+            raw,
+        });
         result
     }
 
@@ -1410,17 +1534,13 @@ impl Game<'_> {
     }
 }
 
-/// A slow tick's line's end: the steps it noted as its slowest (`spans::note`), whose packets
-/// or which player's event, or nothing.
+/// The steps a slow tick noted as its slowest (`spans::note`), whose packets or which player's event.
 fn slowest_steps(notes: &[(f32, String)]) -> String {
-    if notes.is_empty() {
-        return String::new();
-    }
     let list: Vec<String> = notes
         .iter()
         .map(|(ms, what)| format!("{what} {ms:.1}"))
         .collect();
-    format!("; slowest: {}", list.join(", "))
+    list.join(", ")
 }
 
 impl Game<'_> {
@@ -1506,6 +1626,88 @@ mod tests {
         assert_eq!(game.border.size(), 1000.0);
         let nether = game.levels.parked_border(Dim::Nether).unwrap();
         assert_eq!(nether.size(), 100.0);
+    }
+
+    struct LogCapture;
+    static LOGGED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+    impl log::Log for LogCapture {
+        fn enabled(&self, _: &log::Metadata) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record) {
+            LOGGED.lock().unwrap().push(record.args().to_string());
+        }
+        fn flush(&self) {}
+    }
+
+    /// 300 slow ticks in ten seconds log no Horizon slow-tick line, and the ring holds the last 256.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn slow_ticks_enter_the_ring_and_not_the_log() {
+        use crate::game::{Audio, Options, Progress, Settings, load_resources};
+        use horizon_client::server_perf::{ServerPerf, TickDetail, WorldCounts};
+        log::set_logger(&LogCapture).expect("no other logger in this test run");
+        log::set_max_level(log::LevelFilter::Info);
+        let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
+        let settings = Settings::default();
+        let loaded = load_resources(
+            horizon_assets::resource_source::ResourceRoot::directory(root.clone()),
+            Vec::new(),
+            None,
+            &root,
+            &settings,
+            Instant::now(),
+            false,
+            crate::game::execution_role::ExecutionRole::IntegratedServer,
+            &Progress::new(),
+            &mut |_, _| unreachable!(),
+        )
+        .unwrap();
+        let mut options = Options::parse(std::iter::empty()).unwrap().unwrap();
+        options.resources = root.clone();
+        options.execution_role = crate::game::execution_role::ExecutionRole::IntegratedServer;
+        options.spikes = Some(0.0);
+        let mut game = Game::new(
+            &loaded.resources,
+            loaded.pack,
+            loaded.gui.unwrap(),
+            options,
+            settings,
+            Audio::silent(&horizon_assets::resource_source::ResourceSource::directory(
+                root.clone(),
+            )),
+            None,
+        )
+        .unwrap();
+        game.build_registries();
+        let mut perf = ServerPerf::new(0.0, 0.0);
+        for i in 0..300 {
+            let mut detail = None;
+            let started = Instant::now();
+            game.tick_server_spans(false, |timing| {
+                detail = Some(TickDetail {
+                    cpu_ms: timing.cpu_ms,
+                    spans: timing.raw,
+                });
+            })
+            .unwrap();
+            let wall_ms = started.elapsed().as_secs_f32() * 1000.0;
+            perf.tick(
+                f64::from(i) / 30.0,
+                wall_ms,
+                detail,
+                WorldCounts::default,
+                Vec::new,
+            );
+        }
+        let kept: Vec<u64> = perf.slow_records().map(|r| r.counter).collect();
+        assert_eq!(kept, (45..=300).collect::<Vec<u64>>());
+        let logged = LOGGED.lock().unwrap();
+        assert!(
+            logged.iter().all(|line| !line.contains("slow tick")),
+            "{logged:?}"
+        );
     }
 
     /// A game on a scratch world folder, the way `dedicated.rs` opens one

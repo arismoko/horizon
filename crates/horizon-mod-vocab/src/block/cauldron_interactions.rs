@@ -72,6 +72,8 @@ pub enum CauldronRegistrationError {
     UnknownDispatcher,
     /// The callback cannot cross the active runtime boundary.
     UnsupportedCapability,
+    /// The item tag is not a resource location (`c:buckets/milk`, with or without `#`).
+    InvalidTag,
 }
 
 /// NeoForge's documented `RegisterCauldronInteractionEvent.Interaction` counterpart.
@@ -108,6 +110,23 @@ pub trait CauldronInteractions {
     fn register_to_all(
         &mut self,
         item: ItemKey,
+        handler: Arc<dyn Interaction>,
+    ) -> Result<(), CauldronRegistrationError>;
+    /// Register an item-tag entry for a block's dispatcher (NeoForge's `register(id, TagKey, …)`):
+    /// it answers for every item the tag holds when the item is used, so data-pack changes
+    /// apply after a reload. An exact item entry always wins over a tag entry; tag entries are
+    /// asked in registration order. The same tag twice on one block is `Duplicate`.
+    fn register_tag(
+        &mut self,
+        block: BlockKey,
+        tag: &str,
+        handler: Arc<dyn Interaction>,
+    ) -> Result<(), CauldronRegistrationError>;
+    /// [`Self::register_tag`] over the complete prepared dispatcher set, queued as
+    /// [`Self::register_to_all`] is (NeoForge's `registerToAll(TagKey, …)`).
+    fn register_tag_to_all(
+        &mut self,
+        tag: &str,
         handler: Arc<dyn Interaction>,
     ) -> Result<(), CauldronRegistrationError>;
 }

@@ -214,7 +214,8 @@ pub fn interact(
     player: &mut dyn Player,
 ) -> Interaction {
     let entry = player.hand().as_ref().and_then(|held| {
-        interactions::Dispatcher::vanilla().select(&cauldron.name, &held.item, removes_dye)
+        interactions::Dispatcher::vanilla()
+            .select(&cauldron.name, &held.item, removes_dye, |_| false)
     });
     interact_selected(cauldron, under_water, entry.as_ref(), player)
 }

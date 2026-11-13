@@ -53,6 +53,17 @@ pub trait EffectsClientHost {
     #[access(WorldOnly)]
     fn add_particle(&mut self, options: &ParticleOptions, at: [f64; 3], velocity: [f64; 3])
     -> bool;
+    /// Side: client.
+    /// `ClientLevel.createFireworks`: draws a firework's explosions in this client's world as a
+    /// bursting rocket draws them (`FireworkParticles.Starter`): each explosion's shape, colours,
+    /// fade colours, trail and twinkle, one every other tick. The blast, and the crackle after a
+    /// twinkling explosion, play only when `request.audible`, as for a rocket that isn't silent.
+    /// Only the picture and the sound: no entity, no damage, nothing sent to the server, and other
+    /// players see nothing (a mod's server half tells each client half to draw it). True means
+    /// queued; false on a server, without a client player or world, for non-finite input or for
+    /// more than 256 explosions. API @API:client_fireworks@.
+    #[access(WorldOnly)]
+    fn create_fireworks(&mut self, request: &FireworksRequest) -> bool;
     /// Every sound event the client's resources have (`SoundManager.getAvailableSounds`).
     #[access(ClientSetup)]
     fn sound_events(&self) -> Vec<Identifier>;

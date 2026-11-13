@@ -80,7 +80,7 @@ pub struct BlockEntities {
     generations: FxHashMap<Pos, u64>,
     on_load: std::collections::VecDeque<(Pos, u64)>,
     on_load_enabled: bool,
-    attachments: HashMap<Pos, Attachments>,
+    attachments: FxHashMap<Pos, Attachments>,
     attachment_observer: Option<Arc<dyn AttachmentObserver<BlockEntityIdentity>>>,
     /// `Level.blockEntityTickers`: positions and the slot each was given.
     tickers: Arc<Vec<(Pos, u32)>>,
@@ -152,7 +152,7 @@ fn identity(pos: Pos, generations: &FxHashMap<Pos, u64>) -> BlockEntityIdentity 
 }
 
 fn retire_attachments(
-    maps: &mut HashMap<Pos, Attachments>,
+    maps: &mut FxHashMap<Pos, Attachments>,
     observer: Option<&Arc<dyn AttachmentObserver<BlockEntityIdentity>>>,
     generations: &FxHashMap<Pos, u64>,
     pos: &Pos,
@@ -411,7 +411,9 @@ impl BlockEntities {
         &mut self,
         pos: Pos,
     ) -> Option<&mut horizon_mod_runtime::attachments::Attachments> {
-        if !self.map.contains_key(&pos) && !self.out.contains_key(&pos) {
+        // Identity survives a temporary take and retires on removal or an
+        // abandoned-lease sweep, exactly like attachment ownership.
+        if !self.generations.contains_key(&pos) {
             return None;
         }
         let map = self.attachments.entry(pos).or_default();

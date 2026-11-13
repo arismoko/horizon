@@ -3923,7 +3923,7 @@ mod tests {
                 }),
             ),
         ]);
-        mod_api::__private::install(mods.clone());
+        mod_platform::__private::install(mods.clone());
         crate::game::api_values::install_parts(&mods).unwrap();
         let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
         let root = super::super::mods::content_root(&base, &Default::default());
@@ -4388,7 +4388,7 @@ mod tests {
         let mods = (0..3)
             .map(|i| ModEntry::new("listener", Box::new(Listener(i, trace.clone()))))
             .collect::<Vec<_>>();
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             let run = |fire: bool| {
                 trace.lock().unwrap().clear();
                 let mut canceled = false;
@@ -4429,18 +4429,7 @@ mod tests {
                 }
                 let collect_trace = trace.lock().unwrap().clone();
                 trace.lock().unwrap().clear();
-                let (mut forward, mut strafe, mut jump, mut sneak) = (1.0, 0.0, false, false);
-                if fire {
-                    game.fire_movement_input(&mut forward, &mut strafe, &mut jump, &mut sneak);
-                } else {
-                    mod_api::dispatch_movement_input(
-                        &game,
-                        &mut forward,
-                        &mut strafe,
-                        &mut jump,
-                        &mut sneak,
-                    );
-                }
+                let forward = game.movement_dispatch_fixture(fire);
                 (
                     canceled,
                     cancel_trace,
@@ -5007,9 +4996,8 @@ mod tests {
 #[cfg(test)]
 mod item_fall_on_tests {
     use super::*;
-    use mod_api::{
-        BlockPart, FallOnEvent, Hooks, LevelRandomHost, ModEntry, Registrar, testing::with_mods,
-    };
+    use mod_api::{BlockPart, FallOnEvent, Hooks, LevelRandomHost, ModEntry, Registrar};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// What the part on stone heard of a landing: entity, kind, block, fall and damage. It
@@ -5222,6 +5210,7 @@ pub(super) mod particle_count_tests {
     fn orb(at: Vec3) -> ExperienceOrb {
         ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             rotation: [0.0, 0.0],
             join: Default::default(),
             no_gravity: false,
@@ -5328,7 +5317,7 @@ pub(super) mod particle_count_tests {
     fn late_gui_clear_prevents_same_frame_particle_geometry_without_a_tick() {
         let mods: mod_api::Mods =
             vec![mod_api::ModEntry::new("clear_gui", Box::new(ClearInGui))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 game.options.execution_role = super::ExecutionRole::Client;
                 fill(game);
@@ -5377,7 +5366,7 @@ pub(super) mod particle_count_tests {
             Box::new(ClearInModel(calls.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 game.options.execution_role = super::ExecutionRole::Client;
                 fill(game);
@@ -5505,7 +5494,7 @@ pub(super) mod particle_count_tests {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 let _event_loop = frame_scene(game);
                 test(game, &at, &calls);

@@ -82,7 +82,9 @@ impl PrimedTnt {
     }
     /// PowderSnowBlock.getCollisionShape: a top that holds it once it has
     /// fallen more than 2.5 blocks, read with [`Self::collision_context`].
-    pub(super) fn powder_snow_subject(&self) -> horizon_client::collisions::PowderSnowSubject {
+    pub(super) fn powder_snow_subject(
+        &self,
+    ) -> horizon_client::collisions::PowderSnowSubject<'static> {
         horizon_client::collisions::PowderSnowSubject {
             fall_distance: self.fall_distance,
             ..Default::default()
@@ -476,12 +478,15 @@ impl Game<'_> {
             Some(&self.res.motion().blocks),
             entities,
         )?;
-        let snow = (t.previous, t.position, t.bounds(), t.velocity);
+        let (id, snow) = (t.id, (t.previous, t.position, t.bounds(), t.velocity));
         // Entity.checkFallDamage: HIT_GROUND after a fall, during the move.
         if landed {
             self.post_landing_event(snow.1, snow.2, false);
         }
         self.entity_powder_snow_particles(snow.0, snow.1, snow.2, snow.3, false);
+        // Its move is filed at once, also for one about to explode.
+        let (from, to) = (snow.0, snow.1);
+        self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
         for pos in tops {
             self.bubble_column_particles(pos);
         }
@@ -1530,6 +1535,77 @@ mod tests {
         }
         game.streaming.forced.insert((0, 0));
         Some(game)
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn portal_blast_sulfur_cube_uses_only_positive_cooldown() {
+        use horizon_client::mobs::Mob;
+        use horizon_client::nether_portal::PortalState;
+        let mut resources = None;
+        let mut game = server_game(&mut resources).expect("set HORIZON_TEST_RESOURCES");
+        let portal = game
+            .pack
+            .assets
+            .registry
+            .default_state("minecraft:nether_portal")
+            .unwrap();
+        for (cooldown, silent) in [
+            (1, false),
+            (1, true),
+            (0, false),
+            (0, true),
+            (-1, false),
+            (-1, true),
+        ] {
+            game.world.set(8, 64, 8, portal).unwrap();
+            let kind = game
+                .res
+                .mob_types()
+                .get("minecraft:sulfur_cube")
+                .unwrap()
+                .clone();
+            let mut cube = Mob::new(9123, kind, Vec3::new(8.5, 64.0, 8.5), 0.0);
+            cube.silent = silent;
+            cube.extra.set_body(Some("minecraft:tnt".into()));
+            cube.extra.counter2 = 2; // fuse 1: explodes on this tick.
+            game.mobs.push(cube);
+            game.portals.entities.insert(
+                9123,
+                PortalState {
+                    cooldown,
+                    process: None,
+                },
+            );
+            // The actual level tick orders the portal pass before the mob pass.
+            game.audio.heard.clear();
+            game.handle_entity_portals();
+            game.tick_creatures().unwrap();
+            assert_eq!(
+                game.world.block(8, 64, 8) == portal,
+                cooldown > 0,
+                "cooldown {cooldown}, Silent={silent}"
+            );
+            assert_eq!(
+                game.audio
+                    .heard
+                    .get("minecraft:entity.generic.explode")
+                    .copied()
+                    .unwrap_or(0),
+                u32::from(!silent),
+                "cooldown {cooldown}, Silent={silent}"
+            );
+        }
+        // An unrelated native/sourceless blast never inherits the cube's calculator.
+        game.world.set(8, 64, 8, portal).unwrap();
+        game.server_explode(
+            [8.5, 64.0625, 8.5],
+            4.0,
+            super::super::explosion::BlockInteraction::Destroy,
+            false,
+        )
+        .unwrap();
+        assert_ne!(game.world.block(8, 64, 8), portal);
     }
 
     #[test]

@@ -25,7 +25,8 @@ impl Game<'_> {
 #[cfg(test)]
 mod entity_place_tests {
     use super::*;
-    use mod_api::{EntityPlaceEvent, Flow, Hooks, ModEntry, ServerHost, testing::with_mods};
+    use mod_api::{EntityPlaceEvent, Flow, Hooks, ModEntry, ServerHost};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// Records what `entity_place` is told and answers with `cancel`.

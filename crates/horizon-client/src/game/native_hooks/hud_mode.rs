@@ -17,7 +17,8 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mod_api::{ClientHost, ClientTickPreEvent, Hooks, HudMode, ModEntry, testing::with_mods};
+    use mod_api::{ClientHost, ClientTickPreEvent, Hooks, HudMode, ModEntry};
+    use mod_platform::testing::with_mods;
 
     struct ThreeState;
     #[mod_api::__subscriptions]

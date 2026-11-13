@@ -331,6 +331,15 @@ pub trait PlayersBackend {
     /// no known connection has an empty one. None for a stale or unavailable player.
     #[access(WorldOnly)]
     fn player_client_brand(&self, player: PlayerRef) -> Option<String>;
+    /// Side: server.
+    /// The plugin channels the player's client announced in `minecraft:register`, less those
+    /// it withdrew in `minecraft:unregister`, during configuration and play, in announcement
+    /// order (Bukkit's `Player.getListeningPluginChannels`). Malformed entries are skipped and
+    /// at most 128 channels of up to 64 bytes are kept. Empty for a client that announced
+    /// none and for an acting player with no known connection; None for a stale or
+    /// unavailable player.
+    #[access(WorldOnly)]
+    fn player_announced_channels(&self, player: PlayerRef) -> Option<Vec<String>>;
 }
 /// The handles' client reads of the `players` area, implemented by the game and reached through [`Backend`].
 // hidden: a handle's backend, reached through `Backend`; mods call the handle, never this trait

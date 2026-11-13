@@ -77,6 +77,7 @@ pub mod level_loading;
 pub mod light;
 pub mod lod;
 pub mod logging;
+pub mod mark_sprite;
 pub mod menu_blur;
 pub mod menu_style;
 pub mod mesher;
@@ -113,6 +114,9 @@ pub mod pad_glyph;
 pub mod paged_maps;
 pub mod par;
 pub mod particles;
+#[cfg(target_os = "linux")]
+pub mod perf_capture;
+pub mod perf_gpu;
 pub mod poi_sections;
 pub mod polytone_post;
 pub mod post_chain;

@@ -93,7 +93,7 @@ mod tests {
     use horizon_client::block_entity_render::diffuse_lights;
 
     fn stack(fluid: &str, amount: u32) -> FluidStack {
-        mod_api::__private::part_tests::game_thread();
+        mod_platform::__private::part_tests::game_thread();
         FluidStack::new(mod_api::__private::fluid_key(fluid).unwrap(), amount)
     }
 

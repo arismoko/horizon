@@ -32,7 +32,7 @@ mod tests {
         let mods: Mods = vec![ModEntry::new("pot", Box::new(Pot))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
         crate::entry::install_client_hooks();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_client_game(|game| {
                 let (client, _server) = Pipe::pair();
                 game.connect_local(client, "PropertyPrediction").unwrap();

@@ -15,7 +15,9 @@ in INTEGRATION_TESTS also run their `tests/` integration tests. The job fails wh
 tools/ci/ignored-tests-known-failures.txt doesn't list, when a listed test passes (take it off the
 list: the list only shrinks), and when a listed test no longer exists. A test marked `flaky` there
 may pass or fail; one marked `harness` is a parity harness's step, run by its harness with the
-environment it sets, and is skipped here; one marked `gpu` needs a graphics adapter and runs only where
+environment it sets, and is skipped here; one marked `needs` reads an input only its parity harness provides
+(REFERENCE names the environment variable): without that variable it is refused by name at the start of the
+shard, and with it, it runs and must pass; one marked `gpu` needs a graphics adapter and runs only where
 the runner has a Vulkan driver (an ICD file), and must pass there.
 
 Runtime diagnostics expose identities and allowlisted panic categories, never arbitrary assertion
@@ -43,6 +45,15 @@ SUMMARY = re.compile(r"^test result: \S+\. (\d+) passed; (\d+) failed; (\d+) ign
 TARGET = re.compile(r"^\s+Running (?:unittests|tests/)")
 COUNT = re.compile(r"^running (\d+) tests?$")
 PANIC = re.compile(r"^thread '([^']+)'.* panicked at (\S+):$")
+# The Rust runtime's own words when it aborts a process: fixed text, no payload, safe to show.
+ABORTS = (
+    (re.compile(r"^thread '[^']*'.* has overflowed its stack$"), "stack overflow"),
+    (re.compile(r"^thread '[^']*'.* panicked while processing panic"), "a panic while panicking"),
+    (re.compile(r"^panicked while panicking"), "a panic while panicking"),
+    (re.compile(r"^thread caused non-unwinding panic\. aborting\.$"), "a panic that cannot unwind"),
+    (re.compile(r"^panic in a (?:function|destructor) (?:that cannot unwind|during cleanup)"), "a panic that cannot unwind"),
+    (re.compile(r"^memory allocation of \d+ bytes failed$"), "a failed memory allocation"),
+)
 # Packages whose integration tests (`tests/*.rs`) run too, beside their library tests.
 INTEGRATION_TESTS = {"horizon-client"}
 LEG = re.compile(r"^(?P<package>[^#]+)#(?P<number>\d+)of(?P<count>\d+)$")
@@ -136,17 +147,25 @@ def in_leg(test, number, count):
     return number is None or zlib.crc32(test.encode()) % count == number - 1
 
 
-def known_failures():
-    """(package, test) -> its mark (None, "flaky", "harness" or "gpu"), from the checked-in list."""
-    known = {}
+def listed_entries():
+    """(package, test, reference, mark) for each line of the checked-in list."""
     for number, line in enumerate(KNOWN.read_text().splitlines(), 1):
         line = line.split(" # ", 1)[0].split()
         if not line or line[0].startswith("#"):
             continue
-        if len(line) < 3 or line[3:] not in ([], ["flaky"], ["harness"], ["gpu"]):
-            sys.exit(f"{KNOWN.name}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu]`")
-        known[(line[0], line[1])] = line[3] if len(line) > 3 else None
-    return known
+        if len(line) < 3 or line[3:] not in ([], ["flaky"], ["harness"], ["gpu"], ["needs"]):
+            sys.exit(f"{KNOWN.name}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu|needs]`")
+        yield line[0], line[1], line[2], line[3] if len(line) > 3 else None
+
+
+def known_failures():
+    """(package, test) -> its mark (None, "flaky", "harness" or "gpu"), from the checked-in list."""
+    return {(package, test): mark for package, test, _, mark in listed_entries() if mark != "needs"}
+
+
+def harness_inputs():
+    """(package, test) -> the environment variable it reads that only its parity harness provides."""
+    return {(package, test): variable for package, test, variable, mark in listed_entries() if mark == "needs"}
 
 
 # Budgets include UTF-8 newlines; summary metadata is outside the payload budget.
@@ -235,6 +254,7 @@ def failure_diagnostics(output):
     failures = []
     contexts = {}
     context = []
+    aborts = []
     panic_reason_pending = False
     skipped_lines = 0
     skipped_contexts = 0
@@ -248,6 +268,9 @@ def failure_diagnostics(output):
             panic_reason_pending = False
             continue
         line = line.rstrip("\r\n")
+        abort = next((label for pattern, label in ABORTS if pattern.match(line.strip())), None)
+        if abort and abort not in aborts:
+            aborts.append(abort)
         if RESULT.match(line) or SUMMARY.match(line) or TARGET.match(line):
             panic_reason_pending = False
         if panic_reason_pending and line.strip():
@@ -319,7 +342,15 @@ def failure_diagnostics(output):
     identities_withheld = locations_withheld = payloads_withheld = reasons_shown = 0
     for name in failures:
         identity = safe_identity(name)
-        details = contexts.get(name, ["  panic context missing from captured output"])
+        details = contexts.get(name)
+        if details is None:
+            # A crash ends the test without its own panic: say what the runtime aborted on, and
+            # what panicked on threads that are not tests (a server or worker thread).
+            details = [f"  process aborted: {abort}" for abort in aborts]
+            for thread, other in contexts.items():
+                if "::" not in thread and thread not in failures:
+                    details += ["  on a non-test thread:"] + other
+            details = details or ["  panic context missing from captured output"]
         missing += any("missing from captured output" in item for item in details)
         withheld += identity != name or any("withheld" in item for item in details)
         identities_withheld += identity != name
@@ -463,9 +494,26 @@ def run(package, skip, number=None, count=None):
     ambiguous = set()
     max_name_length = max(map(len, expected), default=0)
     failure_diagnostics(process.stdout)
+    # A target finished only if its LAST summary counts every test it started. Fixtures that rerun this test
+    # executable print their own summaries first, from inside a parent test; the parent's comes after them.
+    last_summary = None
+    crashed = cargo_failure = False
+
+    def finish_target():
+        nonlocal incomplete, target_count, last_summary
+        if target_count is None:
+            return
+        if last_summary is None or sum(map(int, SUMMARY.match(last_summary).groups())) != target_count:
+            incomplete = True
+        else:
+            summaries.append(last_summary)
+            print(f"{package}: {last_summary}")
+        target_count = last_summary = None
+
     for line in process.stdout.splitlines():
         if TARGET.match(line):
-            incomplete |= target_count is not None or awaiting_count
+            incomplete |= awaiting_count
+            finish_target()
             target_number += 1
             awaiting_count = True
         elif awaiting_count and (found := COUNT.match(line)):
@@ -473,19 +521,24 @@ def run(package, skip, number=None, count=None):
             print(f"{package}: target {target_number} started {target_count} tests")
             awaiting_count = False
         if found := RESULT.match(line):
-            results[found[1]] = found[2] == "ok"
+            # A test may report more than once (below); it passes only if every record passed.
+            results[found[1]] = results.get(found[1], True) and found[2] == "ok"
         elif line.startswith("screen-effect event loop error: "):
             print(line)
-        elif found := SUMMARY.match(line):
-            # Resource fixtures launch filtered copies of this test executable.
-            # Their summaries are not evidence that the parent target finished.
-            if target_count == sum(map(int, found.groups())):
-                summaries.append(line)
-                target_count = None
-                print(f"{package}: {line}")
-        elif status := re.search(r"\((?:signal|exit status): \d+", line):
+        elif SUMMARY.match(line):
+            if target_count is not None:
+                last_summary = line
+        elif status := re.search(r"\((signal|exit status): (\d+)", line):
             # Emit only the numeric status, never adjacent test output.
             print(f"{package}: {status[0]})")
+            # Cargo's own line for a test process that ended: 101 is libtest's "tests failed"; a signal or any
+            # other status is a crash, whatever summaries came before it.
+            if cargo_failure and "process didn't exit successfully" in line:
+                crashed |= status[1] == "signal" or status[2] != "101"
+                cargo_failure = False
+        if line.startswith("error: test failed, to rerun pass "):
+            # Cargo's report on a test executable; text a test prints can't be told from it otherwise.
+            cargo_failure = True
         if expected:
             for name, status in listed_result_records(line, expected, max_name_length):
                 if status == "ambiguous":
@@ -495,16 +548,25 @@ def run(package, skip, number=None, count=None):
                 # --include-ignored must execute listed tests; an ignored record
                 # is not promoted to a passing result or missing-test credit.
                 if status != "ignored":
-                    results[name] = status == "ok"
-    framing_problems = {name: "duplicate-result" for name, seen in occurrences.items() if seen > 1}
-    framing_problems.update({name: "ambiguous-result" for name in ambiguous})
+                    results[name] = results.get(name, True) and status == "ok"
+    finish_target()
+    if crashed:
+        print(f"{package}: a test process crashed (cargo exit {process.returncode})")
+        return None
+    # A fixture that reruns its own test executable (`run_fresh_cases`, the death-weapon cases) prints the
+    # child's result record for the same name beside the parent's. Several records for one name are expected
+    # and combined above, so a FAILED among them fails the test; only an unreadable record is a framing problem.
+    if repeated := sum(seen > 1 for seen in occurrences.values()):
+        print(f"{package}: {repeated} listed tests reported more than one result (fixtures that rerun their own "
+              "test); each passes only if every result passed")
+    framing_problems = {name: "ambiguous-result" for name in ambiguous}
     if framing_problems:
         remaining = _active_budget if _active_budget is not None else [FAILURE_TOTAL_BYTES]
         for name, category in sorted(framing_problems.items()):
             bounded_record(f"  {safe_identity(name)}; category={category}\n", remaining)
-        print(f"{package}: {len(framing_problems)} listed identities have ambiguous or duplicate result framing")
+        print(f"{package}: {len(framing_problems)} listed identities have ambiguous result framing")
         return None
-    if incomplete or awaiting_count or target_count is not None:
+    if incomplete or awaiting_count:
         print(f"{package}: test target did not finish (cargo exit {process.returncode})")
         return None
     if process.returncode and not target_number:
@@ -537,6 +599,7 @@ def main(shards):
     global _active_budget
     _active_budget = [FAILURE_TOTAL_BYTES]
     known = known_failures()
+    inputs = harness_inputs()
     skipped = {"harness"} if has_vulkan() else {"harness", "gpu"}
     if "gpu" in skipped:
         print("no Vulkan driver on this runner: the tests marked `gpu` are skipped")
@@ -556,6 +619,10 @@ def main(shards):
     for shard in selections:
         package, number, count = parse_shard(shard)
         skip = [test for (listed, test), mark in known.items() if listed == package and mark in skipped]
+        for (listed, test), variable in sorted(inputs.items()):
+            if listed == package and in_leg(test, number, count) and not os.environ.get(variable):
+                print(f"{package} {safe_identity(test)}: refused, needs {variable}; run by the parity harness")
+                skip.append(test)
         results = run(package, skip, number, count) if number is not None else run(package, skip)
         if results is None:
             problems.append(f"{shard}: the test run did not complete")

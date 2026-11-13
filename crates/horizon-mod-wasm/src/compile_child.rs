@@ -238,14 +238,10 @@ mod tests {
         fs::hard_link(&original, &input.0).unwrap();
         assert!(compile(&input.0, &key).is_err());
         fs::remove_file(&input.0).unwrap();
-        rustix::fs::mknodat(
-            rustix::fs::CWD,
-            &input.0,
-            rustix::fs::FileType::Fifo,
-            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
-            0,
-        )
-        .unwrap();
+        // rustix has no FIFO call on Apple targets; mkfifo is in every Unix libc.
+        let fifo = std::ffi::CString::new(input.0.as_os_str().as_encoded_bytes()).unwrap();
+        // SAFETY: fifo is a NUL-terminated path that outlives the call.
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
         assert!(compile(&input.0, &key).is_err());
         fs::remove_file(&input.0).unwrap();
         let replacement = Input::new(&root, b"different bytes").unwrap();

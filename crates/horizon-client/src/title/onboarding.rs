@@ -350,6 +350,7 @@ mod tests {
         let mut title = Title::new(
             std::path::PathBuf::new(),
             std::path::Path::new("/nonexistent/horizon-test-resources"),
+            "",
         );
         title.start_onboarding();
         title.escape();

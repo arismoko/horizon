@@ -54,7 +54,7 @@ fn remaining_hit_callers_observe_refusals_and_zero_damage() {
         Box::new(Probe(count.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             let check =
                 |expected, case| assert_eq!(count.swap(0, Ordering::Relaxed), expected, "{case}");
@@ -155,6 +155,7 @@ fn remaining_hit_callers_observe_refusals_and_zero_damage() {
                 id: "remaining:zero",
                 item: "minecraft:snowball",
                 damage: 0.0,
+                slot: 0,
             };
             for mode in [GameMode::Survival, GameMode::Creative] {
                 for kind in [

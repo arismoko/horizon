@@ -211,7 +211,7 @@ mod tests {
             .collect::<Vec<_>>()
         };
         let mods: mod_api::Mods = vec![mod_api::ModEntry::new("panel", Box::new(Panel))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             let mut ids = Vec::new();
             mod_api::dispatch_register_model_loaders(&RegistrationContext::new(), &mut ids);
             assert_eq!(register(ids), ["rendtest:panel"]);
@@ -224,7 +224,7 @@ mod tests {
                 [(0.25, "minecraft:block/panel".to_owned())]
             );
         });
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             assert!(widths(&library(8)).is_empty());
         });
     }

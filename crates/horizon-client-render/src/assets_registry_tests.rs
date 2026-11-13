@@ -65,19 +65,19 @@ fn asset_loading_shares_equal_roots_only_within_the_installed_metadata_epoch() {
         Arc::from([mod_api::ModEntry::new("asset:first", Box::new(Hooks))]);
     let other_mods: mod_api::Mods =
         Arc::from([mod_api::ModEntry::new("asset:second", Box::new(Hooks))]);
-    mod_api::testing::with_mods(first_mods, || {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+    mod_platform::testing::with_mods(first_mods, || {
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let first = Assets::load(first_root.path()).unwrap();
         let equal = Assets::load(equal_root.path()).unwrap();
         assert!(
             std::ptr::eq(first.registry, equal.registry),
             "resource paths are not registry identities"
         );
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let epoch = Assets::load(first_root.path()).unwrap();
         assert!(!std::ptr::eq(first.registry, epoch.registry));
-        mod_api::testing::with_mods(other_mods, || {
-            mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::testing::with_mods(other_mods, || {
+            mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
             let other = Assets::load(first_root.path()).unwrap();
             assert!(!std::ptr::eq(first.registry, other.registry));
         });

@@ -84,7 +84,7 @@ fn with_lights(name: &str, test: impl FnOnce(&mut Game<'_>, LevelRef, States, De
     }
     let depth = Depth::default();
     let mods: Mods = vec![ModEntry::new("lights", Box::new(Lights(depth.clone())))].into();
-    mod_api::__private::install(mods.clone());
+    mod_platform::__private::install(mods.clone());
     crate::game::api_values::install_parts(&mods).unwrap();
     let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let root = crate::game::mods::content_root(&base, &Default::default())

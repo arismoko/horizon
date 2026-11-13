@@ -83,10 +83,25 @@ A wasm mod adds `[wasm]` instead, written by `cargo horizon-mod build --wasm`
 At load `mod.wasm` must start with `\0asm`, be at most 64 MiB and match `sha512`; each failure refuses the
 package with its reason.
 
+A wasm mod or library may declare the memory it expects its dependency group to have, as top-level
+`wasm_memory_mib`: an integer from 1 to 4096 (wasm32's 4 GiB), in MiB. The group gets the largest value any
+member declares; with none declared it gets 1024 (1 GiB). The instance's cap (`wasm.memory_cap_mib` in
+`horizon-mods.txt`, 4096 unless the player lowers it) bounds it: a declaration above the cap refuses the whole
+group at load, naming the group and both numbers. Native mods are not wasm groups: they share the game's memory,
+and the key means nothing to them. See [Memory](../how-to/wasm-mods.md#memory).
+
 Top-level `[dependencies]` declares other mods by id: a semver requirement string, or
 `{ version = "^1", optional = true }`. These versions refer to `horizon-mod.toml`, not Cargo metadata.
 Content layers load in dependency order. A missing required dependency, incompatible installed version or dependency cycle refuses startup; an absent optional dependency is ignored. Native code dependencies additionally require API packages
 ([Dependencies between trait mods](../concepts/trait-mods.md#dependencies-between-trait-mods)).
+
+Top-level `[properties]` holds free-form values other mods read: strings, integers, floats and booleans only,
+at most 64 keys and 8 KiB (keys and strings by length, 8 bytes per number, 1 per boolean); a table, an array
+or a larger table refuses the package. A mod reads any loaded package's manifest through
+`context.mods().get(id)`: `PackageInfo` gives `name`, `description`, `authors`, `license`, `homepage`,
+`issues`, `icon_path`, `runtime` (`Native`, `Wasm`, or `None` for content), `dependencies` (id, version
+requirement, optional) and `property(key)`, the same on client and server (NeoForge's
+`ModContainer.getModInfo`, `IModInfo` and `getModProperties`).
 
 ## Original Java jar layers
 

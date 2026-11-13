@@ -774,7 +774,7 @@ mod tests {
         let mut overridden_geometry = None;
         let mods: Mods = vec![ModEntry::new("animation", Box::new(Mod(calls.clone())))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 for id in [
                     "minecraft:bow",
@@ -951,7 +951,7 @@ mod tests {
         let mods: Mods = vec![ModEntry::new("hand", Box::new(hooks))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
         let mut drawn = None;
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 hold_a_sword(game);
                 let kept = game.hand_geometry(0.0);
@@ -1167,7 +1167,7 @@ pub(super) mod interact_vibration_tests {
 
     type RecordedEvent = (&'static str, [f64; 3], Option<horizon_client::mobs::Who>);
     thread_local! {
-        static EVENTS: std::cell::RefCell<Vec<RecordedEvent>> = const { std::cell::RefCell::new(Vec::new()) };
+        pub(in crate::game) static EVENTS: std::cell::RefCell<Vec<RecordedEvent>> = const { std::cell::RefCell::new(Vec::new()) };
         static RECORDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
 
@@ -1184,7 +1184,10 @@ pub(super) mod interact_vibration_tests {
     /// Runs `f` on a windowless game built from the prepared resources with
     /// `held` in the main hand and returns the game events it posted;
     /// `None` without the resources.
-    fn with_game(held: &str, f: impl FnOnce(&mut Game<'_>)) -> Option<Vec<String>> {
+    pub(in crate::game) fn with_game(
+        held: &str,
+        f: impl FnOnce(&mut Game<'_>),
+    ) -> Option<Vec<String>> {
         use crate::game::{Audio, Options, Progress, Settings, load_resources};
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES")?);
         let settings = Settings::default();
@@ -1294,7 +1297,7 @@ pub(super) mod interact_vibration_tests {
             Box::new(Reverse(calls.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game("minecraft:stick", |game| {
                 let use_block = |game: &mut Game<'_>, name: &str| {
                     let player = game.use_context();

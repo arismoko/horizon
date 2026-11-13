@@ -62,6 +62,32 @@ pub fn transaction_seal(token: u64, close: u64) -> TransactionSeal {
     }
 }
 
+/// The transaction the game opened with write token `token`, for its
+/// `transaction_current` answer: a write token alone, never a seal.
+// hidden: the game's side of the seal, re-exported through `__private`.
+#[doc(hidden)]
+pub fn transaction_of(token: u64) -> Transaction {
+    Transaction(token)
+}
+
+/// Where the transaction system is (`Transaction.Lifecycle`), as
+/// [`transaction_lifecycle`](crate::prelude::ModStateServerHost::transaction_lifecycle) reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum TransactionLifecycle {
+    /// No transaction is open.
+    None,
+    /// A transaction is open and none is closing.
+    Open,
+    /// A nested transaction is closing: committing into the one around it, or aborting.
+    Closing,
+    /// The outermost transaction is closing: on a commit, the game is telling the world of its
+    /// changes (`setChanged`, `contents_changed`, block updates), so a write now lands outside
+    /// the transaction that just ended.
+    RootClosing,
+}
+
 /// The write token `tx` names, for the game's checks.
 // hidden: the game's side of the seal, re-exported through `__private`.
 #[doc(hidden)]

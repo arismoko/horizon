@@ -60,10 +60,13 @@ impl BlockPushWorld for MobLanding<'_, '_, '_> {
         self.mob.bounds()
     }
     fn teleport_relative(&mut self, _: EntityIdentity, m: Vec3) -> Result<(), String> {
-        self.mob.position = Vec3::new(
-            self.mob.position.x + m.x,
-            self.mob.position.y + m.y,
-            self.mob.position.z + m.z,
+        // The lift is a position update of its own after the walk: the walk's destination is
+        // kept first, so a section crossing the walk made is told before the lift's.
+        let walked = self.mob.position;
+        super::living::teleports::set_pos(self.mob, walked);
+        super::living::teleports::set_pos(
+            self.mob,
+            Vec3::new(walked.x + m.x, walked.y + m.y, walked.z + m.z),
         );
         Ok(())
     }

@@ -122,11 +122,18 @@ if [ -n "$resources" ]; then
     layout_mod=$(python3 "$root/tools/ci/mismatch_wasm_layout.py" "$FNR_WASM_LAYOUT_PACKAGE" "$run/horizon-mods/layout-refused.hmod")
     printf 'mod.%s:true\n' "$layout_mod" > "$run/horizon-mods.txt"
   fi
-  # A loop mod gets a forced chunk of hoppers handing stone along each row, so the loop visits them.
+  # A loop mod gets a forced chunk of hoppers handing stone along each row, so the loop visits them,
+  # and a row of each loop mod's counters beside them.
   hoppers=
   if [[ " ${FNR_MODS:-alpha beta} " == *" loop"* ]]; then
     hoppers='forceload add 0 0
 fill 0 100 0 9 100 9 minecraft:hopper[facing=east]{Items:[{Slot:0b,id:"minecraft:stone",count:64}]}'
+  fi
+  if [[ " ${FNR_MODS:-alpha beta} " == *" loop "* ]]; then
+    hoppers+=$'\nfill 0 100 11 9 100 11 fnr_loop:counter'
+  fi
+  if [[ " ${FNR_MODS:-alpha beta} " == *" loop_second "* ]]; then
+    hoppers+=$'\nfill 0 100 12 9 100 12 fnr_loop_second:counter'
   fi
   (sleep 30; echo "$hoppers"; sleep 5; echo "tick rate 40"; sleep 3; echo "tick rate 13"; sleep 3; echo "tick query"; sleep 3; echo "stop"; sleep 20) |
     (cd "$run" && env "${env_vars[@]}" timeout 180 "$scratch/engine/horizon-engine" --resources "$(realpath "$resources")" \
@@ -139,16 +146,28 @@ fill 0 100 0 9 100 9 minecraft:hopper[facing=east]{Items:[{Slot:0b,id:"minecraft
     grep -F 'OVERWRITE by fnr_alpha' "$scratch/server.log"
   fi
   if [[ " ${FNR_MODS:-alpha beta} " == *" loop "* ]]; then
-    # Both slots ran in priority order, the throttle wrote cooldowns, and the entry's HEAD composed.
+    slots=2
+    if [[ " ${FNR_MODS:-alpha beta} " == *" loop_second "* ]]; then
+      slots=3
+      # Two mods' block entities in one world: the second mod's slot counted its own too.
+      grep -F 'fnr: loop_second own #1: fnr_loop_second:counter' "$scratch/server.log"
+    fi
+    # Each slot checks every block entity it took for its own, and never took another mod's.
+    if grep -F 'own FOREIGN at' "$scratch/server.log"; then
+      echo "a loop slot took another mod's block entity for its own"; exit 1
+    fi
+    # Both slots ran in priority order, the count picked out its mod's counters, the throttle wrote
+    # cooldowns, and the entry's HEAD composed.
     grep -F 'fnr: loop count before #1:' "$scratch/server.log"
     grep -F 'fnr: loop count after #1:' "$scratch/server.log"
+    grep -F 'fnr: loop count own #1: fnr_loop:counter' "$scratch/server.log"
     grep -F 'fnr: loop throttle skips #1:' "$scratch/server.log"
     grep -F 'fnr: loop HEAD tick_block_entities' "$scratch/server.log"
     # A call-site row inside the loop body ran in the loop's copy, and an API listener at the entry
     # fired through the same cell as the loop.
     grep -F 'fnr: loop MODIFY_EXPRESSION_VALUE chunk check inside the loop' "$scratch/server.log"
     grep -F 'fnr: loop api head listener at tick_block_entities' "$scratch/server.log"
-    grep -F 'Published loops: 1 filled by 2 mod slots' "$log"
+    grep -F "Published loops: 1 filled by $slots mod slots" "$log"
     # The slot ran the loop again from inside it: the nested run was the game's own, logged once.
     grep -F 'fnr: loop count ran the loop again inside it: true' "$scratch/server.log"
     test "$(grep -cF 'Published loop block_entities.tick: it was entered again while it ran' "$scratch/server.log")" = 1

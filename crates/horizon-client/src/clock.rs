@@ -417,6 +417,10 @@ impl FixedStep {
     pub fn fraction(&self) -> f64 {
         f64::from(self.timer.game_time_delta_partial_tick(false))
     }
+    /// The window's interpolation, unaffected by pause or world freeze.
+    pub fn window_fraction(&self) -> f32 {
+        self.timer.delta_tick_residual
+    }
     /// The camera entity's partial tick (`Camera.getCameraEntityPartialTicks`
     /// for a player, who is never frozen): `getGameTimeDeltaPartialTick(true)`,
     /// so the view and the hand stay smooth in a frozen level. Under `still`, held at 1 there

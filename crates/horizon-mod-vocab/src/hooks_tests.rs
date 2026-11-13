@@ -210,19 +210,42 @@ fn movement_input_writes_back_all_fields() {
             event.strafe = 0.25;
             event.jump = true;
             event.sneak = true;
+            assert!(!event.forward_key);
+            assert!(event.backward_key);
+            assert!(!event.left_key);
+            assert!(event.right_key);
+            assert!(!event.sprint);
+            event.forward_key = true;
+            event.backward_key = false;
+            event.left_key = true;
+            event.right_key = false;
+            event.sprint = true;
         }
     }
     let mods = [ModEntry::new("movement", Box::new(Movement))];
     install(mods.into());
     let (mut forward, mut strafe, mut jump, mut sneak) = (1.0, 0.0, false, false);
+    let (mut forward_key, mut backward_key, mut left_key, mut right_key, mut sprint) =
+        (false, true, false, true, false);
     dispatch_movement_input(
         &FakeHost::new(),
-        &mut forward,
-        &mut strafe,
-        &mut jump,
-        &mut sneak,
+        crate::__private::MovementInputCall {
+            forward: &mut forward,
+            strafe: &mut strafe,
+            jump: &mut jump,
+            sneak: &mut sneak,
+            forward_key: &mut forward_key,
+            backward_key: &mut backward_key,
+            left_key: &mut left_key,
+            right_key: &mut right_key,
+            sprint: &mut sprint,
+        },
     );
     assert_eq!((forward, strafe, jump, sneak), (-0.5, 0.25, true, true));
+    assert_eq!(
+        (forward_key, backward_key, left_key, right_key, sprint),
+        (true, false, true, false, true),
+    );
 }
 
 #[test]
@@ -338,14 +361,25 @@ fn living_death_post_hears_the_entity_the_blow_and_the_attacker() {
 #[test]
 fn render_frame_pre_and_post_hear_their_own_moment_with_the_frames_time() {
     use std::{sync::Mutex, time::Duration};
-    struct Frames(Arc<Mutex<Vec<(&'static str, Duration)>>>);
+    type FrameReading = (&'static str, Duration, f32, f32);
+    struct Frames(Arc<Mutex<Vec<FrameReading>>>);
     #[mod_api::__subscriptions]
     impl Hooks for Frames {
         fn render_frame_pre(&self, _: &mut dyn ClientHost, event: &mut RenderFramePreEvent) {
-            self.0.lock().unwrap().push(("pre", event.elapsed));
+            self.0.lock().unwrap().push((
+                "pre",
+                event.elapsed,
+                event.world_partial_tick,
+                event.partial_tick,
+            ));
         }
         fn render_frame_post(&self, _: &mut dyn ClientHost, event: &mut RenderFramePostEvent) {
-            self.0.lock().unwrap().push(("post", event.elapsed));
+            self.0.lock().unwrap().push((
+                "post",
+                event.elapsed,
+                event.world_partial_tick,
+                event.partial_tick,
+            ));
         }
     }
     let heard = Arc::new(Mutex::new(Vec::new()));
@@ -353,12 +387,15 @@ fn render_frame_pre_and_post_hear_their_own_moment_with_the_frames_time() {
         vec![ModEntry::new("frames", Box::new(Frames(heard.clone())))].into(),
         || {
             let frame = Duration::from_millis(16);
-            dispatch_render_frame_pre(&mut FakeHost::new(), frame);
-            dispatch_render_frame_post(&mut FakeHost::new(), frame);
+            dispatch_render_frame_pre(&mut FakeHost::new(), frame, 0.25, 0.5);
+            dispatch_render_frame_post(&mut FakeHost::new(), frame, 0.25, 0.5);
         },
     );
     let frame = Duration::from_millis(16);
-    assert_eq!(*heard.lock().unwrap(), [("pre", frame), ("post", frame)]);
+    assert_eq!(
+        *heard.lock().unwrap(),
+        [("pre", frame, 0.25, 0.5), ("post", frame, 0.25, 0.5)]
+    );
 }
 
 #[test]

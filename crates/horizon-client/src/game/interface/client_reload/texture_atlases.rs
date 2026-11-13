@@ -414,7 +414,7 @@ mod tests {
             Box::new(Maps(std::sync::Arc::clone(&kept))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_client_game(|game| {
                 game.texture_atlases_stitched();
                 let player = player(&maps());
@@ -544,7 +544,7 @@ mod tests {
         };
         let mods: mod_api::Mods =
             vec![mod_api::ModEntry::new("checker_mod", Box::new(Checker))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             let mut types = Vec::new();
             Game::native_register_sprite_sources(&mod_api::RegistrationContext::new(), &mut types);
             assert_eq!(
@@ -561,7 +561,7 @@ mod tests {
             let reloaded = stage(90);
             assert_eq!(checker_pixels(&reloaded).2[..4], [90, 90, 90, 255]);
         });
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             let unanswered = stage(40);
             assert!(!unanswered.source().contains(&checker));
             assert!(unanswered.source().contains(&star) && unanswered.source().contains(&heart));

@@ -231,7 +231,8 @@ mod tests {
     use super::*;
     include!("loot_tags_tests.rs");
     use horizon_core::nbt::Tag;
-    use mod_api::{Hooks, LootFunctionEvent, ModEntry, testing::with_mods};
+    use mod_api::{Hooks, LootFunctionEvent, ModEntry};
+    use mod_platform::testing::with_mods;
     fn stack() -> engine::LootStack {
         engine::LootStack {
             item: "minecraft:stick".into(),

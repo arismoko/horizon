@@ -86,15 +86,75 @@ fn cauldron_prebound_entries_refuse_replacement_and_keep_tag_priority() {
         Err(Entry::Mod(owner)) if *owner == "first"
     ));
     assert!(matches!(
-        table.select("minecraft:water_cauldron", "minecraft:leather_helmet", true),
+        table.select(
+            "minecraft:water_cauldron",
+            "minecraft:leather_helmet",
+            true,
+            |_| false
+        ),
         Some(Entry::Dye)
     ));
     assert!(matches!(
         table.select(
             "minecraft:water_cauldron",
             "minecraft:leather_helmet",
-            false
+            false,
+            |_| false
         ),
         Some(Entry::Mod(owner)) if *owner == "first"
+    ));
+}
+#[test]
+fn cauldron_tag_entries_follow_exact_ones_in_registration_order() {
+    use interactions::{Dispatcher, Entry};
+    let mut table = Dispatcher::<&str>::default();
+    let water = || "minecraft:water_cauldron".to_owned();
+    assert!(
+        table
+            .register(water(), "minecraft:milk_bucket".into(), "exact")
+            .is_ok()
+    );
+    assert!(
+        table
+            .register_tag(water(), "c:buckets/milk".into(), "milk")
+            .is_ok()
+    );
+    assert!(
+        table
+            .register_tag(water(), "c:buckets".into(), "buckets")
+            .is_ok()
+    );
+    assert!(matches!(
+        table.register_tag(water(), "c:buckets/milk".into(), "again"),
+        Err(owner) if *owner == "milk"
+    ));
+    // Membership is asked at use time: the tags hold whatever is loaded now.
+    let milk = |tag: &str| matches!(tag, "c:buckets/milk" | "c:buckets");
+    let pick = |item| match table.select("minecraft:water_cauldron", item, false, milk) {
+        Some(Entry::Mod(owner)) => Some(*owner),
+        _ => None,
+    };
+    assert_eq!(pick("minecraft:milk_bucket"), Some("exact"));
+    assert_eq!(pick("othermod:goat_milk_bucket"), Some("milk"));
+    assert!(
+        table
+            .select(
+                "minecraft:water_cauldron",
+                "othermod:goat_milk_bucket",
+                false,
+                |_| false
+            )
+            .is_none()
+    );
+    // A tag entry on a custom block declares that block.
+    assert!(
+        table
+            .register_tag("test:syrup_cauldron".into(), "c:buckets".into(), "custom")
+            .is_ok()
+    );
+    assert!(table.contains_block("test:syrup_cauldron"));
+    assert!(matches!(
+        table.select("test:syrup_cauldron", "othermod:goat_milk_bucket", false, milk),
+        Some(Entry::Mod(owner)) if *owner == "custom"
     ));
 }

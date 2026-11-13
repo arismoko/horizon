@@ -11,10 +11,11 @@ pub trait Hooks {
     /// count less `remaining`'s. A mod that removes the item entity meanwhile
     /// keeps it removed: no take animation, the stat and criteria still run.
     /// Not called on a partial pickup, where some of the stack went in and
-    /// the rest stayed on the ground, nor when
-    /// `item_picked_up` refused the pickup or the inventory took nothing; a
-    /// forced `True` from `item_picked_up` changes none of this. A creative
-    /// player always takes the whole stack. Server-side.
+    /// the rest stayed on the ground: `item_picked_up_partial` hears that one,
+    /// and a pickup is never told to both. Nor when `item_picked_up` refused
+    /// the pickup or the inventory took nothing; a forced `True` from
+    /// `item_picked_up` changes none of this. A creative player always takes
+    /// the whole stack. Server-side.
     #[hook(
         side = "server",
         contract = "listen",

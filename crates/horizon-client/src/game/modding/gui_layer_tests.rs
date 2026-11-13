@@ -92,7 +92,7 @@ fn mod_layers_draw_in_their_place_and_hide_like_vanilla_layers() {
         return;
     }
     with_client_game(|game| {
-        mod_api::__private::install(
+        mod_platform::__private::install(
             vec![
                 ModEntry::new("compass", Box::new(Compass)),
                 ModEntry::new("hider", Box::new(Hider)),

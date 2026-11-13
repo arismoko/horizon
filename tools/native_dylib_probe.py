@@ -14,15 +14,14 @@ import sys
 import prebuilt_game as sdk_tools
 
 FIXTURES = Path(__file__).with_suffix("")
-PINNED = sdk_tools.ROOT / "launcher/src/rust_toolchain.rs"
+PINNED = sdk_tools.ROOT / "tools/ci/rust-version"
 # The allocator shim's entry points. Matched as name suffixes: mangled names that merely mention `alloc`
 # (backtrace frames over `alloc::vec`) are not an allocator.
 ALLOCATOR = tuple(f"___rust_{kind}" for kind in ("alloc", "dealloc", "realloc", "alloc_zeroed"))
 
 
 def pinned_release():
-    text = PINNED.read_text()
-    return text.split('pub const VERSION: &str = "', 1)[1].split('"', 1)[0]
+    return PINNED.read_text().strip()
 
 
 def pe_symbols(path):

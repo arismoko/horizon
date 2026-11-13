@@ -48,7 +48,7 @@ fn memory(game: &crate::game::Game<'_>, mob: &mut Mob) -> Option<Vec<[i32; 3]>> 
 
 fn fixture(run: impl FnOnce(&mut crate::game::Game<'_>, &Arc<AtomicBool>, &mut Mob)) {
     let enabled = Arc::new(AtomicBool::new(true));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![ModEntry::new(
             "secondary_test",
             Box::new(Tags(enabled.clone())),

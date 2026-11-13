@@ -7,6 +7,8 @@ Enable the `testing` feature on the mod's `horizon-mod-api` test dependency. The
 It restores the previous list even if the closure panics. The test allocation is retained because dispatch exposes
 a static slice. Call `dispatch_<hook>(&mut host, args…)` inside the closure to build the event as the game does.
 
+This page is for a mod's own tests. A test inside the engine's crates (`horizon-client` and the crates under it) reaches the same helpers through the engine's `mod_platform` dependency, which is the same `horizon-mod-api` crate with its `testing` feature: `mod_platform::testing::with_mods` and `mod_platform::testing::FakeHost`, not `mod_api::testing`.
+
 `testing::FakeHost` is a server and client host built from one small fake per service, so a test runs without
 the game: `registries` (item reports, items with slots of their own, the loaded mods), `players` (who is online,
 their inventories by slot, what was given to them and shown on their action bar), `level` (blocks, block entities

@@ -117,8 +117,8 @@ mod texture_atlas_stitched_tests {
     use mod_api::{
         AtlasRegion, ClientHost, Hooks, Identifier, ModEntry, RegisterRuntimeSpritesEvent,
         RegistrationContext, RuntimeSprite, SpriteRef, TextureAtlas, TextureAtlasStitchedEvent,
-        testing::with_mods,
     };
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// What the mod kept: each atlas it heard, and one sprite of each, looked up once there.

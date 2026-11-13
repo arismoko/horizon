@@ -67,6 +67,8 @@ pub(super) struct NativeLifecycle {
     read_scope: bool,
     /// The mods' delayed tasks (`schedule_task`): dropped whenever a world opens or closes.
     tasks: ScheduledTasks,
+    /// The section `entity_entering_section` files each entity under, for this epoch's world.
+    pub(super) entity_sections: super::entity_sections::EntitySections,
 }
 
 impl NativeLifecycle {

@@ -2142,7 +2142,7 @@ mod registered_game_test_tests {
                 crate::game::api_values::TryIntoApi::try_into_api(&stone).unwrap(),
             ));
             let mods = vec![mod_api::ModEntry::new("example", hooks)];
-            mod_api::testing::with_mods(mods.into(), || {
+            mod_platform::testing::with_mods(mods.into(), || {
                 game.native_register_game_tests(&mut functions);
                 game.snapshot_test_defs();
                 let registered = game.test_def("example:passing").unwrap();

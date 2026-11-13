@@ -1526,6 +1526,7 @@ impl Def {
             flying: matches!(s, S::Ghast | S::Phantom | S::HappyGhast),
             climber: matches!(s, S::Spider | S::CaveSpider),
             lava_walker: s == S::Strider,
+            powder_snow_walkable: false,
             omnidirectional: matches!(s, S::Bee | S::Parrot),
             fire_immune: fire_immune
                 || matches!(

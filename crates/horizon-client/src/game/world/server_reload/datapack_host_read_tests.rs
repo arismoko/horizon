@@ -22,7 +22,7 @@ impl Hooks for SyncedRegistryMod {
 #[ignore = "needs prepared resources and isolated homes"]
 fn native_datapack_host_reads_enforce_level_session_and_generation() {
     let scratch = tempfile::tempdir().unwrap();
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![ModEntry::new("registry_test", Box::new(SyncedRegistryMod))].into(),
         || {
             with_game(|game| {

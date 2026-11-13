@@ -5,7 +5,7 @@ Trait mods declare content through `BlocksEvent` and `ItemsEvent`, using API-own
 `Item::new(id, template)`, passing identifier strings, then set the overrides. The drafts are unvalidated; admission reports malformed values with the content loader's refusal messages.
 These are load-time declaration drafts, not live registry entries. The game admits them
 with the content-file checks, atomically for each namespace, before resources load.
-A block's `item` defaults to false in code. Each mod receives its own declaration
+A block's `item` defaults to true, in code as in a file: `Block::with_item(false)` gives it none. Each mod receives its own declaration
 batch. New identifiers from code—including block entity types and other registrar
 declarations—may use any namespace owned by that mod's manifest. Bare names use
 the mod ID; an explicit owned namespace stays unchanged. An unowned namespace
@@ -85,6 +85,9 @@ api = "0.2"                  # content mods
 side = "both"
 capabilities = ["registries"]
 namespaces = []              # optional: more namespaces the mod's files use (below)
+
+[properties]                 # optional: values other mods read (reference/manifest.md)
+tier = 3
 ```
 
 The optional fields fill the game's Mods screen, which lists every mod with its icon, name, version, id, license,
@@ -521,6 +524,10 @@ category (`beneficial`, `harmful` or `neutral`) and its RGB colour (0 to `0xFFFF
 { "category": "harmful", "color": 9154528 }
 ```
 
+An optional `sort_order` (an integer) sets where the effect sits among the HUD's icons and the inventory's effect list,
+as NeoForge's `IMobEffectExtension.getSortOrder` does: the lists compare it where vanilla compares the colour, and it
+is the colour when left out. It is fixed per effect, where NeoForge may answer per instance.
+
 It is the effect `<id>:<name>`: `/effect give @s ruby:glow 30` gives it, saves and mobs keep it, and it reaches LAN and
 dedicated server players who run the same mods (its network id follows vanilla's). Its name is the translation
 `effect.<id>.<name>` from the mod's `assets/<id>/lang/`, its icon `assets/<id>/textures/mob_effect/<name>.png` (18x18,
@@ -544,7 +551,8 @@ the thrower (the snowball's 3 to blazes is not copied):
 
 It is the entity type `<id>:<name>`, with its network id after vanilla's. Using its item throws it as a snowball is
 thrown: same speed, spread, sound and cooldown, and one item used outside creative. It flies as a snowball, breaks on
-what it hits with its item's crumbs, and is drawn as its item's model (`ThrownItemRenderer`). Its name is the translation
+what it hits with its item's crumbs, and is drawn as its item's model (`ThrownItemRenderer`), unless a client
+mod registers a renderer for it ([entity renderers](entity-renderers.md)). Its name is the translation
 `entity.<id>.<name>`. It works in single player and on LAN with the same mods. Dedicated servers share that code,
 untested so far. Clients join a server only with the same mods' entity types, as with its blocks. It is saved with its
 chunk, `/summon <id>:<name>` makes one, and it has its template's row in `entity-types.json`, with `template` naming
@@ -910,6 +918,17 @@ smallest group above its largest, a spawn cost that is not finite, a climate num
 0xFFFFFF and a temperature modifier other than `none` or `frozen` refuse the mods at startup, naming the mod.
 Declared modifiers apply when the world loads, through the same content loader as file modifiers, to both the
 generator and the game's biome table, including when no data pack is enabled.
+
+A modifier changes a biome that already generates. To add a mod's own biomes to the Overworld or the Nether, a code mod
+declares a **biome region** instead: `Registrar::declare_biome_region(path, region)` takes a `BiomeRegion` (its
+`dimension`, `minecraft:overworld` or `minecraft:nether`; a `weight` from 1 to 1000 against vanilla's 10; and its
+`points`, the same `BiomePoint`s as a mod dimension's). An area belongs to one region, and the region's own points
+choose the biome there. A malformed or repeated id, an id outside the mod's namespace, another dimension, a weight
+outside 1 to 1000, no points or an invalid point refuse the mods at startup, naming the mod. A new world records the
+declared regions in `data/horizon/biome_regions.dat`, and from then on that record decides: a changed or added region
+reaches an existing world only when its owner opts in, and a world whose region's mod is missing asks before it opens
+(a dedicated server reads `[biome_regions] missing = "refuse" | "vanilla"` in `server.toml`). The full contract is in
+[the design](../concepts/mod-biome-regions.md).
 
 The modifiers rewrite the biomes when the content root builds, and the generator orders every biome's features as
 vanilla's `FeatureSorter` does, so an added feature takes its place in that order (its random seed follows from it). A

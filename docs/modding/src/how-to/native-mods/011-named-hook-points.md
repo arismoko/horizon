@@ -21,8 +21,9 @@ retain their existing `Vec` storage. This changes rendering only, not tick-time 
 
 #### Teleport hooks
 
-`ender_pearl_teleport` version **2** covers player-owned and mob-owned pearls. Its `owner` is an
-`EntityRef`; listeners can cancel or redirect `target`. Player owners retain the
+`ender_pearl_teleport` version **3** covers player-owned and mob-owned pearls. Its `owner` is an
+`EntityRef`; listeners can cancel or redirect `target`, and read what the pearl hit
+(`hit_entity`, or `hit_block` and `hit_face`, and the point `hit_at`). Player owners retain the
 acting-player context and mutable fall `damage`. Mob owners take no pearl damage
 and make no endermite roll. Pearl placement does not emit the command-only
 `entity_teleport` notification. The pearl is consumed even when teleportation is canceled.

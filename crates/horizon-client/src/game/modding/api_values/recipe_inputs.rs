@@ -21,7 +21,7 @@ mod tests {
     use super::*;
     #[test]
     fn recipe_reads_preserve_values_beyond_resident_limits_and_refuse_missing_items() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         mod_api::__private::resolve_items([
             "minecraft:stick",
             "minecraft:iron_sword",

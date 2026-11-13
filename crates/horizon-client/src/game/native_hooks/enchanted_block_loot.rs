@@ -73,7 +73,8 @@ mod tests {
     use crate::game::api_values::TryIntoApi;
     use crate::game::native_entity_refs::tests::with_game;
     use horizon_core::random::{LegacyRandom, RandomSource};
-    use mod_api::{EnchantedBlockLootEvent, Hooks, LevelHost, ModEntry, testing::with_mods};
+    use mod_api::{EnchantedBlockLootEvent, Hooks, LevelHost, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug, PartialEq)]

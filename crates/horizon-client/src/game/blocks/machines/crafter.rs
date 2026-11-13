@@ -493,7 +493,7 @@ mod part_remainder_tests {
     fn crafter_dispense_observes_part_replaced_remainders() {
         let mods: mod_api::Mods = vec![mod_api::ModEntry::new("milk", Box::new(Remainders))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 crate::game::native_entity_refs::tests::resolve_parts(game).unwrap();
                 let state = game

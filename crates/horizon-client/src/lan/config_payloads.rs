@@ -46,6 +46,9 @@ pub(super) struct ConfigIo<'a> {
     pub sender: Option<ConfigSender>,
     events: crate::net::ingress::Producer<super::NetEvent>,
     handed_off: bool,
+    /// What the client announced in `minecraft:register`, kept into play. Allocated on the
+    /// first `minecraft:register` / `minecraft:unregister`: most connections never send one.
+    pub announced: Option<Arc<super::announced_channels::AnnouncedChannels>>,
 }
 impl<'a> ConfigIo<'a> {
     pub fn new(
@@ -66,6 +69,7 @@ impl<'a> ConfigIo<'a> {
             sender,
             events,
             handed_off: false,
+            announced: None,
         })
     }
     pub fn send(&mut self, body: &[u8]) -> horizon_protocol::Result<()> {
@@ -85,6 +89,8 @@ impl<'a> ConfigIo<'a> {
             .map_err(|error| error.to_string())?
         {
             crate::raw_payloads::Classified::Other(payload) => Ok(Some(payload)),
+            // Raw channels are play-only: configuration never classifies one.
+            crate::raw_payloads::Classified::Raw(_) => Ok(None),
             crate::raw_payloads::Classified::Application(incoming) => {
                 let endpoint = crate::raw_payloads::Endpoint::configuration(sender.clone());
                 crate::raw_payloads::dispatch(

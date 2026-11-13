@@ -315,7 +315,7 @@ mod tests {
         }
         let calls = Arc::new(Mutex::new(Vec::new()));
         let mods = vec![ModEntry::new("phase_probe", Box::new(Probe(calls.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_client_game(|game| {
                 game.mod_phase =
                     mod_api::__private::PhaseOwner::new(mod_api::__private::ModPhase::Setup);

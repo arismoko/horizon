@@ -123,6 +123,59 @@ class PreparationStepTests(unittest.TestCase):
             self.assertNotIn('SECRET', again.stdout + again.stderr)
             self.assertTrue((root / 'source/minecraft/26.3/prepared.json').exists())
 
+    def test_a_kept_preparation_is_reused_only_unchanged_and_each_job_gets_its_own_copy(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "tools/ci").mkdir(parents=True)
+            for name in ("vanilla-data.sh", "preparation_step.py", "seed_prepared_extras.py"):
+                shutil.copy(SCRIPT.parent / name, root / "tools/ci" / name)
+            shutil.copy(SCRIPT.parents[1] / "prepare_output.py", root / "tools/prepare_output.py")
+            (root / "research-lock.json").write_text('{"version": "26.3"}\n')
+            (root / "source/minecraft/26.3").mkdir(parents=True)
+            (root / "source/minecraft/26.3/prepared.json").write_text('{}')
+            (root / "source/horizon-client/26.3").mkdir(parents=True)
+            (root / "bin").mkdir()
+            cargo = root / "bin/cargo"
+            cargo.write_text('#!/bin/sh\nexit 0\n')
+            cargo.chmod(0o755)
+            (root / "target/release").mkdir(parents=True)
+            prepare = root / "target/release/horizon-prepare"
+            prepare.write_text('#!/bin/sh\nmkdir -p .local/horizon-client/26.3\necho one > .local/horizon-client/26.3/a\n'
+                               'echo "prepared" >> "$PREPARED_RUNS"\n')
+            prepare.chmod(0o755)
+            env = dict(os.environ, HORIZON_DYNA_CACHE="true", HORIZON_PREPARED_CACHE=str(root / "cache"),
+                       HORIZON_SHARED_SOURCE=str(root / "source"), HORIZON_PREPARE_KEY="0123456789abcdef",
+                       RUNNER_TEMP=str(root), CARGO_TARGET_DIR=str(root / "target"),
+                       PREPARED_RUNS=str(root / "runs"), PATH=str(root / "bin") + os.pathsep + os.environ["PATH"])
+
+            def run():
+                result = subprocess.run(["bash", "tools/ci/vanilla-data.sh"], cwd=root, env=env,
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                return result.stdout
+
+            kept = root / "cache/prepared/0123456789abcdef"
+            run()
+            self.assertEqual((root / "runs").read_text().count("prepared"), 1)
+            # The job reads its own copy, never the kept tree.
+            self.assertEqual((root / ".local/horizon-client").resolve(), (root / "cache/job/horizon-client").resolve())
+            (root / ".local/horizon-client/26.3/written-by-a-test").write_text("x")
+            self.assertFalse((kept / "horizon-client/26.3/written-by-a-test").exists())
+            self.assertIn("fresh", run())
+            self.assertEqual((root / "runs").read_text().count("prepared"), 1)
+            self.assertFalse((root / ".local/horizon-client/26.3/written-by-a-test").exists())
+            # A kept tree changed behind the script's back (or kept from before manifests) is prepared again.
+            (kept / "horizon-client/26.3/extra").write_text("x")
+            again = run()
+            self.assertIn("does not match its manifest", again)
+            self.assertIn("files added 1, removed 0, changed 0", again)
+            self.assertEqual((root / "runs").read_text().count("prepared"), 2)
+            self.assertFalse((kept / "horizon-client/26.3/extra").exists())
+            (kept / ".manifest").unlink()
+            (kept / ".manifest-files").unlink()
+            self.assertIn("expected none", run())
+            self.assertEqual((root / "runs").read_text().count("prepared"), 3)
+
     def test_bounded_log_does_not_hide_exit(self):
         with tempfile.TemporaryDirectory() as folder:
             result = self.invoke(Path(folder), "import sys; print('x' * 1100000); print('No space left on device SECRET'); sys.exit(7)", "seed-extras")

@@ -166,3 +166,85 @@ fn owner_refusal_and_checkpoint_keep_both_frozen_phase_callbacks_unchanged() {
         );
     }
 }
+
+fn declare_raw(registrar: &mut PartRegistrar, owner: &'static str, index: usize, id: &str) {
+    registrar.mod_id = owner;
+    registrar.mod_index = index;
+    (&mut *registrar as &mut dyn Registrar)
+        .payload_handlers()
+        .registrar("ignored")
+        .play_raw(PayloadId(id.into()), Some(handler()));
+}
+
+#[test]
+fn raw_channels_take_several_mods_in_load_order_outside_the_offer() {
+    let mut registrar = PartRegistrar::new("first");
+    declare_raw(&mut registrar, "first", 0, "voicechat:secret");
+    declare_raw(&mut registrar, "second", 1, "voicechat:secret");
+    registrar.mod_id = "third";
+    registrar.mod_index = 2;
+    (&mut registrar as &mut dyn Registrar)
+        .payload_handlers()
+        .registrar("1")
+        .play_raw(PayloadId("bungeecord:main".into()), None);
+    assert!(registrar.refused.is_empty(), "{:?}", registrar.refused);
+    let payloads = frozen(&registrar);
+    assert_eq!(
+        payloads.declarations().count(),
+        0,
+        "raw ids are not offered"
+    );
+    let receivers = payloads.raw_receivers("voicechat:secret");
+    let owners: Vec<_> = receivers.iter().map(|r| r.owner()).collect();
+    assert_eq!(owners, ["first", "second"]);
+    assert!(receivers.iter().all(|r| r.thread == HandlerThread::Main));
+    assert!(
+        payloads.raw_receivers("bungeecord:main").is_empty(),
+        "a send-only declaration receives nothing"
+    );
+    let mut channels: Vec<_> = payloads.raw_channels().collect();
+    channels.sort_unstable();
+    assert_eq!(channels, ["bungeecord:main", "voicechat:secret"]);
+    // The same mod twice is a mistake, not a second subscription.
+    declare_raw(&mut registrar, "second", 1, "voicechat:secret");
+    assert_eq!(registrar.refused.len(), 1);
+    assert!(registrar.refused[0].contains("already declared"));
+}
+
+#[test]
+fn raw_channels_refuse_engine_namespaces_bare_ids_and_typed_collisions() {
+    for id in [
+        "minecraft:register",
+        "minecraft:brand",
+        "horizon:payloads",
+        "horizon:anything",
+        "bare",
+    ] {
+        let mut registrar = PartRegistrar::new("test");
+        declare_raw(&mut registrar, "test", 0, id);
+        assert_eq!(registrar.refused.len(), 1, "{id}");
+        assert!(registrar.parts.payloads.is_none(), "{id}");
+    }
+    // Typed first, raw second: refused naming both mods.
+    let mut registrar = PartRegistrar::new("typed");
+    (&mut registrar as &mut dyn Registrar)
+        .payload_handlers()
+        .registrar("1")
+        .play_to_server(PayloadId("typed:data".into()), handler());
+    declare_raw(&mut registrar, "rawmod", 1, "typed:data");
+    assert_eq!(registrar.refused.len(), 1);
+    assert!(registrar.refused[0].starts_with("rawmod declared raw channel typed:data"));
+    assert!(registrar.refused[0].contains("registered by typed"));
+    // Raw first, typed second: refused naming both mods.
+    let mut registrar = PartRegistrar::new("rawmod");
+    declare_raw(&mut registrar, "rawmod", 0, "typed:data");
+    registrar.mod_id = "typed";
+    registrar.mod_index = 1;
+    (&mut registrar as &mut dyn Registrar)
+        .payload_handlers()
+        .registrar("1")
+        .play_to_server(PayloadId("typed:data".into()), handler());
+    assert_eq!(registrar.refused.len(), 1);
+    assert!(registrar.refused[0].starts_with("typed registered payload typed:data"));
+    assert!(registrar.refused[0].contains("declared by rawmod"));
+}

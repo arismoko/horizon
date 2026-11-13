@@ -735,3 +735,7 @@ Releases ship often, so nothing they leave behind may grow without bound.
   fetches, collects a `.git` over 5 GB (`MAX_GIT_MB`) with `git gc --prune=now` and folds more than 40 packs
   (`MAX_PACKS`) into few. Update the copies after changing the scripts (git-slim.sh goes beside runner-gc.sh):
   `ssh macmini 'cd ~/.actions-runners && for f in runner-gc.sh git-slim.sh; do curl -fsSL https://raw.githubusercontent.com/horizon-rust/horizon/main/tools/ci/$f -o $f; done'`.
+
+Guest-stack release note (#3232): game and server executables reserve 136 MiB
+for their main stack through MSVC `/STACK` or Apple `-stack_size` linker arguments;
+Linux raises RLIMIT_STACK and re-execs before initialization.

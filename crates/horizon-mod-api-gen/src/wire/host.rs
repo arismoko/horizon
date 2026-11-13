@@ -257,17 +257,22 @@ fn event_input(
         }
     }
 }
-fn fallback(types: &super::ty::Types<'_>, m: &Method) -> &'static str {
+/// What a proxy answers when its guest call answers nothing. `reason`, where there was a call,
+/// is the expression naming why (`crate::wasm_call_refusal()`, the including crate's).
+fn fallback(types: &super::ty::Types<'_>, m: &Method, reason: Option<&str>) -> String {
     match &m.ret {
         // String-error operations can report a refused VM call directly. In particular,
         // callbacks must not turn a trap after staged effects into a successful commit.
-        Ty::Result(_, error) if matches!(**error, Ty::Str(super::ty::Str::Owned)) => {
-            "Err(String::from(\"wasm call refused or trapped\"))"
-        }
-        Ty::Result(ok, _) if **ok == Ty::Unit => "Ok(())",
-        Ty::Result(..) => "Err(call_refused())",
-        Ty::Named(d) if types.defs[*d].rust.ends_with("::Flow") => "mod_api::Flow::Continue",
-        _ => "NoAnswer::no_answer()",
+        Ty::Result(_, error) if matches!(**error, Ty::Str(super::ty::Str::Owned)) => match reason {
+            Some(reason) => {
+                format!("Err(format!(\"wasm call refused or trapped: {{}}\", {reason}))")
+            }
+            None => "Err(String::from(\"wasm call refused or trapped\"))".into(),
+        },
+        Ty::Result(ok, _) if **ok == Ty::Unit => "Ok(())".into(),
+        Ty::Result(..) => "Err(call_refused())".into(),
+        Ty::Named(d) if types.defs[*d].rust.ends_with("::Flow") => "mod_api::Flow::Continue".into(),
+        _ => "NoAnswer::no_answer()".into(),
     }
 }
 
@@ -619,7 +624,7 @@ impl Cx {
                 }
                 if surface.dropped.iter().any(|d| std::ptr::eq(d, m)) || !dispatchable(types, m) {
                     gaps.push(format!("{}::{}", m.owner, m.name));
-                    writeln!(code, "{sig} {{ {} }}", fallback(types, m)).unwrap();
+                    writeln!(code, "{sig} {{ {} }}", fallback(types, m, None)).unwrap();
                     continue;
                 }
                 let (mut setup, mut put, mut take, mut apply) =
@@ -696,7 +701,7 @@ impl Cx {
                 let class =
                     super::call_class(types, m).replace("super::Call::", "crate::CallClass::");
                 let tuple = format!("({},)", backs.join(","));
-                writeln!(code,"{sig} {{ let mut frame = Frame::default(); {setup} match self{module}.call({class}, frame, {id}, {}, |w| {{ {put} }}, |r| {{ let answer: {} = r.take()?; {take} if !r.rest().is_empty() {{ return Err(WireError::Tag(u32::MAX)); }} Ok({tuple}) }}) {{ Some({tuple}) => {{ {apply} answer }}, None => {} }} }}",if receiver=="WasmMod" {"None"} else {"Some(self.index)"},rust_ty(types,&m.ret,true),fallback(types,m),module=if receiver=="WasmMod" {""} else {".module"}).unwrap();
+                writeln!(code,"{sig} {{ let mut frame = Frame::default(); {setup} match self{module}.call({class}, frame, {id}, {}, |w| {{ {put} }}, |r| {{ let answer: {} = r.take()?; {take} if !r.rest().is_empty() {{ return Err(WireError::Tag(u32::MAX)); }} Ok({tuple}) }}) {{ Some({tuple}) => {{ {apply} answer }}, None => {} }} }}",if receiver=="WasmMod" {"None"} else {"Some(self.index)"},rust_ty(types,&m.ret,true),fallback(types,m,Some("crate::wasm_call_refusal()")),module=if receiver=="WasmMod" {""} else {".module"}).unwrap();
             }
             code.push_str("}\n");
         }
@@ -710,6 +715,7 @@ impl Cx {
         .replace("mod_api::CallClass", "crate::CallClass")
         .replace("mod_api::refused", "crate::refused")
         .replace("mod_api::NoAnswer", "crate::NoAnswer")
+        .replace("mod_api::wasm_call_refusal", "crate::wasm_call_refusal")
         .replace(
             "use mod_api::{NoAnswer, call_refused}",
             "use crate::{NoAnswer, call_refused}",

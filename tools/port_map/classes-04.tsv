@@ -198,7 +198,7 @@ FilteredSectionCache	skip:java		section cache for block scans
 OrderedBlockMatcher	skip:java		block scan helpers; Horizon scans with direct loops
 BulkSectionAccess	skip:java		section cache for bulk writes
 ChunkGenerators	skip:data		bootstrap
-ChunkSource.hasChunk	port	crates/horizon-client/src/game.rs::GameLevel::is_loaded
+ChunkSource.hasChunk	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::is_loaded
 GlobalPalette	skip:java		palette storage; Horizon's chunk.rs keeps block ids in plain arrays
 HashMapPalette	skip:java		palette storage; Horizon's chunk.rs keeps block ids in plain arrays
 ImposterProtoChunk	skip:other		wrapper so the vanilla status pipeline can read a loaded chunk; streaming keeps its own protos

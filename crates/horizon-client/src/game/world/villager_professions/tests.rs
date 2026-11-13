@@ -97,7 +97,7 @@ fn request(root: &std::path::Path) -> world_loading::WorldRequest {
 fn fixture(mods: mod_api::Mods, run: impl FnOnce(&mut Game<'_>)) {
     let scratch = tempfile::tempdir().unwrap();
     let root = resource_root(scratch.path());
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         crate::game::native_entity_refs::tests::with_game_at(root, |game| {
             game.load_world(request(&scratch.path().join("save")))
                 .unwrap();
@@ -164,7 +164,7 @@ fn villager_failed_reload_keeps_profession_poi_and_trade_snapshot() {
 fn refused(mods: mod_api::Mods, expected: &[&str]) {
     let scratch = tempfile::tempdir().unwrap();
     let root = resource_root(scratch.path());
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         crate::game::native_entity_refs::tests::with_game_at(root, |game| {
             let old = game.stations().professions.clone();
             let error = game
@@ -254,7 +254,7 @@ fn villager_overlapping_poi_publishes_zero_entries() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn villager_no_mods_world_retains_farmer_composter_and_five_levels() {
     let scratch = tempfile::tempdir().unwrap();
-    mod_api::testing::with_mods(vec![].into(), || {
+    mod_platform::testing::with_mods(vec![].into(), || {
         crate::game::native_entity_refs::tests::with_game(|game| {
             game.load_world(request(&scratch.path().join("save")))
                 .unwrap();
@@ -360,14 +360,17 @@ impl Hooks for TradeFiles {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn villager_wasm_engineer_declaration_resolves_with_assembler() {
-    fixture(
-        vec![
-            ModEntry::new("trade_files", Box::new(TradeFiles)),
-            wasm_engineer(),
-        ]
-        .into(),
-        assert_engineer_acquisition,
-    );
+    // Instantiate and invoke the real wasm guest on the production-sized stack.
+    crate::game::native_entity_refs::tests::run_on_guest_stack(|| {
+        fixture(
+            vec![
+                ModEntry::new("trade_files", Box::new(TradeFiles)),
+                wasm_engineer(),
+            ]
+            .into(),
+            assert_engineer_acquisition,
+        );
+    });
 }
 
 fn assert_engineer_acquisition(game: &mut Game<'_>) {
@@ -704,33 +707,36 @@ fn villager_native_slots_ignore_declaring_mod_order() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn villager_wasm_slots_ignore_declaring_mod_order() {
-    for reverse in [false, true] {
-        let mut mechanic = definition();
-        mechanic.key = ProfessionKey(Identifier::parse("test:mechanic").unwrap());
-        let bench = PoiKey(Identifier::parse("other:bench").unwrap());
-        mechanic.workstations = vec![ProfessionWorkstation {
-            poi: bench.clone(),
-            block: Identifier::parse("minecraft:furnace").unwrap(),
-            properties: vec![],
-        }];
-        mechanic.held_poi = vec![bench.clone()];
-        mechanic.acquirable_poi = vec![bench];
-        let mut mods = vec![
-            wasm_profession(definition(), "z_engineer"),
-            wasm_profession(mechanic, "a_mechanic"),
-        ];
-        if reverse {
-            mods.reverse();
+    // Instantiate and invoke the real wasm guest on the production-sized stack.
+    crate::game::native_entity_refs::tests::run_on_guest_stack(|| {
+        for reverse in [false, true] {
+            let mut mechanic = definition();
+            mechanic.key = ProfessionKey(Identifier::parse("test:mechanic").unwrap());
+            let bench = PoiKey(Identifier::parse("other:bench").unwrap());
+            mechanic.workstations = vec![ProfessionWorkstation {
+                poi: bench.clone(),
+                block: Identifier::parse("minecraft:furnace").unwrap(),
+                properties: vec![],
+            }];
+            mechanic.held_poi = vec![bench.clone()];
+            mechanic.acquirable_poi = vec![bench];
+            let mut mods = vec![
+                wasm_profession(definition(), "z_engineer"),
+                wasm_profession(mechanic, "a_mechanic"),
+            ];
+            if reverse {
+                mods.reverse();
+            }
+            mods.insert(0, ModEntry::new("trade_files", Box::new(TradeFiles)));
+            fixture(mods.into(), |game| {
+                let table = &game.stations().professions;
+                assert_eq!(table.resolve("test:engineer"), Some(15));
+                assert_eq!(table.resolve("test:mechanic"), Some(16));
+                assert_eq!(
+                    table.pois.resolve("test:assembler"),
+                    Some(horizon_world::poi::PoiIdentity::Custom(1))
+                );
+            });
         }
-        mods.insert(0, ModEntry::new("trade_files", Box::new(TradeFiles)));
-        fixture(mods.into(), |game| {
-            let table = &game.stations().professions;
-            assert_eq!(table.resolve("test:engineer"), Some(15));
-            assert_eq!(table.resolve("test:mechanic"), Some(16));
-            assert_eq!(
-                table.pois.resolve("test:assembler"),
-                Some(horizon_world::poi::PoiIdentity::Custom(1))
-            );
-        });
-    }
+    });
 }

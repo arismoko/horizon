@@ -60,139 +60,150 @@ fn yaw(
 
 #[test]
 fn reentrancy_and_retained_wasm_tokens_cannot_retarget_children() {
-    let module = yaw_module(false);
-    let arena = RefCell::new(PendingChildren::default());
-    let mut retained = None;
-    let mut frozen = PendingChildren::run_scoped(
-        &arena,
-        17,
-        64,
-        vec![child()],
-        |action| {
-            let backend = Editor {
-                arena: &arena,
-                action,
-            };
-            let receiver = backend.receiver();
-            let a = backend.child(receiver, 0).unwrap();
-            assert_eq!(yaw(&module, &backend, a, 90.0), Some(Ok(())));
-            let (_, lease, slot) = a.pending_parts().unwrap();
-            for forged in [
-                UnspawnedMobRef::pending(WorldEpoch::new(18), action.id(), lease, slot),
-                UnspawnedMobRef::pending(a.epoch(), action.id() + 1, lease, slot),
-                UnspawnedMobRef::pending(a.epoch(), action.id(), lease + 1, slot),
-                UnspawnedMobRef::pending(a.epoch(), action.id(), lease, slot + 1),
-            ] {
-                assert_eq!(
-                    yaw(&module, &backend, forged, 180.0),
-                    Some(Err(UnspawnedMobError::Expired))
-                );
-            }
-            let inner = PendingChildren::run_scoped(
-                &arena,
-                17,
-                1,
-                vec![child()],
-                |nested| {
-                    let inner = Editor {
-                        arena: &arena,
-                        action: nested,
-                    };
+    crate::test_stack::on_guest_stack(|| {
+        let module = yaw_module(false);
+        let arena = RefCell::new(PendingChildren::default());
+        let mut retained = None;
+        let mut frozen = PendingChildren::run_scoped(
+            &arena,
+            17,
+            64,
+            vec![child()],
+            |action| {
+                let backend = Editor {
+                    arena: &arena,
+                    action,
+                };
+                let receiver = backend.receiver();
+                let a = backend.child(receiver, 0).unwrap();
+                assert_eq!(yaw(&module, &backend, a, 90.0), Some(Ok(())));
+                let (_, lease, slot) = a.pending_parts().unwrap();
+                for forged in [
+                    UnspawnedMobRef::pending(WorldEpoch::new(18), action.id(), lease, slot),
+                    UnspawnedMobRef::pending(a.epoch(), action.id() + 1, lease, slot),
+                    UnspawnedMobRef::pending(a.epoch(), action.id(), lease + 1, slot),
+                    UnspawnedMobRef::pending(a.epoch(), action.id(), lease, slot + 1),
+                ] {
                     assert_eq!(
-                        yaw(&module, &inner, a, 180.0),
+                        yaw(&module, &backend, forged, 180.0),
                         Some(Err(UnspawnedMobError::Expired))
                     );
-                    Decision::Accept
-                },
-                |_| true,
-            )
-            .unwrap();
-            drop(inner);
-            assert_eq!(
-                yaw(&module, &backend, a, 180.0),
-                Some(Err(UnspawnedMobError::Expired))
-            );
-            let fresh = backend.child(backend.receiver(), 0).unwrap();
-            assert_eq!(yaw(&module, &backend, fresh, 45.0), Some(Ok(())));
-            retained = Some(fresh);
-            Decision::Accept
-        },
-        |_| true,
-    )
-    .unwrap();
-    let retained = retained.unwrap();
-    let backend = Editor {
-        arena: &arena,
-        action: Action::from_id(retained.pending_parts().unwrap().0),
-    };
-    assert_eq!(
-        yaw(&module, &backend, retained, 270.0),
-        Some(Err(UnspawnedMobError::Expired))
-    );
-    assert!(
-        frozen
-            .consume_next::<()>(|child| {
-                assert_eq!(child.yaw, 45.0);
-                Ok(())
-            })
-            .unwrap()
-    );
-    assert!(
-        !frozen
-            .consume_next::<()>(|_| panic!("already consumed"))
-            .unwrap()
-    );
-    assert!(
-        !module.is_stopped(),
-        "typed refusals do not poison the guest"
-    );
+                }
+                let inner = PendingChildren::run_scoped(
+                    &arena,
+                    17,
+                    1,
+                    vec![child()],
+                    |nested| {
+                        let inner = Editor {
+                            arena: &arena,
+                            action: nested,
+                        };
+                        assert_eq!(
+                            yaw(&module, &inner, a, 180.0),
+                            Some(Err(UnspawnedMobError::Expired))
+                        );
+                        Decision::Accept
+                    },
+                    |_| true,
+                )
+                .unwrap();
+                drop(inner);
+                assert_eq!(
+                    yaw(&module, &backend, a, 180.0),
+                    Some(Err(UnspawnedMobError::Expired))
+                );
+                let fresh = backend.child(backend.receiver(), 0).unwrap();
+                assert_eq!(yaw(&module, &backend, fresh, 45.0), Some(Ok(())));
+                retained = Some(fresh);
+                Decision::Accept
+            },
+            |_| true,
+        )
+        .unwrap();
+        let retained = retained.unwrap();
+        let backend = Editor {
+            arena: &arena,
+            action: Action::from_id(retained.pending_parts().unwrap().0),
+        };
+        assert_eq!(
+            yaw(&module, &backend, retained, 270.0),
+            Some(Err(UnspawnedMobError::Expired))
+        );
+        assert!(
+            frozen
+                .consume_next::<()>(|child| {
+                    assert_eq!(child.yaw, 45.0);
+                    Ok(())
+                })
+                .unwrap()
+        );
+        assert!(
+            !frozen
+                .consume_next::<()>(|_| panic!("already consumed"))
+                .unwrap()
+        );
+        assert!(
+            !module.is_stopped(),
+            "typed refusals do not poison the guest"
+        );
+    });
 }
 
 #[test]
 fn trap_before_commit_withdraws_pending_ownership_after_a_real_wasm_edit() {
-    let module = yaw_module(true);
-    let arena = RefCell::new(PendingChildren::default());
-    let mut retained = None;
-    let result = PendingChildren::run_scoped(
-        &arena,
-        17,
-        1,
-        vec![child()],
-        |action| {
-            let backend = Editor {
-                arena: &arena,
-                action,
-            };
-            let a = backend.child(backend.receiver(), 0).unwrap();
-            retained = Some(a);
-            assert_eq!(yaw(&module, &backend, a, 90.0), None);
-            // The import did edit the real pending object before wasm trapped.
-            let (action, lease, slot) = a.pending_parts().unwrap();
-            let key = horizon_mod_runtime::pending_children::Borrow::from_parts(
-                a.epoch().get(),
-                action,
-                lease,
-                slot,
-            );
-            assert_eq!(arena.borrow().get(key).unwrap().yaw, 90.0);
-            Decision::Failed
-        },
-        |_| panic!("failed dispatch must never reach final validation or a consumer"),
-    );
-    assert!(matches!(result, Err(Error::Failed)));
-    assert!(module.is_stopped());
-    let retained = retained.unwrap();
-    let backend = Editor {
-        arena: &arena,
-        action: Action::from_id(retained.pending_parts().unwrap().0),
-    };
-    assert_eq!(
-        backend.set_yaw(retained, 180.0),
-        Err(UnspawnedMobError::Expired)
-    );
-    // Faulting one action leaves the shared arena usable by a later independent action.
-    assert!(
-        PendingChildren::run_scoped(&arena, 17, 1, vec![child()], |_| Decision::Accept, |_| true,)
+    crate::test_stack::on_guest_stack(|| {
+        let module = yaw_module(true);
+        let arena = RefCell::new(PendingChildren::default());
+        let mut retained = None;
+        let result = PendingChildren::run_scoped(
+            &arena,
+            17,
+            1,
+            vec![child()],
+            |action| {
+                let backend = Editor {
+                    arena: &arena,
+                    action,
+                };
+                let a = backend.child(backend.receiver(), 0).unwrap();
+                retained = Some(a);
+                assert_eq!(yaw(&module, &backend, a, 90.0), None);
+                // The import did edit the real pending object before wasm trapped.
+                let (action, lease, slot) = a.pending_parts().unwrap();
+                let key = horizon_mod_runtime::pending_children::Borrow::from_parts(
+                    a.epoch().get(),
+                    action,
+                    lease,
+                    slot,
+                );
+                assert_eq!(arena.borrow().get(key).unwrap().yaw, 90.0);
+                Decision::Failed
+            },
+            |_| panic!("failed dispatch must never reach final validation or a consumer"),
+        );
+        assert!(matches!(result, Err(Error::Failed)));
+        assert!(module.is_stopped());
+        let retained = retained.unwrap();
+        let backend = Editor {
+            arena: &arena,
+            action: Action::from_id(retained.pending_parts().unwrap().0),
+        };
+        assert_eq!(
+            backend.set_yaw(retained, 180.0),
+            Err(UnspawnedMobError::Expired)
+        );
+        // Faulting one action leaves the shared arena usable by a later independent action.
+        assert!(
+            PendingChildren::run_scoped(
+                &arena,
+                17,
+                1,
+                vec![child()],
+                |_| Decision::Accept,
+                |_| true,
+            )
             .is_ok()
-    );
+        );
+    });
 }

@@ -31,7 +31,7 @@ impl mod_api::Hooks for TypedIngredient {
 #[test]
 fn custom_ingredient_tags_reach_hook_and_matching_record() {
     let items = super::Items::for_tests(Default::default());
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new("typed", Box::new(TypedIngredient))].into(),
         || {
             let context = LoadContext::new(

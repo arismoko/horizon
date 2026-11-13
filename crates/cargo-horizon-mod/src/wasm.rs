@@ -14,8 +14,9 @@ pub use group::rustc;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// The one toolchain every wasm mod and the game's std member are built with.
-pub const TOOLCHAIN: &str = "1.99.1";
+/// The one toolchain every wasm mod and the game's std member are built with: the pin CI and the
+/// launcher's native-mod toolchain use too (`tools/ci/rust-version`).
+pub const TOOLCHAIN: &str = include_str!("../../../tools/ci/rust-version").trim_ascii();
 const TARGET: &str = "wasm32-unknown-unknown";
 /// Set when cargo runs this tool as the linker: `std` or `member`.
 pub const LINK_ENV: &str = "HORIZON_MOD_LINK";

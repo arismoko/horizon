@@ -1,18 +1,29 @@
 //! Scheduling hints for the game's threads and its allocator: the few OS calls
 //! that the other crates, which forbid unsafe code, can't make themselves.
 
+pub mod alloc_count;
 #[cfg(feature = "test-allocation-probe")]
 pub mod allocation_probe;
+pub mod allocator_stats;
 /// The game window's boot screen, before wgpu's first frame paints over it.
 #[cfg(target_os = "windows")]
 pub mod boot_paint;
+pub mod callgrind;
 pub mod heap_census;
+#[cfg(target_os = "linux")]
+pub mod heap_sample;
 pub mod jobs;
 pub mod process_memory;
+#[cfg(target_os = "linux")]
+pub mod profile;
+#[cfg(target_os = "linux")]
+pub mod sampler;
 pub mod stack_dump;
 /// Alt+Space and a bare Alt never open the window's system menu, as in GLFW.
 #[cfg(target_os = "windows")]
 pub mod system_menu;
+pub mod unwind;
+pub mod work;
 
 use std::sync::{
     OnceLock,
@@ -85,7 +96,11 @@ pub fn par_chunks_mut_with<T: Send>(
     std::thread::scope(|scope| {
         let helpers = worker_count().saturating_sub(1).clamp(1, count - 1);
         let threads: Vec<_> = (0..helpers)
-            .filter_map(|_| std::thread::Builder::new().spawn_scoped(scope, work).ok())
+            .filter_map(|_| {
+                horizon_guest_stack::builder()
+                    .spawn_scoped(scope, work)
+                    .ok()
+            })
             .collect();
         work();
         for t in threads {
@@ -526,11 +541,24 @@ pub fn catch_stop_signals() {}
 /// World generation, meshing and the tick allocate and free small blocks on
 /// every worker at once; the system heaps serialise them (Windows' heap was
 /// 16% of a chunk's generation time), mimalloc keeps a heap per thread.
-#[cfg(not(feature = "test-allocation-count"))]
+/// On Linux it samples allocations while a capture runs (`heap_sample`).
+#[cfg(all(target_os = "linux", not(feature = "test-allocation-count")))]
+pub type Allocator = heap_sample::SamplingAllocator;
+#[cfg(all(not(target_os = "linux"), not(feature = "test-allocation-count")))]
 pub type Allocator = mimalloc::MiMalloc;
 /// The game's mimalloc allocator.
 #[cfg(not(feature = "test-allocation-count"))]
-pub const ALLOCATOR: Allocator = mimalloc::MiMalloc;
+pub const ALLOCATOR: Allocator = Allocator {};
+
+/// The game's global allocator: the census, else counting mimalloc, else [`Allocator`].
+#[cfg(feature = "alloc-census")]
+pub type GameAllocator = heap_census::CensusAllocator;
+#[cfg(all(feature = "alloc-count", not(feature = "alloc-census")))]
+pub type GameAllocator = alloc_count::CountingAllocator;
+#[cfg(not(any(feature = "alloc-count", feature = "alloc-census")))]
+pub type GameAllocator = Allocator;
+/// The value of [`GameAllocator`].
+pub const GAME_ALLOCATOR: GameAllocator = GameAllocator {};
 
 #[cfg(feature = "test-allocation-count")]
 pub mod allocation_count;

@@ -245,7 +245,7 @@ mod tests {
             Box::new(RaidObserver(seen.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 let level = game.level(game.dim.id()).unwrap();

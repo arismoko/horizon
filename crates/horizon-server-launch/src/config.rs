@@ -4,6 +4,9 @@
 //! start the supervisor writes them into `server.properties`, which the game reads exactly as vanilla's
 //! server does; what the game changes there itself (`/whitelist on`) is copied back afterwards.
 
+use horizon_platform::server_files::biome_regions::BiomeRegions;
+#[cfg(test)]
+use horizon_platform::server_files::biome_regions::MissingRegions;
 use horizon_platform::server_files::{
     java_properties::{Properties, date_string, now_millis},
     properties::{DIFFICULTIES, GAME_MODES, ServerProperties, SystemEntropy},
@@ -108,6 +111,12 @@ enabled = true               # false pauses it and keeps the webhook
 # Fights follow 26.3's rules. For 1.8.9's (no attack cooldown or sweep, 1.8 weapon damage; docs/pvp.md):
 # [combat]
 # legacy = true
+
+# A world's biome regions from mods are fixed when it is made (docs/modding/src/concepts/mod-biome-regions.md).
+# When a mod with one is gone, the server refuses to start until you choose. To change it:
+# [biome_regions]
+# missing = "vanilla"        # generate vanilla's biomes where the missing mods' regions were; "refuse": don't start
+# adopt_installed = true     # new chunks use the installed mods' regions (the world keeps its saved weights)
 "##;
 
 /// Each typed setting: its section, its name, and the vanilla key it writes.
@@ -176,6 +185,10 @@ pub struct Config {
     /// The game reads this section itself (docs/pvp.md); written only when it isn't the default.
     #[serde(default, skip_serializing_if = "Combat::is_default")]
     pub combat: Combat,
+    /// The game reads this section itself (game/interface/dedicated/biome_regions.rs); written only when it
+    /// isn't the default.
+    #[serde(default, skip_serializing_if = "BiomeRegions::is_default")]
+    pub biome_regions: BiomeRegions,
 }
 
 /// `[combat]`: `legacy = true` resolves the players' melee hits by 1.8.9's rules (no attack cooldown or sweep,
@@ -747,7 +760,13 @@ pub fn render(config: &Config) -> String {
         set(&mut doc, section, field, &table[section][field]);
     }
     let mut text = doc.to_string();
-    for section in ["anticheat", "chat_filter", "prune_chunks", "combat"] {
+    for section in [
+        "anticheat",
+        "chat_filter",
+        "prune_chunks",
+        "combat",
+        "biome_regions",
+    ] {
         if let Some(settings) = table.get(section) {
             let mut only = toml::Table::new();
             only.insert(section.into(), settings.clone());
@@ -1035,6 +1054,26 @@ mod tests {
         assert!(!off.lines().any(|l| l.trim() == "[combat]"), "{off}");
         assert!(Config::parse("[combat]\nlegacy = 1\n").is_err());
         assert!(Config::parse("[combat]\nlegcy = true\n").is_err());
+    }
+
+    #[test]
+    fn biome_regions_refuse_missing_mods_unless_their_section_says() {
+        assert_eq!(
+            Config::default().biome_regions.missing,
+            MissingRegions::Refuse
+        );
+        assert!(!Config::default().biome_regions.adopt_installed);
+        let set = Config::parse(&format!(
+            "{TEMPLATE}\n[biome_regions]\nmissing = \"vanilla\"\nadopt_installed = true\n"
+        ))
+        .unwrap();
+        assert_eq!(set.biome_regions.missing, MissingRegions::Vanilla);
+        assert!(set.biome_regions.adopt_installed);
+        // Kept when the file is written again, and left out while default.
+        assert_eq!(Config::parse(&render(&set)).unwrap(), set);
+        let off = render(&Config::default());
+        assert!(!off.lines().any(|l| l.trim() == "[biome_regions]"), "{off}");
+        assert!(Config::parse("[biome_regions]\nmissing = \"skip\"\n").is_err());
     }
 
     #[test]

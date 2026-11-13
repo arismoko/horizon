@@ -93,3 +93,18 @@ global hook could do and a part cannot is change the wear of another mod's or va
 attached to. Do that with an enchantment effect in data (a `minecraft:item_damage` effect on the enchantment, the
 component Unbreaking uses), or with an injection. A part does not get the wearing entity;
 `host.players().acting_player()` names the player on the paths a player takes.
+
+## Mending repair
+
+`ItemPart::xp_repair_ratio` is `IItemExtension.getXpRepairRatio`: the durability points Mending restores to a
+stack of the part's item per point of experience (`ExperienceOrb.repairPlayerItems`), asked on the server once for
+each item it repairs, from an orb or from `PlayerRef::give_experience_points`. `event.ratio` arrives as vanilla's:
+the item's `minecraft:repair_with_xp` repair divided by `event.experience`, 2.0 for vanilla Mending. The repair
+becomes `floor(experience × ratio)`, capped at the item's damage, and the experience it doesn't use goes on to the
+next damaged Mending item, then to the player. A ratio left as it arrived keeps vanilla's repair exactly. One that
+isn't finite is refused (vanilla's repair is used, with one warning per item), and a negative one counts as 0; a
+ratio that takes a positive repair to 0 leaves the experience for the player. The `Host` is read-only.
+
+To change Mending for every item at once,
+change the enchantment's `minecraft:repair_with_xp` effect in a data pack; the ratio a part gets arrives with it. To
+change it for particular items, vanilla's or another mod's included, attach a part to their item keys.

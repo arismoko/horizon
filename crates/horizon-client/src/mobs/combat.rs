@@ -141,17 +141,6 @@ pub fn do_hurt_target(m: &mut Mob, who: Who, cx: &mut Cx) {
         }));
         m.velocity = Vec3::new(m.velocity.x * 0.6, m.velocity.y, m.velocity.z * 0.6);
     }
-    // `Zombie.doHurtTarget` (every zombie): drawn here, lit if the blow hurt
-    // (`MobEvent::ZombieIgnite`, resolved once the attack landed).
-    let difficulty = cx.w.difficulty.effective;
-    if m.is_on_fire()
-        && m.extra.main_hand_id().is_none()
-        && super::doors::is_zombie(m.species())
-        && m.random.next_float() < difficulty * 0.3
-    {
-        cx.events
-            .push(cx.w.route_player_event(MobEvent::ZombieIgnite(who, 2 * difficulty as i32)));
-    }
     // The effect picked above goes with the hit: it applies only when the
     // target takes damage (a shield-blocked hit gives none), for a mob as for
     // the player, since those `doHurtTarget`s take any `LivingEntity`.
@@ -221,6 +210,17 @@ pub fn do_hurt_target(m: &mut Mob, who: Who, cx: &mut Cx) {
         let at = [m.position.x, m.position.y, m.position.z];
         cx.events
             .push(MobEvent::Sound("entity.dolphin.attack", at, 1.0, 1.0));
+    }
+    // `Zombie.doHurtTarget` (every zombie): drawn here, lit if the blow hurt.
+    // Queue this after the attack so the handler reads this blow's hit outcome.
+    let difficulty = cx.w.difficulty.effective;
+    if m.is_on_fire()
+        && m.extra.main_hand_id().is_none()
+        && super::doors::is_zombie(m.species())
+        && m.random.next_float() < difficulty * 0.3
+    {
+        cx.events
+            .push(cx.w.route_player_event(MobEvent::ZombieIgnite(who, 2 * difficulty as i32)));
     }
     let _ = Fluid::None;
 }

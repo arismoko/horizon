@@ -227,30 +227,42 @@ class DynaRoutingTests(unittest.TestCase):
         blocks = dict(jobs((ROOT / ".github/workflows/dyna-ci.yml").read_text()))
         runtime = blocks["verify"]
         static = blocks["verify-static"]
+        # verify waits for the heavy gate (tools/ci/pr_gate.py); verify-static runs on every pull request.
+        conditions = {
+            id(runtime): "${{ always() && !cancelled() && needs.changes.result != 'skipped' && "
+                         "(needs.changes.result != 'success' || needs.changes.outputs.heavy == 'true') }}",
+            id(static): "${{ always() && !cancelled() && needs.changes.result != 'skipped' }}",
+        }
         for block in (runtime, static):
             header, steps = block.split("    steps:\n", 1)
             fields = dict(line.strip().split(":", 1) for line in header.splitlines()
                           if line.startswith("    ") and ":" in line and not line.lstrip().startswith("#"))
             self.assertEqual(fields["needs"].strip(), "changes")
             self.assertEqual(fields["timeout-minutes"].strip(), "45")
-            self.assertEqual(fields["if"].strip(), "${{ always() && !cancelled() && needs.changes.result != 'skipped' }}")
+            self.assertEqual(fields["if"].strip(), conditions[id(block)])
             first = steps.split("\n      - ", 1)[0]
             guard = dict(line.strip().split(":", 1) for line in first.splitlines()
                          if line.startswith("        ") and ":" in line)
             self.assertEqual(guard["if"].strip(), "needs.changes.result != 'success'")
             self.assertEqual(guard["run"].strip(), "exit 1")
-        for field in ("runs-on", "RUNNER_KIND"):
-            self.assertEqual(runtime.split(f"{field}:", 1)[1].split("\n", 1)[0],
-                             static.split(f"{field}:", 1)[1].split("\n", 1)[0])
+        # verify-static routes as verify does, except that a contributor's pull request stays on GitHub's runners.
+        for field, fork in (("runs-on", "needs.changes.outputs.trusted != 'true' && 'ubuntu-latest' || "),
+                            ("RUNNER_KIND", "needs.changes.outputs.trusted != 'true' && 'github' || ")):
+            shared = runtime.split(f"{field}:", 1)[1].split("\n", 1)[0]
+            if field == "runs-on":
+                shared = shared.replace("'ubuntu-latest' || ", "'ubuntu-latest' || " + fork, 1)
+            else:
+                shared = shared.replace("${{ ", "${{ " + fork, 1)
+            self.assertEqual(static.split(f"{field}:", 1)[1].split("\n", 1)[0], shared)
         self.assertIn("- name: No Rust work selected", runtime)
         self.assertNotIn("--unshallow", runtime)
         self.assertIn("--unshallow", static)
-        self.assertNotIn("cargo +stable test", static)
+        self.assertNotIn("cargo test", static)
         self.assertNotIn("Swatinem/rust-cache", static)
         self.assertNotIn("runner-packages.txt", static)
-        self.assertIn("cargo +stable build $JOBS --profile test -p horizon-mod-package --features runtime-process --example holder_actor", runtime)
-        self.assertIn("cargo +stable test $JOBS --no-fail-fast --profile test --workspace --lib --bins --tests", runtime)
-        self.assertIn("cargo +stable test $JOBS --no-fail-fast --profile test --workspace --doc", runtime)
+        self.assertIn("cargo build $JOBS --profile test -p horizon-mod-package --features runtime-process --example holder_actor", runtime)
+        self.assertIn("python3 tools/ci/run_test_binaries.py --jobs 3 -- cargo test $JOBS --profile test --workspace --lib --bins --tests", runtime)
+        self.assertIn("cargo test $JOBS --no-fail-fast --profile test --workspace --doc", runtime)
         tools = static.split("- name: Install Rust tools for isolated tooling fixtures\n", 1)[1].split("\n      - ", 1)[0]
         self.assertIn("if: needs.changes.outputs.rust_required != 'false' || needs.changes.outputs.tooling_required != 'false'", tools)
         self.assertIn("--component rustfmt --component clippy", tools)
@@ -396,7 +408,7 @@ class DynaRoutingTests(unittest.TestCase):
         self.assertLess(verify.index("- name: Install Rust toolchain and the runner image's packages"), verify.index(name))
         self.assertLess(verify.index("uses: actions/setup-python@v5"), verify.index(name))
         build = verify.split("- name: Build the source stage generator (test profile)\n", 1)[1].split("\n      - ", 1)[0]
-        self.assertIn("cargo +stable build $JOBS --locked --profile test -p horizon-mod-api-gen --bin horizon-stage", build)
+        self.assertIn("cargo build $JOBS --locked --profile test -p horizon-mod-api-gen --bin horizon-stage", build)
         self.assertIn("HORIZON_STAGE_TOOL=", build)
         self.assertLess(verify.index("- name: Build the source stage generator (test profile)"), verify.index(name))
 

@@ -133,12 +133,25 @@ impl TryIntoApi for EngineOptions {
         })
     }
 }
+impl TryIntoEngine<()> for mod_api::FireworkExplosion {
+    type Engine = horizon_items::firework::FireworkExplosion;
+    type Error = std::convert::Infallible;
+    fn try_into_engine(&self, context: &()) -> Result<Self::Engine, Self::Error> {
+        Ok(Self::Engine {
+            shape: self.shape.try_into_engine(context)?,
+            colors: self.colors.clone(),
+            fade: self.fade_colors.clone(),
+            trail: self.trail,
+            twinkle: self.twinkle,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     fn prepare() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         mod_api::__private::resolve_particles(
             ["minecraft:smoke", "minecraft:trail", "test:spark"],
             |id| {

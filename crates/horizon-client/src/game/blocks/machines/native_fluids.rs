@@ -653,7 +653,7 @@ mod tests {
         )]
         .into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             let base =
                 std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
             let root = super::super::super::mods::content_root(&base, &Default::default())
@@ -829,7 +829,7 @@ mod tests {
     #[test]
     fn a_cauldron_takes_water_and_lava_whatever_their_components_and_a_mod_tank_none_with_them() {
         use super::{FluidAt, FluidStack, game_holds};
-        mod_api::__private::part_tests::game_thread();
+        mod_platform::__private::part_tests::game_thread();
         let (empty, water, _, _) = vanilla_cauldrons();
         let potion = |fluid| {
             use horizon_core::nbt::{Compound, Tag};
@@ -1045,7 +1045,7 @@ mod tests {
         }
         let mods: Mods = vec![ModEntry::new("fluid_filter_test", Box::new(WaterTanks))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             let base =
                 std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
             let root = super::super::super::mods::content_root(&base, &Default::default())

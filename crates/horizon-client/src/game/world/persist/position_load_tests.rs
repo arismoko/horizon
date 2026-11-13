@@ -103,7 +103,7 @@ fn neutral_mob_load_notifies_target_even_without_saved_anger() {
         Box::new(Observe(observed.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::super::native_entity_refs::tests::with_game(|game| {
             let decoded = entity_nbt::mob_from_nbt(
                 &entity("minecraft:wolf"),

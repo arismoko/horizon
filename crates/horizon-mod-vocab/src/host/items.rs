@@ -108,6 +108,9 @@ pub trait ItemsBackend {
     /// Side: both. ItemResource's effective use duration, including its Part.
     #[access(WorldOnly)]
     fn item_resource_use_duration(&self, stack: &ItemStack) -> Option<i32>;
+    /// Side: both. The mod that made the stack, including its Part.
+    #[access(WorldOnly)]
+    fn item_resource_creator_mod_id(&self, stack: &ItemStack) -> Option<String>;
     /// Side: both. The effective vanilla bar, before client drawing hooks.
     #[access(WorldOnly)]
     fn item_resource_bar(&self, stack: &ItemStack) -> Option<ItemBar>;
@@ -165,6 +168,32 @@ pub trait ItemsBackend {
     /// furnace's output, `canPlaceItem`), else the slot's limit for it.
     #[access(WorldOnly)]
     fn container_capacity(&self, at: BlockSide, slot: usize, stack: &ItemStack) -> u32;
+    /// Side: server.
+    /// How much of `resource` the slots `at`'s side reaches hold in all: [`STORAGE`]'s
+    /// amount for a block entity with slots, in one pass over them. None where the total does
+    /// not fit in 64 bits; 0 where no block entity has slots.
+    ///
+    /// [`STORAGE`]: crate::STORAGE
+    #[access(WorldOnly)]
+    fn container_kind_amount(&self, at: BlockSide, resource: &ItemResource) -> Option<u64>;
+    /// Side: server.
+    /// How much of `resource` an insert through `at`'s side would take now: the room left in
+    /// the slots holding it and in the empty slots it may go in, in one pass. None where the
+    /// total does not fit in 64 bits.
+    #[access(WorldOnly)]
+    fn container_kind_space(&self, at: BlockSide, resource: &ItemResource) -> Option<u64>;
+    /// Side: server.
+    /// What the slots `at`'s side reaches hold, from its `from`th to before its
+    /// `from + limit`th (fewer at the end), empty ones included, never more than
+    /// [`MAX_STORAGE_PAGE`](crate::MAX_STORAGE_PAGE) slots whatever `limit` asks. None where no
+    /// block entity has slots.
+    #[access(WorldOnly)]
+    fn container_listing(
+        &self,
+        at: BlockSide,
+        from: usize,
+        limit: usize,
+    ) -> Option<Vec<Option<ItemStack>>>;
     /// Side: both.
     /// Whether an enchantment on `stack` has effect component `effect`, by the world's
     /// enchantment definitions (`EnchantmentHelper.has`), behind
@@ -291,6 +320,29 @@ pub trait ItemsBackendMut {
         max: u32,
         tx: &Transaction,
     ) -> Option<ItemStack>;
+    /// Side: server.
+    /// Puts up to `amount` of `resource` into the slots `at`'s side reaches, as hoppers fill
+    /// them, the slots holding it first and then the empty ones, in transaction `tx`, in one
+    /// pass: how much went in.
+    #[access(WorldOnly)]
+    fn container_insert_kind(
+        &mut self,
+        at: BlockSide,
+        resource: &ItemResource,
+        amount: u64,
+        tx: &Transaction,
+    ) -> u64;
+    /// Side: server.
+    /// Takes up to `amount` of `resource` out of the slots `at`'s side reaches and may take
+    /// from, in transaction `tx`, in one pass: how much came out.
+    #[access(WorldOnly)]
+    fn container_extract_kind(
+        &mut self,
+        at: BlockSide,
+        resource: &ItemResource,
+        amount: u64,
+        tx: &Transaction,
+    ) -> u64;
     /// Side: server.
     /// The stack at a player's or an item entity's place; none for an empty one, a player who
     /// isn't here or is dead, an item entity not in the level in place, any other place

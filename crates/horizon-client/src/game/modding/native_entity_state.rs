@@ -607,6 +607,7 @@ mod tests {
 
             game.orbs.push(ExperienceOrb {
                 attachment_lifetime: Default::default(),
+                fall_distance: 0.0,
                 rotation: [0.0, 0.0],
                 join: Default::default(),
                 id: 43,
@@ -700,6 +701,7 @@ mod tests {
             let item = game.dropped[0].id;
             game.orbs.push(ExperienceOrb {
                 attachment_lifetime: Default::default(),
+                fall_distance: 0.0,
                 rotation: [0.0, 0.0],
                 join: Default::default(),
                 no_gravity: false,

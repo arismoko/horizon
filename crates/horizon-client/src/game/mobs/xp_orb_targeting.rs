@@ -86,6 +86,7 @@ mod tests {
         let at = Vec3::new(at[0], at[1], at[2]);
         ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             rotation: [0.0, 0.0],
             join: Default::default(),
             no_gravity: false,
@@ -112,7 +113,7 @@ mod tests {
     fn a_mod_chooses_whom_each_orb_follows() {
         let heard = Heard::default();
         let mods = vec![ModEntry::new("shepherd", Box::new(Shepherd(heard.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 open_to_lan(game);
                 let guests = &mut game.lan.as_mut().unwrap().hub.guests;

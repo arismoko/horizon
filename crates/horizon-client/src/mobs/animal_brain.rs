@@ -1656,8 +1656,7 @@ impl B {
                     && m.distance_sqr(t.position) < 9.0
                     && now >= *spawn_at
                 {
-                    // spawnChildFromBreeding: the egg (or baby), and both
-                    // parents rest (finalizeSpawnChildFromBreeding).
+                    // spawnChildFromBreeding: spawn the egg/baby and rest both parents.
                     let Who::Mob(id) = partner else { return };
                     m.extra.in_love = 0;
                     m.extra.age = 6000;
@@ -1666,6 +1665,7 @@ impl B {
                         partner: id,
                         equine: None,
                         parent_variant: None,
+                        wolf_voice: None,
                         experience: super::BreedExperience::Deferred,
                     });
                     if brain_mut(m).kind == Kind::Sniffer {

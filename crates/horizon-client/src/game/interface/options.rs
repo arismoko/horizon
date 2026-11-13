@@ -887,7 +887,8 @@ mod resize_state_tests {
         ) {
             return;
         }
-        use mod_api::{ClientHost, Hooks, ModEntry, WindowResizeEvent, testing::with_mods};
+        use mod_api::{ClientHost, Hooks, ModEntry, WindowResizeEvent};
+        use mod_platform::testing::with_mods;
         use std::sync::{Arc, Mutex};
         struct Listener(Arc<Mutex<Vec<(u32, u32, u32, u32)>>>);
         #[mod_api::__subscriptions]

@@ -338,7 +338,7 @@ mod tests {
             Box::new(observer.clone()),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 game.native_joins_skip();
                 let boat_id = game.take_entity_id();

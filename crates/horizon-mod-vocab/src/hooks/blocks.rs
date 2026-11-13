@@ -7,9 +7,9 @@ pub trait Hooks {
     /// push a `mod_api::Block` per block, the same declaration
     /// a content mod's `data/<id>/horizon/block/<path>.json` holds (a
     /// vanilla `template`, `properties`, `state_properties`, `shapes`...),
-    /// with its id in a namespace owned by your mod's manifest. `item: true` gives it a block
-    /// item, as a file does unless told not to (`..Default::default()`
-    /// leaves it false). They join the content mods' blocks: the one whose
+    /// with its id in a namespace owned by your mod's manifest. It has a block
+    /// item, as a file's does, unless `item` is false (`Block::with_item(false)`).
+    /// They join the content mods' blocks: the one whose
     /// id is that namespace when it is on (your models, textures, loot and
     /// recipes are its files), else one of their own, with the template's
     /// look. Ids, saves and the check that a joining client has the same

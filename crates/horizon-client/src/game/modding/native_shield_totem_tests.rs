@@ -72,7 +72,7 @@ fn heard(setup: Heard, test: impl FnOnce(&mut super::Game<'_>)) -> Heard {
         Box::new(Probe(log.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || with_game(test));
+    mod_platform::testing::with_mods(mods, || with_game(test));
     std::mem::take(&mut *log.lock().unwrap())
 }
 

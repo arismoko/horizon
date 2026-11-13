@@ -7,8 +7,8 @@ rust-version.workspace = true
 description = "The game as the platform runs it: the engine's entry with the platform's parts registered, for an executable to start (docs/layers.md)"
 
 [dependencies]
+horizon-guest-stack = { path = "../horizon-guest-stack" }
 horizon-client = { path = "../horizon-client", default-features = false }
-horizon-threads = { path = "../horizon-threads" }
 horizon-mod-package = { path = "../horizon-mod-package", default-features = false, features = ["index"] }
 
 horizon-mod-host = { path = "../horizon-mod-host", default-features = false }
@@ -30,6 +30,7 @@ friends = ["horizon-client/friends"]
 rng-trace = ["horizon-client/rng-trace"]
 system-allocator = ["horizon-client/system-allocator"]
 alloc-census = ["horizon-client/alloc-census"]
+alloc-count = ["horizon-client/alloc-count"]
 windows-mimalloc = ["horizon-client/windows-mimalloc"]
 windows-segment-heap = ["horizon-client/windows-segment-heap"]
 

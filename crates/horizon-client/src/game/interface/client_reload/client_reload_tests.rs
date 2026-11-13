@@ -185,9 +185,9 @@ fn a_converted_file_outside_the_pack_is_absent_not_empty() {
 #[ignore = "needs prepared resources"]
 fn initial_load_stages_and_applies_client_reload_listeners() {
     use crate::game::{Progress, load_resources, native_entity_refs::tests::with_game};
-    use mod_api::testing::with_mods;
     use mod_api::{self, ModEntry};
     use mod_api::{AddClientReloadListenersEvent, ClientHost, Hooks};
+    use mod_platform::testing::with_mods;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     /// Counts the real root's own `post_effect` assets, like a mod reading
@@ -295,9 +295,9 @@ fn initial_load_stages_and_applies_client_reload_listeners() {
 #[ignore = "needs prepared resources"]
 fn client_reload_reads_real_assets_with_pack_overrides() {
     use crate::game::native_entity_refs::tests::with_game;
-    use mod_api::testing::with_mods;
     use mod_api::{self, ModEntry};
     use mod_api::{AddClientReloadListenersEvent, ClientHost, Hooks};
+    use mod_platform::testing::with_mods;
     use std::{
         collections::BTreeSet,
         sync::Mutex,
@@ -514,8 +514,8 @@ fn client_reload_reads_real_assets_with_pack_overrides() {
 #[ignore = "needs prepared resources"]
 fn client_setup_reaches_each_listener_once_per_firing() {
     use crate::game::native_entity_refs::tests::with_game;
-    use mod_api::testing::with_mods;
     use mod_api::{ClientHost, Hooks, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Setup(Arc<AtomicUsize>);
@@ -571,8 +571,8 @@ fn only_the_first_local_client_is_the_client_start() {
 #[ignore = "needs prepared resources"]
 fn the_lifecycle_moments_fire_once_each_in_order() {
     use crate::game::native_entity_refs::tests::with_game;
-    use mod_api::testing::with_mods;
     use mod_api::{ClientHost, Hooks, ModEntry, ServerHost};
+    use mod_platform::testing::with_mods;
     use std::sync::Mutex;
 
     struct Log(Arc<Mutex<Vec<String>>>);
@@ -702,8 +702,8 @@ fn the_lifecycle_moments_fire_once_each_in_order() {
 #[ignore = "needs prepared resources"]
 fn an_arm_pose_answer_replaces_the_pose_the_item_gives() {
     use crate::game::native_entity_refs::tests::with_game;
-    use mod_api::testing::with_mods;
     use mod_api::{ArmPose, ClientHost, GetArmPoseEvent, Hand, Hooks, ModEntry};
+    use mod_platform::testing::with_mods;
 
     struct Horn;
     #[mod_api::__subscriptions]
@@ -880,7 +880,7 @@ fn client_completion_reads_published_resources_without_world_access() {
         Box::new(Probe(seen.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_client_game(|game| {
             let version = game.block_sprites_version();
             for entering in [ModPhase::Setup, ModPhase::World] {
@@ -960,7 +960,7 @@ fn client_startup_finishes_configs_before_the_first_runtime_callback() {
                 Box::new(Probe(seen.clone())),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 for pack_error in [None, Some("selected resource pack failed")] {
                     seen.lock().unwrap().clear();
                     with_client_game(|game| {
@@ -1032,9 +1032,8 @@ fn humanoid_arm_pose_mod_reads_mob_state_and_changes_the_model() {
     };
     use horizon_core::{geometry::Vec3, use_animation::UseAnimation};
     use horizon_items::equipment::{MAINHAND, OFFHAND};
-    use mod_api::{
-        ArmPose, ClientHost, GetArmPoseEvent, Hand, Hooks, ModEntry, testing::with_mods,
-    };
+    use mod_api::{ArmPose, ClientHost, GetArmPoseEvent, Hand, Hooks, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::{
         collections::HashMap,
         sync::{

@@ -80,8 +80,10 @@ Vanilla Minecraft: Java Edition 26.3, and nothing else.
 ### Portable crates
 
 `horizon-core`, `horizon-world`, `horizon-protocol`, `horizon-items`, `horizon-command`, `horizon-client-core`
-and `horizon-assets` hold vanilla's rules and data with no desktop in them: no window, GPU, sound, gamepad or
-clipboard library, no HTTP client, and no engine crate outside this list. The platform sits on the desktop engine
+and `horizon-assets` hold vanilla's rules and data with no desktop in them. `horizon-threads` and
+`horizon-guest-stack` provide the desktop-free execution plumbing: worker scheduling, sampling and stack
+reservations. These portable crates have no window, GPU, sound, gamepad or clipboard library, no HTTP client,
+and no engine crate outside the portable list. The platform sits on the desktop engine
 (`wgpu`, `winit`, `cpal`), which a handheld console or a browser can't run, so a port there builds on these crates
 instead. They stay that way: the layer check fails when one takes `winit`, `wgpu`, `cpal`, `gilrs`, `arboard` or
 `ureq`, or an engine crate outside the list (#13002). Gameplay itself still lives in `horizon-client`; step P of
@@ -159,7 +161,7 @@ Horizon's own extras and its product, and every built-in address of an outside s
   and partner servers in the list, Play with Friends and its relay, Discord, the "I'm playing" ping, telemetry and
   benchmark uploads, releases and updates, the hosting supervisor, the launcher.
 - **Examples:** `horizon-addresses`, `horizon-cosmetics`, `horizon-friends`, `horizon-relay`, `horizon-telemetry`,
-  `horizon-bench`, `horizon-release-sign`, `horizon-server`, `horizon-mod-registry`, `horizon-heartbeat`,
+  `horizon-perf-share`, `horizon-release-sign`, `horizon-server`, `horizon-mod-registry`, `horizon-heartbeat`,
   `horizon-official`, `horizon-official-servers`, `horizon-discord`, `launcher/`. Still in engine crates today:
   `game/cosmetics.rs`, `game/emotes.rs`, `game/extras.rs`, `game/tweaks.rs`, `extras_ui.rs`, `pvp.rs`.
 - **Rules:**
@@ -299,7 +301,7 @@ build pays nothing.
 
 The hooks today: `started` (once, when someone plays: not a dedicated server, a benchmark or an automated run),
 `published` (the world opened to or closed from LAN or friends, on change), `shutdown` (the window closed, the
-world saved) and `tunnel` (the resolver of `friend:` addresses, Play with Friends'). **A hook you need and don't find:** add a method with an empty default to `Hooks` and a function in
+world saved) and `tunnel` (the resolver of `friend:` addresses, Play with Friends') and `captures` (Open and Share for saved performance captures, `horizon-perf-share`: with none registered the game offers neither). **A hook you need and don't find:** add a method with an empty default to `Hooks` and a function in
 `horizon_hooks::engine` that the engine calls where vanilla does the matching thing; give it plain data or a type
 the engine owns, never one from above. A hook that needs engine types the platform doesn't expose yet (a draw
 context for HUD and chat overlays, a settings page) comes with that type's platform API (M6). An extension point
@@ -654,6 +656,7 @@ Horizon's own and third-party addresses (Horizon layer):
 |---|---|---|
 | `play.playhorizon.dev` (status `:24454`), previously `horizon.bunchy7s.dev` | the official server in the list, its status | `horizon-addresses` (#12993), `launcher/links.json` |
 | `cosmetics.playhorizon.dev` | cosmetics, emotes, presence | `horizon-addresses` (#12993) |
+| `playhorizon.dev/perf`, `playhorizon.dev/api/perf/captures` | the performance viewer Open shows a saved capture in, and the upload behind Share (`HORIZON_PERF_VIEWER`, `HORIZON_PERF_CAPTURES` override them) | `horizon-addresses`, used by `horizon-perf-share` |
 | `telemetry.playhorizon.dev` | opt-in telemetry, the "I'm playing" ping, benchmark uploads | `horizon-addresses` (#12993) |
 | `stun.cloudflare.com`, `stun.l.google.com` | Play with Friends NAT discovery | `horizon-addresses` (#12993) |
 | `afri-network.co.za` | the withdrawn partner server, so the game can remove the entry it added | `horizon-addresses` |
@@ -720,3 +723,7 @@ API listeners after dependency ordering and installation. Listener records, repl
 authority, activity flags and dispatch remain in the platform point registry. The socket
 refuses repeat or re-entrant sealing and late provider installation; it contains no game
 point identifiers or call-site routing.
+
+Engine crates import `horizon-mod-vocab` as `mod_api`. Their test-only
+`mod_platform` dependency reaches `horizon-mod-api`; dev-dependencies are exempt
+from the layer rule because tests may exercise the platform, while shipped code may not.

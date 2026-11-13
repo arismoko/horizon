@@ -1,1 +1,1 @@
-pub use crate::client::particles::ParticleOptions;
+pub use crate::client::particles::{FireworkExplosion, FireworksRequest, ParticleOptions};

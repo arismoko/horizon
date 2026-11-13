@@ -62,7 +62,7 @@ ChunkMap.getChunkDataFixContextTag	inline	crates/horizon-world/src/datafix/files
 ChunkMap.forEachBlockTickingChunk	port	crates/horizon-client/src/ticket_levels.rs::Levels::random_ticking	simulation entity ticking and a ticking chunk
 ChunkMap.anyPlayerCloseEnoughForSpawningInternal	inline	crates/horizon-client/src/game/mobs/natural_spawning.rs::Game::spawning_chunks	any non-spectator within 128 blocks of the chunk centre
 ChunkMap.playerIsCloseEnoughForSpawning	port	crates/horizon-client/src/game/mobs/natural_spawning.rs::close_enough_for_spawning
-ChunkMap.playerIsCloseEnoughTo	inline	crates/horizon-client/src/game.rs::GameLevel::can_spread_fire_around	the only caller (fire spread radius), spectators left out
+ChunkMap.playerIsCloseEnoughTo	inline	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::can_spread_fire_around	the only caller (fire spread radius), spectators left out
 ChunkMap.skipPlayer	port	crates/horizon-client/src/game/interface/game_mode.rs::loads_chunks	a skipped player holds no ticket and streams no chunks; sending chunks to a spectator is unchanged
 ChunkMap.updatePlayerStatus	inline	crates/horizon-client/src/game.rs::Game::update_chunk_tickets	tickets follow every player in the level each tick; a leaving guest's view is dropped by the hub
 ChunkMap.updateChunkTracking	port	crates/horizon-client/src/lan/hub.rs::Hub::update_view	a new centre or view distance (center reset) re-applies the view

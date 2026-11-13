@@ -61,9 +61,12 @@ pub fn dispatch(mut incoming: Incoming, endpoint: Endpoint, main: MainQueue) {
         Err(error) => {
             // Drop reservations and guest work before closing, publishing no partial actions.
             drop(context);
+            // The reason (a guest's deadline, trap or refusal) goes to the log; the player is told
+            // only which mod's handler failed.
+            log::warn!("payload {} failed: {error}", incoming.id.0);
             endpoint.disconnect(failure(&format!(
-                "payload {} failed: {error}",
-                incoming.id.0
+                "a mod's network handler failed ({})",
+                mod_of(&incoming.id)
             )));
         }
         Ok(()) => {
@@ -105,6 +108,11 @@ pub fn dispatch(mut incoming: Incoming, endpoint: Endpoint, main: MainQueue) {
             }
         }
     }
+}
+/// The mod a channel belongs to: its namespace.
+pub fn mod_of(id: &PayloadId) -> &str {
+    id.0.split_once(':')
+        .map_or(&*id.0, |(namespace, _)| namespace)
 }
 fn failure(message: &str) -> Text {
     Text::translate("disconnect.genericReason", vec![Text::literal(message)])

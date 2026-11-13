@@ -247,6 +247,13 @@ impl ItemResource {
     pub fn use_duration(&self, host: &dyn Host) -> Option<i32> {
         backend_of(host)?.item_resource_use_duration(&self.0)
     }
+    /// `IItemExtension.getCreatorModId`: the mod that made this stack, for a
+    /// recipe viewer or a tooltip to name. The item id's namespace, unless the
+    /// item's `creator_mod_id` Part answers another mod or none. None for an
+    /// unknown item or a host without the engine backend.
+    pub fn creator_mod_id(&self, host: &dyn Host) -> Option<String> {
+        backend_of(host)?.item_resource_creator_mod_id(&self.0)
+    }
     /// `ItemStack.isBarVisible`, `getBarWidth` and `getBarColor`: the visible
     /// vanilla durability or bundle bar, after effective components. None when
     /// no bar is visible. Client drawing hooks can later replace this bar.
@@ -456,6 +463,16 @@ impl PartialEq for ItemResource {
 }
 impl Eq for ItemResource {}
 
+/// By what [`PartialEq`] compares: the item, its damage and its component patch, so a resource
+/// keys a map (a store's kinds) without a count ever entering the key.
+impl std::hash::Hash for ItemResource {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.item().hash(state);
+        self.0.damage_component().hash(state);
+        self.0.components().map(|c| c.as_nbt()).hash(state);
+    }
+}
+
 impl fmt::Debug for ItemResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("ItemResource").field(&self.0.item()).finish()
@@ -616,19 +633,19 @@ pub(crate) struct Ends<'a, A: ?Sized, B: ?Sized> {
 /// One move of up to `want` by `extract` out of `ends.from` and `insert` into `ends.to`, all or
 /// nothing in a transaction of its own, nested in the caller's: how much moved. A move `to` takes
 /// only part of is undone and tried again with that part; a handler answering more than it was
-/// asked has its move undone and gives [`Overanswered`]. The one step of `move_resources` and
-/// `move_energy`.
-pub(crate) fn move_once<A: ?Sized, B: ?Sized>(
+/// asked has its move undone and gives [`Overanswered`]. The one step of `move_resources`,
+/// `move_energy` and the 64-bit `transfer`.
+pub(crate) fn move_once<A: ?Sized, B: ?Sized, N: Copy + PartialOrd + Default>(
     host: &mut dyn ServerHost,
     ends: Ends<'_, A, B>,
-    want: u32,
-    extract: impl Fn(&mut dyn ServerHost, &Transaction, u32) -> u32,
-    insert: impl Fn(&mut dyn ServerHost, &Transaction, u32) -> u32,
-) -> Result<u32, Overanswered> {
+    want: N,
+    extract: impl Fn(&mut dyn ServerHost, &Transaction, N) -> N,
+    insert: impl Fn(&mut dyn ServerHost, &Transaction, N) -> N,
+) -> Result<N, Overanswered> {
     let Ends { from, to, at } = ends;
     // `Err(Ok(took))`: `to` took only that much; `Err(Err(_))`: a handler answered more than it
     // was asked.
-    let step = |host: &mut dyn ServerHost, want: u32| {
+    let step = |host: &mut dyn ServerHost, want: N| {
         host.transaction(|host, tx| {
             let Some(out) = from.checked(extract(host, tx, want), want, at) else {
                 return Err(Err(Overanswered {
@@ -643,10 +660,10 @@ pub(crate) fn move_once<A: ?Sized, B: ?Sized>(
         })
     };
     match step(host, want) {
-        Err(Ok(took)) if took > 0 => step(host, took),
+        Err(Ok(took)) if took > N::default() => step(host, took),
         answer => answer,
     }
-    .or_else(|answer| answer.map(|_| 0))
+    .or_else(|answer| answer.map(|_| N::default()))
 }
 
 #[cfg(test)]

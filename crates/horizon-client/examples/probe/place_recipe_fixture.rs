@@ -65,6 +65,7 @@ pub fn main() -> horizon_client::Result<()> {
         trade: None,
         maps: None,
         limited_crafting: false,
+        can_equip: None,
         known_recipes: None,
     };
     let mut out = String::new();

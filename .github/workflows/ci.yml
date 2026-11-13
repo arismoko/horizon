@@ -83,12 +83,12 @@ jobs:
       - name: Crates follow the layers
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python3 tools/check_layers.py ${BASE_SHA:+--base "$BASE_SHA"}
+        run: python3 tools/check_layers.py ${BASE_SHA:+--base "$BASE_SHA" --pull-request-merge}
       # docs/layers.md#built-in-addresses: every built-in outside address in the Horizon layer's home; the rest only shrinks.
       - name: Built-in addresses stay in their home
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python3 tools/check_addresses.py ${BASE_SHA:+--base "$BASE_SHA"}
+        run: python3 tools/check_addresses.py ${BASE_SHA:+--base "$BASE_SHA" --pull-request-merge}
       - name: Check the mod API type boundary (including negative control)
         run: python3 tools/ci/check_api_boundary.py --source-only
       - name: Vocabulary state has explicit ownership

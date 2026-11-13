@@ -11,7 +11,7 @@ ClientAdvancements.setSelectedTab	port	crates/horizon-client/src/game/interface/
 ClientAdvancements.setListener	skip:ui		listener plumbing for the advancements screen; Horizon's screen reads its state each frame
 ClientAdvancements.get	port	crates/horizon-client/src/advancements.rs::Tree::get	returns the advancement by id; holder wrapper is not needed
 ClientChunkCache.isValidChunk	skip:other		chunks are stored by position, so there is no ring slot to check
-ClientChunkCache.drop	port	crates/horizon-client-render/src/streaming.rs::Streaming::forget_columns	gap: minor: no ChunkEvent unload hook; block entities and renderer columns are cleared in Game::handle_packet
+ClientChunkCache.drop	port	crates/horizon-client-render/src/streaming.rs::Streaming::forget_columns	Game::client_chunk_unload tells mods (client_chunk_unload) before the column is freed; block entities and renderer columns are cleared in Game::handle_packet
 ClientChunkCache.getChunk	skip:java		lookup of a loaded chunk; Horizon reads world.chunks directly
 ClientChunkCache.replaceBiomes	port	crates/horizon-client/src/game/network/remote_chunks.rs::Game::remote_chunks_biomes	each loaded column takes the packet's biomes per section, then it and its neighbours are marked dirty so their sections are drawn again (/fillbiome reaches the client)
 ClientChunkCache.flipUpdateTrackingSets	skip:other		double-buffered change lists for LevelRenderer; Horizon hands changed columns to the renderer directly
@@ -88,7 +88,7 @@ ClientLevel.setBlock	port	crates/horizon-client/src/game/network/remote/mod.rs::
 ClientLevel.<init>	port	crates/horizon-client/src/game/network/remote/mod.rs::Game::enter_remote_dimension	gap: minor: the environment layers are applied in Game::render
 ClientLevel.addEnvironmentAttributeLayers	port	crates/horizon-client/src/game.rs::Game::render	sky colour and sky light move during a lightning flash
 ClientLevel.pollLightUpdates	skip:other		light is applied when it arrives or relit at once (light.rs relight); there is no queue to poll
-ClientLevel.getPrecipitationAt	port	crates/horizon-client/src/game.rs::GameLevel::precipitation	the column's biome decides; no column, no answer (the chunk lookup fails, as vanilla answers none for an unloaded column)
+ClientLevel.getPrecipitationAt	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::precipitation	the column's biome decides; no column, no answer (the chunk lookup fails, as vanilla answers none for an unloaded column)
 ClientLevel.removeBlockBreakingProgress	inline	crates/horizon-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	minor: the 400-tick expiry runs on every update, not every 20 ticks
 ClientLevel.removeProgress	inline	crates/horizon-client/src/game/modding/client_cracks.rs::Game::destroy_block_progress	cracks are keyed by breaker id, so there are no per-position sets to tidy
 ClientLevel.shouldTickDeath	missing		minor: death animations tick for every remote mob held; no simulation-distance check

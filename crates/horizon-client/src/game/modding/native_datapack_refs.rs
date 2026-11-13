@@ -82,7 +82,7 @@ mod tests {
                 .unwrap();
             }
         }
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("example", Box::new(RegistryMod))].into(),
             || {
                 super::super::native_entity_refs::tests::with_game(|game| {

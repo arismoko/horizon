@@ -1083,7 +1083,7 @@ mod tests {
                 "stone shows its overlay"
             );
             let mods: Mods = vec![ModEntry::new("screen-effect", Box::new(Mod(stone)))].into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 assert_eq!(effects(game, stone), open);
                 assert_eq!(effects(game, dirt), in_dirt);
             });

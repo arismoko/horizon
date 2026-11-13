@@ -105,7 +105,7 @@ fn the_active_stack_survives_a_partial_contact_and_consumption_removes_the_entit
     let probe = Probe::default();
     let mods: mod_api::Mods =
         vec![mod_api::ModEntry::new("contact", Box::new(probe.clone()))].into();
-    mod_api::testing::with_mods(mods.clone(), || {
+    mod_platform::testing::with_mods(mods.clone(), || {
         crate::game::api_values::install_parts(&mods).unwrap();
         with_game(|game| {
             prepare(game);

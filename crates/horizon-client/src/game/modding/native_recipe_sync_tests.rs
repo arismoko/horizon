@@ -22,7 +22,7 @@ impl mod_api::Hooks for Selection {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn datapack_sync_selects_once_per_join_and_reload_for_each_recipient() {
     let calls = Arc::new(Mutex::new(Vec::new()));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "selection",
             Box::new(Selection(calls.clone())),
@@ -159,7 +159,7 @@ impl mod_api::Hooks for MarkedSelection {
 fn datapack_sync_decision_precedes_join_recipe_packets() {
     let senders = Arc::new(Mutex::new(std::collections::HashMap::new()));
     let decided = Arc::new(Mutex::new(Vec::new()));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "order",
             Box::new(MarkedSelection {
@@ -226,7 +226,7 @@ fn datapack_sync_decision_precedes_join_recipe_packets() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn datapack_sync_disconnect_before_ask_sends_nothing_and_empty_reload_asks_nobody() {
     let calls = Arc::new(Mutex::new(Vec::new()));
-    mod_api::testing::with_mods(
+    mod_platform::testing::with_mods(
         vec![mod_api::ModEntry::new(
             "disconnect",
             Box::new(Selection(calls.clone())),

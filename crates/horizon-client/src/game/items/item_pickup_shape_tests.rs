@@ -6,7 +6,8 @@ use horizon_client::join_seq::{
 };
 use horizon_client::motion::PlayerMotion;
 use horizon_core::geometry::Vec3;
-use mod_api::{Flow, Hooks, ItemPickedUpEvent, ModEntry, ServerHost, testing::with_mods};
+use mod_api::{Flow, Hooks, ItemPickedUpEvent, ModEntry, ServerHost};
+use mod_platform::testing::with_mods;
 use std::sync::{Arc, Mutex};
 
 /// What `item_picked_up_post` heard: the original count and what remained.

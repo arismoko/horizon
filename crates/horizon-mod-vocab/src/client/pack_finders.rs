@@ -65,6 +65,10 @@ pub struct PackRegistration {
     pub always_active: bool,
     /// The default insertion position of an always-active pack.
     pub position: PackPosition,
+    /// Keep the pack out of the pack screens (Resource Packs, Data Packs, Experiments), for an
+    /// implementation detail players should not see or toggle. A selected hidden pack still loads;
+    /// `/datapack` still lists it.
+    pub hidden: bool,
 }
 impl PackRegistration {
     /// An optional built-in pack, offered at the top of the selection.
@@ -76,6 +80,7 @@ impl PackRegistration {
             source: PackSource::BuiltIn,
             always_active: false,
             position: PackPosition::Top,
+            hidden: false,
         }
     }
 }

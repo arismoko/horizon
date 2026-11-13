@@ -63,42 +63,68 @@ impl HookParts {
     }
 }
 
-/// The providers mods registered for capability `key` and the type of the block entity at
-/// `at`, for the game's own lookups (a hopper's): none where no mod registered one, so a
-/// vanilla container's lookup costs one table check and allocates nothing, and the game needn't
-/// work out its own answer. [`BlockEntityProviders::ask`] then asks them.
-pub fn block_entity_providers<T: ?Sized + 'static>(
+/// The providers mods registered for capability `key` at `at`, of the block there and of the
+/// type of the block entity standing there, for the game's own lookups (a hopper's): none where
+/// no mod registered one, so a vanilla container's lookup costs one table check for each kind and
+/// allocates nothing, and the game needn't work out its own answer. [`BlockProviders::ask`] then
+/// asks them.
+pub fn block_providers<T: ?Sized + 'static>(
     key: &CapabilityKey<T>,
     host: &dyn Host,
     at: BlockSide,
-) -> Option<BlockEntityProviders<T>> {
-    let parts = installed()?.keys.capabilities.get(key.name)?.get(
-        crate::content::registry_keys::block_entity_type_name(at.kind(host)?)?,
-    )?;
-    Some(BlockEntityProviders {
-        parts,
+) -> Option<BlockProviders<T>> {
+    let keys = &installed()?.keys;
+    // Each table checked for the capability first, so a lookup no mod answers reads nothing at
+    // the position.
+    let entity = match keys.capabilities.contains_key(key.name) {
+        true => providers_at(
+            &keys.capabilities,
+            key.name,
+            at.kind(host)
+                .and_then(crate::content::registry_keys::block_entity_type_name),
+        ),
+        false => &[],
+    };
+    let block = match keys.block_capabilities.contains_key(key.name) {
+        true => providers_at(
+            &keys.block_capabilities,
+            key.name,
+            at.level
+                .block(host, at.pos)
+                .and_then(crate::content::registry_keys::block_id),
+        ),
+        false => &[],
+    };
+    if entity.is_empty() && block.is_empty() {
+        return None;
+    }
+    Some(BlockProviders {
+        entity,
+        block,
         at,
         handler: PhantomData,
     })
 }
 
 // no wire: provider lookup borrows static capability dispatch tables and process-local type identity.
-/// A block entity's providers of one capability ([`block_entity_providers`]).
+/// A position's providers of one capability ([`block_providers`]).
 // exhaustive: its fields are private, so mods cannot build or destructure it
-pub struct BlockEntityProviders<T: ?Sized + 'static> {
-    pub(crate) parts: &'static [CapabilityPart<BlockProviderOf>],
+pub struct BlockProviders<T: ?Sized + 'static> {
+    pub(crate) entity: &'static [CapabilityPart<BlockProviderOf>],
+    pub(crate) block: &'static [CapabilityPart<BlockProviderOf>],
     pub(crate) at: BlockSide,
     pub(crate) handler: PhantomData<fn() -> Box<T>>,
 }
 
-impl<T: ?Sized + 'static> BlockEntityProviders<T> {
+impl<T: ?Sized + 'static> BlockProviders<T> {
     /// A mod's handler where the game would answer with its own unless a mod comes first: one
-    /// registered `before_game`, else, where the game has no answer (`game`), the first mod's.
+    /// registered `before_game`, else, where the game has no answer (`game`), the first mod's,
+    /// in [`LevelRef::capability`]'s order.
     pub fn ask(self, host: &mut dyn ServerHost, game: bool) -> Option<Capability<T>> {
         let at = self.at;
         let answer = ask_providers(
             host,
-            |index| next_provider(self.parts, index),
+            |index| next_merged(self.entity, self.block, index),
             BlockProviderOf::get::<T>,
             |provider, host| provider.provide(host, at),
             |_| game,
@@ -177,8 +203,8 @@ pub trait BlockEntitiesRegistrar {
     /// Look up a vanilla or another mod's type. The final registry validates it at load.
     fn block_entity_type_key(&mut self, id: &str) -> crate::BlockEntityTypeKey;
 
-    /// Declare block entity type `path` in a namespace owned by this mod's manifest, held by `blocks`; mods usually
-    /// reach it through `block_entity_type`.
+    /// Declare block entity type `path` in a namespace owned by this mod's manifest, held by `blocks`
+    /// (a bare name is this mod's); mods usually reach it through `block_entity_type`.
     fn declare_block_entity_type(
         &mut self,
         path: &str,
@@ -202,31 +228,4 @@ pub trait BlockEntitiesRegistrar {
         before_game: bool,
         provider: BlockProviderOf,
     );
-}
-
-/// CapabilityProviders operations for block entities.
-// hidden: per-kind lookup implementation, exposed for generated provider bindings
-#[doc(hidden)]
-pub trait BlockEntitiesCapabilityProviders {
-    /// The next enabled provider of block entity capability `name` for block entity type `kind`,
-    /// with its mod and whether it is asked ahead of the game. `index` starts at zero and advances
-    /// past every visited registration, including disabled ones.
-    fn block_entity_provider(
-        &self,
-        name: &str,
-        kind: crate::BlockEntityTypeKey,
-        index: &mut u32,
-    ) -> Option<(BlockProviderOf, &'static str, bool)>;
-}
-
-impl BlockEntitiesCapabilityProviders for InstalledProviders {
-    fn block_entity_provider(
-        &self,
-        name: &str,
-        kind: crate::BlockEntityTypeKey,
-        index: &mut u32,
-    ) -> Option<(BlockProviderOf, &'static str, bool)> {
-        let kind = crate::content::registry_keys::block_entity_type_name(kind)?;
-        next(&installed()?.keys.capabilities, name, kind, index)
-    }
 }

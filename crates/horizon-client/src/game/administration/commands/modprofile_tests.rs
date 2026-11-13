@@ -41,7 +41,7 @@ fn modprofile_state_and_report_side_effects() {
     // Omitting the reentrant check then fails an assertion, rather than hanging
     // while a stop waits for its own profiled guard.
     let unprofiled_guard =
-        mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+        mod_platform::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
             id: "preexisting_call",
             hook: "tick",
             part: None,
@@ -66,7 +66,7 @@ fn modprofile_state_and_report_side_effects() {
     assert!(run(Action::Report, &dir).is_err());
     assert!(profiler::is_enabled());
     assert!(!dir.join("profiles").exists());
-    let guard = mod_api::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
+    let guard = mod_platform::content::crash::enter_native_mod(mod_api::content::crash::ModCall {
         id: "profile_test",
         hook: "tick",
         part: None,

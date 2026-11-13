@@ -44,7 +44,7 @@ ConduitBlockEntity.updateDestroyTarget	port	crates/horizon-client/src/game/block
 ContainerOpenersCounter.decrementOpeners	port	crates/horizon-client/src/game/blocks/block_entity_anims.rs::Game::count_opener	decrement side of the counter
 ContainerOpenersCounter.hasContainerOpen	port	crates/horizon-client/src/mobs/transport_items.rs::has_open	golems only; players are counted in lid_openers
 ContainerOpenersCounter.incrementOpeners	port	crates/horizon-client/src/game/blocks/block_entity_anims.rs::Game::count_opener	the open or close and the first opener's scheduleRecheck
-ContainerOpenersCounter.recheckOpeners	port	crates/horizon-client/src/game.rs::GameLevel::recheck_container_openers	the level asks, from ChestBlock.tick, EnderChestBlock.tick and BarrelBlock.tick
+ContainerOpenersCounter.recheckOpeners	port	crates/horizon-client/src/game/blocks/level_access.rs::GameLevel::recheck_container_openers	the level asks, from ChestBlock.tick, EnderChestBlock.tick and BarrelBlock.tick
 CrafterBlockEntity.isSlotDisabled	port	crates/horizon-client-render/src/containers.rs::Crafter::can_place	disabled check (disabled[slot]) inside can_place
 CrafterBlockEntity.canPlaceItem	port	crates/horizon-client/src/game/blocks/machines/mod.rs::Containers::can_place	calls Crafter::can_place
 CrafterBlockEntity.smallerStackExist	port	crates/horizon-client-render/src/containers.rs::Crafter::can_place	the smaller-stack check later in the slots

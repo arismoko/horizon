@@ -48,7 +48,7 @@ fn a_changed_inventory_is_heard_once_with_its_41_slots_isolated() {
     crate::game::native_entity_refs::tests::with_game(|game| {
         let probe = Probe::default();
         let heard_values = probe.heard.clone();
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new("inventory_watch", Box::new(probe))].into(),
             || {
                 game.world = World::new(game.res.facts().air, 1);

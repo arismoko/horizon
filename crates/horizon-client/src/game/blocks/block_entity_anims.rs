@@ -429,7 +429,7 @@ impl Game<'_> {
         let mut shulker_pushes = Vec::new();
         for &(pos, ticker) in &positions {
             match ticker {
-                Ticker::Lid => self.be_anims.chests.entry(pos).or_default().tick(),
+                Ticker::Lid => self.tick_chest_lid(pos),
                 Ticker::Book => {
                     let anims = &mut self.be_anims;
                     anims
@@ -903,6 +903,10 @@ impl Game<'_> {
         };
         self.be_anims
             .block_anim(pos, self.world.game_time, partial, sherds)
+    }
+    /// The client chest ticker, also used when replaying a moved chest.
+    pub(super) fn tick_chest_lid(&mut self, pos: [i32; 3]) {
+        self.be_anims.chests.entry(pos).or_default().tick();
     }
     /// `ChestLidController.getOpenness(partial)` at `pos`.
     pub(super) fn chest_lid(&self, pos: [i32; 3], partial: f32) -> f32 {

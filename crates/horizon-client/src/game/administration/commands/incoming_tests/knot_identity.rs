@@ -148,6 +148,9 @@ fn host(game: &mut Game<'_>) {
         },
     )
     .unwrap();
+    // Existing mobs and knots already own runtime IDs when hosting starts.
+    game.next_entity += 1;
+    let guest_id = game.next_entity;
     let (tx, _rx) = mpsc::channel();
     let mut guest = Guest::new(
         Joined {
@@ -162,7 +165,7 @@ fn host(game: &mut Game<'_>) {
             address: "127.0.0.1:25565".parse().unwrap(),
             expected: false,
         },
-        2,
+        guest_id as i32,
         [12.5, 201.0, 4.5],
         1,
     );

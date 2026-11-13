@@ -2,7 +2,7 @@
 use super::{Game, R, err};
 use horizon_client::{save, text::Text};
 #[cfg(test)]
-use mod_api::__private::profiler;
+use mod_platform::__private::profiler;
 use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},

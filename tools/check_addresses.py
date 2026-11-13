@@ -267,13 +267,17 @@ def base_config(base):
     return json.loads(shown.stdout) if shown.returncode == 0 else None
 
 
-def restored_upstream_rows(base):
-    """Allow exact upstream rows only for a changed, verified sync declaration."""
+def _check_file_size():
     if __package__:
         from . import check_file_size
     else:
         import check_file_size
-    config, errors = check_file_size.verified_sync_config(base, CONFIG_PATH)
+    return check_file_size
+
+
+def restored_upstream_rows(base):
+    """Allow exact upstream rows only for a changed, verified sync declaration."""
+    config, errors = _check_file_size().verified_sync_config(base, CONFIG_PATH)
     rows = {tuple(row.split(" ", 1)) for row in config.get("allowed", [])} if config is not None else set()
     return rows, errors
 
@@ -282,7 +286,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base", help="refuse addresses added to 'allowed' since the branch left this git ref")
     parser.add_argument("--list", action="store_true", help="print every host found and its files")
+    parser.add_argument("--pull-request-merge", action="store_true", help=_check_file_size().PULL_REQUEST_MERGE_HELP)
     args = parser.parse_args(argv)
+    if args.base:
+        args.base, error = _check_file_size().pull_request_base(args.base, args.pull_request_merge)
+        if error:
+            print(f"Address check failed: {error}")
+            return 1
     config = json.loads((ROOT / CONFIG_PATH).read_text())
     found = scan()
     if args.list:

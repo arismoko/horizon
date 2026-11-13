@@ -61,7 +61,7 @@ impl mod_api::Hooks for BoundBookMod {
 #[ignore = "needs prepared resources and isolated homes"]
 fn entering_inventory_requests_catalogue_for_preinstalled_bound_screen() {
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("bound", Box::new(BoundBookMod))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         crate::game::native_entity_refs::tests::with_client_game(|game| {
             mod_api::__private::resolve_menus(["bound:menu"]).unwrap();
             let (pipe, _server) = horizon_protocol::connection::Pipe::pair();
@@ -115,7 +115,7 @@ fn geometry(game: &Game<'_>) -> ((f32, f32), Vec<(usize, [f32; 4])>) {
 #[ignore = "needs prepared resources and isolated homes"]
 fn authoritative_custom_book_rebuilds_cached_geometry_without_observe_screen() {
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("geometry", Box::new(BookMod))].into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         crate::game::native_entity_refs::tests::with_client_game(|game| {
             let key = KEY.get().unwrap().clone();
             // The lightweight Game fixture does not run the launcher/content

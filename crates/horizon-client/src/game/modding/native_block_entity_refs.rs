@@ -825,7 +825,7 @@ mod tests {
         let replacing = case != "provider";
         if replacing {
             let mods: Mods = vec![ModEntry::new("replace", Box::new(ReplaceDuringOpen))].into();
-            mod_api::__private::install(mods.clone());
+            mod_platform::__private::install(mods.clone());
             crate::game::api_values::install_parts(&mods).unwrap();
         }
         super::super::native_guest_turn_tests::with_guests(|game| {

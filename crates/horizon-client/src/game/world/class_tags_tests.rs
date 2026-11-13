@@ -68,8 +68,8 @@ fn class_tags_dispatch_and_failed_preparation_preserve_installed_snapshot() {
     impl LevelHost for Level {}
     let calls = Arc::new(AtomicUsize::new(0));
     let mods: Mods = vec![ModEntry::new("demo", Box::new(Listener(calls.clone())))].into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
+    mod_platform::testing::with_mods(mods.clone(), || {
+        mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
         let registry = BlockRegistry::from_facts_json(br#"{"defaults":{"minecraft:oak_fence":0,"demo:rail":1,"demo:stone":5,"minecraft:air":6},"states":[["o",false,false,"","minecraft:oak_fence"],["r0",false,false,"",{"id":"demo:rail","properties":{"variant":"0"}}],["r1",false,false,"",{"id":"demo:rail","properties":{"variant":"1"}}],["r2",false,false,"",{"id":"demo:rail","properties":{"variant":"2"}}],["r3",false,false,"",{"id":"demo:rail","properties":{"variant":"3"}}],["s",false,false,"","demo:stone"],["a",true,false,"","minecraft:air"]]}"#.as_slice()).unwrap();
         api_values::resolve_block_definitions(&registry).unwrap();
         let states = || {

@@ -764,10 +764,11 @@ pub(crate) fn with_built_test_world_rules(
     build: impl FnOnce(&mut crate::world::World, &horizon_world::registry::BlockRegistry),
     f: impl FnOnce(&MobWorld<'_>, &super::MobTypes),
 ) -> bool {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../.local/horizon-client")
-        .join(horizon_core::VANILLA_VERSION);
-    with_resource_test_world(&root, others, mob_griefing, mob_drops, build, f)
+    let Some(resources) = TestResources::vanilla() else {
+        crate::test_fixtures::report_missing();
+        return false;
+    };
+    run_test_world(resources, others, mob_griefing, mob_drops, build, f)
 }
 /// The same mob world loaded from a content mod's resource root.
 #[cfg(test)]
@@ -779,54 +780,109 @@ pub(crate) fn with_resource_test_world(
     build: impl FnOnce(&mut crate::world::World, &horizon_world::registry::BlockRegistry),
     f: impl FnOnce(&MobWorld<'_>, &super::MobTypes),
 ) -> bool {
-    if !root.join("entity-types.json").exists() || !root.join("movement-properties.nbt").exists() {
-        use std::{
-            collections::HashSet,
-            io::Write,
-            sync::{LazyLock, Mutex},
-        };
-        static SKIPPED: LazyLock<Mutex<HashSet<String>>> =
-            LazyLock::new(|| Mutex::new(HashSet::new()));
-        let thread = std::thread::current();
-        let name = thread.name().unwrap_or("<unnamed test>");
-        let mut skipped = SKIPPED.lock().unwrap();
-        if skipped.insert(name.to_owned()) {
-            // Bypass libtest's successful-test capture: missing data must remain
-            // visible even without --nocapture. Repeated fixture calls count once.
-            writeln!(
-                std::io::stderr().lock(),
-                "skipped: no vanilla data; test={name}; skipped tests={}",
-                skipped.len()
-            )
-            .expect("writing the missing-data skip report");
-        }
+    // A mod's root is a scratch folder the test wrote: read it as it is now.
+    let Some(resources) = TestResources::load(root) else {
+        crate::test_fixtures::report_missing();
         return false;
+    };
+    run_test_world(&resources, others, mob_griefing, mob_drops, build, f)
+}
+/// What every mob test world reads from its resource root. Tests only read
+/// it (each builds its own `World` over it), so the vanilla root's copy is
+/// loaded once per test process: the load took most of a mob test's time.
+#[cfg(test)]
+struct TestResources {
+    assets: crate::assets::Assets,
+    facts: BlockFacts,
+    motion: crate::motion::MotionResources,
+    data: super::MobData,
+    types: super::MobTypes,
+    biomes: crate::biome::Biomes,
+    items: crate::items::Items,
+    collision: std::sync::Arc<BlockCollisionRegistry<'static>>,
+    suffocation: horizon_world::suffocation::SuffocationRegistry<'static>,
+}
+#[cfg(test)]
+impl TestResources {
+    /// `None` when `root` has no prepared vanilla data.
+    fn load(root: &std::path::Path) -> Option<Self> {
+        if !root.join("entity-types.json").exists()
+            || !root.join("movement-properties.nbt").exists()
+        {
+            return None;
+        }
+        let assets = crate::assets::Assets::load(root).unwrap();
+        let registry = assets.registry;
+        let facts = BlockFacts::load(root, registry).unwrap();
+        let motion = crate::motion::MotionResources::load(root, &assets).unwrap();
+        let source = horizon_assets::resource_source::ResourceRoot::directory(root.to_path_buf());
+        let data = super::MobData::load(&source, &facts);
+        let types = super::MobTypes::load(root).unwrap();
+        let biomes = crate::biome::Biomes::load(&source).unwrap();
+        let defaults = horizon_world::item_defaults::read(root).unwrap();
+        let items = crate::items::Items::load(
+            root,
+            registry,
+            &facts,
+            &horizon_world::loot::PackOverlay::NONE,
+            &defaults,
+        )
+        .unwrap();
+        let collision = std::sync::Arc::new(crate::collisions::load(root, registry).unwrap());
+        let suffocation =
+            super::suffocation::bind(collision.clone(), &motion.causes_suffocation).unwrap();
+        Some(Self {
+            assets,
+            facts,
+            motion,
+            data,
+            types,
+            biomes,
+            items,
+            collision,
+            suffocation,
+        })
     }
-    let assets = crate::assets::Assets::load(root).unwrap();
+    /// The checkout's prepared vanilla data, loaded on first use; `None`
+    /// when it is missing.
+    fn vanilla() -> Option<&'static Self> {
+        static VANILLA: std::sync::OnceLock<Option<TestResources>> = std::sync::OnceLock::new();
+        VANILLA
+            .get_or_init(|| {
+                let root = std::env::var_os("HORIZON_TEST_RESOURCES")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|| {
+                        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("../../.local/horizon-client")
+                            .join(horizon_core::VANILLA_VERSION)
+                    });
+                Self::load(&root)
+            })
+            .as_ref()
+    }
+}
+/// Runs `f` over a fresh `World` (`build` places its blocks) on `resources`.
+#[cfg(test)]
+fn run_test_world(
+    resources: &TestResources,
+    others: &[Seen],
+    mob_griefing: bool,
+    mob_drops: bool,
+    build: impl FnOnce(&mut crate::world::World, &horizon_world::registry::BlockRegistry),
+    f: impl FnOnce(&MobWorld<'_>, &super::MobTypes),
+) -> bool {
+    let TestResources {
+        assets,
+        facts,
+        motion,
+        data,
+        types,
+        biomes,
+        items,
+        collision,
+        suffocation,
+    } = resources;
     let registry = assets.registry;
-    let facts = BlockFacts::load(root, registry).unwrap();
-    let motion = crate::motion::MotionResources::load(root, &assets).unwrap();
-    let data = super::MobData::load(
-        &horizon_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
-        &facts,
-    );
-    let types = super::MobTypes::load(root).unwrap();
-    let biomes = crate::biome::Biomes::load(
-        &horizon_assets::resource_source::ResourceRoot::directory(root.to_path_buf()),
-    )
-    .unwrap();
-    let defaults = horizon_world::item_defaults::read(root).unwrap();
-    let items = crate::items::Items::load(
-        root,
-        registry,
-        &facts,
-        &horizon_world::loot::PackOverlay::NONE,
-        &defaults,
-    )
-    .unwrap();
-    let collision = std::sync::Arc::new(crate::collisions::load(root, registry).unwrap());
-    let suffocation =
-        crate::mobs::suffocation::bind(collision.clone(), &motion.causes_suffocation).unwrap();
     let air = registry.default_state("minecraft:air").unwrap();
     let mut world = crate::world::World::new(air, 0);
     build(&mut world, registry);
@@ -838,13 +894,13 @@ pub(crate) fn with_resource_test_world(
         loop_context: crate::test_resources::server_loop_context(),
         world: &world,
         registry,
-        facts: &facts,
+        facts,
         fluid_tables: &motion.fluids,
         attributes: &motion.attributes,
         movement: &motion.blocks,
-        collision: &collision,
-        suffocation: &suffocation,
-        data: &data,
+        collision,
+        suffocation,
+        data,
         player: None,
         player_identity: None,
         player_selection: None,
@@ -870,7 +926,7 @@ pub(crate) fn with_resource_test_world(
         level: horizon_core::LevelKey::OVERWORLD,
         block_tags: &items.block_tags,
         landing: &motion.landing,
-        biomes: &biomes,
+        biomes,
         mob_griefing,
         universal_anger: false,
         mob_drops,
@@ -879,7 +935,7 @@ pub(crate) fn with_resource_test_world(
         dimension_type: horizon_world::dimension_type::DimensionFacts::overworld(),
         world_seed: 0,
         sea_level: 63,
-        items: Some(&items),
+        items: Some(items),
         lid_openers: &lid_openers,
         mod_effects: None,
         mob_hooks: None,
@@ -888,7 +944,7 @@ pub(crate) fn with_resource_test_world(
         asks_baby_spawn: false,
         border: None,
     };
-    f(&w, &types);
+    f(&w, types);
     true
 }
 /// A player standing at `position` in survival, as mobs see one.

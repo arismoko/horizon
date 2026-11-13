@@ -20,6 +20,7 @@ use horizon_core::{
     position::BlockPos,
     random::{LegacyRandom, RandomSource},
 };
+use horizon_world::level::Ticks;
 
 pub(super) struct Bolt {
     /// The entity id a server's players know it by (0 until it has one).
@@ -55,6 +56,36 @@ fn in_viewer_box(bolt: [f64; 3], p: [f64; 3]) -> bool {
         && p[1] >= bolt[1] - 15.0
         && p[1] <= bolt[1] + 21.0
 }
+
+/// `ServerLevel.tickThunder` -> `Level.getBlockRandomPos(minX, 0, minZ, 15)`:
+/// picks the strike column from the level's separate `randValue` LCG.
+fn thunder_strike_column(ticks: &mut Ticks, cx: i32, cz: i32) -> (i32, i32) {
+    let r = ticks.block_random_pos(cx * 16, 0, cz * 16, 15);
+    (r.x, r.z)
+}
+
+#[cfg(test)]
+impl Bolt {
+    /// A spent bolt at `at`, for tests that call `thunder_hit` directly.
+    pub(in crate::game) fn struck_at(id: u32, at: [f64; 3]) -> Self {
+        Self {
+            id,
+            at,
+            life: 0,
+            flashes: 0,
+            seed: 0,
+            random: LegacyRandom::new(0),
+            visual_only: false,
+            converted: Vec::new(),
+            hit: Vec::new(),
+            hit_items: Vec::new(),
+            spared: Vec::new(),
+            fires: 0,
+            cause: None,
+        }
+    }
+}
+
 impl Game<'_> {
     /// `ServerChunkCache.tickSpawningChunk`: one `tickThunder` roll per
     /// spawning chunk (within 128 blocks of a player) that is in entity
@@ -80,8 +111,7 @@ impl Game<'_> {
                 continue;
             }
             // getBlockRandomPos(minX, 0, minZ, 15)
-            let r = self.world.random.next_int();
-            let (x, z) = (cx * 16 + (r & 15), cz * 16 + (r >> 16 & 15));
+            let (x, z) = thunder_strike_column(&mut self.block_ticks, cx, cz);
             let Some(pos) = self.lightning_target(x, z) else {
                 continue;
             };
@@ -544,7 +574,7 @@ impl Game<'_> {
     /// `CHANNELED_LIGHTNING` counts them. Boats, minecarts and experience
     /// orbs are hit too (`VehicleEntity.hurtServer` adds 5 x 10 > 40 and
     /// destroys them; an orb has 5 health).
-    fn thunder_hit(&mut self, b: &mut Bolt) -> Vec<EntityView> {
+    pub(in crate::game) fn thunder_hit(&mut self, b: &mut Bolt) -> Vec<EntityView> {
         let at = b.at;
         let strike = Aabb::new(
             Vec3::new(at[0] - 3.0, at[1] - 3.0, at[2] - 3.0),
@@ -753,7 +783,7 @@ impl Game<'_> {
         };
         strike_players(self);
         self.each_guest_hit(strike_players);
-        // Dropped items burn up (ItemEntity health 5), save fire-resistant ones.
+        // Items run Entity.thunderHit, then the shared ItemEntity hurt path.
         let mut left = self.thunder_count(strike, ThunderHit::Item);
         for h in self.entity_handles_rev() {
             if left == 0 {
@@ -769,10 +799,24 @@ impl Game<'_> {
             if !self.lightning_may_strike(e.id, bolt) {
                 continue;
             }
-            let e = &self.dropped[i];
-            if !(e.stack.item.contains("netherite") || (e.age < 20 && b.spared.contains(&e.id))) {
-                self.dropped.remove(i);
+            let e = &mut self.dropped[i];
+            e.fire_ticks += 1;
+            if e.fire_ticks == 0 {
+                e.fire_ticks = 160;
             }
+            // Cushion spare stands in for vanilla's invulnerableTime window.
+            if e.age < 20 && b.spared.contains(&e.id) {
+                continue;
+            }
+            let id = e.id;
+            self.hurt_item_entity(
+                id,
+                5.0,
+                "minecraft:lightning_bolt",
+                Some(Target::Other(bolt)),
+                None,
+                Some(at),
+            );
         }
         self.native_leaves_flush();
         struck
@@ -939,9 +983,10 @@ mod tests {
     #[ignore = "needs prepared resources"]
     fn conversion_post_reads_original_and_lightning_outcome() {
         use mod_api::{
-            __private::install, EntityJoinLevelEvent, EquipmentSlot, Flow, Hooks,
-            LivingConversionPostEvent, LivingConversionPreEvent,
+            EntityJoinLevelEvent, EquipmentSlot, Flow, Hooks, LivingConversionPostEvent,
+            LivingConversionPreEvent,
         };
+        use mod_platform::__private::install;
         use std::sync::{
             Mutex,
             atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -1175,6 +1220,21 @@ mod tests {
         });
     }
 
+    /// `ServerLevel.tickThunder` picks its strike column from `Level.randValue`
+    /// (`Ticks::block_random_pos`), using bits `2..=5` for X and `10..=13` for Z
+    /// rather than drawing from `Level.random`.
+    #[test]
+    fn thunder_strike_column_uses_block_random_pos_lcg_bits() {
+        let mut ticks = Ticks::new(12345);
+        let mut expected_lcg = 12345i32;
+        for (cx, cz) in [(0, 0), (-3, 5), (12, -8)] {
+            expected_lcg = expected_lcg.wrapping_mul(3).wrapping_add(1_013_904_223);
+            let r = expected_lcg >> 2;
+            let expected = (cx * 16 + (r & 15), cz * 16 + ((r >> 8) & 15));
+            assert_eq!(thunder_strike_column(&mut ticks, cx, cz), expected);
+        }
+    }
+
     /// `Pig.thunderHit`: striking a pig with lightning converts it to a zombified
     /// piglin while preserving age (#7510).
     #[test]
@@ -1248,9 +1308,12 @@ mod tests {
         };
         for (pig, baby) in [(&adult_pig, false), (&baby_pig, true)] {
             let mut zombified = Mob::new(2, Arc::new(kind.clone()), Vec3::ZERO, 0.0);
-            horizon_client::mobs::conversion::single(pig, &mut zombified, params);
+            let mut pig = pig.clone();
+            horizon_client::mobs::conversion::single(&pig, &mut zombified, params);
+            horizon_client::mobs::conversion::pig_thunder_hit(&mut pig, &mut zombified);
             assert_eq!(zombified.is_baby(), baby);
             assert_eq!(zombified.yaw, 45.0);
+            assert!(zombified.persistent);
         }
     }
 
@@ -1285,7 +1348,7 @@ mod tests {
             Box::new(Spare(spared, Arc::clone(&heard))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.ui.difficulty = 2;

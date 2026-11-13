@@ -47,7 +47,7 @@ mod tests {
             Box::new(CancelWater(heard.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_guest_turn_tests::with_guests(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.world

@@ -5,6 +5,7 @@
 use horizon_client::{fast_hash::FxHashMap, mobs::MobType};
 use std::{
     cell::{Cell, RefCell},
+    sync::atomic::{AtomicU8, Ordering},
     time::Instant,
 };
 
@@ -23,7 +24,28 @@ thread_local! {
     static COSTS: RefCell<FxHashMap<(&'static str, usize), Cost>> = RefCell::default();
 }
 
-/// Sample (or stop sampling) the mob ticks this thread runs next.
+/// Who wants the tick's spans recorded besides nobody: `HORIZON_SPIKES` (the slow ring's steps),
+/// a report's recording.
+pub(super) const SPANS_SPIKES: u8 = 1;
+pub(super) const SPANS_REPORT: u8 = 2;
+static SPAN_USERS: AtomicU8 = AtomicU8::new(0);
+
+/// `user` wants the spans recorded, or no longer does: they stay on while anyone does.
+pub(super) fn want_spans(user: u8, on: bool) {
+    let users = if on {
+        SPAN_USERS.fetch_or(user, Ordering::Relaxed) | user
+    } else {
+        SPAN_USERS.fetch_and(!user, Ordering::Relaxed) & !user
+    };
+    horizon_client::spans::enable(users != 0);
+}
+
+#[cfg(test)]
+pub(super) fn wanted(user: u8) -> bool {
+    SPAN_USERS.load(Ordering::Relaxed) & user != 0
+}
+
+/// Sample (or stop sampling) the mob ticks this thread runs next, for the report.
 pub(super) fn set_sampling(on: bool) {
     SAMPLING.with(|s| s.set(on));
 }
@@ -38,6 +60,20 @@ pub(super) fn start() -> Option<Instant> {
 #[inline]
 pub(super) fn add(dim: &'static str, kind: &MobType, started: Instant) {
     add_kind(dim, std::ptr::from_ref(kind) as usize, &kind.id, started);
+}
+
+/// A mob of type `kind` starts its tick: the CPU sampler's work, and `horizon-report`'s cost by mob type when sampled.
+pub(super) fn start_mob(kind: &MobType) -> Option<(Instant, MobType)> {
+    horizon_threads::work::set_entity(horizon_threads::work::entity_id(&kind.id));
+    start().map(|t| (t, kind.clone()))
+}
+
+/// The mob [`start_mob`] started ended its tick in level `dim`.
+pub(super) fn end_mob(dim: &'static str, sampled: Option<(Instant, MobType)>) {
+    horizon_threads::work::clear_work();
+    if let Some((started, kind)) = sampled {
+        add(dim, &kind, started);
+    }
 }
 
 /// [`add`] for the type at address `key` named `id`.

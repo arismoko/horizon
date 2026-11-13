@@ -2015,7 +2015,7 @@ mod tests {
             assert!(game.items().block_tags["reload_test:candidate"].contains("minecraft:stone"));
             assert!(game.run_command("datapack disable \"file/candidate\""));
             assert!(game.run_command("datapack enable \"file/candidate\""));
-            let live_stone = mod_api::__private::part_tests::block_key("minecraft:stone");
+            let live_stone = mod_platform::__private::part_tests::block_key("minecraft:stone");
             assert_eq!(
                 super::super::native_world_read::block_in_tag(live_stone, "reload_test:candidate"),
                 Some(true)
@@ -2030,7 +2030,7 @@ mod tests {
                 horizon_world::level::data::load_registry_with_flags(&game.options.resources)
                     .unwrap();
             crate::game::api_values::resolve_block_definitions(&registry).unwrap();
-            let stone = mod_api::__private::part_tests::block_key("minecraft:stone");
+            let stone = mod_platform::__private::part_tests::block_key("minecraft:stone");
             let old_tag =
                 super::super::native_world_read::block_in_tag(stone, "reload_test:candidate");
             let old_context = game.loop_context.clone();

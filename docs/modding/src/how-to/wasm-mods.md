@@ -111,7 +111,7 @@ together.
 
 The state is 32 words, zeroed, exported by the std member as `horizon_group_state`: the handler table, the cache budget, and
 29 slots for eviction callbacks. A member's allocator is `mod_api`'s `#[global_allocator]` on wasm32. When an allocation
-fails because the group's memory (256 MiB) is full, it calls every callback registered with
+fails because the group's memory is full (see [Memory](#memory)), it calls every callback registered with
 `mod_api::wire::guest::register_eviction(fn())` once and retries once; if that frees nothing the allocation fails as
 usual (`try_reserve` returns an error, an infallible allocation ends the call with a trap). Register a callback to
 give back what a cache can rebuild. It must free memory and must not allocate. Registering the same function twice is
@@ -229,6 +229,19 @@ and named on the Mods page.
 The game limits execution time, memory and table usage. A trap or limit hit disables the affected
 group. APIs marked `Not on wasm` in their Rust documentation cannot be used by wasm mods.
 
+### Memory
+
+A group's members share one linear memory: their heaps, stacks and static data together. Its limit is
+1 GiB, or the largest `wasm_memory_mib` a member's `horizon-mod.toml` declares (1 to 4096 MiB, wasm32's 4 GiB),
+so a library declares what it and its addons need. The limit is a ceiling, not memory taken: the group
+uses what it grows to. Past the limit, or past what the system gives, `memory.grow` answers -1 inside the
+guest and the call goes on; Rust's allocator then reports the failure as usual (`try_reserve` returns an
+error; an infallible allocation ends the call with a trap and the log names the group and its limit).
+
+Each instance caps every group with `wasm.memory_cap_mib:<MiB>` in `horizon-mods.txt`, beside `options.txt`:
+4096 unless the player lowers it. A group whose members declare more than the cap is refused at load, and
+the Mods page names the group, what it declares and the cap.
+
 ## Compiled module cache
 
 The game caches compiled wasm modules in `<game_dir>/.horizon-cache/wasm/`, keyed by the
@@ -264,3 +277,18 @@ maintainer confirmation and does not represent a measured pack.
 A failed check logs the reason once per launch. Unavailable, corrupt or incompatible entries
 fall back to compiling the wasm. Writes replace entries atomically without changing files that
 running modules have mapped. Deleting the cache is always safe: the next launch rebuilds it.
+
+## Guest stack
+
+Every wasm mod has the same 128 MiB guest stack limit; manifests cannot change it.
+At the reporter's measured ceiling of about 1.8 KB per frame, this covers about
+70,000 plain frames (Java's deepest reported case was about 59,000). Frame sizes
+vary with compiled code. Guest overflow still traps and names the mod.
+Guest-entering threads reserve another 8 MiB for host frames. Linux raises the
+main stack limit and re-execs before initialization, or refuses startup with
+`GuestStackUnavailable` when the hard limit is too low. Windows and macOS use
+executable linker stack reservations. These reserve address space; resident
+memory grows as stack pages are touched.
+
+Wasm runtime tests reserve their guest stack through a shared test helper;
+local `cargo test` and CI need no `RUST_MIN_STACK` setting.

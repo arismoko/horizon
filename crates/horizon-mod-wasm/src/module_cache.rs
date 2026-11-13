@@ -98,6 +98,14 @@ impl ModuleCache {
         digest.0.update((setting.len() as u64).to_le_bytes());
         digest.0.update(setting.as_bytes());
         digest.0.update([u8::from(enabled)]);
+        // Runtime stack bounds need not affect Wasmtime's compiled-code hash,
+        // but a policy change still starts a new Horizon cache generation.
+        digest
+            .0
+            .update((horizon_guest_stack::GUEST_STACK_BYTES as u64).to_le_bytes());
+        digest
+            .0
+            .update((horizon_guest_stack::HOST_HEADROOM as u64).to_le_bytes());
         engine.precompile_compatibility_hash().hash(&mut digest);
         format!("{:x}", digest.0.finalize())
     }

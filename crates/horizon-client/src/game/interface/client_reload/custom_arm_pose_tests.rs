@@ -79,7 +79,7 @@ fn registered_angles_reach_local_remote_and_humanoid_before_species_animation() 
             game.mobs.push(mob);
         }
         let baseline: Vec<_> = game.mobs.iter().map(arms).collect();
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("skillet", Box::new(Skillet(OnceLock::new())))].into(),
             || {
                 game.tick_remote_arm_poses();
@@ -169,7 +169,7 @@ fn suppressed_custom_offhand_never_calls_its_transformer() {
         game.inventory[game.selected] = Some(ItemStack::new("minecraft:stick", 1));
         game.offhand = Some(ItemStack::new("minecraft:stick", 1));
         let calls = Arc::new(Mutex::new(Vec::new()));
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new(
                 "skillet",
                 Box::new(PosesMod {

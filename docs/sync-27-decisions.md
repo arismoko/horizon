@@ -24,7 +24,7 @@ slice exposed through the API. This sync does not add that new capability.
 Existing engine firework rendering already passes the audible flag based on
 rocket silence in `game/entities/fireworks.rs`; that path is retained.
 
-Refs #3474 for an API-owned typed fireworks request and its audible flag.
+Refs #3472 for an API-owned typed fireworks request and its audible flag.
 
 ## UUID and NBT lookup: typed coverage, no legacy services
 

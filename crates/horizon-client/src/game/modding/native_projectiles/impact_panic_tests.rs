@@ -72,7 +72,7 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
             }),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 game.enter_level(dimension).unwrap();
                 game.options.dedicated = Some(Vec::new());
@@ -86,7 +86,9 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
                     .default_state("minecraft:stone")
                     .unwrap();
                 game.world.set(2, 64, 0, stone).unwrap();
-                let journal = Journal::default();
+                // Hook handles resolve through the game's canonical residency table.
+                let journal = game.resident_entities.table.borrow().producer();
+                let observation = journal.observe_structural_events();
                 let owner = Owner {
                     dimension: game.dim.key(),
                     kind: Kind::Projectile,
@@ -127,8 +129,9 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
                     panicked.load(Ordering::SeqCst),
                     "did not reach the post-admission listener"
                 );
+                // Observe without stealing events already consumed by hook queries.
                 let mut events = Vec::new();
-                journal.drain_into(&mut events);
+                observation.drain_into(&mut events);
                 let mut depth = 0usize;
                 for event in events {
                     assert_eq!(event.owner, owner);
@@ -139,10 +142,13 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
                         }
                         _ => {}
                     }
-                    // Observe the actual stream, then give that same stream to its consumer.
-                    journal.push(event);
                 }
                 assert_eq!(depth, 0, "listener panic abandoned the lifted pass");
+                game.resident_entities
+                    .table
+                    .borrow_mut()
+                    .end_tick()
+                    .expect("listener panic abandoned the lifted pass");
                 let restored: Vec<_> = game
                     .creatures
                     .projectiles
@@ -159,7 +165,7 @@ fn shoot_listener_panic_after_admission_preserves_owned_rows() {
                     before,
                     "panic changed survivor identity or spawn admission order"
                 );
-                let mut table = EntityTable::new(journal);
+                let mut table = game.resident_entities.table.borrow_mut();
                 for expected in restored {
                     let found = table.entity_lookup(&owner.dimension, expected.0, |at| {
                         let list = &game.creatures.projectiles;

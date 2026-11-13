@@ -10,7 +10,7 @@ fn targeted_item_fallthrough_keeps_hand_and_fail_vetoes_item_action() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         for client in [false, true] {
             with_interaction_game(client, |game| {
                 let side = if client {
@@ -50,7 +50,7 @@ fn block_pass_falls_through_but_fail_and_success_stop_the_apple() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(true, |game| {
             let stone = game
                 .pack
@@ -96,7 +96,7 @@ fn entity_pass_falls_through_but_success_stops_the_apple() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         for (entity, expected) in [("minecraft:zombie", 1), ("minecraft:villager", 0)] {
             with_interaction_game(true, |game| {
                 game.inventory[game.selected] = Some(ItemStack::new("minecraft:apple", 1));
@@ -149,7 +149,7 @@ fn air_use_fires_once_and_passing_hands_fire_in_main_off_order() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(true, |game| {
             game.inventory[game.selected] = Some(ItemStack::new("minecraft:apple", 1));
             assert!(!game.remote_use_targets_entity());
@@ -201,7 +201,7 @@ fn server_use_item_packet_fires_once_after_use_item_on_with_block_crosshair() {
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_packet_game(|game| {
             let stone = game
                 .pack
@@ -286,7 +286,7 @@ fn assert_block_item_before_fallthrough(
     )]
     .into();
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_interaction_game(false, |game| {
             game.set_mode_id(0);
             let state = game.pack.assets.registry.default_state(block).unwrap();

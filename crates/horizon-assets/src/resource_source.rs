@@ -371,6 +371,23 @@ impl ResourceSource {
                 .read(),
         }
     }
+    /// The folder that supplies `name`, following an index to the layer its
+    /// winning file comes from. None for an archive, merged bytes, or no file.
+    pub fn folder_of(&self, name: &str) -> Option<PathBuf> {
+        if !stays_inside(name) {
+            return None;
+        }
+        match self.0.as_ref() {
+            Storage::Directory(root) => root.join(name).is_file().then(|| root.clone()),
+            #[cfg(not(target_arch = "wasm32"))]
+            Storage::Archive(_) => None,
+            Storage::Prefix { source, prefix } => source.folder_of(&format!("{prefix}{name}")),
+            Storage::Index(files) => match &files.get(name)?.0 {
+                ResourceStorage::File { source, name } => source.folder_of(name),
+                ResourceStorage::Bytes(_) => None,
+            },
+        }
+    }
     /// Copy a resource under a shared output budget, streaming archive entries.
     pub fn copy_to(
         &self,

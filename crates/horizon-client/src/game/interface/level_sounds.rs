@@ -385,7 +385,7 @@ mod tests {
             Box::new(Sounds(Arc::clone(&heard))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 host(game);
                 let (a, rx) = guest(21, 21, [1.0, 64.0, 2.0]);
@@ -464,7 +464,7 @@ mod tests {
             Box::new(Sounds(Arc::clone(&heard))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let net = NetConfig {
                     listen: false,

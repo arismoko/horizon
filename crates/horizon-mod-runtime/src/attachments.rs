@@ -37,12 +37,14 @@ enum Utf16Units<'a> {
     Owned(std::iter::Copied<std::slice::Iter<'a, u16>>),
     Borrowed(std::str::EncodeUtf16<'a>),
 }
-impl Iterator for Utf16Units<'_> {
-    type Item = u16;
-    fn next(&mut self) -> Option<u16> {
-        match self {
-            Self::Owned(units) => units.next(),
-            Self::Borrowed(units) => units.next(),
+impl Utf16Units<'_> {
+    fn cmp(self, other: Self) -> std::cmp::Ordering {
+        // Select the concrete iterators once, not for every UTF-16 unit.
+        match (self, other) {
+            (Self::Owned(left), Self::Owned(right)) => left.cmp(right),
+            (Self::Owned(left), Self::Borrowed(right)) => left.cmp(right),
+            (Self::Borrowed(left), Self::Owned(right)) => left.cmp(right),
+            (Self::Borrowed(left), Self::Borrowed(right)) => left.cmp(right),
         }
     }
 }
@@ -991,7 +993,18 @@ impl Attachments {
     }
     fn store(&mut self, namespace: &str, name: &str, value: Decoded, write: AttachmentWrite) {
         let sync = value.policy.sync;
-        let key: (JavaString, JavaString) = (namespace.into(), name.into());
+        // UTF-8 byte length is an upper bound on UTF-16 units. Reserve once
+        // instead of repeatedly growing the short key buffers during encoding.
+        let [owned_namespace, owned_name] = [namespace, name].map(|text| {
+            let mut units = Vec::with_capacity(text.len());
+            if text.is_ascii() {
+                units.extend(text.bytes().map(u16::from));
+            } else {
+                units.extend(text.encode_utf16());
+            }
+            JavaString(units)
+        });
+        let key = (owned_namespace, owned_name);
         self.write_entry(
             &key,
             Some(Arc::new(AttachmentEntry {

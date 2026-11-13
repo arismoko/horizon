@@ -41,11 +41,11 @@ mod tests {
 
     #[test]
     fn landing_batch_stages_in_order_and_refuses_invalid_states() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let extra = BlockRegistry::from_facts_json(br#"{"defaults":{"missing:landing":0,"minecraft:air":1,"minecraft:dirt":2,"minecraft:stone":3},"states":[["x",false,false,"","missing:landing"],["a",true,false,"","minecraft:air"],["d",false,false,"","minecraft:dirt"],["s",false,false,"","minecraft:stone"]]}"#.as_slice()).unwrap();
         super::super::resolve_block_definitions(&extra).unwrap();
         let bad_key = mod_api::__private::block_key("missing:landing").unwrap();
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let registry = BlockRegistry::from_facts_json(br#"{"defaults":{"minecraft:air":0,"minecraft:stone":1,"minecraft:dirt":2},"states":[["air",true,false,"","minecraft:air"],["s",false,false,"","minecraft:stone"],["d",false,false,"","minecraft:dirt"]]}"#.as_slice()).unwrap();
         super::super::resolve_block_definitions(&registry).unwrap();
         let stone = BlockStateId(1).try_into_api().unwrap();

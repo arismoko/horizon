@@ -23,6 +23,9 @@
 //! `name=value` lines; `patch` applies the carried patch to an unpacked source, with the applier
 //! the launcher uses for its own source build; `identity` prints the lines the launcher checks in
 //! the archive's `identity.txt`.
+//! `perf-wasm`: builds `crates/horizon-perf` for `wasm32-unknown-unknown` with the `wasm` feature
+//! and writes `target/perf-wasm/{horizon_perf.wasm,horizon_perf.js}`, which horizon-rust/horizon-site imports into
+//! its static assets (docs/perf-platform.md §7.1).
 
 mod mod_api;
 
@@ -30,7 +33,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-const USAGE: &str = "usage: cargo run -p xtask -- package BINARY OUTDIR | package-server ENGINE OUTDIR | mod-api [notes|coverage] | tokens | icons | mixins-tool release | mixins-tool patch SOURCE | mixins-tool identity TARGET";
+const USAGE: &str = "usage: cargo run -p xtask -- package BINARY OUTDIR | package-server ENGINE OUTDIR | mod-api [notes|coverage] | tokens | icons | perf-wasm | mixins-tool release | mixins-tool patch SOURCE | mixins-tool identity TARGET";
 
 /// What the release folder takes from the repository at HEAD, as `git archive` writes it.
 const ARCHIVED: [&str; 5] = [
@@ -77,6 +80,7 @@ fn main() -> ExitCode {
             print!("{}", horizon_mod_package::mixins_tool::identity(target));
             Ok(())
         }
+        [task] if task == "perf-wasm" => perf_wasm(),
         _ => Err(USAGE.to_string()),
     };
     match result {
@@ -119,6 +123,54 @@ fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
         ));
     }
     Ok(output.stdout)
+}
+
+/// Builds the web UI's wasm and puts it and its JS wrapper in `target/perf-wasm/`.
+fn perf_wasm() -> Result<(), String> {
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("xtask has no parent folder")?;
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    let status = Command::new(&cargo)
+        .current_dir(repo)
+        .args([
+            "build",
+            "--release",
+            "--lib",
+            "-p",
+            "horizon-perf",
+            "--features",
+            "wasm",
+            "--target",
+            "wasm32-unknown-unknown",
+        ])
+        .status()
+        .map_err(|e| format!("{cargo} build: {e}"))?;
+    if !status.success() {
+        return Err(
+            "the wasm build failed; `rustup target add wasm32-unknown-unknown` installs the target"
+                .to_string(),
+        );
+    }
+    let target =
+        std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| repo.join("target"), PathBuf::from);
+    let wasm = target.join("wasm32-unknown-unknown/release/horizon_perf.wasm");
+    let script = repo.join("crates/horizon-perf/web/horizon_perf.js");
+    let out = target.join("perf-wasm");
+    fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    fs::copy(&wasm, out.join("horizon_perf.wasm"))
+        .map_err(|e| format!("{}: {e}", wasm.display()))?;
+    fs::copy(&script, out.join("horizon_perf.js"))
+        .map_err(|e| format!("{}: {e}", script.display()))?;
+    let size = fs::metadata(out.join("horizon_perf.wasm"))
+        .map(|m| m.len())
+        .unwrap_or(0);
+    println!(
+        "wrote {} ({} KiB) and horizon_perf.js",
+        out.join("horizon_perf.wasm").display(),
+        size / 1024
+    );
+    Ok(())
 }
 
 fn tokens() -> Result<(), String> {

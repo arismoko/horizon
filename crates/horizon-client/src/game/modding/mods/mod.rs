@@ -515,13 +515,15 @@ pub(super) fn register_resource_sources(role: ExecutionRole) {
     Game::native_register_block_state_models(&RegistrationContext::new(), &mut definitions);
     horizon_client_render::mod_block_state_models::register(definitions);
 }
-/// The client presentation registrations, resolved once before the first level opens: the
-/// dimension transition screens and the entity spectator shaders.
+/// The client presentation registrations, kept once at start, before resources load: the
+/// dimension transition screens, the entity spectator shaders, the render pipelines and the entity
+/// renderers.
 pub(super) fn register_client_presentations(role: ExecutionRole) {
     register_preset_editors(role);
     register_dimension_transition_screens(role);
     register_entity_spectator_shaders(role);
     register_render_pipelines(role);
+    register_entity_renderers(role);
 }
 
 /// Resolve client dimension-transition registrations once, before the first level opens.
@@ -602,6 +604,16 @@ fn add_section_geometry(role: ExecutionRole) {
     let mut registry = mod_api::SectionGeometryRegistry::default();
     Game::native_add_section_geometry(&RegistrationContext::new(), &mut registry);
     horizon_client::mesher::register_section_geometry(registry.into_renderers());
+}
+/// The native mods' entity renderers (`native_register_entity_renderers`), kept once at start,
+/// before resources load; every resource load resolves each type's renderer.
+pub(super) fn register_entity_renderers(role: ExecutionRole) {
+    if !role.is_client() {
+        return;
+    }
+    let mut registry = mod_api::EntityRendererRegistry::default();
+    Game::native_register_entity_renderers(&RegistrationContext::new(), &mut registry);
+    super::native_entity_renderers::register(registry.into_renderers());
 }
 /// The native mods' particle providers (`native_register_particle_providers`) and render groups
 /// (`native_register_particle_groups`), kept once at start, before resources load; every particle
@@ -877,7 +889,7 @@ fn resolve_particle_providers(
 mod particle_registry_reload_tests {
     #[test]
     fn an_unlisted_vanilla_provider_file_does_not_refuse_startup() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let source = horizon_assets::resource_source::ResourceSource::indexed(
             [(
                 "assets/minecraft/particles/ambient_entity_effect.json".into(),
@@ -890,7 +902,7 @@ mod particle_registry_reload_tests {
 
     #[test]
     fn repeated_particle_content_load_keeps_the_published_keys() {
-        mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+        mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
         let source = horizon_assets::resource_source::ResourceSource::indexed(
             [(
                 "assets/invalid namespace/particles/bad name.json".into(),
@@ -1155,7 +1167,7 @@ fn register_mob_effects(mods: &[horizon_client::mod_content::ContentMod]) {
             EffectCategory::Harmful => Category::Harmful,
             EffectCategory::Neutral => Category::Neutral,
         };
-        (e.id.clone(), e.color, category)
+        (e.id.clone(), e.color, category, e.sort_order)
     }));
     if !set
         && brewing::mod_effects()
@@ -1363,7 +1375,7 @@ impl Game<'_> {
         static INITIALIZED: std::sync::Once = std::sync::Once::new();
         INITIALIZED.call_once(|| {
             super::api_values::install_test_platform();
-            mod_api::__private::initialize()
+            mod_platform::__private::initialize()
                 .expect("engine test runtime initializes before mod dispatch");
         });
     }
@@ -2414,7 +2426,8 @@ mod tests {
 
     #[test]
     fn fluid_models_recollection_changes_model_identifiers() {
-        use mod_api::{FluidModel, Hooks, ModEntry, RegisterFluidModelsEvent, testing::with_mods};
+        use mod_api::{FluidModel, Hooks, ModEntry, RegisterFluidModelsEvent};
+        use mod_platform::testing::with_mods;
         use std::sync::atomic::{AtomicUsize, Ordering};
         #[derive(Default)]
         struct Models(Arc<AtomicUsize>);
@@ -2440,7 +2453,7 @@ mod tests {
             )]
             .into(),
             || {
-                mod_api::__private::with_test_packages(&["reload_fluid"], || {
+                mod_platform::__private::with_test_packages(&["reload_fluid"], || {
                     horizon_client::fluid_models::set_world_looks([
                         &horizon_mod_package::content::FluidLook {
                             id: "reload_fluid:oil".into(),
@@ -2477,7 +2490,8 @@ mod tests {
     #[test]
     fn fluid_models_collect_only_on_the_client() {
         use mod_api::FluidModel;
-        use mod_api::{Hooks, ModEntry, RegisterFluidModelsEvent, testing::with_mods};
+        use mod_api::{Hooks, ModEntry, RegisterFluidModelsEvent};
+        use mod_platform::testing::with_mods;
         #[derive(Default)]
         struct Models;
         #[mod_api::horizon_mod]
@@ -2497,7 +2511,7 @@ mod tests {
         with_mods(
             vec![ModEntry::new("registration_test", Box::new(Models))].into(),
             || {
-                mod_api::__private::with_test_packages(&["registration_test"], || {
+                mod_platform::__private::with_test_packages(&["registration_test"], || {
                     for server in [
                         ExecutionRole::IntegratedServer,
                         ExecutionRole::DedicatedServer,
@@ -2522,7 +2536,8 @@ mod tests {
 
     #[test]
     fn standalone_models_collect_only_on_the_client() {
-        use mod_api::{self, Hooks, ModEntry, StandaloneModelsEvent, testing::with_mods};
+        use mod_api::{self, Hooks, ModEntry, StandaloneModelsEvent};
+        use mod_platform::testing::with_mods;
         use std::sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -2552,7 +2567,7 @@ mod tests {
             )]
             .into(),
             || {
-                mod_api::__private::with_test_packages(&["registration_test"], || {
+                mod_platform::__private::with_test_packages(&["registration_test"], || {
                     assert_eq!(
                         collect_standalone_models(ExecutionRole::IntegratedServer),
                         None
@@ -2911,7 +2926,8 @@ mod tests {
         assert!(brewing::register_mod_effects([(
             "test:effect".to_owned(),
             0,
-            brewing::Category::Neutral
+            brewing::Category::Neutral,
+            None
         )]));
     }
 }

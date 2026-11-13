@@ -10,6 +10,7 @@ description = "The dedicated server's vanilla files: server.properties, eula.txt
 horizon-core = { path = "../horizon-core" }
 horizon-protocol = { path = "../horizon-protocol" }
 horizon-world = { path = "../horizon-world" }
+serde = { version = "1", features = ["derive"] }
 log = "0.4"
 getrandom = "0.3"
 # Online mode: finding accounts by name (the services' profiles endpoint).

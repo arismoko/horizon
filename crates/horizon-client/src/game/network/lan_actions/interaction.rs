@@ -530,6 +530,9 @@ impl Game<'_> {
                 return Err(ActionRefused::OutOfReach);
             }
         }
+        if self.guest_attack_stops(gi, id) {
+            return Ok(false);
+        }
         // Native mods, where Player.attack starts: the global `attack_entity`,
         // then the held item's `on_left_click_entity` Part. A canceled blow
         // does nothing (game/native_hooks.rs).

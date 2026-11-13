@@ -12,6 +12,11 @@ use horizon_items::items::ItemStack;
 // exhaustive: its fields are private, so mods cannot build or destructure it
 pub struct ModBlockEntity {
     pub(crate) id: String,
+    /// `id`'s numeric wire ID (`block_entity_types::numeric_id`), looked up once when the entity is
+    /// made, so a published loop's slot compares types by integer; `None` for an id the table
+    /// does not have, or one made before the table is installed. The table is frozen for the
+    /// process, so the ID never goes stale.
+    pub(crate) numeric_id: Option<u32>,
     pub(crate) fields: ModBlockEntityFields,
     pub(crate) revision: ModRevision,
 }
@@ -56,8 +61,13 @@ impl ModBlockEntity {
     }
 
     pub fn new(id: String, fields: ModBlockEntityFields) -> Self {
+        let numeric_id = horizon_client_core::block_entity_types::numeric_id(&id);
+        Self::with_numeric_id(id, numeric_id, fields)
+    }
+    fn with_numeric_id(id: String, numeric_id: Option<u32>, fields: ModBlockEntityFields) -> Self {
         Self {
             id,
+            numeric_id,
             fields,
             revision: ModRevision {
                 born: horizon_mod_runtime::block_entities::new_identity(),
@@ -78,6 +88,11 @@ impl ModBlockEntity {
     /// ```
     pub fn id(&self) -> &str {
         &self.id
+    }
+    /// The type's numeric wire ID, resolved from [`Self::id`] when the entity was made; `None`
+    /// for a type the game has not registered.
+    pub fn numeric_id(&self) -> Option<u32> {
+        self.numeric_id
     }
     pub fn revision(&self) -> ModRevision {
         self.revision
@@ -115,14 +130,15 @@ impl Drop for ModBlockEntity {
         drop(self.take_client_update_fields());
     }
 }
+/// The empty placeholder a tick leaves in a mod block entity's place: no type, nothing looked up.
 impl Default for ModBlockEntity {
     fn default() -> Self {
-        Self::new(String::new(), ModBlockEntityFields::default())
+        Self::with_numeric_id(String::new(), None, ModBlockEntityFields::default())
     }
 }
 impl Clone for ModBlockEntity {
     fn clone(&self) -> Self {
-        Self::new(self.id.clone(), self.fields.clone())
+        Self::with_numeric_id(self.id.clone(), self.numeric_id, self.fields.clone())
     }
 }
 impl PartialEq for ModBlockEntity {

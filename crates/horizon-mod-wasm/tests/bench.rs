@@ -121,36 +121,38 @@ fn measure(label: &str, mods: Vec<ModEntry>) {
 #[test]
 #[ignore = "measurement; requires a built fixture and shared std"]
 fn block_entity_ticks() {
-    init_log();
-    let path = std::env::var("HORIZON_WASM_FIXTURE").unwrap();
-    let path = std::path::Path::new(&path);
-    let std = std::fs::read(std::env::var("HORIZON_WASM_STD").unwrap()).unwrap();
-    let mut manifest = Package::read(path).unwrap().manifest;
-    // This fixture variant exercises ordinary hooks and Parts, not game points.
-    manifest.inject.clear();
-    let info = mod_api::PackageInfo::new(
-        manifest.id.clone(),
-        manifest.version.clone(),
-        mod_api::PackageKind::Code,
-        mod_api::Side::Both,
-        vec![manifest.id.clone()],
-        manifest.dependencies.keys().cloned().collect(),
-    );
-    let package = WasmPackage {
-        manifest,
-        module: Package::read_wasm(path).unwrap(),
-    };
-    let loaded = load(&std, vec![package]);
-    assert!(loaded.refused.is_empty(), "{:?}", loaded.refused);
-    assert_eq!(loaded.mods.len(), 1);
-    loaded
-        .initialize(&[info])
-        .expect("wasm initialization failed");
-    measure(
-        "native",
-        vec![ModEntry::new("wasm_fixture", Box::new(fixture::Mod))],
-    );
-    measure("wasm", loaded.mods);
+    crate::test_stack::on_guest_stack(|| {
+        init_log();
+        let path = std::env::var("HORIZON_WASM_FIXTURE").unwrap();
+        let path = std::path::Path::new(&path);
+        let std = std::fs::read(std::env::var("HORIZON_WASM_STD").unwrap()).unwrap();
+        let mut manifest = Package::read(path).unwrap().manifest;
+        // This fixture variant exercises ordinary hooks and Parts, not game points.
+        manifest.inject.clear();
+        let info = mod_api::PackageInfo::new(
+            manifest.id.clone(),
+            manifest.version.clone(),
+            mod_api::PackageKind::Code,
+            mod_api::Side::Both,
+            vec![manifest.id.clone()],
+            Vec::new(),
+        );
+        let package = WasmPackage {
+            manifest,
+            module: Package::read_wasm(path).unwrap(),
+        };
+        let loaded = load(&std, vec![package]);
+        assert!(loaded.refused.is_empty(), "{:?}", loaded.refused);
+        assert_eq!(loaded.mods.len(), 1);
+        loaded
+            .initialize(&[info])
+            .expect("wasm initialization failed");
+        measure(
+            "native",
+            vec![ModEntry::new("wasm_fixture", Box::new(fixture::Mod))],
+        );
+        measure("wasm", loaded.mods);
+    })
 }
 
 fn measure_empty_listener(label: &str, mods: Vec<ModEntry>) {
@@ -194,34 +196,39 @@ fn measure_empty_listener(label: &str, mods: Vec<ModEntry>) {
 #[test]
 #[ignore = "measurement; requires a built fixture and shared std"]
 fn empty_subscribed_listener() {
-    init_log();
-    let path = std::env::var("HORIZON_WASM_FIXTURE").unwrap();
-    let path = std::path::Path::new(&path);
-    let std = std::fs::read(std::env::var("HORIZON_WASM_STD").unwrap()).unwrap();
-    let mut manifest = Package::read(path).unwrap().manifest;
-    // This fixture variant exercises ordinary hooks and Parts, not game points.
-    manifest.inject.clear();
-    let info = mod_api::PackageInfo::new(
-        manifest.id.clone(),
-        manifest.version.clone(),
-        mod_api::PackageKind::Code,
-        mod_api::Side::Both,
-        vec![manifest.id.clone()],
-        manifest.dependencies.keys().cloned().collect(),
-    );
-    let package = WasmPackage {
-        manifest,
-        module: Package::read_wasm(path).unwrap(),
-    };
-    let loaded = load(&std, vec![package]);
-    assert!(loaded.refused.is_empty(), "{:?}", loaded.refused);
-    assert_eq!(loaded.mods.len(), 1);
-    loaded
-        .initialize(&[info])
-        .expect("wasm initialization failed");
-    measure_empty_listener(
-        "native",
-        vec![ModEntry::new("wasm_fixture", Box::new(fixture::Mod))],
-    );
-    measure_empty_listener("wasm", loaded.mods);
+    crate::test_stack::on_guest_stack(|| {
+        init_log();
+        let path = std::env::var("HORIZON_WASM_FIXTURE").unwrap();
+        let path = std::path::Path::new(&path);
+        let std = std::fs::read(std::env::var("HORIZON_WASM_STD").unwrap()).unwrap();
+        let mut manifest = Package::read(path).unwrap().manifest;
+        // This fixture variant exercises ordinary hooks and Parts, not game points.
+        manifest.inject.clear();
+        let info = mod_api::PackageInfo::new(
+            manifest.id.clone(),
+            manifest.version.clone(),
+            mod_api::PackageKind::Code,
+            mod_api::Side::Both,
+            vec![manifest.id.clone()],
+            Vec::new(),
+        );
+        let package = WasmPackage {
+            manifest,
+            module: Package::read_wasm(path).unwrap(),
+        };
+        let loaded = load(&std, vec![package]);
+        assert!(loaded.refused.is_empty(), "{:?}", loaded.refused);
+        assert_eq!(loaded.mods.len(), 1);
+        loaded
+            .initialize(&[info])
+            .expect("wasm initialization failed");
+        measure_empty_listener(
+            "native",
+            vec![ModEntry::new("wasm_fixture", Box::new(fixture::Mod))],
+        );
+        measure_empty_listener("wasm", loaded.mods);
+    })
 }
+
+#[path = "../src/test_stack.rs"]
+mod test_stack;

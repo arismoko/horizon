@@ -402,11 +402,13 @@ impl Game<'_> {
             if f.invisible {
                 e.meta.push((0, serializer::BYTE, Value::Byte(0x20)));
             }
-            // HangingEntity.DATA_DIRECTION, south by default.
+            // HangingEntity.DATA_DIRECTION, south by default: a frame turned back to south
+            // (`entity_set_hanging_direction`) clears the clients' value.
             if f.facing != 3 {
                 e.meta
                     .push((8, serializer::DIRECTION, Value::Id(i32::from(f.facing))));
             }
+            e.defaults.push((8, serializer::DIRECTION, Value::Id(3)));
             if f.item.is_some() {
                 let Some(host) = self.lan.as_mut() else {
                     return;
@@ -450,6 +452,7 @@ impl Game<'_> {
             if facing != 3 {
                 e.meta.push((8, serializer::DIRECTION, Value::Id(facing)));
             }
+            e.defaults.push((8, serializer::DIRECTION, Value::Id(3)));
             // Painting.DATA_PAINTING_VARIANT_ID, a registry holder (id + 1),
             // set unless it is the registry's first variant (VariantUtils.getAny).
             let Some(host) = self.lan.as_ref() else {

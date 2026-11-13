@@ -116,7 +116,7 @@ fn mob_despawn_listener_panic_preserves_owned_rows_and_lent_random() {
                 std::process::id(),
                 std::thread::current().id()
             ));
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 crate::game::native_entity_refs::tests::with_game(|game| {
                     game.world_root = root.clone();
                     game.enter_level(dimension).unwrap();

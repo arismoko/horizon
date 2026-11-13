@@ -48,7 +48,7 @@ fn a_living_handle_dispatches_custom_kinds_with_same_kind_recursion_refused() {
         ModEntry::new("first", Box::new(First(trace.clone()))),
         ModEntry::new("second", Box::new(Second(trace.clone()))),
     ];
-    mod_api::testing::with_mods(mods.into(), || {
+    mod_platform::testing::with_mods(mods.into(), || {
         with_game(|game| {
             let mut items = game.items().clone();
             for (item, kind) in [

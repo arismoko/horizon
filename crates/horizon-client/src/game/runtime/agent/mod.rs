@@ -676,8 +676,12 @@ impl Game<'_> {
                 world,
                 name,
                 focused,
+                adopt_regions,
             } => {
-                json!({ "mode": "edit-world", "folder": world.folder, "fields": { "name": name }, "focus": if *focused { "name" } else { "none" } })
+                json!({ "mode": "edit-world", "folder": world.folder, "fields": { "name": name }, "focus": if *focused { "name" } else { "none" }, "adopt_biome_regions": adopt_regions })
+            }
+            Mode::AdoptBiomeRegions { world, .. } => {
+                json!({ "mode": "adopt-biome-regions", "folder": world.folder, "name": world.name })
             }
             Mode::Backup { world, .. } => {
                 json!({ "mode": "creating-backup", "folder": world.folder })
@@ -698,6 +702,9 @@ impl Game<'_> {
             }
             Mode::LowDiskSpace { world } => {
                 json!({ "mode": "low-disk-space", "folder": world.folder, "name": world.name })
+            }
+            Mode::MissingBiomeRegions { world, missing } => {
+                json!({ "mode": "missing-biome-regions", "folder": world.folder, "name": world.name, "missing": missing.iter().map(|(owner, region)| json!({ "mod": owner, "region": region })).collect::<Vec<_>>() })
             }
             Mode::Recover { world, issues } => {
                 let issue = |i: &Option<horizon_client::save::DatIssue>| match i {
@@ -2383,6 +2390,43 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and scratch homes"]
+    fn region_adoption_agent_state_reports_the_actual_title_mode() {
+        crate::game::native_entity_refs::tests::with_game(|game| {
+            use horizon_client::title::{Mode, Title, list_worlds};
+            let scratch = tempfile::tempdir().unwrap();
+            let saves = scratch.path().join("saves");
+            horizon_client::save::Level {
+                name: "Moor".into(),
+                ..Default::default()
+            }
+            .write(&saves.join("Moor"))
+            .unwrap();
+            let world = list_worlds(&saves).remove(0);
+            let mut title = Title::new(saves, scratch.path(), "");
+            title.mode = Mode::Edit {
+                world: world.clone(),
+                name: "Typed name".into(),
+                focused: true,
+                adopt_regions: true,
+            };
+            game.title = Some(title);
+            assert_eq!(
+                game.title_value(),
+                json!({"mode":"edit-world", "folder":"Moor", "fields":{"name":"Typed name"}, "focus":"name", "adopt_biome_regions":true})
+            );
+            game.title.as_mut().unwrap().mode = Mode::AdoptBiomeRegions {
+                world,
+                name: "Typed name".into(),
+            };
+            assert_eq!(
+                game.title_value(),
+                json!({"mode":"adopt-biome-regions", "folder":"Moor", "name":"Moor"})
+            );
+        });
+    }
 
     #[test]
     fn whole_goto_coordinates_name_a_block() {

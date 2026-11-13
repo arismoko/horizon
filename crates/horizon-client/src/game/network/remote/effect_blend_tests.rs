@@ -6,7 +6,8 @@ use horizon_protocol::{
     connection::Pipe,
     packets::play::{self, Clientbound as C},
 };
-use mod_api::{__private::part_tests::effect_key, LivingRef};
+use mod_api::LivingRef;
+use mod_platform::__private::part_tests::effect_key;
 
 fn with_client(test: impl FnOnce(&mut Game<'_>, LivingRef, i32)) {
     with_game(|game| {

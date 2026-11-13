@@ -23,9 +23,8 @@ impl Game<'_> {
 
 #[cfg(test)]
 mod camera_type_tests {
-    use mod_api::{
-        CameraType, CameraTypeCycleEvent, ClientHost, Hooks, ModEntry, testing::with_mods,
-    };
+    use mod_api::{CameraType, CameraTypeCycleEvent, ClientHost, Hooks, ModEntry};
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// Skips the front view: F5 goes first person, behind, first person.

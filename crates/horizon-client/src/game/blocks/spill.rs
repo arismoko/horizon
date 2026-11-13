@@ -240,6 +240,52 @@ pub(super) struct ItemRandom {
     pub bob: f32,
     pub yaw: f32,
     pub velocity: [f64; 3],
+    /// The state a drop hook gave the item entity; the default is a fresh one's.
+    pub state: DropState,
+}
+
+/// Item-entity state a drop hook can set (`ItemDrop`'s `thrower`, `target`, `no_gravity` and
+/// `age`). The default is what `new ItemEntity` starts with.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct DropState {
+    pub(crate) thrower: Option<u128>,
+    pub(crate) target: Option<u128>,
+    pub(crate) no_gravity: bool,
+    pub(crate) age: i32,
+}
+
+impl DropState {
+    /// The state `drop` asks for.
+    pub(crate) fn of(drop: &mod_api::ItemDrop) -> Self {
+        Self {
+            thrower: drop.thrower,
+            target: drop.target,
+            no_gravity: drop.no_gravity,
+            age: drop.age,
+        }
+    }
+    /// `drop` with this state.
+    pub(crate) fn to_api(self, drop: mod_api::ItemDrop) -> mod_api::ItemDrop {
+        drop.with_thrower(self.thrower)
+            .with_target(self.target)
+            .with_no_gravity(self.no_gravity)
+            .with_age(self.age)
+    }
+    /// `item` as a fresh item entity with this state (`setThrower`, `setTarget`,
+    /// `setNoGravity` and its age).
+    pub(crate) fn apply(
+        self,
+        item: horizon_client::entities::ItemEntity,
+    ) -> horizon_client::entities::ItemEntity {
+        let uuid = horizon_client::lan::playerdata::uuid_ints;
+        horizon_client::entities::ItemEntity {
+            thrower: self.thrower.map(uuid),
+            target: self.target.map(uuid),
+            no_gravity: self.no_gravity,
+            age: self.age,
+            ..item
+        }
+    }
 }
 
 /// The one ItemEntity constructor random sequence, shared by immediate and
@@ -259,6 +305,7 @@ pub(super) fn prepare_item_random(velocity: Option<[f64; 3]>) -> ItemRandom {
         bob,
         yaw,
         velocity,
+        state: DropState::default(),
     }
 }
 
@@ -281,6 +328,34 @@ pub(crate) struct BlockItemDrop {
     pub(super) position: [f64; 3],
     pub(super) velocity: [f64; 3],
     pub(super) pickup_delay: u32,
+    /// The item-entity state a drop hook set.
+    pub(super) state: DropState,
+}
+
+impl BlockItemDrop {
+    /// The drop as the mods hear and edit it.
+    pub(super) fn from_api(drop: &mod_api::ItemDrop, stack: ItemStack) -> Self {
+        Self {
+            random: None,
+            stack,
+            position: drop.position,
+            velocity: drop.velocity,
+            pickup_delay: drop.pickup_delay,
+            state: DropState::of(drop),
+        }
+    }
+    /// The constructor random the item entity joins with, carrying the state a hook set. A drop
+    /// with no state set keeps its random as it was (none: drawn when it joins).
+    pub(super) fn random_with_state(&self) -> Option<ItemRandom> {
+        if self.state == DropState::default() {
+            return self.random;
+        }
+        let mut random = self
+            .random
+            .unwrap_or_else(|| prepare_item_random(Some(self.velocity)));
+        random.state = self.state;
+        Some(random)
+    }
 }
 
 pub(super) struct BlockDrops {
@@ -294,6 +369,7 @@ pub(super) struct BlockDrops {
 
 #[derive(Default)]
 pub(super) struct Spill {
+    pub(super) piston_positions: Vec<super::piston_carry_state::PositionChange>,
     pub(super) spawns: Vec<Spawn>,
     /// Experience orbs (`ExperienceOrb.award`): where and how much, each
     /// and the merge id it drew from the level random.
@@ -317,7 +393,8 @@ pub(super) struct UsedDrops {
 
 impl Spill {
     pub(super) fn is_empty(&self) -> bool {
-        self.spawns.is_empty()
+        self.piston_positions.is_empty()
+            && self.spawns.is_empty()
             && self.orbs.is_empty()
             && self.removed.is_empty()
             && self.used.is_empty()
@@ -574,7 +651,7 @@ impl GameLevel<'_> {
                 kept.push(item.stack);
             } else {
                 self.spill.spawns.push(Spawn {
-                    random: item.random,
+                    random: item.random_with_state(),
                     stack: item.stack,
                     pos: item.position,
                     motion: Some(item.velocity),
@@ -694,6 +771,7 @@ impl GameLevel<'_> {
             position,
             velocity: random.velocity,
             pickup_delay: 10,
+            state: DropState::default(),
         }
     }
     /// The one event/filter boundary for prepared block item entities and XP.
@@ -770,9 +848,10 @@ impl GameLevel<'_> {
         // A replacement is a new block entity, even at the same position.
         // Headless servers cannot rely on renderer visibility to discard this state.
         if &*self.facts.get(old).name == "minecraft:end_gateway" {
-            self.gateway_servers.remove(&[pos.x, pos.y, pos.z]);
+            self.positions.gateways.remove(&[pos.x, pos.y, pos.z]);
         }
         if self.remove_saved_entity(pos, old, side_effects) {
+            self.positions.hoppers.remove(&key);
             return 0;
         }
         // Sculk blocks and creaking hearts notice their removal on their own tick.
@@ -800,6 +879,7 @@ impl GameLevel<'_> {
                 .put(lease, BlockEntity::Mod(entity));
         }
         let entity = self.world.block_entities.remove(&key);
+        self.positions.hoppers.remove(&key);
         self.world.block_names.remove(&key);
         self.world.forget_block_entity_source(key);
         let name = self.facts.get(old).name.clone();
@@ -1060,17 +1140,23 @@ impl Game<'_> {
     /// Apply the shared block-drop event's item entities and experience unchanged.
     pub(super) fn spawn_block_drops(&mut self, pos: [i32; 3], dropped: BlockDrops) {
         for item in dropped.items {
-            self.add_item_entity_prepared(
-                item.stack,
-                item.position,
-                Some(item.velocity),
-                item.pickup_delay,
-                item.random,
-            );
+            self.add_item_drop(item);
         }
         if dropped.experience > 0 {
             self.spawn_orbs(pos.map(|v| f64::from(v) + 0.5), dropped.experience);
         }
+    }
+    /// Adds a drop's item entity, with the state a drop hook set.
+    pub(super) fn add_item_drop(&mut self, drop: BlockItemDrop) {
+        let random = drop.random_with_state();
+        let velocity = Some(drop.velocity);
+        self.add_item_entity_prepared(
+            drop.stack,
+            drop.position,
+            velocity,
+            drop.pickup_delay,
+            random,
+        );
     }
     /// Add the item entities the block behaviour spawned and follow up on the
     /// block entities it removed.
@@ -1080,6 +1166,7 @@ impl Game<'_> {
         }
         let _save_lease = horizon_client::join_seq::visibility::PassLease::enter();
         let mut spill = std::mem::take(&mut self.spill);
+        self.finish_piston_position_changes(std::mem::take(&mut spill.piston_positions));
         let used = std::mem::take(&mut spill.used);
         let tool = self.held().cloned();
         let player = Some(self.native_acting_id());
@@ -1178,7 +1265,7 @@ mod tests {
             assert_eq!(plain_dirt.items.len(), 1);
             let mods: mod_api::Mods =
                 vec![mod_api::ModEntry::new("block-drops", Box::new(DropsMod))].into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 let (heard, after) = break_of(game, ore, "minecraft:diamond", None);
                 assert_eq!(after, ore_after);
                 assert_eq!(heard.items.len(), 1);
@@ -1203,8 +1290,8 @@ mod tests {
     fn a_block_entity_part_gives_back_what_it_held_when_removed() {
         use horizon_client::chunk::Chunk;
         use horizon_client::containers::{ModBlockEntity, ModBlockEntityFields};
-        use mod_api::__private::part_tests::{HOARD, HOARD_ASKED, game_thread};
         use mod_api::Holder;
+        use mod_platform::__private::part_tests::{HOARD, HOARD_ASKED, game_thread};
         use std::sync::Arc;
         use std::sync::atomic::Ordering;
         crate::game::native_entity_refs::tests::with_game(|game| {
@@ -1280,8 +1367,8 @@ mod tests {
     fn a_block_entity_removing_itself_in_its_tick_is_not_asked() {
         use horizon_client::chunk::Chunk;
         use horizon_client::containers::{ModBlockEntity, ModBlockEntityFields, ModContainer};
-        use mod_api::__private::part_tests::{HOARD, HOARD_ASKED};
         use mod_api::Holder;
+        use mod_platform::__private::part_tests::{HOARD, HOARD_ASKED};
         use std::sync::Arc;
         use std::sync::atomic::Ordering;
         let Some(root) = crate::game::native_entity_refs::tests::declared_part_root(

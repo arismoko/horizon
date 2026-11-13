@@ -52,12 +52,15 @@ pub enum Entry<H> {
 pub struct Dispatcher<H> {
     maps: [HashMap<String, Entry<H>>; 4],
     custom: HashMap<String, HashMap<String, Entry<H>>>,
+    /// Item-tag entries by block, in registration order; asked after the exact entries.
+    tagged: HashMap<String, Vec<(String, H)>>,
 }
 impl<H> Default for Dispatcher<H> {
     fn default() -> Self {
         Self {
             maps: vanilla(),
             custom: HashMap::new(),
+            tagged: HashMap::new(),
         }
     }
 }
@@ -78,20 +81,36 @@ impl Dispatcher<()> {
     }
 }
 impl<H> Dispatcher<H> {
-    /// Tags win terminally, including when their handler passes.
-    pub fn select(&self, block: &str, item: &str, removes_dye: bool) -> Option<Entry<&H>> {
+    /// The dye tag wins terminally, including when its handler passes; then the exact
+    /// item entry, then the first item-tag entry whose tag `in_tag` says holds the item,
+    /// read against the tags loaded now.
+    pub fn select(
+        &self,
+        block: &str,
+        item: &str,
+        removes_dye: bool,
+        in_tag: impl Fn(&str) -> bool,
+    ) -> Option<Entry<&H>> {
         if block == "minecraft:water_cauldron" && removes_dye {
             return Some(Entry::Dye);
         }
-        let entry = match index(block) {
+        let exact = match index(block) {
             Some(i) => self.maps[i].get(item),
-            None => self.custom.get(block)?.get(item),
-        }?;
-        Some(match entry {
-            Entry::Vanilla(action) => Entry::Vanilla(*action),
-            Entry::Mod(handler) => Entry::Mod(handler),
-            Entry::Dye => Entry::Dye,
-        })
+            None => self.custom.get(block).and_then(|map| map.get(item)),
+        };
+        if let Some(entry) = exact {
+            return Some(match entry {
+                Entry::Vanilla(action) => Entry::Vanilla(*action),
+                Entry::Mod(handler) => Entry::Mod(handler),
+                Entry::Dye => Entry::Dye,
+            });
+        }
+        let (_, handler) = self
+            .tagged
+            .get(block)?
+            .iter()
+            .find(|(tag, _)| in_tag(tag))?;
+        Some(Entry::Mod(handler))
     }
     /// Explicit membership rather than a block-name convention.
     pub fn contains_block(&self, block: &str) -> bool {
@@ -107,6 +126,21 @@ impl<H> Dispatcher<H> {
             std::collections::hash_map::Entry::Occupied(entry) => Err(entry.into_mut()),
             std::collections::hash_map::Entry::Vacant(entry) => {
                 entry.insert(Entry::Mod(handler));
+                Ok(())
+            }
+        }
+    }
+    /// Preparation-only insertion of an item-tag entry, which declares a custom block as
+    /// `register` does. Returns the handler already holding the tag on that block.
+    pub fn register_tag(&mut self, block: String, tag: String, handler: H) -> Result<(), &H> {
+        if index(&block).is_none() {
+            self.custom.entry(block.clone()).or_default();
+        }
+        let entries = self.tagged.entry(block).or_default();
+        match entries.iter().position(|(held, _)| *held == tag) {
+            Some(at) => Err(&entries[at].1),
+            None => {
+                entries.push((tag, handler));
                 Ok(())
             }
         }

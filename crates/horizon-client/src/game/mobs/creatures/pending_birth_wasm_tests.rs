@@ -45,7 +45,7 @@ fn breed(game: &mut Game<'_>, mode: u32) -> (Vec<Mob>, Option<u32>) {
 }
 
 fn matrix(mods: mod_api::Mods) {
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             // No change: the vanilla three, in order.
             let kids = split(game, 0);
@@ -109,7 +109,7 @@ fn matrix(mods: mod_api::Mods) {
 /// A guest that edits and then traps: the failed call commits nothing, whatever it changed
 /// first. A trapped guest is stopped, so each trap runs against a freshly loaded module.
 fn trap(mods: mod_api::Mods, baby: bool) {
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             if baby {
                 let (mobs, child) = breed(game, 6);
@@ -161,17 +161,18 @@ fn load_wasm() -> mod_api::Mods {
 #[test]
 #[ignore = "needs HORIZON_TEST_RESOURCES, HORIZON_WASM_FIXTURE and HORIZON_WASM_STD; build with horizon-mod-wasm/listener-fixture"]
 fn wasm_pending_children_shared_matrix() {
-    matrix(load_wasm());
+    // Enters the guest: libtest's thread is smaller than the guest stack policy requires.
+    horizon_guest_stack::run_on_guest_stack(|| matrix(load_wasm()));
 }
 
 #[test]
 #[ignore = "needs HORIZON_TEST_RESOURCES, HORIZON_WASM_FIXTURE and HORIZON_WASM_STD; build with horizon-mod-wasm/listener-fixture"]
 fn wasm_trapped_split_listener_commits_nothing() {
-    trap(load_wasm(), false);
+    horizon_guest_stack::run_on_guest_stack(|| trap(load_wasm(), false));
 }
 
 #[test]
 #[ignore = "needs HORIZON_TEST_RESOURCES, HORIZON_WASM_FIXTURE and HORIZON_WASM_STD; build with horizon-mod-wasm/listener-fixture"]
 fn wasm_trapped_baby_listener_commits_nothing() {
-    trap(load_wasm(), true);
+    horizon_guest_stack::run_on_guest_stack(|| trap(load_wasm(), true));
 }

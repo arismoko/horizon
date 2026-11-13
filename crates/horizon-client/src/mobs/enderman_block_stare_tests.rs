@@ -159,9 +159,12 @@ fn step(
     };
     change(m, &mut cx);
     custom_server_ai_step(m, &mut cx);
+    // The normal AI boundary drains setter side effects before the game
+    // delivers LocalSound through its unshared playback path.
+    events.append(&mut m.outbox);
     events
         .into_iter()
-        .filter(|e| matches!(e, MobEvent::Sound("entity.enderman.stare", ..)))
+        .filter(|e| matches!(e, MobEvent::LocalSound("entity.enderman.stare", ..)))
         .collect()
 }
 
@@ -200,7 +203,8 @@ fn the_stare_sound_is_throttled_silenced_and_at_the_eyes() {
         let w = &w;
         let mut m = Mob::new(1, kind.clone(), Vec3::new(0.5, 10.0, 0.5), 0.0);
         let sounds = step(&mut m, w, 100, stare_anger);
-        let [MobEvent::Sound(_, at, volume, pitch)] = sounds.as_slice() else {
+        let [MobEvent::LocalSound("entity.enderman.stare", at, volume, pitch)] = sounds.as_slice()
+        else {
             panic!("one stare sound: {sounds:?}");
         };
         // getEyeY: getY() + the float eye height 2.55 (EntityTypes.ENDERMAN).

@@ -595,7 +595,7 @@ mod content_tests {
             "result": {"id": "minecraft:stick", "count": 1}
         });
         let sources = || vec![("aspects_test".to_owned(), recipe.clone())];
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             let server_origin = DataLoadOrigin::ServerDataLoad;
             let resolved =
                 ResolvedSources::resolve(sources(), &load(EngineDataLoadOrigin::ServerDataLoad));
@@ -680,7 +680,7 @@ mod content_tests {
             "props",
             Box::new(PropertyListener(heard.clone())),
         )];
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             let resolved =
                 ResolvedSources::resolve(Vec::new(), &load(EngineDataLoadOrigin::ServerDataLoad));
             assert_eq!(*heard.lock().unwrap(), [DataLoadOrigin::ServerDataLoad]);
@@ -736,7 +736,7 @@ mod content_tests {
         }
         recipe["key"] = json!({"a": {"type": "mymod:aspect", "aspect": "key"}});
         recipe["shapes"] = json!({"star": {"type": "mymod:aspect", "aspect": "shapes"}});
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             let resolved = ResolvedSources::resolve(
                 vec![("slots".to_owned(), recipe.clone())],
                 &load(EngineDataLoadOrigin::ServerDataLoad),

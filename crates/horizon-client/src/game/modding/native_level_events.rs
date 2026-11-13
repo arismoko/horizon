@@ -207,8 +207,8 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_queued_block_event_runs_the_blocks_trigger_once() {
         use horizon_core::position::BlockPos;
-        use mod_api::__private::part_tests::block_key;
         use mod_api::{LevelRef, WorldEpoch};
+        use mod_platform::__private::part_tests::block_key;
         super::super::native_entity_refs::tests::with_game(|game| {
             let level = game.level(game.dim.id()).unwrap();
             let stale = LevelRef::new(WorldEpoch::new(level.epoch().get() + 1), level.dimension());
@@ -276,7 +276,7 @@ mod tests {
         let mods: mod_api::Mods =
             vec![mod_api::ModEntry::new("level-events", Box::new(EventsMod))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_guest_turn_tests::with_guests(|game| {
                 game.options.dedicated = Some(Vec::new());
                 game.world.chunks.insert(

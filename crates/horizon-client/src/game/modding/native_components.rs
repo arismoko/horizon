@@ -165,6 +165,20 @@ impl Game<'_> {
         self.items().get(&stack.item)?;
         Some(self.use_duration(stack))
     }
+    /// `IItemExtension.getCreatorModId`, behind ItemResource's read: the item
+    /// id's namespace, or what the item's `creator_mod_id` Part answers.
+    pub(in crate::game) fn item_resource_creator_mod_id(
+        &self,
+        stack: &ItemStack,
+    ) -> Option<String> {
+        self.items().get(&stack.item)?;
+        let namespace = stack.item.split_once(':').map_or("minecraft", |(ns, _)| ns);
+        let mut mod_id = Some(namespace.to_owned());
+        if mod_api::__private::item_listens(mod_api::HookId::CreatorModId, &stack.item) {
+            self.native_creator_mod_id(stack, &mut mod_id);
+        }
+        mod_id
+    }
     /// `ItemStack.isBarVisible`, `getBarWidth`, `getBarColor`, before client-only hooks.
     pub(in crate::game) fn item_resource_bar(&self, stack: &ItemStack) -> Option<mod_api::ItemBar> {
         use super::api_values::TryIntoApi;
@@ -279,34 +293,14 @@ impl Game<'_> {
         name: &str,
     ) -> Option<bool> {
         self.items().get(&stack.item)?;
-        let catalog = &self.health_resources.damage;
-        let damage = catalog.id(name)?;
-        let component = self.item_combat_component(stack, "minecraft:damage_resistant");
-        let matches = |id: &str| {
-            let (tag, id) = id.strip_prefix('#').map_or((false, id), |id| (true, id));
-            let Ok(id) = horizon_core::identifier::Identifier::parse(id) else {
-                return false;
-            };
-            let id = id.to_string();
-            if tag {
-                catalog.in_tag(damage, &id)
-            } else {
-                id == name
-            }
-        };
-        let resistant = component
-            .as_ref()
-            .and_then(|v| v.get("types"))
-            .is_some_and(|types| {
-                types.as_str().is_some_and(matches)
-                    || types.as_array().is_some_and(|ids| {
-                        ids.iter()
-                            .filter_map(serde_json::Value::as_str)
-                            .any(matches)
-                    })
-            });
-        Some(!resistant)
+        stack_can_be_hurt_by(
+            &self.pack.item_renderer.models,
+            &self.health_resources.damage,
+            stack,
+            name,
+        )
     }
+
     /// Materialize the effective enchantments for both attacks and detached previews.
     pub(in crate::game) fn item_combat_stack(&self, stack: &ItemStack) -> ItemStack {
         let mut effective = stack.clone();
@@ -381,17 +375,7 @@ impl Game<'_> {
         if pool.is_empty() {
             return Ok(None);
         }
-        let data = stack.data();
-        let value = if let Some(own) = data.and_then(|d| d.other("minecraft:enchantable")) {
-            own.get("value")
-                .and_then(horizon_items::properties::component_int)
-                .and_then(|value| u32::try_from(value).ok())
-                .unwrap_or_default()
-        } else if data.is_some_and(|d| d.other("!minecraft:enchantable").is_some()) {
-            0
-        } else {
-            enchantments.enchantable(&stack.item)
-        };
+        let value = enchantments.enchantable_of(stack);
         let picked = enchantments.select_with_value(
             items,
             &mut self.world.random,
@@ -548,7 +532,7 @@ mod enchantment_conflict_tests {
             let expected = definitions.select(
                 game.items(),
                 &mut expected_random,
-                &stack.item,
+                &stack,
                 power,
                 definitions.tag("minecraft:in_enchanting_table"),
             );
@@ -865,7 +849,7 @@ mod hot_key_tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn resolved_keys_select_fuel_and_compost_metadata() {
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let key = |name| mod_api::__private::item_key(name).unwrap();
                 assert_eq!(game.item_burn_time(key("minecraft:coal")), Some(1600));
@@ -1118,7 +1102,10 @@ mod combat_query_tests {
             let mut source = resource(&stack).damage_source(game, attacker).unwrap();
             source.damage_type = mod_api::Identifier::parse("minecraft:lava").unwrap();
             assert_eq!(resource(&stack).can_be_hurt_by(game, &source), Some(false));
-            assert!(game.items().resists_fire(&stack, "minecraft:lava"));
+            assert_eq!(
+                game.stack_can_be_hurt_by(&stack, "minecraft:lava"),
+                Some(false)
+            );
             source.damage_type = mod_api::Identifier::parse("minecraft:cactus").unwrap();
             assert_eq!(resource(&stack).can_be_hurt_by(game, &source), Some(true));
             patch(
@@ -1127,7 +1114,10 @@ mod combat_query_tests {
                 serde_json::json!({"types": ["minecraft:cactus"]}),
             );
             assert_eq!(resource(&stack).can_be_hurt_by(game, &source), Some(false));
-            assert!(game.items().resists_cactus(&stack));
+            assert_eq!(
+                game.stack_can_be_hurt_by(&stack, "minecraft:cactus"),
+                Some(false)
+            );
             source.damage_type = mod_api::Identifier::parse("minecraft:lava").unwrap();
             assert_eq!(resource(&stack).can_be_hurt_by(game, &source), Some(true));
             patch(
@@ -1219,4 +1209,32 @@ mod combat_query_tests {
             );
         });
     }
+}
+
+/// Supply the gameplay component snapshot to the shared stack rule.
+pub(in crate::game) fn stack_can_be_hurt_by(
+    models: &horizon_assets::item_model::ItemModels,
+    catalog: &horizon_world::damage_source::Catalog,
+    stack: &ItemStack,
+    name: &str,
+) -> Option<bool> {
+    let default = models
+        .prototypes
+        .get(stack.item.as_ref())
+        .and_then(|components| components.get("minecraft:damage_resistant"));
+    horizon_client::item_damage::stack_can_be_hurt_by(default, catalog, stack, name)
+}
+
+pub(in crate::game) const ITEM_ENVIRONMENT_DAMAGE: [&str; 4] = [
+    "minecraft:on_fire",
+    "minecraft:lava",
+    "minecraft:in_fire",
+    "minecraft:cactus",
+];
+
+pub(in crate::game) fn item_damage_resolver<'a>(
+    models: &'a horizon_assets::item_model::ItemModels,
+    catalog: &'a horizon_world::damage_source::Catalog,
+) -> impl Fn(&ItemStack, &str) -> bool + 'a {
+    move |stack, damage| stack_can_be_hurt_by(models, catalog, stack, damage).unwrap_or(true)
 }

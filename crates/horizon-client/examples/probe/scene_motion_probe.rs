@@ -353,7 +353,7 @@ pub fn main() -> Result<()> {
                         jump: mask & 16 != 0,
                         shift: mask & 32 != 0,
                         sprint: mask & 64 != 0,
-                        analog: None,
+                        ..Default::default()
                     })?;
                 }
                 "movement_statistics" => world.check_movement_statistics(vector(&op["value"]))?,

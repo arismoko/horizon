@@ -209,8 +209,8 @@ mod tests {
     use mod_api::__private::game::{Fields, sound_ref};
     use mod_api::{
         ClientHost, Flow, Hooks, ModEntry, RenderGuiPreEvent, SoundPlay, SoundRef, SoundState,
-        testing::with_mods,
     };
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// From a screen hook's read-only host: starts two sounds, stops one and fades the other,

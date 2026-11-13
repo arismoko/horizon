@@ -35,7 +35,7 @@ fn run(mode: Option<bool>, test: impl FnOnce(&mut Game<'_>)) {
 
 fn run_mods(mods: Mods, test: impl FnOnce(&mut Game<'_>)) {
     crate::game::api_values::install_parts(&mods).unwrap();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         crate::game::native_entity_refs::tests::with_game(|game| {
             game.gui.atlas.sprites.insert(
                 "gui/sprites/container/bundle/slot_background".into(),

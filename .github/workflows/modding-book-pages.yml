@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: The pinned Rust (tools/ci/rust-version)
+        run: bash tools/ci/rustup_install.sh --profile minimal
       - run: cargo install mdbook --locked --version 0.4.52
       - run: mdbook build docs/modding
       - run: python3 tools/modding_concept_pages.py --html target/modding-book

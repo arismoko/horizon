@@ -3236,7 +3236,7 @@ mod tests {
             }
         }
         let defaults = vec![ModEntry::new("default", Box::new(DefaultMod))].into();
-        mod_api::testing::with_mods(defaults, || {
+        mod_platform::testing::with_mods(defaults, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let mut station = super::Station::new(super::Kind::Anvil, [0; 3]);
                 station.inputs[0] = Some(super::ItemStack::new("minecraft:iron_sword", 1));
@@ -3249,7 +3249,7 @@ mod tests {
         });
         let calls = Arc::new(AtomicUsize::new(0));
         let mods = vec![ModEntry::new("listener", Box::new(Listener(calls.clone())))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let mut station = super::Station::new(super::Kind::Anvil, [0; 3]);
                 station.inputs[0] = Some(super::ItemStack::new("minecraft:iron_sword", 1));
@@ -3341,7 +3341,7 @@ mod tests {
         }
         let mods: Mods = vec![ModEntry::new("lore", Box::new(Mod))].into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.settings.file.set(
                     "advancedItemTooltips",
@@ -3432,7 +3432,7 @@ mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("runes", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let helmet = super::ItemStack::new("minecraft:diamond_helmet", 1);
                 let plain = |game: &super::Game<'_>| -> Vec<String> {
@@ -3518,7 +3518,7 @@ mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("gather", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let stick = super::ItemStack::new("minecraft:stick", 1);
                 let long = Text::literal("one two three four five six seven eight");
@@ -3782,7 +3782,7 @@ mod cycling_tests {
         }
         let lines = vec![(Text::literal("Tip"), u32::MAX)];
         let mods: Mods = vec![ModEntry::new("pre", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let mut batch = HudBatch::scratch([320, 240]);
                 let mut pre = |game: &super::Game<'_>| {

@@ -120,7 +120,7 @@ fn a_committed_mod_tank_survives_a_world_save_close_and_reopen() {
         return;
     }
     let mods: Mods = vec![ModEntry::new("tank_reopen", Box::new(Tanks))].into();
-    mod_api::__private::install(mods.clone());
+    mod_platform::__private::install(mods.clone());
     crate::game::api_values::install_parts(&mods).unwrap();
     let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let root = crate::game::mods::content_root(&base, &Default::default())

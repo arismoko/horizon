@@ -376,7 +376,7 @@ mod tests {
             "tuner",
             Box::new(Tuner(log.clone())),
         )];
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             let (mut engine, mut backend) = (engine(), Null::default());
             engine.notify_loaded();
             assert_eq!(
@@ -447,7 +447,7 @@ mod tests {
             "live",
             Box::new(Live(0.into(), 0.into())),
         )];
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             let (mut engine, mut backend) = (engine(), Null::default());
             let instance =
                 SoundInstance::for_ui("minecraft:block.plain", 1.0, 1.0, LegacyRandom::new(1));
@@ -492,7 +492,7 @@ mod tests {
         }
         for at_start in [true, false] {
             let mods = vec![mod_api::ModEntry::new("poison", Box::new(Poison(at_start)))];
-            mod_api::testing::with_mods(mods.into(), || {
+            mod_platform::testing::with_mods(mods.into(), || {
                 let (mut engine, mut backend) = (engine(), Null::default());
                 let instance =
                     SoundInstance::for_ui("minecraft:block.plain", 1.0, 1.0, LegacyRandom::new(1));

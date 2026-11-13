@@ -12,7 +12,6 @@ impl Game<'_> {
 mod tests {
     use super::super::super::native_entity_refs::tests::{run_fresh_cases, with_client_game};
     use super::super::particle_count_tests::frame_scene;
-    use horizon_client::title::Title;
     use mod_api::{
         ClientHost, FlipFrameEvent, Hooks, ModEntry, RenderFramePostEvent, RenderFramePreEvent,
     };
@@ -42,7 +41,7 @@ mod tests {
         }
         let heard = Arc::new(Mutex::new(Vec::new()));
         let mods = vec![ModEntry::new("moments", Box::new(Moments(heard.clone())))];
-        mod_api::testing::with_mods(mods.into(), || {
+        mod_platform::testing::with_mods(mods.into(), || {
             with_client_game(|game| {
                 let _event_loop = frame_scene(game);
                 let elapsed = Duration::from_millis(16);
@@ -55,7 +54,7 @@ mod tests {
 
                 frame(game, true, &["pre", "post", "flip"]);
 
-                game.title = Some(Title::new(game.save.root.clone(), &game.options.resources));
+                game.title = Some(game.new_title(game.save.root.clone()));
                 game.render_with(|_, frame| {
                     assert!(frame.title);
                     Ok(false)

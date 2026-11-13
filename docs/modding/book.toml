@@ -46,6 +46,18 @@ print(json.dumps(counterparts.preprocess(context, book)))
 '"""
 before = ["concept-pages", "links"]
 
+[preprocessor.extension-counts]
+command = """python3 -c '
+import json, pathlib, sys
+if sys.argv[1:2] == ["supports"]:
+    sys.exit(0)
+context, book = json.load(sys.stdin)
+sys.path.insert(0, str(pathlib.Path(context["root"]).resolve().parents[1] / "tools"))
+import neoforge_extension_counts as counterparts
+print(json.dumps(counterparts.preprocess(context, book)))
+'"""
+before = ["concept-pages", "links"]
+
 [preprocessor.concept-pages]
 command = """python3 -c '
 import json, pathlib, sys

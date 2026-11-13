@@ -19,6 +19,8 @@ mod_api::impl_host_areas!(World);
 
 #[test]
 fn slime_chunk_query_round_trips_true_false_and_unavailable() {
+    // The platform phase this scope sets is process-wide state another test may not have installed yet.
+    mod_api::__private::initialize().unwrap();
     let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
     let world = World;
     let mut frame = boundary::Frame::default();

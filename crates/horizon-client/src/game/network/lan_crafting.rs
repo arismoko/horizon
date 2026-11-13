@@ -167,6 +167,7 @@ impl Game<'_> {
             trade: None,
             maps: None,
             limited_crafting: self.limited_crafting(),
+            can_equip: None,
             known_recipes: Some(&self.level.recipe_book),
         }
     }
@@ -201,6 +202,8 @@ impl Game<'_> {
         })
         .map(|held| self.level_maps(&held));
         let host = self.lan.as_ref()?;
+        // `ArmorSlot.mayPlace` asks the parts with the game as `Host`: the menu is the guest's own.
+        let parts = self.menu_can_equip();
         let env = Env {
             crafting_remainder: Some(self),
             player: Some(host.hub.guests[gi].uuid),
@@ -208,6 +211,7 @@ impl Game<'_> {
             loop_context: &self.loop_context,
             maps: maps.as_ref().map(|m| m as &dyn horizon_client::menu::Maps),
             limited_crafting: host.hub.limited_crafting,
+            can_equip: Some(&parts),
             known_recipes: Some(&host.hub.guests[gi].recipe_book),
             ..self.menu_env()
         };
@@ -221,6 +225,7 @@ impl Game<'_> {
         menu.brewed_potion_hook = !mod_api::__private::mods().is_empty();
         menu.item_smelted_hook = menu.brewed_potion_hook;
         let result = op(menu, &env);
+        drop(parts);
         if let Some(maps) = maps {
             self.register_made_maps(maps);
         }
@@ -263,10 +268,10 @@ impl Game<'_> {
         if !item_crafted.is_empty() {
             self.as_guest(conn, |g| {
                 let player = g.native_acting_id();
-                for (recipe, stack) in &item_crafted {
+                for (recipe, stack, inputs) in &item_crafted {
                     // ItemStack.onCraftedBy awards Stats.ITEM_CRAFTED.
                     g.award_stat("crafted", &stack.item, stack.count as i32);
-                    g.native_item_crafted(player, recipe, stack);
+                    g.native_item_crafted(player, recipe, stack, inputs);
                 }
             });
         }
@@ -913,6 +918,7 @@ impl Game<'_> {
             player_entity_id: Some(host.hub.guests[gi].entity_id),
             loop_context: &self.loop_context,
             limited_crafting: host.hub.limited_crafting,
+            can_equip: None,
             known_recipes: Some(&host.hub.guests[gi].recipe_book),
             ..self.menu_env()
         };

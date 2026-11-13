@@ -70,6 +70,7 @@ impl Game<'_> {
             // The world is read while the mob moves: take it out, then put it
             // back where it was (the mob order stays).
             let mut mob = self.mobs.swap_remove(i);
+            let from = mob.position;
             let mut events = Vec::new();
             // `hitByShulkerBullet` draws its crowding check from the level's random.
             let mut level_random = self.world.random.clone();
@@ -91,9 +92,12 @@ impl Game<'_> {
                 }
             }
             self.world.random = level_random;
+            let to = mob.position;
             self.mobs.push(mob);
             let last = self.mobs.len() - 1;
             self.mobs.swap(i, last);
+            // The hurt's teleport (`teleportTo`) is one position update, told at once.
+            self.entity_section_moved(id, Some([from.x, from.y, from.z]), [to.x, to.y, to.z]);
             self.handle_mob_events(events)?;
         }
         Ok(())

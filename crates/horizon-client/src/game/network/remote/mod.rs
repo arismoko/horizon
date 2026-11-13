@@ -7,6 +7,7 @@
 //! client predicts its own movement; the server stays authoritative for
 //! everything else.
 mod attack_target;
+mod fall_sound;
 mod interaction_actions;
 mod raw_ingress;
 mod recipe_properties;
@@ -76,6 +77,7 @@ use {
 mod abilities;
 mod client_level_tick;
 mod item_use;
+mod remote_attributes;
 mod tables;
 
 pub(super) use super::villager_client::builtin_registries;
@@ -595,7 +597,7 @@ pub(super) struct Remote {
     loaded_sent: bool,
     /// The dimension of the client level the mods heard made
     /// (`native_client_level_load`), to be told dropped once.
-    heard_level: Option<String>,
+    pub(super) heard_level: Option<String>,
     /// `ClientPacketListener.levelLoadTracker`: the loading screen after a login
     /// or respawn, until the player's section is shown.
     pub(super) level_load: horizon_client::level_loading::LevelLoadTracker,
@@ -954,11 +956,9 @@ impl Game<'_> {
                     title.failed(error);
                 }
                 None => {
-                    let mut title = horizon_client::title::Title::new(
-                        std::env::current_dir()?.join("saves"),
-                        &self.options.resources,
-                    )
-                    .with_user(|| self.options.player_name());
+                    let mut title = self
+                        .new_title(std::env::current_dir()?.join("saves"))
+                        .with_user(|| self.options.player_name());
                     title.skip_multiplayer_warning = skip;
                     title.failed(error);
                     self.show_title(title);
@@ -1626,7 +1626,8 @@ impl Game<'_> {
             r.clear_sections(self.world.layout());
         }
         let saves = std::env::current_dir()?.join("saves");
-        let mut title = horizon_client::title::Title::new(saves.clone(), &self.options.resources)
+        let mut title = self
+            .new_title(saves.clone())
             .with_user(|| self.options.player_name());
         title.last_server = self.settings.file.string("lastServer");
         title.skip_multiplayer_warning = self.settings.file.bool("skipMultiplayerWarning");
@@ -2283,7 +2284,9 @@ impl Game<'_> {
                 forgotten_credits.push(item.into_event_credit());
                 continue;
             }
-            self.forget_remote_columns(&mut forgotten, true);
+            horizon_client::spans::time("pr_forget", || {
+                self.forget_remote_columns(&mut forgotten, true)
+            });
             forgotten_credits.clear();
             let chunk = matches!(item, Received::Chunk(_, _));
             if chunk && !overdue && chunks >= CHUNK_PACKETS_PER_FRAME {
@@ -2312,7 +2315,9 @@ impl Game<'_> {
                     };
                     self.observe_client_packet(&packet);
                     if let C::LevelChunkWithLight(p) = *packet {
-                        self.remote_chunk(&p, Some((&format, column)));
+                        horizon_client::spans::time("pr_chunk", || {
+                            self.remote_chunk(&p, Some((&format, column)))
+                        });
                     }
                     chunks += started.map_or(Duration::ZERO, |t| t.elapsed());
                     continue;
@@ -2481,7 +2486,12 @@ impl Game<'_> {
                     return Ok(());
                 }
                 Event::RawPayload(incoming) => self.receive_client_payload(*incoming)?,
-                Event::Packet(packet) => self.handle_packet(*packet)?,
+                Event::Packet(packet) => match *packet {
+                    C::CustomPayload(p) if p.channel == horizon_client::perf_net::CHANNEL => {
+                        self.remote_perf_reply(&p.data)
+                    }
+                    packet => self.handle_packet(packet)?,
+                },
             }
             chunks += started.map_or(Duration::ZERO, |t| t.elapsed());
             if self.remote.is_none() {
@@ -2489,7 +2499,9 @@ impl Game<'_> {
             }
         }
         if self.remote.is_some() {
-            self.forget_remote_columns(&mut forgotten, true);
+            horizon_client::spans::time("pr_forget", || {
+                self.forget_remote_columns(&mut forgotten, true)
+            });
         }
         if let Some(r) = self.remote.as_mut() {
             r.backlog_since = if events.is_empty() {
@@ -2863,7 +2875,7 @@ impl Game<'_> {
     }
     /// The columns a moved or resized storage no longer holds. Returns the
     /// positions it freed (`forget_remote_columns`).
-    fn drop_remote_chunks_out_of_range(
+    pub(in crate::game) fn drop_remote_chunks_out_of_range(
         &mut self,
         center: (i32, i32),
         distance: i32,
@@ -3210,24 +3222,8 @@ impl Game<'_> {
         if kind == "minecraft:experience_orb" {
             // Its value (ExperienceOrb.DATA_VALUE) follows in SetEntityData.
             self.orbs.retain(|o| o.id != id as u32);
-            self.orbs.push(ExperienceOrb {
-                attachment_lifetime: Default::default(),
-                rotation: [0.0, 0.0],
-                join: Default::default(),
-                no_gravity: false,
-                id: id as u32,
-                position: at,
-                previous: at,
-                velocity: Vec3::ZERO,
-                value: 1,
-                age: 0,
-                on_ground: false,
-                count: 1,
-                ticks: 0,
-                health: 5,
-                air: 300,
-                following: None,
-            });
+            self.orbs
+                .push(ExperienceOrb::new(id as u32, at, Vec3::ZERO, 1));
         }
         if let Some(t) = mob_type {
             // The window's copy of the server's mob: no mod part goals —
@@ -3670,61 +3666,7 @@ impl Game<'_> {
         }
     }
 
-    /// `ClientPacketListener.handleUpdateAttributes` for a mob, each value from
-    /// `AttributeInstance.calculateValue`: its maximum health (the hearts drawn
-    /// over its mount), and its `minecraft:scale`, which sizes its box
-    /// (`LivingEntity.getDimensions`) and model (`LivingEntityRenderState.scale`)
-    /// as the local player's does: NPC plugins make their fake players bigger
-    /// with it, datapacks scale any mob.
-    fn remote_mob_attributes(&mut self, id: i32, values: &[play::AttributeSnapshot]) {
-        let catalog = &self.motion.attributes;
-        let value = |name: &str| {
-            let attribute = catalog.id(name)?;
-            let s = values
-                .iter()
-                .find(|s| s.attribute == attribute.registry_id())?;
-            Some(
-                catalog
-                    .attribute(attribute)
-                    .definition
-                    .sanitize(snapshot_value(s)),
-            )
-        };
-        let (max_health, scale) = (value("minecraft:max_health"), value("minecraft:scale"));
-        let (speed, jump) = (
-            value("minecraft:movement_speed"),
-            value("minecraft:jump_strength"),
-        );
-        let Some(m) = self.mob_index.get_mut(&mut self.mobs, id as u32) else {
-            return;
-        };
-        // A horse its rider's client moves goes at its own speed and jumps
-        // its own height (`getSpeed`, `getCustomJump`).
-        if horizon_client::mobs::equine::moved_by_rider(m.species()) {
-            if let Some(speed) = speed {
-                horizon_client::mobs::finalize::set_base(
-                    m,
-                    horizon_client::mobs::finalize::Attr::MovementSpeed,
-                    speed,
-                );
-            }
-            if let Some(jump) = jump {
-                m.extra.vector[0] = jump;
-            }
-        }
-        if let Some(max_health) = max_health {
-            horizon_client::mobs::finalize::set_base(
-                m,
-                horizon_client::mobs::finalize::Attr::MaxHealth,
-                max_health,
-            );
-        }
-        if let Some(scale) = scale {
-            m.extra.model_scale = scale as f32;
-        }
-    }
-
-    pub(in crate::game) fn handle_packet(&mut self, packet: C) -> Result<()> {
+    pub(in crate::game) fn apply_packet(&mut self, packet: C) -> Result<()> {
         self.observe_client_packet(&packet);
         match packet {
             // ClientCommonPacketListenerImpl.handlePing runs on the game
@@ -4970,7 +4912,16 @@ impl Game<'_> {
             // HUD draws and the health it may hold), reach, speed and so on.
             // Then the received health again, which the old maximum clamped.
             C::UpdateAttributes(p) if self.remote.as_ref().is_some_and(|r| r.entity_id == p.id) => {
+                let nameplate = self.remote_nameplate_values(&p.values);
                 self.apply_own_attributes(p.values);
+                if let Some(m) = self.player_model.as_mut() {
+                    if let Some(value) = nameplate.name_tag {
+                        m.set_name_tag_distance(value);
+                    }
+                    if let Some(value) = nameplate.below_name {
+                        m.set_below_name_distance(value);
+                    }
+                }
                 self.apply_remote_health();
             }
             C::UpdateAttributes(p) => self.remote_mob_attributes(p.id, &p.values),
@@ -6840,6 +6791,7 @@ impl Game<'_> {
             jump: held(Action::Jump),
             shift: held(Action::Sneak),
             sprint: held(Action::Sprint),
+            sprint_suppressed: false,
             analog: None,
         }
         .with_stick(stick.filter(|_| playing));
@@ -6850,20 +6802,7 @@ impl Game<'_> {
         if self.integrated.is_none() && self.server_address().is_some() {
             keys.analog = None;
         }
-        let [mut strafe, mut forward] = keys.direction();
-        let original = [strafe, forward];
-        self.native_movement_input(&mut forward, &mut strafe, &mut keys.jump, &mut keys.shift);
-        if [strafe, forward] != original {
-            if forward != original[1] {
-                keys.forward = forward > 0.0;
-                keys.backward = forward < 0.0;
-            }
-            if strafe != original[0] {
-                keys.left = strafe > 0.0;
-                keys.right = strafe < 0.0;
-            }
-            keys.analog = Some([strafe, forward]);
-        }
+        let keys = self.mod_movement_keys(keys);
         let input = u8::from(keys.forward)
             | u8::from(keys.backward) << 1
             | u8::from(keys.left) << 2
@@ -7079,21 +7018,7 @@ impl Game<'_> {
                 // client's own level: the fall and honey sounds are heard here
                 // (LocalPlayer.playSound); the server's copy skips this player
                 // (Player.playSound).
-                horizon_client::motion::MotionEvent::Fall(
-                    horizon_client::landing::FallEvent::Sound {
-                        sound,
-                        volume,
-                        pitch,
-                        ..
-                    },
-                ) => {
-                    if let Some(name) = sound
-                        .player_fall_sound()
-                        .or_else(|| sound.honey_landing_sound())
-                    {
-                        self.play_client_player_sound(name, volume, pitch);
-                    }
-                }
+                horizon_client::motion::MotionEvent::Fall(event) => self.block_fall(event),
                 _ => {}
             }
         }
@@ -7499,12 +7424,6 @@ impl Game<'_> {
                     .collect()
             })
             .unwrap_or_default();
-        // Shulker.onPeekAmountChange: the box of this client's own player, which
-        // an opening lid pushes (EntitySelector.NO_SPECTATORS).
-        let shulker_pushes = self
-            .player_view()
-            .filter(|p| p.alive && !p.spectator)
-            .map(|p| p.bounds);
         let Some(r) = self.remote.as_mut() else {
             return;
         };
@@ -7760,9 +7679,7 @@ impl Game<'_> {
                 // Shulker.tick's onPeekAmountChange: the lid moves this
                 // client's player, whose movement is its own.
                 horizon_client::mobs::Species::Shulker => {
-                    if let Some(player) = shulker_pushes {
-                        horizon_client::mobs::shulker::client_push(m, player, &mut mob_fx);
-                    }
+                    horizon_client::mobs::shulker::client_push(m, &mut mob_fx);
                 }
                 _ => {}
             }
@@ -9676,12 +9593,12 @@ impl Game<'_> {
             self.using = hit.and(Some((slot, elapsed))).filter(|_| elapsed < 200);
             return;
         }
-        // BundleItem.getUseDuration: 200 ticks, the server drops the contents.
+        // A bundle's 200-tick use ends with the server's entity event 9, not here.
         if stack
             .as_ref()
             .is_some_and(|s| self.items().get(&s.item).is_some_and(|i| i.bundle))
         {
-            self.using = (in_hand && ticks + 1 < 200).then_some((slot, ticks + 1));
+            self.using = in_hand.then_some((slot, ticks + 1));
             return;
         }
         // A drawn bow, a charging crossbow, a raised shield...: held until
@@ -12059,8 +11976,8 @@ mod tests {
         use horizon_protocol::connection::Pipe;
         use mod_api::{
             ClientHost, ClientMiningPredictEvent, ClientPacketSendEvent, Flow, Hooks, ModEntry,
-            testing::with_mods,
         };
+        use mod_platform::testing::with_mods;
         use std::sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -12183,7 +12100,7 @@ mod tests {
         )]
         .into();
         crate::game::api_values::install_parts(&mods).unwrap();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 let (client, _server) = horizon_protocol::connection::Pipe::pair();
                 game.connect_local(client, "animation-client").unwrap();
@@ -12537,7 +12454,7 @@ mod tests {
                 mod_api::Flow::Continue
             }
         }
-        mod_api::__private::install(std::sync::Arc::from([mod_api::ModEntry::new(
+        mod_platform::__private::install(std::sync::Arc::from([mod_api::ModEntry::new(
             "test-chat-received",
             Box::new(Censor),
         )]));
@@ -12978,7 +12895,7 @@ mod tests {
                 event.draw.fill([0.0, 0.0, 80.0, 10.0], 0xFF102030);
             }
         }
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![mod_api::ModEntry::new("transition_test", Box::new(Arrival))].into(),
             || {
                 let mut registrations = Vec::new();
@@ -13742,7 +13659,7 @@ mod tests {
                 living
                     .effect(
                         game,
-                        mod_api::__private::part_tests::effect_key("minecraft:speed")
+                        mod_platform::__private::part_tests::effect_key("minecraft:speed")
                     )
                     .is_none()
             );
@@ -13757,7 +13674,7 @@ mod tests {
             let effect = living
                 .effect(
                     game,
-                    mod_api::__private::part_tests::effect_key("minecraft:speed"),
+                    mod_platform::__private::part_tests::effect_key("minecraft:speed"),
                 )
                 .unwrap();
             assert_eq!((effect.duration, effect.amplifier), (600, 1));
@@ -14104,7 +14021,7 @@ mod tests {
         use super::super::{
             Game, native_entity_refs::tests::with_client_game, native_lifecycle::NativeLifecycle,
         };
-        use horizon_client::{level_loading::Reason, motion::PlayerMotion, title::Title};
+        use horizon_client::{level_loading::Reason, motion::PlayerMotion};
         use horizon_core::geometry::Vec3;
         use horizon_protocol::{
             connection::Pipe,
@@ -14195,7 +14112,7 @@ mod tests {
                 .unwrap();
             assert_eq!(camera(game), Some(local));
 
-            game.title = Some(Title::new(game.save.root.clone(), &game.options.resources));
+            game.title = Some(game.new_title(game.save.root.clone()));
             assert!(
                 camera(game).is_none(),
                 "the title screen has no camera entity"
@@ -16151,6 +16068,7 @@ mod tests {
             trade: None,
             maps: None,
             limited_crafting: false,
+            can_equip: None,
             known_recipes: None,
         };
         let mut menu = Menu::new(Kind::Inventory);
@@ -16562,6 +16480,8 @@ mod tests {
 #[cfg(test)]
 #[path = "player_tick_tests.rs"]
 mod player_tick_tests;
+#[cfg(test)]
+mod movement_input_tests;
 
 /// Whether a synchronized dimension type's values are inside the codec's ranges
 /// (`DimensionType.java`: a coordinate scale of `1.0E-5F` to `3.0E7`, a monster spawn block light

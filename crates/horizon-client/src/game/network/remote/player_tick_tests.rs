@@ -88,7 +88,7 @@ fn guest_tick_brackets_sleep_cooldowns_pickups_and_death() {
         Box::new(Log(Arc::clone(&heard))),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             open_to_lan(game);
             let mut g = guest(1);
@@ -194,7 +194,7 @@ fn client_player_ticks_on_the_death_screen_too() {
         Box::new(Log(Arc::clone(&heard))),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             game.options.execution_role = super::super::execution_role::ExecutionRole::Client;
             let (client, server) = horizon_protocol::connection::Pipe::pair();

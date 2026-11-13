@@ -1,6 +1,7 @@
 [workspace]
 exclude = ["crates/horizon-telemetry-server", "launcher", "crates/horizon-mod-registry", "third_party/wgpu-hal", "third_party/naga", "third_party/libmimalloc-sys", "tools/fixtures/paper-trace-mod"]
 members = [
+    "crates/horizon-guest-stack",
     "crates/horizon-mod-vocab",
     "crates/horizon-game-discovery",
     "crates/horizon-cosmetics",
@@ -46,6 +47,9 @@ members = [
     "crates/horizon-prepare",
     "crates/horizon-system",
     "crates/horizon-bench",
+    "crates/horizon-perf-format",
+    "crates/horizon-perf",
+    "crates/horizon-perf-share",
     "crates/horizon-friends",
     "crates/horizon-relay",
     "crates/horizon-mod-package",
@@ -53,6 +57,7 @@ members = [
     "crates/horizon-mod-api-gen",
     "crates/horizon-mod-api",
     "crates/horizon-mod-dimension-game",
+    "crates/horizon-hot-paths-game",
     "crates/horizon-mod-api-macros",
     "crates/horizon-mod-point-shape",
     "crates/horizon-mod-point-emit",

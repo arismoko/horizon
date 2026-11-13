@@ -11,12 +11,17 @@ on:
   workflow_dispatch:
 jobs:
   book:
+    # A contributor's pull request (its head in a fork) skips what compiles; a reviewer dispatches it (tools/ci/pr_gate.py).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       # Inert until the modding book exists on the branch.
       - id: book
         run: test -f docs/modding/book.toml && echo present=true >> "$GITHUB_OUTPUT" || true
+      - name: The pinned Rust (tools/ci/rust-version)
+        if: steps.book.outputs.present == 'true'
+        run: bash tools/ci/rustup_install.sh --profile minimal
       - if: steps.book.outputs.present == 'true'
         run: cargo install mdbook --locked --version 0.4.52
       - if: steps.book.outputs.present == 'true'

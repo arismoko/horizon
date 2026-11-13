@@ -31,14 +31,49 @@ pub(super) fn install(table: Arc<Table>) {
     TABLE.with_borrow_mut(|old| *old = table);
 }
 
+/// What a `register_to_all` or `register_tag_to_all` entry answers for.
+enum Target {
+    Item(String),
+    Tag(String),
+}
 struct Registrar<'a> {
     table: Table,
     items: &'a Items,
     registry: &'a horizon_world::registry::BlockRegistry,
-    all: Vec<(String, Callback)>,
+    all: Vec<(Target, Callback)>,
     error: Option<mod_api::CauldronRegistrationError>,
 }
+/// A tag as entries keep it: its resource location, without `#`.
+fn tag_id(tag: &str) -> Option<String> {
+    let tag = tag.strip_prefix('#').unwrap_or(tag);
+    mod_api::Identifier::parse(tag)
+        .ok()
+        .map(|id| id.to_string())
+}
 impl Registrar<'_> {
+    fn insert_tag(
+        &mut self,
+        block: String,
+        tag: String,
+        callback: Callback,
+    ) -> std::result::Result<(), mod_api::CauldronRegistrationError> {
+        let new_owner = callback.owner.to_owned();
+        self.table
+            .register_tag(block, tag, callback)
+            .map_err(|old| mod_api::CauldronRegistrationError::Duplicate {
+                owners: [old.owner.to_owned(), new_owner],
+            })
+    }
+    /// Keep a refusal, which fails the whole preparation when it finishes.
+    fn admit(
+        &mut self,
+        result: std::result::Result<(), mod_api::CauldronRegistrationError>,
+    ) -> std::result::Result<(), mod_api::CauldronRegistrationError> {
+        if let Err(error) = &result {
+            self.error = Some(error.clone());
+        }
+        result
+    }
     fn insert(
         &mut self,
         block: String,
@@ -60,10 +95,13 @@ impl Registrar<'_> {
         if let Some(error) = self.error {
             return Err(format!("cauldron registration: {error:?}").into());
         }
-        for (item, callback) in std::mem::take(&mut self.all) {
+        for (target, callback) in std::mem::take(&mut self.all) {
             for block in self.table.blocks() {
-                self.insert(block, item.clone(), callback.clone())
-                    .map_err(|e| format!("cauldron registration: {e:?}"))?;
+                match &target {
+                    Target::Item(item) => self.insert(block, item.clone(), callback.clone()),
+                    Target::Tag(tag) => self.insert_tag(block, tag.clone(), callback.clone()),
+                }
+                .map_err(|e| format!("cauldron registration: {e:?}"))?;
             }
         }
         Ok(Arc::new(self.table))
@@ -95,10 +133,7 @@ impl mod_api::CauldronInteractions for Registrar<'_> {
                 },
             )
         })();
-        if let Err(error) = &result {
-            self.error = Some(error.clone());
-        }
-        result
+        self.admit(result)
     }
     fn register_to_all(
         &mut self,
@@ -112,12 +147,43 @@ impl mod_api::CauldronInteractions for Registrar<'_> {
             return Err(mod_api::CauldronRegistrationError::UnknownItem);
         };
         self.all.push((
-            item.to_string(),
+            Target::Item(item.to_string()),
             Callback {
                 handler,
                 owner: mod_api::__private::cauldron_owner(),
             },
         ));
+        Ok(())
+    }
+    fn register_tag(
+        &mut self,
+        block: mod_api::BlockKey,
+        tag: &str,
+        handler: Arc<dyn mod_api::Interaction>,
+    ) -> std::result::Result<(), mod_api::CauldronRegistrationError> {
+        use mod_api::CauldronRegistrationError as Error;
+        let result = (|| {
+            let block = mod_api::__private::block_key_id(block)
+                .filter(|id| self.registry.default_state(id).is_some())
+                .ok_or(Error::UnknownBlock)?
+                .to_string();
+            let tag = tag_id(tag).ok_or(Error::InvalidTag)?;
+            let owner = mod_api::__private::cauldron_owner();
+            self.insert_tag(block, tag, Callback { handler, owner })
+        })();
+        self.admit(result)
+    }
+    fn register_tag_to_all(
+        &mut self,
+        tag: &str,
+        handler: Arc<dyn mod_api::Interaction>,
+    ) -> std::result::Result<(), mod_api::CauldronRegistrationError> {
+        let Some(tag) = tag_id(tag) else {
+            return self.admit(Err(mod_api::CauldronRegistrationError::InvalidTag));
+        };
+        let owner = mod_api::__private::cauldron_owner();
+        self.all
+            .push((Target::Tag(tag), Callback { handler, owner }));
         Ok(())
     }
 }

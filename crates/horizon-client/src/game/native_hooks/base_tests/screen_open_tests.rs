@@ -1,8 +1,9 @@
 use super::*;
 use mod_api::{
     ClientHost, Flow, Hooks, InteractionKeyMappingTriggeredEvent, KeyMappingPreEvent, ModEntry,
-    ScreenClosingEvent, ScreenOpeningEvent, testing::with_mods,
+    ScreenClosingEvent, ScreenOpeningEvent,
 };
+use mod_platform::testing::with_mods;
 use std::sync::{Arc, Mutex};
 
 /// A mod that hears `screen_opening` and passes.
@@ -400,11 +401,11 @@ fn an_overlay_fires_opening_before_it_opens() {
 #[test]
 #[ignore = "needs prepared resources"]
 fn a_title_screen_opens_through_screen_opening() {
-    use horizon_client::title::{Mode, Title};
+    use horizon_client::title::Mode;
     run(|game, log, answer| {
         // No saves: Singleplayer opens Create New World.
         let saves = std::env::temp_dir().join("horizon-title-gate-test-no-saves");
-        game.title = Some(Title::new(saves, &game.options.resources));
+        game.title = Some(game.new_title(saves));
         game.settle_title_mode();
         assert!(game.title.as_ref().unwrap().gated);
         *answer.lock().unwrap() = Some(ScreenOpening::Cancel);
@@ -433,12 +434,11 @@ fn a_title_screen_opens_through_screen_opening() {
 #[test]
 #[ignore = "needs prepared resources"]
 fn the_title_appears_and_goes_through_screen_opening() {
-    use horizon_client::title::Title;
     run(|game, log, answer| {
         let saves = std::env::temp_dir().join("horizon-title-gate-test-no-saves");
         game.title = None;
         *answer.lock().unwrap() = Some(ScreenOpening::Cancel);
-        game.show_title(Title::new(saves, &game.options.resources));
+        game.show_title(game.new_title(saves));
         assert!(game.title.is_some());
         assert_eq!(take(log), ["opening playing->title"]);
         game.observe_screen();

@@ -37,7 +37,7 @@ fn a_mod_denies_one_entity_griefing() {
         Box::new(Deny(vec![denied, denied_player], Arc::clone(&heard))),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             open_to_lan(game);
             assert!(

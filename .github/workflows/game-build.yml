@@ -62,7 +62,13 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
           clean: true
-      - uses: dtolnay/rust-toolchain@stable
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
       - uses: actions/setup-python@v6
         if: runner.environment == 'github-hosted'
         with:
@@ -207,10 +213,16 @@ jobs:
           sparse-checkout: |
             tools/check_glibc.py
             tools/ci/game_smoke.sh
+            tools/ci/rust-version
             tools/ci/with_xvfb.py
             tools/ci/nightly_catalog.py
-      - uses: dtolnay/rust-toolchain@stable
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/.workflow-tools/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ steps.rust.outputs.version }}
           targets: ${{ matrix.target }}
       - uses: actions/setup-python@v6
         if: runner.environment == 'github-hosted'
@@ -469,8 +481,15 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             tools/ci/game_smoke.sh
+            tools/ci/rust-version
             tools/ci/with_xvfb.py
-      - uses: dtolnay/rust-toolchain@stable
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        shell: bash
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/.workflow-tools/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

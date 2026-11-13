@@ -442,9 +442,12 @@ impl Game<'_> {
     ) {
         let riders = self.mob_passenger_ids(vehicle);
         for id in riders {
+            let mut carried = None;
             if let Some(m) = self.mob_object_mut(id) {
+                let from = m.position;
                 m.position = passenger_destination(old, new, m.position);
                 m.previous = m.position;
+                carried = Some((from, m.position));
                 // Entity.calculatePassengerTransition turns the rider with the
                 // vehicle, then Entity.teleportSetPosition keeps the old angles
                 // for the interpolation.
@@ -459,14 +462,23 @@ impl Game<'_> {
                     m.previous_head_pitch = pitch;
                 }
             }
+            // Each rider's `teleportSetPosition` is a position update of its own.
+            if let Some((from, to)) = carried {
+                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+            }
             self.move_riders(id, old, new, rotation);
         }
         if self.riding == Some(vehicle)
             && let Some(p) = self.player.as_mut()
         {
+            let from = p.position;
             p.position = passenger_destination(old, new, p.position);
             p.teleported = true;
             self.previous_position = p.position;
+            let (to, own) = (p.position, self.own_entity_id());
+            if let Ok(own) = u32::try_from(own) {
+                self.entity_section_step(own, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+            }
         }
         if let Some(placed) = rotation
             && self.riding == Some(vehicle)

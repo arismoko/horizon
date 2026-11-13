@@ -21,8 +21,10 @@ pub trait Hooks {
     /// empty list (its stand item and its equipment pop outside the list, as
     /// in vanilla). Experience orbs are not in the list
     /// (`native_living_experience_drop`); a spectator, who drops nothing,
-    /// doesn't call this. Item entity state such as no-gravity, owner and
-    /// lifetime isn't in `ItemDrop`. Server-side.
+    /// doesn't call this. Each `ItemDrop` also sets the item entity's
+    /// `thrower`, `target` (the only player who may pick it up), `no_gravity`
+    /// and starting `age` (`ItemDrop::UNLIMITED_LIFETIME` never despawns); a
+    /// drop left as it was spawns as before. Server-side.
     #[hook(
         side = "server",
         contract = "cancel",

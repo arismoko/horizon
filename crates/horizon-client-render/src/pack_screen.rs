@@ -58,6 +58,9 @@ pub struct PackInfo {
     pub required: bool,
     pub position: Position,
     pub fixed: bool,
+    /// Left out of both lists (a mod's `PackRegistration::hidden`): the selection model still
+    /// holds it, so a selected hidden pack stays selected and loads.
+    pub hidden: bool,
 }
 impl PackInfo {
     pub fn selectable(&self) -> Selectable {
@@ -563,6 +566,10 @@ impl PackScreen {
     fn info(&self, id: &str) -> Option<&PackInfo> {
         self.packs.iter().find(|p| p.id == id)
     }
+    /// Whether the lists leave `id` out ([`PackInfo::hidden`]).
+    fn hidden(&self, id: &str) -> bool {
+        self.info(id).is_some_and(|p| p.hidden)
+    }
     /// The header layout: title, drop info and search box, centred.
     fn header(&self, m: &Measure) -> [(i32, i32); 3] {
         let tw = m.width(&self.title);
@@ -615,6 +622,7 @@ impl PackScreen {
             &self.model.unselected
         };
         list.iter()
+            .filter(|p| !self.hidden(&p.id))
             .filter(|p| {
                 blank
                     || p.id.to_lowercase().contains(&value)
@@ -655,8 +663,13 @@ impl PackScreen {
                 .map(|p| p.id.clone())
                 .collect()
         };
-        self.update_list(1, all(&self.model, true), transferred);
-        self.update_list(0, all(&self.model, false), transferred);
+        let visible = |ids: Vec<String>| -> Vec<String> {
+            ids.into_iter().filter(|id| !self.hidden(id)).collect()
+        };
+        let (selected, available) = (all(&self.model, true), all(&self.model, false));
+        let (selected, available) = (visible(selected), visible(available));
+        self.update_list(1, selected, transferred);
+        self.update_list(0, available, transferred);
         self.filter(transferred);
     }
     /// `updateFilteredEntries`.
@@ -1134,6 +1147,9 @@ impl PackScreen {
             0,
         );
         self.search.draw(&mut out, m, blink_ms, None);
+        if self.browser.is_none() && self.search.contains(f64::from(mouse.0), f64::from(mouse.1)) {
+            crate::widgets::text_cursor(true, true);
+        }
         for side in 0..2 {
             self.draw_list(&mut out, m, side, mouse);
         }
@@ -1336,6 +1352,9 @@ impl PackScreen {
         field.x = qx;
         field.y = qy;
         field.draw(out, m, 0, None);
+        if field.contains(f64::from(mouse.0), f64::from(mouse.1)) {
+            crate::widgets::text_cursor(true, true);
+        }
         let (sbx, sby) = self.browser_search_button();
         d::button(
             out,
@@ -1909,6 +1928,7 @@ mod icon_tests {
             required: false,
             position: Position::Top,
             fixed: false,
+            hidden: false,
         }
     }
 
@@ -1927,6 +1947,50 @@ mod icon_tests {
             (&blue[..], &blue[..])
         );
         assert!(load_icon(b"not a png").is_none());
+    }
+
+    /// A mod's hidden pack is in neither list, but the selection keeps it: a required hidden pack
+    /// stays selected when the player commits.
+    #[test]
+    fn hidden_packs_stay_selected_but_out_of_both_lists() {
+        let atlas = crate::hud::HudAtlas::build(
+            &horizon_assets::resource_source::ResourceSource::directory(
+                "/nonexistent/horizon-test-assets".into(),
+            ),
+        )
+        .unwrap();
+        let m = Measure(&atlas.font);
+        let mut compat = pack("mod/example:compat", None);
+        compat.hidden = true;
+        compat.required = true;
+        let mut optional = pack("mod/example:optional", None);
+        optional.hidden = true;
+        let packs = vec![compat, optional, pack("file/Plain", None)];
+        let selected = ["mod/example:compat".to_owned()];
+        let screen = PackScreen::new(
+            &m,
+            tr("resourcePack.title"),
+            480,
+            320,
+            false,
+            packs,
+            &selected,
+        );
+        let listed: Vec<&Row> = screen
+            .lists
+            .iter()
+            .flat_map(|l| &l.entries)
+            .map(|e| &e.row)
+            .collect();
+        assert!(
+            listed.contains(&&Row::Pack("file/Plain".into())),
+            "{listed:?}"
+        );
+        for id in ["mod/example:compat", "mod/example:optional"] {
+            assert!(!listed.contains(&&Row::Pack(id.into())), "{id} listed");
+        }
+        assert!(screen.commit().contains(&"mod/example:compat".to_owned()));
+        assert!(!screen.commit().contains(&"mod/example:optional".to_owned()));
     }
 
     /// A pack with Polytone options carries an options button on its card, which opens
@@ -2335,6 +2399,7 @@ mod icon_slot_tests {
                 required: false,
                 position: Position::Top,
                 fixed: false,
+                hidden: false,
             })
             .collect()
     }

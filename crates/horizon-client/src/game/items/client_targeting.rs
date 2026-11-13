@@ -296,7 +296,7 @@ mod tests {
             Box::new(Observer(state.clone())),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_client_game(|game| {
                 assert!(!game.set_targeting(ClientTargeting::default()));
                 let mut server =

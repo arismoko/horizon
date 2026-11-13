@@ -356,6 +356,8 @@ pub(super) fn start_game<'a>(
                 fps_cap: None,
                 offscreen: game.options.offscreen,
                 game_dir: std::env::current_dir()?,
+                set: game.options.benchmark_set.clone(),
+                profile: game.options.benchmark_profile,
             },
         );
     }
@@ -381,6 +383,10 @@ pub(super) fn start_game<'a>(
     }
     if let Ok(spec) = std::env::var("HORIZON_SCULK_FIXTURE") {
         game.run_component_harness(integrated::ComponentHarness::Sculk(spec))?;
+        return Ok(None);
+    }
+    if let Ok(output) = std::env::var("HORIZON_HOT_PATHS") {
+        game.run_component_harness(integrated::ComponentHarness::HotPaths(output))?;
         return Ok(None);
     }
     if game.options.execution_role == execution_role::ExecutionRole::DedicatedServer {
@@ -426,11 +432,9 @@ pub(super) fn start_game<'a>(
             } else {
                 // Start after the window is handed over, so --world uses the
                 // same responsive initialization path as the title screen.
-                let title = Title::new(
-                    std::env::current_dir()?.join("saves"),
-                    &game.options.resources,
-                )
-                .with_user(|| game.options.player_name());
+                let title = game
+                    .new_title(std::env::current_dir()?.join("saves"))
+                    .with_user(|| game.options.player_name());
                 game.show_title(title);
                 game.pending_entry = Some(PendingWorldEntry::Local {
                     folder,
@@ -443,11 +447,9 @@ pub(super) fn start_game<'a>(
         }
         None if handoff => {}
         None => {
-            let mut title = Title::new(
-                std::env::current_dir()?.join("saves"),
-                &game.options.resources,
-            )
-            .with_user(|| game.options.player_name());
+            let mut title = game
+                .new_title(std::env::current_dir()?.join("saves"))
+                .with_user(|| game.options.player_name());
             title.last_server = game.settings.file.string("lastServer");
             title.skip_multiplayer_warning = game.settings.file.bool("skipMultiplayerWarning");
             // Gui.addInitialScreens: the accessibility onboarding comes first.

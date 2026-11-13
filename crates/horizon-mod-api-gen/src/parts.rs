@@ -113,7 +113,20 @@ pub(crate) fn registration_source(root: &Path) -> Result<String, String> {
                 && !matches!(module.vis, Visibility::Inherited)
                 && let Some((_, items)) = &module.content
             {
-                fixtures.push_str(&reexport(items, &format!("super::{kind}::tests")));
+                let mut items = items.clone();
+                // The fixture include is deliberately lexical, not a child module.
+                // Account for its discovered items when deciding re-export visibility.
+                let fragments = dir.join(format!("{kind}_fixtures"));
+                if fragments.is_dir() {
+                    for name in Catalog::modules(&fragments).map_err(|e| e.to_string())? {
+                        let path = fragments.join(format!("{name}.rs"));
+                        let source = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+                        let file = syn::parse_file(&source)
+                            .map_err(|e| format!("{}: {e}", path.display()))?;
+                        items.extend(file.items);
+                    }
+                }
+                fixtures.push_str(&reexport(&items, &format!("super::{kind}::tests")));
             }
         }
     }
@@ -270,6 +283,34 @@ mod tests {
         fs::remove_file(dir.join("alpha.rs")).unwrap();
         let removed = source(&root).unwrap();
         assert!(!removed.contains("alpha"));
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn discovered_fixture_items_keep_the_shared_namespace() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "../../target/registration-fixture-discovery-{}",
+            std::process::id()
+        ));
+        let dir = root.join("crates/horizon-mod-api/src/parts");
+        fs::create_dir_all(dir.join("sample_fixtures")).unwrap();
+        fs::write(
+            dir.join("sample.rs"),
+            "pub mod tests { include!(concat!(env!(\"OUT_DIR\"), \"/sample_fixtures.rs\")); }",
+        )
+        .unwrap();
+        assert!(
+            !registration_source(&root)
+                .unwrap()
+                .contains("super::sample::tests")
+        );
+        fs::write(
+            dir.join("sample_fixtures/method.rs"),
+            "pub fn fixture() {}\n",
+        )
+        .unwrap();
+        let generated = registration_source(&root).unwrap();
+        syn::parse_file(&generated).unwrap();
+        assert!(generated.contains("pub use super::sample::tests::*;"));
         fs::remove_dir_all(root).unwrap();
     }
 }

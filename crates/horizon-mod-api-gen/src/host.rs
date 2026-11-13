@@ -737,7 +737,7 @@ fn refusal(sig: &syn::Signature, name: &str) -> Result<Option<&'static str>, Str
         Some("bool") => Some("false"),
         // A read that answers `Result`: its refusal is the error a host without a backend answers.
         Some("Result") => Some("Err(mod_api::NoBackend::no_backend())"),
-        Some("u32" | "i32" | "u16" | "u8" | "usize") => Some("0"),
+        Some("u64" | "u32" | "i32" | "u16" | "u8" | "usize") => Some("0"),
         // A registry key's metadata: a read the goal view only forwards.
         Some("String") => None,
         _ => {

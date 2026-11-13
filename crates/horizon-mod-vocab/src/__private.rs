@@ -36,6 +36,11 @@ pub fn listened(hook: HookId) -> bool {
     crate::listened(hook)
 }
 
+/// Whether at least one enabled mod subscribes to `hook`, visiting only its subscribers.
+pub fn enabled_listened(hook: HookId) -> bool {
+    crate::runtime::enabled_listened(hook)
+}
+
 /// A read backend wrapper for a host the game builds narrowed: the mob tick's
 /// goal view hands itself out as its own backend (#1077).
 pub fn backend_ref(inner: &dyn Backend) -> crate::BackendRef<'_> {

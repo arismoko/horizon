@@ -46,7 +46,7 @@ fn hit_attempts_reach_the_listener_once_including_refusals() {
         Box::new(Probe(heard.clone(), override_answer.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         with_game(|game| {
             let check = |expected: &[bool], case: &str| {
                 assert_eq!(&*heard.lock().unwrap(), expected, "{case}");

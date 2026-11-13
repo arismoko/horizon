@@ -23,6 +23,29 @@ type Held = Mutex<Option<Arc<mod_api::DatapackRegistrySet>>>;
 static SERVED: Held = Mutex::new(None);
 /// What this process's client last received from a server.
 static RECEIVED: Held = Mutex::new(None);
+
+#[cfg(feature = "test-publication-scope")]
+thread_local! {
+    static SCOPED_SERVED: std::cell::RefCell<Option<Option<Arc<mod_api::DatapackRegistrySet>>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Isolates this thread's publication for resource-backed game fixtures.
+#[cfg(feature = "test-publication-scope")]
+pub fn isolate_server_publication() -> impl Drop {
+    struct Scope(
+        Option<Option<Arc<mod_api::DatapackRegistrySet>>>,
+        std::marker::PhantomData<std::rc::Rc<()>>,
+    );
+    impl Drop for Scope {
+        fn drop(&mut self) {
+            SCOPED_SERVED.with(|slot| *slot.borrow_mut() = self.0.take());
+        }
+    }
+    Scope(
+        SCOPED_SERVED.with(|slot| slot.replace(Some(None))),
+        std::marker::PhantomData,
+    )
+}
 static SESSION: AtomicU64 = AtomicU64::new(1);
 /// The snapshot of the set now served for `player`, from the offer they made at the join, when
 /// there is one to send.
@@ -46,11 +69,27 @@ fn put(slot: &Held, set: Option<Arc<mod_api::DatapackRegistrySet>>) {
 
 /// Keeps the set a server just published, for the clients that join it.
 pub fn serve(set: Option<Arc<mod_api::DatapackRegistrySet>>) {
+    #[cfg(feature = "test-publication-scope")]
+    if SCOPED_SERVED.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if let Some(local) = slot.as_mut() {
+            *local = set.clone();
+            true
+        } else {
+            false
+        }
+    }) {
+        return;
+    }
     put(&SERVED, set);
 }
 
 /// The set this process's server last published.
 pub fn served() -> Option<Arc<mod_api::DatapackRegistrySet>> {
+    #[cfg(feature = "test-publication-scope")]
+    if let Some(local) = SCOPED_SERVED.with(|slot| slot.borrow().clone()) {
+        return local;
+    }
     held(&SERVED)
 }
 

@@ -56,7 +56,7 @@ mod enumeration_tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn ingredient_keys_are_exact_for_tags_shapes_and_refuse_component_predicates() {
-        mod_api::testing::with_mods(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 let host: &dyn mod_api::Host = game;
                 let parse = |json| host.recipe_ingredient(json).unwrap().unwrap();

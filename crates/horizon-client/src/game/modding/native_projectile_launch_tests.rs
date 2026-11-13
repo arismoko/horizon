@@ -50,11 +50,16 @@ fn owner_launch_sets_owner_before_insertion_and_uses_projectile_random() {
         assert_eq!(projectile.item.as_ref().unwrap().count, 1);
         assert_eq!(stack.count, 64);
         assert_eq!(projectile.position.y, eye[1] - 0.10000000149011612);
-        assert!((projectile.velocity.x - 0.19212421880232217).abs() < 1e-12);
-        assert!((projectile.velocity.y - 0.3103198363925326).abs() < 1e-12);
-        assert!((projectile.velocity.z - 1.1034130508130342).abs() < 1e-12);
+        // Computed with an independent implementation of the documented
+        // java.util.Random algorithm, not from the game's output: seed 1234,
+        // four next(32) advances for the UUID's two nextLong calls, then
+        // twelve advances for the shot's six nextDouble calls. The following
+        // double uses advances 17 and 18. Include the owner's inherited motion.
+        assert!((projectile.velocity.x - 0.2103198363925326).abs() < 1e-12);
+        assert!((projectile.velocity.y - 0.3034130508130313).abs() < 1e-12);
+        assert!((projectile.velocity.z - 1.093012354329919).abs() < 1e-12);
         let mut random = projectile.random.0.clone();
-        assert_eq!(random.next_double(), 0.34690742873967684);
+        assert_eq!(random.next_double(), 0.9468595742485053);
         assert_eq!(game.world.random.next_long(), level_before.next_long());
         let count = game.creatures.projectiles.len();
         assert!(
@@ -144,7 +149,7 @@ fn owner_launch_reports_explicit_guest_to_launch_listeners() {
         "observe",
         Box::new(Observe(observed.clone())),
     )];
-    mod_api::testing::with_mods(mods.into(), || {
+    mod_platform::testing::with_mods(mods.into(), || {
         crate::game::native_guest_turn_tests::with_guests(|game| {
             let source = game.entity(12).unwrap();
             let owner = game.living(source).unwrap();

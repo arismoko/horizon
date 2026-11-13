@@ -385,6 +385,10 @@ impl Game<'_> {
             return;
         };
         let g = self.lan.as_ref().unwrap().hub.guest(conn).unwrap();
+        // Each move the player sent put it somewhere (`handleMovePlayer`'s `setPos`).
+        let (id, end) = (g.entity_id as u32, g.position);
+        self.entity_section_walked(id, end, moves.iter().map(|m| m.0));
+        let g = self.lan.as_ref().unwrap().hub.guest(conn).unwrap();
         if g.spectator() {
             // ServerPlayer.doTick runs the player's whole tick for a spectator
             // too, unless its box touches an unloaded chunk
@@ -436,6 +440,7 @@ impl Game<'_> {
         let events = self.as_guest(conn, |game| {
             let (rules, motion) = (game.world.health_rules, game.motion);
             let health = &motion.health;
+            let leather_boots = super::super::worn_boots::leather_boots(&game.armor);
             let freeze_immune = game.wears_freeze_immune();
             let burn_immune = game.wears_burn_from_stepping_immunity();
             let boat = game.riding_boat_fluid_box();
@@ -524,6 +529,7 @@ impl Game<'_> {
             // lit campfires and grown sweet berry bushes hurt (#1305).
             w.player.shift_key_down = sneaking;
             let _ = w.player.set_sleeping(sleeping);
+            w.player.leather_boots = leather_boots;
             w.player.freeze_immune = freeze_immune;
             w.player.burn_from_stepping_immune = burn_immune;
             let _ = w.server_block_damage(start);
@@ -718,6 +724,34 @@ impl Game<'_> {
                         host.hub.entity_event(id, event as i8);
                     }
                 }
+                MotionEvent::Fall(horizon_client::landing::FallEvent::BlockFallSound {
+                    position,
+                    state,
+                }) => {
+                    let entity = self
+                        .lan
+                        .as_ref()
+                        .and_then(|host| host.hub.guest(conn))
+                        .map(|g| (g.entity_id as u32, "minecraft:player"));
+                    let sound = self.block_sound_type(
+                        [position.x, position.y, position.z],
+                        state,
+                        entity,
+                        mod_api::BlockSoundCause::Fall,
+                    );
+                    self.audio.play_unshared(
+                        &sound.fall,
+                        Some(at),
+                        sound.volume * 0.5,
+                        sound.pitch * 0.75,
+                    );
+                    self.send_level_sound(
+                        // `Player.playSound` plays in the players' source.
+                        LevelSound::new(&sound.fall, at, sound.volume * 0.5, sound.pitch * 0.75)
+                            .in_source(mod_api::SoundSource::Players),
+                        Some(conn),
+                    );
+                }
                 MotionEvent::Fall(event) => {
                     let player = self
                         .lan
@@ -816,3 +850,7 @@ impl Game<'_> {
 #[cfg(test)]
 #[path = "tests/building_cache.rs"]
 mod building_cache_tests;
+
+#[cfg(test)]
+#[path = "tests/fall_sound_tests.rs"]
+mod fall_sound_tests;

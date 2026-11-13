@@ -86,10 +86,12 @@ impl StructureRandom for Level<'_> {
 mod tests {
     use super::*;
     use horizon_world::native_load_context::{DataLoadOrigin, LoadContext, LoadInputs};
+    use horizon_world::native_worldgen_hooks::WorldgenRandom;
     use mod_api::{
         AlterGroundEvent, GroundLevel, GroundProvider, GroundStateProvider, Hooks, ModEntry,
-        WorldgenHost, testing,
+        WorldgenHost,
     };
+    use mod_platform::testing;
     use std::collections::BTreeMap;
     use std::sync::Mutex;
 
@@ -124,6 +126,8 @@ mod tests {
             self.draws += 1;
             (self.block_state(pos) == GRASS).then_some(PODZOL)
         }
+    }
+    impl WorldgenRandom for Meadow {
         fn next_int_bound(&mut self, _: i32) -> i32 {
             self.draws += 1;
             0

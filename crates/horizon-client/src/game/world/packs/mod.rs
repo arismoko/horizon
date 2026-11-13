@@ -100,6 +100,7 @@ fn info(p: &Pack) -> PackInfo {
         required: false,
         position: Position::Top,
         fixed: false,
+        hidden: false,
     }
 }
 /// A pack from `DownloadedPackSource.loadRequestedPacks`: fixed at the top of
@@ -124,6 +125,7 @@ fn downloaded_info(p: &Pack) -> PackInfo {
         required: true,
         position: Position::Top,
         fixed: true,
+        hidden: false,
     }
 }
 /// The vanilla pack: required, at the bottom (`BuiltInPackSource`), with the
@@ -143,6 +145,7 @@ fn vanilla_info(vanilla: &Path) -> PackInfo {
         required: true,
         position: Position::Bottom,
         fixed: false,
+        hidden: false,
     }
 }
 /// Packs the Resource Packs screen lists: folder and built-in packs, then any
@@ -548,7 +551,11 @@ impl Game<'_> {
         self.options.resources = root.clone();
         self.falling_vertices.get_mut().clear();
         self.pack = pack;
-        self.gui = gui;
+        let skip = self
+            .settings
+            .extras
+            .skip_modded_splashes_if_vanilla_modified;
+        self.gui = gui.with_splashes(&self.pack.source, &self.vanilla_root(), skip);
         self.standalone_geometry = standalone_geometry;
         self.instance_groups.borrow_mut().clear();
         // The new atlas's skin and map slots are blank: players and maps
@@ -653,6 +660,7 @@ impl Game<'_> {
         self.creative_screen.invalidate_build();
         super::client_reload::apply_client_reload(&self.mod_phase, client_applies);
         self.install_loop_context(loop_context);
+        self.resolve_entity_renderers();
         self.texture_atlases_stitched();
         self.native_model_baking_completed();
         self.native_client_resources_reloaded();
@@ -700,11 +708,13 @@ pub(super) fn stage_pack(
     // The sound events, the GUI sprites' metadata and the language are read here too, not in
     // the frame that applies the reload (about 20 ms of it).
     let (render, atlas, panorama, (sounds, ui_metadata, language)) = std::thread::scope(|s| {
-        let atlas = s.spawn(|| {
+        let atlas = super::resource_load::named_scope(s, "pack-assets", || {
             HudAtlas::build_over_with_image(&source, &source, mod_image).map_err(|e| e.to_string())
         });
-        let panorama = s.spawn(|| horizon_client::gfx::panorama::Faces::load(&source, &source));
-        let small = s.spawn(|| {
+        let panorama = super::resource_load::named_scope(s, "pack-assets", || {
+            horizon_client::gfx::panorama::Faces::load(&source, &source)
+        });
+        let small = super::resource_load::named_scope(s, "pack-assets", || {
             (
                 horizon_client::sound_events::SoundRegistry::load(&source),
                 horizon_client::ui::read_metadata(&source),
@@ -727,6 +737,8 @@ pub(super) fn stage_pack(
     let gui = UiResources {
         atlas,
         panorama: Arc::new(panorama.unwrap_or_else(|p| std::panic::resume_unwind(p))),
+        // `Game::apply_staged_pack` fills it with the client's setting.
+        splashes: Arc::from(""),
     };
     progress.set(2);
     let mut pack = PackResources::load(
@@ -844,7 +856,7 @@ impl PackReload {
     ) -> std::io::Result<Self> {
         let progress = super::Progress::with(&RELOAD_LINES);
         let worker = progress.clone();
-        let handle = std::thread::Builder::new()
+        let handle = horizon_guest_stack::builder()
             .name("pack-reload".into())
             .spawn(move || stage(&worker))?;
         Ok(Self {
@@ -928,8 +940,8 @@ mod tests {
         ) {
             return;
         }
-        use mod_api::testing::with_mods;
         use mod_api::{FluidModel, Hooks, ModEntry, RegisterFluidModelsEvent, RegistrationContext};
+        use mod_platform::testing::with_mods;
         use std::sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -998,7 +1010,7 @@ mod tests {
                                 assert_eq!(layers.contains_key(id), expected == Some(id), "{id}");
                             }
                         };
-                        mod_api::__private::with_test_packages(&["reload_boundary"], || {
+                        mod_platform::__private::with_test_packages(&["reload_boundary"], || {
                             reload(Some("reload_boundary:block/oil_0"));
                             generation.store(1, Ordering::SeqCst);
                             reload(Some("reload_boundary:block/oil_1"));

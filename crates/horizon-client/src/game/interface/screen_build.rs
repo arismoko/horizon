@@ -1202,7 +1202,7 @@ mod tests {
             Box::new(Effects(Arc::clone(&calls))),
         )]
         .into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             crate::game::native_entity_refs::tests::with_game(|game| {
                 game.options.execution_role = crate::game::execution_role::ExecutionRole::Client;
                 game.screen = Screen::Inventory;

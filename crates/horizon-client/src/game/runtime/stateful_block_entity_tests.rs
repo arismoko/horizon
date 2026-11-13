@@ -69,7 +69,7 @@ fn stateful_creation_uses_actual_state_and_preserves_existing_entity() {
         Box::new(Factory(observed.clone())),
     )]
     .into();
-    mod_api::__private::install(mods.clone());
+    mod_platform::__private::install(mods.clone());
     crate::game::api_values::install_parts(&mods).unwrap();
     let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
     let root = crate::game::mods::content_root(&base, &Default::default()).unwrap();

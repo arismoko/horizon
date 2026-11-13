@@ -91,7 +91,7 @@ mod tests {
                 vec!["test:flowing".into(), "test:still".into()],
             )])),
         );
-        mod_api::__private::with_test_packages(&["second", "first"], || {
+        mod_platform::__private::with_test_packages(&["second", "first"], || {
             for (origin, expected) in [
                 (
                     engine::DataLoadOrigin::ServerDataLoad,

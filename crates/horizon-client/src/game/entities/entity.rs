@@ -20,7 +20,7 @@ use horizon_client::entity_rules::EntityRules;
 use horizon_client::join_seq::JoinSeq;
 use horizon_client::join_seq::Joined as _;
 use horizon_client::mobs::{Mob, Species};
-use horizon_client::projectiles::Projectile;
+use horizon_client::projectiles::{Projectile, ProjectileKind};
 use horizon_core::geometry::{Aabb, Direction, Vec3};
 use horizon_core::nbt::Tag;
 use horizon_core::position::BlockPos;
@@ -299,6 +299,11 @@ pub(super) trait Entity: EntityRules {
     /// arrow or a trident in the ground that did not move enters none.
     fn portal_sweeps(&self) -> bool {
         true
+    }
+    /// `Entity.noPhysics` between ticks: its moves pass through the blocks,
+    /// and a shulker's lid leaves it be.
+    fn no_physics(&self) -> bool {
+        false
     }
     /// `Entity.move(MoverType.PISTON, …)` once the movement is resolved.
     fn move_by_piston(&mut self, movement: Vec3) {
@@ -1009,7 +1014,13 @@ impl Game<'_> {
             self.res.facts(),
             self.collision,
         );
-        let alive = item.tick_settle(&self.world, self.res.facts(), no_physics, step);
+        let alive = item.tick_settle(
+            &self.world,
+            self.res.facts(),
+            no_physics,
+            step,
+            &self.loop_context,
+        );
         // ItemEntity.tick refreshes immersion and splashes on water entry.
         let before = item.velocity;
         let (water, _) =
@@ -2107,6 +2118,10 @@ impl Entity for ArmorStand {
     fn pushed_by_explosion(&self) -> bool {
         false
     }
+    /// A marker and a NoGravity stand have no physics (`noPhysics`).
+    fn no_physics(&self) -> bool {
+        self.marker || self.no_gravity
+    }
     /// `ArmorStand.getPistonPushReaction`: a marker is ignored.
     fn get_piston_push_reaction(&self) -> PushReaction {
         if self.marker {
@@ -2415,6 +2430,11 @@ impl Entity for Projectile {
     fn bounds(&self) -> Aabb {
         Projectile::bounds(self)
     }
+    /// A shulker bullet's, set when it is made; an arrow's `AbstractArrow.noPhysics`.
+    fn no_physics(&self) -> bool {
+        matches!(self.kind, ProjectileKind::ShulkerBullet { .. })
+            || self.arrow.as_ref().is_some_and(|a| a.no_physics)
+    }
     fn move_by_piston(&mut self, movement: Vec3) {
         Projectile::move_by_piston(self, movement);
     }
@@ -2593,6 +2613,10 @@ impl Entity for ThrownTrident {
             Vec3::new(p.x - 0.25, p.y, p.z - 0.25),
             Vec3::new(p.x + 0.25, p.y + 0.5, p.z + 0.25),
         )
+    }
+    /// `AbstractArrow.noPhysics`, set once a loyal trident turns back.
+    fn no_physics(&self) -> bool {
+        self.no_physics
     }
     fn move_by_piston(&mut self, movement: Vec3) {
         ThrownTrident::move_by_piston(self, movement);
@@ -2883,6 +2907,7 @@ mod set_rotation_tests {
     fn set_rotation_keeps_yaw_and_clamps_pitch_on_kinds_that_had_none() {
         let mut orb = ExperienceOrb {
             attachment_lifetime: Default::default(),
+            fall_distance: 0.0,
             join: Default::default(),
             no_gravity: false,
             id: 0,

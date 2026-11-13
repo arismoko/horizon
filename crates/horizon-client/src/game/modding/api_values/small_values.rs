@@ -17,6 +17,22 @@ impl TryIntoApi for horizon_items::firework::FireworkShape {
         })
     }
 }
+impl TryIntoEngine<()> for mod_api::FireworkShape {
+    type Engine = horizon_items::firework::FireworkShape;
+    type Error = Infallible;
+    fn try_into_engine(&self, _: &()) -> Result<Self::Engine, Self::Error> {
+        use horizon_items::firework::FireworkShape as E;
+        use mod_api::FireworkShape as A;
+        Ok(match self {
+            A::SmallBall => E::SmallBall,
+            A::LargeBall => E::LargeBall,
+            A::Star => E::Star,
+            A::Creeper => E::Creeper,
+            A::Burst => E::Burst,
+            _ => unreachable!("all API firework shapes are handled"),
+        })
+    }
+}
 impl TryIntoEngine<()> for mod_api::KeyConflictContext {
     type Engine = horizon_mod_package::mod_list::KeyConflictContext;
     type Error = Infallible;
@@ -42,7 +58,9 @@ mod tests {
             .iter()
             .enumerate()
         {
-            assert_eq!(shape.try_into_api().unwrap() as usize, index);
+            let api = shape.try_into_api().unwrap();
+            assert_eq!(api as usize, index);
+            assert_eq!(api.try_into_engine(&()).unwrap(), *shape);
         }
         use mod_api::KeyConflictContext as K;
         for (index, context) in [K::Universal, K::InGame, K::Gui].iter().enumerate() {

@@ -222,6 +222,16 @@ pub struct Hooks {
 
 pub static HOOKS: OnceLock<Hooks> = OnceLock::new();
 
+/// Where `IBlockExtension.getBounceRestitution` is answered, on both sides: the game says
+/// which block states have a part for it and binds the part's answer.
+pub struct RestitutionHooks {
+    pub listens: fn(BlockStateId) -> bool,
+    /// Change `factor`, the restitution of `Contact`'s block, for the entity landing on it.
+    pub restitution: fn(&mut DamageLevel<'_>, Contact<'_>, &mut f32),
+}
+
+pub static RESTITUTION_HOOKS: OnceLock<RestitutionHooks> = OnceLock::new();
+
 /// What a contact asked to keep until the entity's batch ends, delivered in
 /// the order it happened: the parts' `entity_inside` contacts themselves fire
 /// mid-walk now, on the shared inside sweep, so what stays here is the level
@@ -363,6 +373,29 @@ pub fn bounce(
     let mut answer = movement;
     (hooks.bounce_on)(dimension, level, contact, fall_distance, &mut answer);
     accepted_movement(answer, movement)
+}
+
+/// Whether a part of the block `state` answers `bounce_restitution`.
+pub fn restitution_listens(state: BlockStateId) -> bool {
+    RESTITUTION_HOOKS
+        .get()
+        .is_some_and(|hooks| (hooks.listens)(state))
+}
+
+/// `Entity.getBlockBounciness`' `Block.getBounceRestitution` for the entity landing on
+/// `contact`'s block, whose own restitution is `own`, after any part of that block changed it
+/// (`IBlockExtension.getBounceRestitution`) in `level`, on either side. A non-finite answer is
+/// ignored: it would make the entity's velocity not a number.
+pub fn bounce_restitution(level: &mut DamageLevel<'_>, contact: Contact<'_>, own: f32) -> f32 {
+    let Some(hooks) = RESTITUTION_HOOKS.get() else {
+        return own;
+    };
+    if !(hooks.listens)(contact.state) {
+        return own;
+    }
+    let mut answer = own;
+    (hooks.restitution)(level, contact, &mut answer);
+    if answer.is_finite() { answer } else { own }
 }
 
 /// Keep the writes a landing on the block `state` at `position` asked for until the

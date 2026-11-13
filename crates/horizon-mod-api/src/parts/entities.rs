@@ -162,6 +162,7 @@ impl EntitiesRegistrar for PartRegistrar {
     ) {
         self.capability(
             |p| &mut p.entity_capabilities,
+            None,
             name,
             ProviderTarget::Id(kind),
             before_game,

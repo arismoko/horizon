@@ -108,6 +108,7 @@ impl Game<'_> {
             main,
             lease,
             work_lease,
+            raw,
         } = incoming;
         #[cfg(test)]
         let wasm_health_before = wasm_tests::health(self, &endpoint, &id);
@@ -140,10 +141,26 @@ impl Game<'_> {
             &id,
             failure.is_none(),
         );
-        if let Some(error) = failure {
+        if let Some(error) = failure.as_ref().filter(|_| raw) {
+            // A raw channel's bytes come from any client; one declaring mod's
+            // refusal rolls back its own work only, and the next mod still runs.
+            log::warn!(
+                "Mod {} failed on raw channel {}: {error}",
+                receiver.owner(),
+                id.0
+            );
+            if let Some(reason) = reason {
+                endpoint.disconnect(reason);
+            }
+        } else if let Some(error) = failure {
+            // The reason goes to the log; the player is told only which mod's handler failed.
+            log::warn!("payload {} failed: {error}", id.0);
             endpoint.disconnect(Text::translate(
                 "disconnect.genericReason",
-                vec![Text::literal(format!("payload {} failed: {error}", id.0))],
+                vec![Text::literal(format!(
+                    "a mod's payload handler failed ({})",
+                    horizon_client::raw_payloads::mod_of(&id)
+                ))],
             ));
         } else if let Some(reason) = reason {
             endpoint.disconnect(reason);
@@ -240,6 +257,9 @@ impl IPayloadContext for MainContext<'_, '_> {
 #[cfg(test)]
 #[path = "payload_transport/config_tests.rs"]
 mod config_tests;
+#[cfg(test)]
+#[path = "payload_transport/raw_fault_tests.rs"]
+mod raw_fault_tests;
 #[cfg(test)]
 #[path = "payload_transport/sender_tests.rs"]
 mod sender_tests;

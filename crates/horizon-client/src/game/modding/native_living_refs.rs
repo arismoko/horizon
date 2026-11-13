@@ -2374,7 +2374,7 @@ mod tests {
                 }
             }
         }
-        mod_api::testing::with_mods(
+        mod_platform::testing::with_mods(
             vec![ModEntry::new("first_tick_equipment", Box::new(Reequip))].into(),
             || {
                 super::super::native_entity_refs::tests::with_game(|game| {

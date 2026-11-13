@@ -25,6 +25,7 @@ To play, use [the launcher](../launcher/README.md); the project site is [playhor
 - [Agent control](agent-control.md): what AI agents can drive in the launcher and the game, and the design of the control socket, `horizon-ctl` and MCP.
 - [horizon-ctl commands](horizon-ctl-commands.md): every command `horizon-ctl` takes, its CLI arguments, and the corresponding MCP tools for driving the game.
 - [Graphics](graphics.md): the graphics settings screen (pages, search, descriptions), the graphics benchmark and what it measured.
+- [Memory](memory.md): what holds the game's memory (`horizon-ctl memory`, the `alloc-census` heap census and its measured cost, resident memory in benchmark reports, heap profilers on probes).
 - [HDR and render passes](hdr-passes.md): what a pass on the world's picture (upscaling, anti-aliasing, frame generation, post effects, captures) keeps so HDR works, and how to check it.
 - [Realms availability](realms-availability.md): vanilla's check that this client may use Realms, the five results, how a screen reads it (one `Pending`, kept), its caching, and how to test a consumer.
 - [Server against Pumpkin](performance/server-vs-pumpkin.md): Horizon's server and Pumpkin (Rust) under the same bots at 0, 20, 60 and 100 players: tick time, CPU, memory, chunks, join; where Horizon loses, and how to run it again.
@@ -42,6 +43,7 @@ To play, use [the launcher](../launcher/README.md); the project site is [playhor
 - [Resource packs](resource-packs.md): everything a 26.3 resource pack can change, whether Horizon honours it, and the proof.
 - [Horizon sends nothing](telemetry.md): no telemetry; crash, benchmark and bug reports stay local files.
 - [Benchmark report format](benchmark-report.md): the versioned JSON every benchmark writes (game, launcher, `tools/perf_bench.py`) and the local log.
+- [Hot-path performance trends](hot-path-trends.md): the main-only job that counts instructions and allocations of the tick, commands, chunk saving and mod dispatch on fixed workloads, and where its trend page is.
 - [Security](security.md): how Horizon protects code, CI and automatic releases against untrusted input while work is performed by AI agents.
 - [Known issues](known-issues.md): player-facing issues listed in each game release and removed as pull requests fix them.
 - [Horizon APIs](api/README.md): every surface other programs build on (mods, shaders, agent control, servers, the launcher, data formats), each with its guide, generated reference, stability and changelog, and the [stability and versioning policy](api/stability.md).

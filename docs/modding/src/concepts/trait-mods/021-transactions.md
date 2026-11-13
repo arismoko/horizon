@@ -19,6 +19,15 @@ its state is the game's, so the game's journal covers it. Direct writes are not 
 inside a transaction. Any equip/unequip event and equip sound from `set_equipment` also happen immediately; an
 abort does not undo them. This differs from writes through journaled capability handlers.
 
+Code that may run inside or outside a transaction asks the host where it is (NeoForge's `Transaction.getLifecycle`,
+`getCurrentOpenedTransaction` and `TransactionContext.depth`): `host.transaction_lifecycle()` is
+`TransactionLifecycle::None`, `Open`, `Closing` (a nested transaction committing into the one around it or
+aborting) or `RootClosing` (the outermost closing, while the game tells the world of its commit: a
+`contents_changed` listener runs then, and what it writes is outside the transaction that just ended).
+`host.transaction_current()` is the innermost open `Transaction`, to write in, and none outside one; it names the
+transaction only, so ending it still takes its opener's seal. `host.transaction_depth(tx)` is 0 for the outermost,
+1 for one nested in it, and none for a transaction that is not open. Like transactions, these are server only.
+
 `ItemPlace::EntitySlot { entity, slot }` is slot `slot` of such an entity's inventory (NeoForge's
 `Capabilities.Item.ENTITY`), read and written like any other place.
 Reading or writing a minecart's slots unpacks its loot table with no player, as `getChestVehicleItem` does.

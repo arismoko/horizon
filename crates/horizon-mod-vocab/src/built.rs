@@ -482,3 +482,30 @@ impl From<PortalShape> for super::PortalShape {
         }
     }
 }
+// exhaustive: the game builds it with a literal; mods only read it
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct EntityRenderState {
+    pub id: u32,
+    pub partial: f32,
+    pub age: f32,
+    pub yaw: f32,
+    pub pitch: f32,
+}
+impl From<EntityRenderState> for super::EntityRenderState {
+    fn from(v: EntityRenderState) -> Self {
+        let EntityRenderState {
+            id,
+            partial,
+            age,
+            yaw,
+            pitch,
+        } = v;
+        Self {
+            id,
+            partial,
+            age,
+            yaw,
+            pitch,
+        }
+    }
+}

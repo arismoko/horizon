@@ -11,6 +11,7 @@ const BUILT_MODS: &[horizon_mod_package::runtime::BuiltMod] = &[
 /* BUILT_MODS */
 ];
 fn main() {
+    horizon_mod_host::prepare_main_stack();
     horizon_mod_host::exit_if_compile_child();
     let startup = horizon_client::entry::prepare();
     horizon_client::entry::installed(&[

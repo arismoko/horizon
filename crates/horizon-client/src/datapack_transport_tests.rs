@@ -60,8 +60,8 @@ fn incompressible_large_registry_snapshot_fits_each_frame_and_activates_only_whe
         }
     }
     let mods = vec![ModEntry::new("large", Box::new(Large))];
-    mod_api::__private::part_tests::install_parts_fixture(&mods).unwrap();
-    mod_api::testing::with_mods(mods.into(), || {
+    mod_platform::__private::part_tests::install_parts_fixture(&mods).unwrap();
+    mod_platform::testing::with_mods(mods.into(), || {
         clear_received();
         accept(&snapshot(1, "old".into()).encode().unwrap()).unwrap();
         let mut seed = 0x1a2b3c4d5e6f_u64;

@@ -830,7 +830,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
                 if self.b.is_air(state) {
                     if Direction::ALL
                         .into_iter()
-                        .any(|d| self.lava_flammable(rel(test, d)))
+                        .any(|d| self.lava_flammable(rel(test, d), d.opposite()))
                     {
                         if !self.level.allow_block_ignite(test, "lava") {
                             return;
@@ -857,7 +857,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
                 if !self.level.is_loaded(test) {
                     return;
                 }
-                if self.is_empty_block(above(test)) && self.lava_flammable(test) {
+                if self.is_empty_block(above(test)) && self.lava_flammable(test, Direction::Up) {
                     if !self.level.allow_block_ignite(above(test), "lava") {
                         continue;
                     }
@@ -869,12 +869,20 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             }
         }
     }
-    fn lava_flammable(&self, pos: BlockPos) -> bool {
+    /// `LavaFluid.isFlammable` of the block at `pos`, asked from its side
+    /// `face`: the level's answer, else the state's `ignitedByLava` flag.
+    fn lava_flammable(&self, pos: BlockPos, face: Direction) -> bool {
         if self.is_inside_build_height(pos.y) && !self.level.is_loaded(pos) {
             return false;
         }
-        self.b
-            .has_flag(self.state(pos), super::data::state_flags::IGNITED_BY_LAVA)
+        let state = self.state(pos);
+        let mut ignites = None;
+        self.level
+            .before_ignited_by_lava(state, pos, face, &mut ignites);
+        ignites.unwrap_or_else(|| {
+            self.b
+                .has_flag(state, super::data::state_flags::IGNITED_BY_LAVA)
+        })
     }
 }
 

@@ -10,11 +10,13 @@ pub use endpoint::{Endpoint, Prepared};
 mod executor;
 #[cfg(test)]
 mod executor_tests;
+#[cfg(test)]
+mod raw_channel_tests;
 #[cfg(any(test, feature = "test-payload-probe"))]
 pub mod staging_probe;
 #[cfg(test)]
 mod wasm_tests;
-pub use executor::dispatch;
+pub use executor::{dispatch, mod_of};
 mod main_queue;
 pub use main_queue::MainQueue;
 #[cfg(test)]
@@ -68,6 +70,9 @@ pub struct Local {
     pub codecs: PayloadCodecs,
     registry: Option<Arc<Payloads>>,
     declarations: [HashMap<String, Flow>; 2],
+    /// Raw play channels (server side only), frozen at capture: each id's
+    /// receiving mods in load order, empty for a send-only declaration.
+    raw: HashMap<String, Vec<PayloadReceiver>>,
     // Shared by a server installation's connections: abandoned epochs must not
     // accumulate uncharged tables while the main executor is stalled.
     snapshot_budget: Option<(
@@ -116,10 +121,20 @@ impl Local {
                 .map_err(|error| error.to_string())?;
         }
         let manifest = manifest.finish().map_err(|error| error.to_string())?;
-        if manifest.entries().is_empty() {
+        // Raw channels are a server's plugin-channel policy: a client sends none.
+        let raw: HashMap<_, _> = match side {
+            Side::Server => registry
+                .raw_channels()
+                .map(|id| (id.to_owned(), registry.raw_receivers(id)))
+                .collect(),
+            Side::Client => HashMap::new(),
+        };
+        if manifest.entries().is_empty() && raw.is_empty() {
             return Ok(Self::empty());
         }
-        Ok(Arc::new(Self::new(manifest, Some(registry))))
+        let mut local = Self::new(manifest, Some(registry));
+        local.raw = raw;
+        Ok(Arc::new(local))
     }
     pub(crate) fn empty() -> Arc<Self> {
         static EMPTY: OnceLock<Arc<Local>> = OnceLock::new();
@@ -170,7 +185,21 @@ impl Local {
             codecs: PayloadCodecs::from_channels(channels),
             registry,
             declarations,
+            raw: HashMap::new(),
         }
+    }
+    /// Whether a connection needs per-connection state: a negotiated declaration,
+    /// or a raw channel, which a vanilla peer also uses.
+    pub fn has_declarations(&self) -> bool {
+        !self.manifest.entries().is_empty() || !self.raw.is_empty()
+    }
+    /// Whether `id` is a raw play channel a mod declared on this server.
+    pub fn is_raw(&self, id: &str) -> bool {
+        self.raw.contains_key(id)
+    }
+    /// The mods receiving raw channel `id`, in load order; empty when undeclared.
+    pub fn raw_receivers(&self, id: &str) -> &[PayloadReceiver] {
+        self.raw.get(id).map_or(&[], Vec::as_slice)
     }
     /// Whether a channel belongs to this transport, including wrong-phase declarations.
     pub fn owns(&self, id: &str) -> bool {
@@ -262,6 +291,14 @@ impl Peer {
     }
     /// Resolve local authority, phase, direction and peer support before preparing bytes.
     pub fn can_send(&self, phase: Phase, id: &PayloadId) -> Result<(), PayloadSendError> {
+        // A raw channel needs no peer declaration: it goes to any client in play.
+        if self.local.is_raw(&id.0) {
+            return match (phase, self.side) {
+                (Phase::Play, Side::Server) => Ok(()),
+                (Phase::Configuration, _) => Err(PayloadSendError::WrongProtocol(id.clone())),
+                (_, Side::Client) => Err(PayloadSendError::WrongDirection(id.clone())),
+            };
+        }
         let flow = self.local.declarations[index(phase)]
             .get(&id.0)
             .ok_or_else(|| self.missing(phase, &id.0))?;

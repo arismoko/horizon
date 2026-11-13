@@ -271,6 +271,20 @@ impl crate::prelude::ModStateServerHost for FakeHost {
             (self.players, self.level) = (players, level);
         }
     }
+    fn transaction_lifecycle(&self) -> crate::TransactionLifecycle {
+        // The fake tells the world of nothing at a close, so no close is ever seen running.
+        if self.journal.depth() == 0 {
+            crate::TransactionLifecycle::None
+        } else {
+            crate::TransactionLifecycle::Open
+        }
+    }
+    fn transaction_current(&self) -> Option<crate::Transaction> {
+        self.journal.current()
+    }
+    fn transaction_depth(&self, tx: &crate::Transaction) -> Option<u32> {
+        self.journal.depth_of(tx)
+    }
 }
 impl crate::prelude::ServicesServerHost for FakeHost {
     fn commands(&mut self) -> &mut dyn Commands {
@@ -297,6 +311,11 @@ impl crate::prelude::LevelsBackend for FakeHost {
             .block_at(level, pos)
             .and_then(crate::__private::block_key)
     }
+    /// The named block's first state: the fake keeps no properties.
+    fn level_block_state(&self, level: LevelRef, pos: [i32; 3]) -> Option<crate::BlockState> {
+        let block = crate::prelude::LevelsBackend::level_block(self, level, pos)?;
+        Some(crate::BlockStateRecord::new(block, 0).into())
+    }
 }
 impl crate::prelude::BlockEntitiesBackend for FakeHost {
     fn block_entity_kind(&self, entity: BlockEntityRef) -> Option<BlockEntityTypeKey> {
@@ -305,6 +324,51 @@ impl crate::prelude::BlockEntitiesBackend for FakeHost {
     }
 }
 impl crate::prelude::ItemsBackend for FakeHost {
+    fn container_kind_amount(&self, at: BlockSide, resource: &crate::ItemResource) -> Option<u64> {
+        let Some(items) = self
+            .level
+            .standing(at.level, at.pos)
+            .and_then(|s| s.items.as_ref())
+        else {
+            return Some(0);
+        };
+        items
+            .slots
+            .iter()
+            .flatten()
+            .filter(|stack| resource.matches(stack))
+            .try_fold(0u64, |total, stack| total.checked_add(stack.count() as u64))
+    }
+    fn container_kind_space(&self, at: BlockSide, resource: &crate::ItemResource) -> Option<u64> {
+        let max_stack = self.max_stack(resource);
+        let Some(items) = self
+            .level
+            .standing(at.level, at.pos)
+            .and_then(|s| s.items.as_ref())
+        else {
+            return Some(0);
+        };
+        (0..items.slots.len()).try_fold(0u64, |total, slot| {
+            let room = match &items.slots[slot] {
+                Some(held) if resource.matches(held) => {
+                    items.capacity(slot, max_stack).saturating_sub(held.count())
+                }
+                Some(_) => 0,
+                None => items.capacity(slot, max_stack),
+            };
+            total.checked_add(room as u64)
+        })
+    }
+    fn container_listing(
+        &self,
+        at: BlockSide,
+        from: usize,
+        limit: usize,
+    ) -> Option<Vec<Option<ItemStack>>> {
+        let items = self.level.standing(at.level, at.pos)?.items.as_ref()?;
+        let limit = limit.min(crate::MAX_STORAGE_PAGE);
+        Some(items.slots.iter().skip(from).take(limit).cloned().collect())
+    }
     fn container_size(&self, at: BlockSide) -> Option<usize> {
         let items = self.level.standing(at.level, at.pos)?.items.as_ref()?;
         Some(items.slots.len())
@@ -440,6 +504,65 @@ impl crate::prelude::ItemsBackendMut for FakeHost {
     ) -> Option<ItemStack> {
         let standing = self.level.standing_mut(at.level, at.pos)?;
         standing.items.as_mut()?.extract(slot, max)
+    }
+    fn container_insert_kind(
+        &mut self,
+        at: BlockSide,
+        resource: &crate::ItemResource,
+        amount: u64,
+        tx: &Transaction,
+    ) -> u64 {
+        use crate::prelude::ItemsBackend;
+        let size = self.container_size(at).unwrap_or(0);
+        let mut left = amount;
+        for holding in [true, false] {
+            for slot in 0..size {
+                if left == 0 {
+                    break;
+                }
+                let held = self.container_stack(at, slot);
+                let pick = match &held {
+                    Some(held) => holding && resource.matches(held),
+                    None => !holding,
+                };
+                if !pick {
+                    continue;
+                }
+                let ask = left.min(u32::MAX as u64) as u32;
+                let rest = self
+                    .container_insert(at, slot, resource, ask, tx)
+                    .ok()
+                    .flatten()
+                    .map_or(0, |rest| rest.count());
+                left -= (ask - rest) as u64;
+            }
+        }
+        amount - left
+    }
+    fn container_extract_kind(
+        &mut self,
+        at: BlockSide,
+        resource: &crate::ItemResource,
+        amount: u64,
+        tx: &Transaction,
+    ) -> u64 {
+        use crate::prelude::ItemsBackend;
+        let mut left = amount;
+        for slot in 0..self.container_size(at).unwrap_or(0) {
+            if left == 0 {
+                break;
+            }
+            if self
+                .container_stack(at, slot)
+                .is_some_and(|held| resource.matches(&held))
+            {
+                let ask = left.min(u32::MAX as u64) as u32;
+                left -= self
+                    .container_extract(at, slot, ask, tx)
+                    .map_or(0, |out| out.count()) as u64;
+            }
+        }
+        amount - left
     }
     fn game_stack(&mut self, place: &ItemPlace) -> Option<ItemStack> {
         let (player, slot) = self.players.place(place)?;

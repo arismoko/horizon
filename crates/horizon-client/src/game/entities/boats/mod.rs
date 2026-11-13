@@ -4,6 +4,8 @@
 //! saving and `AbstractBoatRenderer` with animated paddles.
 mod below_world;
 #[cfg(test)]
+mod friction_tests;
+#[cfg(test)]
 mod lifetime_tests;
 mod placement;
 pub(super) use placement::OutlineFluidRay;
@@ -427,6 +429,8 @@ impl Boat {
     /// The vanilla entity type id (`oak_boat`, `bamboo_chest_raft`), also
     /// the item it drops.
     pub(super) fn entity_type(&self) -> String {
+        #[cfg(test)]
+        friction_tests::TYPE_BUILDS.with(|n| n.set(n.get() + 1));
         let chest = if self.chest { "chest_" } else { "" };
         if &*self.wood == "bamboo" {
             format!("minecraft:bamboo_{chest}raft")
@@ -651,7 +655,7 @@ impl Game<'_> {
             return Status::InWater;
         }
 
-        let friction = self.boat_ground_friction(bb);
+        let friction = self.boat_ground_friction(b, bb);
         if friction > 0.0 {
             b.land_friction = friction;
             Status::OnLand
@@ -661,7 +665,7 @@ impl Game<'_> {
     }
     /// `AbstractBoat.getGroundFriction`: average friction of the blocks whose
     /// collision shape meets a thin slab just under the hull (lily pads skipped).
-    fn boat_ground_friction(&self, bb: Aabb) -> f32 {
+    fn boat_ground_friction(&self, b: &Boat, bb: Aabb) -> f32 {
         let (lo, hi) = (bb.min_position(), bb.max_position());
         let ground = Aabb::new(
             Vec3::new(lo.x, lo.y - 0.001, lo.z),
@@ -712,7 +716,8 @@ impl Game<'_> {
                         .join_is_not_empty(&slab, ShapeOp::AND)
                         .unwrap_or(false)
                     {
-                        friction += f.friction;
+                        friction +=
+                            self.boat_friction(b, BlockPos::new(x, y, z), state, f.friction);
                         count += 1;
                     }
                 }
@@ -1872,6 +1877,77 @@ impl Game<'_> {
     pub(super) fn hurt_boat(&mut self, i: usize, damage: f32, creative: bool) -> bool {
         self.hurt_boat_result(i, damage, creative).unwrap_or(false)
     }
+    /// Whether a spectator must be refused this boat's menu.
+    pub(super) fn boat_loot_pending(&self, id: u32) -> bool {
+        matches!(
+            self.persist.raw.get(&id),
+            Some(horizon_core::nbt::Tag::Compound(map)) if map.contains_key(&"LootTable".into())
+        )
+    }
+
+    /// `ContainerEntity.unpackChestVehicleLootTable`: slot access rolls once;
+    /// only a player opening the menu fires `CriteriaTriggers.GENERATE_LOOT`, before filling.
+    pub(super) fn unpack_boat_loot(&mut self, i: usize, player: bool) {
+        use horizon_core::nbt::Tag;
+        let id = self.boats[i].id;
+        let (table, seed) = {
+            let Some(Tag::Compound(map)) = self.persist.raw.get(&id) else {
+                return;
+            };
+            let Some(table) = crate::save::text(map.get(&"LootTable".into()))
+                .and_then(|id| horizon_client_core::identifier::normalize_id(&id))
+            else {
+                return;
+            };
+            let seed = match map.get(&"LootTableSeed".into()) {
+                Some(Tag::Long(seed)) => Some(*seed),
+                _ => None,
+            };
+            (table, seed)
+        };
+        if player {
+            self.trigger_loot_table(&table);
+        }
+        // Advancement rewards can remove the boat or shift its index.
+        let Some(i) = self.boats.iter().position(|b| b.id == id) else {
+            return;
+        };
+        if let Some(Tag::Compound(map)) = self.persist.raw.get_mut(&id) {
+            map.remove(&"LootTable".into());
+            map.remove(&"LootTableSeed".into());
+        }
+        let key = (i32::MAX - 15, super::minecarts::CART_KEY_Y, id as i32);
+        self.store_cart_items(key);
+        let loot = crate::structure_blocks::loot_data(
+            &self.options.resources,
+            &self.pack_files(),
+            self.res.item_defaults(),
+        );
+        let b = &self.boats[i];
+        let at = Vec3::new(b.position.x, b.position.y, b.position.z);
+        let biome = self.biome_name_at(at).unwrap_or_default();
+        let pos = (
+            b.position.x.floor() as i32,
+            b.position.y.floor() as i32,
+            b.position.z.floor() as i32,
+        );
+        self.boats.update(i, |b| {
+            crate::structure_blocks::roll_container(
+                &mut b.items,
+                loot.as_deref(),
+                table,
+                seed,
+                pos,
+                &biome,
+            );
+        });
+        if let Some(horizon_client::containers::BlockEntity::Chest(items)) =
+            self.world.block_entities.get_mut(&key)
+        {
+            items.clone_from(&self.boats[i].items);
+        }
+    }
+
     /// None means a canceled hit; Some records whether an accepted hit destroyed it.
     pub(super) fn hurt_boat_result(
         &mut self,
@@ -1942,6 +2018,7 @@ impl Game<'_> {
                 return Some(true);
             };
             self.release_vehicle_container(id);
+            self.unpack_boat_loot(i, false);
             let b = self.boats.remove(i);
             // `AbstractChestBoat.remove` spills the chest through
             // `Containers.dropContents` for every destroying removal reason

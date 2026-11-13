@@ -1,6 +1,7 @@
 use super::*;
 use horizon_mod_package::{enabled::EnabledMods, selection::SelectedPackage};
-use mod_api::{Hooks, ModEntry, testing::with_mods};
+use mod_api::{Hooks, ModEntry};
+use mod_platform::testing::with_mods;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 struct EmptyCode;
@@ -77,7 +78,7 @@ fn admission_uses_active_native_and_wasm_entries_and_accepted_content_not_startu
         ]
         .into(),
         || {
-            mod_api::__private::with_test_packages(&["refused_code", "shared_space"], || {
+            mod_platform::__private::with_test_packages(&["refused_code", "shared_space"], || {
                 assert!(
                     mod_api::__private::loaded_mods()
                         .get("refused_code")
@@ -323,4 +324,49 @@ fn code_only_reload_publishes_one_new_inventory_after_prepare_and_preserves_old_
             });
         },
     );
+}
+
+/// Capture metadata uses the same typed runtime and selected wasm provenance as loading.
+#[test]
+fn capture_metadata_distinguishes_content_native_wasm_and_unknown_code() {
+    use horizon_perf_format::v1::ModKind;
+    let fixture = Fixture::new("perf-inventory");
+    hmod(&fixture.0, "machine_sample");
+    let sources = ModsState {
+        native: Arc::new(fixture.runtime()),
+        selected: vec![selected(&fixture, "wasm_mod", true, "both")].into(),
+        ..Default::default()
+    };
+    let inventory: Vec<_> = [
+        ("plain", mod_api::PackageKind::Content),
+        ("machine_sample", mod_api::PackageKind::Code),
+        ("wasm_mod", mod_api::PackageKind::Code),
+        ("builtin_code", mod_api::PackageKind::Code),
+    ]
+    .into_iter()
+    .map(|(id, kind)| {
+        mod_api::PackageInfo::new(
+            id.to_owned(),
+            "2.3".to_owned(),
+            kind,
+            mod_api::Side::Both,
+            vec![id.to_owned()],
+            vec![],
+        )
+    })
+    .collect();
+    let metadata = sources.perf_metadata(inventory.iter());
+    assert_eq!(
+        metadata
+            .iter()
+            .map(|m| (m.id.as_str(), m.version.as_str(), m.kind))
+            .collect::<Vec<_>>(),
+        vec![
+            ("plain", "2.3", ModKind::Content as i32),
+            ("machine_sample", "2.3", ModKind::Native as i32),
+            ("wasm_mod", "2.3", ModKind::Wasm as i32),
+            ("builtin_code", "2.3", ModKind::Unspecified as i32),
+        ]
+    );
+    assert!(metadata.iter().all(|m| m.crate_name.is_empty()));
 }

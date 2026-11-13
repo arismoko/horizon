@@ -205,6 +205,7 @@ pub fn feature_packs(resources: &Path) -> Vec<DataPack> {
                 required: false,
                 position: crate::packs::Position::Bottom,
                 fixed: false,
+                hidden: false,
             });
             packs.push(pack);
         }
@@ -266,6 +267,7 @@ pub fn screen_packs(dir: &Path, resources: &Path) -> Vec<crate::pack_screen::Pac
             required: false,
             position: Position::Top,
             fixed: false,
+            hidden: false,
         })
         .collect();
     infos.push(PackInfo {
@@ -282,6 +284,7 @@ pub fn screen_packs(dir: &Path, resources: &Path) -> Vec<crate::pack_screen::Pac
         required: false,
         position: Position::Bottom,
         fixed: false,
+        hidden: false,
     });
     for p in feature_packs(resources) {
         infos.extend(p.selection);

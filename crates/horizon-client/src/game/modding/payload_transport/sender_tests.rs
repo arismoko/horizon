@@ -91,7 +91,7 @@ fn published_tcp_attributes_players_and_orders_actions() {
         Box::new(Registration(probe.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         super::super::native_entity_refs::tests::with_client_game(|game| {
             game.settings.render_distance = 2;
             game.settings.simulation_distance = 2;

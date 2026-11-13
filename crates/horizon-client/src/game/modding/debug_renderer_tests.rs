@@ -99,7 +99,7 @@ fn the_renderer_list_refreshes_with_the_selection_and_leaves_nothing_behind() {
         return;
     }
     with_client_game(|game| {
-        mod_api::__private::install(vec![ModEntry::new("marker", Box::new(Marker))].into());
+        mod_platform::__private::install(vec![ModEntry::new("marker", Box::new(Marker))].into());
         push(&[SHOWN, OTHER, UNDECLARED]);
         mods::register_debug_entries(ExecutionRole::Client);
         // The options exist before any refresh, and pushing an id does not make one.
@@ -266,7 +266,7 @@ fn toggle_overlay(game: &mut super::Game<'_>) {
 /// the real input/packet path. The next view must collect the new list exactly once.
 fn invalidation_refreshes(expected: &[&str], change: impl FnOnce(&mut super::Game<'_>)) {
     with_client_game(|game| {
-        mod_api::__private::install(vec![ModEntry::new("marker", Box::new(Marker))].into());
+        mod_platform::__private::install(vec![ModEntry::new("marker", Box::new(Marker))].into());
         mods::register_debug_entries(ExecutionRole::Client);
         game.debug_entries = DebugEntries::default();
         game.title = None;

@@ -195,7 +195,8 @@ fn leave_block_goal_uses_real_neighbor_shapes_and_keeps_air_placement() {
 fn canceled_normalized_placements_keep_the_original_carried_block() {
     use horizon_core::position::BlockPos;
     use horizon_world::registry::BlockStateId;
-    use mod_api::{EntityPlaceEvent, Flow, Hooks, ModEntry, ServerHost, testing::with_mods};
+    use mod_api::{EntityPlaceEvent, Flow, Hooks, ModEntry, ServerHost};
+    use mod_platform::testing::with_mods;
     use std::sync::Mutex;
 
     struct Cancel {
@@ -280,7 +281,8 @@ fn canceled_normalized_placements_keep_the_original_carried_block() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_placement_listener_discarding_the_enderman_refuses_the_attempt() {
-    use mod_api::{EntityPlaceEvent, Flow, Hooks, ModEntry, ServerHost, testing::with_mods};
+    use mod_api::{EntityPlaceEvent, Flow, Hooks, ModEntry, ServerHost};
+    use mod_platform::testing::with_mods;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Discard(Arc<AtomicUsize>);
@@ -349,7 +351,8 @@ fn a_placement_listener_discarding_the_enderman_refuses_the_attempt() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn an_air_normalized_placement_empties_the_hand_without_a_block_change_notice() {
-    use mod_api::{EntityChangeBlockEvent, Hooks, ModEntry, ServerHost, testing::with_mods};
+    use mod_api::{EntityChangeBlockEvent, Hooks, ModEntry, ServerHost};
+    use mod_platform::testing::with_mods;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Changed(Arc<AtomicUsize>);

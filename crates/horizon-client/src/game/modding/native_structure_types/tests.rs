@@ -410,7 +410,7 @@ impl horizon_world::worldgen::structure::legacy::PieceWorld for RecordingWorld {
 /// (`legacy::tests::registry`): two facts rows, held once for the
 /// `&'static` the engine's resources take — no game resources needed.
 fn test_resources() -> &'static horizon_world::worldgen::structure::StructureResources {
-    mod_api::__private::part_tests::install_parts_fixture(&[]).unwrap();
+    mod_platform::__private::part_tests::install_parts_fixture(&[]).unwrap();
     let facts = serde_json::json!({
         "states": [
             ["air", true, false, "", {"id":"minecraft:air","properties":{}}],
@@ -666,7 +666,7 @@ fn structure_bad_config_refuses_at_load_but_unknown_types_do_not_convert() {
 #[test]
 fn compiled_book_piece_resolves_on_worker_load_and_refuses_bad_saved_values() {
     use horizon_world::worldgen::structure::legacy::{PieceContext as EngineContext, SolidRender};
-    mod_api::__private::part_tests::install_parts_fixture(&[mod_api::ModEntry::new(
+    mod_platform::__private::part_tests::install_parts_fixture(&[mod_api::ModEntry::new(
         "mymod",
         Box::new(book_example::structures::StructureMod),
     )])

@@ -1,7 +1,8 @@
 use super::*;
 use horizon_client::datapack::{DataStore, FunctionLine};
 use horizon_client::text::Text;
-use mod_api::{AddPackFindersEvent, Hooks, Identifier, ModEntry, testing::with_mods};
+use mod_api::{AddPackFindersEvent, Hooks, Identifier, ModEntry};
+use mod_platform::testing::with_mods;
 use std::{fs, io::Write, path::PathBuf};
 
 const ASSET_PACK: &str = "assets/packmod/resourcepacks/optional";
@@ -115,6 +116,7 @@ struct Finder {
     feature: bool,
     required: bool,
     position: PackPosition,
+    hidden: bool,
 }
 #[mod_api::__subscriptions]
 impl Hooks for Finder {
@@ -130,6 +132,7 @@ impl Hooks for Finder {
             );
             pack.always_active = self.required;
             pack.position = self.position;
+            pack.hidden = self.hidden;
             if self.feature && kind == PackType::ServerData {
                 pack.source = PackSource::Feature;
             }
@@ -141,6 +144,9 @@ fn with_finder(test: impl FnOnce()) {
     with_finder_config(false, false, test);
 }
 fn with_finder_config(feature: bool, required: bool, test: impl FnOnce()) {
+    with_finder_hidden(feature, required, false, test);
+}
+fn with_finder_hidden(feature: bool, required: bool, hidden: bool, test: impl FnOnce()) {
     with_mods(
         vec![ModEntry::new(
             "packmod",
@@ -148,11 +154,39 @@ fn with_finder_config(feature: bool, required: bool, test: impl FnOnce()) {
                 feature,
                 required,
                 position: PackPosition::Bottom,
+                hidden,
             }),
         )]
         .into(),
         test,
     );
+}
+
+#[test]
+fn hidden_packs_reach_the_screens_marked_hidden_and_still_apply() {
+    let fixture = Fixture::new(false);
+    let sources = fixture.sources();
+    with_finder_hidden(false, true, true, || {
+        let packs = discover(PackType::ClientResources, &sources);
+        let infos = crate::game::packs::pack_infos(&fixture.root, &[], &packs);
+        let info = infos
+            .iter()
+            .find(|info| info.id == fixture.asset_id())
+            .unwrap();
+        assert!(info.hidden && info.required);
+        let data = data_packs(&sources);
+        assert!(data[0].selection.as_ref().is_some_and(|info| info.hidden));
+        // Required and hidden: on without the player picking it.
+        let base = fixture.root.join("base");
+        fs::create_dir_all(base.join("assets/packmod/lang")).unwrap();
+        fs::write(base.join(ASSET), b"base").unwrap();
+        let on = packs::resources(
+            ResourceSource::directory(base),
+            &packs::enabled(&packs, &[fixture.asset_id()]),
+        )
+        .unwrap();
+        assert_eq!(on.read(ASSET).unwrap(), br#"{"packmod.optional":"first"}"#);
+    });
 }
 
 #[test]
@@ -446,6 +480,10 @@ fn registered_data_commands_respect_flags_required_packs_and_default_priority() 
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_mods_pack_is_on_the_screen_and_applies_through_client_reload() {
+    // Reload publishes a language just as the other game fixtures do. Keep this
+    // fixture's publications visible locally, not at the mercy of their reloads.
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut fixture = Fixture::new(true);
     let mut ran = false;
     with_finder(|| {
@@ -521,4 +559,85 @@ fn a_mods_pack_is_on_the_screen_and_applies_through_client_reload() {
         });
     });
     assert!(ran, "the prepared-resource fixture must run this case");
+}
+
+#[test]
+fn hidden_optional_data_pack_is_command_selectable_and_loads_its_function() {
+    let fixture = Fixture::new(false);
+    with_finder_hidden(false, false, true, || {
+        let data = data_packs(&fixture.sources());
+        assert_eq!(data.len(), 1);
+        let mut info = data[0].selection.clone().unwrap();
+        assert!(info.hidden);
+        assert!(!info.required);
+        info.title = Text::literal("Optional data fixture");
+        let atlas = horizon_client::hud::HudAtlas::build(&ResourceSource::directory(
+            "/nonexistent/horizon-test-assets".into(),
+        ))
+        .unwrap();
+        let m = horizon_client::screen_draw::Measure(&atlas.font);
+        let drawn_labels = |info| {
+            let screen = horizon_client::pack_screen::PackScreen::new(
+                &m,
+                Text::literal("Data packs"),
+                480,
+                320,
+                false,
+                vec![info],
+                &[],
+            );
+            screen
+                .draw(&m, (0, 0), 0, 0)
+                .into_iter()
+                .filter_map(|draw| {
+                    if let horizon_client::screen_draw::Draw::Text { text, .. } = draw {
+                        Some(text.plain())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+        assert!(
+            !drawn_labels(info.clone())
+                .iter()
+                .any(|s| s == "Optional data fixture")
+        );
+        info.hidden = false;
+        assert!(
+            drawn_labels(info)
+                .iter()
+                .any(|s| s == "Optional data fixture")
+        );
+
+        let world = fixture.root.join("world");
+        fs::create_dir(&world).unwrap();
+        let repository = data_repository(&world, &fixture.root, &data);
+        assert!(
+            repository
+                .iter()
+                .any(|p| p.id == "mod/packmod:data/packmod/datapacks/optional")
+        );
+        assert!(horizon_client::datapack::enabled_ids(&world, &repository, &[]).is_empty());
+        fs::write(
+            world.join("datapacks.json"),
+            r#"{"enabled":["mod/packmod:data/packmod/datapacks/optional"],"disabled":[]}"#,
+        )
+        .unwrap();
+        let stack = crate::game::functions::pack_stack(
+            &world,
+            &fixture.root,
+            &Default::default(),
+            &Default::default(),
+            true,
+            &[],
+            &data,
+        );
+        let enabled = stack.enabled_packs().collect::<Vec<_>>();
+        let store = DataStore::load(&enabled);
+        assert_eq!(
+            store.functions["packmod:probe"].lines,
+            [FunctionLine::Command("say from-optional".into())]
+        );
+    });
 }

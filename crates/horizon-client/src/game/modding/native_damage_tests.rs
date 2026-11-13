@@ -105,7 +105,7 @@ fn heard(test: impl FnOnce(&mut super::Game<'_>)) -> Heard {
         Box::new(Probe(log.clone())),
     )]
     .into();
-    mod_api::testing::with_mods(mods, || with_game(test));
+    mod_platform::testing::with_mods(mods, || with_game(test));
     std::mem::take(&mut *log.lock().unwrap())
 }
 
@@ -343,7 +343,7 @@ fn snapshot_crosses_the_real_damage_hook_with_reductions() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn unsubscribed_damage_does_not_convert() {
-    mod_api::testing::with_mods(Vec::<mod_api::ModEntry>::new().into(), || {
+    mod_platform::testing::with_mods(Vec::<mod_api::ModEntry>::new().into(), || {
         with_game(|game| {
             super::api_values::damage::CONVERSIONS.with(|count| count.set(0));
             let mut container = horizon_world::living_damage::DamageContainer::new(10.0);

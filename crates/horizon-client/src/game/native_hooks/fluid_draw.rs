@@ -112,7 +112,7 @@ mod tests {
                 ]
             );
             let mods: Mods = vec![ModEntry::new("fluid-tips", Box::new(Relabel))].into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 assert_eq!(
                     plain(game.fluid_tooltip_lines(&stack)),
                     [

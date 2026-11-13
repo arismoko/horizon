@@ -471,6 +471,10 @@ mod transport {
         call(id, input, out);
         true
     }
+    /// Sends a panic's text to the game: every panic in this module is the guest's own.
+    pub(super) fn try_log(input: &[u8]) -> bool {
+        try_call(crate::wire::HOST_LOG, input, &mut Vec::new())
+    }
     pub(super) fn call(id: u32, input: &[u8], out: &mut Vec<u8>) {
         let cap = out.capacity();
         // SAFETY: the game writes at most `cap` bytes at `out`'s spare capacity, which it owns;
@@ -508,6 +512,16 @@ mod transport {
         TRANSPORT.with(|t| *t.borrow_mut() = transport);
     }
 
+    thread_local!(static SERVING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) });
+
+    /// Clears [`SERVING`] when the game's answer returns or a panic in it unwinds.
+    struct Serving(bool);
+    impl Drop for Serving {
+        fn drop(&mut self) {
+            let _ = SERVING.try_with(|serving| serving.set(self.0));
+        }
+    }
+
     pub(super) fn try_call(id: u32, input: &[u8], out: &mut Vec<u8>) -> bool {
         let transport = TRANSPORT
             .try_with(|t| t.try_borrow().ok().and_then(|t| t.clone()))
@@ -516,8 +530,16 @@ mod transport {
         let Some(transport) = transport else {
             return false;
         };
+        let _serving = Serving(SERVING.with(|serving| serving.replace(true)));
         out.extend_from_slice(&transport(id, input));
         true
+    }
+    /// Sends a panic's text to the game, unless the panic is raised while the game answers this
+    /// thread, the game's own or a mod hook's re-entered from inside that answer: the game is
+    /// mid-call there, so it is printed instead (native harness only).
+    pub(super) fn try_log(input: &[u8]) -> bool {
+        !SERVING.try_with(std::cell::Cell::get).unwrap_or(true)
+            && try_call(crate::wire::HOST_LOG, input, &mut Vec::new())
     }
     pub(super) fn call(id: u32, input: &[u8], out: &mut Vec<u8>) {
         assert!(try_call(id, input, out), "no transport to the game is set");
@@ -659,11 +681,12 @@ pub fn run(id: u32) -> (*const u8, u32) {
     HOOK.call_once(|| {
         let previous = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
-            // A panic can originate while the pool is borrowed, or outside a guest
-            // call in a native harness. Logging must not borrow it or require a transport.
+            // A panic can originate while the pool is borrowed, outside a guest call in a
+            // native harness, or in a native harness's game while it answers. Logging must not
+            // borrow the pool, require a transport or re-enter the game's answer.
             let mut args = Writer::new();
             args.put_str(&info.to_string());
-            if !transport::try_call(crate::wire::HOST_LOG, args.bytes(), &mut Vec::new()) {
+            if !transport::try_log(args.bytes()) {
                 previous(info);
             }
         }));

@@ -234,7 +234,7 @@ mod tests {
         )]
         .into();
         let take = || std::mem::take(&mut *log.lock().unwrap());
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 let level = game.level(game.dim.id()).unwrap();
 

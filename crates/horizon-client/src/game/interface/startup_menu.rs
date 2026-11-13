@@ -96,6 +96,7 @@ impl StartupMenu {
         root: PathBuf,
         settings: &Settings,
         additional_data: Arc<[Arc<horizon_client::datapack::DataPack>]>,
+        splashes: &str,
     ) {
         horizon_client::ui::load_metadata(
             &horizon_assets::resource_source::ResourceSource::directory(root.to_path_buf()),
@@ -111,6 +112,7 @@ impl StartupMenu {
             let mut title = Title::new(
                 std::env::current_dir().unwrap_or_default().join("saves"),
                 &self.root,
+                splashes,
             );
             title.last_server = settings.file.string("lastServer");
             title.skip_multiplayer_warning = settings.file.bool("skipMultiplayerWarning");
@@ -398,7 +400,7 @@ pub(super) fn spawn_loader(
     let world = launch_world(options).map(str::to_owned);
     let role = options.execution_role;
     let progress = progress.clone();
-    let handle = std::thread::Builder::new()
+    let handle = horizon_guest_stack::builder()
         .name("resource-loader".into())
         .spawn(move || {
             let mut pack_error = None;
@@ -1481,6 +1483,7 @@ mod tests {
             panorama: Arc::new(horizon_client::gfx::panorama::Faces::colour([
                 96, 110, 111, 255,
             ])),
+            splashes: Arc::from(""),
         }
     }
 
@@ -1527,12 +1530,12 @@ mod tests {
             }
         }
         let mods: mod_api::Mods = vec![mod_api::ModEntry::new("example", Box::new(Mod))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_client_game(|game| {
                 let saves = std::env::temp_dir()
                     .join(format!("horizon-startup-rules-{}", std::process::id()));
                 let _ = std::fs::remove_dir_all(&saves);
-                let mut title = Title::new(saves, &game.options.resources);
+                let mut title = game.new_title(saves);
                 title.enter_singleplayer();
                 let Action::Create { mut options, .. } = title.create_action() else {
                     panic!("creation")
@@ -1611,6 +1614,18 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and scratch homes/cwd"]
     fn resource_pack_drops_import_from_startup_and_game_options() {
+        if super::super::native_entity_refs::tests::run_fresh_cases(
+            "game::startup_menu::tests::resource_pack_drops_import_from_startup_and_game_options",
+            "HORIZON_RESOURCE_PACK_DROP_CHILD",
+            &["import"],
+        ) {
+            return;
+        }
+        // Only this exact test runs in the child. Keep the game directory empty,
+        // separate from the isolated homes created by run_fresh_cases.
+        let previous_dir = std::env::current_dir().unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(scratch.path()).unwrap();
         struct Loop;
         impl EventLoopCtl for Loop {
             fn exit(&self) {}
@@ -1680,9 +1695,8 @@ mod tests {
         );
         assert!(loading.settings.resource_packs.is_empty());
 
-        super::super::native_entity_refs::tests::with_game(|game| {
-            let root = game.options.resources.clone();
-            game.title = Some(Title::new(PathBuf::from("saves"), &root));
+        super::super::native_entity_refs::tests::with_client_game(|game| {
+            game.title = Some(game.new_title(PathBuf::from("saves")));
             game.open_options_at(true, Page::Packs);
             game.handle_window_event_inner(
                 &Loop,
@@ -1713,6 +1727,7 @@ mod tests {
             );
             assert!(game.settings.resource_packs.is_empty());
         });
+        std::env::set_current_dir(previous_dir).unwrap();
     }
 
     #[test]

@@ -110,7 +110,7 @@ fn save_requested_during_pickup_keeps_lifted_items_on_disk() {
                 }),
             )]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 mod_api::__private::mark_game_thread();
                 game.tick_items();
             });

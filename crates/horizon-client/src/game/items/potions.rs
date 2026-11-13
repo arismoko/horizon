@@ -2952,7 +2952,7 @@ mod tests {
                 }
             }
         }
-        mod_api::__private::install(std::sync::Arc::from([mod_api::ModEntry::new(
+        mod_platform::__private::install(std::sync::Arc::from([mod_api::ModEntry::new(
             "test-potions",
             Box::new(TestMod),
         )]));
@@ -2960,6 +2960,7 @@ mod tests {
             "test:effect".into(),
             0,
             brewing::Category::Neutral,
+            None,
         )]));
     }
 
@@ -3530,7 +3531,7 @@ mod tests {
                 self.calls.fetch_add(1, Ordering::Relaxed);
                 assert_eq!(
                     event.effect.id,
-                    mod_api::__private::part_tests::effect_key(self.case.id)
+                    mod_platform::__private::part_tests::effect_key(self.case.id)
                 );
                 assert_eq!((event.effect.duration, event.effect.amplifier), (450, 1));
                 assert_eq!(event.screen.id, self.screen);
@@ -3637,7 +3638,7 @@ mod tests {
                         };
                         let mods: Mods =
                             vec![ModEntry::new("effect-tips", Box::new(listener.clone()))].into();
-                        mod_api::testing::with_mods(mods, || {
+                        mod_platform::testing::with_mods(mods, || {
                             let lines = game
                                 .draw_inventory_effects(&mut batch, origin, image_width)
                                 .unwrap();
@@ -3675,10 +3676,27 @@ mod tests {
                                 ModEntry::new("hide-panels", Box::new(HidePanels)),
                             ]
                             .into();
-                            mod_api::testing::with_mods(hidden, || {
+                            mod_platform::testing::with_mods(hidden, || {
+                                // Layout hooks run at screen construction, not painting.
+                                game.frames += 1;
+                                let space = Game::effects_space(
+                                    &batch,
+                                    [origin.0, origin.1],
+                                    image_width as f32,
+                                );
+                                let layout = game.inventory_effects_layout(
+                                    &space,
+                                    [origin.0, origin.1, image_width as f32, 166.0],
+                                );
+                                let panels = game.effect_panels(&space, &layout);
                                 assert!(
-                                    game.draw_inventory_effects(&mut batch, origin, image_width)
-                                        .is_none()
+                                    inventory_effects::paint(
+                                        &mut batch,
+                                        &game.gui.atlas,
+                                        &panels,
+                                        [game.cursor.0 as i32, game.cursor.1 as i32],
+                                    )
+                                    .is_none()
                                 );
                             });
                             let mut narrow = HudBatch::scratch([(left + 31) as u32, 480]);
@@ -4152,19 +4170,19 @@ mod mob_health_boost_tests {
         });
     }
 
-    /// Existing-behavior preservation, not parity: a sulfur cube's size and a
-    /// tame wolf write their maximum straight into the cache, outside the
-    /// attribute model. Health Boost leaves those caches (and Health) as they
-    /// are; the attribute model's own refresh never replaces them.
+    /// Sulfur cube sizing writes an attribute base (`set_size` -> `set_base`),
+    /// so Health Boost adds to that base without healing, as in the command
+    /// parity corpus. Taming still owns the wolf's cached maximum outside the
+    /// model; that maximum and its current health remain unchanged.
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES and a scratch HORIZON_HOME"]
-    fn health_boost_keeps_a_size_or_tame_maximum_owned_outside_the_attributes() {
+    fn health_boost_adds_to_size_attributes_and_keeps_the_tame_maximum() {
         with_game(|game| {
             // tag, UUID word, summon, amplifier
             let cases = [
-                // size 3: cache 12, the attribute model 20
+                // size 3: attribute base and cache 12; Health Boost II adds 8
                 ("h205_cube", 20, "sulfur_cube 4.5 200 8.5 {Size:2", 1),
-                // size 5: cache 20 = the model's 20 by coincidence
+                // size 5: attribute base and cache 20; Health Boost II adds 8
                 ("h205_cube_equal", 22, "sulfur_cube 6.5 200 8.5 {Size:4", 1),
                 // tame: cache 40, model 8; Health Boost II
                 ("h205_wolf", 21, "wolf 8.5 200 8.5 {", 1),
@@ -4196,7 +4214,7 @@ mod mob_health_boost_tests {
             assert_eq!(
                 horizon_client::mobs::finalize::max_health(&game.mobs[ids[1]]),
                 20.0,
-                "the coincidence: the model's value equals the size cache"
+                "sizing installs the cube's actual max-health attribute base"
             );
             for (tag, _, _, amp) in cases {
                 assert!(game.run_command(&format!(
@@ -4210,8 +4228,13 @@ mod mob_health_boost_tests {
             );
             assert_eq!(
                 state(game),
-                before,
-                "the size/tame cache and Health keep their owner"
+                [
+                    (20.0, before[0].1),
+                    (28.0, before[1].1),
+                    (40.0, before[2].1),
+                    (40.0, before[3].1),
+                ],
+                "size attributes gain the modifier without healing; tame caches keep their owner"
             );
             for (tag, _, _, _) in cases {
                 assert!(game.run_command(&format!(

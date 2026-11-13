@@ -369,7 +369,7 @@ mod tests {
             }
         }
         let mods: Mods = vec![ModEntry::new("proof", Box::new(Proof))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 game.native_configs_client_start();
                 game.native_configs_poll();

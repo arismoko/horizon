@@ -79,6 +79,8 @@ fn summon(game: &mut Game<'_>, extra: &str) {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_blast_from_damage_breaks_the_stand_though_the_command_fails() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(
@@ -103,6 +105,8 @@ fn a_blast_from_damage_breaks_the_stand_though_the_command_fails() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn fire_from_damage_lights_or_burns_the_stand_though_the_command_fails() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(&mut game, "");
@@ -121,6 +125,8 @@ fn fire_from_damage_lights_or_burns_the_stand_though_the_command_fails() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn igniting_a_frozen_stand_clears_its_freeze_while_burning_keeps_it() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut resources = None;
     let mut game = game(&mut resources);
     summon(&mut game, ",TicksFrozen:140");
@@ -142,6 +148,8 @@ fn igniting_a_frozen_stand_clears_its_freeze_while_burning_keeps_it() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn damage_immunity_on_worn_boots_refuses_campfire_but_not_in_fire_or_wrong_slot() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut resources = None;
     let mut game = game(&mut resources);
     summon(
@@ -180,6 +188,8 @@ fn take_events() -> Vec<(&'static str, [f64; 3], Option<horizon_client::mobs::Wh
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn cause_damage_and_explosion_post_attributed_game_events() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     use horizon_client::mobs::Who;
     let mut resources = None;
     let mut game = game(&mut resources);
@@ -243,6 +253,8 @@ fn items(game: &mut Game<'_>) -> String {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn control_an_absent_or_removed_stand_is_not_broken_again() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     assert!(!game.run_command(&format!("damage {STAND} 1 minecraft:explosion")));
@@ -259,6 +271,8 @@ fn control_an_absent_or_removed_stand_is_not_broken_again() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn control_invulnerable_and_marker_stands_refuse_the_blast() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     for flag in ["Invulnerable:1b", "Marker:1b"] {
         let mut game_resources = None;
         let mut game = game(&mut game_resources);
@@ -281,6 +295,8 @@ fn control_invulnerable_and_marker_stands_refuse_the_blast() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn control_repeated_burning_breaks_the_stand_once() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(
@@ -321,6 +337,8 @@ fn with_player(game: &mut Game<'_>) {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_player_attack_from_damage_wobbles_then_breaks_the_stand() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(
@@ -358,6 +376,8 @@ fn a_player_attack_from_damage_wobbles_then_breaks_the_stand() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn an_always_killing_source_breaks_the_stand_on_the_first_hit() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(&mut game, "");
@@ -370,6 +390,8 @@ fn an_always_killing_source_breaks_the_stand_on_the_first_hit() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_creative_player_breaks_the_stand_at_once_without_drops() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     with_player(&mut game);
@@ -386,6 +408,8 @@ fn a_creative_player_breaks_the_stand_at_once_without_drops() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_player_who_may_not_build_cannot_hurt_the_stand() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     for mode in ["adventure", "spectator"] {
         let mut game_resources = None;
         let mut game = game(&mut game_resources);
@@ -409,6 +433,8 @@ fn a_player_who_may_not_build_cannot_hurt_the_stand() {
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn control_a_source_in_neither_tag_still_fails_without_a_hurt() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(&mut game, "");
@@ -434,6 +460,8 @@ fn events(game: &mut Game<'_>, f: impl FnOnce(&mut Game<'_>)) -> Vec<(&'static s
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_hit_from_damage_posts_entity_damage_then_entity_die_for_its_causing_entity() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(&mut game, "");
@@ -456,6 +484,8 @@ fn a_hit_from_damage_posts_entity_damage_then_entity_die_for_its_causing_entity(
 #[test]
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn an_always_killing_source_posts_only_entity_die_for_a_stand_without_a_cause() {
+    let _language =
+        horizon_client::lang::isolate_publication(horizon_client::lang::Language::of("en_us", []));
     let mut game_resources = None;
     let mut game = game(&mut game_resources);
     summon(&mut game, "");

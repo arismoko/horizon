@@ -168,8 +168,9 @@ pub(super) const CREATIVE_SEARCH_CHARS: usize = 50;
 mod tests {
     use mod_api::{
         ClientHost, ClientTickPreEvent, Flow, Hooks, ModEntry, MouseButtonPreEvent,
-        RenderGuiPreEvent, testing::with_mods,
+        RenderGuiPreEvent,
     };
+    use mod_platform::testing::with_mods;
     use std::sync::{Arc, Mutex};
 
     /// What each hook read from the clipboard, and whether its copy was taken.

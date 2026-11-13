@@ -972,6 +972,7 @@ impl Game<'_> {
             }
             None => self.hook.retire_extracted(id, join),
         }
+        self.entity_sections_stepped(super::entity_sections::Family::FishingHooks);
     }
     fn tick_fishing_extracted(&mut self, mut h: Hook) -> Option<Hook> {
         h.needs_sync = false;

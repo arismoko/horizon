@@ -553,7 +553,8 @@ impl Game<'_> {
             if self.is_bed(state) && self.bed_sets_spawn(state) {
                 let facing = self.bed_forward(state);
                 let stand = self.bed_stand_up(c.pos, facing, c.yaw);
-                return Ok(stand.map(|p| (p, look_at_yaw(p, c.pos), 0.0)));
+                let found = stand.map(|p| (p, look_at_yaw(p, c.pos), 0.0));
+                return Ok(self.part_respawn_position(state, c, found));
             }
             let [x, y, z] = c.pos;
             let free = c.forced
@@ -561,9 +562,11 @@ impl Game<'_> {
                 && self.possible_to_respawn_in(state)
                 && self.possible_to_respawn_in(self.world.block(x, y + 1, z));
             let at = Vec3::new(f64::from(x) + 0.5, f64::from(y) + 0.1, f64::from(z) + 0.5);
-            return Ok(free.then_some((at, c.yaw, c.pitch)));
+            return Ok(self.part_respawn_position(state, c, free.then_some((at, c.yaw, c.pitch))));
         }
         let stand = self.anchor_stand_up(c.pos);
+        let stand =
+            self.part_respawn_position(state, c, stand.map(|p| (p, look_at_yaw(p, c.pos), 0.0)));
         if !c.forced
             && consume
             && stand.is_some()
@@ -571,7 +574,37 @@ impl Game<'_> {
         {
             self.level_set(c.pos, next)?;
         }
-        Ok(stand.map(|p| (p, look_at_yaw(p, c.pos), 0.0)))
+        Ok(stand)
+    }
+    /// `IBlockStateExtension.getRespawnPosition` of the respawn point `state` of `c`: `found`
+    /// (position, yaw, pitch), unless a part of the state answers; an answer with a non-finite
+    /// value keeps `found`.
+    fn part_respawn_position(
+        &self,
+        state: BlockStateId,
+        c: RespawnConfig,
+        found: Option<(Vec3, f32, f32)>,
+    ) -> Option<(Vec3, f32, f32)> {
+        if !super::api_values::block_state::block_listens(mod_api::HookId::RespawnPosition, state) {
+            return found;
+        }
+        let mut position = found.map(|(p, yaw, pitch)| ([p.x, p.y, p.z], yaw, pitch));
+        let [x, y, z] = c.pos;
+        self.native_respawn_position(
+            state,
+            BlockPos::new(x, y, z),
+            "minecraft:player",
+            c.yaw,
+            &mut position,
+        );
+        match position {
+            Some((p, yaw, pitch))
+                if !(p.iter().all(|v| v.is_finite()) && yaw.is_finite() && pitch.is_finite()) =>
+            {
+                found
+            }
+            answer => answer.map(|([x, y, z], yaw, pitch)| (Vec3::new(x, y, z), yaw, pitch)),
+        }
     }
 }
 

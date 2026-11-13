@@ -6,7 +6,7 @@ pub fn module(bytes: &[u8]) -> Result<WasmMod, String> {
     let engine = runtime::engine().map_err(|error| error.to_string())?;
     WasmMod::instantiate(
         &engine,
-        &[],
+        runtime::DEFAULT_GROUP_MEMORY_MIB,
         &[Member {
             name: "fixture",
             module: bytes,
@@ -54,4 +54,17 @@ pub fn cached_answer(
         .and_then(|f| f.call(&mut store, ()))
         .map_err(|e| e.to_string())?;
     Ok((answer, source == crate::module_cache::Source::Cached))
+}
+
+/// Invoke a synthetic fixture's load hook with the production load deadline.
+/// Overflow proofs must not race the shorter per-tick epoch deadline.
+pub fn call_load(module: &WasmMod) -> Option<()> {
+    module.call(
+        runtime::CallClass::Load,
+        crate::boundary::Frame::default(),
+        0,
+        None,
+        |_| {},
+        |reader| reader.take(),
+    )
 }

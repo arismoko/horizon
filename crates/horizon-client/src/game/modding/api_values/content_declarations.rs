@@ -4,6 +4,21 @@ use super::TryIntoEngine;
 mod arm_pose;
 use horizon_mod_package::content as engine;
 
+/// One vocabulary mapping for the content draft and the resolved simulation facts.
+pub(in crate::game) fn push_reaction(
+    value: &mod_api::PushReaction,
+) -> (engine::PushReaction, horizon_world::level::PushReaction) {
+    use engine::PushReaction as Content;
+    use horizon_world::level::PushReaction as World;
+    match value {
+        mod_api::PushReaction::PushPull => (Content::PushPull, World::PushPull),
+        mod_api::PushReaction::Push => (Content::Push, World::Push),
+        mod_api::PushReaction::Popped => (Content::Popped, World::Popped),
+        mod_api::PushReaction::Immoveable => (Content::Immoveable, World::Immoveable),
+        mod_api::PushReaction::IgnoreEntity => (Content::IgnoreEntity, World::IgnoreEntity),
+    }
+}
+
 impl TryIntoEngine<()> for mod_api::BlockProperties {
     type Engine = engine::BlockProperties;
     type Error = String;
@@ -31,13 +46,10 @@ impl TryIntoEngine<()> for mod_api::BlockProperties {
                 }
                 mod_api::RenderShape::Invisible => engine::RenderShape::Invisible,
             }),
-            push_reaction: self.push_reaction.as_ref().map(|v| match v {
-                mod_api::PushReaction::PushPull => engine::PushReaction::PushPull,
-                mod_api::PushReaction::Push => engine::PushReaction::Push,
-                mod_api::PushReaction::Popped => engine::PushReaction::Popped,
-                mod_api::PushReaction::Immoveable => engine::PushReaction::Immoveable,
-                mod_api::PushReaction::IgnoreEntity => engine::PushReaction::IgnoreEntity,
-            }),
+            push_reaction: self
+                .push_reaction
+                .as_ref()
+                .map(|value| push_reaction(value).0),
             occludes: self.occludes,
             destroy_overlay: self.destroy_overlay,
         })
@@ -231,6 +243,57 @@ mod tests {
             table.values.get("true").copied().or(table.default),
             Some(15)
         );
+    }
+
+    /// A block that leaves `item` out has its block item, declared in a file
+    /// or in code (`Block::new`, `Block::default`) alike.
+    #[test]
+    fn a_block_has_its_item_unless_told_not_to_in_files_and_in_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.hmod");
+        let manifest = "id = \"test\"\nname = \"Test\"\nversion = \"0.1.0\"\napi = \"0.2\"\nside = \"both\"\ncapabilities = [\"registries\"]\n";
+        let block_file: &[u8] = br#"{"template": "minecraft:stone"}"#;
+        let files = [("data/test/horizon/block/file.json", block_file)];
+        std::fs::write(
+            &path,
+            horizon_mod_package::Package::write_files(manifest, &files).unwrap(),
+        )
+        .unwrap();
+        let package = horizon_mod_package::Package::read(&path).unwrap();
+        let from_file = horizon_mod_package::Content::read(&path, &package.manifest).unwrap();
+        let mut default = Block::default();
+        default.id = "test:default".into();
+        default.template = "minecraft:stone".into();
+        let declared = |block: Block| {
+            let mut content = horizon_mod_package::Content::declared("test");
+            content
+                .declare(&[block.try_into_engine(&()).unwrap()], &[])
+                .unwrap();
+            content
+        };
+        let item = |id: &str| engine::Item {
+            id: id.into(),
+            template: "minecraft:stick".into(),
+            ..Default::default()
+        };
+        for (mut content, id) in [
+            (from_file, "test:file"),
+            (
+                declared(Block::new("test:new", "minecraft:stone")),
+                "test:new",
+            ),
+            (declared(default), "test:default"),
+        ] {
+            // The block item holds the id: an item of the same id is refused.
+            assert_eq!(
+                content.declare(&[], &[item(id)]),
+                Err(format!(
+                    "item {id} is declared twice, or is also a block's item"
+                )),
+            );
+        }
+        let mut without = declared(Block::new("test:bare", "minecraft:stone").with_item(false));
+        assert_eq!(without.declare(&[], &[item("test:bare")]), Ok(()));
     }
 
     #[test]

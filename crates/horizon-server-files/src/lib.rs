@@ -4,6 +4,7 @@
 //! looking players up by name. The game's dedicated server
 //! (`horizon-client --dedicated`) reads them, and `horizon-server` manages
 //! them; this crate needs neither a window nor the game.
+pub mod biome_regions;
 pub mod chat_guard;
 pub mod durable;
 pub mod duration;

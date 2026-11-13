@@ -171,189 +171,193 @@ impl Hooks for Fixture {
 #[ignore = "needs prepared resources; runs each scenario in an isolated scratch process"]
 fn native_tick_publishes_or_rejects_item_proposals_with_writeback() {
     const NAME: &str = "game::block_entity_tick_items_tests::native_tick_publishes_or_rejects_item_proposals_with_writeback";
-    if super::native_entity_refs::tests::run_fresh_cases(
-        NAME,
-        "ROW4_NATIVE_CASE",
-        &[
-            "valid",
-            "invalid_stack",
-            "invalid_setter",
-            "wasm_valid",
-            "wasm_malformed",
-            "wasm_identity_readonly",
-            "nested_abort",
-            "later_remove",
-            "removed",
-            "reentrant",
-            "scheduled",
-            "disabled",
-            "sleep",
-            "unrelated",
-        ],
-    ) {
-        return;
-    }
-    let mods: mod_api::Mods = vec![mod_api::ModEntry::new("row4", Box::new(Fixture))].into();
-    mod_api::testing::with_mods(mods.clone(), || {
-        super::api_values::install_parts(&mods).unwrap();
-        mod_api::__private::mark_game_thread();
-        let base = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
-        let root = super::mods::content_root(&base, &Default::default()).unwrap();
-        super::native_entity_refs::tests::with_game_at(root.prepared().to_owned(), |game| {
-            game.options.dedicated = Some(Vec::new());
-            assert!(game.block_entity_tick_items.is_none());
-            game.world
-                .chunks
-                .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
-            let case = std::env::var("ROW4_NATIVE_CASE").unwrap();
-            let pos = (1, 64, 1);
-            let stone = game
-                .pack
-                .assets
-                .registry
-                .default_state("minecraft:stone")
-                .unwrap();
-            game.world.set(pos.0, pos.1, pos.2, stone).unwrap();
-            let state = game.world.block(pos.0, pos.1, pos.2).0;
-            game.world.block_entities.set_mod_containers(
-                [(
-                    state,
-                    Arc::new(horizon_client::containers::ModContainer {
-                        slots: 1,
-                        ..Default::default()
-                    }),
-                )]
-                .into_iter()
-                .collect(),
-            );
-            game.world.block_entities.insert(
-                pos,
-                BlockEntity::Mod(Box::new(ModBlockEntity::new(
-                    if case == "unrelated" {
-                        "row4:other"
-                    } else {
-                        "row4:ticker"
-                    }
-                    .into(),
-                    Default::default(),
-                ))),
-            );
-            for count in [5, 3] {
-                game.spawn_item(
-                    ItemStack::new("minecraft:stone", count),
-                    [0.0; 3],
-                    [0.0; 3],
-                    0,
+    // Instantiate and invoke the real wasm guest on the production-sized stack.
+    crate::game::native_entity_refs::tests::run_on_guest_stack(|| {
+        if super::native_entity_refs::tests::run_fresh_cases(
+            NAME,
+            "ROW4_NATIVE_CASE",
+            &[
+                "valid",
+                "invalid_stack",
+                "invalid_setter",
+                "wasm_valid",
+                "wasm_malformed",
+                "wasm_identity_readonly",
+                "nested_abort",
+                "later_remove",
+                "removed",
+                "reentrant",
+                "scheduled",
+                "disabled",
+                "sleep",
+                "unrelated",
+            ],
+        ) {
+            return;
+        }
+        let mods: mod_api::Mods = vec![mod_api::ModEntry::new("row4", Box::new(Fixture))].into();
+        mod_platform::testing::with_mods(mods.clone(), || {
+            super::api_values::install_parts(&mods).unwrap();
+            mod_api::__private::mark_game_thread();
+            let base =
+                std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
+            let root = super::mods::content_root(&base, &Default::default()).unwrap();
+            super::native_entity_refs::tests::with_game_at(root.prepared().to_owned(), |game| {
+                game.options.dedicated = Some(Vec::new());
+                assert!(game.block_entity_tick_items.is_none());
+                game.world
+                    .chunks
+                    .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+                let case = std::env::var("ROW4_NATIVE_CASE").unwrap();
+                let pos = (1, 64, 1);
+                let stone = game
+                    .pack
+                    .assets
+                    .registry
+                    .default_state("minecraft:stone")
+                    .unwrap();
+                game.world.set(pos.0, pos.1, pos.2, stone).unwrap();
+                let state = game.world.block(pos.0, pos.1, pos.2).0;
+                game.world.block_entities.set_mod_containers(
+                    [(
+                        state,
+                        Arc::new(horizon_client::containers::ModContainer {
+                            slots: 1,
+                            ..Default::default()
+                        }),
+                    )]
+                    .into_iter()
+                    .collect(),
                 );
-            }
-            FIRST.store(game.dropped[0].id, Ordering::Relaxed);
-            SECOND.store(game.dropped[1].id, Ordering::Relaxed);
-            if matches!(case.as_str(), "scheduled" | "disabled" | "sleep") {
-                use horizon_client::block_entities::Ticking;
-                game.tickets.update(None);
-                let mut states = vec![Ticking::Yes; game.pack.assets.registry.len()];
-                if case == "disabled" {
-                    states[state as usize] = Ticking::No;
+                game.world.block_entities.insert(
+                    pos,
+                    BlockEntity::Mod(Box::new(ModBlockEntity::new(
+                        if case == "unrelated" {
+                            "row4:other"
+                        } else {
+                            "row4:ticker"
+                        }
+                        .into(),
+                        Default::default(),
+                    ))),
+                );
+                for count in [5, 3] {
+                    game.spawn_item(
+                        ItemStack::new("minecraft:stone", count),
+                        [0.0; 3],
+                        [0.0; 3],
+                        0,
+                    );
                 }
-                game.world.block_entities.set_states(states);
-                if case == "sleep" {
-                    game.world.block_entities.sleep(pos);
-                }
-                game.tick_block_entities().unwrap();
-            } else {
-                game.tick_mod_block_entity(pos);
-            }
-            assert!(game.block_entity_tick_items.is_none());
-            let rejected = matches!(
-                case.as_str(),
-                "invalid_stack" | "wasm_malformed" | "invalid_setter" | "removed"
-            );
-            let expected: &[u32] = match case.as_str() {
-                "later_remove" => &[],
-                "reentrant" => &[1],
-                "disabled" | "sleep" | "unrelated" => &[5, 3],
-                _ if rejected => &[5, 3],
-                _ => &[2],
-            };
-            assert_eq!(
-                game.dropped
-                    .iter()
-                    .map(|e| e.stack.count)
-                    .collect::<Vec<_>>(),
-                expected
-            );
-            if case == "removed" {
-                assert!(game.world.block_entities.get(&pos).is_none());
-            } else {
-                let Some(BlockEntity::Mod(entity)) = game.world.block_entities.get(&pos) else {
-                    panic!("holder missing")
-                };
-                assert_eq!(
-                    entity.data,
-                    if case == "unrelated" {
-                        vec![42]
-                    } else if rejected || matches!(case.as_str(), "disabled" | "sleep") {
-                        vec![]
-                    } else {
-                        vec![6]
+                FIRST.store(game.dropped[0].id, Ordering::Relaxed);
+                SECOND.store(game.dropped[1].id, Ordering::Relaxed);
+                if matches!(case.as_str(), "scheduled" | "disabled" | "sleep") {
+                    use horizon_client::block_entities::Ticking;
+                    game.tickets.update(None);
+                    let mut states = vec![Ticking::Yes; game.pack.assets.registry.len()];
+                    if case == "disabled" {
+                        states[state as usize] = Ticking::No;
                     }
-                );
-                assert_eq!(
-                    entity
-                        .items
-                        .first()
-                        .and_then(|slot| slot.as_ref())
-                        .map(|stack| stack.count),
-                    if rejected || matches!(case.as_str(), "disabled" | "sleep" | "unrelated") {
-                        None
-                    } else {
-                        Some(6)
+                    game.world.block_entities.set_states(states);
+                    if case == "sleep" {
+                        game.world.block_entities.sleep(pos);
                     }
-                );
-            }
-            assert_eq!(
-                NOTIFICATIONS.load(Ordering::Relaxed),
-                if rejected || matches!(case.as_str(), "disabled" | "sleep" | "unrelated") {
-                    0
-                } else if case == "later_remove" {
-                    2
+                    game.tick_block_entities().unwrap();
                 } else {
-                    1
+                    game.tick_mod_block_entity(pos);
                 }
-            );
-            if matches!(case.as_str(), "scheduled" | "disabled" | "sleep") {
-                game.tick_block_entities().unwrap();
-            } else {
-                game.tick_mod_block_entity(pos);
-            }
-            assert_eq!(
-                game.dropped
-                    .iter()
-                    .map(|e| e.stack.count)
-                    .collect::<Vec<_>>(),
-                expected
-            );
-            if let Some(first) = game.entity(FIRST.load(Ordering::Relaxed)) {
-                let item = game.item_entity(first).unwrap();
-                assert_eq!(
-                    item.set_stack(
-                        game,
-                        ItemStack::new("minecraft:stone", 4).try_into_api().unwrap()
-                    ),
-                    Ok(true)
+                assert!(game.block_entity_tick_items.is_none());
+                let rejected = matches!(
+                    case.as_str(),
+                    "invalid_stack" | "wasm_malformed" | "invalid_setter" | "removed"
                 );
+                let expected: &[u32] = match case.as_str() {
+                    "later_remove" => &[],
+                    "reentrant" => &[1],
+                    "disabled" | "sleep" | "unrelated" => &[5, 3],
+                    _ if rejected => &[5, 3],
+                    _ => &[2],
+                };
                 assert_eq!(
                     game.dropped
                         .iter()
-                        .find(|e| e.id == first.id())
-                        .unwrap()
-                        .stack
-                        .count,
-                    4
+                        .map(|e| e.stack.count)
+                        .collect::<Vec<_>>(),
+                    expected
                 );
-                assert!(game.block_entity_tick_items.is_none());
-                assert!(game.block_entity_tick_key.is_none());
-            }
+                if case == "removed" {
+                    assert!(game.world.block_entities.get(&pos).is_none());
+                } else {
+                    let Some(BlockEntity::Mod(entity)) = game.world.block_entities.get(&pos) else {
+                        panic!("holder missing")
+                    };
+                    assert_eq!(
+                        entity.data,
+                        if case == "unrelated" {
+                            vec![42]
+                        } else if rejected || matches!(case.as_str(), "disabled" | "sleep") {
+                            vec![]
+                        } else {
+                            vec![6]
+                        }
+                    );
+                    assert_eq!(
+                        entity
+                            .items
+                            .first()
+                            .and_then(|slot| slot.as_ref())
+                            .map(|stack| stack.count),
+                        if rejected || matches!(case.as_str(), "disabled" | "sleep" | "unrelated") {
+                            None
+                        } else {
+                            Some(6)
+                        }
+                    );
+                }
+                assert_eq!(
+                    NOTIFICATIONS.load(Ordering::Relaxed),
+                    if rejected || matches!(case.as_str(), "disabled" | "sleep" | "unrelated") {
+                        0
+                    } else if case == "later_remove" {
+                        2
+                    } else {
+                        1
+                    }
+                );
+                if matches!(case.as_str(), "scheduled" | "disabled" | "sleep") {
+                    game.tick_block_entities().unwrap();
+                } else {
+                    game.tick_mod_block_entity(pos);
+                }
+                assert_eq!(
+                    game.dropped
+                        .iter()
+                        .map(|e| e.stack.count)
+                        .collect::<Vec<_>>(),
+                    expected
+                );
+                if let Some(first) = game.entity(FIRST.load(Ordering::Relaxed)) {
+                    let item = game.item_entity(first).unwrap();
+                    assert_eq!(
+                        item.set_stack(
+                            game,
+                            ItemStack::new("minecraft:stone", 4).try_into_api().unwrap()
+                        ),
+                        Ok(true)
+                    );
+                    assert_eq!(
+                        game.dropped
+                            .iter()
+                            .find(|e| e.id == first.id())
+                            .unwrap()
+                            .stack
+                            .count,
+                        4
+                    );
+                    assert!(game.block_entity_tick_items.is_none());
+                    assert!(game.block_entity_tick_key.is_none());
+                }
+            });
         });
     });
 }

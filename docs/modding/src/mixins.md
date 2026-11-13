@@ -150,7 +150,7 @@ A target is the function's module path, then its type and name:
   holding the `impl` block and the type is written as there, lifetimes included;
 - a free function: `horizon_client::game::commands::misc::millis`;
 - a trait method: the module of the `impl Trait for Type` block, then `<Type as Trait>` as written, then the
-  function: `horizon_client::game::<GameLevel<'_> as LevelAccess>::block_state`.
+  function: `horizon_client::game::level_access::<GameLevel<'_> as LevelAccess>::block_state`.
 
 To get the module from the file, start from `crates/horizon-client/src/`, which is `horizon_client`. A folder
 directly under `src/game/` that holds a `.game-area` file is an **area**, and an area is not a module.

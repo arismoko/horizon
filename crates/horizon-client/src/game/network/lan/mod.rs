@@ -397,25 +397,24 @@ pub(super) fn preload_sync_data(item_data: &Arc<ItemData>) -> Option<SyncPreload
     }
     let root = item_data.root().to_owned();
     let item_data = Arc::clone(item_data);
-    std::thread::Builder::new()
-        .name("Server data preload".into())
-        .spawn(move || {
-            let none = horizon_world::loot::PackOverlay::NONE;
-            SyncData::load(
-                item_data.root(),
-                &none,
-                item_data.defaults(),
-                server_sources(item_data.root(), &item_data, &none)
-                    .map_err(|error| error.to_string())?
-                    .as_ref(),
-            )
-        })
-        .map(|worker| SyncPreload {
-            root,
-            generation,
-            worker,
-        })
-        .ok()
+    // Loading recipes asks mods' ingredient and recipe property set hooks, wasm mods included.
+    horizon_guest_stack::spawn("Server data preload".into(), move || {
+        let none = horizon_world::loot::PackOverlay::NONE;
+        SyncData::load(
+            item_data.root(),
+            &none,
+            item_data.defaults(),
+            server_sources(item_data.root(), &item_data, &none)
+                .map_err(|error| error.to_string())?
+                .as_ref(),
+        )
+    })
+    .map(|worker| SyncPreload {
+        root,
+        generation,
+        worker,
+    })
+    .ok()
 }
 
 impl SyncPreload {
@@ -1519,7 +1518,7 @@ impl Game<'_> {
                 Ok(Some(json!({ "ok": true })))
             }
             Some("status") => Ok(Some(self.lan_status())),
-            _ => Err("lan open|close|status".into()),
+            _ => Err("lan open|close|status|op".into()),
         }
     }
 
@@ -2670,7 +2669,7 @@ impl Game<'_> {
                         .filter(|g| g.placed)
                         .map(|g| (g.uuid, g.name.clone()))
                     {
-                        self.native_player_logged_in(uuid, &name);
+                        self.announce_login(uuid, &name);
                     }
                 }
                 HostEvent::Left(mut guest) => {
@@ -4096,7 +4095,7 @@ fn describe_event(
 }
 
 /// A client's settings as the mod API names them.
-fn client_info(
+pub(in crate::game) fn client_info(
     i: &horizon_protocol::packets::configuration::ClientInformation,
 ) -> mod_api::ClientInfo {
     mod_api::ClientInfo {
@@ -5074,7 +5073,7 @@ mod tests {
             }
         }
         let mods: mod_api::Mods = vec![mod_api::ModEntry::new("replier", Box::new(Replier))].into();
-        mod_api::testing::with_mods(mods, || {
+        mod_platform::testing::with_mods(mods, || {
             with_game(|game| {
                 let settings = super::LanSettings {
                     port: 0,
@@ -5440,7 +5439,7 @@ mod tests {
                 ModEntry::new("effect-reset", Box::new(Reset)),
             ]
             .into();
-            mod_api::testing::with_mods(mods, || {
+            mod_platform::testing::with_mods(mods, || {
                 // The game fixture bypasses content_root, which normally resolves
                 // the particle registry before any hook converts particle values.
                 let particles: Vec<_> = ParticleType::ALL

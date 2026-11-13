@@ -435,13 +435,8 @@ impl Game<'_> {
                 let (pos, first) = (d.pos, (d.ticks as u32 - 1).is_multiple_of(4));
                 let state = self.world.block(pos[0], pos[1], pos[2]);
                 if first {
-                    let sounds = self.res.facts().get(state).sounds.clone();
-                    self.audio.play(
-                        &sounds.hit,
-                        Some(pos.map(|v| f64::from(v) + 0.5)),
-                        (sounds.volume + 1.0) / 8.0,
-                        sounds.pitch * 0.5,
-                    );
+                    let face = horizon_core::geometry::Direction::ALL[d.face as usize].normal();
+                    self.play_mining_hit_sound(state, pos, face, false);
                 }
                 if let Some(hit) = self.pick() {
                     self.crack_particle(pos, hit.face, state);

@@ -11,6 +11,9 @@ pub(crate) struct CapabilityPart<P> {
     pub(crate) type_name: Arc<str>,
     /// Asked ahead of the game's own provider.
     pub(crate) before_game: bool,
+    /// Its place among every mod's registrations, which orders a block's providers and those of
+    /// the block entity type standing there as one list.
+    pub(crate) order: usize,
     pub(crate) provider: P,
 }
 
@@ -38,6 +41,46 @@ pub(crate) fn next<P: Clone>(
     index: &mut u32,
 ) -> Option<(P, &'static str, bool)> {
     next_provider(table.get(name)?.get(id)?, index)
+}
+
+/// The most providers one capability may have for one block or one block entity type: a
+/// position's lookup keeps its place in both lists in the one `u32` cursor, 16 bits each.
+pub(crate) const MAX_PROVIDERS_AT: usize = u16::MAX as usize;
+
+/// The next enabled provider of two lists asked as one, `first` and `second` (a block entity
+/// type's and a block's): those asked ahead of the game, then the others, each group in
+/// registration order across both lists. `index` holds the place in each list, `first`'s in
+/// its low 16 bits and `second`'s in its high ones, so each step looks at the two lists' next
+/// provider and takes one, past disabled ones, as [`next_provider`] does for one list.
+pub(crate) fn next_merged<P: Clone>(
+    first: &[CapabilityPart<P>],
+    second: &[CapabilityPart<P>],
+    index: &mut u32,
+) -> Option<(P, &'static str, bool)> {
+    // Each list is already in this order: those ahead of the game first, by registration.
+    let rank = |part: &CapabilityPart<P>| (!part.before_game, part.order);
+    let (mut at_first, mut at_second) = (*index & 0xffff, *index >> 16);
+    loop {
+        let part = match (first.get(at_first as usize), second.get(at_second as usize)) {
+            (Some(a), Some(b)) if rank(b) < rank(a) => {
+                at_second += 1;
+                b
+            }
+            (Some(a), _) => {
+                at_first += 1;
+                a
+            }
+            (None, Some(b)) => {
+                at_second += 1;
+                b
+            }
+            (None, None) => return None,
+        };
+        *index = at_first | at_second << 16;
+        if crate::mod_index_on(part.mod_index) {
+            return Some((part.provider.clone(), part.mod_id, part.before_game));
+        }
+    }
 }
 
 /// A provider by its handler type: one case for each handler type `mod_api`'s keys name
@@ -118,14 +161,79 @@ pub trait CapabilitiesCapabilityProviders {
     /// Whether any mod registered capability `name` for the things `by` names. This presence
     /// check includes disabled mods; enumeration skips their providers.
     fn provided(&self, by: ProvidedBy, name: &str) -> bool;
+    /// How many times a mod was switched on or off, as the game counts it: a kept capability
+    /// compares it to tell that a provider may have come or gone (`BlockCapabilityCache`).
+    fn mods_switched(&self) -> u64;
 }
 
 impl CapabilitiesCapabilityProviders for InstalledProviders {
     fn provided(&self, by: ProvidedBy, name: &str) -> bool {
         installed().is_some_and(|installed| match by {
             ProvidedBy::BlockEntity => installed.keys.capabilities.contains_key(name),
+            ProvidedBy::Block => installed.keys.block_capabilities.contains_key(name),
             ProvidedBy::Item => installed.keys.item_capabilities.contains_key(name),
             ProvidedBy::Entity => installed.keys.entity_capabilities.contains_key(name),
         })
+    }
+    fn mods_switched(&self) -> u64 {
+        crate::runtime::mods_switched()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::*;
+
+    struct Empty;
+    #[mod_api::__subscriptions]
+    impl Hooks for Empty {}
+
+    #[test]
+    fn merged_cursor_exhausts_both_halves_without_wrapping_past_disabled_entries() {
+        install(
+            vec![
+                ModEntry::new("enabled", Box::new(Empty)),
+                ModEntry::new("disabled", Box::new(Empty)),
+            ]
+            .into(),
+        );
+        assert!(set_mod_enabled("disabled", false));
+        let providers: Vec<_> = (0..65_535)
+            .map(|order| CapabilityPart {
+                mod_id: if order == 65_533 {
+                    "disabled"
+                } else {
+                    "enabled"
+                },
+                mod_index: if order == 65_533 { 1 } else { 0 },
+                type_name: "test:handler".into(),
+                before_game: false,
+                order,
+                provider: order,
+            })
+            .collect();
+        for high_half in [false, true] {
+            let (first, second) = if high_half {
+                (&[][..], providers.as_slice())
+            } else {
+                (providers.as_slice(), &[][..])
+            };
+            let mut cursor = 0;
+            let mut count = 0;
+            let mut last = None;
+            while let Some((provider, owner, before_game)) = next_merged(first, second, &mut cursor)
+            {
+                assert_eq!(owner, "enabled");
+                assert!(!before_game);
+                count += 1;
+                last = Some(provider);
+            }
+            assert_eq!(count, 65_534);
+            assert_eq!(last, Some(65_534));
+            assert_eq!(cursor, if high_half { 0xffff_0000 } else { 0x0000_ffff });
+            assert_eq!(next_merged(first, second, &mut cursor), None);
+            assert_eq!(cursor, if high_half { 0xffff_0000 } else { 0x0000_ffff });
+        }
     }
 }

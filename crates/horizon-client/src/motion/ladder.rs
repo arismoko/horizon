@@ -47,12 +47,11 @@ impl LivingAirWorld for MotionWorld<'_, '_, '_> {
         Ok(self.player.ground.on_ground)
     }
     fn block_friction(&mut self, p: BlockPos) -> Result<f32> {
-        Ok(self
-            .resources
-            .blocks
-            .get(self.block(p))?
-            .coefficients
-            .friction)
+        let state = self.block(p);
+        let mut friction = self.resources.blocks.get(state)?.coefficients.friction;
+        let (context, id) = (self.loop_context, self.player.entity_id as u32);
+        native_friction(context, id, "minecraft:player", p, state, &mut friction);
+        Ok(friction)
     }
     fn friction_modifier(&mut self) -> Result<f64> {
         self.player.attribute("minecraft:friction_modifier")

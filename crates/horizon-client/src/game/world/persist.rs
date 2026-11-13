@@ -388,7 +388,11 @@ pub(super) fn with_raw(mut modelled: Tag, raw: Option<&Tag>) -> Tag {
 fn read_attachments(
     tag: &Tag,
     id: u32,
-    maps: &mut HashMap<u32, horizon_mod_runtime::attachments::Attachments>,
+    maps: &mut HashMap<
+        u32,
+        horizon_mod_runtime::attachments::Attachments,
+        impl std::hash::BuildHasher,
+    >,
     live: bool,
 ) {
     if let Ok(Some(data)) = attachment_compound(tag.get(ATTACHMENTS_KEY)) {
@@ -410,7 +414,7 @@ fn read_attachments(
 pub(super) fn write_attachments(
     tag: &mut Tag,
     id: u32,
-    maps: &HashMap<u32, horizon_mod_runtime::attachments::Attachments>,
+    maps: &HashMap<u32, horizon_mod_runtime::attachments::Attachments, impl std::hash::BuildHasher>,
 ) {
     if let Tag::Compound(root) = tag
         && let Some(map) = maps.get(&id)
