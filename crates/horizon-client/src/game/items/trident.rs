@@ -221,6 +221,13 @@ impl ThrownTrident {
             last_state: None,
         }
     }
+    /// `Entity.noPhysics`, with the synced flag a client reads
+    /// (`AbstractArrow`'s entity-data flags, bit 1): the tracker sends them
+    /// again on the next tick.
+    pub(in crate::game) fn set_no_physics(&mut self, no_physics: bool) {
+        self.no_physics = no_physics;
+        self.needs_sync = true;
+    }
     /// `Entity.move(PISTON)`: the position only; `release_after_piston` follows
     /// (`AbstractArrow.move`).
     pub(super) fn move_by_piston(&mut self, movement: Vec3) {
