@@ -274,7 +274,7 @@ fn missing_mod_scrollbar_uses_existing_press_drag_release() {
 fn controller_rows_group_wrapped_mods_and_exclude_the_description() {
     let mut f = Fixture::new();
     let mut wrapped_mod = gone();
-    wrapped_mod.id = "a_very_long_missing_mod_identifier_that_wraps_across_multiple_lines".into();
+    wrapped_mod.id = "first_line\nsecond_line".into();
     f.title.ask_missing_mods("Gone", vec![wrapped_mod, gone()]);
     let atlas = HudAtlas::build(&horizon_assets::resource_source::ResourceSource::directory(
         "/nonexistent/horizon-test-assets".into(),
