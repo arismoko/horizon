@@ -366,7 +366,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             || self.level.has_mod_block_entity(pos)
             || self.level.has_native_block_entity(state);
         self.level
-            .adjust_piston_carries_block_entity(pos, state)
+            .adjust_relocability(pos, state)
             .unwrap_or(!has_entity)
     }
     /// `IBlockExtension.isSlimeBlock`: vanilla's slime block, or what a part says.

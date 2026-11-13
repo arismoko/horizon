@@ -71,6 +71,13 @@ it to another state of the same block, for example
 | Mirroring | Stays the game's: vanilla's table, or the template's for a mod block. |
 | Panics | A panicking part is contained with a warning, and the game's state is placed. |
 
+## Relocation
+
+`BlockPart::relocability` answers whether a piston may move your block: `Some(false)` keeps it
+in place at that position, `Some(true)` moves it with its block entity, and `None` keeps
+vanilla's rule, where a block with a block entity stays. It is asked on both sides after the
+block's push reaction; see [Piston push reactions](../../how-to/world/piston-push-reactions.md).
+
 ## Landing writes
 
 `BlockPart::fall_on` runs at vanilla's landing moment on a read-only level random host.

@@ -1,8 +1,8 @@
-//! The `piston_carries_block_entity` hook: declarations the mod API generator reads (see `hooks/mod.rs`).
+//! The `relocability` hook: declarations the mod API generator reads (see `hooks/mod.rs`).
 
 pub trait Hooks {
-    /// Whether a piston carries your block `state` at `pos` with its block
-    /// entity: asked at the last step of `PistonBaseBlock.isPushable`, after
+    /// Whether your block `state` at `pos` may be relocated
+    /// (`IBlockExtension.getRelocability`): asked at the last step of `PistonBaseBlock.isPushable`, after
     /// the block's push reaction, for a block that is otherwise pushable,
     /// whenever a piston's structure takes the block in. Left `None`, vanilla's
     /// rule holds: a block with a block entity does not move, and any other
@@ -28,16 +28,22 @@ pub trait Hooks {
     /// This hook is asked only for an otherwise-pushable block. A live owned payload
     /// is required: data-only or unmaterialized vanilla entities remain refused.
     /// Diverges from vanilla: push only never discards a block entity.
-    /// NeoForge has no counterpart: its
-    /// `IBlockExtension.getRelocability` is an unrelated region-copy query that
-    /// pistons do not ask. Diverges from upstream: new hook.
+    /// Horizon reads NeoForge's answer as `Option<bool>` and the piston as the
+    /// only rule it governs: vanilla 26.3's only per-block move rule is
+    /// `PistonBaseBlock.isPushable`; `/clone` moves blocks without asking them
+    /// and structure templates copy without removing. Diverges from upstream:
+    /// new hook.
+    #[notes = r#"## Block relocation
+
+- **`BlockPart::relocability(level, event)`** (`RelocabilityEvent { dimension, pos, state }`, answer `Option<bool>`): whether a piston may move your block (NeoForge's `IBlockExtension.getRelocability`, read by Horizon as a yes or no for pistons, the only per-block move rule vanilla 26.3 has). Asked at the last step of `PistonBaseBlock.isPushable`, for a block that got past its push reaction, where vanilla refuses any block with a block entity. `Some(false)` makes the block immovable at that position; `Some(true)` moves it, with its block entity, its data and its attachments when it has one; `None` keeps vanilla's rule: a block with a block entity does not move, any other block follows its push reaction. Asked on both sides with a read-only `LevelSide`, as a client replays a piston's move on its own copy: answer the same on both, from the event. Diverges from upstream: new hook."#]
     #[hook(
         side = "both",
         contract = "replace",
         out = "movable",
         scope = "block",
         key = "state",
-        target = "horizon_client::game::native_hooks::piston_carries_block_entity::GameLevel<'_>::native_piston_carries_block_entity"
+        target = "horizon_client::game::native_hooks::relocability::GameLevel<'_>::native_relocability",
+        neoforge = "IBlockExtension.getRelocability"
     )]
-    fn piston_carries_block_entity();
+    fn relocability();
 }

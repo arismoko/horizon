@@ -401,11 +401,7 @@ impl BlockPart for PayloadPart {
     fn piston_push_reaction(&self, _: &mut PistonPushReactionEvent) -> Option<PushReaction> {
         Some(self.reaction.clone())
     }
-    fn piston_carries_block_entity(
-        &self,
-        _: LevelSide<'_>,
-        _: &mut PistonCarriesBlockEntityEvent,
-    ) -> Option<bool> {
+    fn relocability(&self, _: LevelSide<'_>, _: &mut RelocabilityEvent) -> Option<bool> {
         self.asks.fetch_add(1, Ordering::Relaxed);
         self.carry
     }
@@ -558,7 +554,7 @@ fn piston_push_reaction_real_block_entity_payload_lifecycle() {
                 assert_eq!(
                     asks.load(Ordering::Relaxed),
                     0,
-                    "popped never asks the carry hook"
+                    "popped never asks relocability"
                 );
                 assert_eq!(
                     game.world.block(4, 64, 2),

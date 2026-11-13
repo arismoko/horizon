@@ -1,5 +1,5 @@
 //! Pistons carry a mod block entity while its block moves (#3184), when the
-//! block's `piston_carries_block_entity` lets it move. The level holds the block entities;
+//! block's `relocability` lets it move. The level holds the block entities;
 //! these tests stand in for it with a map. They need the prepared resources,
 //! as the other level tests do.
 use super::tests::{Fixture, TestLevel, fixture};
@@ -16,7 +16,7 @@ struct Contents {
 
 struct CarryLevel {
     inner: TestLevel,
-    /// What the block's part answers to `piston_carries_block_entity`.
+    /// What the block's part answers to `relocability`.
     carries: fn(BlockPos) -> Option<bool>,
     entities: HashMap<BlockPos, Contents>,
     carried: HashMap<BlockPos, Contents>,
@@ -43,11 +43,7 @@ impl LevelAccess for CarryLevel {
     fn has_mod_block_entity(&self, pos: BlockPos) -> bool {
         self.entities.contains_key(&pos)
     }
-    fn adjust_piston_carries_block_entity(
-        &self,
-        pos: BlockPos,
-        _state: BlockStateId,
-    ) -> Option<bool> {
+    fn adjust_relocability(&self, pos: BlockPos, _state: BlockStateId) -> Option<bool> {
         (self.carries)(pos)
     }
     fn carry_block_entity(&mut self, from: BlockPos, to: BlockPos) {

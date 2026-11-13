@@ -110,7 +110,7 @@ same facts is `StateFacts` in `crates/horizon-items/src/blocks.rs`.
 | `getBubbleColumnDirection(state)` | Missing | — | Bubble-column rules are engine-owned. |
 | `shouldHideAdjacentFluidFace(state, direction, fluid)` | Missing | — | Fluid-face culling is engine-owned. |
 | `getBounceRestitution(level, pos, state, entity)` | Covered | `BlockPart::bounce_restitution` (`hooks/bounce_restitution.rs`) | Asked for the player and the mobs on both sides, with the entity's level as a read-only `LevelSide` host, the entity, its type and the block's position. The answer must be pure because replayed ticks ask again: the same host and event inputs must give the same factor. Dropped items keep their own slime rule. `BlockPart::bounce_on` still edits the movement after the bounce. |
-| `getRelocability(level, pos, state)` | Missing | — | No relocation query (pistons, structure blocks). |
+| `getRelocability(level, pos, state)` | Covered | `BlockPart::relocability` (`hooks/relocability.rs`) | Horizon's reading: an `Option<bool>` for pistons, the only per-block move rule in vanilla 26.3 (`/clone` moves without asking and structure templates copy without removing). Asked on both sides at the last step of `PistonBaseBlock.isPushable`, for a block past its push reaction: `Some(false)` keeps it in place, `Some(true)` moves it with its block entity, data and attachments (#3184); `None` keeps vanilla's rule (a block entity stays). NeoForge's own answer type is not checked. |
 | `canBeConnectedTo(state, direction, neighborBlock)` | Covered | `BlockPart::can_be_connected_to` (`hooks/can_be_connected_to.rs`) | The block being connected to answers, with its position, the connector's state, its rule (`ConnectionKind`), the direction toward it and its face's sturdiness, after the connector's vanilla rule (fences, walls, bars and panes ask). The connector's own `BlockPart::connects_to` (`hooks/connects_to.rs`) is asked after and has the last word; that order is Horizon's. |
 | `getModelData(state, level, pos)` | Missing | — | No `ModelData`; block-entity drawing takes a `block_entity_submit` part with its own model path. |
 
@@ -315,7 +315,8 @@ their rows have landed or become partial since and should be narrowed when they 
   `onTreeGrow` is `on_tree_grow`; `getToolModifiedState` is `tool_modified_state` before
   `block_tool_modification`; `onDestroyedByPlayer` is `on_destroyed_by_player`; `canBeConnectedTo` is
   `can_be_connected_to` (the target) before `connects_to` (the connector); `onBlockStateChange` is
-  `on_block_state_change`, after `block_changed`; `rotate` is a worldgen Part method of the same name.
+  `on_block_state_change`, after `block_changed`; `rotate` is a worldgen Part method of the same name; `getRelocability` is
+  `relocability`.
 - **Changed on the item side:** `getEquipmentSlot` is `ItemResource::equippable_slot`; `getCraftingRemainder`
   has `ItemPart::crafting_remainder` plus content data and `host.item_crafting_remainder`; `canEquip` is `ItemPart::can_equip`; `getXpRepairRatio` is `ItemPart::xp_repair_ratio`.
 - **Block group rows that still need their own answer:** `getExpDrop`,

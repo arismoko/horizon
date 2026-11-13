@@ -1,5 +1,5 @@
 //! Pistons carry a mod block entity while its block moves (#3184), when the
-//! block's part lets it move (`piston_carries_block_entity`): the game's side of the level's
+//! block's part lets it move (`relocability`): the game's side of the level's
 //! `carry_block_entity` and `land_block_entity`, the carried block entity in
 //! its moving piston's saved tag, and a client's copy. `BlockEntities` holds
 //! what is carried (`carry`, `land`).
@@ -56,15 +56,11 @@ impl GameLevel<'_> {
             self.native_piston_post(self.dimension, piston, step, extending, push, destroy);
         }
     }
-    /// `piston_carries_block_entity` for the block `state` at `pos`: what
+    /// `relocability` for the block `state` at `pos`: what
     /// its part answers, or None.
-    pub(super) fn piston_carries_block_entity(
-        &self,
-        pos: BlockPos,
-        state: BlockStateId,
-    ) -> Option<bool> {
+    pub(super) fn relocability(&self, pos: BlockPos, state: BlockStateId) -> Option<bool> {
         let mut movable = None;
-        self.native_piston_carries_block_entity(self.dimension, pos, state, &mut movable);
+        self.native_relocability(self.dimension, pos, state, &mut movable);
         if movable == Some(true) {
             let at = (pos.x, pos.y, pos.z);
             if self.world.block_entities.is_taken(&at) {

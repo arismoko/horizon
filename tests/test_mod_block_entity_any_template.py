@@ -45,7 +45,7 @@ struct GameLevel { world: World, carries: Option<bool> }
 impl GameLevel {
     HAS_MOD
     HAS_NATIVE
-    fn adjust_piston_carries_block_entity(&self, _pos: BlockPos, _state: BlockStateId) -> Option<bool> { self.carries }
+    fn adjust_relocability(&self, _pos: BlockPos, _state: BlockStateId) -> Option<bool> { self.carries }
 }
 struct ViewDistances { furthest: f64 }
 struct Game { world: World, res: Res }

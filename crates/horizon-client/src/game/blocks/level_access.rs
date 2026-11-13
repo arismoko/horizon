@@ -1049,12 +1049,8 @@ impl LevelAccess for GameLevel<'_> {
                 Some(BlockEntity::Mod(_))
             )
     }
-    fn adjust_piston_carries_block_entity(
-        &self,
-        pos: BlockPos,
-        state: BlockStateId,
-    ) -> Option<bool> {
-        self.piston_carries_block_entity(pos, state)
+    fn adjust_relocability(&self, pos: BlockPos, state: BlockStateId) -> Option<bool> {
+        self.relocability(pos, state)
     }
     fn carry_block_entity(&mut self, from: BlockPos, to: BlockPos) {
         self.carry_mod_block_entity(from, to);
