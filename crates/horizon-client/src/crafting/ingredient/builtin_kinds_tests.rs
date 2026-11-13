@@ -1412,12 +1412,13 @@ fn unbreakable_unit_recipe_matches_presence_defaults_and_removal() {
     );
     assert!(!matches(sword.clone()));
     let removal = parse(
-        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"!minecraft:unbreakable":{}}}"#,
+        r#"{"type":"neoforge:components","items":["minecraft:diamond_sword","minecraft:stone"],"components":{"!minecraft:unbreakable":{}}}"#,
         &items,
     );
     assert!(removal.test_in(&context, &sword));
     assert!(!removal.test_in(&context, &ItemStack::new("minecraft:diamond_sword", 1)));
     let mut stone = ItemStack::new("minecraft:stone", 3);
+    assert!(removal.test_in(&context, &stone));
     assert!(!matches(stone.clone()));
     stone.data_mut().set_other(
         "minecraft:unbreakable",
@@ -1426,6 +1427,7 @@ fn unbreakable_unit_recipe_matches_presence_defaults_and_removal() {
             Tag::String("live".into()),
         )])),
     );
+    assert!(!removal.test_in(&context, &stone));
     assert!(matches(stone.clone()));
     let ingredient = parse(
         r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:unbreakable":{"ignored":false}}}"#,
@@ -1458,7 +1460,7 @@ fn unbreakable_unit_recipe_rejects_non_maps_before_publication() {
     let items = Items::empty();
     let load = load();
     let root = tempfile::tempdir().unwrap();
-    for payload in [r#"true"#, "0", r#""unit""#, "[]", "[{}]"] {
+    for payload in [r#"true"#, "false", "null", "0", r#""unit""#, "[]", "[{}]"] {
         let mut source: Value = serde_json::from_str(
             r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:unbreakable":true}}],"result":{"id":"minecraft:diamond"}}"#,
         )
@@ -1466,15 +1468,45 @@ fn unbreakable_unit_recipe_rejects_non_maps_before_publication() {
         source["ingredients"][0]["components"]["minecraft:unbreakable"] =
             serde_json::from_str(payload).unwrap();
         assert!(Ingredient::parse(&source["ingredients"][0], &items).is_none());
+        let error =
+            components::validate_recipe_components(&source["ingredients"][0], &items).unwrap_err();
+        assert!(
+            error.contains("minecraft:unbreakable"),
+            "{payload}: {error}"
+        );
+        let companion = serde_json::json!({
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": ["minecraft:stone"],
+            "result": {"id": "minecraft:diamond"}
+        });
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
             &horizon_world::loot::PackOverlay::NONE,
-            vec![("fixture:invalid_unbreakable".into(), source)],
+            vec![
+                ("fixture:invalid_unbreakable".into(), source),
+                ("fixture:valid_companion".into(), companion),
+            ],
             &load,
         )
         .unwrap();
-        assert!(recipes.crafting.is_empty(), "{payload}");
-        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+        assert_eq!(recipes.crafting.len(), 1, "{payload}");
+        let context = load.loop_context(LoopSide::Server, []);
+        let grid = [Some(ItemStack::new("minecraft:stone", 1)), None, None, None];
+        assert!(
+            recipes.recipe_matches(&context, "fixture:valid_companion", &grid, 2),
+            "{payload}"
+        );
+        assert!(
+            !recipes.recipe_matches(&context, "fixture:invalid_unbreakable", &grid, 2),
+            "{payload}"
+        );
+        let indexed: Vec<_> = recipes
+            .by_type
+            .values()
+            .flat_map(|recipes| recipes.iter())
+            .map(|recipe| recipe.id.as_str())
+            .collect();
+        assert_eq!(indexed, ["fixture:valid_companion"], "{payload}");
     }
 }
