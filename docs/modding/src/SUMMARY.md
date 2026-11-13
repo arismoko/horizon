@@ -54,3 +54,5 @@
 - [The process, versions and game tests](reference/process-environment.md)
 - [Maths and network NBT](reference/maths-and-network-nbt.md)
 - [Saved-world mod mismatches](reference/saved-world-mod-mismatch.md)
+
+- [Container loot](reference/container-loot.md)

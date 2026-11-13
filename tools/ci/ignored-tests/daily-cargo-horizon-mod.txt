@@ -1,0 +1,4 @@
+# The daily tests of cargo-horizon-mod: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
+# where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+cargo-horizon-mod bounded_catalog_commands test:bounded_reads daily slow
+cargo-horizon-mod layouts::tests::the_probe_builds_dependencies_with_their_resolved_features bin:cargo-horizon-mod daily slow

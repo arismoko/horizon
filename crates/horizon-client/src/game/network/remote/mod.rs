@@ -78,15 +78,14 @@ use {
 mod abilities;
 mod chat_received;
 use chat_received::QueuedChat;
-mod client_level_tick;
+pub(in crate::game) mod client_level_tick;
 mod item_use;
 mod remote_attributes;
 mod tables;
 
 pub(super) use super::villager_client::builtin_registries;
 
-/// `ChatType`'s two decorations: how a message shows in the chat, and what
-/// the narrator says of it.
+/// `ChatType`'s two decorations: how a message shows in the chat, and what the narrator says of it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Decoration {
     Chat,
@@ -503,7 +502,7 @@ pub(super) struct Remote {
     pub far_terrain: Option<horizon_client::lod_net::Offer>,
     pub(super) builtin: Arc<Builtin>,
     lang: Arc<Language>,
-    pub(super) registries: Arc<Dynamic>,
+    pub(in crate::game) registries: Arc<Dynamic>,
     /// The block, item and fluid tags of `registries` by name, as native mods read them
     /// (`install_remote_tags`).
     pub(super) tags: Option<horizon_client::items::Items>,
@@ -615,7 +614,7 @@ pub(super) struct Remote {
     use_target: Option<[i32; 3]>,
     /// A mod menu's extra data, kept for the `OpenScreen` of its window that
     /// follows (`horizon:menu_extra`).
-    menu_extra: Option<horizon_protocol::menu_extra::Message>,
+    pub(in crate::game) menu_extra: Option<horizon_protocol::menu_extra::Message>,
     pub(super) entities: HashMap<i32, Tracked>,
     /// Per-tick remote entity scratch retained between frames.
     tick_fluids: Vec<Option<horizon_client::mobs::living::Fluids>>,
@@ -685,8 +684,7 @@ pub(super) struct Remote {
     /// completions this server sent (ClientboundCustomChatCompletionsPacket).
     custom_completions: std::collections::BTreeSet<String>,
     players: HashMap<u128, String>,
-    /// `ClientPacketListener.playerInfoMap` as player-list entries, and
-    /// which of them are listed.
+    /// `ClientPacketListener.playerInfoMap` as player-list entries, and which of them are listed.
     tab_players: HashMap<u128, horizon_client::tab_list::TabPlayer>,
     /// Each listed profile's unpacked `textures` property.
     skin_textures: HashMap<u128, horizon_client::skins::Textures>,
@@ -733,8 +731,8 @@ pub(super) struct Remote {
     /// `MultiPlayerGameMode.destroyBlockPos`, `.destroyProgress` and the face last sent: the block
     /// the break targets, which outlives the break itself.
     destroying: Option<([i32; 3], u8, f32)>,
-    /// `MultiPlayerGameMode.destroyingItem`: the held item key the break began with.
-    destroying_item: String,
+    /// `MultiPlayerGameMode.destroyingItem`: the main-hand stack the break began with.
+    destroying_item: Option<ItemStack>,
     /// `MultiPlayerGameMode.isDestroying`: a break is running. `destroying` keeps the target after
     /// one ends (`destroyBlockPos` is written only when a break starts), so a dig resumed on the
     /// same block and item sends no new START and the server keeps its clock (#4124).
@@ -783,8 +781,7 @@ pub(super) struct Remote {
     /// `ClientCommonPacketListenerImpl.serverLinks`: the links "Server
     /// Links..." in the pause menu lists (only `http`/`https` URIs kept).
     pub(super) server_links: Vec<horizon_protocol::packets::configuration::ServerLink>,
-    /// `ClientPacketListener.getDebugQueryHandler`: the F3+I query waiting
-    /// for the server's data.
+    /// `ClientPacketListener.getDebugQueryHandler`: the F3+I query waiting for the server's data.
     pub(super) debug_query: super::debug_keys::DebugQuery,
 }
 
@@ -1244,7 +1241,7 @@ impl Game<'_> {
             profile: 0,
             profile_name: String::new(),
             destroying: None,
-            destroying_item: String::new(),
+            destroying_item: None,
             is_destroying: false,
             interaction_swing: [true; 2],
             destroy_delay: 0,
@@ -1484,7 +1481,7 @@ impl Game<'_> {
             profile: 0,
             profile_name: String::new(),
             destroying: None,
-            destroying_item: String::new(),
+            destroying_item: None,
             is_destroying: false,
             interaction_swing: [true; 2],
             destroy_delay: 0,
@@ -1665,13 +1662,13 @@ impl Game<'_> {
         }
     }
     /// `Connection.send` for the game's play packets: a mod may cancel one
-    /// (`client_packet_send`), and the server never hears of it.
-    fn send_play(&self, packet: S) {
-        if let Some(r) = &self.remote
-            && !self.client_packet_send_canceled(&packet)
-        {
+    /// (`client_packet_send`), and the server never hears of it. True when queued.
+    pub(super) fn send_play(&self, packet: S) -> bool {
+        let queued = self.remote.is_some() && !self.client_packet_send_canceled(&packet);
+        if let (true, Some(r)) = (queued, &self.remote) {
             r.session.send(packet);
         }
+        queued
     }
     fn send_action(&self, action: i32) {
         self.send(S::PlayerAction(play::PlayerAction {
@@ -2064,8 +2061,7 @@ impl Game<'_> {
         shown
     }
 
-    /// `ChatListener.messageDelay`: Chat Delay in milliseconds, as Java
-    /// truncates it.
+    /// `ChatListener.messageDelay`: Chat Delay in milliseconds, as Java truncates it.
     fn chat_delay_ms(&self) -> i64 {
         (self.settings.chat_delay * 1000.0) as i64
     }
@@ -3051,16 +3047,7 @@ impl Game<'_> {
             && self.world.set(pos[0], pos[1], pos[2], state).is_ok()
         {
             self.sync_block_entity((pos[0], pos[1], pos[2]), Some(previous), state);
-            // LevelChunk.setBlockState removes the block entity of a block
-            // that changes: the moving piston the client's moveBlocks made
-            // stops when the server places what it moved (#3002).
-            let facts = self.res.facts();
-            let moving = |s: BlockStateId| &*facts.get(s).name == "minecraft:moving_piston";
-            if moving(previous) && !moving(state) {
-                let at = horizon_core::position::BlockPos::new(pos[0], pos[1], pos[2]);
-                self.forget_moving_piston(at);
-                self.moving_pistons_stale = true;
-            }
+            self.client_block_written(pos, previous, state);
         }
         // A block we just placed: play its place sound (the server skips the placer).
         if let Some((target, _)) = self.remote.as_ref().and_then(|r| r.placing)
@@ -3598,14 +3585,7 @@ impl Game<'_> {
             // A mod menu type's block and its mod's bytes, just before the
             // menu's `OpenScreen`.
             C::CustomPayload(p) if p.channel == horizon_protocol::menu_extra::CHANNEL => {
-                match horizon_protocol::menu_extra::decode(&p.data) {
-                    Ok(extra) => {
-                        if let Some(r) = self.remote.as_mut() {
-                            r.menu_extra = Some(extra);
-                        }
-                    }
-                    Err(e) => log::debug!("Horizon: a bad menu extra payload: {e}"),
-                }
+                self.receive_menu_extra(&p.data);
             }
             C::CustomPayload(p) if horizon_client::lan::recipes::viewer_channel(&p.channel) => {
                 self.remote_recipe_viewer(&p.channel, &p.data);
@@ -3715,10 +3695,9 @@ impl Game<'_> {
                 // A new player, without effects (the server sends them
                 // again) and with no item in use.
                 self.potions.effects.clear();
-                // The server sends the level, chunks and entities again, and opens again
-                // the levels it views: none is kept through a Respawn.
+                // Every synced attachment but the player's is sent again; the viewed
+                // levels go or stay with the level entered (`enter_respawn_level`).
                 if let Some(r) = self.remote.as_mut() {
-                    r.viewed.clear();
                     r.attachments
                         .retain(|holder, _| matches!(holder, Holder::Player(_)));
                 }
@@ -3764,7 +3743,7 @@ impl Game<'_> {
                     r.sequence = 0;
                 }
                 self.portals.respawn_attributes.respawn(p.keep & 1 != 0);
-                self.enter_remote_dimension(&p.spawn, true, reason);
+                self.enter_respawn_level(&p, reason);
                 // handleRespawn adds the new LocalPlayer after what the kept
                 // level holds; a new level holds nothing yet.
                 let before: std::collections::HashSet<u32> =
@@ -6374,6 +6353,8 @@ impl Game<'_> {
         if let Some(r) = self.remote.as_mut() {
             r.last_teleport_sequence = r.sequence;
         }
+        // The server's answer to a passage crossed (`cross_passage`), or any other.
+        self.passages.crossing = None;
         // handleMovePlayer: a passenger keeps its own position and look (its vehicle
         // carries it), so a vehicle a datapack teleports every tick doesn't snap the
         // rider's view; the teleport is still accepted, with where the player is.
@@ -8116,9 +8097,9 @@ impl Game<'_> {
             return true;
         }
         // sameDestroyTarget: the same block and still the item the break began with.
-        let held = self.main_hand_key();
         let same = self.remote.as_ref().is_some_and(|r| {
-            r.destroying.is_some_and(|(p, _, _)| p == hit.pos) && r.destroying_item == held
+            r.destroying.is_some_and(|(p, _, _)| p == hit.pos)
+                && self.same_destroying_item(&r.destroying_item)
         });
         // startDestroyBlock leaves only a break that is still running alone (`isDestroying &&
         // sameDestroyTarget`); a click on the block a stopped break still names starts it again,
@@ -8173,9 +8154,9 @@ impl Game<'_> {
                 }
                 return true;
             }
+            let held = self.main_hand_key();
             if let Some(r) = self.remote.as_mut() {
-                r.destroying = Some((hit.pos, face, 0.0));
-                r.destroying_item = held;
+                (r.destroying, r.destroying_item) = (Some((hit.pos, face, 0.0)), held);
                 r.is_destroying = true;
             }
             // startDestroyBlock plays the first hit and crack itself; the
@@ -9185,7 +9166,7 @@ impl Game<'_> {
                 )
             });
         }
-        let Some((content, sound, _)) = horizon_client::items::bucket_contents(&stack.item) else {
+        let Some((content, sound, _)) = self.predicted_bucket_contents(stack) else {
             return (false, None, Vec::new());
         };
         let Some(hit) = self.pick() else {
@@ -10394,8 +10375,7 @@ impl Game<'_> {
             .filter(|e| e.window == p.container);
         let target = extra
             .as_ref()
-            .map(|e| (e.pos[0], e.pos[1], e.pos[2]))
-            .or(target);
+            .map_or(target, |e| e.pos.map(|p| (p[0], p[1], p[2])));
         if menu == "minecraft:lectern" {
             // LecternScreen: the book and page come in the menu's content and data.
             if let Some(r) = self.remote.as_mut() {
@@ -10816,10 +10796,7 @@ impl Game<'_> {
         let delta = self.world.game_time - r.clock_game_time;
         r.clock_game_time = self.world.game_time;
         for clock in r.clocks.values_mut() {
-            let partial = f64::from(clock.partial_tick) + delta as f64 * f64::from(clock.rate);
-            let full = partial.floor();
-            clock.partial_tick = (partial - full) as f32;
-            clock.total_ticks += full as i64;
+            let _ = client_level_tick::advance_clock(clock, delta);
         }
         self.world.day_time = r.clock_time(r.default_clock);
     }
@@ -11720,6 +11697,8 @@ mod level_sound_tests;
 
 #[cfg(test)]
 mod attachment_query_tests;
+#[cfg(test)]
+mod passage_cross_tests;
 #[cfg(test)]
 pub(crate) mod tests {
     use super::super::api_values::TryIntoApi;
@@ -15959,6 +15938,7 @@ pub(crate) mod tests {
             limited_crafting: false,
             can_equip: None,
             known_recipes: None,
+            slot_rules: None,
         };
         let mut menu = Menu::new(Kind::Inventory);
         let cobblestone = ItemStack {

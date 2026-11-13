@@ -437,6 +437,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    #[ignore = "daily"]
     fn jar_hashing_accepts_512_mib_and_refuses_one_extra_byte() {
         let limit = 512 * 1024 * 1024;
         assert!(hash_reader::<sha2::Sha512>(io::repeat(0).take(limit), io::sink()).is_ok());

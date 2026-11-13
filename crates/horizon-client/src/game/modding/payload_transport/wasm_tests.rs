@@ -81,7 +81,9 @@ fn compiled_guest_runs_in_actual_game_roots() {
 
 fn compiled_guest_runs_in_actual_game_roots_on_guest_stack() {
     super::tests::require_resources();
-    if super::super::native_entity_refs::tests::run_fresh_cases(
+    // The fixture job runs this test alone: three of its five worlds open at a time, each in its
+    // own process. Their combined memory is unmeasured; fewer at once if the runner runs short.
+    if super::super::native_entity_refs::tests::run_fresh_cases_at_once(
         TEST,
         "HORIZON_WASM_GAME_CASE",
         &[
@@ -91,6 +93,7 @@ fn compiled_guest_runs_in_actual_game_roots_on_guest_stack() {
             "work_trap",
             "network_handler_trap",
         ],
+        3,
     ) {
         return;
     }

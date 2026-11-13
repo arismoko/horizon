@@ -1788,8 +1788,8 @@ fn mob_from_nbt_at(
             let (Some(id), Some(v)) = (text(a.get("id")), float(a.get("base"))) else {
                 continue;
             };
-            // A mount's rolled health and speed stay attribute bases, which
-            // the server syncs (its hearts over the rider's hotbar).
+            let v = m.kind.attribute_bounds.loaded_base(&id, v);
+            // A mount's rolled health and speed stay attribute bases, which the server syncs.
             let equine = crate::mobs::equine::is_equine(m.species());
             match id.as_str() {
                 "minecraft:max_health" if equine => crate::mobs::finalize::set_base(

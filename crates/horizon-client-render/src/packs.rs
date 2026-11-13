@@ -2466,6 +2466,7 @@ mod tests {
         let _ = fs::remove_dir_all(base);
     }
     #[test]
+    #[ignore = "daily"]
     fn a_pack_that_unpacks_past_its_budget_fails_and_leaves_nothing() {
         use std::io::Write as _;
         let base = std::env::temp_dir().join(format!("horizon-pack-bomb-{}", std::process::id()));

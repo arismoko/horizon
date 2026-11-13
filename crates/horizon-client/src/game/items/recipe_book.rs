@@ -386,6 +386,7 @@ impl Game<'_> {
                 limited_crafting: self.limited_crafting(),
                 can_equip: None,
                 known_recipes: Some(&self.level.recipe_book),
+                slot_rules: Some(self),
             };
             for i in 0..36 {
                 menu.set_player_item(i, self.inventory[i].clone());
@@ -673,6 +674,7 @@ impl Game<'_> {
                         &crate::game::native_hooks::HookedAttributeTooltips::new(self, None),
                         self.item_enchantments(),
                         &|k| self.pack.names.display_get(k),
+                        &|attribute| self.attribute_style(attribute, false),
                     )
                 })
             {

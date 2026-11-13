@@ -1684,6 +1684,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn loaded_tnt_fuse_uses_numeric_short_and_saves_without_raw() {
         use horizon_core::nbt::Tag;
         let mut resources = None;
@@ -1870,6 +1871,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_tnt_keeps_the_blast_without_its_sound() {
         on_big_stack(|| {
             let mut resources = None;
@@ -1928,6 +1930,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_potions_keep_the_splash_without_its_sound() {
         on_big_stack(|| {
             use horizon_client::projectiles::{Hit, Projectile, ProjectileKind};
@@ -1997,6 +2000,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_creeper_keeps_the_blast_after_its_source_is_removed() {
         on_big_stack(|| {
             let mut resources = None;
@@ -2033,6 +2037,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_launched_potions_and_bottles_keep_their_impact() {
         on_big_stack(|| {
             let mut resources = None;
@@ -2088,6 +2093,7 @@ mod tests {
     /// → `level.addFreshEntity`), so selectors, `/data get` and `/kill` find
     /// it while it flies.
     #[test]
+    #[ignore = "daily"]
     fn h13201_a_dispensed_potion_is_a_level_entity() {
         let mut resources = None;
         let Some(mut game) = server_game(&mut resources) else {
@@ -2144,6 +2150,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn silent_bottles_preserve_xp_and_the_server_random_stream() {
         on_big_stack(|| {
             use horizon_client::projectiles::{Hit, Projectile, ProjectileKind};
@@ -2228,6 +2235,7 @@ mod tests {
     /// joined during a tick back one more: the late pass compared its join
     /// against an `announced` already raised past it.
     #[test]
+    #[ignore = "daily"]
     fn lit_tnt_ticks_on_the_next_level_tick_and_explodes_on_the_80th() {
         let mut resources = None;
         let Some(mut game) = server_game(&mut resources) else {
@@ -2257,6 +2265,7 @@ mod tests {
     /// `EntityTickList` loop) and waits for the next tick. The fix for #10063
     /// must not tick it in the tick it joined.
     #[test]
+    #[ignore = "daily"]
     fn tnt_primed_by_a_blast_waits_for_the_next_tick() {
         let mut resources = None;
         let Some(mut game) = server_game(&mut resources) else {

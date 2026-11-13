@@ -230,6 +230,10 @@ pub(super) fn emit<'a>(
         } else {
             None
         };
+        if hook.stack_count.is_some() {
+            crate::catalog::validate_stack_count_output(name, output.as_ref().map(|(_, ty)| *ty))
+                .map_err(|error| error.to_string())?;
+        }
         let collect_cancel = contract == Contract::Collect
             && hook.cancellable == Some(true)
             && args.iter().any(|(name, ty)| {
@@ -574,14 +578,17 @@ pub(super) fn emit<'a>(
             let target_path: syn::Path = syn::parse_str(target)
                 .map_err(|error| format!("invalid target for {name}: {error}"))?;
             let receiver = &target_path.segments[target_path.segments.len() - 2].ident;
-            let block_carrier = !declared.is_empty()
-                && carried.iter().any(|(_, ty)| {
-                    ty.to_token_stream()
-                        .to_string()
-                        .split(|c: char| !c.is_alphanumeric())
-                        .any(|word| matches!(word, "BlockState" | "LandingWrite" | "InsideWrite"))
-                });
-            if block_carrier {
+            let guarded_carrier = !declared.is_empty()
+                && (hook.stack_count.is_some()
+                    || carried.iter().any(|(_, ty)| {
+                        ty.to_token_stream()
+                            .to_string()
+                            .split(|c: char| !c.is_alphanumeric())
+                            .any(|word| {
+                                matches!(word, "BlockState" | "LandingWrite" | "InsideWrite")
+                            })
+                    }));
+            if guarded_carrier {
                 let engine: Vec<_> = carried
                     .iter()
                     .map(|(name, ty)| {
@@ -626,7 +633,7 @@ pub(super) fn emit<'a>(
                     }
                 }
             }
-            let crossing = if declared.is_empty() || block_carrier {
+            let crossing = if declared.is_empty() || guarded_carrier {
                 stack_crossing_routed(
                     &args,
                     output.as_ref(),
@@ -638,6 +645,10 @@ pub(super) fn emit<'a>(
                         _ => None,
                     }),
                     &surface_calls,
+                    match hook.stack_count {
+                        Some(crate::catalog::StackCount::Trim) => hook.out.as_deref(),
+                        None => None,
+                    },
                 )
             } else {
                 None
@@ -664,7 +675,7 @@ pub(super) fn emit<'a>(
                     .chain(crossing.validators.iter().cloned())
                     .collect::<Vec<_>>()
                     .join(", ");
-                if block_carrier {
+                if guarded_carrier {
                     let names = carried
                         .iter()
                         .map(|(name, _)| name.as_str())
@@ -971,7 +982,7 @@ fn stack_crossing(
     scoped: bool,
     surfaces: &std::collections::HashMap<&str, String>,
 ) -> Option<StackCrossing> {
-    stack_crossing_routed(args, output, false, hook_id, scoped, None, surfaces)
+    stack_crossing_routed(args, output, false, hook_id, scoped, None, surfaces, None)
 }
 
 fn stack_crossing_routed(
@@ -982,6 +993,7 @@ fn stack_crossing_routed(
     scoped: bool,
     block_scope: Option<&str>,
     surfaces: &std::collections::HashMap<&str, String>,
+    trim_count_output: Option<&str>,
 ) -> Option<StackCrossing> {
     const STACK_VALUES: &[&str] = &[
         "ItemStack",
@@ -1011,13 +1023,17 @@ fn stack_crossing_routed(
         before.push_str(&format!("if !crate::game::api_values::block_state::block_listens(mod_api::HookId::{hook_id}, {key}) {{ return; }} "));
     }
     before.push_str("use crate::game::api_values::TryIntoApi; ");
-    if parameters.iter().any(|(_, ty)| {
-        (contains_boundary(ty, STACK_VALUES)
-            || contains_boundary(ty, INFALLIBLE_VALUES)
-            || contains_boundary(ty, BLOCK_VALUES))
+    if parameters.iter().any(|(name, ty)| {
+        trim_count_output != Some(name.as_str())
+            && (contains_boundary(ty, STACK_VALUES)
+                || contains_boundary(ty, INFALLIBLE_VALUES)
+                || contains_boundary(ty, BLOCK_VALUES))
             && matches!(ty, Type::Reference(r) if r.mutability.is_some())
     }) {
         before.push_str("use crate::game::api_values::TryIntoEngine; ");
+    }
+    if trim_count_output.is_some() {
+        before.push_str("use crate::game::api_values::TryIntoEnginePreservingCount; ");
     }
     if parameters.iter().any(|(name, ty)| {
         contains_boundary(ty, STACK_VALUES)
@@ -1093,8 +1109,13 @@ fn stack_crossing_routed(
                     .to_token_stream()
                     .to_string()
                     .replace("ItemStack", "mod_api::ItemStack");
+                let conversion = if trim_count_output == Some(name.as_str()) {
+                    "value.try_into_engine_preserving_count(&**items)?"
+                } else {
+                    "value.try_into_engine(&**items)?"
+                };
                 before.push_str(&format!(
-                    "let mut __accepted_{name} = None; let mut __validate_{name} = |value: &{api_type}| -> Result<(), mod_api::StackWriteError> {{ let items = __boundary_items.as_ref().ok_or(mod_api::StackWriteError::Unavailable)?; let candidate = value.try_into_engine(&**items)?; __accepted_{name} = Some(candidate); Ok(()) }}; "
+                    "let mut __accepted_{name} = None; let mut __validate_{name} = |value: &{api_type}| -> Result<(), mod_api::StackWriteError> {{ let items = __boundary_items.as_ref().ok_or(mod_api::StackWriteError::Unavailable)?; let candidate = {conversion}; __accepted_{name} = Some(candidate); Ok(()) }}; "
                 ));
                 stack_validators.push(format!("&mut __validate_{name}"));
                 writes.push_str(&format!(
@@ -1158,6 +1179,7 @@ mod stack_crossing_tests {
     use super::*;
 
     #[test]
+    #[ignore = "daily"]
     fn level_block_read_refusal_runtime_and_mutants() {
         let mut implementations = String::new();
         for source in [
@@ -1288,6 +1310,7 @@ mod level { pub trait LevelAccess { fn block_state(&self,pos:crate::BlockPos)->c
     }
 
     #[test]
+    #[ignore = "daily"]
     fn block_numeric_index_runtime_and_mutants() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let directory = root.join("target/hook-index-proof");
@@ -1346,6 +1369,7 @@ mod level { pub trait LevelAccess { fn block_state(&self,pos:crate::BlockPos)->c
         }
     }
     #[test]
+    #[ignore = "daily"]
     fn per_block_routing_runtime_and_mutants() {
         let state: Type = syn::parse_quote!(BlockState);
         let writes: Type = syn::parse_quote!(&mut Vec<LandingWrite>);
@@ -1361,6 +1385,7 @@ mod level { pub trait LevelAccess { fn block_state(&self,pos:crate::BlockPos)->c
             true,
             Some("state"),
             &Default::default(),
+            None,
         )
         .unwrap();
         let global = stack_crossing_routed(
@@ -1375,6 +1400,7 @@ mod level { pub trait LevelAccess { fn block_state(&self,pos:crate::BlockPos)->c
             false,
             None,
             &Default::default(),
+            None,
         )
         .unwrap();
         let global = format!(
@@ -1909,6 +1935,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "daily"]
     fn setting_changes_notify_only_the_owner() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let sources = super::super::sources(&root, super::super::FillMode::Require).unwrap();
@@ -2241,6 +2268,7 @@ fn main() {{
     }
 
     #[test]
+    #[ignore = "daily"]
     fn scoped_native_hook_uses_selected_host_and_game_hooks_keep_their_receiver() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let fire = super::super::sources(&root, super::super::FillMode::Require)
@@ -2254,6 +2282,7 @@ fn main() {{
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_worldgen_part_method_takes_the_worldgen_context_and_reads_the_published_table() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let hooks = super::super::sources(&root, super::super::FillMode::Require)
@@ -2308,3 +2337,7 @@ fn contains_boundary(ty: &Type, names: &[&str]) -> bool {
 fn stack_list_output(ty: &Type) -> bool {
     contains_boundary(ty, &["ItemStack"]) && contains_boundary(ty, &["Vec"])
 }
+
+#[cfg(test)]
+#[path = "dispatch/stack_count_tests.rs"]
+mod stack_count_tests;

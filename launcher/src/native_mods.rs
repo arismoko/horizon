@@ -1111,6 +1111,7 @@ fn run_checked(
     });
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+    let started = std::time::Instant::now();
     let mut child = cmd
         .stderr(Stdio::piped())
         .spawn()
@@ -1150,6 +1151,8 @@ fn run_checked(
             tail.push_back(text);
         }
         let status = child.wait();
+        // Before the watcher's join, which can wait out its 100 ms poll.
+        let took = started.elapsed();
         finished.store(true, Ordering::Relaxed);
         let _ = watcher.join();
         if CANCEL.load(Ordering::Relaxed) {
@@ -1158,6 +1161,24 @@ fn run_checked(
         }
         let status = status.map_err(|e| ran(e.to_string()))?;
         if status.success() {
+            // Every command of a native build says how long it took, so the log accounts for
+            // the whole build and not only the steps that time themselves. The command's stdout
+            // went into this log and may not have ended its last line.
+            let mut last = *b"\n";
+            if let Ok(mut read) = fs::File::open(log_path()) {
+                if read.seek(SeekFrom::End(-1)).is_ok() {
+                    let _ = read.read_exact(&mut last);
+                }
+            }
+            let _ = writeln!(
+                log,
+                "{}{}",
+                if last[0] == b'\n' { "" } else { "\n" },
+                trf(
+                    "{step}: {ms} ms",
+                    &[("step", what), ("ms", &took.as_millis().to_string())],
+                )
+            );
             return Ok(());
         }
         let tail: Vec<String> = tail.into();
@@ -1696,6 +1717,19 @@ fn pipeline(
     if let Some(reason) = prebuilt::refusal(&projects) {
         return Err(reason.to_string().into());
     }
+    // The steps around the mods' compile, timed like each command (`run_checked`), so the log
+    // accounts for the whole build.
+    let timed = |step: &str, since: std::time::Instant| {
+        append_log(&trf(
+            "{step}: {ms} ms",
+            &[
+                ("step", step),
+                ("ms", &since.elapsed().as_millis().to_string()),
+            ],
+        ))
+    };
+    timed("Planning the build", started)?;
+    let fetching = std::time::Instant::now();
     let prebuilt = if exists {
         None
     } else {
@@ -1711,6 +1745,9 @@ fn pipeline(
             .map_err(|reason| reason.to_string())?,
         )
     };
+    if prebuilt.is_some() {
+        timed("Checking the prebuilt game", fetching)?;
+    }
     check_cancelled()?;
     let plan = if exists {
         Plan::UpToDate
@@ -1767,8 +1804,10 @@ fn pipeline(
         Target::Server => rust_toolchain::linker_server(),
     };
     if let Some(game) = &prebuilt {
+        let checking = std::time::Instant::now();
         linker()?;
         let rust = rust_toolchain::install(|f| progress(Step::Rust(f)))?;
+        timed("Checking the Rust toolchain", checking)?;
         progress(Step::PrebuiltMods);
         let compiling = std::time::Instant::now();
         let (binary, libraries) = prebuilt::compile(
@@ -1792,6 +1831,7 @@ fn pipeline(
         .map_err(blame)?;
         check_cancelled()?;
         progress(Step::Install);
+        let installing = std::time::Instant::now();
         install(
             base,
             &version,
@@ -1801,6 +1841,7 @@ fn pipeline(
             &about("prebuilt", &internals::Catalog::read(game)?),
             &ordered,
         )?;
+        timed("Installing the build", installing)?;
     } else {
         // Used again: it counts as the newest of the builds kept (`prune`).
         let _ = fs::write(target.directory(&version).join(".installed"), "");
@@ -3741,6 +3782,32 @@ mod tests {
         ]);
         let e = run(cmd, "Compiling the game", |_| {}).unwrap_err();
         assert!(!e.contains("Smart App Control"), "{e}");
+    }
+
+    /// A command that succeeds leaves its time in the build log; one that fails leaves none.
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "starts child processes: runs in the daily ignored-test shards"]
+    fn each_command_logs_its_time() {
+        let _guard = TEST_STATE.lock().unwrap();
+        clear_log().unwrap();
+        // Its stdout, which goes to the log, does not end its line.
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "printf output; sleep 0.05"]);
+        run(cmd, "Linking the game", |_| {}).unwrap();
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "exit 1"]);
+        run(cmd, "Compiling fnr_alpha", |_| {}).unwrap_err();
+        let log = fs::read_to_string(log_path()).unwrap();
+        let ms: u64 = log
+            .lines()
+            .find_map(|line| line.strip_prefix("Linking the game: ")?.strip_suffix(" ms"))
+            .unwrap_or_else(|| panic!("no timing line in {log}"))
+            .parse()
+            .unwrap();
+        assert!(ms >= 50, "{log}");
+        assert!(log.lines().any(|line| line == "output"), "{log}");
+        assert!(!log.contains("Compiling fnr_alpha: "), "{log}");
     }
 }
 

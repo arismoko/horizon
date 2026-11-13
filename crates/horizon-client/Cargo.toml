@@ -146,8 +146,8 @@ friends = ["dep:horizon-friends"]
 # Records the call sites of mob random draws (`mob_ai_probe` traces).
 rng-trace = ["horizon-core/rng-trace", "horizon-client-lib/rng-trace"]
 # Rust's allocations go to the system heap instead of mimalloc, where heap profilers that replace
-# malloc (heaptrack, valgrind's massif) see them. Also the Windows prebuilt archive's allocator
-# (tools/prebuilt_game.py, #2394): there std's DLL keeps its own allocator. Otherwise mimalloc is faster.
+# malloc (heaptrack, valgrind's massif) see them. Also the Windows and macOS prebuilt archives' allocator
+# (tools/prebuilt_game.py, #2394, #3877): there std's shared library keeps its own allocator. Otherwise mimalloc is faster.
 system-allocator = ["horizon-threads/system-allocator"]
 # mimalloc that counts each thread's allocations and frees (`stats` replies with `alloc`).
 alloc-count = ["horizon-threads/alloc-count"]

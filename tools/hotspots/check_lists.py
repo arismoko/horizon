@@ -4,10 +4,11 @@
 rustfmt re-wraps a brace list on every added name, so two PRs that each add a name to one long list always
 conflict (tools/hotspots/README.md). Export a module's items with a glob, or put the new names in a fragment of
 their own. A list's length is the number of names in the whole `pub use` (any visibility), nested braces included.
+A fragment a switch removed (RETIRED) may not come back.
 
 The lists that are longer today are in LONG_LISTS with their length on main as a ceiling: the check fails when a
-listed file's longest list is longer than its entry, so shortening a list needs no change here. Two files a planned
-PR removes have no ceiling. The table is edited only to remove an entry, which the check asks for once the file has
+listed file's longest list is longer than its entry, so shortening a list needs no change here. A file a planned
+PR removes has no ceiling. The table is edited only to remove an entry, which the check asks for once the file has
 no list over 12 names.
 
     python3 tools/hotspots/check_lists.py
@@ -26,16 +27,20 @@ LIMIT = 12
 # until it is removed, so an exemption ends with its list.
 LONG_LISTS = {
     "built.rs": (17, "no planned PR removes it"),
-    # The design of the conflict hotspots, PR F, turns its type lists into one glob per domain; F removes this entry.
-    "domains.rs": (None, "pending removal by PR F of the hotspot design"),
     "game.rs": (24, "no planned PR removes it"),
-    # PR G of the same design splits it into one fragment per parts file; G removes this entry.
-    "part_table.rs": (None, "pending removal by PR G of the hotspot design"),
+    # The Parts runtime and lookups of parts/shared.rs that the game reaches through `__private`.
+    "parts_shared.rs": (15, "one parts file's game-side names"),
     "payload.rs": (17, "no planned PR removes it"),
     "payload_codec.rs": (13, "no planned PR removes it"),
     "phase.rs": (15, "no planned PR removes it"),
     "registry_keys.rs": (15, "rename list"),
     "structure_type.rs": (14, "no planned PR removes it"),
+}
+
+# Files a switch removed (file under EXPORTS: where its content lives now). One at the old path fails.
+RETIRED = {
+    "part_table.rs": "PR G of the hotspot design split it into one fragment per parts file: a name defined in "
+                     "parts/<file>.rs is exported from exports/parts_<file>.rs, in the same scope",
 }
 
 USE = re.compile(r"\bpub(?:\s*\([^)]*\))?\s+use\s+([^;]*);")
@@ -73,6 +78,9 @@ def problems(root):
         elif entry[0] is not None and n > entry[0]:
             found.append(f"{shown}: its longest `pub use` list grew to {n} names (at most {entry[0]}, and it may only "
                          "shrink). Put the new names in a `pub use` of their own.")
+    for name, now in sorted(RETIRED.items()):
+        if (folder / name).exists():
+            found.append(f"{EXPORTS}/{name} was removed: {now}.")
     for name in sorted(LONG_LISTS):
         if not (folder / name).exists():
             found.append(f"{EXPORTS}/{name} is gone: remove its entry from LONG_LISTS in tools/hotspots/check_lists.py.")

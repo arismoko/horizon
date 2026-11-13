@@ -1137,13 +1137,13 @@ fn an_ability_question_reaches_only_the_parts_of_the_asked_item_and_names_the_ab
     // Another test installs parts with tags: a dispatch must run on a game thread.
     mark_game_thread();
     let sticks = Abilities {
-        granted: "minecraft:shield_block",
-        denied: "minecraft:shears_carve",
+        granted: "shield_block",
+        denied: "shears_carve",
         asked: Default::default(),
     };
     let stones = Abilities {
-        granted: "my_mod:chop",
-        denied: "my_mod:chop_not",
+        granted: "my_mod_chop",
+        denied: "my_mod_chop_not",
         asked: Default::default(),
     };
     let mods: Mods = vec![ModEntry::new(
@@ -1162,27 +1162,27 @@ fn an_ability_question_reaches_only_the_parts_of_the_asked_item_and_names_the_ab
         can_perform
     };
     // The part answers per ability: a grant, a denial and what it leaves alone.
-    assert!(ask(&stick(), "minecraft:shield_block", false));
-    assert!(!ask(&stick(), "minecraft:shears_carve", true));
-    assert!(ask(&stick(), "minecraft:shears_harvest", true));
-    assert!(!ask(&stick(), "minecraft:shears_harvest", false));
+    assert!(ask(&stick(), "shield_block", false));
+    assert!(!ask(&stick(), "shears_carve", true));
+    assert!(ask(&stick(), "shears_harvest", true));
+    assert!(!ask(&stick(), "shears_harvest", false));
     // Another item's part hears only its own item, a part-less item keeps vanilla's answer.
-    assert!(ask(&stone, "my_mod:chop", false));
-    assert!(!ask(&stone, "minecraft:shield_block", false));
-    assert!(ask(&diamond, "minecraft:shears_carve", true));
-    assert!(!ask(&diamond, "minecraft:shield_block", false));
+    assert!(ask(&stone, "my_mod_chop", false));
+    assert!(!ask(&stone, "shield_block", false));
+    assert!(ask(&diamond, "shears_carve", true));
+    assert!(!ask(&diamond, "shield_block", false));
     assert_eq!(
         *sticks.asked.lock().unwrap(),
         [
-            "minecraft:shield_block",
-            "minecraft:shears_carve",
-            "minecraft:shears_harvest",
-            "minecraft:shears_harvest"
+            "shield_block",
+            "shears_carve",
+            "shears_harvest",
+            "shears_harvest"
         ]
     );
     assert_eq!(
         *stones.asked.lock().unwrap(),
-        ["my_mod:chop", "minecraft:shield_block"]
+        ["my_mod_chop", "shield_block"]
     );
 }
 

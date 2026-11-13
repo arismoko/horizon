@@ -1,0 +1,236 @@
+name: daily
+run-name: daily ${{ inputs.commit || github.sha }}${{ github.event_name == 'workflow_dispatch' && (inputs.dry_run || github.ref != 'refs/heads/main') && ' (dry run)' || '' }}
+# The daily tier (CI tiers, owner 2026-11-13; docs/release-flow.md "Daily run"): every in-game test, once a day on
+# main's head and by root's dispatch. Its legs are the workflows that used to run on main pushes, called unchanged:
+# the ignored-tests data shards, the wasm fixture and guest stacks, fn-replace-check and the native linkage probe,
+# plus the launcher's Windows runtime-lease tests (launcher-windows-check.yml) and the prebuilt SDK of the commit
+# (prebuilt-game-build.yml), which the nightly needs.
+# The summary then moves the tag `daily-green` to the commit when every leg passed, or files one issue per failing
+# test (tools/ci/daily_summary.py), and on all green the nightly is published from that commit (release.yml).
+# Only a run on main with dry_run false writes anything: tags, issues, the nightly.
+#   gh workflow run daily.yml --ref main -f dry_run=false             # the real run, as the schedule starts it
+#   gh workflow run daily.yml --ref <branch> -f dry_run=true          # writes nothing; prints what it would do
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: The commit to test (default the dispatched ref's head)
+        type: string
+        default: ''
+      dry_run:
+        description: Print the tag move, issues and nightly the run would make; write nothing
+        type: boolean
+        default: true
+      scheduled:
+        description: Set by the schedule only; stop when this commit already has a completed real daily run
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  # One daily run runs and at most one waits; a newer waiting dispatch replaces an older waiting one (GitHub keeps one
+  # pending run per group), and a running one is never cancelled. The scheduled event only dispatches (below), so it
+  # never waits in this group.
+  group: daily${{ github.event_name == 'schedule' && format('-schedule-{0}', github.run_id) || '' }}
+  cancel-in-progress: false
+env:
+  # Test runs never reach the telemetry server: no live-count ping, no uploads (docs/telemetry.md).
+  HORIZON_TELEMETRY_URL: "off"
+jobs:
+  # Dyna runners accept dispatches, not scheduled events (as dyna-checks' nightly-dispatch).
+  schedule-dispatch:
+    if: github.repository == 'arismoko/horizon' && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run daily.yml --repo "$GITHUB_REPOSITORY" --ref main -f dry_run=false -f scheduled=true
+
+  # The commit, resolved to its full SHA, and for a scheduled run whether that commit already has a completed real
+  # daily run (then this one stops). A hand dispatch never stops here: it is how a failed run is retried.
+  resolve:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      commit: ${{ steps.commit.outputs.commit }}
+      skip: ${{ steps.commit.outputs.skip }}
+      dry_run: ${{ steps.commit.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ inputs.commit || github.sha }}
+          # Only main writes: a run on any other ref is a dry run whatever its input says.
+          DRY_RUN: ${{ inputs.dry_run || github.ref != 'refs/heads/main' }}
+          SCHEDULED: ${{ inputs.scheduled }}
+        run: |
+          # A branch, tag or short SHA becomes the full SHA here; every later job and the run's summary job name use it.
+          sha=$(git rev-parse --verify --quiet "$COMMIT^{commit}") || { echo "::error::$COMMIT is not a commit of this repository"; exit 1; }
+          skip=false
+          if [ "$SCHEDULED" = true ] && [ "$DRY_RUN" != true ]; then
+            # A completed real daily run of this commit: its summary job is named `summary <full sha>`.
+            done=$(python3 tools/ci/daily_summary.py --seen "$sha")
+            if [ -n "$done" ]; then
+              skip=true
+              echo "### $sha already has a completed daily run: $done" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          { echo "commit=$sha"; echo "skip=$skip"; echo "dry_run=$DRY_RUN"; } >> "$GITHUB_OUTPUT"
+
+  shards:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    uses: ./.github/workflows/ignored-tests.yml
+    with:
+      commit: ${{ needs.resolve.outputs.commit }}
+  wasm-mods:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    uses: ./.github/workflows/wasm-mods.yml
+    with:
+      commit: ${{ needs.resolve.outputs.commit }}
+  fn-replace-check:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    uses: ./.github/workflows/fn-replace-check.yml
+    with:
+      commit: ${{ needs.resolve.outputs.commit }}
+  linkage:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    uses: ./.github/workflows/native-dylib-probe.yml
+    with:
+      commit: ${{ needs.resolve.outputs.commit }}
+  # The launcher's Windows tests that start child processes: the runtime leases and, built for release, the
+  # tests/ targets that start the launcher binary (launcher-windows-check.yml launcher-processes).
+  windows-runtime-leases:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    uses: ./.github/workflows/launcher-windows-check.yml
+    with:
+      commit: ${{ needs.resolve.outputs.commit }}
+  # The prebuilt SDK of this commit, built and smoked on every OS; its archives stay this run's artifacts until
+  # sdk-publish releases them after a green summary (a red daily publishes no SDK, as it publishes no nightly).
+  sdk:
+    needs: resolve
+    if: needs.resolve.outputs.skip == 'false'
+    uses: ./.github/workflows/prebuilt-game-build.yml
+    with:
+      commit: ${{ needs.resolve.outputs.commit }}
+
+  # Reads every leg's result and verdict file (never a log) and moves `daily-green` or files the issues.
+  summary:
+    # The resolved commit names the job: what a scheduled run's lookup (daily_summary.py --seen) matches.
+    name: summary ${{ needs.resolve.outputs.commit }}${{ needs.resolve.outputs.dry_run == 'true' && ' (dry run)' || '' }}
+    needs: [resolve, shards, wasm-mods, fn-replace-check, linkage, windows-runtime-leases, sdk]
+    if: always() && needs.resolve.result == 'success' && needs.resolve.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write  # the daily-green tag
+      issues: write
+      actions: read
+    outputs:
+      green: ${{ steps.summary.outputs.green }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # No verdict file (a leg that never ran or died first) means that leg did not complete, never green.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: daily-report-*
+          path: ${{ runner.temp }}/reports
+      - id: summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ needs.resolve.outputs.commit }}
+          DRY_RUN: ${{ needs.resolve.outputs.dry_run }}
+          RESULTS: ${{ toJSON(needs) }}
+          REPORTS: ${{ runner.temp }}/reports
+        run: python3 tools/ci/daily_summary.py
+
+  # The SDK of the daily-green commit, from the sdk leg's archives in this run (no rebuild), before the nightly that
+  # needs it. A dry run moved no tag and publishes nothing: it stops at the summary, which says what it would do.
+  sdk-publish:
+    needs: [resolve, summary, sdk]
+    if: needs.summary.outputs.green == 'true' && needs.resolve.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write  # the prebuilt-<sha> release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      COMMIT: ${{ needs.resolve.outputs.commit }}
+      TAG: ${{ needs.sdk.outputs.tag }}
+    steps:
+      # The sdk leg skips its build when the release already exists: then there is nothing to download or publish.
+      - name: Is prebuilt-<sha> published
+        id: published
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "### $TAG is already published" >> "$GITHUB_STEP_SUMMARY"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.published.outputs.published == 'false'
+        with:
+          persist-credentials: false
+      # A failed download fails the job here, before anything is published.
+      - uses: actions/download-artifact@v4
+        if: steps.published.outputs.published == 'false'
+        with:
+          pattern: horizon-prebuilt-*
+          path: archives
+          merge-multiple: true
+      - name: Release prebuilt-<sha>
+        if: steps.published.outputs.published == 'false'
+        run: |
+          set -euo pipefail
+          # Exactly the archives a nightly requires (tools/ci/nightly.py SDK_ARCHIVES), or nothing is released: an
+          # incomplete prebuilt-<sha> could never be repaired by a later run.
+          expected=$(python3 tools/ci/nightly.py sdk-archives | sort)
+          actual=$(ls archives | sort)
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::not releasing $TAG: the archives are not exactly $(echo $expected) (found: $(echo $actual))"
+            exit 1
+          fi
+          cd archives
+          sha256sum horizon-prebuilt-*.tar.gz > SHA256SUMS
+          gh release create "$TAG" horizon-prebuilt-*.tar.gz SHA256SUMS --target "$COMMIT" --prerelease \
+            --latest=false --title "Prebuilt game ${COMMIT::10}" \
+            --notes "The game as a Rust dylib plus crate metadata, for the launcher's native mod builds (#589). Compiler outputs plus game-owned registry patch sources."
+
+  # The nightly: the daily-green commit, published through the release train (release.yml, kind nightly), after its
+  # SDK.
+  nightly:
+    needs: [resolve, summary, sdk-publish]
+    if: needs.summary.outputs.green == 'true' && needs.resolve.outputs.dry_run == 'false'
+    permissions:
+      contents: read
+      issues: read
+      actions: write  # release.yml starts `nightly build`
+    uses: ./.github/workflows/release.yml
+    with:
+      kind: nightly
+      commit: ${{ needs.resolve.outputs.commit }}
+      dry_run: false
+      daily: true

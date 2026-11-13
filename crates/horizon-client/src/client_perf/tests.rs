@@ -826,6 +826,7 @@ mod sampled {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn the_render_thread_samples_count_the_frames_the_run_made() {
         let _turn = server_perf::SAMPLED_TESTS
             .lock()
@@ -881,6 +882,7 @@ mod sampled {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn each_side_samples_its_own_thread_and_side_client_selects_the_render_thread() {
         let _turn = server_perf::SAMPLED_TESTS
             .lock()

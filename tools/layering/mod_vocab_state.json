@@ -4,6 +4,11 @@
     "category": "dispatch table",
     "reason": "Temporary points exception pending #2697: open injection-listener routing and seal state remain in the unchanged points module."
   },
+  "block/part_state.rs::EDITING": {
+    "type": "RefCell<Vec<(BlockEntityRef,&'staticstr,&'staticstr)>>",
+    "category": "reentrancy guard",
+    "reason": "Per-thread stack of the block entity Part-state edits open on this thread, so an edit of the same block entity and key from inside its own edit is refused."
+  },
   "client/arm_pose.rs::TEST_POSES": {
     "type": "std::cell::Cell<Option<&'static[PoseInfo]>>",
     "category": "Parts lookup table",
@@ -138,6 +143,11 @@
     "type": "std::cell::Cell<Option<&'staticInstalled>>",
     "category": "dispatch table",
     "reason": "Thread-local dispatch inventory for isolated engine tests."
+  },
+  "wire/mod.rs::RESOURCE_REACHED": {
+    "type": "std::cell::Cell<bool>",
+    "category": "reentrancy guard",
+    "reason": "Per-thread flag set while a Wire layout walk reaches a resource handle's codec, read by the Part state declaration's capability check."
   },
   "wire/wire_resources.rs::ACCESS": {
     "type": "OnceLock<ResourceAccess>",

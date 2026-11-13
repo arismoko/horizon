@@ -2,7 +2,8 @@
 //! a living entity's render: `render_player_pre` (a player's, `RenderPlayerEvent.Pre`) then
 //! `render_living_pre` (`RenderLivingEvent.Pre`) before its model, each with the entity's render
 //! state and a [`BlockEntityDraw`] posed at its feet and turned with its body, so a mod draws with
-//! the helpers block entities draw with; after its vanilla model and layers, the layers mods added
+//! the helpers block entities draw with; then its model and vanilla layers, or in their place the
+//! renderer a mod registered for its type (`register_entity_renderers`); after them, the layers mods added
 //! to its type or player model (`register_entity_layers`, `EntityRenderersEvent.AddLayers`), then
 //! `render_living_post` and `render_player_post`. A canceled pre hook skips all of the entity's
 //! drawing this frame, the later passes' name tag, shadow, flames and leash included: they ask
@@ -15,9 +16,9 @@ use horizon_client::{
     block_entity_render::diffuse_lights,
     fast_hash::FxHashSet,
     mesher::Vertex,
-    mobs::{Mob, anim},
+    mobs::{Mob, Species, anim, render, villager},
 };
-use mod_api::{HiddenParts, HookId, PosedParts};
+use mod_api::{EntityRenderState, HiddenParts, HookId, PosedParts};
 use std::cell::RefCell;
 
 /// What the frame's entity pass decided about the mods' render hooks: whether any mod listens to
@@ -83,6 +84,49 @@ pub(super) fn mob_render<'a>(m: &'a Mob, id: u32, partial: f32) -> MobRender<'a>
         death_time: m.death_time,
         on_ground: m.on_ground,
     }
+}
+
+/// The frame of `m` at `partial` an entity renderer or layer reads, told as entity `id`:
+/// `LivingEntityRenderer.extractRenderState`'s `LivingEntityRenderState`.
+pub(super) fn entity_render_state(m: &Mob, id: u32, partial: f32) -> EntityRenderState {
+    let body_rot = anim::body_rot(m, partial);
+    let pose = anim::state(m, partial);
+    // `isEntityUpsideDown` turns the head's angles over with the body.
+    let upside_down = anim::upside_down(m);
+    let flip = if upside_down { -1.0 } else { 1.0 };
+    let baby = m.is_baby();
+    let living = mod_api::__private::built::LivingRenderState {
+        body_rot,
+        y_rot: pose.y_rot * flip,
+        x_rot: pose.x_rot * flip,
+        death_time: if m.death_time > 0 {
+            m.death_time as f32 + partial
+        } else {
+            0.0
+        },
+        walk_animation_pos: pose.pos,
+        walk_animation_speed: pose.speed,
+        scale: m.model_scale(),
+        age_scale: if baby { 0.5 } else { 1.0 },
+        is_upside_down: upside_down,
+        is_baby: baby,
+        is_in_water: m.fluids.in_water,
+        has_red_overlay: render::red_overlay(m),
+        pose: m.pose(),
+        // A sleeping villager, or a player or mannequin lying in a bed, as the model lays it.
+        bed_orientation: (m.species() == Species::Villager || render::avatar(m))
+            .then(|| villager::bed_orientation(m))
+            .flatten(),
+    };
+    mod_api::__private::built::EntityRenderState {
+        id,
+        partial,
+        age: pose.age,
+        yaw: m.previous_yaw + horizon_client::mobs::living::wrap(m.yaw - m.previous_yaw) * partial,
+        pitch: pose.x_rot,
+        living: Some(living.into()),
+    }
+    .into()
 }
 
 /// The pose a mod's mob model starts from: at the feet, `at` (relative to the
@@ -156,6 +200,27 @@ impl Game<'_> {
         let id = render_id(mob.id, local, self.own_entity_id());
         FRAME.with_borrow_mut(|frame| frame.canceled.insert(id));
         None
+    }
+    /// The renderer a mod registered for `mob`'s type (`register_entity_renderers`), drawn in place
+    /// of its model and its vanilla layers, from a draw at its feet, not turned: true when it
+    /// drew. False when none is registered for the type, and when it fails this frame (then it is
+    /// asked no more until resources reload): the type draws its own model.
+    pub(super) fn mod_living_renderer_geometry(
+        &self,
+        mob: &Mob,
+        partial: f32,
+        camera: DVec3,
+        light: u32,
+        out: &mut Vec<Vertex>,
+    ) -> bool {
+        let Some(resolved) = super::native_entity_renderers::living_renderer(mob) else {
+            return false;
+        };
+        let entity = entity_render_state(mob, mob.id, partial);
+        let feet = mob.previous.lerp(mob.position, f64::from(partial));
+        let feet = DVec3::new(feet.x, feet.y, feet.z);
+        let block = [feet.x, feet.y, feet.z].map(|c| c.floor() as i32);
+        self.mod_entity_renderer_geometry(&resolved, &entity, feet - camera, block, light, out)
     }
     /// The layers mods added to `mob`'s type or player model (`register_entity_layers`), drawn
     /// after its vanilla model and layers: `layers`, looked up once for the mob by `mod_layers`,

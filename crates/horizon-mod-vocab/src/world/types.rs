@@ -290,6 +290,9 @@ pub struct PlayerRespawnConfig {
 pub struct LevelRef {
     pub(crate) epoch: WorldEpoch,
     pub(crate) dimension: DimensionKey,
+    /// Which open of a runtime level this names: 0 for a level every world has, the number the
+    /// host gave one open of a level a mod created at run time.
+    pub(crate) generation: u32,
 }
 
 impl LevelRef {
@@ -297,7 +300,27 @@ impl LevelRef {
     // hidden: a game-side helper, not part of the mod surface
     #[doc(hidden)]
     pub fn new(epoch: WorldEpoch, dimension: DimensionKey) -> Self {
-        Self { epoch, dimension }
+        Self {
+            epoch,
+            dimension,
+            generation: 0,
+        }
+    }
+    /// Create a handle for one open of a runtime level.
+    // hidden: a game-side helper, not part of the mod surface
+    #[doc(hidden)]
+    pub fn with_generation(epoch: WorldEpoch, dimension: DimensionKey, generation: u32) -> Self {
+        Self {
+            epoch,
+            dimension,
+            generation,
+        }
+    }
+    /// The open of a runtime level the handle names; 0 for a level every world has.
+    // hidden: a game-side helper; a handle of an earlier open reads as stale
+    #[doc(hidden)]
+    pub fn generation(self) -> u32 {
+        self.generation
     }
     /// The level's dimension. `level.dimension().id(host)` gives its name.
     pub fn dimension(self) -> DimensionKey {

@@ -44,8 +44,10 @@ mod block_changes;
 pub mod chat;
 pub mod chat_filter;
 mod item_particles;
+mod joined;
 mod move_collision;
 mod moves;
+pub mod passage_cross;
 mod raw_inbox;
 mod spawn_info;
 use advancements::AdvancementOwners;
@@ -265,8 +267,7 @@ pub struct TickGrants {
     pub grants: Vec<super::advancements::CriterionGrant>,
 }
 
-/// What one player started and stopped tracking, in order, for the game to
-/// tell the mods.
+/// What one player started and stopped tracking, in order, for the game to tell the mods.
 pub struct TrackingBatch {
     pub player: u128,
     pub name: String,
@@ -341,8 +342,7 @@ pub struct Hub {
     pub attachment_snapshots: Vec<AttachmentSnapshot>,
     /// Whether native mods can produce synced attachments.
     pub sync_attachments: bool,
-    /// Criteria `CriteriaTriggers.TICK` granted to players, for the game to
-    /// tell the mods.
+    /// Criteria `CriteriaTriggers.TICK` granted to players, for the game to tell the mods.
     pub native_advancement_grants: Vec<TickGrants>,
     pub native_reload_pending: bool,
     /// Whether any native mod is loaded: `Input` and `Sneak` events only exist for them, so
@@ -391,8 +391,7 @@ pub struct Hub {
     pub debug_world: bool,
     /// Who rides what, set by the game before each tick.
     pub riding: super::entity::Riding,
-    /// The scoreboard's teams, set by the game each tick, for players'
-    /// display names.
+    /// The scoreboard's teams, set by the game each tick, for players' display names.
     pub teams: Vec<crate::scoreboard::Team>,
     /// Names a server mod shows for players in chat and the Tab list
     /// (`native_set_nickname`), by UUID. Their real name stays everywhere
@@ -467,8 +466,7 @@ fn string(s: &str) -> Tag {
     Tag::String(JavaString::from(s))
 }
 
-/// A player's display name was formatted. Replace `displayname` to change it.
-/// Both sides.
+/// A player's display name was formatted. Replace `displayname` to change it. Both sides.
 #[inline(never)]
 pub fn native_player_name_format(context: &LoopContext, username: &Text, displayname: &mut Text) {
     crate::native_client_hooks::player_name_format(context, username, displayname);
@@ -1029,8 +1027,7 @@ impl Hub {
     pub fn here(&self, g: &Guest) -> bool {
         g.placed_in(&self.config.dimension)
     }
-    /// How many passes the level in place's entity tracking has run (None
-    /// before its first).
+    /// How many passes the level in place's entity tracking has run (None before its first).
     pub fn tracking_ticks(&self) -> Option<u32> {
         self.entities
             .get(&self.config.dimension)
@@ -1054,8 +1051,7 @@ impl Hub {
             .filter(move |g| self.watches(g) && loads(g))
             .map(Guest::chunk)
     }
-    /// `PlayerList.broadcastAll(packet, dimension)`: the players in the
-    /// level in place.
+    /// `PlayerList.broadcastAll(packet, dimension)`: the players in the level in place.
     pub fn broadcast_level(&self, packet: &C) {
         let mut body = None;
         for g in self.guests.simulation_iter().filter(|g| self.watches(g)) {
@@ -1101,8 +1097,7 @@ impl Hub {
             g.sender.send(body.clone());
         }
     }
-    /// `ServerPlayer.sendSystemMessage` to the guest with `uuid`, in any
-    /// dimension.
+    /// `ServerPlayer.sendSystemMessage` to the guest with `uuid`, in any dimension.
     pub fn system_message_to_player(&self, uuid: u128, content: Tag) {
         let body = C::SystemChat(play::SystemChat {
             content,
@@ -1120,8 +1115,7 @@ impl Hub {
             overlay: true,
         }));
     }
-    /// A chat message from the host (a disguised chat: the host has no
-    /// connection to sign with).
+    /// A chat message from the host (a disguised chat: the host has no connection to sign with).
     pub fn chat(&self, sender: &str, text: &str) {
         self.broadcast(&C::DisguisedChat(play::DisguisedChat {
             message: literal(text),
@@ -1203,15 +1197,15 @@ impl Hub {
             },
         }));
     }
-    /// Disconnect a guest with a reason (ServerGamePacketListenerImpl.disconnect).
+    /// Disconnect a guest with a reason (ServerGamePacketListenerImpl.disconnect), once
+    /// ([`Guest::begin_disconnect`]): a guest already on the way out keeps its first reason.
     pub fn kick(&mut self, conn: u32, reason: Tag) {
-        // The log's "lost connection" line gives the reason, as vanilla's.
         let text = self.english(&reason);
-        if let Some((player, name)) = self.update_guest(conn, |g| {
-            g.left_reason = text.clone();
-            g.sender.disconnect(reason);
-            (g.uuid, g.name.clone())
-        }) {
+        let started = self.update_guest(conn, |g| {
+            g.begin_disconnect(text.clone(), reason)
+                .then(|| (g.uuid, g.name.clone()))
+        });
+        if let Some((player, name)) = started.flatten() {
             self.pending_kicks.push(HostEvent::Kicked {
                 conn,
                 player,
@@ -1415,8 +1409,7 @@ impl Hub {
             show_hat: Some(guest.is_none_or(|g| g.info.model_customisation & 0x40 != 0)),
         }
     }
-    /// ServerPlayer.getTabListDisplayName: the nickname, if any, as mods
-    /// format it.
+    /// ServerPlayer.getTabListDisplayName: the nickname, if any, as mods format it.
     fn tab_list_name(&self, uuid: u128, name: &str) -> Option<Tag> {
         let mut display_name = self.nicknames.get(&uuid).map(crate::text::Text::literal);
         native_player_tab_list_name_format(&self.loop_context, uuid, name, &mut display_name);
@@ -2146,9 +2139,11 @@ impl Hub {
             use play::relative::{DELTA_X, DELTA_Y, DELTA_Z};
             g.awaiting_keeps_motion = relatives & (DELTA_X | DELTA_Y | DELTA_Z) != 0;
             let turn = relatives & (play::relative::Y_ROT | play::relative::X_ROT) != 0;
+            // A relative axis (X, Y, Z: bits 0 to 2) goes as no change (`follow_passage`).
+            let at = std::array::from_fn(|k| [g.position[k], 0.0][(relatives >> k & 1) as usize]);
             g.send(&C::PlayerPosition(play::PlayerPosition {
                 teleport: id,
-                position: g.position,
+                position: at,
                 delta: [0.0; 3],
                 yaw: if turn { 0.0 } else { g.yaw },
                 pitch: if turn { 0.0 } else { g.pitch },
@@ -3332,55 +3327,8 @@ impl Hub {
             .is_some_and(|l| l.tracks(id))
     }
 
-    /// Fresh entities that joined during the current tick before the tracking pass:
-    /// paired from their state as they joined (ChunkMap.addEntity), before their first tick.
-    pub fn note_fresh_joined(&mut self, entities: &[EntityState]) {
-        let joined: Vec<_> = entities
-            .iter()
-            .filter(|e| !self.tracks(e.id))
-            .cloned()
-            .collect();
-        if joined.is_empty() {
-            return;
-        }
-        self.fresh_joined
-            .entry(self.config.dimension.clone())
-            .or_default()
-            .extend(joined);
-    }
-
-    /// `ChunkMap.addEntity` for late arrivals, before their sounds are sent.
-    /// Pairing does not run another tracking pass or advance entity clocks.
-    pub fn note_joined(&mut self, entities: &[EntityState]) {
-        if entities.is_empty() {
-            return;
-        }
-        let dimension = &self.config.dimension;
-        let mut outs: Vec<Vec<Vec<u8>>> = self
-            .guests
-            .iter()
-            .filter(|g| self.here(g))
-            .map(|_| Vec::new())
-            .collect();
-        let mut viewers = self.guests.tracking_viewers(
-            |g| g.placed && g.dimension == *dimension,
-            outs.iter_mut().map(|out| (out, None)),
-            false,
-        );
-        let level = self.entities.entry(dimension.clone()).or_default();
-        level.range_percent = Some(self.entity_range_percent);
-        let (types, sync) = (&mut self.entity_types, &self.sync);
-        level.pair_after_tick(entities, &self.riding, &mut viewers, |kind| {
-            entity_type(types, sync, kind)
-        });
-        drop(viewers);
-        for (g, out) in self.guests.iter().filter(|g| self.here(g)).zip(&mut outs) {
-            g.sender.send_many(out.drain(..));
-        }
-    }
-
     /// All entities as one client sees them: the world's and the other players.
-    fn track_entities(&mut self, ctx: &mut TickCtx) {
+    pub(in crate::lan) fn track_entities(&mut self, ctx: &mut TickCtx) {
         let mut all: Vec<EntityState> = Vec::with_capacity(ctx.entities.len() + self.guests.len());
         let modified_particles =
             mod_api::__private::listened(mod_api::HookId::EffectParticleModification);
@@ -3436,8 +3384,9 @@ impl Hub {
         level.synced.clone_from(&self.synced);
         let mut outs = std::mem::take(&mut self.entity_out);
         let dimension = &self.config.dimension;
-        // The viewers include the held players: they are shown the entities
-        // around them, but are not among the entities shown (`track_entities`).
+        // The viewers include the held players: they are shown the entities around them, but are
+        // not among the entities shown; then the clients viewing the level (`viewed_levels`).
+        let mut views = self.view_outs();
         let here = |g: &Guest| {
             g.participates_online() && (g.placed || g.held) && g.dimension == *dimension
         };
@@ -3446,12 +3395,13 @@ impl Hub {
         let recording = self.recording();
         let mut gone = std::mem::take(&mut self.entity_gone);
         gone.resize_with(outs.len(), Vec::new);
-        let mut viewers = self.guests.tracking_viewers(
+        let mut viewers = self.guests.tracking_viewers_and_views(
             here,
             outs.iter_mut()
                 .zip(gone.iter_mut())
                 .map(|(out, gone)| (out, recording.then_some(gone))),
             true,
+            (dimension, &mut views),
         );
         level.range_percent = Some(self.entity_range_percent);
         let (types, sync) = (&mut self.entity_types, &self.sync);
@@ -3484,6 +3434,7 @@ impl Hub {
         });
         self.entity_gone = gone;
         self.entity_out = outs;
+        self.send_view_entities(views);
         self.entities.insert(self.config.dimension.clone(), level);
     }
 
@@ -4179,6 +4130,11 @@ impl Hub {
                 S::MovePlayerStatus(p) => {
                     self.move_player(i, None, None, p.flags, ctx, events);
                 }
+                S::CustomPayload(p)
+                    if p.channel == horizon_protocol::passage_sync::CROSS_CHANNEL =>
+                {
+                    *held = self.passage_leg(i, p, ctx, events);
+                }
                 // handleAcceptPlayerLoad: markClientLoaded.
                 S::PlayerLoaded(_) => {
                     self.guests.update(i, |g| {
@@ -4836,11 +4792,8 @@ impl Hub {
     /// respawned one as a new entity at the next tick. Their clients would otherwise keep
     /// the dead body, lying down, wherever the player goes.
     pub fn respawned(&mut self, id: i32) {
-        self.guests.update_all(|g| {
-            if g.entity_id != id && g.tracker.forget(id) {
-                g.send(&C::RemoveEntities(play::RemoveEntities { ids: vec![id] }));
-            }
-        });
+        self.guests
+            .update_all(|g| super::viewed_levels::entities::forget_entity(g, id));
     }
 
     /// A respawn point whose block is gone or blocked: the respawning player
@@ -5020,6 +4973,7 @@ impl Hub {
     ) {
         let info = self.spawn_info(i, portal_cooldown, ctx.sea_level);
         self.close_container_for(i);
+        let left = self.guests[i].dimension.clone();
         self.guests.update(i, |g| {
             // Out of the old level with its chunks (ChunkMap.removeEntity).
             super::chunk_watch::unwatch_all(&mut self.chunk_watches, g);
@@ -5028,12 +4982,6 @@ impl Hub {
             g.collision_exclusions.clear();
             // The load timer is not restarted: vanilla resets the client's loaded state on death and
             // respawn only, and covers a level change with its separate `isChangingDimension` term.
-            g.tracker.clear();
-            g.sent_chunks.clear();
-            g.far_sent_chunks.clear();
-            g.chunk_queue.clear();
-            g.far_queue.clear();
-            g.viewed.forget_views();
             g.center = None;
             g.yaw = yaw;
             if let Some(pitch) = pitch {
@@ -5051,6 +4999,8 @@ impl Hub {
                 locked: ctx.difficulty_locked,
             }));
         });
+        // Its chunks, queues and entities left behind, or kept as a viewed level (#3716).
+        self.leave_level(i, &left);
         self.send_permission_level(i);
         if portal {
             // A teleport still pending from the old level is void: its late
@@ -7369,6 +7319,7 @@ mod tests {
     /// A player walking a loop, sending a few chunks a tick: the queue
     /// after every move is the one the scan built.
     #[test]
+    #[ignore = "daily"]
     fn requeue_matches_the_scan() {
         for r in [2, 5, 10, 12, 32] {
             let (mut a, mut b) = (Vec::new(), Vec::new());

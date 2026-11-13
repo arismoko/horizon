@@ -49,6 +49,8 @@ pub(super) struct EngineChannels {
     pub announced: Option<Arc<super::announced_channels::AnnouncedChannels>>,
     /// Its `horizon:levels` answer.
     pub viewed_levels: super::viewed_levels::capability::Capability,
+    /// Its `horizon:menu_extra` revision answer.
+    pub menu_extra_rev: super::menu_extra_rev::Capability,
 }
 impl EngineChannels {
     /// Whether `payload` was one of these channels' and is taken, or the reason that closes the
@@ -64,6 +66,12 @@ impl EngineChannels {
         }
         if payload.channel == horizon_protocol::viewed_levels::CHANNEL {
             self.viewed_levels
+                .receive(&payload.data)
+                .map_err(|error| error.to_string())?;
+            return Ok(true);
+        }
+        if payload.channel == horizon_protocol::menu_extra::CHANNEL {
+            self.menu_extra_rev
                 .receive(&payload.data)
                 .map_err(|error| error.to_string())?;
             return Ok(true);
@@ -110,6 +118,11 @@ impl<'a> ConfigIo<'a> {
     /// Asks a Horizon-branded client how many levels besides its own it can view.
     pub fn ask_viewed_levels(&mut self) -> horizon_protocol::Result<()> {
         let query = self.channels.viewed_levels.query();
+        self.send(&cfg::Clientbound::CustomPayload(query).encode())
+    }
+    /// Asks a Horizon-branded client which `horizon:menu_extra` layout it reads.
+    pub fn ask_menu_extra_rev(&mut self) -> horizon_protocol::Result<()> {
+        let query = self.channels.menu_extra_rev.query();
         self.send(&cfg::Clientbound::CustomPayload(query).encode())
     }
     pub fn application(

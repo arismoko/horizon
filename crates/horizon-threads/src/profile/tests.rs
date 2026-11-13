@@ -523,6 +523,7 @@ fn two_functions() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_live_session_puts_the_function_that_ran_longest_first() {
     first_passing_run(|| {
         let (profile, _) = profiled("p-top", config(false), two_functions);

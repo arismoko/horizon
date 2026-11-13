@@ -259,7 +259,7 @@ fn slot_rules_mutate_and_item_tick_can_cancel() {
     });
     let (mut may_place, mut max_stack) = (true, 64);
     dispatch_menu_slot_rules(
-        &Loop("loop"),
+        &TestHost,
         "test:menu",
         0,
         &ItemStack::default(),

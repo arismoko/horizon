@@ -22,6 +22,10 @@ impl Ingredient {
         guard: &impl Fn() -> bool,
     ) -> Option<bool> {
         match &self.children {
+            Some((Shape::CustomDisplay, kids)) => match kids.first() {
+                Some(base) => base.test_in_guarded(context, stack, guard),
+                None => Some(false),
+            },
             Some((Shape::Compound, kids)) => {
                 for child in kids {
                     if child.test_in_guarded(context, stack, guard)? {
@@ -55,6 +59,13 @@ impl Ingredient {
                     && !self.items.contains(&*stack.item)
                 {
                     return Some(false);
+                }
+                if self.rule.is_some() {
+                    return Some(
+                        self.compiled
+                            .as_ref()
+                            .is_some_and(|rule| rule.matches(stack)),
+                    );
                 }
                 if let Some((kind, data)) = &self.custom {
                     if !guard() {

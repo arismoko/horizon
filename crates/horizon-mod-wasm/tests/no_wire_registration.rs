@@ -31,6 +31,7 @@ hash = "fixture"
 }
 
 #[test]
+#[ignore = "daily"]
 fn native_registration_refuses_registration_data_without_wire() {
     refused(
         "mod_0::",
@@ -41,6 +42,7 @@ mixins = "0000000000000000000000000000000000000000""#,
     );
 }
 #[test]
+#[ignore = "daily"]
 fn wasm_registration_refuses_registration_data_without_wire() {
     refused(
         "original_mod::",

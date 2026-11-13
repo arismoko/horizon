@@ -101,6 +101,13 @@ pub trait LivingBackend {
     #[access(WorldOnly)]
     fn living_health(&self, living: LivingRef) -> Option<f32>;
     /// Side: both.
+    /// The entity's absorption amount (`LivingEntity.getAbsorptionAmount`; Paper's
+    /// `Damageable#getAbsorptionAmount`), the extra hearts that take a hit before
+    /// health does. Resolves as `living_health` does: during a player's turn only
+    /// that player. None for an armor stand and the dragon, which carry none.
+    #[access(WorldOnly)]
+    fn living_absorption(&self, living: LivingRef) -> Option<f32>;
+    /// Side: both.
     /// The entity's maximum health (`LivingEntity.getMaxHealth`; Paper's
     /// `Damageable#getMaxHealth`). Players and guests read their attribute
     /// map; a mob, an armor stand and the dragon their own fields (the
@@ -427,6 +434,15 @@ pub trait LivingBackendMut {
     /// or the dragon.
     #[access(WorldOnly)]
     fn living_set_health(&mut self, living: LivingRef, health: f32) -> bool;
+    /// Side: server.
+    /// Sets the entity's absorption amount (`LivingEntity.setAbsorptionAmount`;
+    /// Paper's `Damageable#setAbsorptionAmount`), cut to `0..=max_absorption`
+    /// (the `minecraft:max_absorption` attribute). A player's new amount reaches
+    /// their client and the trackers through the synced data the same tick. No
+    /// heal or damage hook runs. False for a stale handle, a non-finite amount, an
+    /// armor stand or the dragon.
+    #[access(WorldOnly)]
+    fn living_set_absorption(&mut self, living: LivingRef, amount: f32) -> bool;
     /// Side: server.
     /// Heals the entity by `amount` (`LivingEntity.heal`), through the
     /// `living_heal` hook, which may change or cancel it. A dead or dying

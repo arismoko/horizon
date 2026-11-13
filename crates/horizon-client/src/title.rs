@@ -28,6 +28,7 @@ mod edit_world;
 mod experiments;
 mod flat;
 mod missing_biome_regions;
+mod missing_mods;
 mod onboarding;
 pub mod preset_editors;
 mod splash;
@@ -304,6 +305,11 @@ pub enum Mode {
         world: WorldEntry,
         missing: Vec<(String, String)>,
     },
+    /// Saved mods not loaded now, whose blocks opening the world removes (`missing_mods`).
+    MissingMods {
+        world: WorldEntry,
+        missing: Vec<crate::save::level_mods::MissingMod>,
+    },
     Delete {
         world: WorldEntry,
     },
@@ -443,11 +449,13 @@ pub struct Title {
     ban_queue: std::collections::VecDeque<crate::ban_notice::Notice>,
     /// A ban notice's three buttons as last drawn (`ConfirmLinkScreen`'s row).
     ban_buttons: Cell<[(f32, f32); 3]>,
-    backup: Option<mpsc::Receiver<Result<u64, String>>>,
+    backup: Option<mpsc::Receiver<Result<(PathBuf, u64), String>>>,
     backup_shown: Cell<bool>,
     /// The backup a `BackupBeforeUpgrade` asked for opens its world when done; whether it
     /// was the question about customized or experimental settings, the last one asked.
     backup_then_open: Option<bool>,
+    /// The backup `MissingMods` asked for: its world opens only once the backup is made.
+    open_after_mods_backup: bool,
     /// The backup `OptimizeConfirm` asked for starts the optimization when done (with the
     /// Erase Cached Data choice).
     optimize_after_backup: Option<bool>,
@@ -755,6 +763,7 @@ impl Mode {
             Self::Optimize { .. } => "world_optimize",
             Self::LowDiskSpace { .. } => "low_disk_space",
             Self::MissingBiomeRegions { .. } => "missing_biome_regions",
+            Self::MissingMods { .. } => "missing_mods",
             Self::AdoptBiomeRegions { .. } => "adopt_biome_regions",
             Self::Delete { .. } => "world_delete",
             Self::Recover { .. } => "world_recover",
@@ -859,6 +868,7 @@ impl Title {
             backup: None,
             backup_shown: Cell::new(false),
             backup_then_open: None,
+            open_after_mods_backup: false,
             optimize_after_backup: None,
             restore_after_backup: false,
             optimize: None,
@@ -1244,6 +1254,9 @@ impl Title {
             buffet::drag(buffet, cursor, size);
             return;
         }
+        if self.drag_missing_mods(cursor, size) {
+            return;
+        }
         if let Mode::Select { worlds, .. } = &self.mode {
             let (top, bottom, _, content) = self.world_list(worlds, size);
             let mut scroll = self.scroll.get();
@@ -1292,6 +1305,9 @@ impl Title {
             buffet::wheel(buffet, delta, cursor, size);
             return false;
         }
+        if self.wheel_missing_mods(delta, size) {
+            return false;
+        }
         // CycleButton.mouseScrolled reads only the vertical wheel.
         if let Mode::Create {
             creative, options, ..
@@ -1325,20 +1341,6 @@ impl Title {
         self.scroll.set(scroll);
         false
     }
-    /// The right stick's scroll: the open list moves wherever the hidden pointer
-    /// is, and Create World's buttons don't take the step.
-    pub fn stick_scroll(&mut self, delta: f32, cursor: (f32, f32), size: (f32, f32)) {
-        self.step_scroll(delta, crate::widgets::over_scroll_area(cursor), size);
-    }
-    /// A focus step past a list's edge: what the pointer is over scrolls, and
-    /// Create World's buttons don't take the step.
-    pub fn step_scroll(&mut self, delta: f32, cursor: (f32, f32), size: (f32, f32)) {
-        let open_rules = self.rules.get_mut().is_some();
-        if matches!(self.mode, Mode::Create { .. }) && !open_rules {
-            return;
-        }
-        self.scroll_worlds(delta, cursor, size);
-    }
     pub fn failed(&mut self, error: impl std::fmt::Display) {
         let return_to = Box::new(self.mode.clone());
         self.set_mode(Mode::Error {
@@ -1347,52 +1349,7 @@ impl Title {
             alert: None,
         });
     }
-    /// Polling is done once per rendered frame so filesystem work never blocks drawing.
-    pub fn poll_backup(&mut self) {
-        self.poll_realms();
-        self.poll_onboarding(std::time::Instant::now());
-        self.poll_account();
-        self.poll_optimize();
-        if !self.backup_shown.get() {
-            return;
-        }
-        let Some(receiver) = &self.backup else {
-            return;
-        };
-        let result = match receiver.try_recv() {
-            Ok(result) => result,
-            Err(mpsc::TryRecvError::Empty) => return,
-            Err(mpsc::TryRecvError::Disconnected) => Err("Backup worker stopped".into()),
-        };
-        self.backup = None;
-        if let Mode::Backup { world } = &self.mode {
-            let world = world.clone();
-            let folder = world.folder.clone();
-            if std::mem::take(&mut self.restore_after_backup) {
-                // `makeBackupAndShowToast(..).thenAcceptAsync(..)` in attemptRestore: the restore
-                // runs, backup failed or not.
-                self.attempt_restore(world.clone());
-            } else if let Some(erase_cache) = self.optimize_after_backup.take() {
-                // `conditionallyMakeBackupAndShowToast(..).thenAcceptAsync(..)`: the toast shows
-                // and OptimizeWorldScreen opens, backup failed or not.
-                self.begin_optimize(world.clone(), erase_cache);
-            } else {
-                self.return_to_list(Some(&folder));
-            }
-            // EditWorldScreen opens the world after the backup, failed or not: through the
-            // checks WorldOpenFlows still has to make.
-            if let Some(stem_asked) = self.backup_then_open.take()
-                && let Action::Play { folder } = self.after_prompt(world.clone(), stem_asked)
-            {
-                self.open_request = Some(folder);
-            }
-            let toast = match result {
-                Ok(bytes) => WorldToast::Created { folder, bytes },
-                Err(error) => WorldToast::Failed(error),
-            };
-            self.pending_toast = Some(toast);
-        }
-    }
+
     /// A client-lib decision for the game to admit before applying it.
     pub fn take_pending_toast(&mut self) -> Option<crate::toasts::SystemToast> {
         let (title, message) = self.pending_toast.take()?.text();
@@ -2003,6 +1960,7 @@ Running out of disk space while in game can lead to your world being damaged.",
             Mode::MissingBiomeRegions { missing, .. } => {
                 missing_biome_regions::screen_info(missing)
             }
+            Mode::MissingMods { missing, .. } => missing_mods::screen_info(missing),
             Mode::AdoptBiomeRegions { .. } => edit_world::adopt_screen_info(),
             // AccessibilityOnboardingScreen narrates its title.
             Mode::Onboarding(_) => ScreenInfo::new(
@@ -2528,6 +2486,10 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 let world = world.clone();
                 self.open_with_vanilla_regions(world)
             }
+            (Mode::MissingMods { world, .. }, Some(id @ 101..=103)) => {
+                let world = world.clone();
+                self.answer_missing_mods(world, id)
+            }
             (Mode::Edit { world, name, .. }, Some(98)) => {
                 let (world, name) = (world.clone(), name.clone());
                 self.set_mode(Mode::AdoptBiomeRegions { world, name });
@@ -2629,6 +2591,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 self.set_mode(Mode::Main);
                 Action::None
             }
+            (Mode::MissingMods { .. }, None) => self.press_missing_mods((x, y), (w, h)),
             (Mode::Select { .. }, None) => {
                 self.search_focused =
                     (21.0..41.0).contains(&y) && (x - (w / 2.0).floor()).abs() < 100.0;
@@ -2986,6 +2949,9 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
     /// Returns the triggered action and whether a UI button click sound should play.
     pub fn confirm_key_size(&mut self, size: (f32, f32)) -> (Action, bool) {
         self.remember_direct_address();
+        if let Some(answer) = self.confirm_missing_mods() {
+            return answer;
+        }
         if self.rules.get_mut().is_some() {
             return (Action::None, false);
         }
@@ -3663,6 +3629,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
         match &self.mode {
             // OptimizeWorldScreen: `shouldCloseOnEsc` is false; the Backup wait takes no input.
             Mode::Backup { .. } | Mode::Optimize { .. } => {}
+            Mode::MissingMods { .. } => self.leave_closed_for_missing_mods(),
             // BackupConfirmScreen.keyPressed: Escape runs `onCancel`, the Edit World screen again.
             Mode::OptimizeConfirm { world, name, .. } | Mode::AdoptBiomeRegions { world, name } => {
                 self.edit_world(name.clone(), world.clone())

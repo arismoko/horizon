@@ -627,7 +627,8 @@ impl Game<'_> {
     /// Native sounds wait until the server host is available. An unknown
     /// `minecraft:` event is dropped; a mod's goes by name (`sound_packet`).
     /// Each is asked of the mods first (`play_level_sound_at_entity` when
-    /// bound to an entity, `_at_position` otherwise).
+    /// bound to an entity, `_at_position` otherwise). One at a position also
+    /// goes wrapped to its level's viewers (`Hub::send_viewed_sound`).
     pub(super) fn flush_native_sounds(&mut self) {
         if self.lan.is_none() {
             return;
@@ -677,6 +678,10 @@ impl Game<'_> {
             }
             .encode();
             let range = f64::from(heard.volume.max(1.0)) * 16.0;
+            // Wrapped for the level's viewers too: one bound to an entity for those tracking it.
+            let (dimension, at) = (sound.dimension, sound.at);
+            host.hub
+                .send_viewed_sound(dimension, at, range, sound.entity, || packet.clone());
             send_native_nearby(
                 host,
                 sound.dimension,

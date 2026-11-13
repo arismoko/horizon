@@ -10,6 +10,7 @@ use std::{io::Write, sync::Arc};
 
 fn kind() -> Arc<MobType> {
     Arc::new(MobType {
+        shadow: None,
         id: "minecraft:sheep".into(),
         species: Species::Sheep,
         width: 0.6,

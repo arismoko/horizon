@@ -93,6 +93,22 @@ impl Game<'_> {
         let held = self.held_name();
         self.tool_highlight
             .tick(held, f64::from(self.settings.notification_display_time));
+        self.tool_highlight.tip = self.highlight_tip();
+    }
+    /// `IItemExtension.getHighlightTip` of the selected stack, while its name
+    /// shows and a part of its item listens.
+    fn highlight_tip(&self) -> Option<Text> {
+        let last = self.tool_highlight.last.as_ref()?;
+        if self.tool_highlight.timer <= 0 {
+            return None;
+        }
+        let stack = self.inventory.get(self.selected)?.as_ref()?;
+        if !mod_api::__private::item_listens(mod_api::HookId::HighlightTip, &stack.item) {
+            return None;
+        }
+        let mut name = last.styled();
+        self.native_highlight_tip(stack, &mut name);
+        Some(name)
     }
     /// `Hud.extractSelectedItemName`.
     pub(super) fn draw_selected_name(&self, batch: &mut HudBatch, can_hurt: bool) {

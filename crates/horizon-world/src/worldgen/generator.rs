@@ -3474,6 +3474,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn uniform_surface_biomes_preserve_zoom_and_missing_corner_errors() {
         use super::super::biome_chunk::BiomeChunk;
         use std::convert::Infallible;

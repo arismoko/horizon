@@ -9,7 +9,7 @@ use super::{
     Game,
     entity_type_rows::EntityTypeRows,
     native_entity_renderers::Resolved,
-    native_mob_draw::{mob_pose, mob_render},
+    native_mob_draw::{entity_render_state, mob_pose},
 };
 use glam::DVec3;
 use horizon_client::{
@@ -221,18 +221,13 @@ impl Game<'_> {
         light: u32,
         out: &mut Vec<Vertex>,
     ) {
-        let render = mob_render(mob, id, partial);
-        let entity: mod_api::EntityRenderState = mod_api::__private::built::EntityRenderState {
-            id,
-            partial,
-            age: render.age,
-            yaw: render.body_yaw,
-            pitch: render.pitch,
-        }
-        .into();
+        let entity = entity_render_state(mob, id, partial);
         let feet = mob.previous.lerp(mob.position, f64::from(partial));
         let feet = DVec3::new(feet.x, feet.y, feet.z);
-        let pose = mob_pose(feet - camera, render.body_yaw);
+        let pose = mob_pose(
+            feet - camera,
+            entity.living.expect("mob living state").body_rot,
+        );
         let block = [feet.x, feet.y, feet.z].map(|c| c.floor() as i32);
         for layer in layers.iter() {
             self.guarded_entity_draw(&layer.failed, partial, block, pose, light, out, |draw| {

@@ -289,8 +289,11 @@ pub struct PlayerSender {
     pub datapack_offer: Option<Arc<[u8]>>,
     /// The plugin channels the client announced, in configuration and play.
     pub announced: Arc<super::announced_channels::AnnouncedChannels>,
-    /// Levels besides its own the client can view: its `horizon:levels` answer, 0 for none.
-    pub max_viewed_levels: u8,
+    /// Its `horizon:levels` answer: its revision and the levels besides its own it can view.
+    pub viewed_levels: horizon_protocol::viewed_levels::Answer,
+    /// The `horizon:menu_extra` payload layout the client reads: its revision answer,
+    /// 0 for one that did not answer (the legacy layout, a menu of a block only).
+    pub menu_extra_rev: u8,
 }
 #[derive(Clone)]
 enum To {
@@ -361,7 +364,8 @@ impl PlayerSender {
             payload_transport: Transport::empty(),
             datapack_offer: None,
             announced: Arc::default(),
-            max_viewed_levels: 0,
+            viewed_levels: Default::default(),
+            menu_extra_rev: 0,
         }
     }
     #[cfg(test)]
@@ -398,7 +402,8 @@ impl PlayerSender {
             wire: None,
             datapack_offer: None,
             announced: Arc::default(),
-            max_viewed_levels: 0,
+            viewed_levels: Default::default(),
+            menu_extra_rev: 0,
         };
         (sender, move || inspect.queued_contents())
     }
@@ -414,7 +419,8 @@ impl PlayerSender {
             payload_transport: Transport::empty(),
             datapack_offer: None,
             announced: Arc::default(),
-            max_viewed_levels: 0,
+            viewed_levels: Default::default(),
+            menu_extra_rev: 0,
         }
     }
     /// The bytes received from and sent to the client on the wire so far.
@@ -1404,6 +1410,7 @@ fn login_and_configure(
             }),
         )?;
         c.ask_viewed_levels().map_err(e)?;
+        c.ask_menu_extra_rev().map_err(e)?;
     }
     // And how far it samples far terrain for it (crate::lod_net).
     if brand == "horizon" && shared.config.lod_distance > 0 {
@@ -1970,7 +1977,8 @@ fn play(
         payload_transport: parts.payload_transport.clone(),
         datapack_offer: parts.datapack_offer.map(Into::into),
         announced: parts.channels.announced.clone().unwrap_or_default(),
-        max_viewed_levels: parts.channels.viewed_levels.max_levels(),
+        viewed_levels: parts.channels.viewed_levels.answer(),
+        menu_extra_rev: parts.channels.menu_extra_rev.revision(),
     };
     let required_pack = shared
         .config
@@ -3653,7 +3661,8 @@ mod outgoing_budget_tests {
             wire: None,
             datapack_offer: None,
             announced: Arc::default(),
-            max_viewed_levels: 0,
+            viewed_levels: Default::default(),
+            menu_extra_rev: 0,
         }
     }
     #[test]

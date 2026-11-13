@@ -1308,6 +1308,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn checked_in_foreign_layouts_match_the_locked_source() {
         let root = checkout();
         assert_eq!(
@@ -1372,6 +1373,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_stale_crossing_foreign_path_fails_with_its_name() {
         let metadata = cargo_metadata(&checkout()).unwrap();
         for (stale, foreign) in [

@@ -2119,12 +2119,32 @@ mod download_bound_tests {
 
     static RUNNING: AtomicUsize = AtomicUsize::new(0);
     static PEAK: AtomicUsize = AtomicUsize::new(0);
+    /// How many gated fetches may finish: the test, not the clock, decides when one ends. One gate
+    /// per test, since tests run side by side.
+    struct Gate(std::sync::Mutex<usize>, std::sync::Condvar);
+    impl Gate {
+        const fn new() -> Self {
+            Self(std::sync::Mutex::new(0), std::sync::Condvar::new())
+        }
+        fn permit(&self, count: usize) {
+            *self.0.lock().unwrap() += count;
+            self.1.notify_all();
+        }
+        fn pass(&self) {
+            *self
+                .1
+                .wait_while(self.0.lock().unwrap(), |p| *p == 0)
+                .unwrap() -= 1;
+        }
+    }
+    static THREADS: Gate = Gate::new();
+    static DUE: Gate = Gate::new();
 
-    /// A fetch that is slow enough for the others to pile up behind it, and counts how many run.
-    fn slow_failure(_: &str) -> Option<Vec<u8>> {
+    /// A fetch that ends only when the test grants it a permit, and counts how many run at once.
+    fn gated_failure(_: &str) -> Option<Vec<u8>> {
         let now = RUNNING.fetch_add(1, Ordering::SeqCst) + 1;
         PEAK.fetch_max(now, Ordering::SeqCst);
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        THREADS.pass();
         RUNNING.fetch_sub(1, Ordering::SeqCst);
         None
     }
@@ -2136,7 +2156,8 @@ mod download_bound_tests {
     }
 
     /// A tab list of 60 players names 60 textures at once: no more than the bound run together,
-    /// the ones that waited start as the others finish, and every one ends. Every frame asks again.
+    /// a waiting one starts only once a running one has finished, and every one ends. Every frame
+    /// asks again. No fetch ends before the test lets it, so nothing here depends on timing.
     #[test]
     fn downloads_run_a_few_at_a_time_and_the_late_ones_start_later() {
         let bounds = Bounds {
@@ -2144,28 +2165,44 @@ mod download_bound_tests {
             resources: 4096,
             downloads: 4,
         };
-        let mut d = downloader("threads", bounds, slow_failure);
+        let mut d = downloader("threads", bounds, gated_failure);
         let urls: Vec<String> = (0..60).map(url).collect();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-        let mut first = true;
+        // Asked all at once: four started, and the others were not even recorded.
+        let states: Vec<Download> = urls.iter().map(|u| d.state(Kind::Skin, u)).collect();
+        assert!(states.iter().all(|s| *s == Download::Pending));
+        assert_eq!(d.in_flight, 4);
+        assert_eq!(d.states.len(), 4);
+        // One finishes: its place is free, and nothing new started on its own.
+        THREADS.permit(1);
+        while d.in_flight == 4 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the permitted fetch never ended"
+            );
+            d.state(Kind::Skin, &urls[0]);
+            std::thread::yield_now();
+        }
+        assert_eq!(d.in_flight, 3);
+        assert_eq!(d.states.len(), 4);
+        // The next texture asked takes that place, and only that one.
+        let states: Vec<Download> = urls.iter().map(|u| d.state(Kind::Skin, u)).collect();
+        assert_eq!(d.in_flight, 4);
+        assert_eq!(d.states.len(), 5);
+        assert_eq!(states.iter().filter(|s| **s == Download::Failed).count(), 1);
+        // The rest may finish: each frame starts the waiting ones as places come free.
+        THREADS.permit(usize::MAX / 2);
         loop {
             let states: Vec<Download> = urls.iter().map(|u| d.state(Kind::Skin, u)).collect();
-            if first {
-                // Asked all at once: four started, and the others were not even recorded.
-                assert_eq!(d.in_flight, 4);
-                assert_eq!(d.states.len(), 4);
-                assert!(states.iter().all(|s| *s == Download::Pending));
-                first = false;
-            }
             if states.iter().all(|s| *s == Download::Failed) {
                 break;
             }
             assert!(
                 std::time::Instant::now() < deadline,
                 "{} still pending",
-                states.len()
+                states.iter().filter(|s| **s == Download::Pending).count()
             );
-            std::thread::sleep(std::time::Duration::from_millis(2));
+            std::thread::yield_now();
         }
         assert!(
             PEAK.load(Ordering::SeqCst) <= 4,
@@ -2227,9 +2264,9 @@ mod download_bound_tests {
         assert_eq!(d.states.len(), 6);
     }
 
-    /// A fetch long enough for a test to ask between its start and its end.
-    fn slowish_failure(_: &str) -> Option<Vec<u8>> {
-        std::thread::sleep(std::time::Duration::from_millis(150));
+    /// A fetch that ends only when the test lets it, so the test asks between its start and end.
+    fn due_failure(_: &str) -> Option<Vec<u8>> {
+        DUE.pass();
         None
     }
 
@@ -2242,8 +2279,9 @@ mod download_bound_tests {
             resources: 4096,
             downloads: 1,
         };
-        let mut d = downloader("due", bounds, slowish_failure);
+        let mut d = downloader("due", bounds, due_failure);
         let wait_time = d.retry_after;
+        DUE.permit(1);
         assert_eq!(wait(&mut d, &url(0)), Download::Failed);
         // Another texture takes the only place; the first one's retry becomes due but has to wait.
         assert_eq!(d.state(Kind::Skin, &url(1)), Download::Pending);
@@ -2251,11 +2289,13 @@ mod download_bound_tests {
         assert_eq!(d.state(Kind::Skin, &url(0)), Download::Failed);
         assert_eq!(d.in_flight, 1);
         d.retry_after = wait_time;
+        DUE.permit(1);
         assert_eq!(wait(&mut d, &url(1)), Download::Failed);
         // The place is free: the retry starts.
         d.retry_after = std::time::Duration::ZERO;
         assert_eq!(d.state(Kind::Skin, &url(0)), Download::Pending);
         assert_eq!(d.in_flight, 1);
+        DUE.permit(1);
     }
 
     /// A texture that is running is never the one dropped, however many settle behind it.

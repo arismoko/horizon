@@ -85,6 +85,13 @@ pub struct Counterparts {
     pub paper: Vec<String>,
 }
 
+/// Count admission for stack-list outputs. Trimming is deferred to placement.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StackCount {
+    Trim,
+}
+
 /// One hook point: a moment the game tells mods about.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Hook {
@@ -122,6 +129,8 @@ pub struct Hook {
     pub call: Vec<(String, String)>,
     /// Parameter retained in a decision-scoped guest slot instead of copied per ask.
     pub prepared: Option<String>,
+    /// Admission policy for the mutable stack-list output; placement owns trimming.
+    pub stack_count: Option<StackCount>,
 }
 
 /// A drawing surface of the game's that drawing hooks get as a trait object (the catalog's
@@ -246,6 +255,7 @@ struct HookEntry {
     call: Vec<(String, String)>,
     /// Only `prepared = "stack"` on `can_equip` is supported; reject at parse time.
     prepared: Option<String>,
+    stack_count: Option<StackCount>,
     neoforge: Option<serde_json::Value>,
     fabric: Option<serde_json::Value>,
     paper: Option<serde_json::Value>,
@@ -311,6 +321,22 @@ impl Hook {
         ) {
             return Err(CatalogError::InvalidContract(name));
         }
+        if entry.stack_count.is_some() {
+            if api.contract != Contract::Collect || api.out.is_none() || api.answered_by.is_some() {
+                return Err(CatalogError::InvalidHook {
+                    hook: name,
+                    error: "stack_count requires a mutable Vec<ItemStack> collect output".into(),
+                });
+            }
+            if !entry.call.is_empty() {
+                let output = entry
+                    .call
+                    .iter()
+                    .find(|(parameter, _)| Some(parameter) == api.out.as_ref())
+                    .and_then(|(_, ty)| syn::parse_str::<syn::Type>(ty).ok());
+                validate_stack_count_output(&name, output.as_ref())?;
+            }
+        }
         let answered_by_mod = api.answered_by.is_some();
         if answered_by_mod
             && (!matches!(api.contract, Contract::Replace | Contract::Collect) || scope.is_some())
@@ -354,6 +380,46 @@ impl Hook {
             cancellable: entry.cancellable,
             call: entry.call,
             prepared: entry.prepared,
+            stack_count: entry.stack_count,
+        })
+    }
+}
+
+/// Validate a declared or resolved native output at the catalog boundary.
+pub(crate) fn validate_stack_count_output(
+    name: &str,
+    output: Option<&syn::Type>,
+) -> Result<(), CatalogError> {
+    let valid = (|| {
+        let syn::Type::Reference(reference) = output? else {
+            return None;
+        };
+        reference.mutability?;
+        let syn::Type::Path(path) = &*reference.elem else {
+            return None;
+        };
+        let vec = path.path.segments.last()?;
+        if vec.ident != "Vec" {
+            return None;
+        }
+        let syn::PathArguments::AngleBracketed(args) = &vec.arguments else {
+            return None;
+        };
+        if args.args.len() != 1 {
+            return None;
+        }
+        let syn::GenericArgument::Type(syn::Type::Path(item)) = args.args.first()? else {
+            return None;
+        };
+        (item.path.segments.last()?.ident == "ItemStack").then_some(())
+    })()
+    .is_some();
+    if valid {
+        Ok(())
+    } else {
+        Err(CatalogError::InvalidHook {
+            hook: name.into(),
+            error: "stack_count requires a mutable Vec<ItemStack> collect output".into(),
         })
     }
 }
@@ -751,6 +817,7 @@ impl Hook {
             cancellable: None,
             call: Vec::new(),
             prepared: None,
+            stack_count: None,
         }
     }
 }
@@ -1162,5 +1229,46 @@ mod tests {
                 .contains("invalid catalog-order")
         );
         fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod stack_count_tests {
+    use super::*;
+
+    #[test]
+    fn stack_count_requires_a_stack_collect_output_and_known_policy() {
+        let parse = |declaration: &str| Catalog::parse(&[("test.rs".into(), declaration.into())]);
+        assert!(
+            parse(
+                r#"trait Hooks { /// Doc.
+            #[hook(side="server", contract="listen", stack_count="trim")]
+            fn notice(); }"#
+            )
+            .is_err()
+        );
+        assert!(
+            parse(
+                r#"trait Hooks { /// Doc.
+            #[hook(side="server", contract="collect", out="values", stack_count="trim")]
+            fn numbers(values: &mut Vec<u32>); }"#
+            )
+            .is_err()
+        );
+        assert!(
+            parse(
+                r#"trait Hooks { /// Doc.
+            #[hook(side="server", contract="collect", out="drops", stack_count="unknown")]
+            fn fill(drops: &mut Vec<ItemStack>); }"#
+            )
+            .is_err()
+        );
+        let catalog = parse(
+            r#"trait Hooks { /// Doc.
+            #[hook(side="server", contract="collect", out="drops", stack_count="trim")]
+            fn fill(drops: &mut Vec<ItemStack>); }"#,
+        )
+        .unwrap();
+        assert_eq!(catalog.hooks[0].stack_count, Some(StackCount::Trim));
     }
 }

@@ -188,8 +188,10 @@ impl Renderer {
         };
         let format = self.output.frame.format;
         let mut targets = std::mem::take(&mut self.world_views.targets);
-        targets.retain(|id, _| views.iter().any(|v| v.id == *id));
-        for (k, view) in views.iter().enumerate() {
+        targets.retain(|id, _| views.views().iter().any(|v| v.id == *id));
+        // children first (`WorldViews::order`): the encoder's order makes each one's picture
+        // this frame's in its parent's `world_view_drawn`
+        for (k, view) in views.views().iter().enumerate() {
             let target = targets
                 .entry(view.id)
                 .and_modify(|t| {
@@ -218,6 +220,8 @@ impl Renderer {
             self.draw_world_view(encoder, target, frame, lists, k, view);
             native_render::world_view_drawn(&mut native_render::WorldViewDrawn {
                 id: view.id,
+                parent: view.parent,
+                nesting_depth: views.depth(k),
                 device: &self.device,
                 queue: &self.queue,
                 encoder,
@@ -230,7 +234,7 @@ impl Renderer {
                 camera: view.camera,
             });
         }
-        if !views.is_empty() {
+        if !views.views().is_empty() {
             self.uploads.buffer(
                 encoder,
                 &self.globals,

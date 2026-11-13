@@ -92,8 +92,8 @@ use mod_api::{
     ParticleGroup, PosedParts, RuntimeSprite, SkullModel, TaskId, TextureAtlasRegistration,
 };
 pub(crate) use mod_api::{
-    BlockRim, ClientPacket, ClientPayload, ColoredLight, ExplosionStart, ItemFished, LootDrops,
-    PanelEvent, PortalShape, ScreenView,
+    BlockRim, ClientPacket, ClientPayload, ColoredLight, ContainerLootFilled, ExplosionStart,
+    ItemFished, LootDrops, PanelEvent, PortalShape, ScreenView,
 };
 use mod_api::{
     CameraType, Despawn, Identifier, MobRef, PermissionLevel, RailShape, SoundPlay, SoundRef,

@@ -214,6 +214,7 @@ mod tests {
             crate::__private::ingredient_parser::WalkedIngredient::walk(
                 v,
                 &HashMap::new(),
+                &|_| None,
                 &crate::__private::ingredient_parser::resolved_items,
                 &|data| {
                     let ids = data.get("horizon:resolved_items")?.as_array()?;

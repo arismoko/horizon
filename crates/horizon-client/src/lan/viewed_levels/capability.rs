@@ -1,11 +1,13 @@
 //! The viewed-levels capability, server side. In configuration the server asks a client whose
 //! brand is Horizon's how many levels besides its own it can view, and keeps the answer for play
-//! (`PlayerSender::max_viewed_levels`). A vanilla client is never asked. A client that does not
-//! answer before it acknowledges `FinishConfiguration`, or answers another revision, views none.
-//! An answer the server did not ask for, or a second one, closes the connection.
+//! (`PlayerSender::viewed_levels`), with the revision the client answered: a client of revision 1
+//! still views levels, and only one of revision 2 swaps worlds on a travel (`switch`). A vanilla
+//! client is never asked. A client that does not answer before it acknowledges
+//! `FinishConfiguration`, or answers a revision the server does not serve, views none. An answer
+//! the server did not ask for, or a second one, closes the connection.
 use horizon_protocol::{
     packets::configuration as cfg,
-    viewed_levels::{self, ViewedLevelsError},
+    viewed_levels::{self, Answer, ViewedLevelsError},
 };
 
 /// One configuration phase's exchange.
@@ -13,7 +15,7 @@ use horizon_protocol::{
 pub struct Capability {
     asked: bool,
     answered: bool,
-    max_levels: u8,
+    answer: Answer,
 }
 
 impl Capability {
@@ -35,13 +37,13 @@ impl Capability {
             return Err(ViewedLevelsError::SecondAnswer);
         }
         self.answered = true;
-        self.max_levels = viewed_levels::read_answer(data)?;
+        self.answer = viewed_levels::read_answer(data)?;
         Ok(())
     }
 
-    /// How many levels besides its own the client can view: 0 until it answers.
-    pub fn max_levels(&self) -> u8 {
-        self.max_levels
+    /// What the client answered: none until it answers.
+    pub fn answer(&self) -> Answer {
+        self.answer
     }
 }
 
@@ -54,6 +56,7 @@ mod tests {
         crypto::offline_uuid,
         packets::{Empty, configuration as cfg, handshake, login},
         payload_negotiation::{self as negotiation, Control, Manifest},
+        viewed_levels::Answer,
     };
     use std::{
         sync::Arc,
@@ -65,8 +68,8 @@ mod tests {
     struct Joined {
         /// The `horizon:levels` query it was sent.
         asked: Option<Vec<u8>>,
-        /// The server's `max_viewed_levels` for it once it plays, or the reason it was closed.
-        kept: Result<u8, String>,
+        /// The server's `viewed_levels` for it once it plays, or the reason it was closed.
+        kept: Result<Answer, String>,
     }
 
     fn payload(channel: &str, data: Vec<u8>) -> Vec<u8> {
@@ -173,7 +176,7 @@ mod tests {
                 if let (NetEvent::Joined(j), _) = receipt.into_parts() {
                     return Joined {
                         asked,
-                        kept: Ok(j.sender.max_viewed_levels),
+                        kept: Ok(j.sender.viewed_levels),
                     };
                 }
             }
@@ -189,15 +192,32 @@ mod tests {
         panic!("the server neither refused the player nor handed it to play");
     }
 
+    /// What the server keeps of an answer of `revision`.
+    fn kept(revision: u8, max_levels: u8) -> Result<Answer, String> {
+        Ok(Answer {
+            revision,
+            max_levels,
+        })
+    }
+
     #[test]
     fn a_horizon_client_is_asked_and_its_answer_is_kept() {
         assert_eq!(
-            join("horizon", &[], &[&[1, 1, 2]]),
+            join("horizon", &[], &[&[1, 3, 2]]),
             Joined {
-                asked: Some(vec![0, 1]),
-                kept: Ok(2),
+                asked: Some(vec![0, 3]),
+                kept: kept(3, 2),
             }
         );
+    }
+
+    /// A client of revision 1 answers with its own: it still views levels, and its revision says
+    /// it does not swap worlds on a travel.
+    #[test]
+    fn a_revision_1_client_still_views_levels() {
+        let joined = join("horizon", &[], &[&[1, 1, 2]]);
+        assert_eq!(joined.kept, kept(1, 2));
+        assert!(!joined.kept.unwrap().switches());
     }
 
     #[test]
@@ -206,7 +226,7 @@ mod tests {
             join("vanilla", &[], &[]),
             Joined {
                 asked: None,
-                kept: Ok(0),
+                kept: kept(0, 0),
             }
         );
     }
@@ -216,19 +236,19 @@ mod tests {
         assert_eq!(
             join("horizon", &[], &[]),
             Joined {
-                asked: Some(vec![0, 1]),
-                kept: Ok(0),
+                asked: Some(vec![0, 3]),
+                kept: kept(0, 0),
             }
         );
     }
 
     #[test]
-    fn an_answer_of_another_revision_views_none() {
+    fn an_answer_of_a_revision_not_served_views_none() {
         assert_eq!(
-            join("horizon", &[], &[&[1, 2, 5]]),
+            join("horizon", &[], &[&[1, 4, 5]]),
             Joined {
-                asked: Some(vec![0, 1]),
-                kept: Ok(0),
+                asked: Some(vec![0, 3]),
+                kept: kept(0, 0),
             }
         );
     }
@@ -236,9 +256,9 @@ mod tests {
     #[test]
     fn a_second_answer_closes_the_connection() {
         assert_eq!(
-            join("horizon", &[], &[&[1, 1, 2], &[1, 1, 2]]),
+            join("horizon", &[], &[&[1, 3, 2], &[1, 3, 2]]),
             Joined {
-                asked: Some(vec![0, 1]),
+                asked: Some(vec![0, 3]),
                 kept: Err("horizon:levels: a second answer".into()),
             }
         );
@@ -247,7 +267,7 @@ mod tests {
     #[test]
     fn an_answer_nobody_asked_for_closes_the_connection() {
         assert_eq!(
-            join("vanilla", &[&[1, 1, 2]], &[]),
+            join("vanilla", &[&[1, 3, 2]], &[]),
             Joined {
                 asked: None,
                 kept: Err("horizon:levels: an answer the server did not ask for".into()),

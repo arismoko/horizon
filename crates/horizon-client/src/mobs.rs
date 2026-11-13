@@ -204,6 +204,8 @@ mod powder_snow_move_tests;
 
 #[derive(Clone, Debug)]
 pub struct MobType {
+    /// Resolved content renderer shadow; vanilla uses its normal table.
+    pub shadow: Option<(f32, f32)>,
     pub id: String,
     pub species: Species,
     pub width: f64,
@@ -274,18 +276,6 @@ impl MobType {
 
     pub fn layer(&self, key: &str) -> Option<&Arc<Part>> {
         self.layers.get(key)
-    }
-
-    /// The vanilla entity type whose class this type's mobs are: the type
-    /// itself, or the template a content mod's living type copies. What a
-    /// class saves and syncs of its own (`Zombie.addAdditionalSaveData`, its
-    /// entity data) follows it; the saved and sent id stays [`Self::id`].
-    pub fn class_id(&self) -> &str {
-        if self.id.starts_with("minecraft:") {
-            &self.id
-        } else {
-            species::vanilla_id(self.species)
-        }
     }
 }
 /// Each type's default attribute values, parsed exactly (serde_json's
@@ -503,6 +493,7 @@ impl MobTypes {
             out.insert(
                 id.clone(),
                 MobType {
+                    shadow: crate::shadows::content_shadow(t),
                     species: def.species,
                     item_stack_limits: item_stack_limits.clone(),
                     attribute_bounds,
@@ -1692,11 +1683,11 @@ pub enum MobEvent {
         mob: u32,
         at: [f64; 3],
     },
-    /// `LivingEntity.baseTick`'s drowning damage: entity event 67, the
-    /// clients' `makeDrownParticles`.
+    /// `LivingEntity.baseTick`'s drowning: entity event 67 for 8 `bubbles`, else that many particles.
     Drown {
         mob: u32,
         at: [f64; 3],
+        bubbles: i32,
     },
     /// PowderSnowBlock.entityInside's snowflake with vanilla's sampled velocity.
     PowderSnowParticle {
@@ -4267,10 +4258,7 @@ impl Mob {
         if !absorbed && dealt != 0.0 {
             self.record_damage(source, dealt);
         }
-        if through != 0.0 {
-            container.record_health_damage(through);
-            level.damage_post(crate::health::Hurting::Mob(self, &source), &container);
-        }
+        container.record_health_damage(through);
         // LivingEntity.hurtArmor: `Horse` is the only mob that overrides it, and
         // it hands `doHurtEquipment` the body slot alone. A wolf's armour has
         // its own rule (`Wolf.actuallyHurt`, `hurt_wolf_armor`) and a player's
@@ -4379,6 +4367,8 @@ impl Mob {
                 self.outbox.push(MobEvent::Infested { at, velocities });
             }
         }
+        // The last of `LivingEntity.hurtServer`: `LivingDamageEvent.Post`, health taken or not.
+        level.damage_post(crate::health::Hurting::Mob(self, &source), &container);
         // Shulker.hurtServer: the low-health teleport roll after `super.hurtServer`.
         if success && self.species() == Species::Shulker {
             shulker::after_hurt(self);
@@ -5409,6 +5399,7 @@ pub(crate) mod sensor_scan_tests {
 
     pub(crate) fn kind() -> Arc<MobType> {
         Arc::new(MobType {
+            shadow: None,
             id: "minecraft:cow".into(),
             species: Species::Cow,
             width: 0.9,

@@ -18,6 +18,7 @@ pub(crate) struct Installed {
     pub(crate) world_fluids: Vec<(String, crate::WorldFluid)>,
     pub(crate) entity_attribute_modifications: Vec<EntityAttributeModification>,
     pub(crate) attributes: Vec<super::attributes::AttributeDeclaration>,
+    pub(crate) attribute_widenings: Vec<super::attributes::AttributeBoundsWidening>,
     pub(crate) general_entity_types: Vec<crate::parts::entity_types::GeneralEntityTypeDeclaration>,
     pub(crate) spawn_placements: Vec<SpawnPlacementDeclaration>,
     pub(crate) biome_modifiers: Vec<BiomeModifierDeclaration>,
@@ -39,6 +40,8 @@ pub(crate) struct Installed {
     pub(crate) dimensions: Vec<crate::world::dimension::DimensionInfo>,
     pub(crate) chunk_generators: Vec<crate::world::chunk_generator::ChunkGeneratorInfo>,
     pub(crate) biome_sources: Vec<crate::world::biome_source::BiomeSourceInfo>,
+    /// Loading warnings, by owning mod id, in registration order.
+    pub(crate) warnings: Vec<(String, crate::LoadingMessage)>,
     pub(crate) hook_bits: Vec<bool>,
     pub(crate) tag_hook_bits: Vec<bool>,
 }

@@ -79,6 +79,22 @@ registry and does not allocate, so a hook can call it. It returns `None` for a n
 not hold, and before the registry is complete, so a mod uses `r.block_key(id)` in `register`. These
 work on the client and the server, for native and wasm mods alike.
 
+```rust
+fn resolve(host: &dyn mod_api::Host) {
+    if let Some(block) = host.block_key("minecraft:stone") {
+        assert_eq!(block.id(host), "minecraft:stone");
+    }
+    if let Some(effect) = host.effect_key("minecraft:speed") {
+        assert_eq!(effect.id(host), "minecraft:speed");
+    }
+    assert!(host.block_key("test:missing_block").is_none());
+    assert!(host.effect_key("test:missing_effect").is_none());
+}
+```
+
+These calls are also available on `&dyn ServerHost` and `&dyn ClientHost`.
+Both lookups return `None` before their registry completes, including for vanilla names.
+
 ## Fluids and effects
 
 Declare a tank-only fluid in your own namespace with `r.declare_fluid("chocolate")`; the returned `FluidKey` identifies it for the mod load. Request vanilla or another mod's declared fluid with `r.fluid_key("minecraft:water")` or `r.fluid_key("other:chocolate")`. Requests resolve after all registrations, so declaration order does not matter; an unknown request stops the load and names the requesting mod. Tank-only fluids have no world simulation or world state. Fluid stacks and recipe ingredients use these keys.

@@ -1,23 +1,23 @@
 name: wasm-mods
-# Main pushes and manual dispatch only, never pull requests (owner, 2026-11-12): root dispatches it on a PR
-# branch that changes what it builds.
+# The daily run and manual dispatch only, never pull requests or main pushes (owner, 2026-11-12; CI tiers 2026-11-13).
 on:
-  push:
-    branches: [main]
+  # The daily run (daily.yml) calls it with the commit to check; root dispatches it on a branch that changes
+  # what it builds.
+  workflow_call:
+    inputs:
+      commit:
+        description: The commit to check (the daily run's)
+        type: string
+        default: ''
   workflow_dispatch:
 permissions:
   contents: read
-# Main pushes coalesce: a started run always finishes, and only the newest waiting push runs next, so
-# the newest finished main run proves every commit before it. A red is attributed by reading the error,
-# with a manual dispatch on a suspect commit (through a branch pointing at it) when needed. Dispatches
-# queue in their own group per ref and never displace main's runs.
+# A daily run's call is grouped by that run and always finishes (daily.yml runs one at a time). A dispatch on main
+# gets a group of its own; elsewhere a newer dispatch on the same branch replaces the one before, which checked a
+# superseded head.
 concurrency:
-  # Main pushes share one group: a running check finishes and only the newest push waits, so a burst
-  # of merges checks the latest head once (owner's rule, 2026-11-13). A dispatch on main gets a group
-  # of its own and is never folded into main's. Elsewhere a newer dispatch on the same branch
-  # replaces the one before, which checked a superseded head.
-  group: wasm-mods-${{ github.event_name == 'push' && 'main-push' || github.ref == 'refs/heads/main' && github.run_id || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: wasm-mods-${{ inputs.commit && github.run_id || github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ inputs.commit == '' && github.ref != 'refs/heads/main' }}
 jobs:
   fixture:
     runs-on: dyna-large
@@ -26,6 +26,8 @@ jobs:
       CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
       - name: Configure persistent build targets
         shell: bash
         run: |
@@ -149,9 +151,17 @@ jobs:
           # Each alone in its process: each initializes the fixture mod, and the points table is sealed once per
           # process, so a second initialization there refuses the fixture's replace listener as already owned.
           # The tests are the `needs HORIZON_WASM_FIXTURE` rows; each run must report exactly one test passed.
-          python3 tools/ci/ignored_tests.py --needs HORIZON_WASM_FIXTURE --one-process-each --jobs "$jobs"
-          run_exact 1 -p horizon-client --lib -- --exact \
-            game::native_hooks::math::tests::math_profile_selection_matches_platform_and_is_stable
+          python3 tools/ci/ignored_tests.py --needs HORIZON_WASM_FIXTURE --one-process-each --jobs "$jobs" \
+            --report "$RUNNER_TEMP/daily-report.json"
+      # The tests' names and verdicts for the daily summary (ignored_tests.py --report); no test output.
+      - name: Upload the fixture tests' report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-report-fixture
+          path: ${{ runner.temp }}/daily-report.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Build independent library members
         run: |
           tool="$GITHUB_WORKSPACE/target/debug/cargo-horizon-mod"
@@ -179,8 +189,9 @@ jobs:
           HORIZON_WASM_STD: ${{ github.workspace }}/target/horizon-wasm-std.wasm
           HORIZON_WASM_GROUPS: ${{ github.workspace }}/crates/horizon-mod-wasm/tests/groups
         run: cargo test -p horizon-mod-wasm --test groups -- --nocapture
+      # A hand dispatch only: the daily run (a call with its commit) does not measure.
       - name: Measure block entity boundary
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.commit == ''
         env:
           HORIZON_WASM_FIXTURE: ${{ github.workspace }}/crates/horizon-mod-wasm/tests/fixture/target/horizon-mod/wasm_fixture.hmod
           HORIZON_WASM_STD: ${{ github.workspace }}/target/horizon-wasm-std.wasm
@@ -194,6 +205,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
       - name: The pinned Rust (tools/ci/rust-version)
         id: rust
         shell: bash

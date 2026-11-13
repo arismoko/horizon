@@ -297,7 +297,9 @@ pub trait LevelsBackend {
     /// Side: both.
     /// The block state ID at `pos` (`Level.getBlockState`), without formatting a string.
     /// None for a chunk that isn't loaded or a `y` outside the world. On a client, the
-    /// state is the one the server sent for a chunk the client holds.
+    /// state is the one the server sent for a chunk the client holds, in the level it shows
+    /// or in one the server opened for viewing (`host.level`): a viewed level reads its own
+    /// world, never the player's, and never loads a column.
     #[access(WorldOnly)]
     fn level_block_state(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockState>;
     /// Side: server.
@@ -430,9 +432,11 @@ pub trait LevelsBackend {
         pos: [i32; 3],
         kind: BlockShapeKind,
     ) -> Option<Vec<[f64; 6]>>;
-    /// Side: server.
+    /// Side: both.
     /// Clip an empty-context ray against collider or outline shapes, without fluids.
-    /// None on failed reads, dynamic shapes, invalid rays or traversal limits.
+    /// None on failed reads, dynamic shapes, invalid rays or traversal limits, and for a ray
+    /// that enters a column the level doesn't hold. On a client, the level it shows or a
+    /// viewed one (`host.level`), each through its own world.
     #[access(WorldOnly)]
     fn level_clip(
         &self,
@@ -614,6 +618,8 @@ pub trait LevelsBackend {
     fn level_loaded_chunks(&self, level: LevelRef) -> Option<Vec<ChunkRef>>;
     /// Side: both.
     /// World-space block collision boxes under an empty collision context, without entities or border. Refuses a stale or nonresident level and invalid or overlarge boxes.
+    /// On a client, the level it shows or a viewed one (`host.level`), each through its own
+    /// world; None where the walk reaches a column the client doesn't hold.
     #[access(WorldOnly)]
     fn level_collision_boxes(&self, level: LevelRef, aabb: [f64; 6]) -> Option<Vec<[f64; 6]>>;
     /// Side: server.

@@ -62,7 +62,6 @@ fn a_changed_context_interrupts_a_compound_before_the_next_custom_leaf() {
     CALLS.with_borrow(|calls| assert_eq!(calls, &["placement_guard:changes_context"]));
 }
 
-#[test]
 fn empty_ingredient_recipes_retain_predicates_but_not_placement() {
     use crate::crafting::{Recipes, ResolvedSources};
     use horizon_world::loot::PackOverlay;
@@ -235,7 +234,7 @@ fn empty_ingredient_load_diagnostics_distinguish_errors_and_warnings() {
             true
         }
         fn log(&self, record: &log::Record<'_>) {
-            if record.target().contains("crafting::ingredient") {
+            if record.target().contains("::crafting") {
                 self.0
                     .lock()
                     .unwrap()
@@ -261,7 +260,7 @@ fn empty_ingredient_load_diagnostics_distinguish_errors_and_warnings() {
         (json!([]), log::Level::Error),
         (json!("#fixture:missing"), log::Level::Error),
         (json!("#fixture:empty"), log::Level::Warn),
-        (json!({"type":"fixture:predicate"}), log::Level::Warn),
+        (json!({"type":"fixture:predicate"}), log::Level::Error),
     ] {
         LOG.0.lock().unwrap().clear();
         let recipes = Recipes::from_sources(
@@ -295,7 +294,100 @@ fn empty_ingredient_load_diagnostics_distinguish_errors_and_warnings() {
     }
 }
 
+struct ListenerIngredient(&'static [&'static str]);
+#[mod_api::__subscriptions]
+impl mod_api::Hooks for ListenerIngredient {
+    fn ingredient(
+        &self,
+        _: &dyn mod_api::DataLoadContext,
+        event: &mut mod_api::IngredientEvent<'_>,
+    ) {
+        event.items.extend(self.0.iter().map(|i| i.to_string()));
+    }
+}
+
 #[test]
+#[ignore = "isolated logger fixture; run this selector alone"]
+fn unclaimed_custom_kind_fails_the_file_but_an_empty_answer_only_warns() {
+    struct Capture(std::sync::Mutex<Vec<(log::Level, String)>>);
+    impl log::Log for Capture {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record<'_>) {
+            if record.target().contains("::crafting") {
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push((record.level(), record.args().to_string()));
+            }
+        }
+        fn flush(&self) {}
+    }
+    static LOG: Capture = Capture(std::sync::Mutex::new(Vec::new()));
+    log::set_logger(&LOG).unwrap();
+    log::set_max_level(log::LevelFilter::Warn);
+    use crate::crafting::Recipes;
+    use horizon_world::loot::PackOverlay;
+    use serde_json::json;
+    let items = Items::for_tests(Default::default());
+    let recipe = || {
+        vec![(
+            "fixture:needs_mod".to_string(),
+            json!({"type":"minecraft:crafting_shapeless",
+            "ingredients":[{"type":"absent:kind"}], "result":{"id":"minecraft:stick"}}),
+        )]
+    };
+    let load = || {
+        LoadContext::new(
+            DataLoadOrigin::ServerDataLoad,
+            std::sync::Arc::new(LoadInputs::new(Default::default(), Default::default())),
+            [],
+        )
+    };
+    let run = |mods: Vec<mod_api::ModEntry>| {
+        LOG.0.lock().unwrap().clear();
+        let mut loaded = None;
+        mod_platform::testing::with_mods(mods.into(), || {
+            loaded = Some(
+                Recipes::from_sources(
+                    &std::env::temp_dir(),
+                    &items,
+                    &PackOverlay::NONE,
+                    recipe(),
+                    &load(),
+                )
+                .unwrap(),
+            );
+        });
+        let logs = LOG.0.lock().unwrap().clone();
+        (loaded.unwrap(), logs)
+    };
+    // No listener: the file fails at error level, naming file and kind.
+    let (recipes, logs) = run(vec![]);
+    assert!(recipes.crafting.is_empty());
+    assert!(logs.iter().any(|(level, text)| *level == log::Level::Error
+        && text.contains("fixture:needs_mod")
+        && text.contains("absent:kind")));
+    // A listener with an empty answer: kept, with a warning naming both.
+    let (recipes, logs) = run(vec![mod_api::ModEntry::new(
+        "empty",
+        Box::new(ListenerIngredient(&[])),
+    )]);
+    assert_eq!(recipes.crafting.len(), 1);
+    assert!(logs.iter().any(|(level, text)| *level == log::Level::Warn
+        && text.contains("fixture:needs_mod")
+        && text.contains("absent:kind")));
+    assert!(!logs.iter().any(|(level, _)| *level == log::Level::Error));
+    // A listener with items: loads as before, silently.
+    let (recipes, logs) = run(vec![mod_api::ModEntry::new(
+        "items",
+        Box::new(ListenerIngredient(&["minecraft:stick"])),
+    )]);
+    assert_eq!(recipes.crafting.len(), 1);
+    assert!(logs.is_empty());
+}
+
 fn cooking_indexes_empty_predicate_descendants_once_in_registration_order() {
     use crate::crafting::Recipes;
     use horizon_world::loot::PackOverlay;
@@ -354,4 +446,30 @@ fn cooking_indexes_empty_predicate_descendants_once_in_registration_order() {
         );
         CALLS.with_borrow(|calls| assert_eq!(calls.len(), 1));
     }
+}
+
+// A mod listens to the `ingredient` hook and answers with no items.
+#[test]
+fn empty_ingredient_recipes_retain_predicates_but_not_placement_with_a_listener() {
+    mod_platform::testing::with_mods(
+        vec![mod_api::ModEntry::new(
+            "empty",
+            Box::new(ListenerIngredient(&[])),
+        )]
+        .into(),
+        empty_ingredient_recipes_retain_predicates_but_not_placement,
+    );
+}
+
+// A mod listens to the `ingredient` hook and answers with no items.
+#[test]
+fn cooking_indexes_empty_predicate_descendants_once_in_registration_order_with_a_listener() {
+    mod_platform::testing::with_mods(
+        vec![mod_api::ModEntry::new(
+            "empty",
+            Box::new(ListenerIngredient(&[])),
+        )]
+        .into(),
+        cooking_indexes_empty_predicate_descendants_once_in_registration_order,
+    );
 }

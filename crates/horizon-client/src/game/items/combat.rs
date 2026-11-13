@@ -253,11 +253,11 @@ impl Game<'_> {
         self.combat.attack.clone()
     }
 
-    /// `LivingEntity.makeDrownParticles`: eight bubbles around the entity,
-    /// moving with it.
-    pub(super) fn drown_particles(&mut self, at: [f64; 3], velocity: [f64; 3]) {
+    /// `LivingEntity.makeDrownParticles`: `count` bubbles around the entity
+    /// (vanilla's eight), moving with it.
+    pub(super) fn drown_particles(&mut self, at: [f64; 3], velocity: [f64; 3], count: i32) {
         let bubble = ParticleOptions::simple(ParticleType::Bubble);
-        for _ in 0..8 {
+        for _ in 0..count {
             let mut triangle = || {
                 let r = self.particles.random();
                 r.next_double() - r.next_double()
@@ -282,7 +282,35 @@ impl Game<'_> {
             })
         };
         if let Some((at, v)) = body {
-            self.drown_particles(at, v);
+            self.drown_particles(at, v, 8);
+        }
+    }
+    /// `LivingDrownEvent`'s `bubbles` for an entity drowning at `at`: true for
+    /// vanilla's eight, which the caller sends as entity event 67 and draws.
+    /// Another positive count goes to the players around as that many bubble
+    /// particles and is drawn here, since a vanilla client's event 67 always
+    /// draws eight; none sends nothing.
+    pub(super) fn drown_bubbles(&mut self, at: [f64; 3], velocity: [f64; 3], bubbles: i32) -> bool {
+        if bubbles == 8 {
+            return true;
+        }
+        if bubbles > 0 {
+            let bubble = ParticleOptions::simple(ParticleType::Bubble);
+            self.lan_level_particles(&bubble, at, [0.5; 3], 0.0, bubbles as u32, None);
+            self.drown_particles(at, velocity, bubbles);
+        }
+        false
+    }
+    /// A mob's drowning tick (`MobEvent::Drown`).
+    pub(super) fn mob_drown(&mut self, mob: u32, at: [f64; 3], bubbles: i32) {
+        let v = self
+            .mobs
+            .iter()
+            .find(|m| m.id == mob)
+            .map_or([0.0; 3], |m| [m.velocity.x, m.velocity.y, m.velocity.z]);
+        if self.drown_bubbles(at, v, bubbles) {
+            self.lan_entity_event(mob as i32, DROWN_EVENT, at);
+            self.drown_particles(at, v, 8);
         }
     }
     /// The display name of a mob: its custom name or its type's name.
@@ -374,7 +402,8 @@ impl Game<'_> {
                     self.combat.note_hurt_by_player(PlayerCredit(uuid), now);
                 }
             }
-            Some(m) if m.extra.tame && &*m.kind.id == "minecraft:wolf" => {
+            // `instanceof Wolf`: a content mod's type copying the wolf is one.
+            Some(m) if m.extra.tame && m.species() == Species::Wolf => {
                 self.combat.last_hurt_by_player = m.extra.owner.map(|o| {
                     let owner = horizon_client::lan::playerdata::ints_uuid(o);
                     (PlayerCredit(owner), now)
@@ -1062,6 +1091,42 @@ mod kill_credit_tests {
         assert_eq!(hurt_at(1_000).kill_credit(1_099), Some(7));
         assert_eq!(hurt_at(1_000).kill_credit(1_100), Some(7));
         assert_eq!(hurt_at(1_000).kill_credit(1_101), None);
+    }
+}
+
+#[cfg(test)]
+mod pet_credit_tests {
+    use horizon_client::lan::playerdata::uuid_ints;
+    use horizon_client::mobs::Mob;
+    use horizon_core::geometry::Vec3;
+    use std::sync::Arc;
+
+    /// A tame wolf's hit on the player in place is its owner's
+    /// (`resolvePlayerResponsibleForDamage` asks `instanceof Wolf`), so a
+    /// content mod's type copying the wolf (#4031) names its owner too, and
+    /// an untamed one names no one.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_tame_mod_wolf_types_hit_is_its_owners() {
+        crate::game::native_entity_refs::tests::with_game(|game| {
+            let wolf = game.res.mob_types().get("minecraft:wolf").cloned().unwrap();
+            let mut hound = (*wolf).clone();
+            hound.id = "ruby:hound".into();
+            for (kind, tame, credit) in [
+                (wolf.clone(), true, Some(12)),
+                (Arc::new(hound.clone()), true, Some(12)),
+                (Arc::new(hound), false, None),
+            ] {
+                game.combat.last_hurt_by_player = None;
+                game.mobs.clear();
+                let mut pet = Mob::new(7, kind, Vec3::ZERO, 0.0);
+                pet.extra.tame = tame;
+                pet.extra.owner = Some(uuid_ints(12));
+                game.mobs.push(pet);
+                game.resolve_player_responsible_for_player(7);
+                assert_eq!(game.combat.last_hurt_by_player.map(|(c, _)| c.0), credit);
+            }
+        });
     }
 }
 

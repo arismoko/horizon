@@ -516,7 +516,7 @@ impl PieceFrame {
             state = c.resources.transforms.mirror(state, self.mirror);
         }
         if self.rotation != Rotation::None {
-            state = c.resources.transforms.rotate(state, self.rotation);
+            state = c.resources.transforms.rotate_at(state, pos, self.rotation);
         }
         write_block(c.world, c.resources, pos, state)
     }
@@ -1070,7 +1070,9 @@ fn filter_blocks(
                 .is_none_or(|bb| bb.is_inside(pos))
                 .then(|| BlockInfo {
                     pos,
-                    state: resources.transforms.rotate(b.state, settings.rotation),
+                    state: resources
+                        .transforms
+                        .rotate_at(b.state, pos, settings.rotation),
                     nbt: b.nbt.clone(),
                 })
         })

@@ -915,6 +915,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn the_load_waits_for_the_chunks_a_teleport_starts() {
         // Right after a teleport the game reports steady counts and nothing
         // queued for over a second, before the integrated server has sent the
@@ -1038,6 +1039,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn the_trip_flies_512_blocks_then_holds_four_blocks_at_its_end() {
         let (tx, rx) = mpsc::channel::<Request>();
         let server = trip_server(rx);

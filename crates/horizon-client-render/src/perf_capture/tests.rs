@@ -127,6 +127,7 @@ fn short(name: &str) -> &str {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_stack_becomes_a_root_to_leaf_chain_with_its_context() {
     let entity = work::entity_id("test:zombie");
     let ctx = Context {
@@ -170,6 +171,7 @@ fn a_stack_becomes_a_root_to_leaf_chain_with_its_context() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn addresses_of_one_function_share_one_row() {
     let ctx = Context::default();
     let mut agg = Aggregate::new(50_000_000);
@@ -219,6 +221,7 @@ fn addresses_of_one_function_share_one_row() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn time_blocks_and_ticks_per_block_follow_when_they_were_added() {
     let ctx = |tick| Context {
         tick,
@@ -260,6 +263,7 @@ fn a_sample_with_no_stack_hangs_off_an_unknown_root() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn wall_samples_carry_their_state_and_a_second_kind() {
     let mut agg = Aggregate::new(50_000_000);
     let ctx = Context::default();
@@ -369,6 +373,7 @@ fn entity_units() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn three_units_of_a_and_one_of_b_split_the_samples_three_to_one() {
     // CPU timers may deliver below the requested 1 kHz on tick-accounted kernels, and a loaded
     // runner can starve one run: judged on the first of five runs whose checks all hold.
@@ -406,6 +411,7 @@ fn ticks_with_one_slow() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn only_the_slow_ticks_function_is_in_the_slow_weights() {
     let slow_minimum = sampler::test_support::cpu_count(60);
     let fast_minimum = sampler::test_support::cpu_count(20);
@@ -499,6 +505,7 @@ fn ask(
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_converted_profile_written_to_a_file_reads_back_through_the_queries() {
     let ctx = Context::default();
     let mut agg = Aggregate::new(50_000_000);
@@ -577,6 +584,7 @@ fn a_converted_profile_written_to_a_file_reads_back_through_the_queries() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn heap_samples_share_the_tables_without_the_allocators_own_frames() {
     let mut cpu = Aggregate::new(50_000_000);
     cpu.add(

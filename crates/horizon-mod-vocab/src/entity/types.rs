@@ -1089,6 +1089,34 @@ pub struct PlayerFood {
     pub exhaustion: f32,
 }
 
+/// Why [`PlayerRef::open_mod_menu`] opened nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum OpenMenuError {
+    /// The menu type is not a content mod's (`data/<id>/horizon/menu/`).
+    NotModMenu,
+    /// The player is stale, not connected (a fake player), or their client lacks Horizon's
+    /// menu types (a vanilla client); also a host without a game.
+    PlayerUnavailable,
+    /// The extra data is past the 32 KiB a menu may carry.
+    TooLarge,
+    /// The title could not cross to the game.
+    Title(crate::text::TextFormError),
+}
+
+impl From<crate::text::TextFormError> for OpenMenuError {
+    fn from(error: crate::text::TextFormError) -> Self {
+        Self::Title(error)
+    }
+}
+
+impl NoBackend for OpenMenuError {
+    fn no_backend() -> Self {
+        Self::PlayerUnavailable
+    }
+}
+
 /// A player's experience (`Player.experienceLevel`, `experienceProgress`,
 /// `totalExperience`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1264,4 +1292,34 @@ pub enum Sentiment {
     Negative,
     /// Changes are neutral.
     Neutral,
+}
+
+/// How a declared attribute's modifier lines read on item tooltips: NeoForge's
+/// `RangedAttribute`, `PercentageAttribute` and `BooleanAttribute`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// exhaustive: NeoForge's three display kinds, and the tooltip matches them all
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum AttributeDisplay {
+    /// Added values as numbers, multiplied ones as percentages: vanilla's.
+    #[default]
+    Ranged,
+    /// Added values as percentages too: `+0.05` reads `+5%`.
+    Percentage,
+    /// On or off: an added value above zero reads enabled, any other disabled.
+    Boolean,
+}
+
+/// How a declared attribute's tooltip lines read beyond their colour (NeoForge's
+/// `IAttributeExtension`). The default reads as vanilla's attributes do.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+// exhaustive: mods build it with `..Default::default()`, and the game reads every field
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct AttributeTooltip {
+    /// How its modifier amounts read.
+    pub display: AttributeDisplay,
+    /// The namespaced id of the attribute's base modifier (`getBaseId`): a modifier with this
+    /// id reads as the green total of the player's base value and its amount, as
+    /// `minecraft:base_attack_damage` does for attack damage. Without a player (recipe search)
+    /// it reads as a plain line.
+    pub base_modifier: Option<String>,
 }

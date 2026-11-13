@@ -37,10 +37,13 @@ def thread(state="open", holders=(), pr=False, locked=False):
 
 
 class Fake:
-    def __init__(self, threads=None, assignable=True, held=()):
+    def __init__(self, threads=None, assignable=True, held=(), covering=()):
         self.repo = "arismoko/horizon"
         self.threads = {5: thread()} if threads is None else threads
-        self.assignable, self.calls, self.held = assignable, [], list(held)
+        self.assignable, self.calls, self.held, self.covering = assignable, [], list(held), list(covering)
+
+    def covering_pull_requests(self, n):
+        return self.covering
 
     def held_issues(self, login):
         return self.held
@@ -143,6 +146,19 @@ class ClaimTests(unittest.TestCase):
         with self.assertRaisesRegex(cc.Refused, "on Discord"):
             do("/claim", api)
         self.assertEqual(api.calls, [])
+
+    def test_an_open_pull_request_that_closes_the_issue_covers_it(self):
+        def pr(number, state, author):
+            return {"number": number, "state": state, "author": {"login": author}}
+        api = Fake(covering=[pr(3886, "OPEN", "author"), pr(3700, "MERGED", "other"), pr(3650, "OPEN", "third")])
+        with self.assertRaisesRegex(cc.Refused, r"covered by #3650, #3886,"):
+            do("/claim", api)
+        self.assertEqual(api.calls, [])
+        # Its own author may claim it back, and a closed or merged pull request covers nothing.
+        for covering in ([pr(3886, "OPEN", "Newcomer")], [pr(3886, "CLOSED", "author")]):
+            with self.subTest(covering=covering):
+                _, api = do("/claim", Fake(covering=covering))
+                self.assertIn(("assign", 5, "newcomer"), api.calls)
 
     def test_trackers_and_proposals_are_not_claimed(self):
         for name in ("Tracker", "proposal", "not claimable"):

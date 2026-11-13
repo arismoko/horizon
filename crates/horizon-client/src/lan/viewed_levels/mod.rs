@@ -7,12 +7,17 @@
 //! never the forced chunks' or the mods' chunk tickets, and they live apart from what makes a
 //! player count in a level (`Guest::placed_in`, `Guest::watches_level`): an area is not a player
 //! for spawning, sleeping, raids or any other rule. A client whose capability answer allows it is
-//! sent the areas of the levels it is not in, each packet wrapped with its level (`send`).
+//! sent the areas of the levels it is not in, each packet wrapped with its level (`send`), and
+//! the entities there (`entities`). A travel into a level its client views swaps that level with
+//! the one it leaves (`switch`). From revision 2 their sounds go too (`sounds`).
 //!
 //! With no area on the server, a level pass costs one integer compare ([`ViewedLevels::active`]).
 pub mod areas;
 pub mod capability;
+pub(super) mod entities;
 pub(super) mod send;
+mod sounds;
+mod switch;
 #[cfg(test)]
 mod tests;
 pub mod view;
@@ -79,8 +84,9 @@ impl Viewed {
             .flatten()
             .filter(move |a| a.level == dimension)
     }
-    /// The client dropped every viewed world (a Respawn): they are forgotten without `close`, and
-    /// opened again for what the areas still ask.
+    /// The client dropped every viewed world (a Respawn that is no travel into one of them,
+    /// `switch`): they are forgotten without `close`, and opened again for what the areas still
+    /// ask.
     pub fn forget_views(&mut self) {
         self.views.clear();
     }
@@ -127,7 +133,7 @@ impl Hub {
             owner,
             &areas,
             &g.dimension,
-            g.sender.max_viewed_levels,
+            g.sender.viewed_levels.max_levels,
             &self.viewed.caps,
             others,
         )?;
@@ -213,7 +219,7 @@ impl Hub {
     }
 
     /// Whether a player's client views the level in place.
-    pub(super) fn viewed_here(&self) -> bool {
+    pub fn viewed_here(&self) -> bool {
         self.viewed.active()
             && self
                 .guests

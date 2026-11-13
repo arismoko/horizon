@@ -1,0 +1,6 @@
+# The daily tests of horizon-mod-wasm: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
+# where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+horizon-mod-wasm module_cache::tests::child_failures_refuse_without_unbounded_compilation lib daily slow
+horizon-mod-wasm native_registration_refuses_registration_data_without_wire test:no_wire_registration daily slow
+horizon-mod-wasm runtime::runtime_tests::contended_hook_times_out_without_poisoning_the_group lib daily slow
+horizon-mod-wasm wasm_registration_refuses_registration_data_without_wire test:no_wire_registration daily slow

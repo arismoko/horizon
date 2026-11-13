@@ -612,6 +612,28 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires prepared resources"]
+    fn public_host_resolves_literal_block_and_effect_names() {
+        mod_platform::testing::with_mods(std::sync::Arc::from([]), || {
+            let root =
+                std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
+            super::super::native_entity_refs::tests::with_game_at(root, |game| {
+                let host: &dyn mod_api::Host = game;
+                assert_eq!(
+                    host.block_key("minecraft:stone").unwrap().id(host),
+                    "minecraft:stone"
+                );
+                assert_eq!(
+                    host.effect_key("minecraft:speed").unwrap().id(host),
+                    "minecraft:speed"
+                );
+                assert_eq!(host.block_key("test:missing_block"), None);
+                assert_eq!(host.effect_key("test:missing_effect"), None);
+            });
+        });
+    }
+
+    #[test]
     fn description_ids_write_a_path_separator_as_a_dot() {
         assert_eq!(
             super::description_id("fluid_type", "ruby:molten/iron").as_deref(),

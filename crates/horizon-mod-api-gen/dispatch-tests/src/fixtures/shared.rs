@@ -402,8 +402,7 @@ impl MenuPart for Mod {
     fn menu_subscribed(&self) -> &'static [Option<HookId>] {
         &[]
     }
-    fn menu_slot_rules(&self, context: &dyn LoopContext, event: &mut MenuSlotRulesEvent<'_>) {
-        assert_eq!(context.side(), "loop");
+    fn menu_slot_rules(&self, _: &dyn Host, event: &mut MenuSlotRulesEvent<'_>) {
         event.may_place = false;
         event.max_stack = self.id;
     }

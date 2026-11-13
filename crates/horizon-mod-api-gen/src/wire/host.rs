@@ -990,6 +990,7 @@ mod tests {
     /// one Cargo is told to watch: a hook signature moved in the vocabulary left the generated code
     /// stale until the build script was touched (#3123).
     #[test]
+    #[ignore = "daily"]
     fn host_generation_asks_cargo_to_watch_the_vocabulary_hook_sources() {
         let captured = std::thread::Builder::new()
             .stack_size(64 << 20)

@@ -1,14 +1,20 @@
 //! The `horizon:levels` play payloads, routed: an `open` builds the level's world from the
 //! dimension type the server synced for it, a `run`'s packets go to that world, and a `close`
 //! drops it. A payload the protocol refuses closes the connection with its named reason.
-use super::worlds::{MAX_COLUMNS, ViewedWorld};
-use crate::game::Game;
+use super::{
+    entities::MAX_TABLE,
+    worlds::{MAX_COLUMNS, ViewedWorld, stored_state},
+};
+use crate::game::remote_chunks::section_blocks;
+use crate::game::{Game, remote::Remote};
+use horizon_client::blocks::BlockFacts;
 use horizon_client::{text::Text, viewed_levels_net::MAX_LEVELS, world::World};
 use horizon_protocol::{
     packets::play::{Clientbound as C, SpawnInfo},
-    viewed_levels::{CHANNEL, Message, ViewedLevelsError},
+    registry::DimensionType,
+    viewed_levels::{CHANNEL, MAX_ENTITIES, Message, REVISION, SOUNDS, ViewedLevelsError},
 };
-use horizon_world::dimension_type::DimensionFacts;
+use horizon_world::{dimension_type::DimensionFacts, registry::BlockStateId};
 
 /// Why a `horizon:levels` play payload closes the connection.
 #[derive(Clone, Debug, PartialEq)]
@@ -26,6 +32,13 @@ pub(in crate::game) enum RouteError {
     NotOpen(i32),
     /// A `run`'s chunk of a new column in a world that holds `worlds::MAX_COLUMNS` already.
     TooManyColumns,
+    /// A `run`'s `AddEntity` of a new entity in a world that holds `MAX_ENTITIES` already.
+    TooManyEntities,
+    /// An entity's effect or attribute of a new kind past `entities::MAX_TABLE` of them.
+    EntityTableFull,
+    /// A `SetTime` whose game time, or whose clock's total moved on to it, passes the range of a
+    /// long.
+    ClockOverflow,
 }
 
 impl std::fmt::Display for RouteError {
@@ -46,6 +59,16 @@ impl std::fmt::Display for RouteError {
             Self::TooManyColumns => {
                 write!(f, "{CHANNEL}: a viewed level past {MAX_COLUMNS} columns")
             }
+            Self::TooManyEntities => {
+                write!(f, "{CHANNEL}: a viewed level past {MAX_ENTITIES} entities")
+            }
+            Self::EntityTableFull => {
+                write!(
+                    f,
+                    "{CHANNEL}: an entity past {MAX_TABLE} effects or attributes"
+                )
+            }
+            Self::ClockOverflow => write!(f, "{CHANNEL}: a viewed level's time past its range"),
         }
     }
 }
@@ -54,6 +77,39 @@ impl From<ViewedLevelsError> for RouteError {
     fn from(error: ViewedLevelsError) -> Self {
         Self::Codec(error)
     }
+}
+
+/// Whether a block of `state` has a block entity (`EntityBlock`), as `block_entity_for_block`
+/// decides it for the player's world: a declared type's block, a sign, or a vanilla block entity's
+/// block. A mod's state-aware block is asked at the travel, where its block entity is made.
+fn block_entity_block(facts: &BlockFacts, state: BlockStateId) -> bool {
+    let block = facts.get(state);
+    horizon_client::block_entity_types::type_for(&block.name).is_some()
+        || block.sign_form().is_some()
+        || horizon_client::containers::BlockEntity::for_block(&block.name).is_some()
+}
+
+/// Where a block update puts another block than `world` holds, and its state: the block entity
+/// there goes and the new block's comes (`LevelChunk.setBlockState`); a block's own state change
+/// keeps it.
+fn other_blocks(facts: &BlockFacts, world: &World, packet: &C) -> Vec<([i32; 3], BlockStateId)> {
+    let changes: Vec<([i32; 3], i32)> = match packet {
+        C::BlockUpdate(p) => vec![(p.pos, p.state)],
+        C::SectionBlocksUpdate(p) => section_blocks(p).collect(),
+        _ => return Vec::new(),
+    };
+    let name = |state| &facts.get(state).name;
+    (changes.into_iter())
+        .map(|(pos, state)| (pos, stored_state(state)))
+        .filter(|&([x, y, z], state)| name(world.block(x, y, z)) != name(state))
+        .collect()
+}
+
+/// The id of the world clock a level of `dimension` follows (its `default_clock`) in the
+/// server's registry.
+pub(super) fn default_clock(r: &Remote, dimension: &DimensionType) -> Option<i32> {
+    let name = dimension.default_clock.as_deref()?;
+    r.registries.id("minecraft:world_clock", name)
 }
 
 impl Game<'_> {
@@ -74,16 +130,43 @@ impl Game<'_> {
     }
 
     pub(in crate::game) fn route_viewed_levels(&mut self, data: &[u8]) -> Result<(), RouteError> {
-        match Message::decode(data)? {
+        // A run's sounds are kept only for a listener: without one they are skipped unread.
+        match Message::decode_with(data, REVISION, super::sounds::listened())? {
             Message::Open { level, spawn } => self.open_viewed_level(level, &spawn),
             Message::Run { level, packets } => {
-                let Some(world) = self.remote.as_mut().and_then(|r| r.viewed.get_mut(level)) else {
+                if !self
+                    .remote
+                    .as_ref()
+                    .is_some_and(|r| r.viewed.contains(level))
+                {
                     return Err(RouteError::NotOpen(level));
-                };
+                }
                 for (id, body) in packets {
+                    // A sound plays in the player's level, if a mod says where.
+                    if SOUNDS.contains(&id) {
+                        self.viewed_level_sound(level, id, body)?;
+                        continue;
+                    }
+                    let facts = self.res.facts();
+                    let Some(world) = self.remote.as_mut().and_then(|r| r.viewed.get_mut(level))
+                    else {
+                        return Err(RouteError::NotOpen(level));
+                    };
                     // The codec read each one exactly already.
                     let packet =
                         C::decode(id, body).map_err(|_| ViewedLevelsError::MalformedPacket(id))?;
+                    if let C::BlockEntityData(p) = packet {
+                        let [x, y, z] = p.pos;
+                        let entity_block = block_entity_block(facts, world.world.block(x, y, z));
+                        world.block_entity_data(p, entity_block);
+                        continue;
+                    }
+                    for (pos, state) in other_blocks(facts, &world.world, &packet) {
+                        world.forget_block_entity(pos);
+                        if block_entity_block(facts, state) {
+                            world.placed_block_entity(pos);
+                        }
+                    }
                     world.apply(packet)?;
                 }
                 Ok(())
@@ -116,11 +199,7 @@ impl Game<'_> {
             });
         }
         let format = r.level_format(spawn, self.res.environment());
-        let default_clock = format
-            .dimension
-            .default_clock
-            .as_deref()
-            .and_then(|name| r.registries.id("minecraft:world_clock", name));
+        let default_clock = default_clock(r, &format.dimension);
         let facts = format.facts.clone().unwrap_or_else(|| {
             let key = horizon_core::LevelKey::parse(&spawn.dimension)
                 .unwrap_or(horizon_core::LevelKey::OVERWORLD);

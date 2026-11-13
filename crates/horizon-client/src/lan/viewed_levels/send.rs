@@ -1,7 +1,8 @@
 //! Sending a viewed level, in its level pass: `open` with its clock and weather before its first
 //! chunk, its chunks in runs inside a plain batch that shares the player's acknowledgement budget,
-//! its clock every 20 ticks and its weather as it changes, the chunks no area covered for
-//! [`super::view::LINGER`] ticks forgotten, and `close` once nothing of it is left.
+//! its game time every 20 ticks, its clocks when they jump or change rate and its weather as it
+//! changes, the chunks no area covered for [`super::view::LINGER`] ticks forgotten, and `close`
+//! once nothing of it is left. Its entities go in the tracking pass (`entities`).
 use super::super::hub::{Hub, TickCtx, game_event};
 use super::{areas::MAX_LOADED_PER_PLAYER, view::View};
 use crate::{chunk::Chunk, streaming::Streaming, world::World};
@@ -21,6 +22,43 @@ const MAX_RUN: usize = frame::MAX_FRAME - 64;
 /// The bytes of a run before its first entry: the custom payload's id, the channel, the kind and
 /// the level, at most.
 const RUN_HEAD: usize = 1 + 1 + viewed_levels::CHANNEL.len() + 1 + 5;
+
+/// The clocks a view's client was last told, as `sync_world` keeps them for a level's players:
+/// the Overworld clock's total and rate, and the total and rate of the clock the level follows
+/// when it is not the Overworld's.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Clock {
+    day: i64,
+    rate: f32,
+    level: Option<(i64, f32)>,
+}
+
+impl Clock {
+    /// The clocks of the level in place now, at the Overworld clock's `rate`.
+    fn now(hub: &Hub, world: &World, rate: f32) -> Self {
+        Self {
+            day: hub.overworld_day.unwrap_or(world.day_time),
+            rate,
+            level: (hub.level_clock.as_ref()).map(|&(_, rate)| (world.day_time, rate)),
+        }
+    }
+
+    /// `ServerClockManager.modifyClock`: whether a clock of `now` jumped from what `self` told
+    /// (`time set`, `time add`) past the step one tick at its rate makes, or runs at a new rate.
+    fn changed(&self, now: &Self) -> bool {
+        let jumped = |last: i64, total: i64, rate: f32| {
+            (total - last).abs() > i64::from(rate.ceil() as i32).max(1)
+        };
+        let level = match (self.level, now.level) {
+            (Some((last, last_rate)), Some((total, rate))) => {
+                jumped(last, total, rate) || last_rate != rate
+            }
+            (None, None) => false,
+            _ => true,
+        };
+        jumped(self.day, now.day, now.rate) || self.rate != now.rate || level
+    }
+}
 
 /// One player's runs of one level: packets in order, a new payload whenever the next would pass
 /// a frame's limit.
@@ -138,6 +176,7 @@ impl Hub {
         self.broadcast_light_changes(world);
         self.broadcast_block_changes(world);
         self.send_viewed(ctx);
+        self.track_entities(ctx);
         true
     }
 
@@ -157,7 +196,7 @@ impl Hub {
             }
             if self.open_view(i, level as i32, ctx) && self.update_viewed(i) {
                 self.send_view_batch(i, ctx.world, ctx.streaming);
-                self.send_view_state(i, ctx.world);
+                self.send_view_state(i, ctx.world, ctx.clock_rate);
             }
             self.guests.update(i, |g| g.viewed.recount(&active));
         }
@@ -201,7 +240,7 @@ impl Hub {
         if g.viewed.views.contains_key(dimension) {
             return true;
         }
-        if g.viewed.views.len() >= usize::from(g.sender.max_viewed_levels) {
+        if g.viewed.views.len() >= usize::from(g.sender.viewed_levels.max_levels) {
             return false;
         }
         let spawn = self.spawn_info(i, 0, ctx.sea_level);
@@ -218,10 +257,12 @@ impl Hub {
             }
         }
         let weather = (w.raining, w.rain_level.1, w.thunder_level.1);
+        let clock = Clock::now(self, ctx.world, ctx.clock_rate);
         let dimension = dimension.clone();
         self.guests.update(i, |g| {
             let mut view = View::new(level);
             view.weather = weather;
+            view.clock = clock;
             g.viewed.views.insert(dimension, view);
             g.sender.send(viewed_levels::open(level, &spawn));
             g.sender.send_many(runs.finish());
@@ -285,16 +326,24 @@ impl Hub {
     }
 
     /// The level's game time every 20 ticks (`MinecraftServer.forceGameTimeSynchronization`, as
-    /// `sync_world`), and its weather as it changes.
-    fn send_view_state(&mut self, i: usize, world: &World) {
+    /// `sync_world`), every clock when one jumped or changed rate (`time set`, `time add`, a
+    /// clock paused or sped up: `ServerClockManager.modifyClock`), and its weather as it changes.
+    fn send_view_state(&mut self, i: usize, world: &World, clock_rate: f32) {
         let dimension = self.config.dimension.clone();
         let sync_time = self.ticks.is_multiple_of(20);
+        let clock = Clock::now(self, world, clock_rate);
+        let clocks = (self.guests[i].viewed.view(&dimension))
+            .filter(|view| view.clock.changed(&clock))
+            .map(|_| self.time_packet(world, clock_rate).encode());
         self.guests.update(i, |g| {
             let Some(view) = g.viewed.views.get_mut(&dimension) else {
                 return;
             };
             let mut runs = Runs::new(view.level);
-            if sync_time {
+            view.clock = clock;
+            if let Some(clocks) = &clocks {
+                runs.push(clocks);
+            } else if sync_time {
                 runs.push(
                     &C::SetTime(play::SetTime {
                         game_time: world.game_time,
@@ -330,12 +379,18 @@ impl Hub {
     /// Sends `packet` to the players whose client views the level in place and holds chunk
     /// `key` of it, wrapped (block events and level events near a viewed chunk).
     pub(in crate::lan) fn send_viewers_of(&self, key: (i32, i32), packet: &C) {
+        self.send_to_views(|view| view.sent.contains(&key), packet);
+    }
+
+    /// Sends `packet`, wrapped, to the players whose client views the level in place in a view
+    /// `holds` picks.
+    pub(super) fn send_to_views(&self, holds: impl Fn(&View) -> bool, packet: &C) {
         if !self.viewed.active() {
             return;
         }
         let mut body = None;
         for g in self.guests.iter() {
-            if let Some(view) = self.view_here(g).filter(|v| v.sent.contains(&key)) {
+            if let Some(view) = self.view_here(g).filter(|v| holds(v)) {
                 let body = body.get_or_insert_with(|| packet.encode());
                 let mut runs = Runs::new(view.level);
                 runs.push(body);

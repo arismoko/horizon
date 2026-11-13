@@ -154,20 +154,23 @@ Each mob and player in view gets the render hook pair once a frame, NeoForge's
 1. `render_player_pre(player, who, draw, hidden, canceled)`, for a player only (`who` is its
    profile name and whether it is this window's own);
 2. `render_living_pre(entity, draw, hidden, canceled)`, before the entity's model;
-3. the model, its vanilla layers and the layers mods added to its type
+3. the model and its vanilla layers, or in their place the renderer a mod registered for its type
+   ([entity renderers](entity-renderers.md)), then the layers mods added to its type
    ([entity layers](entity-layers.md));
 4. `render_living_post(entity, parts, draw)`;
 5. `render_player_post(player, who, parts, draw)`, for a player only.
 
 The order today: the model and the layers are drawn before the post hooks; the entity's name tag, leash, flames
 and shadow are drawn in the frame's later passes, after them. The reference draws the leash and the name tag
-before the post (and queues the flames and the shadow after it): tracked in #3915.
+before the post (and queues the flames and the shadow after it): tracked in #3915. A type with a registered
+renderer has the same order, the renderer in the model's place, so it changes with #3915 too.
 
 `draw` starts at the entity's feet, turned with its body (+z the way it faces, +x its left, +y up,
 in blocks), and keeps what each hook draws. Setting `canceled` in a pre hook skips everything else
-of that entity this frame: its model, its layers, its name tag, shadow, flames, leash and glowing
-outline, and the post hooks. A mod that draws a model of its own draws it in `render_living_pre` and
-cancels; one that wants the name tag or the shadow then draws them itself, or doesn't cancel.
+of that entity this frame: its model (or its type's registered renderer), its layers, its name tag,
+shadow, flames, leash and glowing outline, and the post hooks. A mod that draws one entity's model of
+its own draws it in `render_living_pre` and cancels; one that draws every entity of a type registers
+a renderer for the type instead; one that wants the name tag or the shadow then draws them itself, or doesn't cancel.
 Canceling only `render_living_pre` of a player still asks its `render_player_post`. An entity the
 frame culls gets neither hook. The game asks once a frame whether any mod listens to the four, and
 with none builds nothing for them.

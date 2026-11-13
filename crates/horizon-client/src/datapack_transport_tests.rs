@@ -32,6 +32,7 @@ fn snapshot(generation: u64, text: String) -> DatapackSnapshot {
 }
 
 #[test]
+#[ignore = "daily"]
 fn incompressible_large_registry_snapshot_fits_each_frame_and_activates_only_when_complete() {
     // The real receiver is process-wide, as is a real client's connection. Keep this
     // fixture away from parallel Session tests that legitimately clear that receiver.

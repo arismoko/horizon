@@ -216,6 +216,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn reads_only_regular_root_catalogs() {
         let bytes = archive(
             "./internals.json",

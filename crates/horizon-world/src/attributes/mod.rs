@@ -79,6 +79,29 @@ pub enum Sentiment {
     /// Rising red, falling blue.
     Negative,
 }
+/// How an attribute's modifier lines read on a tooltip: NeoForge's `RangedAttribute`,
+/// `PercentageAttribute` and `BooleanAttribute`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Display {
+    /// Added values as numbers, multiplied ones as percentages: vanilla's.
+    #[default]
+    Ranged,
+    /// Added values as percentages too (`+5%` for `+0.05`).
+    Percentage,
+    /// On or off: an added value above zero enables, any other disables.
+    Boolean,
+}
+/// What an attribute's tooltip lines take from its declaration (NeoForge's
+/// `IAttributeExtension`): the colour, the display, and the modifier shown as the green
+/// total of the player's base and its amount, as `minecraft:base_attack_damage` is for attack
+/// damage. Vanilla's attributes keep the default: their colours stay where the tooltip reads them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tooltip {
+    pub sentiment: Sentiment,
+    pub display: Display,
+    /// The namespaced id of the attribute's base modifier (`getBaseId`), if it has one.
+    pub base_modifier: Option<String>,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Definition {
@@ -108,6 +131,15 @@ impl Definition {
     /// none for an attribute without them.
     pub fn bounds(self) -> Option<(f64, f64)> {
         self.range
+    }
+    /// The definition with its bounds widened to take `[min, max]` in: the
+    /// lower of the two minimums and the higher of the two maximums. The
+    /// default stays; an attribute without bounds stays without them.
+    pub fn widened(self, min: f64, max: f64) -> Self {
+        Self {
+            default: self.default,
+            range: self.range.map(|(low, high)| (low.min(min), high.max(max))),
+        }
     }
     pub fn sanitize(self, value: f64) -> f64 {
         let Some((min, max)) = self.range else {

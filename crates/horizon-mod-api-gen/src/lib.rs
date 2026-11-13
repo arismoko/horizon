@@ -731,6 +731,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn fragment_hooks_generate() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let catalog = super::Catalog::load(&root).unwrap();
@@ -953,6 +954,7 @@ mod tests {
     /// generator brings back the shipped file byte for byte with the generated
     /// code unchanged.
     #[test]
+    #[ignore = "daily"]
     fn new_hook_placeholder_is_reported_then_filled() {
         fn copy(from: &std::path::Path, to: &std::path::Path) {
             if from.is_dir() {

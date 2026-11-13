@@ -226,6 +226,9 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
             event.stack.count = 29;
         }
         fn loot_condition(&self, event: &mut mod_api::LootConditionEvent<'_>) {
+            if loot_query::guest_condition(event) {
+                return;
+            }
             let tag = event
                 .tags
                 .key(&mod_api::Identifier::parse("test:ingredients").unwrap())
@@ -257,8 +260,9 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
         fn register(
             &self,
             registrar: &mut dyn mod_api::Registrar,
-            _: &mod_api::RegistrationContext,
+            cx: &mod_api::RegistrationContext,
         ) {
+            cx.warn("wire_test.warn.optional", &["café", "jei"]);
             arm_pose_registration::check(registrar);
             biome_region_registration::register(registrar);
             REGISTERED_ITEM.set(Some(registrar.item_key("minecraft:stone")));
@@ -401,6 +405,13 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
             )));
             *event.remaining = None;
         }
+        fn viewed_level_sound(
+            &self,
+            _: &mut dyn mod_api::ClientHost,
+            event: &mut mod_api::ViewedLevelSoundEvent<'_>,
+        ) {
+            viewed_level_sound::listen(event);
+        }
         fn item_toss(
             &self,
             _: &mut dyn mod_api::ServerHost,
@@ -424,6 +435,13 @@ fn __horizon_mod_hooks() -> Box<dyn Hooks> {
             } else {
                 event.value = mod_api::GameRuleValue::Bool(false);
             }
+        }
+        fn container_loot_filled(
+            &self,
+            _: &dyn mod_api::LevelHost,
+            event: &mut mod_api::ContainerLootFilledEvent<'_>,
+        ) {
+            container_loot_filled::listen(event);
         }
         fn item_fished(
             &self,

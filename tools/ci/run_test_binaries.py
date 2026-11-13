@@ -10,6 +10,15 @@ toolchain's libraries; this is close to `cargo test`'s environment, not all of i
 binary and is printed whole when the binary ends. Binaries start largest first, since the largest are the slow ones.
 Every binary runs; one that fails, crashes, is killed or cannot start fails the run, and the run ends with a list of
 the failing binaries and their failed tests' names. A listing with no test binaries fails too.
+
+`--time-limits WARN,FAIL` (verify uses `2,5`) is the unit tier's timing guard (CONTRIBUTING.md "CI tiers"): every
+binary also gets libtest's `-Z unstable-options --report-time`, which adds each test's time to its result line
+(`test a::b ... ok <0.012s>`) and changes nothing else: the same tests run and fail the same way. Those flags need
+RUSTC_BOOTSTRAP=1, set in the test processes only (never for the build), so a test's own child processes inherit it.
+A test over FAIL seconds fails the run by name, with the instruction to move it to the daily run; one over WARN is
+a warning. The run ends with the slowest five tests and the summed test seconds. (libtest's own `--ensure-time`
+was the alternative: it fails a slow test inside the binary with libtest's words, not the instruction, and needs a
+threshold variable per kind of test target.)
 """
 import argparse
 import json
@@ -83,30 +92,57 @@ def run_one(binary: dict, extra_env: dict, test_args: list[str]) -> dict:
     return result
 
 
-def report(result: dict) -> list[str]:
-    """Print one finished binary's output, streamed from its file, and return its failed test names."""
+# A libtest result line, with the time --report-time adds.
+RESULT = re.compile(r"^test (\S+)(?: - should panic)? \.\.\. (ok|FAILED)(?: <(\d+(?:\.\d+)?)s>)?$")
+
+
+def report(result: dict) -> tuple[list[str], list[tuple[float, str]]]:
+    """Print one finished binary's output, streamed from its file; return its failed test names and test times."""
     print(f"     Running {result['binary']['label']} [{result['seconds']:.1f}s, "
           f"max RSS {result['max_rss_kib'] // 1024} MiB]")
-    output, failed_tests = result["output"], []
+    output, failed_tests, times = result["output"], [], []
     output.seek(0)
     for line in output:
         print(line, end="")
-        if found := re.match(r"test (\S+) \.\.\. FAILED$", line.rstrip("\n")):
-            failed_tests.append(found[1])
+        if found := RESULT.match(line.rstrip("\n")):
+            if found[2] == "FAILED":
+                failed_tests.append(found[1])
+            if found[3] is not None:
+                times.append((float(found[3]), found[1]))
     output.close()
     print(flush=True)
-    return failed_tests
+    return failed_tests, times
+
+
+def timing_verdict(times: list[tuple[float, str, str]], warn: float, fail: float) -> tuple[list[str], list[str]]:
+    """(errors, warnings) for tests over `fail` and over `warn` seconds; `times` holds (seconds, test, binary)."""
+    errors, warnings = [], []
+    for seconds, test, label in sorted(times, reverse=True):
+        if seconds > fail:
+            errors.append(f"{label}: {test} took {seconds:.2f}s, over the unit tier's {fail:g} s limit: mark it "
+                          '#[ignore = "daily"] and add its row (tools/ci/move_to_daily.py, '
+                          "tools/ci/ignored-tests/README.md), or make it faster")
+        elif seconds > warn:
+            warnings.append(f"{label}: {test} took {seconds:.2f}s, over the unit tier's {warn:g} s target")
+    return errors, warnings
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--jobs", type=int, required=True, help="test binaries running at once")
+    parser.add_argument("--time-limits", metavar="WARN,FAIL", help="seconds: warn about a test over WARN, fail one "
+                        "over FAIL (adds libtest's --report-time)")
     parser.add_argument("cargo", nargs=argparse.REMAINDER,
                         help="the cargo test command, after --; arguments after its own -- go to every test binary")
     args = parser.parse_args(argv)
     command = args.cargo[1:] if args.cargo[:1] == ["--"] else args.cargo
     command, test_args = (command[:command.index("--")], command[command.index("--") + 1:]) if "--" in command \
         else (command, [])
+    limits = None
+    if args.time_limits:
+        warn, _, fail = args.time_limits.partition(",")
+        limits = float(warn), float(fail)
+        test_args = ["-Z", "unstable-options", "--report-time", *test_args]
     listing = subprocess.run([*command, "--no-run", "--message-format=json-render-diagnostics"],
                              stdout=subprocess.PIPE, text=True)
     if listing.returncode:
@@ -136,16 +172,28 @@ def main(argv: list[str]) -> int:
     print(f"library path: {library_path}", flush=True)
     extra_env = {"LD_LIBRARY_PATH": library_path,
                  "CARGO": str(toolchain_cargo) if toolchain_cargo.is_file() else os.environ.get("CARGO", "cargo")}
+    if limits:
+        extra_env["RUSTC_BOOTSTRAP"] = "1"
     print(f"running {len(binaries)} test binaries, {args.jobs} at a time", flush=True)
-    failures, peaks, started = [], [], time.monotonic()
+    failures, peaks, times, started = [], [], [], time.monotonic()
     with ThreadPoolExecutor(args.jobs) as pool:
         for result in pool.map(lambda b: run_one(b, extra_env, test_args), binaries):
-            failed_tests = report(result)
+            failed_tests, binary_times = report(result)
+            times.extend((seconds, test, result["binary"]["label"]) for seconds, test in binary_times)
             peaks.append((result["max_rss_kib"], result["binary"]["label"]))
             if result["status"] != "ok":
                 failures.append((result["binary"]["label"], result["status"], failed_tests))
     print(f"ran {len(binaries)} test binaries in {time.monotonic() - started:.1f}s; {len(failures)} failed")
     print("largest resident sets: " + ", ".join(f"{label} {kib // 1024} MiB" for kib, label in sorted(peaks)[-5:][::-1]))
+    slow = []
+    if limits:
+        slow, warnings = timing_verdict(times, *limits)
+        print(f"{len(times)} tests timed, {sum(seconds for seconds, _, _ in times):.1f} test-seconds in total; "
+              "slowest: " + ", ".join(f"{test} {seconds:.2f}s" for seconds, test, _ in sorted(times)[-5:][::-1]))
+        for warning in warnings:
+            print(f"::warning::{warning}")
+        for error in slow:
+            print(f"::error::{error}")
     if failures:
         # At the end, where a log tail shows it: every failing binary and its failed tests' names.
         print("FAILED TESTS")
@@ -153,7 +201,7 @@ def main(argv: list[str]) -> int:
             print(f"::error::{label}: {status}")
             for name in failed_tests:
                 print(f"    {name}")
-    return 1 if failures else 0
+    return 1 if failures or slow else 0
 
 
 if __name__ == "__main__":

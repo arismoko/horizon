@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ScreenMouseFocusTests(unittest.TestCase):
     def test_cancel_precedes_widget_focus(self):
-        game = (ROOT / "crates/horizon-client/src/game/runtime/window_handler.rs").read_text()
+        game = (ROOT / "crates/horizon-client/src/game.rs").read_text()
         pre = game.index("// ScreenEvent.MouseButtonPressed.Pre")
         focus = game.index("self.key_focus_mouse_press(&event)")
         self.assertLess(game.index("self.key_focus_mouse(event_loop, &event)"), pre)

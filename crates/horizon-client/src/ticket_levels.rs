@@ -1049,6 +1049,7 @@ mod tests {
 
     /// The grid answers as the map does, everywhere around the tickets.
     #[test]
+    #[ignore = "daily"]
     fn grid_matches_the_map() {
         let mut seed = 0x2545_f491_4f6c_dd1du64;
         let mut next = |n: i32| {
@@ -1455,6 +1456,7 @@ mod tests {
 mod tiled_tests {
     use super::*;
     #[test]
+    #[ignore = "daily"]
     fn tiles_match_scalar_levels_with_overlaps_and_portals() {
         let mut seed = 0x2545_f491_4f6c_dd1du64;
         let mut next = |n: i32| {

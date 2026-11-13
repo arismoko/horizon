@@ -78,7 +78,9 @@ impl Game<'_> {
             }
             return;
         }
-        drop_unleashable_leash(&mut tag, &kind, is_mob);
+        if !super::super::general::quarantined_kind(&kind) {
+            drop_unleashable_leash(&mut tag, &kind, is_mob);
+        }
         let uuid = entity_nbt::uuid(&tag);
         // This shortcut deduplicates disk copies, never explicit runtime ownership.
         if transferred.is_none() && uuid.is_some_and(|u| self.restored_vehicle(u).is_some()) {

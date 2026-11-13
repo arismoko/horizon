@@ -4,10 +4,13 @@
 launcher installation command, not a native mod build route. It runs the checkout's packaging
 code with your rights and requires `--trust-unsigned`.
 
-Commit tracked changes, build the game and companion programs, and prepare compatible exporters
-from your own Minecraft installation before installing:
+Commit tracked changes, build the game and companion programs, generate the wasm standard library
+beside the game, and prepare compatible exporters from your own Minecraft installation before
+installing. The packager copies `horizon-wasm-std.wasm` from the game's folder for every developer
+base, whether the mods you build are native or wasm; the command names it if it is missing:
 
 ```sh
+cargo run --locked -p cargo-horizon-mod -- wasm-std CHECKOUT/target/debug/horizon-wasm-std.wasm
 horizon-launcher developer-install CHECKOUT --program CHECKOUT/target/debug/horizon-client --trust-unsigned
 ```
 

@@ -369,3 +369,49 @@ impl Game<'_> {
         });
     }
 }
+
+impl Game<'_> {
+    /// Save the level in place: its changed chunks, its entities and its raids.
+    pub(super) fn save_level(&mut self, wait: bool) -> Result<()> {
+        self.admit_level_save()?;
+        self.save_border();
+        self.save_chunk_tickets()?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            match self.streaming.prepare_save(&mut self.world, wait, deadline) {
+                horizon_client::streaming::SaveStep::Full(chunk) => {
+                    self.native_late_full_chunk_snapshot(&chunk);
+                    self.streaming.save_finished(chunk);
+                }
+                horizon_client::streaming::SaveStep::Protos(protos) => {
+                    self.native_proto_snapshots(&protos);
+                    self.streaming.finish_save(protos, wait);
+                    break;
+                }
+                horizon_client::streaming::SaveStep::Pending => unreachable!(),
+            }
+        }
+        let keys: Vec<_> = self.world.modified.iter().copied().collect();
+        self.save.save_attachments(&self.world.attachments)?;
+        for key in &keys {
+            self.world.modified.remove(key);
+        }
+        let chunks = self.with_entities(keys.iter().filter_map(|k| self.world.chunks.get(k)));
+        self.native_full_chunk_snapshots(&chunks);
+        self.save
+            .save_later(&chunks, self.pack.assets.registry, world_biomes!(self))?;
+        // Prepare entities while the chunk writer runs, then use one barrier.
+        if !wait {
+            self.world.modified.autosaved(&keys, Instant::now());
+        }
+        self.save_entities(false)?;
+        self.save_raids();
+        if wait {
+            self.save.flush()?;
+        }
+        if mod_api::__private::listened(mod_api::HookId::LevelSave) {
+            self.native_level_save(self.dim.id());
+        }
+        Ok(())
+    }
+}

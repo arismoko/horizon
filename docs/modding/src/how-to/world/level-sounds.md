@@ -37,3 +37,31 @@ instance across those calls. At an update only volume and pitch edits apply;
 `None` stops playback. Invalid edited volume (negative or non-finite) or pitch
 (non-positive or non-finite) refuses that refresh. Updates do not replay the sound,
 resolve a different source, or modify the instance's stored settings.
+
+## Sounds of viewed levels
+
+A client mod that shows another level, as Immersive Portals shows a portal's far side, hears it
+through `viewed_level_sound`, a client-only Horizon hook with no NeoForge counterpart. The server
+sends a level's sounds to a client that views it, from `horizon:levels` revision 3: only to one
+whose chunks of that level hold the sound's chunk, and whose area there has its centre chunk within
+the sound's broadcast distance plus 16 blocks. The engine plays none of them by itself. The hook
+gets the viewed level's handle, the sound, its source, its position in that level, its volume,
+pitch and seed, and `play_at`, which starts as `None`:
+
+```rust,ignore
+fn viewed_level_sound(&self, _: &mut dyn ClientHost, e: &mut ViewedLevelSoundEvent) {
+    // Through the nearest portal: where it opens in the player's level, and quieter with distance.
+    if let Some((opening, distance)) = self.portal_towards(e.level, e.position) {
+        *e.play_at = Some(opening);
+        e.volume = (e.volume - distance as f32 / 16.0).max(0.0);
+    }
+}
+```
+
+Left `None`, the sound is not played. Set, it plays at that position in the player's level as a
+sound packet of that level plays (no distance delay), with the volume and pitch the listeners left
+and the server's seed. A `play_at` that is not finite, or a volume or pitch that is not finite and at
+least 0, plays nothing. Which portal and how loud are the mod's to decide. Sounds of the player's own
+level never ask this hook. A sound bound to an entity of a viewed level comes with that entity's
+position there, is sent only while the client tracks the entity there, and plays at `play_at`
+without following it. With no listener a viewed sound costs one check.

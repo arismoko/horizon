@@ -10,6 +10,7 @@ use wgpu::util::DeviceExt;
 /// matrix holds a third of 16777 rounded to a float, which leaves an error near 1e-4 after the
 /// subtraction.
 #[test]
+#[ignore = "daily"]
 fn ftransform_applies_the_model_view_matrix_before_the_projection() {
     let _gpu = crate::gfx::test_gpu::lock();
     let instance = crate::gfx::test_gpu::instance();

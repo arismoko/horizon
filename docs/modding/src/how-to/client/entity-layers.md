@@ -77,7 +77,9 @@ carry over, so add them each time. The event also tells what renderers this load
   of its own which doesn't run layers yet (the armour stand, the ender dragon): the `Err` names the
   target, and the game logs it too.
 - Several mods may add to one target: the layers draw in the order they were added, after the
-  entity's model and its vanilla layers.
+  entity's model and its vanilla layers. On a type a mod registered a renderer for
+  ([entity renderers](entity-renderers.md)), they draw after that renderer, which replaces the model
+  and the vanilla layers, and `parts` is none: the renderer's model has no vanilla parts.
 - An entity whose `render_living_pre` or `render_player_pre` a mod canceled draws none of its layers,
   as NeoForge's canceled `RenderLivingEvent.Pre` skips them.
 - `submit` returns `Ok(())` to keep what it drew. A layer that returns an `Err`, panics, or (in a wasm

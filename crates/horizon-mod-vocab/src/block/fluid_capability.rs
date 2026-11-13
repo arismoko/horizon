@@ -142,19 +142,20 @@ impl FluidIngredient {
         // the file, as a kind outside these does.
         let keys = std::cell::RefCell::new(std::collections::HashMap::new());
         let unknown = std::cell::RefCell::new(None);
-        let source = WalkedIngredient::walk_resolved(v, &tags, &|_| None, &|_| None, &|id| {
-            let Some(key) = context.fluid_key(id) else {
-                *unknown.borrow_mut() = Some(id.to_owned());
-                return None;
-            };
-            let canonical = if id.contains(':') {
-                id.to_owned()
-            } else {
-                format!("minecraft:{id}")
-            };
-            keys.borrow_mut().insert(canonical.clone(), key);
-            Some(canonical)
-        });
+        let source =
+            WalkedIngredient::walk_resolved(v, &tags, &|_| None, &|_| None, &|_| None, &|id| {
+                let Some(key) = context.fluid_key(id) else {
+                    *unknown.borrow_mut() = Some(id.to_owned());
+                    return None;
+                };
+                let canonical = if id.contains(':') {
+                    id.to_owned()
+                } else {
+                    format!("minecraft:{id}")
+                };
+                keys.borrow_mut().insert(canonical.clone(), key);
+                Some(canonical)
+            });
         fn nonempty_tree(source: &WalkedIngredient) -> bool {
             !source.order.is_empty()
                 && source

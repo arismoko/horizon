@@ -1078,6 +1078,7 @@ mod tests {
     /// `serversettings/status_heartbeat_interval/set`: the heartbeat of a server that started with none begins
     /// at once, and one that was on stops, with no restart; the interval the server reports follows.
     #[test]
+    #[ignore = "daily"]
     fn the_heartbeat_interval_can_change_while_the_server_runs() {
         let shared = shared();
         let address = listen_on(shared.clone(), settings());

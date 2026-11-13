@@ -207,6 +207,7 @@ fn remote_reload_never_decodes_local_registry_files() {
 #[test]
 #[ignore = "needs prepared resources and isolated homes"]
 fn refused_reload_names_the_pack_and_keeps_the_old_generation() {
+    let _publication = horizon_client::datapack_net::isolate_server_publication();
     let scratch = tempfile::tempdir().unwrap();
     let root = scratch.path();
     let pack = root.join("datapacks/override");

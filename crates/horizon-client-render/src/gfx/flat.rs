@@ -1413,7 +1413,11 @@ mod tests {
             &mut segments,
         );
         assert_eq!(plan.solid_calls, 3);
-        assert_eq!(plan.marks, [4, 5, 6, 7, 8, 8, 8, 8, 8, 8]);
+        // the views not asked for start at the end
+        assert_eq!(
+            plan.marks,
+            [4, 5, 6, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
+        );
         let call = |page, first, count| Call { page, first, count };
         assert_eq!(
             &calls[3..],

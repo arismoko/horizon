@@ -1857,74 +1857,13 @@ impl Game<'_> {
             }
         }
         details.start("minecraft:attribute_modifiers", lines.len());
-        {
-            let shown_modifiers = display.shows("minecraft:attribute_modifiers");
-            // The item's own modifiers, then its enchantments' for each slot
-            // group (`ItemStack.forEachModifier`).
-            let mut modifiers =
-                horizon_client::item_attributes::attribute_modifiers(stack, self.items())
-                    .into_owned();
-            modifiers.extend(e.modifier_rows(stack));
-            let base = |name: &str, default| {
-                self.player
-                    .as_ref()
-                    .and_then(|player| {
-                        let key = player.attributes.key(name)?;
-                        let handle = player.attributes.lookup(Some(&key))?;
-                        player
-                            .attributes
-                            .instance(&handle)
-                            .ok()
-                            .map(|value| value.base_value())
-                    })
-                    .unwrap_or(default)
-            };
-            let player_base = (!nested).then(|| {
-                [
-                    base("minecraft:attack_damage", 1.0),
-                    base(
-                        "minecraft:attack_speed",
-                        horizon_client::attack_strength::BASE_ATTACK_SPEED,
-                    ),
-                ]
-            });
-            let context = horizon_client::item_tooltip::AttributeTooltipContext {
-                player_base,
-                advanced,
-                creative,
-            };
-            // `AttributeUtil.addAttributeTooltips`: the one builder the recipe search shares,
-            // with the mods' skipped modifiers and added lines. A nested stack has no player.
-            let listener = crate::game::native_hooks::HookedAttributeTooltips::new(
-                self,
-                (!nested).then(|| (self.own_uuid(), self.own_entity_id())),
-            );
-            let listener: &dyn horizon_client::item_tooltip::AttributeTooltipListener =
-                if mod_callbacks {
-                    &listener
-                } else {
-                    &horizon_client::item_tooltip::NoAttributeListener
-                };
-            let catalog = &self.motion.attributes;
-            let sentiment = |attribute: &str| {
-                catalog
-                    .id(attribute)
-                    .map(|id| catalog.attribute(id).sentiment)
-            };
-            let (modifier_lines, added) = horizon_client::item_tooltip::attribute_tooltip(
-                stack,
-                &modifiers,
-                &context,
-                shown_modifiers,
-                listener,
-                &translate,
-                &sentiment,
-            );
-            for (text, c) in modifier_lines {
-                push(&mut lines, text, c);
-            }
-            lines.extend(added);
+        let shown = display.shows("minecraft:attribute_modifiers");
+        let (modifier_lines, added) =
+            self.stack_attribute_tooltip(stack, shown, nested, advanced, creative, mod_callbacks);
+        for (text, c) in modifier_lines {
+            push(&mut lines, text, c);
         }
+        lines.extend(added);
         details.start("minecraft:unbreakable", lines.len());
         // ItemStack.UNBREAKABLE_TOOLTIP.
         if let Some(text) =

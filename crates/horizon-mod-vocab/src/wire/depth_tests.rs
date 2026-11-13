@@ -38,6 +38,8 @@ fn ingredient_at_limit_decodes_and_one_record_past_returns_wire_error() {
     past_limit.put(&parent.order);
     past_limit.put(&parent.custom);
     past_limit.put(&Some((Shape::Compound, vec![ingredient])));
+    past_limit.put(&parent.rule);
+    past_limit.put(&parent.display);
     assert_eq!(past_limit.error(), None);
     assert!(matches!(
         Reader::decode::<Ingredient>(past_limit.bytes()),
@@ -274,4 +276,42 @@ fn json_backed_codecs_preflight_before_serde_recursion() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[test]
+fn ingredient_shape_contract_keeps_existing_tags_and_adds_custom_display_at_three() {
+    for (shape, bytes) in [
+        (Shape::Compound, [0, 0, 0, 0]),
+        (Shape::Intersection, [1, 0, 0, 0]),
+        (Shape::Difference, [2, 0, 0, 0]),
+        (Shape::CustomDisplay, [3, 0, 0, 0]),
+    ] {
+        let mut out = Writer::new();
+        out.put(&shape);
+        assert_eq!(out.bytes(), bytes);
+        assert_eq!(Reader::decode::<Shape>(&bytes).unwrap(), shape);
+    }
+}
+
+#[test]
+fn boxed_ingredient_metadata_preserves_its_value_encoding() {
+    let rule = Some(crate::item::crafting::IngredientRule::Components {
+        patch: [("minecraft:damage".into(), Tag::Int(5))].into(),
+        removed: vec!["minecraft:enchantments".into()],
+        strict: true,
+    });
+    let mut inline = Writer::new();
+    inline.put(&rule);
+    let mut boxed = Writer::new();
+    boxed.put(&rule.map(Box::new));
+    assert_eq!(inline.bytes(), boxed.bytes());
+    let display = Some(horizon_core::nbt::Compound::from([
+        ("type".into(), Tag::String("minecraft:item".into())),
+        ("item".into(), Tag::String("minecraft:diamond".into())),
+    ]));
+    let mut inline = Writer::new();
+    inline.put(&display);
+    let mut boxed = Writer::new();
+    boxed.put(&display.map(Box::new));
+    assert_eq!(inline.bytes(), boxed.bytes());
 }

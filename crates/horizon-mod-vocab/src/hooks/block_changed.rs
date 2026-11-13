@@ -8,7 +8,7 @@ pub trait Hooks {
         side = "server",
         contract = "listen",
         target = "horizon_client::game::native_hooks::base::GameLevel<'_>::native_block_changed",
-        neoforge = "none (NeoForge has no set-block event; IBlockExtension.onBlockStateChange runs after the change and may not modify the level)"
+        neoforge = "none (NeoForge has no set-block event; IBlockExtension.onBlockStateChange is the block part hook on_block_state_change, at the end of the write)"
     )]
     fn block_changed();
 }

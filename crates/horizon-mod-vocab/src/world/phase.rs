@@ -596,6 +596,7 @@ pub struct RegistrationContext {
     pub(crate) data: Option<RegistrationData>,
     pub(crate) declaration_refusals: std::sync::Mutex<Vec<String>>,
     pub(crate) self_refusal: std::sync::Mutex<Option<String>>,
+    pub(crate) warnings: std::sync::Mutex<Vec<crate::LoadingMessage>>,
     pub(crate) instance_dir: Option<crate::InstanceDirectory>,
     pub(crate) runtime: Option<crate::RuntimeEnvironment>,
 }
@@ -610,6 +611,7 @@ impl RegistrationContext {
             data,
             declaration_refusals: Default::default(),
             self_refusal: Default::default(),
+            warnings: Default::default(),
             instance_dir,
             runtime,
         }
@@ -901,6 +903,15 @@ pub trait WorldgenHost {
 
     /// The same loaded-mod view available during registration.
     fn mods(&self) -> LoadedMods;
+
+    /// `BlockState.setValue`: `state` with its property `key` set to `value`; `state` itself
+    /// when it already has that value, None when its block has no such property or value.
+    fn state_with_property(
+        &self,
+        state: crate::BlockState,
+        key: &str,
+        value: &str,
+    ) -> Option<crate::BlockState>;
 }
 
 // no wire: borrowed phase-scoped host readers; authority stays with their owning thread.
@@ -911,18 +922,26 @@ pub trait WorldgenHost {
 pub struct OwningWorldgen<'a> {
     registry: &'a dyn Fn(&str) -> Option<Arc<[String]>>,
     setting: &'a dyn Fn(&str, &str) -> Option<String>,
+    state_with_property: &'a StateWithProperty<'a>,
     mods: LoadedMods,
 }
 
+/// `BlockState.setValue` as the game answers it for [`OwningWorldgen`].
+type StateWithProperty<'a> =
+    dyn Fn(crate::BlockState, &str, &str) -> Option<crate::BlockState> + 'a;
+
 impl<'a> OwningWorldgen<'a> {
-    /// The server's registries and mod settings, read through the game's worldgen context.
+    /// The server's registries, mod settings and block states, read through the game's
+    /// worldgen context.
     pub fn new(
         registry: &'a dyn Fn(&str) -> Option<Arc<[String]>>,
         setting: &'a dyn Fn(&str, &str) -> Option<String>,
+        state_with_property: &'a StateWithProperty<'a>,
     ) -> Self {
         Self {
             registry,
             setting,
+            state_with_property,
             mods: LoadedMods::new(),
         }
     }
@@ -937,6 +956,14 @@ impl WorldgenHost for OwningWorldgen<'_> {
     }
     fn mods(&self) -> LoadedMods {
         self.mods.clone()
+    }
+    fn state_with_property(
+        &self,
+        state: crate::BlockState,
+        key: &str,
+        value: &str,
+    ) -> Option<crate::BlockState> {
+        (self.state_with_property)(state, key, value)
     }
 }
 

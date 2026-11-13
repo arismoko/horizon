@@ -2254,15 +2254,7 @@ impl Game<'_> {
                 } => self.landing_dust(state, Vec3::new(at[0], at[1], at[2]), count, speed),
                 MobEvent::SquidCycle { mob, at } => self.lan_entity_event(mob as i32, 19, at),
                 MobEvent::RabbitHop { mob, at } => self.lan_entity_event(mob as i32, 1, at),
-                MobEvent::Drown { mob, at } => {
-                    self.lan_entity_event(mob as i32, super::combat::DROWN_EVENT, at);
-                    let v = self
-                        .mobs
-                        .iter()
-                        .find(|m| m.id == mob)
-                        .map_or([0.0; 3], |m| [m.velocity.x, m.velocity.y, m.velocity.z]);
-                    self.drown_particles(at, v);
-                }
+                MobEvent::Drown { mob, at, bubbles } => self.mob_drown(mob, at, bubbles),
                 MobEvent::PowderSnowParticle { at, velocity } => {
                     self.snowflake_particle(at, velocity);
                 }
@@ -7900,34 +7892,7 @@ impl Game<'_> {
             self.mark_motion(entity_start, (1 << 32) | u64::from(mob.id));
             self.mark_entity(entity_start, &mob.kind.id);
             self.rendered_mobs.set(self.rendered_mobs.get() + 1);
-            // `EntityRenderer.getPackedLightCoords`: the block the mob's light
-            // probe (its eye) is in, at the position this frame draws rather
-            // than this tick's.
-            let probe = mob.light_probe(alpha);
-            let light = self.world.light(probe[0], probe[1], probe[2]);
-            let mut packed = (u32::from(light >> 4) * 16) | ((u32::from(light & 15) * 16) << 8);
-            // EntityRenderer.getBlockLightLevel: a burning mob has 15 block
-            // light, and so do the Allay, Blaze, Magma Cube, Vex and Wither
-            // renderers' overrides; the sky light stays the level's.
-            if mob.fire_ticks > 0
-                || matches!(
-                    mob.species(),
-                    Species::Allay
-                        | Species::Blaze
-                        | Species::MagmaCube
-                        | Species::Vex
-                        | Species::Wither
-                )
-            {
-                packed = (packed & 0xFF) | ((15 * 16) << 8);
-            }
-            // GlowSquidRenderer.getBlockLightLevel: the body brightens as the
-            // dark ticks run out (the block light is the second byte).
-            if mob.species() == Species::GlowSquid {
-                let lit = (packed >> 12) & 15;
-                let block = horizon_client::mobs::aquatic::glow_squid_block_light(mob, lit);
-                packed = (packed & 0xFF) | ((block * 16) << 8);
-            }
+            let packed = self.mob_packed_light(mob, alpha);
             // The mods' pre hooks (a player's `render_player_pre`, then `render_living_pre`),
             // before any of the vanilla model's parts (a sulfur cube's swallowed block) are
             // drawn. A cancel skips the rest of the entity's drawing and its post hooks; the
@@ -7942,7 +7907,10 @@ impl Game<'_> {
                 self.cull_entity_vertices(out, entity_start);
                 continue;
             };
-            if mob.species() == Species::SulfurCube && !mob.is_invisible() {
+            // A mod's renderer for the type (`register_entity_renderers`) draws in place of its
+            // model and vanilla layers; the mods' layers and post hooks still follow.
+            let modded = self.mod_living_renderer_geometry(mob, alpha as f32, camera, packed, out);
+            if mob.species() == Species::SulfurCube && !mob.is_invisible() && !modded {
                 self.sulfur_cube_body_geometry(
                     mob,
                     alpha as f32,
@@ -7964,7 +7932,7 @@ impl Game<'_> {
             // then only the outline draws.
             let silhouette_on_gpu = outline.is_none() || !mob.invisible;
             let posable = skinning
-                && !is_player
+                && !(is_player || modded)
                 && !layers_only
                 && silhouette_on_gpu
                 && armor.is_empty()
@@ -7991,7 +7959,7 @@ impl Game<'_> {
                     &mut skin,
                 );
                 skinned = Some((mark, skin.bounds));
-            } else {
+            } else if !modded {
                 if layers_only {
                     horizon_client::mobs::render::render_layers(
                         mob,
@@ -8054,7 +8022,7 @@ impl Game<'_> {
             }
             // Cosmetics (game/cosmetics.rs), posed on the GPU with the mob's own jobs: culled
             // with it.
-            if !layers_only
+            if !(layers_only || modded)
                 && horizon_hooks::engine::any()
                 && (is_player || &*mob.kind.id == "minecraft:mannequin")
             {
@@ -8073,9 +8041,11 @@ impl Game<'_> {
             }
             // CustomHeadLayer (a pumpkin, skull or head item) included.
             if layers {
-                // Held items join the GPU path's draws, their silhouette too.
-                let skin = (skinning && silhouette_on_gpu).then_some(&mut skinned);
-                self.mob_block_geometry(mob, camera, alpha, packed, skin, out);
+                if !modded {
+                    // Held items join the GPU path's draws, their silhouette too.
+                    let skin = (skinning && silhouette_on_gpu).then_some(&mut skinned);
+                    self.mob_block_geometry(mob, camera, alpha, packed, skin, out);
+                }
                 self.mod_layer_geometry(mob, who, parts, added, alpha as f32, camera, packed, out);
             }
             self.mod_render_post(mob, who, parts, alpha as f32, camera, packed, out);
@@ -8098,6 +8068,7 @@ impl Game<'_> {
             }
             // GuardianRenderer: the laser to the locked target.
             if let Some((time, scale)) = beam
+                && !modded
                 && let Some(target) = self.beam_target(mob.ai.target, alpha)
                 && let Some(uv) = lookup("entity/guardian/guardian_beam")
             {

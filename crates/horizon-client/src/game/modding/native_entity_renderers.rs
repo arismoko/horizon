@@ -6,7 +6,9 @@
 //! wasm mods alike.
 //!
 //! The routes that read the table so far: the content mods' thrown types
-//! (`ProjectileKind::Thrown`, by [`ThrownType::slot`]). Each other entity family becomes a route of
+//! (`ProjectileKind::Thrown`, by [`ThrownType::slot`]) and the living types drawn as mobs (by
+//! their shared `MobType`, which the game's types never replace while it runs), whose renderer
+//! draws in place of the model and its vanilla layers. Each other entity family becomes a route of
 //! its own; until then a registration for one of its types is kept and the type keeps its drawing.
 //! Each load also asks for the layers of the living renderers (`native_entity_layers`), which draw
 //! through the same guard ([`Game::guarded_entity_draw`]).
@@ -15,11 +17,15 @@ use super::{
 };
 use glam::{DVec3, Mat4};
 use horizon_client::{
-    block_entity_render::diffuse_lights, mesher::Vertex, projectiles::ThrownType,
+    block_entity_render::diffuse_lights,
+    fast_hash::FxHashMap,
+    mesher::Vertex,
+    mobs::{Mob, MobType},
+    projectiles::ThrownType,
 };
 use mod_api::{BlockEntityDrawContext, EntityRenderState, EntityRenderer};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     sync::{
         Arc, OnceLock, PoisonError, RwLock,
         atomic::{AtomicBool, Ordering},
@@ -32,8 +38,15 @@ static REGISTERED: OnceLock<BTreeMap<String, Arc<dyn EntityRenderer>>> = OnceLoc
 /// The registrations when no mod registered any (and before the start registered them).
 static NO_RENDERERS: BTreeMap<String, Arc<dyn EntityRenderer>> = BTreeMap::new();
 
-/// The table the last resource load resolved; empty before the first.
-static TABLE: RwLock<EntityRendererTable> = RwLock::new(EntityRendererTable { thrown: Vec::new() });
+/// The table the last resource load resolved; none before the first.
+static TABLE: RwLock<Option<EntityRendererTable>> = RwLock::new(None);
+
+/// Whether the last load resolved a renderer for any living type: a frame checks only this for
+/// each mob when none was registered.
+static ANY_LIVING: AtomicBool = AtomicBool::new(false);
+
+/// The player's entity type: its model goes by its skin, not by entity type.
+const PLAYER: &str = "minecraft:player";
 
 /// Keeps the mods' registrations, once per process (false when they already were).
 pub(super) fn register(renderers: BTreeMap<String, Arc<dyn EntityRenderer>>) -> bool {
@@ -60,25 +73,32 @@ impl<T: ?Sized> Resolved<T> {
 pub(super) struct EntityRendererTable {
     /// By [`ThrownType::slot`].
     thrown: Vec<Option<Arc<Resolved<dyn EntityRenderer>>>>,
+    /// By the address of the mob type the game shares with every mob of the type.
+    living: FxHashMap<usize, Arc<Resolved<dyn EntityRenderer>>>,
 }
 
 impl EntityRendererTable {
-    /// The table for `registered`, with `thrown` the content mods' thrown types and `known`
-    /// whether an id is any entity type; and the ids of the registrations for no entity type,
-    /// which it leaves out. A registration for a known type no route reads yet is kept silently:
-    /// the type keeps its own drawing.
+    /// The table for `registered`, with `thrown` the content mods' thrown types, `mobs` the
+    /// living types the game draws as mobs and `known` whether an id is any entity type; and the
+    /// ids of the registrations for no entity type, which it leaves out. A registration for a
+    /// known type no route reads yet is kept silently: the type keeps its own drawing.
     pub(super) fn resolve(
         registered: &BTreeMap<String, Arc<dyn EntityRenderer>>,
         thrown: &[ThrownType],
+        mobs: &HashMap<String, Arc<MobType>>,
         known: impl Fn(&str) -> bool,
     ) -> (Self, Vec<String>) {
         let mut table = Self {
             thrown: thrown.iter().map(|_| None).collect(),
+            living: FxHashMap::default(),
         };
         let mut unknown = Vec::new();
         for (id, renderer) in registered {
+            let resolved = || Arc::new(Resolved::new(renderer.clone()));
             if let Some(t) = thrown.iter().find(|t| t.id == id) {
-                table.thrown[t.slot] = Some(Arc::new(Resolved::new(renderer.clone())));
+                table.thrown[t.slot] = Some(resolved());
+            } else if let Some(kind) = mobs.get(id).filter(|_| id != PLAYER) {
+                table.living.insert(Arc::as_ptr(kind) as usize, resolved());
             } else if !known(id) {
                 unknown.push(id.clone());
             }
@@ -90,6 +110,11 @@ impl EntityRendererTable {
     pub(super) fn thrown(&self, t: &ThrownType) -> Option<&Arc<Resolved<dyn EntityRenderer>>> {
         self.thrown.get(t.slot)?.as_ref()
     }
+
+    /// The renderer of `mob`'s type, when a mod registered one for it.
+    pub(super) fn living(&self, mob: &Mob) -> Option<&Arc<Resolved<dyn EntityRenderer>>> {
+        self.living.get(&(Arc::as_ptr(&mob.kind) as usize))
+    }
 }
 
 /// The renderer the last resource load resolved for the thrown type `t`, when a mod registered one.
@@ -97,7 +122,17 @@ pub(in crate::game) fn thrown_renderer(
     t: &ThrownType,
 ) -> Option<Arc<Resolved<dyn EntityRenderer>>> {
     let table = TABLE.read().unwrap_or_else(PoisonError::into_inner);
-    table.thrown(t).cloned()
+    table.as_ref()?.thrown(t).cloned()
+}
+
+/// The renderer the last resource load resolved for `mob`'s type, when a mod registered one: with
+/// none registered for any living type, one flag check, with no lock and no lookup.
+pub(in crate::game) fn living_renderer(mob: &Mob) -> Option<Arc<Resolved<dyn EntityRenderer>>> {
+    if !ANY_LIVING.load(Ordering::Relaxed) {
+        return None;
+    }
+    let table = TABLE.read().unwrap_or_else(PoisonError::into_inner);
+    table.as_ref()?.living(mob).cloned()
 }
 
 impl Game<'_> {
@@ -110,6 +145,7 @@ impl Game<'_> {
         let (table, unknown) = EntityRendererTable::resolve(
             registered,
             horizon_client::projectiles::thrown_types(),
+            self.res.mob_types(),
             |id| rows.contains(id),
         );
         for id in unknown {
@@ -117,7 +153,9 @@ impl Game<'_> {
                 "Horizon: an entity renderer is registered for {id}, which is no entity type; it is left out"
             );
         }
-        *TABLE.write().unwrap_or_else(PoisonError::into_inner) = table;
+        let any_living = !table.living.is_empty();
+        *TABLE.write().unwrap_or_else(PoisonError::into_inner) = Some(table);
+        ANY_LIVING.store(any_living, Ordering::Relaxed);
         self.resolve_entity_layers(&rows, registered);
     }
 

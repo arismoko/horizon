@@ -825,6 +825,7 @@ fn shapes_follow_the_wire_layout() {
 
 /// The real tree exports with unique ids and every catalog hook.
 #[test]
+#[ignore = "daily"]
 fn the_real_tree_exports() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

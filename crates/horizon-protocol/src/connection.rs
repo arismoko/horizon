@@ -1017,6 +1017,7 @@ mod tests {
     /// Packets from one byte to past the read size, compressed and
     /// encrypted, arrive whole and in order however the reads cut them.
     #[test]
+    #[ignore = "daily"]
     fn packets_of_every_size_arrive_whole() {
         let (a, b) = Pipe::pair();
         let bodies: Vec<Vec<u8>> = (0..400u32)

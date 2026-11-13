@@ -1,5 +1,4 @@
 //! Callbacks into the executable for native trait mods' client-library hooks.
-use crate::items::ItemStack;
 use horizon_core::position::BlockPos;
 use horizon_world::native_load_context::LoopContext;
 use horizon_world::registry::BlockStateId;
@@ -8,7 +7,6 @@ use std::sync::OnceLock;
 
 /// Client-library hooks, installed before any menu, entity or recipe is used.
 pub struct NativeClientHooks {
-    pub menu_slot_rules: fn(&LoopContext, &str, usize, &ItemStack, &mut bool, &mut u32),
     pub menu_still_valid: fn(&LoopContext, u128, &str, [i32; 3], [f64; 3], &mut bool),
     pub menu_still_valid_listens: fn(&str) -> bool,
     pub item_stacked_on_other: fn(&LoopContext, &mut crate::menu::StackedOnOther<'_>, &mut bool),
@@ -18,7 +16,7 @@ pub struct NativeClientHooks {
     pub has_mods: fn() -> bool,
     pub player_name_format: fn(&LoopContext, &crate::text::Text, &mut crate::text::Text),
     pub player_tab_list_name_format: fn(&LoopContext, u128, &str, &mut Option<crate::text::Text>),
-    pub living_drown: fn(&LoopContext, u32, &str, &mut bool, &mut f32, i32, &mut bool),
+    pub living_drown: fn(&LoopContext, u32, &str, &mut bool, &mut f32, &mut i32, &mut bool),
     pub living_fall: fn(&LoopContext, u32, &str, &mut f64, &mut f32, &mut bool),
     pub living_jump: fn(&LoopContext, u32, &str),
     pub living_jump_power: fn(&LoopContext, u32, &str, &mut f32),
@@ -46,19 +44,6 @@ static HOOKS: OnceLock<NativeClientHooks> = OnceLock::new();
 /// Install the process-wide callbacks once; a second installation keeps the first and answers false.
 pub fn install(hooks: NativeClientHooks) -> bool {
     HOOKS.set(hooks).is_ok()
-}
-
-pub(crate) fn menu_slot_rules(
-    context: &LoopContext,
-    menu: &str,
-    slot: usize,
-    stack: &ItemStack,
-    may_place: &mut bool,
-    max_stack: &mut u32,
-) {
-    if let Some(hooks) = HOOKS.get() {
-        (hooks.menu_slot_rules)(context, menu, slot, stack, may_place, max_stack);
-    }
 }
 
 /// Ask the installed adapter for a mod menu type's `stillValid` answer; with
@@ -156,7 +141,7 @@ pub(crate) fn living_drown(
     kind: &str,
     is_drowning: &mut bool,
     damage_amount: &mut f32,
-    bubble_count: i32,
+    bubble_count: &mut i32,
     cancel: &mut bool,
 ) {
     if let Some(hooks) = HOOKS.get() {

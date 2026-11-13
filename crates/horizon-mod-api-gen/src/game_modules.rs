@@ -247,6 +247,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn existing_game_exports_keep_their_visibility() {
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../horizon-client/src");
         let code = declarations(&src.join("game")).unwrap();

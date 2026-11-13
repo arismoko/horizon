@@ -368,9 +368,9 @@ pub enum MotionEvent {
         sound: bool,
         particles: bool,
     },
-    /// Entity event 67 (`LivingEntity.makeDrownParticles`): eight bubbles
-    /// around a drowning player.
-    Drown,
+    /// Entity event 67 (`LivingEntity.makeDrownParticles`): the bubbles
+    /// around a drowning player (8, or the count a mod set).
+    Drown(i32),
 }
 #[derive(Clone)]
 pub struct PlayerMotion {
@@ -6098,6 +6098,66 @@ mod tests {
             })
             .unwrap();
             assert_eq!(w.player.no_jump_delay == 10, ground_jump);
+        }
+    }
+
+    /// The player's fluid heights, which `entity_fluid_heights` reads: lava sources at x 20 and
+    /// water sources at x 21, y 4..=5 (each surface at 5 + 8/9). Standing at y 4 the player is
+    /// that surface less 4 deep in each fluid it touches, from its own bottom, as a mob is
+    /// (`mobs::living::fluid_heights`): lava, water, both where they meet (a tie), or neither.
+    #[test]
+    fn resident_fluid_heights_are_measured_from_the_feet() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.local/horizon-client")
+            .join(horizon_core::VANILLA_VERSION);
+        if !root.join("movement-properties.nbt").exists() {
+            eprintln!("Prepared resources unavailable; the player fluid heights did not run");
+            return;
+        }
+        let assets = Assets::load(&root).unwrap();
+        let render = assets
+            .reload(&horizon_assets::resource_source::ResourceRoot::directory(
+                root.to_path_buf(),
+            ))
+            .unwrap();
+        let binding = crate::collisions::load(&root, assets.registry).unwrap();
+        let resources = MotionResources::load(&root, &assets).unwrap();
+        let mut scene = World::test_scene(&assets, &render, 3).unwrap();
+        for (name, x) in [("minecraft:lava", 20), ("minecraft:water", 21)] {
+            let source = assets.registry.default_state(name).unwrap();
+            for y in 4..=5 {
+                scene.set(x, y, 20, source).unwrap();
+            }
+        }
+        let depth = 5.0 + 8.0 / 9.0 - 4.0;
+        // (x, water height, lava height)
+        for (x, water, lava) in [
+            (20.5, 0.0, depth),
+            (21.5, depth, 0.0),
+            (21.0, depth, depth),
+            (25.5, 0.0, 0.0),
+        ] {
+            let mut player = PlayerMotion::new(&resources, Vec3::new(x, 4.0, 20.5)).unwrap();
+            player.ground.on_ground = true;
+            let mut w = MotionWorld {
+                tag_items: None,
+                block_registries: None,
+                loop_context: crate::test_resources::server_loop_context(),
+                damage_hooks: &crate::health::DamageHooks::NONE,
+                entities: &[],
+                player: &mut player,
+                scene: &mut scene,
+                assets: &assets,
+                collision_binding: &binding,
+                resources: &resources,
+                health: &resources.health,
+            };
+            w.fluid_base_tick().unwrap();
+            let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+            assert!(near(w.player.fluid_height(WATER), water), "water at x {x}");
+            assert!(near(w.player.fluid_height(LAVA), lava), "lava at x {x}");
+            assert_eq!(w.player.fluids.was_touching_water, water > 0.0, "x {x}");
+            assert_eq!(w.player.is_in_lava(), lava > 0.0, "x {x}");
         }
     }
 

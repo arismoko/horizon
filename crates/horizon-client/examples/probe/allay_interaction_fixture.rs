@@ -12,6 +12,7 @@ use std::{io::Write, sync::Arc};
 
 fn kind() -> Arc<MobType> {
     Arc::new(MobType {
+        shadow: None,
         id: "minecraft:allay".into(),
         species: Species::Allay,
         width: 0.6,

@@ -60,6 +60,7 @@ impl LootData {
             ..Default::default()
         });
         let mut c = Context {
+            query: query::current_query(),
             data: self,
             random: random.clone(),
             biome: context.biome,
@@ -71,6 +72,7 @@ impl LootData {
         };
         let mut items = Vec::new();
         c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
+        c.query.finish(Some(table));
         *random = c.random;
         Some(items)
     }

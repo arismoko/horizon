@@ -576,6 +576,7 @@ mod tests {
     fn camel() -> Mob {
         let model = Arc::new(Part::parse("root", &json!({"children": {"head": {}}})));
         let kind = Arc::new(MobType {
+            shadow: None,
             id: "minecraft:camel".into(),
             species: Species::Camel,
             width: 1.7,

@@ -168,6 +168,7 @@ fn a_forty_deep_recursion_unwinds_in_this_builds_default_mode() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn an_allocating_thread_survives_ten_seconds_of_signals() {
     first_passing_run(|| {
         let (_, stats, (loops, bad)) = sampled("t-alloc", COPY_1K, || {

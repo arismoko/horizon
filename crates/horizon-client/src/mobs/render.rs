@@ -198,7 +198,7 @@ fn climate(m: &Mob) -> &'static str {
 }
 /// `AvatarRenderer` entities: a mannequin draws exactly like a player —
 /// the player model, its resolved skin and the same scale.
-fn avatar(m: &Mob) -> bool {
+pub fn avatar(m: &Mob) -> bool {
     matches!(&*m.kind.id, "minecraft:player" | "minecraft:mannequin")
 }
 /// `AvatarRenderer.shouldRenderLayers`: a spectating player or mannequin
@@ -1122,7 +1122,7 @@ pub fn base_transform_at(m: &Mob, alpha: f32, origin: glam::Mat4) -> glam::Mat4 
         let pitch = m.previous_head_pitch + (m.head_pitch - m.previous_head_pitch) * alpha;
         base *= glam::Mat4::from_rotation_x((-90.0 - pitch).to_radians())
             * glam::Mat4::from_rotation_y(((m.age as f32 + alpha) * -75.0).to_radians());
-    } else if matches!(m.custom_name.as_deref(), Some("Dinnerbone" | "Grumm")) {
+    } else if anim::upside_down(m) {
         // isEntityUpsideDown
         base *= glam::Mat4::from_translation(glam::Vec3::new(0.0, m.height() + 0.1, 0.0))
             * glam::Mat4::from_rotation_z(PI);
@@ -1264,7 +1264,7 @@ fn body_overlay(m: &Mob, alpha: f32) -> u32 {
 }
 /// LivingEntityRenderState.hasRedOverlay: hurt or dying (not a creaking
 /// tearing down).
-fn red_overlay(m: &Mob) -> bool {
+pub fn red_overlay(m: &Mob) -> bool {
     m.hurt_time > 0 || (m.death_time > 0 && !super::creaking::tearing_down(m))
 }
 fn species_scale(m: &Mob, alpha: f32) -> glam::Mat4 {
@@ -3332,6 +3332,7 @@ mod tests {
 
         let model = Arc::new(Part::parse("root", &json!({"children": {"head": {}}})));
         let kind = Arc::new(MobType {
+            shadow: None,
             id: "minecraft:player".into(),
             species: Species::Zombie,
             width: 0.6,

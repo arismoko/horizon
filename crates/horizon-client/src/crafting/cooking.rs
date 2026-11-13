@@ -29,9 +29,10 @@ impl Recipes {
                 for item in &c.ingredient.items {
                     of_kind.entry(item.clone()).or_default().push(i);
                 }
-                if unlisted_predicate(&c.ingredient) {
+                if !c.ingredient.is_simple() {
                     // Empty string cannot be an item id. This bucket retains
-                    // predicates with no enumerable placement candidates.
+                    // all concrete predicates, including ones whose accepted stacks
+                    // are absent from the default-stack display list.
                     of_kind.entry(String::new()).or_default().push(i);
                 }
             }
@@ -82,12 +83,4 @@ impl Recipes {
             .iter()
             .find(|c| c.kind == kind && c.ingredient.test_in(context, input))
     }
-}
-
-fn unlisted_predicate(ingredient: &super::Ingredient) -> bool {
-    (ingredient.custom.is_some() && ingredient.items.is_empty())
-        || ingredient
-            .children
-            .as_ref()
-            .is_some_and(|(_, children)| children.iter().any(unlisted_predicate))
 }

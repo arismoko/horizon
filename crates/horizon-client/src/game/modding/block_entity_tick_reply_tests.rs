@@ -54,7 +54,7 @@ impl Hooks for Effects {
     }
 }
 
-fn wasm_mods() -> Vec<mod_api::ModEntry> {
+pub(super) fn wasm_mods() -> Vec<mod_api::ModEntry> {
     use horizon_mod_package::manifest::Package;
     use horizon_mod_wasm::{WasmPackage, load};
     let path = std::path::PathBuf::from(std::env::var_os("HORIZON_WASM_FIXTURE").unwrap());

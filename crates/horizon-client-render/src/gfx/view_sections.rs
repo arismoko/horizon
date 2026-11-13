@@ -10,15 +10,16 @@ use super::{
     Frame, Frustum, JoinedFrusta, Quads, Renderer, SectionKey, frustum, native_render, resident,
     world_views::ViewCamera,
 };
-use crate::render_views::MAX_WORLD_VIEWS;
+use crate::render_views::{MAX_WORLD_VIEWS, WorldViewRefusalReason, WorldViews};
 use glam::DVec3;
 
 /// This frame's world views, asked once (`Renderer::camera_frustum`, or `render` itself when it
 /// was not called), each one's sections and where its draws are in the frame's list. The lists
 /// keep their room from frame to frame.
 pub(super) struct Sections {
-    /// The views asked for the frame being built, and whether `render` has yet to draw them.
-    views: Vec<native_render::WorldView>,
+    /// The views asked for the frame being built, in the order they draw, and whether `render`
+    /// has yet to draw them.
+    views: WorldViews,
     asked: bool,
     /// Their frusta, relative to the camera they were asked for, joined to that camera's.
     seen: Option<JoinedFrusta>,
@@ -32,7 +33,7 @@ pub(super) struct Sections {
 impl Default for Sections {
     fn default() -> Self {
         Self {
-            views: Vec::new(),
+            views: WorldViews::default(),
             asked: false,
             seen: None,
             visible: Default::default(),
@@ -43,19 +44,20 @@ impl Default for Sections {
 
 impl Sections {
     /// The views mods ask for (`native_render::world_views`) that a device whose textures are at
-    /// most `max_side` pixels a side draws; none, and no call, while no mod listens.
+    /// most `max_side` pixels a side draws, the views seen in a view before it; none, and no
+    /// call, while no mod listens.
     fn ask(&mut self, max_side: u32) {
-        self.views.clear();
+        self.views.begin(max_side);
         if native_render::world_views_hooked() {
             native_render::world_views(&mut self.views);
-            native_render::drawable_world_views(&mut self.views, max_side);
+            self.views.order();
         }
     }
     /// This frame's views, for `draw_world_views`: put back with `put_back`.
-    pub fn take_views(&mut self) -> Vec<native_render::WorldView> {
+    pub fn take_views(&mut self) -> WorldViews {
         std::mem::take(&mut self.views)
     }
-    pub fn put_back(&mut self, views: Vec<native_render::WorldView>) {
+    pub fn put_back(&mut self, views: WorldViews) {
         self.views = views;
     }
     /// Every view's sections, the first view's first.
@@ -71,7 +73,8 @@ impl Sections {
         let mut marks = [usize::MAX; super::flat::MARKS];
         marks[0] = shadow[0] as usize;
         marks[1] = shadow[1] as usize;
-        for (k, [solid, translucent, _]) in self.draws[..self.views.len()].iter().enumerate() {
+        let views = self.views.views().len();
+        for (k, [solid, translucent, _]) in self.draws[..views].iter().enumerate() {
             marks[2 + 2 * k] = *solid as usize;
             marks[3 + 2 * k] = *translucent as usize;
         }
@@ -157,7 +160,7 @@ impl Renderer {
         let sections = &mut self.world_views.sections;
         sections.ask(max_side);
         sections.asked = true;
-        let views = sections.views.iter().map(|v| Frustum {
+        let views = sections.views.views().iter().map(|v| Frustum {
             planes: super::frustum(ViewCamera::new(v, camera, far).view_proj),
         });
         let seen = JoinedFrusta::new(frustum, views);
@@ -170,9 +173,10 @@ impl Renderer {
         seen.map_or(JoinedFrusta::new(frustum, []), |s| s.with_camera(frustum))
     }
 
-    /// This frame's views (those `camera_frustum` asked for it, else asked now; none on the
-    /// title screen) and each one's sections, a walk over the resident columns each within
-    /// `radius` chunks of its camera; those the camera has not sorted are sorted now.
+    /// This frame's views (those `camera_frustum` asked for it, else asked now; on the title
+    /// or a loading screen none, those asked refused) and each one's sections, a walk over the
+    /// resident columns each within `radius` chunks of its camera; those the camera has not
+    /// sorted are sorted now.
     pub(super) fn walk_world_views(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
@@ -180,13 +184,17 @@ impl Renderer {
         radius: i32,
     ) {
         let sections = &mut self.world_views.sections;
-        if frame.title {
-            sections.views.clear();
+        if frame.title && sections.asked {
+            sections
+                .views
+                .refuse_all(WorldViewRefusalReason::TitleScreen);
+        } else if frame.title {
+            sections.views.begin(self.world_view_side);
         } else if !sections.asked {
             sections.ask(self.world_view_side);
         }
         sections.asked = false;
-        let views = &sections.views;
+        let views = sections.views.views();
         for (k, out) in sections.visible.iter_mut().enumerate() {
             out.clear();
             if let Some(view) = views.get(k) {

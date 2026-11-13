@@ -1093,7 +1093,7 @@ pub(super) fn dispatch(
             call
         };
         if m.owner == "Hooks" && m.name == "register" {
-            back.push_str("if let Some(reason) = crate::__private::take_registration_refusal(&p1) { crate::RegistrationRefusalRegistrar::registration_refusal(&mut host, reason); }");
+            back.push_str("for warning in crate::__private::take_registration_warnings(&p1) { crate::RegistrationRefusalRegistrar::registration_warning(&mut host, warning); } if let Some(reason) = crate::__private::take_registration_refusal(&p1) { crate::RegistrationRefusalRegistrar::registration_refusal(&mut host, reason); }");
         }
         writeln!(
             arms,
@@ -1108,6 +1108,7 @@ pub(super) fn dispatch(
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_reborrowed_array_has_no_redundant_parentheses() {
     // `-D warnings` lint jobs refuse `unused_parens` in the generated host.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

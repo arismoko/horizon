@@ -160,10 +160,11 @@ pub fn needs() -> RenderNeeds {
     needs
 }
 
-/// The most world views ([`world_views`]) one frame draws.
-pub const MAX_WORLD_VIEWS: usize = 4;
-/// The largest side of a world view's target, in pixels.
-pub const MAX_WORLD_VIEW_SIDE: u32 = 4096;
+/// The limits of [`world_views`] (the engine's own constants) and why a view is refused.
+pub use horizon_client_render::render_views::{
+    MAX_WORLD_VIEW_DEPTH, MAX_WORLD_VIEW_SIDE, MAX_WORLD_VIEWS, WORLD_VIEW_PIXEL_BUDGET,
+    WorldViewRefusal, WorldViewRefusalReason,
+};
 
 /// A view of the world a mod asks for ([`world_views`]): the same world, drawn again from a
 /// camera of its own into a target of its own (a camera monitor, a second camera's preview, a
@@ -189,6 +190,8 @@ pub struct WorldView {
     pub clip_plane: Option<[f64; 4]>,
     /// The picture is mirrored left to right ([`WorldView::with_mirror`]).
     pub mirror: bool,
+    /// The view this one is seen in ([`WorldView::with_parent`]).
+    pub parent: Option<u64>,
 }
 
 impl WorldView {
@@ -210,6 +213,7 @@ impl WorldView {
             size,
             clip_plane: None,
             mirror: false,
+            parent: None,
         }
     }
 
@@ -241,6 +245,55 @@ impl WorldView {
             ..self
         }
     }
+
+    /// Seen in the view `parent` (a portal's far side seen through another portal): push it
+    /// after its parent. It is drawn before its parent, so that in the parent's
+    /// [`world_view_drawn`] its `color` and `depth` hold this frame's picture, to draw into the
+    /// parent's target there. A view with no parent is at depth 1, one seen in it at 2; up to
+    /// [`MAX_WORLD_VIEW_DEPTH`].
+    pub fn with_parent(self, parent: u64) -> Self {
+        Self {
+            parent: Some(parent),
+            ..self
+        }
+    }
+}
+
+/// The views asked for this frame ([`world_views`]): push each one.
+pub struct WorldViews<'a> {
+    views: &'a mut horizon_client_render::render_views::WorldViews,
+}
+
+impl WorldViews<'_> {
+    /// Asks for `view` this frame, or refuses it, naming it and why
+    /// ([`WorldViewRefusalReason`]): a value out of range, an id already pushed this frame, a
+    /// parent not pushed before it, deeper than [`MAX_WORLD_VIEW_DEPTH`], past
+    /// [`MAX_WORLD_VIEWS`] views, or past [`WORLD_VIEW_PIXEL_BUDGET`] pixels with the views
+    /// pushed before it. Each refusal is logged once.
+    pub fn push(&mut self, view: WorldView) -> Result<(), WorldViewRefusal> {
+        let mut engine = horizon_client_render::render_views::WorldView::new(
+            view.id,
+            view.camera,
+            view.yaw,
+            view.pitch,
+            view.fov_degrees,
+            view.size,
+        )
+        .with_roll(view.roll);
+        engine.clip_plane = view.clip_plane;
+        engine.mirror = view.mirror;
+        engine.parent = view.parent;
+        self.views.push(engine)
+    }
+
+    /// How many views were taken this frame so far.
+    pub fn len(&self) -> usize {
+        self.views.views().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// A world view just drawn ([`world_view_drawn`]): its picture and depth, and what a mod needs
@@ -250,6 +303,11 @@ impl WorldView {
 pub struct WorldViewDrawn<'a> {
     /// The [`WorldView::id`] it was asked with.
     pub id: u64,
+    /// The view it is seen in ([`WorldView::with_parent`]), drawn after it.
+    pub parent: Option<u64>,
+    /// How deep it is seen in views: 1 for a view with no parent, its parent's and 1 for one
+    /// with ([`MAX_WORLD_VIEW_DEPTH`]). (`depth` is its depth texture.)
+    pub nesting_depth: u32,
     pub device: &'a wgpu::Device,
     pub queue: &'a wgpu::Queue,
     pub encoder: &'a mut wgpu::CommandEncoder,
@@ -272,16 +330,17 @@ pub struct WorldViewDrawn<'a> {
 }
 
 /// Asked once as each frame is built (not on the title screen's panorama): push the world views
-/// your mod wants drawn this frame. The first
-/// [`MAX_WORLD_VIEWS`] valid ones draw; one with a value out of range (its clip plane's too,
-/// [`WorldView::with_clip_plane`]), or an `id` already asked for, is left out. Keep it cheap.
+/// your mod wants drawn this frame, each parent before the views seen in it.
+/// [`WorldViews::push`] takes each or refuses it by name ([`WorldViewRefusal`]), and logs each
+/// refusal once. Keep it cheap.
 #[inline(never)]
 #[horizon_mod_api_macros::replaceable]
-pub fn world_views(views: &mut Vec<WorldView>) {
+pub fn world_views(views: &mut WorldViews<'_>) {
     let _ = views;
 }
 
-/// A world view is drawn (see [`WorldViewDrawn`]): once per view asked for this frame.
+/// A world view is drawn (see [`WorldViewDrawn`]): once per view taken this frame, the views
+/// seen in a view before it.
 #[inline(never)]
 #[horizon_mod_api_macros::replaceable]
 pub fn world_view_drawn(view: &mut WorldViewDrawn<'_>) {
@@ -353,31 +412,13 @@ pub fn install() {
             v.entity_spans = needs.entity_spans;
             v.world_depth = needs.world_depth;
         },
-        world_views: |views| {
-            let mut requested = Vec::new();
-            world_views(&mut requested);
-            *views = requested
-                .into_iter()
-                .map(|v| {
-                    let mut view = engine::WorldView::new(
-                        v.id,
-                        v.camera,
-                        v.yaw,
-                        v.pitch,
-                        v.fov_degrees,
-                        v.size,
-                    )
-                    .with_roll(v.roll);
-                    view.clip_plane = v.clip_plane;
-                    view.mirror = v.mirror;
-                    view
-                })
-                .collect();
-        },
+        world_views: |views| world_views(&mut WorldViews { views }),
         world_views_hooked,
         world_view_drawn: |v| {
             world_view_drawn(&mut WorldViewDrawn {
                 id: v.id,
+                parent: v.parent,
+                nesting_depth: v.nesting_depth,
                 device: v.device,
                 queue: v.queue,
                 encoder: &mut *v.encoder,

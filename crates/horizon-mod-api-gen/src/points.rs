@@ -1160,6 +1160,7 @@ mod tests {
     /// The census: how many points have an API record, and why the others refuse.
     /// `POINT_INVENTORY=path` writes every point's name, target and refusal.
     #[test]
+    #[ignore = "daily"]
     fn point_inventory() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let points = game_points(&root).unwrap();
@@ -1196,6 +1197,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn no_wire_public_values_refuse_before_point_record_emission() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let wire = crate::build::wire_types(&root).unwrap();

@@ -1,5 +1,3 @@
-import contextlib
-import io
 import unittest
 
 from hotspots_repo import Repo
@@ -71,12 +69,125 @@ class IgnoredTestCarryTest(unittest.TestCase):
         self.assertIn("moves a row between hunks", str(e.exception))
         self.assertIn("+pkg a::flaky_one #1 flaky", str(e.exception))
 
-    def test_the_kinds_of_later_switches_say_which_pr_brings_them(self):
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err):
-            self.assertEqual(carry.main(["part-table", "3710", "--repo", str(self.repo.path)]), 2)
-        self.assertIn("PR G", err.getvalue())
 
+
+PARTS = "crates/horizon-mod-vocab/src/parts"
+EXPORTS = "crates/horizon-mod-vocab/src/exports"
+TABLE = """mod parts;
+pub use parts::{Attached, BlockProvider};
+mod __private {
+    pub use crate::parts::{AttributeDeclaration, attribute_declarations};
+}
+"""
+
+
+class PartTableCarryTest(unittest.TestCase):
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.close)
+        r = self.repo
+        self.parts = {f"{PARTS}/mod.rs": "include!(\"x\");\n",
+                      f"{PARTS}/unions.rs.in": "pub trait Registrar {}\n",
+                      f"{PARTS}/shared.rs": "pub struct Attached;\nimpl Attached {\n    pub fn not_an_item() {}\n}\n",
+                      f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\n",
+                      f"{PARTS}/attributes.rs": "pub struct AttributeDeclaration;\n"
+                                                "pub fn attribute_declarations() {}\n"}
+        self.base = r.commit("main", {**self.parts, f"{EXPORTS}/part_table.rs": TABLE})
+        # The switch on main, as tools/refactors/split_part_table.py writes it.
+        r.git("rm", "-q", f"{EXPORTS}/part_table.rs")
+        r.commit("main", {
+            f"{EXPORTS}/parts.rs": "mod parts;\n",
+            f"{EXPORTS}/parts_shared.rs": "pub use parts::Attached;\n",
+            f"{EXPORTS}/parts_blocks.rs": "pub use parts::BlockProvider;\n",
+            f"{EXPORTS}/parts_attributes.rs": "mod __private {\n"
+                                              "    pub use crate::parts::{AttributeDeclaration, attribute_declarations};\n"
+                                              "}\n"}, "switch")
+
+    def pr(self, table, parts):
+        head = self.repo.commit("pr", {**parts, f"{EXPORTS}/part_table.rs": table}, base=self.base)
+        self.repo.git("checkout", "-q", "main")
+        return head
+
+    def read(self, name):
+        return (self.repo.path / EXPORTS / name).read_text()
+
+    def test_added_names_go_to_their_files_fragments_in_their_scope(self):
+        table = TABLE.replace("Attached, BlockProvider", "Attached, BlockProvider, BlockCount").replace(
+            "attribute_declarations}", "attribute_declarations, AttributeBoundsWidening, attribute_bounds_widenings}")
+        table = table.replace("mod __private {\n", "mod __private {\n    #[cfg(test)]\n"
+                                                    "    pub use crate::parts::tests as t;\n")
+        head = self.pr(table, {
+            f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\npub const BlockCount: u8 = 1;\n",
+            f"{PARTS}/attribute_bounds.rs": "pub struct AttributeBoundsWidening;\n"
+                                            "pub(crate) fn attribute_bounds_widenings() {}\n"})
+        done = carry.carry_part_table(self.repo.path, self.base, head, None)
+        self.assertEqual(sorted(done), [f"{EXPORTS}/parts.rs", f"{EXPORTS}/parts_attribute_bounds.rs",
+                                        f"{EXPORTS}/parts_blocks.rs"])
+        self.assertEqual(self.read("parts_blocks.rs"), "pub use parts::BlockProvider;\npub use parts::BlockCount;\n")
+        self.assertIn("mod __private {\n    pub use crate::parts::AttributeBoundsWidening;\n"
+                      "    pub use crate::parts::attribute_bounds_widenings;\n}\n",
+                      self.read("parts_attribute_bounds.rs"))
+        self.assertEqual(self.read("parts.rs"), "mod parts;\nmod __private {\n    #[cfg(test)]\n"
+                                                "    pub use crate::parts::tests as t;\n}\n")
+
+    def test_a_name_no_parts_file_defines_stops_before_writing(self):
+        table = TABLE.replace("Attached, BlockProvider", "Attached, BlockProvider, BlockCount, Ghost")
+        head = self.pr(table, {f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\npub fn BlockCount() {}\n"})
+        with self.assertRaises(carry.CarryError) as e:
+            carry.carry_part_table(self.repo.path, self.base, head, None)
+        self.assertIn("Ghost (root scope)", str(e.exception))
+        self.assertNotIn("BlockCount", self.read("parts_blocks.rs"))
+
+    def test_a_name_main_already_exports_is_not_written_twice(self):
+        r = self.repo
+        r.commit("main", {f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\npub fn block_count() {}\n",
+                          f"{EXPORTS}/parts_blocks.rs": "pub use parts::{BlockProvider, block_count};\n"}, "landed")
+        head = self.pr(TABLE.replace("Attached, BlockProvider", "Attached, BlockProvider, block_count"),
+                       {f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\npub fn block_count() {}\n"})
+        self.assertEqual(carry.carry_part_table(r.path, self.base, head, None), [])
+
+
+    def assert_refused(self, head, *diagnostics):
+        before = {p.name: p.read_text() for p in (self.repo.path / EXPORTS).glob("*.rs")}
+        with self.assertRaises(carry.CarryError) as e:
+            carry.carry_part_table(self.repo.path, self.base, head, None)
+        for diagnostic in diagnostics:
+            self.assertIn(diagnostic, str(e.exception))
+        self.assertEqual({p.name: p.read_text() for p in (self.repo.path / EXPORTS).glob("*.rs")}, before)
+
+    def test_a_name_main_exports_differently_stops_before_writing(self):
+        r = self.repo
+        r.commit("main", {f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\npub fn block_count() {}\n",
+                          f"{EXPORTS}/parts_blocks.rs": "pub use parts::BlockProvider;\n#[cfg(test)]\n"
+                                                        "pub(crate) use parts::block_count;\n"}, "landed")
+        table = TABLE.replace("Attached, BlockProvider", "Attached, BlockProvider, block_count").replace(
+            "attribute_declarations}", "attribute_declarations, attribute_count}")
+        head = self.pr(table, {f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\npub fn block_count() {}\n",
+                               f"{PARTS}/attributes.rs": "pub struct AttributeDeclaration;\n"
+                                                         "pub fn attribute_declarations() {}\n"
+                                                         "pub fn attribute_count() {}\n"})
+        self.assert_refused(head, "block_count (root scope): this tree already exports that name with another cfg",
+                            "pub use parts::block_count;")
+
+    def test_a_removed_name_stops_before_writing(self):
+        table = TABLE.replace("Attached, BlockProvider", "Attached, BlockCount")
+        head = self.pr(table, {f"{PARTS}/blocks.rs": "pub fn BlockCount() {}\n"})
+        self.assert_refused(head, "BlockProvider (root scope): the PR removed or changed this line of part_table.rs: "
+                                  "pub use parts::BlockProvider;")
+
+    def test_a_renamed_name_stops_before_writing(self):
+        table = TABLE.replace("Attached, BlockProvider}", "Attached, BlockProvider, BlockCount}").replace(
+            "mod __private {\n", "mod __private {\n    pub use crate::parts::KnownIds as Ids;\n")
+        base_table = TABLE.replace("mod __private {\n", "mod __private {\n    pub use crate::parts::KnownIds as Known;\n")
+        r = self.repo
+        self.base = r.commit("old", {**self.parts, f"{PARTS}/shared.rs": self.parts[f"{PARTS}/shared.rs"] +
+                                     "pub struct KnownIds;\n", f"{EXPORTS}/part_table.rs": base_table},
+                             base=self.base)
+        head = r.commit("old", {f"{EXPORTS}/part_table.rs": table,
+                                f"{PARTS}/blocks.rs": "pub trait BlockProvider {}\npub fn BlockCount() {}\n"})
+        r.git("checkout", "-q", "main")
+        self.assert_refused(head, "Known (__private scope): the PR removed or changed this line of part_table.rs: "
+                                  "pub use crate::parts::KnownIds as Known;")
 
 STUBS = carry.check_stand_ins.FIXTURES
 OLD_SHARED = """//! Shared.

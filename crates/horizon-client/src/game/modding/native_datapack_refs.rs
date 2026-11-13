@@ -9,9 +9,8 @@ impl Game<'_> {
         &self,
         level: LevelRef,
     ) -> Option<std::sync::Arc<mod_api::DatapackRegistrySet>> {
-        (self.native_lifecycle.epoch() == Some(level.epoch())
-            && level.dimension() == self.native_level_key())
-        .then_some(())?;
+        (self.level_handle_current(level) && level.dimension() == self.native_level_key())
+            .then_some(())?;
         if self.is_logical_server() {
             self.mods.datapack_registries.clone()
         } else {

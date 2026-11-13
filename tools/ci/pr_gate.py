@@ -23,8 +23,10 @@ def outputs(event: str, same_repository: bool, pr: str, read_pr, *, labels: tupl
         head = read_pr(pr)
         return {"heavy": "true", "pr_sha": head["sha"],
                 "trusted": "true" if head["same_repository"] else "false"}
+    # A rollup builder session pushes only branches named after itself (`rollup-76`), and a label added after the
+    # pull request opens misses its first event, so the branch name alone counts too.
     integration = bool({"rollup", "sync"}.intersection(labels)) or head_ref.startswith(
-        ("fork-review-rollup-", "sync-"))
+        ("fork-review-rollup-", "rollup-", "sync-"))
     heavy = event != "pull_request" or (same_repository and integration)
     return {"heavy": "true" if heavy else "false", "pr_sha": "", "trusted": ""}
 

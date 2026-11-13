@@ -182,6 +182,7 @@ impl Game<'_> {
                 player_entity_id: Some(before.entity_id),
                 can_equip: None,
                 known_recipes: Some(&known),
+                slot_rules: None,
                 limited_crafting: limited,
                 ..self.menu_env()
             };

@@ -8,6 +8,7 @@ use crate::{
     items::{ItemInfo, ItemStack, Items},
 };
 use horizon_core::nbt::Tag;
+use horizon_world::attributes::{Display, Sentiment, Tooltip};
 use mod_api::TooltipPlacement;
 pub use mod_api::item::item_tooltip::TooltipDisplay;
 /// Borrow the engine's modelled visibility without allocating an API stack.
@@ -27,24 +28,50 @@ const SLOT_GROUPS: [&str; 11] = [
 ];
 
 /// `ItemAttributeModifiers.ATTRIBUTE_MODIFIER_FORMAT`, `DecimalFormat("#.##")`
-/// of a positive amount (half-even on the exact value).
+/// of a positive amount (half-even on the exact value). Infinity reads as the
+/// infinity sign, NaN as `NaN`, and a negative that rounds to zero keeps its sign.
 fn format_amount(value: f64) -> String {
+    if value.is_infinite() {
+        return if value > 0.0 { "\u{221e}" } else { "-\u{221e}" }.to_owned();
+    }
     let text = format!("{:.2}", value);
     text.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
 /// `ItemAttributeModifiers.Display.Default.apply`: a modifier's line, none
-/// for a zero amount. `percent` is the modifier's operation id (0: added
-/// value, 1 and 2: multiplied).
+/// for a zero amount on ordinary numeric attributes.
+/// `operation` is the modifier's operation id (0: added value, 1 and 2:
+/// multiplied); `display` is how the attribute reads its amounts (NeoForge's
+/// `IAttributeExtension.toValueComponent`).
 fn modifier_line(
     translate: &dyn Fn(&str) -> Option<String>,
     attribute: &str,
     amount: f64,
     operation: usize,
     total: bool,
+    display: Display,
 ) -> Option<String> {
     let text = |key: &str| translate(key).unwrap_or_else(|| key.to_owned());
+    let name = || crate::text::Text::literal(text(&format!("attribute.name.{attribute}")));
+    if display == Display::Boolean {
+        let state = if amount.is_nan() {
+            "invalid"
+        } else if total {
+            if amount > 0.0 { "enabled" } else { "disabled" }
+        } else if operation == 0 && amount > 0.0 {
+            "enabled"
+        } else if operation == 2 && amount.trunc() == -1.0 {
+            "disabled"
+        } else {
+            "invalid"
+        };
+        let key = format!("horizon.attribute.modifier.{state}");
+        return Some(crate::text::format_translation(&text(&key), &[name()]).plain());
+    }
+    // `PercentageAttribute`: an added value reads as a percentage too.
+    let percent = display == Display::Percentage && operation == 0;
     let scale = match operation {
+        0 if percent => 100.0,
         0 if attribute == "knockback_resistance" => 10.0,
         0 => 1.0,
         _ => 100.0,
@@ -55,17 +82,19 @@ fn modifier_line(
         ("plus", amount * scale)
     } else if amount < 0.0 {
         ("take", -amount * scale)
+    } else if amount.is_nan() {
+        // A NaN modifier uses the decrease layout, whose key carries the minus.
+        ("take", amount)
     } else {
         return None;
     };
+    // A percentage reads through the multiplied operations' percent translation.
+    let form = if percent { 1 } else { operation };
     // TranslatableContents: `%s` and numbered `%1$s` arguments, `%%` a percent sign.
     Some(
         crate::text::format_translation(
-            &text(&format!("attribute.modifier.{kind}.{operation}")),
-            &[
-                crate::text::Text::literal(format_amount(shown)),
-                crate::text::Text::literal(text(&format!("attribute.name.{attribute}"))),
-            ],
+            &text(&format!("attribute.modifier.{kind}.{form}")),
+            &[crate::text::Text::literal(format_amount(shown)), name()],
         )
         .plain(),
     )
@@ -75,11 +104,7 @@ fn modifier_line(
 /// rises or falls. Gravity, scale and the waypoint ranges are neutral, burning
 /// time and fall damage are negative, every other attribute is positive; a
 /// mod's declared attribute answers its own sentiment, positive by default.
-fn attribute_color(
-    attribute: &str,
-    rises: bool,
-    sentiment: Option<horizon_world::attributes::Sentiment>,
-) -> u32 {
+fn attribute_color(attribute: &str, rises: bool, sentiment: Sentiment) -> u32 {
     let (blue, red, grey) = (
         rgba(85, 85, 255, 255),
         rgba(255, 85, 85, 255),
@@ -94,16 +119,16 @@ fn attribute_color(
             }
         }
         "gravity" | "scale" | "waypoint_transmit_range" | "waypoint_receive_range" => grey,
-        _ => match sentiment.unwrap_or_default() {
-            horizon_world::attributes::Sentiment::Positive => {
+        _ => match sentiment {
+            Sentiment::Positive => {
                 if rises {
                     blue
                 } else {
                     red
                 }
             }
-            horizon_world::attributes::Sentiment::Neutral => grey,
-            horizon_world::attributes::Sentiment::Negative => {
+            Sentiment::Neutral => grey,
+            Sentiment::Negative => {
                 if rises {
                     red
                 } else {
@@ -155,6 +180,15 @@ pub struct AttributeTooltipContext {
     pub creative: bool,
 }
 
+/// What one attribute's lines take from the game: its declared tooltip style (colour, display,
+/// base modifier), and the player's base value of it for the base modifier's total line, none
+/// without a player.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AttributeStyle {
+    pub tooltip: Tooltip,
+    pub player_base: Option<f64>,
+}
+
 /// What mods change about a stack's attribute lines. The game answers it by firing the
 /// `gather_skipped_attribute_tooltips` and `add_attribute_tooltips` hooks; a builder with no game
 /// to ask (the creative search cache) uses [`NoAttributeListener`].
@@ -190,11 +224,18 @@ pub fn attribute_tooltip(
     shown: bool,
     listener: &dyn AttributeTooltipListener,
     translate: &dyn Fn(&str) -> Option<String>,
-    sentiment: &dyn Fn(&str) -> Option<horizon_world::attributes::Sentiment>,
+    style: &dyn Fn(&str) -> Option<AttributeStyle>,
 ) -> (Vec<(String, u32)>, Vec<(Text, u32)>) {
     let lines = if shown {
         let filter = listener.skipped(stack, ctx);
-        attribute_lines_filtered(modifiers, ctx.player_base, &filter, translate, sentiment)
+        attribute_lines_filtered(
+            modifiers,
+            ctx.player_base,
+            &filter,
+            ctx.advanced,
+            translate,
+            style,
+        )
     } else {
         Vec::new()
     };
@@ -212,19 +253,22 @@ pub fn attribute_lines(
         modifiers,
         player_base,
         &AttributeFilter::default(),
+        false,
         translate,
         &|_| None,
     )
 }
 
 /// [`attribute_lines`] without the modifiers `filter` hides; a slot group with nothing left shows
-/// no heading.
+/// no heading. Each attribute reads as its `style` says; `advanced` (F3+H) follows a mod
+/// attribute's line with its modifier id (NeoForge's `IAttributeExtension.getDebugInfo`).
 pub fn attribute_lines_filtered(
     modifiers: &[horizon_items::item_data::ModifierRow],
     player_base: Option<[f64; 2]>,
     filter: &AttributeFilter,
+    advanced: bool,
     translate: &dyn Fn(&str) -> Option<String>,
-    sentiment: &dyn Fn(&str) -> Option<horizon_world::attributes::Sentiment>,
+    style: &dyn Fn(&str) -> Option<AttributeStyle>,
 ) -> Vec<(String, u32)> {
     let mut lines = Vec::new();
     for group in SLOT_GROUPS {
@@ -237,7 +281,7 @@ pub fn attribute_lines_filtered(
             slot,
         } in modifiers
         {
-            if slot != group || filter.skips(modifier, slot) {
+            if slot != group || filter.skips(modifier, slot) || *amount == 0.0 {
                 continue;
             }
             if std::mem::take(&mut first) {
@@ -254,27 +298,35 @@ pub fn attribute_lines_filtered(
                 _ => 0,
             };
             let path = attribute.strip_prefix("minecraft:").unwrap_or(attribute);
-            let base = player_base.and_then(|[damage, speed]| match modifier.as_str() {
-                "minecraft:base_attack_damage" => Some(damage),
-                "minecraft:base_attack_speed" => Some(speed),
-                _ => None,
-            });
+            let style = style(attribute).unwrap_or_default();
+            let declared_base = style.tooltip.base_modifier.as_deref() == Some(modifier.as_str());
+            let base = player_base
+                .and_then(|[damage, speed]| match modifier.as_str() {
+                    "minecraft:base_attack_damage" => Some(damage),
+                    "minecraft:base_attack_speed" => Some(speed),
+                    _ => None,
+                })
+                .or(player_base.and(style.player_base).filter(|_| declared_base));
             if let Some(line) = modifier_line(
                 translate,
                 path,
                 amount + base.unwrap_or(0.0),
                 id,
                 base.is_some(),
+                style.tooltip.display,
             ) {
                 let (line, color) = if base.is_some() {
                     (format!(" {line}"), rgba(0, 170, 0, 255))
                 } else {
                     (
                         line,
-                        attribute_color(path, *amount > 0.0, sentiment(attribute)),
+                        attribute_color(path, *amount > 0.0, style.tooltip.sentiment),
                     )
                 };
                 lines.push((line, color));
+                if advanced && path.contains(':') {
+                    lines.push((format!("  {modifier}"), rgba(85, 85, 85, 255)));
+                }
             }
         }
     }
@@ -909,7 +961,14 @@ fn effect_modifier_lines<'a>(
             let (attribute, amount, operation) =
                 effect_modifier(effect.trim_start_matches("minecraft:"))?;
             let amount = amount * (amplifier + 1) as f64;
-            let line = modifier_line(translate, attribute, amount, operation, false)?;
+            let line = modifier_line(
+                translate,
+                attribute,
+                amount,
+                operation,
+                false,
+                Display::Ranged,
+            )?;
             let color = if amount > 0.0 {
                 rgba(85, 85, 255, 255)
             } else {
@@ -1144,13 +1203,15 @@ pub fn enchantment_lines(
 }
 
 /// The lines of `stack` below its name that its components give, in
-/// `ItemStack.addDetailsToTooltip` order.
+/// `ItemStack.addDetailsToTooltip` order. `style` answers each attribute's declared tooltip
+/// style, as [`attribute_tooltip`]'s does.
 pub fn detail_lines(
     stack: &ItemStack,
     info: Option<&ItemInfo>,
     attributes: &dyn AttributeTooltipListener,
     enchantments: &Enchantments,
     translate: &dyn Fn(&str) -> Option<String>,
+    style: &dyn Fn(&str) -> Option<AttributeStyle>,
 ) -> Vec<String> {
     let text = |key: &str| translate(key).unwrap_or_else(|| key.to_owned());
     let path = stack.item.trim_start_matches("minecraft:");
@@ -1227,16 +1288,9 @@ pub fn detail_lines(
         creative: false,
     };
     let (modifier_lines, added) = attribute_tooltip(
-        stack,
-        &modifiers,
-        &ctx,
+        stack, &modifiers, &ctx,
         // The search text lists attribute lines whatever the stack's display says, as before.
-        true,
-        attributes,
-        translate,
-        // The search text builds without a catalog: vanilla colors, positive
-        // for a mod attribute.
-        &|_| None,
+        true, attributes, translate, style,
     );
     lines.extend(modifier_lines.into_iter().map(|(line, _)| line));
     lines.extend(added.into_iter().map(|(text, _)| text.plain()));
@@ -1368,13 +1422,14 @@ pub fn container_lines(
     lines
 }
 
-/// Every line of `stack`'s tooltip, name first.
+/// Every line of `stack`'s tooltip, name first. `style` is as [`detail_lines`]'s.
 pub fn lines(
     stack: &ItemStack,
     info: Option<&ItemInfo>,
     attributes: &dyn AttributeTooltipListener,
     enchantments: &Enchantments,
     translate: &dyn Fn(&str) -> Option<String>,
+    style: &dyn Fn(&str) -> Option<AttributeStyle>,
 ) -> Vec<String> {
     let mut lines = vec![name_line(stack, translate)];
     if tooltip_display(stack).shows("minecraft:lore") {
@@ -1386,6 +1441,7 @@ pub fn lines(
         attributes,
         enchantments,
         translate,
+        style,
     ));
     lines
 }
@@ -1458,6 +1514,7 @@ mod tests {
             &NoAttributeListener,
             &enchantments,
             &translate,
+            &|_| None,
         );
         assert_eq!(lines.first().map(String::as_str), Some("Music Disc - 5"));
         let other = ItemStack::new("minecraft:stick", 1);
@@ -1468,7 +1525,8 @@ mod tests {
                 None,
                 &NoAttributeListener,
                 &enchantments,
-                &translate
+                &translate,
+                &|_| None,
             )
             .iter()
             .any(|l| l == "Music Disc - 5")
@@ -1713,10 +1771,24 @@ mod tests {
             Some((format!("Bad Omen IV ({duration})"), blue))
         );
         assert!(
-            lines(&bottle, None, &NoAttributeListener, &enchantments, &lang)
-                .contains(&format!("Bad Omen IV ({duration})")),
+            lines(
+                &bottle,
+                None,
+                &NoAttributeListener,
+                &enchantments,
+                &lang,
+                &|_| None
+            )
+            .contains(&format!("Bad Omen IV ({duration})")),
             "{:?}",
-            lines(&bottle, None, &NoAttributeListener, &enchantments, &lang)
+            lines(
+                &bottle,
+                None,
+                &NoAttributeListener,
+                &enchantments,
+                &lang,
+                &|_| None
+            )
         );
         // A numbered template, as some languages write it.
         let numbered = |key: &str| match key {
@@ -2018,6 +2090,66 @@ mod tests {
     }
 
     #[test]
+    fn extreme_amounts_print_as_the_reference_does() {
+        let lang = |k: &str| {
+            Some(
+                match k {
+                    "attribute.modifier.plus.0" => "+%s %s",
+                    "attribute.modifier.take.0" => "-%s %s",
+                    "attribute.modifier.equals.0" => "%s %s",
+                    "attribute.modifier.plus.1" => "+%s%% %s",
+                    "attribute.modifier.take.1" => "-%s%% %s",
+                    "attribute.modifier.equals.1" => "%s%% %s",
+                    "attribute.name.armor" => "Armor",
+                    "attribute.name.speed" => "Speed",
+                    _ => return None,
+                }
+                .to_owned(),
+            )
+        };
+        let line = |attribute, amount, total, display| {
+            modifier_line(&lang, attribute, amount, 0, total, display)
+        };
+        let plain = |amount, total| line("armor", amount, total, Display::Ranged);
+        let percent = |amount, total| line("speed", amount, total, Display::Percentage);
+        let cases = [
+            (f64::INFINITY, false, "+\u{221e} Armor", "+\u{221e}% Speed"),
+            (
+                f64::NEG_INFINITY,
+                false,
+                "-\u{221e} Armor",
+                "-\u{221e}% Speed",
+            ),
+            (f64::INFINITY, true, "\u{221e} Armor", "\u{221e}% Speed"),
+            (
+                f64::NEG_INFINITY,
+                true,
+                "-\u{221e} Armor",
+                "-\u{221e}% Speed",
+            ),
+            (f64::NAN, false, "-NaN Armor", "-NaN% Speed"),
+            (f64::NAN, true, "NaN Armor", "NaN% Speed"),
+            (-0.001, true, "-0 Armor", "-0.1% Speed"),
+            (-0.00001, true, "-0 Armor", "-0% Speed"),
+            (-0.0, true, "-0 Armor", "-0% Speed"),
+        ];
+        for (amount, total, want_plain, want_percent) in cases {
+            assert_eq!(
+                plain(amount, total).as_deref(),
+                Some(want_plain),
+                "{amount} {total}"
+            );
+            assert_eq!(
+                percent(amount, total).as_deref(),
+                Some(want_percent),
+                "{amount} {total}"
+            );
+        }
+        // A zero amount, either sign, is no line when it is not a total.
+        assert_eq!(plain(-0.0, false), None);
+    }
+
+    #[test]
     fn equipment_attributes_use_player_totals_and_slot_group_colors() {
         let modifiers = [
             ("attack_damage", "base_attack_damage", 6.0, "mainhand"),
@@ -2086,9 +2218,207 @@ mod tests {
         assert_eq!(custom_base[2].0, " 8 Attack Damage");
         assert_eq!(custom_base[3].0, " 3.6 Attack Speed");
         assert_eq!(
-            modifier_line(&lang, "attack_damage", 0.0, 0, true).as_deref(),
+            modifier_line(&lang, "attack_damage", 0.0, 0, true, Display::Ranged).as_deref(),
             Some("0 Attack Damage")
         );
+    }
+
+    /// A declared attribute reads as its display says (`PercentageAttribute`, `BooleanAttribute`),
+    /// its base modifier reads as the green total with a player and as a plain line without one,
+    /// and F3+H follows a mod attribute's line with its modifier id.
+    #[test]
+    fn a_declared_attribute_reads_as_its_display_and_base_modifier() {
+        use horizon_items::item_data::ModifierRow;
+        let rows = [
+            ("mymod:swim", "mymod:boots", 0.05),
+            ("mymod:glide", "mymod:wings", 1.0),
+            ("mymod:mana", "mymod:base_mana", 5.0),
+            ("mymod:glide", "mymod:clipped", 0.0),
+        ]
+        .map(|(attribute, id, amount)| {
+            ModifierRow::new(attribute, id, amount, "add_value", "mainhand")
+        });
+        let lang = |key: &str| {
+            Some(
+                match key {
+                    "item.modifiers.mainhand" => "When in Main Hand:",
+                    "attribute.modifier.plus.0" => "+%s %s",
+                    "attribute.modifier.plus.1" => "+%s%% %s",
+                    "attribute.modifier.equals.0" => "%s %s",
+                    "horizon.attribute.modifier.enabled" => "%s: Enabled",
+                    "horizon.attribute.modifier.disabled" => "%s: Disabled",
+                    "attribute.name.mymod:swim" => "Swim Speed",
+                    "attribute.name.mymod:glide" => "Gliding",
+                    "attribute.name.mymod:mana" => "Mana",
+                    _ => return None,
+                }
+                .to_owned(),
+            )
+        };
+        let style = |attribute: &str| {
+            let (display, base_modifier) = match attribute {
+                "mymod:swim" => (Display::Percentage, None),
+                "mymod:glide" => (Display::Boolean, None),
+                "mymod:mana" => (Display::Ranged, Some("mymod:base_mana".to_owned())),
+                _ => return None,
+            };
+            Some(AttributeStyle {
+                tooltip: Tooltip {
+                    display,
+                    base_modifier,
+                    ..Tooltip::default()
+                },
+                player_base: Some(10.0),
+            })
+        };
+        let lines = |player: Option<[f64; 2]>, advanced: bool| -> Vec<(String, u32)> {
+            let filter = AttributeFilter::default();
+            attribute_lines_filtered(&rows, player, &filter, advanced, &lang, &style)
+                .into_iter()
+                .skip(2)
+                .collect()
+        };
+        let (blue, green, debug) = (
+            rgba(85, 85, 255, 255),
+            rgba(0, 170, 0, 255),
+            rgba(85, 85, 85, 255),
+        );
+        assert_eq!(
+            lines(Some([1.0, 4.0]), false),
+            [
+                ("+5% Swim Speed".to_owned(), blue),
+                ("Gliding: Enabled".to_owned(), blue),
+                (" 15 Mana".to_owned(), green),
+            ]
+        );
+        // Recipe search has no player: the base modifier is a plain line.
+        assert_eq!(lines(None, false)[2], ("+5 Mana".to_owned(), blue));
+        let advanced = lines(None, true);
+        assert_eq!(advanced.len(), 6);
+        assert_eq!(advanced[1], ("  mymod:boots".to_owned(), debug));
+    }
+
+    /// A Percentage attribute's added value reads through the percent translation, whatever
+    /// its word order, and Boolean modifiers use enabled, disabled or invalid instead of numbers.
+    #[test]
+    fn a_percentage_reads_through_the_percent_translation_and_booleans_name_their_state() {
+        let lang = |key: &str| {
+            Some(
+                match key {
+                    "attribute.modifier.plus.1" => "%2$s: +%1$s%%",
+                    "attribute.modifier.take.1" => "%2$s: -%1$s%%",
+                    "horizon.attribute.modifier.disabled" => "%s: Disabled",
+                    "horizon.attribute.modifier.enabled" => "%s: Enabled",
+                    "horizon.attribute.modifier.invalid" => "%s: not valid",
+                    "attribute.name.mymod:swim" => "Swim Speed",
+                    "attribute.name.mymod:glide" => "Gliding",
+                    _ => return None,
+                }
+                .to_owned(),
+            )
+        };
+        let line =
+            |attribute, amount, display| modifier_line(&lang, attribute, amount, 0, false, display);
+        assert_eq!(
+            line("mymod:swim", 0.05, Display::Percentage).as_deref(),
+            Some("Swim Speed: +5%")
+        );
+        assert_eq!(
+            line("mymod:swim", -0.5, Display::Percentage).as_deref(),
+            Some("Swim Speed: -50%")
+        );
+        assert_eq!(line("mymod:swim", 0.0, Display::Percentage), None);
+        for (amount, operation, expected) in [
+            (1.0, 0, "Gliding: Enabled"),
+            (0.0, 0, "Gliding: not valid"),
+            (-1.0, 0, "Gliding: not valid"),
+            (-1.0, 2, "Gliding: Disabled"),
+            (-1.5, 2, "Gliding: Disabled"),
+            (-1.99, 2, "Gliding: Disabled"),
+            (0.5, 2, "Gliding: not valid"),
+            (0.5, 1, "Gliding: not valid"),
+            (f64::NAN, 0, "Gliding: not valid"),
+        ] {
+            assert_eq!(
+                modifier_line(
+                    &lang,
+                    "mymod:glide",
+                    amount,
+                    operation,
+                    false,
+                    Display::Boolean
+                )
+                .as_deref(),
+                Some(expected)
+            );
+        }
+    }
+
+    /// The recipe book's search text reads each attribute as its declared style says.
+    #[test]
+    fn the_search_text_reads_declared_attribute_styles() {
+        let mut stack = ItemStack::new("minecraft:stick", 1);
+        let row = |attribute: &str, amount: f64| {
+            Tag::compound([
+                ("type", Tag::String(attribute.into())),
+                ("id", Tag::String("mymod:charm".into())),
+                ("amount", Tag::Double(amount.to_bits())),
+                ("operation", Tag::String("add_value".into())),
+                ("slot", Tag::String("mainhand".into())),
+            ])
+        };
+        stack.data_mut().set_other(
+            "minecraft:attribute_modifiers",
+            Some(Tag::List(vec![
+                row("mymod:swim", 0.05),
+                row("mymod:glide", 0.0),
+            ])),
+        );
+        let lang = |key: &str| {
+            Some(
+                match key {
+                    "attribute.modifier.plus.0" => "+%s %s",
+                    "attribute.modifier.plus.1" => "+%s%% %s",
+                    "horizon.attribute.modifier.disabled" => "%s: Disabled",
+                    "attribute.name.mymod:swim" => "Swim Speed",
+                    "attribute.name.mymod:glide" => "Gliding",
+                    _ => return None,
+                }
+                .to_owned(),
+            )
+        };
+        let style = |attribute: &str| {
+            let display = match attribute {
+                "mymod:swim" => Display::Percentage,
+                "mymod:glide" => Display::Boolean,
+                _ => return None,
+            };
+            Some(AttributeStyle {
+                tooltip: Tooltip {
+                    display,
+                    ..Tooltip::default()
+                },
+                player_base: None,
+            })
+        };
+        let enchantments = Enchantments::default();
+        let search = |style: &dyn Fn(&str) -> Option<AttributeStyle>| {
+            lines(
+                &stack,
+                None,
+                &NoAttributeListener,
+                &enchantments,
+                &lang,
+                style,
+            )
+        };
+        let styled = search(&style);
+        assert!(styled.iter().any(|l| l == "+5% Swim Speed"), "{styled:?}");
+        assert!(!styled.iter().any(|l| l.contains("Gliding")), "{styled:?}");
+        // Without the catalog both read as plain numbers, as before.
+        let plain = search(&|_| None);
+        assert!(plain.iter().any(|l| l == "+0.05 Swim Speed"), "{plain:?}");
+        assert!(!plain.iter().any(|l| l.contains("Gliding")), "{plain:?}");
     }
 
     fn sword_rows() -> Vec<horizon_items::item_data::ModifierRow> {
@@ -2117,7 +2447,7 @@ mod tests {
         let rows = sword_rows();
         let lang = |key: &str| Some(key.to_owned());
         let text = |filter: &AttributeFilter| -> Vec<String> {
-            attribute_lines_filtered(&rows, None, filter, &lang, &|_| None)
+            attribute_lines_filtered(&rows, None, filter, false, &lang, &|_| None)
                 .into_iter()
                 .map(|(line, _)| line)
                 .collect()
@@ -2278,14 +2608,17 @@ mod tests {
             )
         };
         assert_eq!(
-            modifier_line(&lang, "movement_speed", 0.2, 2, false).as_deref(),
+            modifier_line(&lang, "movement_speed", 0.2, 2, false, Display::Ranged).as_deref(),
             Some("+20% Speed")
         );
         assert_eq!(
-            modifier_line(&lang, "movement_speed", -0.6, 2, false).as_deref(),
+            modifier_line(&lang, "movement_speed", -0.6, 2, false, Display::Ranged).as_deref(),
             Some("-60% Speed")
         );
-        assert_eq!(modifier_line(&lang, "movement_speed", 0.0, 2, false), None);
+        assert_eq!(
+            modifier_line(&lang, "movement_speed", 0.0, 2, false, Display::Ranged),
+            None
+        );
     }
 
     #[test]
@@ -2308,15 +2641,15 @@ mod tests {
             )
         };
         assert_eq!(
-            modifier_line(&lang, "attack_damage", 4.0, 0, true).as_deref(),
+            modifier_line(&lang, "attack_damage", 4.0, 0, true, Display::Ranged).as_deref(),
             Some("Урон при атаке: 4")
         );
         assert_eq!(
-            modifier_line(&lang, "attack_speed", 1.6, 0, true).as_deref(),
+            modifier_line(&lang, "attack_speed", 1.6, 0, true, Display::Ranged).as_deref(),
             Some("Скорость атаки: 1.6")
         );
         assert_eq!(
-            modifier_line(&lang, "movement_speed", -0.6, 2, false).as_deref(),
+            modifier_line(&lang, "movement_speed", -0.6, 2, false, Display::Ranged).as_deref(),
             Some("Скорость: -60%")
         );
     }
@@ -2334,11 +2667,11 @@ mod tests {
             )
         };
         assert_eq!(
-            modifier_line(&lang, "attack_damage", 5.0, 0, true).as_deref(),
+            modifier_line(&lang, "attack_damage", 5.0, 0, true, Display::Ranged).as_deref(),
             Some("Damage: 5")
         );
         assert_eq!(
-            modifier_line(&lang, "attack_damage", 0.2, 2, false).as_deref(),
+            modifier_line(&lang, "attack_damage", 0.2, 2, false, Display::Ranged).as_deref(),
             Some("+20% Damage")
         );
     }

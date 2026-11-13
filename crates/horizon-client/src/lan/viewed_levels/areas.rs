@@ -52,7 +52,7 @@ impl ChunkArea {
 
 /// Which chunk cap a refusal hit; each names its server setting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
+// exhaustive: the game maps each to the mod API's `ChunkCap`
 pub enum ChunkCap {
     /// `max_viewed_loaded_chunks`, per (player, level).
     LoadedPerPlayer,
@@ -93,7 +93,7 @@ impl ChunkCap {
 
 /// Why a call to set a player's areas changed nothing. Each names the cap it hit and its value.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
+// exhaustive: the game maps each to the mod API's `ChunkAreaRefusal`
 pub enum ChunkAreaRefusal {
     /// The player is not online on this server.
     NotOnline,

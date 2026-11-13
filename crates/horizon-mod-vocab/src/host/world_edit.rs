@@ -20,23 +20,29 @@ pub trait WorldEditServerHost {
     /// as the chunk loader upgrades a block entity of a chunk of that version: its type's datafixes up to the game's
     /// DataVersion. Data of exactly the game's version comes back unchanged, and so does a block entity whose `id`
     /// that version doesn't know, or data the fixes can't read. The chunk-wide fixes (blocks around it, bed block
-    /// entities removed) need a chunk and don't run. Pure: nothing in the world changes. `Err` names the refusal,
-    /// made before any fix runs: a negative version, one newer than the game's, a list or compound nested 512
-    /// levels deep or more (the depth cap of every NBT read), or more than 1 GiB as NBT (the chunk loader's own
-    /// cap; there is no node cap, as saved chunks have none).
+    /// entities removed) need a chunk and don't run. Pure: nothing in the world changes. `Err` names the refusal.
+    /// Before any fix runs: a negative version ([`NbtUpgradeError::NegativeVersion`]), one newer than the game's
+    /// ([`NbtUpgradeError::FutureVersion`]), or data with a list or compound 512 levels deep or more, counted as
+    /// encoded with the wrapper compound of each mixed-list element as a level ([`NbtUpgradeError::TooDeep`], the
+    /// depth cap of every NBT read). After the fixes: upgraded data that deep ([`NbtUpgradeError::UpgradedTooDeep`]),
+    /// as no NBT read could take it back. There is no size refusal.
     #[access(WorldOnly)]
     fn upgrade_block_entity_nbt(
         &self,
         data_version: i32,
         nbt: Compound,
-    ) -> Result<Compound, String>;
+    ) -> Result<Compound, NbtUpgradeError>;
     /// Side: server.
     /// An entity's data saved at `data_version`, upgraded as the entity chunk loader upgrades an entity of a chunk
     /// of that version: its type's datafixes, its passengers' included, up to the game's DataVersion. Data of exactly
     /// the game's version, or data the fixes can't read, comes back unchanged. Pure: nothing in the world changes.
     /// Refused by name as `upgrade_block_entity_nbt` refuses.
     #[access(WorldOnly)]
-    fn upgrade_entity_nbt(&self, data_version: i32, nbt: Compound) -> Result<Compound, String>;
+    fn upgrade_entity_nbt(
+        &self,
+        data_version: i32,
+        nbt: Compound,
+    ) -> Result<Compound, NbtUpgradeError>;
     /// Side: server.
     /// For a server mod: each column's height by `heightmap` in the authoritative level `dimension` (the one being
     /// ticked), none for a column not loaded. `Err` says why nothing was read: another dimension or a client of a

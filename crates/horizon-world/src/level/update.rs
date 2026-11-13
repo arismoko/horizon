@@ -104,6 +104,9 @@ enum Step {
 pub(crate) struct NeighborUpdater {
     stack: Vec<Update>,
     added: Vec<Update>,
+    /// State-change notices of the writes made while the updates ran, in the order of the
+    /// writes, heard once the updates have all run.
+    notices: std::collections::VecDeque<(BlockPos, BlockStateId, BlockStateId)>,
     count: i32,
 }
 
@@ -337,8 +340,20 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
                 self.update_neighbour_shapes(state, pos, neighbour_flags, limit - 1);
                 self.update_indirect_neighbour_shapes(state, pos, neighbour_flags, limit - 1);
             }
+            // Level.setBlock ends with updatePOIOnBlockStateChange (NeoForge's onBlockStateChange).
+            self.notify_state_change(pos, old, state);
         }
         true
+    }
+    /// A write inside a running neighbour update only queued its own updates, so its notice
+    /// waits until they have all run, in the order of the writes, and is queued only when
+    /// something listens; a write outside one has already run them.
+    fn notify_state_change(&mut self, pos: BlockPos, old: BlockStateId, new: BlockStateId) {
+        if self.ticks.updater.count == 0 {
+            self.level.observe_block_state_change(pos, old, new);
+        } else if self.level.observes_block_state_change(old, new) {
+            self.ticks.updater.notices.push_back((pos, old, new));
+        }
     }
     /// `LevelChunk.setBlockState`: the previous state when the write happened.
     fn chunk_set_block_state(
@@ -683,6 +698,9 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
                     break;
                 }
             }
+        }
+        while let Some((pos, old, new)) = self.ticks.updater.notices.pop_front() {
+            self.level.observe_block_state_change(pos, old, new);
         }
         let updater = &mut self.ticks.updater;
         updater.stack.clear();

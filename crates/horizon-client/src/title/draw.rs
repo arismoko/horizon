@@ -596,6 +596,9 @@ impl Title {
                     centered(atlas, batch, line, text_top + i as f32 * 9.0, u32::MAX);
                 }
             }
+            Mode::MissingMods { missing, .. } => {
+                self.draw_missing_mods(atlas, batch, (w, h), missing)
+            }
             Mode::MultiplayerWarning { check } => {
                 crate::ui::menu_background(batch, atlas, 0.0, 0.0, w, h, false);
                 let message = lang::get_or(

@@ -1,6 +1,8 @@
 //! Item stack components beyond count and damage: enchantments, stored
 //! (book) enchantments, `repair_cost`, `custom_name`, `potion_contents` and
 //! `trim`, with their NBT form in vanilla's `components` compound.
+#[path = "item_data/ingredient_components.rs"]
+pub mod ingredient_components;
 use crate::items::{ItemInfo, ItemStack};
 use horizon_core::nbt::{JavaString, Tag};
 
@@ -301,8 +303,15 @@ impl StackData {
             "minecraft:trim" => {
                 self.trim = tag.as_ref().and_then(trim::from_nbt);
             }
-            // The stack's damage is outside its data; a name keeps its own reading.
-            "minecraft:damage" | "minecraft:custom_name" => self.set_other(id, tag),
+            // The scalar lives on ItemStack; retain explicit zero presence here
+            // so a non-durable prototype can carry its own durability.
+            "minecraft:damage" => {
+                self.explicit_zero_damage = tag.as_ref().is_some_and(|value| {
+                    horizon_world::datafix::dynamic::as_int(Some(value), 0) == 0
+                });
+                self.set_other(id, tag);
+            }
+            "minecraft:custom_name" => self.set_other(id, tag),
             _ if MODELLED.contains(&id) => {
                 let mut saved = match components_tag(0, Some(self)) {
                     Some(Tag::Compound(c)) => c,
@@ -1634,7 +1643,7 @@ pub fn decode_components(components: Option<&Tag>) -> (u32, Option<Box<StackData
             .get("minecraft:kinetic_weapon")
             .cloned()
             .map(crate::kinetic_weapon::KineticComponent::new),
-        map_id: c.get("minecraft:map_id").and_then(int).map(|v| v as i32),
+        map_id: seen.map_id.and_then(crate::properties::component_int),
         banner_patterns: crate::banner_layer::layers_from_nbt(c.get("minecraft:banner_patterns")),
         base_color: c
             .get("minecraft:base_color")

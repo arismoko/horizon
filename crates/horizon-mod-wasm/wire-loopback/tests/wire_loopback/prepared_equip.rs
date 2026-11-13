@@ -21,6 +21,10 @@ pub(super) fn register(r: &mut dyn mod_api::Registrar) {
         _ => {}
     }
 }
+/// An item key the install registered, for tests that need a stack.
+pub(super) fn helmet() -> mod_api::ItemKey {
+    HELMET.get().unwrap()
+}
 pub(super) fn record(id: u32, bytes: &[u8]) {
     COPIES.with(|copies| {
         let mut copies = copies.borrow_mut();

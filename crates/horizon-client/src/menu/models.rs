@@ -36,6 +36,22 @@ pub struct StackedOnOther<'a> {
     pub clicked: &'a mut dyn SlotView,
     pub cancellation_result: bool,
 }
+/// `menu_slot_rules` inside a menu click, which cannot reach the game: the game lends the menu
+/// one for the click. A click asks it once for each slot and stack it consults.
+pub trait SlotRules {
+    /// Whether a part answers the menu type `menu`; a menu type none answers is never asked.
+    fn listens(&self, menu: &str) -> bool;
+    /// The slot's own answers arrive in `may_place` and `max_stack`; the parts may change them.
+    fn rule(
+        &self,
+        menu: &str,
+        slot: usize,
+        stack: &ItemStack,
+        may_place: &mut bool,
+        max_stack: &mut u32,
+    );
+}
+
 /// What `AnvilUpdateEvent` asks about once `createResult` made vanilla's
 /// result with a left input, and what the mods may change: the `output`,
 /// its level `cost` and `material_cost`, the units of `right` used (0 or

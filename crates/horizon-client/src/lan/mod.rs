@@ -37,6 +37,7 @@ pub mod hub;
 pub mod import;
 mod io_pool;
 pub mod menu;
+pub mod menu_extra_rev;
 #[cfg(test)]
 mod payload_bounds_tests;
 pub mod playerdata;

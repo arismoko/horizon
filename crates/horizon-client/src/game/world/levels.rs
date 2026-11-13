@@ -428,6 +428,8 @@ pub(super) struct Levels {
     /// The levels a mod asked to have saved (`level_request_save`), each once, saved at the start
     /// of the next server tick.
     requested_saves: Vec<Dim>,
+    /// The levels mods opened while the server runs, and the requests waiting to be applied.
+    pub(super) runtime: super::runtime_levels::RuntimeTable,
 }
 
 impl Levels {
@@ -446,11 +448,17 @@ impl Levels {
         self.requested_saves.contains(&dim)
     }
 
+    /// Drop a save of `dim` still waiting for a tick: its level is gone.
+    pub(super) fn cancel_requested_save(&mut self, dim: Dim) {
+        self.requested_saves.retain(|saved| *saved != dim);
+    }
+
     /// Clear every parked level and dimensions recorded as heard open.
     pub(super) fn clear(&mut self) {
         self.parked.clear();
         self.heard_open.clear();
         self.requested_saves.clear();
+        self.runtime.clear();
     }
 
     /// A parked level, without opening or loading it.
@@ -650,7 +658,12 @@ impl Levels {
 
 impl Game<'_> {
     /// A new level for `dim`, opened from the save (`MinecraftServer.createLevels`).
-    fn open_level(&self, dim: Dim) -> Result<Parked> {
+    pub(super) fn open_level(&self, dim: Dim) -> Result<Parked> {
+        // A level a mod opened has the seed and generator it asked for.
+        let (generate, seed) = match self.runtime_terrain(dim) {
+            Some((generate, seed)) => (Some(generate), seed),
+            None => (None, self.level.seed),
+        };
         let (streaming, save, locator) = super::world_loading::make_streaming(
             &self.res,
             &self.pack,
@@ -659,15 +672,16 @@ impl Game<'_> {
             &self.world_root,
             dim,
             self.level_shapes.get(dim.id()),
-            self.level.seed,
+            seed,
             &self.level.enabled_features,
             self.world_biomes
                 .as_ref()
                 .unwrap_or_else(|| self.res.biomes())
                 .clone(),
+            generate.as_ref(),
         )?;
         save.install_profession_snapshot(self.stations().professions.clone());
-        let mut world = Game::world_for_mods(self.res.facts().air, self.level.seed);
+        let mut world = Game::world_for_mods(self.res.facts().air, seed);
         world.attachments = save.load_attachments();
         world.shape = self.level_shapes.get(dim.id());
         world.fast_lava = self.dimension_type_of(dim).fast_lava;
@@ -678,7 +692,7 @@ impl Game<'_> {
             streaming,
             locator,
             save,
-            block_ticks: Ticks::new(self.level.seed as i32),
+            block_ticks: Ticks::new(seed as i32),
             tick_chunks: Default::default(),
             tickets,
             random_tick_sections: Default::default(),
@@ -1246,6 +1260,8 @@ impl Game<'_> {
             self.native_lifecycle.cancel_server_tick();
         }
         result?;
+        // The levels mods asked to open or close: now that no level is in the middle of a tick.
+        self.apply_runtime_levels();
         let closed = {
             let _span = horizon_client::spans::guard("close_idle_levels");
             self.close_idle_levels()
@@ -1449,22 +1465,33 @@ impl Game<'_> {
         if closing.is_empty() {
             return Ok(());
         }
-        let back = self.dim;
         for dim in closing {
-            self.enter_level(dim)?;
-            // Vanilla saves the level's chunks before their unload hooks.
-            self.native_chunks_loaded();
-            self.save_level(true)?;
-            let chunks: Vec<_> = self.world.chunks.values().cloned().collect();
-            self.native_chunks_unloaded(&chunks);
-            // Its entities' attachments are saved with them; they leave memory too.
-            for id in self.persist.uuids.keys() {
-                self.entity_attachments.remove(id);
-            }
-            self.enter_level(back)?;
-            self.levels.parked.remove(&dim);
-            self.native_level_closed(dim);
+            self.close_parked_level(dim)?;
         }
+        Ok(())
+    }
+
+    /// Save the parked level `dim` and drop it: the mods hear its chunks and the level unload. A
+    /// level a mod opened at run time stays known, and opens again when entered, as any other.
+    pub(super) fn close_parked_level(&mut self, dim: Dim) -> Result<()> {
+        let back = self.dim;
+        self.enter_level(dim)?;
+        // Vanilla saves the level's chunks before their unload hooks.
+        self.native_chunks_loaded();
+        if let Err(why) = self.save_level(true) {
+            // Not saved: the level stays parked, and the level in place is the one before.
+            self.enter_level(back)?;
+            return Err(why);
+        }
+        let chunks: Vec<_> = self.world.chunks.values().cloned().collect();
+        self.native_chunks_unloaded(&chunks);
+        // Its entities' attachments are saved with them; they leave memory too.
+        for id in self.persist.uuids.keys() {
+            self.entity_attachments.remove(id);
+        }
+        self.enter_level(back)?;
+        self.levels.parked.remove(&dim);
+        self.native_level_closed(dim);
         Ok(())
     }
 

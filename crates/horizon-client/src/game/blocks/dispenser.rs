@@ -23,16 +23,16 @@ use horizon_core::{
 };
 use horizon_world::{
     fluid::FluidKind,
-    level::{BucketContent, PlaceContext, PlaceOutcome},
+    level::{PlaceContext, PlaceOutcome},
     registry::BlockStateId,
 };
 use std::sync::Arc;
 
-type Pos = (i32, i32, i32);
+pub(super) type Pos = (i32, i32, i32);
 
 /// The sound event of a plain click, a failed dispense and a launched projectile.
-const CLICK: i32 = 1000;
-const FAIL: i32 = 1001;
+pub(super) const CLICK: i32 = 1000;
+pub(super) const FAIL: i32 = 1001;
 const LAUNCH: i32 = 1002;
 
 fn step(d: Direction) -> [i32; 3] {
@@ -45,7 +45,7 @@ fn step(d: Direction) -> [i32; 3] {
         Direction::East => [1, 0, 0],
     }
 }
-fn offset(p: Pos, d: Direction) -> Pos {
+pub(super) fn offset(p: Pos, d: Direction) -> Pos {
     let s = step(d);
     (p.0 + s[0], p.1 + s[1], p.2 + s[2])
 }
@@ -108,7 +108,7 @@ fn shrink(mut stack: ItemStack) -> Option<ItemStack> {
     (stack.count > 0).then_some(stack)
 }
 /// A dispenser's answer: the slot's new content and the level event played.
-type Dispensed = (Option<ItemStack>, i32);
+pub(super) type Dispensed = (Option<ItemStack>, i32);
 
 /// None keeps vanilla's behaviour; an explicit empty remainder consumes the stack.
 fn mod_dispensed(answer: Option<mod_api::Dispensed>, items: &Items) -> Option<Dispensed> {
@@ -338,7 +338,7 @@ impl Game<'_> {
             f64::from(p.2) + 0.5,
         ]
     }
-    fn pos_of(p: Pos) -> BlockPos {
+    pub(super) fn pos_of(p: Pos) -> BlockPos {
         BlockPos::new(p.0, p.1, p.2)
     }
 
@@ -517,7 +517,7 @@ impl Game<'_> {
     }
     /// `DefaultDispenseItemBehavior.consumeWithRemainder`: the remainder goes
     /// into the dispenser (`insertItem`) or is dropped.
-    fn consume_with_remainder(
+    pub(super) fn consume_with_remainder(
         &mut self,
         pos: Pos,
         facing: Direction,
@@ -663,7 +663,7 @@ impl Game<'_> {
             "minecraft:honeycomb" => self.dispense_honeycomb(pos, facing, stack)?,
             "minecraft:potion" => self.dispense_potion(pos, facing, stack)?,
             _ if item.ends_with("shulker_box") => self.dispense_shulker_box(pos, facing, stack)?,
-            _ if horizon_world::fluid::mod_fluid_of_bucket(&item).is_some() => {
+            _ if self.dispenses_as_filled_bucket(&item) => {
                 self.dispense_filled_bucket(pos, facing, stack)?
             }
             _ if super::boats::any_boat_wood(&item).is_some() => {
@@ -1411,52 +1411,6 @@ impl Game<'_> {
 
     // ---- buckets ----
 
-    /// The filled bucket behaviour: `DispensibleContainerItem.emptyContents`.
-    fn dispense_filled_bucket(
-        &mut self,
-        pos: Pos,
-        facing: Direction,
-        stack: ItemStack,
-    ) -> Result<Dispensed> {
-        let item = stack.item.to_string();
-        let target = offset(pos, facing);
-        let (content, sound, mob) =
-            horizon_client::items::bucket_contents(&item).expect("filled bucket dispatcher");
-        let target_pos = Self::pos_of(target);
-        let emptied = self.with_level(|b, level, ticks| {
-            b.bucket_empty(level, ticks, target_pos, None, content, sound, false, false)
-        });
-        self.process_level_events()?;
-        if emptied.is_none() {
-            return Ok((self.dispense_default_in_level(pos, facing, stack), CLICK));
-        }
-        if self.dimension_type().water_evaporates
-            && matches!(
-                content,
-                BucketContent::Fluid(FluidKind::Water) | BucketContent::MobWater
-            )
-        {
-            self.evaporation_smoke([target.0, target.1, target.2]);
-        }
-        if let Some(kind) = mob {
-            // MobBucketItem.checkExtraContent: the mob from the bucket calls
-            // out, then ENTITY_PLACE.
-            if let Some(id) = self.spawn_mob_at(kind, target, true) {
-                self.mob_placed(id, &stack)?;
-            }
-            self.post_block_game_event(
-                "minecraft:entity_place",
-                [target.0, target.1, target.2],
-                None,
-                None,
-            );
-        }
-        let bucket = ItemStack::new("minecraft:bucket", 1);
-        Ok((
-            self.consume_with_remainder(pos, facing, stack, bucket),
-            CLICK,
-        ))
-    }
     /// The empty bucket: `BucketPickup.pickupBlock`.
     fn dispense_empty_bucket(
         &mut self,
@@ -2341,21 +2295,8 @@ impl Game<'_> {
     ) -> Result<Dispensed> {
         let target = offset(pos, facing);
         let state = self.block_at(target);
-        let name = self.dispenser_block_name(target);
-        // HoneycombItem.WAXABLES: each copper block has a waxed twin.
-        let waxed = name.strip_prefix("minecraft:").and_then(|n| {
-            if n.starts_with("waxed_") {
-                return None;
-            }
-            let twin = format!("minecraft:waxed_{n}");
-            let mut s = self.pack.assets.registry.state(state)?.clone();
-            self.pack.assets.registry.default_state(&twin)?;
-            s.name = twin;
-            self.pack.assets.registry.resolve(&s).ok()
-        });
-        let Some(waxed) =
-            waxed.filter(|_| name.contains("copper") || name.contains("lightning_rod"))
-        else {
+        // HoneycombItem.getWaxed, as the player's honeycomb waxes.
+        let Some(waxed) = self.honeycomb_waxed(state) else {
             return Ok((
                 self.default_execute(pos, facing, stack),
                 optional_event("honeycomb"),

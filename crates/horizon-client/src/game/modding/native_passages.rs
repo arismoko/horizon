@@ -42,7 +42,12 @@ pub(crate) struct Passages {
     /// holds at most the live passages and those told before their removal.
     dirty: FxHashMap<PassageId, Dirty>,
     /// A client's copy: what its server told it of, kept with the chunk.
-    held: FxHashMap<PassageId, Passage>,
+    pub(super) held: FxHashMap<PassageId, Passage>,
+    /// A client's crossing that waits for the server's position packet
+    /// (`native_passage_cross.rs`).
+    pub(super) crossing: Option<PassageId>,
+    /// The server's refusal of the client's last crossing, until the next.
+    pub(super) refused: Option<(PassageId, mod_api::PassageCrossRefusal)>,
 }
 
 #[derive(Default)]
@@ -92,6 +97,23 @@ impl Passages {
         self.index.clear();
         self.dirty.clear();
         self.held.clear();
+        self.crossing = None;
+        self.refused = None;
+    }
+
+    /// A new hub (the LAN opened again) records the chunks it sends from its start while a
+    /// passage lives, so a chunk it sends before the next `flush_passages` carries them.
+    pub(in crate::game) fn record_on(&self, hub: &mut horizon_client::lan::hub::Hub) {
+        if !self.index.is_empty() {
+            hub.chunk_watches.record_for_passages();
+        }
+    }
+
+    /// The server's passage `id`, if level `key` holds it.
+    pub(super) fn find(&self, key: DimensionKey, id: PassageId) -> Option<Passage> {
+        let &(at, chunk) = self.index.get(&id).filter(|(at, _)| *at == key)?;
+        let list = self.levels.get(&at)?.chunks.get(&chunk)?;
+        list.iter().find(|(held, _)| *held == id).map(|(_, p)| *p)
     }
 }
 
@@ -183,10 +205,7 @@ impl Game<'_> {
                     let Some(&(key, chunk)) = passages.index.get(&id) else {
                         continue;
                     };
-                    let Some(p) = passages.levels.get(&key).and_then(|l| {
-                        let list = l.chunks.get(&chunk)?;
-                        list.iter().find(|(held, _)| *held == id).map(|(_, p)| *p)
-                    }) else {
+                    let Some(p) = passages.find(key, id) else {
                         continue;
                     };
                     (key, chunk, Message::Add(vec![form(id, &p)]))
@@ -259,6 +278,7 @@ impl Game<'_> {
                     self.passages.held.remove(&PassageId::from_raw(id));
                 }
             }
+            Message::Refused { id, reason } => self.remote_passage_refused(id, reason),
         }
         refused
     }
@@ -372,7 +392,7 @@ fn passage(f: &PassageForm) -> Passage {
 }
 
 #[cfg(test)]
-mod tests {
+pub(in crate::game) mod tests {
     use super::{HeldRefusal, Message, PassageForm, Refused, check};
     use crate::game::native_entity_refs::tests::{with_client_game, with_game};
     use crate::game::native_guest_turn_tests::with_guests;
@@ -384,7 +404,7 @@ mod tests {
 
     /// A 2 by 3 doorway facing south at (0.5, 65.5, 8.5) in chunk (0, 0), coming out 100
     /// blocks east, turned a clockwise quarter.
-    fn doorway() -> Passage {
+    pub(in crate::game) fn doorway() -> Passage {
         Passage {
             origin: Vec3::new(0.5, 65.5, 8.5),
             axis_w: Vec3::new(1.0, 0.0, 0.0),
@@ -411,7 +431,9 @@ mod tests {
     }
 
     /// The play packets a guest was sent, in order; ones this build cannot read are left out.
-    fn packets(rx: &mpsc::Receiver<horizon_client::lan::Out>) -> Vec<Clientbound> {
+    pub(in crate::game) fn packets(
+        rx: &mpsc::Receiver<horizon_client::lan::Out>,
+    ) -> Vec<Clientbound> {
         use horizon_client::lan::Out;
         use horizon_protocol::buf::Reader;
         let mut packets = Vec::new();
@@ -431,7 +453,7 @@ mod tests {
     }
 
     /// The passage messages among `packets`, in order.
-    fn passage_messages(packets: &[Clientbound]) -> Vec<Message> {
+    pub(in crate::game) fn passage_messages(packets: &[Clientbound]) -> Vec<Message> {
         packets
             .iter()
             .filter_map(|p| match p {
@@ -444,7 +466,7 @@ mod tests {
     }
 
     /// Guests 12 and 13 with senders to read and the given brands.
-    fn listen(
+    pub(in crate::game) fn listen(
         game: &mut crate::game::Game<'_>,
         brands: [&str; 2],
     ) -> Vec<mpsc::Receiver<horizon_client::lan::Out>> {
@@ -720,19 +742,19 @@ mod tests {
     }
 
     /// The LAN closes and opens again with a passage live: the new hub records the chunks
-    /// it sends at the next tick's end, though nothing changed, so a late joiner still gets
-    /// the passage with its chunk.
+    /// it sends from its start, so a Horizon guest that joins it is sent the passage with
+    /// the chunk the first tick sends, before that tick's `flush_passages`.
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_reopened_lan_records_chunks_for_the_live_passages() {
         use crate::game::lan::LanSettings;
-        use horizon_client::lan::{NetConfig, hub::HubConfig};
+        use horizon_client::lan::{Joined, NetConfig, PlayerSender, guest::Guest, hub::HubConfig};
+        use horizon_protocol::packets::configuration::ClientInformation;
         with_guests(|game| {
             game.native_lifecycle.world_open_ready().unwrap();
             let level = game.level(game.dim.id()).unwrap();
             game.level_register_passage(level, doorway()).unwrap();
             game.flush_passages();
-            assert!(game.lan.as_ref().unwrap().hub.chunk_watches.recording());
             game.lan_disconnect(false);
             let settings = LanSettings {
                 port: 0,
@@ -760,9 +782,55 @@ mod tests {
                 levels: game.level_shapes,
             };
             game.lan_host(settings, net, config).unwrap();
-            assert!(!game.lan.as_ref().unwrap().hub.chunk_watches.recording());
-            game.flush_passages();
             assert!(game.lan.as_ref().unwrap().hub.chunk_watches.recording());
+            for cz in -1..=1 {
+                for cx in -1..=1 {
+                    let mut chunk = Chunk::empty(cx, cz);
+                    chunk.lit = true;
+                    game.world.chunks.insert((cx, cz), Arc::new(chunk));
+                }
+            }
+            let (tx, rx) = mpsc::channel();
+            let mut guest = Guest::new(
+                Joined {
+                    conn: 14,
+                    uuid: 14,
+                    name: "late".into(),
+                    properties: Vec::new(),
+                    info: ClientInformation::new(2),
+                    brand: "horizon".into(),
+                    sender: PlayerSender::new(tx, Arc::default()),
+                    latency: Arc::default(),
+                    address: "127.0.0.1:1".parse().unwrap(),
+                    expected: false,
+                },
+                14,
+                [3.0, 64.0, 5.0],
+                2,
+            );
+            guest.placed = true;
+            guest.max_unacknowledged = 64;
+            let hub = &mut game.lan.as_mut().unwrap().hub;
+            hub.ticks = 10;
+            hub.guests.push(guest);
+            // One tick: its level pass sends the chunks, its end flushes the passages.
+            game.tick_lan(false);
+            let sent = packets(&rx);
+            let chunk = sent
+                .iter()
+                .position(
+                    |p| matches!(p, Clientbound::LevelChunkWithLight(c) if (c.x, c.z) == (0, 0)),
+                )
+                .expect("the first tick sent chunk (0, 0)");
+            let told = sent
+                .iter()
+                .position(|p| matches!(p, Clientbound::CustomPayload(p) if p.channel == "horizon:passage_sync"))
+                .expect("the passage went with its chunk");
+            assert!(chunk < told);
+            assert_eq!(
+                passage_messages(&sent),
+                [Message::Add(vec![doorway_form(1)])]
+            );
         });
     }
 

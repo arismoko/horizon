@@ -47,6 +47,13 @@ class CheckListsTest(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertIn("grew.rs: its longest `pub use` list grew to 15 names (at most 14", found[0])
 
+    def test_a_retired_fragment_that_comes_back_names_where_its_names_live(self):
+        self.write("part_table.rs", "mod parts;\n")
+        found = self.problems({})
+        self.assertEqual(len(found), 1)
+        self.assertIn("part_table.rs was removed", found[0])
+        self.assertIn("exports/parts_<file>.rs", found[0])
+
 
 if __name__ == "__main__":
     unittest.main()

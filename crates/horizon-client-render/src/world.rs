@@ -13,7 +13,7 @@ mod pending_entity;
 pub use pending_entity::{EntityLoadReason, PendingEntity};
 
 mod modified;
-pub use modified::ModifiedChunks;
+pub use modified::{ChunkMark, ModifiedChunks};
 
 /// Sections (x, section index, z) waiting to be remeshed, kept by column
 /// (a bit per section index), so the mesh scheduler looks at each column once
@@ -282,6 +282,18 @@ impl World {
                 .unload(|p| (p.0 >> 4, p.2 >> 4) == chunk && !incoming.contains(p));
         }
         self.block_entities.load_chunk(entities);
+    }
+    /// A loaded column's block entities, as fresh instances, with the attachment maps its save
+    /// kept for them.
+    pub fn install_chunk_block_entities(&mut self, chunk: &mut crate::chunk::Chunk) {
+        let key = (chunk.x, chunk.z);
+        self.load_chunk_block_entities(key, std::mem::take(&mut chunk.block_entities));
+        if let Some(extras) = &chunk.saved {
+            for (pos, attachments) in &extras.block_entity_attachments {
+                self.block_entities
+                    .restore_attachments(*pos, attachments.clone());
+            }
+        }
     }
     /// Queue ordinary NBT; transient transfer state is never decoded from it.
     pub fn queue_entity_nbt(&mut self, key: (i32, i32), tags: Vec<horizon_core::nbt::Tag>) {

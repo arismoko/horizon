@@ -93,6 +93,7 @@ fn bounded_special_manifests() {
     }
 }
 #[test]
+#[ignore = "daily"]
 fn bounded_catalog_commands() {
     for (name, relative, commands) in [
         (

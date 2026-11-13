@@ -119,6 +119,8 @@ pub struct ExtraLevel {
     /// The dimension type its level stem names.
     pub dimension_type: &'static str,
     pub shape: LevelShape,
+    /// The level's own seed, for a level a mod opened with one; else the world's.
+    pub seed: Option<i64>,
 }
 impl LevelShapes {
     pub const VANILLA: Self = Self {
@@ -147,6 +149,10 @@ impl LevelShapes {
             id,
             "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
         ) || self.extra.iter().any(|level| level.id == id)
+    }
+    /// The seed of the level `id`, if it has one of its own.
+    pub fn seed_of(&self, id: &str) -> Option<i64> {
+        self.extra.iter().find(|level| level.id == id)?.seed
     }
     /// The dimension type of the level `id`: a vanilla level's is its own name.
     pub fn dimension_type<'a>(&self, id: &'a str) -> &'a str {
@@ -1070,12 +1076,15 @@ mod tests {
                 id: "test:pocket",
                 dimension_type: "test:small",
                 shape,
+                seed: Some(7),
             }]
             .leak(),
             ..super::LevelShapes::VANILLA
         };
         assert_eq!(levels.get("test:pocket"), shape);
         assert_eq!(levels.dimension_type("test:pocket"), "test:small");
+        assert_eq!(levels.seed_of("test:pocket"), Some(7));
+        assert_eq!(levels.seed_of("minecraft:overworld"), None);
         assert_eq!(
             levels.dimension_type("minecraft:the_end"),
             "minecraft:the_end"
@@ -1167,6 +1176,7 @@ mod tests {
     /// The kept WORLD_SURFACE heights match a scan of every column after
     /// each of a few thousand writes (air, cave air, stone, whole sections).
     #[test]
+    #[ignore = "daily"]
     fn world_surface_follows_writes() {
         let (air, cave_air, stone) = (0, 7, 1);
         let is_air = |v: u32| v == air || v == cave_air;
@@ -1267,6 +1277,7 @@ mod tests {
     /// Chunk snapshots can be cloned while helper threads refresh a stale height. No snapshot
     /// may retain the old height with its stale bit cleared, for either map.
     #[test]
+    #[ignore = "daily"]
     fn cloning_during_a_height_refresh_keeps_the_new_height() {
         for _ in 0..4096 {
             let mut chunk = Chunk::empty(0, 0);
@@ -1293,6 +1304,7 @@ mod tests {
     /// MOTION_BLOCKING ignores states that don't count (air, grass) and
     /// follows writes as the surface map does, both maps kept at once.
     #[test]
+    #[ignore = "daily"]
     fn motion_blocking_follows_writes() {
         let (air, grass, water, stone) = (0, 3, 5, 1);
         let blocks = |v: u32| v == water || v == stone;

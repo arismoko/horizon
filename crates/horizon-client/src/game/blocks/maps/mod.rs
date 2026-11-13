@@ -2170,6 +2170,7 @@ mod tests {
     /// `can_place_on` component includes the banner block toggles that banner's
     /// marker, while one without does not.
     #[test]
+    #[ignore = "daily"]
     fn map_on_banner_in_adventure_mode_honours_can_place_on() {
         use crate::game::{Audio, Game, Options, Progress, Settings, load_resources};
         use horizon_client::{chunk::Chunk, command::args::GameMode};

@@ -389,6 +389,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn edits_the_lists_while_stopped() {
         let dir = std::env::temp_dir().join(format!("horizon-server-lists-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);

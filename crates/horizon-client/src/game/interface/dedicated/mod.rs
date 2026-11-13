@@ -1,3 +1,4 @@
+// game-module-visibility: pub(crate)
 //! The dedicated server (net.minecraft.server.Main and DedicatedServer):
 //! `horizon-client --dedicated [--nogui] [--port N] [--world NAME]
 //! [--universe DIR] [--initSettings]`. It reads server.properties and
@@ -39,6 +40,8 @@ use std::{
 };
 
 mod biome_regions;
+mod missing_mods;
+pub(crate) use missing_mods::is_missing_mods_refusal;
 pub(super) mod events;
 mod management;
 mod predicate_graph;
@@ -177,6 +180,8 @@ struct Setup {
     level_name: String,
     port: Option<u16>,
     started: Instant,
+    /// `--allowMissingMods`: open a world whose saved mods are missing (`missing_mods`).
+    allow_missing_mods: bool,
 }
 static SETUP: OnceLock<Mutex<Option<Setup>>> = OnceLock::new();
 /// usercache.json (Services.nameToIdCache): used by the server thread only.
@@ -376,6 +381,7 @@ pub(super) fn preflight(options: &mut Options) -> Result<bool> {
     let mut world = None;
     let mut port = None;
     let mut init_settings = false;
+    let mut allow_missing_mods = false;
     for argument in crate::entry::dedicated_arguments::parse(&args) {
         let (name, value) = argument?;
         match name {
@@ -389,9 +395,15 @@ pub(super) fn preflight(options: &mut Options) -> Result<bool> {
             | "jfrProfile"
             | "game-tests" => {}
             "initSettings" => init_settings = true,
+            name if name == horizon_client::save::level_mods::ALLOW_FLAG => {
+                allow_missing_mods = true
+            }
             "help" => {
+                let allow = missing_mods::in_english(|| {
+                    horizon_client::lang::get("horizon.missing_mods.server.help")
+                });
                 eprintln!(
-                    "Option                Description\n------                -----------\n--help\n--game-tests          Enables test-only mod content (or HORIZON_GAME_TESTS=1/true)\n--initSettings        Initializes 'server.properties' and 'eula.txt', then quits\n--nogui\n--port <Integer>      (default: -1)\n--universe <String>   (default: .)\n--world <String>"
+                    "Option                Description\n------                -----------\n--allowMissingMods    {allow}\n--help\n--game-tests          Enables test-only mod content (or HORIZON_GAME_TESTS=1/true)\n--initSettings        Initializes 'server.properties' and 'eula.txt', then quits\n--nogui\n--port <Integer>      (default: -1)\n--universe <String>   (default: .)\n--world <String>"
                 );
                 return Ok(false);
             }
@@ -479,6 +491,7 @@ pub(super) fn preflight(options: &mut Options) -> Result<bool> {
             level_name,
             port,
             started,
+            allow_missing_mods,
         });
     Ok(true)
 }
@@ -976,6 +989,7 @@ impl Game<'_> {
             level_name,
             port,
             started,
+            allow_missing_mods,
         } = SETUP
             .get()
             .and_then(|m| m.lock().unwrap().take())
@@ -986,6 +1000,9 @@ impl Game<'_> {
         let new_world = !world_dir.join("level.dat").exists();
         if new_world {
             self.write_world_gen(&world_dir, &props)?;
+        } else {
+            // Before anything writes the world: a refusal leaves it as it was saved.
+            self.check_missing_mods(&world_dir, allow_missing_mods)?;
         }
         // The console thread starts first, as in initServer.
         let (tx, console) = mpsc::channel();
@@ -1316,7 +1333,7 @@ impl Game<'_> {
         let anticheat_on = anticheat.enabled;
         let chat_filter = load_chat_filter();
         self.set_pvp_legacy_rules(load_combat());
-        // Horizon's far ring (docs/hosting.md): server.toml's `max_view_distance`.
+        self.read_runtime_level_cap(|key| props.raw.get(key));
         let far = props
             .raw
             .get(FAR_PROPERTY)
@@ -2469,26 +2486,39 @@ impl Game<'_> {
     }
 
     pub(super) fn kick_uuid(&mut self, uuid: u128, reason: Tag) {
-        if let Some(h) = self.lan.as_mut() {
-            let conns: Vec<u32> = h
-                .hub
+        let conns: Vec<u32> = self.lan.as_ref().map_or_else(Vec::new, |h| {
+            h.hub
                 .guests
                 .iter()
                 .filter(|g| g.participates_online() && g.uuid == uuid)
                 .map(|g| g.conn)
-                .collect();
-            for conn in conns {
-                h.hub.kick(conn, reason.clone());
-                if let Some(g) = h.hub.guest(conn) {
-                    events::record(
-                        "kick",
-                        &g.name,
-                        uuid,
-                        serde_json::json!({ "reason": g.left_reason }),
-                    );
-                }
-            }
+                .collect()
+        });
+        for conn in conns {
+            self.kick_conn(conn, reason.clone());
         }
+    }
+
+    /// `Hub::kick`, with the server's `kick` event recorded. Whether it started the guest's
+    /// disconnect: false for a missing guest and one whose disconnect is already pending.
+    pub(super) fn kick_conn(&mut self, conn: u32, reason: Tag) -> bool {
+        let Some(h) = self.lan.as_mut() else {
+            return false;
+        };
+        if h.hub.guest(conn).is_none_or(|g| g.disconnect_pending) {
+            return false;
+        }
+        h.hub.kick(conn, reason);
+        let Some(g) = h.hub.guest(conn) else {
+            return false;
+        };
+        events::record(
+            "kick",
+            &g.name,
+            g.uuid,
+            serde_json::json!({ "reason": g.left_reason }),
+        );
+        true
     }
 
     /// MinecraftServer.stopServer: players saved and sent away, worlds saved.

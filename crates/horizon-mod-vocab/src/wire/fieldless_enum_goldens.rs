@@ -582,7 +582,7 @@ fn existing_fieldless_enum_layouts_match_baseline() {
     );
     assert_eq!(
         <crate::item::crafting::Shape as Wire>::layout(&mut vec![]),
-        0xa157d010a4183033,
+        0x004a43af941b0c62,
         "Shape"
     );
     assert_eq!(

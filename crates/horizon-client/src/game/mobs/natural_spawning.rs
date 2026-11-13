@@ -451,7 +451,8 @@ impl GameLevel<'_, '_> {
     }
     /// The handle of this pass's level, which the spawn checks are told.
     fn level_ref(&self) -> mod_api::LevelRef {
-        mod_api::LevelRef::new(self.game.lend_epoch(), self.game.dim.key())
+        self.game
+            .level_ref(self.game.lend_epoch(), self.game.dim.key())
     }
     /// The mob the position check of this spawn created, when one did and it
     /// is the one asked for (`entity` at `position`, facing `yaw`): the spawn
@@ -1689,6 +1690,7 @@ mod tests {
     /// Players walking, crossing borders, meeting, splitting, joining, leaving
     /// and swapping order: every pass matches the uncached collection.
     #[test]
+    #[ignore = "daily"]
     fn spawn_candidates_match_the_uncached_union_while_players_move() {
         let mut seed = 0x5DEECE66Du64;
         let mut next = move |bound: u64| {

@@ -1,1 +1,4 @@
-pub use world::passage::{Passage, PassageId, PassageRegistrationError, PassageTurn};
+pub use world::passage::{
+    Passage, PassageCrossError, PassageCrossRefusal, PassageId, PassageRegistrationError,
+    PassageTurn,
+};

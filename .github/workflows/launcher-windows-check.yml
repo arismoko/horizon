@@ -1,7 +1,15 @@
 name: launcher-windows-check
-# The launcher's tests on Windows x64, for pull requests that change it. Nothing is built for release or published:
-# the release workflow (launcher.yml) stays off. GitHub-hosted, so it needs no runner of ours.
+# The launcher's tests on Windows x64, for pull requests that change it. Nothing is published: the release workflow
+# (launcher.yml) stays off. GitHub-hosted, so it needs no runner of ours. The runtime-leases and launcher-processes
+# jobs start child processes, so they run in the daily run (daily.yml calls this workflow with a commit) and by
+# dispatch, never on pushes or pull requests (CI tiers, owner 2026-11-13).
 on:
+  workflow_call:
+    inputs:
+      commit:
+        description: The commit to check (the daily run's)
+        type: string
+        default: ''
   # Main pushes publish the cache that pull requests restore (pull requests never save one).
   push:
     branches: [main]
@@ -31,7 +39,8 @@ permissions:
 # Finish running main checks; keep only the newest pending push. Obsolete PR runs still cancel.
 concurrency:
   # Each main push runs at once, beside any other (it publishes nothing that needs an order).
-  group: launcher-windows-check-${{ github.event.pull_request.number || github.sha }}
+  # A daily run's call is grouped by that run.
+  group: launcher-windows-check-${{ github.event.pull_request.number || inputs.commit && github.run_id || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -53,9 +62,10 @@ jobs:
         run: python3 tools/ci/pr_gate.py >> "$GITHUB_OUTPUT"
 
   test:
-    # Only same-repository rollups and syncs compile on PR events; main and dispatch stay unchanged.
+    # Only same-repository rollups and syncs compile on PR events; main and dispatch stay unchanged. The daily run's
+    # call runs runtime-leases only.
     needs: gate
-    if: needs.gate.outputs.heavy == 'true'
+    if: inputs.commit == '' && needs.gate.outputs.heavy == 'true'
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -82,21 +92,29 @@ jobs:
           shared-key: launcher-windows-check
           # One cache from main, read by every pull request: per-PR caches filled the 10 GB budget and evicted main's.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: "cargo test --no-fail-fast --release --locked -p horizon-mod-package --features runtime-process --lib output::"
+      # Debug builds: no launcher test depends on a release-only path (cfg!(debug_assertions) gates only the
+      # self-update switch and development overrides, which no test reaches), and debug adds overflow checks.
+      - run: "cargo test --no-fail-fast --locked -p horizon-mod-package --features runtime-process --lib output::"
         working-directory: .
-      # Every test target (the library, the binary, tests/), as launcher.yml runs them.
-      - run: cargo test --no-fail-fast --release --locked
+      # The library, the binary's own tests, the docs, and the tests/ targets that start no process. The tests/
+      # targets that start the launcher binary run in the daily run's launcher-processes job, built for release:
+      # a debug launcher overflows the Windows main thread's 1 MiB stack.
+      - run: >-
+          cargo test --no-fail-fast --locked --lib --bins --test developer_install --test durable_publication
+          --test modpack_headline --test storage_consent
+      - run: cargo test --no-fail-fast --locked --doc
 
   runtime-leases:
-    # Only same-repository rollups and syncs compile on PR events; main and dispatch stay unchanged.
-    needs: gate
-    if: needs.gate.outputs.heavy == 'true'
+    # The daily run's call (scheduled or dispatched; it passes a commit) and a hand dispatch: it starts child
+    # processes, so it is a daily test.
+    if: inputs.commit != '' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.commit }}
       - name: The pinned Rust (tools/ci/rust-version)
         id: rust
         shell: bash
@@ -115,3 +133,33 @@ jobs:
       - run: cargo test --no-fail-fast --release --locked -p horizon-mod-package --features runtime-process --lib
         working-directory: .
         shell: bash
+
+  launcher-processes:
+    # The tests/ targets that start the launcher binary (the test job runs every other target). Release, as players
+    # run it: a debug launcher overflows the Windows main thread's 1 MiB stack. Daily run and hand dispatch only.
+    if: inputs.commit != '' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: launcher
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.commit }}
+      - name: The pinned Rust (tools/ci/rust-version)
+        id: rust
+        run: echo "version=$(cat "$GITHUB_WORKSPACE/tools/ci/rust-version")" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: launcher
+          shared-key: launcher-windows-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: >-
+          cargo test --no-fail-fast --release --locked --test desktop --test hidden_processes --test logs
+          --test owner_gate --test startup --test storage

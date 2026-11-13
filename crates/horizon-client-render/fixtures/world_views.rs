@@ -5,7 +5,9 @@
 //! with what its own camera sees, and the mod is asked once a frame. Behind the player's camera,
 //! a blue wall facing it: mirrored views draw its front and cull its back as an unmirrored view
 //! does, mirrored left to right; a clip plane leaves the green wall out of a view behind it, and
-//! a clipped view's entities keep their depth order against terrain. Run with throwaway
+//! a clipped view's entities keep their depth order against terrain. Views seen in views draw
+//! deepest first, so a child's picture is this frame's in its parent's `world_view_drawn`, and
+//! eight views draw with the frame unchanged. Run with throwaway
 //! HORIZON_HOME, HORIZON_LAUNCHER_HOME, XDG_DATA_HOME and XDG_CONFIG_HOME, through production
 //! source staging: `python3 tools/run_world_views.py <output-dir>`; `--bench` (an optimized
 //! build): instead, frames of rolling land 49 by 49 chunks around the camera at 1920 by 1080
@@ -16,7 +18,10 @@ use client::{
     graphics::GraphicsApi,
     hud::HudBatch,
     mesher::{SectionMesh, TerrainVertex, Vertex},
-    render_slots::{self, Slots, WorldView, WorldViewDrawn},
+    render_slots::{
+        self, Slots, WorldView, WorldViewDrawn, WorldViewRefusal, WorldViewRefusalReason,
+        WorldViews,
+    },
 };
 use glam::DVec3;
 use horizon_client_render as client;
@@ -44,39 +49,85 @@ static ASKED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::n
 static DRAWN: Mutex<Vec<(u64, [u32; 2], wgpu::TextureFormat, wgpu::Buffer)>> =
     Mutex::new(Vec::new());
 static DEVICE: Mutex<Option<wgpu::Device>> = Mutex::new(None);
-fn ask_views(views: &mut Vec<WorldView>) {
+/// What each push of the last frame returned.
+type Pushed = Result<(), (u64, WorldViewRefusalReason)>;
+static PUSHED: Mutex<Vec<Pushed>> = Mutex::new(Vec::new());
+/// Each view drawn this frame: its id, parent and nesting depth, in the order drawn, and its
+/// target.
+static ORDER: Mutex<Vec<(u64, Option<u64>, u32)>> = Mutex::new(Vec::new());
+static TARGETS: Mutex<Vec<(u64, wgpu::Texture)>> = Mutex::new(Vec::new());
+/// In a parent's `world_view_drawn`: the parent, its child and a copy of the child's picture.
+type Copied = (u64, u64, [u32; 2], wgpu::TextureFormat, wgpu::Buffer);
+static IN_PARENT: Mutex<Vec<Copied>> = Mutex::new(Vec::new());
+fn ask_views(views: &mut WorldViews) {
     ASKED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    views.extend(VIEWS.lock().unwrap().iter().copied());
+    ORDER.lock().unwrap().clear();
+    TARGETS.lock().unwrap().clear();
+    let named = |r: WorldViewRefusal| (r.id, r.reason);
+    *PUSHED.lock().unwrap() = VIEWS
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|v| views.push(*v).map_err(named))
+        .collect();
+}
+/// A buffer `texture`'s picture is copied into, in `encoder`'s order.
+fn copy_out(
+    device: &wgpu::Device,
+    encoder: &mut wgpu::CommandEncoder,
+    texture: &wgpu::Texture,
+) -> wgpu::Buffer {
+    let row = (texture.width() * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: None,
+        size: u64::from(row * texture.height()),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    encoder.copy_texture_to_buffer(
+        texture.as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(row),
+                rows_per_image: None,
+            },
+        },
+        texture.size(),
+    );
+    buffer
 }
 fn view_drawn(view: &mut WorldViewDrawn<'_>) {
-    {
-        let [width, height] = view.size;
-        assert_eq!([view.color.width(), view.color.height()], view.size);
-        let row = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        let buffer = view.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(row * height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        view.encoder.copy_texture_to_buffer(
-            view.color.as_image_copy(),
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: None,
-                },
-            },
-            view.color.size(),
-        );
-        *DEVICE.lock().unwrap() = Some(view.device.clone());
-        DRAWN
-            .lock()
-            .unwrap()
-            .push((view.id, view.size, view.color_format, buffer));
+    assert_eq!([view.color.width(), view.color.height()], view.size);
+    // the views seen in this one, drawn before it this frame
+    let children: Vec<(u64, Option<u64>)> = VIEWS
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|v| (v.id, v.parent))
+        .collect();
+    for (child, texture) in TARGETS.lock().unwrap().iter() {
+        if children.contains(&(*child, Some(view.id))) {
+            let buffer = copy_out(view.device, view.encoder, texture);
+            let size = [texture.width(), texture.height()];
+            IN_PARENT
+                .lock()
+                .unwrap()
+                .push((view.id, *child, size, view.color_format, buffer));
+        }
     }
+    let buffer = copy_out(view.device, view.encoder, view.color);
+    *DEVICE.lock().unwrap() = Some(view.device.clone());
+    ORDER
+        .lock()
+        .unwrap()
+        .push((view.id, view.parent, view.nesting_depth));
+    TARGETS.lock().unwrap().push((view.id, view.color.clone()));
+    DRAWN
+        .lock()
+        .unwrap()
+        .push((view.id, view.size, view.color_format, buffer));
 }
 
 fn install_mod() {
@@ -93,48 +144,54 @@ fn install_mod() {
 
 /// The views drawn in the last frame, by id: their size and RGBA pixels.
 fn drawn_views() -> Vec<(u64, [u32; 2], Vec<[u8; 4]>)> {
-    let device = DEVICE.lock().unwrap().clone();
-    DRAWN
-        .lock()
-        .unwrap()
-        .drain(..)
-        .map(|(id, [width, height], format, buffer)| {
-            let slice = buffer.slice(..);
-            slice.map_async(wgpu::MapMode::Read, |r| r.unwrap());
-            device
-                .as_ref()
-                .unwrap()
-                .poll(wgpu::PollType::wait_indefinitely())
-                .unwrap();
-            let bytes = slice.get_mapped_range().unwrap();
-            let row = bytes.len() / height as usize;
-            let bgra = matches!(
-                format,
-                wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
-            );
-            assert!(
-                format.block_copy_size(None) == Some(4),
-                "an 8-bit frame: {format:?}"
-            );
-            let pixels: Vec<[u8; 4]> = (0..height as usize)
-                .flat_map(|y| {
-                    bytes[y * row..y * row + width as usize * 4]
-                        .as_chunks::<4>()
-                        .0
-                })
-                .map(|p| {
-                    if bgra {
-                        [p[2], p[1], p[0], p[3]]
-                    } else {
-                        [p[0], p[1], p[2], p[3]]
-                    }
-                })
-                .collect();
-            drop(bytes);
-            buffer.unmap();
-            (id, [width, height], pixels)
-        })
+    let drawn: Vec<_> = DRAWN.lock().unwrap().drain(..).collect();
+    drawn
+        .into_iter()
+        .map(|(id, size, format, buffer)| (id, size, read_back(size, format, buffer)))
         .collect()
+}
+
+/// The RGBA pixels of a `copy_out` buffer once the GPU is done with it.
+fn read_back(
+    [width, height]: [u32; 2],
+    format: wgpu::TextureFormat,
+    buffer: wgpu::Buffer,
+) -> Vec<[u8; 4]> {
+    let device = DEVICE.lock().unwrap().clone();
+    let slice = buffer.slice(..);
+    slice.map_async(wgpu::MapMode::Read, |r| r.unwrap());
+    device
+        .as_ref()
+        .unwrap()
+        .poll(wgpu::PollType::wait_indefinitely())
+        .unwrap();
+    let bytes = slice.get_mapped_range().unwrap();
+    let row = bytes.len() / height as usize;
+    let bgra = matches!(
+        format,
+        wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+    );
+    assert!(
+        format.block_copy_size(None) == Some(4),
+        "an 8-bit frame: {format:?}"
+    );
+    let pixels: Vec<[u8; 4]> = (0..height as usize)
+        .flat_map(|y| {
+            bytes[y * row..y * row + width as usize * 4]
+                .as_chunks::<4>()
+                .0
+        })
+        .map(|p| {
+            if bgra {
+                [p[2], p[1], p[0], p[3]]
+            } else {
+                [p[0], p[1], p[2], p[3]]
+            }
+        })
+        .collect();
+    drop(bytes);
+    buffer.unmap();
+    pixels
 }
 
 fn read(path: &Path) -> Vec<[u8; 4]> {
@@ -400,6 +457,87 @@ fn fixture(window: Arc<Window>) -> Result<(), Box<dyn std::error::Error>> {
         "and the first too, without views"
     );
 
+    // Views seen in views, fresh ids no earlier frame drew, one frame: pushed parent first,
+    // drawn deepest first at their depths, and in each parent's `world_view_drawn` its child's
+    // picture is this frame's. A view whose parent was not pushed is refused by name.
+    let parent = WorldView::new(
+        50,
+        DVec3::new(8.0, 104.0, 40.0),
+        180.0,
+        0.0,
+        70.0,
+        [200, 120],
+    );
+    let child = WorldView::new(51, DVec3::new(8.0, 104.0, 9.0), 180.0, 0.0, 70.0, [64, 64]);
+    let grandchild = WorldView::new(52, DVec3::new(8.0, 104.0, 40.0), 180.0, 0.0, 70.0, [48, 32]);
+    *VIEWS.lock().unwrap() = vec![
+        parent,
+        child.with_parent(50),
+        grandchild.with_parent(51),
+        WorldView::new(53, camera, 0.0, 0.0, 70.0, [8, 8]).with_parent(99),
+    ];
+    let mut frame = fixture_frame(&hud);
+    frame.entities = &entity;
+    entity_frusta(&mut renderer);
+    renderer.render(&frame).unwrap();
+    renderer.wait_submissions();
+    assert_eq!(
+        *PUSHED.lock().unwrap(),
+        [
+            Ok(()),
+            Ok(()),
+            Ok(()),
+            Err((53, WorldViewRefusalReason::MissingParent(99)))
+        ]
+    );
+    assert_eq!(
+        *ORDER.lock().unwrap(),
+        [(52, Some(51), 3), (51, Some(50), 2), (50, None, 1)]
+    );
+    let nested = drawn_views();
+    let copies: Vec<_> = IN_PARENT.lock().unwrap().drain(..).collect();
+    let copies: Vec<(u64, u64, Vec<[u8; 4]>)> = copies
+        .into_iter()
+        .map(|(parent, child, size, format, buffer)| {
+            (parent, child, read_back(size, format, buffer))
+        })
+        .collect();
+    let pairs: Vec<(u64, u64)> = copies.iter().map(|(p, c, _)| (*p, *c)).collect();
+    assert_eq!(
+        pairs,
+        [(51, 52), (50, 51)],
+        "each child in its parent's hook"
+    );
+    let own = |id| &nested.iter().find(|v| v.0 == id).unwrap().2;
+    assert!(
+        copies[0].2 == *own(52) && copies[1].2 == *own(51),
+        "a child's picture in its parent's hook is the one it drew this frame"
+    );
+    let nested_green = count(&copies[0].2, [0, 255, 0]);
+    let nested_red = count(&copies[1].2, [255, 64, 64]);
+    assert!(
+        nested_green > 48 * 32 / 4 && nested_red > 200,
+        "and holds what it sees: {nested_green} green, {nested_red} red"
+    );
+    *VIEWS.lock().unwrap() = Vec::new();
+
+    // Eight views draw, and the frame's picture and draws stay as they were.
+    let eight: Vec<WorldView> = (60..68)
+        .map(|id| WorldView::new(id, DVec3::new(8.0, 104.0, 40.0), 180.0, 0.0, 70.0, [64, 64]))
+        .collect();
+    let (with_eight, drawn, eight_draws) = shot(&mut renderer, "eight", eight);
+    let ids: Vec<u64> = drawn.iter().map(|(id, ..)| *id).collect();
+    assert_eq!(ids, [60, 61, 62, 63, 64, 65, 66, 67], "eight views drawn");
+    assert!(
+        with_eight == plain && eight_draws == plain_draws,
+        "the frame's picture is the same with eight views drawn"
+    );
+    let eight_green: Vec<usize> = drawn.iter().map(|v| count(&v.2, [0, 255, 0])).collect();
+    assert!(
+        eight_green.iter().all(|&g| g > 64 * 64 / 4),
+        "each sees the green wall: {eight_green:?}"
+    );
+
     // Mirrored views (64 by 64, x 12): looking north at the blue wall's front 4.5 blocks off, it
     // fills the picture; looking south from z -10 at its back, it is culled, mirrored or not, and
     // the mirrored picture is the unmirrored one left to right (the white wall and the entity
@@ -555,6 +693,7 @@ fn fixture(window: Arc<Window>) -> Result<(), Box<dyn std::error::Error>> {
         serde_json::to_vec_pretty(&serde_json::json!({
             "wall_pixels": wall_px, "entity_pixels": entity_px, "view_green_pixels": green,
             "view_entity_pixels": red, "frame_unchanged_with_views": true,
+            "nested_child_pixels": [nested_green, nested_red], "eight_views_green": eight_green,
             "frame_sections_and_draws": plain_draws, "view_draws": views_drew,
             "mirrored_front_pixels": front_blue, "mirrored_back_pixels": back_blue[0],
             "mirrored_unlike_pixels": unlike, "clipped_white_pixels": clip_white,

@@ -690,6 +690,7 @@ pub(super) fn derives(item: &Item, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     #[test]
+    #[ignore = "daily"]
     fn staged_identifier_exposure_does_not_add_backing_storage_to_wire_layouts() {
         std::thread::Builder::new().stack_size(64 << 20).spawn(|| {
             let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

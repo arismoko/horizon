@@ -692,6 +692,7 @@ mod tests {
 
     /// 65,536 entries in a registry are accepted; one more refuses the candidate.
     #[test]
+    #[ignore = "daily"]
     fn a_registry_over_65536_entries_refuses_the_candidate() {
         let mut files: Vec<_> = (0..65_536)
             .map(|n| match n {
@@ -710,6 +711,7 @@ mod tests {
 
     /// Exactly 67,108,864 source bytes fit; one extra byte refuses the candidate.
     #[test]
+    #[ignore = "daily"]
     fn a_candidate_over_64_mib_refuses_the_candidate() {
         let full = padded(1_048_576);
         let mut files: Vec<_> = (0..63)

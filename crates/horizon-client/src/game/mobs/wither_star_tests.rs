@@ -15,6 +15,7 @@ use std::sync::Arc;
 /// tick 11999 and discarded at 12000, while an ordinary drop beside it is
 /// discarded at 6000.
 #[test]
+#[ignore = "daily"]
 fn a_withers_nether_star_lives_12000_ticks() {
     if std::env::var_os("HORIZON_TEST_RESOURCES").is_none() {
         return; // CI has no prepared resources.
@@ -22,6 +23,8 @@ fn a_withers_nether_star_lives_12000_ticks() {
     crate::game::native_entity_refs::tests::with_game(|game| {
         game.options.dedicated = Some(Vec::new());
         game.build_registries();
+        // The fixture stops before world entry, which loads the death loot snapshot.
+        game.load_server_loot();
         game.set_allow_commands(true);
         let at = [4.25, 200.0, 4.75];
         // A chunk only ticks its entities once the 5x5 columns around it are in.
@@ -189,6 +192,8 @@ fn loot_stack_edits_leave_custom_drop_age_attached() {
         crate::game::native_entity_refs::tests::with_game(|game| {
             game.options.dedicated = Some(Vec::new());
             game.build_registries();
+            // The fixture stops before world entry, which loads the death loot snapshot.
+            game.load_server_loot();
             let captured = Arc::new(Mutex::new(Vec::new()));
             let mods: mod_api::Mods = vec![mod_api::ModEntry::new(
                 "custom-drop-age",

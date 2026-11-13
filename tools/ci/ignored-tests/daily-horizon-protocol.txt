@@ -1,0 +1,6 @@
+# The daily tests of horizon-protocol: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
+# where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+horizon-protocol connection::tests::packets_of_every_size_arrive_whole lib daily slow
+horizon-protocol rsa::tests::generated_keys_round_trip lib daily slow
+horizon-protocol rsa::tests::generated_keys_sign lib daily slow
+horizon-protocol secure_chat::tests::encoder_signs_what_the_chain_accepts lib daily slow

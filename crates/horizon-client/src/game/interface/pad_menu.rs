@@ -1332,7 +1332,9 @@ impl Game<'_> {
     /// the one in front (a screen that just opened leaves the old focus
     /// behind it), so every menu's click focus goes.
     pub(super) fn clear_screen_click_focus(&mut self) {
-        if let Some(title) = self.title.as_mut() {
+        if let Some(title) = self.title.as_mut()
+            && !matches!(title.mode, horizon_client::title::Mode::MissingMods { .. })
+        {
             title.focused_button = None;
         }
         self.pause_focus = None;
@@ -1935,6 +1937,13 @@ impl Game<'_> {
         let Some(focus) = self.pad.menu.focus else {
             return;
         };
+        // Includes focus restored or followed directly above, not only explicit
+        // pad_focus_on landings. The pad now owns the screen's focus mark.
+        if !self.pad.menu.keyboard
+            && let Some(title) = self.title.as_mut()
+        {
+            title.missing_mods_pad_focus();
+        }
         if self.pad.menu.pos.is_none() || self.pad.menu.held.iter().any(|h| *h) {
             return;
         }
@@ -2074,6 +2083,13 @@ impl Game<'_> {
     /// value). Whether the key was used; when not, the screen has it (a
     /// container also has Tab and the arrows once they moved the focus).
     pub(super) fn key_focus_key(&mut self, event_loop: &dyn EventLoopCtl, key: KeyCode) -> bool {
+        if self
+            .title
+            .as_ref()
+            .is_some_and(|t| matches!(t.mode, horizon_client::title::Mode::MissingMods { .. }))
+        {
+            return false;
+        }
         let Some(nav) = key_focus::nav_of(key, self.has_shift_down()) else {
             return false;
         };

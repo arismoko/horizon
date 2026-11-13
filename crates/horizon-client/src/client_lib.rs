@@ -111,6 +111,7 @@ pub mod locator_bar;
 pub mod lod_net;
 pub mod map_decoration_types;
 pub mod menu;
+pub mod menu_extra_net;
 pub mod merchant;
 pub mod mobs;
 pub mod mod_content;

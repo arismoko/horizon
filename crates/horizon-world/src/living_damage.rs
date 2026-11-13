@@ -351,11 +351,6 @@ pub trait DamageWorld {
     fn damage_pre(&mut self, _container: &mut DamageContainer) -> Result<(), Self::Error> {
         Ok(())
     }
-    /// `LivingDamageEvent.Post`: the health has just lost `container`'s health damage (not
-    /// 0). The default does nothing.
-    fn damage_post(&mut self, _container: &DamageContainer) -> Result<(), Self::Error> {
-        Ok(())
-    }
 }
 pub(crate) fn positive(value: f32) -> f32 {
     if value.is_nan() {
@@ -507,7 +502,7 @@ pub(crate) fn actually_hurt_after_armor<W: DamageWorld>(
     }
     world.damage_event()?;
     container.record_health_damage(remaining);
-    world.damage_post(container)
+    Ok(())
 }
 #[cfg(test)]
 mod tests {

@@ -111,6 +111,7 @@ pub fn main() -> horizon_client::Result<()> {
         limited_crafting: false,
         can_equip: None,
         known_recipes: None,
+        slot_rules: None,
     };
     let mut out = String::new();
     for line in input.lines() {

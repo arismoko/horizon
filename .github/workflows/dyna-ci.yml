@@ -75,9 +75,6 @@ jobs:
       # The sample was PR-selected before centralization; keep main/dispatch behavior unchanged.
       sample_required: ${{ steps.selection.outputs.sample_required || 'false' }}
       self_hosted: ${{ !inputs.github-fallback && steps.hosted.outputs.forced_github != 'true' && steps.runner.outputs.self_hosted || 'false' }}
-      routing_reason: ${{ steps.runner.outputs.routing_reason }}
-      # Every ignored-tests shard on main pushes and dispatches; empty on pull requests.
-      ignored_matrix: ${{ steps.matrix.outputs.matrix || '{"shard":[]}' }}
       # Where lint and verify run when they don't go to Dyna's pool: boat-large for listed outside contributors
       # while vars.BOAT_CI is on (boat refuses a public repository's run unless both its author and the user who
       # started it are on boat's own list, so the same list lives in vars.BOAT_CI_USERS), else GitHub's runner.
@@ -169,10 +166,6 @@ jobs:
           AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
           ACTOR: ${{ github.triggering_actor }}
         run: python3 tools/ci/boat_health.py
-      - name: The ignored-tests shard matrix
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.pr
-        id: matrix
-        run: python3 tools/ci/ignored_shards.py --matrix --all >> "$GITHUB_OUTPUT"
 
   # Fork PR tokens cannot dispatch or cancel runs. The trusted default-branch
   # boat-recovery workflow cancels/reruns outages; changes reads the previous attempt.
@@ -395,6 +388,32 @@ jobs:
       - name: The mod API builds for wasm32
         if: needs.changes.outputs.rust_required != 'false'
         run: cargo check $JOBS -p horizon-mod-api --target wasm32-unknown-unknown --locked
+      # The prebuilt SDK's own feature graph: a release --lib build with prefer-dynamic and warnings denied, as
+      # tools/prebuilt_game.py builds it, for the host and for the Windows archive (system-allocator there,
+      # cargo_features). The checks above unify test and dev features (test-support) into one host build, which hid
+      # an unused import (Linux) and a unix-only binding (Windows) from everything but the SDK builds on main. Its own
+      # target folder: these flags would otherwise invalidate the workspace's artifacts for the other steps.
+      - name: The prebuilt SDK's library builds without warnings
+        if: needs.changes.outputs.rust_required != 'false'
+        run: |
+          host=$(rustc -vV | awk '/^host:/ {print $2}')
+          check() {
+            local start=$SECONDS
+            env -u CARGO_ENCODED_RUSTFLAGS RUSTFLAGS='-C prefer-dynamic -D warnings' \
+              cargo check $JOBS --locked -p horizon-mod-host --lib --profile release --target-dir target/sdk-check "$@"
+            echo "SDK library check $*: $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+          check --target "$host"
+          # hidapi and libmimalloc-sys compile C for the target in their build scripts.
+          if ! command -v x86_64-w64-mingw32-gcc > /dev/null; then
+            echo "::error::x86_64-w64-mingw32-gcc is missing: the Windows SDK check needs MinGW (gcc-mingw-w64-x86-64 in the ci-runner image)"
+            exit 1
+          fi
+          rustup target add x86_64-pc-windows-gnu
+          # The real build is a dylib, which Cargo never LTOs; a --lib check under the release profile's thin LTO
+          # builds the dependencies for linker-plugin LTO, which rustc refuses with prefer-dynamic on Windows.
+          # A check generates no code, so LTO changes no warning or cfg it reports.
+          check --target x86_64-pc-windows-gnu --features system-allocator --config profile.release.lto=false
       - name: Propagate formatting failure
         if: ${{ always() && steps.formatting.outcome == 'failure' }}
         run: |
@@ -568,7 +587,7 @@ jobs:
       # step ends with the failing binaries and test names.
       - name: Test Rust core and voxel kernel correctness
         if: needs.changes.outputs.rust_required != 'false'
-        run: python3 tools/ci/run_test_binaries.py --jobs 3 -- cargo test $JOBS --profile test --workspace --lib --bins --tests
+        run: python3 tools/ci/run_test_binaries.py --jobs 3 --time-limits 2,5 -- cargo test $JOBS --profile test --workspace --lib --bins --tests
       # Prepared-data content-root tests stay in the existing client-lib data leg.
       # Running them again here without the data only rebuilds targets before they return early.
       # One genuine pinned export also validates source staging and listed slots.
@@ -751,6 +770,9 @@ jobs:
       # folder, no file at the retired single-list path.
       - name: Ignored-test policy files read cleanly
         run: python3 tools/ci/check_ignored_test_rows.py
+      # The unit tier: a test that boots the game is #[ignore = "daily"]; the fixtures are in tools/ci/game-boot-fixtures.txt.
+      - name: Game-boot tests are daily tests
+        run: python3 tools/ci/check_game_boot_tests.py
       # docs/layers.md: a crate depends only on its own layer or a lower one; today's exceptions only shrink.
       - name: Crates follow the layers
         if: needs.changes.outputs.rust_required != 'false'
@@ -767,7 +789,7 @@ jobs:
         run: python3 tools/hotspots/check_stand_ins.py
       # Independent of the Rust job. Only after earlier static setup/checks succeeded:
       # compiler fixtures after failed setup would add a second, misleading failure.
-      - name: Test offline research tooling
+      - name: Python tests of the repository's tools
         if: ${{ success() && needs.changes.result == 'success' && needs.changes.outputs.tooling_required != 'false' }}
         run: |
           python3 -m unittest discover -s tests -v --durations=25
@@ -793,158 +815,6 @@ jobs:
           echo '::warning::Optional mod-host-map artifact upload failed; inspect the upload step for details.'
           echo '### Optional mod-host-map artifact unavailable' >> "$GITHUB_STEP_SUMMARY"
           echo 'The upload failed. Map generation remains a required step; the optional download is unavailable.' >> "$GITHUB_STEP_SUMMARY"
-  # The #[ignore]d library tests that need the prepared vanilla data, which verify doesn't have. Main pushes and
-  # dispatches only, on Dyna's large runner where that data lives. Every shard runs, with one package per shard
-  # (the plan lives in tools/ci/ignored_shards.py). tools/ci/ignored_tests.py fails on a new failure and on a known
-  # one that passes, and prints only test names and results: the data is Mojang's.
-  ignored-tests-shards:
-    needs: changes
-    # Skip an empty matrix instead of expanding to nothing, which GitHub refuses.
-    if: >-
-      needs.changes.outputs.self_hosted == 'true' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.pr &&
-      fromJSON(needs.changes.outputs.ignored_matrix).shard[0] != null
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.changes.outputs.ignored_matrix) }}
-    # Main pushes: one group per shard. A running shard finishes and only the newest push's shard
-    # waits; an older waiting one is cancelled, as the release gate reads the newest main result
-    # (owner's rule, 2026-11-13). A dispatch's shards are never folded into main's.
-    concurrency:
-      group: ignored-shard-${{ github.event_name == 'push' && 'main' || github.run_id }}-${{ matrix.shard }}
-      cancel-in-progress: false
-    # Owner-approved stopgap: #2944 removes this when the legs run under 15 minutes.
-    runs-on: ${{ (matrix.shard == 'horizon-client#1of2' || matrix.shard == 'horizon-client#2of2') && 'dyna-xlarge' || 'dyna-large' }}
-    # Temporary: #2944 brings client data legs under 15 minutes and restores the 60-minute cap.
-    timeout-minutes: ${{ (matrix.shard == 'horizon-client#1of2' || matrix.shard == 'horizon-client#2of2') && 90 || 60 }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Check Dyna dependencies (install fallback without root)
-        run: bash tools/ci/dyna_ci_deps.sh
-      - name: Install Rust toolchain
-        run: |
-          if [ ! -x "$CARGO_HOME/bin/rustup" ]; then
-            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
-          fi
-          bash tools/ci/rustup_install.sh --profile minimal
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Record data-leg start and compiler cache
-        run: |
-          date -u '+data-leg start utc=%Y-%m-%dT%H:%M:%SZ'
-          sccache --show-stats || echo 'data-leg compiler-cache statistics unavailable'
-      # Every job that builds in this runner's persistent target keeps its source snapshot true: a
-      # build of another tree without it left artifacts that a later job judged fresh (stale generated
-      # sources, 2026-11-13). Only byte-identical Git objects regain their previous timestamps.
-      - name: Restore unchanged source timestamps
-        run: python3 tools/ci/source_mtimes.py "${CARGO_TARGET_DIR:-target}/ci-source-mtimes-v2.json"
-      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
-      - name: Cap build parallelism to the runner
-        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
-      # Missing data must fail on both main pushes and nightly dispatches.
-      - name: Prepare checkout-keyed vanilla data
-        id: data
-        env:
-          EVENT: ${{ github.event_name }}
-        run: |
-          for dir in minecraft datagen horizon-client tools; do
-            if [ ! -d "/cache/horizon-local/$dir" ]; then
-              echo "prepared data unavailable on this runner"
-              echo "Prepared data unavailable: $dir ($EVENT)" >> "$GITHUB_STEP_SUMMARY"
-              exit 1
-            fi
-          done
-          HORIZON_DYNA_CACHE=true HORIZON_PREPARED_CACHE="$DYNA_CI_BUILD/vanilla" HORIZON_SHARED_SOURCE=/cache/horizon-local bash tools/ci/vanilla-data.sh
-      - name: Retain typed preparation diagnostics only
-        if: failure() && steps.data.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: preparation-diagnostic-${{ strategy.job-index }}
-          path: |
-            ${{ runner.temp }}/prepare-build.diagnostic.json
-            ${{ runner.temp }}/prepare.diagnostic.json
-            ${{ runner.temp }}/seed-extras.diagnostic.json
-          if-no-files-found: ignore
-          retention-days: 3
-      - name: Generate the fishing test's vanilla reference inputs
-        if: steps.data.outputs.present != 'false' && (matrix.shard == 'horizon-client' || startsWith(matrix.shard, 'horizon-client#'))
-        run: |
-          reference=$(mktemp -d "$RUNNER_TEMP/fishing-reference.XXXXXX")
-          python3 tools/test_fishing_rng_parity.py --prepare-reference "$reference" --env-file "$GITHUB_ENV"
-      - name: Run the ignored tests that need prepared data
-        if: steps.data.outputs.present != 'false'
-        env:
-          SHARD: ${{ matrix.shard }}
-          HORIZON_DATA_LEG_TIMING: '1'
-        run: |
-          export HORIZON_TEST_RESOURCES="$PWD/.local/horizon-client/26.3"
-          python3 tools/ci/with_xvfb.py python3 tools/ci/ignored_tests.py "$SHARD"
-      - name: Record data-leg end and compiler cache
-        if: always()
-        run: |
-          date -u '+data-leg end utc=%Y-%m-%dT%H:%M:%SZ'
-          # Whole-job cgroup high-water: compilation, tests and file cache, not per-test RSS
-          # or an isolated test-execution peak. Fixed kernel files only; telemetry is best effort.
-          echo 'data-leg memory_scope=whole_job_cgroup_including_compilation_tests_file_cache'
-          for metric in memory.peak memory.max memory.swap.peak memory.swap.max; do
-            field="${metric//./_}_bytes"
-            value=unavailable
-            if IFS= read -r sample 2>/dev/null < "/sys/fs/cgroup/$metric"; then
-              if [[ "$sample" =~ ^[0-9]+$ || "$sample" == max ]]; then
-                value="$sample"
-              fi
-            fi
-            echo "data-leg $field=$value"
-          done
-          sccache --show-stats || echo 'data-leg compiler-cache statistics unavailable'
-  # Never turn missing prepared-data coverage into a green main/nightly run.
-  ignored-tests:
-    needs: [changes, ignored-tests-shards]
-    if: >-
-      always() && !cancelled() &&
-      !inputs.prepare-output-check && !inputs.pr &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Require prepared-data coverage
-        env:
-          RESULT: ${{ needs.ignored-tests-shards.result }}
-          ROUTE: ${{ needs.changes.outputs.self_hosted }}
-          REASON: ${{ needs.changes.outputs.routing_reason }}
-          CHANGES: ${{ needs.changes.result }}
-          FORCED_GITHUB: ${{ needs.changes.outputs.forced_github }}
-        run: |
-          {
-            echo "## Prepared-data coverage"
-            echo "Shard result: $RESULT; changes: $CHANGES; self-hosted: $ROUTE; forced GitHub: $FORCED_GITHUB"
-            echo "Routing: $REASON"
-            if [ "$RESULT" = skipped ]; then
-              echo "Missing coverage: pool routing was disabled/unavailable or the shard matrix was empty. Restore the pool lease/switch if expired; do not treat this run as tested."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$RESULT" = cancelled ] && [ "$GITHUB_EVENT_NAME" = push ]; then
-            echo "Superseded: a newer main push's shards carry this coverage." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          # A main push that waited over an hour cannot route by its own pool snapshot (the token
-          # reads Variables only as of the run's creation), so its shards were skipped. Coverage
-          # comes from the newer pushes queued behind it; a fresh run with the pool off still fails.
-          if [ "$RESULT" = skipped ] && [ "$GITHUB_EVENT_NAME" = push ] &&
-             [[ "$REASON" == "snapshot rejected: run age outside"* ]]; then
-            echo "Not tested here: the run waited past its routing snapshot; a newer main push carries this coverage." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          if [ "$RESULT" != success ]; then
-            echo "::error::Prepared-data coverage required; shard result: $RESULT; self-hosted: $ROUTE; $REASON"
-            exit 1
-          fi
   # The launcher is its own workspace (launcher/Cargo.toml), so verify's cargo runs never build it. A pull request that
   # changes it or a crate it builds is checked here, and so is every push to main: two pull requests can each pass
   # alone and break it together (#2059 and the registry ratings did, 2026-10-26).

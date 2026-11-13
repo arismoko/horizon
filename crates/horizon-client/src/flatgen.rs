@@ -121,6 +121,23 @@ impl FlatTerrain {
         } else {
             None
         };
+        let surface = Self::surface(&layers, registry, shape, biome)?;
+        Some(Self {
+            shape,
+            layers,
+            biome,
+            surface,
+            void_platform,
+        })
+    }
+    /// The top of the layers as the far view reads it: the first block that is not air, with the
+    /// fluid over it. The outer `None` when a layer's state is not in `registry`.
+    fn surface(
+        layers: &[u32],
+        registry: &BlockRegistry,
+        shape: LevelShape,
+        biome: u16,
+    ) -> Option<Option<crate::lod::Surface>> {
         let mut water = None;
         let mut surface = None;
         for (i, &id) in layers.iter().take(shape.height as usize).enumerate().rev() {
@@ -145,12 +162,43 @@ impl FlatTerrain {
                 break;
             }
         }
+        Some(surface)
+    }
+    /// The generator of a level a mod opens with the default superflat layers (`Some(layers)`:
+    /// bedrock, two dirt, grass block, over plains) or with air alone (`None`: the void).
+    /// `None` when the registry lacks one of the blocks.
+    pub fn of_layers(
+        registry: &BlockRegistry,
+        biomes: &crate::biome::Biomes,
+        shape: LevelShape,
+        flat: bool,
+    ) -> Option<Self> {
+        let names: &[&str] = if flat {
+            &[
+                "minecraft:bedrock",
+                "minecraft:dirt",
+                "minecraft:dirt",
+                "minecraft:grass_block",
+            ]
+        } else {
+            &[]
+        };
+        let layers = names
+            .iter()
+            .map(|name| Some(registry.default_state(name)?.0))
+            .collect::<Option<Vec<_>>>()?;
+        let biome = biomes.id(if flat {
+            "minecraft:plains"
+        } else {
+            "minecraft:the_void"
+        });
+        let surface = Self::surface(&layers, registry, shape, biome)?;
         Some(Self {
             shape,
             layers,
             biome,
             surface,
-            void_platform,
+            void_platform: None,
         })
     }
     /// The settings of a superflat overworld that runs on the structure and feature

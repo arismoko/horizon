@@ -25,6 +25,9 @@ pub mod __private {
     pub fn has_scoped_hook(_: crate::HookId) -> bool {
         true
     }
+    pub fn worldgen_block_key_listens(hook: crate::HookId, key: crate::BlockKey) -> bool {
+        block_key_listens(hook, key)
+    }
     pub fn block_key_listens(_: crate::HookId, key: crate::BlockKey) -> bool {
         key.0 == 7
     }

@@ -15,7 +15,12 @@ impl Hub {
         play::SpawnInfo {
             dimension_type: self.dimension_type,
             dimension: self.config.dimension.clone(),
-            seed: horizon_core::biome::obfuscate_seed(self.config.seed),
+            seed: horizon_core::biome::obfuscate_seed(
+                self.config
+                    .levels
+                    .seed_of(&self.config.dimension)
+                    .unwrap_or(self.config.seed),
+            ),
             game_type: g.game_mode,
             previous_game_type: None,
             debug: self.debug_world,

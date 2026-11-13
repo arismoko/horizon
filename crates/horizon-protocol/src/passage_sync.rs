@@ -1,11 +1,13 @@
 //! Passage sync (#3775): the passages a native mod registered in a level, sent by a Horizon
-//! server to the Horizon clients that hold their chunk, and their removal
-//! (docs/modding/src/how-to/passages.md). Clientbound only: a client sends nothing back.
+//! server to the Horizon clients that hold their chunk, their removal, and the server's
+//! refusal of a client's crossing (docs/modding/src/how-to/passages.md). A client crosses on
+//! its own serverbound channel, [`CROSS_CHANNEL`].
 //!
-//! A payload is a varint kind, then a varint count: for an addition that many passages
-//! (the server's number as a long, the opening's centre and its two axes as three doubles
-//! each, its width and height, the centre's destination, then the turn as a byte), for a
-//! removal that many numbers.
+//! A payload is a varint kind. An addition (0) or a removal (1) then has a varint count:
+//! for an addition that many passages (the server's number as a long, the opening's centre
+//! and its two axes as three doubles each, its width and height, the centre's destination,
+//! then the turn as a byte), for a removal that many numbers. A refusal (2) has the
+//! passage's number as a long and the reason as a byte.
 use crate::{
     Error, Result,
     buf::{Reader, Writer},
@@ -13,6 +15,9 @@ use crate::{
 
 /// The custom payload channel.
 pub const CHANNEL: &str = "horizon:passage_sync";
+/// The serverbound channel of a crossing: the passage's number as a long, then the
+/// player's feet before it as three doubles.
+pub const CROSS_CHANNEL: &str = "horizon:passage_cross";
 /// Passages or numbers in one message at most: a level's cap.
 pub const MAX_COUNT: usize = 256;
 
@@ -38,6 +43,35 @@ pub enum Message {
     Add(Vec<PassageForm>),
     /// Numbers of passages to forget.
     Remove(Vec<u64>),
+    /// The server refused the client's crossing of passage `id` for `reason` and put the
+    /// player back; the game names the reasons.
+    Refused { id: u64, reason: u8 },
+}
+
+/// A client crossed passage `id` from `from`, its feet before the crossing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cross {
+    pub id: u64,
+    pub from: [f64; 3],
+}
+
+/// A crossing's payload.
+pub fn encode_cross(cross: &Cross) -> Vec<u8> {
+    let mut w = Writer::new();
+    w.i64(cross.id as i64);
+    cross.from.iter().for_each(|&c| w.f64(c));
+    w.data
+}
+
+/// A crossing's fields; an error for a cut payload or trailing bytes.
+pub fn decode_cross(data: &[u8]) -> Result<Cross> {
+    let mut r = Reader::new(data);
+    let id = r.i64()? as u64;
+    let from = [r.f64()?, r.f64()?, r.f64()?];
+    if r.remaining() > 0 {
+        return Err(Error::new("passage cross: trailing bytes"));
+    }
+    Ok(Cross { id, from })
 }
 
 /// A message's payload; an error for one with more than [`MAX_COUNT`] entries or a turn
@@ -68,6 +102,11 @@ pub fn encode(message: &Message) -> Result<Vec<u8>> {
             w.varint(1);
             w.varint(ids.len() as i32);
             ids.iter().for_each(|&id| w.i64(id as i64));
+        }
+        Message::Refused { id, reason } => {
+            w.varint(2);
+            w.i64(*id as i64);
+            w.u8(*reason);
         }
     }
     Ok(w.data)
@@ -119,6 +158,10 @@ pub fn decode(data: &[u8]) -> Result<Message> {
             }
             Message::Remove(ids)
         }
+        2 => Message::Refused {
+            id: r.i64()? as u64,
+            reason: r.u8()?,
+        },
         kind => return Err(Error::new(format!("passage sync: kind {kind}"))),
     };
     if r.remaining() > 0 {
@@ -161,6 +204,29 @@ mod tests {
             ]
         );
         assert_eq!(decode(&bytes).unwrap(), remove);
+        let refused = Message::Refused { id: 7, reason: 3 };
+        let bytes = encode(&refused).unwrap();
+        assert_eq!(bytes, [2, 0, 0, 0, 0, 0, 0, 0, 7, 3]);
+        assert_eq!(decode(&bytes).unwrap(), refused);
+    }
+
+    /// A crossing is the number then the feet; a cut payload and trailing bytes are refused.
+    #[test]
+    fn a_crossing_has_its_number_then_the_feet() {
+        let cross = Cross {
+            id: 9,
+            from: [0.5, 64.0, -8.25],
+        };
+        let bytes = encode_cross(&cross);
+        assert_eq!(bytes.len(), 8 + 3 * 8);
+        assert_eq!(&bytes[..8], 9i64.to_be_bytes());
+        assert_eq!(&bytes[8..16], 0.5f64.to_be_bytes());
+        assert_eq!(&bytes[24..], (-8.25f64).to_be_bytes());
+        assert_eq!(decode_cross(&bytes).unwrap(), cross);
+        assert!(decode_cross(&bytes[..31]).is_err());
+        let mut long = bytes.clone();
+        long.push(0);
+        assert!(decode_cross(&long).is_err());
     }
 
     /// An unknown kind, a turn past 3, too many entries, a cut payload and trailing
@@ -186,6 +252,7 @@ mod tests {
         assert!(decode(&bytes).is_err());
         assert!(decode(&bytes[..last]).is_err());
         assert!(decode(&[2, 0]).is_err());
+        assert!(decode(&[3, 0]).is_err());
         assert!(decode(&[1, 0, 0]).is_err());
         // A count of 257.
         assert!(decode(&[1, 0x81, 0x02]).is_err());

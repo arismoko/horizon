@@ -12,17 +12,48 @@ impl Game<'_> {
         self.fire_mod_mismatch(mismatches, resolved);
     }
 
-    /// A server opened a world: its saved mod list against the loaded mods.
-    /// The mods hear the differences once, and each one nobody resolved is
-    /// a warning.
-    pub(in crate::game) fn check_mod_mismatch(&mut self) {
-        let loaded = level_mods::loaded().unwrap_or_default();
-        let mismatches = self.level.mod_mismatches(&loaded);
-        if self.level.saved_mods.is_none() {
-            return;
+    /// Before the world in `dir` opens: the saved mods whose content opening it would lose
+    /// (`level_mods::missing`) that no `mod_mismatch` listener resolves. Only when one is missing
+    /// do the mods hear the differences here, before the world opens; the open then uses this
+    /// answer instead of asking again (`check_mod_mismatch`). Reads only: nothing in `dir` changes.
+    pub(in crate::game) fn ask_missing_mods(
+        &mut self,
+        dir: &std::path::Path,
+    ) -> Vec<level_mods::MissingMod> {
+        let loaded = level_mods::Loaded::now();
+        let missing = level_mods::missing_in(dir, &loaded);
+        if missing.is_empty() {
+            return missing;
         }
+        // Without a saved mod list the hook does not fire (block namespaces alone), but the
+        // answer is still kept, for the player's choice to attach to.
+        let mismatches = level_mods::mismatches_in(dir, &loaded);
         let mut resolved = Vec::new();
-        self.native_mod_mismatch(&mismatches, &mut resolved);
+        if let Some(mismatches) = &mismatches {
+            self.native_mod_mismatch(mismatches, &mut resolved);
+        }
+        let mismatches = mismatches.unwrap_or_default();
+        let missing = level_mods::unresolved(missing, &resolved);
+        level_mods::remember_answer(dir, mismatches, resolved);
+        missing
+    }
+
+    /// A server opened a world: its saved code and content mods against the loaded ones.
+    /// The mods hear the differences once (before the open, when a mod was missing and the
+    /// open asked first: `ask_missing_mods`), and each one nobody resolved is a warning.
+    pub(in crate::game) fn check_mod_mismatch(&mut self) {
+        let (mismatches, resolved) = match level_mods::take_answer(&self.save.root) {
+            Some(answer) => answer,
+            None => {
+                if self.level.saved_mods.is_none() {
+                    return;
+                }
+                let mismatches = self.level.mod_mismatches(&level_mods::Loaded::now().mods());
+                let mut resolved = Vec::new();
+                self.native_mod_mismatch(&mismatches, &mut resolved);
+                (mismatches, resolved)
+            }
+        };
         let shown = |version: &str| -> String {
             if version.is_empty() {
                 "an unknown version".to_owned()
@@ -110,5 +141,74 @@ mod tests {
             },
         );
         assert_eq!(*heard.lock().unwrap(), 2);
+    }
+
+    /// A world saved with `gone`, a mod no test loads, and its block namespace.
+    fn world_with_gone_mod(name: &str) -> std::path::PathBuf {
+        use horizon_core::nbt::Tag;
+        let dir = std::env::temp_dir().join(format!("horizon-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let entry = Tag::compound([
+            ("ModId", Tag::String("gone".into())),
+            ("ModVersion", Tag::String("1.0.0".into())),
+        ]);
+        horizon_client::save::write_dat(
+            &dir.join("level.dat"),
+            Tag::compound([
+                (
+                    "Data",
+                    Tag::compound([("LevelName", Tag::String(name.into()))]),
+                ),
+                (
+                    "fml",
+                    Tag::compound([("LoadingModList", Tag::List(vec![entry]))]),
+                ),
+                (
+                    level_mods::COMPOUND,
+                    Tag::compound([(
+                        "BlockNamespaces",
+                        Tag::List(vec![Tag::String("gone".into())]),
+                    )]),
+                ),
+            ]),
+        )
+        .unwrap();
+        dir
+    }
+
+    /// A listener that resolves the missing mod takes it off the question, so no screen shows;
+    /// without one it is asked about. Asking reads the world and writes nothing.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_resolved_missing_mod_is_not_asked_about() {
+        struct Migrator;
+        #[mod_api::__subscriptions]
+        impl Hooks for Migrator {
+            fn mod_mismatch(&self, _: HostSide, event: &mut ModMismatchEvent<'_>) {
+                event.resolved.push("gone".to_owned().into());
+            }
+        }
+        let dir = world_with_gone_mod("resolved-missing-mod");
+        let before = std::fs::read(dir.join("level.dat")).unwrap();
+        super::super::super::native_entity_refs::tests::with_game(|game| {
+            let missing = game.ask_missing_mods(&dir);
+            assert_eq!(
+                missing.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+                ["gone"]
+            );
+        });
+        mod_platform::testing::with_mods(
+            vec![ModEntry::new("migrator", Box::new(Migrator))].into(),
+            || {
+                super::super::super::native_entity_refs::tests::with_game(|game| {
+                    assert!(game.ask_missing_mods(&dir).is_empty());
+                    // The open uses this answer instead of asking the mods again.
+                    let (_, resolved) = level_mods::take_answer(&dir).unwrap();
+                    assert_eq!(resolved[0].resolver, "migrator");
+                });
+            },
+        );
+        assert_eq!(std::fs::read(dir.join("level.dat")).unwrap(), before);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

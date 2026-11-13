@@ -91,6 +91,46 @@ class RunTestBinariesTests(unittest.TestCase):
                                 for line in summary), summary)
             self.assertFalse(any("(passing)" in line for line in summary))
 
+    def test_report_reads_each_result_and_the_time_report_time_adds(self):
+        output = tempfile.TemporaryFile("w+")
+        output.write("running 4 tests\ntest a::fast ... ok <0.012s>\ntest a::slow ... ok <6.250s>\n"
+                     "test a::bad ... FAILED <0.100s>\ntest a::panics - should panic ... ok <2.500s>\n"
+                     "test a::plain ... FAILED\nsome output test a::x ... ok <9.000s> in a payload\n")
+        result = {"binary": {"label": "pkg lib.rs (pkg-1)"}, "output": output, "seconds": 1.0, "max_rss_kib": 0}
+        with contextlib.redirect_stdout(io.StringIO()):
+            failed, times = runner.report(result)
+        self.assertEqual(failed, ["a::bad", "a::plain"])
+        self.assertEqual(times, [(0.012, "a::fast"), (6.25, "a::slow"), (0.1, "a::bad"), (2.5, "a::panics")])
+
+    def test_a_test_over_the_limit_fails_by_name_and_one_over_the_target_warns(self):
+        errors, warnings = runner.timing_verdict(
+            [(0.5, "a::fast", "pkg"), (5.0, "a::at_the_line", "pkg"), (5.01, "a::over", "pkg"), (2.2, "a::slowish", "pkg")],
+            2.0, 5.0)
+        self.assertEqual(len(errors), 1)
+        self.assertTrue(errors[0].startswith("pkg: a::over took 5.01s"))
+        self.assertIn('#[ignore = "daily"]', errors[0])
+        self.assertEqual([warning.split(" took")[0] for warning in warnings], ["pkg: a::at_the_line", "pkg: a::slowish"])
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("sh"), "requires a POSIX shell")
+    def test_time_limits_add_report_time_and_fail_the_run_on_a_slow_test(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "crates/horizon-world").mkdir(parents=True)
+            binary = root / "timed"
+            binary.write_text('#!/bin/sh\necho "args=$* bootstrap=$RUSTC_BOOTSTRAP"\n'
+                              "echo 'test a::slow ... ok <7.500s>'\necho 'test a::fast ... ok <0.001s>'\n")
+            binary.chmod(0o755)
+            cargo = self.fake_toolchain(root, [binary])
+            code, output = self.run_main("--jobs", "1", "--time-limits", "2,5", "--", str(cargo), "test")
+            self.assertEqual(code, 1)
+            self.assertIn("args=-Z unstable-options --report-time bootstrap=1", output)
+            self.assertIn("::error::horizon-world lib.rs (timed): a::slow took 7.50s", output)
+            self.assertIn("2 tests timed, 7.5 test-seconds in total; slowest: a::slow 7.50s, a::fast 0.00s", output)
+            # Without the option nothing is added and the times are not judged.
+            code, output = self.run_main("--jobs", "1", "--", str(cargo), "test")
+            self.assertEqual(code, 0)
+            self.assertIn("args= bootstrap=\n", output)
+
     @unittest.skipUnless(os.name == "posix" and shutil.which("sh"), "requires a POSIX shell")
     def test_a_listing_without_test_binaries_fails(self):
         with tempfile.TemporaryDirectory() as directory:

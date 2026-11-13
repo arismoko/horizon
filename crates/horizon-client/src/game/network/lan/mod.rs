@@ -483,8 +483,7 @@ pub(super) struct LanHost {
     /// Far terrain sampled for Horizon clients (game/network/lan_far.rs); None when
     /// `horizon-lod-distance` is 0.
     pub far: Option<horizon_client::lod_net::Service>,
-    /// Native mods' commands and the level each needs, once asked
-    /// (game/modding/native_server.rs).
+    /// Native mods' commands and the level each needs, once asked (game/modding/native_server.rs).
     pub(super) native_commands: Option<super::native_server::NativeCommands>,
     /// The players a native mod leaves out of the sleep count when they
     /// aren't in bed (`native_sleep_ignored`).
@@ -1670,6 +1669,7 @@ impl Game<'_> {
         let lan = Lan::start_with(sync.clone(), net)?;
         let mut hub = Hub::new(lan, sync, encoder, config, self.loop_context.clone());
         self.bind_guest_residency(&mut hub);
+        self.passages.record_on(&mut hub);
         hub.rule_registry = self.level.rule_registry.clone();
         hub.sync_attachments = !mod_api::__private::mods().is_empty();
         hub.flat_world = self.world_flat;
@@ -2202,7 +2202,7 @@ impl Game<'_> {
     /// Only the entities whose id is above `after` (0: all of them). With
     /// `kept`, idle mobs and items no client can pair with are described bare
     /// (game/network/lan_idle.rs).
-    fn lan_entities(
+    pub(super) fn lan_entities(
         &mut self,
         out: &mut States,
         drain_minecart_steps: bool,
@@ -3177,19 +3177,7 @@ impl Game<'_> {
             }
             // Persist is swapped per level, so parked dimensions retain their marks.
             self.spend_forced_meta();
-            // ServerEntity.sendChanges clears needsSync once it has looked.
-            // SteppedInterpolationTracker.updateTracking clears syncPosition.
-            for m in &mut self.mobs {
-                m.needs_sync = false;
-                m.sync_position = false;
-            }
-            self.creatures
-                .projectiles
-                .for_each_mut(|p| p.needs_sync = false);
-            for d in &mut self.dropped {
-                d.needs_sync = false;
-            }
-            self.tridents.iter_mut().for_each(|t| t.needs_sync = false);
+            self.lan_syncs_looked();
 
             // The step command reaches clients before the events its tick
             // generated, as ServerTickRateManager.updateStepTicks does.

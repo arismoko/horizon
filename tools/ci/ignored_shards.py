@@ -2,7 +2,7 @@
 """Print the ignored-tests shard matrix: every shard, or the ones a pull request needs.
 
 Usage:
-  ignored_shards.py --matrix --all      `matrix=`, every shard (main's pushes)
+  ignored_shards.py --matrix --all      `matrix=`, every shard and the daily-rows leg (the daily run)
   ignored_shards.py --matrix BASE HEAD  `matrix=`, the shards this pull request must run
 
 The ignored-tests check is a matrix with one package per shard; this file is the single
@@ -30,6 +30,10 @@ ROOT = Path(__file__).resolve().parents[2]
 # 279s, horizon-client-lib 189s, 16m53s wall); horizon-world and horizon-items joined when every library
 # test started running with the data, not only the #[ignore]d ones. Rebalance by editing this tuple only.
 SHARDS = ("horizon-client", "horizon-client-lib", "horizon-client-render", "horizon-world", "horizon-items")
+# The leg that runs the daily rows (tools/ci/ignored-tests/daily-*.txt) that no package shard above runs: the moved
+# tests of every other package, and of the shard packages' targets their shard does not build (tools/ci/ignored_tests.py
+# daily_rows_groups). Coverage, not speed: without it those tests would run nowhere. Main's full matrix only.
+DAILY_ROWS = "daily-rows"
 # A package too big for one test process's memory runs as several legs, `PACKAGE#NofM` (tools/ci/ignored_tests.py
 # gives each test to exactly one leg). horizon-client's single process was killed (signal 9) on three main runs.
 LEGS = {"horizon-client": 2}
@@ -49,6 +53,33 @@ def expand(packages):
         for package in packages
         for number in range(1, LEGS.get(package, 1) + 1)
     ]
+
+
+def workspace_targets():
+    """Each workspace member's test targets as the daily rows name them: {package: {"lib", "bin:NAME", "test:NAME"}}.
+
+    Read from the manifests and Cargo's default layout (src/lib.rs, src/main.rs, src/bin/, tests/), not by building."""
+    members = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["members"]
+    targets = {}
+    for member in members:
+        folder = ROOT / member
+        table = tomllib.loads((folder / "Cargo.toml").read_text())
+        name = table["package"]["name"]
+        found = set()
+        if "lib" in table or (folder / "src/lib.rs").is_file():
+            found.add("lib")
+        found.update(f"bin:{entry['name']}" for entry in table.get("bin", []))
+        found.update(f"test:{entry['name']}" for entry in table.get("test", []))
+        if table["package"].get("autobins", True):
+            if (folder / "src/main.rs").is_file():
+                found.add(f"bin:{name}")
+            found.update(f"bin:{path.stem}" for path in (folder / "src/bin").glob("*.rs"))
+            found.update(f"bin:{path.parent.name}" for path in (folder / "src/bin").glob("*/main.rs"))
+        if table["package"].get("autotests", True):
+            found.update(f"test:{path.stem}" for path in (folder / "tests").glob("*.rs"))
+            found.update(f"test:{path.parent.name}" for path in (folder / "tests").glob("*/main.rs"))
+        targets[name] = found
+    return targets
 
 
 def workspace_dependencies():
@@ -104,7 +135,7 @@ if __name__ == "__main__":
     every = arguments[:2] == ["--matrix", "--all"]
     selected = len(arguments) == 3 and arguments[0] == "--matrix"
     if every:
-        shards = expand(SHARDS)
+        shards = [*expand(SHARDS), DAILY_ROWS]
     elif selected:
         shards = expand(select(rust_changes.changed_paths(arguments[1], arguments[2]), workspace_dependencies()))
     else:

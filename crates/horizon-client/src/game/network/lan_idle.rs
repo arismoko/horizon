@@ -72,6 +72,11 @@ pub(super) struct IdlePass<'a> {
 impl IdleStates {
     /// The level in place's idle entities, or None before its tracking ran.
     pub(super) fn pass(&mut self, hub: &Hub, percent: i32) -> Option<IdlePass<'_>> {
+        // A client viewing the level from another tracks it from its areas, not from a place:
+        // every entity is described in full, so its pairing always sends it as it is.
+        if hub.viewed_here() {
+            return None;
+        }
         let now = hub.tracking_ticks()?;
         let viewers = hub
             .guests

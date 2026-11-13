@@ -201,7 +201,7 @@ impl Game<'_> {
             // Player.tick: a different main-hand item resets the attack
             // strength, and detectEquipmentUpdates gives the guest its modifiers.
             let g = &host.hub.guests[gi];
-            let held = crate::game::held::held_attack_item(&g.inventory, g.selected);
+            let held = crate::game::held_items::held_attack_item(&g.inventory, g.selected);
             let play = host.play.entry(conn).or_default();
             if play.attack_item.as_ref() != held {
                 play.attack_ticks = 0;
@@ -781,14 +781,18 @@ impl Game<'_> {
                 }
                 // LivingEntity.baseTick's entity event 67, to every client
                 // tracking the guest and its own; this window draws it too.
-                MotionEvent::Drown => {
+                // A mod's other bubble count goes out as particles instead.
+                MotionEvent::Drown(bubbles) => {
+                    if !self.drown_bubbles(at, [0.0; 3], bubbles) {
+                        continue;
+                    }
                     if let Some(host) = self.lan.as_ref()
                         && let Some(g) = host.hub.guest(conn)
                     {
                         host.hub
                             .entity_event(g.entity_id, crate::game::combat::DROWN_EVENT);
                     }
-                    self.drown_particles(at, [0.0; 3]);
+                    self.drown_particles(at, [0.0; 3], 8);
                 }
                 // ServerPlayer.onInsideBlock: the enter_block trigger, for the
                 // player who moved.

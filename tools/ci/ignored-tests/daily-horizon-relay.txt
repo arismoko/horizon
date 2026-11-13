@@ -1,0 +1,5 @@
+# The daily tests of horizon-relay: each is #[ignore = "daily"] in its source and runs once a day in the daily run,
+# where it must pass (README.md). Rows: PACKAGE TEST TARGET daily REASON, sorted; tools/ci/move_to_daily.py writes them.
+horizon-relay guest_joins_do_not_starve_a_hosts_pings test:ping_schedule daily slow
+horizon-relay relayed_bandwidth_is_capped test:tunnel daily slow
+horizon-relay wrong_secrets_fail test:tunnel daily slow

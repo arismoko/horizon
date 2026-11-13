@@ -137,6 +137,7 @@ fn disk_bytes(root: &std::path::Path) -> std::collections::BTreeMap<PathBuf, Vec
 }
 
 #[test]
+#[ignore = "daily"]
 fn an_exhausted_biome_table_refuses_every_save_before_touching_the_world() {
     let (registry, biomes) = super::loot_tests::fixture();
     let registry: &'static BlockRegistry = Box::leak(Box::new(registry));

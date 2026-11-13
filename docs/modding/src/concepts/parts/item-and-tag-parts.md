@@ -36,10 +36,13 @@ Canceling `right_click_block` skips both uses and substitutes `cancellation_resu
 
 ## Instant item use
 
-`ItemPart::use_item` receives `UseItemEvent { stack, hand }`. `hand: Hand` is the
-interaction hand of this click (`Hand::Main` or `Hand::Off`), including air clicks
-with identical stacks in both hands. Read it directly when choosing which held stack
-to shrink. `living_used_item_hand` instead answers only during active item use and
+`ItemPart::use_item` receives `UseItemEvent { stack, hand, player, player_entity_id }`.
+`hand: Hand` is the interaction hand of this click (`Hand::Main` or `Hand::Off`),
+including air clicks with identical stacks in both hands. Read it directly when
+choosing which held stack to shrink. `player` and `player_entity_id` name who clicked,
+as `UseOnEvent` does: on a server the acting player's UUID and entity id (a guest's
+own, never the host's), on a client this client's own player. They come with the
+event, so a Part does not need `players().acting_player()` to be set while it runs. `living_used_item_hand` instead answers only during active item use and
 cannot identify an instantaneous click. The Part runs on both sides with `HostSide`,
 after the global right-click event and before the item's own use, on native and wasm.
 Return `Some(InteractionResult::Success)` to consume and swing on the client,
@@ -104,3 +107,26 @@ ratio that takes a positive repair to 0 leaves the experience for the player. Th
 To change Mending for every item at once,
 change the enchantment's `minecraft:repair_with_xp` effect in a data pack; the ratio a part gets arrives with it. To
 change it for particular items, vanilla's or another mod's included, attach a part to their item keys.
+
+## Hand, break and name on the client
+
+Three client-side methods change how the local player's client shows and handles a held stack. Each `event` field
+arrives holding vanilla's answer, which the part may set either way, and an item with no such part costs one table
+lookup.
+
+- `ItemPart::should_cause_reequip_animation` is `IItemExtension.shouldCauseReequipAnimation`: whether the
+  first-person hand lowers and rises again to show `event.stack`, the stack the hand holds now, in place of
+  `event.old`, the stack it shows. `event.slot_changed` says the stack came from another slot (always false for the
+  off hand). `event.reequip` starts `false` for the same stack changed in place or an equal one but for its damage.
+  It is asked each client tick, for each hand, while the shown and held stacks differ; an empty hand isn't asked.
+- `ItemPart::should_cause_block_break_reset` is `IItemExtension.shouldCauseBlockBreakReset`: whether a break
+  restarts because the main hand changed. `event.stack` is the stack the break began with and `event.held` the main
+  hand now. `event.reset` starts `true` when they aren't the same item with the same components (count and damage
+  left out). `false` keeps the break and its progress; `true` sends the abort and a new start, from 0. It is asked on
+  each tick of a break of the same block, in single player and on a server's client. A `true` for an unchanged stack
+  restarts the break every tick, so it never finishes.
+- `ItemPart::highlight_tip` is `IItemExtension.getHighlightTip`: the name drawn above the hotbar for the selected
+  stack. `event.name` arrives as vanilla draws it (the hover name in its rarity colour, italic when renamed), and the
+  text the part leaves is drawn at the same place and fade. It is asked once a client tick while the name shows. The
+  name's timer still restarts only when the item or its hover name changes, so a tip that changes every tick doesn't
+  keep it up.

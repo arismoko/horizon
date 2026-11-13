@@ -489,7 +489,10 @@ impl Book {
     /// `ingredient`'s items as its display resolves them (the cycling order
     /// of ghost slots and the overlay).
     pub fn items_of(&self, ingredient: &Ingredient) -> Vec<String> {
-        ingredient.order.clone()
+        ingredient.shown.as_ref().map_or_else(
+            || ingredient.order.clone(),
+            |stacks| stacks.iter().map(|stack| stack.item.to_string()).collect(),
+        )
     }
     /// `RecipeBookComponent.fillGhostRecipe` of a book type: the result and the
     /// ingredients faded into the menu's slots, in the order the component
@@ -504,10 +507,12 @@ impl Book {
         items: &crate::items::Items,
     ) -> Vec<GhostSlot> {
         let stacks = |ingredient: &Ingredient| -> Vec<ItemStack> {
-            self.items_of(ingredient)
-                .iter()
-                .map(|i| ItemStack::new(i, 1))
-                .collect()
+            ingredient.shown.clone().unwrap_or_else(|| {
+                self.items_of(ingredient)
+                    .iter()
+                    .map(|i| ItemStack::new(i, 1))
+                    .collect()
+            })
         };
         let mut out = Vec::new();
         match book_type {

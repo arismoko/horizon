@@ -11,7 +11,12 @@ Kinds:
 - ignored-test: rows of tools/ci/ignored-tests-known-failures.txt go to tools/ci/ignored-tests/<topic>.txt, same
   row format; the topic is --topic or the PR's branch name (from `gh`). A changed or removed row is changed or
   removed where it lives now.
-- part-table: available with PR G (exports/part_table.rs split per parts file).
+- part-table: a name the PR added to a list of the old crates/horizon-mod-vocab/src/exports/part_table.rs goes to
+  the fragment of the parts file that defines it on the PR's head (exports/parts_<file>.rs, found as
+  tools/refactors/split_part_table.py found them), in the same scope, visibility and `#[cfg]`, as a `pub use` line
+  of its own. A name this tree already exports in that scope with the same cfg, visibility and source is skipped.
+  A name it cannot attribute, one exported there differently, or one the PR removed or renamed stops it before
+  writing anything, printing the name and its line.
 - dispatch-stub: a stand-in the PR added, changed or removed inside `mod stubs` or `mod api` of the old
   dispatch-tests/src/fixtures/shared.rs is written to (or removed from) fixtures/stubs/<Name>.rs or
   fixtures/api/<Name>.rs, as the PR's head has it (with its impls). It stops when that file on this tree is neither
@@ -21,6 +26,7 @@ Kinds:
     python3 tools/hotspots/carry.py ignored-test 3788
     python3 tools/hotspots/carry.py ignored-test 3788 --head pr/3788 --topic attribute-bounds
     python3 tools/hotspots/carry.py dispatch-stub 3911
+    python3 tools/hotspots/carry.py part-table 3788
 """
 import argparse
 from dataclasses import dataclass, field
@@ -28,9 +34,12 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "refactors"))
 import check_stand_ins  # noqa: E402
+import split_part_table as part_table  # noqa: E402
 
 
 class CarryError(Exception):
@@ -264,9 +273,112 @@ def carry_dispatch_stub(repo, base, head, _topic):
     return [path.relative_to(repo).as_posix() for path, _ in writes]
 
 
+def export_form(attrs, vis, path):
+    """An export as compared across fragments: its attributes, visibility and the item it names, with `parts::...`
+    and `crate::parts::...` (the two spellings the fragments use) taken as the same path."""
+    path = "::".join(path)
+    if path == "parts" or path.startswith("parts::"):
+        path = "crate::" + path
+    return tuple(part_table.attr_text(a) for a in attrs), "".join((vis or "").split()), path
+
+
+def exported(source):
+    """{(scope, bound name): {export form}} of the `use` leaves of an export fragment, at every scope."""
+    found = {}
+
+    def walk(items, scope):
+        for item in items:
+            if item["kind"] == "mod" and item["tokens"][-1] == "}":
+                body = item["tokens"]
+                walk(part_table.top_items(" ".join(body[body.index("{") + 1:-1])), scope + (item["name"],))
+            elif item["kind"] == "use":
+                for path, bound in item["leaves"]:
+                    found.setdefault((scope, bound), set()).add(export_form(item["attrs"], item["vis"], path))
+
+    walk(part_table.top_items(source), ())
+    return found
+
+
+def carry_part_table(repo, base, head, _topic):
+    """Writes the names the PR added to the old part_table.rs into their parts files' fragments; returns what it
+    did."""
+    exports = Path(repo) / part_table.EXPORTS
+    if (Path(repo) / part_table.OLD).exists():
+        raise CarryError(f"{part_table.OLD} still exists on this tree: the part-table switch (PR G) has not landed")
+
+    def entries(rev):
+        rc, text = git(repo, "show", f"{rev}:{part_table.OLD}", ok=(0, 128))
+        return part_table.old_entries(text)[0] if rc == 0 else []
+
+    before, after = entries(base), entries(head)
+    added = [e for e in after if e not in before]
+    removed = [e for e in before if e not in after]
+    with tempfile.TemporaryDirectory() as tree:
+        # The PR's own parts files: a name it adds may be defined in a file only its head has.
+        for name in git(repo, "ls-tree", "-r", "--name-only", head, "--", part_table.PARTS)[1].splitlines():
+            path = Path(tree) / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(git(repo, "show", f"{head}:{name}")[1], encoding="utf-8")
+        owners = part_table.owners(tree)
+    have = {}
+    for path in exports.glob("*.rs"):
+        for key, forms in exported(path.read_text(encoding="utf-8")).items():
+            have.setdefault(key, set()).update(forms)
+    texts, stuck = {}, []
+
+    def line(entry):
+        scope, attrs, vis, prefix, name, rename = entry
+        return [part_table.attr_text(a) for a in attrs] + [
+            f"{vis} use {prefix}::{name}" + (f" as {rename}" if rename else "") + ";"]
+
+    for entry in added:
+        scope, name, bound = entry[0], entry[4], entry[5] or entry[4]
+        form = export_form(entry[1], entry[2], entry[3].split("::") + [name])
+        if form in have.get((scope, bound), ()):
+            continue
+        if (scope, bound) in have:
+            stuck.append(f"{bound} ({'::'.join(scope) or 'root'} scope): this tree already exports that name with "
+                         "another cfg, visibility or source; the PR's line is " + " ".join(line(entry)))
+            continue
+        owner = owners.get(name)
+        if owner is None:
+            stuck.append(f"{name} ({'::'.join(scope) or 'root'} scope): no parts file on the PR's head defines it "
+                         "once; " + " ".join(line(entry)))
+            continue
+        path = exports / part_table.fragment_name(owner)
+        if path not in texts:
+            texts[path] = path.read_text(encoding="utf-8") if path.exists() else \
+                part_table.render(owner, [], False)
+        text, new = texts[path], line(entry)
+        if not scope:
+            lines = text.split("\n")
+            at = next((i for i, x in enumerate(lines) if re.match(r"(?:pub(?:\([^)]*\))? )?mod __private \{", x)),
+                      len(lines) - 1)
+            texts[path] = "\n".join(lines[:at] + new + lines[at:])
+        else:
+            if scope != ("__private",):
+                stuck.append(f"{name}: scope {'::'.join(scope)} is not one part_table.rs had")
+                continue
+            block = re.search(r"(?m)^(?:pub(?:\([^)]*\))? )?mod __private \{\n(?:.*\n)*?\}\n", text)
+            body = "".join(f"    {x}\n" for x in new)
+            if block:
+                texts[path] = text[:block.end() - 2] + body + text[block.end() - 2:]
+            else:
+                texts[path] = text + "mod __private {\n" + body + "}\n"
+        have.setdefault((scope, bound), set()).add(form)
+    for entry in removed:
+        stuck.append(f"{entry[5] or entry[4]} ({'::'.join(entry[0]) or 'root'} scope): the PR removed or changed this "
+                     "line of part_table.rs: " + " ".join(line(entry)))
+    if stuck:
+        raise CarryError("cannot place these names; carry them by hand:\n" + "\n".join(stuck))
+    for path, text in texts.items():
+        path.write_text(text, encoding="utf-8")
+    return [path.relative_to(repo).as_posix() for path in texts]
+
+
 KINDS = {
     "ignored-test": carry_ignored_test,
-    "part-table": "available with PR G, which splits exports/part_table.rs into one fragment per parts file",
+    "part-table": carry_part_table,
     "dispatch-stub": carry_dispatch_stub,
 }
 
@@ -291,9 +403,6 @@ def main(argv=None):
     ap.add_argument("--repo", default=".")
     args = ap.parse_args(argv)
     run = KINDS[args.kind]
-    if isinstance(run, str):
-        print(f"carry.py {args.kind}: {run}.", file=sys.stderr)
-        return 2
     try:
         repo = Path(git(args.repo, "rev-parse", "--show-toplevel")[1].strip())
         base, head = pr_range(repo, args.pr, args.head, args.main)

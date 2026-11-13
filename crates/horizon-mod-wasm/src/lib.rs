@@ -778,7 +778,7 @@ fn load_with_cache(
                     loaded.modules.push(module.clone());
                     loaded
                         .mods
-                        .push(mod_api::ModEntry::new(id, Box::new(module)));
+                        .push(mod_api::ModEntry::wasm(id, Box::new(module)));
                     loaded.manifests.push(manifest);
                 }
             }

@@ -1551,8 +1551,9 @@ pub fn place_in_world<W: FeatureWorld + PlacementContext>(
         } else {
             None
         };
-        let state = resources.transforms.rotate(
+        let state = resources.transforms.rotate_at(
             resources.transforms.mirror(info.state, settings.mirror),
+            info.pos,
             settings.rotation,
         );
         if info.nbt.is_some() {

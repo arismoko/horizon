@@ -1,6 +1,7 @@
 use super::*;
 thread_local! {
     static EXPECTED: std::cell::Cell<mod_api::Hand> = const { std::cell::Cell::new(mod_api::Hand::Main) };
+    static WHO: std::cell::Cell<(u128, i32)> = const { std::cell::Cell::new((0, 0)) };
     static RESULT: std::cell::Cell<mod_api::InteractionResult> = const { std::cell::Cell::new(mod_api::InteractionResult::Pass) };
     static SEEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
@@ -15,6 +16,7 @@ impl mod_api::ItemPart for Part {
         event: &mut mod_api::UseItemEvent<'_>,
     ) -> Option<mod_api::InteractionResult> {
         assert_eq!(event.hand, EXPECTED.get());
+        assert_eq!((event.player, event.player_entity_id), WHO.get());
         SEEN.set(true);
         Some(RESULT.get())
     }
@@ -46,6 +48,14 @@ fn generated_guest_item_dispatch_preserves_hands_sides_and_results() {
         for client in [false, true] {
             for hand in [mod_api::Hand::Main, mod_api::Hand::Off] {
                 EXPECTED.set(hand);
+                // Distinct per side and hand, so a swapped or substituted identity fails.
+                let who = match (client, hand) {
+                    (false, mod_api::Hand::Main) => (0x1111_2222_3333_4444_5555_6666_7777_8888, 11),
+                    (false, mod_api::Hand::Off) => (0x9999_aaaa_bbbb_cccc_dddd_eeee_ffff_0001, 12),
+                    (true, mod_api::Hand::Main) => (0x0123_4567_89ab_cdef_0123_4567_89ab_cdef, 13),
+                    (true, mod_api::Hand::Off) => (0xfedc_ba98_7654_3210_fedc_ba98_7654_3210, 14),
+                };
+                WHO.set(who);
                 SEEN.set(false);
                 let mut result = None;
                 let mut world = World;
@@ -58,6 +68,8 @@ fn generated_guest_item_dispatch_preserves_hands_sides_and_results() {
                     mod_api::__private::UseItemCall {
                         stack: &stack,
                         hand,
+                        player: who.0,
+                        player_entity_id: who.1,
                         result: &mut result,
                     },
                 );

@@ -6,6 +6,7 @@ use horizon_mod_package::{
 use std::{fs, process::Command};
 
 #[test]
+#[ignore = "daily"]
 fn invalid_options_keep_usage_status_even_when_the_managed_install_is_busy() {
     let root = tempfile::tempdir().unwrap();
     let data = root.path().join("data");

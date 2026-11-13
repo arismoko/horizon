@@ -863,11 +863,7 @@ impl Dragon {
         level.damage_pre(hurting, &mut container);
         dealt = container.capture_inflicted();
         self.health -= dealt;
-        if dealt != 0.0 {
-            container.record_health_damage(dealt);
-            let hurting = horizon_client::health::Hurting::Dragon(self.id as i32, source);
-            level.damage_post(hurting, &container);
-        }
+        container.record_health_damage(dealt);
         self.last_hurt = damage + container.pre_change();
         self.invulnerable = container.post_attack_invulnerability_ticks();
         if !window {
@@ -900,6 +896,10 @@ impl Dragon {
                 source,
             );
         }
+        // The last of `LivingEntity.hurtServer` (`reallyHurt`'s `super.hurtServer`):
+        // `LivingDamageEvent.Post`, health taken or not.
+        let hurting = horizon_client::health::Hurting::Dragon(self.id as i32, source);
+        level.damage_post(hurting, &container);
         if self.phase.sitting() {
             self.sitting_damage += before - self.health.max(0.0);
             if self.sitting_damage > 0.25 * MAX_HEALTH {

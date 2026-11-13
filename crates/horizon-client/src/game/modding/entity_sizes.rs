@@ -280,8 +280,10 @@ mod tests {
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn partial_collision_sizes_complete_navigation() {
-        // Keep this deadline outside the worker: a regression must fail rather than
-        // leaving the test runner in a saturated i32 collision-subdivision loop.
+        // Resource loading and the shared mod fixture lock are not navigation.
+        // Start the deadline only once the fixture is ready, while keeping it
+        // outside the worker so a saturated collision loop still fails boundedly.
+        let (ready, started) = std::sync::mpsc::channel();
         let (done, result) = std::sync::mpsc::channel();
         let worker = std::thread::spawn(move || {
             let size = Arc::new(Mutex::new([0.0; 3]));
@@ -292,6 +294,7 @@ mod tests {
             .into();
             mod_platform::testing::with_mods(mods, || {
                 with_game(|game| {
+                    ready.send(()).unwrap();
                     use horizon_client::mobs::path::{Evaluator, Finder, PathType};
                     game.world
                         .chunks
@@ -351,6 +354,7 @@ mod tests {
             });
             done.send(()).unwrap();
         });
+        started.recv().expect("navigation fixture must initialize");
         result
             .recv_timeout(std::time::Duration::from_secs(30))
             .expect("partial-collision navigation must finish within 30 seconds");

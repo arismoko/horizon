@@ -808,7 +808,11 @@ pub fn generate(
             None => {
                 node.own.insert(name.to_string());
                 node.own.insert(install.to_string());
-                let original: syn::Path = syn::parse_str(&found.module).expect("a module path");
+                // The extern a lower crate is named by is its library's name (`mod_render`), not
+                // its folder's (`horizon_mod_render`).
+                let original: syn::Path =
+                    syn::parse_str(&original_path(&source.libraries, &found.module))
+                        .expect("a module path");
                 (
                     quote! {
                         #(#attrs)*
@@ -1634,6 +1638,31 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
+    fn a_lower_free_function_installs_through_its_library_name() {
+        // `horizon-mod-render`'s library is `mod_render`: the installer must call the slot there.
+        let crate_ = generate(
+            &root(),
+            "horizon_patch",
+            &["horizon_mod_render::render::world_drawn".into()],
+            &Extras::default(),
+        )
+        .unwrap();
+        let lib: String = crate_.libs[0].1.split_whitespace().collect();
+        assert!(
+            lib.contains("::mod_render::render::__fnr_world_drawn(world_drawn)"),
+            "{}",
+            crate_.libs[0].1
+        );
+        assert!(
+            !lib.contains("horizon_mod_render::render::__fnr_"),
+            "{}",
+            crate_.libs[0].1
+        );
+    }
+
+    #[test]
+    #[ignore = "daily"]
     fn a_method_moves_into_a_trait_of_its_own_type() {
         let crate_ = generate(
             &root(),
@@ -1656,6 +1685,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn refusals_are_named() {
         let error = generate(
             &root(),
@@ -1672,6 +1702,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_lower_crate_function_gets_a_patch_crate_of_its_own() {
         let crate_ = generate(
             &root(),
@@ -1811,6 +1842,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn support_modules_and_bridges_land_in_the_mirror_their_rows_name() {
         let extras = Extras {
             modules: vec![SupportModule {
@@ -1879,6 +1911,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_filled_loops_entry_runs_the_loop_with_the_mods_slots_in_order() {
         let published = crate::loops::collect(&root())
             .unwrap()

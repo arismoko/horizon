@@ -565,6 +565,26 @@ mod content_tests {
     };
     use mod_api::DataLoadOrigin;
 
+    #[test]
+    fn built_in_ingredient_network_lists_use_membership_not_display() {
+        let mut recipe = json!({
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": [
+                {"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:damage":5}},
+                {"type":"neoforge:custom_display","base":"minecraft:apple","display":{"type":"minecraft:item","item":"minecraft:diamond"}}
+            ],
+            "result": {"id":"minecraft:emerald"}
+        });
+        assert!(normalize_ingredients(
+            &mut recipe,
+            &horizon_client::items::Items::empty()
+        ));
+        assert_eq!(
+            recipe["ingredients"],
+            json!([["minecraft:diamond_sword"], ["minecraft:apple"]])
+        );
+    }
+
     struct AspectListener(std::sync::Arc<std::sync::Mutex<Vec<(DataLoadOrigin, String)>>>);
     #[mod_api::__subscriptions]
     impl mod_api::Hooks for AspectListener {

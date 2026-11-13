@@ -62,7 +62,8 @@ pub struct DamageHooks {
     /// share of a hit, before the absorption hearts (`LivingDamageEvent.Pre`). It may change
     /// the new damage.
     pub pre: Option<fn(DamageLevel<'_>, Hurting<'_>, &mut DamageContainer)>,
-    /// `native_living_damage_post`: the health has just lost the hit's health damage
+    /// `native_living_damage_post`: the end of `hurtServer` for a hit that passed the incoming
+    /// check and the cooldown, with the health damage it took, 0 included
     /// (`LivingDamageEvent.Post`).
     pub post: Option<fn(DamageLevel<'_>, Hurting<'_>, &DamageContainer)>,
     /// `native_living_knockback`: `LivingEntity.knockback`, at its start
@@ -1537,15 +1538,6 @@ impl ServerDamageEnvironment<Attributes> for Environment<'_> {
             .damage_pre(Hurting::Player(self.entity, source), container);
         Ok(())
     }
-    fn damage_post(&mut self, container: &DamageContainer) -> io::Result<()> {
-        let source = self
-            .level
-            .attack()
-            .player_source(&self.source.definition().name, self.causing);
-        self.level
-            .damage_post(Hurting::Player(self.entity, source), container);
-        Ok(())
-    }
 }
 impl CombatEnvironment<Attributes> for Environment<'_> {
     fn dead_flag(&self) -> bool {
@@ -1812,6 +1804,20 @@ impl HurtWorld for Environment<'_> {
         self.stat("blocked", amount)
     }
     fn attacker_criterion(&mut self, _: &mut State, _: f32, _: f32, _: bool) -> io::Result<()> {
+        Ok(())
+    }
+    fn damage_post(&mut self, _: &mut State, container: &DamageContainer) -> io::Result<()> {
+        let source = HurtSource {
+            damage_type: &self.source.definition().name,
+            causing: self.causing,
+            direct: self
+                .level
+                .attack()
+                .projectile_direct(&self.source.definition().name),
+            position: None,
+        };
+        self.level
+            .damage_post(Hurting::Player(self.entity, source), container);
         Ok(())
     }
 }

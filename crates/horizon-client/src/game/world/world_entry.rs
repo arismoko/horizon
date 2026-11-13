@@ -397,8 +397,11 @@ impl Game<'_> {
         stack: &functions::PackStack,
         root: &std::path::Path,
     ) -> Result<()> {
+        // A new world load: a saved base clamped into its bounds warns again (#3728).
+        horizon_client::living_attributes::LOAD_CLAMPS.begin_load();
         (self.world_tables, self.health_resources) =
             self.build_world_tables(stack, false, root, self.mods.data_switched)?;
+        self.install_block_maps();
         self.install_profession_save_snapshots();
         self.mods.datapack_registries = self.mods.datapack_candidate.take().map(|candidate| {
             Arc::new(mod_api::DatapackRegistrySet::first(
@@ -454,6 +457,7 @@ impl Game<'_> {
             );
         }
         self.world_tables = tables;
+        self.install_block_maps();
         self.install_profession_save_snapshots();
         self.world.pois.clear();
         for world in self.levels.parked_worlds() {
@@ -490,7 +494,7 @@ impl Game<'_> {
         }
         self.adv.tree = advancements;
         self.adv.reset_tree();
-        self.native_tags_updated(mod_api::TagsUpdateCause::ServerDataLoad { reload: true });
+        self.announce_data_bound(mod_api::TagsUpdateCause::ServerDataLoad { reload: true });
         self.resolve_enchant_particles();
         self.announce_data_maps_updated(mod_api::DataMapsUpdateCause::ServerReload);
         self.build_screen();
@@ -685,7 +689,11 @@ impl Game<'_> {
     pub(super) fn install_parts(&self, prepared: PreparedParts) {
         cauldron_interactions::install(prepared.cauldrons);
         if self.is_logical_server() {
-            native_worldgen_parts::publish(prepared.parts.as_ref(), &prepared.block_states);
+            native_worldgen_parts::publish(
+                prepared.parts.as_ref(),
+                &prepared.block_states,
+                self.pack.assets.registry,
+            );
         }
         api_values::install_block_states(prepared.block_states);
         native_world_read::install_block_tags(prepared.tags);

@@ -1,7 +1,10 @@
 """Ignored-test CI must distinguish completed targets from child fixture output."""
 import contextlib
 import io
+import json
 import os
+from pathlib import Path
+import tempfile
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -44,6 +47,33 @@ class IgnoredTests(unittest.TestCase):
         with patch.object(ignored_tests, "known_failures", return_value={("example", "repaired"): None}), patch.object(ignored_tests, "run", return_value=result), contextlib.redirect_stdout(io.StringIO()) as log:
             self.assertEqual(ignored_tests.main(["example"]), 1)
         self.assertIn("repaired: passes now; take it off", log.getvalue())
+
+    def test_the_report_names_problems_and_passes_without_output(self):
+        def run(package, skip, number=None, count=None):
+            ignored_tests._panic_locations["new::broken"] = "crates/example/src/lib.rs:4:9"
+            return {"new::broken": False, "fine": True, "repaired": True, "accepted": False}
+
+        known = {("example", "repaired"): None, ("example", "accepted"): None, ("example", "gone"): None}
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(ignored_tests, "known_failures", return_value=known), \
+                patch.object(ignored_tests, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+            path = Path(folder) / "report.json"
+            self.assertEqual(ignored_tests.main(["example"], str(path)), 1)
+            report = json.loads(path.read_text())
+        kinds = {(item["test"], item["kind"], item["panic"]) for item in report["problems"]}
+        self.assertEqual(kinds, {("new::broken", "failed", "crates/example/src/lib.rs:4:9"),
+                                 ("repaired", "passes-now", None), ("gone", "no-longer-runs", None)})
+        self.assertIn({"package": "example", "test": "fine"}, report["passed"])
+        self.assertNotIn("accepted", json.dumps(report["problems"]))
+        self.assertEqual(report["shards"], ["example"])
+
+    def test_a_shard_that_did_not_complete_is_reported(self):
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(ignored_tests, "known_failures", return_value={}), \
+                patch.object(ignored_tests, "run", return_value=None), contextlib.redirect_stdout(io.StringIO()):
+            path = Path(folder) / "report.json"
+            self.assertEqual(ignored_tests.main(["example"], str(path)), 1)
+            self.assertEqual(json.loads(path.read_text())["incomplete"], ["example"])
 
     def test_client_lib_halves_run_serially_and_preserve_failure_policy(self):
         package = "horizon-client-lib"
@@ -95,9 +125,69 @@ class IgnoredTests(unittest.TestCase):
             self.assertNotIn((package, test), ignored_tests.known_failures())
 
     def test_explicit_client_lib_selection_is_not_split_again(self):
-        with patch.object(ignored_tests, "known_failures", return_value={}), patch.object(ignored_tests, "run", return_value={}) as execute:
+        with patch.object(ignored_tests, "known_failures", return_value={}), \
+                patch.object(ignored_tests, "daily_rows", return_value=[]), \
+                patch.object(ignored_tests, "run", return_value={}) as execute:
             self.assertEqual(ignored_tests.main(["horizon-client-lib#2of3"]), 0)
         self.assertEqual(execute.call_args.args, ("horizon-client-lib", [], 2, 3))
+
+    def daily_main(self, shards, rows, run):
+        report = Path(tempfile.mkdtemp()) / "report.json"
+        with patch.object(ignored_tests, "known_failures", return_value={}), \
+                patch.object(ignored_tests, "harness_inputs", return_value={}), \
+                patch.object(ignored_tests, "listed_entries", return_value=rows), \
+                patch.object(ignored_tests, "run", side_effect=run) as execute, \
+                contextlib.redirect_stdout(io.StringIO()) as log:
+            code = ignored_tests.main(shards, str(report))
+        return code, execute, log.getvalue(), json.loads(report.read_text())
+
+    def test_daily_rows_of_a_shards_targets_must_run_and_pass_in_that_shard(self):
+        rows = [ignored_tests.Row("horizon-world", f"slow::{name}", "lib", "daily", "daily-horizon-world.txt", "slow")
+                for name in ("passes", "fails", "gone")]
+        rows.append(ignored_tests.Row("horizon-world", "it::slow", "test:integration", "daily", "daily-horizon-world.txt", "slow"))
+        code, execute, log, report = self.daily_main(
+            ["horizon-world"], rows, lambda *args, **kwargs: {"slow::passes": True, "slow::fails": False})
+        self.assertEqual(code, 1)
+        self.assertEqual(execute.call_args.args, ("horizon-world", []))
+        self.assertEqual(sorted((problem["test"], problem["kind"]) for problem in report["problems"]),
+                         [("slow::fails", "failed"), ("slow::gone", "no-longer-runs")])
+        self.assertNotIn("accepted failure", log)
+        # The integration test is not the shard's target: the daily-rows leg runs it, so the shard does not miss it.
+        self.assertNotIn("it::slow", log)
+
+    def test_the_daily_rows_leg_runs_every_other_daily_row_by_package_and_target(self):
+        rows = [
+            ignored_tests.Row("horizon-relay", "b", "test:tunnel", "daily", "daily-horizon-relay.txt", "slow"),
+            ignored_tests.Row("horizon-relay", "a", "test:tunnel", "daily", "daily-horizon-relay.txt", "slow"),
+            ignored_tests.Row("horizon-core", "c", "lib", "daily", "daily-horizon-core.txt", "slow"),
+            ignored_tests.Row("horizon-world", "d", "lib", "daily", "daily-horizon-world.txt", "slow"),
+            ignored_tests.Row("horizon-world", "e", "test:integration", "daily", "daily-horizon-world.txt", "slow"),
+        ]
+        results = {("horizon-relay", "test:tunnel"): {"a": True, "b": True}, ("horizon-core", "lib"): {},
+                   ("horizon-world", "test:integration"): {"e": False}}
+        code, execute, _, report = self.daily_main(
+            ["daily-rows"], rows, lambda package, skip, only: results[package, only[0]])
+        self.assertEqual(code, 1)
+        self.assertEqual([(call.args[0], call.kwargs["only"]) for call in execute.call_args_list], [
+            ("horizon-core", ("lib", ["c"])),
+            ("horizon-relay", ("test:tunnel", ["a", "b"])),
+            ("horizon-world", ("test:integration", ["e"])),
+        ])
+        self.assertEqual(sorted((problem["package"], problem["test"], problem["kind"]) for problem in report["problems"]),
+                         [("horizon-core", "c", "no-longer-runs"), ("horizon-world", "e", "failed")])
+        self.assertEqual(sorted(entry["test"] for entry in report["passed"]), ["a", "b"])
+
+    def test_a_daily_rows_run_selects_exactly_its_ignored_tests_of_one_target(self):
+        output = target(2, "test a ... ok\ntest b ... ok\n", summary(passed=2))
+        with patch.object(ignored_tests.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output)) as execute, \
+                patch.object(ignored_tests, "workspace_features", return_value={"horizon-relay": ["fixture", "index"]}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ignored_tests.run("horizon-relay", [], only=("test:tunnel", ["a", "b"])), {"a": True, "b": True})
+        command = execute.call_args.args[0]
+        # The features the workspace build turns on, as verify compiled the test.
+        self.assertEqual(command[:command.index("--")],
+                         ["cargo", "test", "-p", "horizon-relay", "--features", "fixture,index", "--test", "tunnel"])
+        self.assertEqual(command[command.index("--") + 1:], ["--ignored", "--exact", "--test-threads=4", "a", "b"])
 
     def test_a_parent_that_crashes_after_its_childs_same_count_summary_did_not_complete(self):
         # A fixture reruns its own test in a child, which reports FAILED and a one-test summary;

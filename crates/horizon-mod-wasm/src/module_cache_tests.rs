@@ -503,6 +503,7 @@ fn child_success_avoids_in_process_compile() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn child_failures_refuse_without_unbounded_compilation() {
     for (command, marker) in [
         (wrong as fn(&Path, &str) -> std::process::Command, None),

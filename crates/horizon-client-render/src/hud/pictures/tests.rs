@@ -58,6 +58,7 @@ fn pictures_are_lazy_shared_and_released_then_reloaded_from_the_pack() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn realms_pictures_do_not_enlarge_the_startup_atlas() {
     let root = temp_root("realms-atlas");
     let control = HudAtlas::build(&crate::resource_source::ResourceSource::directory(

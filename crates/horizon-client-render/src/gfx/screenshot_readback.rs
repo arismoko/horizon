@@ -147,6 +147,7 @@ mod tests {
     use std::time::Duration;
 
     #[test]
+    #[ignore = "daily"]
     fn a_background_save_writes_the_png_off_the_render_thread() {
         let _gpu = crate::gfx::test_gpu::lock();
         let instance = crate::gfx::test_gpu::instance();

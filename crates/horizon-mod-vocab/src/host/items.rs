@@ -66,6 +66,22 @@ pub trait ItemsServerHost {
         facing: Direction,
         stack: ItemStack,
     ) -> Result<Option<ItemStack>, StackWriteError>;
+    /// Side: server.
+    /// Holds `stack` outside the world, in the open transaction `tx` (`ItemAccess.forStack`):
+    /// the [`ItemPlace::Scratch`] to run item capabilities against. It lives until the
+    /// outermost transaction closes, and an abort of the one that made it drops it. None
+    /// where `tx` is not open.
+    #[access(WorldOnly)]
+    fn scratch_stack(
+        &mut self,
+        tx: &Transaction,
+        stack: ItemStack,
+    ) -> Result<Option<ItemPlace>, StackWriteError>;
+    /// Side: server.
+    /// Takes the stack out of scratch place `place`, in `tx`, ending the place: none where it
+    /// is empty, no longer held, or not a scratch place.
+    #[access(WorldOnly)]
+    fn scratch_take(&mut self, tx: &Transaction, place: &ItemPlace) -> Option<ItemStack>;
 }
 /// The client host's methods of the `items` area, implemented by the game and reached through [`crate::ClientHost`].
 #[horizon_mod_api_macros::host_area]
@@ -258,6 +274,39 @@ pub trait ItemsBackend {
     /// box, nor into a slot past the item's slots.
     #[access(WorldOnly)]
     fn item_container_capacity(&self, stack: &ItemStack, slot: usize, item: &ItemStack) -> u32;
+    /// Side: both.
+    /// The stacks in one item of `stack`'s `minecraft:bundle_contents`, front first (the
+    /// stack the bundle gives back next is slot 0). None for an item without the component.
+    #[access(WorldOnly)]
+    fn item_bundle_slots(&self, stack: &ItemStack) -> Option<Vec<Option<ItemStack>>>;
+    /// Side: both.
+    /// `ResourceHandler.isValid` and `getCapacityAsLong` for a bundle: how many of `item` one
+    /// item of `stack` still takes, by `BundleContents.getMaxAmountToAdd` (weight left, nested
+    /// bundles' weight); 0 for an item the bundle refuses, or without the component.
+    #[access(WorldOnly)]
+    fn item_bundle_capacity(&self, stack: &ItemStack, slot: usize, item: &ItemStack) -> u32;
+    /// Side: both.
+    /// `ResourceHandler.insert` for a bundle: as much of `item` as the bundle takes goes in at
+    /// the front, as the bundle screen inserts. Gives how many went in and the changed bundle;
+    /// None without the component.
+    #[access(WorldOnly)]
+    fn item_bundle_insert_slot(
+        &self,
+        stack: &ItemStack,
+        slot: usize,
+        item: &ItemStack,
+    ) -> Option<(u32, ItemStack)>;
+    /// Side: both.
+    /// `ResourceHandler.extract` for a bundle: up to `max` of the front stack (slot 0 only), as
+    /// the bundle screen takes out. Gives the taken stack, if any, and the changed bundle; None
+    /// without the component.
+    #[access(WorldOnly)]
+    fn item_bundle_extract(
+        &self,
+        stack: &ItemStack,
+        slot: usize,
+        max: u32,
+    ) -> Option<(Option<ItemStack>, ItemStack)>;
     /// Side: server.
     /// How many slots the inventory of entity `entity` in the level in place has, as
     /// `entity_slots` reaches them: none for an entity without one, and on a client.

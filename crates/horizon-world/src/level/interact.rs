@@ -1050,7 +1050,7 @@ impl Behaviours {
         item: Option<&str>,
     ) -> InteractionResult {
         let item = item.unwrap_or("minecraft:air");
-        let waxed = self.table.name(state).starts_with("minecraft:waxed_");
+        let waxed = self.is_waxed(state);
         if item.ends_with("_axe") || (item == "minecraft:honeycomb" && !waxed) {
             return InteractionResult::Pass;
         }

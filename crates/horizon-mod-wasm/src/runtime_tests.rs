@@ -972,6 +972,7 @@ fn contended_calls_wait_for_the_group_and_workers_ignore_lending() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn contended_hook_times_out_without_poisoning_the_group() {
     crate::test_stack::on_guest_stack(|| {
         let module = module("i64.const 2199023255556");

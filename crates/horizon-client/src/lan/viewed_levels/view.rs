@@ -2,7 +2,10 @@
 //! covers any more, kept [`LINGER`] ticks before they are forgotten (Immersive Portals' delayed
 //! unload).
 use super::areas::ChunkArea;
-use crate::fast_hash::{FxHashMap, FxHashSet};
+use crate::{
+    fast_hash::{FxHashMap, FxHashSet},
+    lan::entity::Tracker,
+};
 
 /// Ticks a sent chunk no area covers stays on the client: Immersive Portals' 4 generations of 13
 /// ticks (`defaultDelayUnloadGenerations`, `updateInterval`). An engine default.
@@ -21,6 +24,13 @@ pub struct View {
     pub dirty: bool,
     /// The weather last sent: raining, rain level, thunder level.
     pub weather: (bool, f32, f32),
+    /// The clocks last sent (`send::Clock`), so that a jump or a new rate reaches the client.
+    pub(super) clock: super::send::Clock,
+    /// The areas' centres and radii, in chunks, as of the last requeue: where the view's client
+    /// tracks the level's entities from.
+    pub sources: Vec<((i32, i32), i32)>,
+    /// The level's entities the client was sent (`TrackedEntity.seenBy`, for this view).
+    pub tracker: Tracker,
 }
 
 impl View {
@@ -32,6 +42,9 @@ impl View {
             linger: Default::default(),
             dirty: true,
             weather: (false, 0.0, 0.0),
+            clock: Default::default(),
+            sources: Vec::new(),
+            tracker: Tracker::default(),
         }
     }
     /// Nothing sent, queued or kept: the client's world can close.
@@ -60,6 +73,7 @@ impl View {
             }
         }
         self.queue.sort_by_key(|&(x, z)| distance(areas, x, z));
+        self.sources = areas.iter().map(|a| (a.center, a.radius as i32)).collect();
         for &(x, z) in sent {
             if covers(areas, x, z) {
                 self.linger.remove(&(x, z));

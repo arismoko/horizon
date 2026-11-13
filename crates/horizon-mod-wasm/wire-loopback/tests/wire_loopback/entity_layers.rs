@@ -144,6 +144,7 @@ fn wire_loopback_entity_layers_register_and_draw_alike_for_native_and_guest_mods
                     age: 3.5,
                     yaw: 30.0,
                     pitch: 0.0,
+                    living: None,
                 }
                 .into();
                 let still = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];

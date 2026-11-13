@@ -1059,7 +1059,11 @@ fn tick_advancement_notice_precedes_recipe_reward() {
         sync.advancements = horizon_client::lan::ServerAdvancements::load(
             &scratch,
             &horizon_world::loot::PackOverlay::NONE,
-            Default::default(),
+            // Rewards must name a recipe registered in the server's index.
+            std::collections::BTreeMap::from([(
+                "testmod:reward".into(),
+                r#"{"type":"minecraft:crafting_shapeless","ingredients":["minecraft:stone"],"result":{"id":"minecraft:diamond","count":1}}"#.into(),
+            )]),
             Default::default(),
         );
         let reload = std::env::var("HORIZON_ADVANCEMENT_ORDER_CHILD").as_deref() == Ok("reload");

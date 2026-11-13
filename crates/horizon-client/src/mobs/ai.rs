@@ -19,7 +19,7 @@ use super::{
     undead,
 };
 use crate::blocks::Fluid;
-use crate::breathing::{Breath, breathe, drown};
+use crate::breathing::{Breath, breathe, drown, own_air};
 use crate::health::DamageLevel;
 use horizon_core::{
     geometry::{Aabb, ShapeOp, Vec3, VoxelShape},
@@ -1781,41 +1781,34 @@ pub(super) fn in_rain(m: &Mob, w: &MobWorld) -> bool {
 /// it, anywhere else it runs down from the pre-tick value, and at -20 the
 /// axolotl dries out.
 fn axolotl_air_supply(m: &mut Mob, w: &MobWorld, level: &mut DamageLevel<'_>) {
-    let before = m.air;
-    m.air = (m.air + 4).min(super::axolotl::MAX_AIR);
     if m.no_ai {
+        m.air = (m.air + 4).min(super::axolotl::MAX_AIR);
         return;
     }
-    if m.fluids.in_water || in_rain(m, w) {
-        m.air = super::axolotl::MAX_AIR;
-    } else {
-        m.air = before - 1;
-        if m.air <= -20 {
-            m.air = 0;
-            m.damage(level, 2.0, Damage::of(DamageKind::DryOut));
-        }
+    let breathes = m.fluids.in_water || in_rain(m, w);
+    let (cx, max) = (w.loop_context, super::axolotl::MAX_AIR);
+    if let Some(damage) = own_air(cx, m.id, &m.kind.id, &mut m.air, breathes, max, false) {
+        m.damage(level, damage, Damage::of(DamageKind::DryOut));
     }
 }
 /// `Nautilus.baseTick`: `LivingEntity.baseTick` refills the air of this
 /// water breather, then, unless it has no AI, `Nautilus.handleAirSupply`
 /// takes it back out of water, where the nautilus dries out.
-fn nautilus_air_supply(m: &mut Mob, level: &mut crate::health::DamageLevel<'_>) {
+fn nautilus_air_supply(m: &mut Mob, w: &MobWorld, level: &mut DamageLevel<'_>) {
     const MAX_AIR: i32 = 300;
-    let before = m.air;
-    if m.alive() {
-        m.air = (m.air + 4).min(MAX_AIR);
-    }
     if m.no_ai {
+        if m.alive() {
+            m.air = (m.air + 4).min(MAX_AIR);
+        }
         return;
     }
-    if m.alive() && !m.fluids.in_water {
-        m.air = before - 1;
-        if m.air <= -20 {
-            m.air = 0;
-            m.damage(level, 2.0, Damage::of(DamageKind::DryOut));
-        }
-    } else {
+    if !m.alive() {
         m.air = MAX_AIR;
+        return;
+    }
+    let (cx, wet) = (w.loop_context, m.fluids.in_water);
+    if let Some(damage) = own_air(cx, m.id, &m.kind.id, &mut m.air, wet, MAX_AIR, false) {
+        m.damage(level, damage, Damage::of(DamageKind::DryOut));
     }
 }
 /// `Entity.isInWall` (minus the noPhysics early-out, which the caller applies):
@@ -1975,16 +1968,11 @@ fn base_tick(
         if m.species() == Species::Axolotl {
             axolotl_air_supply(m, w, level);
         } else if m.species() == Species::Nautilus {
-            nautilus_air_supply(m, level);
+            nautilus_air_supply(m, w, level);
         } else if m.kind.flags.needs_water {
-            if !m.fluids.in_water {
-                m.air -= 1;
-                if m.air == -20 {
-                    m.air = 0;
-                    m.damage(level, 2.0, Damage::of(DamageKind::Drown));
-                }
-            } else {
-                m.air = 300;
+            let (cx, wet) = (w.loop_context, m.fluids.in_water);
+            if let Some(damage) = own_air(cx, m.id, &m.kind.id, &mut m.air, wet, 300, true) {
+                m.damage(level, damage, Damage::of(DamageKind::Drown));
             }
         } else {
             // LivingEntity.baseTick / MobEffectUtil: bubble columns and breathing
@@ -2013,6 +2001,7 @@ fn base_tick(
                 events.push(MobEvent::Drown {
                     mob: m.id,
                     at: [m.position.x, m.position.y, m.position.z],
+                    bubbles: drowning.bubbles,
                 });
                 if let Some(damage) = drowning.damage {
                     m.damage(level, damage, Damage::of(DamageKind::Drown));

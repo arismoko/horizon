@@ -1087,6 +1087,7 @@ mod tests {
     /// source names as a string literal is text the game no longer shows: its
     /// rewording left it behind in every language (#13802).
     #[test]
+    #[ignore = "daily"]
     fn every_sentence_key_in_en_us_is_one_the_code_names() {
         let en: HashMap<String, String> = serde_json::from_str(
             &std::fs::read_to_string(bundled_dir().join("en_us.json")).unwrap(),

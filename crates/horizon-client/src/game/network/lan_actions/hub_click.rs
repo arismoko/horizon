@@ -29,7 +29,14 @@ impl Game<'_> {
     /// click, run with the host lifted out of the game. Returns the stacks the click threw out.
     pub(super) fn lan_hub_click(&mut self, conn: u32, p: &play::ContainerClick) -> Vec<ItemStack> {
         self.with_lan_lifted(|game, host| {
-            let rules = ItemRules(world_items!(game), &world_stations!(game).enchantments);
+            // The game is lent to the click as the mods' `menu_slot_rules` (their read-only `Host`).
+            // `self.lan` is `None` meanwhile: what a hook reads of the LAN host answers as if none
+            // were open.
+            let rules = ItemRules(
+                world_items!(game),
+                &world_stations!(game).enchantments,
+                Some(&*game),
+            );
             let Some(mut prepared) = host.hub.prepare_click(conn, p, &game.world) else {
                 return Vec::new();
             };

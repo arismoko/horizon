@@ -243,6 +243,16 @@ or changing levels stops every sound. Add particles from the same tick with `hos
 unconnected/wrong-level player, and `Err(BlockEntityError::Stale)` means the entity
 does not resolve. It never opens a replacement through an old handle.
 
+To open a content mod menu type with no block (a backpack item's use, an entity, a command),
+call `player.open_mod_menu(host, menu, title, extra, pos)` (NeoForge's
+`openMenu(provider, extraDataWriter)`). `menu` is the type's `MenuKey`. `extra`, at most
+32 KiB, is what the client's `host.screen_extra_data()` returns while the screen is open, on
+native and wasm alike. `pos`, when given, is what `screen_pos()` returns; otherwise it returns
+`None`. The type's container slots show empty, and their clicks reach `native_menu_clicked`,
+as `open_menu`'s do. It returns the window id, or `Ok(None)` when a mod cancelled the open.
+It refuses with an `OpenMenuError`: `NotModMenu`, `PlayerUnavailable` (stale, fake, or a
+vanilla client), `TooLarge`, or `Title` when the title could not cross.
+
 ## Receiving synchronized data
 
 Implement `block_entity_data_received` on the block entity's part to react on the

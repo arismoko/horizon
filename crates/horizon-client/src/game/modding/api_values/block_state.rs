@@ -199,6 +199,13 @@ pub(crate) fn current() -> Result<Arc<Index>, BlockStateError> {
     INDEX.with_borrow(|index| index.clone().ok_or(BlockStateError::Unavailable))
 }
 impl Index {
+    /// Route on workers using the feature-pinned published Parts table, without conversion.
+    pub(crate) fn worldgen_listens(&self, hook: mod_api::HookId, state: BlockStateId) -> bool {
+        self.forward.get(state.0 as usize).is_some_and(|value| {
+            mod_api::__private::worldgen_block_key_listens(hook, value.block())
+        })
+    }
+
     pub(crate) fn to_api(&self, state: BlockStateId) -> Result<BlockState, BlockStateError> {
         self.forward
             .get(state.0 as usize)

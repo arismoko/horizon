@@ -3,7 +3,7 @@ use crate::catalog::Catalog;
 use quote::ToTokens;
 use std::{collections::BTreeMap, fs, path::Path};
 
-fn definitions(root: &Path) -> Result<BTreeMap<String, String>, String> {
+fn definitions(root: &Path) -> Result<BTreeMap<String, (String, syn::Signature)>, String> {
     let mut targets = BTreeMap::new();
     for path in crate::native_hook_files(root)? {
         let area = path.file_stem().unwrap().to_str().unwrap();
@@ -27,7 +27,10 @@ fn definitions(root: &Path) -> Result<BTreeMap<String, String>, String> {
                     continue;
                 }
                 let target = format!("horizon_client::game::native_hooks::{area}::{ty}::{name}");
-                if targets.insert(format!("{ty}::{name}"), target).is_some() {
+                if targets
+                    .insert(format!("{ty}::{name}"), (target, method.sig))
+                    .is_some()
+                {
                     return Err(format!("duplicate native hook definition: {name}"));
                 }
             }
@@ -48,10 +51,24 @@ pub(crate) fn resolve(root: &Path, catalog: &mut Catalog) -> Result<(), String> 
                 .strip_prefix("horizon_client::game::native_hooks::")
                 .unwrap();
             let name = tail.split("::").skip(1).collect::<Vec<_>>().join("::");
-            hook.target = targets
+            let (target, signature) = targets
                 .get(&name)
-                .ok_or_else(|| format!("{}: no native definition", hook.name))?
-                .clone();
+                .ok_or_else(|| format!("{}: no native definition", hook.name))?;
+            if hook.stack_count.is_some() && hook.call.is_empty() {
+                let output = signature.inputs.iter().find_map(|input| {
+                    let syn::FnArg::Typed(input) = input else {
+                        return None;
+                    };
+                    let syn::Pat::Ident(parameter) = &*input.pat else {
+                        return None;
+                    };
+                    (Some(parameter.ident.to_string()).as_ref() == hook.out.as_ref())
+                        .then_some(&*input.ty)
+                });
+                crate::catalog::validate_stack_count_output(&hook.name, output)
+                    .map_err(|e| e.to_string())?;
+            }
+            hook.target = target.clone();
         }
     }
     Ok(())
@@ -62,6 +79,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "daily"]
     fn every_catalog_target_resolves_and_missing_function_is_rejected() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut catalog = Catalog::load(&root).unwrap();
@@ -92,4 +110,22 @@ mod tests {
                 .contains("no native definition")
         );
     }
+}
+
+#[cfg(test)]
+#[test]
+fn stack_count_rejects_inferred_non_stack_outputs() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut catalog = Catalog::load(&root).unwrap();
+    let hook = catalog
+        .hooks
+        .iter_mut()
+        .find(|h| h.name == "can_equip")
+        .unwrap();
+    hook.stack_count = Some(crate::catalog::StackCount::Trim);
+    assert!(
+        resolve(&root, &mut catalog)
+            .unwrap_err()
+            .contains("mutable Vec<ItemStack>")
+    );
 }

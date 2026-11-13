@@ -2774,6 +2774,7 @@ mod tests {
         }
     }
     #[test]
+    #[ignore = "daily"]
     fn hdr_sliders_step_through_every_value_they_can_be_set_to() {
         let out = offering(true, None);
         let value = |h: H, s: &Settings| match h {

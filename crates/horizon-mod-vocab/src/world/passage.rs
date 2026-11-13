@@ -139,3 +139,68 @@ impl crate::NoBackend for PassageRegistrationError {
         Self::Unavailable
     }
 }
+
+/// Why `cross_passage` refused on the client: the player was not moved and nothing was
+/// sent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum PassageCrossError {
+    /// Not a client connected to a server.
+    Unavailable,
+    /// The window has no player.
+    NoPlayer,
+    /// An earlier crossing still waits for the server's answer.
+    Pending,
+    /// The player rides something.
+    Riding,
+    /// The window holds no passage with this number.
+    UnknownPassage,
+    /// The player's feet are more than `limit` blocks from the nearest point of the opening.
+    TooFar {
+        /// How far, in blocks: 20, Immersive Portals' limit.
+        limit: u32,
+    },
+    /// A mod's `client_packet_send` cancelled the crossing's payload to the server.
+    Cancelled,
+}
+
+impl crate::NoBackend for PassageCrossError {
+    fn no_backend() -> Self {
+        Self::Unavailable
+    }
+}
+
+/// Why the server refused a client's crossing: it put the player back where it has them,
+/// with a position packet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum PassageCrossRefusal {
+    /// The player's level has no passage with this number.
+    UnknownPassage,
+    /// A teleport, or an earlier crossing, waits for the client's answer.
+    Pending,
+    /// The client has not loaded the level around the player yet.
+    NotLoaded,
+    /// The player is dead.
+    Dead,
+    /// The player sleeps.
+    Sleeping,
+    /// The player rides something.
+    Riding,
+    /// The move to where the client crossed from failed the server's move checks.
+    MoveRefused,
+    /// Where the client crossed from is more than `limit` blocks from the nearest point of
+    /// the opening.
+    TooFar {
+        /// How far, in blocks: 20, Immersive Portals' limit.
+        limit: u32,
+    },
+    /// The opening's chunk is not loaded or not tracked for the player.
+    NearEndNotTracked,
+    /// The chunk the player comes out in is not loaded or not tracked for the player.
+    FarEndNotTracked,
+    /// A mod's `player_passage_cross` cancelled the crossing.
+    Vetoed,
+}

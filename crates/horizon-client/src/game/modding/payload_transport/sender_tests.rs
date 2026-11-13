@@ -206,7 +206,7 @@ fn published_tcp_attributes_players_and_orders_actions() {
     });
 }
 
-fn connect_peer(port: u16, name: &str) -> Connection {
+pub(super) fn connect_peer(port: u16, name: &str) -> Connection {
     use horizon_protocol::{
         packets::{handshake, login},
         payload_negotiation::Control,

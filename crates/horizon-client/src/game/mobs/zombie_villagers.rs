@@ -398,6 +398,7 @@ mod tests {
         use std::sync::Arc;
         let mob = |id, species, name: &str| {
             let kind = MobType {
+                shadow: None,
                 id: name.into(),
                 species,
                 width: 0.6,

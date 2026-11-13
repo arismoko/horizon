@@ -143,3 +143,12 @@ must be converted to the fork's hook catalog before being advertised as availabl
   proposals; the point-to-point form has no entity collision context.
 
 These are contract notes, not runtime verification of the converted services.
+
+## Living absorption
+
+Living handles expose `absorption(host)` on both sides and
+`set_absorption(host, amount)` on the server. Resolution follows health: armor
+stands, dragons and stale handles return `None` on reads. A non-finite write
+returns `false` and changes nothing; accepted amounts clamp to
+`0..=max_absorption` for that entity. Player and mob writes roll back with the
+transaction. This is the absorption amount, not the absorption status effect.

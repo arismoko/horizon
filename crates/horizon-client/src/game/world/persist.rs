@@ -1140,12 +1140,17 @@ impl Game<'_> {
 
     /// An entity of a type Horizon does not simulate, kept as its compound.
     fn load_other(&mut self, mut tag: Tag, kind: &str) -> Option<u32> {
+        // A missing mod's record is opaque, not a vanilla fallback entity to normalize.
+        let quarantined = super::general::quarantined_kind(kind).then(|| tag.clone());
         strip_finalize(&mut tag);
         let id = self.next_entity + 1;
         let other = Self::other_from_nbt(&tag, id, kind)?;
         self.next_entity = id;
         let uuid = with_constructor_uuid(entity_nbt::uuid(&tag));
         self.remember(id, uuid, tag);
+        if let Some(original) = quarantined {
+            self.persist.raw.insert(id, original);
+        }
         self.others.push(other);
         Some(id)
     }
@@ -1709,8 +1714,15 @@ impl Game<'_> {
                     .get(&o.id)
                     .copied()
                     .unwrap_or_else(random_uuid);
-                let mut tag = self.other_to_nbt(o, uuid);
-                write_attachments(&mut tag, o.id, &self.entity_attachments);
+                let tag = if super::general::quarantined_kind(&o.kind)
+                    && let Some(raw) = self.persist.raw.get(&o.id)
+                {
+                    raw.clone()
+                } else {
+                    let mut tag = self.other_to_nbt(o, uuid);
+                    write_attachments(&mut tag, o.id, &self.entity_attachments);
+                    tag
+                };
                 roots
                     .entry(chunk_of(o.position))
                     .or_default()

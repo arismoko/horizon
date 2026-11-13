@@ -30,6 +30,11 @@ class GateTests(unittest.TestCase):
             (True, [], "fork-review-rollup-42", "true"),
             (True, ["sync"], "work", "true"),
             (True, [], "sync-28-35", "true"),
+            (True, [], "rollup-76", "true"),
+            (True, [], "rollup-77", "true"),
+            (True, [], "rollupx", "false"),
+            (True, [], "cfix-hooks-rollup-76", "false"),
+            (False, [], "rollup-76", "false"),
             (True, ["bug"], "ci-gate", "false"),
             (False, ["rollup", "sync"], "fork-review-rollup-42", "false"),
         ]
@@ -68,7 +73,7 @@ class WorkflowTests(unittest.TestCase):
                 self.assertIn("(needs.changes.result != 'success' || needs.changes.outputs.heavy == 'true')",
                               self.job(name))
         self.assertIn("needs.changes.outputs.heavy == 'true'", self.job("launcher"))
-        for name in ("ignored-tests-shards", "ignored-tests", "vanilla-parity"):
+        for name in ("vanilla-parity",):
             self.assertIn("!inputs.pr", self.job(name), name)
 
     def test_cheap_jobs_run_without_the_heavy_gate(self):
@@ -155,10 +160,24 @@ class WorkflowTests(unittest.TestCase):
             "HEAD_REF": "${{ github.event.pull_request.head.ref }}",
         })
         self.assertEqual(gate["outputs"]["heavy"], "${{ steps.gate.outputs.heavy }}")
-        for name in ("test", "runtime-leases"):
-            with self.subTest(job=name):
-                self.assertEqual(jobs[name]["needs"], "gate")
-                self.assertEqual(jobs[name]["if"], "needs.gate.outputs.heavy == 'true'")
+        self.assertEqual(jobs["test"]["needs"], "gate")
+        self.assertEqual(jobs["test"]["if"], "inputs.commit == '' && needs.gate.outputs.heavy == 'true'")
+        # It starts child processes: the daily run calls it, and a hand dispatch runs it; never pushes or PRs.
+        for name in ("runtime-leases", "launcher-processes"):
+            self.assertEqual(jobs[name]["if"], "inputs.commit != '' || github.event_name == 'workflow_dispatch'")
+
+    def test_each_launcher_test_target_runs_once_and_spawning_ones_run_daily_in_release(self):
+        import yaml
+
+        jobs = yaml.safe_load((ROOT / ".github/workflows/launcher-windows-check.yml").read_text())["jobs"]
+        def targets(job):
+            return {arg for step in jobs[job]["steps"] for arg in re.findall(r"--test (\w+)", step.get("run", ""))}
+        spawning = {path.stem for path in (ROOT / "launcher/tests").glob("*.rs")
+                    if "CARGO_BIN_EXE" in path.read_text() or "Command::new" in path.read_text()}
+        every = {path.stem for path in (ROOT / "launcher/tests").glob("*.rs")}
+        self.assertEqual(targets("launcher-processes"), spawning)
+        self.assertEqual(targets("test"), every - spawning)
+        self.assertIn("--release", next(s["run"] for s in jobs["launcher-processes"]["steps"] if "--test" in s.get("run", "")))
 
     def test_other_pull_request_workflows_skip_what_compiles_for_forks(self):
         for workflow, jobs in (("cargo-horizon-mod.yml", ("build",)), ("modding-book.yml", ("book",))):

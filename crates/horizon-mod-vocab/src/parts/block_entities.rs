@@ -155,6 +155,23 @@ impl dyn Registrar + '_ {
     ) -> Result<(), crate::BlockEntityPartError> {
         self.attach_block_entity_part(kind, type_name::<P>(), Arc::new(part))
     }
+    /// [`Self::block_entity_part`] for a Part with typed state (`BlockEntityPartState`):
+    /// each block entity of type `kind` keeps one `P::Data`, under `P::DATA`. Refused, and
+    /// reported as the mod's registration refusal, when `P::DATA` syncs, copies on death,
+    /// lacks the codec a wasm mod needs, is outside the mod's namespaces, or names a key
+    /// this mod already declared with another type.
+    pub fn block_entity_part_with_state<P: crate::BlockEntityPartState>(
+        &mut self,
+        kind: &crate::BlockEntityTypeKey,
+        part: P,
+    ) -> Result<(), crate::BlockEntityStateError> {
+        self.declare_block_entity_part_state(
+            type_name::<P>(),
+            crate::PartStateDeclaration::of(P::DATA),
+        )?;
+        self.block_entity_part(kind, part)
+            .map_err(crate::BlockEntityStateError::Part)
+    }
     /// Answer capability `key` for block entity type `kind` with `provider`, which gives
     /// a handler for one block entity and side, or none:
     /// `r.block_entity_capability(&ITEMS, &press, |_, _| Some(Box::new(PressItems)))`.
@@ -218,6 +235,16 @@ pub trait BlockEntitiesRegistrar {
         kind: &'static str,
         part: Arc<dyn BlockEntityPart>,
     ) -> Result<(), crate::BlockEntityPartError>;
+
+    /// Record the state declaration of Part `part`, or refuse it (as the mod's registration
+    /// refusal too): see `PartStateDeclaration::check`, and a key outside this mod's
+    /// namespaces or one it declared with another type. Mods reach it through
+    /// `block_entity_part_with_state`.
+    fn declare_block_entity_part_state(
+        &mut self,
+        part: &'static str,
+        declaration: crate::PartStateDeclaration,
+    ) -> Result<(), crate::BlockEntityStateError>;
 
     /// Answer block entity capability `name` for type `kind` with `provider`, asked ahead of the
     /// game's own when `before_game`; mods reach it through `block_entity_capability`.

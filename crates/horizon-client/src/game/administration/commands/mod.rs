@@ -4873,6 +4873,7 @@ mod selector_bounds_tests {
     use horizon_core::geometry::Vec3;
 
     #[test]
+    #[ignore = "daily"]
     fn actual_selector_uses_body_overlap_but_distance_stays_at_the_origin() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../.local/horizon-client")

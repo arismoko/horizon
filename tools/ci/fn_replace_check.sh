@@ -95,12 +95,21 @@ if [ "$side" = client ]; then
 fi
 echo "native build: $(python3 -c "print(round($(date +%s.%N) - $started, 1))") s"
 test -x "$scratch/engine/horizon-engine" || test -x "$scratch/engine/horizon-engine.exe"
+python3 - "$scratch/engine" <<'PYMARK'
+import pathlib, sys
+engine = pathlib.Path(sys.argv[1])
+binary = next(p for p in (engine / "horizon-engine", engine / "horizon-engine.exe") if p.is_file())
+assert b"horizon-private-holder-v2;" in binary.read_bytes(), f"holder capability missing from {binary}"
+PYMARK
 if [ "$side" = server ]; then
   # The server folder's export: the launcher says where the engine is, and installs no instance build.
   grep -F "Built the server engine: $scratch/engine/horizon-engine" "$scratch/native-build.out"
   test -z "$(find "$data/versions" -type f -name 'horizon-client*' ! -path "$version/*")"
 fi
 log=$data/native/build.log
+# Where the build's time went: each command's time and the whole prebuilt compile.
+grep -E ': [0-9]+ ms$|^Mods compiled against the prebuilt game in ' "$log" || true
+echo "Runner load: $(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null) on $(nproc 2>/dev/null) CPUs"
 # Only a `[[native.*]]` row patches a function; a mod of hooks alone must not say it did.
 if grep -qs '^\[\[native\.' "$mods"/*/horizon-mod.toml; then
   grep -F 'Function replacement:' "$log"

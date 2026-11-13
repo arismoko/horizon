@@ -1,6 +1,7 @@
 //! Opening and closing a local world from the client: the title screen's actions, entering a
 //! world on the server thread, and saving and leaving it on exit.
 use super::*;
+use horizon_client::save::level_mods;
 
 impl Game<'_> {
     /// `onAbort`: the confirm screen's Back or Escape reopens the Data
@@ -107,6 +108,23 @@ impl Game<'_> {
             create: create.cloned().map(Box::new),
         })? {
             return Ok(());
+        }
+        // A world saved with mods that are not loaded now asks first (#3856), unless the player
+        // already chose to open it anyway; the question reads the world and writes nothing.
+        if create.is_none() {
+            let dir = std::env::current_dir()?.join("saves").join(folder);
+            if !level_mods::is_confirmed(&dir) {
+                let missing = self.ask_missing_mods(&dir);
+                if !missing.is_empty() {
+                    if let Some(title) = self.title.as_mut() {
+                        title.ask_missing_mods(folder, missing);
+                        return Ok(());
+                    }
+                    for m in &missing {
+                        log::warn!("Horizon: {}", level_mods::describe(m));
+                    }
+                }
+            }
         }
         self.join_world_rest()?;
         // Create World's data packs, in the world before it opens.

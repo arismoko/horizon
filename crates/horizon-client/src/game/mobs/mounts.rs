@@ -1747,6 +1747,7 @@ mod tests {
     /// mouthful is a `minecraft:eat` game event. A silent mount eats
     /// noiselessly, drawing no pitch, and a locked baby grows not at all.
     #[test]
+    #[ignore = "daily"]
     fn feeding_a_mount_draws_from_its_own_random_and_posts_eat() {
         let mut resources = None;
         let Some(mut game) = server_game(&mut resources) else {

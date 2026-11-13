@@ -595,6 +595,30 @@ pub const fn layout_mix(mut hash: u64, child: u64) -> u64 {
     hash
 }
 
+thread_local! {
+    /// Set while a layout walk (`resource_layout`) reaches a resource handle's encoding.
+    static RESOURCE_REACHED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Marks the running layout walk as reaching a resource handle: what a handler's codec says
+/// from its `layout`.
+// hidden: the shared handler codec's side of `resource_layout`.
+#[doc(hidden)]
+pub fn reached_resource() {
+    RESOURCE_REACHED.set(true);
+}
+
+/// `T`'s Wire layout, and whether any part of it is a resource handle (an erased handler such
+/// as `Arc<dyn BlockPart>`): such a value crosses only as a handle into the resource scope of
+/// one link group, never as data both targets read.
+// hidden: the Part state declaration's capability check.
+#[doc(hidden)]
+pub fn resource_layout<T: Wire>() -> (u64, bool) {
+    let outer = RESOURCE_REACHED.replace(false);
+    let layout = T::layout(&mut Vec::new());
+    (layout, RESOURCE_REACHED.replace(outer))
+}
+
 /// A type with a wire form.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` has no Wire form",
