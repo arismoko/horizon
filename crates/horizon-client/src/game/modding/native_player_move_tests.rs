@@ -45,10 +45,6 @@ fn hold(game: &mut super::Game<'_>, conn: u32, to: [f64; 3], yaw: f32) {
     };
     let held = PendingMove {
         report,
-        from: (
-            hub.guests[i].position,
-            [hub.guests[i].yaw, hub.guests[i].pitch],
-        ),
         since: hub.ticks,
         teleports,
         dimension,
@@ -57,7 +53,7 @@ fn hold(game: &mut super::Game<'_>, conn: u32, to: [f64; 3], yaw: f32) {
 }
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_veto_corrects_the_player_and_a_pass_commits_the_report() {
     let heard = Heard::default();
     let mods = vec![mod_api::ModEntry::new(
@@ -161,7 +157,7 @@ fn state(game: &super::Game<'_>) -> ([f32; 2], usize, bool) {
 const AT: [f64; 3] = [3.0, 64.0, 5.0];
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn two_reports_in_one_tick_are_heard_in_order_each_from_the_one_before_when_both_pass() {
     let heard = Heard::default();
     let mods = vec![mod_api::ModEntry::new(
@@ -189,7 +185,7 @@ fn two_reports_in_one_tick_are_heard_in_order_each_from_the_one_before_when_both
 }
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_veto_of_the_first_of_two_reports_in_one_tick_corrects_and_the_second_is_not_heard() {
     let heard = Heard::default();
     let mods = vec![mod_api::ModEntry::new(
@@ -214,7 +210,7 @@ fn a_veto_of_the_first_of_two_reports_in_one_tick_corrects_and_the_second_is_not
 }
 
 #[test]
-#[ignore = "daily"]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn two_reports_in_one_tick_with_no_listener_are_committed_in_the_one_pass() {
     with_guests(|game| {
         two_turns_waiting(game);

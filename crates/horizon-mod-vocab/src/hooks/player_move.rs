@@ -4,7 +4,7 @@ pub trait Hooks {
     /// A player's movement report is about to be applied: they would move from
     /// `from` to `to`, or turn from `from_rotation` to `to_rotation` (`[yaw,
     /// pitch]`). Heard once for each validated report whose position or
-    /// rotation differs from the last validated connection report, after the server's own
+    /// rotation differs from the accepted one, after the server's own
     /// validation and before the report is committed. Set `cancel` for a real
     /// veto and not a rollback: the report is not applied and its bookkeeping
     /// is skipped, and the client is corrected to the accepted position and
@@ -28,13 +28,9 @@ pub trait Hooks {
     /// tick after a join or a level change; the second is heard), a player riding
     /// something (`vehicle_moved` hears the vehicle), and any teleport: its
     /// confirmation is validated and committed without the hook, and so is
-    /// the veto's own correction, and passage crossings. With no listener the report is committed in
+    /// the veto's own correction. With no listener the report is committed in
     /// place with no extra work: nothing is held, copied or allocated. With one,
     /// the cost is one held report for each moving player a tick. Server-side.
-    /// A wasm fault or epoch timeout answers nothing, not a veto: the report
-    /// commits if no other listener vetoes. The pending deadline applies across
-    /// ticks only. A non-returning native listener is out of scope and blocks
-    /// the game thread.
     #[notes = r#"## Player move
 
 - **`player_move(host, event)`**: Bukkit's `PlayerMoveEvent` for a guest's own movement, fired from `ServerGamePacketListenerImpl.handlePlayerPositionChange`'s place: after the server validated the report, before it is committed. Cancelling vetoes it; the client is sent back to the accepted position and rotation. The engine applies no threshold: a mod that wants Paper's 1/256 square block or ten degrees compares `from` and `to` itself."#]

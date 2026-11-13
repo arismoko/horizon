@@ -62,7 +62,6 @@ pub(super) fn standing(listened: bool, inbox: Vec<S>) -> Hub {
         g.load_timeout = 0;
         g.position = [0.0, 64.0, 0.0];
         g.first_good = g.position;
-        g.move_baseline = (g.position, [0.0, 0.0]);
         g.yaw = 0.0;
         g.pitch = 0.0;
         g.ticks = 1;
@@ -271,33 +270,4 @@ fn a_vetoed_report_is_counted_before_the_hook_and_adds_no_violation() {
     for check in horizon_anticheat::Check::ALL {
         assert_eq!(g.anticheat.vl(&config, *check, hub.ticks), 0.0, "{check:?}");
     }
-}
-
-#[test]
-fn connection_report_baseline_advances_before_hearing_and_resets_on_correction() {
-    let mut hub = standing(true, vec![]);
-    hub.guests
-        .update(0, |g| g.move_baseline = ([1.0, 64.0, 0.0], [10.0, 0.0]));
-    let mut events = Vec::new();
-    hub.accept_move(
-        0,
-        Accepted {
-            to: [2.0, 64.0, 0.0],
-            yaw: 20.0,
-            pitch: 0.0,
-            flags: 0,
-            stands: false,
-            floating: false,
-        },
-        Hearing::Heard,
-        &mut events,
-    );
-    let conn = hub.guests[0].conn;
-    let report = hub.pending_move_report(conn).unwrap();
-    assert_eq!(report.from, [1.0, 64.0, 0.0]);
-    assert_eq!(report.from_rotation, [10.0, 0.0]);
-    assert_eq!(hub.guests[0].position, [0.0, 64.0, 0.0]);
-    assert_eq!(hub.guests[0].move_baseline, ([2.0, 64.0, 0.0], [20.0, 0.0]));
-    hub.resolve_move(conn, false);
-    assert_eq!(hub.guests[0].move_baseline, ([0.0, 64.0, 0.0], [0.0, 0.0]));
 }
