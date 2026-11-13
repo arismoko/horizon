@@ -1801,6 +1801,7 @@ fn update_shape_at_edge<W: PlacementContext>(
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::collections::BTreeMap;
 
     #[test]
     fn plain_block_lists_expand_tags_and_ignore_non_strings() {
