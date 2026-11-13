@@ -808,7 +808,7 @@ impl LootData {
         overlay_map(overlay, "enchantment", &mut raw_enchantments);
         let mut names: Vec<&String> = raw_enchantments.keys().collect();
         names.sort();
-        let enchantments = names
+        let enchantments: Vec<Enchantment> = names
             .into_iter()
             .map(|name| {
                 let e = &raw_enchantments[name];

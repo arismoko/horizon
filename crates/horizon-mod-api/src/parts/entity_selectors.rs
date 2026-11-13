@@ -94,6 +94,8 @@ impl EntitySelectorsRegistrar for PartRegistrar {
 /// Fixtures that tests of other crates use to install entity selector tokens.
 #[cfg(any(test, feature = "testing"))]
 pub mod tests {
+    use mod_vocab::EntitySelectorsRegistrar;
+
     #[test]
     fn aggregate_metadata_budget_refuses_only_the_next_token_without_mutating_prior_records() {
         struct Large;
