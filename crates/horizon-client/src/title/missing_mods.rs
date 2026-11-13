@@ -20,40 +20,6 @@ fn message(missing: &[MissingMod]) -> String {
     message
 }
 
-/// The most lines of text that leave the heading and both rows of buttons on a screen `h` high.
-/// `confirm_top` centres a column of 61 plus the text, and the second row of buttons ends 85
-/// plus the text below its top, so the text may take `h - 109`, less 8 to spare.
-#[cfg(test)]
-fn max_lines(h: f32) -> usize {
-    ((h - 109.0 - 8.0) / 9.0).floor().max(1.0) as usize
-}
-
-/// The description, then each mod's lines while they fit in `max` lines; when some don't, the
-/// last line says how many mods are left out. The narration reads them all (`screen_info`).
-#[cfg(test)]
-fn fit(description: Vec<String>, mods: Vec<Vec<String>>, max: usize) -> Vec<String> {
-    let total = description.len() + mods.iter().map(Vec::len).sum::<usize>();
-    let mut lines = description;
-    if total <= max {
-        lines.extend(mods.into_iter().flatten());
-        return lines;
-    }
-    lines.truncate(max.saturating_sub(1));
-    let mut shown = 0;
-    for m in &mods {
-        if lines.len() + m.len() + 1 > max {
-            break;
-        }
-        lines.extend(m.iter().cloned());
-        shown += 1;
-    }
-    lines.push(lang::tr(
-        "horizon.missing_mods.more",
-        &[&(mods.len() - shown)],
-    ));
-    lines
-}
-
 /// What the narrator reads for the prompt.
 pub(super) fn screen_info(missing: &[MissingMod]) -> crate::widgets::ScreenInfo {
     crate::widgets::ScreenInfo::new(

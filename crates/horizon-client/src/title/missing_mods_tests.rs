@@ -165,30 +165,20 @@ fn a_failed_backup_cancels_the_open() {
         if message.starts_with(&lang::tr("horizon.missing_mods.backup_failed", &[&""]))));
 }
 
-/// However many mods are missing, the text fits between the heading and the buttons: the mods
-/// that don't fit become one line counting them, and a short list is shown whole.
+/// Button hit targets stay entirely inside a narrow viewport, regardless of text length.
 #[test]
-fn a_long_list_keeps_the_heading_and_buttons_on_screen() {
-    let line = |text: &str| vec![text.to_owned()];
-    let description = vec!["a".to_owned(), "b".to_owned()];
-    let mods: Vec<Vec<String>> = (0..30).map(|i| line(&format!("mod {i}"))).collect();
-    // A 240 high window: the column must end on it.
-    let max = max_lines(240.0);
-    let top = confirm_top(240.0, max);
-    assert!(top >= 0.0 && top + 85.0 + max as f32 * 9.0 <= 240.0);
-    let shown = fit(description.clone(), mods.clone(), max);
-    assert_eq!(shown.len(), max);
-    assert_eq!(shown[..2], description[..]);
-    let kept = max - 3;
-    assert_eq!(
-        shown[2..2 + kept],
-        (0..kept).map(|i| format!("mod {i}")).collect::<Vec<_>>()[..]
-    );
-    assert_eq!(
-        shown.last().unwrap(),
-        &lang::tr("horizon.missing_mods.more", &[&(30 - kept)])
-    );
-    // A list that fits is shown whole, with no count.
-    let short = fit(description.clone(), mods[..2].to_vec(), max);
-    assert_eq!(short, ["a", "b", "mod 0", "mod 1"]);
+fn long_text_keeps_all_three_actions_inside_narrow_viewport() {
+    let mut f = Fixture::new();
+    f.title.ask_missing_mods("Gone", vec![gone(); 30]);
+    for lines in [3, 14, 100] {
+        f.title.message_lines.set(lines);
+        let buttons = f.title.buttons(240.0, 240.0);
+        assert_eq!(buttons.len(), 3);
+        for (button, y) in buttons.iter().zip([164.0, 188.0, 212.0]) {
+            assert_eq!(button.x, 10.0);
+            assert_eq!(button.w, 220.0);
+            assert_eq!(button.y, y);
+            assert!(button.y + 20.0 <= 240.0);
+        }
+    }
 }
