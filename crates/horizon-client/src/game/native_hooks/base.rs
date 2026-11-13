@@ -3543,18 +3543,6 @@ impl Game<'_> {
     ) {
         self.fire_right_click_block(click, use_block, use_item, cancellation_result, canceled);
     }
-    /// An explosion at `center` in `dimension` (`minecraft:overworld`) is
-    /// about to break `blocks`: `ServerExplosion.explode` with its `toBlow`,
-    /// before any block is hit. Take out the positions to spare; they keep
-    /// their block and get no fire. Entities are hurt as before. Server-side.
-    pub(in crate::game) fn native_explosion_detonate(
-        &mut self,
-        dimension: &str,
-        center: [f64; 3],
-        blocks: &mut Vec<[i32; 3]>,
-    ) {
-        self.fire_explosion_detonate(dimension, center, blocks);
-    }
     /// A player fills (`stack` an empty bucket) or empties a bucket at `pos`:
     /// `BucketItem.use`, where it asks `Level.mayInteract`. Set `canceled`
     /// and the bucket does nothing. Server-side, for every player of the

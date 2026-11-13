@@ -4,6 +4,17 @@ horizon-client game::api_values::loot_values::query_tests::queried_ability_parts
 horizon-client game::api_values::read_stack_tests::read_consumers_forward_nonresident_stacks_and_mutants lib daily slow
 horizon-client game::commands::selector_bounds_tests::actual_selector_uses_body_overlap_but_distance_stays_at_the_origin lib daily game-boot
 horizon-client game::commands::world_cmds::allay_owner_damage_tests::allay_owner_adapters_compare_the_actual_player_uuid lib daily game-boot
+horizon-client game::explosion_detonate::tests::a_nested_blast_keeps_its_own_spared lib daily game-boot
+horizon-client game::explosion_detonate::tests::a_position_taken_out_keeps_its_block lib daily game-boot
+horizon-client game::explosion_detonate::tests::an_added_entity_is_hurt_and_an_empty_handle_is_refused lib daily game-boot
+horizon-client game::explosion_detonate::tests::an_entity_taken_out_is_neither_hurt_nor_pushed lib daily game-boot
+horizon-client game::explosion_detonate::tests::destroying_two_vehicles_keeps_the_next_stable_identity_with_or_without_a_listener lib daily game-boot
+horizon-client game::explosion_detonate::tests::empty_and_mixed_kind_lists_control_direct_membership_with_ordinary_order_only lib daily game-boot
+horizon-client game::explosion_detonate::tests::removing_the_next_target_from_a_callback_still_visits_later_originals lib daily game-boot
+horizon-client game::explosion_detonate::tests::special_query_excludes_a_box_that_only_touches_the_boundary lib daily game-boot
+horizon-client game::explosion_detonate::tests::the_exploding_source_is_not_in_the_list_nor_hurt lib daily game-boot
+horizon-client game::explosion_detonate::tests::the_list_order_is_the_walk_order lib daily game-boot
+horizon-client game::explosion_detonate::tests::with_no_listener_the_blast_is_unchanged lib daily game-boot
 horizon-client game::maps::tests::map_on_banner_in_adventure_mode_honours_can_place_on lib daily game-boot
 horizon-client game::mounts::tests::feeding_a_mount_draws_from_its_own_random_and_posts_eat lib daily game-boot
 horizon-client game::native_entity_selectors::tests::nearest_teammate_filters_before_limit_and_drops_false_and_panicking_candidates lib daily game-boot
