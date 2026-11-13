@@ -22,9 +22,7 @@ fn composter(game: &mut Game<'_>, level: i32) {
         .registry
         .resolve(&horizon_world::chunk::BlockState {
             name: "minecraft:composter".into(),
-            properties: [("level".into(), level.to_string().into())]
-                .into_iter()
-                .collect(),
+            properties: [("level".into(), level.to_string())].into_iter().collect(),
         })
         .unwrap();
     game.world.set(POS[0], POS[1], POS[2], state).unwrap();
