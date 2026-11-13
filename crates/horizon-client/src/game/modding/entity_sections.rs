@@ -24,8 +24,7 @@
 //! boundary is a hash lookup and the reusable crossing record is told without a per-frame scan.
 
 use super::Game;
-use super::entity::Entity as _;
-use crate::mobs::section_writes::PositionWrite;
+use crate::mobs::living::section_writes::PositionWrite;
 use horizon_core::geometry::Vec3;
 use mod_api::{DimensionKey, EntityRef, WorldEpoch};
 use std::collections::HashMap;
@@ -82,17 +81,9 @@ pub(super) struct EntitySections {
     busy: bool,
     /// The mobs' position updates during their family's tick; kept for its capacity.
     pub(super) ticked: Vec<PositionWrite>,
-    /// A mob tick's intermediate position while its live row remains at the tick's final state.
-    /// Entity reads use this only during the synchronous crossing callback.
-    position_override: Option<(u32, Vec3)>,
 }
 
 impl EntitySections {
-    pub(super) fn position_override(&self, id: u32) -> Option<[f64; 3]> {
-        let (_, position) = self.position_override.filter(|(current, _)| *current == id)?;
-        Some([position.x, position.y, position.z])
-    }
-
     /// The table for `scope`'s world: another world's entries are dropped.
     fn table(&mut self, scope: Scope) -> &mut HashMap<u32, (DimensionKey, [i32; 3])> {
         if self.epoch != Some(scope.epoch) {
@@ -167,20 +158,6 @@ impl EntitySections {
     }
 }
 
-/// Legacy family sweep kinds retained for focused tests and compatibility with older callers.
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Family {
-    ArmorStands,
-    Tridents,
-    Rockets,
-    Projectiles,
-    /// Experience orbs, primed TNT and falling blocks, which tick in join order.
-    Ordered,
-    FishingHooks,
-    Dragon,
-}
-
 impl Game<'_> {
     /// Where boundaries are now: None with no listener (nothing is filed) or no world open.
     pub(super) fn entity_section_scope(&self) -> Option<Scope> {
@@ -245,117 +222,39 @@ impl Game<'_> {
         self.native_lifecycle.entity_sections.forget(id);
     }
 
-    /// The end of a family's tick for the kinds without an `EntityTickEvent` round: each one's
-    /// own move, then its crossing is told before the next entity is examined.
-    #[allow(dead_code)]
-    pub(super) fn entity_sections_stepped(&mut self, family: Family) {
-        let Some(scope) = self.entity_section_scope() else {
-            return;
-        };
-        // Out of the game while its lists are walked; nothing is told meanwhile.
-        let mut sections = std::mem::take(&mut self.native_lifecycle.entity_sections);
-        let mut step = |id: u32, from: Vec3, to: Vec3| {
-            if id != 0 {
-                sections.moved(
-                    scope,
-                    id,
-                    Some([from.x, from.y, from.z]),
-                    [to.x, to.y, to.z],
-                );
-            }
-        };
-        macro_rules! each {
-            ($($list:ident).+) => {
-                for e in self.$($list).+.iter() {
-                    if !e.is_removed() {
-                        step(e.id(), e.previous_position(), e.position());
-                    }
-                }
-            };
-        }
-        match family {
-            Family::ArmorStands => each!(armor_stands),
-            Family::Tridents => each!(tridents),
-            Family::Rockets => each!(rockets),
-            Family::Projectiles => each!(creatures.projectiles),
-            Family::Ordered => {
-                each!(orbs);
-                each!(tnts);
-                each!(falling);
-            }
-            Family::FishingHooks => {
-                for (hook, _) in self.fishing_hooks_here() {
-                    step(hook.id(), hook.previous, hook.position);
-                }
-            }
-            Family::Dragon => {
-                if let Some(d) = self.dragon.as_ref() {
-                    step(d.id, d.previous, d.position);
-                }
-            }
-        }
-        self.native_lifecycle.entity_sections = sections;
-        self.tell_entity_sections();
-    }
-
-    /// What a family's ticks moved, in order (`moves`: each mob's last teleport in its tick, or
-    /// where it began, then where its tick left it): each filed and told as its own position
-    /// update, and `moves` emptied.
-    #[allow(dead_code)]
-    pub(super) fn entity_sections_ticked(&mut self, moves: &mut Vec<PositionWrite>) {
-        if let Some(scope) = self.entity_section_scope() {
-            for write in moves.iter() {
-                self.native_lifecycle
-                    .entity_sections
-                    .moved(
-                        scope,
-                        write.id,
-                        write.from.map(|from| [from.x, from.y, from.z]),
-                        [write.to.x, write.to.y, write.to.z],
-                    );
-                self.tell_entity_sections();
-            }
-        }
-        moves.clear();
-    }
-
     /// Tell the writes from one lifted mob while its owning list is resident.
     ///
     /// A mob tick cannot borrow `Game` while its world view is live, so the
-    /// caller restores the pass before entering here.  Put each recorded
-    /// position into the resident row before filing and telling it; a listener
-    /// therefore reads the position that caused this crossing, not the final
-    /// position of the mob's tick.  A listener that removes the mob makes later
-    /// records for that id stale and they are discarded.
+    /// caller restores the pass before entering here. The resident row is
+    /// temporarily moved to each recorded write while its crossing is told;
+    /// this gives listeners the same position they would see at the write and
+    /// preserves a listener's own position change.
     pub(super) fn entity_sections_ticked_live(&mut self, moves: &mut Vec<PositionWrite>) {
         let Some(scope) = self.entity_section_scope() else {
             moves.clear();
             return;
         };
-        let id = moves.first().map(|write| write.id);
-        let live = id.and_then(|id| {
-            self.mobs
-                .iter()
-                .position(|mob| mob.id == id && !mob.removed)
-        });
         for write in moves.drain(..) {
-            if Some(write.id) != id || live.is_none() {
+            let Some(index) = self.mobs.locate(write.join) else {
                 self.native_lifecycle.entity_sections.forget(write.id);
                 continue;
-            }
-            let to = write.to;
-            // The lifted list has already been restored with the tick's final position. Keep
-            // that live state intact: listeners observe this write through the temporary read
-            // override, so a listener's own position change cannot be overwritten by replay.
-            self.native_lifecycle.entity_sections.position_override = Some((write.id, to));
+            };
+            let final_position = self.mobs[index].position;
+            self.mobs.update(index, |mob| mob.position = write.to);
             self.native_lifecycle.entity_sections.moved(
                 scope,
                 write.id,
                 write.from.map(|from| [from.x, from.y, from.z]),
-                [to.x, to.y, to.z],
+                [write.to.x, write.to.y, write.to.z],
             );
             self.tell_entity_sections();
-            self.native_lifecycle.entity_sections.position_override = None;
+            if let Some(index) = self.mobs.locate(write.join) {
+                self.mobs.update(index, |mob| {
+                    if mob.position == write.to {
+                        mob.position = final_position;
+                    }
+                });
+            }
         }
     }
 
@@ -390,16 +289,30 @@ impl Game<'_> {
         from
     }
 
-    /// Tell item writes after their lifted pass has been restored. Items that merged, expired or
-    /// were picked up are forgotten rather than producing a crossing for a removed entity.
-    pub(super) fn tell_dropped_item_sections(&mut self, steps: Vec<(u32, Vec3, Vec3)>) {
-        for (id, from, to) in steps {
-            if self.dropped.iter().any(|item| item.id == id) {
-                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-            } else {
-                self.entity_section_forget(id);
-            }
-        }
+    /// Tell one item write while its lifted row is resident again. A listener may remove the
+    /// item; in that case it is not returned to the lifted pass.
+    pub(super) fn tell_dropped_item_step(
+        &mut self,
+        items: &mut horizon_client::join_seq::JoinList<horizon_client::entities::ItemEntity>,
+        index: usize,
+        from: Vec3,
+        to: Vec3,
+    ) -> bool {
+        let item = items.remove(index);
+        let fallback = item.clone();
+        let join = item.join;
+        let id = item.id;
+        let end = self.dropped.len();
+        self.dropped.put_back(end, item);
+        self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
+        let Some(item) = self.dropped.extract(join) else {
+            // Keep a tombstone in the lifted pass so its caller's indexes stay aligned; the
+            // caller marks it removed and the final retention drops this detached clone.
+            items.insert(index, fallback);
+            return false;
+        };
+        items.insert(index, item);
+        true
     }
 
     /// An entity joined (`addEntity`): filed untold where it is now, which a join listener may
@@ -463,8 +376,30 @@ impl Game<'_> {
                 self.entity_section_forget(id as u32);
             }
         }
+        let packet_section = match &packet {
+            C::AddEntity(p) => Some((true, p.id as u32, p.position)),
+            C::MoveEntityPos(p) => Some((false, p.0.id as u32, [0.0; 3])),
+            C::MoveEntityPosRot(p) => Some((false, p.0.id as u32, [0.0; 3])),
+            C::MoveEntityRot(p) => Some((false, p.0.id as u32, [0.0; 3])),
+            C::EntityPositionSync(p) => Some((false, p.id as u32, [0.0; 3])),
+            C::TeleportEntity(p) => Some((false, p.id as u32, [0.0; 3])),
+            C::PlayerPosition(_) => u32::try_from(self.own_entity_id())
+                .ok()
+                .map(|id| (false, id, [0.0; 3])),
+            C::MoveVehicle(_) => self.driven_mount().map(|m| (false, m.id, [0.0; 3])),
+            _ => None,
+        };
         let respawned = matches!(packet, C::Respawn(_));
         let result = self.apply_packet(packet);
+        if result.is_ok()
+            && let Some((joined, id, at)) = packet_section
+        {
+            if joined {
+                self.entity_section_joined(id, at);
+            } else {
+                self.entity_section_moved_id(id);
+            }
+        }
         if respawned {
             self.entity_section_forget(self.own_entity_id() as u32);
         }

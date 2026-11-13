@@ -9,6 +9,8 @@
 mod lifetime_tests;
 #[path = "minecarts/save_lending.rs"]
 mod save_lending;
+#[path = "minecarts/section_steps.rs"]
+mod section_steps;
 
 use super::{Game, Hit, InteractTarget, Keys, entity::Entity};
 use horizon_client::actions::Action;
@@ -2011,31 +2013,9 @@ impl Game<'_> {
             // a mineshaft's chest cart carries its whole roll as NBT. The
             // stored cart keeps its slots for whatever reads them meanwhile.
             let (due, section_step) = self.with_entity_held_out(id, |game| {
-                let loot = game.carts.update(i, |c| c.loot.take());
-                let mut c = game.carts[i].clone();
-                let from = c.position;
-                c.loot = loot;
-                let alive = game.tick_cart(&mut c, [0.0; 2], i, &mut index);
-                if c.kind == CartKind::Hopper && c.enabled {
-                    game.hopper_cart_suck(&mut c);
-                }
-                let Some(i) = cart_at(&game.carts, id, i) else {
-                    return (false, None);
-                };
-                if alive {
-                    let due = std::mem::take(&mut c.command_due);
-                    let to = c.position;
-                    index.moved(i, c.bounds());
-                    let stored = game.store_cart_back(i, c);
-                    (due, stored.then_some((from, to)))
-                } else {
-                    // explode_cart owns destruction and its passenger callbacks.
-                    (false, None)
-                }
+                section_steps::tick(game, id, i, &mut index)
             });
-            if let Some((from, to)) = section_step {
-                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-            }
+            section_steps::tell(self, id, section_step);
             if due {
                 self.perform_cart_command(id);
                 index.forget_carts();
@@ -2157,49 +2137,13 @@ impl Game<'_> {
         let intent = [left * co - forward * s, forward * co + left * s];
         let id = self.carts[i].id;
         let result = self.with_entity_held_out(id, |game| {
-            let mut c = game.carts[i].clone();
-            let from = c.position;
-            let alive = game.tick_cart(&mut c, intent, i, &mut CartIndex::default());
-            let mut player_step = None;
-            if alive
-                && game.riding == Some(c.id)
-                && let Some(p) = game.player.as_mut()
-            {
-                let player_from = p.position;
-                game.previous_position = p.position;
-                p.position = Vec3::new(c.position.x, c.position.y + SEAT, c.position.z);
-                p.velocity = Vec3::ZERO;
-                p.fall_distance = 0.0;
-                player_step = Some((player_from, p.position));
-            }
-            let Some(i) = game.carts.iter().position(|x| x.id == c.id) else {
-                if alive
-                    && game.riding == Some(id)
-                    && !game.persist.removed_vehicles.contains_key(&id)
-                {
-                    game.riding = None;
-                }
-                return None;
-            };
-            if alive {
-                let to = c.position;
-                let stored = game.store_cart_back(i, c);
-                Some((i, alive, stored.then_some((from, to)), player_step))
-            } else {
-                Some((i, alive, None, player_step))
-            }
+            section_steps::tick_riding(game, id, i, intent)
         });
         let Some((i, alive, cart_step, player_step)) = result else {
             return true;
         };
-        if let Some((from, to)) = cart_step {
-            self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-        }
-        if let Some((from, to)) = player_step
-            && let Ok(player_id) = u32::try_from(self.own_entity_id())
-        {
-            self.entity_section_step(player_id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-        }
+        section_steps::tell(self, id, cart_step);
+        section_steps::tell_player(self, player_step);
         // AbstractMinecart.activateMinecart: a powered activator rail ejects
         // the rider, and getDismountLocationForPassenger places it beside the
         // cart instead of leaving it at the seat.

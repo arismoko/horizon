@@ -223,7 +223,6 @@ fn no_listener_files_no_entity() {
             )
             .unwrap();
         game.teleport_to(Target::Mob(id), [40.0, 70.0, 3.0], None, true);
-        game.entity_sections_stepped(Family::ArmorStands);
         assert!(game.native_lifecycle.entity_sections.filed.is_empty());
     });
 }

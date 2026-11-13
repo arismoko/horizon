@@ -22,9 +22,6 @@ impl Game<'_> {
                     item.position.z.floor() as i32,
                 )
         });
-        let mut section_steps = self
-            .entity_section_scope()
-            .map(|_| Vec::<(u32, Vec3, Vec3)>::new());
         // `ItemUtils.onContainerDestroyed`: what a destroyed item held, and
         // where it lay, for adding to the level once its own tick is done.
         let mut destroyed: Vec<(ItemStack, Vec3)> = Vec::new();
@@ -80,19 +77,22 @@ impl Game<'_> {
                 Some(moved) => moved,
                 None => at_turn(item),
             };
-            // Keep the committed write until the item is resident again; a merge, expiry or
-            // pickup can remove it before the listener is allowed to resolve the entity.
-            if alive
-                && !discarded
-                && let Some(section_steps) = section_steps.as_mut()
-            {
-                section_steps.push((item.id, item.previous, item.position));
-            }
             // Entity.doWaterSplashEffect: the server plays the sound (broadcast
             // to clients). Its addParticle is empty.
             for splash in entered {
                 self.apply_item_splash(splash);
             }
+            let from = item.previous;
+            let to = item.position;
+            if !discarded
+                && round.sections()
+                && !self.tell_dropped_item_step(&mut items, i, from, to)
+            {
+                removed[i] = true;
+                cells.remove(i, to);
+                continue;
+            }
+            let item = &mut items[i];
             if discarded {
                 removed[i] = true;
                 cells.remove(i, item.previous);
@@ -234,13 +234,11 @@ impl Game<'_> {
         items.retain(|_| !removed.next().unwrap_or(false));
         let Some(p) = self.player.as_ref() else {
             self.put_back_dropped(items);
-            self.tell_dropped_item_sections(section_steps.unwrap_or_default());
             self.spawn_destroyed_contents(destroyed);
             return;
         };
         if p.health.dead_or_dying() || self.spectator() {
             self.put_back_dropped(items);
-            self.tell_dropped_item_sections(section_steps.unwrap_or_default());
             self.spawn_destroyed_contents(destroyed);
             return;
         }
@@ -261,7 +259,6 @@ impl Game<'_> {
         let own = self.level.ensure_player_uuid();
         self.native_player_pickups(&mut items, (min, max), feet, own);
         self.put_back_dropped(items);
-        self.tell_dropped_item_sections(section_steps.unwrap_or_default());
         self.spawn_destroyed_contents(destroyed);
     }
 }

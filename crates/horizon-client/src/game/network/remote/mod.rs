@@ -3797,10 +3797,7 @@ impl Game<'_> {
                     );
                 }
             }
-            C::PlayerPosition(p) => {
-                self.remote_teleport(&p)?;
-                self.remote_entity_section_moved(self.own_entity_id());
-            }
+            C::PlayerPosition(p) => self.remote_teleport(&p)?,
             C::PlayerRotation(p) => self.remote_rotation(&p),
             C::PlayerLookAt(p) => self.remote_look_at(&p),
             // ClientCommonPacketListenerImpl.handlePostEffects.
@@ -3970,7 +3967,6 @@ impl Game<'_> {
                 }
                 self.move_remote_text_display(p.id, p.position, Some((rotation[0], rotation[1])));
                 self.move_remote_interaction(p.id, p.position);
-                self.remote_entity_section_joined(p.id, p.position);
             }
             C::RemoveEntities(p) => {
                 for &id in &p.ids {
@@ -4026,7 +4022,6 @@ impl Game<'_> {
                     t.codec_base = path.end();
                 }
                 self.move_entity(m.id, path, rotation, m.on_ground, MovePacket::Move);
-                self.remote_entity_section_moved(m.id);
             }
             C::EntityPositionSync(p) => {
                 let path = match p.path {
@@ -4044,7 +4039,6 @@ impl Game<'_> {
                     p.on_ground,
                     MovePacket::PositionSync,
                 );
-                self.remote_entity_section_moved(p.id);
             }
             C::TeleportEntity(p) => {
                 let base = self
@@ -4077,7 +4071,6 @@ impl Game<'_> {
                 if self.driven_mount().is_some_and(|m| m.id as i32 == p.id) {
                     self.remote_move_vehicle(position, p.yaw);
                 }
-                self.remote_entity_section_moved(p.id);
             }
             C::SetPassengers(p) => self.remote_set_passengers(p.vehicle, &p.passengers),
             // ClientPacketListener.handleEntityLinkPacket: who holds a mob's
@@ -4108,12 +4101,7 @@ impl Game<'_> {
                     });
                 }
             }
-            C::MoveVehicle(p) => {
-                self.remote_move_vehicle(p.position, p.yaw);
-                if let Some(mount) = self.driven_mount() {
-                    self.remote_entity_section_moved(mount.id as i32);
-                }
-            }
+            C::MoveVehicle(p) => self.remote_move_vehicle(p.position, p.yaw),
             C::MoveMinecartAlongTrack(p) => self.remote_move_minecart(p),
             // ClientPacketListener.handleRotateMob: lerpHeadTo(yHeadRot, 3).
             C::RotateHead(p) => {
@@ -6643,19 +6631,12 @@ impl Game<'_> {
                 .flatten()
             })
             .flatten();
-        let player_from = self.player.as_ref().map(|p| p.position);
+        let player_from = entity_section_steps::player_before(self);
         if let Some(player) = player {
             self.native_player_tick_pre(mod_api::__private::PlayerTickPreCall { player });
         }
         let result = self.tick_local_player(entity_collisions, pushed, sprint_window);
-        if let (Some(from), Some(to), Ok(id)) = (
-            player_from,
-            self.player.as_ref().map(|p| p.position),
-            u32::try_from(self.own_entity_id()),
-        ) && from != to
-        {
-            self.remote_entity_section_step(id, from, to);
-        }
+        entity_section_steps::player_after(self, player_from);
         // `EntityEvent.Size` for the pose the tick set.
         self.native_local_player_size();
         if let Some(player) = player {
@@ -7679,27 +7660,7 @@ impl Game<'_> {
             .retain(|_, (_, steps)| *steps > 0);
         let mut entered = Vec::new();
         if running {
-            let mut items = self.dropped.lift();
-            let mut section_steps = self
-                .entity_section_scope()
-                .map(|_| Vec::<(u32, Vec3, Vec3)>::new());
-            items.retain_mut(|item| {
-                // The server decides entity collisions. This copy predicts block movement.
-                let (alive, discarded) =
-                    self.tick_item_with_block_contacts(item, None, &[], true, &mut |splash| {
-                        entered.push(splash);
-                    });
-                if alive && !discarded {
-                    let from = item.previous;
-                    let to = item.position;
-                    if let Some(section_steps) = section_steps.as_mut() {
-                        section_steps.push((item.id, from, to));
-                    }
-                }
-                !discarded
-            });
-            self.put_back_dropped(items);
-            self.tell_dropped_item_sections(section_steps.unwrap_or_default());
+            entity_section_steps::tick_items(self, &mut entered);
         }
         // Entity.doWaterSplashEffect on this window: Level.addParticle draws
         // the bubbles and splashes. ClientLevel.playSeededSound drops

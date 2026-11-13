@@ -19,5 +19,5 @@ pub fn snap_to(m: &mut Mob, at: Vec3) {
 pub fn set_pos(m: &mut Mob, at: Vec3) {
     let from = m.position;
     m.position = at;
-    super::super::section_writes::record(m.id, from, at);
+    super::section_writes::record(m.id, m.join, from, at);
 }

@@ -794,13 +794,6 @@ impl Game<'_> {
     /// The entity's position (`Entity.position`): its feet, the middle of
     /// its box for a painting or an item frame.
     pub(super) fn entity_position(&self, entity: EntityRef) -> Option<[f64; 3]> {
-        if let Some(position) = self
-            .native_lifecycle
-            .entity_sections
-            .position_override(entity.id())
-        {
-            return Some(position);
-        }
         match self.native_entity_read_target(entity) {
             Some(target) => self.target_position(target),
             None => self

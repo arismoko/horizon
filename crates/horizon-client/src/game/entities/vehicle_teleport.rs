@@ -455,7 +455,7 @@ impl Game<'_> {
                 TeleportMotion::Keep => game.transition_motion(target),
                 TeleportMotion::Stop => None,
             };
-            let from = game.place_teleport_in_level_without_section(
+            let from = game.place_teleport_in_level(
                 target,
                 at,
                 rotation,

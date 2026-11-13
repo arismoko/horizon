@@ -114,7 +114,7 @@ impl Game<'_> {
         // is examined. The small record remains separate from `Mob` because teleports update
         // the same position field as ordinary movement.
         let mut section_moves = std::mem::take(&mut self.native_lifecycle.entity_sections.ticked);
-        crate::mobs::section_writes::begin(round.sections());
+        crate::mobs::living::section_writes::begin(round.sections());
         let mut dispatch_panic = None;
         let mut pushes = std::mem::take(state.pushes);
         let original_len = snapshot.len();
@@ -510,31 +510,35 @@ impl Game<'_> {
                     // Its `xo` (`previous`) is where its tick began, unless a teleport in the
                     // tick (`snapTo`) moved it along: that teleport, then where the tick left
                     // it, are two position updates (`EntityInLevelCallback.onMove` for each).
-                    if round.sections() && kept && !m.removed {
-                        let captured = crate::mobs::section_writes::drain_for(
+                    if round.sections() {
+                        let captured = crate::mobs::living::section_writes::drain_for(
                             m.id,
                             &mut section_moves,
                         );
-                        let changed = captured != 0 || m.previous != m.position;
-                        if changed && captured == 0 {
-                            // A position changed before the lifted tick (or a raw test fixture)
-                            // still has the old filed section as its first write.
-                            section_moves.push(
-                                crate::mobs::section_writes::PositionWrite::baseline(
-                                    m.id,
-                                    m.previous,
-                                ),
-                            );
-                        }
-                        if changed {
-                            section_moves.push(
-                                crate::mobs::section_writes::PositionWrite::captured(
-                                    m.id,
-                                    m.previous,
-                                    m.position,
-                                ),
-                            );
-                            section_yield = true;
+                        if kept && !m.removed {
+                            let changed = captured != 0 || m.previous != m.position;
+                            if changed && captured == 0 {
+                                // A position changed before the lifted tick (or a raw test fixture)
+                                // still has the old filed section as its first write.
+                                section_moves.push(
+                                    crate::mobs::living::section_writes::PositionWrite::baseline(
+                                        m.id,
+                                        m.join,
+                                        m.previous,
+                                    ),
+                                );
+                            }
+                            if changed {
+                                section_moves.push(
+                                    crate::mobs::living::section_writes::PositionWrite::captured(
+                                        m.id,
+                                        m.join,
+                                        m.previous,
+                                        m.position,
+                                    ),
+                                );
+                                section_yield = true;
+                            }
                         }
                     }
                     if let Some(selection) = &selection
@@ -759,7 +763,7 @@ impl Game<'_> {
                 horizon_client::mobs::apply_mob_pushes(m, &mut pushes);
             }
         }
-        crate::mobs::section_writes::finish();
+        crate::mobs::living::section_writes::finish();
         // Every captured write is told at the live-row boundary above.  Keep
         // only the allocation for the next pass; no tick-end reconstruction.
         section_moves.clear();
