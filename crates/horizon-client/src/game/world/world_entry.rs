@@ -223,6 +223,7 @@ impl Game<'_> {
     /// Load the world's data packs' content tables (`None`: the world has no
     /// packs, and `Resources.rest` stays in use). This re-reads the tables,
     /// so it runs once per world open and on `/reload`.
+    #[cfg(test)]
     pub(super) fn build_world_tables(
         &mut self,
         stack: &functions::PackStack,
@@ -501,6 +502,8 @@ impl Game<'_> {
                 sources.clone(),
             );
         }
+        self.mods.datapack_registries = datapack_registries.map(Arc::new);
+        self.health_resources = health;
         self.world_tables = tables;
         self.data_map_registries = self
             .world_tables
@@ -512,12 +515,10 @@ impl Game<'_> {
         for world in self.levels.parked_worlds() {
             world.pois.clear();
         }
-        self.mods.datapack_registries = datapack_registries.map(Arc::new);
         horizon_client::datapack_net::serve(self.mods.datapack_registries.clone());
         self.send_datapack_snapshots();
         self.refresh_recipe_property_context();
         self.structure_spawns = structure_spawns;
-        self.health_resources = health;
         self.server_items = None;
         self.refresh_infiniburn();
         self.install_parts(parts);
