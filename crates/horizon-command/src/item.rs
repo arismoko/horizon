@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:villager_food",
     "minecraft:note_block_sound",
     "minecraft:tooltip_style",
     "minecraft:waxed",
@@ -112,6 +113,13 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         "minecraft:dyed_color" => {
             Tag::Int(horizon_core::color::rgb_color_from_tag(value).expect("validated RGB color"))
         }
+        "minecraft:villager_food" => Tag::compound([(
+            "nutrition",
+            Tag::Int(
+                int_of(value.get("nutrition").expect("validated nutrition"))
+                    .expect("validated numeric nutrition") as i32,
+            ),
+        )]),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => {
             let Tag::Compound(entries) = value else {
                 unreachable!("validated enchantment map")
@@ -203,6 +211,18 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
                     "Value must be within range [0.0;1.0]: {}",
                     horizon_core::java_number::java_float(value)
                 ));
+            }
+            Ok(())
+        }
+        // `VillagerFood.CODEC`: a required positive Codec.INT; extra fields are ignored.
+        "minecraft:villager_food" => {
+            let Tag::Compound(_) = t else {
+                return Err(not_map(t));
+            };
+            let nutrition = t.get("nutrition").ok_or("Missing nutrition")?;
+            let value = int_of(nutrition).ok_or("Not a number")?;
+            if value <= 0 {
+                return Err(format!("Value must be positive: {value}"));
             }
             Ok(())
         }

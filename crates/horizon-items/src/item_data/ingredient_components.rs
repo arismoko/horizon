@@ -119,6 +119,18 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             };
             bits(a) == bits(b)
         }
+        // `VillagerFood.equals`: only the decoded nutrition participates.
+        "minecraft:villager_food" => {
+            let nutrition = |stack: &ItemStack| {
+                stack
+                    .data()
+                    .and_then(|data| data.other(id))
+                    .and_then(|value| value.get("nutrition"))
+                    .and_then(crate::properties::component_int)
+                    .filter(|value| *value > 0)
+            };
+            nutrition(a) == nutrition(b)
+        }
         "minecraft:block_entity_data" => block_entity_equal(
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
