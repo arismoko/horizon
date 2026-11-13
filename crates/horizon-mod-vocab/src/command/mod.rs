@@ -136,14 +136,27 @@ pub struct CommandInvocation {
     pub literals: Vec<String>,
     /// Present arguments in parse order; omitted optional arguments have no entry.
     pub arguments: Vec<CommandArgument>,
+    /// The level the command executes in, after `execute in`; the console's is the overworld.
+    pub dimension: DimensionKey,
+    /// The execution position, after `execute at` or `positioned`; the console's is the
+    /// world spawn's block corner.
+    pub position: [f64; 3],
 }
 
 impl CommandInvocation {
-    /// Build an invocation from its parsed literal path and resolved arguments.
-    pub fn new(literals: Vec<String>, arguments: Vec<CommandArgument>) -> Self {
+    /// Build an invocation from its parsed literal path, resolved arguments and execution
+    /// level and position.
+    pub fn new(
+        literals: Vec<String>,
+        arguments: Vec<CommandArgument>,
+        dimension: DimensionKey,
+        position: [f64; 3],
+    ) -> Self {
         Self {
             literals,
             arguments,
+            dimension,
+            position,
         }
     }
 

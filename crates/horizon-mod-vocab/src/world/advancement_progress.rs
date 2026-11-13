@@ -1,4 +1,7 @@
-//! Owned advancement progress captured at a criterion's grant or revoke.
+//! Owned advancement progress captured at a criterion's grant or revoke, and a loaded
+//! advancement's definition.
+
+use crate::{Identifier, ItemStack, Text};
 
 /// One criterion in an advancement, including criteria not yet obtained.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,4 +59,98 @@ impl AdvancementProgress {
             done,
         }
     }
+}
+
+/// A loaded advancement's definition (vanilla's `AdvancementHolder`), read with
+/// `ServerHost::advancement`. A snapshot: it does not follow a later `/reload`.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct AdvancementInfo {
+    /// The advancement's id.
+    pub id: Identifier,
+    /// The parent's id; `None` for a root.
+    pub parent: Option<Identifier>,
+    /// How the advancement screen and toasts show it; `None` for a hidden recipe advancement.
+    pub display: Option<AdvancementDisplay>,
+    /// The criterion names in definition order.
+    pub criteria: Vec<String>,
+    /// Requirement groups: at least one criterion in each group completes the advancement.
+    pub requirements: Vec<Vec<String>>,
+}
+
+impl AdvancementInfo {
+    /// A definition from its parts.
+    pub fn new(
+        id: Identifier,
+        parent: Option<Identifier>,
+        display: Option<AdvancementDisplay>,
+        criteria: Vec<String>,
+        requirements: Vec<Vec<String>>,
+    ) -> Self {
+        Self {
+            id,
+            parent,
+            display,
+            criteria,
+            requirements,
+        }
+    }
+}
+
+/// An advancement's `DisplayInfo`.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct AdvancementDisplay {
+    /// The title.
+    pub title: Text,
+    /// The description.
+    pub description: Text,
+    /// The icon: the stack the file names, with its count and components.
+    pub icon: ItemStack,
+    /// The frame.
+    pub frame: AdvancementFrame,
+    /// Whether completing it shows a toast.
+    pub show_toast: bool,
+    /// Whether completing it is announced in chat.
+    pub announce_to_chat: bool,
+    /// Whether it stays hidden until done.
+    pub hidden: bool,
+}
+
+impl AdvancementDisplay {
+    /// A display from its parts.
+    pub fn new(
+        title: Text,
+        description: Text,
+        icon: ItemStack,
+        frame: AdvancementFrame,
+        show_toast: bool,
+        announce_to_chat: bool,
+        hidden: bool,
+    ) -> Self {
+        Self {
+            title,
+            description,
+            icon,
+            frame,
+            show_toast,
+            announce_to_chat,
+            hidden,
+        }
+    }
+}
+
+/// An advancement's frame (`AdvancementType`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum AdvancementFrame {
+    /// `task`.
+    Task,
+    /// `goal`.
+    Goal,
+    /// `challenge`.
+    Challenge,
 }

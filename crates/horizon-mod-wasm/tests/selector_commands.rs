@@ -92,6 +92,8 @@ fn real_wasm_command_listener_receives_ordered_selector_handles() {
                 let invocation = CommandInvocation::new(
                     vec![name.into()],
                     vec![CommandArgument::new(argument.into(), value)],
+                    mod_api::DimensionKey::OVERWORLD,
+                    [0.0; 3],
                 );
                 let mut ran = false;
                 mod_api::dispatch_run_mod_command(&mut world, &source, &invocation, &mut ran);
@@ -104,7 +106,12 @@ fn real_wasm_command_listener_receives_ordered_selector_handles() {
             mod_api::dispatch_run_mod_command(
                 &mut world,
                 &source,
-                &CommandInvocation::new(vec!["not_a_selector_fixture_command".into()], vec![]),
+                &CommandInvocation::new(
+                    vec!["not_a_selector_fixture_command".into()],
+                    vec![],
+                    mod_api::DimensionKey::OVERWORLD,
+                    [0.0; 3],
+                ),
                 &mut ran,
             );
             assert!(

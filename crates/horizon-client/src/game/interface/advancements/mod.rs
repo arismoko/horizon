@@ -1172,7 +1172,7 @@ impl Game<'_> {
             // A network player's client shows its own toast.
             if d.show_toast && !self.adv.quiet && self.lan_acting.is_none() {
                 self.add_advancement_toast(Toast {
-                    icon: d.icon.clone(),
+                    icon: d.icon.item.to_string(),
                     frame: d.frame,
                     title: Text::translate(toast_label(d.frame).0, &[]),
                     description: Some(text_of(&d.title)),
@@ -2603,7 +2603,7 @@ impl Game<'_> {
         for (a, icon) in p.added.into_iter().zip(icons) {
             list.retain(|o| o.id != a.id);
             let display = a.display.map(|d| adv::Display {
-                icon,
+                icon: horizon_client::items::ItemStack::new(&icon, 1),
                 title: tag_to_json(&d.title),
                 description: tag_to_json(&d.description),
                 frame: match d.frame {
@@ -2663,7 +2663,7 @@ impl Game<'_> {
                 && let Some(d) = a.display.as_ref().filter(|d| d.show_toast)
             {
                 self.add_advancement_toast(Toast {
-                    icon: d.icon.clone(),
+                    icon: d.icon.item.to_string(),
                     frame: d.frame,
                     title: Text::translate(toast_label(d.frame).0, &[]),
                     description: Some(text_of(&d.title)),
@@ -3141,7 +3141,7 @@ mod tests {
             id: "quests:board".into(),
             parent: None,
             display: Some(adv::Display {
-                icon: "minecraft:book".into(),
+                icon: horizon_client::items::ItemStack::new("minecraft:book", 1),
                 title,
                 description,
                 frame: Frame::Task,

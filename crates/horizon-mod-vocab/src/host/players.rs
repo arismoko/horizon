@@ -137,6 +137,12 @@ pub trait PlayersBackend {
     /// unavailable player; displaced online players retain their identity.
     #[access(WorldOnly)]
     fn player_name(&self, player: PlayerRef) -> Option<String>;
+    /// Side: server.
+    /// `ServerPlayer.getGameProfile`: the UUID, name and login properties (skin
+    /// `textures` included) of a connected or acting player. An offline-mode
+    /// player has no properties. None for a stale or unavailable player.
+    #[access(WorldOnly)]
+    fn player_profile(&self, player: PlayerRef) -> Option<GameProfile>;
     /// Side: both.
     /// The level the online player is in (`ServerPlayer.level`): on an integrated
     /// server or dedicated server, the player's current dimension; on a client,

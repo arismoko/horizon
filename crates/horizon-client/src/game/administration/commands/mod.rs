@@ -478,7 +478,7 @@ impl Game<'_> {
         );
         displayname
     }
-    fn source_position(&self) -> [f64; 3] {
+    pub(super) fn source_position(&self) -> [f64; 3] {
         if let Some(s) = &self.command_source {
             return s.pos;
         }

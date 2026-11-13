@@ -1089,6 +1089,55 @@ pub struct PlayerFood {
     pub exhaustion: f32,
 }
 
+/// A player's game profile (authlib's `GameProfile`): the UUID, the name and the signed
+/// properties the server received at login, such as `textures` (the skin).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct GameProfile {
+    /// The player's UUID.
+    pub uuid: u128,
+    /// The player's name.
+    pub name: String,
+    /// The profile's properties in login order; empty for an offline-mode player.
+    pub properties: Vec<ProfileProperty>,
+}
+
+impl GameProfile {
+    /// A profile from its UUID, name and properties.
+    pub fn new(uuid: u128, name: String, properties: Vec<ProfileProperty>) -> Self {
+        Self {
+            uuid,
+            name,
+            properties,
+        }
+    }
+}
+
+/// One property of a [`GameProfile`] (authlib's `Property`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct ProfileProperty {
+    /// The property's name, such as `textures`.
+    pub name: String,
+    /// Its value, as the session server sent it (base64 for `textures`).
+    pub value: String,
+    /// The session server's signature, when the value is signed.
+    pub signature: Option<String>,
+}
+
+impl ProfileProperty {
+    /// A property from its name, value and optional signature.
+    pub fn new(name: String, value: String, signature: Option<String>) -> Self {
+        Self {
+            name,
+            value,
+            signature,
+        }
+    }
+}
+
 /// Why [`PlayerRef::open_mod_menu`] opened nothing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]

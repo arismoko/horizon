@@ -32,7 +32,15 @@ cannot resolve there. Every source receives the same owned data, on native and w
 `CommandBlockMinecart { entity, .. }` or `Function { id, .. }`.
 `source.permission()` returns the effective `PermissionLevel`: functions use
 function permission; blocks and carts use game-master permission. `execute as`,
-`at` and `in` change argument resolution, not the origin. Feedback through
+`at` and `in` change argument resolution, not the origin. `command.dimension` and
+`command.position` are where the command executes after `execute in`, `at` or
+`positioned`; the console executes in the Overworld at its spawn corner.
+
+Two reads work in a command and elsewhere on the server. `player.profile(host)` returns
+the player's `GameProfile`: UUID, name and login properties such as the signed `textures`
+skin (empty for an offline-mode player). `host.advancement(&id)` returns a loaded
+`AdvancementInfo`: its parent, display (title, description, icon stack with its components, frame and
+flags), criterion names and requirements, from the set the last `/reload` built. Feedback through
 `host.commands().feedback` honours the underlying source's silence and track-output.
 
 ## Entity and player selectors
