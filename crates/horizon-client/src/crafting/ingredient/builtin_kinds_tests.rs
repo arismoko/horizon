@@ -157,9 +157,10 @@ fn components_dyed_color_decodes_rgb_forms_and_matches_borrowed_values() {
     );
     assert!(!absence.test_in(&context, &populated_raw));
     let mut removed = default.clone();
-    removed
-        .data_mut()
-        .set_loot_component("minecraft:dyed_color", &None);
+    removed.data_mut().set_loot_component(
+        "!minecraft:dyed_color",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(absence.test_in(&context, &removed));
     assert!(!integer.test_in(&context, &removed));
     assert!(!vector.test_in(&context, &removed));
@@ -929,7 +930,10 @@ fn potion_duration_scale_decodes_and_matches_float_values() {
     let absence = parse(absence_source, &items);
     let mut removed = ItemStack::new("minecraft:potion", 1);
     assert!(!absence.test_in(&context, &removed));
-    removed.data_mut().set_loot_component(ID, &None);
+    removed.data_mut().set_loot_component(
+        "!minecraft:potion_duration_scale",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(absence.test_in(&context, &removed));
     assert!(!positive.test_in(&context, &removed));
     let mut populated = ItemStack::new("minecraft:potion", 1);
@@ -1102,7 +1106,10 @@ fn minimum_attack_charge_recipe_decodes_and_matches_float_values() {
     );
     let mut removed = ItemStack::new("minecraft:diamond_sword", 1);
     assert!(!absence.test_in(&context, &removed));
-    removed.data_mut().set_loot_component(ID, &None);
+    removed.data_mut().set_loot_component(
+        "!minecraft:minimum_attack_charge",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(absence.test_in(&context, &removed));
     assert!(!positive.test_in(&context, &removed));
     assert!(!absence.test_in(&context, &stack(Tag::Float(0.35_f32.to_bits()))));
@@ -1218,9 +1225,10 @@ fn item_model_component_literals_decode_validate_and_match() {
     );
     let mut removed = ItemStack::new("minecraft:stick", 1);
     assert!(!absence.test_in(&context, &removed));
-    removed
-        .data_mut()
-        .set_loot_component("minecraft:item_model", &None);
+    removed.data_mut().set_loot_component(
+        "!minecraft:item_model",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(absence.test_in(&context, &removed));
     assert!(!positive.test_in(&context, &removed));
     let mut populated = ItemStack::new("minecraft:stick", 1);
@@ -1356,7 +1364,10 @@ fn enchantment_glint_override_decodes_boolean_literals_and_borrowed_numeric_valu
     );
     let mut removed = ItemStack::new("minecraft:apple", 1);
     assert!(!absence.test_in(&context, &removed));
-    removed.data_mut().set_loot_component(COMPONENT, &None);
+    removed.data_mut().set_loot_component(
+        "!minecraft:enchantment_glint_override",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(absence.test_in(&context, &removed));
     assert!(!enabled.test_in(&context, &removed));
     assert!(!disabled.test_in(&context, &removed));
