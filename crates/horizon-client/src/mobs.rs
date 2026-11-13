@@ -1535,6 +1535,10 @@ pub struct Mob {
     /// `Entity.firstTick`: no splash for a mob that appears in water.
     pub first_tick: bool,
     pub no_gravity: bool,
+    /// `Entity.noPhysics`: its moves pass through blocks. No save writes it
+    /// (`Entity.saveWithoutId` omits it) and no mob tick rewrites it except a
+    /// vex, which sets it only for the length of its own tick.
+    pub no_physics: bool,
     /// `Entity.mainSupportingBlockPos`: the block it stood on after its last
     /// move.
     pub supporting: Option<[i32; 3]>,
@@ -3746,6 +3750,7 @@ impl Mob {
             was_eye_in_water: false,
             first_tick: true,
             no_gravity: false,
+            no_physics: false,
             supporting: None,
             standing_on: None,
             no_ai: false,

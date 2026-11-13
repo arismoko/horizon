@@ -1753,6 +1753,10 @@ pub struct ArmorStand {
     /// is false with it, as with `Marker`: `travel` does nothing, so the stand
     /// never moves, and the blocks it stands in do not touch it.
     pub no_gravity: bool,
+    /// `Entity.noPhysics`. `ArmorStand.readAdditionalSaveData` recomputes it as
+    /// `!hasPhysics()` (`Marker` or `NoGravity`) on every load, so a write to
+    /// it lasts only until the stand is saved and loaded again.
+    pub no_physics: bool,
     /// `CustomName`: the text of a hologram.
     pub custom_name: Option<crate::text::Text>,
     /// `CustomNameVisible`.
@@ -2019,6 +2023,7 @@ impl ArmorStand {
             invisible: false,
             marker: false,
             no_gravity: false,
+            no_physics: false,
             custom_name: None,
             name_visible: false,
             last_hit: i64::MIN / 2,

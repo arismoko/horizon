@@ -3870,6 +3870,9 @@ pub fn armor_stand_from_nbt(tag: &Tag, id: u32) -> Option<ArmorStand> {
     a.invisible = flag(tag, "Invisible");
     a.marker = flag(tag, "Marker");
     a.no_gravity = flag(tag, "NoGravity");
+    // `ArmorStand.readAdditionalSaveData`: `noPhysics = !hasPhysics()`, so a
+    // write to the flag is not persisted.
+    a.no_physics = a.marker || a.no_gravity;
     a.on_ground = flag(tag, "OnGround");
     // ArmorStand.readAdditionalSaveData: each part of `Pose` that is a list of
     // three numbers, the others staying at their defaults.

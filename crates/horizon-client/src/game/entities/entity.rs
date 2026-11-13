@@ -1532,6 +1532,11 @@ impl Entity for Mob {
     fn set_on_ground(&mut self, on_ground: bool) {
         self.on_ground = on_ground;
     }
+    /// `Entity.noPhysics`: written through the mod API; no mob tick rewrites it
+    /// (a vex sets it only for the length of its own, custom travel).
+    fn no_physics(&self) -> bool {
+        self.no_physics
+    }
     /// `Entity.move(MoverType.PISTON, ...)` ends in `setPos`, which `Shulker`
     /// overrides to snap to the block centre.
     fn move_entity(&mut self, gate: &mut MoveGate, movement: Vec3) {
@@ -2144,9 +2149,10 @@ impl Entity for ArmorStand {
     fn pushed_by_explosion(&self) -> bool {
         false
     }
-    /// A marker and a NoGravity stand have no physics (`noPhysics`).
+    /// `Entity.noPhysics`: worth its own field beside `Marker` and `NoGravity`,
+    /// which it is recomputed from on load, because a mod may write it.
     fn no_physics(&self) -> bool {
-        self.marker || self.no_gravity
+        self.no_physics
     }
     /// `ArmorStand.getPistonPushReaction`: a marker is ignored.
     fn get_piston_push_reaction(&self) -> PushReaction {
