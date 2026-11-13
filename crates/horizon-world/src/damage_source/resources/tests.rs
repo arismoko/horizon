@@ -252,3 +252,20 @@ fn a_rejected_override_does_not_uncover_an_exported_definition() {
     assert_eq!(filtered.id("minecraft:stalagmite"), Some(stalagmite));
     assert!(base.definition(fall).is_some());
 }
+
+#[test]
+fn false_conditions_do_not_suppress_damage_tag_operations() {
+    let f = Fixture::new();
+    f.write(
+        "data/minecraft/tags/damage_type/conditional.json",
+        json!({"neoforge:conditions":[{"type":"neoforge:false"}],"values":["minecraft:fall"]}),
+    );
+    let base = resource_tags(&f.0, &PackOverlay::NONE, |id, _| Some(id.to_owned())).unwrap();
+    assert_eq!(base["minecraft:conditional"], ["minecraft:fall"]);
+    let files = vec![file(
+        "tags/minecraft:damage_type/conditional",
+        json!({"neoforge:conditions":[{"type":"neoforge:false"}],"values":["minecraft:starve"],"remove":["minecraft:fall"]}),
+    )];
+    let tags = resource_tags(&f.0, &PackOverlay::new(&files), |id, _| Some(id.to_owned())).unwrap();
+    assert_eq!(tags["minecraft:conditional"], ["minecraft:starve"]);
+}

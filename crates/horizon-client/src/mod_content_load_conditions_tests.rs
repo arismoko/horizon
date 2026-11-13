@@ -16,7 +16,7 @@ fn worldgen_entry_reads_the_feature_folder() {
 }
 
 #[test]
-#[ignore = "full content root: requires prepared resources"]
+#[ignore = "daily"]
 fn registered_conditions_select_content_root_tags_and_structure_modifiers() {
     let scratch = tempfile::tempdir().unwrap();
     let Some(base) = prepared() else {
@@ -56,7 +56,7 @@ fn registered_conditions_select_content_root_tags_and_structure_modifiers() {
         )
         .unwrap();
         let tag_file = out.join("data/testmod/tags/block/flag.json");
-        assert_eq!(tag_file.exists(), enabled);
+        assert!(tag_file.exists());
         if enabled {
             let value: serde_json::Value =
                 serde_json::from_slice(&fs::read(tag_file).unwrap()).unwrap();
@@ -93,7 +93,10 @@ fn conditional_base_tag_does_not_gate_later_accepted_layers() {
         let merged: serde_json::Value = serde_json::from_str(
             &merge_tag(
                 Some(base),
-                &more,
+                &[TagLayers {
+                    values: more.as_slice(),
+                    remove: &[],
+                }],
                 "conditional",
                 &horizon_world::conditions::LoadConditions::new(if enabled {
                     vec!["code_only"]
@@ -106,11 +109,7 @@ fn conditional_base_tag_does_not_gate_later_accepted_layers() {
         .unwrap();
         assert_eq!(
             merged["values"],
-            if enabled {
-                serde_json::json!(["minecraft:stone", "minecraft:dirt"])
-            } else {
-                serde_json::json!(["minecraft:dirt"])
-            }
+            serde_json::json!(["minecraft:stone", "minecraft:dirt"])
         );
         assert!(merged.get("neoforge:conditions").is_none());
     }
@@ -126,7 +125,10 @@ fn tags_merge_without_repeats() {
     let merged: serde_json::Value = serde_json::from_str(
         &merge_tag(
             Some(vanilla),
-            &more,
+            &[TagLayers {
+                values: more.as_slice(),
+                remove: &[],
+            }],
             "t",
             &horizon_world::conditions::LoadConditions::vanilla(),
         )
@@ -135,12 +137,12 @@ fn tags_merge_without_repeats() {
     .unwrap();
     assert_eq!(
         merged["values"],
-        serde_json::json!(["minecraft:stone", "ruby:ruby_block"])
+        serde_json::json!(["minecraft:stone", "ruby:ruby_block", "minecraft:stone"])
     );
 }
 
 #[test]
-#[ignore = "full content root: requires prepared resources"]
+#[ignore = "daily"]
 fn failed_condition_build_removes_generated_staging() {
     let Some(base) = prepared() else {
         return;
@@ -151,7 +153,7 @@ fn failed_condition_build_removes_generated_staging() {
         &[
             ("horizon-mod.toml", &manifest("testmod", "")),
             (
-                "data/testmod/tags/block/bad.json",
+                "data/testmod/neoforge/structure_modifier/bad.json",
                 r#"{"neoforge:conditions":[{"type":"testmod:flag","value":"bad"}],"values":["minecraft:stone"]}"#,
             ),
         ],
@@ -172,9 +174,88 @@ fn failed_condition_build_removes_generated_staging() {
     .unwrap_err()
     .to_string();
     assert!(
-        error.contains("data/testmod/tags/block/bad.json"),
+        error.contains("data/testmod/neoforge/structure_modifier/bad.json"),
         "{error}"
     );
     assert!(!out.exists());
     assert!(!scratch.path().join("candidate-tables").exists());
+}
+
+#[test]
+fn removals_follow_the_tag_file_and_a_replace_drops_them() {
+    let vanilla =
+        r#"{"values": ["minecraft:stone", "minecraft:dirt"], "remove": ["minecraft:sand"]}"#;
+    let ids = |ids: &[&str]| -> Vec<J> { ids.iter().map(|i| J::Str((*i).into())).collect() };
+    let merged: serde_json::Value = serde_json::from_str(
+        &merge_tag(
+            Some(vanilla),
+            &[TagLayers {
+                values: &ids(&["test:ruby"]),
+                remove: &ids(&["minecraft:dirt"]),
+            }],
+            "t",
+            &LoadConditions::vanilla(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    // The vanilla file's removals apply right after its values, then the
+    // mods' adds and removals join `values` in load order, each removal
+    // carried as `{"id", "remove": true}`.
+    assert_eq!(
+        merged["values"],
+        serde_json::json!(["minecraft:stone", "minecraft:dirt",
+            {"id": "minecraft:sand", "remove": true}, "test:ruby",
+            {"id": "minecraft:dirt", "remove": true}])
+    );
+    assert_eq!(merged["remove"], serde_json::Value::Null);
+    let file = "data/minecraft/tags/item/things.json";
+    let mut merge = TagMerge::default();
+    merge.add("a", file, false, true, &ids(&["a:x"]));
+    if let Some((_, remove)) = merge.layers.last_mut() {
+        remove.extend(ids(&["minecraft:dirt"]));
+    }
+    merge.add("b", file, true, true, &ids(&["b:y"]));
+    assert!(merge.layers.iter().all(|(_, remove)| remove.is_empty()));
+}
+
+/// The order the mods' layers keep: a lower mod's removal, then a higher
+/// mod's add of the same entry, ends with the entry in the merged file, and
+/// the folder walks it back in.
+#[test]
+fn a_higher_mod_adds_back_what_a_lower_one_removed() {
+    let ids = |ids: &[&str]| -> Vec<J> { ids.iter().map(|i| J::Str((*i).into())).collect() };
+    let file = "data/minecraft/tags/item/things.json";
+    let mut merge = TagMerge::default();
+    merge.add("low", file, false, true, &ids(&["a:x"]));
+    if let Some((_, remove)) = merge.layers.last_mut() {
+        remove.extend(ids(&["minecraft:sand"]));
+    }
+    merge.add("high", file, false, true, &ids(&["minecraft:sand", "b:y"]));
+    merge.add("last", file, false, true, &[]);
+    if let Some((_, remove)) = merge.layers.last_mut() {
+        remove.extend(ids(&["minecraft:stone"]));
+    }
+    merge.add("restore", file, false, true, &ids(&["minecraft:stone"]));
+    merge.add("remove-again", file, false, true, &[]);
+    if let Some((_, remove)) = merge.layers.last_mut() {
+        remove.extend(ids(&["minecraft:stone"]));
+    }
+    let merged: serde_json::Value = serde_json::from_str(
+        &merge_tag(
+            Some(r#"{"values": ["minecraft:stone", "minecraft:sand"]}"#),
+            &merge.layers(),
+            "t",
+            &LoadConditions::vanilla(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    // The fold (TagLayers::build) reads the entries in order: x, sand out,
+    // sand back in, y.
+    let layers = horizon_world::tag_layers::TagLayers::from_file(&merged);
+    assert_eq!(
+        layers.build(|_| Vec::new()),
+        ["a:x", "minecraft:sand", "b:y"]
+    );
 }

@@ -143,6 +143,17 @@ pub fn java_uuid(name: &str) -> Option<u128> {
     Some((u128::from(msb) << 64) | u128::from(lsb))
 }
 
+/// The `sort=` value a name stands for.
+fn sort_named(name: &str) -> Option<Sort> {
+    Some(match name {
+        "nearest" => Sort::Nearest,
+        "furthest" => Sort::Furthest,
+        "random" => Sort::Random,
+        "arbitrary" => Sort::Arbitrary,
+        _ => return None,
+    })
+}
+
 fn rollback(
     reader: &mut Reader,
     start: usize,
@@ -208,48 +219,69 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             ));
         }
         let start = self.reader.cursor;
-        let kind = self.reader.read();
-        let s = &mut self.s;
-        s.kind = kind;
-        match kind {
-            'a' => {
-                s.limit = usize::MAX;
-                s.include_entities = false;
+        // A mod's token is a whole word (`@allies`), so it is looked up before vanilla's letter:
+        // `@allies` is not `@a`, and an unregistered word falls back to the letter.
+        let string: &'a str = self.reader.string;
+        let word = string[start..]
+            .bytes()
+            .take_while(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'_')
+            .count();
+        let word = &string[start..start + word];
+        if let Some(token) = self.reg.selector_tokens.iter().find(|t| t.name == word) {
+            self.reader.cursor = start + word.len();
+            let s = &mut self.s;
+            s.kind = 'e';
+            s.token = Some(token.name.clone());
+            s.limit = token.limit;
+            s.sort = sort_named(token.sort).unwrap_or_default();
+            s.include_entities = !token.players_only;
+            if token.players_only {
                 s.types.push(("minecraft:player".into(), false));
             }
-            'e' => {
-                s.limit = usize::MAX;
-                s.include_entities = true;
-            }
-            'n' => {
-                s.limit = 1;
-                s.include_entities = true;
-                s.sort = Sort::Nearest;
-            }
-            'p' => {
-                s.limit = 1;
-                s.include_entities = false;
-                s.sort = Sort::Nearest;
-                s.types.push(("minecraft:player".into(), false));
-            }
-            'r' => {
-                s.limit = 1;
-                s.include_entities = false;
-                s.sort = Sort::Random;
-                s.types.push(("minecraft:player".into(), false));
-            }
-            's' => {
-                s.limit = 1;
-                s.include_entities = true;
-                self.current_entity = true;
-            }
-            other => {
-                self.reader.cursor = start;
-                return Err(CommandError::tr_at(
-                    "argument.entity.selector.unknown",
-                    &[&format!("@{other}")],
-                    self.reader,
-                ));
+        } else {
+            let kind = self.reader.read();
+            let s = &mut self.s;
+            s.kind = kind;
+            match kind {
+                'a' => {
+                    s.limit = usize::MAX;
+                    s.include_entities = false;
+                    s.types.push(("minecraft:player".into(), false));
+                }
+                'e' => {
+                    s.limit = usize::MAX;
+                    s.include_entities = true;
+                }
+                'n' => {
+                    s.limit = 1;
+                    s.include_entities = true;
+                    s.sort = Sort::Nearest;
+                }
+                'p' => {
+                    s.limit = 1;
+                    s.include_entities = false;
+                    s.sort = Sort::Nearest;
+                    s.types.push(("minecraft:player".into(), false));
+                }
+                'r' => {
+                    s.limit = 1;
+                    s.include_entities = false;
+                    s.sort = Sort::Random;
+                    s.types.push(("minecraft:player".into(), false));
+                }
+                's' => {
+                    s.limit = 1;
+                    s.include_entities = true;
+                    self.current_entity = true;
+                }
+                other => {
+                    self.reader.cursor = start;
+                    return Err(CommandError::tr_at(
+                        "argument.entity.selector.unknown",
+                        &[&format!("@{other}")],
+                        self.reader,
+                    ));
+                }
             }
         }
         self.sugg = Sugg::OpenOptions;
@@ -483,12 +515,9 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
                 let start = self.reader.cursor;
                 let name = self.reader.read_unquoted_string();
                 self.sugg = Sugg::Sort;
-                self.s.sort = match name {
-                    "nearest" => Sort::Nearest,
-                    "furthest" => Sort::Furthest,
-                    "random" => Sort::Random,
-                    "arbitrary" => Sort::Arbitrary,
-                    _ => {
+                self.s.sort = match sort_named(name) {
+                    Some(sort) => sort,
+                    None => {
                         return Err(rollback(
                             self.reader,
                             start,
@@ -686,9 +715,15 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
         Ok(())
     }
 
-    fn fill_selectors(builder: &mut SuggestionsBuilder) {
+    fn fill_selectors(builder: &mut SuggestionsBuilder, reg: &Registries) {
         for (s, tip) in SELECTOR_KINDS {
             builder.suggest_tooltip(s, horizon_client_core::lang::get(tip));
+        }
+        for token in &reg.selector_tokens {
+            builder.suggest_tooltip(
+                format!("@{}", token.name),
+                horizon_client_core::lang::get(&token.tooltip),
+            );
         }
     }
 
@@ -705,7 +740,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             Sugg::NameOrSelector => {
                 names(&mut b);
                 if self.allow_selectors {
-                    Self::fill_selectors(&mut b);
+                    Self::fill_selectors(&mut b, self.reg);
                 }
             }
             Sugg::Name => {
@@ -715,7 +750,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             }
             Sugg::Selector => {
                 let mut sub = b.offset(b.start - 1);
-                Self::fill_selectors(&mut sub);
+                Self::fill_selectors(&mut sub, self.reg);
                 b.add(sub);
             }
             Sugg::OpenOptions => b.suggest("["),

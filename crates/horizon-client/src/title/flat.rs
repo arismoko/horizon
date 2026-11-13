@@ -340,10 +340,27 @@ fn load(root: &Path) -> (Vec<Preset>, BTreeSet<String>, BTreeSet<String>) {
     let tag_path =
         root.join("data/minecraft/tags/worldgen/flat_level_generator_preset/visible.json");
     if let Ok(text) = std::fs::read_to_string(tag_path)
-        && let Ok(Value::Object(tag)) = serde_json::from_str(&text)
-        && let Some(Value::Array(ids)) = tag.get("values")
+        && let Ok(tag) = serde_json::from_str::<Value>(&text)
     {
-        for id in ids.iter().filter_map(Value::as_str) {
+        fn members(root: &Path, tag: &Value, active: &mut BTreeSet<String>) -> Vec<String> {
+            horizon_world::tag_layers::TagLayers::from_file(tag).build(|id| {
+                if !active.insert(id.to_owned()) {
+                    return Vec::new();
+                }
+                let (namespace, path) = id.split_once(':').unwrap_or(("minecraft", id));
+                let file = root.join(format!(
+                    "data/{namespace}/tags/worldgen/flat_level_generator_preset/{path}.json"
+                ));
+                let out = std::fs::read(file)
+                    .ok()
+                    .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                    .map(|v| members(root, &v, active))
+                    .unwrap_or_default();
+                active.remove(id);
+                out
+            })
+        }
+        for id in members(root, &tag, &mut BTreeSet::new()) {
             let Some((namespace, path)) = id.split_once(':') else {
                 continue;
             };

@@ -3,6 +3,20 @@
 use std::collections::BTreeMap;
 
 /// Registry contents and source state used to validate and complete arguments.
+/// A selector token a mod registered: the word after `@` and the base selection it parses to,
+/// before its `[...]` options.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectorToken {
+    pub name: String,
+    /// The completion's tooltip, a translation key.
+    pub tooltip: String,
+    /// Only players are candidates (`type=minecraft:player`).
+    pub players_only: bool,
+    /// At most this many results (`usize::MAX`: no limit).
+    pub limit: usize,
+    /// A `sort=` value: `nearest`, `furthest`, `random` or `arbitrary`.
+    pub sort: &'static str,
+}
 #[derive(Clone, Debug, Default)]
 pub struct Registries {
     /// Permission level of the command source.
@@ -73,6 +87,8 @@ pub struct Registries {
     /// Every registry's element and tag ids (`minecraft:item` -> ...), as
     /// the server's registry access and reloadable registries hold them.
     pub by_registry: BTreeMap<String, RegistryIds>,
+    /// The selector tokens mods registered (`@allies`), in registration order.
+    pub selector_tokens: Vec<SelectorToken>,
     /// Blocks whose default state has a block entity.
     pub block_entities: std::collections::BTreeSet<String>,
     /// Block tag -> member blocks.
