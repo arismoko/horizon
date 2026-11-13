@@ -1586,6 +1586,12 @@ fn glider_component_recipe_normalizes_maps_and_matches_borrowed_values() {
     assert!(!absent.test_in(&context, &default));
     assert!(!absent.test_in(&context, &explicit));
     assert!(absent.test_in(&context, &removed));
+    let absent_without_default = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:elytra","components":{"!minecraft:glider":123}}"#,
+        &Items::empty(),
+    );
+    assert!(absent_without_default.test_in(&context, &default));
+    assert!(!absent_without_default.test_in(&context, &explicit));
     let without_default = parse(source, &Items::empty());
     assert!(!without_default.test_in(&context, &default));
     assert!(without_default.test_in(&context, &explicit));
@@ -1621,23 +1627,12 @@ fn glider_component_malformed_payloads_name_component_and_omit_recipe() {
     let load = load();
     for payload in [
         serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
         serde_json::json!(0),
         serde_json::json!("unit"),
         serde_json::json!([]),
     ] {
-        let patch = crate::json_nbt::json_to_compound(
-            serde_json::json!({"minecraft:glider":payload})
-                .as_object()
-                .unwrap(),
-        )
-        .unwrap();
-        let rule = IngredientRule::Components {
-            patch,
-            removed: vec![],
-            strict: false,
-        };
-        let error = components::validate(&rule, &items).unwrap_err();
-        assert!(error.contains("component minecraft:glider:"), "{error}");
         let recipe = serde_json::json!({
             "type":"minecraft:crafting_shapeless",
             "ingredients":[{
@@ -1647,14 +1642,46 @@ fn glider_component_malformed_payloads_name_component_and_omit_recipe() {
             }],
             "result":{"id":"minecraft:diamond"}
         });
+        let error =
+            components::validate_recipe_components(&recipe["ingredients"][0], &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:glider:"),
+            "{payload}: {error}"
+        );
+        assert!(Ingredient::parse(&recipe["ingredients"][0], &items).is_none());
+        let companion = serde_json::json!({
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": ["minecraft:elytra"],
+            "result": {"id": "minecraft:diamond"}
+        });
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
             &horizon_world::loot::PackOverlay::NONE,
-            vec![("fixture:invalid_glider".into(), recipe)],
+            vec![
+                ("fixture:invalid_glider".into(), recipe),
+                ("fixture:valid_companion".into(), companion),
+            ],
             &load,
         )
         .unwrap();
-        assert!(recipes.crafting.is_empty(), "{payload}");
+        assert_eq!(recipes.crafting.len(), 1, "{payload}");
+        let context = load.loop_context(LoopSide::Server, []);
+        let grid = [Some(ItemStack::new("minecraft:elytra", 1))];
+        assert!(
+            recipes.recipe_matches(&context, "fixture:valid_companion", &grid, 1),
+            "{payload}"
+        );
+        assert!(
+            !recipes.recipe_matches(&context, "fixture:invalid_glider", &grid, 1),
+            "{payload}"
+        );
+        let indexed: Vec<_> = recipes
+            .by_type
+            .values()
+            .flat_map(|recipes| recipes.iter())
+            .map(|recipe| recipe.id.as_str())
+            .collect();
+        assert_eq!(indexed, ["fixture:valid_companion"], "{payload}");
     }
 }

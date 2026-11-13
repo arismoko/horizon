@@ -1063,6 +1063,8 @@ mod tests {
         }
         for value in [
             Tag::Byte(1),
+            Tag::Byte(0),
+            Tag::End,
             Tag::Int(0),
             Tag::String("unit".into()),
             Tag::List(vec![]),
