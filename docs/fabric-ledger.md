@@ -52,6 +52,7 @@ Event counterparts belong on individual hooks; the exceptions are the review not
 | `fabric-serialization-api-v1`: `MoreCodecs`, `FabricValueInput`, `FabricValueOutput` | **Gap:** Fabric's codec/value-input extensions; existing Rust serialization and attachment codecs are different APIs. | — |
 | `fabric-tag-api-v1`: `FabricTagFile`, `ClientTags` | **Covered in part:** vanilla datapack tags and the `tags_updated` notice on both sides, with the server's block, item and fluid tags readable on a client. **Gap:** Fabric's tag-file extensions and the rest of `ClientTags`' semantics. | — |
 | `fabric-dimensions-v1`: `DimensionEvents.MODIFY_ATTRIBUTES` | **Gap:** no equivalent dimension-attribute modification contract established; this event is not a level lifecycle event. | — |
+| Server clock, game rules and tick times (no single Fabric module) | **Covered in part:** `level.set_clock_time`, `level.set_game_rule`, `host.tick_times()`, `host.server_view_distance()` and the setters, `host.text_from_json` (`Ok(None)` for a non-component) and `host.text_from_legacy`, as described in `docs/modding/src/how-to/entities/server-services-and-players.md`. **Gap:** Fabric's `GameRuleEvents` registration is a separate surface (see `game_rule_changed`). | Behaviour follows vanilla's `/time set`, `/gamerule` and component codec, not a Fabric API. |
 
 ## Event counterparts: client lifecycle and ticks (#1014)
 
