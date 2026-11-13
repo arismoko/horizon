@@ -31,6 +31,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:max_stack_size",
     "minecraft:map_id",
     "minecraft:rarity",
+    "minecraft:dye",
     "minecraft:enchantments",
     "minecraft:stored_enchantments",
     "minecraft:enchantment_glint_override",
@@ -200,6 +201,21 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
                     Ok(())
                 } else {
                     Err(format!("Unknown element name:{s}"))
+                }
+            }
+            _ => Err("Not a string".into()),
+        },
+        // DyeColor.CODEC -> StringRepresentable.fromEnum: ordinary NbtOps uses
+        // exact names, not the ordinal codec selected by compressMaps().
+        "minecraft:dye" => match t {
+            Tag::String(name) => {
+                if horizon_items::firework::DYE_FIREWORK_COLORS
+                    .iter()
+                    .any(|(color, _)| name.0.iter().copied().eq(color.encode_utf16()))
+                {
+                    Ok(())
+                } else {
+                    Err(format!("Unknown element name:{}", name.to_string_lossy()))
                 }
             }
             _ => Err("Not a string".into()),
@@ -853,6 +869,83 @@ pub fn suggest_predicate(builder: &mut SuggestionsBuilder, reg: &Registries) {
 #[cfg(test)]
 mod tests {
     use super::decode_component;
+
+    #[test]
+    fn dye_codec_rejects_non_names_without_lossy_utf16_conversion() {
+        use super::{Registries, Tag, decoded_component_value};
+        use horizon_core::nbt::JavaString;
+        let registry = Registries::default();
+        for value in [
+            Tag::End,
+            Tag::ByteArray(vec![]),
+            Tag::IntArray(vec![]),
+            Tag::LongArray(vec![]),
+            Tag::String(JavaString(vec![0xd800])),
+            Tag::String(JavaString(vec![114, 101, 100, 0xd800])),
+        ] {
+            assert!(decoded_component_value("minecraft:dye", &value, &registry).is_err());
+        }
+    }
+
+    #[test]
+    fn dye_codec_accepts_only_exact_names_under_ordinary_nbt_ops() {
+        use super::{Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        // Literal oracle names, independent of the palette used by the decoder.
+        for name in [
+            "white",
+            "orange",
+            "magenta",
+            "light_blue",
+            "yellow",
+            "lime",
+            "pink",
+            "gray",
+            "light_gray",
+            "cyan",
+            "purple",
+            "blue",
+            "brown",
+            "green",
+            "red",
+            "black",
+        ] {
+            let value = Tag::String(name.into());
+            assert_eq!(
+                decoded_component_value("minecraft:dye", &value, &registry).unwrap(),
+                value
+            );
+            assert!(
+                decode_component(
+                    "minecraft:dye",
+                    &Tag::String(name.to_uppercase().as_str().into()),
+                    &registry
+                )
+                .is_err()
+            );
+        }
+        for value in [
+            Tag::String("silver".into()),
+            Tag::String("minecraft:red".into()),
+            Tag::String(" red".into()),
+            Tag::String("".into()),
+            Tag::Byte(14),
+            Tag::Short(14),
+            Tag::Int(14),
+            Tag::Long(14),
+            Tag::Float(14.0f32.to_bits()),
+            Tag::Double(14.0f64.to_bits()),
+            Tag::List(vec![]),
+            Tag::Compound(Default::default()),
+        ] {
+            assert!(decoded_component_value("minecraft:dye", &value, &registry).is_err());
+        }
+        // File compression does not enable DynamicOps.compressMaps(): even valid
+        // dye ordinals are not persistent NbtOps names.
+        for ordinal in -1..=16 {
+            assert!(decode_component("minecraft:dye", &Tag::Int(ordinal), &registry).is_err());
+        }
+    }
 
     #[test]
     fn decoded_component_values_use_codec_numbers_and_retain_stored_values() {

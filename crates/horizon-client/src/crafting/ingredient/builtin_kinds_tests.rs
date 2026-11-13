@@ -331,6 +331,133 @@ fn components_dyed_color_decodes_rgb_forms_and_matches_borrowed_values() {
     assert!(absence.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
 }
 #[test]
+fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:red_dye".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:dye":"red"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:red_dye","components":{"minecraft:dye":"red"},"strict":true}"#,
+        &items,
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:dye".into(),
+            serde_json::json!({
+                "type":"minecraft:crafting_shapeless",
+                "ingredients":[{
+                    "type":"neoforge:components", "items":"minecraft:red_dye",
+                    "components":{"minecraft:dye":"red"}, "strict":true
+                }],
+                "result":{"id":"minecraft:diamond"}
+            }),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut stack = ItemStack::new("minecraft:red_dye", 1);
+    assert!(
+        ingredient.test_in(&context, &stack),
+        "prototype dye default"
+    );
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:dye", &Some(Tag::String("red".into())));
+    assert_eq!(
+        stack.data().unwrap().other("minecraft:dye"),
+        Some(&Tag::String("red".into()))
+    );
+    assert!(ingredient.test_in(&context, &stack));
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    for value in [
+        Tag::String("blue".into()),
+        Tag::String("RED".into()),
+        Tag::Int(14),
+    ] {
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:dye", &Some(value));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    }
+    let removal = Tag::compound([("!minecraft:dye", Tag::Compound(Default::default()))]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+    assert!(!ingredient.test_in(&context, &stack));
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:red_dye","components":{"!minecraft:dye":{}}}"#,
+        &items,
+    );
+    assert!(absent.test_in(&context, &stack));
+    assert!(!absent.test_in(&context, &ItemStack::new("minecraft:red_dye", 1)));
+    assert!(!ingredient.test_in(&context, &ItemStack::new("minecraft:blue_dye", 1)));
+}
+
+#[test]
+fn malformed_dye_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    for value in [
+        serde_json::json!("RED"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:red"),
+        serde_json::json!(14),
+        serde_json::json!(true),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:dye":value});
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("component minecraft:dye:"), "{error}");
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:red_dye", "components":patch
+        });
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:invalid_dye".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert!(recipes.crafting.is_empty());
+        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+}
+
+#[test]
 #[ignore = "requires prepared resources"]
 fn components_match_damage_ignore_count_and_refuse_empty() {
     let items = resources();
