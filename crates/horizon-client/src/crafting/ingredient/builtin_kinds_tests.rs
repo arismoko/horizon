@@ -20,6 +20,163 @@ fn resources() -> Items {
     Items::catalog(&root, &horizon_world::loot::PackOverlay::NONE, &defaults).unwrap()
 }
 #[test]
+fn sheep_color_components_compile_recipes_and_match_live_values() {
+    let items = Items::empty();
+    let ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"minecraft:sheep/color":"light_blue"},"strict":true}"#,
+        &items,
+    );
+    let loose = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"minecraft:sheep/color":"light_blue"}}"#,
+        &items,
+    );
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"!minecraft:sheep/color":{}}}"#,
+        &items,
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:sheep_color".into(),
+            serde_json::json!({
+                "type":"minecraft:crafting_shapeless",
+                "ingredients":[{
+                    "type":"neoforge:components", "items":"minecraft:sheep_spawn_egg",
+                    "components":{"minecraft:sheep/color":"light_blue"}, "strict":true
+                }],
+                "result":{"id":"minecraft:diamond"}
+            }),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut stack = ItemStack::new("minecraft:sheep_spawn_egg", 1);
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(absent.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    let patch = Tag::compound([("minecraft:sheep/color", Tag::String("light_blue".into()))]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&patch));
+    assert_eq!(
+        stack.data().unwrap().other("minecraft:sheep/color"),
+        Some(&Tag::String("light_blue".into()))
+    );
+    assert!(ingredient.test_in(&context, &stack));
+    assert!(!absent.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:custom_data", &Some(Tag::Int(1)));
+    assert!(loose.test_in(&context, &stack));
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:custom_data", &None);
+    for value in [
+        Tag::String("light_gray".into()),
+        Tag::String("LIGHT_BLUE".into()),
+        Tag::Int(3),
+    ] {
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:sheep/color", &Some(value));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    }
+    let removal = Tag::compound([("!minecraft:sheep/color", Tag::Compound(Default::default()))]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+    assert!(absent.test_in(&context, &stack));
+    assert!(!ingredient.test_in(&context, &stack));
+
+    // Items.registerSpawnEgg / Item.Properties.spawnEgg set ENTITY_DATA, not SHEEP_COLOR.
+    // This explicit prototype is synthetic, exercising defaults rather than an entity's white color.
+    let mut defaults = Items::empty();
+    defaults.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:sheep_spawn_egg".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:sheep/color":"light_blue"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let default_ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"minecraft:sheep/color":"light_blue"},"strict":true}"#,
+        &defaults,
+    );
+    let default_absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:sheep_spawn_egg","components":{"!minecraft:sheep/color":{}}}"#,
+        &defaults,
+    );
+    let plain = ItemStack::new("minecraft:sheep_spawn_egg", 1);
+    assert!(default_ingredient.test_in(&context, &plain));
+    assert!(!default_absent.test_in(&context, &plain));
+    assert!(!default_ingredient.test_in(&context, &stack));
+    assert!(default_absent.test_in(&context, &stack));
+}
+
+#[test]
+fn malformed_sheep_color_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    for value in [
+        serde_json::json!("LIGHT_BLUE"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:light_blue"),
+        serde_json::json!(3),
+        serde_json::json!(true),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:sheep/color":value});
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:sheep/color:"),
+            "{error}"
+        );
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:sheep_spawn_egg", "components":patch
+        });
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:invalid_sheep_color".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert!(recipes.crafting.is_empty());
+        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+}
+
+#[test]
 fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
     let mut items = Items::empty();
     items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(

@@ -29,6 +29,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:max_stack_size",
     "minecraft:rarity",
     "minecraft:dye",
+    "minecraft:sheep/color",
     "minecraft:enchantments",
     "minecraft:stored_enchantments",
     "minecraft:custom_name",
@@ -118,7 +119,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         },
         // DyeColor.CODEC -> StringRepresentable.fromEnum: ordinary NbtOps uses
         // exact names, not the ordinal codec selected by compressMaps().
-        "minecraft:dye" => match t {
+        "minecraft:dye" | "minecraft:sheep/color" => match t {
             Tag::String(name) => {
                 if horizon_items::firework::DYE_FIREWORK_COLORS
                     .iter()
