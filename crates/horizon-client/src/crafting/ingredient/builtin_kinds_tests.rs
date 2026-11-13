@@ -2631,7 +2631,6 @@ fn base_color_component_errors_name_the_component() {
     }
 }
 
-
 #[test]
 fn villager_food_codec_compiles_recipes_and_matches_borrowed_nutrition() {
     use horizon_command::item::decoded_component_value;
@@ -2730,6 +2729,9 @@ fn villager_food_codec_compiles_recipes_and_matches_borrowed_nutrition() {
         ),
     ];
     for (index, payload) in [
+        serde_json::json!(false),
+        serde_json::json!(null),
+        serde_json::json!([]),
         serde_json::json!({}),
         serde_json::json!(3),
         serde_json::json!({"nutrition":0}),
@@ -2741,15 +2743,7 @@ fn villager_food_codec_compiles_recipes_and_matches_borrowed_nutrition() {
     .enumerate()
     {
         let value = ingredient(payload, false);
-        let walked = WalkedIngredient::walk(
-            &value,
-            &items.item_tag_order,
-            &|_| None,
-            &resolved_items,
-            &|data| crate::json_nbt::json_to_compound(data).ok(),
-        )
-        .unwrap();
-        let error = components::validate(walked.rule.as_ref().unwrap(), &items).unwrap_err();
+        let error = components::validate_recipe_components(&value, &items).unwrap_err();
         assert!(error.contains("minecraft:villager_food"), "{error}");
         sources.push((format!("fixture:invalid_{index}"), recipe(value)));
     }
@@ -2800,14 +2794,22 @@ fn villager_food_codec_compiles_recipes_and_matches_borrowed_nutrition() {
         &Some(Tag::compound([("nutrition", Tag::Int(4))])),
     );
     assert!(!matches(&carrot));
-    let removal = Tag::compound([(
+    let absent = Ingredient::parse(
+        &serde_json::json!({
+            "type":"neoforge:components", "items":["minecraft:carrot", "minecraft:stone"],
+            "components":{"!minecraft:villager_food":{}}
+        }),
+        &items,
+    )
+    .unwrap();
+    assert!(!absent.test_in(&context, &carrot));
+    assert!(!absent.test_in(&context, &ItemStack::new("minecraft:carrot", 1)));
+    carrot.data_mut().set_loot_component(
         "!minecraft:villager_food",
-        Tag::Compound(Default::default()),
-    )]);
-    (_, carrot.extra) = crate::item_data::decode_components(Some(&removal));
-    assert!(
-        !matches(&carrot),
-        "explicit removal overrides the prototype"
+        &Some(Tag::Compound(Default::default())),
     );
+    assert!(absent.test_in(&context, &carrot));
+    assert!(!matches(&carrot));
+    assert!(absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
     assert!(!matches(&ItemStack::new("minecraft:carrot", 0)));
 }
