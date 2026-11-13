@@ -44,6 +44,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:dyed_color",
     "minecraft:unbreakable",
     "minecraft:glider",
+    "minecraft:intangible_projectile",
 ];
 
 /// Validate and decode a component into the value representation shared with stacks.
@@ -69,7 +70,9 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         }
     }
     Ok(match id {
-        "minecraft:unbreakable" | "minecraft:glider" => Tag::Compound(Compound::new()),
+        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" => {
+            Tag::Compound(Compound::new())
+        }
         "minecraft:damage"
         | "minecraft:repair_cost"
         | "minecraft:max_damage"
@@ -128,7 +131,8 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             .map(|_| ())
             .ok_or_else(|| "Expected a number or a list of three numeric RGB channels".into()),
         // `Unit.CODEC` uses MapCodec.unitCodec: a map is required, its fields are ignored.
-        "minecraft:unbreakable" | "minecraft:glider" => match t {
+        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" => match t
+        {
             Tag::Compound(_) => Ok(()),
             _ => Err(not_map(t)),
         },
@@ -1072,6 +1076,30 @@ mod tests {
         ] {
             assert!(decode_component("minecraft:glider", &value, &registry).is_err());
             assert!(decoded_component_value("minecraft:glider", &value, &registry).is_err());
+        }
+    }
+    #[test]
+    fn intangible_projectile_unit_codec_requires_map_and_ignores_fields() {
+        use super::{Compound, Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        let id = "minecraft:intangible_projectile";
+        for value in [
+            Tag::Compound(Compound::new()),
+            Tag::compound([("unknown", Tag::List(vec![Tag::Int(7)]))]),
+        ] {
+            assert_eq!(
+                decoded_component_value(id, &value, &registry).unwrap(),
+                Tag::Compound(Compound::new())
+            );
+        }
+        for value in [
+            Tag::Byte(1),
+            Tag::Int(0),
+            Tag::String("unit".into()),
+            Tag::List(vec![]),
+        ] {
+            assert!(decode_component(id, &value, &registry).is_err());
+            assert!(decoded_component_value(id, &value, &registry).is_err());
         }
     }
 }
