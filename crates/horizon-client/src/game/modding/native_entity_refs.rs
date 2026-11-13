@@ -1267,6 +1267,9 @@ pub(super) mod tests {
             })
             .collect();
         crate::game::api_values::register_game_keys(ids);
+        // Rebuilding Parts replaces the entity-type lookup snapshot that content_root
+        // completed. Publish the prepared registry order into this new fixture epoch.
+        super::super::mods::register_iterated_registries(&root).unwrap();
         let settings = Settings::default();
         let loaded = load_resources(
             horizon_assets::resource_source::ResourceRoot::directory(root.clone()),
