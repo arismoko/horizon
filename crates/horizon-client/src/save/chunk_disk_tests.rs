@@ -70,7 +70,7 @@ fn with_listener(run: impl FnOnce(Arc<AtomicUsize>, Arc<AtomicUsize>)) {
         }),
     )]
     .into();
-    mod_api::testing::with_dispatch(mods, || run(saves, loads));
+    mod_platform::testing::with_mods(mods, || run(saves, loads));
 }
 
 #[test]
@@ -105,7 +105,7 @@ fn capture_7_callback_8_live_9_round_trips_through_region_writer() {
 fn load_disk_8_callback_increment_publishes_9_once_through_decode() {
     let (registry, biomes) = super::loot_tests::fixture();
     let path = root();
-    mod_api::testing::with_dispatch(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         SaveDir::new(path.clone(), LevelShape::OVERWORLD)
             .save(&[Arc::new(chunk(8))], &registry, &biomes)
             .unwrap();
@@ -182,7 +182,7 @@ fn with_echo(run: impl FnOnce(Arc<Mutex<Vec<(mod_api::ChunkDiskKind, i32)>>>)) {
         Box::new(Echo { seen: seen.clone() }),
     )]
     .into();
-    mod_api::testing::with_dispatch(mods, || run(seen));
+    mod_platform::testing::with_mods(mods, || run(seen));
 }
 fn disk_value(path: &Path, registry: &BlockRegistry, biomes: &Biomes) -> Option<i32> {
     SaveDir::new(path.to_path_buf(), LevelShape::OVERWORLD)
@@ -272,7 +272,7 @@ fn save_refused_during_open_action_savepoint_runs_no_callback_and_keeps_disk_7()
     let registry = Box::leak(Box::new(registry));
     let biomes = Arc::new(biomes);
     let path = root();
-    mod_api::testing::with_dispatch(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         SaveDir::new(path.clone(), LevelShape::OVERWORLD)
             .save(&[Arc::new(chunk(7))], registry, &biomes)
             .unwrap();
@@ -309,7 +309,7 @@ fn unload_then_reload_reads_saved_8_in_a_fresh_holder() {
         save.flush().unwrap();
     });
     // No listener on reload: the stored value is exactly what the save callback wrote.
-    mod_api::testing::with_dispatch(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         assert_eq!(disk_value(&path, registry, &biomes), Some(8));
     });
     fs::remove_dir_all(path).unwrap();
@@ -323,7 +323,7 @@ fn disk_write_failure_keeps_old_disk_7_and_snapshot_8_for_recovery() {
     let registry = Box::leak(Box::new(registry));
     let biomes = Arc::new(biomes);
     let path = root();
-    mod_api::testing::with_dispatch(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         SaveDir::new(path.clone(), LevelShape::OVERWORLD)
             .save(&[Arc::new(chunk(7))], registry, &biomes)
             .unwrap();
@@ -343,14 +343,14 @@ fn disk_write_failure_keeps_old_disk_7_and_snapshot_8_for_recovery() {
         assert_eq!(save.take_failed_chunk_saves(), [(2, -3)]);
         // The unwritten snapshot (8) stays readable for recovery. Read it with no
         // listener installed, so no load callback adds to it.
-        mod_api::testing::with_dispatch(Vec::new().into(), || {
+        mod_platform::testing::with_mods(Vec::new().into(), || {
             let mut recovered = save.load(2, -3, registry, &biomes).unwrap();
             assert_eq!(value(&mut recovered), 8);
         });
     });
     fs::set_permissions(&region, writable).unwrap();
     // The old disk record is untouched.
-    mod_api::testing::with_dispatch(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         assert_eq!(disk_value(&path, registry, &biomes), Some(7));
     });
     fs::remove_dir_all(path).unwrap();
@@ -375,7 +375,7 @@ fn refused_load_publishes_nothing_keeps_disk_8_and_refuses_the_chunks_saves() {
     let registry = Box::leak(Box::new(registry));
     let biomes = Arc::new(biomes);
     let path = root();
-    mod_api::testing::with_dispatch(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         SaveDir::new(path.clone(), LevelShape::OVERWORLD)
             .save(&[Arc::new(chunk(8))], registry, &biomes)
             .unwrap();
@@ -385,7 +385,7 @@ fn refused_load_publishes_nothing_keeps_disk_8_and_refuses_the_chunks_saves() {
         Box::new(breaker::Breaker),
     )]
     .into();
-    mod_api::testing::with_dispatch(mods, || {
+    mod_platform::testing::with_mods(mods, || {
         let save = SaveDir::new(path.clone(), LevelShape::OVERWORLD);
         context(&save);
         // No chunk is published, and the generator is told this is not a missing chunk.
@@ -401,7 +401,7 @@ fn refused_load_publishes_nothing_keeps_disk_8_and_refuses_the_chunks_saves() {
         assert_eq!(save.take_failed_chunk_saves(), [(2, -3)]);
         assert!(save.take_failed_chunk_saves().is_empty());
     });
-    mod_api::testing::with_dispatch(Vec::new().into(), || {
+    mod_platform::testing::with_mods(Vec::new().into(), || {
         assert_eq!(disk_value(&path, registry, &biomes), Some(8));
     });
     fs::remove_dir_all(path).unwrap();
