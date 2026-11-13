@@ -261,7 +261,7 @@ fn missing_mod_scrollbar_uses_existing_press_drag_release() {
     let mut f = Fixture::new();
     f.title.ask_missing_mods("Gone", vec![gone(); 30]);
     f.title.message_lines.set(100);
-    assert_eq!(f.title.click(233.0, 40.0, (240.0, 240.0)), Action::None);
+    assert_eq!(f.title.click(233.0, 40.0, (240.0, 240.0)).0, Action::None);
     f.title.drag((233.0, 130.0), (240.0, 240.0));
     assert!(f.title.scroll.get().amount > 0.0);
     f.title.release();
