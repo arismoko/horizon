@@ -363,13 +363,12 @@ fn folder_holds_levels(folder: &Path) -> bool {
         let own = !kind.is_symlink()
             && match name.to_str() {
                 Some("data") => !tree_has_level_shape(&entry.path()),
-                Some("region" | "entities" | "poi") => {
-                    !std::fs::read_dir(entry.path()).is_ok_and(|inner| {
-                        inner
-                            .flatten()
-                            .any(|child| child.file_type().map_or(true, |kind| !kind.is_file()))
-                    })
-                }
+                Some("region" | "entities" | "poi") => !std::fs::read_dir(entry.path())
+                    .is_ok_and(|inner| {
+                        inner.flatten().any(|child| {
+                            child.file_type().map_or(true, |kind| !kind.is_file())
+                        })
+                    }),
                 _ => false,
             };
         if !own {
@@ -420,11 +419,7 @@ fn ensure_no_links(path: &Path, stop: &Path, include_path: bool) -> std::io::Res
 /// file, with the folders they leave empty. Whatever is not there is not an error; a link on the
 /// way is, before anything is removed. `id` has passed `owned_level_id`; the folder comes from it
 /// alone.
-pub(in crate::game) fn erase_level_files(
-    root: &Path,
-    id: &str,
-    references: bool,
-) -> std::io::Result<()> {
+pub(in crate::game) fn erase_level_files(root: &Path, id: &str, references: bool) -> std::io::Result<()> {
     let dimensions = root.join("dimensions");
     let folder = horizon_client::save::dimension_dir(root, id);
     // Never the folder of anything but a level: `dimension_dir` gives one under `dimensions/`.

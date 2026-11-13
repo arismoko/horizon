@@ -256,10 +256,7 @@ fn place_block(game: &mut super::Game<'_>, id: &str, block: &str) {
         }
         game.streaming.wait(std::time::Duration::from_millis(5));
     }
-    assert!(
-        game.world.chunks.contains_key(&(0, 0)),
-        "the chunk generated"
-    );
+    assert!(game.world.chunks.contains_key(&(0, 0)), "the chunk generated");
     game.world.set(1, -50, 1, state).unwrap();
     game.enter_level(super::Dim::Overworld).unwrap();
 }
@@ -610,10 +607,7 @@ fn a_delete_of_a_level_that_is_not_open_removes_its_leftovers() {
         write_file(&references);
         assert!(!game.runtime_level_is_open("left:room"));
         assert_eq!(delete_as(game, "left", "left:room"), Ok(()));
-        assert!(
-            folder.is_dir(),
-            "nothing is removed before the queue is applied"
-        );
+        assert!(folder.is_dir(), "nothing is removed before the queue is applied");
         game.apply_runtime_levels();
         assert!(!folder.exists() && !references.exists());
         assert!(
@@ -634,9 +628,7 @@ fn a_delete_of_a_level_that_is_not_open_removes_its_leftovers() {
 fn a_delete_outside_the_mods_namespace_is_refused_and_removes_nothing() {
     with_opener("mine", "mine:a", flat(), |game, _| {
         let other = game.world_root.join("dimensions/other/x/region/r.0.0.mca");
-        let vanilla = game
-            .world_root
-            .join("dimensions/minecraft/overworld/region/r.0.0.mca");
+        let vanilla = game.world_root.join("dimensions/minecraft/overworld/region/r.0.0.mca");
         let escape = game.world_root.join("dimensions/mine/x");
         write_file(&other);
         write_file(&vanilla);
@@ -687,12 +679,7 @@ fn a_level_opened_again_after_a_delete_starts_empty() {
         let second = seen.answers.lock().unwrap()[0].unwrap();
         assert_ne!(first, second);
         assert!(!game.level_handle_current(first));
-        let air = game
-            .pack
-            .assets
-            .registry
-            .default_state("minecraft:air")
-            .unwrap();
+        let air = game.pack.assets.registry.default_state("minecraft:air").unwrap();
         assert_eq!(block_at(game, "fresh:a"), air, "the stone is not there");
         delete_as(game, "fresh", "fresh:a").unwrap();
         game.apply_runtime_levels();
@@ -820,9 +807,7 @@ fn a_delete_marks_an_open_level_closing_and_a_second_unload_finds_it_not_open() 
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_delete_of_a_level_with_a_level_below_it_is_refused() {
     with_opener("kid", "kid:instance/ab", flat(), |game, _| {
-        let parent_file = game
-            .world_root
-            .join("dimensions/kid/instance/region/r.0.0.mca");
+        let parent_file = game.world_root.join("dimensions/kid/instance/region/r.0.0.mca");
         write_file(&parent_file);
         tick_post(game);
         // Waiting to open, then open: the table knows the level below.
@@ -856,9 +841,7 @@ fn a_delete_of_a_level_with_a_level_below_it_is_refused() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn a_delete_stops_at_a_folder_that_holds_a_level() {
     with_opener("fold", "fold:unused", flat(), |game, _| {
-        let child = game
-            .world_root
-            .join("dimensions/fold/p/ab/region/r.0.0.mca");
+        let child = game.world_root.join("dimensions/fold/p/ab/region/r.0.0.mca");
         // `fold:q/region` is a level too, and its folder is where `fold:q` keeps its regions.
         let named_region = game
             .world_root
@@ -918,10 +901,7 @@ fn a_delete_keeps_a_references_file_another_level_shares() {
         assert_eq!(delete_as(game, "a_b", "a_b:c"), Ok(()));
         game.apply_runtime_levels();
         assert!(!mine.exists());
-        assert!(
-            other.is_file(),
-            "the other namespace's level is not touched"
-        );
+        assert!(other.is_file(), "the other namespace's level is not touched");
         assert!(shared.is_file(), "its references file is kept");
         std::fs::remove_dir_all(game.world_root.join("dimensions/a")).unwrap();
         assert_eq!(delete_as(game, "a_b", "a_b:c"), Ok(()));
@@ -980,9 +960,7 @@ fn a_failed_removal_leaves_the_level_closed_and_its_id_closed_to_open() {
 #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
 fn an_open_queued_behind_a_failed_removal_is_dropped() {
     with_opener("behind2", "behind2:a", flat(), |game, seen| {
-        let leftover = game
-            .world_root
-            .join("dimensions/behind2/a/region/r.0.0.mca");
+        let leftover = game.world_root.join("dimensions/behind2/a/region/r.0.0.mca");
         write_file(&leftover);
         game.levels.runtime.fail_erase = true;
         assert_eq!(delete_as(game, "behind2", "behind2:a"), Ok(()));
@@ -1034,9 +1012,6 @@ fn a_removal_does_not_follow_links_out_of_the_world() {
     make_link(&outside, &world.join("dimensions/lnk"));
     assert!(erase(&world, "lnk:x").is_err());
     // The level's own folder is a link.
-    #[cfg(unix)]
-    std::fs::remove_file(world.join("dimensions/lnk")).unwrap();
-    #[cfg(windows)]
     std::fs::remove_dir(world.join("dimensions/lnk")).unwrap();
     make_link(&outside, &world.join("dimensions/ns/x"));
     assert!(erase(&world, "ns:x").is_err());
@@ -1125,19 +1100,14 @@ fn a_removal_that_fails_part_way_is_finished_by_a_second_delete() {
         write_file(&locked);
         write_file(&folder.join("poi/r.0.0.mca"));
         let Some(lock) = Lock::on(&locked) else {
-            panic!(
-                "partial-removal coverage requires enforced file permissions; run as non-root on Unix or run on Windows"
-            );
+            panic!("partial-removal coverage requires enforced file permissions; run as non-root on Unix or run on Windows");
         };
         assert_eq!(delete_as(game, "part", "part:a"), Ok(()));
         game.apply_runtime_levels();
         assert!(!game.runtime_level_is_open("part:a"));
         assert!(super::Dim::extra("part:a").is_none());
         assert_eq!(*seen.unloads.lock().unwrap(), ["part:a"]);
-        assert!(
-            locked.is_file(),
-            "the file that could not go is still there"
-        );
+        assert!(locked.is_file(), "the file that could not go is still there");
         seen.answers.lock().unwrap().clear();
         tick_post(game);
         assert_eq!(
