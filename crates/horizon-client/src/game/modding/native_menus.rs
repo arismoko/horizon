@@ -104,6 +104,56 @@ impl Game<'_> {
             items,
         )
     }
+    /// `ServerPlayer.openMenu(provider, extraDataWriter)` for a content mod menu type and no
+    /// block: the type's container slots show empty and their clicks reach the mods, as
+    /// `open_menu`'s do; `extra` and `pos` go first in its `horizon:menu_extra` payload.
+    pub(super) fn player_open_mod_menu(
+        &mut self,
+        player: mod_api::PlayerRef,
+        menu: mod_api::MenuKey,
+        title: Text,
+        extra: Vec<u8>,
+        pos: Option<[i32; 3]>,
+    ) -> Result<Option<i32>, mod_api::OpenMenuError> {
+        use mod_api::OpenMenuError;
+        let id = self.menu_key_id(menu);
+        let kind =
+            horizon_client::containers::mod_menu_type(&id).ok_or(OpenMenuError::NotModMenu)?;
+        if extra.len() > horizon_protocol::menu_extra::MAX_DATA {
+            return Err(OpenMenuError::TooLarge);
+        }
+        // A live handle of a connected player; a fake player has no connection.
+        self.online_player_record(player)
+            .ok_or(OpenMenuError::PlayerUnavailable)?;
+        let conn = self
+            .native_conn(player.uuid())
+            .ok_or(OpenMenuError::PlayerUnavailable)?;
+        let guest = self.lan.as_ref().and_then(|host| host.hub.guest(conn));
+        let brand = guest.map_or("", |g| g.brand.as_str());
+        if !horizon_client::containers::menu_reaches(brand, &id)
+            // An older Horizon client reads no menu opened without a block: its
+            // legacy menu-extra layout has no way to carry "no position".
+            || guest.is_some_and(|g| g.sender.menu_extra_rev == 0)
+        {
+            return Err(OpenMenuError::PlayerUnavailable);
+        }
+        // The mods may stop the menu, as for a block's.
+        if !self.guest_may_open(conn, &id, pos) {
+            return Ok(None);
+        }
+        // ServerPlayer.openMenu closes the menu that was open.
+        self.guest_close_all(conn);
+        let host = self.lan.as_mut().ok_or(OpenMenuError::PlayerUnavailable)?;
+        Ok(host.hub.open_menu_window(
+            conn,
+            &id,
+            component_nbt(&title.component()),
+            pos.map(|[x, y, z]| (x, y, z)),
+            horizon_client::lan::menu::Slots::Native,
+            vec![None; kind.slots],
+            Some(extra),
+        ))
+    }
     /// The native menu the player has open as window `window`, for its slots;
     /// None for another window, a menu the game opened, or a player not here.
     pub(super) fn menu(&self, uuid: u128, window: i32) -> Option<MenuRef> {

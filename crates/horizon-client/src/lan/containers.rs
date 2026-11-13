@@ -329,27 +329,49 @@ impl Hub {
         items: Vec<Option<ItemStack>>,
         extra: Option<Vec<u8>>,
     ) {
-        let Some(kind) = self
+        self.open_menu_window(conn, menu_kind, title, Some(pos), slots, items, extra);
+    }
+
+    /// Open menu type `menu_kind` for a guest, of a block at `pos` or of none:
+    /// its window id, None for an unknown type or guest. A [`Slots::Native`]
+    /// menu's items are the guest's `native_menu`, as `open_native_menu` keeps.
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_menu_window(
+        &mut self,
+        conn: u32,
+        menu_kind: &str,
+        title: Tag,
+        pos: Option<(i32, i32, i32)>,
+        slots: Slots,
+        items: Vec<Option<ItemStack>>,
+        extra: Option<Vec<u8>>,
+    ) -> Option<i32> {
+        let kind = self
             .sync
             .builtin
             .get("minecraft:menu")
-            .and_then(|m| m.id(menu_kind))
-        else {
-            return;
-        };
-        let Some(i) = self.guests.iter().position(|g| g.conn == conn) else {
-            return;
-        };
+            .and_then(|m| m.id(menu_kind))?;
+        let i = self.guests.iter().position(|g| g.conn == conn)?;
         self.close_container_at(i);
-        self.guests.update(i, |g| {
+        let window = self.guests.update(i, |g| {
             let window = g.next_menu_window();
+            if slots == Slots::Native {
+                g.native_menu = items.clone();
+            }
             if let Some(data) = extra {
                 let message = horizon_protocol::menu_extra::Message {
                     window,
-                    pos: [pos.0, pos.1, pos.2],
+                    pos: pos.map(|p| [p.0, p.1, p.2]),
                     data,
                 };
-                match horizon_protocol::menu_extra::encode(&message) {
+                // A client that answered no revision query (an older Horizon build)
+                // reads the legacy layout, which has no way to say "no block".
+                let sent = if g.sender.menu_extra_rev >= 1 {
+                    horizon_protocol::menu_extra::encode(&message)
+                } else {
+                    horizon_protocol::menu_extra::encode_legacy(&message)
+                };
+                match sent {
                     Ok(data) => g.send(&C::CustomPayload(CustomPayload {
                         channel: horizon_protocol::menu_extra::CHANNEL.into(),
                         data,
@@ -367,7 +389,7 @@ impl Hub {
                 window,
                 kind,
                 registry_id: menu_kind.into(),
-                pos: Some(pos),
+                pos,
                 slots,
                 size: items.len(),
                 state: 0,
@@ -380,8 +402,10 @@ impl Hub {
                 links: Vec::new(),
                 asks_still_valid: super::menu::asks_still_valid(mod_type, menu_kind),
             });
+            window
         });
         self.send_menu_content(i, items);
+        Some(window)
     }
 
     /// The open menu of `conn` has no `hidden` container slots: a mod's screen

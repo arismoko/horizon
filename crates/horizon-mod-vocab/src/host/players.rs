@@ -531,6 +531,24 @@ pub trait PlayersBackendMut {
         entity: BlockEntityRef,
     ) -> Result<bool, BlockEntityError>;
     /// Side: server.
+    /// Opens content mod menu type `menu` for a connected player from anywhere, with no
+    /// block (`ServerPlayer.openMenu(provider, extraDataWriter)`): an item's use, an entity,
+    /// a command. The menu replaces the one they had open. Its container slots show empty
+    /// and their clicks go to the mods (`native_menu_clicked`), as `open_menu`'s do. `extra`
+    /// (at most 32 KiB) is what the client's `screen_extra_data` reads, and `pos`, when
+    /// given, its `screen_pos`. The window id, or Ok(None) when a mod cancelled the open.
+    /// Errors: `NotModMenu`, `PlayerUnavailable` (stale, fake or vanilla client), `TooLarge`,
+    /// or `Title` for a title that could not cross.
+    #[access(WorldOnly)]
+    fn player_open_mod_menu(
+        &mut self,
+        player: PlayerRef,
+        menu: MenuKey,
+        title: Text,
+        extra: Vec<u8>,
+        pos: Option<[i32; 3]>,
+    ) -> Result<Option<i32>, OpenMenuError>;
+    /// Side: server.
     /// Sends the player `uuid` the whole picture of map `map_id`: 128 x 128
     /// colours (`MapColor` ids times 4 plus the shade, row by row), scale 0,
     /// locked, no decorations, as `ClientboundMapItemDataPacket`. A filled

@@ -1089,6 +1089,34 @@ pub struct PlayerFood {
     pub exhaustion: f32,
 }
 
+/// Why [`PlayerRef::open_mod_menu`] opened nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum OpenMenuError {
+    /// The menu type is not a content mod's (`data/<id>/horizon/menu/`).
+    NotModMenu,
+    /// The player is stale, not connected (a fake player), or their client lacks Horizon's
+    /// menu types (a vanilla client); also a host without a game.
+    PlayerUnavailable,
+    /// The extra data is past the 32 KiB a menu may carry.
+    TooLarge,
+    /// The title could not cross to the game.
+    Title(crate::text::TextFormError),
+}
+
+impl From<crate::text::TextFormError> for OpenMenuError {
+    fn from(error: crate::text::TextFormError) -> Self {
+        Self::Title(error)
+    }
+}
+
+impl NoBackend for OpenMenuError {
+    fn no_backend() -> Self {
+        Self::PlayerUnavailable
+    }
+}
+
 /// A player's experience (`Player.experienceLevel`, `experienceProgress`,
 /// `totalExperience`).
 #[derive(Clone, Copy, Debug, PartialEq)]
