@@ -36,12 +36,12 @@ def dylib(name: str) -> str:
     return f"{DLL[0]}{name}{DLL[1]}"
 
 
-def run(cmd, step=None, **kw):
+def run(cmd, step=None, quiet=False, **kw):
     cmd = [str(c) for c in cmd]
     print("+", " ".join(cmd), flush=True)
     t = time.monotonic()
     out = subprocess.run(cmd, text=True, capture_output=True, **kw)
-    if out.stdout.strip():
+    if out.stdout.strip() and not quiet:
         print(out.stdout.rstrip())
     if out.stderr.strip():
         print(out.stderr.rstrip())
@@ -63,7 +63,7 @@ def size(paths) -> int:
 
 
 def std_dylib() -> Path:
-    libdir = Path(run(["rustc", "--print", "target-libdir"]).strip())
+    libdir = Path(run(["rustc", "--print", "target-libdir"], quiet=True).strip())
     if OS == "Windows":
         # rustup's gnu toolchain keeps std's DLL in the sysroot's bin and lib dirs alike.
         found = sorted(libdir.glob("std-*.dll"))
@@ -181,16 +181,17 @@ def main() -> None:
     else:
         # MinGW's ld links straight against the DLLs (or their .dll.a); export only the three functions.
         link = ["gcc", "-shared", "-o", lib, *members, host_lib, wasm_lib, std, "-Wl,--no-undefined"]
+    print("slice-link:", " ".join(str(a) if not str(a).endswith(".o") else Path(a).name for a in link))
     run(link, "C link of the mods library")
     print(f"slice-measure: mods library {lib.name} {lib.stat().st_size} bytes; rlibs {size(rlibs)} bytes")
 
     # 4. Checks.
     def exports(path: Path) -> list[str]:
         if OS == "Windows":
-            text = run(["objdump", "-p", path])
+            text = run(["objdump", "-p", path], quiet=True)
             table = text.split("[Ordinal/Name Pointer] Table", 1)[-1]
             return sorted(set(re.findall(r"(_R\S*19horizon_native_mods\S*)", table)))
-        text = run(["nm", "-gU" if OS == "Darwin" else "-D", *([] if OS == "Darwin" else ["--defined-only"]), path])
+        text = run(["nm", "-gU" if OS == "Darwin" else "-D", *([] if OS == "Darwin" else ["--defined-only"]), path], quiet=True)
         return sorted({l.split()[-1] for l in text.splitlines() if "19horizon_native_mods" in l})
 
     stub_syms, real_syms = exports(full / dylib("horizon_native_mods")), exports(lib)
@@ -200,10 +201,10 @@ def main() -> None:
     missing = [s for s in imported if s not in real_syms]
     print("slice-check: stub symbols missing from the replacement:", missing or "none")
     if OS == "Windows":
-        dump = run(["objdump", "-p", lib])
+        dump = run(["objdump", "-p", lib], quiet=True)
         print("slice-check: replacement imports DLLs:", sorted(set(re.findall(r"DLL Name: (\S+)", dump))))
         print("slice-check: replacement export count:", len(re.findall(r"^\s+\[\s*\d+\]", dump.split("[Ordinal/Name Pointer] Table", 1)[-1], re.M)))
-        exe_dump = run(["objdump", "-p", full / f"horizon-client{EXE}"])
+        exe_dump = run(["objdump", "-p", full / f"horizon-client{EXE}"], quiet=True)
         print("slice-check: executable imports DLLs:", sorted(set(re.findall(r"DLL Name: (\S+)", exe_dump))))
     elif OS == "Darwin":
         run(["otool", "-L", full / f"horizon-client{EXE}"])
@@ -212,10 +213,10 @@ def main() -> None:
         run(["codesign", "-dv", lib])
         # Which image each library's Rust allocator calls bind to (two-level namespace).
         for image in (lib, host_lib, wasm_lib):
-            text = run(["nm", "-m", image])
+            text = run(["nm", "-m", image], quiet=True)
             print(f"slice-alloc: {image.name}:", sorted({l.strip() for l in text.splitlines() if "__rust_alloc" in l or "__rust_dealloc" in l})[:6])
     else:
-        run(["readelf", "-d", lib])
+        run(["readelf", "-d", lib], quiet=True)
 
     shutil.copy2(full / f"horizon-client{EXE}", rundir)
     shutil.copy2(lib, rundir)
