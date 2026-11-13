@@ -1,0 +1,11 @@
+id = "slice_smoke"
+name = "Slice experiment: API hooks"
+version = "0.1.0"
+description = "API-only native mod built from the API slice"
+authors = []
+api = "0.2"
+side = "both"
+
+[native]
+game = "26.3"
+horizon = "HEAD"

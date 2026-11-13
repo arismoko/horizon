@@ -1,0 +1,18 @@
+id = "slice_inject"
+name = "Slice experiment: [[inject]] only"
+version = "0.1.0"
+description = "An API point listener at the server's tick, routed through the mods library's slots"
+authors = []
+api = "0.2"
+side = "both"
+
+[native]
+game = "26.3"
+horizon = "HEAD"
+
+[[inject]]
+id = "tick"
+at = "horizon_client::game::Game<'_>::tick"
+kind = "head"
+with = "on_tick"
+hash = "HASH"

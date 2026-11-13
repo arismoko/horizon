@@ -1,0 +1,11 @@
+id = "slice_generic"
+name = "Slice experiment: API generics"
+version = "0.1.0"
+description = "Instantiates generic functions and derives defined in the API"
+authors = []
+api = "0.2"
+side = "both"
+
+[native]
+game = "26.3"
+horizon = "HEAD"
