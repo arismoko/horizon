@@ -141,6 +141,8 @@ already daily tests, and the existing ones that need resources, a child process 
 - Write a quick test where a quick test can catch the mistake. A test that needs the game or prepared resources is
   welcome: mark it `#[ignore]` with its policy row, and say in the pull request that it has not run if you could not
   run it.
+- If your new test needs the game or prepared resources and has no marker, the maintainers add the `#[ignore]` and
+  its row for you as a separate commit when your pull request is merged. You do not need to push again for that.
 - If a daily run fails on a test your pull request added or touched, an issue is filed that names the test, where it
   panicked and the pull requests merged since the last green daily run. The fix is an ordinary pull request.
 
