@@ -1670,7 +1670,9 @@ pub fn decode_components(components: Option<&Tag>) -> (u32, Option<Box<StackData
             })
             .filter(|(flight, explosions)| !(*flight == 1 && explosions.is_empty())),
         firework_explosion: seen.firework_explosion.map(explosion_from),
-        dyed_color: seen.dyed_color.and_then(int).map(|v| v as i32),
+        dyed_color: seen
+            .dyed_color
+            .and_then(horizon_core::color::rgb_color_from_tag),
         pot_decorations: seen
             .pot_decorations
             .map(|p| {
@@ -3032,8 +3034,7 @@ mod tests {
             firework_explosion: c.get("minecraft:firework_explosion").map(explosion_from),
             dyed_color: c
                 .get("minecraft:dyed_color")
-                .and_then(int)
-                .map(|v| v as i32),
+                .and_then(horizon_core::color::rgb_color_from_tag),
             pot_decorations: c
                 .get("minecraft:pot_decorations")
                 .map(|p| {

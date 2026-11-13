@@ -1717,6 +1717,19 @@ fn pipeline(
     if let Some(reason) = prebuilt::refusal(&projects) {
         return Err(reason.to_string().into());
     }
+    // The steps around the mods' compile, timed like each command (`run_checked`), so the log
+    // accounts for the whole build.
+    let timed = |step: &str, since: std::time::Instant| {
+        append_log(&trf(
+            "{step}: {ms} ms",
+            &[
+                ("step", step),
+                ("ms", &since.elapsed().as_millis().to_string()),
+            ],
+        ))
+    };
+    timed("Planning the build", started)?;
+    let fetching = std::time::Instant::now();
     let prebuilt = if exists {
         None
     } else {
@@ -1732,6 +1745,9 @@ fn pipeline(
             .map_err(|reason| reason.to_string())?,
         )
     };
+    if prebuilt.is_some() {
+        timed("Checking the prebuilt game", fetching)?;
+    }
     check_cancelled()?;
     let plan = if exists {
         Plan::UpToDate
@@ -1788,8 +1804,10 @@ fn pipeline(
         Target::Server => rust_toolchain::linker_server(),
     };
     if let Some(game) = &prebuilt {
+        let checking = std::time::Instant::now();
         linker()?;
         let rust = rust_toolchain::install(|f| progress(Step::Rust(f)))?;
+        timed("Checking the Rust toolchain", checking)?;
         progress(Step::PrebuiltMods);
         let compiling = std::time::Instant::now();
         let (binary, libraries) = prebuilt::compile(
@@ -1813,6 +1831,7 @@ fn pipeline(
         .map_err(blame)?;
         check_cancelled()?;
         progress(Step::Install);
+        let installing = std::time::Instant::now();
         install(
             base,
             &version,
@@ -1822,6 +1841,7 @@ fn pipeline(
             &about("prebuilt", &internals::Catalog::read(game)?),
             &ordered,
         )?;
+        timed("Installing the build", installing)?;
     } else {
         // Used again: it counts as the newest of the builds kept (`prune`).
         let _ = fs::write(target.directory(&version).join(".installed"), "");

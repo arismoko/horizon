@@ -3,7 +3,7 @@
 //! the vanilla dispense behaviours Horizon has entities for, and container
 //! comparator signals (`AbstractContainerMenu.getRedstoneSignalFromContainer`).
 mod loot_access;
-use super::{Game, spill, storage::is_shulker_box};
+use super::{Game, composter::is_composter, spill, storage::is_shulker_box};
 use horizon_core::nbt::Tag;
 use mod_api::__private::game::*;
 
@@ -176,7 +176,7 @@ impl View {
     /// bookshelf's books and a jukebox's disc, else vanilla's default.
     fn slot_limit(&self) -> u32 {
         match self.kind {
-            Kind::Bookshelf | Kind::Jukebox => 1,
+            Kind::Bookshelf | Kind::Jukebox | Kind::Composter(_) => 1,
             _ => 99,
         }
     }
@@ -186,9 +186,6 @@ impl View {
         } else {
             Slots::Range(0..self.len())
         }
-    }
-    fn slots_for_face(&self, face: Option<Direction>) -> Vec<usize> {
-        self.slots_for_face_iter(face).collect()
     }
     #[cfg(test)]
     fn slots_to_add(&self, face: Option<Direction>) -> Vec<usize> {
@@ -299,7 +296,7 @@ impl Containers<'_> {
     fn view(&self, pos: Pos, blocked_chests: bool) -> Option<View> {
         let state = self.world.block(pos.0, pos.1, pos.2);
         let name = self.name(state);
-        if name == "minecraft:composter" {
+        if is_composter(name) {
             let level = self.prop(state, "level").and_then(|l| l.parse().ok())?;
             return Some(View {
                 parts: vec![(pos, usize::from(level != 7))],
@@ -459,6 +456,15 @@ impl Containers<'_> {
             return c.inputs.contains(&slot);
         }
         match view.kind {
+            // ComposterBlock.InputContainer.canPlaceItemThroughFace; output never accepts.
+            Kind::Composter(level) => {
+                level < 7
+                    && slot == 0
+                    && self
+                        .items
+                        .get(&stack.item)
+                        .is_some_and(|i| i.compostable.is_some())
+            }
             // ShulkerBoxBlockEntity.canPlaceItemThroughFace
             Kind::Shulker => !is_shulker_box(&stack.item),
             Kind::Crafter => match self.world.block_entities.get(&view.parts[0].0) {

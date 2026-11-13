@@ -183,10 +183,11 @@ pub(crate) fn default_source(name: &str) -> Option<&'static str> {
     (name == STORAGE.name).then_some(STORAGE_SOURCE.name)
 }
 
-/// Items by kind: a block entity's [`ItemStorage`] as one side reaches it. The game answers it
-/// for every block entity [`ITEMS`] reaches, from those slots; a mod's bulk store answers it
-/// with a provider of its own (`block_entity_capability(&STORAGE, ..)`). A block with slots and
-/// a store of its own registers its provider `before_game`, or the slots answer first.
+/// Items by kind: a container's or composter port's [`ItemStorage`] as one side reaches it.
+/// The game answers it for every container or port [`ITEMS`] reaches, from those slots; a mod's
+/// bulk store answers it with a provider of its own (`block_entity_capability(&STORAGE, ..)`).
+/// A block with slots and a store of its own registers its provider `before_game`, or the slots
+/// answer first.
 pub const STORAGE: CapabilityKey<dyn ItemStorage> = CapabilityKey {
     name: "horizon:storage",
     default: Some(|host, at| {
@@ -200,8 +201,8 @@ pub const STORAGE: CapabilityKey<dyn ItemStorage> = CapabilityKey {
     handler: PhantomData,
 };
 
-/// The game's own [`STORAGE`] for a block entity with slots: each question and write one pass
-/// over the slots `.side` reaches, in the game, by the rules hoppers follow.
+/// The game's own [`STORAGE`] for container or composter slots: each question and write one
+/// pass over the slots `.side` reaches, in the game, by the rules hoppers follow.
 struct GameStorage(BlockSide);
 
 impl ItemStorage for GameStorage {

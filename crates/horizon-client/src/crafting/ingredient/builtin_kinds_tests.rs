@@ -20,6 +20,152 @@ fn resources() -> Items {
     Items::catalog(&root, &horizon_world::loot::PackOverlay::NONE, &defaults).unwrap()
 }
 #[test]
+fn components_dyed_color_decodes_rgb_forms_and_matches_borrowed_values() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:leather_helmet".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:dyed_color":[1,0,0]})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let integer = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:leather_helmet","components":{"minecraft:dyed_color":-65536}}"#,
+        &items,
+    );
+    let vector = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:leather_helmet","components":{"minecraft:dyed_color":[1.0,0.0,0.0]}}"#,
+        &items,
+    );
+    assert_eq!(
+        vector.shown.as_ref().unwrap()[0].data().unwrap().dyed_color,
+        Some(-65536)
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let default = ItemStack::new("minecraft:leather_helmet", 1);
+    let mut typed = default.clone();
+    typed.data_mut().dyed_color = Some(-65536);
+    let mut raw = default.clone();
+    raw.data_mut().set_other(
+        "minecraft:dyed_color",
+        Some(Tag::List(vec![Tag::Int(1), Tag::Int(0), Tag::Int(0)])),
+    );
+    for ingredient in [&integer, &vector] {
+        assert!(ingredient.test_in(&context, &default));
+        assert!(ingredient.test_in(&context, &typed));
+        assert!(ingredient.test_in(&context, &raw));
+    }
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            for ingredient in [&integer, &vector] {
+                for stack in [&default, &typed, &raw] {
+                    assert!(std::hint::black_box(ingredient.test_in(&context, stack)));
+                }
+            }
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    // RGB equality retains the integer's alpha bits; rendering opacity is unrelated.
+    typed.data_mut().dyed_color = Some(16711680);
+    assert!(!integer.test_in(&context, &typed));
+    typed.data_mut().dyed_color = Some(-16776961);
+    assert!(!vector.test_in(&context, &typed));
+    raw.data_mut().set_other(
+        "minecraft:dyed_color",
+        Some(Tag::String("not a color".into())),
+    );
+    assert!(!integer.test_in(&context, &raw));
+
+    // All boxed number widths and NbtOps collection forms reach the same codec.
+    for (value, expected) in [
+        (Tag::Byte(-1), -1),
+        (Tag::Short(-32768), -32768),
+        (Tag::Int(305419896), 305419896),
+        (Tag::Long(4294901760), -65536),
+        (Tag::Float((-65536.5f32).to_bits()), -65536),
+        (Tag::Double((-65536.5f64).to_bits()), -65536),
+        (Tag::ByteArray(vec![1, 0, 0]), -65536),
+        (Tag::IntArray(vec![1, 0, 0]), -65536),
+        (Tag::LongArray(vec![1, 0, 0]), -65536),
+        (
+            Tag::List(vec![
+                Tag::Double(0.5f64.to_bits()),
+                Tag::Double(0.0f64.to_bits()),
+                Tag::Double(0.0f64.to_bits()),
+            ]),
+            -8454144,
+        ),
+        // Channels have no 0..1 restriction, and floor before byte masking.
+        (Tag::ByteArray(vec![255, 2, 0]), 0xff01_fe00u32 as i32),
+        (
+            Tag::List(vec![
+                Tag::Float(f32::NAN.to_bits()),
+                Tag::Float(f32::INFINITY.to_bits()),
+                Tag::Float(f32::NEG_INFINITY.to_bits()),
+            ]),
+            0xff00_ff00u32 as i32,
+        ),
+    ] {
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:dyed_color",
+                &value,
+                &items.component_registry,
+            )
+            .unwrap(),
+            Tag::Int(expected)
+        );
+        let patch = Tag::compound([("minecraft:dyed_color", value)]);
+        let (_, data) = crate::item_data::decode_components(Some(&patch));
+        assert_eq!(data.unwrap().dyed_color, Some(expected));
+    }
+
+    for source in [
+        r##"{"type":"neoforge:components","items":"minecraft:leather_helmet","components":{"minecraft:dyed_color":"#ff0000"}}"##,
+        r#"{"type":"neoforge:components","items":"minecraft:leather_helmet","components":{"minecraft:dyed_color":[1,0]}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:leather_helmet","components":{"minecraft:dyed_color":[1,0,0,1]}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:leather_helmet","components":{"minecraft:dyed_color":[1,"red",0]}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:leather_helmet","components":{"minecraft:dyed_color":{"rgb":16711680,"show_in_tooltip":true}}}"#,
+    ] {
+        let json: serde_json::Value = serde_json::from_str(source).unwrap();
+        assert!(Ingredient::parse(&json, &items).is_none());
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(json["components"].as_object().unwrap())
+                .unwrap(),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:dyed_color"), "{error}");
+    }
+    let absence = parse(
+        r#"{"type":"neoforge:components","items":["minecraft:leather_helmet","minecraft:stick"],"components":{"!minecraft:dyed_color":{}}}"#,
+        &items,
+    );
+    assert!(!absence.test_in(&context, &default));
+    let mut populated_typed = default.clone();
+    populated_typed.data_mut().dyed_color = Some(-65536);
+    assert!(!absence.test_in(&context, &populated_typed));
+    let mut populated_raw = default.clone();
+    populated_raw.data_mut().set_other(
+        "minecraft:dyed_color",
+        Some(Tag::List(vec![Tag::Int(1), Tag::Int(0), Tag::Int(0)])),
+    );
+    assert!(!absence.test_in(&context, &populated_raw));
+    let mut removed = default.clone();
+    removed
+        .data_mut()
+        .set_loot_component("minecraft:dyed_color", &None);
+    assert!(absence.test_in(&context, &removed));
+    assert!(!integer.test_in(&context, &removed));
+    assert!(!vector.test_in(&context, &removed));
+    assert!(absence.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
+}
+#[test]
 #[ignore = "requires prepared resources"]
 fn components_match_damage_ignore_count_and_refuse_empty() {
     let items = resources();
@@ -646,4 +792,578 @@ fn ominous_bottle_amplifier_codec_loads_matches_and_rejects_out_of_range() {
         assert!(refused.crafting.is_empty());
         assert!(refused.by_type.values().all(|recipes| recipes.is_empty()));
     }
+}
+
+#[test]
+fn potion_duration_scale_decodes_and_matches_float_values() {
+    const ID: &str = "minecraft:potion_duration_scale";
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:potion".into(),
+        horizon_core::nbt::Compound::from_iter([(ID.into(), Tag::Double(1.5f64.to_bits()))]),
+    )]));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let positive = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":1.5}}"#,
+        &items,
+    );
+    let mut stack = ItemStack::new("minecraft:potion", 1);
+    assert!(positive.test_in(&context, &stack), "borrowed item default");
+    for value in [
+        Tag::Float(1.5f32.to_bits()),
+        Tag::Double(1.50000000001f64.to_bits()),
+    ] {
+        stack.data_mut().set_loot_component(ID, &Some(value));
+        assert!(positive.test_in(&context, &stack), "floatValue rounding");
+    }
+    stack
+        .data_mut()
+        .set_loot_component(ID, &Some(Tag::Float(1.25f32.to_bits())));
+    assert!(!positive.test_in(&context, &stack));
+
+    let one = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":1}}"#,
+        &items,
+    );
+    for value in [
+        Tag::Byte(1),
+        Tag::Short(1),
+        Tag::Int(1),
+        Tag::Long(1),
+        Tag::Float(1.0f32.to_bits()),
+        Tag::Double(1.0f64.to_bits()),
+    ] {
+        assert_eq!(
+            horizon_command::item::decoded_component_value(ID, &value, &items.component_registry)
+                .unwrap(),
+            Tag::Float(0x3f80_0000),
+        );
+        stack.data_mut().set_loot_component(ID, &Some(value));
+        assert!(one.test_in(&context, &stack));
+    }
+    let large = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":4294967296}}"#,
+        &items,
+    );
+    stack
+        .data_mut()
+        .set_loot_component(ID, &Some(Tag::Long(4_294_967_296)));
+    assert!(
+        large.test_in(&context, &stack),
+        "boxed Long does not truncate"
+    );
+
+    let zero = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":0}}"#,
+        &items,
+    );
+    // JsonOps converts the integral decimal -0.0 to a zero byte before decoding.
+    let json_zero = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":-0.0}}"#,
+        &items,
+    );
+    for value in [Tag::Byte(0), Tag::Double(f64::MIN_POSITIVE.to_bits())] {
+        assert_eq!(
+            horizon_command::item::decoded_component_value(ID, &value, &items.component_registry)
+                .unwrap(),
+            Tag::Float(0),
+        );
+        stack.data_mut().set_loot_component(ID, &Some(value));
+        assert!(zero.test_in(&context, &stack));
+        assert!(json_zero.test_in(&context, &stack));
+    }
+    stack
+        .data_mut()
+        .set_loot_component(ID, &Some(Tag::Float((-0.0f32).to_bits())));
+    assert!(
+        !zero.test_in(&context, &stack),
+        "Float.equals distinguishes zero signs"
+    );
+
+    for source in [
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":-1}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":"fast"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"minecraft:potion_duration_scale":{}}}"#,
+    ] {
+        let json: Value = serde_json::from_str(source).unwrap();
+        assert!(Ingredient::parse(&json, &items).is_none(), "{source}");
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(json["components"].as_object().unwrap())
+                .unwrap(),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains(ID), "{error}");
+    }
+    for value in [
+        Tag::Float((-0.0f32).to_bits()),
+        Tag::Double((-0.0f64).to_bits()),
+        Tag::Double((-f64::MIN_POSITIVE).to_bits()),
+        Tag::Float(f32::NAN.to_bits()),
+        Tag::Float(0x7f80_0001),
+        Tag::Double(f64::NAN.to_bits()),
+        Tag::Float(f32::INFINITY.to_bits()),
+        Tag::Float(f32::NEG_INFINITY.to_bits()),
+        Tag::Double(f64::MAX.to_bits()),
+    ] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from_iter([(ID.into(), value)]),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains(ID), "{error}");
+    }
+    assert_eq!(
+        horizon_command::item::decoded_component_value(
+            ID,
+            &Tag::Float(f32::MAX.to_bits()),
+            &items.component_registry,
+        )
+        .unwrap(),
+        Tag::Float(0x7f7f_ffff),
+    );
+    let absence_source = r#"{"type":"neoforge:components","items":"minecraft:potion","components":{"!minecraft:potion_duration_scale":{}}}"#;
+    let absence = parse(absence_source, &items);
+    let mut removed = ItemStack::new("minecraft:potion", 1);
+    assert!(!absence.test_in(&context, &removed));
+    removed.data_mut().set_loot_component(ID, &None);
+    assert!(absence.test_in(&context, &removed));
+    assert!(!positive.test_in(&context, &removed));
+    let mut populated = ItemStack::new("minecraft:potion", 1);
+    populated
+        .data_mut()
+        .set_loot_component(ID, &Some(Tag::Float(1.5_f32.to_bits())));
+    assert!(!absence.test_in(&context, &populated));
+    assert!(
+        parse(absence_source, &Items::empty())
+            .test_in(&context, &ItemStack::new("minecraft:potion", 1),)
+    );
+}
+
+#[test]
+fn minimum_attack_charge_recipe_decodes_and_matches_float_values() {
+    const ID: &str = "minecraft:minimum_attack_charge";
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:diamond_sword".into(),
+        horizon_core::nbt::Compound::from([(ID.into(), Tag::Double(0.35_f64.to_bits()))]),
+    )]));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipe = |ingredient: &Value| {
+        crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:minimum_attack_charge".into(),
+                serde_json::json!({
+                    "type": "minecraft:crafting_shapeless",
+                    "ingredients": [ingredient],
+                    "result": {"id": "minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap()
+    };
+    let stack = |value: Tag| {
+        let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
+        sword.data_mut().set_loot_component(ID, &Some(value));
+        sword
+    };
+    for (source, value, actual) in [
+        (
+            r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":0}}"#,
+            0.0_f32,
+            Tag::Short(0),
+        ),
+        // JsonOps-to-NBT numeric conversion canonicalizes this exact integer zero.
+        (
+            r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":-0.0}}"#,
+            0.0,
+            Tag::Byte(0),
+        ),
+        (
+            r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":1}}"#,
+            1.0,
+            Tag::Long(1),
+        ),
+        (
+            r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":0.35}}"#,
+            0.35,
+            Tag::Float(0.35_f32.to_bits()),
+        ),
+        (
+            r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":1.00000001}}"#,
+            1.0,
+            Tag::Int(1),
+        ),
+    ] {
+        let json: Value = serde_json::from_str(source).unwrap();
+        assert_eq!(recipe(&json).crafting.len(), 1, "{source}");
+        let ingredient = Ingredient::parse(&json, &items).unwrap();
+        assert_eq!(
+            ingredient.shown.as_ref().unwrap()[0]
+                .data()
+                .unwrap()
+                .other(ID),
+            Some(&Tag::Float(value.to_bits())),
+            "the published patch must contain the decoded float"
+        );
+        assert!(ingredient.test_in(&context, &stack(actual)), "{source}");
+        assert!(
+            !ingredient.test_in(&context, &stack(Tag::Double(0.75_f64.to_bits()))),
+            "{source}"
+        );
+        assert_eq!(
+            ingredient.test_in(&context, &ItemStack::new("minecraft:diamond_sword", 1)),
+            value == 0.35,
+            "the borrowed double-valued item default has the same float value"
+        );
+        for actual in [
+            Tag::Byte(value as i8),
+            Tag::Short(value as i16),
+            Tag::Int(value as i32),
+            Tag::Long(value as i64),
+            Tag::Float(value.to_bits()),
+            Tag::Double(f64::from(value).to_bits()),
+        ] {
+            if value == 0.0 || value == 1.0 {
+                assert!(ingredient.test_in(&context, &stack(actual)));
+            }
+        }
+    }
+    let interior = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":0.35}}"#,
+        &items,
+    );
+    assert!(interior.test_in(&context, &stack(Tag::Double(0.350000001_f64.to_bits()))));
+    assert!(!interior.test_in(&context, &stack(Tag::Double(0.3500001_f64.to_bits()))));
+    let mut removed = ItemStack::new("minecraft:diamond_sword", 1);
+    let patch = Tag::compound([(
+        "!minecraft:minimum_attack_charge",
+        Tag::Compound(Default::default()),
+    )]);
+    (_, removed.extra) = crate::item_data::decode_components(Some(&patch));
+    assert!(!interior.test_in(&context, &removed));
+
+    for source in [
+        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":-0.01}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":1.01}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":"0.5"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":{}}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":[]}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:diamond_sword","components":{"minecraft:minimum_attack_charge":1e300}}"#,
+    ] {
+        let json: Value = serde_json::from_str(source).unwrap();
+        assert!(Ingredient::parse(&json, &items).is_none(), "{source}");
+        assert!(recipe(&json).crafting.is_empty(), "{source}");
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(json["components"].as_object().unwrap())
+                .unwrap(),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains(ID), "{error}");
+    }
+    // JSON cannot spell NaN or infinity. The same recipe validator must refuse
+    // these numeric tags, including negative values that narrow to negative zero.
+    for value in [
+        Tag::Float(f32::NAN.to_bits()),
+        Tag::Double(f64::NAN.to_bits()),
+        Tag::Float(f32::INFINITY.to_bits()),
+        Tag::Float(f32::NEG_INFINITY.to_bits()),
+        Tag::Float((-0.0_f32).to_bits()),
+        Tag::Double((-0.0_f64).to_bits()),
+        Tag::Double((-1e-300_f64).to_bits()),
+    ] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([(ID.into(), value)]),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains(ID), "{error}");
+        assert!(error.contains("within range [0.0;1.0]"), "{error}");
+    }
+    let absence = parse(
+        r#"{"type":"neoforge:components","items":["minecraft:diamond_sword","minecraft:iron_sword"],"components":{"!minecraft:minimum_attack_charge":{}}}"#,
+        &items,
+    );
+    let positive = parse(
+        r#"{"type":"neoforge:components","items":["minecraft:diamond_sword","minecraft:iron_sword"],"components":{"minecraft:minimum_attack_charge":0.35}}"#,
+        &items,
+    );
+    let mut removed = ItemStack::new("minecraft:diamond_sword", 1);
+    assert!(!absence.test_in(&context, &removed));
+    removed.data_mut().set_loot_component(ID, &None);
+    assert!(absence.test_in(&context, &removed));
+    assert!(!positive.test_in(&context, &removed));
+    assert!(!absence.test_in(&context, &stack(Tag::Float(0.35_f32.to_bits()))));
+    let no_default = ItemStack::new("minecraft:iron_sword", 1);
+    assert!(absence.test_in(&context, &no_default));
+    assert!(!positive.test_in(&context, &no_default));
+}
+
+#[test]
+fn item_model_component_literals_decode_validate_and_match() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:stick".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:item_model":"unregistered/model"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    for source in [
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":"unregistered/model"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":"minecraft:unregistered/model"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":":unregistered/model"}}"#,
+    ] {
+        let ingredient = parse(source, &items);
+        assert_eq!(
+            ingredient.shown.as_ref().unwrap()[0]
+                .data()
+                .unwrap()
+                .other("minecraft:item_model"),
+            Some(&Tag::String("minecraft:unregistered/model".into())),
+        );
+        let mut stack = ItemStack::new("minecraft:stick", 1);
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            assert!(ingredient.test_in(&context, &stack));
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        for model in [
+            "unregistered/model",
+            "minecraft:unregistered/model",
+            ":unregistered/model",
+        ] {
+            stack
+                .data_mut()
+                .set_loot_component("minecraft:item_model", &Some(Tag::String(model.into())));
+            let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+                assert!(ingredient.test_in(&context, &stack));
+            });
+            assert_eq!(allocations.calls, 0, "{allocations:?}");
+        }
+        for model in [
+            "minecraft:other",
+            "fixture:unregistered/model",
+            "Minecraft:unregistered/model",
+        ] {
+            stack
+                .data_mut()
+                .set_loot_component("minecraft:item_model", &Some(Tag::String(model.into())));
+            assert!(!ingredient.test_in(&context, &stack));
+        }
+    }
+    for source in [
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":"Minecraft:stick"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":"minecraft:Stick"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":"bad namespace:stick"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":"..:stick"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":"a:b:c"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:item_model":5}}"#,
+    ] {
+        let value: serde_json::Value = serde_json::from_str(source).unwrap();
+        assert!(Ingredient::parse(&value, &items).is_none());
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(value["components"].as_object().unwrap())
+                .unwrap(),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("component minecraft:item_model:"), "{error}");
+    }
+    for model in ["", ":", "minecraft:"] {
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:item_model",
+                &Tag::String(model.into()),
+                &items.component_registry,
+            )
+            .unwrap(),
+            Tag::String("minecraft:".into()),
+        );
+    }
+    for units in [vec![0xd800], vec![0xdc00], vec![0xd83d, 0xde00]] {
+        let invalid_utf16 = Tag::String(horizon_core::nbt::JavaString(units));
+        assert!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:item_model",
+                &invalid_utf16,
+                &items.component_registry,
+            )
+            .is_err()
+        );
+    }
+    let absence = parse(
+        r#"{"type":"neoforge:components","items":["minecraft:stick","minecraft:iron_ingot"],"components":{"!minecraft:item_model":{}}}"#,
+        &items,
+    );
+    let positive = parse(
+        r#"{"type":"neoforge:components","items":["minecraft:stick","minecraft:iron_ingot"],"components":{"minecraft:item_model":"unregistered/model"}}"#,
+        &items,
+    );
+    let mut removed = ItemStack::new("minecraft:stick", 1);
+    assert!(!absence.test_in(&context, &removed));
+    removed
+        .data_mut()
+        .set_loot_component("minecraft:item_model", &None);
+    assert!(absence.test_in(&context, &removed));
+    assert!(!positive.test_in(&context, &removed));
+    let mut populated = ItemStack::new("minecraft:stick", 1);
+    populated.data_mut().set_loot_component(
+        "minecraft:item_model",
+        &Some(Tag::String("unregistered/model".into())),
+    );
+    assert!(!absence.test_in(&context, &populated));
+    let no_default = ItemStack::new("minecraft:iron_ingot", 1);
+    assert!(absence.test_in(&context, &no_default));
+    assert!(!positive.test_in(&context, &no_default));
+}
+
+#[test]
+fn enchantment_glint_override_decodes_boolean_literals_and_borrowed_numeric_values() {
+    const COMPONENT: &str = "minecraft:enchantment_glint_override";
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:apple".into(),
+        std::collections::BTreeMap::from([(COMPONENT.into(), Tag::Short(256))]),
+    )]));
+    let enabled = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:apple","components":{"minecraft:enchantment_glint_override":true}}"#,
+        &items,
+    );
+    let disabled = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:apple","components":{"minecraft:enchantment_glint_override":false}}"#,
+        &items,
+    );
+    for (ingredient, expected) in [(&enabled, Tag::Byte(1)), (&disabled, Tag::Byte(0))] {
+        assert_eq!(
+            ingredient.shown.as_ref().unwrap()[0]
+                .data()
+                .unwrap()
+                .other(COMPONENT),
+            Some(&expected),
+        );
+    }
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let mut candidate = ItemStack::new("minecraft:apple", 1);
+    assert!(
+        enabled.test_in(&context, &candidate),
+        "inherited numeric default"
+    );
+    assert!(!disabled.test_in(&context, &candidate));
+
+    // NbtOps.getBooleanValue uses Number.doubleValue, not Tag.asBoolean's byteValue.
+    for (value, expected) in [
+        (Tag::Byte(-1), true),
+        (Tag::Short(256), true),
+        (Tag::Int(256), true),
+        (Tag::Long(4_294_967_296), true),
+        (Tag::Float(0.5_f32.to_bits()), true),
+        (Tag::Double(0.5_f64.to_bits()), true),
+        (Tag::Float(f32::NAN.to_bits()), true),
+        (Tag::Double(f64::NAN.to_bits()), true),
+        (Tag::Double(f64::INFINITY.to_bits()), true),
+        (Tag::Double(f64::from_bits(1).to_bits()), true),
+        (Tag::Byte(0), false),
+        (Tag::Short(0), false),
+        (Tag::Int(0), false),
+        (Tag::Long(0), false),
+        (Tag::Float((-0.0_f32).to_bits()), false),
+        (Tag::Double((-0.0_f64).to_bits()), false),
+    ] {
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                COMPONENT,
+                &value,
+                &items.component_registry,
+            )
+            .unwrap(),
+            Tag::Byte(i8::from(expected)),
+        );
+        candidate
+            .data_mut()
+            .set_loot_component(COMPONENT, &Some(value));
+        assert_eq!(enabled.test_in(&context, &candidate), expected);
+        assert_eq!(disabled.test_in(&context, &candidate), !expected);
+    }
+    let numeric = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:apple","components":{"minecraft:enchantment_glint_override":0.5}}"#,
+        &items,
+    );
+    candidate
+        .data_mut()
+        .set_loot_component(COMPONENT, &Some(Tag::Int(256)));
+    assert!(numeric.test_in(&context, &candidate));
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(enabled.test_in(&context, std::hint::black_box(&candidate)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    candidate.data_mut().set_loot_component(COMPONENT, &None);
+    assert!(
+        enabled.test_in(&context, &candidate),
+        "default is inherited again"
+    );
+    candidate.data_mut().set_loot_component(
+        "!minecraft:enchantment_glint_override",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(
+        !enabled.test_in(&context, &candidate),
+        "removed, not inherited"
+    );
+    assert!(
+        !disabled.test_in(&context, &candidate),
+        "absent is not false"
+    );
+
+    let invalid: Value = serde_json::from_str(
+        r#"{"type":"neoforge:components","items":"minecraft:apple","components":{"minecraft:enchantment_glint_override":"true"}}"#,
+    )
+    .unwrap();
+    assert!(Ingredient::parse(&invalid, &items).is_none());
+    let rule = IngredientRule::Components {
+        patch: crate::json_nbt::json_to_compound(invalid["components"].as_object().unwrap())
+            .unwrap(),
+        removed: Vec::new(),
+        strict: false,
+    };
+    assert_eq!(
+        components::validate(&rule, &items).unwrap_err(),
+        "component minecraft:enchantment_glint_override: Not a number",
+    );
+    let absence = parse(
+        r#"{"type":"neoforge:components","items":["minecraft:apple","minecraft:stick"],"components":{"!minecraft:enchantment_glint_override":{}}}"#,
+        &items,
+    );
+    let mut removed = ItemStack::new("minecraft:apple", 1);
+    assert!(!absence.test_in(&context, &removed));
+    removed.data_mut().set_loot_component(COMPONENT, &None);
+    assert!(absence.test_in(&context, &removed));
+    assert!(!enabled.test_in(&context, &removed));
+    assert!(!disabled.test_in(&context, &removed));
+    let mut populated = ItemStack::new("minecraft:apple", 1);
+    populated
+        .data_mut()
+        .set_loot_component(COMPONENT, &Some(Tag::Byte(0)));
+    assert!(!absence.test_in(&context, &populated));
+    assert!(absence.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
 }

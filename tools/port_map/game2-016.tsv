@@ -114,7 +114,7 @@ WitherSkullBlock.getOrCreateWitherFull	inline	crates/horizon-client/src/game/mob
 AbstractFurnaceBlockEntity.consumeFuel	inline	crates/horizon-client/src/furnace.rs::Furnace::tick	Fuel count drops by one when a burn starts; bucket remainder in the same branch.
 AbstractFurnaceBlockEntity.canBurn	inline	crates/horizon-client/src/furnace.rs::Furnace::tick	Output slot check (same item, room left) inside tick.
 AbstractFurnaceBlockEntity.getTotalCookTime	port	crates/horizon-client/src/furnace.rs::total_time
-AbstractFurnaceBlockEntity.getSlotsForFace	port	crates/horizon-client/src/game/blocks/machines/mod.rs::View::slots_for_face	Furnace faces: down 2 and 1, up 0, sides 1.
+AbstractFurnaceBlockEntity.getSlotsForFace	port	crates/horizon-client/src/game/blocks/machines/mod.rs::View::slots_for_face_iter	Furnace faces: down 2 and 1, up 0, sides 1.
 AbstractFurnaceBlockEntity.canTakeItemThroughFace	port	crates/horizon-client/src/game/blocks/machines/mod.rs::Containers::can_take
 AbstractFurnaceBlockEntity.canPlaceItem	port	crates/horizon-client/src/game/blocks/machines/mod.rs::Containers::can_place	Furnace arm: output refused, fuel slot takes fuel or a bucket.
 AbstractFurnaceBlockEntity.setRecipeUsed	inline	crates/horizon-client/src/furnace.rs::Furnace::tick	The recipe count goes up at each finished smelt.

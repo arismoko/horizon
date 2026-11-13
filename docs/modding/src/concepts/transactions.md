@@ -35,13 +35,14 @@ The journal covers writes through capability handlers to these storages:
 | Block entity | Item slots, saved compound, custom name and attachments |
 | Hopper | Cooldown |
 | Cauldron | Block state |
+| Composter | Block state and composter-local random stream; fill feedback, game events and maturation scheduling wait for outer commit |
 | World fluid pickup and placement | Block state, and a block entity the new block removes |
 | Player | Inventory slots, armour, offhand and cursor, for host and guest players |
 | Entity inventory | Chest or hopper minecart, chest boat, chested donkey, mule or llama inventory |
 | Item entity | Stack; an emptied entity remains until the outermost commit removes it |
 
 At the outermost commit, the game publishes change notifications and deferred
-effects: `setChanged`, comparators, jukebox playback, cauldron block updates and
+effects: `setChanged`, comparators, jukebox playback, cauldron and composter block updates and
 item drops. Drops include items placed at a block, thrown by a player or entity,
 or split off an item entity.
 

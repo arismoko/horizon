@@ -2041,6 +2041,7 @@ version = "0.1.0"
 dependencies = [
  "horizon-client-core",
  "horizon-core",
+ "horizon-items",
  "horizon-protocol",
  "horizon-world",
 ]

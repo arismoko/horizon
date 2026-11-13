@@ -642,6 +642,36 @@ impl Behaviours {
         next
     }
 
+    /// `ComposterBlock.InputContainer.setChanged` feedback after its state was committed.
+    /// The input was below level 7; the state write itself belongs to the caller's journal.
+    pub fn composter_insert_effects<L: LevelAccess + ?Sized>(
+        &self,
+        level: &mut L,
+        ticks: &mut Ticks,
+        pos: BlockPos,
+        before: BlockStateId,
+        after: BlockStateId,
+    ) {
+        let mut sim = self.sim(level, ticks);
+        if after != before {
+            sim.composter_layer_effects(pos, before, after);
+        }
+        sim.level_event(1500, pos, i32::from(after != before));
+    }
+
+    /// `ComposterBlock.empty` feedback after its state was committed, without a write,
+    /// dropped bone meal or the hand-extraction sound.
+    pub fn composter_empty_effects<L: LevelAccess + ?Sized>(
+        &self,
+        level: &mut L,
+        ticks: &mut Ticks,
+        pos: BlockPos,
+        after: BlockStateId,
+    ) {
+        self.sim(level, ticks)
+            .game_event_state(pos, "minecraft:block_change", after);
+    }
+
     /// `ComposterBlock.addLayer` without level event 1500, for a villager
     /// that composts several items and sends the event once at the end
     /// (`WorkAtComposter.compostItems`). The new state.

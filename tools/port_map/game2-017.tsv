@@ -13,7 +13,7 @@ BlockEntity.collectComponents	port	crates/horizon-client/src/block_entity_item.r
 BrewingStandBlockEntity.getPotionBits	inline	crates/horizon-client-render/src/brewing.rs::BrewingStand::tick	bottle occupancy sent as out.bottles
 BrewingStandBlockEntity.isBrewable	port	crates/horizon-client-render/src/brewing.rs::BrewingStand::brewable
 BrewingStandBlockEntity.doBrew	port	crates/horizon-client-render/src/brewing.rs::BrewingStand::brew
-BrewingStandBlockEntity.getSlotsForFace	port	crates/horizon-client/src/game/blocks/machines/mod.rs::View::slots_for_face
+BrewingStandBlockEntity.getSlotsForFace	port	crates/horizon-client/src/game/blocks/machines/mod.rs::View::slots_for_face_iter
 BrushableBlockEntity.dropContent	port	crates/horizon-client/src/game/blocks/brush.rs::Game::brushing_completed	item drops from the hit face; loot is unpacked in unpack_brush_loot
 BrushableBlockEntity.tryLoadLootTable	port	crates/horizon-client/src/game/blocks/brush.rs::Game::unpack_brush_loot	reads LootTable and seed from the saved tag
 BrushableBlockEntity.trySaveLootTable	skip:other		no own code: the raw saved tag (spill::saved_entity) keeps LootTable
@@ -74,7 +74,7 @@ HopperBlockEntity.loadAdditional	port	crates/horizon-client/src/save.rs::decode_
 HopperBlockEntity.saveAdditional	port	crates/horizon-client/src/save.rs::encode_block_entity	gap: minor: TransferCooldown is not saved (transient state in machines.rs)
 HopperBlockEntity.setItem	port	crates/horizon-client/src/game/blocks/machines/mod.rs::Game::try_move_in_item	gap: minor: unpackLootTable(null) on set is not done here
 HopperBlockEntity.inventoryFull	inline	crates/horizon-client/src/game/blocks/machines/mod.rs::Game::hopper_try_move_items	all-slots-at-max check before sucking
-HopperBlockEntity.getSlots	port	crates/horizon-client/src/game/blocks/machines/mod.rs::View::slots_for_face
+HopperBlockEntity.getSlots	port	crates/horizon-client/src/game/blocks/machines/mod.rs::View::slots_for_face_iter
 HopperBlockEntity.createFlatSlots	skip:java		cached slot index array
 HopperBlockEntity.canPlaceItemInContainer	port	crates/horizon-client/src/game/blocks/machines/mod.rs::Containers::can_place
 HopperBlockEntity.canTakeItemFromContainer	port	crates/horizon-client/src/game/blocks/machines/mod.rs::Containers::can_take

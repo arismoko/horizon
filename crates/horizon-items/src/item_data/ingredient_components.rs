@@ -45,6 +45,7 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
         "minecraft:repair_cost" => {
             a.data().map_or(0, |d| d.repair_cost) == b.data().map_or(0, |d| d.repair_cost)
         }
+        "minecraft:dyed_color" => dyed_color(a).is_some_and(|color| Some(color) == dyed_color(b)),
         "minecraft:enchantments" => levels_equal(
             a.data().map_or(&[], |d| d.enchantments.as_slice()),
             b.data().map_or(&[], |d| d.enchantments.as_slice()),
@@ -53,6 +54,10 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             a.data().map_or(&[], |d| d.stored_enchantments.as_slice()),
             b.data().map_or(&[], |d| d.stored_enchantments.as_slice()),
         ),
+        "minecraft:enchantment_glint_override" => {
+            a.data().and_then(|d| d.other(id)).and_then(component_bool)
+                == b.data().and_then(|d| d.other(id)).and_then(component_bool)
+        }
         "minecraft:custom_name" => {
             a.data().and_then(|d| d.custom_name.as_ref())
                 == b.data().and_then(|d| d.custom_name.as_ref())
@@ -77,11 +82,42 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             };
             value(a) == value(b)
         }
+        "minecraft:potion_duration_scale" => {
+            // `Float.equals` uses floatToIntBits: signed zeros differ, all NaNs agree.
+            let bits = |stack: &ItemStack| {
+                stack
+                    .data()
+                    .and_then(|data| data.other(id))
+                    .and_then(crate::properties::component_float)
+                    .map(|value| {
+                        if value.is_nan() {
+                            0x7fc0_0000
+                        } else {
+                            value.to_bits()
+                        }
+                    })
+            };
+            bits(a) == bits(b)
+        }
+        "minecraft:minimum_attack_charge" => {
+            let bits = |stack: &ItemStack| {
+                stack
+                    .data()
+                    .and_then(|data| data.other(id))
+                    .and_then(crate::properties::component_float)
+                    .map(f32::to_bits)
+            };
+            bits(a) == bits(b)
+        }
         "minecraft:block_entity_data" => block_entity_equal(
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
         ),
         "minecraft:item_name" => item_name_equal(a, b),
+        "minecraft:item_model" => identifier_equal(
+            a.data().and_then(|d| d.other(id)),
+            b.data().and_then(|d| d.other(id)),
+        ),
         "minecraft:rarity" => rarity(a) == rarity(b),
         "minecraft:ominous_bottle_amplifier" => ominous_amplifier(a) == ominous_amplifier(b),
         _ => stored_component_equal(id, a, b),
@@ -94,6 +130,14 @@ fn map_id(stack: &ItemStack) -> Option<i32> {
     match data.other("minecraft:map_id") {
         Some(value) => crate::properties::component_int(value),
         None => data.map_id,
+    }
+}
+
+fn dyed_color(stack: &ItemStack) -> Option<i32> {
+    let data = stack.data()?;
+    match data.other("minecraft:dyed_color") {
+        Some(raw) => horizon_core::color::rgb_color_from_tag(raw),
+        None => data.dyed_color,
     }
 }
 
@@ -260,6 +304,21 @@ fn ominous_amplifier(stack: &ItemStack) -> Option<i32> {
         None => i32::from(data.ominous_amplifier?),
     };
     (0..=4).contains(&value).then_some(value)
+}
+/// `Identifier.bySeparator`/`equals`: default namespaces, borrowing Java UTF-16.
+fn identifier_equal(a: Option<&Tag>, b: Option<&Tag>) -> bool {
+    let (Some(Tag::String(a)), Some(Tag::String(b))) = (a, b) else {
+        return false;
+    };
+    fn units(value: &JavaString) -> impl Iterator<Item = u16> + '_ {
+        let (prefix, path) = match value.0.iter().position(|unit| *unit == u16::from(b':')) {
+            Some(0) => ("minecraft:", &value.0[1..]),
+            None => ("minecraft:", value.0.as_slice()),
+            Some(_) => ("", value.0.as_slice()),
+        };
+        prefix.encode_utf16().chain(path.iter().copied())
+    }
+    units(a).eq(units(b))
 }
 
 fn block_entity_equal(a: Option<&Tag>, b: Option<&Tag>) -> bool {

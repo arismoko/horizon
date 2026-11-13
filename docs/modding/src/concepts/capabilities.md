@@ -34,7 +34,8 @@ Lookup uses this order:
 
 1. Providers registered with `_before_game`.
 2. The game's provider: for `ITEMS`, container slots exposed by side using the rules hoppers follow,
-   including slots declared with `r.block_container(&block, container)` (`ModContainer`).
+   including slots declared with `r.block_container(&block, container)` (`ModContainer`)
+   and a composter's state-backed ports.
 3. Other registered providers.
 
 Within each mod-provider group, block and block entity type providers form one list in registration
@@ -114,6 +115,26 @@ is undone and `Overanswered` identifies the provider in `owner`. Propagate the e
 There is no `simulate` parameter. To try an operation without keeping its changes, run it in a
 transaction and return `Err` to abort. See [Transactions](transactions.md).
 Hoppers use registered block and block entity type handlers, with each move in its own transaction.
+
+Composters need no block entity. Their top and unsided `ITEMS` ports each expose one empty input
+slot: below level seven, each insertion consumes **one** compostable item, even when offered a
+stack, and evaluates the same vanilla layers provider and random draw algorithm as hopper insertion.
+Their bottom port exposes one bone meal only at level eight; extraction empties the composter.
+Horizontal faces have no game-provided handler. Retained handlers recheck the current level.
+State changes are visible inside the transaction, but fill feedback, game events, maturation
+scheduling and outward block updates wait for the outermost commit. Aborting restores the
+level without those effects. The capability also journals its composter-local random stream,
+so an aborted transfer attempt and its retry have the same chance outcome, without rewinding
+unrelated world randomness. This ownership follows NeoForge's public
+[`TransactionalRandom` contract](https://aldak0.ru/javadoc/26.3.x/net/neoforged/neoforge/transfer/item/TransactionalRandom.html).
+Horizon initializes each position's stream once by copying the current level random state;
+capability composting then neither advances nor rewinds the ordinary level stream. This
+initialization is Horizon's mapping, not a claim about NeoForge's unspecified initial seed.
+Cached streams retire with their chunk or world epoch. Direct hand, villager and vanilla
+container paths keep their existing level-random behavior.
+
+Maturation still takes twenty server ticks after committing level seven. These ports have a
+fixed one-item limit and refuse `set_max_stack_size`.
 
 Look up a neighbour once per tick and reuse the `Capability` for that tick's moves. Look it up again
 on the next tick because the block entity may have been removed. Reusing a lookup also avoids repeated

@@ -2,7 +2,9 @@
 //!
 //! These queries share the factories/catalogs used by the runtime defaults, not a
 //! second inventory of vanilla types. They never need a world, position or stack.
-use super::{armor_stands, boats, machines::cauldron_contents, minecarts::CartKind};
+use super::{
+    armor_stands, boats, composter::is_composter, machines::cauldron_contents, minecarts::CartKind,
+};
 use horizon_client::{containers::BlockEntity, mobs::species};
 use mod_api::ProvidedBy;
 
@@ -18,7 +20,8 @@ pub(super) fn builtin(by: ProvidedBy, capability: &str, kind: &str) -> bool {
                 return false;
             }
             if capability == mod_api::ITEMS.name {
-                BlockEntity::has_builtin_item_container(kind)
+                // Composters expose state-backed ports rather than a block entity.
+                BlockEntity::has_builtin_item_container(kind) || is_composter(kind)
             } else if capability == mod_api::FLUIDS.name {
                 cauldron_contents::vanilla_block_has_fluids(kind)
             } else {
@@ -119,6 +122,7 @@ mod tests {
                 "minecraft:jukebox",
                 "minecraft:chiseled_bookshelf",
                 "minecraft:oak_shelf",
+                "minecraft:composter",
             ] {
                 assert!(
                     builtin(ProvidedBy::Block, capability, kind),
@@ -127,7 +131,6 @@ mod tests {
             }
             for kind in [
                 "minecraft:stone",
-                "minecraft:composter",
                 "minecraft:campfire",
                 "minecraft:decorated_pot",
                 "minecraft:lectern",

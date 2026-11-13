@@ -217,6 +217,7 @@ impl Game<'_> {
     }
 
     pub(super) fn native_lifecycle_open_started(&mut self) {
+        self.clear_composter_randoms();
         self.reset_entity_residency();
         self.entity_initialization = Default::default();
         if let Some(remote) = &mut self.remote {
@@ -276,6 +277,7 @@ impl Game<'_> {
         self.passages.retire_world();
         self.resident_entities.table.get_mut().reset();
         super::cauldron_interactions::clear();
+        self.clear_composter_randoms();
         mod_api::__private::clear_game_parts();
     }
 

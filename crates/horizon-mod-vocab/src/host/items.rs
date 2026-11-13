@@ -169,13 +169,14 @@ pub trait ItemsBackend {
         creative: bool,
     ) -> Option<Vec<TooltipElement>>;
     /// Side: server.
-    /// How many slots of the block entity at `at` its side reaches (none: every slot), by its
-    /// `WorldlyContainer` rules: a furnace's top reaches its input only. None where no block
-    /// entity has slots, in a level not in place, and on a client's copy of the world.
+    /// How many container slots `at`'s side reaches (none: every slot), by its
+    /// `WorldlyContainer` rules: a furnace's top reaches its input only. A composter's up,
+    /// down and unsided ports each expose one state-backed slot. None without a supported
+    /// container/port, in a level not in place, and on a client's copy of the world.
     #[access(WorldOnly)]
     fn container_size(&self, at: BlockSide) -> Option<usize>;
     /// Side: server.
-    /// The stack in slot `slot` of those `at`'s side reaches (`native_container_size`).
+    /// The stack in slot `slot` of those `at`'s side reaches (`container_size`).
     #[access(WorldOnly)]
     fn container_stack(&self, at: BlockSide, slot: usize) -> Option<ItemStack>;
     /// Side: server.
@@ -186,8 +187,8 @@ pub trait ItemsBackend {
     fn container_capacity(&self, at: BlockSide, slot: usize, stack: &ItemStack) -> u32;
     /// Side: server.
     /// How much of `resource` the slots `at`'s side reaches hold in all: [`STORAGE`]'s
-    /// amount for a block entity with slots, in one pass over them. None where the total does
-    /// not fit in 64 bits; 0 where no block entity has slots.
+    /// amount for a container or composter port, in one pass. None where the total does
+    /// not fit in 64 bits; 0 where no supported container or port exists.
     ///
     /// [`STORAGE`]: crate::STORAGE
     #[access(WorldOnly)]
@@ -202,7 +203,7 @@ pub trait ItemsBackend {
     /// What the slots `at`'s side reaches hold, from its `from`th to before its
     /// `from + limit`th (fewer at the end), empty ones included, never more than
     /// [`MAX_STORAGE_PAGE`](crate::MAX_STORAGE_PAGE) slots whatever `limit` asks. None where no
-    /// block entity has slots.
+    /// supported container or composter port exists.
     #[access(WorldOnly)]
     fn container_listing(
         &self,

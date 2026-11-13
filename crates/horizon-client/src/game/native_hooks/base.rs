@@ -3634,15 +3634,6 @@ impl Game<'_> {
     ) {
         self.fire_chunk_load(dimension, chunk, new);
     }
-    /// Chunk `chunk` of `dimension` left the world (NeoForge's
-    /// `ChunkEvent.Unload`), with a level that closes for being empty too. Don't
-    /// read its blocks. Its block entities are still there, but changes made in
-    /// this hook aren't saved: as in vanilla, the chunk is saved before it unloads.
-    /// Not told when the world closes, which `native_world_lifecycle` tells.
-    /// Server-side.
-    pub(in crate::game) fn native_chunk_unload(&mut self, dimension: &str, chunk: [i32; 2]) {
-        self.fire_chunk_unload(dimension, chunk);
-    }
     /// `player` (`name`) joined the game (NeoForge's
     /// `PlayerLoggedInEvent`): placed in the world and listed in
     /// `host.players().server_players()`, so `PlayerRef::send_payload` can reach them.
