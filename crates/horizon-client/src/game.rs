@@ -10170,6 +10170,9 @@ impl Game<'_> {
             {
                 return Ok(UseResult::Fail);
             }
+            if let Some(result) = self.player_empty_contents(stack, target, &hit) {
+                return Ok(result);
+            }
             let pos = BlockPos::new(target[0], target[1], target[2]);
             let [x, y, z] = hit.beside();
             let beside = Some(BlockPos::new(x, y, z));
@@ -10193,26 +10196,7 @@ impl Game<'_> {
             // `BucketItem.emptyContents` uses `playSound(player, …)`: the
             // actor's client already played the empty / evaporate sound from
             // its DryLevel prediction (#4684).
-            if self.lan_acting.is_some()
-                && let Some(capture) = self.audio.capture.as_mut()
-            {
-                let want = sound.trim_start_matches("minecraft:");
-                let mut keep = Vec::with_capacity(capture.len());
-                for entry in capture.drain(..) {
-                    let name = entry.event.trim_start_matches("minecraft:");
-                    if name == want || name == "block.fire.extinguish" {
-                        self.guest_player_sounds.push((
-                            entry.event,
-                            entry.position,
-                            entry.volume,
-                            entry.pitch,
-                        ));
-                    } else {
-                        keep.push(entry);
-                    }
-                }
-                *capture = keep;
-            }
+            self.keep_guest_bucket_sounds(sound);
             if let Some(kind) = mob {
                 if let Some(id) = self.spawn_mob_at(kind, (target[0], target[1], target[2]), true) {
                     self.mob_placed(id, stack)?;

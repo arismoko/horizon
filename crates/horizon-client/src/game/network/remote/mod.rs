@@ -9174,7 +9174,7 @@ impl Game<'_> {
                 )
             });
         }
-        let Some((content, sound, _)) = horizon_client::items::bucket_contents(&stack.item) else {
+        let Some((content, sound, _)) = self.predicted_bucket_contents(stack) else {
             return (false, None, Vec::new());
         };
         let Some(hit) = self.pick() else {

@@ -302,6 +302,12 @@ construct a menu.
 | `create(IContainerFactory)` (static) | Partial | content `MenuType` declaration | Declares slot count, data slots and take-only slots, but cannot supply a factory that builds the client menu from server-sent data. |
 | `create(windowId, inventory, buffer)` | Partial | menu engine + `MenuPart::menu_slot_rules` | The engine builds the menu from the declaration; a mod cannot run code at construction. |
 
+## `IDispensibleContainerItemExtension`
+
+| Method | Verdict | Horizon | Notes |
+| --- | --- | --- | --- |
+| `emptyContents(entity, level, pos, hitResult, container)` | Covered | `ItemPart::empty_contents` (`hooks/empty_contents.rs`) | Asked on the server for a player's pour once `bucket_empty` let it go on, and for a dispenser before its own placement (`player` and `hit` are `None`). `None` keeps vanilla's emptying; `Some(true)` means the part placed the contents and the stack becomes an empty bucket; `Some(false)` fails. An item with the part reaches the dispenser's bucket behaviour even when it is no mod-fluid bucket, and a server's client does not predict its pour. |
+
 ## What the follow-up issues cover
 
 [#1038](https://github.com/arismoko/horizon/issues/1038) (blocks) and
