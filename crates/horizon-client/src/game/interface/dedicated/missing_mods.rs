@@ -30,9 +30,7 @@ fn parse(text: &str) -> std::result::Result<Settings, String> {
 /// stops the start.
 fn allowed_by_server_toml() -> Result<bool> {
     match std::fs::read_to_string("server.toml") {
-        Ok(text) => Ok(parse(&text)
-            .map_err(|e| format!("server.toml: {e}"))?
-            .allow),
+        Ok(text) => Ok(parse(&text).map_err(|e| format!("server.toml: {e}"))?.allow),
         Err(why) if why.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(why) => Err(format!("server.toml: {why}").into()),
     }
@@ -76,10 +74,13 @@ impl Game<'_> {
         level_mods::forget_answer();
         let mut lines = in_english(|| level_mods::refusal_lines(&missing));
         let last = lines.pop().unwrap_or_default();
+        let heading = in_english(|| horizon_client::lang::get("horizon.missing_mods.title"));
+        log("ERROR", &heading);
         for line in &lines {
             log("ERROR", line);
         }
-        Err(last.into())
+        log("ERROR", &last);
+        Err(crate::game::MissingModsRefusal(last).into())
     }
 }
 
@@ -90,8 +91,14 @@ mod tests {
     #[test]
     fn missing_mods_refuse_unless_allowed() {
         assert_eq!(parse("").unwrap(), Settings { allow: false });
-        assert_eq!(parse("[combat]\nlegacy = true\n").unwrap(), Settings { allow: false });
-        assert_eq!(parse("[missing_mods]\n").unwrap(), Settings { allow: false });
+        assert_eq!(
+            parse("[combat]\nlegacy = true\n").unwrap(),
+            Settings { allow: false }
+        );
+        assert_eq!(
+            parse("[missing_mods]\n").unwrap(),
+            Settings { allow: false }
+        );
         assert_eq!(
             parse("[missing_mods]\nallow = true\n").unwrap(),
             Settings { allow: true }
@@ -128,7 +135,10 @@ mod tests {
             std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap()),
             crate::game::execution_role::ExecutionRole::DedicatedServer,
             |game| {
-                let refused = game.check_missing_mods(&dir, false).unwrap_err().to_string();
+                let refused = game
+                    .check_missing_mods(&dir, false)
+                    .unwrap_err()
+                    .to_string();
                 assert!(refused.contains(level_mods::ALLOW_FLAG), "{refused}");
                 assert!(game.check_missing_mods(&dir, true).is_ok());
             },

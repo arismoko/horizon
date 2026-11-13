@@ -14792,6 +14792,17 @@ fn run_loading(
 
 pub use launch_api::{UsageError, exit_code};
 
+/// An intentional refusal to open a world without its saved mods, not a crash.
+#[derive(Debug)]
+pub(crate) struct MissingModsRefusal(pub String);
+
+impl std::fmt::Display for MissingModsRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for MissingModsRefusal {}
+
 pub(crate) fn run_with(
     options: Options,
     native: horizon_mod_package::runtime::Runtime,

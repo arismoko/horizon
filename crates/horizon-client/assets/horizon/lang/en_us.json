@@ -369,7 +369,7 @@
   "horizon.missing_mods.open": "Open Without a Backup",
   "horizon.missing_mods.server.help": "Opens a world saved with mods that are not loaded now, removing their blocks",
   "horizon.missing_mods.server.allowed": "Opening the world anyway, as --%s or [missing_mods] allow in server.toml says: those mods' blocks are removed",
-  "horizon.missing_mods.server.refused": "The world was not opened: opening it removes those mods' blocks, and what they hold, for good. To open it anyway, start the server with --%s or set allow = true under [missing_mods] in server.toml",
+  "horizon.missing_mods.server.refused": "The world was not opened: opening it removes those mods' blocks, and what they hold, for good. Restore the missing mods, or back up the world folder first. To open it anyway, start the server with --%s or set allow = true under [missing_mods] in server.toml",
   "horizon.missing_mods.title": "Mods are missing",
   "horizon.missing_mods.unknown_version": "an unknown version",
   "horizon.chat.copied": "Message copied",
