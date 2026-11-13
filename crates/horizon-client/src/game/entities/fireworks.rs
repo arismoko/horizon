@@ -965,7 +965,7 @@ impl Game<'_> {
         let w = self.mob_world_base(&[]);
         let block = (super::creatures::ProjWorld {
             w: &w,
-            targets: Vec::new(),
+            targets: &[],
             border: Some(self.border.bounds()),
         })
         .clip(from, to);

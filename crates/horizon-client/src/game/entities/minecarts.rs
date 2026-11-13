@@ -2163,10 +2163,12 @@ impl Game<'_> {
             return;
         }
         let target = self.cart_player_dismount_target(i);
+        let from = self.player.as_ref().map(|player| player.position);
         if let Some(p) = self.player.as_mut() {
             p.position = target;
             p.velocity = Vec3::ZERO;
         }
+        section_steps::tell_player(self, from.map(|from| (from, target)));
     }
     /// Where the cart at `i` lets a player off.
     pub(super) fn cart_player_dismount_target(&self, i: usize) -> Vec3 {

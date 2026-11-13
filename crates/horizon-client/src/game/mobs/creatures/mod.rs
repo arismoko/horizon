@@ -15,6 +15,7 @@ mod mob_dispatch_panic_tests;
 mod player_loot_entity;
 mod projectile_targets;
 mod projectile_world;
+pub(super) use projectile_world::ProjWorld;
 mod pufferfish_player;
 mod residency;
 mod section_steps;
@@ -252,14 +253,6 @@ pub(super) struct Creatures {
     /// Particles from a guest's turn, waiting for it to end.
     pub lan_particles: Vec<super::lan_particles::QueuedParticle>,
 }
-pub(super) struct ProjWorld<'a, 'w> {
-    pub w: &'a MobWorld<'w>,
-    pub targets: Vec<(Who, Aabb)>,
-    /// The world border's [minX, minZ, maxX, maxZ], which stops the ray as a
-    /// block would (`clipIncludingBorder`); None: no border.
-    pub border: Option<[f64; 4]>,
-}
-
 /// `Projectile.isPickable`: a projectile in `#minecraft:redirectable_projectile`
 /// (a ghast's fireball and both wind charges) is pickable, so another
 /// projectile's `ProjectileUtil.getEntityHitResult` can strike it
@@ -4497,12 +4490,12 @@ impl Game<'_> {
                     let scene = self.arrow_scene(&rain);
                     let pw = ProjWorld {
                         w: &w,
-                        targets: targets.clone(),
+                        targets: &targets,
                         border,
                     };
                     let pw_guests = ProjWorld {
                         w: &w,
-                        targets: targets_guests.clone(),
+                        targets: &targets_guests,
                         border,
                     };
                     projectiles.update(i, |p| {
@@ -4538,9 +4531,9 @@ impl Game<'_> {
                         }
                         (true, with_guests, false) => {
                             let mut targets = if with_guests {
-                                pw_guests.targets.clone()
+                                pw_guests.targets.to_vec()
                             } else {
-                                pw.targets.clone()
+                                pw.targets.to_vec()
                             };
                             targets.extend_from_slice(&winds);
                             horizon_client::arrows::tick(p, &scene, &targets)
@@ -4549,14 +4542,14 @@ impl Game<'_> {
                         (false, true, true) => p.tick(&pw_guests),
                         (false, pvp_shot, false) => {
                             let mut targets = if pvp_shot {
-                                pw_guests.targets.clone()
+                                pw_guests.targets.to_vec()
                             } else {
-                                pw.targets.clone()
+                                pw.targets.to_vec()
                             };
                             targets.extend_from_slice(&winds);
                             p.tick(&ProjWorld {
                                 w: if pvp_shot { pw_guests.w } else { pw.w },
-                                targets,
+                                targets: &targets,
                                 border,
                             })
                         }
@@ -10907,7 +10900,7 @@ mod pearl_tests {
         };
         let pw = ProjWorld {
             w: &w,
-            targets: Vec::new(),
+            targets: &[],
             border: None,
         };
         let pearl = |x: f64, y: f64, velocity: Vec3| {
