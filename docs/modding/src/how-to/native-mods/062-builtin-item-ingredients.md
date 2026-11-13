@@ -54,11 +54,14 @@ Native registrations retain their persistent NBT validation contract.
 
 The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
 `max_stack_size`, `rarity`, `enchantments`, `stored_enchantments`, `custom_name`,
-`item_name`, `block_entity_data`, `enchantable`, and `map_id` in the `minecraft` namespace.
+`item_name`, `block_entity_data`, `enchantable`, `map_id`, and
+`ominous_bottle_amplifier` in the `minecraft` namespace.
 `enchantable` requires a positive integer `value`; extra record fields are ignored
 and equivalent numeric NBT widths match, including item defaults. Map ids accept
 signed numbers, including negative ids, using Java's integer conversion.
-The other 110 registered built-ins use stored-value matching while their shared
+The amplifier accepts numeric forms converted to an integer in 0..=4;
+out-of-range payloads are rejected, never clamped.
+The other 109 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference

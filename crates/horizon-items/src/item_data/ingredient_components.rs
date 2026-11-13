@@ -83,6 +83,7 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
         ),
         "minecraft:item_name" => item_name_equal(a, b),
         "minecraft:rarity" => rarity(a) == rarity(b),
+        "minecraft:ominous_bottle_amplifier" => ominous_amplifier(a) == ominous_amplifier(b),
         _ => stored_component_equal(id, a, b),
     }
 }
@@ -249,6 +250,16 @@ fn rarity(stack: &ItemStack) -> Option<u8> {
         Some(_) => None,
         None => data.ominous_banner.then_some(1),
     }
+}
+
+/// `OminousBottleAmplifier.CODEC`: borrow the effective raw override or modelled value.
+fn ominous_amplifier(stack: &ItemStack) -> Option<i32> {
+    let data = stack.data()?;
+    let value = match data.other("minecraft:ominous_bottle_amplifier") {
+        Some(raw) => crate::properties::component_int(raw)?,
+        None => i32::from(data.ominous_amplifier?),
+    };
+    (0..=4).contains(&value).then_some(value)
 }
 
 fn block_entity_equal(a: Option<&Tag>, b: Option<&Tag>) -> bool {

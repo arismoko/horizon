@@ -35,6 +35,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:item_name",
     "minecraft:block_entity_data",
     "minecraft:enchantable",
+    "minecraft:ominous_bottle_amplifier",
 ];
 
 /// Validate and decode a component into the value representation shared with stacks.
@@ -58,7 +59,8 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         | "minecraft:repair_cost"
         | "minecraft:max_damage"
         | "minecraft:max_stack_size"
-        | "minecraft:map_id" => {
+        | "minecraft:map_id"
+        | "minecraft:ominous_bottle_amplifier" => {
             Tag::Int(int_of(value).expect("validated numeric component") as i32)
         }
         "minecraft:enchantable" => {
@@ -127,6 +129,14 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             let v = int_of(value).ok_or("Not a number")?;
             if v <= 0 {
                 return Err(format!("Value must be positive: {v}"));
+            }
+            Ok(())
+        }
+        // The amplifier integer codec accepts only 0 through 4, without clamping.
+        "minecraft:ominous_bottle_amplifier" => {
+            let v = int_of(t).ok_or("Not a number")?;
+            if !(0..=4).contains(&v) {
+                return Err(format!("Value must be within range [0;4]: {v}"));
             }
             Ok(())
         }

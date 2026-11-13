@@ -454,3 +454,162 @@ fn components_enchantable_decodes_positive_records_and_matches_values() {
     );
     assert!(!positive_without_default.test_in(&context, &bare));
 }
+
+#[test]
+fn ominous_bottle_amplifier_codec_loads_matches_and_rejects_out_of_range() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:ominous_bottle".into(),
+        [("minecraft:ominous_bottle_amplifier".into(), Tag::Byte(0))]
+            .into_iter()
+            .collect(),
+    )]));
+    let source = r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":3.9}}"#;
+    let ingredient = parse(source, &items);
+    assert_eq!(
+        ingredient.shown.as_ref().unwrap()[0]
+            .data()
+            .unwrap()
+            .ominous_amplifier,
+        Some(3)
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:ominous_amplifier".into(),
+            serde_json::json!({
+                "type":"minecraft:crafting_shapeless",
+                "ingredients":[serde_json::from_str::<Value>(source).unwrap()],
+                "result":{"id":"minecraft:diamond"}
+            }),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut bottle = ItemStack::new("minecraft:ominous_bottle", 1);
+    bottle.data_mut().ominous_amplifier = Some(3);
+    assert!(ingredient.test_in(&context, &bottle));
+    assert_eq!(
+        recipes
+            .craft(&context, &[Some(bottle.clone())], 1)
+            .unwrap()
+            .item
+            .as_ref(),
+        "minecraft:diamond"
+    );
+    bottle.data_mut().ominous_amplifier = Some(4);
+    assert!(!ingredient.test_in(&context, &bottle));
+    assert!(
+        recipes
+            .craft(&context, &[Some(bottle.clone())], 1)
+            .is_none()
+    );
+
+    // Codec.INT uses Number.intValue, including long truncation and fractional floats.
+    for value in [
+        Tag::Byte(3),
+        Tag::Short(3),
+        Tag::Int(3),
+        Tag::Long(4_294_967_299),
+        Tag::Float(3.9f32.to_bits()),
+        Tag::Double(3.9f64.to_bits()),
+    ] {
+        assert_eq!(
+            horizon_command::item::decoded_component_value(
+                "minecraft:ominous_bottle_amplifier",
+                &value,
+                &items.component_registry,
+            )
+            .unwrap(),
+            Tag::Int(3)
+        );
+        bottle
+            .data_mut()
+            .set_other("minecraft:ominous_bottle_amplifier", Some(value.clone()));
+        let (matches, allocations) =
+            horizon_threads::allocation_probe::measure(|| ingredient.test_in(&context, &bottle));
+        assert!(matches);
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        let patch = Tag::compound([("minecraft:ominous_bottle_amplifier", value)]);
+        (_, bottle.extra) = crate::item_data::decode_components(Some(&patch));
+        assert_eq!(bottle.data().unwrap().ominous_amplifier, Some(3));
+        assert!(ingredient.test_in(&context, &bottle));
+    }
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(std::hint::black_box(ingredient.test_in(&context, &bottle)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+
+    let zero = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":0}}"#,
+        &items,
+    );
+    let four = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":4}}"#,
+        &items,
+    );
+    let plain = ItemStack::new("minecraft:ominous_bottle", 1);
+    let (matches, allocations) =
+        horizon_threads::allocation_probe::measure(|| zero.test_in(&context, &plain));
+    assert!(matches);
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    bottle.data_mut().ominous_amplifier = Some(4);
+    assert!(four.test_in(&context, &bottle));
+    for value in [Tag::Int(-1), Tag::Int(5), Tag::String("3".into())] {
+        bottle
+            .data_mut()
+            .set_other("minecraft:ominous_bottle_amplifier", Some(value.clone()));
+        assert!(!zero.test_in(&context, &bottle));
+        assert!(!four.test_in(&context, &bottle));
+        let patch = Tag::compound([("minecraft:ominous_bottle_amplifier", value)]);
+        (_, bottle.extra) = crate::item_data::decode_components(Some(&patch));
+        assert_eq!(bottle.data().unwrap().ominous_amplifier, None);
+        assert!(!zero.test_in(&context, &bottle));
+        assert!(!four.test_in(&context, &bottle));
+    }
+
+    for source in [
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":-1}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":5}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":"3"}}"#,
+    ] {
+        let json: Value = serde_json::from_str(source).unwrap();
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(json["components"].as_object().unwrap())
+                .unwrap(),
+            removed: Vec::new(),
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:ominous_bottle_amplifier:"),
+            "{error}"
+        );
+        assert!(Ingredient::parse(&json, &items).is_none());
+        let refused = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:invalid_amplifier".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless",
+                    "ingredients":[json],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert!(refused.crafting.is_empty());
+        assert!(refused.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+}

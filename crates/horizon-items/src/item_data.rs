@@ -1727,7 +1727,11 @@ pub fn decode_components(components: Option<&Tag>) -> (u32, Option<Box<StackData
             && matches!(
                 seen.banner_patterns,
                 Some(Tag::List(layers)) if layers.len() == OMINOUS_LAYERS.len()),
-        ominous_amplifier: seen.amplifier.and_then(int).map(|v| v.clamp(0, 4) as u8),
+        ominous_amplifier: seen
+            .amplifier
+            .and_then(crate::properties::component_int)
+            .filter(|v| (0..=4).contains(v))
+            .map(|v| v as u8),
         trim: seen.trim.and_then(trim::from_nbt),
         bundle_selected: BundleSelected::default(),
         other: Vec::new(),
