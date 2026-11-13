@@ -155,7 +155,7 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
         }
         // DyeColor.CODEC's canonical NbtOps value is its exact serialized name.
         // Live stacks retain these colors in `other`; borrow UTF-16 without palette scans.
-        "minecraft:dye" | "minecraft:sheep/color" => match (
+        "minecraft:dye" | "minecraft:sheep/color" | "minecraft:shulker/color" => match (
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
         ) {

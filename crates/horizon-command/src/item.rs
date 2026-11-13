@@ -36,6 +36,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:rarity",
     "minecraft:dye",
     "minecraft:sheep/color",
+    "minecraft:shulker/color",
     "minecraft:base_color",
     "minecraft:enchantments",
     "minecraft:stored_enchantments",
@@ -240,7 +241,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         },
         // DyeColor.CODEC -> StringRepresentable.fromEnum: ordinary NbtOps uses
         // exact names, not the ordinal codec selected by compressMaps().
-        "minecraft:dye" | "minecraft:base_color" | "minecraft:sheep/color" => {
+        "minecraft:dye" | "minecraft:base_color" | "minecraft:sheep/color" | "minecraft:shulker/color" => {
             dye_color(t).map(|_| ())
         }
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
