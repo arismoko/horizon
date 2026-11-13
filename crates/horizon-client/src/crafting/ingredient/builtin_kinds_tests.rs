@@ -563,6 +563,39 @@ fn ominous_bottle_amplifier_codec_loads_matches_and_rejects_out_of_range() {
     assert_eq!(allocations.calls, 0, "{allocations:?}");
     bottle.data_mut().ominous_amplifier = Some(4);
     assert!(four.test_in(&context, &bottle));
+    let mut live_four = ItemStack::new("minecraft:ominous_bottle", 1);
+    live_four.data_mut().ominous_amplifier = Some(4);
+    for source in [
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":4.0}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":4.5}}"#,
+    ] {
+        let boundary = parse(source, &items);
+        assert_eq!(
+            boundary.shown.as_ref().unwrap()[0]
+                .data()
+                .unwrap()
+                .ominous_amplifier,
+            Some(4)
+        );
+        assert!(boundary.test_in(&context, &live_four));
+    }
+    let absence_source = r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"!minecraft:ominous_bottle_amplifier":{}}}"#;
+    let absence = parse(absence_source, &items);
+    let mut removed = ItemStack::new("minecraft:ominous_bottle", 1);
+    assert!(!absence.test_in(&context, &removed));
+    removed.data_mut().set_other(
+        "!minecraft:ominous_bottle_amplifier",
+        Some(Tag::compound([] as [(&str, Tag); 0])),
+    );
+    assert!(absence.test_in(&context, &removed));
+    assert!(!zero.test_in(&context, &removed));
+    assert!(!ingredient.test_in(&context, &removed));
+    assert!(!absence.test_in(&context, &live_four));
+    let no_defaults = Items::empty();
+    assert!(
+        parse(absence_source, &no_defaults)
+            .test_in(&context, &ItemStack::new("minecraft:ominous_bottle", 1),)
+    );
     for value in [Tag::Int(-1), Tag::Int(5), Tag::String("3".into())] {
         bottle
             .data_mut()
@@ -580,6 +613,7 @@ fn ominous_bottle_amplifier_codec_loads_matches_and_rejects_out_of_range() {
         r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":-1}}"#,
         r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":5}}"#,
         r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":"3"}}"#,
+        r#"{"type":"neoforge:components","items":"minecraft:ominous_bottle","components":{"minecraft:ominous_bottle_amplifier":1e100}}"#,
     ] {
         let json: Value = serde_json::from_str(source).unwrap();
         let rule = IngredientRule::Components {
