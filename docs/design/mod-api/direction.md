@@ -1,7 +1,7 @@
 # Where the mod API is going
 
 The mod API is built toward one shape, and every change to it is judged against that shape. This page
-explains the shape and why it is the one. The [trait mods page](../../modding/src/concepts/trait-mods.md) says how to write against it
+explains the shape and why it is the one. The [trait mods page](../../modding/src/concepts/parts.md) says how to write against it
 today; the [project board](https://github.com/users/arismoko/projects/1) and the pinned roadmap issue
 [#771](https://github.com/arismoko/horizon/issues/771) hold the work that is still open.
 
@@ -59,7 +59,7 @@ from the newly published generation without acquiring a world handle or transact
 Host reads are restricted to those published facts, registry facts, settings and the mod list;
 existing data-context callbacks keep `DataLoadContext`. A forbidden operation panics naming
 the phase. The game alone advances the thread-local boundary, so the window and integrated server
-cannot change one another's permissions. [Load phases and access](../../modding/src/concepts/trait-mods.md#load-phases-and-access)
+cannot change one another's permissions. [Load phases and access](../../modding/src/concepts/load-phases.md)
 lists the once-per-process, per-world and per-reload moments. No additional FML or intermod bus is added.
 
 ## Registering behaviour
@@ -73,8 +73,8 @@ of the table and the point at which it becomes visible.
 The registrar records the owning mod, checks for conflicting declarations and reports refusals before
 installing the table. It accepts registry keys and tags before the final per-game tables are available.
 When a game resolves its registries and tags, it binds the Parts to the objects they target. Runtime
-hooks then dispatch to the attached Parts. See [registry keys](../../modding/src/concepts/trait-mods/007-registry-keys.md)
-and [Parts](../../modding/src/concepts/trait-mods.md#parts).
+hooks then dispatch to the attached Parts. See [registry keys](../../modding/src/concepts/registry-keys.md)
+and [Parts](../../modding/src/concepts/parts.md).
 
 | Behaviour | Entry point | Side and collection time | When usable |
 | --- | --- | --- | --- |
@@ -94,7 +94,7 @@ and [Parts](../../modding/src/concepts/trait-mods.md#parts).
 | HUD layers and F3 entries | `register_gui_layers` and `register_debug_entries` | Client startup | When the installed HUD order or debug entry list is used for drawing. |
 | World-space debug renderers | `register_debug_renderers` | Client, each refresh of the renderer list | The next debug draw uses the refreshed list. |
 | Model layers, colour resolvers, block and item tints, numeric and categorical item model properties | `register_layer_definitions`, `register_color_resolvers`, `register_block_tint_sources`, `register_item_tint_sources`, `register_range_select_item_model_property`, `register_select_item_model_property` | Client startup before resource loading | The client can resolve the declarations when it builds its models and rendering tables. |
-| Entity renderers | `register_entity_renderers` registers an `EntityRenderer` per entity type | Client startup before resource loading; resolved again on every resource load | When a frame draws an entity of the type through a route that reads the table: the content mods' thrown types so far ([entity renderers](../../modding/src/how-to/entity-renderers.md)). |
+| Entity renderers | `register_entity_renderers` registers an `EntityRenderer` per entity type | Client startup before resource loading; resolved again on every resource load | When a frame draws an entity of the type through a route that reads the table: the content mods' thrown types so far ([entity renderers](../../modding/src/how-to/client/entity-renderers.md)). |
 | Data map types | `data_map_types` | Server, at world data load and each reload | After the server publishes the loaded data maps. |
 | Recipe property additions | `recipe_property_sets` | Server data load and client preload, after recipes resolve, and again on reload | When station slot checks use the published sets. |
 | Mod configs | `register_configs` | Config phase on the owning side, once at startup for Client/Common and per world for Server | After the file is read and the mod receives its config loading callback. |
@@ -145,7 +145,7 @@ reload. Each builder should collect typed declarations and validate keys before 
 
 A per-block, per-item or per-entity moment is a method on a part, as it is a method on `Block` or `Item` in
 vanilla and NeoForge. A mod attaches parts once, in `Hooks::register`, and the game asks only the parts
-attached to the thing in question. [Trait mods, Parts and attachments](../../modding/src/concepts/trait-mods.md#parts) covers writing
+attached to the thing in question. [Trait mods, Parts and attachments](../../modding/src/concepts/parts.md) covers writing
 them; the design is this:
 
 - **One trait per scope.** `BlockPart`, `BlockEntityPart`, `ItemPart` and `MenuPart` are generated from the
@@ -218,7 +218,7 @@ API's own, converted on the game side.
 
 `[[inject]]` is the shared native/wasm escape hatch for what the API does not yet reach. The rule is
 API first: a mod needing something the API lacks asks for the hook that replaces the injection, and the
-injection is the stopgap until it exists. The [injections chapter](../../modding/src/injections.md) holds the current forms,
+injection is the stopgap until it exists. The [injections chapter](../../modding/src/concepts/injections.md) holds the current forms,
 the decision ladder and the hook-request format.
 
 ## The order of the build route
@@ -235,7 +235,7 @@ rests on the one before:
 4. **Wasm points.** API `[[inject]]` listeners use the same records on native and wasm.
    Engine internals and listed call sites are native only.
 
-A native mod that needs a supported source edit uses [mixins](../../modding/src/mixins.md),
+A native mod that needs a supported source edit uses [mixins](../../modding/src/concepts/native-route/2-mixins.md),
 which compile game code. An inject never falls back to one.
 
 ## No telemetry

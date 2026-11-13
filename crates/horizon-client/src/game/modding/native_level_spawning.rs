@@ -1,5 +1,5 @@
 //! Mob spawning and a level's natural spawning policy through a `LevelRef`
-//! (docs/modding/src/how-to/spawning.md, "Spawning from a level"): a mob made
+//! (docs/modding/src/how-to/world/spawning.md, "Spawning from a level"): a mob made
 //! as `EntityType.spawn` makes one, the per-category limits and the flags
 //! natural spawning reads (`natural_spawning::SpawnPolicy`), and the chunk
 //! question it asks (`ServerLevel.canSpawnEntitiesInChunk`).

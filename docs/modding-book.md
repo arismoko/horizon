@@ -12,10 +12,10 @@ The book follows [Diátaxis](https://diataxis.fr): a page is one of four kinds, 
 
 | Kind | Job | Lives in |
 |---|---|---|
-| Tutorial | Take a newcomer to a working result | Start |
-| Explanation | Say how the pieces fit, with no steps | Concepts |
-| How-to | One task, steps only | How-to, Injections |
-| Reference | Facts, complete and dry | Reference, and the rustdoc of `horizon-mod-api` |
+| Tutorial | Take a newcomer to a working result | Getting started (`start/`) |
+| Explanation | Say how the pieces fit, with no steps | Concepts (`concepts/`) |
+| How-to | One task, steps only | How-to (`how-to/`), grouped by what the mod changes |
+| Reference | Facts, complete and dry | Reference (`reference/`), and the rustdoc of `horizon-mod-api` |
 
 - **A hook, event or `Host` method:** its `///` lines in the declaration under `crates/horizon-mod-vocab/src/hooks/`.
   The generator writes it as `///` on the generated item; `cargo doc -p horizon-mod-api` shows it. A hook without
@@ -35,22 +35,37 @@ The book follows [Diátaxis](https://diataxis.fr): a page is one of four kinds, 
 - **A guide page:** `docs/modding/src/`. Code in a page is `{{#include}}`d from `docs/modding/examples`, which
   compiles, so a change to the API that breaks an example fails the build.
 - **A mod API change** updates its fragment `doc` and any page it affects in the same PR.
-- **A new concept or how-to page:** add the file directly under `concepts/` or `how-to/`; the book adds it
-  to its part, after the pages `SUMMARY.md` lists, in order of its `#` title. Don't add it to `SUMMARY.md`
-  unless it must come first or sit in another part. Any other new page needs its `SUMMARY.md` line: the
-  build fails on a page the book doesn't render, and on a `SUMMARY.md` link to a missing file.
-- **Trait-mod and native-mod concepts:** edit one source in `concepts/trait-mods/` or
-  `how-to/native-mods/`. Sorted filenames set reading order; the leading `<!-- chapter: Title -->`
-  supplies the navigation title. New files are discovered automatically, without a shared list edit.
-  The old pages are assembled from these sources to preserve published links and heading anchors.
-  Do not append prose to the aggregate pages or remove an existing heading anchor.
-  Each `legacy-anchors.txt` freezes the pre-split published anchors; never extend it per new concept.
-  Optional `<!-- separator: N -->` metadata preserves original inter-section blank lines in aggregates
-  without trailing blank lines in source files; new pages default to one blank line.
-  Use relative links (inline or reference-style); root-relative links are refused.
+- **A new page:** add the file to the folder of its topic. A page `X.md` with a folder `X/` beside it gets the
+  folder's pages as its sub-chapters, in file name order (a numeric prefix such as `07-` sets the order where it
+  matters), titled by each page's `#` heading; `<!-- section-pages -->` in `X.md` becomes a list of them. A page
+  directly in `concepts/` or `how-to/` that `SUMMARY.md` doesn't list joins the end of its part, by title. Any
+  other new page needs its `SUMMARY.md` line: the build fails on a page the book doesn't render, and on a
+  `SUMMARY.md` link to a missing file.
+- **Links:** relative between book pages (inline or reference-style; root-relative links are refused), and
+  a github.com URL for anything else in the repository, since the site publishes only `docs/modding/src`. The
+  build checks every link and anchor.
+- **Images:** SVG under `docs/modding/src/images/`, with alt text that says what the picture says. Text sits on its
+  own filled box so a figure reads on the light and the dark themes alike.
 - `src/llms.txt` is the index for agents; keep it in step with `SUMMARY.md`.
 
 Build the book with `mdbook build docs/modding` and the reference with `cargo doc -p horizon-mod-api --no-deps`.
+
+## How the book reads
+
+The book is the manual a mod author reads: it says what the game does, and how to use it.
+
+- **Present tense, second person.** "The hook fires after…", "You declare…". Imperative for steps.
+- **No status words** (provisional, not built yet, planned, for now, today, currently, as of, still, no longer,
+  first slice, follow-up). A feature that does not exist is not mentioned. A request the game refuses is
+  documented as behaviour: what is refused, when, and the message or error the author sees.
+- **No history:** no "used to", "replaces the old…", migration notes or comparisons with an earlier Horizon.
+  Naming the NeoForge or vanilla counterpart of a concept is welcome.
+- **No issue or PR numbers, dates, commit hashes, rulings, review notes, test names or benchmark logs,** and no
+  instructions for people changing Horizon itself: those go in `docs/mod-api/`.
+- **Short.** Lead with what the reader can do and one example; then rules and limits as a list or table.
+- **Names exactly as in code,** in backticks. When the code and a page disagree, the code wins: fix the page.
+- **Code samples** are `{{#include}}`d from `docs/modding/examples`, which compiles. An inline sample that is not
+  compiled is fenced `rust,ignore` and still matches the real signatures.
 
 ## What a PR needs to show
 

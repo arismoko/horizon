@@ -7,4 +7,4 @@ components when requested. Local and guest packet paths use that same query.
 
 Diverges from upstream: upstream's `block_clone_item` query is folded into this
 existing hook, not exposed as a second interception point. See the modding book's
-[Block Parts](modding/src/concepts/trait-mods/008-block-parts.md).
+[Block Parts](modding/src/concepts/parts/block-parts.md).

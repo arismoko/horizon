@@ -1,6 +1,6 @@
 # Design: Attachment query joins
 
-Provisional proposal for [#2497](https://github.com/arismoko/horizon/issues/2497), extending [#1108's attachment query contract](../../modding/src/how-to/attachments.md). Docs only; approval precedes implementation. The existing single-type API remains the same operation, extended through typed query specifications, without aliases or compatibility paths. Follow [Part instance state](part-instance-state.md) for lifecycle identity and root commit rules.
+Provisional proposal for [#2497](https://github.com/arismoko/horizon/issues/2497), extending [#1108's attachment query contract](../../modding/src/concepts/attachments/querying.md). Docs only; approval precedes implementation. The existing single-type API remains the same operation, extended through typed query specifications, without aliases or compatibility paths. Follow [Part instance state](part-instance-state.md) for lifecycle identity and root commit rules.
 
 ## Evidence and route owners
 

@@ -26,7 +26,7 @@ noise textures also stay data (`docs/api/shaders.md:171`).
 The existing pack generator supplies the conversion helpers in
 `crates/horizon-shader-api/src/stages.rs:133`, frame-storage conversion at
 `:510`, and linear post-chain entry code at `:610`. Mod pipelines (#884,
-[Drawing with your own render pipeline](../../modding/src/how-to/render-pipelines.md)) reuse the
+[Drawing with your own render pipeline](../../modding/src/how-to/client/render-pipelines.md)) reuse the
 helpers at `:133` in their generated entry points; mod passes (#867, #869) do not
 exist yet. The current
 experimental serving limits are in `docs/api/shaders.md:163`: 0.2 needs

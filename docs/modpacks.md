@@ -412,7 +412,7 @@ Over a folder of jars it ranks the names by how many mods use them. Each name ge
 - none.
 
 The load-phase events follow the modding book's
-[load phases](https://arismoko.github.io/horizon/concepts/trait-mods.html#load-phases-and-access).
+[load phases](https://arismoko.github.io/horizon/concepts/load-phases.html).
 `FMLCommonSetupEvent`'s work goes in `Hooks::register`, then the first server reload.
 `FMLLoadCompleteEvent`'s goes after the initial config and before `server_about_to_start`.
 `FMLDedicatedServerSetupEvent`'s goes in `server_about_to_start`, when its `dedicated` flag is set.

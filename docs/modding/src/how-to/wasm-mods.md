@@ -1,53 +1,26 @@
-# Building a mod to `mod.wasm`
+# WebAssembly mods
 
-## Boundary benchmark
-
-From the root of the worktree containing the fixture and runtime to measure, build the tool, fixture,
-and shared std, then run the release benchmark. This requires `rust-src` and the
-`wasm32-unknown-unknown` target for the pinned wasm toolchain:
-
-```sh
-cargo build -p cargo-horizon-mod
-(cd crates/horizon-mod-wasm/tests/fixture && "$OLDPWD/target/debug/cargo-horizon-mod" horizon-mod build --wasm --catalog points.json && "$OLDPWD/target/debug/cargo-horizon-mod" horizon-mod wasm-std "$OLDPWD/target/horizon-wasm-std.wasm" --catalog points.json)
-HORIZON_WASM_STD="$PWD/target/horizon-wasm-std.wasm" HORIZON_WASM_FIXTURE="$PWD/crates/horizon-mod-wasm/tests/fixture/target/horizon-mod/wasm_fixture.hmod" cargo test --release -p horizon-mod-wasm --features listener-fixture --test bench empty_subscribed_listener -- --ignored --exact --nocapture
-```
-
-Building the fixture rewrites `crates/horizon-mod-wasm/tests/fixture/horizon-mod.toml` with the
-generated wasm hash and toolchain identity. Inspect and discard those generated manifest changes
-after measurement rather than committing toolchain-specific hashes; preserve any intended edits.
-Keep the machine, build profile and conditions consistent when comparing revisions.
-
-The empty-listener benchmark dispatches the same subscribed `server_stopped` listener natively and
-in wasm. It reports 100 samples of 100,000 dispatches after 20 warm-up samples, with loading,
-initialization, subscription installation and the in-memory host outside timing. It is not a
-server teardown or world tick. The existing `block_entity_ticks` case measures 1,000 in-memory
-block entity ticks per sample, with and without two host reads per tick; replace
-`empty_subscribed_listener` with `block_entity_ticks` in the command to run it. The `wasm-mods`
-workflow runs that case only on manual dispatch.
-
-For an outer wasm call, an immediately available group lock does not start the busy timer. On
-contention, non-worker calls wait up to five seconds from the first failed lock attempt; they
-return busy immediately if the group is lent to another thread. Worker calls continue waiting
-instead of using that timeout or lending refusal. A synchronous same-thread reentrant call uses
-the lent context and its enclosing deadline; frame, resource and trap cleanup still apply.
-
-A mod written against `mod_api` builds either way from the same source: native, compiled into
-the game by the launcher ([Native mods](native-mods.md)), or to `mod.wasm`, which any game with
-the same mod API runs with no rebuild. Only the build step differs: the hooks, Parts,
+A mod written against `mod_api` builds either way from the same source: native, compiled against
+the pinned prebuilt game by the launcher ([Native mods](native-mods.md)), or to `mod.wasm`, which runs in a game with
+a compatible API layout and wasm toolchain. Only the build step differs: the hooks, Parts,
 `[dependencies]` and the manifest mean the same for both.
 
-The example counts ticks with the `server_tick` hook, so it also works on plain game builds.
+Use the `server_tick` hook to count ticks:
 
 ```rust,ignore
 {{#include ../../examples/wasm-hello/src/lib.rs:mod}}
 ```
 
+Ordinary wasm calls refuse with busy after five seconds of contention, or
+immediately during lending. Worker calls wait instead. Same-thread reentry shares
+the enclosing call's remaining deadline rather than starting a new budget.
+
 ## Owned values and `Wire`
 
-Native and wasm use the same owned-value encoding. A mod chooses which of its own
+Native and wasm use the same owned-value encoding. Choose which of your own
 values may cross that boundary by explicitly deriving `mod_api::Wire`:
 
-```rust
+```rust,ignore
 #[derive(mod_api::Wire)]
 struct CounterUpdate {
     counter: mod_api::Identifier,
@@ -65,13 +38,6 @@ For a value with checked construction, `#[wire(via = SomeOwnedType)]` uses
 refuses the value rather than constructing unchecked state. This also lets a type
 retain a deliberately chosen encoding instead of exposing its Rust fields.
 
-The API's own plain values use this same derive, including particle options,
-package descriptions, handles and reload file collections. Checked registry keys
-and item stacks retain codecs that validate host registry slots, nonzero stack
-counts and component patches. A declaration retaining a handwritten codec states
-its particular validation, projection or nonstandard byte format; merely having a
-handwritten codec is not an exception to the explicit Wire policy.
-
 The loader compares composed encoding layouts, including nested fields and
 recursive shapes. Equivalent standard representations share one encoding:
 `Vec<T>` and `Box<[T]>`, for example, are both lists, while `Box<T>` is transparent.
@@ -84,9 +50,9 @@ computed once at load; they are not per-tick work.
 cargo horizon-mod build --wasm
 ```
 
-It builds the crate with the pinned Rust toolchain (installed through rustup the first time, with
+The command builds your crate with the pinned Rust toolchain (installed through rustup the first time, with
 `rust-src`), writes `mod.wasm` beside `horizon-mod.toml`, records it in a `[wasm]` section, and
-packs `target/horizon-mod/<id>.hmod`. `[wasm]` is written by the tool, never by hand:
+packs `target/horizon-mod/<id>.hmod`. Let the tool write `[wasm]`; do not edit it by hand:
 
 ```toml
 [wasm]
@@ -104,13 +70,10 @@ with `points.json` beside it. Mods without listeners need no catalog. When packa
 wasm toolchain, `cargo horizon-mod wasm-std <out.wasm> --catalog <staged-points.json>`
 copies that catalog beside the std member.
 
-The std member also owns the group's shared state: its cache budget and the one table of handlers (capability providers and parts) that the mods of a
-group give the game, so a handler one mod of a group gave is usable by another mod of the same group. A
-mod built for a toolchain whose std lacks that table is refused at load; rebuild the mod and the std
-together.
+A dependency group shares its handler table and cache budget. A handler registered by one
+member is usable by other members of that group.
 
-The state is 32 words, zeroed, exported by the std member as `horizon_group_state`: the handler table, the cache budget, and
-29 slots for eviction callbacks. A member's allocator is `mod_api`'s `#[global_allocator]` on wasm32. When an allocation
+Use `mod_api`'s wasm allocator and standard collections. When an allocation
 fails because the group's memory is full (see [Memory](#memory)), it calls every callback registered with
 `mod_api::wire::guest::register_eviction(fn())` once and retries once; if that frees nothing the allocation fails as
 usual (`try_reserve` returns an error, an infallible allocation ends the call with a trap). Register a callback to
@@ -126,7 +89,7 @@ collections and let the group's allocator do the rest.
 `[dependencies]` work as for native mods. List the library mod in `horizon-mod.toml` and its
 crate in `Cargo.toml`. The tool stages the resolved mod packages into one Cargo workspace:
 each library's single compiler unit produces both its rlib and its position-independent member,
-and dependents use that exact rlib through Cargo's ordinary dependency edges. Cargo still owns
+and dependents use that exact rlib through Cargo's ordinary dependency edges. Cargo owns
 feature resolution, build scripts and non-mod dependencies. Registration generation is scoped to
 each package, not to the mod from which the command was launched.
 
@@ -157,11 +120,11 @@ API-typed `[[inject]]` listeners use the same generated `mod_points` records and
 native listeners. When injections are declared, the wasm build requires the pinned game's staged
 `points.json`, supplied via `--catalog` or beside the configured std member.
 Listeners register in the host's ordinary point list, with the same priority, dependency order,
-owner enable flag and stop behavior as native listeners. Mixins remain native-only.
+owner enable flag and stop behavior as native listeners. Mixins are native-only.
 
 A point's record is a copy of every parameter as an API value, `&mut` parameters copied back
 after the listener, exactly as for a native listener; a point with a parameter that has no API type
-yet refuses an `api` listener at registration, naming it. The removed `access` key on `[[inject]]` is refused by name on both targets. Native code needing game internals uses `[[native.mixin]]`; wasm cannot declare `[[internals]]` or native transformations.
+refuses the listener at registration, naming the parameter. The `access` key on `[[inject]]` is refused by name on both targets. Native code needing game internals uses `[[native.mixin]]`; wasm cannot declare `[[internals]]` or native transformations.
 
 ## ABI reference
 
@@ -216,8 +179,8 @@ Wire values use little-endian numbers; lengths and collection counts are `u32`, 
 byte length followed by UTF-8 bytes, options have a byte tag (`0` or `1`), enums have a `u32`
 case followed by its fields, and records contain their fields in declaration order. Readers reject
 invalid tags, invalid UTF-8, trailing data, lengths that cannot fit in the remaining bytes, and
-nesting beyond the shared Wire budget of 1040 protocol levels (which accommodates vanilla's
-512 nested NBT lists or compounds). Interned static strings are limited to 256 bytes and 4096 distinct
+structural nesting beyond `mod_api::wire::MAX_DEPTH` (32 levels). `Tag` and `Text` use
+separate, stack-independent tree codecs that preserve vanilla's depth limit of 512. Interned static strings are limited to 256 bytes and 4096 distinct
 strings per process. Execution, memory and table limits are enforced separately by the loader.
 
 ## In the game
@@ -232,8 +195,9 @@ group. APIs marked `Not on wasm` in their Rust documentation cannot be used by w
 ### Memory
 
 A group's members share one linear memory: their heaps, stacks and static data together. Its limit is
-1 GiB, or the largest `wasm_memory_mib` a member's `horizon-mod.toml` declares (1 to 4096 MiB, wasm32's 4 GiB),
-so a library declares what it and its addons need. The limit is a ceiling, not memory taken: the group
+the largest `wasm_memory_mib` a member's `horizon-mod.toml` declares (1 to 4096 MiB, wasm32's 4 GiB),
+so a library declares what it and its addons need. Without a declaration, the limit is
+1 GiB or the instance cap, whichever is smaller. The limit is a ceiling, not memory taken: the group
 uses what it grows to. Past the limit, or past what the system gives, `memory.grow` answers -1 inside the
 guest and the call goes on; Rust's allocator then reports the failure as usual (`try_reserve` returns an
 error; an infallible allocation ends the call with a trap and the log names the group and its limit).
@@ -310,14 +274,5 @@ running modules have mapped. Deleting the cache is always safe: the next launch 
 ## Guest stack
 
 Every wasm mod has the same 128 MiB guest stack limit; manifests cannot change it.
-At the reporter's measured ceiling of about 1.8 KB per frame, this covers about
-70,000 plain frames (Java's deepest reported case was about 59,000). Frame sizes
-vary with compiled code. Guest overflow still traps and names the mod.
-Guest-entering threads reserve another 8 MiB for host frames. Linux raises the
-main stack limit and re-execs before initialization, or refuses startup with
-`GuestStackUnavailable` when the hard limit is too low. Windows and macOS use
-executable linker stack reservations. These reserve address space; resident
-memory grows as stack pages are touched.
-
-Wasm runtime tests reserve their guest stack through a shared test helper;
-local `cargo test` and CI need no `RUST_MIN_STACK` setting.
+Stack overflow traps and names the mod. Guest-entering threads also reserve host stack space.
+If the required stack cannot be reserved, startup is refused with `GuestStackUnavailable`.

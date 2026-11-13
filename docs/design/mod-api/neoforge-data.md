@@ -16,12 +16,12 @@ applies to recipes, loot tables, item modifiers, predicates, enchantments,
 jukebox songs, instruments, damage types, advancements, synchronized registry
 JSON, world-table tags (including the direct loot and damage readers,
 synchronized registry tags and function tags), and native item/block data maps.
-The [conditional-data contract](../../modding/src/how-to/native-mods.md#conditional-data)
+The [conditional-data contract](../../modding/src/how-to/items/conditional-data.md)
 describes these file types and their reload lifetimes.
 
 Ordinary JSON resources select the winning pack file before evaluating its
 conditions. A false condition omits that winner without exposing a lower pack's
-file. [Registered conditions](../../modding/src/concepts/load-conditions.md) can also refuse
+file. [Registered conditions](../../modding/src/how-to/items/load-conditions.md) can also refuse
 reload on bad arguments or unknown names in an owned namespace. Tag resources and data maps evaluate each layer before
 merge, `replace`, or `remove`; an omitted layer cannot clear lower entries.
 Content-root composition follows the same tag rule, including block/biome tag

@@ -23,8 +23,7 @@ A native server tick hook can call `native_server_block` with its context, a dim
 ### Server commands and players
 
 For mods that run where the world is simulated: a dedicated server, a LAN host, single player's server thread
-(`crates/horizon-client/src/game/modding/native_server.rs`). The SMP mod of the official server is built on them
-([smp.md](../../../smp.md)).
+(`crates/horizon-client/src/game/modding/native_server.rs`).
 
 - **`native_register_commands(commands)`**: push a `Command` per usage, asked once when a world opens to
   players. A usage is words, then arguments `<name:kind>`, optional ones last in brackets:
@@ -408,7 +407,7 @@ For mods that run where the world is simulated: a dedicated server, a LAN host, 
   log; `native_server_event(name, uuid, message)`, an `announce` event on a dedicated server's event stream, which the Discord
   bridge relays when `[discord] events` lists `announce`; `host.commands().feedback(text)`, the command's answer to the player whose command it is; `native_world_dir()`, the
   open world's folder, where a server mod keeps its data in a folder of its own so the world's backups carry it.
-- Items: a player's inventory is their [`ENTITY_ITEMS`](../concepts/trait-mods.md#an-entitys-items) handler, from any server hook.
+- Items: a player's inventory is their [`ENTITY_ITEMS`](../concepts/capabilities/entity-items.md) handler, from any server hook.
 - Experience: `native_experience_orbs(dimension, min, max)`, the orbs in a box (id, position, `value`, and `count`
   for merged orbs), read before a mod cancels an orb in `native_entity_join_level`; and a player's `give_experience_points(host,
   points)` and `give_levels(host, levels)` through their `PlayerRef`: points given as touching an orb gives them, Mending
@@ -601,9 +600,9 @@ A mod's block entity carries its saved data on the item as vanilla's do: Ctrl + 
 
 ### A block's items
 
-A server mod reaches a block's items through its `ITEMS` capability ([parts](../concepts/trait-mods.md#parts)): `level.capability(host, &ITEMS, pos, side)` gives the block entity's slots as that side reaches them, by the rules hoppers follow (a furnace's sides, a double chest's two halves, a mod's `ModContainer` with its `faces`, `inputs` and `outputs`), and `move_resources(host, &from, &to, filter, max, tx)` moves items between two of them in a transaction. `side` is the side of the block being reached, so a pipe above a chest uses `Some(Direction::Up)`. A level not in place, a stale `LevelRef` and a client's copy of the world give none. `native_dimension()` names the level in place (`minecraft:overworld`) for a hook that isn't told it, such as `native_block_entity_tick`.
+A server mod reaches a block's items through its `ITEMS` capability ([parts](../concepts/parts.md)): `level.capability(host, &ITEMS, pos, side)` gives the block entity's slots as that side reaches them, by the rules hoppers follow (a furnace's sides, a double chest's two halves, a mod's `ModContainer` with its `faces`, `inputs` and `outputs`), and `move_resources(host, &from, &to, filter, max, tx)` moves items between two of them in a transaction. `side` is the side of the block being reached, so a pipe above a chest uses `Some(Direction::Up)`. A level not in place, a stale `LevelRef` and a client's copy of the world give none. `native_dimension()` names the level in place (`minecraft:overworld`) for a hook that isn't told it, such as `native_block_entity_tick`.
 
-During a machine's own tick its block entity is out of the world, so it has no capability then: it has its slots in hand, in the `items` it's given. A composter has no block entity, so it has no `ITEMS`: hoppers fill and empty it. Container entities (minecarts, chest boats) aren't reached this way yet. A pipe keeps a neighbour's capability with `BlockCapabilityCache` instead of looking it up every tick ([keeping a block capability](../concepts/trait-mods.md#keeping-a-block-capability)). A provider whose answer changes with no block change (a machine's side configuration) calls `level.invalidate_capabilities(host, pos)` (NeoForge's `invalidateCapabilities`): the capability generation there moves on, at the root commit inside a transaction and not at all when it aborts, and every cache there looks up again at its next `get`. `level.capability_generation(host, pos)` reads it; only its change means anything.
+During a machine's own tick its block entity is out of the world, so it has no capability then: it has its slots in hand, in the `items` it's given. A composter has no block entity, so it has no `ITEMS`: hoppers fill and empty it. Container entities (minecarts, chest boats) aren't reached this way yet. A pipe keeps a neighbour's capability with `BlockCapabilityCache` instead of looking it up every tick ([keeping a block capability](../concepts/capabilities/keeping-a-block-capability.md)). A provider whose answer changes with no block change (a machine's side configuration) calls `level.invalidate_capabilities(host, pos)` (NeoForge's `invalidateCapabilities`): the capability generation there moves on, at the root commit inside a transaction and not at all when it aborts, and every cache there looks up again at its next `get`. `level.capability_generation(host, pos)` reads it; only its change means anything.
 
 ### Entities
 
@@ -1001,7 +1000,7 @@ spectator, non-client host or creative inventory screen returns `false` without 
 `LocalPlayer.closeContainer`, which sends `ServerboundContainerClosePacket`), and `menu.click_button(host, button)`
 sends `ServerboundContainerButtonClickPacket`. Both return `false` for a stale handle or a non-client host; `close` also
 while the menu's screen is not open, and `click_button` for the inventory menu.
-See [A menu's slots](../concepts/trait-mods.md#a-menus-slots) for actions and an example.
+See [A menu's slots](../concepts/capabilities/menu-slots.md) for actions and an example.
 Diverges from upstream: new helpers.
 
 ### Mob AI goals
@@ -1313,15 +1312,15 @@ Hidden blocks chat and commands. The server's own spam limits apply as they do t
 stock client shows as a chest (`generic_9x1` to `generic_9x6`); nothing is installed on the player's side.
 
 - `native_open_menu(uuid, rows, title, items)` opens one in place of the player's open menu (its window id);
-  its slots are [menu slots](../concepts/trait-mods.md#a-menus-slots), written in a transaction; `native_close_menu(uuid)` closes it.
+  its slots are [menu slots](../concepts/capabilities/menu-slots.md), written in a transaction; `native_close_menu(uuid)` closes it.
 - **No click moves anything.** Each reaches `native_menu_clicked(uuid, window, slot, button, mode)`, and the client
   is sent the menu, its inventory and its cursor as they were. `slot` counts the menu's own slots first, then the
   player's inventory below it: `native_menu_inventory_slot(size, slot)` gives the inventory slot (0..9 the hotbar).
 - `native_menu_closed(uuid, window)`: the player closed it, another menu opened, or the player left.
 - A trade on these menus leaves the offered stacks in their owners' inventories until both sides are settled. Then,
   in one `host.transaction`, each offered inventory index is checked to still hold exactly what was offered, taken
-  out of the player's [`ENTITY_ITEMS`](../concepts/trait-mods.md#an-entitys-items) handler and put into the other's with `insert_any`
-  ([the recipe](../concepts/trait-mods.md#an-entitys-items)). A changed offer or no room returns an error, and every move is put back.
+  out of the player's [`ENTITY_ITEMS`](../concepts/capabilities/entity-items.md) handler and put into the other's with `insert_any`
+  ([the recipe](../concepts/capabilities/entity-items.md)). A changed offer or no room returns an error, and every move is put back.
 
 ### Render functions
 
@@ -1606,7 +1605,7 @@ one, where vanilla gives the `by` one.
 - Fluid tanks on a mod block's block entity, in millibuckets (a bucket is a thousand). `native_block_entity_fluids` declares the tanks, as `native_block_entity_container` declares the slots: each tank's capacity, the
   tanks each face reaches, and which a fill may reach and a drain may take; the tanks' contents live in the entity's saved compound under
   `fluids`, so they survive restarts, and the block's own tick reads them there. Other blocks and mods reach them, and a
-  cauldron's, through the [`FLUIDS` capability](../concepts/trait-mods.md#a-blocks-fluids).
+  cauldron's, through the [`FLUIDS` capability](../concepts/capabilities/block-fluids.md).
 
 - What the mob effects of a content mod ([installing and using mods](../start/installing.md)) do, named after vanilla's `MobEffect` methods,
   or NeoForge's event where it has one. On the server, each tick a player or a mob has one,
@@ -1804,7 +1803,7 @@ still go on each event or registrar.
   properties, its own declared ones included. Authoritative servers only.
 
 - A `minecraft:post_attack` enchantment effect of a mod's own kind, on a mob a player's weapon hit: `native_enchant_effect` (see
-  [A mod's own enchantment effect kinds](../how-to/native-mods.md#a-mods-own-enchantment-effect-kinds)).
+  [A mod's own enchantment effect kinds](../how-to/items/enchantment-effect-kinds.md)).
 
 - `native_screen_render_post`, the point of `ScreenEvent.Render.Post`: a native mod draws over the open screen after it and its tooltips, given its id, the server-opened menu's vanilla type (`menu`) and title, its container panel, its slot count, the mouse in GUI pixels and the partial tick (`ScreenView`). Every container, station and mod window draws on the inventory screen and so reports `inventory`: tell them apart by `menu` and `title` (None on a window the client opened) and by `slots`. It does not fire on the title screen, nor for the prompts, books and sign editors drawn over gameplay after it.
 
@@ -1891,7 +1890,7 @@ still go on each event or registrar.
 - `level.weather(host)` (rain and thunder levels, 0 in the Nether and the End), `level.day_time(host)` (the time of day), `level.height(host)` (min y and height) and `native_max_stack_size(item)`, with `level.brightness(host, layer, pos)` for light and `level.is_raining_at(host, pos)` for rain at a position: what a mod's solar panel, wind turbine, quarry or own container needs without reaching into Horizon's internals.
 
 - Giving a whole stack (damage, name, enchantments kept) to any player from a server hook: `insert_any` into
-  the player's [`ENTITY_ITEMS`](../concepts/trait-mods.md#an-entitys-items) handler places it as `Inventory.add` does, and answers how many went.
+  the player's [`ENTITY_ITEMS`](../concepts/capabilities/entity-items.md) handler places it as `Inventory.add` does, and answers how many went.
 
 - Registered mod commands from every source use `native_run_mod_command(source, command, ran)`. Players retain their swapped-in state; the console has no acting player. Functions are silent, and block/cart feedback follows track-output. Unhandled invocations fail as unknown commands.
 
@@ -2775,11 +2774,11 @@ registration path.
   ([Server commands and players](#server-commands-and-players)).
 
 - A player's items for server mods: counting, taking and giving go through the player's
-  [`ENTITY_ITEMS`](../concepts/trait-mods.md#an-entitys-items) handler.
+  [`ENTITY_ITEMS`](../concepts/capabilities/entity-items.md) handler.
 
 - Server menus: a vanilla chest menu a server mod opens and fills, whose clicks and closing reach the mod
   (`native_menu_clicked`, `native_menu_closed`), and trades on them between the players'
-  [`ENTITY_ITEMS`](../concepts/trait-mods.md#an-entitys-items) handlers in one transaction ([Server menus](#server-menus)).
+  [`ENTITY_ITEMS`](../concepts/capabilities/entity-items.md) handlers in one transaction ([Server menus](#server-menus)).
 
 - Item tooltips: an `ItemPart`'s `tooltip` adds its item's own lines where `Item.appendHoverText` does, after
   the name and before the components' lines, never for a tooltip the stack hides.
@@ -2926,7 +2925,7 @@ registration path.
   either side, at most 4 MiB a file; a write replaces the file at once. The service is bound to the mod whose hook or
   part is running (a mod never names its id), so another mod's path, a symbolic link on the way or a call outside any
   mod's hook is refused with a typed `ConfigFileError`. A path is a `ConfigPath`, checked once when it is made. A
-  world's `serverconfig/` copy is read only through `native_config_loading` ([native mods](../how-to/native-mods.md#native-mods)).
+  world's `serverconfig/` copy is read only through `native_config_loading` ([native mods](../how-to/native-mods.md)).
 
 - The player-health HUD rows through `native_health_hud`: every frame the HUD draws them, the
   hook hears the layout's inputs (`HealthInputs`) and the screen's GUI size, and a mod that answers with
