@@ -1134,6 +1134,14 @@ mod tests {
                 "minecraft:parrot#main": {}}"#,
         )
         .unwrap();
+        fs::write(
+            root.join("attributes.json"),
+            format!(
+                r#"{{"data_version": {}, "attributes": [], "entities": {{}}}}"#,
+                horizon_core::version::DATA_VERSION
+            ),
+        )
+        .unwrap();
         let mut types = MobTypes::load(&root).unwrap();
         fs::remove_dir_all(root).unwrap();
         for kind in ["minecraft:happy_ghast", "minecraft:nautilus"] {
@@ -1183,6 +1191,14 @@ mod tests {
         fs::write(
             root.join("entity-models.json"),
             r#"{"minecraft:bat#main": {"children": {"right_wing": {}, "head": {}}}}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("attributes.json"),
+            format!(
+                r#"{{"data_version": {}, "attributes": [], "entities": {{}}}}"#,
+                horizon_core::version::DATA_VERSION
+            ),
         )
         .unwrap();
         let mut types = MobTypes::load(&root).unwrap();
@@ -1555,6 +1571,14 @@ mod tests {
         fs::write(
             root.join("entity-models.json"),
             r#"{"minecraft:pig#main": {}, "minecraft:strider#main": {}}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("attributes.json"),
+            format!(
+                r#"{{"data_version": {}, "attributes": [], "entities": {{}}}}"#,
+                horizon_core::version::DATA_VERSION
+            ),
         )
         .unwrap();
         let mut types = MobTypes::load(&root).unwrap();
