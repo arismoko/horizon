@@ -96,20 +96,6 @@ impl<'a> WorldRegistries<'a> {
             .iter()
             .any(|declaration| declaration.key == registry)
     }
-    /// The loaded entries of a mod-declared datapack registry, read once.
-    fn datapack_entries(&self, registry: &str) -> Option<HashSet<String>> {
-        let mut sets = self.datapack_ids.borrow_mut();
-        Some(
-            sets.entry(registry.to_owned())
-                .or_insert_with(|| {
-                    self.datapack
-                        .and_then(|set| set.entries(registry).ok())
-                        .map(|entries| entries.into_iter().map(String::from).collect())
-                        .unwrap_or_default()
-                })
-                .clone(),
-        )
-    }
 }
 impl MapRegistries for WorldRegistries<'_> {
     fn known(&self, registry: &str) -> bool {
@@ -127,9 +113,16 @@ impl MapRegistries for WorldRegistries<'_> {
         // world's loaded entries are the authority, and an id not held is
         // refused (#3357's unknown-id rejection).
         if self.declared(registry) {
-            return self
-                .datapack_entries(registry)
-                .is_some_and(|set| set.contains(entry));
+            let mut sets = self.datapack_ids.borrow_mut();
+            return sets
+                .entry(registry.to_owned())
+                .or_insert_with(|| {
+                    self.datapack
+                        .and_then(|set| set.entries(registry).ok())
+                        .map(|entries| entries.into_iter().map(String::from).collect())
+                        .unwrap_or_default()
+                })
+                .contains(entry);
         }
         // A typed registry the sync did not list: no source says its entries.
         true
