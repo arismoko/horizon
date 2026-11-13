@@ -2274,7 +2274,6 @@ fn tooltip_style_recipe_decodes_identifiers_and_matches_borrowed_values() {
     }
 }
 
-
 #[test]
 fn note_block_sound_component_recipe_literals_validate_and_match() {
     let items = Items::empty();
@@ -2340,6 +2339,8 @@ fn note_block_sound_component_recipe_literals_validate_and_match() {
         }
     }
     for source in [
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":false}}],"result":{"id":"minecraft:diamond"}}"#,
+        r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":null}}],"result":{"id":"minecraft:diamond"}}"#,
         r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":42}}],"result":{"id":"minecraft:diamond"}}"#,
         r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":{}}}],"result":{"id":"minecraft:diamond"}}"#,
         r#"{"type":"minecraft:crafting_shapeless","ingredients":[{"type":"neoforge:components","items":"minecraft:stick","components":{"minecraft:note_block_sound":"Minecraft:sound"}}],"result":{"id":"minecraft:diamond"}}"#,
@@ -2351,13 +2352,7 @@ fn note_block_sound_component_recipe_literals_validate_and_match() {
         let value: Value = serde_json::from_str(source).unwrap();
         let ingredient = &value["ingredients"][0];
         assert!(Ingredient::parse(ingredient, &items).is_none(), "{source}");
-        let rule = IngredientRule::Components {
-            patch: crate::json_nbt::json_to_compound(ingredient["components"].as_object().unwrap())
-                .unwrap(),
-            removed: Vec::new(),
-            strict: false,
-        };
-        let error = components::validate(&rule, &items).unwrap_err();
+        let error = components::validate_recipe_components(ingredient, &items).unwrap_err();
         assert!(
             error.contains("component minecraft:note_block_sound:"),
             "{error}"
@@ -2432,11 +2427,21 @@ fn note_block_sound_component_defaults_removal_and_strict_matching() {
         &items,
     );
     assert!(!removal.test_in(&context, &stack));
-    let patch = Tag::compound([(
+    let mut populated = ItemStack::new("minecraft:stick", 1);
+    populated.data_mut().set_loot_component(
+        "minecraft:note_block_sound",
+        &Some(Tag::String("fixture:other".into())),
+    );
+    assert!(!removal.test_in(&context, &populated));
+    let plain_removal = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stick","components":{"!minecraft:note_block_sound":{}}}"#,
+        &Items::empty(),
+    );
+    assert!(plain_removal.test_in(&context, &ItemStack::new("minecraft:stick", 1)));
+    stack.data_mut().set_loot_component(
         "!minecraft:note_block_sound",
-        Tag::Compound(Default::default()),
-    )]);
-    (_, stack.extra) = crate::item_data::decode_components(Some(&patch));
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(!ingredient.test_in(&context, &stack));
     assert!(removal.test_in(&context, &stack));
     stack = ItemStack::new("minecraft:stick", 1);

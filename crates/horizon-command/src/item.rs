@@ -24,7 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
-"minecraft:note_block_sound",
+    "minecraft:note_block_sound",
     "minecraft:tooltip_style",
     "minecraft:waxed",
     "minecraft:damage",
@@ -61,7 +61,10 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     if id == "minecraft:potion_duration_scale" {
         return potion_duration_scale(value).map(|value| Tag::Float(value.to_bits()));
     }
-    if matches!(id, "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound") {
+    if matches!(
+        id,
+        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound"
+    ) {
         return identifier_payload(value);
     }
     decode_component(id, value, reg)?;
@@ -231,7 +234,9 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             .map(|_| ())
             .ok_or_else(|| "Not a number".into()),
         "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t),
-        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => identifier_payload(t).map(|_| ()),
+        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => {
+            identifier_payload(t).map(|_| ())
+        }
         // TypedEntityData.codec: the type is the compound's id.
         "minecraft:block_entity_data" => match t {
             Tag::Compound(c) => match c.get(&"id".into()) {
@@ -919,6 +924,8 @@ mod tests {
             assert!(decode_component("minecraft:note_block_sound", &value, &registry).is_err());
         }
         for value in [
+            Tag::Byte(0),
+            Tag::End,
             Tag::Int(1),
             Tag::compound([] as [(&str, Tag); 0]),
             Tag::List(vec![]),

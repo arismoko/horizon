@@ -77,9 +77,13 @@ zero (including negative zero) is false; nonzero values, fractions and NaN are
 true. Displays retain canonical byte 0 or 1.
 `dyed_color` accepts packed integer colors or three numeric RGB channels,
 matching the decoded values without copying candidate payloads.
-`unbreakable`, `glider` and `intangible_projectile` require an object, ignores its fields and normalizes to `{}`;
+`unbreakable`, `glider`, `intangible_projectile` and `waxed` require an object, ignore its fields and normalizes to `{}`;
 scalars and lists are rejected. Matching requires effective presence, including
 item defaults, while an explicit removal suppresses that default.
+`dye` accepts only the exact serialized dye color names, not numeric ordinals.
+`tooltip_style` and `note_block_sound`, like `item_model`, accept identifiers
+without a registry lookup; empty paths are accepted and missing or empty namespaces
+normalize to `minecraft`. Matching borrows candidate strings without allocation.
 The other 97 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 

@@ -124,10 +124,12 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
             b.data().and_then(|d| d.other(id)),
         ),
         "minecraft:item_name" => item_name_equal(a, b),
-        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => identifier_equal(
-            a.data().and_then(|d| d.other(id)),
-            b.data().and_then(|d| d.other(id)),
-        ),
+        "minecraft:item_model" | "minecraft:tooltip_style" | "minecraft:note_block_sound" => {
+            identifier_equal(
+                a.data().and_then(|d| d.other(id)),
+                b.data().and_then(|d| d.other(id)),
+            )
+        }
         "minecraft:rarity" => rarity(a) == rarity(b),
         "minecraft:ominous_bottle_amplifier" => ominous_amplifier(a) == ominous_amplifier(b),
         // Unit.CODEC ignores map fields; borrow only the map shape, not its contents.
