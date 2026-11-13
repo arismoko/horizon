@@ -205,6 +205,9 @@ fn page_keys_scroll_independently_of_action_focus() {
 
 #[test]
 fn opening_prompt_replaces_stale_destructive_focus_with_cancel() {
+    let _answer = level_mods::TEST_ANSWER
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let mut f = Fixture::new();
     f.title.focused_button = Some(103);
     f.title.ask_missing_mods("Gone", vec![gone()]);
@@ -214,4 +217,8 @@ fn opening_prompt_replaces_stale_destructive_focus_with_cancel() {
             .arrow_key(winit::keyboard::KeyCode::ArrowDown, size, false);
         assert_eq!(f.title.focused_button, Some(101));
     }
+    // Untouched Enter must choose Cancel too, not a world-opening action.
+    f.title.ask_missing_mods("Gone", vec![gone()]);
+    assert_eq!(f.title.confirm_key_size((240.0, 240.0)).0, Action::None);
+    assert!(matches!(f.title.mode, Mode::Select { .. }));
 }

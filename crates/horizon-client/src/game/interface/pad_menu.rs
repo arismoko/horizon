@@ -1333,7 +1333,9 @@ impl Game<'_> {
     /// behind it), so every menu's click focus goes.
     pub(super) fn clear_screen_click_focus(&mut self) {
         if let Some(title) = self.title.as_mut() {
-            title.focused_button = None;
+            if !matches!(title.mode, horizon_client::title::Mode::MissingMods { .. }) {
+                title.focused_button = None;
+            }
         }
         self.pause_focus = None;
         self.death_focus = None;
@@ -2074,6 +2076,13 @@ impl Game<'_> {
     /// value). Whether the key was used; when not, the screen has it (a
     /// container also has Tab and the arrows once they moved the focus).
     pub(super) fn key_focus_key(&mut self, event_loop: &dyn EventLoopCtl, key: KeyCode) -> bool {
+        if self
+            .title
+            .as_ref()
+            .is_some_and(|t| matches!(t.mode, horizon_client::title::Mode::MissingMods { .. }))
+        {
+            return false;
+        }
         let Some(nav) = key_focus::nav_of(key, self.has_shift_down()) else {
             return false;
         };
