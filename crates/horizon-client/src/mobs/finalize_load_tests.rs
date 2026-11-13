@@ -110,6 +110,27 @@ fn a_wolf_tamed_in_game_saves_its_forty_health() {
 }
 
 #[test]
+fn a_wolf_with_no_stored_base_reads_forty_health_once_tamed() {
+    // A wolf tamed in game before anything stored its max_health base: `/attribute` reads the
+    // 40 `applyTamingSideEffects` sets, and a refresh keeps the cap there.
+    let (mut m, _) = loaded("minecraft:wolf", Species::Wolf, &[(HEALTH, 8.0)], "");
+    m.extra.attributes = None;
+    assert_eq!(base_value(&m, Attr::MaxHealth), 8.0);
+    crate::mobs::tame::set_tame(&mut m, true);
+    assert_eq!(base_value(&m, Attr::MaxHealth), 40.0);
+    assert_eq!(value(&m, Attr::MaxHealth), 40.0);
+    assert_eq!(m.attrs.max_health, 40.0);
+    refresh(&mut m, Attr::MaxHealth);
+    assert_eq!(m.attrs.max_health, 40.0);
+    // And back: 8 again.
+    crate::mobs::tame::set_tame(&mut m, false);
+    assert_eq!(base_value(&m, Attr::MaxHealth), 8.0);
+    assert_eq!(value(&m, Attr::MaxHealth), 8.0);
+    refresh(&mut m, Attr::MaxHealth);
+    assert_eq!(m.attrs.max_health, 8.0);
+}
+
+#[test]
 fn a_baby_goat_or_hoglin_makes_its_attack_instance() {
     // AgeableMob.setAge crosses the baby boundary: Goat/Hoglin.ageBoundaryReached.
     let goat = [(DAMAGE, 2.0)];
