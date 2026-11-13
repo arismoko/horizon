@@ -1017,6 +1017,15 @@ fn make_link(to: &std::path::Path, at: &std::path::Path) {
     made.expect("this machine cannot create a symbolic link or a junction");
 }
 
+/// Remove the link `link` made by `make_link`, not what it leads to: a folder link on Windows, a
+/// file-like symbolic link on Unix.
+fn remove_link(link: &std::path::Path) {
+    #[cfg(windows)]
+    std::fs::remove_dir(link).unwrap();
+    #[cfg(not(windows))]
+    std::fs::remove_file(link).unwrap();
+}
+
 /// A link under `dimensions` or `data`, or one of the two being a link, is never followed out of
 /// the world, and nothing is removed first.
 #[test]
@@ -1034,10 +1043,7 @@ fn a_removal_does_not_follow_links_out_of_the_world() {
     make_link(&outside, &world.join("dimensions/lnk"));
     assert!(erase(&world, "lnk:x").is_err());
     // The level's own folder is a link.
-    #[cfg(unix)]
-    std::fs::remove_file(world.join("dimensions/lnk")).unwrap();
-    #[cfg(windows)]
-    std::fs::remove_dir(world.join("dimensions/lnk")).unwrap();
+    remove_link(&world.join("dimensions/lnk"));
     make_link(&outside, &world.join("dimensions/ns/x"));
     assert!(erase(&world, "ns:x").is_err());
     // The folder of the references file is a link; nothing of the level's own is removed first.
@@ -1157,5 +1163,100 @@ fn a_removal_that_fails_part_way_is_finished_by_a_second_delete() {
         assert!(seen.answers.lock().unwrap()[0].is_ok());
         assert!(game.runtime_level_is_open("part:a"));
         assert!(!locked.exists(), "the level starts empty");
+    });
+}
+
+/// Holds a scratch directory unreadable, restoring its original mode even on assertion failure.
+#[cfg(unix)]
+struct UnreadableFolder {
+    folder: std::path::PathBuf,
+    permissions: std::fs::Permissions,
+}
+
+#[cfg(unix)]
+impl UnreadableFolder {
+    fn on(folder: &std::path::Path) -> Self {
+        use std::os::unix::fs::PermissionsExt;
+        let guard = Self {
+            folder: folder.to_owned(),
+            permissions: std::fs::metadata(folder).unwrap().permissions(),
+        };
+        std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o000)).unwrap();
+        assert_eq!(
+            std::fs::read_dir(folder).err().map(|error| error.kind()),
+            Some(std::io::ErrorKind::PermissionDenied),
+            "unreadable-folder coverage requires enforced permissions; run as non-root on Unix"
+        );
+        guard
+    }
+}
+
+#[cfg(unix)]
+impl Drop for UnreadableFolder {
+    fn drop(&mut self) {
+        let _ = std::fs::set_permissions(&self.folder, self.permissions.clone());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_delete_refuses_unreadable_data_and_removes_nothing() {
+    with_opener("blind", "blind:a", flat(), |game, _| {
+        let folder = game.world_root.join("dimensions/blind/a");
+        let marker = folder.join("data/private/marker.dat");
+        let region = folder.join("region/r.0.0.mca");
+        let references = game
+            .world_root
+            .join("data/horizon_structure_references_blind_a.json");
+        write_file(&marker);
+        write_file(&region);
+        write_file(&references);
+        let guard = UnreadableFolder::on(marker.parent().unwrap());
+        assert_eq!(
+            delete_as(game, "blind", "blind:a"),
+            Err(RuntimeLevelError::LevelsBelow)
+        );
+        game.apply_runtime_levels();
+        drop(guard);
+        assert!(marker.is_file() && region.is_file() && references.is_file());
+        assert_eq!(delete_as(game, "blind", "blind:a"), Ok(()));
+        game.apply_runtime_levels();
+        assert!(!folder.exists() && !references.exists());
+    });
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn a_delete_keeps_references_when_shared_level_metadata_is_unreadable() {
+    with_opener("a_b", "a_b:c", flat(), |game, _| {
+        let folder = game.world_root.join("dimensions/a_b/c");
+        let references = game
+            .world_root
+            .join("data/horizon_structure_references_a_b_c.json");
+        let other_namespace = game.world_root.join("dimensions/a");
+        write_file(&folder.join("region/r.0.0.mca"));
+        write_file(&references);
+        std::fs::create_dir_all(&other_namespace).unwrap();
+        let guard = UnreadableFolder::on(&other_namespace);
+        assert_eq!(
+            std::fs::symlink_metadata(other_namespace.join("b_c"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(delete_as(game, "a_b", "a_b:c"), Ok(()));
+        game.apply_runtime_levels();
+        assert!(!folder.exists(), "the requested level folder was removed");
+        assert!(
+            references.is_file(),
+            "unknown sharing must preserve references"
+        );
+        drop(guard);
+        assert!(!other_namespace.join("b_c").exists());
+        assert_eq!(delete_as(game, "a_b", "a_b:c"), Ok(()));
+        game.apply_runtime_levels();
+        assert!(!folder.exists() && !references.exists());
     });
 }
