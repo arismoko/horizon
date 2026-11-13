@@ -400,8 +400,9 @@ fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
         assert!(!ingredient.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
     }
-    let removal = Tag::compound([("!minecraft:dye", Tag::Compound(Default::default()))]);
-    (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+    stack
+        .data_mut()
+        .set_loot_component("!minecraft:dye", &Some(Tag::Compound(Default::default())));
     assert!(!ingredient.test_in(&context, &stack));
     let absent = parse(
         r#"{"type":"neoforge:components","items":"minecraft:red_dye","components":{"!minecraft:dye":{}}}"#,
@@ -410,6 +411,16 @@ fn dye_components_compile_recipes_match_live_values_and_preserve_defaults() {
     assert!(absent.test_in(&context, &stack));
     assert!(!absent.test_in(&context, &ItemStack::new("minecraft:red_dye", 1)));
     assert!(!ingredient.test_in(&context, &ItemStack::new("minecraft:blue_dye", 1)));
+    let mut populated = ItemStack::new("minecraft:red_dye", 1);
+    populated
+        .data_mut()
+        .set_loot_component("minecraft:dye", &Some(Tag::String("red".into())));
+    assert!(!absent.test_in(&context, &populated));
+    let plain_absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:dye":{}}}"#,
+        &items,
+    );
+    assert!(plain_absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
 }
 
 #[test]
@@ -423,20 +434,17 @@ fn malformed_dye_payloads_reject_whole_recipes_with_component_errors() {
         serde_json::json!("minecraft:red"),
         serde_json::json!(14),
         serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
         serde_json::json!({}),
         serde_json::json!([]),
     ] {
         let patch = serde_json::json!({"minecraft:dye":value});
-        let rule = IngredientRule::Components {
-            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
-            removed: vec![],
-            strict: false,
-        };
-        let error = components::validate(&rule, &items).unwrap_err();
-        assert!(error.contains("component minecraft:dye:"), "{error}");
         let ingredient = serde_json::json!({
             "type":"neoforge:components", "items":"minecraft:red_dye", "components":patch
         });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("component minecraft:dye:"), "{error}");
         assert!(Ingredient::parse(&ingredient, &items).is_none());
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
@@ -1977,7 +1985,6 @@ fn glider_component_malformed_payloads_name_component_and_omit_recipe() {
     }
 }
 
-
 #[test]
 fn waxed_recipe_decodes_unit_maps_and_matches_borrowed_values() {
     let items = Items::empty();
@@ -2087,59 +2094,84 @@ fn waxed_defaults_and_removal_preserve_presence() {
     );
     assert!(!present.test_in(&context, &stack));
     assert!(absent.test_in(&context, &stack));
+    let plain_absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:waxed":{}}}"#,
+        &Items::empty(),
+    );
+    let mut populated = ItemStack::new("minecraft:stone", 1);
+    assert!(plain_absent.test_in(&context, &populated));
+    populated.data_mut().set_other(
+        "minecraft:waxed",
+        Some(Tag::compound([("ignored", Tag::Int(3))])),
+    );
+    assert!(!plain_absent.test_in(&context, &populated));
 }
 
 #[test]
 fn waxed_malformed_payloads_reject_whole_recipes_with_component_errors() {
     let items = Items::empty();
-    let load = load();
     let root = tempfile::tempdir().unwrap();
+    let load = load();
     for payload in [
         serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::json!(null),
         serde_json::json!(0),
         serde_json::json!("unit"),
         serde_json::json!([]),
     ] {
-        let patch = crate::json_nbt::json_to_compound(
-            serde_json::json!({"minecraft:waxed":payload})
-                .as_object()
-                .unwrap(),
-        )
-        .unwrap();
-        let error = super::components::validate(
-            &IngredientRule::Components {
-                patch,
-                removed: vec![],
-                strict: false,
-            },
-            &items,
-        )
-        .unwrap_err();
-        assert!(error.contains("minecraft:waxed"), "{error}");
-        let ingredient = serde_json::json!({
-            "type":"neoforge:components", "items":"minecraft:stone",
-            "components":{"minecraft:waxed":payload}
+        let recipe = serde_json::json!({
+            "type":"minecraft:crafting_shapeless",
+            "ingredients":[{
+                "type":"neoforge:components",
+                "items":"minecraft:stone",
+                "components":{"minecraft:waxed":payload}
+            }],
+            "result":{"id":"minecraft:diamond"}
         });
-        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let error =
+            components::validate_recipe_components(&recipe["ingredients"][0], &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:waxed:"),
+            "{payload}: {error}"
+        );
+        assert!(Ingredient::parse(&recipe["ingredients"][0], &items).is_none());
+        let companion = serde_json::json!({
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": ["minecraft:stone"],
+            "result": {"id": "minecraft:diamond"}
+        });
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
             &horizon_world::loot::PackOverlay::NONE,
-            vec![(
-                "fixture:invalid_waxed".into(),
-                serde_json::json!({
-                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
-                    "result":{"id":"minecraft:diamond"}
-                }),
-            )],
+            vec![
+                ("fixture:invalid_waxed".into(), recipe),
+                ("fixture:valid_companion".into(), companion),
+            ],
             &load,
         )
         .unwrap();
-        assert!(recipes.crafting.is_empty());
-        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+        assert_eq!(recipes.crafting.len(), 1, "{payload}");
+        let context = load.loop_context(LoopSide::Server, []);
+        let grid = [Some(ItemStack::new("minecraft:stone", 1))];
+        assert!(
+            recipes.recipe_matches(&context, "fixture:valid_companion", &grid, 1),
+            "{payload}"
+        );
+        assert!(
+            !recipes.recipe_matches(&context, "fixture:invalid_waxed", &grid, 1),
+            "{payload}"
+        );
+        let indexed: Vec<_> = recipes
+            .by_type
+            .values()
+            .flat_map(|recipes| recipes.iter())
+            .map(|recipe| recipe.id.as_str())
+            .collect();
+        assert_eq!(indexed, ["fixture:valid_companion"], "{payload}");
     }
 }
-
 
 #[test]
 fn tooltip_style_recipe_decodes_identifiers_and_matches_borrowed_values() {
@@ -2173,6 +2205,14 @@ fn tooltip_style_recipe_decodes_identifiers_and_matches_borrowed_values() {
                 "components":{"minecraft:tooltip_style":value}}],
             "result":{"id":"minecraft:diamond"}
         });
+        if !valid {
+            let error = components::validate_recipe_components(&source["ingredients"][0], &items)
+                .unwrap_err();
+            assert!(
+                error.contains("component minecraft:tooltip_style:"),
+                "{error}"
+            );
+        }
         let recipes = crate::crafting::Recipes::from_sources(
             root.path(),
             &items,
@@ -2208,11 +2248,28 @@ fn tooltip_style_recipe_decodes_identifiers_and_matches_borrowed_values() {
             Some(Tag::String("fixture:different".into())),
         );
         assert!(!ingredient.test_in(&context, &stack));
-        stack.data_mut().set_other("minecraft:tooltip_style", None);
-        stack.data_mut().set_other(
-            "!minecraft:tooltip_style",
-            Some(Tag::Compound(Default::default())),
+        let absent = parse(
+            r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:tooltip_style":{}}}"#,
+            &items,
         );
+        assert!(!absent.test_in(&context, &stack));
+        assert!(!absent.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+        let plain_absent = parse(
+            r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"!minecraft:tooltip_style":{}}}"#,
+            &Items::empty(),
+        );
+        let plain_positive = parse(
+            r#"{"type":"neoforge:components","items":"minecraft:stone","components":{"minecraft:tooltip_style":"style"}}"#,
+            &Items::empty(),
+        );
+        let plain = ItemStack::new("minecraft:stone", 1);
+        assert!(plain_absent.test_in(&context, &plain));
+        assert!(!plain_positive.test_in(&context, &plain));
+        stack.data_mut().set_loot_component(
+            "!minecraft:tooltip_style",
+            &Some(Tag::Compound(Default::default())),
+        );
+        assert!(absent.test_in(&context, &stack));
         assert!(!ingredient.test_in(&context, &stack));
     }
 }

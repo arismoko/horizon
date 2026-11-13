@@ -73,9 +73,10 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
         }
     }
     Ok(match id {
-        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" | "minecraft:waxed" => {
-            Tag::Compound(Compound::new())
-        }
+        "minecraft:unbreakable"
+        | "minecraft:glider"
+        | "minecraft:intangible_projectile"
+        | "minecraft:waxed" => Tag::Compound(Compound::new()),
         "minecraft:damage"
         | "minecraft:repair_cost"
         | "minecraft:max_damage"
@@ -134,8 +135,10 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             .map(|_| ())
             .ok_or_else(|| "Expected a number or a list of three numeric RGB channels".into()),
         // `Unit.CODEC` uses MapCodec.unitCodec: a map is required, its fields are ignored.
-        "minecraft:unbreakable" | "minecraft:glider" | "minecraft:intangible_projectile" | "minecraft:waxed" => match t
-        {
+        "minecraft:unbreakable"
+        | "minecraft:glider"
+        | "minecraft:intangible_projectile"
+        | "minecraft:waxed" => match t {
             Tag::Compound(_) => Ok(()),
             _ => Err(not_map(t)),
         },
@@ -273,7 +276,7 @@ fn potion_duration_scale(t: &Tag) -> Result<f32, String> {
         Err(format!("Value must be non-negative: {value}"))
     }
 }
-/// `DataComponents.ITEM_MODEL`: `Identifier.CODEC`, without a resource lookup.
+/// Identifier component payloads normalize namespaces without a resource lookup.
 fn identifier_payload(value: &Tag) -> Result<Tag, String> {
     let Tag::String(value) = value else {
         return Err("Not a string".into());
@@ -924,6 +927,8 @@ mod tests {
         }
         for value in [
             Tag::Byte(1),
+            Tag::Byte(0),
+            Tag::End,
             Tag::Int(0),
             Tag::String("unit".into()),
             Tag::List(vec![]),
@@ -996,6 +1001,8 @@ mod tests {
             Tag::String("".into()),
             Tag::Byte(14),
             Tag::Short(14),
+            Tag::Byte(0),
+            Tag::End,
             Tag::Int(14),
             Tag::Long(14),
             Tag::Float(14.0f32.to_bits()),
