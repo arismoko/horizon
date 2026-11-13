@@ -1035,7 +1035,8 @@ fn data_maps_updated_fires_for_each_registry_on_first_open_and_every_reload() {
                 std::env::temp_dir().join(format!("data-maps-updated-{}", std::process::id()));
             game.load_world(request(&root)).unwrap();
             let both = |count: usize| -> Vec<(String, DataMapsUpdateCause)> {
-                ["minecraft:item", "minecraft:block"]
+                // In registry id order.
+                ["minecraft:block", "minecraft:item"]
                     .into_iter()
                     .cycle()
                     .take(count)
@@ -1057,9 +1058,8 @@ fn data_maps_updated_fires_for_each_registry_on_first_open_and_every_reload() {
             // A game that isn't a server holds no maps it may answer, even with
             // tables built.
             game.options.dedicated = None;
-            let coal = mod_api::__private::item_key("minecraft:coal").unwrap();
             assert_eq!(
-                game.item_data_map_value(coal, "probe:fuel"),
+                game.data_map_value("minecraft:item", "minecraft:coal", "probe:fuel"),
                 Err(DataMapError::Unavailable)
             );
             let _ = std::fs::remove_dir_all(root);

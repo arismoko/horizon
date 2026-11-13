@@ -1,13 +1,17 @@
 //! Typed reads of data maps (NeoForge's `DataMapType` and `IWithData.getData`): the value the
 //! server's data packs and mods' files gave a registry entry, after every pack was applied.
-use crate::{Backend, BlockKey, DataMapType, Host, ItemKey, NoBackend};
+use crate::{
+    Backend, BlockEntityTypeKey, BlockKey, DataMapType, EffectKey, EnchantmentKey, EntityTypeKey,
+    FluidKey, Host, ItemKey, NoBackend, ProfessionKey,
+};
 use horizon_core::nbt::Tag;
 
 /// A data map a mod registers and reads, typed (NeoForge's `DataMapType<R, T>`): its id, the
 /// registry its entries are in (through [`DataMap::Entry`]), and how a value decodes.
 ///
-/// Register it in `data_map_types` with [`DataMap::ty`], then read an entry's value with
-/// [`ItemKey::data`] or [`BlockKey::data`]. A value arrives as the NBT form of the JSON a file
+/// Register it in `data_map_types` with [`DataMap::ty`], then read an entry's value with its
+/// key's `data` ([`ItemKey::data`], [`EntityTypeKey::data`]...), or by name with
+/// [`data_map_value`] and [`data_map_entries`] for a registry without a typed key. A value arrives as the NBT form of the JSON a file
 /// held: a whole number is an `Int`, or a `Long` past `i32`, a fraction a `Double`, a boolean a
 /// `Byte`, an object a `Compound` and an array a `List`. Integers outside signed
 /// 64-bit range and `null` at any nesting depth return [`DataMapError::Undecodable`]
@@ -35,7 +39,7 @@ use horizon_core::nbt::Tag;
 /// assert_eq!(Emc.ty().registry, "minecraft:item");
 /// ```
 pub trait DataMap {
-    /// The registry entries the map attaches values to: [`ItemKey`] or [`BlockKey`].
+    /// The registry entries the map attaches values to: one of the [`DataMapEntry`] keys.
     type Entry: DataMapEntry;
     /// The value an entry holds.
     type Value;
@@ -52,33 +56,77 @@ pub trait DataMap {
     }
 }
 
-/// A registry entry a data map can attach a value to: [`ItemKey`] (`minecraft:item`) and
-/// [`BlockKey`] (`minecraft:block`). Sealed: the game holds maps for these registries only.
+/// A registry entry a data map can attach a value to through a typed key. Sealed: a registry
+/// without one is read by name with [`data_map_value`].
 pub trait DataMapEntry: entry::Entry {}
-impl DataMapEntry for ItemKey {}
-impl DataMapEntry for BlockKey {}
 
 mod entry {
     use super::*;
 
-    /// The registry an entry is in, and its raw read through the game's backend.
-    pub trait Entry: Copy {
+    /// The registry an entry is in, and its id there through the game's backend.
+    pub trait Entry {
         /// The registry's id.
         const REGISTRY: &'static str;
-        /// The entry's value in map `map`, before decoding.
-        fn value(self, backend: &dyn Backend, map: &str) -> Result<Option<Tag>, DataMapError>;
+        /// The entry's full registry id.
+        fn id(&self, backend: &dyn Backend) -> String;
     }
-    impl Entry for ItemKey {
-        const REGISTRY: &'static str = "minecraft:item";
-        fn value(self, backend: &dyn Backend, map: &str) -> Result<Option<Tag>, DataMapError> {
-            backend.item_data_map_value(self, map)
+}
+
+/// `DataMapEntry` and `data` for a key whose id the keys backend answers.
+macro_rules! typed_entries {
+    ($($key:ty => $registry:literal, $id:ident;)+) => {$(
+        impl DataMapEntry for $key {}
+        impl entry::Entry for $key {
+            const REGISTRY: &'static str = $registry;
+            fn id(&self, backend: &dyn Backend) -> String {
+                backend.$id(*self)
+            }
         }
+        impl $key {
+            /// This entry's value in data map `map` (`Holder.getData`), as the server's data
+            /// packs and mods' files left it: the newest file wins, a `#tag` entry gives every
+            /// entry in the tag its value, `replace` and `remove` apply, and conditional files
+            /// and values count only when their conditions hold. `Ok(None)` where the map
+            /// gives this entry no value.
+            ///
+            /// Server side: the server merges the maps when its data loads, on a world's first
+            /// open and after every `/reload`, and a read sees the last load whole, never a mix
+            /// of two. Readable from `data_maps_updated` on, in the world and while data
+            /// reloads. A reload that drops a value drops it here too.
+            pub fn data<M: DataMap<Entry = $key>>(
+                self,
+                host: &dyn Host,
+                map: &M,
+            ) -> Result<Option<M::Value>, DataMapError> {
+                data(&self, host, map)
+            }
+        }
+    )+};
+}
+typed_entries! {
+    ItemKey => "minecraft:item", item_key_id;
+    BlockKey => "minecraft:block", block_key_id;
+    FluidKey => "minecraft:fluid", fluid_key_id;
+    EffectKey => "minecraft:mob_effect", effect_key_id;
+    EntityTypeKey => "minecraft:entity_type", entity_type_key_id;
+    EnchantmentKey => "minecraft:enchantment", enchantment_key_id;
+    BlockEntityTypeKey => "minecraft:block_entity_type", block_entity_type_key_id;
+}
+impl DataMapEntry for ProfessionKey {}
+impl entry::Entry for ProfessionKey {
+    const REGISTRY: &'static str = "minecraft:villager_profession";
+    fn id(&self, _: &dyn Backend) -> String {
+        self.0.to_string()
     }
-    impl Entry for BlockKey {
-        const REGISTRY: &'static str = "minecraft:block";
-        fn value(self, backend: &dyn Backend, map: &str) -> Result<Option<Tag>, DataMapError> {
-            backend.block_data_map_value(self, map)
-        }
+}
+impl ProfessionKey {
+    /// This profession's value in data map `map`, as for [`ItemKey::data`].
+    pub fn data<M: DataMap<Entry = ProfessionKey>>(
+        &self,
+        host: &dyn Host,
+        map: &M,
+    ) -> Result<Option<M::Value>, DataMapError> {
+        data(self, host, map)
     }
 }
 
@@ -105,12 +153,14 @@ impl NoBackend for DataMapError {
 
 /// `entry`'s value in `map`, decoded.
 fn data<M: DataMap>(
-    entry: M::Entry,
+    entry: &M::Entry,
     host: &dyn Host,
     map: &M,
 ) -> Result<Option<M::Value>, DataMapError> {
     let backend = crate::backend_of(host).ok_or_else(DataMapError::no_backend)?;
-    match entry::Entry::value(entry, backend, map.id())? {
+    let id = entry::Entry::id(entry, backend);
+    let registry = <M::Entry as entry::Entry>::REGISTRY;
+    match backend.data_map_value(registry, &id, map.id())? {
         Some(value) => map
             .decode(&value)
             .map(Some)
@@ -119,35 +169,28 @@ fn data<M: DataMap>(
     }
 }
 
-impl ItemKey {
-    /// This item's value in data map `map` (`Holder.getData`), as the server's data packs and
-    /// mods' files left it: the newest file wins, a `#tag` entry gives every item in the tag
-    /// its value, `replace` and `remove` apply, and conditional files count only when their
-    /// conditions hold. `Ok(None)` where the map gives this item no value.
-    ///
-    /// Server side: the server merges the maps when its data loads, on a world's first open
-    /// and after every `/reload`, and a read sees the last load whole, never a mix of two.
-    /// Readable from `data_maps_updated` on, in the world and while data reloads. A reload
-    /// that drops a value drops it here too.
-    pub fn data<M: DataMap<Entry = ItemKey>>(
-        self,
-        host: &dyn Host,
-        map: &M,
-    ) -> Result<Option<M::Value>, DataMapError> {
-        data(self, host, map)
-    }
+/// Entry `entry` (its full id, `minecraft:pig`) of registry `registry`: its raw value in data
+/// map `map` (`IRegistryExtension.getData`), for a registry without a typed key, read as a
+/// key's `data` reads it. The value is the map's NBT, not yet decoded.
+pub fn data_map_value(
+    host: &dyn Host,
+    registry: &str,
+    entry: &str,
+    map: &str,
+) -> Result<Option<Tag>, DataMapError> {
+    let backend = crate::backend_of(host).ok_or_else(DataMapError::no_backend)?;
+    backend.data_map_value(registry, entry, map)
 }
 
-impl BlockKey {
-    /// This block's value in data map `map` (`Holder.getData`), as for [`ItemKey::data`]: the
-    /// server's merged value after every pack and mod file, `Ok(None)` where it has none.
-    pub fn data<M: DataMap<Entry = BlockKey>>(
-        self,
-        host: &dyn Host,
-        map: &M,
-    ) -> Result<Option<M::Value>, DataMapError> {
-        data(self, host, map)
-    }
+/// Every entry of `registry` that data map `map` gives a value, with that value, in id order
+/// (`IRegistryExtension.getDataMap`): the whole merged map of the last data load.
+pub fn data_map_entries(
+    host: &dyn Host,
+    registry: &str,
+    map: &str,
+) -> Result<Vec<(String, Tag)>, DataMapError> {
+    let backend = crate::backend_of(host).ok_or_else(DataMapError::no_backend)?;
+    backend.data_map_entries(registry, map)
 }
 
 #[cfg(test)]
@@ -158,28 +201,40 @@ mod tests {
     /// and `test:hardness` for blocks, stone at 3; every other read answers no value.
     struct Maps;
     impl crate::host::data_maps::DataMapsBackend for Maps {
-        fn item_data_map_value(
+        fn data_map_value(
             &self,
-            item: ItemKey,
+            registry: &str,
+            entry: &str,
             map: &str,
         ) -> Result<Option<Tag>, DataMapError> {
-            match (map, item.0) {
-                ("test:emc", 0) => Ok(Some(Tag::Int(10))),
-                ("test:emc", 1) => Ok(Some(Tag::String("ten".into()))),
-                ("test:emc", _) => Ok(None),
+            match (registry, map, entry) {
+                ("minecraft:item", "test:emc", "test:coal") => Ok(Some(Tag::Int(10))),
+                ("minecraft:item", "test:emc", "test:stick") => Ok(Some(Tag::String("ten".into()))),
+                ("minecraft:item", "test:emc", _) => Ok(None),
+                ("minecraft:block", "test:hardness", "test:stone") => Ok(Some(Tag::Long(3))),
+                ("minecraft:block", "test:hardness", _) => Ok(None),
                 _ => Err(DataMapError::UnknownType),
             }
         }
-        fn block_data_map_value(
+        fn data_map_entries(
             &self,
-            block: BlockKey,
+            registry: &str,
             map: &str,
-        ) -> Result<Option<Tag>, DataMapError> {
-            match (map, block.0) {
-                ("test:hardness", 0) => Ok(Some(Tag::Long(3))),
-                ("test:hardness", _) => Ok(None),
+        ) -> Result<Vec<(String, Tag)>, DataMapError> {
+            match (registry, map) {
+                ("minecraft:block", "test:hardness") => {
+                    Ok(vec![("test:stone".into(), Tag::Long(3))])
+                }
                 _ => Err(DataMapError::UnknownType),
             }
+        }
+    }
+    impl crate::host::keys::KeysBackend for Maps {
+        fn item_key_id(&self, key: ItemKey) -> String {
+            ["test:coal", "test:stick", "test:air"][key.0 as usize].into()
+        }
+        fn block_key_id(&self, key: BlockKey) -> String {
+            ["test:stone", "test:dirt"][key.0 as usize].into()
         }
     }
     impl Host for Maps {
@@ -188,7 +243,7 @@ mod tests {
         }
     }
     crate::impl_host_areas!(Maps);
-    crate::impl_backend_areas!(Maps, except(data_maps));
+    crate::impl_backend_areas!(Maps, except(data_maps, keys));
     impl Backend for Maps {}
 
     /// No game behind it.
@@ -266,5 +321,21 @@ mod tests {
             }
         );
         assert_eq!(Hardness.ty().registry, "minecraft:block");
+    }
+
+    #[test]
+    fn a_read_by_name_reaches_the_whole_map() {
+        assert_eq!(
+            data_map_value(&Maps, "minecraft:block", "test:stone", "test:hardness"),
+            Ok(Some(Tag::Long(3)))
+        );
+        assert_eq!(
+            data_map_entries(&Maps, "minecraft:block", "test:hardness"),
+            Ok(vec![("test:stone".into(), Tag::Long(3))])
+        );
+        assert_eq!(
+            data_map_entries(&Bare, "minecraft:block", "test:hardness"),
+            Err(DataMapError::Unavailable)
+        );
     }
 }
