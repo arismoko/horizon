@@ -247,7 +247,6 @@ impl Game<'_> {
         };
         let mut data_map_types = Vec::new();
         self.native_data_map_types(&mut data_map_types);
-        self.data_map_registries = native_data_maps::registries_of(&data_map_types);
         let base = if reload {
             &self.health_resources
         } else {
@@ -289,12 +288,28 @@ impl Game<'_> {
             (&sources, &recipes),
         );
         self.prepare_professions(root, &items, &mut stations)?;
-        let data_maps = native_data_maps::DataMaps::load(
-            &data_map_types,
+        // The world's loaded datapack registries are a mod-declared registry's
+        // authority for the data maps' id checks, as the command ids are for
+        // the registries they list.
+        let datapack_set = if self.is_logical_server() {
+            self.mods.datapack_registries.clone()
+        } else {
+            horizon_client::datapack_net::received()
+        };
+        let registries = native_data_maps::WorldRegistries::new(
+            self.ui
+                .registries
+                .by_registry
+                .iter()
+                .map(|(registry, entries)| (registry.as_str(), entries.ids.as_slice())),
+            datapack_set.as_deref(),
+            &items,
+            root,
             &overlay,
-            &items.item_tags,
-            &items.block_tags,
         );
+        let data_maps = native_data_maps::DataMaps::load(&data_map_types, &overlay, &registries);
+        drop(registries);
+        self.data_map_registries = data_maps.registries();
         let causes_suffocation = items
             .block_tags
             .get("minecraft:causes_suffocation")

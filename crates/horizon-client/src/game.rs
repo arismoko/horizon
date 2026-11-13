@@ -998,7 +998,7 @@ struct Game<'a> {
     damage_tag_generation: u64,
     /// The registries native mods registered data map types for, as of the
     /// server tables' last build: what `data_maps_updated` fires for.
-    data_map_registries: Vec<&'static str>,
+    data_map_registries: Vec<String>,
     /// This game's resource packs (`reload_packs` replaces them).
     pack: PackResources,
     /// The title and menu bundle (GUI atlas, font and panorama).
