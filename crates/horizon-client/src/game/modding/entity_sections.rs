@@ -25,7 +25,6 @@
 
 use super::Game;
 use crate::mobs::living::section_writes::PositionWrite;
-use horizon_core::geometry::Vec3;
 use mod_api::{DimensionKey, EntityRef, WorldEpoch};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -81,15 +80,11 @@ pub(super) struct EntitySections {
     busy: bool,
     /// The mobs' position updates during their family's tick; kept for its capacity.
     pub(super) ticked: Vec<PositionWrite>,
-    /// Item writes captured while the item list is lent; kept for its capacity.
-    pub(super) item_steps: Vec<(u32, Vec3, Vec3)>,
     /// A projectile row is lent during its individual tick. Position reads during its write
     /// boundary use this value until the row is restored.
     pub(super) write_position: Option<(u32, [f64; 3])>,
     /// Projectile ids seen by the current pass; kept to forget rows removed during settlement.
     pub(super) projectile_ids: Vec<u32>,
-    /// Item ids resident during the current delivery; kept to avoid a list scan per write.
-    pub(super) item_live: horizon_client::fast_hash::FxHashSet<u32>,
     /// Projectile ids resident after settlement; kept to avoid a fresh set per pass.
     pub(super) projectile_live: horizon_client::fast_hash::FxHashSet<u32>,
 }
@@ -231,7 +226,6 @@ impl Game<'_> {
     /// Entity `id` is gone, or replaced under the same id: it starts over untold.
     pub(super) fn entity_section_forget(&mut self, id: u32) {
         self.native_lifecycle.entity_sections.forget(id);
-        self.native_lifecycle.entity_sections.item_live.remove(&id);
         self.native_lifecycle.entity_sections.projectile_live.remove(&id);
     }
 
@@ -305,7 +299,8 @@ impl Game<'_> {
         id: u32,
         from: [f64; 3],
         to: [f64; 3],
-    ) {
+    ) -> bool {
+        let scope = self.entity_section_scope();
         self.native_lifecycle.entity_sections.write_position = Some((id, to));
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.entity_section_step(id, from, to);
@@ -314,6 +309,7 @@ impl Game<'_> {
         if let Err(payload) = result {
             std::panic::resume_unwind(payload);
         }
+        scope.is_none_or(|_| self.native_lifecycle.entity_sections.filed.contains_key(&id))
     }
 
     /// `Entity.teleport` placed as `/tp` places it ([`Game::place_teleport_in_level`]), then filed
@@ -332,39 +328,6 @@ impl Game<'_> {
             self.entity_section_moved(entity as u32, from, to);
         }
         from
-    }
-
-    /// Capture one item write while its list is lent. The records are delivered after the
-    /// survivors are restored, so listeners resolve the real resident item and the lifted list's
-    /// tail is never removed and reinserted for every item.
-    pub(super) fn record_dropped_item_step(&mut self, id: u32, from: Vec3, to: Vec3) {
-        if self.entity_section_scope().is_some() && from != to {
-            self.native_lifecycle
-                .entity_sections
-                .item_steps
-                .push((id, from, to));
-        }
-    }
-
-    /// Deliver the item writes captured during a lifted pass, in write order.
-    pub(super) fn tell_dropped_item_steps(&mut self) {
-        {
-            let live = &mut self.native_lifecycle.entity_sections.item_live;
-            live.clear();
-            live.extend(self.dropped.iter().map(|item| item.id));
-        }
-        let mut steps = std::mem::take(&mut self.native_lifecycle.entity_sections.item_steps);
-        for (id, from, to) in steps.drain(..) {
-            if self.native_lifecycle.entity_sections.item_live.contains(&id) {
-                self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
-            } else {
-                self.entity_section_forget(id);
-            }
-        }
-        steps.extend(std::mem::take(
-            &mut self.native_lifecycle.entity_sections.item_steps,
-        ));
-        self.native_lifecycle.entity_sections.item_steps = steps;
     }
 
     /// An entity joined (`addEntity`): filed untold where it is now, which a join listener may

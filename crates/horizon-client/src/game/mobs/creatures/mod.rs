@@ -4683,7 +4683,8 @@ impl Game<'_> {
                         super::deflect::aim_deflect(wind, look, owner, owner_uuid, guest);
                     });
                 }
-                section_steps::record(
+                keep_flags[i] = keep_flags[i]
+                    && section_steps::record(
                     self,
                     &mut section_steps,
                     projectiles.get(i),

@@ -85,7 +85,16 @@ impl Game<'_> {
             let from = item.previous;
             let to = item.position;
             if !discarded && round.sections() {
-                self.record_dropped_item_step(items[i].id, from, to);
+                let live = self.entity_section_step_visible(
+                    items[i].id,
+                    [from.x, from.y, from.z],
+                    [to.x, to.y, to.z],
+                );
+                if !live {
+                    removed[i] = true;
+                    cells.remove(i, to);
+                    continue;
+                }
             }
             let item = &mut items[i];
             if discarded {

@@ -37,7 +37,15 @@ pub(super) fn tick_items(game: &mut Game<'_>, entered: &mut Vec<horizon_client::
         let from = items[i].previous;
         let to = items[i].position;
         if !discarded {
-            game.record_dropped_item_step(items[i].id, from, to);
+            let live = game.entity_section_step_visible(
+                items[i].id,
+                [from.x, from.y, from.z],
+                [to.x, to.y, to.z],
+            );
+            if !live {
+                items.remove(i);
+                continue;
+            }
         }
         if discarded {
             items.remove(i);

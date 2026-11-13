@@ -20,19 +20,20 @@ pub(super) fn record(
     projectile: Option<&Projectile>,
     from: Vec3,
     keep: bool,
-) {
+) -> bool {
     if let Some(p) = projectile
         && p.position != from
         && steps.enabled
         && keep
     {
         steps.seen.push(p.id);
-        game.entity_section_step_visible(
+        return game.entity_section_step_visible(
             p.id,
             [from.x, from.y, from.z],
             [p.position.x, p.position.y, p.position.z],
         );
     }
+    true
 }
 
 pub(super) fn finish(game: &mut Game<'_>, mut steps: Steps) {
