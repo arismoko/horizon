@@ -121,10 +121,12 @@ impl Entry {
             let (revision, archive) = name.split_once('-')?;
             // Eviction must recognize older installed caches too, even though native
             // builds accept only the current SDK layout.
+            let current = horizon_mod_package::index::native::prebuilt_prefix();
             let target = [
                 "horizon-prebuilt-v3-",
                 "horizon-prebuilt-v4-",
-                horizon_mod_package::index::native::PREBUILT_ARCHIVE,
+                "horizon-prebuilt-v5-",
+                current.as_str(),
             ]
             .into_iter()
             .find_map(|prefix| archive.strip_prefix(prefix))?;
@@ -290,7 +292,6 @@ impl Storage {
         let build_files = Category::BuildFiles;
         for name in [
             "built.json",
-            "mod-catalog.json",
             "internals.json",
             "build.log",
             "catalog.partial",

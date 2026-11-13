@@ -1,7 +1,8 @@
 use super::*;
 use crate::mobs::{Damage, DamageKind, Mob, MobEvent, MobTypes, MobWorld};
 use horizon_core::geometry::Vec3;
-use horizon_mod_package::{Package, Side, content::Content, enabled::EnabledMods};
+use horizon_mod_package::{Package, content::Content, enabled::EnabledMods};
+use mod_api::Side;
 use std::{path::PathBuf, sync::Arc};
 
 fn fixture(template: &str, sounds: serde_json::Value, run: impl FnOnce(&MobWorld, &MobTypes)) {

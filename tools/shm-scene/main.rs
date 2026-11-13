@@ -17,11 +17,11 @@ fn main() {
     log::set_logger(&EARLY_LOG).unwrap();
     log::set_max_level(log::LevelFilter::Warn);
     if std::env::var_os("BENCH_NATIVE").is_some() {
-        static BUILT: &[horizon_mod_package::runtime::BuiltMod] =
-            &[horizon_mod_package::runtime::BuiltMod {
+        static BUILT: &[mod_api::__private::native::BuiltMod] =
+            &[mod_api::__private::native::BuiltMod {
                 id: "machine_sample",
                 version: "0.1.0",
-                side: horizon_mod_package::Side::Both,
+                side: mod_api::Side::Both,
             }];
         horizon_mod_host::main_with(
             vec![mod_api::ModEntry::new("machine_sample", hooks())],

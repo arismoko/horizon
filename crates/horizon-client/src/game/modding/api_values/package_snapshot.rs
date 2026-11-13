@@ -34,7 +34,7 @@ fn package_snapshot(
         manifest.id.clone(),
         manifest.version.clone(),
         kind,
-        manifest.side.try_into_api().unwrap(),
+        manifest.side,
         std::iter::once(&manifest.id)
             .chain(&manifest.namespaces)
             .cloned()

@@ -215,7 +215,6 @@ jobs:
             tools/ci/game_smoke.sh
             tools/ci/rust-version
             tools/ci/with_xvfb.py
-            tools/ci/nightly_catalog.py
       - name: The pinned Rust (tools/ci/rust-version)
         id: rust
         shell: bash
@@ -242,18 +241,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - name: Export the pinned Nightly SDK catalog
-        if: github.repository == 'arismoko/horizon' && inputs.nightly != '' && matrix.name == 'linux'
-        env:
-          CATALOG_COMMIT: ${{ inputs.ref }}
-        run: python3 .workflow-tools/tools/ci/nightly_catalog.py --root "$PWD" --commit "$CATALOG_COMMIT" --output "$RUNNER_TEMP/mod-catalog.json"
-      - uses: actions/upload-artifact@v7
-        if: github.repository == 'arismoko/horizon' && inputs.nightly != '' && matrix.name == 'linux'
-        with:
-          name: horizon-mod-catalog
-          path: ${{ runner.temp }}/mod-catalog.json
-          if-no-files-found: error
-          retention-days: 3
       - name: Build the official game, horizon-ctl, horizon-prepare and horizon-server
         if: ${{ !matrix.musl }}
         run: cargo build --release --locked ${{ matrix.target && format('--target {0}', matrix.target) || '' }} -p horizon-official --bin horizon-official -p horizon-client-lib --bin horizon-ctl -p horizon-prepare --bin horizon-prepare -p horizon-server --bin horizon-server

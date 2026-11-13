@@ -7,7 +7,8 @@
 //!
 //! A crate and not a feature of `horizon-game`: the game players get links no mod.
 #![forbid(unsafe_code)]
-use horizon_mod_package::{Side, runtime::BuiltMod};
+use mod_api::__private::native::BuiltMod;
+use mod_api::Side;
 use mod_api::{
     EntityTickListenedEvent, EntityTickPostEvent, EntityTickPreEvent, Flow, Hooks, ModEntry,
     ServerHost,

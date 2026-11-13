@@ -378,7 +378,10 @@ class DailyWorkflowTests(unittest.TestCase):
         from tools.ci import nightly
         build = yaml.load((ROOT / ".github/workflows/prebuilt-game-build.yml").read_text(),
                           Loader=yaml.BaseLoader)["jobs"]["build"]
-        names = {f"horizon-prebuilt-v5-{entry['target']}{'-server' if entry.get('server') == 'true' else ''}.tar.gz"
+        # One archive per matrix leg, at the source's package format. The workflow's hand-set ARCHIVE still names
+        # format 5, which `prebuilt_game.py build` refuses until the SDK publish switch (PR 5) replaces it.
+        names = {f"horizon-prebuilt-v{nightly.package_format()}-{entry['target']}"
+                 f"{'-server' if entry.get('server') == 'true' else ''}.tar.gz"
                  for entry in build["strategy"]["matrix"]["include"]}
         self.assertEqual(build["env"]["ARCHIVE"],
                          "horizon-prebuilt-v5-${{ matrix.target }}${{ matrix.server && '-server' || '' }}.tar.gz")

@@ -113,8 +113,17 @@ fn bounded_catalog_commands() {
         let cache = f.0.join("target/horizon-mod/prebuilt");
         let current = cache.join("a".repeat(40));
         fs::create_dir_all(&current).unwrap();
-        fs::write(current.join("internals.json"), "[]").unwrap();
-        fs::write(current.join("points.json"), r#"{"sites":[]}"#).unwrap();
+        let header = r#""schema":1,"build":{"commit":"c"}"#;
+        fs::write(
+            current.join("internals.json"),
+            format!(r#"{{{header},"internals":[]}}"#),
+        )
+        .unwrap();
+        fs::write(
+            current.join("points.json"),
+            format!(r#"{{{header},"sites":[]}}"#),
+        )
+        .unwrap();
         let path = cache.join(relative);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         large(&path, 256 << 20);

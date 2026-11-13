@@ -2518,17 +2518,6 @@ mod item_model_snapshot_tests {
     }
 }
 
-impl TryIntoApi for horizon_mod_package::Side {
-    type Api = mod_api::Side;
-    type Error = std::convert::Infallible;
-    fn try_into_api(&self) -> Result<Self::Api, Self::Error> {
-        Ok(match self {
-            Self::Client => mod_api::Side::Client,
-            Self::Both => mod_api::Side::Both,
-        })
-    }
-}
-
 impl TryIntoApi for horizon_client_core::suggestion::Suggestion {
     type Api = mod_api::Suggestion;
     type Error = std::convert::Infallible;

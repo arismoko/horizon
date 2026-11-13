@@ -1144,16 +1144,18 @@ fn register_block_entity_types(
 fn announced_entry(
     id: &str,
     version: &str,
-    side: horizon_mod_package::Side,
+    side: mod_api::Side,
 ) -> horizon_protocol::mod_list::Entry {
-    use horizon_mod_package::Side;
     use horizon_protocol::mod_list;
+    use mod_api::Side;
     mod_list::Entry {
         id: id.to_owned(),
         version: version.to_owned(),
-        side: match side {
-            Side::Both => mod_list::Side::Both,
-            Side::Client => mod_list::Side::Client,
+        // `Side` is open to new kinds; until the list carries one, such a mod stays local.
+        side: if side == Side::Both {
+            mod_list::Side::Both
+        } else {
+            mod_list::Side::Client
         },
     }
 }
@@ -1259,7 +1261,7 @@ fn register_menu_types(
 }
 
 /// The embedded inventory, formatted for the crash report.
-fn native_mods_detail(built: &[horizon_mod_package::runtime::BuiltMod]) -> Option<String> {
+fn native_mods_detail(built: &[mod_api::__private::native::BuiltMod]) -> Option<String> {
     let list = built
         .iter()
         .map(|m| format!("{} {}", m.id, m.version))
@@ -1344,7 +1346,7 @@ fn live_switch_of(
 /// Installed native mods not compiled into this executable get an explanatory row.
 fn not_built(
     dir: &std::path::Path,
-    built: &[horizon_mod_package::runtime::BuiltMod],
+    built: &[mod_api::__private::native::BuiltMod],
     rows: &[Installed],
 ) -> Vec<Installed> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
@@ -1898,7 +1900,8 @@ mod tests {
     }
 
     use super::*;
-    use horizon_mod_package::runtime::{BuiltMod, Runtime};
+    use horizon_mod_package::runtime::Runtime;
+    use mod_api::__private::native::BuiltMod;
 
     #[test]
     fn only_clients_collect_registered_keys() {
@@ -1924,7 +1927,7 @@ mod tests {
     const BUILT: &[BuiltMod] = &[BuiltMod {
         id: "machine_sample",
         version: "0.3.0",
-        side: horizon_mod_package::Side::Both,
+        side: mod_api::Side::Both,
     }];
 
     struct Fixture(PathBuf);
@@ -2932,7 +2935,7 @@ mod tests {
             BuiltMod {
                 id: "pipes",
                 version: "2.0",
-                side: horizon_mod_package::Side::Client,
+                side: mod_api::Side::Client,
             },
         ];
         assert_eq!(

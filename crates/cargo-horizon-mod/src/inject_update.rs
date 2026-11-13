@@ -19,9 +19,10 @@ pub(super) fn run(dir: &Path, args: &[String]) -> Result<(), String> {
     let internals = crate::internals::load(dir, &native.horizon)?;
     let cache = dir.join("target/horizon-mod/prebuilt");
     let points = cache.join(&native.horizon).join("points.json");
-    let catalog: Catalog =
-        serde_json::from_str(&crate::bounded::read(&points, crate::bounded::MAX_CATALOG)?)
-            .map_err(|e| e.to_string())?;
+    let (_, catalog): (_, Catalog) = horizon_mod_package::build_data::read(
+        horizon_mod_package::build_data::POINTS,
+        &crate::bounded::read(&points, crate::bounded::MAX_CATALOG)?,
+    )?;
     // Older cached snapshots provide the signature behind a declaration's old hash.
     let mut old = Vec::new();
     for entry in fs::read_dir(cache).map_err(|e| e.to_string())? {
@@ -35,7 +36,7 @@ pub(super) fn run(dir: &Path, args: &[String]) -> Result<(), String> {
             Err(e) => return Err(e.into()),
         };
         if let Some(text) = text
-            && let Ok(snapshot) = serde_json::from_str::<Vec<ListedInternal>>(&text)
+            && let Ok(snapshot) = horizon_mod_package::internals::parse(&text)
         {
             old.extend(snapshot);
         }
@@ -225,16 +226,14 @@ pub(crate) fn sync(dir: &Path, repo: &Path) -> Result<(), String> {
     let root = repo
         .join("target/horizon-mod/prebuilt")
         .join(&native.horizon);
-    let points: Catalog = serde_json::from_str(&crate::bounded::read(
-        &root.join("points.json"),
-        crate::bounded::MAX_CATALOG,
-    )?)
-    .map_err(|e| e.to_string())?;
-    let internals: Vec<ListedInternal> = serde_json::from_str(&crate::bounded::read(
+    let (_, points): (_, Catalog) = horizon_mod_package::build_data::read(
+        horizon_mod_package::build_data::POINTS,
+        &crate::bounded::read(&root.join("points.json"), crate::bounded::MAX_CATALOG)?,
+    )?;
+    let internals = horizon_mod_package::internals::parse(&crate::bounded::read(
         &root.join("internals.json"),
         crate::bounded::MAX_CATALOG,
-    )?)
-    .map_err(|e| e.to_string())?;
+    )?)?;
     for inject in &manifest.inject {
         let item =
             target(&internals, inject).ok_or_else(|| format!("E_INJECT_MISSING: {}", inject.at))?;

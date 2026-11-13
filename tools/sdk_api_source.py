@@ -451,11 +451,12 @@ def build(out: Path) -> dict[str, bytes]:
     game = target_features(tree(workspace_root, prebuilt_game.GAME))
     files = collect(crates, features, workspace_root)
     tracked = set(filter(None, run(["git", "ls-files", "-z"], cwd=workspace_root).split("\0")))
+    # The whole source tree, so no file a build on another host or profile reads is left behind: the commit's own
+    # bytes, the same on every OS whatever line endings the working tree has.
+    commit = run(["git", "rev-parse", "HEAD"], cwd=workspace_root).strip()
+    sources = tuple(f"{crate.directory}/src" for crate in crates)
+    files.update(prebuilt_game.tracked_blobs(workspace_root, commit, sources))
     for crate in crates:
-        # The whole source tree, so no file a build on another host or profile reads is left behind.
-        for path in sorted(tracked):
-            if path.startswith(f"{crate.directory}/src/"):
-                files[path] = (workspace_root / path).read_bytes()
         files[f"{crate.directory}/Cargo.toml"] = normalise_manifest(
             manifests[crate.name], workspace, crate, by_name, features[crate.name],
             requested_features(metadata, crate, manifests[crate.name], game)).encode()

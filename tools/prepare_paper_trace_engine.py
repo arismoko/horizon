@@ -32,9 +32,9 @@ for name, patch in tomllib.loads((ROOT / 'Cargo.toml').read_text())['patch']['cr
 main = (ROOT / 'crates/horizon-client/src/native_main.rs.template').read_text()
 main = main.replace('/* MOD_ENTRIES */', f'{quote(manifest["id"])} => paper_trace_mod::hooks,')
 main = main.replace('/* MOD_SLOTS */', '')
-main = main.replace('/* BUILT_MODS */', 'horizon_mod_package::runtime::BuiltMod {'
+main = main.replace('/* BUILT_MODS */', 'mod_api::__private::native::BuiltMod {'
     f'id: {quote(manifest["id"])}, version: {quote(manifest["version"])}, '
-    f'side: horizon_mod_package::Side::{manifest.get("side", "client").title()} }},')
+    f'side: mod_api::Side::{manifest.get("side", "client").title()} }},')
 (project / 'src/main.rs').write_text(main)
 target = Path(os.environ['CARGO_TARGET_DIR']) / 'release/horizon-native-mods' / manifest['id']
 shutil.copytree(fixture, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', 'target', 'Cargo.lock'))

@@ -22,10 +22,8 @@ fn registered_conditions_select_content_root_tags_and_structure_modifiers() {
     let Some(base) = prepared() else {
         return;
     };
-    let inventory = horizon_mod_package::enabled::EnabledMods::new([(
-        "testmod".into(),
-        horizon_mod_package::Side::Both,
-    )]);
+    let inventory =
+        horizon_mod_package::enabled::EnabledMods::new([("testmod".into(), mod_api::Side::Both)]);
     let package = folder_mod(
         &scratch.path().join("mod"),
         &[

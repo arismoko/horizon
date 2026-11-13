@@ -272,8 +272,9 @@ fn registrations(
         )?;
         let text = std::fs::read_to_string(&path)
             .map_err(|e| format!("{}: {e}; supply --catalog <points.json>", path.display()))?;
-        let json: Value =
-            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        let (_, json): (_, Value) =
+            horizon_mod_package::build_data::read(horizon_mod_package::build_data::POINTS, &text)
+                .map_err(|e| format!("{}: {e}", path.display()))?;
         let points: Vec<horizon_mod_point_emit::Point> =
             serde_json::from_value(json["points"].clone())
                 .map_err(|e| format!("{}: {e}", path.display()))?;
@@ -633,7 +634,7 @@ mod refusal_tests {
         let dir = std::env::temp_dir().join(format!("horizon-wire-refusal-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let catalog = dir.join("points.json");
-        std::fs::write(&catalog, r#"{"points":[{"target":"game::tick","name":"tick","at_return":true,"api_refusal":"argument 1 `value` (`&RegistrationData`) has no API type yet"}]}"#).unwrap();
+        std::fs::write(&catalog, r#"{"schema":1,"build":{"commit":"c"},"points":[{"target":"game::tick","name":"tick","at_return":true,"api_refusal":"argument 1 `value` (`&RegistrationData`) has no API type yet"}]}"#).unwrap();
         let manifest = "id = 'addon'\nname = 'Addon'\nversion = '1.0.0'\napi = '0.2'\ncapabilities = ['registries']\n[[inject]]\nid = 'before'\nat = 'game::tick'\nkind = 'head'\nwith = 'before'\nhash = 'pin'\n".parse().unwrap();
         assert_eq!(
             super::registrations(&manifest, Some(&catalog)).unwrap_err(),

@@ -11,7 +11,7 @@ macro_rules! native_mods {
         vec![$(mod_api::ModEntry::new($id, $hooks()),)*]
     };
 }
-const BUILT_MODS: &[horizon_mod_package::runtime::BuiltMod] = &[
+const BUILT_MODS: &[mod_api::__private::native::BuiltMod] = &[
 /* BUILT_MODS */
 ];
 fn main() {

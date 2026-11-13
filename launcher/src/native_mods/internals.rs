@@ -412,12 +412,18 @@ mod tests {
     #[test]
     fn reads_and_pins_only_declared_internals() {
         let (dir, bundle, catalog) = fixture("pins");
+        let build = serde_json::json!({"commit": "c".repeat(40)});
         fs::write(
             dir.join(INTERNALS),
-            serde_json::to_string(&catalog.internals).unwrap(),
+            serde_json::json!({"schema": 1, "build": build, "internals": catalog.internals})
+                .to_string(),
         )
         .unwrap();
-        fs::write(dir.join(inject::POINTS), r#"{"points":[],"wire":[]}"#).unwrap();
+        fs::write(
+            dir.join(inject::POINTS),
+            serde_json::json!({"schema": 1, "build": build, "points": [], "wire": []}).to_string(),
+        )
+        .unwrap();
         let read = Catalog::read(&dir).unwrap();
         let mut manifest = bundle.manifest.clone();
         manifest.internals[0].hash = None;

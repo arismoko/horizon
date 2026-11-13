@@ -34,10 +34,10 @@ pub mod packages;
 pub mod runtime;
 #[cfg(feature = "runtime-process")]
 pub mod runtime_leases;
+pub mod sdk;
 pub mod selection;
 
 pub use content::Content;
-pub use manifest::{Capability, Manifest, Package, Side, find};
-
-/// Filename of the versioned SDK tool catalog.
-pub use point_shape::SDK_CATALOG_FILE;
+pub use manifest::{Capability, Manifest, Package, find};
+/// The SDK's build-pinned data files and their common header.
+pub use point_shape::build_data;

@@ -95,7 +95,7 @@ fn resource_root(scratch: &std::path::Path) -> std::path::PathBuf {
         &root,
         &horizon_mod_package::enabled::EnabledMods::new([(
             "tank".into(),
-            horizon_mod_package::Side::Both,
+            mod_api::Side::Both,
         )]),
     )
     .unwrap();

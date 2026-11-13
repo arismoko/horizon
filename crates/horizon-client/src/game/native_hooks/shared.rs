@@ -4186,7 +4186,7 @@ mod tests {
             &root,
             &horizon_mod_package::enabled::EnabledMods::new([(
                 "ruby".into(),
-                horizon_mod_package::Side::Both,
+                mod_api::Side::Both,
             )]),
         )
         .unwrap();
