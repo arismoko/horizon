@@ -102,6 +102,10 @@ pub struct Parts {
     pub(crate) crash_sections: Vec<CrashSectionPart>,
     /// Command argument types the mods registered, by namespaced id, in registration order.
     pub(crate) command_arguments: Vec<CommandArgumentInfo>,
+    /// Entity selector tokens the mods registered, by name, in registration order.
+    pub(crate) entity_selectors: Vec<EntitySelectorInfo>,
+    /// Encoded entry bytes, excluding the revision and token-count prefix.
+    pub(crate) entity_selector_bytes: usize,
     /// Frozen raw payload declarations and their sole receiving owners.
     pub(crate) payloads: Option<Arc<crate::parts::payloads::Payloads>>,
     /// Only the parts that override each scoped hook, resolved at load or reload.

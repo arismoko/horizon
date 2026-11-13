@@ -709,3 +709,6 @@ mod tests {
         );
     }
 }
+
+/// Horizon selector metadata sent beside Commands.
+pub mod selector_sync;

@@ -49,6 +49,7 @@ mod move_collision;
 mod moves;
 pub mod passage_cross;
 mod raw_inbox;
+mod selector_sync;
 mod spawn_info;
 use advancements::AdvancementOwners;
 use chat::yellow_names;
@@ -458,6 +459,7 @@ pub struct Hub {
     /// Server mods' commands, a root in the commands report's format, sent
     /// after vanilla's; the key the game last set them for.
     mod_commands: (serde_json::Value, Option<u64>),
+    selector_tokens: Vec<horizon_client_core::registries::SelectorToken>,
     /// Players' areas in other levels and what their clients view of them (#3716).
     pub viewed: super::viewed_levels::ViewedLevels,
 }
@@ -821,6 +823,7 @@ impl Hub {
             entity_out: Vec::new(),
             entity_gone: Vec::new(),
             mod_commands: (serde_json::Value::Null, None),
+            selector_tokens: Vec::new(),
             native_menu_events: Vec::new(),
             chunk_watches: ChunkWatchLog::default(),
             packet_drain: None,
@@ -2001,27 +2004,6 @@ impl Hub {
         let changed = self.mod_commands.0 != commands;
         self.mod_commands = (commands, Some(key));
         changed
-    }
-
-    /// Commands.sendCommands: the command tree for this player.
-    fn send_commands(&self, i: usize) {
-        let g = &self.guests[i];
-        let mut packet = self.commands_packet(g.permission);
-        // What the mods took out is not in the tree the client gets.
-        if !g.hidden_commands.is_empty() {
-            let hidden: Vec<i32> = packet
-                .nodes
-                .iter()
-                .enumerate()
-                .filter(|(_, n)| n.kind == 1 && g.hidden_commands.contains(&n.name))
-                .map(|(i, _)| i as i32)
-                .collect();
-            let root = packet.root as usize;
-            if let Some(root) = packet.nodes.get_mut(root) {
-                root.children.retain(|c| !hidden.contains(c));
-            }
-        }
-        g.send(&C::Commands(packet));
     }
 
     /// The command tree a player of this permission level gets.
