@@ -111,12 +111,22 @@ pub fn launch(
         .request
         .entry
         .check_image(Path::new(holder.get_program()))?;
-    let mut endpoint = Endpoint::bind(marker)?;
+    let mut endpoint = Endpoint::bind(marker).map_err(|error| {
+        io::Error::new(error.kind(), format!("bind holder control socket: {error}"))
+    })?;
     holder.env(
         ENV,
         serde_json::to_string(marker).map_err(io::Error::other)?,
     );
-    let child = holder.spawn()?;
+    let child = holder.spawn().map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!(
+                "execute holder {}: {error}",
+                Path::new(holder.get_program()).display()
+            ),
+        )
+    })?;
     let handshake = (|| {
         let stream = endpoint.accept(deadline)?;
         let channel =

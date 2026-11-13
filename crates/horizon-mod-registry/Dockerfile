@@ -14,6 +14,7 @@ COPY crates/horizon-client/src/game/native_hooks crates/horizon-client/src/game/
 COPY crates/horizon-mod-runtime crates/horizon-mod-runtime
 COPY crates/horizon-mod-api-macros crates/horizon-mod-api-macros
 COPY crates/horizon-mod-point-shape crates/horizon-mod-point-shape
+COPY crates/horizon-mod-surface crates/horizon-mod-surface
 COPY crates/horizon-mod-package crates/horizon-mod-package
 COPY crates/horizon-release-sign crates/horizon-release-sign
 COPY crates/horizon-shader-api crates/horizon-shader-api

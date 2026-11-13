@@ -9,6 +9,9 @@ use horizon_core::random::{LegacyRandom, LevelRandom};
 use horizon_world::registry::BlockStateId;
 use std::sync::Arc;
 
+mod pending_entity;
+pub use pending_entity::{EntityLoadReason, PendingEntity};
+
 mod modified;
 pub use modified::ModifiedChunks;
 
@@ -63,6 +66,8 @@ pub struct World {
     pub infiniburn: Option<Arc<horizon_world::level::data::BlockSet>>,
     /// Server-owned mod data attached to this dimension.
     pub attachments: horizon_mod_runtime::attachments::Attachments,
+    /// Mod-owned watered areas; never serialized with the world.
+    pub water_tickets: horizon_mod_runtime::water_tickets::WaterTickets,
     /// The holders lent to mods since the last flush, whose synced changes
     /// `flush_attachment_sync` sends.
     pub attachment_syncs: FxHashSet<horizon_mod_runtime::attachments::Holder>,
@@ -93,7 +98,7 @@ pub struct World {
     /// set. An index that no longer holds its position (drained, rolled back) is ignored.
     pub light_checks: crate::fast_hash::FxHashMap<(i32, i32, i32), usize>,
     /// Saved entities of chunks that just loaded, spawned by the game.
-    pub loaded_entities: Vec<((i32, i32), Vec<horizon_core::nbt::Tag>)>,
+    pub loaded_entities: Vec<((i32, i32), Vec<PendingEntity>)>,
     /// Chunks loaded since the level's last pass, their entity sections not
     /// ready yet (`PersistentEntitySectionManager`'s PENDING), empty ones too:
     /// the pass ends by readying them (`processPendingLoads`).
@@ -235,6 +240,30 @@ impl Weather {
             self.thunder_level.0 + (self.thunder_level.1 - self.thunder_level.0) * partial;
         (rain, thunder * rain)
     }
+    /// `ClientPacketListener.handleGameEvent`'s weather events, the player's level's or a viewed
+    /// level's: START_RAINING (1), STOP_RAINING (2), RAIN_LEVEL_CHANGE (7) and
+    /// THUNDER_LEVEL_CHANGE (8), with the event's `param`. Any other event is not the weather's.
+    pub fn game_event(&mut self, event: u8, param: f32) {
+        match event {
+            1 => {
+                self.raining = true;
+                self.rain_level = (0.0, 0.0);
+            }
+            2 => {
+                self.raining = false;
+                self.rain_level = (1.0, 1.0);
+            }
+            7 => {
+                self.rain_level = (param, param);
+                self.raining = param > 0.0;
+            }
+            8 => {
+                self.thunder_level = (param, param);
+                self.thundering = param > 0.0;
+            }
+            _ => {}
+        }
+    }
 }
 impl World {
     /// Install loaded instances, retiring an existing column's block entities even
@@ -253,6 +282,11 @@ impl World {
                 .unload(|p| (p.0 >> 4, p.2 >> 4) == chunk && !incoming.contains(p));
         }
         self.block_entities.load_chunk(entities);
+    }
+    /// Queue ordinary NBT; transient transfer state is never decoded from it.
+    pub fn queue_entity_nbt(&mut self, key: (i32, i32), tags: Vec<horizon_core::nbt::Tag>) {
+        self.loaded_entities
+            .push((key, tags.into_iter().map(PendingEntity::from).collect()));
     }
 
     pub fn new(air: BlockStateId, seed: i64) -> Self {
@@ -274,6 +308,7 @@ impl World {
             loaded_chunks: Vec::new(),
             modified: ModifiedChunks::default(),
             attachments: Default::default(),
+            water_tickets: Default::default(),
             attachment_syncs: FxHashSet::default(),
             attachment_landings: FxHashSet::default(),
             capability_generations: Default::default(),
@@ -613,6 +648,11 @@ impl World {
             Tag::Compound(_) => Some(lock.clone()),
             _ => None,
         });
+        let mut tag = tag.clone();
+        if let Tag::Compound(map) = &mut tag {
+            map.remove(&"LootTable".into());
+            map.remove(&"LootTableSeed".into());
+        }
         self.with_chunk_extras(key, |extras| {
             let at = extras
                 .block_entity_sources
@@ -640,7 +680,7 @@ impl World {
         });
     }
     /// The fields Horizon keeps beside a block entity's model, for a journal: the tag it was
-    /// loaded or set with (its `lock`) and its loot table roll.
+    /// loaded or set with (its `lock`) and its pending loot metadata.
     pub fn block_entity_extras(&self, key: (i32, i32, i32)) -> BlockEntityExtras {
         let saved = self
             .chunks
@@ -653,7 +693,7 @@ impl World {
                     .find(|(p, _)| *p == key)
                     .map(|(_, tag)| tag.clone())
             }),
-            rolled_loot: saved.and_then(|s| s.rolled_loot.iter().find(|r| r.pos == key).cloned()),
+            pending_loot: saved.and_then(|s| s.pending_loot.get(&key).cloned()),
         }
     }
     /// Puts back what [`World::block_entity_extras`] kept.
@@ -663,8 +703,10 @@ impl World {
             extras
                 .block_entity_sources
                 .extend(kept.source.map(|tag| (key, tag)));
-            extras.rolled_loot.retain(|r| r.pos != key);
-            extras.rolled_loot.extend(kept.rolled_loot);
+            extras.pending_loot.remove(&key);
+            extras
+                .pending_loot
+                .extend(kept.pending_loot.map(|loot| (key, loot)));
         });
     }
     /// `LevelChunk.removeBlockEntity`: the tag a block entity was loaded or set
@@ -672,12 +714,13 @@ impl World {
     pub fn forget_block_entity_source(&mut self, key: (i32, i32, i32)) {
         self.with_chunk_extras(key, |extras| {
             extras.block_entity_sources.retain(|(p, _)| *p != key);
+            extras.pending_loot.remove(&key);
         });
     }
     /// Run `f` on the keep-as-loaded data of the chunk holding `key`, put back
     /// for the next save (`block_entity_sources` is where Horizon restores the
     /// block entity fields its model does not hold).
-    fn with_chunk_extras(
+    pub fn with_chunk_extras(
         &mut self,
         key: (i32, i32, i32),
         f: impl FnOnce(&mut crate::chunk::ChunkExtras),
@@ -884,5 +927,5 @@ mod tests {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BlockEntityExtras {
     pub source: Option<horizon_core::nbt::Tag>,
-    pub rolled_loot: Option<crate::chunk::RolledLoot>,
+    pub pending_loot: Option<crate::chunk::PendingContainerLoot>,
 }

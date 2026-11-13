@@ -37,6 +37,11 @@ pub trait Rules {
     fn can_drop_items(&self) -> bool {
         true
     }
+    /// The mods' `menu_slot_rules`, lent by the game for the click (none keeps the slots' own
+    /// answers).
+    fn slot_rules(&self) -> Option<&dyn crate::menu::SlotRules> {
+        None
+    }
 }
 
 /// An open block container.
@@ -550,7 +555,7 @@ impl View<'_> {
             }
         });
         crate::menu::apply_menu_slot_rules(
-            self.loop_context,
+            rules.slot_rules(),
             &menu.registry_id,
             index,
             stack,
@@ -744,7 +749,7 @@ fn move_to(
                     player_slot(i - c.len())
                 };
                 if !crate::menu::apply_menu_slot_rules(
-                    view.loop_context,
+                    rules.slot_rules(),
                     &menu.registry_id,
                     index,
                     &stack,

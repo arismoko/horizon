@@ -201,7 +201,12 @@ impl Game<'_> {
                 "retried": true,
             });
         }
-        let result = horizon_client::lan::import::import_player(&mut host.hub, uuid, &request);
+        let result = horizon_client::lan::import::import_player(
+            &mut host.hub,
+            &self.motion.attributes,
+            uuid,
+            &request,
+        );
         match result {
             Ok(done) => {
                 self.take_arrival_records(uuid, &done);

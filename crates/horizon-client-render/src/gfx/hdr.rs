@@ -1091,6 +1091,7 @@ mod tests {
 
     #[test]
     fn shared_light_matches_the_original_for_every_mark() {
+        let _gpu = crate::gfx::test_gpu::lock();
         use wgpu::util::DeviceExt;
         let Some((device, queue)) = gpu() else {
             eprintln!("HDR equivalence GPU unavailable");
@@ -1190,6 +1191,7 @@ var<private> params: ReferenceParams;
 
     #[test]
     fn coverage_target_resizes_resets_and_shows_in_the_debug_view() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let instance = crate::gfx::test_gpu::instance();
         let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
             return;
@@ -1450,6 +1452,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
 
     #[test]
     fn direct_light_matches_the_legacy_non_float_display_below_the_tone_knee() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             return;
         };
@@ -1536,6 +1539,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
     /// at any paper white and peak (docs/design/hdr-linear-light.md, step 6a).
     #[test]
     fn the_writers_light_is_the_same_on_every_display() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             return;
         };
@@ -1577,6 +1581,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
     /// from the shader, in f64 from SMPTE ST 2084 and BT.2390.
     #[test]
     fn the_tone_curve_maps_the_scene_peak_onto_the_display() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             return;
         };
@@ -1754,6 +1759,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
     /// and the HDR10 picture after the switch back are the ones before it.
     #[test]
     fn a_switched_encoding_keeps_the_tuning_and_shows_the_same_light() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             eprintln!("HDR encoding switch GPU skipped: no adapter");
             return;
@@ -1841,6 +1847,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
     /// the PQ signal, for a source from 0 to the peak and b the black level's share of it.
     #[test]
     fn the_black_level_lift_follows_bt2390_in_pq_and_scrgb() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             return;
         };
@@ -1929,6 +1936,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
 
     #[test]
     fn a_scaled_screenshot_shoots_at_its_size_and_leaves_the_window_its_own_targets() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             eprintln!("scaled screenshot GPU unavailable");
             return;
@@ -1955,6 +1963,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
 
     #[test]
     fn sdr_screenshots_roll_off_the_world_and_keep_the_hud_as_drawn() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             eprintln!("SDR screenshot GPU unavailable");
             return;
@@ -2082,6 +2091,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
 
     #[test]
     fn the_hud_lays_over_the_worlds_light_by_its_coverage() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             return;
         };
@@ -2138,6 +2148,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
     /// above the peak stops there, as on the layered frame.
     #[test]
     fn the_hud_at_ui_brightness_stops_at_the_peak() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             return;
         };
@@ -2180,6 +2191,7 @@ struct ReferenceParams { peak: f32, scene: f32, world: f32, debug: f32, share: v
 
     #[test]
     fn the_menu_blur_keeps_the_light_it_blurs() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = gpu() else {
             return;
         };

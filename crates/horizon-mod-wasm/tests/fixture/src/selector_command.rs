@@ -13,7 +13,9 @@ pub fn run(event: &mut RunModCommandEvent<'_>) -> Flow {
     }
     if !matches!(
         name,
-        Some("selector_heal" | "selector_cow" | "selector_herd" | "selector_player")
+        Some(
+            "selector_heal" | "selector_cow" | "selector_herd" | "selector_player" | "selector_id"
+        )
     ) {
         return Flow::Continue;
     }
@@ -65,6 +67,15 @@ pub fn run(event: &mut RunModCommandEvent<'_>) -> Flow {
             };
             assert_eq!(player.entity(), EntityRef::new(epoch, 7));
             assert_eq!(player.uuid(), 0xffeeddccbbaa99887766554433221100);
+        }
+        "selector_id" => {
+            assert_eq!(call, 4);
+            assert_eq!(
+                event.command.argument("kind"),
+                Some(&CommandArgumentValue::Id(
+                    Identifier::parse("minecraft:zombie").unwrap()
+                ))
+            );
         }
         _ => unreachable!(),
     }

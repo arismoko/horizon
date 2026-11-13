@@ -83,6 +83,20 @@ impl Players for Game<'_> {
         self.native_acting_player()
     }
 }
+impl RuntimeLevels for Game<'_> {
+    fn open(&mut self, id: &str, level: RuntimeLevel) -> Result<LevelRef, RuntimeLevelError> {
+        mod_api::__private::check_access("open", mod_api::__private::LoadAccess::WorldOnly);
+        self.runtime_level_open(id, level)
+    }
+    fn unload(&mut self, id: &str) -> Result<(), RuntimeLevelError> {
+        mod_api::__private::check_access("unload", mod_api::__private::LoadAccess::WorldOnly);
+        self.runtime_level_unload(id)
+    }
+    fn is_open(&mut self, id: &str) -> bool {
+        mod_api::__private::check_access("is_open", mod_api::__private::LoadAccess::WorldOnly);
+        self.runtime_level_is_open(id)
+    }
+}
 impl RenderAssets for Game<'_> {
     fn model(&self, id: &Identifier) -> Result<ModelRef, ModelError> {
         mod_api::__private::check_access(

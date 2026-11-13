@@ -24,6 +24,11 @@ pub trait ServicesServerHost {
     #[access(WorldOnly)]
     #[service]
     fn players(&self) -> &dyn Players;
+    /// The runtime_levels service.
+    /// Not on wasm: a frame resource; its methods are the imports.
+    #[access(WorldOnly)]
+    #[service]
+    fn runtime_levels(&mut self) -> &mut dyn RuntimeLevels;
 }
 /// The client host's methods of the `services` area, implemented by the game and reached through [`crate::ClientHost`].
 #[horizon_mod_api_macros::host_area]
@@ -187,6 +192,52 @@ pub trait Players {
         crate::world::phase::unprovided(
             "Players::acting_player",
             "acting_player",
+            crate::world::phase::LoadAccess::WorldOnly,
+        )
+    }
+}
+/// The runtime_levels service, reached through its host.
+/// Success from `open` or `unload` admits a queued request, not its completion.
+/// Apply failures are logged with the requesting mod and level id. A failed open
+/// leaves the id unpublished and free to retry; a failed unload keeps it open for retry.
+pub trait RuntimeLevels {
+    /// Side: server.
+    /// Open the level `id` (`mymod:instance/ab`), in the calling mod's namespace, as `level`
+    /// describes. The request is checked now and applied after this server tick's levels have
+    /// ticked, never inside a level's tick: the level is not open, and `is_open` says false, until
+    /// then. The handle names this open of the level and never a later one. A folder that
+    /// exists under the id is reopened as it was saved. `level_load` fires when it opens.
+    /// Refused with [`RuntimeLevelError`] for an id outside the mod's namespace, one already
+    /// open or waiting, an unknown dimension type or generator, a noise generator, and when
+    /// the server's cap of open runtime levels (`horizon-max-runtime-levels`, 64) is reached.
+    fn open(&mut self, id: &str, level: RuntimeLevel) -> Result<LevelRef, RuntimeLevelError> {
+        crate::world::phase::unprovided(
+            "RuntimeLevels::open",
+            "open",
+            crate::world::phase::LoadAccess::WorldOnly,
+        )
+    }
+    /// Side: server.
+    /// Save and close the level `id` the calling mod opened, keeping its folder, once this server
+    /// tick's levels have ticked: `level_unload` fires then. Refused with
+    /// [`RuntimeLevelError::PlayersInside`] while a player or an arrival not yet landed is in the
+    /// level, now and again when it is applied: the mod moves its players out first
+    /// (`entity_teleport_to_level`).
+    fn unload(&mut self, id: &str) -> Result<(), RuntimeLevelError> {
+        crate::world::phase::unprovided(
+            "RuntimeLevels::unload",
+            "unload",
+            crate::world::phase::LoadAccess::WorldOnly,
+        )
+    }
+    /// Side: server.
+    /// Whether the level `id` is open: false until a queued `open` is applied, true until a
+    /// queued `unload` is. Takes `&mut self` as the service's other methods do: a frame
+    /// resource is reached one way.
+    fn is_open(&mut self, id: &str) -> bool {
+        crate::world::phase::unprovided(
+            "RuntimeLevels::is_open",
+            "is_open",
             crate::world::phase::LoadAccess::WorldOnly,
         )
     }

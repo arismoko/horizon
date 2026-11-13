@@ -71,6 +71,60 @@ fn biome_search_within_budget(parameters: mod_api::BiomeSearch, height: i32) -> 
 }
 
 impl Game<'_> {
+    pub(super) fn level_add_water_ticket(
+        &mut self,
+        level: LevelRef,
+        min: [i32; 3],
+        max: [i32; 3],
+    ) -> Option<mod_api::WaterTicket> {
+        let owner = mod_api::content::crash::current_native_mod()?;
+        let owner_index = mod_api::__private::mod_index(owner)?;
+        if !mod_api::__private::mod_index_on(owner_index) {
+            return None;
+        }
+        self.native_level_world(level)?;
+        let world = if level.dimension() == self.dim.key() {
+            &mut self.world
+        } else {
+            self.levels.parked_world_mut_of(level.dimension_id())?
+        };
+        world
+            .water_tickets
+            .add(owner, min, max, || {
+                mod_api::__private::mod_index_on(owner_index)
+            })
+            .map(|id| mod_api::WaterTicket::new(level, id))
+    }
+
+    pub(super) fn water_ticket_remove(&mut self, ticket: mod_api::WaterTicket) -> bool {
+        let Some(owner) = mod_api::content::crash::current_native_mod() else {
+            return false;
+        };
+        let Some(owner_index) = mod_api::__private::mod_index(owner) else {
+            return false;
+        };
+        if !mod_api::__private::mod_index_on(owner_index) {
+            return false;
+        }
+        let level = ticket.level();
+        if self.native_level_world(level).is_none() {
+            return false;
+        }
+        let world = if level.dimension() == self.dim.key() {
+            &mut self.world
+        } else if let Some(world) = self.levels.parked_world_mut_of(level.dimension_id()) {
+            world
+        } else {
+            return false;
+        };
+        world.water_tickets.remove(owner, ticket.id())
+    }
+
+    pub(super) fn level_has_water_ticket(&self, level: LevelRef, pos: [i32; 3]) -> bool {
+        self.native_level_world(level)
+            .is_some_and(|world| world.water_tickets.contains(pos))
+    }
+
     /// `ServerLevel.findClosestBiome3d`, using the same generator query as `/locate biome`.
     pub(super) fn level_find_closest_biome(
         &self,
@@ -254,7 +308,7 @@ impl Game<'_> {
         if !self.is_logical_server() {
             return Err(mod_api::LevelReadError::Unavailable);
         }
-        if self.native_lifecycle.epoch() != Some(level.epoch()) {
+        if !self.level_handle_current(level) {
             return Err(mod_api::LevelReadError::Stale);
         }
         if level.dimension() == self.dim.key() {
@@ -272,7 +326,7 @@ impl Game<'_> {
             return self.native_level_world(level);
         }
         (self.remote.as_ref().is_some_and(|r| r.logged_in)
-            && self.native_lifecycle.epoch() == Some(level.epoch())
+            && self.level_handle_current(level)
             && level.dimension() == self.native_level_key())
         .then_some(&self.world)
     }
@@ -472,10 +526,10 @@ impl Game<'_> {
         Some(forced.into_iter().map(|(x, z)| [x, z]).collect())
     }
     /// The block state ID at `pos` (`Level.getBlockState`), without formatting a string.
-    /// None for a chunk that isn't loaded or a `y` outside the world. On a client, the
-    /// state is the one the server sent for a chunk the client holds.
+    /// None for a chunk that isn't loaded or a `y` outside the world. On a client, the state
+    /// the server sent for a column the client holds, of its own level or a viewed one.
     pub(super) fn level_block_state(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockStateId> {
-        let world = self.native_level_read_world(level)?;
+        let world = self.native_level_view_world(level)?;
         let [x, y, z] = pos;
         world.is_loaded_at(x, y, z).then(|| world.block(x, y, z))
     }
@@ -587,7 +641,7 @@ impl Game<'_> {
     /// client.
     pub(super) fn level_in_place(&self, level: LevelRef) -> bool {
         self.is_logical_server()
-            && self.native_lifecycle.epoch() == Some(level.epoch())
+            && self.level_handle_current(level)
             && self.dim.key() == level.dimension()
     }
     /// `f` over the game's own `SignalGetter` for the level in place, as the level's blocks
@@ -737,7 +791,7 @@ impl Game<'_> {
     /// Whether `level` is a current handle on the server: what the world's own data (its
     /// respawn data and maps, shared by its levels) needs.
     fn native_world_data_allowed(&self, level: LevelRef) -> bool {
-        self.is_logical_server() && self.native_lifecycle.epoch() == Some(level.epoch())
+        self.is_logical_server() && self.level_handle_current(level)
     }
     /// `LevelData.getRespawnData`: the world spawn and its facing. None on a client, for a
     /// stale handle, and before the world has chosen its spawn.
@@ -1925,6 +1979,252 @@ mod tests {
     /// A game whose mods are `Machines` and `Other`, with their controllers registered.
     fn with_machines(test: impl FnOnce(&mut super::super::Game<'_>)) {
         mod_platform::testing::with_mods(mods(), || with_chunk_streaming(test));
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn water_tickets_hydrate_real_farmland_and_preserve_vanilla_water_and_rain() {
+        use horizon_client::chunk::Chunk;
+        use std::sync::Arc;
+
+        with_machines(|game| {
+            game.install_live_features();
+            let level = game.level(game.dim.id()).unwrap();
+            let registry = game.pack.assets.registry;
+            let dry = registry.default_state("minecraft:farmland").unwrap();
+            let wheat = registry.default_state("minecraft:wheat").unwrap();
+            let air = registry.default_state("minecraft:air").unwrap();
+            let water = registry.default_state("minecraft:water").unwrap();
+            let stone = registry.default_state("minecraft:stone").unwrap();
+            let plains = game.res.biomes().id("minecraft:plains");
+            let mut chunk = Chunk::empty(0, 0);
+            for qy in 0..game.world.shape.height / 4 {
+                for qx in 0..4 {
+                    for qz in 0..4 {
+                        chunk.set_biome_cell(qx, qy, qz, plains);
+                    }
+                }
+            }
+            game.world.chunks.insert((0, 0), Arc::new(chunk));
+            game.block_ticks
+                .add_empty_chunk(horizon_core::position::ChunkPos::new(0, 0))
+                .unwrap();
+            assert!(level.set_weather_levels(game, 0.0, 0.0));
+            let moisture = |game: &super::super::Game<'_>, pos| {
+                level
+                    .block_property(game, pos, "moisture")
+                    .unwrap()
+                    .parse::<i32>()
+                    .unwrap()
+            };
+            for x in 4..9 {
+                for z in 4..9 {
+                    game.world.set(x, 64, z, dry).unwrap();
+                    game.world.set(x, 65, z, wheat).unwrap();
+                }
+            }
+            game.world.set(9, 64, 4, dry).unwrap();
+            game.world.set(9, 65, 4, wheat).unwrap();
+            let guard = in_mod("machines");
+            let ticket = level
+                .add_water_ticket(game, [4, 64, 4], [9, 65, 9])
+                .unwrap();
+            for x in 4..9 {
+                for z in 4..9 {
+                    assert!(level.has_water_ticket(game, [x, 64, z]));
+                    assert!(level.block_random_tick(game, [x, 64, z]));
+                    assert_eq!(moisture(game, [x, 64, z]), 7);
+                }
+            }
+            assert!(!level.has_water_ticket(game, [9, 64, 4]));
+            assert!(level.block_random_tick(game, [9, 64, 4]));
+            assert_eq!(moisture(game, [9, 64, 4]), 0);
+            assert!(ticket.remove(game));
+            assert!(!ticket.remove(game));
+            for expected in (0..7).rev() {
+                for x in 4..9 {
+                    for z in 4..9 {
+                        assert!(level.block_random_tick(game, [x, 64, z]));
+                        assert_eq!(moisture(game, [x, 64, z]), expected);
+                    }
+                }
+            }
+            // A real water block at vanilla's four-block edge still hydrates without a ticket.
+            game.world.set(0, 64, 4, water).unwrap();
+            assert!(level.block_random_tick(game, [4, 64, 4]));
+            assert_eq!(moisture(game, [4, 64, 4]), 7);
+            game.world.set(0, 64, 4, air).unwrap();
+            game.world.set(4, 64, 4, dry).unwrap();
+            game.world.set(4, 65, 4, air).unwrap();
+            assert!(level.set_weather_levels(game, 1.0, 0.0));
+            assert_eq!(level.is_raining_at(game, [4, 65, 4]), Some(true));
+            assert!(level.block_random_tick(game, [4, 64, 4]));
+            assert_eq!(moisture(game, [4, 64, 4]), 7);
+            // A roof still excludes rain: tickets have not replaced the rain predicate.
+            game.world.set(4, 66, 4, stone).unwrap();
+            assert_eq!(level.is_raining_at(game, [4, 65, 4]), Some(false));
+            assert!(level.block_random_tick(game, [4, 64, 4]));
+            assert_eq!(moisture(game, [4, 64, 4]), 6);
+            drop(guard);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn water_ticket_handles_isolate_dimensions_owners_and_unload_lifetimes() {
+        with_machines(|game| {
+            let overworld = game.level(game.dim.id()).unwrap();
+            assert!(
+                overworld
+                    .add_water_ticket(game, [0, 64, 0], [5, 65, 5])
+                    .is_none()
+            );
+            let guard = in_mod("machines");
+            let a = overworld
+                .add_water_ticket(game, [-17, 64, -1], [18, 65, 2])
+                .unwrap();
+            let stale = LevelRef::new(
+                WorldEpoch::new(overworld.epoch().get() + 1),
+                overworld.dimension(),
+            );
+            assert!(!stale.has_water_ticket(game, [0, 64, 0]));
+            assert!(
+                stale
+                    .add_water_ticket(game, [0, 64, 0], [5, 65, 5])
+                    .is_none()
+            );
+            for pos in [[-17, 64, -1], [17, 64, 1]] {
+                assert!(overworld.has_water_ticket(game, pos));
+            }
+            for pos in [
+                [-18, 64, 0],
+                [18, 64, 0],
+                [0, 63, 0],
+                [0, 65, 0],
+                [0, 64, -2],
+                [0, 64, 2],
+            ] {
+                assert!(!overworld.has_water_ticket(game, pos), "{pos:?}");
+            }
+            game.enter_level(Dim::Nether).unwrap();
+            let nether = game.level(game.dim.id()).unwrap();
+            assert!(!nether.has_water_ticket(game, [0, 64, 0]));
+            assert!(overworld.has_water_ticket(game, [0, 64, 0]));
+            let b = nether
+                .add_water_ticket(game, [0, 64, 0], [5, 65, 5])
+                .unwrap();
+            assert!(
+                overworld
+                    .add_water_ticket(game, [0, 64, 0], [5, 65, 5])
+                    .is_some()
+            );
+            drop(guard);
+            let guard = in_mod("other");
+            assert!(!a.remove(game), "only its owner removes a ticket");
+            let overlap = nether
+                .add_water_ticket(game, [3, 64, 3], [4, 65, 4])
+                .unwrap();
+            drop(guard);
+            assert!(mod_api::__private::set_mod_enabled("machines", false));
+            assert!(!overworld.has_water_ticket(game, [0, 64, 0]));
+            assert!(!nether.has_water_ticket(game, [0, 64, 0]));
+            assert!(nether.has_water_ticket(game, [3, 64, 3]));
+            assert!(mod_api::__private::set_mod_enabled("machines", true));
+            assert!(
+                !overworld.has_water_ticket(game, [0, 64, 0]),
+                "re-enable never restores old tickets"
+            );
+            let guard = in_mod("machines");
+            assert!(!b.remove(game));
+            let fresh = overworld
+                .add_water_ticket(game, [0, 64, 0], [5, 65, 5])
+                .unwrap();
+            game.native_levels_closing();
+            assert!(!overworld.has_water_ticket(game, [0, 64, 0]));
+            assert!(!nether.has_water_ticket(game, [3, 64, 3]));
+            assert!(!fresh.remove(game));
+            drop(guard);
+            let guard = in_mod("other");
+            assert!(!overlap.remove(game));
+            drop(guard);
+            // The client cannot query or mutate the server's in-memory marks.
+            game.options.execution_role = super::super::execution_role::ExecutionRole::Client;
+            let guard = in_mod("machines");
+            assert!(!nether.has_water_ticket(game, [0, 64, 0]));
+            assert!(
+                nether
+                    .add_water_ticket(game, [0, 64, 0], [5, 65, 5])
+                    .is_none()
+            );
+            assert!(!b.remove(game));
+            drop(guard);
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn water_tickets_are_not_restored_with_saved_farmland() {
+        use horizon_client::{chunk::Chunk, save::SaveDir, world::World};
+        use std::sync::Arc;
+
+        with_machines(|game| {
+            let level = game.level(game.dim.id()).unwrap();
+            let registry = game.pack.assets.registry;
+            let dry = registry.default_state("minecraft:farmland").unwrap();
+            game.world
+                .chunks
+                .insert((0, 0), Arc::new(Chunk::empty(0, 0)));
+            game.block_ticks
+                .add_empty_chunk(horizon_core::position::ChunkPos::new(0, 0))
+                .unwrap();
+            game.world.set(4, 64, 4, dry).unwrap();
+            let guard = in_mod("machines");
+            let old = level
+                .add_water_ticket(game, [4, 64, 4], [9, 65, 9])
+                .unwrap();
+            assert!(level.block_random_tick(game, [4, 64, 4]));
+            assert_eq!(
+                level
+                    .block_property(game, [4, 64, 4], "moisture")
+                    .as_deref(),
+                Some("7")
+            );
+            game.save
+                .save(
+                    &[game.world.chunks.get(&(0, 0)).unwrap().clone()],
+                    registry,
+                    game.res.biomes(),
+                )
+                .unwrap();
+            let root = game.save.root.clone();
+            let shape = game.world.shape;
+            game.native_levels_closing();
+            let save = SaveDir::new(root, shape);
+            let chunk = save.load(0, 0, registry, game.res.biomes()).unwrap();
+            game.world = World::new(registry.default_state("minecraft:air").unwrap(), 0);
+            game.world.chunks.insert((0, 0), Arc::new(chunk));
+            game.save = Arc::new(save);
+            game.native_lifecycle
+                .begin_open(mod_api::Authority::IntegratedServer);
+            let reopened = game.level(game.dim.id()).unwrap();
+            assert_ne!(level.epoch(), reopened.epoch());
+            assert!(!reopened.has_water_ticket(game, [4, 64, 4]));
+            assert!(!old.remove(game));
+            assert_eq!(
+                reopened
+                    .block_property(game, [4, 64, 4], "moisture")
+                    .as_deref(),
+                Some("7")
+            );
+            assert!(reopened.block_random_tick(game, [4, 64, 4]));
+            assert_eq!(
+                reopened
+                    .block_property(game, [4, 64, 4], "moisture")
+                    .as_deref(),
+                Some("6")
+            );
+            drop(guard);
+        });
     }
 
     #[test]

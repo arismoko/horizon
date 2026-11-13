@@ -19,8 +19,8 @@ pub trait Hooks {
     /// `animals_bred` statistic, no advancement and no heart particles. The
     /// inheritance draws the construction made stay spent. Every handle is
     /// borrowed for one listener only. Not fired for turtles, frogs and sniffers
-    /// (an egg, no baby), their hatching, or villagers' own path; armadillos
-    /// take the ordinary animal path and are included. On the server.
+    /// (an egg, no baby), or their hatching; armadillos take the ordinary animal path and are
+    /// included. Villagers do not post this animal-only event, matching NeoForge's documented `Animal.spawnChildFromBreeding` posting site; a rejected villager join instead leaves the child's bed free. On the server.
     #[notes = r#"## Baby entity spawn
 
 - **`baby_entity_spawn(dimension, parent, partner, player, player_entity_id, edits, cancel)`** (NeoForge's `BabyEntitySpawnEvent`): fires after breeding has constructed the baby (`Animal.spawnChildFromBreeding`: `getBreedOffspring`, baby flag and position) and before breeding is finalized and the baby inserted. `edits` (`&dyn PendingChildrenEdits`) changes a list of at most one engine-owned, fully constructed baby, whose lease (`PendingChildrenRef`) `edits.children()` returns; see [Design: pending children](../concepts/pending-children.md). Replace the baby with `edits.construct(children, PendingMobSpec::new(kind, dimension, position, yaw, true))` then `edits.replace(children, 0, baby)` (with `children = edits.children()?`); remove it with `edits.remove`. A second baby answers `Capacity` and a non-baby replacement `Invalid`; each handle is valid for one listener only.

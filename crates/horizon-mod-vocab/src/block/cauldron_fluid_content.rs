@@ -1,6 +1,41 @@
 //! The fluid a cauldron block holds, registered for the fluid capability.
 use crate::{BlockKey, FluidKey};
 
+/// The current registered contents of a cauldron block.
+#[derive(Clone, Debug, PartialEq, Eq, horizon_mod_api_macros::Wire)]
+#[non_exhaustive]
+pub struct CauldronContent {
+    /// The cauldron block.
+    pub block: BlockKey,
+    /// The fluid it holds.
+    pub fluid: FluidKey,
+    /// Millibuckets when full.
+    pub total: u32,
+    /// The greatest level; one for an always-full content.
+    pub max_level: u32,
+    /// The integer level property; none for an always-full content.
+    pub level_property: Option<String>,
+}
+
+impl CauldronContent {
+    /// Construct the plain value for a resolved registration.
+    pub fn new(
+        block: BlockKey,
+        fluid: FluidKey,
+        total: u32,
+        max_level: u32,
+        level_property: Option<String>,
+    ) -> Self {
+        Self {
+            block,
+            fluid,
+            total,
+            max_level,
+            level_property,
+        }
+    }
+}
+
 /// Registrar of the fluid a cauldron block holds (`register_cauldron_fluid_content`), as
 /// NeoForge's `RegisterCauldronFluidContentEvent`.
 pub trait CauldronFluidContents {

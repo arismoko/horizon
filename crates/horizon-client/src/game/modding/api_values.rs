@@ -1,6 +1,8 @@
 // game-module-visibility: pub(crate)
 //! The game-owned conversion boundary between API records and engine values.
 //! Rust's orphan rule prevents foreign From/TryFrom implementations here.
+#[path = "api_values/ingredient.rs"]
+mod ingredient_values;
 use horizon_core::nbt::{Compound, JavaString, Tag};
 use horizon_items::items::{ItemStack as EngineStack, Items};
 use mod_api::item::item_stack::{ItemStack as ApiStack, StackWriteError};
@@ -264,25 +266,9 @@ impl TryIntoApi for horizon_client::boss_overlay::ModBar {
     }
 }
 
-/// Registry access for generated stack write-back in full and narrowed hook hosts.
-pub(in crate::game) trait ItemBoundary {
-    fn boundary_items(&self) -> Option<&Items>;
-}
-impl ItemBoundary for super::Game<'_> {
-    fn boundary_items(&self) -> Option<&Items> {
-        Some(self.items())
-    }
-}
-impl ItemBoundary for super::GameLevel<'_> {
-    fn boundary_items(&self) -> Option<&Items> {
-        Some(self.items)
-    }
-}
-impl ItemBoundary for super::native_hooks::HitLevel<'_> {
-    fn boundary_items(&self) -> Option<&Items> {
-        self.0.tags()
-    }
-}
+#[path = "api_values/item_snapshot.rs"]
+mod item_snapshot;
+pub(in crate::game) use item_snapshot::ItemBoundary;
 
 impl TryIntoApi for horizon_world::chunk::BlockState {
     type Api = mod_api::BlockState;
@@ -440,6 +426,10 @@ where
 #[path = "api_values/content_declarations.rs"]
 mod content_declarations;
 pub(in crate::game) use content_declarations::push_reaction;
+
+#[path = "api_values/stack_count.rs"]
+mod stack_count;
+pub(crate) use stack_count::TryIntoEnginePreservingCount;
 
 pub(crate) trait TryIntoEngine<Context: ?Sized = Items> {
     type Engine;
@@ -830,71 +820,6 @@ fn encode_stack(
     Ok(stack)
 }
 
-impl TryIntoEngine for ApiStack {
-    type Engine = EngineStack;
-    type Error = StackWriteError;
-
-    fn try_into_engine(&self, items: &Items) -> Result<EngineStack, Self::Error> {
-        let id =
-            mod_api::__private::item_key_id(self.item()).ok_or(StackWriteError::UnknownItem)?;
-        let (id, definition) = items
-            .items
-            .get_key_value(id)
-            .ok_or(StackWriteError::UnknownItem)?;
-        let stack = encode_stack(self, id.clone())?;
-        let effective = |name: &str, default: u32| -> Result<u32, StackWriteError> {
-            match stack.data().and_then(|data| data.other(name)) {
-                Some(Tag::Int(value)) => {
-                    u32::try_from(*value).map_err(|_| StackWriteError::InvalidMaximum)
-                }
-                Some(_) => Err(StackWriteError::InvalidMaximum),
-                None => Ok(default),
-            }
-        };
-        let maximum = if stack.carries_component(Some(definition), "minecraft:max_stack_size") {
-            effective("minecraft:max_stack_size", definition.max_stack)?
-        } else {
-            1
-        };
-        if !(1..=99).contains(&maximum) {
-            return Err(StackWriteError::InvalidMaximum);
-        }
-        if !horizon_world::item_template::durability_allows_stack_size(
-            stack.carries_component(Some(definition), "minecraft:max_damage"),
-            i64::from(maximum),
-        ) {
-            return Err(StackWriteError::StackableDamageable);
-        }
-        if stack.count > maximum {
-            return Err(StackWriteError::CountExceeded { maximum });
-        }
-        let maximum = if stack.carries_component(Some(definition), "minecraft:max_damage") {
-            effective("minecraft:max_damage", definition.max_damage)?
-        } else {
-            0
-        };
-        let damage = self.damage_component().map_or_else(
-            || {
-                u32::try_from(stack.effective_damage(Some(definition))).map_err(|_| {
-                    StackWriteError::InvalidComponents {
-                        reason: mod_api::StackError::InvalidDamage,
-                    }
-                })
-            },
-            Ok,
-        )?;
-        if damage > maximum {
-            return Err(StackWriteError::DamageExceeded { maximum });
-        }
-        if i32::try_from(damage).is_err() {
-            return Err(StackWriteError::InvalidComponents {
-                reason: mod_api::StackError::InvalidDamage,
-            });
-        }
-        Ok(stack)
-    }
-}
-
 impl TryIntoApi for crate::crafting::RecipeRule {
     type Api = mod_api::RecipeRule;
     type Error = StackReadError;
@@ -1047,45 +972,6 @@ impl TryIntoApi for crate::crafting::RecipeRule {
     }
 }
 
-impl TryIntoApi for crate::crafting::Ingredient {
-    type Api = mod_api::Ingredient;
-    type Error = StackReadError;
-    fn try_into_api(&self) -> Result<Self::Api, Self::Error> {
-        Ok(mod_api::Ingredient {
-            items: self.items.clone(),
-            order: self.order.clone(),
-            custom: self.custom.clone(),
-            children: self
-                .children
-                .as_ref()
-                .map(|(shape, kids)| Ok((shape.clone(), kids.try_into_api()?)))
-                .transpose()?,
-        })
-    }
-}
-impl TryIntoEngine for mod_api::Ingredient {
-    type Engine = crate::crafting::Ingredient;
-    type Error = StackWriteError;
-    fn try_into_engine(&self, _items: &Items) -> Result<Self::Engine, Self::Error> {
-        Ok(crate::crafting::Ingredient {
-            items: self.items.clone(),
-            order: self.order.clone(),
-            custom: self.custom.clone(),
-            children: self
-                .children
-                .as_ref()
-                .map(|(shape, kids)| {
-                    Ok::<_, StackWriteError>((
-                        shape.clone(),
-                        kids.iter()
-                            .map(|k| k.try_into_engine(_items))
-                            .collect::<Result<_, _>>()?,
-                    ))
-                })
-                .transpose()?,
-        })
-    }
-}
 impl TryIntoApi for crate::crafting::RecipeTemplate {
     type Api = mod_api::RecipeTemplate;
     type Error = StackReadError;
@@ -1220,26 +1106,6 @@ impl mod_api::item::menu::SlotView for ApiSlot<'_> {
         }
     }
 }
-/// Adapt a synchronous slot event; engine slot rules still own every write.
-pub(crate) fn menu_slot_rules(
-    context: &horizon_world::native_load_context::LoopContext,
-    menu: &str,
-    slot: usize,
-    stack: &EngineStack,
-    may_place: &mut bool,
-    max_stack: &mut u32,
-) {
-    if !mod_api::__private::has_part_hook(mod_api::HookId::MenuSlotRules) {
-        return;
-    }
-    let Ok(stack) = stack.try_into_api() else {
-        return;
-    };
-    let reader = horizon_client_render::api_context::LoopReader(context);
-    let context = reader.context();
-    mod_api::dispatch_menu_slot_rules(&context, menu, slot, &stack, may_place, max_stack);
-}
-
 /// Adapt a player's block menu `stillValid` check; the game asks only for a menu
 /// whose type has a part answering it (`menu_still_valid_listens`, when it opened).
 pub(crate) fn menu_still_valid(
@@ -1909,45 +1775,6 @@ impl TryIntoApi for crate::containers::ModBlockEntity {
 include!("api_values/block_entity_writeback.rs");
 
 impl super::Game<'_> {
-    pub(in crate::game) fn api_block_entity_tick(
-        &mut self,
-        pos: [i32; 3],
-        entity: &mut crate::containers::ModBlockEntity,
-    ) {
-        // #2051: the one decision whether a block entity ticks is its
-        // type's own ticker (`native_block_entity_ticks`,
-        // `EntityBlock.getTicker`), answered when the world opens — the
-        // level's ticking list carries it here, whichever path registered
-        // the type (a Registrar part or a bare declaration whose tick
-        // arrives another way). No second gate: a parts-only check here
-        // kept declared types' ticks — and the injections on
-        // `native_block_entity_tick` — unreachable.
-        let Ok(mut api) = entity.try_into_api() else {
-            return;
-        };
-        let revision = api.revision();
-        self.native_block_entity_tick(pos, &mut api);
-        if let Some(scope) = &mut self.block_entity_tick_items
-            && scope.items.is_some()
-        {
-            scope.snapshot = Some(Box::new((api, revision)));
-            return;
-        }
-        let _ = finish_block_entity_writeback(
-            entity,
-            &api,
-            revision,
-            self.items(),
-            "block_entity_tick",
-            if self.block_entity_tick_key.as_ref().is_none_or(|key| {
-                !key.unbalanced && key.failure_generation == self.wasm_dispatch_failures.get()
-            }) {
-                Ok(())
-            } else {
-                Err(BlockEntitySnapshotError::InvalidRevision)
-            },
-        );
-    }
     pub(in crate::game) fn api_block_entity_update_tag(
         pos: [i32; 3],
         entity: &crate::containers::ModBlockEntity,
@@ -3233,7 +3060,7 @@ pub(in crate::game) mod damage;
 #[path = "api_values/item_properties.rs"]
 mod item_properties;
 #[path = "api_values/loot_values.rs"]
-mod loot_values;
+pub(crate) mod loot_values;
 #[path = "api_values/particle_values.rs"]
 mod particle_values;
 pub(crate) use loot_values::{dispatch_loot_condition, dispatch_loot_function};

@@ -123,7 +123,9 @@ pub(super) fn builtin_registries(root: &std::path::Path) -> Option<Arc<Builtin>>
     if let Some((_, builtin)) = cache.iter().find(|(cached, _)| cached == root) {
         return Some(builtin.clone());
     }
-    let builtin = Arc::new(Builtin::find(root).and_then(|p| Builtin::load(&p).ok())?);
+    let builtin = Arc::new(horizon_client::lan::data::with_custom_stats(
+        Builtin::find(root).and_then(|p| Builtin::load(&p).ok())?,
+    ));
     cache.push((root.to_owned(), builtin.clone()));
     Some(builtin)
 }

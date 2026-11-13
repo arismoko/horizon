@@ -72,6 +72,7 @@ impl ItemTables<'_> {
             entity_boxes,
             Some(self.border),
             Some(&self.motion.blocks),
+            self.context,
         );
         item.check_fall(&mut step, |fall, from, moved| {
             if fall == 0.0 || moved.length_squared() < 1.0 {

@@ -8,6 +8,7 @@ use wgpu::TextureFormat as T;
 
 #[test]
 fn a_runtime_arrays_length_is_the_buffers() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let Some(gpu) = Gpu::new() else { return };
     let files = vec![
         ("shaders.properties".into(), "bufferObject.0 = 32\n".into()),

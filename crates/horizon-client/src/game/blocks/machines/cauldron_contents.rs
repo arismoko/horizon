@@ -8,6 +8,21 @@ use std::sync::{Arc, LazyLock, RwLock};
 /// The empty cauldron: what a drained content leaves, and what a fill of any content takes.
 pub(in crate::game) const EMPTY_CAULDRON: &str = "minecraft:cauldron";
 
+/// The same vanilla content definitions seed runtime tables and registration coverage.
+const VANILLA_CONTENTS: [(&str, &str, Option<(&str, u32)>); 2] = [
+    (
+        "minecraft:water_cauldron",
+        "minecraft:water",
+        Some(("level", 3)),
+    ),
+    ("minecraft:lava_cauldron", "minecraft:lava", None),
+];
+
+/// Type coverage only: the empty cauldron or a vanilla content's block.
+pub(in crate::game) fn vanilla_block_has_fluids(block: &str) -> bool {
+    block == EMPTY_CAULDRON || VANILLA_CONTENTS.iter().any(|&(name, _, _)| name == block)
+}
+
 /// A cauldron block's content: `total` millibuckets of `fluid` when full, over the levels of
 /// the block's integer property `level`, or only ever full when it has none (lava).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,20 +157,15 @@ impl CauldronContents {
     /// Vanilla's: water, a bucket in thirds over `level` 1..3, and lava, a bucket only whole.
     pub fn vanilla() -> Self {
         Self {
-            contents: vec![
-                CauldronContent {
-                    block: "minecraft:water_cauldron".to_owned(),
-                    fluid: "minecraft:water".to_owned(),
+            contents: VANILLA_CONTENTS
+                .iter()
+                .map(|&(block, fluid, level)| CauldronContent {
+                    block: block.to_owned(),
+                    fluid: fluid.to_owned(),
                     total: 1000,
-                    level: Some(("level".to_owned(), 3)),
-                },
-                CauldronContent {
-                    block: "minecraft:lava_cauldron".to_owned(),
-                    fluid: "minecraft:lava".to_owned(),
-                    total: 1000,
-                    level: None,
-                },
-            ],
+                    level: level.map(|(property, levels)| (property.to_owned(), levels)),
+                })
+                .collect(),
         }
     }
     /// Adds `content`. Refused, naming both sides, when its block already has a content or
@@ -200,6 +210,27 @@ impl CauldronContents {
 static CONTENTS: LazyLock<RwLock<Arc<CauldronContents>>> =
     LazyLock::new(|| RwLock::new(Arc::new(CauldronContents::vanilla())));
 
+static BUILT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The published table, absent until resource registration has built it.
+pub(in crate::game) fn current_if_built() -> Option<Arc<CauldronContents>> {
+    BUILT
+        .load(std::sync::atomic::Ordering::Acquire)
+        .then(current)
+}
+
+#[cfg(test)]
+pub(in crate::game) fn without_built_table(test: impl FnOnce()) {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            BUILT.store(self.0, std::sync::atomic::Ordering::Release);
+        }
+    }
+    let _restore = Restore(BUILT.swap(false, std::sync::atomic::Ordering::AcqRel));
+    test();
+}
+
 /// The table in place.
 pub(in crate::game) fn current() -> Arc<CauldronContents> {
     CONTENTS
@@ -213,11 +244,33 @@ pub(in crate::game) fn install(contents: CauldronContents) {
     *CONTENTS
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Arc::new(contents);
+    BUILT.store(true, std::sync::atomic::Ordering::Release);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vanilla_type_coverage_matches_the_runtime_content_definitions() {
+        let contents = CauldronContents::vanilla();
+        for block in [
+            "minecraft:cauldron",
+            "minecraft:water_cauldron",
+            "minecraft:lava_cauldron",
+        ] {
+            assert!(vanilla_block_has_fluids(block), "{block}");
+            assert!(block == EMPTY_CAULDRON || contents.of_block(block).is_some());
+        }
+        for block in [
+            "minecraft:powder_snow_cauldron",
+            "minecraft:chest",
+            "test:water_cauldron",
+        ] {
+            assert!(!vanilla_block_has_fluids(block), "{block}");
+            assert!(contents.of_block(block).is_none());
+        }
+    }
 
     fn water() -> CauldronContent {
         CauldronContents::vanilla()

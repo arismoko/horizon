@@ -205,6 +205,18 @@ impl StateTransforms {
                 .map_or(state, |t| BlockStateId(t[r as usize - 1])),
         }
     }
+    /// `BlockState.rotate(level, pos, rotation)` as a template places `state`, already
+    /// mirrored, at `pos` (NeoForge's `IBlockExtension.rotate`): this table's turned state, or
+    /// another state of the block its parts answer (`rotate`). Every template placement turns
+    /// its states through here.
+    pub fn rotate_at(
+        &self,
+        state: BlockStateId,
+        pos: [i32; 3],
+        rotation: Rotation,
+    ) -> BlockStateId {
+        crate::native_worldgen_hooks::rotate(state, pos, rotation, self.rotate(state, rotation))
+    }
     pub fn mirror(&self, state: BlockStateId, mirror: Mirror) -> BlockStateId {
         match mirror {
             Mirror::None => state,

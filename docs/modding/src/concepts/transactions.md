@@ -35,6 +35,7 @@ The journal covers writes through capability handlers to these storages:
 | Block entity | Item slots, saved compound, custom name and attachments |
 | Hopper | Cooldown |
 | Cauldron | Block state |
+| World fluid pickup and placement | Block state, and a block entity the new block removes |
 | Player | Inventory slots, armour, offhand and cursor, for host and guest players |
 | Entity inventory | Chest or hopper minecart, chest boat, chested donkey, mule or llama inventory |
 | Item entity | Stack; an emptied entity remains until the outermost commit removes it |
@@ -43,6 +44,13 @@ At the outermost commit, the game publishes change notifications and deferred
 effects: `setChanged`, comparators, jukebox playback, cauldron block updates and
 item drops. Drops include items placed at a block, thrown by a player or entity,
 or split off an item entity.
+
+A world pickup or placement of fluid (`level.pickup_fluid`, `level.place_fluid`) writes
+its block at the call and the rest at the outermost commit; an aborted one leaves the world
+unchanged, where NeoForge's may not. `level.play_fluid_effects` queues a fluid's sound and
+game event the same way: they play only at the outermost commit and are dropped on abort,
+unlike `trigger_sound_and_game_event`, which acts at once. The `block_drops` listeners of a
+replaced block see it as it was, and a cancelled drop keeps the replacement.
 
 Direct writes are not journaled: direct item-entity stack writes,
 `LivingRef::set_equipment`, and the player and armor-stand `slot_set` paths take

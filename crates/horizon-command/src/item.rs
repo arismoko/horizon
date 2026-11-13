@@ -21,6 +21,65 @@ fn int_of(t: &Tag) -> Option<i64> {
         _ => return None,
     })
 }
+/// Built-ins with an implemented shared component payload decoder.
+pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:damage",
+    "minecraft:repair_cost",
+    "minecraft:max_damage",
+    "minecraft:max_stack_size",
+    "minecraft:rarity",
+    "minecraft:enchantments",
+    "minecraft:stored_enchantments",
+    "minecraft:custom_name",
+    "minecraft:item_name",
+    "minecraft:block_entity_data",
+];
+
+/// Validate and decode a component into the value representation shared with stacks.
+/// Registered components without a shared decoder retain their exact stored value.
+/// Registration is checked by the caller; this helper only rejects failed decodes.
+pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Result<Tag, String> {
+    if !DECODED_COMPONENTS.contains(&id) {
+        return Ok(value.clone());
+    }
+    decode_component(id, value, reg)?;
+    if id == "minecraft:block_entity_data" {
+        let Tag::Compound(_) = value else {
+            return Err(not_map(value));
+        };
+        if !matches!(value.get("id"), Some(Tag::String(_))) {
+            return Err("block entity id is not a string".into());
+        }
+    }
+    Ok(match id {
+        "minecraft:damage"
+        | "minecraft:repair_cost"
+        | "minecraft:max_damage"
+        | "minecraft:max_stack_size" => {
+            Tag::Int(int_of(value).expect("validated numeric component") as i32)
+        }
+        "minecraft:enchantments" | "minecraft:stored_enchantments" => {
+            let Tag::Compound(entries) = value else {
+                unreachable!("validated enchantment map")
+            };
+            Tag::Compound(
+                entries
+                    .iter()
+                    .map(|(id, level)| {
+                        let id = parse_identifier(&id.to_string_lossy())
+                            .expect("validated enchantment id");
+                        (
+                            id.as_str().into(),
+                            Tag::Int(int_of(level).expect("validated level") as i32),
+                        )
+                    })
+                    .collect(),
+            )
+        }
+        _ => value.clone(),
+    })
+}
+
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
@@ -670,6 +729,55 @@ pub fn suggest_predicate(builder: &mut SuggestionsBuilder, reg: &Registries) {
 #[cfg(test)]
 mod tests {
     use super::decode_component;
+
+    #[test]
+    fn decoded_component_values_use_codec_numbers_and_retain_stored_values() {
+        use super::{Registries, Tag, decoded_component_value};
+        let registry = Registries::default();
+        assert_eq!(
+            decoded_component_value(
+                "minecraft:damage",
+                &Tag::Double(5.0f64.to_bits()),
+                &registry
+            )
+            .unwrap(),
+            Tag::Int(5)
+        );
+        assert_eq!(
+            decoded_component_value(
+                "minecraft:repair_cost",
+                &Tag::Float(2.0f32.to_bits()),
+                &registry
+            )
+            .unwrap(),
+            Tag::Int(2)
+        );
+        assert!(
+            decoded_component_value(
+                "minecraft:damage",
+                &Tag::String("not a number".into()),
+                &registry
+            )
+            .is_err()
+        );
+        assert_eq!(
+            decoded_component_value(
+                "minecraft:unbreakable",
+                &Tag::compound([] as [(&str, Tag); 0]),
+                &registry
+            )
+            .unwrap(),
+            Tag::compound([] as [(&str, Tag); 0])
+        );
+        assert!(
+            decoded_component_value(
+                "minecraft:block_entity_data",
+                &Tag::String("invalid".into()),
+                &registry
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn enchantment_maps_validate_entries_against_the_supplied_registry() {

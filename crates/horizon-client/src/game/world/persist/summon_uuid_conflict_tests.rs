@@ -577,7 +577,9 @@ fn a_resident_below_an_offlevel_passenger_round_trips_and_resumes_after_dismount
         // without accidentally admitting their rejected parent.
         let chunks = game.entity_chunks(&HashSet::from([(0, 0)]), true);
         assert!(game.mobs.is_empty());
-        game.world.loaded_entities.extend(chunks);
+        for (key, tags) in chunks {
+            game.world.queue_entity_nbt(key, tags);
+        }
         game.spawn_loaded_entities();
         assert!(mob_tagged(game, "h160_rejected").is_empty());
         assert_eq!(live(game, 200).len(), 1);
@@ -644,7 +646,9 @@ fn removed_root_retains_its_geometry_until_offlevel_passengers_dismount() {
             game.tick_world(true).unwrap();
         }
         let chunks = game.entity_chunks(&HashSet::from([(0, 0)]), true);
-        game.world.loaded_entities.extend(chunks);
+        for (key, tags) in chunks {
+            game.world.queue_entity_nbt(key, tags);
+        }
         game.spawn_loaded_entities();
         assert!(
             game.run_command(
@@ -666,7 +670,9 @@ fn removed_root_retains_its_geometry_until_offlevel_passengers_dismount() {
             Some(&Tag::Int(-1000))
         );
         let chunks = game.entity_chunks(&HashSet::from([(0, 0)]), true);
-        game.world.loaded_entities.extend(chunks);
+        for (key, tags) in chunks {
+            game.world.queue_entity_nbt(key, tags);
+        }
         game.spawn_loaded_entities();
         assert!(mob_tagged(game, "raised_grandchild").is_empty());
         assert!(game.persist.off_level.is_empty());
@@ -740,7 +746,9 @@ fn dimension_travel_admits_the_duplicate_child_before_the_copied_root() {
         // A ghost root is not independently saved by the level. Its resident
         // descendants must not be promoted to chunk roots on unload/reload.
         let chunks = game.entity_chunks(&HashSet::from([(0, 0)]), true);
-        game.world.loaded_entities.extend(chunks);
+        for (key, tags) in chunks {
+            game.world.queue_entity_nbt(key, tags);
+        }
         game.spawn_loaded_entities();
         assert!(mob_tagged(game, "h160_travel_rejected").is_empty());
         assert!(mob_tagged(game, "h160_travel_grandchild").is_empty());
@@ -876,7 +884,9 @@ fn age(game: &mut Game<'_>, id: u32) -> Option<Tag> {
 /// Write and read back the entities of chunk 0 0, as an unload or a restart does.
 fn reload_chunk(game: &mut Game<'_>) {
     let chunks = game.entity_chunks(&HashSet::from([(0, 0)]), true);
-    game.world.loaded_entities.extend(chunks);
+    for (key, tags) in chunks {
+        game.world.queue_entity_nbt(key, tags);
+    }
     game.spawn_loaded_entities();
 }
 

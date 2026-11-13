@@ -15,7 +15,7 @@ import yaml
 
 class DataLegTimingTests(unittest.TestCase):
     def test_workflow_records_start_end_without_bypassing_filtered_runner(self):
-        steps = yaml.safe_load((ROOT / ".github/workflows/dyna-ci.yml").read_text())["jobs"]["ignored-tests-shards"]["steps"]
+        steps = yaml.safe_load((ROOT / ".github/workflows/ignored-tests.yml").read_text())["jobs"]["ignored-tests-shards"]["steps"]
         start = next(i for i, s in enumerate(steps) if s.get("name") == "Record data-leg start and compiler cache")
         end = next(i for i, s in enumerate(steps) if s.get("name") == "Record data-leg end and compiler cache")
         run = next(i for i, s in enumerate(steps) if s.get("name") == "Run the ignored tests that need prepared data")
@@ -28,7 +28,7 @@ class DataLegTimingTests(unittest.TestCase):
         lines = steps[run]["run"].strip().splitlines()
         self.assertEqual(len(lines), 2)
         self.assertTrue(lines[0].startswith("export HORIZON_TEST_RESOURCES="))
-        self.assertEqual(shlex.split(lines[1]), ["python3", "tools/ci/with_xvfb.py", "python3", "tools/ci/ignored_tests.py", "$SHARD"])
+        self.assertEqual(shlex.split(lines[1]), ["python3", "tools/ci/with_xvfb.py", "python3", "tools/ci/ignored_tests.py", "--report", "$RUNNER_TEMP/daily-report.json", "$SHARD"])
         with tempfile.TemporaryDirectory() as directory:
             fake = Path(directory) / "sccache"
             fake.write_text("#!/bin/sh\n[ \"$1\" = --show-stats ] || exit 1\necho 'Compile requests 0'\necho 'Cache hits 0'\n")

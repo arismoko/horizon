@@ -232,10 +232,17 @@ fn tcp_configuration_reply_precedes_finish() {
     });
 }
 
-fn controlled_peer(port: u16, expected: &[u8], game: &super::super::Game<'_>, network: bool) {
+/// Real login and payload negotiation, stopped at the known-packs configuration barrier.
+pub(super) fn configuration_peer(
+    port: u16,
+) -> (
+    horizon_protocol::connection::Connection,
+    Arc<horizon_client::raw_payloads::Local>,
+    horizon_protocol::packets::configuration::SelectKnownPacks,
+) {
     use horizon_protocol::{
         connection::Connection,
-        packets::{Empty, configuration as cfg, handshake, login, play},
+        packets::{Empty, configuration as cfg, handshake, login},
         payload_negotiation::Control,
     };
     let mut c = Connection::connect("127.0.0.1", port, Duration::from_secs(10)).unwrap();
@@ -317,6 +324,12 @@ fn controlled_peer(port: u16, expected: &[u8], game: &super::super::Game<'_>, ne
             _ => {}
         }
     }
+    (c, local, known.unwrap())
+}
+
+fn controlled_peer(port: u16, expected: &[u8], game: &super::super::Game<'_>, network: bool) {
+    use horizon_protocol::packets::{Empty, configuration as cfg, play};
+    let (mut c, local, known) = configuration_peer(port);
     struct Release(std::sync::mpsc::Sender<()>);
     impl Drop for Release {
         fn drop(&mut self) {
@@ -354,7 +367,7 @@ fn controlled_peer(port: u16, expected: &[u8], game: &super::super::Game<'_>, ne
         }
     }
     // Known packs releases registry construction, but main is still deliberately held.
-    c.send(&cfg::Serverbound::SelectKnownPacks(known.unwrap()).encode())
+    c.send(&cfg::Serverbound::SelectKnownPacks(known).encode())
         .unwrap();
     if network {
         loop {

@@ -376,6 +376,11 @@ impl Game<'_> {
             }
             return true;
         }
+        // `isInvulnerableToBase`: a refused hit goes on to onAttack, as a fixed frame's does.
+        if self.native_player_hit_invulnerable(self.item_frames[i].id, self.item_frames[i].kind()) {
+            self.attack_ticks = 0;
+            return true;
+        }
         self.hit_frame(i, true, self.creative);
         true
     }

@@ -9,7 +9,7 @@ use horizon_client::{
     projectiles::{Hit, Projectile, ProjectileKind},
 };
 use horizon_core::geometry::Vec3;
-use mod_api::{EntityInvulnerabilityCheckEvent, Hooks, LevelRandomHost};
+use mod_api::{EntityInvulnerabilityCheckEvent, Hooks, LevelSide};
 use std::sync::{Arc, Mutex};
 
 struct Probe(Arc<Mutex<Vec<bool>>>, Arc<Mutex<Option<bool>>>);
@@ -17,7 +17,7 @@ struct Probe(Arc<Mutex<Vec<bool>>>, Arc<Mutex<Option<bool>>>);
 impl Hooks for Probe {
     fn entity_invulnerability_check(
         &self,
-        _: &mut dyn LevelRandomHost,
+        _: LevelSide<'_>,
         event: &mut EntityInvulnerabilityCheckEvent<'_>,
     ) {
         self.0.lock().unwrap().push(event.original_invulnerability);

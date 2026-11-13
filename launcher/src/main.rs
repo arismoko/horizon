@@ -5543,6 +5543,7 @@ fn menus() -> Vec<Menu> {
 }
 
 fn main() {
+    horizon_mod_package::holder::retain_capability();
     if let Some(code) = native_mods::internals_rustc_wrapper() {
         std::process::exit(code);
     }
@@ -5565,7 +5566,6 @@ fn main() {
     let _location_error = horizon_launcher::data_location::startup();
     perf::process_started();
     backend::exe_path();
-    // The launcher's own installer (`update_handoff`): no window, no CLI parser.
     if let Some(code) = horizon_launcher::update_handoff::run() {
         std::process::exit(code);
     }

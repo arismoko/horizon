@@ -1,4 +1,5 @@
 use super::*;
+use horizon_world::move_gate::MoveGate;
 /// `AgeableMob.isBaby` is `canBeABaby() && getAge() < 0`, and `Age` alone
 /// says nothing: the six ageable classes that override `canBeABaby` to
 /// false — `Frog`, `Parrot`, `ZombieNautilus`, `CamelHusk`, `Slime` and

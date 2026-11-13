@@ -2,6 +2,9 @@
 //! (the same model as native mods: required and optional, semver on `horizon-mod.toml`
 //! versions, one library copy shared by its dependents). Every refusal names its reason for the
 //! Mods page.
+pub mod compile_budget;
+#[cfg(all(test, unix))]
+mod compile_budget_tests;
 mod compile_child;
 #[cfg(feature = "test-copy-probe")]
 pub mod copy_probe;
@@ -14,6 +17,7 @@ pub use compile_child::compile_child;
 #[path = "../tests/support/no_hooks.rs"]
 mod no_hooks;
 mod points;
+mod prepared;
 mod registration_capabilities;
 mod runtime;
 // Why this thread's last guest call answered nothing, for the generated proxies' errors.
@@ -51,10 +55,24 @@ pub(crate) fn call_refused<E: From<(mod_api::Identifier, String)>>() -> E {
     ))
 }
 
+/// A hook a wasm mod may name but cannot be served yet: the load refuses by
+/// name with the reason, as `alter_ground`'s inline check does, never a
+/// silent skip past a subscription nothing would ever call.
+pub(crate) fn native_only_hook(name: &str) -> Option<&'static str> {
+    match name {
+        // Stage 4a of #792 ships the general entity tick's native dispatch
+        // only; the wasm adapter is stage 4b.
+        "general_entity_tick" => Some(
+            "general_entity_tick: general entity ticks are not yet available to wasm mods (the wasm adapter is #792's stage 4b)",
+        ),
+        _ => None,
+    }
+}
+
 use horizon_mod_package::dependencies;
 use horizon_mod_package::manifest::Manifest;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::OnceLock;
 
 /// One wasm mod as installed: its manifest and its checked `mod.wasm`.
@@ -82,6 +100,19 @@ pub enum Refusal {
     Package(String),
     /// The group could not instantiate, initialize or run.
     Runtime(String),
+    /// The configured compilation setting or its file could not be applied.
+    CompileSetting(compile_budget::SettingError),
+    /// A module exceeded the compilation budget, without poisoning its cache.
+    CompileTimeout {
+        member: String,
+        budget: compile_budget::CompileBudget,
+    },
+    /// Compilation could not run with its required deadline.
+    CompileUnavailable {
+        member: String,
+        budget: compile_budget::CompileBudget,
+        why: String,
+    },
     /// The mod was compiled against another generated boundary.
     Layout { built: u64, game: u64 },
     /// The mod's generated point records differ from this game's.
@@ -122,7 +153,22 @@ impl std::fmt::Display for Refusal {
             Self::Internals => write!(f, "internals access is native-only"),
             Self::Package(why) => write!(f, "{why}"),
             Self::Runtime(why) => write!(f, "{why}"),
-            Self::Layout { .. } => write!(f, "built for another version of the mod API"),
+            Self::CompileSetting(why) => write!(f, "{why}"),
+            Self::CompileTimeout { member, budget } => {
+                write!(f, "{member}: compilation time limit exceeded: {budget}")
+            }
+            Self::CompileUnavailable {
+                member,
+                budget,
+                why,
+            } => write!(
+                f,
+                "{member}: cannot enforce compilation budget {budget}: {why}; restore a private writable .horizon-cache/wasm directory and a working compiler executable"
+            ),
+            Self::Layout { .. } => write!(
+                f,
+                "built for another version of the mod API (including the prepared can_equip ABI)"
+            ),
             Self::PointLayout { built, game } => {
                 write!(
                     f,
@@ -140,6 +186,37 @@ impl std::fmt::Display for Refusal {
             ),
             Self::Stopped => write!(f, "stopped after a trap or resource limit"),
             Self::Busy => write!(f, "its wasm group is busy"),
+        }
+    }
+}
+
+impl Refusal {
+    pub(crate) fn from_link(error: link::LinkError) -> Self {
+        let module_file = |member: String| {
+            member
+                .strip_prefix("lib")
+                .and_then(|name| name.strip_suffix(".so"))
+                .filter(|name| *name != "std")
+                .map_or_else(
+                    || "horizon-wasm-std.wasm".to_owned(),
+                    |id| format!("{id}:mod.wasm"),
+                )
+        };
+        match error {
+            link::LinkError::CompileTimeout { member, budget } => Self::CompileTimeout {
+                member: module_file(member),
+                budget,
+            },
+            link::LinkError::CompileUnavailable {
+                member,
+                budget,
+                why,
+            } => Self::CompileUnavailable {
+                member: module_file(member),
+                budget,
+                why,
+            },
+            other => Self::Runtime(other.to_string()),
         }
     }
 }
@@ -372,11 +449,21 @@ pub fn refusal(id: &str) -> Option<Refusal> {
         })
 }
 
-/// Loads the wasm mods the player turned on in `game_dir` (and every `dev` package), once at
-/// startup: the same selection as content mods (`horizon_mod_package::selection`), so a wasm mod's
-/// `assets/` and `data/` load as content beside its code. Refusals are kept for [`refused`].
-pub fn load_installed(game_dir: &Path, dev: &[PathBuf]) -> Loaded {
-    let cache = module_cache::ModuleCache::new(game_dir.join(module_cache::CACHE_DIR));
+/// Loads the wasm mods selected by the actual startup arguments, once at startup.
+/// `player_dir` is the client's already resolved options directory, not the shared game/cache
+/// directory. Dedicated startup reads properties in its game directory instead.
+/// Refusals are reported and published for the Mods page and content filtering.
+pub fn load_installed(
+    launch: &horizon_mod_package::selection::LaunchArguments,
+    player_dir: &Path,
+) -> Loaded {
+    let game_dir = &launch.context.game_dir;
+    let dev = &launch.context.dev_mods;
+    let budget = compile_budget::CompileBudget::read(launch, player_dir);
+    let mut cache = module_cache::ModuleCache::new(game_dir.join(module_cache::CACHE_DIR));
+    if let Ok(budget) = budget.as_ref() {
+        cache.budget = *budget;
+    }
     let mod_list = horizon_mod_package::mod_list::ModList::load(game_dir);
     let memory_cap_mib = mod_list.wasm_memory_cap();
     let enabled = mod_list.enabled;
@@ -429,10 +516,21 @@ pub fn load_installed(game_dir: &Path, dev: &[PathBuf]) -> Loaded {
                 }
             })
             .collect();
-    let std = std::env::current_exe()
-        .ok()
-        .and_then(|exe| std::fs::read(exe.with_file_name("horizon-wasm-std.wasm")).ok());
-    let mut loaded = load_available_std(std.as_deref(), packages, Some(&cache), memory_cap_mib);
+    let mut loaded = match budget {
+        Err(why) => Loaded {
+            refused: packages
+                .into_iter()
+                .map(|package| (package.manifest.id, Refusal::CompileSetting(why.clone())))
+                .collect(),
+            ..Loaded::default()
+        },
+        Ok(_) => {
+            let std = std::env::current_exe()
+                .ok()
+                .and_then(|exe| std::fs::read(exe.with_file_name("horizon-wasm-std.wasm")).ok());
+            load_available_std(std.as_deref(), packages, Some(&cache), memory_cap_mib)
+        }
+    };
     refused.append(&mut loaded.refused);
     report_refusals(&refused, &mut std::io::stdout().lock());
     let _ = REFUSED.set(refused.clone());
@@ -631,6 +729,14 @@ fn load_with_cache(
                         )
                         .ok_or_else(|| Refusal::Runtime("subscriptions failed".into()))?;
                     registration_capabilities::check(&subscriptions)?;
+                    module
+                        .check_prepared_hooks(
+                            &subscriptions
+                                .iter()
+                                .map(|(name, _, _)| boundary::hook_id(name))
+                                .collect::<Vec<_>>(),
+                        )
+                        .map_err(Refusal::Runtime)?;
                     let names: Vec<String> = subscriptions
                         .iter()
                         .map(|(name, _, _)| name.clone())
@@ -652,6 +758,12 @@ fn load_with_cache(
                         "alter_ground: worldgen ground providers are not yet available to wasm mods"
                             .into(),
                     ));
+                    }
+                    // A hook the wasm side cannot serve yet refuses the load by
+                    // name with its reason, never a silent skip past a dead
+                    // subscription.
+                    if let Some(reason) = names.iter().find_map(|name| native_only_hook(name)) {
+                        return Err(Refusal::Runtime(reason.into()));
                     }
                     module.subscribed = boundary::subscriptions_of("wasm mod", names);
                     checked.push(module);
@@ -683,6 +795,17 @@ fn load_with_cache(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_wasm_mod_using_the_general_entity_tick_is_refused_by_name() {
+        // The reason names the hook and the follow-up, as `alter_ground`'s
+        // inline refusal does; nothing else the API names refuses here.
+        let reason = native_only_hook("general_entity_tick").unwrap();
+        assert!(reason.starts_with("general_entity_tick:"));
+        assert!(reason.contains("stage 4b"));
+        assert_eq!(native_only_hook("entity_tick_pre"), None);
+        assert_eq!(native_only_hook("alter_ground"), None);
+    }
 
     #[test]
     fn point_layout_refusal_reports_both_layouts_to_console() {
@@ -738,7 +861,14 @@ mod tests {
         std::fs::write(package.join("horizon-mod.toml"), format!(
             "id = 'bad_mixin'\nname = 'Bad mixin'\nversion = '1.0.0'\napi = '0.2'\ncapabilities = ['registries']\n[wasm]\nsha512 = '{}'\ntoolchain = 'test'\nbuilt_with = 'test'\n[[native.mixin]]\nid = 'patch'\ntarget = 'game::tick'\nkind = 'HEAD'\nhelper = 'src/patch.rs'\n", "a".repeat(128)
         )).unwrap();
-        let loaded = load_installed(&root, &[package]);
+        let launch = horizon_mod_package::selection::LaunchArguments::parse(
+            ["--dev-mod".to_owned(), package.to_str().unwrap().to_owned()].into_iter(),
+            &root,
+            &root,
+            None,
+        )
+        .unwrap();
+        let loaded = load_installed(&launch, &root);
         assert!(
             loaded.refused.iter().any(|(id, reason)| id == "bad_mixin"
                 && reason
@@ -748,6 +878,43 @@ mod tests {
             loaded.refused
         );
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn load_refuses_prepared_subscription_without_exports() {
+        crate::test_stack::on_guest_stack(|| {
+            let std =
+                wat::parse_str(r#"(module (@custom "dylink.0" "\01\04\00\00\00\00"))"#).unwrap();
+            let mut subscriptions = mod_api::wire::Writer::new();
+            subscriptions.put(&vec![("can_equip".to_owned(), 0i32, false)]);
+            let stores = subscriptions
+                .bytes()
+                .iter()
+                .enumerate()
+                .map(|(i, b)| format!("i32.const {} i32.const {b} i32.store8 ", 1024 + i))
+                .collect::<String>();
+            let mut package = package("missing_prepared", "1.0.0", "", 'a', "t", "");
+            package.module = wat::parse_str(format!(
+                r#"(module
+                (@custom "dylink.0" "\01\04\00\00\00\00")
+                (import "env" "memory" (memory 1))
+                (func (export "horizon_layout") (result i64) i64.const {})
+                (func (export "horizon_in") (param i32) (result i32) i32.const 512)
+                (func (export "horizon_hook") (param i32) (result i64) {stores} i64.const {})
+            )"#,
+                *mod_api::wire::LAYOUT,
+                (1024u64 << 32) | subscriptions.bytes().len() as u64
+            ))
+            .unwrap();
+            let loaded = load(&std, vec![package]);
+            assert!(loaded.mods.is_empty());
+            assert_eq!(loaded.refused.len(), 1);
+            let reason = loaded.refused[0].1.to_string();
+            assert!(
+                reason.contains("can_equip") && reason.contains("prepare_can_equip"),
+                "{reason}"
+            );
+        });
     }
 
     fn package(
@@ -1038,7 +1205,20 @@ mod mixed_install_tests {
             std::fs::write(addon.join("layouts.json"), b"{").unwrap();
             std::fs::write(library.join("layouts.json"), b"{}").unwrap();
         }
-        let loaded = load_installed(&root, &[addon, library]);
+        let launch = horizon_mod_package::selection::LaunchArguments::parse(
+            [
+                "--dev-mod".to_owned(),
+                addon.to_str().unwrap().to_owned(),
+                "--dev-mod".to_owned(),
+                library.to_str().unwrap().to_owned(),
+            ]
+            .into_iter(),
+            &root,
+            &root,
+            None,
+        )
+        .unwrap();
+        let loaded = load_installed(&launch, &root);
         std::fs::remove_dir_all(root).unwrap();
         assert!(loaded.mods.is_empty());
         assert_eq!(loaded.refused.len(), 1);

@@ -197,6 +197,47 @@ fn bake_resolved(
         cube,
     })
 }
+
+/// `FaceBakery.bakeQuad`: use the same centered geometry and inverse face UV
+/// transformation as a blockstate variant, not the draw-time pose.
+fn bake_form(
+    root: &crate::resource_source::ResourceSource,
+    sprites: &mut Sprites,
+    models: &crate::model_library::ParsedModels,
+    form: &mod_api::StandaloneModelForm,
+) -> Result<BakedModel> {
+    use mod_api::StandaloneModelForm;
+    match form {
+        StandaloneModelForm::Rotated {
+            model,
+            turns,
+            uvlock,
+            ..
+        } => {
+            let library = models.block_library(root, vec![model.clone()])?;
+            bake_variant(sprites, &library, model, *turns, *uvlock)
+        }
+        StandaloneModelForm::Combined { parts, .. } => {
+            let library = models.block_library(root, parts.clone())?;
+            let mut combined = BakedModel {
+                ambient_occlusion: true,
+                particle: None,
+                faces: Vec::new(),
+                cube: None,
+            };
+            for part in parts {
+                let baked = bake_variant(sprites, &library, part, [0; 3], false)?;
+                if combined.particle.is_none() {
+                    combined.particle = baked.particle;
+                }
+                combined.ambient_occlusion &= baked.ambient_occlusion;
+                combined.faces.extend(baked.faces);
+            }
+            combined.cube = super::cube::cube_styles(&combined.faces);
+            Ok(combined)
+        }
+    }
+}
 /// The definitions a blockstate file holds, bottom first: the layers of a
 /// file the pack overlay stacked (`packs::BLOCKSTATE_LAYERS`), else the
 /// file itself.
@@ -504,6 +545,40 @@ impl StateModels {
             }
         }
         Ok(())
+    }
+    /// Bake dependencies atomically into one standalone slot; never publish a partial form.
+    pub(crate) fn bake_standalone_forms(
+        &mut self,
+        root: &crate::resource_source::ResourceSource,
+        sprites: &mut Sprites,
+        models: &crate::model_library::ParsedModels,
+        forms: &[super::StandaloneFormRegistration],
+    ) {
+        for entry in forms {
+            let id = entry.form.id();
+            if self.standalone.contains_key(id) {
+                continue;
+            }
+            let result = bake_form(root, sprites, models, &entry.form);
+            match result {
+                Ok(model) => {
+                    self.standalone
+                        .insert(id.to_owned(), self.baked.len() as u32);
+                    self.baked.push((
+                        Variant {
+                            model: id.to_owned(),
+                            rotations: [0; 3],
+                            uv_lock: false,
+                        },
+                        model,
+                    ));
+                }
+                Err(error) => log::warn!(
+                    "Horizon: mod {} standalone form {id} not loaded: {error}",
+                    entry.owner
+                ),
+            }
+        }
     }
     /// Every baked model with the variant it was baked from, to change its faces.
     pub fn models_mut(&mut self) -> impl Iterator<Item = (&Variant, &mut BakedModel)> {
@@ -922,3 +997,7 @@ mod tests {
 #[cfg(test)]
 #[path = "catalog/bounds_tests.rs"]
 mod bounds_tests;
+
+#[cfg(test)]
+#[path = "catalog/standalone_tests.rs"]
+mod standalone_tests;

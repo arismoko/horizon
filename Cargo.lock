@@ -1812,7 +1812,6 @@ dependencies = [
  "bytemuck",
  "chrono",
  "crc32fast",
- "dunce",
  "flate2",
  "fs4",
  "gilrs",
@@ -1836,6 +1835,7 @@ dependencies = [
  "horizon-hdr",
  "horizon-hooks",
  "horizon-items",
+ "horizon-java-properties",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
@@ -1862,7 +1862,6 @@ dependencies = [
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
- "open",
  "png",
  "pollster",
  "rustix 1.1.5",
@@ -1911,6 +1910,7 @@ dependencies = [
  "bytemuck",
  "chrono",
  "crc32fast",
+ "dunce",
  "flate2",
  "fs4",
  "getrandom 0.3.4",
@@ -1929,6 +1929,7 @@ dependencies = [
  "horizon-hdr",
  "horizon-hooks",
  "horizon-items",
+ "horizon-java-properties",
  "horizon-mcp",
  "horizon-mod-api",
  "horizon-mod-api-macros",
@@ -2190,6 +2191,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-java-properties"
+version = "0.1.0"
+
+[[package]]
 name = "horizon-mcp"
 version = "0.1.0"
 dependencies = [
@@ -2219,6 +2224,7 @@ dependencies = [
  "heck",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -2240,6 +2246,7 @@ dependencies = [
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
  "horizon-mod-runtime",
+ "log",
  "serde_json",
 ]
 
@@ -2387,6 +2394,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-mod-surface"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "horizon-mod-vocab"
 version = "0.1.0"
 dependencies = [
@@ -2410,6 +2426,7 @@ dependencies = [
  "horizon-client-core",
  "horizon-core",
  "horizon-guest-stack",
+ "horizon-java-properties",
  "horizon-mod-api",
  "horizon-mod-api-gen",
  "horizon-mod-api-macros",
@@ -2428,6 +2445,20 @@ dependencies = [
  "wasmparser 0.261.0",
  "wasmtime",
  "wat",
+]
+
+[[package]]
+name = "horizon-mod-wasm-wire-loopback"
+version = "0.1.0"
+dependencies = [
+ "horizon-core",
+ "horizon-game-discovery",
+ "horizon-mod-api",
+ "horizon-mod-api-gen",
+ "horizon-mod-runtime",
+ "horizon-world",
+ "log",
+ "serde_json",
 ]
 
 [[package]]
@@ -2534,6 +2565,7 @@ dependencies = [
  "horizon-core",
  "horizon-guest-stack",
  "horizon-hooks",
+ "horizon-java-properties",
  "horizon-mod-api-gen",
  "horizon-mod-point-shape",
  "horizon-perf-format",
@@ -2654,6 +2686,7 @@ dependencies = [
  "base64 0.22.1",
  "getrandom 0.3.4",
  "horizon-core",
+ "horizon-java-properties",
  "horizon-protocol",
  "horizon-world",
  "log",

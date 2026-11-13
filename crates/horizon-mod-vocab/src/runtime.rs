@@ -132,6 +132,9 @@ pub(crate) fn set_mod_enabled(id: &str, on: bool) -> bool {
         if entry.id == id {
             if disabled.swap(!on, std::sync::atomic::Ordering::Relaxed) == on {
                 MODS_SWITCHED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if !on {
+                    horizon_mod_runtime::water_tickets::remove_owner(id);
+                }
             }
             found = true;
         }

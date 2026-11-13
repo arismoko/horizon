@@ -57,7 +57,12 @@ impl Endpoint {
             .directory
             .parent()
             .ok_or(io::ErrorKind::InvalidInput)?;
-        let parent = open_directory(parent).map_err(|_| io::ErrorKind::InvalidInput)?;
+        let parent = open_directory(parent).map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("open control socket parent {}: {error:?}", parent.display()),
+            )
+        })?;
         check_directory(&parent, false)?;
         for ancestor in marker.directory.ancestors().skip(2) {
             let directory = open_directory(ancestor).map_err(|_| io::ErrorKind::InvalidInput)?;
@@ -67,7 +72,16 @@ impl Endpoint {
             .directory
             .file_name()
             .ok_or(io::ErrorKind::InvalidInput)?;
-        rustix::fs::mkdirat(&parent, name, rustix::fs::Mode::RWXU)?;
+        rustix::fs::mkdirat(&parent, name, rustix::fs::Mode::RWXU).map_err(|error| {
+            let error = io::Error::from(error);
+            io::Error::new(
+                error.kind(),
+                format!(
+                    "create control socket directory {}: {error}",
+                    marker.directory.display()
+                ),
+            )
+        })?;
         let mut endpoint = Self {
             parent,
             path: marker.directory.clone(),
@@ -75,7 +89,13 @@ impl Endpoint {
         };
         let directory = endpoint.parent.open_dir_nofollow(name)?;
         check_directory(&directory, true)?;
-        let listener = UnixListener::bind(endpoint.path.join("control"))?;
+        let socket_path = endpoint.path.join("control");
+        let listener = UnixListener::bind(&socket_path).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!("bind control socket {}: {error}", socket_path.display()),
+            )
+        })?;
         listener.set_nonblocking(true)?;
         endpoint.listener = Some(listener);
         Ok(endpoint)

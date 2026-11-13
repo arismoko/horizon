@@ -670,8 +670,11 @@ pub struct ItemRenderer {
     /// GUI items already drawn: the HUD vertices of a static item at a GUI position
     /// (`gui::draw`), which are the same every frame it stays there.
     pub(crate) gui_drawn: Mutex<HashMap<gui::DrawnKey, Arc<[crate::hud::HudVertex]>>>,
-    /// Entity model layers of the special renderers.
+    /// Entity model layers of the special renderers, with the head of each skull type a native
+    /// mod registered, under its kind.
     parts: HashMap<String, ModelPart>,
+    /// The default texture of each skull type a native mod registered (`SKIN_BY_TYPE`).
+    skull_textures: HashMap<&'static str, &'static str>,
     /// `colormap/grass.png` as ARGB.
     grass: Vec<i32>,
     /// `minecraft:item` registry ids (`Item.getId`).
@@ -800,7 +803,7 @@ impl ItemRenderer {
                 .read_to_string("assets/minecraft/atlases/items.json")
                 .unwrap_or_default(),
         );
-        let parts = if drawn {
+        let mut parts = if drawn {
             entity_models.map_or_else(
                 || special::load_parts(root.prepared()),
                 special::load_parts_from_document,
@@ -808,6 +811,14 @@ impl ItemRenderer {
         } else {
             HashMap::new()
         };
+        // Mod skull types, resolved once here so a head draws as a vanilla one does.
+        let mut skull_textures = HashMap::new();
+        if drawn {
+            for (kind, part, texture) in crate::skull_models::all() {
+                parts.insert(kind.to_owned(), part.clone());
+                skull_textures.insert(kind, texture);
+            }
+        }
         let grass = if drawn {
             root.source()
                 .read("assets/minecraft/textures/colormap/grass.png")
@@ -845,6 +856,7 @@ impl ItemRenderer {
             extents: Mutex::default(),
             gui_drawn: Mutex::default(),
             parts,
+            skull_textures,
             grass,
             cit,
         })

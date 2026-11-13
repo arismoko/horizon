@@ -45,3 +45,24 @@ pub fn spin_share_permille(cpu_ms: u64, spin: fn(u64)) -> u64 {
     let ran = super::os::thread_cpu_ns() - cpu;
     (ran * 1000 / (wall.elapsed().as_nanos() as u64).max(1)).min(1000)
 }
+
+/// Runs a live sampling measurement up to five times and passes on the first run whose checks all
+/// hold, panicking with every run's failure otherwise. A thread's CPU timer fires on the
+/// scheduler's tick while it runs and its wall timer while the runner gets to deliver it, so on a
+/// loaded runner one run can see far fewer samples, or skewed shares, than its work is worth. A
+/// sampler fault fails the same check in every run and still fails the test.
+pub fn first_passing_run(mut run: impl FnMut() -> Result<(), String>) {
+    let mut failures = Vec::new();
+    for _ in 0..5 {
+        match run() {
+            Ok(()) => return,
+            Err(failure) => failures.push(failure),
+        }
+    }
+    panic!("no run of five passed:\n{}", failures.join("\n"));
+}
+
+/// One check of a [`first_passing_run`] measurement: `Err(why())` when `ok` is false.
+pub fn ensure(ok: bool, why: impl FnOnce() -> String) -> Result<(), String> {
+    if ok { Ok(()) } else { Err(why()) }
+}

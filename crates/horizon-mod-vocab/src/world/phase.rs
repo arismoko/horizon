@@ -420,6 +420,9 @@ pub struct RegistrationData {
     pub(crate) registries: Arc<[(String, Arc<[String]>)]>,
     /// Each loaded mod's settings, by mod ID then key.
     pub(crate) settings: Arc<[(String, Arc<[(String, String)]>)]>,
+    /// The same load-owned behavior owners that supply the game's default providers.
+    capability_coverage: Option<fn(crate::ProvidedBy, &str, &str) -> bool>,
+    block_entity_coverage: Option<fn(&str, &str) -> bool>,
 }
 
 impl RegistrationData {
@@ -434,6 +437,8 @@ impl RegistrationData {
         Self {
             instance_dir,
             runtime,
+            capability_coverage: None,
+            block_entity_coverage: None,
             registries: registries
                 .into_iter()
                 .map(|(name, ids)| (name, ids.into()))
@@ -443,6 +448,16 @@ impl RegistrationData {
                 .map(|(id, values)| (id, values.into_iter().collect()))
                 .collect(),
         }
+    }
+    /// Bind the game's pure type-coverage projection. It reads no world or runtime position.
+    pub fn with_capability_coverage(
+        mut self,
+        coverage: fn(crate::ProvidedBy, &str, &str) -> bool,
+        block_entity_coverage: fn(&str, &str) -> bool,
+    ) -> Self {
+        self.capability_coverage = Some(coverage);
+        self.block_entity_coverage = Some(block_entity_coverage);
+        self
     }
     fn registry(&self, name: &str) -> Option<Arc<[String]>> {
         let at = self
@@ -465,6 +480,23 @@ impl RegistrationData {
 
 fn registration_data() -> Option<RegistrationData> {
     crate::dispatch_scope::backend().and_then(|backend| (backend.registration_data)())
+}
+
+pub(crate) fn game_capability_registered(by: crate::ProvidedBy, name: &str, id: &str) -> bool {
+    if matches!(by, crate::ProvidedBy::Item)
+        && crate::parts::installation::builtin_item_capability_registered(name, id)
+    {
+        return true;
+    }
+    registration_data()
+        .and_then(|data| data.capability_coverage)
+        .is_some_and(|coverage| coverage(by, name, id))
+}
+
+pub(crate) fn block_entity_covers(kind: &str, block: &str) -> bool {
+    registration_data()
+        .and_then(|data| data.block_entity_coverage)
+        .is_some_and(|coverage| coverage(kind, block))
 }
 /// Read-only view of the startup package inventory, shared: cloning it copies no package.
 // no wire: zero-byte phase token: decoding rebinds the installed package inventory rather than transferring entries.
@@ -564,6 +596,7 @@ pub struct RegistrationContext {
     pub(crate) data: Option<RegistrationData>,
     pub(crate) declaration_refusals: std::sync::Mutex<Vec<String>>,
     pub(crate) self_refusal: std::sync::Mutex<Option<String>>,
+    pub(crate) warnings: std::sync::Mutex<Vec<crate::LoadingMessage>>,
     pub(crate) instance_dir: Option<crate::InstanceDirectory>,
     pub(crate) runtime: Option<crate::RuntimeEnvironment>,
 }
@@ -578,6 +611,7 @@ impl RegistrationContext {
             data,
             declaration_refusals: Default::default(),
             self_refusal: Default::default(),
+            warnings: Default::default(),
             instance_dir,
             runtime,
         }
@@ -869,6 +903,15 @@ pub trait WorldgenHost {
 
     /// The same loaded-mod view available during registration.
     fn mods(&self) -> LoadedMods;
+
+    /// `BlockState.setValue`: `state` with its property `key` set to `value`; `state` itself
+    /// when it already has that value, None when its block has no such property or value.
+    fn state_with_property(
+        &self,
+        state: crate::BlockState,
+        key: &str,
+        value: &str,
+    ) -> Option<crate::BlockState>;
 }
 
 // no wire: borrowed phase-scoped host readers; authority stays with their owning thread.
@@ -879,18 +922,26 @@ pub trait WorldgenHost {
 pub struct OwningWorldgen<'a> {
     registry: &'a dyn Fn(&str) -> Option<Arc<[String]>>,
     setting: &'a dyn Fn(&str, &str) -> Option<String>,
+    state_with_property: &'a StateWithProperty<'a>,
     mods: LoadedMods,
 }
 
+/// `BlockState.setValue` as the game answers it for [`OwningWorldgen`].
+type StateWithProperty<'a> =
+    dyn Fn(crate::BlockState, &str, &str) -> Option<crate::BlockState> + 'a;
+
 impl<'a> OwningWorldgen<'a> {
-    /// The server's registries and mod settings, read through the game's worldgen context.
+    /// The server's registries, mod settings and block states, read through the game's
+    /// worldgen context.
     pub fn new(
         registry: &'a dyn Fn(&str) -> Option<Arc<[String]>>,
         setting: &'a dyn Fn(&str, &str) -> Option<String>,
+        state_with_property: &'a StateWithProperty<'a>,
     ) -> Self {
         Self {
             registry,
             setting,
+            state_with_property,
             mods: LoadedMods::new(),
         }
     }
@@ -905,6 +956,14 @@ impl WorldgenHost for OwningWorldgen<'_> {
     }
     fn mods(&self) -> LoadedMods {
         self.mods.clone()
+    }
+    fn state_with_property(
+        &self,
+        state: crate::BlockState,
+        key: &str,
+        value: &str,
+    ) -> Option<crate::BlockState> {
+        (self.state_with_property)(state, key, value)
     }
 }
 

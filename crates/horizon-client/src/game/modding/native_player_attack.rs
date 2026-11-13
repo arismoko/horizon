@@ -65,11 +65,12 @@ fn guest_attack_speed(
         + item
             .and_then(|id| game.items().get(id))
             .map_or(0.0, |info| f64::from(info.attack_speed));
-    guest
-        .effects
-        .modifiers()
-        .into_iter()
-        .filter(|modifier| modifier.0 == "minecraft:attack_speed")
-        .fold(value, |value, modifier| value * (1.0 + modifier.2))
-        .clamp(0.0, 1024.0)
+    game.sanitize_attack_speed(
+        guest
+            .effects
+            .modifiers()
+            .into_iter()
+            .filter(|modifier| modifier.0 == "minecraft:attack_speed")
+            .fold(value, |value, modifier| value * (1.0 + modifier.2)),
+    )
 }

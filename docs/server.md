@@ -533,6 +533,17 @@ The owner edits only `server.toml`. The supervisor writes `server.properties` fr
 start, so the engine stays exactly vanilla. The file is short: typed sections for what owners change, and
 a `[properties]` table that passes any other vanilla key through unchanged.
 
+For Unix wasm compilation, add `"wasm.compile_timeout_secs" = "120"` under
+`[properties]` to allow 120 seconds per uncached module. The engine reads this
+runtime setting from the dedicated game directory's `server.properties`; edit the
+TOML when using the supervisor. Zero or non-numeric values publish a refusal naming
+the setting and value, excluding the affected package's code and content. Unix cache
+trust/write failures and compiler failures refuse compilation rather than drop the
+deadline; restore a private writable `.horizon-cache/wasm` and working executable.
+Removing the key restores the available-thread default; see the
+[wasm compilation settings](modding/src/how-to/wasm-mods.md#compilation-time-setting)
+for the exact formula and platform limitations.
+
 ```toml
 # Horizon server settings (docs/server.md). The server writes them into server.properties before
 # every start: edit this file, not that one.
@@ -679,7 +690,8 @@ runtime or new dependency. Server-sent events can replace the polling later if a
 - **Backups.** The supervisor runs `save-off`, then `save-all flush`, then zips the world plus the vanilla
   files and `server.toml` into `backups/<UTC time>-<name>.zip`, then runs `save-on`. Players stay online. Zip
   works for everyone, Windows included. It runs on the `every` schedule, on demand and before an
-  update. It keeps the last `keep` automatic backups and never deletes one made by hand. A backup is written
+  update. It keeps the last `keep` automatic backups and never deletes one made by hand (`auto` is the automatic
+  backups' own name: a hand backup cannot take it). A backup is written
   to a temporary name and renamed when complete, so a crash never leaves a half-written backup that looks
   finished. A stopped server is backed up straight from its files.
 - **Restore.** `restore NAME` takes a file name, a unique prefix, or the name given to `backup` (the newest

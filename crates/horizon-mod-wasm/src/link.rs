@@ -51,6 +51,17 @@ pub enum LinkError {
     },
     /// The member did not compile or instantiate (a type that doesn't match its provider's).
     Instantiate { member: String, why: String },
+    /// A child compile exceeded its runtime budget; this is not malformed code.
+    CompileTimeout {
+        member: String,
+        budget: crate::compile_budget::CompileBudget,
+    },
+    /// Bounded compilation was unavailable; never retry without the applied budget.
+    CompileUnavailable {
+        member: String,
+        budget: crate::compile_budget::CompileBudget,
+        why: String,
+    },
     /// A call into a member trapped or named no export.
     Call {
         member: String,
@@ -74,6 +85,17 @@ impl fmt::Display for LinkError {
                 second,
             } => write!(f, "{second}: exports {symbol}, which {first} already does"),
             Self::Instantiate { member, why } => write!(f, "{member}: {why}"),
+            Self::CompileTimeout { member, budget } => {
+                write!(f, "{member}: compilation time limit exceeded: {budget}")
+            }
+            Self::CompileUnavailable {
+                member,
+                budget,
+                why,
+            } => write!(
+                f,
+                "{member}: cannot enforce compilation budget {budget}: {why}; restore a private writable .horizon-cache/wasm directory and a working compiler executable"
+            ),
             Self::Call {
                 member,
                 function,
@@ -84,6 +106,30 @@ impl fmt::Display for LinkError {
 }
 
 impl std::error::Error for LinkError {}
+
+impl LinkError {
+    pub(crate) fn compile(member: &str, error: wasmtime::Error) -> Self {
+        if let Some(timeout) = error.downcast_ref::<crate::module_cache::CompileTimeout>() {
+            Self::CompileTimeout {
+                member: member.to_owned(),
+                budget: timeout.0,
+            }
+        } else if let Some(unavailable) =
+            error.downcast_ref::<crate::module_cache::CompileUnavailable>()
+        {
+            Self::CompileUnavailable {
+                member: member.to_owned(),
+                budget: unavailable.budget,
+                why: unavailable.why.clone(),
+            }
+        } else {
+            Self::Malformed {
+                member: member.to_owned(),
+                why: format!("{error:#}"),
+            }
+        }
+    }
+}
 
 /// A linked group: its store, and each member's instance.
 pub struct Group<T: 'static = ()> {
@@ -376,6 +422,9 @@ impl<T: 'static> Group<T> {
                         name.as_str(),
                         "horizon_layout" | "horizon_layout_ext" | "horizon_in" | "horizon_hook"
                     )
+                    || crate::boundary::PREPARED_EXPORTS
+                        .iter()
+                        .any(|(_, entries)| entries.iter().any(|(entry, _)| *entry == name))
                     || name == "memory"
                     || !matches!(extern_, Extern::Func(_) | Extern::Global(_))
                 {
@@ -525,7 +574,7 @@ impl Layout {
                 .map(|(module, _)| module),
             None => Module::new(engine, member.module),
         }
-        .map_err(|e| malformed(format!("{e:#}")))?;
+        .map_err(|error| LinkError::compile(member.name, error))?;
         let got_funcs = module
             .imports()
             .filter(|import| import.module() == "GOT.func")

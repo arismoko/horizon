@@ -75,6 +75,11 @@ fn real_wasm_command_listener_receives_ordered_selector_handles() {
                 "target",
                 CommandArgumentValue::Player(second),
             ),
+            (
+                "selector_id",
+                "kind",
+                CommandArgumentValue::Id(Identifier::parse("minecraft:zombie").unwrap()),
+            ),
         ];
         mod_api::testing::with_mods(loaded.mods.into(), || {
             mod_api::__private::mark_game_thread();

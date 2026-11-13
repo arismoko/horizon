@@ -18,13 +18,34 @@ values directly, matching the vanilla builder; `i32::MAX` means no update
 interval. There is no 64-block, 32-chunk or 1200-tick ceiling.
 
 The engine freezes declarations in mod-id/type-id order into non-narrowed
-catalog indices. Stage 2 supplies record validation and a `Kind::General` row
-with residency lookup, not live entity admission. It does not yet enable
-spawning, saving/loading, tracking, rendering, or entity tick dispatch. The
-record validator preserves the general-record policies of 65,536 payload
-bytes and passenger depth 16; decoded payload nesting 32 belongs to stage 3.
-Unknown types are reported separately after structural validation; byte-preserving
-quarantine is future work, not an implemented save guarantee.
+catalog indices. The record validator preserves the general-record policies
+of 65,536 payload bytes, passenger depth 16 and decoded payload nesting 32.
+A record of a namespace no loaded mod owns is quarantined: kept byte for
+byte as it loaded, never ticked or visible to the mod API, and written back
+unchanged on save, up to 69,632 encoded bytes per record and 256 records
+per chunk — past either bound the record skips with a warning naming the
+type and position, as vanilla's own unknown kinds warn and drop. A loaded
+mod's namespace with a type it never declared skips with a warning;
+reinstalling the owning mod restores a quarantined record through the
+normal load path.
+
+Stage 4 ships the authoritative tick for native mods: the
+`general_entity_tick` entity-scope moment on `EntityPart` (the scope's
+first; its goal, behavior and spawn-size registrars are plain methods, not
+hooks), dispatched from one join-order pass per level tick — each root's
+bookkeeping, its subscribed behavior and the global tick pair, then its
+riders in the maintainers' flat order (vehicle Pre, tick, Post, then each
+passenger's own triple, then that passenger's passengers, depth first),
+`Batch::General` keeping the mobile kinds' join order against the rows —
+with a per-pass resolved slot table and a first-child rider index reused
+across passes, the `ordered.born` cutoff holding this tick's joins for the
+next, parked levels untouched, liveness re-checked at every step (a
+listener's removal or dismount takes effect mid-pass), and a transaction
+plus catch around each row's dispatch so a panic or trap rolls the row's
+writes back. The moment fires only for general rows: vanilla families tick
+their own paths, and bringing them to one walk is #6509's, extendable
+later if Ari wants it wider. Wasm crossing is stage 4b; a wasm mod naming
+the hook is refused at load with that reason, never silently skipped.
 
 The remaining sections describe the wider design, not shipped lifecycle support.
 

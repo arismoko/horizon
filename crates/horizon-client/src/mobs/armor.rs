@@ -2,10 +2,7 @@
 use super::Mob;
 use super::finalize::{self, Attr};
 use horizon_world::attribute_map::ValueKind;
-use horizon_world::attributes::{
-    Definition,
-    entity::{Catalog, EntityAttributes},
-};
+use horizon_world::attributes::entity::{Catalog, EntityAttributes};
 use horizon_world::attributes::{Instance, Observer};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -40,31 +37,22 @@ impl Observer for Calculation {
     }
 }
 
-fn effective(
-    map: Option<&EntityAttributes>,
-    name: &str,
-    base: f64,
-    bonus: f64,
-    maximum: f64,
-) -> f64 {
-    if let Some(map) = map
-        && let Some(key) = map.catalog().id(name)
-    {
-        if let Some(source) = map.instance(key) {
-            // Equipment and the covered shell contribute in the additive
-            // phase, before multiplicative modifiers and effective clamping.
-            let mut value = source.clone();
-            value
-                .set_base_value(source.base_value() + bonus, &mut Calculation)
-                .unwrap();
-            return value.value();
-        }
-        let definition = map.catalog().attribute(key).definition;
-        return definition.sanitize(map.base_value(key).unwrap_or(base) + bonus);
+/// The attribute's value on the mob's own map, with `bonus` counted in the
+/// additive phase; none without a map, or for an attribute its catalog lacks.
+fn effective(map: Option<&EntityAttributes>, name: &str, base: f64, bonus: f64) -> Option<f64> {
+    let map = map?;
+    let key = map.catalog().id(name)?;
+    if let Some(source) = map.instance(key) {
+        // Equipment and the covered shell contribute in the additive
+        // phase, before multiplicative modifiers and effective clamping.
+        let mut value = source.clone();
+        value
+            .set_base_value(source.base_value() + bonus, &mut Calculation)
+            .unwrap();
+        return Some(value.value());
     }
-    Definition::ranged(0.0, 0.0, maximum)
-        .unwrap()
-        .sanitize(base + bonus)
+    let definition = map.catalog().attribute(key).definition;
+    Some(definition.sanitize(map.base_value(key).unwrap_or(base) + bonus))
 }
 
 /// LivingEntity.getArmorValue floors the effective double before converting
@@ -87,29 +75,23 @@ pub fn values(mob: &Mob) -> (f32, f32) {
             live.value(Some(key), horizon_world::attribute_map::ValueKind::Computed)
                 .ok()
         });
+        // The computed values are already inside the catalog's bounds.
         if let (Some(armor), Some(toughness)) = (armor, toughness) {
-            return (
-                armor.clamp(0.0, 30.0).floor() as i32 as f32,
-                toughness.clamp(0.0, 20.0) as f32,
-            );
+            return (armor.floor() as i32 as f32, toughness as f32);
         }
     }
     let map = mob.extra.armor_attributes.as_deref();
     let armor_base =
         finalize::base_value_with(mob, Attr::Armor, || Some(f64::from(mob.kind.armor)));
-    let armor = effective(map, "minecraft:armor", armor_base, 0.0, 30.0);
-    let toughness = effective(
-        map,
-        "minecraft:armor_toughness",
-        f64::from(mob.kind.armor_toughness),
-        0.0,
-        20.0,
-    );
+    let armor = effective(map, "minecraft:armor", armor_base, 0.0)
+        .unwrap_or_else(|| mob.kind.attribute_bounds.sanitize(Attr::Armor, armor_base));
+    // Without a map, the type's own toughness: its row's value, which nothing
+    // writes past the bounds.
+    let toughness_base = f64::from(mob.kind.armor_toughness);
+    let toughness =
+        effective(map, "minecraft:armor_toughness", toughness_base, 0.0).unwrap_or(toughness_base);
     (armor.floor() as i32 as f32, toughness as f32)
 }
-
-/// `Attributes.MAX_ABSORPTION`'s range (0..2048), for a mob with no map yet.
-const MAX_ABSORPTION: f64 = 2048.0;
 
 /// Absorption's `max_absorption` modifier (`MobEffects.ABSORPTION`:
 /// +4 per level, `ADD_VALUE`) for the effects a mob has.
@@ -124,14 +106,9 @@ pub fn absorption_bonus(effects: &[super::StoredEffect]) -> f64 {
 /// `ADD_VALUE` modifier. `AttributeInstance.calculateValue` sums `ADD_VALUE`
 /// into the base before the multiplying operations, so the effect counts in
 /// that phase; the stored base and modifiers are not changed.
-pub fn max_absorption_of(map: Option<&EntityAttributes>, default: f64, bonus: f64) -> f64 {
-    effective(
-        map,
-        "minecraft:max_absorption",
-        default,
-        bonus,
-        MAX_ABSORPTION,
-    )
+/// None for a catalog without the attribute.
+pub fn max_absorption_of(map: &EntityAttributes, default: f64, bonus: f64) -> Option<f64> {
+    effective(Some(map), "minecraft:max_absorption", default, bonus)
 }
 /// A mob's `getMaxAbsorption` (see [`max_absorption_of`]).
 pub fn max_absorption(mob: &Mob) -> f32 {
@@ -141,11 +118,14 @@ pub fn max_absorption(mob: &Mob) -> f32 {
         .get("minecraft:max_absorption")
         .copied()
         .unwrap_or(0.0);
-    max_absorption_of(
-        mob.extra.armor_attributes.as_deref(),
-        default,
-        absorption_bonus(&mob.extra.effects),
-    ) as f32
+    let bonus = absorption_bonus(&mob.extra.effects);
+    let map = mob.extra.armor_attributes.as_deref();
+    map.and_then(|map| max_absorption_of(map, default, bonus))
+        .unwrap_or_else(|| {
+            mob.kind
+                .attribute_bounds
+                .sanitize_max_absorption(default + bonus)
+        }) as f32
 }
 
 #[cfg(test)]
@@ -305,7 +285,7 @@ mod tests {
                     &mut Calculation,
                 )
                 .unwrap();
-            let got = max_absorption_of(Some(&map), 0.0, bonus);
+            let got = max_absorption_of(&map, 0.0, bonus).unwrap();
             assert_eq!(got, with_effect.value(), "base {base}");
             assert_eq!(got, java, "base {base}: the pinned Java value");
             assert_eq!(
@@ -314,13 +294,16 @@ mod tests {
                 "the stored base is unchanged"
             );
             assert_eq!(
-                max_absorption_of(Some(&map), 0.0, 0.0),
+                max_absorption_of(&map, 0.0, 0.0).unwrap(),
                 map.value(key).unwrap()
             );
         }
-        // No map yet: the type default with the bonus, in range.
-        assert_eq!(max_absorption_of(None, 0.0, 8.0), 8.0);
-        assert_eq!(max_absorption_of(None, 0.0, -4.0), 0.0);
+        // No map yet: the type default with the bonus, in the bounds its
+        // type took from the catalog.
+        let bounds = finalize::AttrBounds::of(&catalog);
+        assert_eq!(bounds.sanitize_max_absorption(8.0), 8.0);
+        assert_eq!(bounds.sanitize_max_absorption(-4.0), 0.0);
+        assert_eq!(bounds.sanitize_max_absorption(2052.0), 2048.0);
     }
 
     fn magma_cube(size: i32) -> Mob {

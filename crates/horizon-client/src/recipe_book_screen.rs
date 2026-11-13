@@ -720,11 +720,13 @@ fn overlay(s: &Screen, o: &OverlayView, put: &mut impl FnMut(Call, [f32; 6])) {
 /// The ingredient cells a recipe shows in the overlay
 /// (`OverlayCraftingRecipeButton` / `OverlaySmeltingRecipeButton.calculateIngredientsPositions`).
 pub fn overlay_cells(book: &Book, entry: &Entry) -> Vec<(i32, i32, Vec<ItemStack>)> {
-    let stacks = |ingredient| -> Vec<ItemStack> {
-        book.items_of(ingredient)
-            .iter()
-            .map(|i| ItemStack::new(i, 1))
-            .collect()
+    let stacks = |ingredient: &crate::crafting::Ingredient| -> Vec<ItemStack> {
+        ingredient.shown.clone().unwrap_or_else(|| {
+            book.items_of(ingredient)
+                .iter()
+                .map(|i| ItemStack::new(i, 1))
+                .collect()
+        })
     };
     let mut out = Vec::new();
     match &entry.display {

@@ -12,6 +12,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 from tools import prebuilt_game
+from tests.test_ci_concurrency import yaml
 
 
 class StageToolTests(unittest.TestCase):
@@ -119,10 +120,14 @@ class RegistryPatchTests(unittest.TestCase):
 class DeterministicArchiveTests(unittest.TestCase):
     def test_workflow_archive_is_independent_of_creation_order_and_mtimes(self):
         # Execute the workflow command itself, so a regression in its flags breaks this proof.
-        workflow = (prebuilt_game.ROOT / ".github/workflows/prebuilt-game.yml").read_text()
-        command = next(line.strip() for line in workflow.splitlines() if "tar --sort=name" in line)
+        workflow = yaml.safe_load((prebuilt_game.ROOT / ".github/workflows/prebuilt-game-build.yml").read_text())
+        command = next(step["run"] for step in workflow["jobs"]["build"]["steps"] if step.get("name") == "Archive")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            # The step runs `python` as setup-python provides it.
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            (bin_dir / "python").symlink_to(sys.executable)
             archives = []
             for index, order in enumerate([("a", "b"), ("b", "a")]):
                 work = root / str(index)
@@ -135,7 +140,9 @@ class DeterministicArchiveTests(unittest.TestCase):
                 for folder in [payload, payload.parent, payload.parent.parent]:
                     os.utime(folder, (2000 + index, 2000 + index))
                 subprocess.run(["bash", "-o", "pipefail", "-c", command], cwd=work,
-                               env={**os.environ, "ARCHIVE": "sdk.tar.gz"}, check=True)
+                               env={**os.environ, "ARCHIVE": "sdk.tar.gz",
+                                    "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                                    "GITHUB_STEP_SUMMARY": str(root / f"summary-{index}")}, check=True)
                 archives.append((work / "sdk.tar.gz").read_bytes())
             self.assertEqual(archives[0], archives[1])
 
@@ -152,15 +159,15 @@ class AllocatorSelectionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "manifest API"):
                 prebuilt_game.api_version(root)
 
-    def test_windows_archives_use_the_system_allocator(self):
-        self.assertEqual(prebuilt_game.cargo_features(False, "win32"), ["--features", "system-allocator"])
-        self.assertEqual(prebuilt_game.cargo_features(True, "win32"),
-                         ["--no-default-features", "--features", "system-allocator"])
+    def test_windows_and_macos_archives_use_the_system_allocator(self):
+        for platform in ("win32", "darwin"):
+            self.assertEqual(prebuilt_game.cargo_features(False, platform), ["--features", "system-allocator"])
+            self.assertEqual(prebuilt_game.cargo_features(True, platform),
+                             ["--no-default-features", "--features", "system-allocator"])
 
-    def test_other_systems_keep_mimalloc(self):
-        for platform in ("linux", "darwin"):
-            self.assertEqual(prebuilt_game.cargo_features(False, platform), [])
-            self.assertEqual(prebuilt_game.cargo_features(True, platform), ["--no-default-features"])
+    def test_linux_keeps_mimalloc(self):
+        self.assertEqual(prebuilt_game.cargo_features(False, "linux"), [])
+        self.assertEqual(prebuilt_game.cargo_features(True, "linux"), ["--no-default-features"])
 
     def test_build_uses_explicit_host_target_and_target_dynamic_flags(self):
         class Captured(Exception):
@@ -436,3 +443,23 @@ class PrebuiltContentsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SmokeStartTests(unittest.TestCase):
+    def test_only_expected_missing_resources_exit_is_accepted_and_homes_are_scratch(self):
+        from types import SimpleNamespace
+        for code in (1, 0, 2, 3221225477):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                result = subprocess.CompletedProcess([], code, stdout=prebuilt_game.NO_RESOURCES)
+                with patch.dict(sys.modules, {"lab": SimpleNamespace(game_env=lambda **_: {"HORIZON_HOME": "/inherited"})}), \
+                     patch.object(prebuilt_game.subprocess, "run", return_value=result) as run, \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    if code == 1:
+                        prebuilt_game.start(root / "out")
+                    else:
+                        with self.assertRaises(SystemExit):
+                            prebuilt_game.start(root / "out")
+                environment = run.call_args.kwargs["env"]
+                for key in ("HORIZON_HOME", "HORIZON_LAUNCHER_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME"):
+                    self.assertTrue(Path(environment[key]).is_relative_to(root))

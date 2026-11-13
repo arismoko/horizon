@@ -39,6 +39,7 @@ mod tests {
             ],
         );
         tags.insert("c:lava".to_owned(), vec!["minecraft:lava".to_owned()]);
+        tags.insert("fixture:empty".to_owned(), vec![]);
         TestReader {
             registries: Default::default(),
             tags: tags
@@ -74,6 +75,25 @@ mod tests {
         }
         let water = FluidIngredient::from_json(&serde_json::json!("water"), &context).unwrap();
         assert!(water.test(&stack("minecraft:water", 1)));
+    }
+
+    #[test]
+    fn empty_fluid_descendants_remain_invalid() {
+        let reader = load();
+        let context = OwningLoad::new(DataLoadOrigin::ServerDataLoad, &reader);
+        for json in [
+            serde_json::json!("#fixture:empty"),
+            serde_json::json!({"type":"neoforge:compound","children":["#fixture:empty"]}),
+            serde_json::json!({"type":"neoforge:difference","base":"minecraft:water",
+                "subtracted":"#fixture:empty"}),
+            serde_json::json!({"type":"neoforge:compound","children":[
+                "minecraft:water", {"type":"neoforge:compound","children":["#fixture:empty"]}]}),
+        ] {
+            assert!(matches!(
+                FluidIngredient::from_json(&json, &context),
+                Err(FluidIngredientError::Invalid)
+            ));
+        }
     }
 
     /// A single fluid matches itself and nothing else.
@@ -194,6 +214,7 @@ mod tests {
             crate::__private::ingredient_parser::WalkedIngredient::walk(
                 v,
                 &HashMap::new(),
+                &|_| None,
                 &crate::__private::ingredient_parser::resolved_items,
                 &|data| {
                     let ids = data.get("horizon:resolved_items")?.as_array()?;

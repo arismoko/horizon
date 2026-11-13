@@ -216,6 +216,7 @@ fn long_flash_sequence_keeps_only_active_seeds() {
 #[test]
 #[ignore = "requires GPU; run separately with --ignored --exact"]
 fn retained_gpu_draw_matches_transient_additive_draw() {
+    let _gpu = crate::gfx::test_gpu::lock();
     use bytemuck::Zeroable;
     let instance = crate::gfx::test_gpu::instance();
     let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
@@ -530,6 +531,7 @@ fn white_uv_is_inside_the_white_sprite() {
 #[test]
 #[ignore = "requires GPU; run separately with --ignored --exact"]
 fn bolt_through_the_atlas_white_sprite_is_fully_drawn() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let instance = crate::gfx::test_gpu::instance();
     let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
         eprintln!("no GPU adapter: skipped");

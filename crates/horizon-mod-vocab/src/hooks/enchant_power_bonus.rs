@@ -10,13 +10,17 @@ pub trait Hooks {
     /// answers, truncates the sum to a whole number as NeoForge does and caps it at 15 for the
     /// offers; a negative sum counts as 0, where NeoForge would throw, and a non-finite answer is
     /// ignored. Asked as the offers are made, in a single-player world and on a LAN host for each
-    /// guest's table, with the level read-only. Diverges from NeoForge: the table's enchant
-    /// particles still read the provider tag, as they are drawn inside the particle pass where
-    /// no host can be lent; they are not asked of this hook. With no part attached to the state,
-    /// the game checks the hook subscription and the block key before any event conversion, so
-    /// the cost is one table lookup per offset. Diverges from upstream: new hook.
+    /// guest's table, with the level read-only. Client particles use the same answer, queried once
+    /// per state at world entry, parts reload and received-server-tag publication, with `pos`
+    /// and `table_pos` both at the origin. Server tags and their tag-update listeners are
+    /// published before the client snapshot. Any nonzero answer emits particles when the
+    /// intervening block transmits. Particle answers must be state-only; changing a mod's
+    /// answer requires a parts/tag reload.
+    /// No hook is called per tick or frame. With no part attached, the only dispatch cost is one
+    /// block subscription lookup before event conversion. Diverges from upstream: new hook.
     #[hook(
-        side = "server",
+        side = "both",
+        version = 2,
         contract = "collect",
         out = "power",
         scope = "block",

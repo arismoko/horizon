@@ -889,6 +889,7 @@ mod tests {
             guest: None,
             no_gravity: false,
             power: 4.0,
+            used_portal: false,
             block_state: None,
             join: Default::default(),
         };

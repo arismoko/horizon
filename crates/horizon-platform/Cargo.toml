@@ -15,7 +15,7 @@ protocol = ["world", "dep:horizon-protocol"]
 # Preparing the game's files from the player's own Minecraft install.
 prepare = ["dep:horizon-prepare"]
 # A server's own files: server.properties, the op, white and ban lists, the user cache.
-server-files = ["dep:horizon-server-files"]
+server-files = ["dep:horizon-server-files", "dep:horizon-java-properties"]
 
 mod-build = ["dep:horizon-mod-api-gen", "dep:horizon-mod-point-shape"]
 
@@ -31,6 +31,7 @@ horizon-world = { path = "../horizon-world", optional = true }
 horizon-protocol = { path = "../horizon-protocol", optional = true }
 horizon-prepare = { path = "../horizon-prepare", optional = true }
 horizon-server-files = { path = "../horizon-server-files", optional = true }
+horizon-java-properties = { path = "../horizon-java-properties", optional = true }
 # The game's extension points, re-exported as `hooks`.
 horizon-hooks = { path = "../horizon-hooks" }
 

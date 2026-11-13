@@ -29,6 +29,7 @@ impl FakePlayers {
             selected_slot: 0,
             given: Vec::new(),
             action_bar: Vec::new(),
+            infinite_materials: false,
         })
     }
     /// Player `uuid`, if online.
@@ -99,6 +100,9 @@ pub struct FakePlayer {
     pub given: Vec<ItemStack>,
     /// The lines shown above their hotbar, in order.
     pub action_bar: Vec<Text>,
+    /// Whether they have infinite materials (`Player.hasInfiniteMaterials`, creative's
+    /// `instabuild`).
+    pub infinite_materials: bool,
 }
 
 impl FakePlayer {

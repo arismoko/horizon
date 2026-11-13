@@ -862,13 +862,20 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         let b = self.b;
         let mut speed = 1.0f32;
         let under = below(pos);
+        let asks = self.level.asks_is_fertile();
         for xx in -1..=1 {
             for zz in -1..=1 {
                 let mut block_speed = 0.0f32;
-                let state = self.state(under.offset(xx, 0, zz));
+                let at = under.offset(xx, 0, zz);
+                let state = self.state(at);
                 if b.in_set(state, &b.tags.grows_crops) {
                     block_speed = 1.0;
-                    if b.table.int(state, b.props.moisture) > 0 {
+                    // IBlockExtension.isFertile: vanilla's moisture, as a part leaves it.
+                    let mut fertile = b.table.int(state, b.props.moisture) > 0;
+                    if asks {
+                        self.level.before_is_fertile(state, at, &mut fertile);
+                    }
+                    if fertile {
                         block_speed = 3.0;
                     }
                 }
@@ -1046,16 +1053,28 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         }
         self.level.crop_grow_post(pos, state);
     }
+    /// `FarmlandBlock.randomTick`, with session-only watered areas before `isNearWater`.
     fn farmland_random_tick(&mut self, state: BlockStateId, pos: BlockPos) {
         let b = self.b;
         let moisture = b.table.int(state, b.props.moisture);
-        let mut near_water = false;
-        'search: for x in -4..=4 {
-            for y in 0..=1 {
-                for z in -4..=4 {
-                    if b.is_water_fluid(self.fluid_at(pos.offset(x, y, z)).kind()) {
-                        near_water = true;
-                        break 'search;
+        let mut near_water = self.level.has_water_ticket(pos);
+        // IBlockExtension.canBeHydrated: the farmland's parts, looked up once.
+        let asks = !near_water && self.level.asks_can_be_hydrated(state);
+        if !near_water {
+            'search: for x in -4..=4 {
+                for y in 0..=1 {
+                    for z in -4..=4 {
+                        let at = pos.offset(x, y, z);
+                        let fluid = self.fluid_at(at);
+                        let mut hydrates = None;
+                        if asks && fluid.kind() != FluidKind::Empty {
+                            self.level
+                                .before_can_be_hydrated(state, pos, fluid, at, &mut hydrates);
+                        }
+                        if hydrates.unwrap_or_else(|| b.is_water_fluid(fluid.kind())) {
+                            near_water = true;
+                            break 'search;
+                        }
                     }
                 }
             }
@@ -1676,10 +1695,17 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             self.set_block_and_update(pos, next);
         }
     }
-    /// `WeatheringCopper.getNext` by registry naming.
+    /// `WeatheringCopper.getNext`: the world's `neoforge:oxidizables` value
+    /// (`DataMapHooks.getNextOxidizedStage`), else by registry naming.
     pub(crate) fn copper_next(&self, state: BlockStateId) -> Option<BlockStateId> {
         let b = self.b;
         let name = &*b.table.info(b.block(state)).name;
+        if let Some(next) = b.read_block_maps(|maps| {
+            maps.next_oxidation(name)
+                .and_then(|n| b.table.block_by_name(n))
+        }) {
+            return Some(b.table.with_properties_of(next, state));
+        }
         let path = name.strip_prefix("minecraft:")?;
         let next = if path == "copper_block" {
             "exposed_copper".to_owned()
@@ -1712,14 +1738,25 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             })
         }
     }
+    /// One oxidation step back, or all of them: the world's
+    /// `neoforge:oxidizables` inverse (`DataMapHooks.getPreviousOxidizedStage`)
+    /// first, else by registry naming.
     fn copper_stepped(&self, state: BlockStateId, all_the_way: bool) -> Option<BlockStateId> {
         let b = self.b;
-        let name = &*b.table.info(b.block(state)).name;
-        let mut path = Self::copper_previous_name(name.strip_prefix("minecraft:")?)?;
-        while all_the_way && let Some(earlier) = Self::copper_previous_name(&path) {
-            path = earlier;
-        }
-        let block = b.table.block_by_name(&format!("minecraft:{path}"))?;
+        let previous = |name: &str| -> Option<String> {
+            b.read_block_maps(|maps| maps.previous_oxidation(name).map(str::to_owned))
+                .or_else(|| {
+                    let path = Self::copper_previous_name(name.strip_prefix("minecraft:")?)?;
+                    Some(format!("minecraft:{path}"))
+                })
+        };
+        let start: &str = &b.table.info(b.block(state)).name;
+        let name = if all_the_way {
+            first_stage(start, previous)?
+        } else {
+            previous(start)?
+        };
+        let block = b.table.block_by_name(&name)?;
         Some(b.table.with_properties_of(block, state))
     }
     /// `LightningBolt.clearCopperOnLightningStrike`: the struck copper goes
@@ -1769,6 +1806,22 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             }
         }
     }
+}
+
+/// The first oxidation stage before `start`: `previous` stepped back until it gives nothing
+/// (`LightningBolt.clearCopperOnLightningStrike`'s walk to the unoxidized block), none when
+/// `start` has no earlier stage. A pack's chain that comes back to a block it already passed
+/// stops there, so mod data can't hang the walk; vanilla's chain has four stages.
+fn first_stage(start: &str, previous: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let mut name = previous(start)?;
+    let mut passed = vec![start.to_owned()];
+    while let Some(earlier) = previous(&name) {
+        if passed.contains(&earlier) || earlier == name {
+            break;
+        }
+        passed.push(std::mem::replace(&mut name, earlier));
+    }
+    Some(name)
 }
 
 /// `Biome.Precipitation` at a position.
@@ -2073,3 +2126,40 @@ impl RandomTickMask {
 #[cfg(test)]
 #[path = "fire_tick_tests.rs"]
 mod fire_tick_tests;
+
+#[cfg(test)]
+#[path = "block_maps_tests.rs"]
+mod block_maps_tests;
+
+#[cfg(test)]
+mod first_stage_tests {
+    use super::first_stage;
+
+    fn chain<'a>(steps: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |name| {
+            steps
+                .iter()
+                .find(|(from, _)| *from == name)
+                .map(|(_, to)| (*to).to_owned())
+        }
+    }
+
+    #[test]
+    fn the_lightning_walk_reaches_the_first_stage_and_stops_where_a_chain_loops() {
+        let vanilla = [
+            ("oxidized", "weathered"),
+            ("weathered", "exposed"),
+            ("exposed", "copper"),
+        ];
+        assert_eq!(
+            first_stage("oxidized", chain(&vanilla)).as_deref(),
+            Some("copper")
+        );
+        assert_eq!(first_stage("copper", chain(&vanilla)), None);
+        // b -> c -> d -> b: the walk from a stops at d, the last block before it repeats.
+        let looped = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "b")];
+        assert_eq!(first_stage("a", chain(&looped)).as_deref(), Some("d"));
+        // A block that is its own previous stage stays as it is.
+        assert_eq!(first_stage("x", chain(&[("x", "x")])).as_deref(), Some("x"));
+    }
+}

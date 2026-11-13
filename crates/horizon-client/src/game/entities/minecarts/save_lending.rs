@@ -169,12 +169,17 @@ impl Game<'_> {
                         return;
                     }
                     game.release_vehicle_container(id);
-                    let Some(i) = game.carts.iter().position(|c| {
+                    let Some(_i) = game.carts.iter().position(|c| {
                         c.id == id && c.join == join && !game.persist.removals.contains(&target)
                     }) else {
                         return;
                     };
+                    game.unpack_loot(super::super::container_loot::LootTarget::Cart(id), None);
                     let _save_lease = horizon_client::join_seq::visibility::PassLease::enter();
+                    let Some(i) = game.carts.iter().position(|c| c.id == id && c.join == join)
+                    else {
+                        return;
+                    };
                     let c = game.carts.remove(i);
                     let at = c.position.components();
                     // AbstractMinecartContainer.remove: contents drop even when

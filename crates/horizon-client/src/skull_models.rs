@@ -77,6 +77,16 @@ pub fn texture(kind: &str) -> Option<&'static str> {
         .map(|skull| skull.texture.as_str())
 }
 
+/// Every registered kind with its head model and default texture, which the item renderer takes in
+/// when it loads.
+pub(crate) fn all() -> impl Iterator<Item = (&'static str, &'static ModelPart, &'static str)> {
+    REGISTERED
+        .get()
+        .into_iter()
+        .flatten()
+        .map(|(kind, skull)| (kind.as_str(), &skull.part, skull.texture.as_str()))
+}
+
 /// A baked mod layer as the special renderers draw it: its pose, its faces in texels with their
 /// texture coordinates, and its children in drawing order.
 fn from_mod_part(part: &mod_api::ModelPart) -> ModelPart {

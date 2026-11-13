@@ -122,7 +122,7 @@ pub(crate) struct Case {
 
 /// The resolved types, by definition.
 pub(crate) struct Types<'a> {
-    pub(super) index: Index<'a>,
+    pub(crate) index: Index<'a>,
     pub(super) defs: Vec<Def>,
     pub(super) by_item: HashMap<ItemId, usize>,
     /// The `mod_api` root module, where re-exported names are looked up.
@@ -459,7 +459,14 @@ impl<'a> Types<'a> {
         let Fields::Named(fields) = &record.fields else {
             return Ok(None);
         };
-        let [field] = fields.named.iter().collect::<Vec<_>>()[..] else {
+        // A view may also hold private listener checkpoint state. Only its one
+        // borrowed entity crosses the wire; the constructor initializes the rest.
+        let borrowed_fields: Vec<_> = fields
+            .named
+            .iter()
+            .filter(|field| matches!(field.ty, syn::Type::Reference(_)))
+            .collect();
+        let [field] = borrowed_fields[..] else {
             return Ok(None);
         };
         let syn::Type::Reference(reference) = &field.ty else {

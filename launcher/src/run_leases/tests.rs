@@ -2,6 +2,59 @@ use super::*;
 use std::io::{BufRead, Write};
 use std::process::{Child, Stdio};
 
+#[cfg(target_os = "macos")]
+#[test]
+fn spawn_errors_distinguish_missing_working_directory_and_program() {
+    let root = tempfile::tempdir().unwrap();
+    let missing_cwd = root.path().join("Application Support/missing-instance");
+    let error = spawn_program(Command::new("/usr/bin/true").current_dir(&missing_cwd)).unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    assert!(error.to_string().contains("working directory"));
+    assert!(error
+        .to_string()
+        .contains(&missing_cwd.display().to_string()));
+    let missing_program = root.path().join("Application Support/missing-helper");
+    let error = spawn_program(Command::new(&missing_program).current_dir(root.path())).unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    assert!(error.to_string().contains("execute"));
+    assert!(error
+        .to_string()
+        .contains(&missing_program.display().to_string()));
+}
+
+#[test]
+fn failed_launch_log_keeps_paths_but_not_argument_or_environment_secrets() {
+    let root = tempfile::tempdir().unwrap();
+    let mut command = Command::new(root.path().join("game"));
+    command
+        .args(["--token", "private-argument", "--token=private-inline"])
+        .current_dir(root.path())
+        .env("HORIZON_ACCOUNT_SESSIONS", "private-environment")
+        .env("TMPDIR", root.path());
+    let error = std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "open completion marker /version/.installed: not found",
+    );
+    let path = write_launch_failure(&root.path().join("logs"), &command, &error).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("/version/.installed"));
+    assert!(text.contains("cwd:"));
+    assert!(text.contains("TMPDIR:"));
+    assert!(text.contains("exists=true is-dir=true permissions="));
+    assert!(text.contains("stat failed:"));
+    assert!(!text.contains("private-argument"));
+    assert!(!text.contains("private-inline"));
+    assert!(!text.contains("private-environment"));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+}
+
 fn directory(path: &Path) -> Dir {
     fs::create_dir_all(path).unwrap();
     Dir::open_ambient_dir(path, cap_std::ambient_authority()).unwrap()
@@ -116,6 +169,7 @@ fn stop_terminates_the_routed_game_not_only_its_holder() {
 }
 #[cfg(unix)]
 fn routed_lifetime(stop: bool) {
+    crate::test_support::assert_holder_capability();
     let root = tempfile::tempdir().unwrap();
     let data = root.path().canonicalize().unwrap();
     let install = data.join("install");
@@ -138,6 +192,8 @@ fn routed_lifetime(stop: bool) {
             .env("ROUTING_ROOT", &data)
             .env("ROUTING_MODE", "launcher")
             .env("ROUTING_STOP", if stop { "1" } else { "0" })
+            // Keep actor failures visible in CI rather than only timing out on its marker.
+            .env("RUST_BACKTRACE", "1")
             .env("HORIZON_LAUNCHER_HOME", &data)
             .env("HORIZON_HOME", &home)
             .env("XDG_DATA_HOME", data.join("xdg-data"))
@@ -148,7 +204,7 @@ fn routed_lifetime(stop: bool) {
             .env("HORIZON_LAUNCHER_NO_SELF_UPDATE", "1")
             .env("HORIZON_NO_AUDIO", "1")
             .stdin(Stdio::piped())
-            .stdout(Stdio::null())
+            .stdout(Stdio::inherit())
             .spawn()
             .unwrap(),
     );
@@ -263,7 +319,10 @@ fn routing_actor() {
             horizon_mod_package::selection::LaunchArguments::for_command(&command).unwrap();
         let _capture = horizon_mod_package::holder::acquire(&selection);
         assert!(_capture.is_some(), "game did not enter through the holder");
-        fs::write(root.join("routed-ready"), std::process::id().to_string()).unwrap();
+        // The parent may stop the game as soon as the readiness file exists.
+        let pending = root.join("routed-ready.tmp");
+        fs::write(&pending, std::process::id().to_string()).unwrap();
+        fs::rename(pending, root.join("routed-ready")).unwrap();
         let end = std::time::Instant::now() + std::time::Duration::from_secs(30);
         while !root.join("routed-stop").exists() {
             assert!(std::time::Instant::now() < end);

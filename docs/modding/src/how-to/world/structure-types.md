@@ -47,9 +47,18 @@ Implement `StructurePiece` (`Debug + Send + Sync`) with these methods:
 | `bounding_box` | Return the piece's world-space `BoundingBox`. |
 | `post_process` | Place blocks and entities through `&mut dyn PieceContext`; return `Result<(), StructureError>`. |
 | `add_additional_save_data` | Write your piece's fields into its saved `Compound`. |
+| `beardifier` | Optional `Option<PieceBeardifier>`, default `None`: override the terrain box, adjustment and ground-level delta. |
 
 After the start's pieces place, `StructureType::after_place` runs once per chunk with every
 piece's current bounding box. Its default implementation does nothing.
+
+Construct an override with `PieceBeardifier::new(bounds, TerrainAdjustment::BeardThin, 2)`.
+The bounds are independent of the placement box; the ground is `bounds.min[1] + ground_level_delta`.
+The rules are `None`, `Bury`, `BeardThin`, `BeardBox` and `Encapsulate`. An answer with
+adjustment `None` disables only that piece. No answer inherits the structure's setting.
+An override works even when the structure's `terrain_adaptation` is `"none"`.
+Native and wasm pieces are queried once when generated or loaded, and the answer is cached
+on the engine piece; terrain generation never calls the mod for it per chunk.
 
 Use `PieceContext` to work within the chunk:
 

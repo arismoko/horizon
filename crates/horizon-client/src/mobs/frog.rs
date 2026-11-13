@@ -19,6 +19,7 @@ use horizon_core::{
     geometry::Vec3,
     random::{LegacyRandom, RandomSource},
 };
+use horizon_world::move_gate::MoveGate;
 use mod_api::SoundSource;
 use std::fmt::Debug;
 
@@ -184,7 +185,7 @@ pub fn travel(
         return false;
     }
     m.move_relative(m.ai.speed, input);
-    m.do_move(w, level, events);
+    m.do_move(w, level, events, &mut MoveGate::new());
     m.velocity = m.velocity.scale(0.9);
     true
 }

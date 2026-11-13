@@ -14,14 +14,14 @@ EffectsInInventory.extractEffects	port	crates/horizon-client-render/src/inventor
 EffectsInInventory.extractBackground	port	crates/horizon-client-render/src/inventory_effects.rs::background	nine-slice panel background, ambient variant included
 EffectsInInventory.extractText	port	crates/horizon-client-render/src/inventory_effects.rs::paint	name and duration text, clipping with ..., hover tooltip for compact panels
 EffectsInInventory.getEffectName	inline	crates/horizon-client-render/src/inventory_effects.rs::panels	name plus level suffix for amplifier 1-9, folded into panels
-EnchantmentNames.getRandomName	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	galactic word names from the enchant seed (WORDS), drawn in the enchanting option slots
+EnchantmentNames.getRandomName	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	galactic word names from the enchant seed (WORDS), drawn in the enchanting option slots
 EnchantmentScreen.init	skip:ui		creates the book model for drawing only; the book itself is not drawn (see extractBook)
 EnchantmentScreen.containerTick	port	crates/horizon-client/src/game/interface/locator_bar.rs::Game::track_experience_display	gap: player: keeps the experience bar up while the table is open; the book tick (tickBook) is not run
 EnchantmentScreen.extractBook	port	crates/horizon-client/src/item_render/gui.rs::draw_enchanting_book	the open book over the table, drawn from the book's own open amount and flip
 EnchantmentScreen.tickBook	port	crates/horizon-client/src/game/blocks/stations.rs::Game::tick_enchanting_book	the book opens for an offer and turns when the item or the offers change
-GrindstoneScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	grindstone texture and the error sprite when an input is set and there is no result
+GrindstoneScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	grindstone texture and the error sprite when an input is set and there is no result
 HangingSignEditScreen.extractSignBackground	port	crates/horizon-client/src/game/interface/sign_edit.rs::Game::draw_sign_editor	hanging sign board at 4.5x scale
-HopperScreen.extractBackground	port	crates/horizon-client/src/game/blocks/machines/mod.rs::Game::draw_machine_screen	hopper background for block and minecart hoppers
+HopperScreen.extractBackground	port	crates/horizon-client/src/game/blocks/machines/screen.rs::Game::draw_machine_screen	hopper background for block and minecart hoppers
 HorseInventoryScreen.shouldRenderSaddleSlot	port	crates/horizon-client/src/game/interface/mount_menu.rs::shows_saddle	saddle slot shown for every mount except llamas
 HorseInventoryScreen.shouldRenderArmorSlot	port	crates/horizon-client/src/game/interface/mount_menu.rs::shows_body	armour slot for horse armour wearers and llamas
 InventoryScreen.containerTick	missing		minor: a survival inventory that stays open when the game mode becomes creative is not switched to the creative screen
@@ -32,7 +32,7 @@ InventoryScreen.extractRenderState	inline	crates/horizon-client/src/game.rs::Gam
 InventoryScreen.extractBackground	inline	crates/horizon-client/src/game.rs::Game::draw_inventory	background texture and the player preview (draw_inventory_player)
 InventoryScreen.extractEntityInInventoryFollowsMouse	port	crates/horizon-client/src/game/interface/perspective.rs::Game::draw_player_preview	gap: minor: player only; mounts use mount_menu.rs::draw_mob_preview. Head and body turn toward the cursor as vanilla
 InventoryScreen.mouseReleased	inline	crates/horizon-client/src/game/interface/inventory_input.rs::Game::inventory_mouse_release	release goes through the slot path; a recipe-book press is handled first and has no separate release flag
-ItemCombinerScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	anvil and smithing backgrounds, with the error sprite
+ItemCombinerScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	anvil and smithing backgrounds, with the error sprite
 JigsawBlockEditScreen	home	crates/horizon-client/src/game/interface/block_editor.rs	boxes, priority tooltips (`edit_tooltip`, in `jigsaw_edit.rs`), joint/levels/generate; the screen shell is `block_editor.rs`
 LecternScreen.createMenuControls	port	crates/horizon-client/src/game/interface/books.rs::Game::book_click	Done is always drawn; Take Book only when the lectern allows building (`Game::may_build`)
 LoomScreen.init	skip:ui		bakes the banner flag model for the preview; the loom is drawn by screen_layout::loom
@@ -58,15 +58,15 @@ ShulkerBoxScreen.extractBackground	port	crates/horizon-client/src/game/world/sto
 SignEditScreen.extractSignBackground	port	crates/horizon-client/src/game/interface/sign_edit.rs::Game::draw_sign_editor	sign board at 3.9x scale, wall signs at 12 rows
 SmithingScreen.containerTick	port	crates/horizon-client/src/game/blocks/stations.rs::smithing_slot_icons	the empty slots' icons follow the template in the slot
 SmithingScreen.getTemplateItem	port	crates/horizon-client/src/game/blocks/stations.rs::smithing_slot_icons	the template's base and addition icons are picked there
-SmithingScreen.extractRenderState	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	gap: player: onboarding tooltips for empty slots are missing (see extractOnboardingTooltips)
-SmithingScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	gap: player: the armour stand preview beside the slots is not drawn
+SmithingScreen.extractRenderState	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	gap: player: onboarding tooltips for empty slots are missing (see extractOnboardingTooltips)
+SmithingScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	gap: player: the armour stand preview beside the slots is not drawn
 SmithingScreen.updateArmorStandPreview	port	crates/horizon-client/src/game/entities/armor_stands.rs::Game::draw_smithing_armor_stand	the armour stand wearing the upgraded item, beside the slots
-SmithingScreen.extractErrorIcon	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	error sprite at (65, 46) when all inputs are set and there is no result
-SmithingScreen.extractOnboardingTooltips	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	gap: player: only the upgrade error tooltip exists; the missing-template and slot description tooltips are not drawn
-StonecutterScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	background, scroller and the recipe grid
-StonecutterScreen.extractTooltip	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	tooltip of the hovered recipe result
-StonecutterScreen.extractButtons	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	recipe cell sprites: selected and highlighted
-StonecutterScreen.extractRecipes	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::draw_station	recipe result icons in the grid
+SmithingScreen.extractErrorIcon	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	error sprite at (65, 46) when all inputs are set and there is no result
+SmithingScreen.extractOnboardingTooltips	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	gap: player: only the upgrade error tooltip exists; the missing-template and slot description tooltips are not drawn
+StonecutterScreen.extractBackground	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	background, scroller and the recipe grid
+StonecutterScreen.extractTooltip	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	tooltip of the hovered recipe result
+StonecutterScreen.extractButtons	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	recipe cell sprites: selected and highlighted
+StonecutterScreen.extractRecipes	inline	crates/horizon-client/src/game/blocks/stations/draw.rs::Game::draw_station	recipe result icons in the grid
 StonecutterScreen.mouseDragged	port	crates/horizon-client/src/game/blocks/stations.rs::stonecutter_drag_offs	the dragged scroller's offset picks the recipe row
 StonecutterScreen.mouseScrolled	port	crates/horizon-client/src/game/blocks/stations.rs::Game::station_scroll	one row of recipes per wheel step, only with more than 12 recipes
 StonecutterScreen.isScrollBarActive	inline	crates/horizon-client/src/game/blocks/stations.rs::Game::station_scroll	more than 12 visible recipes

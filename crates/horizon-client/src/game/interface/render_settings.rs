@@ -132,6 +132,7 @@ impl Game<'_> {
     }
 
     pub(super) fn apply_settings(&mut self) {
+        self.bind_mod_mappings();
         // LocalPlayer.refreshChatAbilities: the chat shows what the Chat option allows.
         let abilities = self.chat_abilities();
         self.ui.chat.set_abilities(&self.gui.atlas.font, abilities);

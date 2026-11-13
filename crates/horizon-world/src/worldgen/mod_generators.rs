@@ -14,11 +14,15 @@ pub trait ChunkAccess {
     fn registry(&self) -> &'static crate::registry::BlockRegistry;
     /// `ChunkAccess.getPos`.
     fn pos(&self) -> ChunkPos;
-    /// The world's seed.
+    /// The id of the level this chunk belongs to.
+    fn level(&self) -> &str;
+    /// The level's seed: the world's seed.
     fn seed(&self) -> i64;
-    /// `getMinY`: the level's lowest block Y.
+    /// The lowest block Y the terrain fills: the level's, or with
+    /// [`VanillaStages`] its noise settings'.
     fn min_y(&self) -> i32;
-    /// `getHeight`: the level's build height, from its dimension type.
+    /// The blocks up from `min_y` the terrain fills: the level's build height,
+    /// or with [`VanillaStages`] its noise settings' height.
     fn height(&self) -> i32;
     /// A block state by block name (`stone`, `minecraft:oak_log`), with its
     /// default properties; air for a block the game doesn't have.
@@ -27,8 +31,30 @@ pub trait ChunkAccess {
     /// missing properties keep defaults.
     fn state_with(&self, name: &str, properties: &[(&str, &str)]) -> BlockStateId;
     /// `setBlockState`: write `state` at `pos`, answering whether it was
-    /// written. A position outside the chunk or the build height is skipped.
+    /// written. A position outside the chunk or that range is skipped.
     fn set_block(&mut self, pos: [i32; 3], state: BlockStateId) -> bool;
+}
+
+/// The vanilla stages a level runs around a mod's terrain
+/// ([`OverworldGenerator::for_mod`](super::generator::OverworldGenerator::for_mod)).
+/// None of them is the generator's terrain alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VanillaStages {
+    /// The noise settings' material rule over the terrain.
+    pub surface: bool,
+    /// The biomes' carvers, with the noise settings' aquifer.
+    pub carvers: bool,
+    /// The structure starts and references, and the pieces in FEATURES.
+    pub structures: bool,
+    /// The biomes' placed features in FEATURES.
+    pub features: bool,
+}
+
+impl VanillaStages {
+    /// Whether the level runs any of them.
+    pub fn any(self) -> bool {
+        self.surface || self.carvers || self.structures || self.features
+    }
 }
 
 /// A chunk generator's engine side, as the executable's adapter sees it.
@@ -37,6 +63,10 @@ pub trait ChunkAccess {
 pub trait ModChunkGenerator: Send + Sync {
     /// `ChunkGenerator.buildTerrain`: the chunk's terrain.
     fn build_terrain(&self, chunk: &mut dyn ChunkAccess);
+    /// The vanilla stages its levels run, as the mod answered at registration.
+    fn vanilla_stages(&self) -> VanillaStages {
+        VanillaStages::default()
+    }
 }
 
 /// The installed generators, `modid:void` → generator. Set once, before any

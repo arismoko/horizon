@@ -188,6 +188,117 @@ pub(crate) fn snapshot(command: &mut Command) {
 
 /// Unix holder owns the wrapped program; Windows retains its existing launch path.
 pub(crate) fn spawn(command: &mut Command, piped: bool) -> std::io::Result<std::process::Child> {
+    spawn_inner(command, piped).map_err(|error| {
+        match write_launch_failure(&crate::backend::data_dir().join("logs"), command, &error) {
+            Ok(path) => std::io::Error::new(
+                error.kind(),
+                format!("{error}; diagnostic log: {}", path.display()),
+            ),
+            Err(log_error) => std::io::Error::new(
+                error.kind(),
+                format!("{error}; could not write launcher diagnostic log: {log_error}"),
+            ),
+        }
+    })
+}
+
+fn write_launch_failure(
+    directory: &Path,
+    command: &Command,
+    error: &std::io::Error,
+) -> std::io::Result<std::path::PathBuf> {
+    use std::io::Write;
+    fs::create_dir_all(directory)?;
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(std::io::Error::other)?
+        .as_nanos();
+    let path = directory.join(format!("launch-failure-{}-{nonce}.log", std::process::id()));
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&path)?;
+    // Values can contain tokens (including custom wrapper arguments). Keep argument positions
+    // and switch names, but never persist credentials or the private holder bootstrap env.
+    let args: Vec<_> = command
+        .get_args()
+        .map(|arg| {
+            let value = arg.to_string_lossy();
+            if value.starts_with("--") && !value.contains('=') {
+                value.into_owned()
+            } else {
+                "<redacted>".to_owned()
+            }
+        })
+        .collect();
+    writeln!(
+        file,
+        "program: {:?}\narguments (values redacted): {args:?}\ncwd: {:?}\nerror: {error}",
+        command.get_program(),
+        command.get_current_dir()
+    )?;
+    record_launch_path(&mut file, "program", Path::new(command.get_program()))?;
+    let cwd = std::path::absolute(command.get_current_dir().unwrap_or(Path::new(".")))?;
+    record_launch_path(&mut file, "working directory", &cwd)?;
+    // Snapshotting may fail before exec: report completion-marker candidates, not only
+    // the executable whose name used to hide all of these distinct failures.
+    let image = cwd.join(command.get_program());
+    let data = crate::backend::data_dir();
+    for parent in image
+        .ancestors()
+        .skip(1)
+        .take_while(|path| path.starts_with(&data))
+    {
+        record_launch_path(
+            &mut file,
+            "completion marker candidate",
+            &parent.join(".installed"),
+        )?;
+    }
+    #[cfg(target_os = "macos")]
+    record_launch_path(
+        &mut file,
+        "control socket fallback parent",
+        Path::new("/private/tmp"),
+    )?;
+    #[cfg(all(unix, not(target_os = "macos")))]
+    record_launch_path(
+        &mut file,
+        "control socket fallback parent",
+        Path::new("/tmp"),
+    )?;
+    for key in ["XDG_RUNTIME_DIR", "TMPDIR"] {
+        let value = override_value(command, key).map_or_else(
+            || std::env::var_os(key),
+            |value| value.map(std::ffi::OsStr::to_owned),
+        );
+        writeln!(file, "{key}: {value:?}")?;
+        if let Some(value) = value {
+            record_launch_path(&mut file, key, Path::new(&value))?;
+        }
+    }
+    Ok(path)
+}
+
+fn record_launch_path(file: &mut fs::File, role: &str, path: &Path) -> std::io::Result<()> {
+    use std::io::Write;
+    match fs::metadata(path) {
+        Ok(metadata) => writeln!(
+            file,
+            "{role}: {}: exists=true is-dir={} permissions={:?}",
+            path.display(),
+            metadata.is_dir(),
+            metadata.permissions()
+        ),
+        Err(error) => writeln!(file, "{role}: {}: stat failed: {error}", path.display()),
+    }
+}
+
+fn spawn_inner(command: &mut Command, piped: bool) -> std::io::Result<std::process::Child> {
     #[cfg(not(unix))]
     let _ = piped;
     #[cfg(unix)]
@@ -201,7 +312,13 @@ pub(crate) fn spawn(command: &mut Command, piped: bool) -> std::io::Result<std::
                 serde_json::from_str(encoded.to_str().ok_or(std::io::ErrorKind::InvalidData)?)?;
             let image = words.first().ok_or(std::io::ErrorKind::InvalidData)?;
             let cwd = std::path::absolute(command.get_current_dir().unwrap_or(Path::new(".")))?;
-            let executable = cwd.join(image).canonicalize()?;
+            let image = cwd.join(image);
+            let executable = image.canonicalize().map_err(|error| {
+                std::io::Error::new(
+                    error.kind(),
+                    format!("resolve game executable {}: {error}", image.display()),
+                )
+            })?;
             if holder::capable(&executable)? {
                 let mut game = Command::new(&executable);
                 game.args(&words[1..]).current_dir(&cwd);
@@ -269,14 +386,34 @@ pub(crate) fn spawn(command: &mut Command, piped: bool) -> std::io::Result<std::
                             use std::os::unix::process::CommandExt;
                             legacy.process_group(0);
                         }
-                        legacy.spawn()
+                        spawn_program(&mut legacy)
                     }
                 };
             }
         }
     }
     command.env_remove(GAME);
-    command.spawn()
+    spawn_program(command)
+}
+
+fn spawn_program(command: &mut Command) -> std::io::Result<std::process::Child> {
+    let cwd = std::path::absolute(command.get_current_dir().unwrap_or(Path::new(".")))?;
+    command.spawn().map_err(|error| {
+        if let Err(cwd_error) = fs::metadata(&cwd) {
+            return std::io::Error::new(
+                cwd_error.kind(),
+                format!("open working directory {}: {cwd_error}", cwd.display()),
+            );
+        }
+        std::io::Error::new(
+            error.kind(),
+            format!(
+                "execute {} (working directory {}): {error}",
+                Path::new(command.get_program()).display(),
+                cwd.display()
+            ),
+        )
+    })
 }
 
 /// Publish stable tree lock inodes before completing a newly installed unit.

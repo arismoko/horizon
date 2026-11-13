@@ -17,7 +17,6 @@ use {
     horizon_world::{
         heightmap::HeightmapType,
         item_defaults::ItemData,
-        loot::PackOverlay,
         registry::BlockRegistry,
         worldgen::{
             biome_source::regions::RegionLayout,
@@ -53,7 +52,6 @@ pub struct VanillaTerrain {
     /// Generator biome index -> client biome table index.
     biome_map: Vec<u16>,
     /// Loot tables for generated containers.
-    loot: crate::structure_blocks::LootSnapshot,
     structure_mobs: Arc<StructureMobFinalizer>,
     /// A worker for structure queries from the game thread.
     query: std::sync::Mutex<Option<GeneratorWorker>>,
@@ -89,11 +87,66 @@ pub struct VanillaTerrain {
     created: std::time::Instant,
     /// A superflat generator (`FlatLevelSource`).
     flat: bool,
+    /// A mod's chunk generator with vanilla stages: its terrain is no noise to draw far away.
+    mod_terrain: bool,
+}
+/// The far ring of a mod's terrain: none, as for the mod's terrain alone.
+struct NoFarGround;
+impl LodSampler for NoFarGround {
+    fn sample(&mut self, _: i32, _: i32) -> Option<crate::lod::Surface> {
+        None
+    }
 }
 /// A proto chunk, or the position of one whose generation failed.
 enum VanillaProto {
-    Ready(Box<ProtoChunk>),
+    Ready(Box<ResidentProto>),
     Failed(i32, i32),
+}
+/// Generator terrain plus the resident biome cells read from disk. The cells use
+/// the world's shared biome table, so even names absent from generator data survive.
+struct ResidentProto {
+    terrain_chunk: ProtoChunk,
+    saved_biomes: Option<SavedBiomeCells>,
+}
+struct SavedBiomeCells {
+    min_y: i32,
+    sections: Vec<PalettedContainer>,
+}
+impl SavedBiomeCells {
+    fn capture(column: &Chunk) -> Self {
+        Self {
+            min_y: column.min_y(),
+            sections: column.sections.iter().map(|s| s.biomes.clone()).collect(),
+        }
+    }
+    fn apply(&self, column: &mut Chunk) {
+        for (index, biomes) in self.sections.iter().enumerate() {
+            let y = self.min_y + index as i32 * 16;
+            if let Some(target) = column.layout().section_index(y) {
+                Arc::make_mut(&mut column.sections[target]).biomes = biomes.clone();
+            }
+        }
+    }
+}
+impl std::ops::Deref for ResidentProto {
+    type Target = ProtoChunk;
+    fn deref(&self) -> &ProtoChunk {
+        &self.terrain_chunk
+    }
+}
+impl std::ops::DerefMut for ResidentProto {
+    fn deref_mut(&mut self) -> &mut ProtoChunk {
+        &mut self.terrain_chunk
+    }
+}
+impl ResidentProto {
+    fn column(&self, terrain: &VanillaTerrain) -> Chunk {
+        let mut column = terrain.column(self);
+        if let Some(saved) = &self.saved_biomes {
+            saved.apply(&mut column);
+        }
+        column
+    }
 }
 /// WorldGenRegion.setBlock gives every block with a block entity a new
 /// one: the blocks nothing placed data for (a sculk patch's sensors) get
@@ -141,11 +194,6 @@ fn add_default_block_entities(kinds: &[Option<&str>], out: &mut Chunk, raw: &mut
 }
 
 impl VanillaTerrain {
-    /// Share the world's loot snapshot with generated container readers.
-    pub fn set_loot_source(&mut self, loot: crate::structure_blocks::LootSnapshot) {
-        self.loot = loot;
-    }
-
     /// Generated native entities use their declared type; undeclared signs
     /// keep their template's vanilla type and start with editable text.
     pub fn add_mod_signs(&mut self, facts: &crate::blocks::BlockFacts) {
@@ -249,13 +297,35 @@ impl VanillaTerrain {
         terrain.flat = true;
         Ok(terrain)
     }
+    /// A level of a mod's chunk generator that asks for vanilla stages: its terrain, then the
+    /// stages, over the noise settings and biome source of `stem` (the level's, as a pack or
+    /// the save gives it). `structures` is the world's `generate_structures`.
+    pub fn for_mod(
+        resources: TerrainResources<'_>,
+        overrides: &WorldgenOverrides,
+        seed: i64,
+        dimension: &str,
+        stem: &serde_json::Value,
+        generator: Arc<dyn horizon_world::worldgen::mod_generators::ModChunkGenerator>,
+        structures: bool,
+    ) -> crate::Result<Self> {
+        let data: Arc<GeneratorData> = shared_resource_data(resources, overrides)?;
+        let generator =
+            OverworldGenerator::for_mod(data, seed, dimension, stem, generator, structures)?;
+        let mut terrain =
+            Self::assemble(resources, generator, seed, "minecraft:normal", dimension)?;
+        terrain.mod_terrain = true;
+        Ok(terrain)
+    }
     /// `ChunkGenerator.getSeaLevel`: the active generator's loaded setting.
     pub fn sea_level(&self) -> i32 {
         self.generator.sea_level()
     }
-    /// Whether this is a superflat generator, whose `spawnOriginalMobs` places nothing.
-    pub fn is_flat(&self) -> bool {
-        self.flat
+    /// Whether the terrain is the noise's: not a superflat world's layers or a mod's chunk
+    /// generator's terrain, whose `spawnOriginalMobs` places nothing and whose far ring is not
+    /// the noise's.
+    pub fn noise_ground(&self) -> bool {
+        !self.flat && !self.mod_terrain
     }
     /// `NoiseGeneratorSettings.disableMobGeneration`: whether the generator
     /// adds the creature packs of a freshly generated chunk. The End's preset
@@ -315,9 +385,6 @@ impl VanillaTerrain {
                 );
             }
         }
-        let loot = dir.parent().and_then(|root| {
-            crate::structure_blocks::loot_data(root, &PackOverlay::NONE, item_data.defaults())
-        });
         if let Some(root) = dir.parent() {
             crate::mobs::trial_spawner::load_registry(root);
         }
@@ -343,11 +410,6 @@ impl VanillaTerrain {
         Ok(Self {
             generator,
             biome_map,
-            loot: {
-                let snapshot = crate::structure_blocks::LootSnapshot::default();
-                snapshot.set(loot);
-                snapshot
-            },
             structure_mobs: Arc::new(StructureMobFinalizer::new(
                 dir.parent().unwrap_or(dir).to_owned(),
                 dimension,
@@ -367,6 +429,7 @@ impl VanillaTerrain {
             last_proto: std::sync::atomic::AtomicU64::new(0),
             created: std::time::Instant::now(),
             flat: false,
+            mod_terrain: false,
         })
     }
     /// The column the dimension's chunks hold (its build range's).
@@ -881,6 +944,9 @@ impl ChunkGenerator for VanillaTerrain {
         worker
     }
     fn lod_sampler(self: Arc<Self>) -> Box<dyn LodSampler> {
+        if self.mod_terrain {
+            return Box::new(NoFarGround);
+        }
         Box::new(VanillaLodSampler::new(self))
     }
     fn idle(&self, worker: &mut GeneratorWorker) {
@@ -895,6 +961,9 @@ impl ChunkGenerator for VanillaTerrain {
         x: i32,
         z: i32,
     ) -> Option<crate::lod::Surface> {
+        if self.mod_terrain {
+            return None;
+        }
         Some(self.client_surface(worker.surface_sample(x, z)?))
     }
     /// The structure starts a saved chunk references, as vanilla reads them
@@ -917,7 +986,10 @@ impl ChunkGenerator for VanillaTerrain {
             std::sync::atomic::Ordering::Relaxed,
         );
         match worker.generate_proto(ChunkPos::new(x, z)) {
-            Ok(chunk) => Box::new(VanillaProto::Ready(Box::new(chunk))),
+            Ok(chunk) => Box::new(VanillaProto::Ready(Box::new(ResidentProto {
+                terrain_chunk: chunk,
+                saved_biomes: None,
+            }))),
             Err(e) => {
                 log::warn!("Horizon: generating chunk {x} {z} failed: {e}");
                 Box::new(VanillaProto::Failed(x, z))
@@ -982,14 +1054,13 @@ impl ChunkGenerator for VanillaTerrain {
         }) {
             return Vec::new();
         }
-        let loot = self.loot.get();
         entries
             .iter()
             .flat_map(|(proto, writes)| {
                 let Some(VanillaProto::Ready(chunk)) = proto.downcast_ref::<VanillaProto>() else {
                     return Vec::new();
                 };
-                let (made, _) = crate::structure_blocks::block_entities(chunk, loot.as_deref());
+                let (made, _) = crate::structure_blocks::block_entities(chunk);
                 made.into_iter()
                     .filter(|((x, y, z), _)| writes.iter().any(|(p, _)| *p == [*x, *y, *z]))
                     .collect()
@@ -1007,13 +1078,13 @@ impl ChunkGenerator for VanillaTerrain {
             .collect();
         let all_ready = taken.iter().all(|p| matches!(**p, VanillaProto::Ready(_)));
         if all_ready {
-            let chunks: Vec<ProtoChunk> = taken
+            let (chunks, saved_biomes): (Vec<ProtoChunk>, Vec<Option<SavedBiomeCells>>) = taken
                 .into_iter()
                 .map(|p| match *p {
-                    VanillaProto::Ready(c) => *c,
+                    VanillaProto::Ready(c) => (c.terrain_chunk, c.saved_biomes),
                     VanillaProto::Failed(..) => unreachable!(),
                 })
-                .collect();
+                .unzip();
             let mut array: [ProtoChunk; 9] = match chunks.try_into() {
                 Ok(a) => a,
                 Err(_) => unreachable!(),
@@ -1021,8 +1092,11 @@ impl ChunkGenerator for VanillaTerrain {
             if let Err(e) = worker.decorate(&mut array) {
                 log::warn!("Horizon: decorating chunk failed: {e}");
             }
-            for (slot, chunk) in region.iter_mut().zip(array) {
-                *slot = Box::new(VanillaProto::Ready(Box::new(chunk)));
+            for ((slot, chunk), saved_biomes) in region.iter_mut().zip(array).zip(saved_biomes) {
+                *slot = Box::new(VanillaProto::Ready(Box::new(ResidentProto {
+                    terrain_chunk: chunk,
+                    saved_biomes,
+                })));
             }
         } else {
             for (slot, p) in region.iter_mut().zip(taken) {
@@ -1120,19 +1194,20 @@ impl ChunkGenerator for VanillaTerrain {
             })
             .collect();
         Some(SavedProto {
-            column: self.column(chunk),
+            column: chunk.column(self),
             decorated: chunk.is_decorated(),
             block_entities,
             entities: chunk.entities.iter().cloned().map(Tag::Compound).collect(),
         })
     }
-    /// Restore saved blocks and decoration state. Biomes and structure lookups use the current
-    /// generator, including an adopted region layout; completed Features decoration stays done.
+    /// Restore saved blocks, biome cells and decoration state. Structure lookups
+    /// use the current generator; completed Features decoration stays done.
     fn restore_proto(&self, proto: &mut Proto, saved: SavedProto) {
         let Some(VanillaProto::Ready(chunk)) = proto.downcast_mut::<VanillaProto>() else {
             return;
         };
         let column = &saved.column;
+        chunk.saved_biomes = Some(SavedBiomeCells::capture(column));
         let (bx, bz) = (column.x * 16, column.z * 16);
         let (lo, hi) = (
             chunk.terrain.min_y().max(column.min_y()),
@@ -1213,10 +1288,8 @@ impl ChunkGenerator for VanillaTerrain {
             VanillaProto::Ready(c) => c,
             VanillaProto::Failed(x, z) => return Chunk::with_layout(x, z, self.layout()),
         };
-        let mut out = self.column(&chunk);
-        let loot = self.loot.get();
-        let (block_entities, rolled_loot) =
-            crate::structure_blocks::block_entities(&chunk, loot.as_deref());
+        let mut out = chunk.column(self);
+        let (block_entities, pending_loot) = crate::structure_blocks::block_entities(&chunk);
         out.block_entities = block_entities;
         // The block entities Horizon does not model (decorated pots with their
         // sherds and loot table) stay as placed, like a
@@ -1242,18 +1315,18 @@ impl ChunkGenerator for VanillaTerrain {
             })
             .collect();
         add_default_block_entities(&self.block_entity_types, &mut out, &mut unmodelled);
-        if !unmodelled.is_empty() || !rolled_loot.is_empty() {
+        if !unmodelled.is_empty() || !pending_loot.is_empty() {
             let mut extras = out
                 .saved
                 .take()
                 .map(Arc::unwrap_or_clone)
                 .unwrap_or_default();
             extras.block_entities = unmodelled;
-            extras.rolled_loot = rolled_loot;
+            extras.pending_loot = pending_loot;
             out.saved = Some(Arc::new(extras));
         }
         let entities = std::mem::take(&mut chunk.entities);
-        // Chest minecarts keep their loot table; the game rolls it on load.
+        // Chest minecarts keep their loot table until first inventory access.
         out.entities = entities
             .into_iter()
             .map(horizon_core::nbt::Tag::Compound)
@@ -1298,3 +1371,6 @@ mod default_block_entity_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod saved_biome_tests;

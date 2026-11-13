@@ -32,6 +32,9 @@ impl BlockEntityPart for Consume {
         let item = host.item_entity(first).unwrap();
         let stack = ItemStack::new("minecraft:stone", 2).try_into_api().unwrap();
         let case = std::env::var("ROW4_NATIVE_CASE").unwrap();
+        if case == "unchanged" {
+            *event.reply = mod_api::BlockEntityTickReply::Unchanged;
+        }
         if case == "invalid_setter" {
             let invalid = ItemStack::new("minecraft:stone", 65)
                 .try_into_api()
@@ -99,7 +102,8 @@ struct Observe;
 impl BlockPart for Observe {}
 #[mod_api::horizon_part]
 impl BlockEntityPart for Observe {
-    fn block_entity_tick(&self, host: &mut dyn ServerHost, _: &mut BlockEntityTickEvent<'_>) {
+    fn block_entity_tick(&self, host: &mut dyn ServerHost, event: &mut BlockEntityTickEvent<'_>) {
+        *event.reply = mod_api::BlockEntityTickReply::Unchanged;
         if OBSERVED.swap(true, Ordering::Relaxed) {
             return;
         }
@@ -178,6 +182,7 @@ fn native_tick_publishes_or_rejects_item_proposals_with_writeback() {
             "ROW4_NATIVE_CASE",
             &[
                 "valid",
+                "unchanged",
                 "invalid_stack",
                 "invalid_setter",
                 "wasm_valid",
@@ -251,6 +256,11 @@ fn native_tick_publishes_or_rejects_item_proposals_with_writeback() {
                 }
                 FIRST.store(game.dropped[0].id, Ordering::Relaxed);
                 SECOND.store(game.dropped[1].id, Ordering::Relaxed);
+                let before = match game.world.block_entities.get(&pos).unwrap() {
+                    BlockEntity::Mod(entity) => entity.revision(),
+                    _ => unreachable!(),
+                };
+                game.world.modified.clear();
                 if matches!(case.as_str(), "scheduled" | "disabled" | "sleep") {
                     use horizon_client::block_entities::Ticking;
                     game.tickets.update(None);
@@ -291,11 +301,21 @@ fn native_tick_publishes_or_rejects_item_proposals_with_writeback() {
                     let Some(BlockEntity::Mod(entity)) = game.world.block_entities.get(&pos) else {
                         panic!("holder missing")
                     };
+                    if case == "unchanged" {
+                        assert_eq!(entity.revision(), before);
+                        assert!(
+                            entity.items.is_empty(),
+                            "Unchanged must not normalize the original"
+                        );
+                        assert!(!game.world.modified.contains(&(0, 0)));
+                    }
                     assert_eq!(
                         entity.data,
                         if case == "unrelated" {
                             vec![42]
-                        } else if rejected || matches!(case.as_str(), "disabled" | "sleep") {
+                        } else if rejected
+                            || matches!(case.as_str(), "disabled" | "sleep" | "unchanged")
+                        {
                             vec![]
                         } else {
                             vec![6]
@@ -307,7 +327,12 @@ fn native_tick_publishes_or_rejects_item_proposals_with_writeback() {
                             .first()
                             .and_then(|slot| slot.as_ref())
                             .map(|stack| stack.count),
-                        if rejected || matches!(case.as_str(), "disabled" | "sleep" | "unrelated") {
+                        if rejected
+                            || matches!(
+                                case.as_str(),
+                                "disabled" | "sleep" | "unrelated" | "unchanged"
+                            )
+                        {
                             None
                         } else {
                             Some(6)

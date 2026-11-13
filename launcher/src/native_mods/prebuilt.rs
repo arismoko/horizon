@@ -469,7 +469,7 @@ pub(super) fn facade_library(deps: &Path, krate: &str, sdk: &Identity) -> Result
 }
 
 /// Rust's standard library as a dynamic library: what the prebuilt game and its executable load.
-pub(super) fn standard_library(rust: &Toolchain) -> Result<PathBuf, String> {
+fn standard_library(rust: &Toolchain) -> Result<PathBuf, String> {
     let dir = rust
         .target_libdir()
         .ok_or("no Rust standard library for this computer")?;
@@ -716,14 +716,34 @@ pub(super) fn compile(
     }
     cmd.arg("-o").arg(&binary).arg(&main);
     super::run(cmd, "Linking the game", |_| {})?;
-    let mut runtime = game_dylibs(&deps)?;
+    Ok((binary, runtime_libraries(rust, &deps)?))
+}
+
+/// The runtime shipped beside the prebuilt executable, for both native build routes.
+pub(super) fn runtime_libraries(rust: &Toolchain, deps: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut runtime = game_dylibs(deps)?;
     runtime.push(standard_library(rust)?);
-    Ok((binary, runtime))
+    if rust.host.target == rust_toolchain::WINDOWS_X64_TARGET {
+        // The SDK's GNU DLLs import libgcc, which in turn imports libwinpthread.
+        // The compiler finds both through PATH during linking. The game loads them beside its executable.
+        let mingw = rust.mingw_bin();
+        for name in ["libgcc_s_seh-1.dll", "libwinpthread-1.dll"] {
+            let library = mingw.join(name);
+            if !library.is_file() {
+                return Err(trf(
+                    "The toolchain runtime library {file} is missing.",
+                    &[("file", &library.display().to_string())],
+                ));
+            }
+            runtime.push(library);
+        }
+    }
+    Ok(runtime)
 }
 
 /// The game's own dynamic libraries, which the executable loads from beside itself: the game and
 /// the wasm mod runtime it links (`tools/prebuilt_game.py` checks the archive holds both).
-pub(super) fn game_dylibs(deps: &Path) -> Result<Vec<PathBuf>, String> {
+fn game_dylibs(deps: &Path) -> Result<Vec<PathBuf>, String> {
     let top = if library(deps, "horizon_mod_host").is_ok() {
         "horizon_mod_host"
     } else {
@@ -808,6 +828,39 @@ mod tests {
             ]
         );
         fs::remove_dir_all(deps).unwrap();
+    }
+
+    #[test]
+    fn prebuilt_runtime_carries_the_managed_gnu_dlls_on_windows_x64() {
+        let scratch = tempfile::tempdir().unwrap();
+        let deps = scratch.path().join("deps");
+        fs::create_dir(&deps).unwrap();
+        let game = deps.join("horizon_mod_host.dll");
+        let wasm = deps.join("horizon_mod_wasm.dll");
+        for library in [&game, &wasm] {
+            fs::write(library, b"").unwrap();
+        }
+        for host in rust_toolchain::hosts() {
+            let rust = Toolchain {
+                dir: scratch.path().join(host.target),
+                host,
+            };
+            let std = rust.target_libdir().unwrap().join("std-test.dll");
+            fs::create_dir_all(std.parent().unwrap()).unwrap();
+            fs::write(&std, b"").unwrap();
+            let mut expected = vec![game.clone(), wasm.clone(), std];
+            if host.target == rust_toolchain::WINDOWS_X64_TARGET {
+                let bin = rust.mingw_bin();
+                fs::create_dir_all(&bin).unwrap();
+                for name in ["libgcc_s_seh-1.dll", "libwinpthread-1.dll"] {
+                    assert!(runtime_libraries(&rust, &deps).unwrap_err().contains(name));
+                    let library = bin.join(name);
+                    fs::write(&library, b"").unwrap();
+                    expected.push(library);
+                }
+            }
+            assert_eq!(runtime_libraries(&rust, &deps).unwrap(), expected);
+        }
     }
 
     /// What [`refusal`] says of one mod whose Cargo.toml is `cargo`.

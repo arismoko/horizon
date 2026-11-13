@@ -160,10 +160,11 @@ pub fn needs() -> RenderNeeds {
     needs
 }
 
-/// The most world views ([`world_views`]) one frame draws.
-pub const MAX_WORLD_VIEWS: usize = 4;
-/// The largest side of a world view's target, in pixels.
-pub const MAX_WORLD_VIEW_SIDE: u32 = 4096;
+/// The limits of [`world_views`] (the engine's own constants) and why a view is refused.
+pub use horizon_client_render::render_views::{
+    MAX_WORLD_VIEW_DEPTH, MAX_WORLD_VIEW_SIDE, MAX_WORLD_VIEWS, WORLD_VIEW_PIXEL_BUDGET,
+    WorldViewRefusal, WorldViewRefusalReason,
+};
 
 /// A view of the world a mod asks for ([`world_views`]): the same world, drawn again from a
 /// camera of its own into a target of its own (a camera monitor, a second camera's preview, a
@@ -185,6 +186,12 @@ pub struct WorldView {
     pub fov_degrees: f32,
     /// The target's width and height, in pixels (1 to [`MAX_WORLD_VIEW_SIDE`]).
     pub size: [u32; 2],
+    /// The plane behind which nothing is drawn ([`WorldView::with_clip_plane`]).
+    pub clip_plane: Option<[f64; 4]>,
+    /// The picture is mirrored left to right ([`WorldView::with_mirror`]).
+    pub mirror: bool,
+    /// The view this one is seen in ([`WorldView::with_parent`]).
+    pub parent: Option<u64>,
 }
 
 impl WorldView {
@@ -204,11 +211,88 @@ impl WorldView {
             roll: 0.0,
             fov_degrees,
             size,
+            clip_plane: None,
+            mirror: false,
+            parent: None,
         }
     }
 
     pub fn with_roll(self, roll: f32) -> Self {
         Self { roll, ..self }
+    }
+
+    /// Draws only what lies in front of a world-space plane `[x, y, z, d]`: the points `p` with
+    /// `x * p.x + y * p.y + z * p.z + d >= 0`. Terrain, entities and block entities behind it are
+    /// left out, as a wall behind a portal's far side is. The camera must be behind the plane
+    /// (where `x * camera.x + y * camera.y + z * camera.z + d < 0`): the plane becomes the
+    /// view's near plane, which every backend draws. A view whose camera is not behind it, or
+    /// whose plane has a normal `[x, y, z]` of zero, a value that is not finite, or a scaled form
+    /// or distance from the camera that is not (as f32 too), is out of range and left out.
+    pub fn with_clip_plane(self, plane: [f64; 4]) -> Self {
+        Self {
+            clip_plane: Some(plane),
+            ..self
+        }
+    }
+
+    /// The camera's picture mirrored left to right, as a mirror shows it: give the camera
+    /// reflected through the mirror. A mirrored picture turns every triangle's winding round,
+    /// so the view draws with face culling flipped to make up for it: the faces culled are the
+    /// ones an unmirrored view culls, and back faces stay hidden.
+    pub fn with_mirror(self) -> Self {
+        Self {
+            mirror: true,
+            ..self
+        }
+    }
+
+    /// Seen in the view `parent` (a portal's far side seen through another portal): push it
+    /// after its parent. It is drawn before its parent, so that in the parent's
+    /// [`world_view_drawn`] its `color` and `depth` hold this frame's picture, to draw into the
+    /// parent's target there. A view with no parent is at depth 1, one seen in it at 2; up to
+    /// [`MAX_WORLD_VIEW_DEPTH`].
+    pub fn with_parent(self, parent: u64) -> Self {
+        Self {
+            parent: Some(parent),
+            ..self
+        }
+    }
+}
+
+/// The views asked for this frame ([`world_views`]): push each one.
+pub struct WorldViews<'a> {
+    views: &'a mut horizon_client_render::render_views::WorldViews,
+}
+
+impl WorldViews<'_> {
+    /// Asks for `view` this frame, or refuses it, naming it and why
+    /// ([`WorldViewRefusalReason`]): a value out of range, an id already pushed this frame, a
+    /// parent not pushed before it, deeper than [`MAX_WORLD_VIEW_DEPTH`], past
+    /// [`MAX_WORLD_VIEWS`] views, or past [`WORLD_VIEW_PIXEL_BUDGET`] pixels with the views
+    /// pushed before it. Each refusal is logged once.
+    pub fn push(&mut self, view: WorldView) -> Result<(), WorldViewRefusal> {
+        let mut engine = horizon_client_render::render_views::WorldView::new(
+            view.id,
+            view.camera,
+            view.yaw,
+            view.pitch,
+            view.fov_degrees,
+            view.size,
+        )
+        .with_roll(view.roll);
+        engine.clip_plane = view.clip_plane;
+        engine.mirror = view.mirror;
+        engine.parent = view.parent;
+        self.views.push(engine)
+    }
+
+    /// How many views were taken this frame so far.
+    pub fn len(&self) -> usize {
+        self.views.views().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -219,6 +303,11 @@ impl WorldView {
 pub struct WorldViewDrawn<'a> {
     /// The [`WorldView::id`] it was asked with.
     pub id: u64,
+    /// The view it is seen in ([`WorldView::with_parent`]), drawn after it.
+    pub parent: Option<u64>,
+    /// How deep it is seen in views: 1 for a view with no parent, its parent's and 1 for one
+    /// with ([`MAX_WORLD_VIEW_DEPTH`]). (`depth` is its depth texture.)
+    pub nesting_depth: u32,
     pub device: &'a wgpu::Device,
     pub queue: &'a wgpu::Queue,
     pub encoder: &'a mut wgpu::CommandEncoder,
@@ -232,23 +321,26 @@ pub struct WorldViewDrawn<'a> {
     pub size: [u32; 2],
     /// Its depth (Depth32Float, reversed: 0 is the sky), sampleable.
     pub depth: &'a wgpu::TextureView,
-    /// World relative to [`WorldViewDrawn::camera`] to clip space.
+    /// World relative to [`WorldViewDrawn::camera`] to clip space, as the picture and `depth`
+    /// were drawn: its near plane is the view's clip plane when it has one, and its x is
+    /// flipped when the view is mirrored.
     pub view_proj: Mat4,
     /// The view's camera.
     pub camera: DVec3,
 }
 
-/// Asked as each frame is built and drawn (not on the title screen's panorama), more than once:
-/// push the world views your mod wants drawn this frame, the same each time. The first
-/// [`MAX_WORLD_VIEWS`] valid ones draw; one with a value out of range, or an `id` already asked
-/// for, is left out. Keep it cheap.
+/// Asked once as each frame is built (not on the title screen's panorama): push the world views
+/// your mod wants drawn this frame, each parent before the views seen in it.
+/// [`WorldViews::push`] takes each or refuses it by name ([`WorldViewRefusal`]), and logs each
+/// refusal once. Keep it cheap.
 #[inline(never)]
 #[horizon_mod_api_macros::replaceable]
-pub fn world_views(views: &mut Vec<WorldView>) {
+pub fn world_views(views: &mut WorldViews<'_>) {
     let _ = views;
 }
 
-/// A world view is drawn (see [`WorldViewDrawn`]): once per view asked for this frame.
+/// A world view is drawn (see [`WorldViewDrawn`]): once per view taken this frame, the views
+/// seen in a view before it.
 #[inline(never)]
 #[horizon_mod_api_macros::replaceable]
 pub fn world_view_drawn(view: &mut WorldViewDrawn<'_>) {
@@ -320,21 +412,13 @@ pub fn install() {
             v.entity_spans = needs.entity_spans;
             v.world_depth = needs.world_depth;
         },
-        world_views: |views| {
-            let mut requested = Vec::new();
-            world_views(&mut requested);
-            *views = requested
-                .into_iter()
-                .map(|v| {
-                    engine::WorldView::new(v.id, v.camera, v.yaw, v.pitch, v.fov_degrees, v.size)
-                        .with_roll(v.roll)
-                })
-                .collect();
-        },
+        world_views: |views| world_views(&mut WorldViews { views }),
         world_views_hooked,
         world_view_drawn: |v| {
             world_view_drawn(&mut WorldViewDrawn {
                 id: v.id,
+                parent: v.parent,
+                nesting_depth: v.nesting_depth,
                 device: v.device,
                 queue: v.queue,
                 encoder: &mut *v.encoder,

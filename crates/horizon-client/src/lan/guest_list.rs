@@ -108,24 +108,64 @@ impl GuestList {
         outputs: impl IntoIterator<Item = (&'a mut Vec<Vec<u8>>, Option<&'a mut Vec<[f64; 3]>>)>,
         take_moved: bool,
     ) -> Vec<super::entity::Viewer<'a>> {
-        self.rows
-            .iter_mut()
-            .filter(|g| visible(g))
-            .zip(outputs)
-            .map(|(g, (out, gone))| super::entity::Viewer {
+        self.tracking_viewers_and_views(visible, outputs, take_moved, ("", &mut []))
+    }
+
+    /// [`Self::tracking_viewers`], then the clients that view level `views.0` from another
+    /// (#3716, `viewed_levels::entities`), each with its view's tracker, chunks and areas and
+    /// one of `views.1`, in the guests' order.
+    pub(super) fn tracking_viewers_and_views<'a>(
+        &'a mut self,
+        visible: impl Fn(&Guest) -> bool,
+        outputs: impl IntoIterator<Item = (&'a mut Vec<Vec<u8>>, Option<&'a mut Vec<[f64; 3]>>)>,
+        take_moved: bool,
+        (dimension, views): (&str, &'a mut [Vec<Vec<u8>>]),
+    ) -> Vec<super::entity::Viewer<'a>> {
+        use super::viewed_levels::entities::tracks_view;
+        let viewing = !views.is_empty();
+        let (mut outputs, mut views) = (outputs.into_iter(), views.iter_mut());
+        let mut viewers = Vec::new();
+        for g in self.rows.iter_mut() {
+            let (spectator, horizon) = (g.spectator(), g.is_horizon());
+            let (chunks, sources, tracker, out, gone, moved) = if visible(g) {
+                let Some((out, gone)) = outputs.next() else {
+                    continue;
+                };
+                let moved = take_moved && std::mem::take(&mut g.moved);
+                (&g.sent_chunks, None, &mut g.tracker, out, gone, moved)
+            } else if viewing && tracks_view(g, dimension) {
+                let (Some(out), Some(view)) = (views.next(), g.viewed.views.get_mut(dimension))
+                else {
+                    continue;
+                };
+                // Its own entity is not in the level: every pair is checked each tick.
+                (
+                    &view.sent,
+                    Some(&view.sources[..]),
+                    &mut view.tracker,
+                    out,
+                    None,
+                    true,
+                )
+            } else {
+                continue;
+            };
+            viewers.push(super::entity::Viewer {
                 entity_id: g.entity_id,
-                spectator: g.spectator(),
+                spectator,
                 permission: g.permission,
-                horizon: g.is_horizon(),
-                moved: take_moved && std::mem::take(&mut g.moved),
+                horizon,
+                moved,
                 position: g.position,
                 view_distance: g.view_distance,
-                chunks: &g.sent_chunks,
-                tracker: &mut g.tracker,
+                chunks,
+                sources,
+                tracker,
                 out,
                 gone,
-            })
-            .collect()
+            });
+        }
+        viewers
     }
 
     /// Borrow only queued packets, without exposing the guest's indexed fields.

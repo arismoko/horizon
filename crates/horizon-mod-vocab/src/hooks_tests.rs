@@ -710,6 +710,10 @@ fn world_data_and_tick_queries_take_their_hosts(
     let _: bool = level.block_tick(server, [0, 64, 0]);
     let _: bool = level.block_random_tick(server, [0, 64, 0]);
     let _: Option<[i32; 3]> = level.lightning_target(server, [0, 64, 0]);
+    let _: bool = level.has_water_ticket(read, [0, 64, 0]);
+    if let Some(ticket) = level.add_water_ticket(server, [0, 64, 0], [5, 65, 5]) {
+        let _: bool = ticket.remove(server);
+    }
 }
 
 /// Compile-only: the level queries as a mod calls them, the reads on any host and the drop
@@ -851,4 +855,11 @@ fn spawn_policy_writes_take_a_server_host(
         [0.5, 64.0, 0.5],
         SpawnReason::Command,
     );
+}
+
+/// Compile-only: a passage is registered and removed through its level on a server host.
+#[allow(dead_code)]
+fn passages_take_a_server_host(server: &mut dyn ServerHost, level: LevelRef, passage: Passage) {
+    let id: Result<PassageId, PassageRegistrationError> = level.register_passage(server, passage);
+    let _: bool = level.remove_passage(server, id.unwrap());
 }

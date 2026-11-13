@@ -231,8 +231,10 @@ fn advancement_tree(game: &mut Game<'_>) {
 }
 
 fn matrix(mods: mod_api::Mods) {
-    crate::game::api_values::install_parts(&mods).unwrap();
-    mod_platform::testing::with_mods(mods, || {
+    // with_mods registers the mods again for their controllers: install Parts after it, as
+    // registration-time declarations (a custom statistic) refuse once the registry is frozen.
+    mod_platform::testing::with_mods(mods.clone(), || {
+        crate::game::api_values::install_parts(&mods).unwrap();
         for client in [false, true] {
             with_interaction_game(client, |game| {
                 let registry = game.pack.assets.registry;
@@ -277,7 +279,11 @@ fn matrix(mods: mod_api::Mods) {
                             Default::default(),
                         );
                         control.data = case.controls.iter().map(|&b| i32::from(b)).collect();
-                        game.native_block_entity_tick([0, 64, 0], &mut control);
+                        game.native_block_entity_tick(
+                            &mut mod_api::BlockEntityTickReply::Changed,
+                            [0, 64, 0],
+                            &mut control,
+                        );
                         assert!(
                             control.data.is_empty(),
                             "the control callback must run and accept {case:?}"
@@ -313,7 +319,11 @@ fn matrix(mods: mod_api::Mods) {
                                 "{client:?} {hand:?} {name} {case:?}"
                             );
                         }
-                        game.native_block_entity_tick([0, 64, 0], &mut control);
+                        game.native_block_entity_tick(
+                            &mut mod_api::BlockEntityTickReply::Changed,
+                            [0, 64, 0],
+                            &mut control,
+                        );
                         let expected: Vec<i32> = case
                             .phases
                             .iter()

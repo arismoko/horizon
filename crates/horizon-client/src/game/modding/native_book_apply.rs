@@ -160,7 +160,7 @@ impl Game<'_> {
         let guest = host.hub.guest(before.conn).ok_or(R::Changed)?;
         let kind = Kind::Mod(before.kind);
         let mut menu = host
-            .play
+            .menus
             .get(&before.conn)
             .and_then(|play| play.crafting.machine.as_ref())
             .filter(|(window, menu)| *window == before.window && menu.kind() == kind)
@@ -182,6 +182,7 @@ impl Game<'_> {
                 player_entity_id: Some(before.entity_id),
                 can_equip: None,
                 known_recipes: Some(&known),
+                slot_rules: None,
                 limited_crafting: limited,
                 ..self.menu_env()
             };
@@ -253,7 +254,7 @@ impl Game<'_> {
                 opened.craft = craft;
             }
         });
-        *host.play.entry(before.conn).or_default().crafting.machine = Some((before.window, menu));
+        *host.menus.entry(before.conn).or_default().crafting.machine = Some((before.window, menu));
         Ok(post)
     }
 }

@@ -112,7 +112,10 @@ impl Game<'_> {
         };
         self.using = Some((self.held_slot(), 0));
         self.use_duration = duration;
-        self.use_ticks_set = ticks_set;
+        self.use_start = super::using_item::UseStart {
+            ticks_set,
+            item: Some(stack.clone()),
+        };
         // `LivingEntity.startUsingItem`: `causeUseVibration(ITEM_INTERACT_START)`
         // when the use effects of the stack ask for interaction vibrations.
         self.use_vibration(&stack, "minecraft:item_interact_start");
@@ -275,8 +278,8 @@ impl Game<'_> {
         let (mut remaining, mut canceled) = (before, false);
         let hand = self.used_hand().unwrap_or(self.hand);
         self.native_living_entity_use_item_tick(stack, None, hand, &mut remaining, &mut canceled);
-        let (left, set) = tick_left(before, remaining, canceled, self.use_ticks_set);
-        self.use_ticks_set = set;
+        let (left, set) = tick_left(before, remaining, canceled, self.use_start.ticks_set);
+        self.use_start.ticks_set = set;
         self.use_duration = duration_leaving(ticks, left);
         left > 0 || !set
     }
@@ -336,9 +339,15 @@ impl Game<'_> {
                 return false;
             };
             let Some(stack) = game.stack_in(slot).cloned() else {
+                game.use_start.item = None;
                 return true;
             };
-            let hand_changed = game.use_hand_changed(slot);
+            // `releaseUsing` only for the same item; `stopUsingItem` always,
+            // from the stack the use began with.
+            let (stack, hand_changed) = match game.use_start.item.take() {
+                Some(item) if item.item != stack.item => (item, true),
+                _ => (stack, game.use_hand_changed(slot)),
+            };
             let player = (!mod_api::__private::mods().is_empty()).then(|| {
                 let name = game.acting_player_name().to_owned();
                 (game.native_acting_id(), name)
@@ -1435,7 +1444,8 @@ pub(super) mod interact_vibration_tests {
                 .build_world_tables(&stack, false, &root, game.mods.data_switched)
                 .unwrap()
                 .0;
-            let items = &mut game.world_tables.as_mut().unwrap().items.items;
+            let items =
+                &mut std::sync::Arc::make_mut(&mut game.world_tables.as_mut().unwrap().items).items;
             let mut info = items["minecraft:fishing_rod"].clone();
             info.id = std::sync::Arc::from("ruby:rod");
             info.template = Some(std::sync::Arc::from("minecraft:fishing_rod"));
@@ -1445,7 +1455,8 @@ pub(super) mod interact_vibration_tests {
             );
             items.insert(info.id.clone(), info);
 
-            let items = &mut game.world_tables.as_mut().unwrap().items.items;
+            let items =
+                &mut std::sync::Arc::make_mut(&mut game.world_tables.as_mut().unwrap().items).items;
             let mut stick_info = items["minecraft:stick"].clone();
             stick_info.id = std::sync::Arc::from("ruby:stick");
             stick_info.template = Some(std::sync::Arc::from("minecraft:stick"));

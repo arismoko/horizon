@@ -421,8 +421,7 @@ pub(super) fn compile(
         } else {
             "horizon-native-registry-game"
         });
-    let mut runtime = prebuilt::game_dylibs(&game.join("deps"))?;
-    runtime.push(prebuilt::standard_library(rust)?);
+    let mut runtime = prebuilt::runtime_libraries(rust, &game.join("deps"))?;
     for library in outputs.runtime(&metadata.runtime_packages()?, &target_dir)? {
         if let Some(existing) = runtime
             .iter()

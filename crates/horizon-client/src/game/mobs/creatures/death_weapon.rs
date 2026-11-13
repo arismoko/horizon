@@ -1,35 +1,60 @@
 //! Recorded projectile weapons and the death-loot producer.
 use super::*;
 
-/// A weapon belonging to the victim's committed last damage source.
-pub(in crate::game) struct AcceptedWeapon {
-    source: (Damage, i64),
-    stack: Option<ItemStack>,
-}
-impl AcceptedWeapon {
-    fn belongs_to(&self, damage: Option<(Damage, i64)>) -> bool {
-        damage == Some(self.source)
-    }
-}
-
 impl Game<'_> {
-    pub(in crate::game) fn capture_projectile_weapon(
-        &mut self,
-        id: u32,
-        source: (Damage, i64),
-        stack: Option<&ItemStack>,
-    ) {
-        if mod_api::__private::listened(mod_api::HookId::LootDrops) {
-            self.combat.death_weapons.insert(
-                id,
-                AcceptedWeapon {
-                    source,
-                    stack: stack.cloned(),
-                },
-            );
+    /// `DamageSources.arrow` / `trident`: type and tags follow the actual projectile.
+    pub(in crate::game) fn projectile_damage_kind(&self, shot: &Projectile) -> DamageKind {
+        match shot.kind {
+            ProjectileKind::Arrow { .. } => DamageKind::Arrow,
+            ProjectileKind::Trident => DamageKind::Named(
+                horizon_client::mobs::NamedDamage::registered(
+                    &self.health_resources.damage,
+                    "minecraft:trident",
+                )
+                .expect("registered vanilla trident damage"),
+            ),
+            ProjectileKind::SmallFireball | ProjectileKind::LargeFireball { .. } => {
+                DamageKind::Fireball
+            }
+            _ => DamageKind::Thrown,
         }
     }
-
+    pub(in crate::game) fn projectile_attack(&self, shot: &Projectile) -> Attack {
+        let mut attack = match shot.owner {
+            Some(Who::Player) => self
+                .player_entity_id_by_connection(shot.guest)
+                .map_or_else(Attack::default, |entity| self.attack_of(entity)),
+            Some(Who::Mob(entity)) => self.attack_of(entity as i32),
+            None => Attack::default(),
+        };
+        Self::set_projectile_attack(&mut attack, shot);
+        attack
+    }
+    /// The actual direct projectile's family and saved weapon, also for explicit damage sources.
+    pub(in crate::game) fn set_projectile_attack(attack: &mut Attack, shot: &Projectile) {
+        attack.projectile = Some(shot.id as i32);
+        attack.projectile_is_arrow = matches!(
+            shot.kind,
+            ProjectileKind::Arrow { .. } | ProjectileKind::Trident
+        );
+        let weapon = shot.arrow.as_ref().and_then(|arrow| {
+            if matches!(shot.kind, ProjectileKind::Trident) {
+                Some(&arrow.pickup_item)
+            } else {
+                arrow.fired_from_weapon.as_ref()
+            }
+        });
+        Self::set_projectile_weapon(attack, weapon);
+    }
+    /// Only listeners need a saved weapon copy; physical family classification never does.
+    pub(in crate::game) fn set_projectile_weapon(attack: &mut Attack, weapon: Option<&ItemStack>) {
+        if mod_api::__private::listened(mod_api::HookId::LivingIncomingDamage)
+            || mod_api::__private::listened(mod_api::HookId::LivingDeath)
+            || mod_api::__private::listened(mod_api::HookId::LootDrops)
+        {
+            attack.projectile_weapon = weapon.cloned();
+        }
+    }
     /// Commit the weapon only after hurtServer committed this projectile's source.
     pub(in crate::game) fn damage_projectile_with_weapon(
         &mut self,
@@ -39,34 +64,24 @@ impl Game<'_> {
         source: Damage,
         aim: Option<horizon_client::mobs::Aim>,
     ) -> bool {
-        let (hurt, accepted) =
-            self.mobs
-                .iter_mut()
-                .find(|mob| mob.id == id)
-                .map_or((false, None), |mob| {
-                    let hurt = mob.damage_projectile(
-                        crate::game::entity::damage_level_of!(self, scoped),
-                        amount,
-                        source,
-                        aim,
-                        [projectile.velocity.x, projectile.velocity.z],
-                    );
-                    // An immune or wholly blocked hit returns true without committing a source.
-                    let changed = mod_api::__private::listened(mod_api::HookId::LootDrops)
-                        && mob.projectile_damage_committed;
-                    (hurt, changed.then_some(mob.last_damage).flatten())
-                });
-        if let Some(accepted) = accepted {
-            let stack = projectile.arrow.as_ref().and_then(|arrow| {
-                if matches!(projectile.kind, ProjectileKind::Trident) {
-                    Some(&arrow.pickup_item)
-                } else {
-                    arrow.fired_from_weapon.as_ref()
-                }
+        if self.combat.attack().projectile != Some(projectile.id as i32) {
+            let attack = self.projectile_attack(projectile);
+            return self.with_attack(attack, |game| {
+                game.damage_projectile_with_weapon(projectile, id, amount, source, aim)
             });
-            self.capture_projectile_weapon(id, accepted, stack);
         }
-        hurt
+        self.mobs
+            .iter_mut()
+            .find(|mob| mob.id == id)
+            .is_some_and(|mob| {
+                mob.damage_projectile(
+                    crate::game::entity::damage_level_of!(self, scoped),
+                    amount,
+                    source,
+                    aim,
+                    [projectile.velocity.x, projectile.velocity.z],
+                )
+            })
     }
     /// What an arrow or a thrown trident hits an entity of type `victim`
     /// for (`AbstractArrow.onHitEntity`, `ThrownTrident.onHitEntity`): a
@@ -166,12 +181,14 @@ impl Game<'_> {
     ) {
         use horizon_client::mobs::{DamageKind, Who, drops};
         use horizon_world::loot::{LootDamage, LootEntity};
-        let weapon = self
-            .combat
-            .death_weapons
-            .remove(&m.id)
-            .filter(|weapon| weapon.belongs_to(m.last_damage))
-            .and_then(|weapon| weapon.stack);
+        let accepted = m
+            .accepted_hit
+            .take()
+            .filter(|hit| hit.belongs_to(m.last_damage));
+        if let Some(body) = self.mobs.iter_mut().find(|body| body.id == m.id) {
+            body.accepted_hit = None;
+        }
+        let weapon = accepted.as_ref().and_then(|hit| hit.weapon.as_ref());
         let weapon = weapon.and_then(|stack| stack.try_into_api().ok());
         let Some(loot) = self.server_loot.get() else {
             return;
@@ -251,12 +268,12 @@ impl Game<'_> {
         };
         // LootContextParams.ORIGIN of a death: the mob's position.
         let place = self.loot_place_at([m.position.x, m.position.y, m.position.z], None);
-        let hurt = source.map(|(damage_type, causing)| {
-            let mut source = death_hurt_source(damage_type, causing);
-            if m.last_direct.is_some() {
-                source.direct = 0;
-            }
-            source
+        let hurt = accepted.as_ref().map(|hit| hit.source()).or_else(|| {
+            source.map(|(damage_type, causing)| {
+                let mut hit = death_hurt_source(damage_type, causing);
+                hit.position = m.last_damage.and_then(|(damage, _)| damage.from);
+                hit
+            })
         });
         let enchanted_loot = hurt
             .as_ref()
@@ -322,8 +339,12 @@ impl Game<'_> {
         let mut rest = Vec::new();
         for d in items {
             match d {
-                drops::Drop::Item(stack) => stacks.push(to_stack(&stack)),
-                drops::Drop::Stack(stack) => stacks.push(stack),
+                drops::Drop::Item(stack) => {
+                    stacks.push(to_stack(&stack));
+                }
+                drops::Drop::Stack(stack) => {
+                    stacks.push(stack);
+                }
                 other => rest.push(other),
             }
         }
@@ -342,7 +363,14 @@ impl Game<'_> {
             used: false,
         });
         self.native_loot_drops(&context, &mut stacks);
-        stacks.retain(|stack| stack.count > 0 && &*stack.item != "minecraft:air");
+
+        // Stack-only modifiers may replace or reorder table results. Custom
+        // item-entity state stays on complete records outside that list.
+        let mut stacks: Vec<(ItemStack, [f64; 3], i32)> = stacks
+            .into_iter()
+            .filter(|stack| stack.count > 0 && &*stack.item != "minecraft:air")
+            .map(|stack| (stack, pos, 0))
+            .collect();
         let mut experience = None;
         for d in rest {
             match d {
@@ -358,14 +386,24 @@ impl Game<'_> {
                         Some(m.id),
                         enderman::carried_block_roll(&tool),
                     );
-                    stacks.extend(drops.into_iter().filter(enderman::carried_block_drop_kept));
+                    stacks.extend(
+                        drops
+                            .into_iter()
+                            .filter(enderman::carried_block_drop_kept)
+                            .filter(|stack| stack.count > 0 && &*stack.item != "minecraft:air")
+                            .map(|stack| (stack, pos, 0)),
+                    );
+                }
+                drops::Drop::Aged(stack, age) => {
+                    let stack = to_stack(&stack);
+                    if stack.count > 0 && &*stack.item != "minecraft:air" {
+                        stacks.push((stack, pos, age));
+                    }
                 }
                 drops::Drop::Experience(reward) if !consumed => experience = Some(reward),
                 drops::Drop::Item(_) | drops::Drop::Stack(_) | drops::Drop::Experience(_) => {}
             }
         }
-        let mut stacks: Vec<(ItemStack, [f64; 3])> =
-            stacks.into_iter().map(|stack| (stack, pos)).collect();
         if m.species() == Species::CopperGolem {
             // CopperGolem.dropEquipment: the preserved equipment is part of
             // dropAllDeathLoot, so the mods hear it with the rest. It is
@@ -374,7 +412,7 @@ impl Game<'_> {
             stacks.extend(
                 Self::golem_preserved_equipment(m)
                     .into_iter()
-                    .map(|stack| (stack, feet)),
+                    .map(|stack| (stack, feet, 0)),
             );
         }
         // Every death drop is its own ItemEntity, and the drop entity's own

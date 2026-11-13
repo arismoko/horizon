@@ -726,7 +726,15 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
     if run_fresh_cases(
         NAME,
         FLAG,
-        &["chest", "furnace", "hopper", "client", "loot", "same-scope"],
+        &[
+            "chest",
+            "furnace",
+            "hopper",
+            "client",
+            "loot",
+            "mixed-loot",
+            "same-scope",
+        ],
     ) {
         return;
     }
@@ -754,7 +762,7 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
             },
             |game| {
                 use horizon_client::{
-                    chunk::{Chunk, RolledLoot},
+                    chunk::{Chunk, PendingContainerLoot},
                     containers::{BlockEntity, Furnace, FurnaceKind},
                     items::ItemStack,
                 };
@@ -795,7 +803,9 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
                         27
                     }
                 ];
-                slots[4] = Some(ItemStack::new("minecraft:diamond", 7));
+                if case != "loot" {
+                    slots[4] = Some(ItemStack::new("minecraft:diamond", 7));
+                }
                 let entity = if case == "furnace" {
                     BlockEntity::Furnace(Furnace {
                         kind: FurnaceKind::Furnace,
@@ -847,13 +857,22 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
                     ]),
                 );
                 game.world.set_container_stack_limit(from, 13);
-                if case == "loot" {
+                if case == "loot" || case == "mixed-loot" {
+                    let files = [("loot_table/test:carry".into(), vec![br#"{"pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:diamond"}]}]}"#.to_vec()])];
+                    let loot = horizon_world::loot::LootData::load(
+                        &game.options.resources,
+                        &horizon_world::loot::PackOverlay {
+                            files: &files,
+                            ..horizon_world::loot::PackOverlay::NONE
+                        },
+                        game.res.item_defaults(),
+                    )
+                    .unwrap();
+                    game.server_loot.set(Some(Arc::new(loot)));
                     let mut extras = game.world.block_entity_extras(from);
-                    extras.rolled_loot = Some(RolledLoot {
-                        pos: from,
-                        table: "minecraft:chests/simple_dungeon".into(),
-                        seed: Some(123),
-                        items: Tag::List(vec![]),
+                    extras.pending_loot = Some(PendingContainerLoot {
+                        table: Tag::String("test:carry".into()),
+                        seed: Some(Tag::Long(37)),
                     });
                     game.world.set_block_entity_extras(from, extras);
                 }
@@ -984,7 +1003,7 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
                     if case == "hopper" {
                         assert!(!game.hoppers.contains_key(&from));
                         assert_eq!(game.hopper_cooldown(to), 40);
-                    } else if case != "loot" {
+                    } else if case != "loot" && case != "mixed-loot" {
                         game.spectator_open_menu([4, 64, 2]);
                         assert_eq!(game.container, Some(to));
                         game.be_anims.classify(registry);
@@ -997,6 +1016,22 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
                 let tag = game.block_entity_nbt([4, 64, 2]).unwrap();
                 assert_eq!(tag.get("x"), Some(&Tag::Int(4)));
                 assert!(game.block_entity_nbt([3, 64, 2]).is_none());
+                if case == "mixed-loot" {
+                    assert_eq!(
+                        tag.get("LootTable"),
+                        Some(&Tag::String("test:carry".into()))
+                    );
+                    assert_eq!(tag.get("LootTableSeed"), Some(&Tag::Long(37)));
+                    game.build_registries();
+                    assert!(game.as_console(|g| g.run_command(
+                        "execute if items block 4 64 2 container.* minecraft:diamond run say mixed"
+                    )));
+                    assert!(game.world.block_entity_extras(to).pending_loot.is_none());
+                    assert_eq!(
+                        game.world.block_entities.get(&to).unwrap().slots(),
+                        slots.as_slice()
+                    );
+                }
                 let mut batch = horizon_client::save::chunks_with_block_entities(
                     game.world.chunks.values(),
                     &game.world.block_entities,
@@ -1004,6 +1039,13 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
                 );
                 game.attach_save_data(&mut batch[0]);
                 let encoded = horizon_client::save::encode(&batch[0], registry, game.res.biomes());
+                let bytes =
+                    horizon_core::nbt::write_named(&encoded, horizon_core::nbt::Limits::saved())
+                        .unwrap();
+                let (encoded, used) =
+                    horizon_core::nbt::read_named(&bytes, horizon_core::nbt::Limits::saved())
+                        .unwrap();
+                assert_eq!(used, bytes.len());
                 let Tag::List(saved_entities) = encoded.tag.get("block_entities").unwrap() else {
                     panic!()
                 };
@@ -1020,9 +1062,14 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
                 assert_eq!(tag.get("CustomName"), Some(&custom));
                 assert_eq!(tag.get("lock"), Some(&lock));
                 if case == "loot" {
-                    let roll = game.world.block_entity_extras(to).rolled_loot.unwrap();
-                    assert_eq!(roll.pos, to);
-                    assert_eq!(roll.seed, Some(123));
+                    let roll = game.world.block_entity_extras(to).pending_loot.unwrap();
+                    assert_eq!(roll.seed, Some(Tag::Long(37)));
+
+                    assert_eq!(
+                        tag.get("LootTable"),
+                        Some(&Tag::String("test:carry".into()))
+                    );
+                    assert_eq!(tag.get("LootTableSeed"), Some(&Tag::Long(37)));
                 } else if case == "furnace" {
                     let (_, BlockEntity::Furnace(saved_furnace)) =
                         horizon_client::save::decode_block_entity(tag).unwrap()
@@ -1037,6 +1084,45 @@ fn piston_push_reaction_position_state_opens_ticks_and_saves() {
                         panic!()
                     };
                     assert_eq!(saved_slots, slots);
+                }
+                if matches!(case.as_str(), "loot" | "mixed-loot" | "chest") {
+                    let loaded =
+                        horizon_client::save::decode(&encoded, registry, game.res.biomes())
+                            .unwrap();
+                    assert!(
+                        !loaded
+                            .saved
+                            .as_ref()
+                            .unwrap()
+                            .pending_loot
+                            .contains_key(&from)
+                    );
+                    let (_, entity) = loaded
+                        .block_entities
+                        .iter()
+                        .find(|(p, _)| *p == to)
+                        .unwrap();
+                    assert_eq!(entity.slots(), slots.as_slice());
+                    game.world.block_entities.remove(&to);
+                    game.world.block_entities.insert(to, entity.clone());
+                    game.world.chunks.insert((0, 0), Arc::new(loaded));
+                    game.build_registries();
+                    for _ in 0..2 {
+                        assert!(game.as_console(|g|g.run_command("execute if items block 4 64 2 container.* minecraft:diamond run say carried")));
+                        assert!(game.world.block_entity_extras(to).pending_loot.is_none());
+                        let count: u32 = game
+                            .world
+                            .block_entities
+                            .get(&to)
+                            .unwrap()
+                            .slots()
+                            .iter()
+                            .flatten()
+                            .filter(|s| &*s.item == "minecraft:diamond")
+                            .map(|s| s.count)
+                            .sum();
+                        assert_eq!(count, if case == "loot" { 1 } else { 7 });
+                    }
                 }
             },
         );

@@ -218,3 +218,90 @@ fn a_mod_cannot_send_an_armor_stand_to_another_level() {
         assert!(game.armor_stands.is_empty());
     });
 }
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn portal_arrival_effects_mod_items_merge_immediately() {
+    with_game(|game| {
+        game.native_lifecycle.world_open_ready().unwrap();
+        game.spawn_item_own(
+            horizon_client::items::ItemStack::new("minecraft:diamond", 3),
+            [0.5, 80.0, 0.5],
+            10,
+        );
+        game.dropped[0].age = 7;
+        game.dropped[0].velocity = Vec3::new(0.1, 0.2, -0.3);
+        let item = game.entity(game.dropped[0].id).unwrap();
+        game.enter_level(Dim::Nether).unwrap();
+        game.spawn_item_own(
+            horizon_client::items::ItemStack::new("minecraft:diamond", 5),
+            [3.5, 70.0, -2.5],
+            10,
+        );
+        game.dropped[0].age = 41;
+        let waiting = game.dropped[0].id;
+        game.enter_level(Dim::Overworld).unwrap();
+        assert!(game.entity_teleport_to_level(
+            item,
+            "minecraft:the_nether",
+            [3.5, 70.0, -2.5],
+            None
+        ));
+        assert!(game.dropped.is_empty());
+        game.enter_level(Dim::Nether).unwrap();
+        assert_eq!(game.dropped.len(), 1);
+        let survivor = &game.dropped[0];
+        assert_eq!(survivor.id, waiting);
+        assert_eq!(
+            (survivor.stack.count, survivor.age, survivor.ticks),
+            (8, 7, 0)
+        );
+    });
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn portal_arrival_effects_explicit_tnt_teleports_protect_portals() {
+    for command in [false, true] {
+        with_game(|game| {
+            game.build_registries();
+            game.set_allow_commands(true);
+            game.native_lifecycle.world_open_ready().unwrap();
+            game.summon_with_nbt(
+                "minecraft:tnt",
+                [0.5, 80.0, 0.5],
+                "{fuse:200s,NoGravity:1b}",
+            )
+            .unwrap();
+            let old = game.tnts[0].id;
+            assert!(!game.tnts[0].used_portal);
+            if command {
+                assert!(game.run_command(
+                    "execute in minecraft:the_nether run tp @e[type=minecraft:tnt] 8.5 70 8.5"
+                ));
+            } else {
+                let entity = game.entity(old).unwrap();
+                assert!(game.entity_teleport_to_level(
+                    entity,
+                    "minecraft:the_nether",
+                    [8.5, 70.0, 8.5],
+                    None,
+                ));
+            }
+            assert!(game.tnts.is_empty());
+            game.enter_level(Dim::Nether).unwrap();
+            assert_eq!(game.tnts.len(), 1);
+            assert_ne!(game.tnts[0].id, old);
+            assert!(game.tnts[0].used_portal);
+            crate::game::nether_portal::arrival_effects_tests::assert_tnt_blast(game, true);
+            game.summon_with_nbt(
+                "minecraft:tnt",
+                [8.5, 70.0, 8.5],
+                "{fuse:200s,NoGravity:1b}",
+            )
+            .unwrap();
+            assert!(!game.tnts[0].used_portal);
+            crate::game::nether_portal::arrival_effects_tests::assert_tnt_blast(game, false);
+        });
+    }
+}

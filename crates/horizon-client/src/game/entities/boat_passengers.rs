@@ -700,6 +700,10 @@ impl Game<'_> {
             Target::Cart(_) => {
                 self.release_vehicle_container(id);
                 if let Some(i) = self.carts.iter().position(|c| c.id == id) {
+                    self.unpack_loot(
+                        super::container_loot::LootTarget::Cart(self.carts[i].id),
+                        None,
+                    );
                     let cart = self.carts.remove(i);
                     self.drop_vehicle_contents(cart.position.components(), &cart.items);
                     self.retain_removed_vehicle(id, RemovedVehicle::Cart(cart));

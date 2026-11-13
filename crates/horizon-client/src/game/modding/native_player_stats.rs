@@ -56,7 +56,7 @@ impl Game<'_> {
         Some(stats.map_or(0, |s| s.get(ty, &qualified(key))))
     }
     /// `Player.awardStat(stat, amount)`: adds `amount`, as the game does
-    /// for its own counts, so `player_stat_award` hears it and may cancel
+    /// for its own counts, so `player_stat_award` hears it and may rewrite or cancel
     /// it, and scoreboard criteria follow. False for a player it can't
     /// reach.
     pub(super) fn player_award_stat(

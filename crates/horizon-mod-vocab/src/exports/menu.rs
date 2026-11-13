@@ -1,3 +1,3 @@
 pub use crate::item::menu::{
-    DragKind, LogicalSide, MenuClick, MouseButton, StackedOnOther, SwapWith,
+    DragKind, LogicalSide, MenuClick, MenuReplace, MouseButton, StackedOnOther, SwapWith,
 };

@@ -891,7 +891,7 @@ impl Game<'_> {
         if let Ok(dir) = std::env::current_dir() {
             self.native_configs_server_start(&dir.join("saves").join(&launch.folder), false);
         }
-        // MinecraftServer.loadLevel's start: nothing is loaded yet.
+        let prepared = self.prepare_early_game_rules(opening.world?)?;
         self.native_server_about_to_start(false);
         self.native_server_starting(false);
         self.native_lifecycle_open_started();
@@ -899,7 +899,7 @@ impl Game<'_> {
         startup::time("server.wait_rest", || self.join_world_rest())?;
         self.perf.world_opening();
         let open_step = startup::step("server.open_world");
-        self.finish_open_world(opening.world?.finish()?)?;
+        self.finish_open_world(prepared)?;
         drop(open_step);
         if let Some(sync) = opening.sync {
             startup::time("server.sync_adopt", || sync.adopt(&self.pack_files()));

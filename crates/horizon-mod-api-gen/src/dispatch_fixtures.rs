@@ -9,6 +9,8 @@ use std::{
 use syn::Item;
 
 const DIRECTORY: &str = "crates/horizon-mod-api-gen/dispatch-tests/src/fixtures";
+/// Folders of one file per shared stand-in, read into the scope of the same name.
+const STAND_IN_SCOPES: [&str; 2] = ["stubs", "api"];
 
 fn key(item: &Item) -> String {
     let name = match item {
@@ -70,15 +72,25 @@ fn collect(
             ("root", vec![item])
         };
         for item in items {
-            if !seen.insert((scope.to_owned(), key(&item))) {
-                return Err(format!("duplicate fixture item in {scope}: {}", key(&item)));
-            }
-            output
-                .entry(scope)
-                .or_default()
-                .push_str(&format!("{}\n", item.to_token_stream()));
+            push(scope, item, output, seen)?;
         }
     }
+    Ok(())
+}
+
+fn push(
+    scope: &'static str,
+    item: Item,
+    output: &mut BTreeMap<&'static str, String>,
+    seen: &mut BTreeSet<(String, String)>,
+) -> Result<(), String> {
+    if !seen.insert((scope.to_owned(), key(&item))) {
+        return Err(format!("duplicate fixture item in {scope}: {}", key(&item)));
+    }
+    output
+        .entry(scope)
+        .or_default()
+        .push_str(&format!("{}\n", item.to_token_stream()));
     Ok(())
 }
 
@@ -107,6 +119,26 @@ pub(crate) fn generate(root: &Path, out: &Path) -> Result<(), String> {
             &mut seen,
         )
         .map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    // `fixtures/stubs/<Name>.rs` holds bare items of the `stubs` scope, without an envelope.
+    for scope in STAND_IN_SCOPES {
+        let folder = dir.join(scope);
+        if !folder.is_dir() {
+            continue;
+        }
+        crate::rerun_if_changed(&folder.display());
+        for name in Catalog::modules(&folder)? {
+            let path = folder.join(format!("{name}.rs"));
+            crate::rerun_if_changed(&path.display());
+            let source = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+            for item in syn::parse_file(&source)
+                .map_err(|e| format!("{}: {e}", path.display()))?
+                .items
+            {
+                push(scope, item, &mut output, &mut seen)
+                    .map_err(|e| format!("{}: {e}", path.display()))?;
+            }
+        }
     }
     for scope in ["root", "stubs", "api", "crate_root"] {
         fs::write(
@@ -187,6 +219,32 @@ mod tests {
                     .any(|i| key(i) == name)
             );
         }
+        fs::create_dir_all(dir.join("stubs")).unwrap();
+        fs::create_dir_all(dir.join("api")).unwrap();
+        fs::write(dir.join("stubs/Folded.rs"), "struct Folded; impl Folded {}").unwrap();
+        fs::write(dir.join("api/Exposed.rs"), "pub struct Exposed;").unwrap();
+        generate(&root, &root).unwrap();
+        for (scope, name) in [("stubs", "Folded"), ("api", "Exposed")] {
+            let source =
+                fs::read_to_string(root.join(format!("dispatch_fixtures_{scope}.rs"))).unwrap();
+            assert!(
+                syn::parse_file(&source)
+                    .unwrap()
+                    .items
+                    .iter()
+                    .any(|i| key(i) == name)
+            );
+        }
+        fs::write(dir.join("api/Stub.rs"), "pub struct Stub;").unwrap();
+        generate(&root, &root).unwrap();
+        fs::write(dir.join("stubs/Stub.rs"), "struct Stub;").unwrap();
+        assert!(
+            generate(&root, &root)
+                .unwrap_err()
+                .contains("Stub.rs: duplicate fixture item in stubs: Stub")
+        );
+        fs::remove_dir_all(dir.join("stubs")).unwrap();
+        fs::remove_dir_all(dir.join("api")).unwrap();
         fs::remove_file(dir.join("alpha.rs")).unwrap();
         generate(&root, &root).unwrap();
         assert!(

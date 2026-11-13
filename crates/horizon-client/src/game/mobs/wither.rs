@@ -256,19 +256,45 @@ impl Game<'_> {
             self.combat.blast_resistance_cap = Some(0.8);
         }
         self.combat.explosion_direct = Some(p.id);
-        let result = self.with_hive_emptying_blast(|g| {
-            g.explode(
-                Some(p.id),
-                at,
-                1.0,
-                super::explosion::ExplosionSource::default().with_silence(g.entity_silent(p.id)),
-            )
+        let result = self.with_impacting_projectile(p, |g| {
+            g.with_hive_emptying_blast(|g| {
+                g.explode(
+                    Some(p.id),
+                    at,
+                    1.0,
+                    super::explosion::ExplosionSource::default()
+                        .with_silence(g.entity_silent(p.id)),
+                )
+            })
         });
         self.combat.explosion_direct = None;
         self.combat.blast_resistance_cap = None;
         self.set_blast_by_player(false);
         self.combat.explosion_owner = None;
         self.combat.explosion_in_water = false;
+        result
+    }
+    /// Runs `blast` with the impacting projectile `p` back among the level's
+    /// projectiles, as vanilla's skull is still in the level while it
+    /// explodes: the tick removed its row before the hit, so a part asked
+    /// during the blast (`can_entity_destroy` with the skull) could not read
+    /// it. The row returns under its own id and join (`push` keeps a numbered
+    /// join), and leaves again afterwards.
+    fn with_impacting_projectile<R>(
+        &mut self,
+        p: &Projectile,
+        blast: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        self.creatures.projectiles.push(p.clone());
+        let result = blast(self);
+        let row = self
+            .creatures
+            .projectiles
+            .iter()
+            .position(|q| q.id == p.id && q.join == p.join);
+        if let Some(row) = row {
+            self.creatures.projectiles.remove(row);
+        }
         result
     }
     /// `livingOwner.heal(5.0F)` after the skull killed: `LivingEntity.heal`

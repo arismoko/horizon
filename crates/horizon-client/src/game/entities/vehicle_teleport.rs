@@ -409,7 +409,7 @@ impl Game<'_> {
             // ServerLevel.addDuringTeleport: a fresh add, not loaded from disk.
             super::persist::mark_fresh(&mut tag);
             game.enter_level(destination)?;
-            game.spawn_loaded_entity(Self::chunk_of(to), tag, Some(state));
+            game.spawn_teleported_entity(Self::chunk_of(to), tag.into(), Some(state));
             game.enter_level(source)?;
             Ok(Some(true))
         })

@@ -1,0 +1,18 @@
+[package]
+name = "horizon-mod-surface"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "The records of surface.json: what an API-only mod can name, with a contract hash per item"
+
+[lib]
+name = "mod_surface"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[lints]
+workspace = true

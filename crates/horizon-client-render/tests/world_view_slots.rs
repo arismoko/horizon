@@ -1,7 +1,10 @@
 use glam::{DVec3, Mat4};
-use horizon_client_render::render_slots::{self, Slots, WorldView, WorldViewDrawn};
+use horizon_client_render::render_slots::{
+    self, Slots, WorldView, WorldViewDrawn, WorldViewRefusal, WorldViewRefusalReason, WorldViews,
+};
 use std::sync::Mutex;
 static DELIVERED: Mutex<Vec<u64>> = Mutex::new(Vec::new());
+static REFUSED: Mutex<Vec<Result<(), (u64, WorldViewRefusalReason)>>> = Mutex::new(Vec::new());
 
 #[test]
 #[ignore = "requires a Vulkan/Metal/DX12 adapter"]
@@ -11,10 +14,12 @@ fn world_view_slot_delivers_only_drawable_requests() {
     assert!(!render_slots::needs().world_depth);
     render_slots::install(Slots {
         world_views: |views| {
-            views.extend([
-                WorldView::new(41, DVec3::ZERO, 0.0, 0.0, 70.0, [4, 4]),
-                WorldView::new(42, DVec3::ZERO, 0.0, 0.0, 70.0, [0, 4]),
-            ])
+            let named = |r: WorldViewRefusal| (r.id, r.reason);
+            let mut pushed = REFUSED.lock().unwrap();
+            for (id, size) in [(41, [4, 4]), (42, [0, 4])] {
+                let view = WorldView::new(id, DVec3::ZERO, 0.0, 0.0, 70.0, size);
+                pushed.push(views.push(view).map_err(named));
+            }
         },
         world_views_hooked: || true,
         world_view_drawn: |view| {
@@ -52,12 +57,17 @@ fn world_view_slot_delivers_only_drawable_requests() {
     let target = color.create_view(&Default::default());
     let mut encoder = device.create_command_encoder(&Default::default());
     assert!(render_slots::world_views_hooked());
-    let mut asked = Vec::new();
+    let mut asked = WorldViews::new(4096);
     render_slots::world_views(&mut asked);
-    let views = render_slots::drawable_world_views(asked, 4096);
-    for view in views {
+    assert_eq!(
+        *REFUSED.lock().unwrap(),
+        [Ok(()), Err((42, WorldViewRefusalReason::Side([0, 4])))]
+    );
+    for view in asked.views() {
         render_slots::world_view_drawn(&mut WorldViewDrawn {
             id: view.id,
+            parent: view.parent,
+            nesting_depth: 1,
             device: &device,
             queue: &queue,
             encoder: &mut encoder,

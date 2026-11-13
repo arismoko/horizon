@@ -1,6 +1,8 @@
 //! Engine-owned frame data and load-time render dispatch slots.
 use crate::render_geometry::{EntitySpan, Vertex};
-pub use crate::render_views::{WorldView, WorldViewDrawn, drawable_world_views};
+pub use crate::render_views::{
+    WorldView, WorldViewDrawn, WorldViewRefusal, WorldViewRefusalReason, WorldViews,
+};
 use glam::{DVec3, Mat4};
 use std::sync::OnceLock;
 pub struct WorldDrawn<'a> {
@@ -51,7 +53,7 @@ pub struct RenderNeeds {
 }
 /// Installed once by the rendering provider before startup. Dispatch never allocates.
 pub struct Slots {
-    pub world_views: fn(&mut Vec<WorldView>),
+    pub world_views: fn(&mut WorldViews),
     pub world_views_hooked: fn() -> bool,
     pub world_view_drawn: for<'a> fn(&mut WorldViewDrawn<'a>),
     pub world_drawn: for<'a> fn(&mut WorldDrawn<'a>),
@@ -84,8 +86,8 @@ pub fn world_drawn_hooked() -> bool {
     SLOTS.get().is_some_and(|s| (s.world_drawn_hooked)())
 }
 
-/// Gather the provider's requested views. The provider owns the request values.
-pub fn world_views(views: &mut Vec<WorldView>) {
+/// Gather the provider's requested views, each taken or refused as it is pushed.
+pub fn world_views(views: &mut WorldViews) {
     if let Some(s) = SLOTS.get() {
         (s.world_views)(views);
     }

@@ -334,29 +334,7 @@ mod tests {
     /// leaves the data pack's, and a removed component stays removed.
     #[test]
     fn mod_sizes_are_sanitised() {
-        let _ = crate::native_load_hooks::install(crate::native_load_hooks::NativeLoadHooks {
-            loot_table_load: |_, _, _| {},
-            modify_default_components: |_, item, components| match item {
-                "a:raised" => {
-                    components.insert(super::STACK_SIZE.into(), 500.into());
-                }
-                "a:zero" => {
-                    components.insert(super::STACK_SIZE.into(), 0.into());
-                }
-                "a:huge" => {
-                    components.insert(super::STACK_SIZE.into(), u64::MAX.into());
-                }
-                "a:string" => {
-                    components.insert(super::STACK_SIZE.into(), "500".into());
-                }
-                "a:removed" => {
-                    components.remove(super::STACK_SIZE);
-                }
-                _ => {}
-            },
-            loot_function: |_, _, _, _, _| {},
-            loot_condition: |_, _, _, _, _| {},
-        });
+        crate::native_load_hooks::testing::install();
         let root = std::env::temp_dir().join(format!("horizon-mod-sizes-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         let items = r#"{"a:raised": {"minecraft:max_stack_size": 64},

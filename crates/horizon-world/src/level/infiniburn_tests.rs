@@ -3,8 +3,16 @@ use super::tests::{Fixture, World, fixture};
 use super::*;
 
 fn tagged_fixture(stone: bool) -> Fixture {
-    let root = std::env::var_os("HORIZON_RESOURCES").expect("prepared resources");
-    let root = std::path::Path::new(&root);
+    // Where the level tests' shared fixture finds them: `HORIZON_RESOURCES`, else the checkout's
+    // prepared resources (the ignored-test shards set neither variable).
+    let root = std::env::var_os("HORIZON_RESOURCES")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../.local/horizon-client")
+                .join(horizon_core::VANILLA_VERSION)
+        });
+    let root = root.as_path();
     let registry = data::load_registry(root).unwrap();
     let mut behaviours = Behaviours::load(&registry, root).unwrap();
     let mut set = data::BlockSet::default();

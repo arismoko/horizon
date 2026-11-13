@@ -120,12 +120,13 @@ pub fn item_key_by_identifier(id: &crate::Identifier) -> Option<ItemKey> {
     Some(ItemKey(*resolved_items().get()?.identifiers.get(id)?))
 }
 
-/// The built-in entity-type registry's keys, and the loaded enchantment
-/// registry's, in registry order. Each table is replaced as a whole at its load
-/// boundary; a key is a slot in the table that resolved it.
-static ENTITY_TYPES: std::sync::LazyLock<
-    std::sync::RwLock<Option<horizon_mod_runtime::registry_keys::Names>>,
-> = std::sync::LazyLock::new(|| std::sync::RwLock::new(None));
+/// Entity types use the same requested-slot and immutable resolved-table lifecycle as items.
+fn resolved_entity_types() -> &'static std::sync::OnceLock<horizon_mod_runtime::registry_keys::Names>
+{
+    static EMPTY: std::sync::OnceLock<horizon_mod_runtime::registry_keys::Names> =
+        std::sync::OnceLock::new();
+    crate::parts::installed().map_or(&EMPTY, |installed| &installed.resolved_entity_types)
+}
 static MENUS: std::sync::LazyLock<
     std::sync::RwLock<Option<horizon_mod_runtime::registry_keys::Names>>,
 > = std::sync::LazyLock::new(|| std::sync::RwLock::new(None));
@@ -188,7 +189,13 @@ fn ordered_slot_is_live(
 
 /// Complete the built-in entity-type registry in `ids`' registration order.
 pub fn resolve_entity_types<'a>(ids: impl IntoIterator<Item = &'a str>) -> Result<(), Vec<String>> {
-    resolve_ordered(&ENTITY_TYPES, ids, "entity type")
+    let names = crate::parts::requested_keys()
+        .entity_types
+        .complete(ids, |mod_id, id| {
+            format!("mod {mod_id} requested unknown entity type {id}")
+        })?;
+    let _ = resolved_entity_types().set(names);
+    Ok(())
 }
 
 /// Complete the built-in menu registry in `ids`' registration order.
@@ -221,7 +228,15 @@ pub fn item_keys() -> Vec<ItemKey> {
 
 /// Every built-in entity-type key in registry order.
 pub fn entity_type_keys() -> Vec<EntityTypeKey> {
-    ordered_keys(&ENTITY_TYPES, EntityTypeKey)
+    resolved_entity_types()
+        .get()
+        .map_or_else(Vec::new, |names| {
+            names
+                .order
+                .iter()
+                .map(|slot| EntityTypeKey(*slot))
+                .collect()
+        })
 }
 
 /// Every built-in menu key in registry order.
@@ -238,7 +253,12 @@ impl EntityTypeKey {
     /// Validate an incoming slot against the built-in registry, not a world's mapping.
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn from_slot(slot: u32) -> Result<Self, &'static str> {
-        ordered_slot_is_live(&ENTITY_TYPES, slot)
+        crate::parts::registration_membership(crate::parts::RegistrationKeyKind::EntityType, slot)
+            .unwrap_or_else(|| {
+                resolved_entity_types()
+                    .get()
+                    .is_some_and(|names| names.id(slot).is_some())
+            })
             .then_some(Self(slot))
             .ok_or("unknown EntityTypeKey slot")
     }
@@ -266,7 +286,8 @@ impl EnchantmentKey {
 
 /// The canonical name of a built-in entity-type key, for diagnostics.
 pub fn entity_type_key_id(key: EntityTypeKey) -> Option<String> {
-    ordered_id(&ENTITY_TYPES, key.0)
+    crate::parts::registration_name(crate::parts::RegistrationKeyKind::EntityType, key.0)
+        .or_else(|| resolved_entity_types().get()?.id(key.0).map(str::to_owned))
 }
 
 /// The canonical name of a built-in menu key, for diagnostics.

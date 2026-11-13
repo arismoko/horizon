@@ -242,6 +242,16 @@ pub fn bed_facing_code(facing: Option<&str>) -> i32 {
         _ => 4,
     }
 }
+/// `LivingEntity.getBedOrientation`: the way the bed it sleeps in faces, as `sleep_pose` keeps it.
+pub fn bed_orientation(m: &Mob) -> Option<mod_api::Direction> {
+    Some(match m.extra.ints[1] {
+        1 => mod_api::Direction::North,
+        2 => mod_api::Direction::South,
+        3 => mod_api::Direction::West,
+        4 => mod_api::Direction::East,
+        _ => return None,
+    })
+}
 pub fn sleep_pose(m: &Mob) -> Option<(f32, [f32; 2])> {
     Some(match m.extra.ints[1] {
         1 => (270.0, [0.0, -1.0]),
@@ -1404,6 +1414,7 @@ mod tests {
         use crate::mobs::{Anim, Brain, Flags, MobType, Part, Species};
         use std::sync::Arc;
         let kind = Arc::new(MobType {
+            shadow: None,
             id: "minecraft:villager".into(),
             species: Species::Villager,
             width: 0.6,
@@ -1423,6 +1434,7 @@ mod tests {
             jump_strength: 0.42,
             attributes: Arc::default(),
             item_stack_limits: Default::default(),
+            attribute_bounds: Default::default(),
             gravity: 0.08,
             safe_fall_distance: 3.0,
             fall_damage_multiplier: 1.0,

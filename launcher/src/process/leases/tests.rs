@@ -200,18 +200,53 @@ fn creator_flags_remain_cloexec_until_child_callback() {
     let root = tempfile::tempdir().unwrap();
     let trees = [directory(&root.path().join("tree"))];
     let claims = ChildLeases::acquire(&root.path().join("data"), &trees).unwrap();
-    // SAFETY: sysconf/fcntl only query this process. Snapshot all slots, including vacant
-    // ones later used for transfer duplicates; ignore pre-existing inherited non-CLOEXEC fds.
-    let maximum = i32::try_from(unsafe { libc::sysconf(libc::_SC_OPEN_MAX) }).unwrap();
-    let flags: Vec<_> = (3..maximum)
-        .map(|fd| (fd, unsafe { libc::fcntl(fd, libc::F_GETFD) }))
+    use std::os::fd::AsRawFd;
+    // Snapshot the owned lease descriptors, which stay live until spawn returns.
+    // Vacant slots can become Command's internal non-CLOEXEC error pipe on macOS;
+    // other test threads can also reuse unowned slots between snapshot and fork.
+    let flags: Vec<_> = claims
+        .files()
+        .iter()
+        .map(|file| {
+            let fd = file.as_raw_fd();
+            // SAFETY: the claim owns this live descriptor.
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            assert!(flags >= 0 && flags & libc::FD_CLOEXEC != 0);
+            (fd, flags)
+        })
         .collect();
-    let mut command = Command::new("/bin/true");
+    // A pre-opened file records callback observations without allocation/formatting
+    // after fork. Reading a regular file cannot wait on an unrelated inherited writer.
+    let mut observations = tempfile::tempfile().unwrap();
+    let callback_log = observations.try_clone().unwrap();
+    let mut command = Command::new("/usr/bin/true");
     // This callback precedes the transfer callback and sees the fork's untouched flags.
     unsafe {
         command.pre_exec(move || {
             for &(fd, before) in &flags {
                 let after = libc::fcntl(fd, libc::F_GETFD);
+                let errno = if after < 0 {
+                    io::Error::last_os_error().raw_os_error().unwrap_or(0)
+                } else {
+                    0
+                };
+                let mut record = [0u8; 16];
+                for (slot, value) in record
+                    .as_chunks_mut::<4>()
+                    .0
+                    .iter_mut()
+                    .zip([fd, before, after, errno])
+                {
+                    slot.copy_from_slice(&value.to_ne_bytes());
+                }
+                if libc::write(
+                    callback_log.as_raw_fd(),
+                    record.as_ptr().cast(),
+                    record.len(),
+                ) != record.len() as isize
+                {
+                    return Err(io::Error::last_os_error());
+                }
                 if after >= 0 && before != 0 && after & libc::FD_CLOEXEC == 0 {
                     return Err(io::Error::from_raw_os_error(libc::EINVAL));
                 }
@@ -220,11 +255,27 @@ fn creator_flags_remain_cloexec_until_child_callback() {
         });
     }
     let child = claims.spawn(command);
-    assert!(
-        child.is_ok(),
-        "creator cleared CLOEXEC before its child's callback"
-    );
-    assert!(child.unwrap().wait().unwrap().success());
+    use std::io::{Read, Seek};
+    observations.rewind().unwrap();
+    let mut bytes = Vec::new();
+    observations.read_to_end(&mut bytes).unwrap();
+    let records: Vec<Vec<i32>> = bytes
+        .as_chunks::<16>()
+        .0
+        .iter()
+        .map(|record| {
+            record
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|word| i32::from_ne_bytes(*word))
+                .collect()
+        })
+        .collect();
+    let mut child = child.unwrap_or_else(|error| {
+        panic!("spawn failed: {error:?}; callback records [fd, flags before, flags after, errno]: {records:?}; empty records mean callback was not reached")
+    });
+    assert!(child.wait().unwrap().success());
 }
 
 #[cfg(unix)]

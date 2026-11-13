@@ -119,6 +119,34 @@ impl Game<'_> {
             Body::Other(_) => None,
         }
     }
+    /// The fluids the entity touched at its last fluid update, each with how deep its box is in
+    /// it (`IEntityExtension.getFluidTypeHeight`), highest first; empty in no fluid. Players and
+    /// mobs: water and lava, the fluids Horizon's entity update tracks. Server only.
+    pub(super) fn entity_fluid_heights(&self, entity: EntityRef) -> Option<Vec<(String, f64)>> {
+        use horizon_client::motion::{LAVA, WATER};
+        Some(match self.native_entity_body(entity)? {
+            Body::Player(p) => touched_fluids(
+                (p.fluid_height(WATER), p.fluids.was_touching_water),
+                (p.fluid_height(LAVA), p.is_in_lava()),
+            ),
+            Body::Mob(m) => touched_fluids(
+                (m.fluids.water, m.fluids.in_water),
+                (m.fluids.lava, m.fluids.in_lava),
+            ),
+            Body::Other(_) => return None,
+        })
+    }
+    /// The fluid at the entity's eyes from its last fluid update
+    /// (`IEntityExtension.getFirstEyeInFluidType`): water or lava, none in air. Players and mobs.
+    /// Server only.
+    pub(super) fn entity_eye_fluid(&self, entity: EntityRef) -> Option<Option<String>> {
+        use horizon_client::motion::{LAVA, WATER};
+        Some(match self.native_entity_body(entity)? {
+            Body::Player(p) => eye_fluid(p.is_eye_in_fluid(WATER), p.is_eye_in_fluid(LAVA)),
+            Body::Mob(m) => eye_fluid(m.fluids.eye_in_water, m.fluids.eye_in_lava),
+            Body::Other(_) => return None,
+        })
+    }
     /// Whether the entity's type never burns (`EntityType.fireImmune`):
     /// players and mobs.
     pub(super) fn entity_fire_immune(&self, entity: EntityRef) -> Option<bool> {
@@ -435,9 +463,55 @@ impl Game<'_> {
     }
 }
 
+/// `(fluid, height)` for each fluid `(height, touched)` the entity touched, highest first;
+/// water before lava at the same height (`getMaxHeightFluidType`'s order).
+fn touched_fluids(water: (f64, bool), lava: (f64, bool)) -> Vec<(String, f64)> {
+    let mut heights: Vec<(String, f64)> = [("minecraft:water", water), ("minecraft:lava", lava)]
+        .into_iter()
+        .filter(|(_, (_, touched))| *touched)
+        .map(|(fluid, (height, _))| (fluid.to_owned(), height))
+        .collect();
+    // A stable sort keeps water first in a tie.
+    heights.sort_by(|a, b| b.1.total_cmp(&a.1));
+    heights
+}
+
+/// The first fluid at the eyes: water, then lava, as the trackers are kept.
+fn eye_fluid(water: bool, lava: bool) -> Option<String> {
+    let fluid = if water {
+        Some("minecraft:water")
+    } else {
+        lava.then_some("minecraft:lava")
+    };
+    fluid.map(str::to_owned)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The reads' order: highest first, water before lava in a tie, an untouched fluid left
+    /// out even with a height, and nothing for an entity in neither.
+    #[test]
+    fn fluid_reads_list_the_touched_fluids_highest_first() {
+        let (water, lava) = ("minecraft:water".to_owned(), "minecraft:lava".to_owned());
+        assert_eq!(
+            touched_fluids((0.5, true), (1.25, true)),
+            [(lava.clone(), 1.25), (water.clone(), 0.5)]
+        );
+        assert_eq!(
+            touched_fluids((0.75, true), (0.75, true)),
+            [(water.clone(), 0.75), (lava.clone(), 0.75)]
+        );
+        assert_eq!(
+            touched_fluids((0.4, true), (0.2, false)),
+            [(water.clone(), 0.4)]
+        );
+        assert!(touched_fluids((0.0, false), (0.0, false)).is_empty());
+        assert_eq!(eye_fluid(true, true), Some(water));
+        assert_eq!(eye_fluid(false, true), Some(lava));
+        assert_eq!(eye_fluid(false, false), None);
+    }
 
     #[test]
     fn poses_keep_vanillas_ids() {

@@ -1,6 +1,7 @@
 pub use world::structure_type::{
     BiomeId, ChunkPos, FoundStructure, GenerationContext, HeightmapType, NoiseBlock, NoiseColumn,
-    PieceContext, StructureError, StructurePiece, StructureRandom, StructureType,
+    PieceBeardifier, PieceContext, StructureError, StructurePiece, StructureRandom, StructureType,
+    TerrainAdjustment,
 };
 mod __private {
     /// The registered structure types, for the executable to hand to the engine's

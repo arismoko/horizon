@@ -601,6 +601,7 @@ mod tests {
     }
     #[test]
     fn written_custom_sky_modes_keep_factors_and_scale_only_screen_source() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let instance = crate::gfx::test_gpu::instance();
         let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
             return;

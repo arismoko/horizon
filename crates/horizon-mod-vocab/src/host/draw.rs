@@ -346,7 +346,7 @@ pub trait BlockEntityDrawContext {
     /// `entity/zombie/zombie`) times the 0xRRGGBB `tint`. A part that isn't
     /// `visible` draws nothing, one that skips drawing (`skip_draw`) only its
     /// children. A mob's model is built in the model's own frame (+y down,
-    /// its front towards -z, its feet 24 texels down): in `mob_submit`,
+    /// its front towards -z, its feet 24 texels down): in `render_living_pre`,
     /// `draw.scale([1.0, -1.0, -1.0])` then `draw.translate([0.0, -1.501,
     /// 0.0])` first, as `LivingEntityRenderer` does. False for an unknown
     /// sprite. API @API:model_layers@.

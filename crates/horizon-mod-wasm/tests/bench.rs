@@ -84,7 +84,12 @@ fn measure(label: &str, mods: Vec<ModEntry>) {
             let mut entities: Vec<_> = (0..1000)
                 .map(|_| ModBlockEntity::new(format!("wasm_fixture:{kind}"), Default::default()))
                 .collect();
-            mod_api::dispatch_block_entity_tick(&mut World, [0, 64, 0], &mut entities[0]);
+            mod_api::dispatch_block_entity_tick(
+                &mut World,
+                &mut mod_api::BlockEntityTickReply::Changed,
+                [0, 64, 0],
+                &mut entities[0],
+            );
             assert_eq!(
                 entities[0].data,
                 [expected],
@@ -99,7 +104,12 @@ fn measure(label: &str, mods: Vec<ModEntry>) {
             for round in 0..120 {
                 let now = Instant::now();
                 for entity in &mut entities {
-                    mod_api::dispatch_block_entity_tick(&mut World, [0, 64, 0], entity);
+                    mod_api::dispatch_block_entity_tick(
+                        &mut World,
+                        &mut mod_api::BlockEntityTickReply::Changed,
+                        [0, 64, 0],
+                        entity,
+                    );
                 }
                 let elapsed = now.elapsed().as_nanos();
                 if round >= 20 {

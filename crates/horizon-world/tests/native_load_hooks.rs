@@ -28,6 +28,8 @@ fn load_hooks_are_noops_before_install_and_use_first_callbacks_after() {
     assert!(components.is_empty());
 
     let hooks = || NativeLoadHooks {
+        item_ability_default: |_, _, _| false,
+        loot_ability: |_, _, _| {},
         loot_table_load: |context, id, table| {
             assert_eq!(context.origin(), DataLoadOrigin::ServerDataLoad);
             table.as_array_mut().unwrap().push(id.into());
@@ -42,6 +44,8 @@ fn load_hooks_are_noops_before_install_and_use_first_callbacks_after() {
     assert!(native_load_hooks::install(hooks()).is_ok());
     assert!(
         native_load_hooks::install(NativeLoadHooks {
+            item_ability_default: |_, _, _| false,
+            loot_ability: |_, _, _| {},
             loot_table_load: |_, _, table| *table = json!("second"),
             modify_default_components: |_, _, components| components.clear(),
             loot_function: |_, _, _, stack, _| stack.count = 0,
@@ -78,6 +82,8 @@ fn load_hooks_are_noops_before_install_and_use_first_callbacks_after() {
     std::fs::remove_dir_all(&root).unwrap();
 
     let ctx = loot::LootContext {
+        queried_table_id: None,
+        queried_stack: None,
         entity: None,
         damage: None,
         player: None,

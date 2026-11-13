@@ -30,6 +30,9 @@ pub enum Drop {
     /// The experience the mob is worth (`getExperienceReward`), before
     /// `ExperienceOrb.award` splits it into orbs.
     Experience(i32),
+    /// A custom death drop with an explicit initial item-entity age.
+    /// Bypasses stack-only table modifiers; joins the captured living drops.
+    Aged(LootStack, i32),
 }
 
 /// How the mob died.
@@ -550,7 +553,7 @@ pub fn roll_death(m: &mut Mob, d: &Death, rolls: &mut dyn DeathRolls) -> Rolled 
             player: d.player.clone().filter(|_| killed_by_player),
             luck: if killed_by_player { d.luck } else { 0.0 },
         };
-        let items = roll(d, &table, &params, rolls, m.extra.death_loot_seed);
+        let items = roll(d, &table, &params, rolls, m.extra.death_table_seed);
         out.extend(items.into_iter().filter(|i| !i.is_empty()).map(Drop::Item));
         table_rolled = true;
     }
@@ -619,9 +622,11 @@ pub fn finish_death(
         {
             out.push(Drop::CarriedBlock(state));
         }
-        // WitherBoss.dropCustomDeathLoot.
+        // WitherBoss.dropCustomDeathLoot: the star is spawned, then
+        // `setExtendedLifetime` gives it `age = -6000`, so it outlives the
+        // 6000-tick age discard by another 6000 ticks.
         if s == Species::Wither {
-            out.push(Drop::Item(loot_stack("minecraft:nether_star", 1)));
+            out.push(Drop::Aged(loot_stack("minecraft:nether_star", 1), -6000));
         }
     }
     // Allay.dropEquipment: its inventory, then the main-hand item unless it
@@ -874,7 +879,7 @@ mod death_loot_table_tests {
             if own {
                 m.extra.death_loot_table = Some("pack:boss".into());
             }
-            m.extra.death_loot_seed = seed;
+            m.extra.death_table_seed = seed;
             let mut sequences = RandomSequences::default();
             let (out, _) = die(&mut m, &death, &mut sequences, &mut LegacyRandom::new(7));
             out.into_iter()

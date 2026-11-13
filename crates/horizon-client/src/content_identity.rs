@@ -1,7 +1,6 @@
 //! Identity of the ordered block-state registry used by chunk packets, and of
-//! the item, mob effect, fluid, entity type and menu registries once content
-//! mods add to them (item stacks, effect, entity and open screen packets carry
-//! their network ids, fluid tags their fluids').
+//! the item, mob effect, fluid, entity type, menu and custom statistic registries
+//! once mods add to them. Their packets carry numeric network IDs.
 use horizon_protocol::registry::Builtin;
 use serde::{Deserialize, Serialize, de::IgnoredAny};
 use sha2::{Digest, Sha256};
@@ -28,6 +27,12 @@ pub fn decode_payload(data: &[u8]) -> horizon_protocol::Result<Option<[u8; 32]>>
 pub const MARKER: &str = "horizon-content-blocks";
 pub const MISMATCH: &str =
     "Content registry mismatch: install the same content mods as the server.";
+
+/// Registries that a vanilla client cannot validate before reading their IDs.
+pub(crate) fn requires_horizon() -> bool {
+    horizon_protocol::item::custom::entries().next().is_some()
+        || !mod_api::__private::custom_stat_declarations().is_empty()
+}
 
 #[derive(Debug)]
 pub enum IdentityError {
@@ -101,8 +106,16 @@ pub fn identity(
     let bytes = std::fs::read(root.join("facts.json")).map_err(IdentityError::Read)?;
     let mut hash = hash_facts(&bytes)?;
     // A root without mod entries keeps its block-only identity.
-    if let Ok(registries) = std::fs::read(root.join("registries.json")) {
-        let report = parse_registries(&registries)?;
+    let report = match std::fs::read(root.join("registries.json")) {
+        Ok(bytes) => Some(crate::lan::data::with_custom_stats(parse_registries(
+            &bytes,
+        )?)),
+        Err(error) if !mod_api::__private::custom_stat_declarations().is_empty() => {
+            return Err(IdentityError::Read(error));
+        }
+        Err(_) => None,
+    };
+    if let Some(report) = report {
         for registry in REGISTRIES {
             let entries = mod_entries(&report, registry);
             if !entries.is_empty() {
@@ -169,13 +182,14 @@ fn hash_facts(bytes: &[u8]) -> Result<[u8; 32], IdentityError> {
 }
 
 /// The built-in registries whose network ids content mods extend besides blocks.
-const REGISTRIES: [&str; 6] = [
+const REGISTRIES: [&str; 7] = [
     "minecraft:item",
     "minecraft:mob_effect",
     "minecraft:fluid",
     "minecraft:entity_type",
     "minecraft:menu",
     "minecraft:block_entity_type",
+    "minecraft:custom_stat",
 ];
 
 fn parse_registries(bytes: &[u8]) -> Result<Builtin, IdentityError> {
@@ -438,4 +452,47 @@ mod validity_tests {
             Some("minecraft:trapped_chest")
         );
     }
+}
+
+#[cfg(test)]
+#[test]
+fn custom_statistic_network_ids_join_identity() {
+    let hash = |label: &str, entries: &str| {
+        let root = std::env::temp_dir().join(format!(
+            "horizon-content-identity-stats-{}-{label}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("facts.json"),
+            br#"{"states":[["minecraft:stone",false,false,"Block{minecraft:stone}",{"id":"minecraft:stone"}]]}"#,
+        ).unwrap();
+        std::fs::write(root.join("items.json"), "{}").unwrap();
+        std::fs::write(
+            root.join("registries.json"),
+            format!(r#"{{"minecraft:custom_stat":{{"entries":{{"minecraft:jump":{{"protocol_id":0}}{entries}}}}}}}"#),
+        ).unwrap();
+        let defaults = horizon_world::item_defaults::read(&root).unwrap();
+        let digest = identity(&root, &defaults).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+        digest
+    };
+    let shared = r#","stats:steps":{"protocol_id":1},"stats:other":{"protocol_id":2}"#;
+    let server = hash("server", shared);
+    assert_eq!(server, hash("matching-client", shared));
+    assert_ne!(server, hash("missing-client", ""));
+    assert_ne!(
+        server,
+        hash(
+            "reordered-client",
+            r#","stats:other":{"protocol_id":1},"stats:steps":{"protocol_id":2}"#,
+        )
+    );
+    assert_ne!(
+        server,
+        hash(
+            "client-only-first",
+            r#","client:local":{"protocol_id":1},"stats:steps":{"protocol_id":2},"stats:other":{"protocol_id":3}"#,
+        )
+    );
 }

@@ -282,6 +282,10 @@ pub struct State {
     pub baby: bool,
     pub partial: f32,
 }
+/// `LivingEntityRenderer.isEntityUpsideDown`: named Dinnerbone or Grumm.
+pub fn upside_down(m: &Mob) -> bool {
+    matches!(m.custom_name.as_deref(), Some("Dinnerbone" | "Grumm"))
+}
 /// `WalkAnimationState.position(partial)`: babies' legs move 3 times as far.
 pub fn walk_position(m: &Mob, alpha: f32) -> f32 {
     (m.limb_position - m.limb_speed * (1.0 - alpha)) * if m.is_baby() { 3.0 } else { 1.0 }

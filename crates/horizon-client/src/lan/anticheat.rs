@@ -453,11 +453,13 @@ impl Hub {
             subject: None,
         };
         let down = Vec3::new(0.0, -0.1, 0.0);
-        Some(
-            scene
-                .resolve(feet, down, 0.0, false)
-                .is_ok_and(|done| done.y > down.y),
-        )
+        // A support probe — is the feet's 0.1 down blocked? — not an
+        // `Entity.move` (#2414): the gate is for moves, this asks the blocks.
+        #[allow(clippy::disallowed_methods)]
+        let held = scene
+            .resolve(feet, down, 0.0, false)
+            .is_ok_and(|done| done.y > down.y);
+        Some(held)
     }
 
     /// `check` failed for guest `i`: raise its level, log it, and act on it. Returns whether the move or

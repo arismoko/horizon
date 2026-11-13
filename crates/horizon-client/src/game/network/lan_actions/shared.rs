@@ -14,7 +14,7 @@ pub(super) struct GuestPlay {
     destroy_delay: u32,
     using: Option<(usize, u32)>,
     use_duration: i32,
-    use_ticks_set: bool,
+    use_start: super::using_item::UseStart,
     use_delay: u32,
     /// The shield's ItemCooldowns entry: an axe disabled it for this many ticks.
     pub(super) shield_cooldown: u32,
@@ -59,10 +59,6 @@ pub(super) struct GuestPlay {
     mount: super::mounts::MountState,
     /// The trading screen the guest has open.
     pub(super) merchant: Option<super::lan_trading::GuestMerchant>,
-    /// The inventory menu and the crafting table the guest crafts in.
-    pub(super) crafting: super::lan_crafting::GuestCrafting,
-    /// The workstation menu the guest has open (game/network/lan_stations.rs).
-    pub(super) station: MenuOwner<Option<super::lan_stations::GuestStation>>,
     /// The mount inventory the guest has open (game/network/lan_mount_menu.rs).
     pub(super) mount_window: Option<super::lan_mount_menu::GuestMount>,
     /// The lectern the guest reads (game/network/lan_stations.rs).
@@ -177,7 +173,7 @@ pub(super) struct GuestSwap {
     destroy_delay: u32,
     using: Option<(usize, u32)>,
     use_duration: i32,
-    use_ticks_set: bool,
+    use_start: super::using_item::UseStart,
     use_delay: u32,
     pub(super) shield_cooldown: u32,
     /// The guest's item cooldowns (`Game::cooldowns` for its turn).
@@ -285,6 +281,7 @@ impl GuestPlay {
 struct ItemRules<'a>(
     &'a horizon_client::items::Items,
     &'a horizon_client::enchant::Enchantments,
+    Option<&'a dyn horizon_client::menu::SlotRules>,
 );
 impl Rules for ItemRules<'_> {
     fn items(&self) -> &horizon_client::items::Items {
@@ -295,6 +292,9 @@ impl Rules for ItemRules<'_> {
     }
     fn max_stack(&self, item: &str) -> u32 {
         self.0.get(item).map_or(64, |i| i.max_stack)
+    }
+    fn slot_rules(&self) -> Option<&dyn horizon_client::menu::SlotRules> {
+        self.2
     }
 }
 
@@ -533,11 +533,7 @@ mod tests {
         struct Part;
         #[mod_api::horizon_part]
         impl MenuPart for Part {
-            fn menu_slot_rules(
-                &self,
-                _: &dyn mod_api::LoopContext,
-                event: &mut MenuSlotRulesEvent<'_>,
-            ) {
+            fn menu_slot_rules(&self, _: &dyn mod_api::Host, event: &mut MenuSlotRulesEvent<'_>) {
                 if mod_api::__private::item_key_id(event.stack.item()).unwrap()
                     == "minecraft:granite"
                     && event.stack.count() < 8
@@ -936,7 +932,7 @@ mod tests {
                 .lan
                 .as_ref()
                 .unwrap()
-                .play
+                .menus
                 .get(&12)
                 .unwrap()
                 .crafting
@@ -1447,6 +1443,7 @@ mod tests {
                             ticks: 0,
                             playing: false,
                             song_clock_present: false,
+                            loaded_clock: false,
                         },
                     ),
                 );

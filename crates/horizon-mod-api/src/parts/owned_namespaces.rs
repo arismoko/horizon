@@ -71,8 +71,16 @@ mod tests {
             assert!(keys.declared_fluids.contains_key("legacy:flowing_broth"));
             assert!(!keys.declared_fluids.contains_key("porter:broth"));
             drop(keys);
-            r.declare_attribute("legacy:stamina", 1.0, 0.0, 10.0, true, Sentiment::Neutral)
-                .unwrap();
+            r.declare_attribute(
+                "legacy:stamina",
+                1.0,
+                0.0,
+                10.0,
+                true,
+                Sentiment::Neutral,
+                Default::default(),
+            )
+            .unwrap();
             r.declare_entity_attributes("legacy:cook", "minecraft:zombie", vec![])
                 .unwrap();
             r.add_dimension("legacy:kitchen", DimensionSettings::default());

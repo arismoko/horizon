@@ -325,6 +325,7 @@ pub fn main() -> horizon_client::Result<()> {
                         }
                         Ok(())
                     }
+                    drops::Drop::Aged(s, _) => writeln!(out, "{}", line(&s)),
                     drops::Drop::Experience(amount) => {
                         let mut left = amount.max(0) as u32;
                         while left > 0 {

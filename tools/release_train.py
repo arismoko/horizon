@@ -2,12 +2,17 @@
 """Decides when Horizon releases, names the release and writes its notes (.github/workflows/release.yml).
 
     python3 tools/release_train.py decide --kind game [--head SHA] [--force]
+    python3 tools/release_train.py decide --kind game --channel nightly|snapshot [--head SHA] [--force] [--daily]
     python3 tools/release_train.py decide --kind launcher
     python3 tools/release_train.py notes --kind game --tag v2026.10.15 --out dist/notes
     python3 tools/release_train.py gate --kind game --smoke dist/smoke-test.json [--blockers]   # before publishing
 
 The game ships only the Nightly since 2026-10-28 (Ludovic): when `decide --kind game` says so, release.yml starts
 `nightly build` on the commit it decided (tools/ci/nightly.py), and "the last release" is the published Nightly.
+On the fork (CI tiers, owner 2026-11-13) `--channel` names the kind of build: `nightly` takes `daily-green` and
+refuses any other --head (an older commit had no daily run of its own, and no SDK); `snapshot` takes main's head (or
+--head) and refuses a commit whose gate jobs (dyna-checks' main-push lint, verify, verify-static, launcher) did
+not pass.
 
 A kind releases when a pull request merged into main since its last published release changed one of its
 player-facing paths (GAME_PATHS, LAUNCHER_PATHS), once BATCH of them are waiting and the newest merged at least
@@ -312,11 +317,12 @@ def last_release(releases, kind):
     return max(ours, key=lambda release: tag_key(release["tag_name"]), default=None)
 
 
-def decision(kind, prs, now, paused=False, force=False, new_line=None, blockers=()):
+def decision(kind, prs, now, paused=False, force=False, new_line=None, blockers=(), daily=False):
     """Whether to release now, and why. prs: the merged pull requests since the last release, each with the
     files it changed under "paths" (player-facing ones only) and when it merged ("merged_at"). new_line: the
     release line ("0.2") when it has no release of this kind yet; its first goes out at once. blockers: the open
-    release-blocker issues; they hold every release, forced ones too."""
+    release-blocker issues; they hold every release, forced ones too. daily: the daily run's call for its
+    daily-green commit, published without the batch-size and age rules (it comes once a day, with no retry)."""
     counted = [pr for pr in prs if pr["paths"] and "skip-release" not in pr["labels"]]
     urgent = [pr for pr in counted if "release-now" in pr["labels"]]
     merged = [pr["merged_at"] for pr in counted if pr.get("merged_at")]
@@ -332,6 +338,8 @@ def decision(kind, prs, now, paused=False, force=False, new_line=None, blockers=
         return False, "no merged pull request changed what players run"
     if urgent:
         return True, "release-now: " + ", ".join(f"#{pr['number']}" for pr in urgent)
+    if daily:
+        return True, f"{len(counted)} pull requests changed what players run; the daily run passed this commit whole"
     if merged and now - min(merged) >= MAX_WAIT:
         return True, f"{len(counted)} pull requests changed what players run; the oldest has waited {MAX_WAIT.seconds // 3600} hours"
     if len(counted) < BATCH:
@@ -536,6 +544,45 @@ def gate_jobs_passed(run_id, required):
             and all(job["status"] == "completed" and job["conclusion"] == "success" for job in jobs))
 
 
+DAILY_GREEN = "daily-green"
+FORK_GATE = {"lint", "verify", "verify-static", "launcher", "pool-watch"}
+SNAPSHOT_GATE = {"lint", "verify", "verify-static", "launcher"}
+
+
+def daily_green_commit():
+    """The commit the tag `daily-green` points to (the newest fully green daily run), freshly fetched, or ""."""
+    run("git", "fetch", "--quiet", "--force", "origin", f"+refs/tags/{DAILY_GREEN}:refs/tags/{DAILY_GREEN}", check=False)
+    return run("git", "rev-parse", "--verify", "--quiet", f"refs/tags/{DAILY_GREEN}^{{commit}}", check=False).strip()
+
+
+def fork_gate_passed(sha):
+    """Whether the newest dyna-checks main-push run on sha passed every gate job (the snapshot's check)."""
+    pages = gh_json("api", "--paginate", "--slurp",
+                    f"repos/{REPO}/actions/workflows/dyna-ci.yml/runs?branch=main&event=push&head_sha={sha}&per_page=100")
+    runs = [entry for page in pages for entry in page["workflow_runs"]
+            if entry["head_sha"] == sha and entry["head_branch"] == "main" and entry["event"] == "push"]
+    return bool(runs) and gate_jobs_passed(runs[0]["id"], SNAPSHOT_GATE)
+
+
+def channel_head(channel, head):
+    """The commit a fork channel builds, or exits naming the check it failed."""
+    if channel == "nightly":
+        green = daily_green_commit()
+        if not green:
+            raise SystemExit(f"::error::refused: no `{DAILY_GREEN}` tag yet; a nightly ships only a commit whose "
+                             "daily run was fully green")
+        sha = run("git", "rev-parse", "--verify", "--quiet", f"{head}^{{commit}}", check=False).strip() if head else green
+        if sha != green:
+            raise SystemExit(f"::error::refused: {head} is not the commit `{DAILY_GREEN}` points to ({green}); "
+                             "a nightly ships only the commit of the newest fully green daily run, with its SDK")
+        return sha
+    sha = head or run("git", "rev-parse", "refs/remotes/origin/main").strip()
+    if not fork_gate_passed(sha):
+        raise SystemExit(f"::error::refused: dyna-checks' gate jobs ({', '.join(sorted(SNAPSHOT_GATE))}) "
+                         f"did not all pass on a main push of {sha}; a snapshot needs the gate green on its commit")
+    return sha
+
+
 def green_main_head(parity=False, eligible=None):
     """The newest commit on main whose checks passed: what an automatic release builds. With parity (game
     releases), the newest commit parity-main passed on whose checks passed too: parity-main runs on batches of
@@ -555,14 +602,8 @@ def green_main_head(parity=False, eligible=None):
                 seen.add(sha)
                 if eligible is not None and not eligible(sha):
                     continue
-                if not gate_jobs_passed(entry["id"], {"lint", "verify", "verify-static", "launcher", "pool-watch"}):
-                    continue
-                fixtures = gh_json("api", "--paginate", "--slurp",
-                                   f"repos/{REPO}/actions/workflows/wasm-mods.yml/runs"
-                                   f"?branch=main&event=push&head_sha={sha}&per_page=100")
-                runs = [run for page in fixtures for run in page["workflow_runs"]
-                        if run["head_sha"] == sha and run["head_branch"] == "main" and run["event"] == "push"]
-                if runs and gate_jobs_passed(runs[0]["id"], {"fixture"}):
+                # The wasm fixture left main pushes for the daily run (daily-green), so the gate alone counts here.
+                if gate_jobs_passed(entry["id"], FORK_GATE):
                     return sha
         return None
     if parity:
@@ -596,6 +637,10 @@ def main():
     parser.add_argument("command", choices=["decide", "notes", "gate"])
     parser.add_argument("--kind", choices=["game", "launcher"], required=True)
     parser.add_argument("--head", help="the commit to release (default: the newest commit on main whose checks passed)")
+    parser.add_argument("--daily", action="store_true",
+                        help="decide: the daily run's nightly, without the batch-size and age rules")
+    parser.add_argument("--channel", choices=["nightly", "snapshot"],
+                        help="decide: the fork's kind of build, which picks and checks the commit (see above)")
     parser.add_argument("--tag", help="notes: the release's tag")
     parser.add_argument("--force", action="store_true", help="release even without player-facing changes, before merges settle, while paused or before parity-main passed")
     parser.add_argument("--out", type=Path, help="notes: write title.txt and body.md here")
@@ -618,7 +663,7 @@ def main():
 
     # Game releases ship only a commit the vanilla harnesses passed on (parity-main, docs/release-flow.md).
     parity = args.kind == "game" and args.command == "decide" and not args.force
-    head = args.head or green_main_head(parity)
+    head = channel_head(args.channel, args.head) if args.channel else args.head or green_main_head(parity)
     if not head:
         result = {"release": False, "reason": "main's latest checks did not pass" + (
             " or parity-main did not pass on them" if parity else "")}
@@ -649,8 +694,8 @@ def main():
     new_line = f"{line[0]}.{line[1]}" if line and first_on_line(tags, prefix, line) and not nightly else None
     blockers = open_blockers() if args.kind == "game" else []
     release, reason = decision(args.kind, prs, now, os.environ.get("RELEASES_PAUSED") == "1", args.force, new_line,
-                               blockers)
-    if release and args.head and parity and not (passed_on("parity-main", head) and passed_on("checks", head)):
+                               blockers, daily=args.daily)
+    if release and args.head and parity and not args.channel and not (passed_on("parity-main", head) and passed_on("checks", head)):
         release, reason = False, f"waiting for checks and parity-main to pass on {head[:9]}"
     urgent = False
     if args.kind == "game":

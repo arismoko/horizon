@@ -550,7 +550,7 @@ fn backup_zip_preserves_nested_files_excludes_lock_and_keeps_duplicate_backups()
     )
     .unwrap();
     for _ in 0..2 {
-        assert!(world_management::backup(&f.title.saves, "World").unwrap() > 0);
+        assert!(world_management::backup(&f.title.saves, "World").unwrap().1 > 0);
     }
     let archives: Vec<_> = fs::read_dir(f.root.join("backups"))
         .unwrap()

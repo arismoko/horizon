@@ -398,6 +398,7 @@ mod tests {
         use std::sync::Arc;
         let mob = |id, species, name: &str| {
             let kind = MobType {
+                shadow: None,
                 id: name.into(),
                 species,
                 width: 0.6,
@@ -417,6 +418,7 @@ mod tests {
                 jump_strength: 0.42,
                 attributes: Arc::default(),
                 item_stack_limits: Arc::default(),
+                attribute_bounds: Default::default(),
                 gravity: 0.08,
                 safe_fall_distance: 3.0,
                 fall_damage_multiplier: 1.0,

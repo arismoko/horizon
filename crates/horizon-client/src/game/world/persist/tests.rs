@@ -753,7 +753,7 @@ fn an_older_save_loads_its_entities_attachments_back_onto_them() {
     }
     // The level is a server's, whose attachments a mod reaches.
     game.options.dedicated = Some(Vec::new());
-    game.world.loaded_entities.push(((0, 0), tags));
+    game.world.queue_entity_nbt((0, 0), tags);
     game.spawn_loaded_entities();
     let saved = game.entity_chunks(&HashSet::from([(0, 0)]), false);
     let saved: Vec<&Tag> = saved.iter().flat_map(|(_, tags)| tags).collect();
@@ -864,14 +864,14 @@ fn a_lingering_cloud_leaves_with_its_chunk() {
             .filter(|c| c.potion.is_some())
             .count()
     };
-    game.world.loaded_entities.push(((0, 0), vec![cloud]));
+    game.world.queue_entity_nbt((0, 0), vec![cloud]);
     game.spawn_loaded_entities();
     assert_eq!(clouds(&game), 1, "the cloud loads");
     let unloaded = game.entity_chunks(&HashSet::from([(0, 0)]), true);
     let written: Vec<Tag> = unloaded.into_iter().flat_map(|(_, tags)| tags).collect();
     assert_eq!(written.len(), 1, "the unload writes the cloud");
     assert_eq!(clouds(&game), 0, "and takes it out of the level");
-    game.world.loaded_entities.push(((0, 0), written));
+    game.world.queue_entity_nbt((0, 0), written);
     game.spawn_loaded_entities();
     assert_eq!(clouds(&game), 1, "loading the chunk again gives one cloud");
 }

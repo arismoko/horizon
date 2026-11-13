@@ -6,6 +6,48 @@ through `RenderAssets::model` after resources are published. World render hooks 
 copies in a group. GUI scenes, mobs and kept/spinning renderers use their
 CPU routes; groups are a world-drawing facility, not another renderer.
 
+## Bake-time standalone forms
+
+`standalone_models` contract version 2 keeps `event.models: &mut Vec<String>` for plain
+file ids and adds `event.forms: &mut Vec<StandaloneModelForm>`. Both native and wasm
+listeners receive `RegistrationContext`, not a runtime `Host`. Forms are attributed
+to the registering mod by dispatch:
+
+```rust,ignore
+event.forms.push(StandaloneModelForm::Rotated {
+    id: "mymod:shaft_east".into(),
+    model: "mymod:block/shaft".into(),
+    turns: [0, 1, 0],
+    uvlock: true,
+});
+event.forms.push(StandaloneModelForm::Combined {
+    id: "mymod:machine".into(),
+    parts: vec!["mymod:block/base".into(), "mymod:block/overlay".into()],
+});
+```
+
+`turns` are negative quarter-turn counts, modulo four, applied X then Y then Z
+about the block centre, exactly as blockstate baking. UV locking uses the inverse
+face transformation during baking; rotating a draw pose is not equivalent. For a
+Y quarter-turn a north wall becomes east but stays upright either way; a north-pointing
+arrow on the top turns east without UV locking and retains its world orientation with it.
+
+Combined parts bake unturned in declaration order, retaining each part's positions,
+materials and quad metadata in one `ModelRef`. Their particle is the first available
+part particle and model-level ambient occlusion is enabled only if every part enables it.
+Dependencies, including parents and loader references, load through the normal model
+library; they are not implicitly registered as standalone results. If any dependency
+cannot load or bake, no part of that form is published and the warning names the
+registering mod, even when the result or source has a different namespace.
+
+Result ids follow the same rule as plain ids: a nonempty namespace and path are
+required; they need not equal the registering mod id. Plain ids win duplicate result
+ids, then the first successfully baked form wins. Registration runs once, but all
+forms rebake from current resources on every successful load. Resolve result ids in
+`model_baking_completed`; reload invalidates old handles and failed reloads retain them.
+This API bakes quads only, not a mod-defined baked result type.
+
+
 ## Terrain materials in a block entity
 
 `draw.model(model, tint)` draws a resolved model as an entity model. A block entity, mob or
@@ -104,18 +146,47 @@ draw.fluid_box(&tank.stack, [0.125, 0.0625, 0.125, 0.875, level, 0.875], options
   `FluidBoxError::InvalidBox`. Missing fluid sprites return
   `FluidBoxError::MissingSprite`. A refusal draws nothing.
 
+## Before and after a living entity draws
+
+Each mob and player in view gets the render hook pair once a frame, NeoForge's
+`RenderLivingEvent` and `RenderPlayerEvent`:
+
+1. `render_player_pre(player, who, draw, hidden, canceled)`, for a player only (`who` is its
+   profile name and whether it is this window's own);
+2. `render_living_pre(entity, draw, hidden, canceled)`, before the entity's model;
+3. the model and its vanilla layers, or in their place the renderer a mod registered for its type
+   ([entity renderers](entity-renderers.md)), then the layers mods added to its type
+   ([entity layers](entity-layers.md));
+4. `render_living_post(entity, parts, draw)`;
+5. `render_player_post(player, who, parts, draw)`, for a player only.
+
+The order today: the model and the layers are drawn before the post hooks; the entity's name tag, leash, flames
+and shadow are drawn in the frame's later passes, after them. The reference draws the leash and the name tag
+before the post (and queues the flames and the shadow after it): tracked in #3915. A type with a registered
+renderer has the same order, the renderer in the model's place, so it changes with #3915 too.
+
+`draw` starts at the entity's feet, turned with its body (+z the way it faces, +x its left, +y up,
+in blocks), and keeps what each hook draws. Setting `canceled` in a pre hook skips everything else
+of that entity this frame: its model (or its type's registered renderer), its layers, its name tag,
+shadow, flames, leash and glowing outline, and the post hooks. A mod that draws one entity's model of
+its own draws it in `render_living_pre` and cancels; one that draws every entity of a type registers
+a renderer for the type instead; one that wants the name tag or the shadow then draws them itself, or doesn't cancel.
+Canceling only `render_living_pre` of a player still asks its `render_player_post`. An entity the
+frame culls gets neither hook. The game asks once a frame whether any mod listens to the four, and
+with none builds nothing for them.
+
 ## A player's or humanoid's parts
 
-`mob_layer` gets a humanoid's parts as vanilla posed them this frame (`parts`,
+`render_living_post` and `render_player_post` get a humanoid's parts as vanilla posed them this frame (`parts`,
 `HumanoidModel.setupAnim`), read-only, to attach geometry to an arm or the head without
 animating it again. Only `HumanoidMobRenderer`'s families have them (players, zombies and their
 kin, skeletons, piglins); every other mob gets `None`, a cow included, though its model has a
 head and a body. `PosedParts` is a fixed-size snapshot: `get(part)` or `iter()`. It is taken
-from the vanilla body's own draw, so a part `player_submit` hid (below) has `visible` false.
+from the vanilla body's own draw, so a part `render_player_pre` hid (below) has `visible` false.
 
-`player_submit` can hide single parts of the vanilla player model instead of replacing all of
+`render_player_pre` can hide single parts of the vanilla player model instead of replacing all of
 it: `hidden.hide(HumanoidPart::Head)`, as a mod drawing its own outer skin layer does.
-`mob_submit` hides parts of any mob's vanilla model the same way, by their names in the model:
+`render_living_pre` hides parts of any mob's vanilla model the same way, by their names in the model:
 `hidden.hide_named("nose")` leaves a villager's nose out, as a level of detail for a far crowd
 does. A frame holds at most `MAX_HIDDEN_PARTS` (8) names of at most `MAX_PART_NAME` (24) bytes;
 `hide_named` says `HideError::Full` or `HideError::BadName` past that. An unknown name refuses the draw at first use, reporting the mob type and part name.

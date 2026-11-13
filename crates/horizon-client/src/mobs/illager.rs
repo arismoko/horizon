@@ -254,12 +254,10 @@ impl Goal for UseSpell {
                             && (s.position.z - p.z).abs() <= 16.0
                             && {
                                 // `TargetingConditions.forNonCombat().range(16)`:
-                                // visibility scales the range, with a floor of 2.
-                                let range = if s.has_effect("invisibility") {
-                                    2.0
-                                } else {
-                                    16.0
-                                };
+                                // `getVisibilityPercent` scales the range, with a
+                                // floor of 2. The sheep's `isInvisible` is the
+                                // flag (or the effect, which sets it).
+                                let range = cx.w.reach_sqr(s.id, m, 16.0).sqrt();
                                 s.position.distance_squared(p) <= range * range
                             }
                     })
@@ -1197,6 +1195,52 @@ mod tests {
             outcomes,
             vec![true, false],
             "a visible sheep is chosen at five; an invisible one is not"
+        );
+    }
+    /// The same `TargetingConditions.forNonCombat().range(16)` against the
+    /// `invisible` entity flag rather than the effect: `getVisibilityPercent`
+    /// reads the flag, so a flagged sheep at fourteen blocks is out of range
+    /// (0.07 of 16, floored to 2) while a visible one is picked.
+    #[test]
+    fn a_flagged_invisible_blue_sheep_is_not_wololoed_from_fourteen_blocks() {
+        use crate::mobs::world::with_test_world;
+        let mut outcomes = Vec::new();
+        if !with_test_world(&[], |w, _| {
+            for invisible in [false, true] {
+                let mut world = w.clone();
+                world.mob_griefing = true;
+                let mut sheep_kind = (*kind()).clone();
+                sheep_kind.species = Species::Sheep;
+                let mut sheep = Mob::new(2, Arc::new(sheep_kind), Vec3::new(14.5, 64.0, 0.5), 0.0);
+                sheep.extra.color = 11;
+                sheep.invisible = invisible;
+                let seen = [sheep.seen(None, &crate::items::Items::empty())];
+                let world = crate::mobs::MobWorld {
+                    others: &seen,
+                    ..world
+                };
+                let mut m = evoker(0);
+                m.position = Vec3::new(0.5, 64.0, 0.5);
+                m.ai.goals.add(6, UseSpell::new(Spell::Wololo));
+                let mut test_level = crate::health::TestLevel::new(0);
+                let mut events = Vec::new();
+                let mut cx = Cx {
+                    w: &world,
+                    level: &mut test_level.level(),
+                    events: &mut events,
+                };
+                let mut goals = std::mem::take(&mut m.ai.goals);
+                goals.tick(&mut m, &mut cx);
+                outcomes.push(goals.is_running("UseSpell"));
+                m.ai.goals = goals;
+            }
+        }) {
+            return;
+        }
+        assert_eq!(
+            outcomes,
+            vec![true, false],
+            "a visible sheep is chosen at fourteen; a flagged invisible one is not"
         );
     }
 }

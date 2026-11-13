@@ -3,7 +3,9 @@ use crate::worldgen::{
     DecodeError, Object, RawValue,
     climate::{ParameterPoint, decode_parameter_point, unquantize},
     density::identifier,
-    int_range, optional, required,
+    int_range,
+    mod_biome_sources::{LevelBiomeSource, mod_biome_sources},
+    optional, required,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,10 +25,18 @@ impl BiomeSet {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BiomeSourceDefinition {
     Fixed(String),
-    Checkerboard { biomes: BiomeSet, scale: i32 },
+    Checkerboard {
+        biomes: BiomeSet,
+        scale: i32,
+    },
     End,
     MultiNoise(Vec<(ParameterPoint, String)>),
-    Preset { name: String, inline: bool },
+    Preset {
+        name: String,
+        inline: bool,
+    },
+    /// A biome source a mod registered, by its id (`modid:chaos`).
+    Registered(String),
 }
 #[derive(Clone, Debug)]
 pub struct BiomeSourceCatalog {
@@ -166,7 +176,15 @@ impl BiomeSourceCatalog {
                     BiomeSourceDefinition::Preset { name, inline: true }
                 }
             }
-            _ => return Err(DecodeError::Field("unknown biome source")),
+            _ => {
+                // A mod's source: its possible biomes must be the world's.
+                LevelBiomeSource::resolve(&kind, mod_biome_sources(), 0, |name| {
+                    self.biomes.contains(name).then_some(())
+                })
+                .ok_or_else(|| DecodeError::Registry(format!("unknown biome source {kind}")))?
+                .map_err(DecodeError::Registry)?;
+                BiomeSourceDefinition::Registered(kind)
+            }
         })
     }
     /// Encode definitions in the vanilla canonical shape; decoding the result
@@ -214,6 +232,11 @@ impl BiomeSourceCatalog {
                     quoted(name)
                 };
                 ("multi_noise", format!(",\"preset\":{value}"))
+            }
+            BiomeSourceDefinition::Registered(id) => {
+                let json = format!("{{\"type\":{}}}", quoted(id));
+                self.decode(&json)?;
+                return Ok(json);
             }
         };
         let json = format!("{{\"type\":\"minecraft:{kind}\"{fields}}}");

@@ -19,7 +19,8 @@ use horizon_core::random::RandomSource as _;
 #[derive(Default, Clone)]
 pub(super) struct OrderedTicks {
     /// Joins at or above this started after the tick began; they tick next tick.
-    born: JoinSeq,
+    /// The general rows' pass (`general/tick.rs`) shares the same cutoff.
+    pub(in crate::game) born: JoinSeq,
     /// The last join number ticked, if any: later ones are still to come.
     pub(super) done: Option<JoinSeq>,
     /// Joins below this have had their spawn packet; the ones above joined
@@ -50,10 +51,15 @@ pub(super) enum Batch {
     Items,
     Mobs,
     Projectiles,
+    /// The general rows tick last of the kinds (`general/tick.rs`): a slot
+    /// of its own keeps every earlier batch's `ordered_before` draining the
+    /// orbs, TNT and falling blocks that joined before the earliest general
+    /// row, so the mobile kinds keep their join order against them.
+    General,
 }
 
 impl Batch {
-    const COUNT: usize = 8;
+    const COUNT: usize = 9;
 }
 
 #[derive(Clone, Copy)]
@@ -84,6 +90,7 @@ impl Game<'_> {
             first_join(&self.dropped),
             first_join(&self.mobs),
             first_join(&self.creatures.projectiles),
+            first_join(&self.resident_entities.general.rows),
         ];
         // A batch ticks whole, so an entity of the three kinds goes after the
         // last batch that holds anything that joined before it.

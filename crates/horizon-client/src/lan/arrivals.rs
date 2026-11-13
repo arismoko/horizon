@@ -2322,13 +2322,35 @@ mod hub_tests {
     }
 
     /// What the game does with a request (`game/interface/dedicated/transfer.rs`), without the disk: the
-    /// import, then the placing unless `"place": false`.
+    /// import, then the placing unless `"place": false`. The catalog has vanilla's bounds of the
+    /// attributes the record's values are checked against.
     fn import_player(
         hub: &mut Hub,
         uuid: u128,
         request: &serde_json::Value,
     ) -> Result<crate::lan::import::Imported, String> {
-        let done = crate::lan::import::import_player(hub, uuid, request)?;
+        import_player_with(hub, 1024.0, uuid, request)
+    }
+
+    /// [`import_player`] with `max_health` bounded at `max_health`, as a mod
+    /// that widened it leaves the catalog (#3728).
+    fn import_player_with(
+        hub: &mut Hub,
+        max_health: f64,
+        uuid: u128,
+        request: &serde_json::Value,
+    ) -> Result<crate::lan::import::Imported, String> {
+        let bits = |v: f64| format!("{:016x}", v.to_bits());
+        let attributes = horizon_world::attributes::entity::Catalog::from_json(&serde_json::json!({
+            "data_version": horizon_world::DATA_VERSION,
+            "attributes": [
+                {"id": "minecraft:max_health", "default": bits(20.0), "min": bits(1.0), "max": bits(max_health), "syncable": true},
+                {"id": "minecraft:max_absorption", "default": bits(0.0), "min": bits(0.0), "max": bits(2048.0), "syncable": true},
+            ],
+            "entities": {},
+        }))
+        .unwrap();
+        let done = crate::lan::import::import_player(hub, &attributes, uuid, request)?;
         if done.place {
             hub.confirm_arrival(uuid, done.handover)?;
         }
@@ -3026,6 +3048,22 @@ mod hub_tests {
             assert!(hub.guests[1].held && !hub.guests[1].imported, "{what}");
             assert_eq!(ids(&seen), Vec::<i32>::new(), "{what}");
         }
+    }
+
+    /// #3728: a player whose health is past vanilla's 1024, as a mod that
+    /// widened `max_health` lets one be, is imported where that mod widened it
+    /// too, and refused where it did not.
+    #[test]
+    fn a_record_past_vanillas_health_imports_where_the_bounds_are_widened() {
+        let (mut source, i) = exported_guest();
+        source.guests.update(i, |g| g.health = 5000.0);
+        let record = super::export_record(&mut source, i, true, Default::default()).unwrap();
+        let request = serde_json::json!({ "record": record });
+        let (_, mut hub, _seen, _mine) = held_in_a_second_hub();
+        assert!(import_player(&mut hub, UUID_N, &request).is_err());
+        let (_, mut hub, _seen, _mine) = held_in_a_second_hub();
+        import_player_with(&mut hub, 1e6, UUID_N, &request).unwrap();
+        assert_eq!(hub.guests[1].health, 5000.0);
     }
 
     /// The record must be a hand-over's, and the held player takes one hand-over's record.

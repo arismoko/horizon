@@ -51,7 +51,7 @@ impl LevelAccess for Cells {
         self.time
     }
     fn block_entity_analog_signal(
-        &self,
+        &mut self,
         pos: BlockPos,
         _state: BlockStateId,
         _direction: Direction,

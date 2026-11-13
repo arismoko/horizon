@@ -438,14 +438,7 @@ impl Game<'_> {
             Slot::Cart(id, i) => self
                 .edit_cart_slots(*id, |slots| slots.get(*i).cloned().flatten())
                 .flatten(),
-            Slot::Block(p, i) => self
-                .world
-                .block_entities
-                .get(&(p[0], p[1], p[2]))?
-                .slots()
-                .get(*i)
-                .cloned()
-                .flatten(),
+            Slot::Block(p, i) => self.loot_inventory_item((p[0], p[1], p[2]), *i),
         }
     }
     pub(in crate::game) fn slot_accepts(&self, s: &Slot, stack: Option<&ItemStack>) -> bool {
@@ -477,6 +470,7 @@ impl Game<'_> {
         let Some(size) = self.block_container_size(p).filter(|&size| i < size) else {
             return false;
         };
+        self.unpack_loot(crate::game::container_loot::LootTarget::Block(key), None);
         let book = stack.as_ref().is_none_or(|s| {
             self.items()
                 .item_tags
@@ -596,22 +590,20 @@ impl Game<'_> {
             Slot::Guest(conn, slot) => self
                 .for_player(Target::Guest(*conn), |g| g.slot_set(slot, stack))
                 .unwrap_or(false),
-            Slot::Inv(i) => match self.inventory.get_mut(*i) {
-                Some(slot) => {
-                    *slot = stack;
-                    true
-                }
-                None => false,
-            },
+            Slot::Inv(i) if *i < self.inventory.len() => {
+                self.stop_use_replaced(*i, stack.as_ref());
+                self.inventory[*i] = stack;
+                true
+            }
+            Slot::Inv(_) => false,
             // LivingEntity's equipment SlotAccess: setItemSlot, so onEquipItem.
-            Slot::MainHand => match self.inventory.get_mut(self.selected) {
-                Some(slot) => {
-                    let old = std::mem::replace(slot, stack.clone());
-                    self.player_on_equip("mainhand", old.as_ref(), stack.as_ref());
-                    true
-                }
-                None => false,
-            },
+            Slot::MainHand if self.selected < self.inventory.len() => {
+                self.stop_use_replaced(self.selected, stack.as_ref());
+                let old = std::mem::replace(&mut self.inventory[self.selected], stack.clone());
+                self.player_on_equip("mainhand", old.as_ref(), stack.as_ref());
+                true
+            }
+            Slot::MainHand => false,
             Slot::Armor(i) => match self.armor.get_mut(*i) {
                 Some(slot) => {
                     let old = std::mem::replace(slot, stack.clone());
@@ -623,6 +615,7 @@ impl Game<'_> {
                 None => false,
             },
             Slot::Offhand => {
+                self.stop_use_replaced(crate::game::shield::OFFHAND_SLOT, stack.as_ref());
                 let old = std::mem::replace(&mut self.offhand, stack.clone());
                 self.player_on_equip("offhand", old.as_ref(), stack.as_ref());
                 true

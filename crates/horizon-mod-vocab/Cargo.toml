@@ -33,6 +33,8 @@ horizon-items = { path = "../horizon-items", features = ["test-support"] }
 testing = []
 # The mod side of the wasm boundary on a native build, for the boundary's tests.
 wasm-guest = []
+# Test-only generated mixed-output contract, not a shipped gameplay hook.
+mixed-output-fixture = ["horizon-mod-api-gen/mixed-output-fixture"]
 
 [lints]
 workspace = true

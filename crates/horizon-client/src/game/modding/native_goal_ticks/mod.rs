@@ -580,8 +580,7 @@ impl mobs::part_goals::GoalHost for Game<'_> {
     }
 
     fn mob_invulnerable_to_damage(&self, mob: &Mob, damage_type: &str) -> bool {
-        let source = mobs::Damage::of(Self::damage_kind(&self.motion.health.damage, damage_type));
-        mob.refuses_damage(&source)
+        self.mob_query_invulnerable(mob, damage_type)
     }
 
     fn mob_can_use_portal(&self, mob: &Mob) -> bool {

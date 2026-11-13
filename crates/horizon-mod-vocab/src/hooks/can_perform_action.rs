@@ -2,18 +2,19 @@
 
 pub trait Hooks {
     /// NeoForge's `IItemExtension.canPerformAction`: can `stack` perform the item
-    /// ability `ability`, a namespaced id such as `minecraft:shield_block`,
-    /// `minecraft:shears_harvest` or `minecraft:shears_carve` (a mod's own
-    /// abilities are its own, `my_mod:chop`)? `can_perform` arrives with
+    /// ability `ability`, a plain, case-sensitive name such as `shield_block`,
+    /// `shears_harvest` or `shears_carve` (a mod's own
+    /// abilities also use plain names, such as `my_mod_chop`)? `can_perform` arrives with
     /// vanilla's answer for that ability: the item kind's (shears shear) or the
     /// stack's component (`blocks_attacks`, a shield's, blocks); set it either
-    /// way and the stack grants or loses the ability. Asked where vanilla checks
+    /// way and the stack grants or loses the ability. Loot conditions use the shared
+    /// item defaults; action sites retain their own vanilla answers until #3330. Asked where vanilla checks
     /// the item for an action: a raised item blocking attacks
-    /// (`minecraft:shield_block`: a granted stack blocks as a bare
+    /// (`shield_block`: a granted stack blocks as a bare
     /// `blocks_attacks` component does, a denied one never blocks nor is raised);
     /// shearing a sheep, mooshroom, snow golem or bogged, a dispenser's shears
-    /// and a bee nest's honeycombs (`minecraft:shears_harvest`); carving a pumpkin
-    /// (`minecraft:shears_carve`). It decides whether the stack may do the action,
+    /// and a bee nest's honeycombs (`shears_harvest`); carving a pumpkin
+    /// (`shears_carve`). It decides whether the stack may do the action,
     /// not what the action does to the world or the tool (`block_tool_modification`
     /// is the block's side of a tool action; item wear is its own). Only the
     /// `ItemPart`s attached to `stack`'s item are asked, on both sides, so the

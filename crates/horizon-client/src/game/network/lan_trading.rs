@@ -310,6 +310,7 @@ impl Game<'_> {
             limited_crafting: host.hub.limited_crafting,
             can_equip: None,
             known_recipes: Some(&g.recipe_book),
+            slot_rules: Some(self),
         };
         let mut menu = Menu::new(Kind::Merchant);
         menu.set_registry_id(Some("minecraft:merchant"));

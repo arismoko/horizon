@@ -34,6 +34,7 @@ members = [
     "crates/horizon-command",
     "crates/horizon-items",
     "crates/horizon-server-files",
+    "crates/horizon-java-properties",
     "crates/horizon-anticheat",
     "crates/horizon-chat-filter",
     # The Model Context Protocol, shared by horizon-ctl, horizon-server and the launcher.
@@ -60,8 +61,10 @@ members = [
     "crates/horizon-hot-paths-game",
     "crates/horizon-mod-api-macros",
     "crates/horizon-mod-point-shape",
+    "crates/horizon-mod-surface",
     "crates/horizon-mod-point-emit",
     "crates/horizon-mod-api-gen/dispatch-tests",
+    "crates/horizon-mod-wasm/wire-loopback",
     "crates/cargo-horizon-mod",
     "crates/horizon-port-pack",
     "crates/horizon-shaders",

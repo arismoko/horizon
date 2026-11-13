@@ -302,7 +302,12 @@ pub mod tests {
         assert!(!ticks("doubler:press_entity"));
         let tick = |kind: &str| {
             let mut entity = ModBlockEntity::new(kind.into(), Default::default());
-            dispatch_block_entity_tick(&mut NoHost, [0, 64, 0], &mut entity);
+            dispatch_block_entity_tick(
+                &mut NoHost,
+                &mut BlockEntityTickReply::Changed,
+                [0, 64, 0],
+                &mut entity,
+            );
             entity.data.len()
         };
         // The tick is asked by the entity's type, which differs from its block's id.

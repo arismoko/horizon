@@ -52,6 +52,12 @@ use the scoped `ConfigFiles` service to read or save its own config files. World
 transactions and other game operations panic with `Config` in the diagnostic.
 Config file polling is not a phase transition, and Server config unloading leaves the World phase.
 
+Attribute bounds are registration data too. `Registrar::widen_attribute_bounds` asks, from a both-side package's
+`register`, join the attribute catalog once when it grows: after the attributes mods declare with
+`declare_attribute`, and before entity attribute rows resolve and anything reads a definition. The bounds become
+the union of every mod's asks, so the result does not depend on the dispatch order, and the default never moves
+([content mods](../how-to/content-mods.md) has the call, its refusals and what saves keep).
+
 ## Reloading
 
 Every data or asset reload enters `Reloading`, including listener registration, prepare, apply and
@@ -78,6 +84,9 @@ There is no separate common-setup, load-complete or intermod event: registration
 reload cover common setup, client setup is `client_setup`, dedicated setup is `server_about_to_start`,
 and dependencies express intermod ordering. Load complete is the edge after initial Config and before
 `server_about_to_start`, not a hook.
+
+FML's file and path APIs (`ModList` file reads, config full paths, the game directory, update URLs) are
+replaced on purpose; [FML loader APIs and their Horizon routes](../reference/fml-loader-apis.md) lists each one.
 
 ## Settings snapshot limits
 

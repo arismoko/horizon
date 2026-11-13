@@ -1,6 +1,7 @@
 # Observing refused damage attempts
 
-`entity_invulnerability_check` observes an attempted server hit without changing its amount.
+`entity_invulnerability_check` observes an attempted hit without changing its amount. It fires on
+both sides (NeoForge's `EntityInvulnerabilityCheckEvent`): its level host says which one.
 It supplies the entity, damage source, original invulnerability decision and a writable decision.
 A listener that only plays a sound leaves the decision unchanged. There is no amount: vanilla's
 `isInvulnerableTo` takes the level and damage source, not damage. Amount mutation belongs on
@@ -42,9 +43,11 @@ A damage-generating precondition is not itself an invulnerability query. In part
   performing its special push and returning without entering the living invulnerability predicate.
   That path produces no observation, matching the absence of a vanilla predicate call. Ordinary
   sulfur cube damage that enters the living pipeline is observed.
-- Client-side prediction, missing targets and unknown resident damage-source identifiers do not
-  create authoritative server hit attempts.
+- Missing targets and unknown resident damage-source identifiers do not create hit attempts.
+- A client predicting the mount it rides asks the hook on the client side wherever that tick
+  evaluates the predicate; the server still asks for its own tick.
 
 Selected armor stand, item, vehicle and experience orb damage paths also fire
-this hook. A separate explicit invulnerability query is a query, not an
-additional hit attempt.
+this hook, as do end crystal, item frame and painting damage paths. An explicit
+invulnerability query (`EntityRef::invulnerable_to_damage`, a mod goal's
+`invulnerable_to_damage`) asks the hook too, once per query, with a read-only level.

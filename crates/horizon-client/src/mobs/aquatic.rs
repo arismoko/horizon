@@ -17,6 +17,7 @@ use crate::join_seq::JoinList;
 use crate::particles::ParticleType;
 use horizon_core::geometry::trig::Mth;
 use horizon_core::{geometry::Vec3, random::RandomSource};
+use horizon_world::move_gate::MoveGate;
 use std::f32::consts::PI;
 
 // Squid animation slots in AnimState.v.
@@ -218,19 +219,19 @@ pub fn tick(m: &mut Mob, events: &mut Vec<MobEvent>) {
     let puff = m.extra.size;
     if m.extra.counter > 0 {
         if puff == 0 {
-            m.sound("entity.puffer_fish.blow_up", events);
+            m.voice("entity.puffer_fish.blow_up", events);
             m.extra.size = 1;
         } else if m.extra.counter > 40 && puff == 1 {
-            m.sound("entity.puffer_fish.blow_up", events);
+            m.voice("entity.puffer_fish.blow_up", events);
             m.extra.size = 2;
         }
         m.extra.counter += 1;
     } else if puff != 0 {
         if m.extra.counter2 > 60 && puff == 2 {
-            m.sound("entity.puffer_fish.blow_out", events);
+            m.voice("entity.puffer_fish.blow_out", events);
             m.extra.size = 1;
         } else if m.extra.counter2 > 100 && puff == 1 {
-            m.sound("entity.puffer_fish.blow_out", events);
+            m.voice("entity.puffer_fish.blow_out", events);
             m.extra.size = 0;
         }
         m.extra.counter2 += 1;
@@ -328,7 +329,7 @@ pub fn ai_step(m: &mut Mob, w: &MobWorld, level: &mut DamageLevel<'_>, events: &
                     m.velocity.z + f64::from((b * 2.0 - 1.0) * 0.05),
                 );
                 m.on_ground = false;
-                m.sound("entity.tadpole.flop", events);
+                m.voice("entity.tadpole.flop", events);
             }
             // Tadpole.aiStep: the age lock's particles, after the age.
             super::ai::make_age_locked_particle(m, events);
@@ -349,21 +350,7 @@ pub fn ai_step(m: &mut Mob, w: &MobWorld, level: &mut DamageLevel<'_>, events: &
                     S::TropicalFish => "entity.tropical_fish.flop",
                     _ => "entity.puffer_fish.flop",
                 };
-                m.sound(flop, events);
-            }
-            if m.species() == S::Pufferfish && m.alive() && m.extra.size > 0 {
-                // Preserve the existing AI-side audio path. Player damage
-                // and poison are dispatched by the player tick, not fish AI.
-                if let Some(p) = w.selected_player()
-                    && p.alive
-                    && !p.creative
-                    && m.bounds()
-                        .inflate(Vec3::new(0.3, 0.3, 0.3))
-                        .intersects(p.bounds)
-                    && m.ai.no_action_time % 10 == 0
-                {
-                    m.sound("entity.puffer_fish.sting", events);
-                }
+                m.voice(flop, events);
             }
             if m.species() == S::Pufferfish {
                 sting_touching_mobs(m, w, events);
@@ -625,13 +612,13 @@ pub fn travel(
     match m.species() {
         // Squid.travel: move by the current velocity only.
         S::Squid | S::GlowSquid => {
-            m.do_move(w, level, events);
+            m.do_move(w, level, events, &mut MoveGate::new());
             true
         }
         // Axolotl.travelInWater: no fish sinking or generic water gravity.
         S::Axolotl if m.fluids.in_water => {
             m.move_relative(m.ai.speed, input);
-            m.do_move(w, level, events);
+            m.do_move(w, level, events, &mut MoveGate::new());
             m.velocity = Vec3::new(m.velocity.x * 0.9, m.velocity.y * 0.9, m.velocity.z * 0.9);
             true
         }
@@ -645,7 +632,7 @@ pub fn travel(
                 0.01
             };
             m.move_relative(speed, input);
-            m.do_move(w, level, events);
+            m.do_move(w, level, events, &mut MoveGate::new());
             m.velocity = Vec3::new(m.velocity.x * 0.9, m.velocity.y * 0.9, m.velocity.z * 0.9);
             if m.ai.target.is_none() {
                 // `Vec3.add(0.0, -0.005, 0.0)`: adding 0.0 turns a -0.0 into 0.0.
@@ -1781,3 +1768,5 @@ mod squid_tests {
 
 #[cfg(test)]
 mod countdown_tests;
+#[cfg(test)]
+mod pufferfish_sound_tests;

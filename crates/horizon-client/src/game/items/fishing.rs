@@ -1227,10 +1227,27 @@ impl Game<'_> {
             binding: self.collision,
             subject: None,
         };
-        if let Ok(moved) = scene.resolve(bounds(h.position), h.velocity, 0.0, h.on_ground) {
+        // The bobber's Entity.move goes through the move gate (#2414); PR 1a
+        // records the movement unchanged.
+        let mut gate = horizon_client::move_gate::armed(
+            &self.loop_context,
+            h.id,
+            "minecraft:fishing_bobber",
+            horizon_world::entity_move::MoverType::SelfMovement,
+            h.velocity,
+        );
+        let wanted = gate.delta();
+        if let Ok(moved) = horizon_client::move_gate::scene_resolve(
+            &mut gate,
+            &mut scene,
+            bounds(h.position),
+            wanted,
+            0.0,
+            h.on_ground,
+        ) {
             let horizontal =
-                (moved.x - h.velocity.x).abs() > 1.0e-7 || (moved.z - h.velocity.z).abs() > 1.0e-7;
-            h.on_ground = h.velocity.y < 0.0 && moved.y > h.velocity.y;
+                (moved.x - wanted.x).abs() > 1.0e-7 || (moved.z - wanted.z).abs() > 1.0e-7;
+            h.on_ground = wanted.y < 0.0 && moved.y > wanted.y;
             h.position = Vec3::new(
                 h.position.x + moved.x,
                 h.position.y + moved.y,
@@ -2039,10 +2056,27 @@ impl Game<'_> {
             binding: self.collision,
             subject: None,
         };
-        if let Ok(moved) = scene.resolve(bounds(position), velocity, 0.0, on_ground) {
+        // The bobber's Entity.move goes through the move gate (#2414); PR 1a
+        // records the movement unchanged.
+        let mut gate = horizon_client::move_gate::armed(
+            &self.loop_context,
+            id,
+            "minecraft:fishing_bobber",
+            horizon_world::entity_move::MoverType::SelfMovement,
+            velocity,
+        );
+        let wanted = gate.delta();
+        if let Ok(moved) = horizon_client::move_gate::scene_resolve(
+            &mut gate,
+            &mut scene,
+            bounds(position),
+            wanted,
+            0.0,
+            on_ground,
+        ) {
             let horizontal =
-                (moved.x - velocity.x).abs() > 1.0e-7 || (moved.z - velocity.z).abs() > 1.0e-7;
-            on_ground = velocity.y < 0.0 && moved.y > velocity.y;
+                (moved.x - wanted.x).abs() > 1.0e-7 || (moved.z - wanted.z).abs() > 1.0e-7;
+            on_ground = wanted.y < 0.0 && moved.y > wanted.y;
             position = Vec3::new(
                 position.x + moved.x,
                 position.y + moved.y,

@@ -54,6 +54,8 @@ pub struct ModInfo {
     pub issues: Option<String>,
     /// The PNG bytes of `icon.png`.
     pub icon: Option<std::sync::Arc<[u8]>>,
+    /// Loading warnings the mod gave as it registered: translation key and arguments.
+    pub warnings: Vec<(String, Vec<String>)>,
 }
 impl ModInfo {
     pub fn of(manifest: &crate::Manifest, icon: Option<&crate::icon::Icon>) -> Self {
@@ -67,6 +69,7 @@ impl ModInfo {
             homepage: manifest.homepage.clone(),
             issues: manifest.issues.clone(),
             icon: icon.map(|icon| icon.bytes().into()),
+            warnings: Vec::new(),
         }
     }
 }

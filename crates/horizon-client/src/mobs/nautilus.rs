@@ -14,6 +14,7 @@ use super::{
 use crate::blocks::Fluid;
 use crate::health::DamageLevel;
 use horizon_core::{geometry::Vec3, random::RandomSource};
+use horizon_world::move_gate::MoveGate;
 use std::collections::HashMap;
 
 // Nautilus state: `tame`/`owner`, the saddle, `head` the body armour,
@@ -180,7 +181,7 @@ pub fn travel(
     }
     let speed = m.ai.speed;
     m.move_relative(speed, input);
-    m.do_move(w, level, events);
+    m.do_move(w, level, events, &mut MoveGate::new());
     m.velocity = Vec3::new(m.velocity.x * 0.9, m.velocity.y * 0.9, m.velocity.z * 0.9);
     true
 }

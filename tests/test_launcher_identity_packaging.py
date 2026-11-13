@@ -74,10 +74,12 @@ class PackagingIdentity(unittest.TestCase):
             if repository == STAGE.UPSTREAM:
                 self.assertEqual(entries, expected)
             else:
-                self.assertEqual([entry['name'] for entry in entries], ['linux', 'windows'])
+                self.assertEqual([entry['name'] for entry in entries], ['linux', 'macos', 'windows'])
                 self.assertEqual([entry['asset'] for entry in entries],
-                                 ['horizon-fork-launcher-linux-x86_64.tar.gz', 'horizon-fork-launcher-windows-x64.zip'])
-                self.assertEqual(entries[1]['setup_asset'], 'horizon-fork-launcher-setup.exe')
+                                 ['horizon-fork-launcher-linux-x86_64.tar.gz', 'horizon-fork-launcher-macos-arm64.zip', 'horizon-fork-launcher-windows-x64.zip'])
+                self.assertEqual(entries[1], json.loads(
+                    (ROOT / 'tests/fixtures/launcher-fork-macos.json').read_text()))
+                self.assertEqual(entries[2]['setup_asset'], 'horizon-fork-launcher-setup.exe')
 
     def test_upstream_metadata_is_byte_identical_to_base_objects(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -99,6 +101,13 @@ class PackagingIdentity(unittest.TestCase):
             self.assertIn('<string>io.github.arismoko.horizonfork.launcher</string>', plist)
             self.assertIn('<string>horizon-fork-launcher</string>', plist)
             self.assertNotIn('<string>Horizon</string>', plist)
+            self.assertEqual((destination / 'icons/horizon.icns').read_bytes(),
+                             (source / 'icons/fork/launcher.icns').read_bytes())
+            script = (destination / 'macos/package.sh').read_text()
+            self.assertIn('identity=-', script)
+            self.assertIn('zip=horizon-fork-launcher-macos-$arch.zip', script)
+            self.assertIn('dmg=$out/horizon-fork-launcher-macos-$arch.dmg', script)
+            self.assertIn('\"Horizon Fork Launcher (arismoko)\" \"$dmg\"', script)
             desktop = (destination / 'linux/io.github.arismoko.horizonfork.launcher.desktop').read_text()
             self.assertIn('Name=Horizon Fork Launcher (arismoko)\n', desktop)
             self.assertIn('Exec=horizon-fork-launcher\n', desktop)

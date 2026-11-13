@@ -83,7 +83,10 @@ impl Reader {
 type Outcome = std::result::Result<PendingScreenshot, String>;
 
 #[derive(Default)]
-pub(super) struct Readbacks(Vec<Receiver<Outcome>>);
+pub(super) struct Readbacks(
+    Vec<Receiver<Outcome>>,
+    #[cfg(test)] Vec<std::thread::JoinHandle<()>>,
+);
 impl Readbacks {
     pub fn start(
         &mut self,
@@ -93,7 +96,7 @@ impl Readbacks {
         hdr: Option<wgpu::Buffer>,
     ) -> Result<()> {
         let (sender, receiver) = mpsc::channel();
-        std::thread::Builder::new()
+        let worker = std::thread::Builder::new()
             .name("Screenshot readback".into())
             .spawn(move || {
                 let result = reader
@@ -101,6 +104,10 @@ impl Readbacks {
                     .map_err(|e| e.to_string());
                 let _ = sender.send(result);
             })?;
+        #[cfg(test)]
+        self.1.push(worker);
+        #[cfg(not(test))]
+        drop(worker);
         self.0.push(receiver);
         Ok(())
     }
@@ -117,12 +124,31 @@ impl Readbacks {
 }
 
 #[cfg(test)]
+impl Drop for Readbacks {
+    fn drop(&mut self) {
+        self.0.clear();
+        let mut panic = None;
+        for worker in self.1.drain(..) {
+            if let Err(error) = worker.join() {
+                panic.get_or_insert(error);
+            }
+        }
+        if !std::thread::panicking()
+            && let Some(error) = panic
+        {
+            std::panic::resume_unwind(error);
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::time::Duration;
 
     #[test]
     fn a_background_save_writes_the_png_off_the_render_thread() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let instance = crate::gfx::test_gpu::instance();
         let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
             return;

@@ -2,7 +2,7 @@
 use super::Game;
 use horizon_client::{
     block_entities::Pos,
-    chunk::RolledLoot,
+    chunk::PendingContainerLoot,
     world::{BlockEntityExtras, World},
 };
 use horizon_core::nbt::{Compound, Tag};
@@ -55,15 +55,10 @@ pub(super) fn take_position_data(world: &mut World, from: Pos) -> Compound {
     if let Some(source) = extras.source {
         data.insert("Source".into(), source);
     }
-    if let Some(roll) = extras.rolled_loot {
-        let mut tag = Compound::from([
-            ("Table".into(), Tag::String(roll.table.as_str().into())),
-            ("Items".into(), roll.items),
-        ]);
-        if let Some(seed) = roll.seed {
-            tag.insert("Seed".into(), Tag::Long(seed));
-        }
-        data.insert("Roll".into(), Tag::Compound(tag));
+    if let Some(pending) = extras.pending_loot {
+        let mut tag = Compound::new();
+        pending.write_tags(&mut tag);
+        data.insert("PendingLoot".into(), Tag::Compound(tag));
     }
     world.set_block_entity_extras(from, BlockEntityExtras::default());
     data
@@ -72,21 +67,9 @@ pub(super) fn land_position_data(world: &mut World, at: Pos, data: &Compound) {
     if let Some(name) = data.get(&"Name".into()) {
         world.block_names.insert(at, name.clone());
     }
-    let rolled_loot = match data.get(&"Roll".into()) {
-        Some(Tag::Compound(roll)) => match (roll.get(&"Table".into()), roll.get(&"Items".into())) {
-            (Some(Tag::String(table)), Some(items)) => Some(RolledLoot {
-                pos: at,
-                table: table.to_string_lossy(),
-                seed: match roll.get(&"Seed".into()) {
-                    Some(Tag::Long(n)) => Some(*n),
-                    _ => None,
-                },
-                items: items.clone(),
-            }),
-            _ => None,
-        },
-        _ => None,
-    };
+    let pending_loot = data
+        .get(&"PendingLoot".into())
+        .and_then(PendingContainerLoot::from_tag);
     let mut source = data.get(&"Source".into()).cloned();
     if let Some(Tag::Compound(fields)) = &mut source {
         for (name, n) in [("x", at.0), ("y", at.1), ("z", at.2)] {
@@ -97,7 +80,7 @@ pub(super) fn land_position_data(world: &mut World, at: Pos, data: &Compound) {
         at,
         BlockEntityExtras {
             source,
-            rolled_loot,
+            pending_loot,
         },
     );
 }
@@ -162,11 +145,12 @@ impl Game<'_> {
                                             a == from || b == from
                                         }
                                         _ => m.pos == Some(from),
-                                    }) || h.play.get(&g.conn).is_some_and(|p| {
-                                        p.station
+                                    }) || h.menus.get(&g.conn).is_some_and(|m| {
+                                        m.station
                                             .as_ref()
                                             .is_some_and(|s| s.pos == [from.0, from.1, from.2])
-                                            || p.lectern.as_ref().is_some_and(|l| l.key == from)
+                                    }) || h.play.get(&g.conn).is_some_and(|p| {
+                                        p.lectern.as_ref().is_some_and(|l| l.key == from)
                                     })
                                 })
                                 .map(|g| g.conn)

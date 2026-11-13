@@ -738,6 +738,9 @@ pub(super) fn writeback_fields(
         }
     }
     own.extend(refs);
+    if types.defs[def].rust.ends_with("BlockEntityTickEvent") {
+        own.sort_by_key(|leaf| !leaf.path.ends_with(".reply"));
+    }
     Some(own)
 }
 
@@ -746,6 +749,15 @@ fn borrowed(
     def: usize,
     name: &str,
     mutable: bool,
+) -> Option<(String, String, String)> {
+    borrowed_prepared(types, def, name, mutable, None)
+}
+fn borrowed_prepared(
+    types: &Types<'_>,
+    def: usize,
+    name: &str,
+    mutable: bool,
+    prepared: Option<(&str, &str)>,
 ) -> Option<(String, String, String)> {
     let d = &types.defs[def];
     if let Some(cases) = frame_cases(types, def) {
@@ -784,6 +796,27 @@ fn borrowed(
     let (mut read, mut build, mut back) = (String::new(), Vec::new(), String::new());
     for (i, f) in fields.iter().enumerate() {
         let local = format!("{name}_{i}");
+        if let Some((hook, field)) = prepared
+            && f.rust == field
+        {
+            writeln!(read, "let {local}_slot:u32=input.take()?; let {local}_generation:u32=input.take()?; let {local}=PREPARED_{}.with(|slots| slots.borrow().borrow({local}_slot,{local}_generation))?;", hook.to_uppercase()).unwrap();
+            build.push(format!("{}: &{local}.0", f.rust));
+            continue;
+        }
+        if prepared.is_some() && f.rust == "slot" {
+            let slots = super::prepared::SLOTS;
+            writeln!(read,"let {local}_id:u32=input.take()?; let {local}= {slots:?}.get({local}_id as usize).copied().ok_or(crate::wire::WireError::Invalid(\"unknown equipment slot\"))?;").unwrap();
+            build.push(format!("{}: {local}", f.rust));
+            continue;
+        }
+        if let Some((_, field)) = prepared
+            && f.rust == "kind"
+        {
+            let at = fields.iter().position(|f| f.rust == field)?;
+            writeln!(read,"let {local}_id:u32=input.take()?; let {local}={name}_{at}.1.get({local}_id as usize).ok_or(crate::wire::WireError::Invalid(\"unknown prepared entity kind\"))?;").unwrap();
+            build.push(format!("{}: {local}.as_str()", f.rust));
+            continue;
+        }
         // A frame object the event carries is the guest's own, never sent.
         if let Ty::Dyn(_, m) = &f.ty {
             writeln!(read, "let mut {local} = Guest;").unwrap();
@@ -845,7 +878,11 @@ fn borrowed(
         } else if leaf.optional {
             write!(back, "out.put_opt({}.as_deref());", leaf.path).unwrap();
         } else if leaf.view {
-            write!(back, "{}.__wire_put_snapshot(out);", leaf.path).unwrap();
+            if d.rust.ends_with("BlockEntityTickEvent") {
+                write!(back, "if *{name}.reply == crate::BlockEntityTickReply::Changed {{ {}.__wire_put_snapshot(out); }}", leaf.path).unwrap();
+            } else {
+                write!(back, "{}.__wire_put_snapshot(out);", leaf.path).unwrap();
+            }
         } else {
             write!(
                 back,
@@ -931,12 +968,17 @@ pub(super) fn dispatchable(types: &Types<'_>, m: &Method) -> bool {
 /// arguments from the buffer, calling the mod, and writing the answer then each `&mut`
 /// argument back whole (the host takes from it the fields a mod may change). The arms'
 /// ids are the exports' positions; the exports that need more than that are returned by name.
-pub(super) fn dispatch(types: &Types<'_>, methods: &[Method]) -> (String, Vec<String>) {
+pub(super) fn dispatch(
+    types: &Types<'_>,
+    methods: &[Method],
+    prepared: &[(String, String)],
+) -> (String, Vec<String>) {
     let all: Vec<&Method> = methods
         .iter()
         .filter(|m| exports().contains(&m.owner))
         .collect();
     let mut arms = String::new();
+    let mut preparation = String::new();
     let mut apart = Vec::new();
     for (id, m) in all.iter().enumerate() {
         if !dispatchable(types, m) {
@@ -950,6 +992,20 @@ pub(super) fn dispatch(types: &Types<'_>, methods: &[Method]) -> (String, Vec<St
                 trait_path(m.owner)
             ),
         };
+        let prepared_parameter = prepared
+            .iter()
+            .find(|(hook, _)| hook == &m.name)
+            .map(|(hook, field)| (hook.as_str(), field.as_str()));
+        if let Some((hook, _)) = prepared_parameter {
+            let upper = hook.to_uppercase();
+            let prepare = super::prepared::PREPARE;
+            let release = super::prepared::RELEASE;
+            writeln!(preparation, "thread_local! {{ static PREPARED_{upper}: std::cell::RefCell<crate::wire::guest::PreparedSlots<(crate::ItemStack,Vec<String>)>> = std::cell::RefCell::default(); }}").unwrap();
+            writeln!(preparation, "#[cfg(target_arch=\"wasm32\")] #[unsafe(export_name=\"prepare_{hook}\")] pub extern \"C\" fn entry_prepare_{hook}()->u64 {{ let (p,n)=crate::wire::guest::run({prepare}); (p as usize as u64)<<32 | u64::from(n) }}").unwrap();
+            writeln!(preparation, "#[cfg(target_arch=\"wasm32\")] #[unsafe(export_name=\"ask_{hook}\")] pub extern \"C\" fn entry_ask_{hook}()->u64 {{ let (p,n)=crate::wire::guest::run({id}); (p as usize as u64)<<32 | u64::from(n) }}").unwrap();
+            writeln!(preparation, "#[cfg(target_arch=\"wasm32\")] #[unsafe(export_name=\"release_{hook}\")] pub extern \"C\" fn entry_release_{hook}()->u64 {{ let (p,n)=crate::wire::guest::run({release}); (p as usize as u64)<<32 | u64::from(n) }}").unwrap();
+            writeln!(arms, "{prepare} => {{ let slot:u32=input.take()?; let generation:u32=input.take()?; let stack:crate::ItemStack=input.take()?; let kinds:Vec<String>=input.take()?; if !input.rest().is_empty() {{ return Err(crate::wire::WireError::Trailing); }} PREPARED_{upper}.with(|slots| slots.borrow_mut().prepare(slot,generation,(stack,kinds)))?; out.put(&(slot,generation)); }}, {release} => {{ let slot:u32=input.take()?; let generation:u32=input.take()?; if !input.rest().is_empty() {{ return Err(crate::wire::WireError::Trailing); }} PREPARED_{upper}.with(|slots| slots.borrow_mut().release(slot,generation))?; }}").unwrap();
+        }
         let mut body = String::new();
         let mut args = Vec::new();
         let mut back = String::new();
@@ -967,7 +1023,9 @@ pub(super) fn dispatch(types: &Types<'_>, methods: &[Method]) -> (String, Vec<St
                     let Ty::Named(d) = &**inner else {
                         unreachable!()
                     };
-                    let (read, name, send) = borrowed(types, *d, &format!("p{i}"), *m).unwrap();
+                    let (read, name, send) =
+                        borrowed_prepared(types, *d, &format!("p{i}"), *m, prepared_parameter)
+                            .unwrap();
                     writeln!(body, "{read}").unwrap();
                     args.push(format!("&{}{name}", if *m { "mut " } else { "" }));
                     back.push_str(&send);
@@ -990,6 +1048,26 @@ pub(super) fn dispatch(types: &Types<'_>, methods: &[Method]) -> (String, Vec<St
                     )
                     .unwrap();
                     args.push(format!("&p{i}"));
+                }
+                // An optional borrow (`Option<&PosedParts>`) arrives owned and is lent again.
+                Ty::Option(inner)
+                    if matches!(
+                        **inner,
+                        Ty::Ref(_, false) | Ty::Str(Str::Borrowed) | Ty::List(_, List::Slice)
+                    ) =>
+                {
+                    writeln!(
+                        body,
+                        "let p{i}: {} = input.take()?;",
+                        held(types, ty).unwrap()
+                    )
+                    .unwrap();
+                    let lend = if matches!(**inner, Ty::Ref(..)) {
+                        "as_ref"
+                    } else {
+                        "as_deref"
+                    };
+                    args.push(format!("p{i}.{lend}()"));
                 }
                 _ => {
                     writeln!(
@@ -1015,7 +1093,7 @@ pub(super) fn dispatch(types: &Types<'_>, methods: &[Method]) -> (String, Vec<St
             call
         };
         if m.owner == "Hooks" && m.name == "register" {
-            back.push_str("if let Some(reason) = crate::__private::take_registration_refusal(&p1) { crate::RegistrationRefusalRegistrar::registration_refusal(&mut host, reason); }");
+            back.push_str("for warning in crate::__private::take_registration_warnings(&p1) { crate::RegistrationRefusalRegistrar::registration_warning(&mut host, warning); } if let Some(reason) = crate::__private::take_registration_refusal(&p1) { crate::RegistrationRefusalRegistrar::registration_refusal(&mut host, reason); }");
         }
         writeln!(
             arms,
@@ -1024,7 +1102,7 @@ pub(super) fn dispatch(types: &Types<'_>, methods: &[Method]) -> (String, Vec<St
         .unwrap();
     }
     let code = format!(
-        "// @generated by horizon-mod-api-gen; do not edit.\npub fn hook(id: u32, input: &mut crate::wire::Reader<'_>, out: &mut crate::wire::Writer) -> Result<(), crate::wire::WireError> {{\nlet mut host = Guest;\nmatch id {{\n{arms}_ => return Err(crate::wire::WireError::Tag(id)) }}\nOk(())\n}}\n"
+        "// @generated by horizon-mod-api-gen; do not edit.\n{preparation}\npub fn hook(id: u32, input: &mut crate::wire::Reader<'_>, out: &mut crate::wire::Writer) -> Result<(), crate::wire::WireError> {{\nlet mut host = Guest;\nmatch id {{\n{arms}_ => return Err(crate::wire::WireError::Tag(id)) }}\nOk(())\n}}\n"
     );
     (code, apart)
 }

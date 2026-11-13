@@ -6,6 +6,10 @@
 //! names the player who spent the most of it. Kinds are packet names and players are the
 //! server's guests, so the groups stay as few as those, and only while timing is recorded.
 
+use super::LanHost;
+use horizon_client::lan::hub::HostEvent;
+use std::{sync::Arc, time::Instant};
+
 pub(super) struct Burst<W, D> {
     pub kind: &'static str,
     /// What every event of the group was about, when it was the same for all of them.
@@ -93,6 +97,117 @@ impl<W: PartialEq, D: PartialEq> EventTimings<W, D> {
                     .into_iter()
                     .reduce(|a, b| if b.2 > a.2 { b } else { a }),
             })
+    }
+}
+
+/// What a hub event is, whose connection, and the name of a player who left (no longer in the
+/// hub once it is handled): for a slow tick's notes.
+pub(super) type EventKind = (&'static str, Option<u32>, Option<String>);
+
+pub(super) fn event_kind(event: &HostEvent) -> EventKind {
+    match event {
+        HostEvent::Joined(c) => ("join", Some(*c), None),
+        HostEvent::Left(g) => ("leave", None, Some(g.name.clone())),
+        HostEvent::Packet(c, p) => (p.name(), Some(*c), None),
+        HostEvent::InputCredits(_) => ("input credits", None, None),
+        HostEvent::RawPayload(_) => ("raw payload", None, None),
+        HostEvent::ClientInformation(c, _, _) => ("client settings", Some(*c), None),
+        HostEvent::ChatSubmitted { .. } => ("chat submitted", None, None),
+        HostEvent::ChatSessionStarted(_) => ("chat session", None, None),
+        HostEvent::Jump { conn, .. } => ("jump", Some(*conn), None),
+        HostEvent::PlayerLoaded(c) => ("loaded", Some(*c), None),
+        HostEvent::RecipeBookSettings { conn, .. } => ("recipe book", Some(*conn), None),
+        HostEvent::Sneak { conn, .. } => ("sneak", Some(*conn), None),
+        HostEvent::Input { conn, .. } => ("input", Some(*conn), None),
+        HostEvent::Kicked { name, .. } => ("kick", None, Some(name.clone())),
+        HostEvent::Flight { conn, .. } => ("flight", Some(*conn), None),
+        HostEvent::Chat { .. } => ("chat line", None, None),
+        HostEvent::PlayerChat { .. } => ("chat", None, None),
+        HostEvent::ChatFiltered { name, .. } => ("filtered chat", None, Some(name.clone())),
+        HostEvent::Warn(_) => ("warning", None, None),
+        HostEvent::Error(_) => ("error", None, None),
+        HostEvent::Ban { name, .. } => ("ban", None, Some(name.clone())),
+    }
+}
+
+/// Notes how long the event that started at `started` took (`spans::note`), with what it
+/// was about when `Game::event_detail` said.
+pub(super) fn note_event(
+    host: &LanHost,
+    started: Option<(Instant, EventKind, Option<UseDetail>)>,
+    timings: &mut EventTimings<(Option<u32>, Option<String>), UseDetail>,
+) {
+    let Some((started, kind, detail)) = started else {
+        return;
+    };
+    let ms = started.elapsed().as_secs_f32() * 1000.0;
+    horizon_client::spans::note(ms, || describe_event(host, &kind, detail.as_ref()));
+    let (name, conn, player) = kind;
+    timings.add(name, (conn, player), detail, ms);
+}
+
+/// The player an event came from: its name, else its connection.
+fn who(host: &LanHost, conn: Option<u32>, name: Option<String>) -> Option<String> {
+    name.or_else(|| conn.and_then(|c| host.hub.guest(c)).map(|g| g.name.clone()))
+        .or_else(|| conn.map(|c| format!("connection {c}")))
+}
+
+/// A burst's note: `213 x UseItemOn under 10 ms each (…); most from Steve: 140 of them, 710.0 ms`.
+pub(super) fn describe_burst(
+    host: &LanHost,
+    burst: &Burst<(Option<u32>, Option<String>), UseDetail>,
+) -> String {
+    let mut line = format!(
+        "{} x {} under {} ms each",
+        burst.count,
+        burst.kind,
+        horizon_client::spans::NOTE_MS
+    );
+    if let Some(d) = &burst.detail {
+        line.push_str(&format!(" ({d})"));
+    }
+    if let Some(((conn, name), count, ms)) = &burst.top
+        && let Some(who) = who(host, *conn, name.clone())
+    {
+        line.push_str(&format!("; most from {who}: {count} of them, {ms:.1} ms"));
+    }
+    line
+}
+
+pub(super) fn describe_event(
+    host: &LanHost,
+    (kind, conn, name): &EventKind,
+    detail: Option<&UseDetail>,
+) -> String {
+    let line = match who(host, *conn, name.clone()) {
+        Some(who) => format!("{kind} of {who}"),
+        None => (*kind).to_owned(),
+    };
+    match detail {
+        Some(d) => format!("{line} ({d})"),
+        None => line,
+    }
+}
+
+/// What a use packet was about, taken before it ran (the use may consume the item or change
+/// the block): the item in the hand it names and, on a block, that block, where, and the face.
+#[derive(PartialEq)]
+pub(super) struct UseDetail {
+    pub(super) item: Option<Arc<str>>,
+    pub(super) block: Option<(Arc<str>, [i32; 3], i32)>,
+}
+
+impl std::fmt::Display for UseDetail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.item.as_deref().unwrap_or("empty hand"))?;
+        if let Some((block, [x, y, z], face)) = &self.block {
+            let face = ["down", "up", "north", "south", "west", "east"]
+                .get(*face as usize)
+                .copied()
+                .unwrap_or("?");
+            write!(f, " on {block} at {x} {y} {z} {face}")?;
+        }
+        Ok(())
     }
 }
 

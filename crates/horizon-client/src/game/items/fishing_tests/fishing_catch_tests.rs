@@ -208,11 +208,11 @@ static LOG: Capture = Capture(std::sync::Mutex::new(Vec::new()));
 
 #[test]
 #[ignore = "requires prepared resources"]
-fn fishing_catch_invalid_drops_discards_all_listeners_outputs() {
+fn fishing_catch_invalid_drops_keep_the_earlier_listeners_outputs() {
     // Isolate the process-global logger, as the structure-transform tests do.
     if std::env::var_os("HORIZON_FISHING_REFUSAL_LOG_CHILD").is_none() {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "game::fishing::fishing_catch_tests::fishing_catch_invalid_drops_discards_all_listeners_outputs", "--include-ignored", "--nocapture"])
+            .args(["--exact", "game::fishing::fishing_catch_tests::fishing_catch_invalid_drops_keep_the_earlier_listeners_outputs", "--include-ignored", "--nocapture"])
             .env("HORIZON_FISHING_REFUSAL_LOG_CHILD", "1")
             .status().unwrap();
         assert!(status.success());
@@ -220,23 +220,28 @@ fn fishing_catch_invalid_drops_discards_all_listeners_outputs() {
     }
     log::set_logger(&LOG).unwrap();
     log::set_max_level(log::LevelFilter::Warn);
-    let absent = run(None);
+    // Each listener's stack-list outputs are validated in its own scope: the refused drops keep
+    // the value before that listener, while the first listener's cancellation and rod damage
+    // commit. The catch ends as that cancelling listener alone leaves it.
+    let cancelled = run(Some(2));
     LOG.0.lock().unwrap().clear();
     let refused = run(Some(4));
-    assert_eq!(refused, absent);
-    assert!(!refused.0.is_empty());
-    assert_eq!(refused.3, 1);
-    assert!(refused.5);
+    assert_eq!(refused, cancelled);
+    assert!(refused.0.is_empty());
+    assert_eq!(refused.3, 5);
+    assert!(!refused.5);
     let warnings: Vec<_> = LOG
         .0
         .lock()
         .unwrap()
         .iter()
-        .filter(|line| line.starts_with("mod item_fished write refused:"))
+        .filter(|line| line.contains("refused"))
         .cloned()
         .collect();
-    assert_eq!(
-        warnings,
-        ["mod item_fished write refused: CountExceeded { maximum: 64 }"]
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(
+        warnings[0]
+            .ends_with("hook item_fished output drops refused: CountExceeded { maximum: 64 }"),
+        "{warnings:?}"
     );
 }

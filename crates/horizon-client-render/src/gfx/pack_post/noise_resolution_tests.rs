@@ -50,6 +50,7 @@ fn noise_width(vertex_extra: &str, fragment_extra: &str) -> u8 {
 
 #[test]
 fn a_fragment_shader_sets_the_noise_resolution() {
+    let _gpu = crate::gfx::test_gpu::lock();
     if Gpu::new().is_none() {
         return;
     }

@@ -16,7 +16,12 @@ hook factories do not supply identity.
 | Content-only mods | These use the working directory, player toggles and explicit `--dev-mod` paths. A content package cannot shadow a compiled mod's id. |
 | Display metadata | The mod list and crash details include code-only mods from the embedded inventory. Display names and descriptions come from validated manifests. |
 
-Declare Controls bindings through `Registrar::register_key_mapping`.
+Declare Controls bindings through `Registrar::register_key_mapping`, and read one on the client with
+`ClientHost::is_down(mod_id, id)` (held) and `ClientHost::consume_click(mod_id, id)` (takes one press off its
+count, as `KeyMapping.consumeClick`). Each press, auto-repeat and mouse press counts while no screen is open and
+the mapping's conflict context and modifiers are active; a screen opening drops the count. A key or mouse
+button sent through the control socket counts as the window's does, and a key fires `input_key` once per press,
+repeat and release, as the window's.
 
 `native-mods.json` is provenance and rebuild status, not game identity, authentication, announcements
 or startup input. The launcher retains it for build/status displays. The separate `horizon-server`

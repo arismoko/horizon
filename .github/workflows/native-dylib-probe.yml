@@ -1,49 +1,31 @@
 name: native dylib linkage probe
 
-# Full SDK proof is main-only; cheap Python contract tests remain in verify.
+# The full SDK proof: run by the daily run (daily.yml) and by dispatch, never on pull requests or main pushes
+# (CI tiers, owner 2026-11-13); the cheap Python contract tests remain in verify.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'crates/**'
-      - 'third_party/**'
-      - '.cargo/**'
-      - 'packaging/windows/exe.rs'
-      - 'packaging/executable_link.rs'
-      - 'rust-toolchain*'
-      - 'launcher/src/rust_toolchain.rs'
-      - 'tools/ci/rust-version'
-      - 'tools/prebuilt_game.py'
-      - 'tools/native_dylib_probe.py'
-      - 'tools/native_dylib_probe/**'
-      - 'tools/native_probe_ci.py'
-      - 'tools/ci/dyna_ci_deps.sh'
-      - 'tools/ci/apt_retry.sh'
-      - 'tools/ci/dyna_ci_runner.sh'
-      - 'tools/ci/install_launcher_deps.sh'
-      - '.github/workflows/native-dylib-probe.yml'
+  workflow_call:
+    inputs:
+      commit:
+        description: The commit to check (the daily run's)
+        type: string
+        default: ''
+  workflow_dispatch:
 
 permissions:
   contents: read
-  actions: read
-  pull-requests: read
 
 concurrency:
-  group: native-dylib-probe-${{ github.ref }}
+  group: native-dylib-probe-${{ inputs.commit && github.run_id || github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  select:
+  route:
     runs-on: ubuntu-latest
     outputs:
-      selected: ${{ steps.select.outputs.selected }}
       self_hosted: ${{ steps.runner.outputs.self_hosted }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           persist-credentials: false
       - id: runner
         env:
@@ -52,19 +34,10 @@ jobs:
           SAME_REPO: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           EVENT: ${{ github.event_name }}
         run: bash tools/ci/dyna_ci_runner.sh >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - id: select
-        env:
-          PROBE_SELECT: '1'
-          GH_TOKEN: ${{ github.token }}
-        run: python tools/native_probe_ci.py
   linkage:
     permissions:
       contents: read
-    needs: select
-    if: needs.select.outputs.selected == 'true'
+    needs: route
     name: linkage ${{ matrix.target }}
     strategy:
       fail-fast: false
@@ -75,7 +48,7 @@ jobs:
           # Match the launcher's actual compiler host, not Windows MSVC.
           - os: windows-latest
             target: x86_64-pc-windows-gnu
-    runs-on: ${{ matrix.os == 'ubuntu-22.04' && needs.select.outputs.self_hosted == 'true' && 'dyna-large' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-22.04' && needs.route.outputs.self_hosted == 'true' && 'dyna-large' || matrix.os }}
     timeout-minutes: 90
     defaults:
       run:
@@ -84,12 +57,12 @@ jobs:
       CARGO_INCREMENTAL: '0'
       SDK_OUT: prebuilt
       PROBE_OUT: target/native-dylib-probe
-      PROBE_PYTHON: ${{ matrix.os == 'ubuntu-22.04' && needs.select.outputs.self_hosted == 'true' && 'python3' || 'python' }}
+      PROBE_PYTHON: ${{ matrix.os == 'ubuntu-22.04' && needs.route.outputs.self_hosted == 'true' && 'python3' || 'python' }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.commit || github.sha }}
       - name: Self-hosted image headers or rootless fallback
         if: runner.environment == 'self-hosted' && runner.os == 'Linux'
         run: bash tools/ci/dyna_ci_deps.sh
@@ -127,6 +100,12 @@ jobs:
             echo "SDK_OUT=$scratch/sdk"
             echo "PROBE_OUT=$scratch/probe"
           } >> "$GITHUB_ENV"
+      # Every build in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py). The SDK
+      # stages and builds outside the checkout, beyond the Cargo config --cap writes, so the count also
+      # goes to CARGO_BUILD_JOBS, as fn-replace-check does; 4 GiB per release rustc.
+      - name: Cap build parallelism to the runner
+        if: runner.environment == 'self-hosted'
+        run: echo "CARGO_BUILD_JOBS=$(python3 tools/ci/cargo_jobs.py --job-mib 4096 --cap)" | tee -a "$GITHUB_ENV"
       - name: Build the unmodified prebuilt SDK topology
         run: >-
           "$PROBE_PYTHON" tools/prebuilt_game.py build "$SDK_OUT"
@@ -136,6 +115,14 @@ jobs:
       - name: Two mod libraries share the game's exact Rust state
         run: >-
           "$PROBE_PYTHON" tools/native_dylib_probe.py --sdk "$SDK_OUT" --output "$PROBE_OUT"
+      - name: The starter mod checks against the API source alone, host and wasm32
+        if: runner.os == 'Linux'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          out="${LINKAGE_SCRATCH:-target}/api-source"
+          rm -rf "$out"
+          "$PROBE_PYTHON" tools/sdk_api_source.py build "$out"
+          "$PROBE_PYTHON" tools/sdk_api_source.py check "$out"
       - name: Probe command log
         if: failure()
         run: tail -n 120 "$PROBE_OUT/commands.log"
@@ -145,21 +132,3 @@ jobs:
           if [ -n "${LINKAGE_SCRATCH:-}" ]; then
             rm -rf "$LINKAGE_SCRATCH"
           fi
-
-  main-break:
-    needs: [select, linkage]
-    if: always() && (needs.linkage.result == 'failure' || needs.select.result == 'failure')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Main break and last green range
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo '## MAIN BREAK: native dylib probe failed; fast-path fix required.' >> "$GITHUB_STEP_SUMMARY"
-          python tools/native_probe_ci.py

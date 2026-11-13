@@ -1,20 +1,15 @@
 //! One invulnerability observation across a paused player hit.
-use super::{Environment, HurtSource, Hurting};
+use super::{Environment, Hurting};
 
 impl Environment<'_> {
     pub(super) fn observe_hit_invulnerability(&mut self, vanilla: bool) -> bool {
         if let Some(answer) = self.invulnerability_checked {
             return answer;
         }
-        let source = HurtSource {
-            damage_type: &self.source.definition().name,
-            causing: self.causing,
-            direct: self
-                .level
-                .attack()
-                .projectile_direct(&self.source.definition().name),
-            position: None,
-        };
+        let source = self
+            .level
+            .attack()
+            .player_source(&self.source.definition().name, self.causing);
         let answer = self
             .level
             .invulnerability_check(Hurting::Player(self.entity, source), vanilla);

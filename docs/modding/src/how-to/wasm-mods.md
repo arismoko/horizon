@@ -11,9 +11,12 @@ Use the `server_tick` hook to count ticks:
 {{#include ../../examples/wasm-hello/src/lib.rs:mod}}
 ```
 
-Ordinary wasm calls refuse with busy after five seconds of contention, or
-immediately during lending. Worker calls wait instead. Same-thread reentry shares
-the enclosing call's remaining deadline rather than starting a new budget.
+Ordinary wasm calls wait up to five seconds for the group, including while the
+group is lending its store to a host import. Nested calls refuse immediately if
+they would have to wait on a lent store, which can form a lock cycle. Worker
+calls wait without this bound. Same-thread reentry shares the enclosing call's
+remaining deadline. A contended prepared release invalidates the token
+immediately and runs the guest cleanup on the next call into that mod.
 
 ## Owned values and `Wire`
 
@@ -212,12 +215,63 @@ The game caches compiled wasm modules in `<game_dir>/.horizon-cache/wasm/`, keye
 wasm bytes, Wasmtime compatibility and engine settings. Hits map the compiled file into memory;
 files shipped beside a mod are never loaded as compiled code.
 
-On Unix, cache entries are checked for ownership, permissions and file safety before use.
-Windows compiles modules from wasm without persistent caching. At startup, the game removes
-incompatible entries and trims compatible entries oldest first to a 1 GiB cache budget.
+On Unix, a cache miss compiles in a short-lived child of the game executable, returning
+compiler memory to the operating system when the child exits. The internal entry runs before
+game initialization, with closed standard streams and an empty environment. It receives a
+private input file and the expected cache key, refuses changed input, and writes through the
+same atomic cache writer. The parent accepts only its expected entry through the verified
+opened-file loader. Startup failure, a crash, a non-zero exit or an invalid entry
+refuses the module with an actionable compiler/cache diagnostic: the game never
+retries without the applied budget. A timeout names the exceeded limit (not a
+crash), kills and reaps the child, and removes its private input and unfinished
+writer files. It never records a permanent failure: restarting with a larger
+limit can compile the same module. This child path is Unix-only; Windows continues
+to compile in process with persistent caching disabled. An unavailable or untrusted
+Unix cache refuses compilation until its private writable directory is restored.
 
-A failed check logs the reason once per launch. Unavailable, corrupt or incompatible entries
-fall back to compiling the wasm. Writes replace entries atomically without changing files that
+### Compilation time setting
+
+Set `wasm.compile_timeout_secs:120` in the client's `options.txt` (under the resolved
+`--player-dir` when supplied, otherwise the game directory), or
+`wasm.compile_timeout_secs=120` in the dedicated game directory's `server.properties`.
+With the server supervisor, put `"wasm.compile_timeout_secs" = "120"` in
+`server.toml`'s existing `[properties]` table instead. Restart to apply the setting.
+The value is positive finite seconds (fractions allowed), representable as a duration.
+Zero, non-numeric and out-of-range values refuse wasm loading, naming the setting
+and the exact value in the log, console and Mods-page refusal registry; the refused
+package's content is excluded too. They never silently select a default. Remove
+the line to restore automatic sizing. The client preserves this startup setting
+when saving its options; no launcher rebuild or game argument is needed.
+
+The unset default is `5 + 300 / available_threads` seconds (at least one thread):
+**1 → 305 s; 2 → 155 s; 8 → 42.5 s; 64 → 9.6875 s**.
+Issue #3673 measured a 30 MB module at roughly 30 s on one thread and 3 s on eight.
+The 300 s single-thread allowance is ten times the former, plus 5 s fixed headroom.
+The eight-thread default remains above the previous 37.743749290 s limit, which
+was ten times a 3.774374929 s compile of a 67,998,240-byte module on a Ryzen 7 5700X.
+These are conservative budgets, not promised compile times. A timeout names the
+package/module file, applied limit, whether it was configured or the default for
+N threads, and the setting to increase.
+
+On Unix, the game creates the cache folder with mode 0700 and entries with mode 0600. It checks
+folder ownership and permissions, then checks each opened entry is a regular file owned by the
+current user, not writable by group or others, and has only one hard link. Symlink entries are
+refused. On Windows, persistent caching is disabled until owner, DACL and inheritance trust
+can be verified for the cache folder and opened entries. Modules compile from wasm instead,
+with one warning explaining the fallback. The player's account is the trust boundary.
+
+At startup, the game removes regular `.cwasm` files from other engine configurations or
+Wasmtime versions, along with malformed and old-format cache names. It never follows symlinks
+for cleanup. Current-engine entries have a 1 GiB startup budget: when their combined size
+exceeds it, entries are removed oldest first by modification time until within the budget.
+Current entries are not removed just because they are old. Entries written during this launch
+are retained until a later startup. The proposed budget allows 30 copies of the largest
+measured compiled module (34,039,320 bytes) plus headroom; the 30-module allowance awaits
+maintainer confirmation and does not represent a measured pack.
+
+A failed entry check logs the reason once per launch. Missing, corrupt or incompatible
+entries trigger a budgeted compiler child on Unix, provided the cache directory is
+trusted and writable. Writes replace entries atomically without changing files that
 running modules have mapped. Deleting the cache is always safe: the next launch rebuilds it.
 
 ## Guest stack

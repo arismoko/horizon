@@ -210,7 +210,9 @@ fn chest_model(chest_type: &str) -> &'static str {
         _ => "chest",
     }
 }
-fn skull_layer(kind: &str) -> &'static str {
+/// The head model of a skull `kind`: vanilla's layer, or a native mod's kind, under which the
+/// renderer keeps the head that mod registered (`create_skull_models`).
+fn skull_layer(kind: &str) -> &str {
     match kind {
         "skeleton" => "skeleton",
         "wither_skeleton" => "wither_skeleton",
@@ -218,19 +220,12 @@ fn skull_layer(kind: &str) -> &'static str {
         "creeper" => "creeper",
         "dragon" => "dragon",
         "piglin" => "piglin",
+        mod_kind if mod_kind.contains(':') => mod_kind,
         _ => "player",
     }
 }
-/// The head model of a skull `kind`: vanilla's, or the one a native mod registered
-/// (`create_skull_models`).
-fn skull_part<'a>(renderer: &'a ItemRenderer, kind: &str) -> Option<&'a ModelPart> {
-    crate::skull_models::part(kind).or_else(|| renderer.part(skull_layer(kind)))
-}
 /// `SkullBlockRenderer.SKIN_BY_TYPE`, with the kinds native mods registered.
-fn skull_texture(kind: &str) -> &str {
-    if let Some(texture) = crate::skull_models::texture(kind) {
-        return texture;
-    }
+fn skull_texture<'a>(renderer: &ItemRenderer, kind: &'a str) -> &'a str {
     match kind {
         "skeleton" => "entity/skeleton/skeleton",
         "wither_skeleton" => "entity/skeleton/wither_skeleton",
@@ -238,6 +233,11 @@ fn skull_texture(kind: &str) -> &str {
         "creeper" => "entity/creeper/creeper",
         "dragon" => "entity/enderdragon/dragon",
         "piglin" => "entity/piglin/piglin",
+        mod_kind if mod_kind.contains(':') => renderer
+            .skull_textures
+            .get(mod_kind)
+            .copied()
+            .unwrap_or_default(),
         _ => "entity/player/wide/steve",
     }
 }
@@ -365,11 +365,7 @@ pub(super) fn extents(renderer: &ItemRenderer, model: &SpecialModel) -> Vec<Vec3
         SpecialKind::EndCube { .. } => {}
         SpecialKind::Head {
             kind, animation, ..
-        } => {
-            if let Some(part) = skull_part(renderer, kind) {
-                extents_of(part, "root", id, &skull_pose(kind, *animation), &mut out);
-            }
-        }
+        } => add(skull_layer(kind), &skull_pose(kind, *animation)),
         SpecialKind::PlayerHead => add("player", &none),
         SpecialKind::ShulkerBox { openness, .. } => add("shulker_box", &shulker_pose(*openness)),
         SpecialKind::Shield => add("shield", &none),
@@ -556,19 +552,17 @@ pub(super) fn submit(
             let skin = texture
                 .as_deref()
                 .map(|t| format!("entity/{}", t.strip_prefix("minecraft:").unwrap_or(t)))
-                .unwrap_or_else(|| skull_texture(kind).to_owned());
-            if let (Some(p), Some(r)) = (skull_part(renderer, kind), sprites.get(&skin).copied()) {
-                draw(
-                    p,
-                    "root",
-                    pose,
-                    &skull_pose(kind, *animation),
-                    r,
-                    white,
-                    Foil::None,
-                    sink,
+                .map_or_else(
+                    || std::borrow::Cow::Borrowed(skull_texture(renderer, kind)),
+                    Into::into,
                 );
-            }
+            part(
+                skull_layer(kind),
+                &skull_pose(kind, *animation),
+                &skin,
+                white,
+                Foil::None,
+            );
         }
         SpecialKind::PlayerHead => {
             let skin = (!argument.is_null())

@@ -1,7 +1,9 @@
-//! What the renderer culls with: frusta, their unions and the shader pack shadow camera's box.
+//! What the renderer culls with: frusta, their unions (the water mirror's, the world views') and
+//! the shader pack shadow camera's box.
 
 use super::{Frustum, SectionKey};
 use crate::fast_hash::FxHashMap;
+use crate::render_views::MAX_WORLD_VIEWS;
 use glam::{DVec3, Mat4, Vec3, Vec4};
 
 /// The union of two frusta (the camera's and its water mirror's), for `Resident::visible`.
@@ -31,6 +33,84 @@ impl Cull for Frusta {
     /// Entirely inside one of them is entirely inside the union.
     fn contains(&self, min: Vec3, max: Vec3) -> bool {
         self.0.contains(min, max) || self.1.is_some_and(|f| f.contains(min, max))
+    }
+}
+/// The camera's frustum joined to this frame's world views' (`Renderer::camera_frustum`): what
+/// the game builds entities and block entities for is what one of them sees. Without views it
+/// is the camera's alone.
+#[derive(Clone, Copy, Debug)]
+pub struct JoinedFrusta {
+    camera: Frustum,
+    views: [Frustum; MAX_WORLD_VIEWS],
+    len: usize,
+}
+impl JoinedFrusta {
+    pub(super) fn new(camera: Frustum, views: impl IntoIterator<Item = Frustum>) -> Self {
+        let mut joined = Self {
+            camera,
+            views: [camera; MAX_WORLD_VIEWS],
+            len: 0,
+        };
+        for (slot, view) in joined.views.iter_mut().zip(views) {
+            *slot = view;
+            joined.len += 1;
+        }
+        joined
+    }
+    /// The same views with the camera's frustum `camera` (TAA's wider one).
+    pub(super) fn with_camera(self, camera: Frustum) -> Self {
+        Self { camera, ..self }
+    }
+    fn views(&self) -> &[Frustum] {
+        &self.views[..self.len]
+    }
+    /// `Frustum::intersects` for the camera's frustum or a view's.
+    pub fn intersects(&self, min: Vec3, max: Vec3) -> bool {
+        self.camera.intersects(min, max) || self.views().iter().any(|f| f.intersects(min, max))
+    }
+    /// `Frustum::intersects_sphere` for the camera's frustum or a view's.
+    pub fn intersects_sphere(&self, center: Vec3, radius: f32) -> bool {
+        self.camera.intersects_sphere(center, radius)
+            || self
+                .views()
+                .iter()
+                .any(|f| f.intersects_sphere(center, radius))
+    }
+    /// The camera's depth planes alone (`Frustum::intersects_depth`), which TAA's jitter cannot
+    /// move, or a view's whole frustum, which it does not move.
+    pub fn intersects_depth(&self, min: Vec3, max: Vec3) -> bool {
+        self.camera.intersects_depth(min, max)
+            || self.views().iter().any(|f| f.intersects(min, max))
+    }
+    /// Entirely inside one of them is entirely inside the union.
+    pub fn contains(&self, min: Vec3, max: Vec3) -> bool {
+        self.camera.contains(min, max) || self.views().iter().any(|f| f.contains(min, max))
+    }
+    /// `Frustum::contains_point` for the camera's frustum or a view's.
+    pub fn contains_point(&self, point: Vec3) -> bool {
+        self.camera.contains_point(point) || self.views().iter().any(|f| f.contains_point(point))
+    }
+    /// Each of them seen from a camera moved `blocks` back (`Frustum::pulled_back`).
+    pub fn pulled_back(&self, blocks: f32) -> Self {
+        Self {
+            camera: self.camera.pulled_back(blocks),
+            views: self.views.map(|f| f.pulled_back(blocks)),
+            len: self.len,
+        }
+    }
+}
+/// The camera's frustum alone, with no world views.
+impl From<Frustum> for JoinedFrusta {
+    fn from(camera: Frustum) -> Self {
+        Self::new(camera, [])
+    }
+}
+impl Cull for JoinedFrusta {
+    fn intersects(&self, min: Vec3, max: Vec3) -> bool {
+        JoinedFrusta::intersects(self, min, max)
+    }
+    fn contains(&self, min: Vec3, max: Vec3) -> bool {
+        JoinedFrusta::contains(self, min, max)
     }
 }
 /// A shader pack's shadow camera's box, and with `casters` only what can shade the camera's view

@@ -58,6 +58,9 @@ fn game<'a>(resources: &'a mut Option<std::sync::Arc<crate::game::Resources>>) -
             .chunks
             .insert((x, 0), Arc::new(Chunk::empty(x, 0)));
     }
+    for x in 0..2 {
+        game.load_ticking_neighbourhood(x, 0);
+    }
     assert!(game.run_command("fill 0 99 0 31 99 15 stone"));
     game.player = Some(PlayerMotion::new(game.motion, Vec3::new(28.5, 100.0, 10.5)).unwrap());
     let net = NetConfig {
@@ -229,18 +232,28 @@ fn control_a_hated_host_does_not_turn_the_golem_on_the_selected_guest() {
     if let Some(p) = game.player.as_mut() {
         p.position = Vec3::new(12.5, 100.0, 10.5);
     }
+    // Judged on the tick the golem takes its target: left to run on, the
+    // golem hits the survival host, and two strong rolls kill it, after which
+    // the target goes (`TargetGoal.canContinueToUse`) and what follows depends
+    // on those rolls, not on whom it chose.
+    let golem_of = |game: &Game<'_>| {
+        game.mobs
+            .iter()
+            .find(|m| m.species() == horizon_client::mobs::Species::IronGolem)
+            .map(|m| (m.id, m.ai.target))
+            .unwrap()
+    };
     for _ in 0..40 {
         assert!(game.run_command("tick step 1"));
         game.tick_server(false).unwrap();
+        if golem_of(&game).1.is_some() {
+            break;
+        }
     }
-    let golem = game
-        .mobs
-        .iter()
-        .find(|m| m.species() == horizon_client::mobs::Species::IronGolem)
-        .unwrap();
-    assert_eq!(golem.ai.target, Some(horizon_client::mobs::Who::Player));
+    let (golem_id, target) = golem_of(&game);
+    assert_eq!(target, Some(horizon_client::mobs::Who::Player));
     assert_ne!(
-        game.lan.as_ref().unwrap().mob_players.get(&golem.id),
+        game.lan.as_ref().unwrap().mob_players.get(&golem_id),
         Some(&2),
         "the target is the host, not the guest"
     );

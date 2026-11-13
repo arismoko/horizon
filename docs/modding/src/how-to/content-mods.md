@@ -578,6 +578,13 @@ Owner launch also refuses unsupported requirement contexts (including entity fla
 and invalid clamped level-value ranges before insertion. Supported requirements
 are entity type predicates, random chance, and their boolean combinations.
 
+A living type may set optional `shadow_radius` and `shadow_strength` next to `template`:
+`{ "template": "minecraft:zombie", "shadow_radius": 0.2, "shadow_strength": 0.6 }`.
+Each omitted value inherits the template renderer's value. Values must be finite and nonnegative;
+admission errors name the file. Radius 0 disables its shadow. Radius follows `minecraft:scale`,
+baby age scaling and the template's extra baby factors; cube sizes, pufferfish and dragon retain
+their renderer rules. The usual visibility, 32-block radius cap and distance fade still apply.
+
 A living type copies a mob, `minecraft:zombie` or `minecraft:villager`, the way NeoForge's
 `EntityType.Builder.of(Zombie::new, ...)` makes a type of a vanilla class. It has no `item` or `damage`. `attributes`
 sets default attribute values that differ from its template's (`EntityAttributeCreationEvent`), by attribute id, and
@@ -612,7 +619,7 @@ projectile attacks keep their existing sounds. Native and wasm packages use this
 content definition and resource table.
 
 A code mod can also register an attribute type of its own with `Registrar::declare_attribute(path, default,
-min, max, syncable, sentiment)` (vanilla's `RangedAttribute` in the attribute registry). Only both-side
+min, max, syncable, sentiment, tooltip)` (vanilla's `RangedAttribute` in the attribute registry). Only both-side
 packages may declare attributes; client-only packages refuse with `WrongSide` so extra
 client mods cannot shift packet IDs. `mod_api::Sentiment` is `Positive`, `Negative`, or `Neutral`.
 The id lands in the
@@ -623,6 +630,37 @@ id, so the network ids are the same on every side running the same mods — befo
 so a mod's entity set may name its own new attribute. Values sanitize through the definition (NaN maps to the
 minimum, everything else clamps), and saves, item modifiers and the sync set carry the attribute by its string
 id.
+
+`tooltip` (`mod_api::AttributeTooltip`, `Default::default()` for vanilla's look) sets how the attribute's
+modifier lines read on item tooltips, as NeoForge's `IAttributeExtension` does:
+
+- `display: AttributeDisplay::Percentage` (NeoForge's `PercentageAttribute`) shows added values as percentages
+  too, so `+0.05` reads `+5% Swim Speed`. `AttributeDisplay::Boolean` (`BooleanAttribute`) shows an added
+  value above zero as enabled and any other as disabled (`horizon.attribute.modifier.enabled` and
+  `.disabled`). `Ranged`, the default, is vanilla's.
+- `base_modifier: Some("mymod:base_mana")` (`getBaseId`) makes a modifier with that namespaced id read as the
+  green total of the player's base value and its amount, as attack damage's base modifier does. The recipe
+  search, which has no player, shows it as a plain line. A base modifier that is not a namespaced id refuses
+  with `InvalidId`.
+- With advanced tooltips (F3+H), a mod attribute's line is followed by its modifier id, as NeoForge's default
+  `getDebugInfo` does. There is no per-attribute callback for it.
+
+The display is fixed per attribute type: NeoForge's `toValueComponent` and `toComponent` callbacks, and its
+merged attribute tooltips (`getMergedStyle`), have no counterpart.
+
+A code mod can widen the bounds of an attribute that already exists, vanilla's or another mod's, with
+`Registrar::widen_attribute_bounds(id, min, max)` (Java mods use a mixin or an access transformer on
+`RangedAttribute.minValue` / `maxValue`): an RPG mod lets `minecraft:max_health` go past 1024 with
+`widen_attribute_bounds("minecraft:max_health", 1.0, 1e6)`. Every mod's asks join the catalog once, at load, after
+the declared attributes: the bounds become their union (the lowest `min`, the highest `max`, never narrower than the
+attribute's own), whatever the load order, so an ask narrower than another mod's is a silent no-op. The default never
+moves. Every clamp and check of the value reads the catalog, on both sides: the player's and mobs' attributes, the
+LAN record check, the sync. Only both-side packages may widen bounds (`WrongSide` otherwise); a non-finite bound
+(`NotFinite`) or `min > max` (`InvalidBounds`) refuses at registration, and an attribute the catalog does not have or
+a range that leaves the default out refuses the load, naming the mod. A client needs nothing more than the mod-set
+check it already passes at join: a client without the mod cannot join. A save keeps a base past vanilla's bound while
+the mod is there; once it is gone, the load clamps the base into the bounds and logs it, once per attribute in each
+world load.
 
 A code mod can declare a datapack registry of its own with `Registrar::declare_datapack_registry(path, sync,
 fields)` (NeoForge's `DataPackRegistryEvent.NewRegistry`).
@@ -669,7 +707,8 @@ behaviour, with its own attributes. It saves what its template's class saves und
 table is its own, `<id>:entities/<name>` (vanilla's `EntityType.getDefaultLootTable`). It is not in vanilla's entity type
 tags (`#minecraft:undead`, `#minecraft:zombies`...) unless the mod adds it. Its row in `entity-types.json` is its
 template's, with `template` added and its attributes in place of the template's. To draw a custom model or texture,
-use `mob_submit`; the content declaration inherits the template's goals.
+a client mod registers a renderer for it ([entity renderers](client/entity-renderers.md)); the content declaration
+inherits the template's goals.
 
 #### Menu types
 
@@ -682,7 +721,7 @@ from (`results`, as a furnace's result slot):
 ```
 
 It is the menu type `<id>:<name>`, with its network id after vanilla's. A mod block's container opens it when its
-`menu` names it with as many slots ([native mods](native-mods.md), `block_entity_container`). The menu holds
+`menu` names it with as many slots ([native mods](native-mods.md), `r.block_container(&block, container)`). The menu holds
 its slots, then the player's 36. A shift-click from the inventory goes to the first slots with room, never a result
 slot, and one on the container goes to the inventory, as a chest's does. `results` fence players only: hoppers follow the
 container's faces and `inputs`, so leave result slots out of `inputs`. The data slots are the block entity's `data`

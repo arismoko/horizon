@@ -22,7 +22,7 @@ def block(source, start_text):
 class ScreenMouseScrolledTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("rustc"), "requires Rust")
     def test_pre_cancellation_and_post_scheduling(self):
-        source = (ROOT / "crates/horizon-client/src/game/runtime/window_handler.rs").read_text(encoding="utf-8")
+        source = (ROOT / "crates/horizon-client/src/game.rs").read_text(encoding="utf-8")
         dispatch = block(source, "if !self.pad_synthetic_input()\n                        && let Some(screen)")
         hooks = (ROOT / "crates/horizon-client/src/game/native_hooks/base.rs").read_text(encoding="utf-8")
         pre = block(hooks, "    pub(in crate::game) fn native_screen_mouse_scrolled_pre(")

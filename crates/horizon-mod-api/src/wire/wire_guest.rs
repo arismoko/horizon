@@ -8,6 +8,10 @@ use std::cell::RefCell;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 
+#[path = "prepared.rs"]
+mod prepared;
+pub use prepared::PreparedSlots;
+
 mod generated {
     #![allow(clippy::all, unused, dead_code, non_snake_case)]
     use crate::__private::game::{BackendMutRefOf, BackendRefOf, ClientBackendMutRefOf};

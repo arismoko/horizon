@@ -178,7 +178,12 @@ mod tests {
                 };
                 let coefficient = LivingAirWorld::block_friction(&mut world, floor).unwrap();
                 calls.store(0, Ordering::SeqCst);
-                travel_in_air(&mut world, Vec3::new(1.0, 0.0, 0.0)).unwrap();
+                travel_in_air(
+                    &mut world,
+                    &mut horizon_world::move_gate::MoveGate::new(),
+                    Vec3::new(1.0, 0.0, 0.0),
+                )
+                .unwrap();
                 let reads = calls.load(Ordering::SeqCst);
                 (
                     coefficient,

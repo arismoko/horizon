@@ -13,7 +13,6 @@ use horizon_client::{
     mobs::{Mob, Species, equip::equippable, sulfur_cube},
     particles::{ParticleOptions, ParticleType},
     projectiles::{Projectile, ProjectileKind},
-    random_source,
 };
 use mod_api::SoundSource;
 // Its old home, for mixin code that names it here.
@@ -24,16 +23,16 @@ use horizon_core::{
 };
 use horizon_world::{
     fluid::FluidKind,
-    level::{BucketContent, PlaceContext, PlaceOutcome},
+    level::{PlaceContext, PlaceOutcome},
     registry::BlockStateId,
 };
 use std::sync::Arc;
 
-type Pos = (i32, i32, i32);
+pub(super) type Pos = (i32, i32, i32);
 
 /// The sound event of a plain click, a failed dispense and a launched projectile.
-const CLICK: i32 = 1000;
-const FAIL: i32 = 1001;
+pub(super) const CLICK: i32 = 1000;
+pub(super) const FAIL: i32 = 1001;
 const LAUNCH: i32 = 1002;
 
 fn step(d: Direction) -> [i32; 3] {
@@ -46,7 +45,7 @@ fn step(d: Direction) -> [i32; 3] {
         Direction::East => [1, 0, 0],
     }
 }
-fn offset(p: Pos, d: Direction) -> Pos {
+pub(super) fn offset(p: Pos, d: Direction) -> Pos {
     let s = step(d);
     (p.0 + s[0], p.1 + s[1], p.2 + s[2])
 }
@@ -109,7 +108,7 @@ fn shrink(mut stack: ItemStack) -> Option<ItemStack> {
     (stack.count > 0).then_some(stack)
 }
 /// A dispenser's answer: the slot's new content and the level event played.
-type Dispensed = (Option<ItemStack>, i32);
+pub(super) type Dispensed = (Option<ItemStack>, i32);
 
 /// None keeps vanilla's behaviour; an explicit empty remainder consumes the stack.
 fn mod_dispensed(answer: Option<mod_api::Dispensed>, items: &Items) -> Option<Dispensed> {
@@ -339,7 +338,7 @@ impl Game<'_> {
             f64::from(p.2) + 0.5,
         ]
     }
-    fn pos_of(p: Pos) -> BlockPos {
+    pub(super) fn pos_of(p: Pos) -> BlockPos {
         BlockPos::new(p.0, p.1, p.2)
     }
 
@@ -518,7 +517,7 @@ impl Game<'_> {
     }
     /// `DefaultDispenseItemBehavior.consumeWithRemainder`: the remainder goes
     /// into the dispenser (`insertItem`) or is dropped.
-    fn consume_with_remainder(
+    pub(super) fn consume_with_remainder(
         &mut self,
         pos: Pos,
         facing: Direction,
@@ -664,7 +663,7 @@ impl Game<'_> {
             "minecraft:honeycomb" => self.dispense_honeycomb(pos, facing, stack)?,
             "minecraft:potion" => self.dispense_potion(pos, facing, stack)?,
             _ if item.ends_with("shulker_box") => self.dispense_shulker_box(pos, facing, stack)?,
-            _ if horizon_world::fluid::mod_fluid_of_bucket(&item).is_some() => {
+            _ if self.dispenses_as_filled_bucket(&item) => {
                 self.dispense_filled_bucket(pos, facing, stack)?
             }
             _ if super::boats::any_boat_wood(&item).is_some() => {
@@ -1200,9 +1199,9 @@ impl Game<'_> {
             "minecraft:experience_bottle"
             | "minecraft:splash_potion"
             | "minecraft:lingering_potion" => {
-                let mut shot = Projectile::new(ProjectileKind::Snowball, at, None);
-                shot.shoot(&mut random_source::entity(), dir, power, uncertainty);
-                self.launch_thrown(one, at, shot.velocity, None);
+                let mut shot = super::potions::thrown_projectile(one, at, false);
+                shot.shoot_own(dir, power, uncertainty);
+                self.add_projectile(shot);
             }
             _ => {
                 let kind = match item.as_str() {
@@ -1269,14 +1268,18 @@ impl Game<'_> {
         self.next_entity += 1;
         let (_, uuid) = horizon_client::mobs::living_random();
         self.persist.uuids.insert(self.next_entity, uuid);
-        let mut stand =
+        let stand =
             horizon_client::entities::ArmorStand::new(self.next_entity, foot, y_rot(facing));
-        // Entity.applyImplicitComponents: a name from an anvil names the stand.
-        if let Some(name) = stack.custom_name() {
-            stand.custom_name = Some(horizon_client::text::Text::literal(name));
-        }
         self.world.modified.insert((front.0 >> 4, front.2 >> 4));
         self.armor_stands.push(stand);
+        // EntityType.appendDefaultStackConfig: the dispenser's yaw first, then
+        // the item's createDefaultStackConfig with no user.
+        self.apply_item_stack_config(
+            super::commands::Target::Stand(self.next_entity),
+            "minecraft:armor_stand",
+            &stack,
+            false,
+        );
         (shrink(stack), CLICK)
     }
     /// A tame donkey, mule or llama in front without a chest gets it.
@@ -1345,7 +1348,7 @@ impl Game<'_> {
         self.boats.push(boat);
         // BoatDispenseItemBehavior: createDefaultStackConfig with no user,
         // then setYRot(direction.toYRot()).
-        self.apply_vehicle_stack_config(super::commands::Target::Boat(id), &kind, &stack, false);
+        self.apply_item_stack_config(super::commands::Target::Boat(id), &kind, &stack, false);
         self.set_boat_yaw(id, yaw);
         if self.serving.is_some() || self.options.dedicated.is_some() {
             let boat = self.boats.last().unwrap();
@@ -1395,12 +1398,7 @@ impl Game<'_> {
         self.carts.push(cart);
         // AbstractMinecart.createMinecart: createDefaultStackConfig with no user.
         let id = self.next_entity;
-        self.apply_vehicle_stack_config(
-            super::commands::Target::Cart(id),
-            kind.id(),
-            &stack,
-            false,
-        );
+        self.apply_item_stack_config(super::commands::Target::Cart(id), kind.id(), &stack, false);
         if self.serving.is_some() || self.options.dedicated.is_some() {
             let cart = self.carts.last().unwrap();
             self.native_vehicle_create(
@@ -1413,52 +1411,6 @@ impl Game<'_> {
 
     // ---- buckets ----
 
-    /// The filled bucket behaviour: `DispensibleContainerItem.emptyContents`.
-    fn dispense_filled_bucket(
-        &mut self,
-        pos: Pos,
-        facing: Direction,
-        stack: ItemStack,
-    ) -> Result<Dispensed> {
-        let item = stack.item.to_string();
-        let target = offset(pos, facing);
-        let (content, sound, mob) =
-            horizon_client::items::bucket_contents(&item).expect("filled bucket dispatcher");
-        let target_pos = Self::pos_of(target);
-        let emptied = self.with_level(|b, level, ticks| {
-            b.bucket_empty(level, ticks, target_pos, None, content, sound, false, false)
-        });
-        self.process_level_events()?;
-        if emptied.is_none() {
-            return Ok((self.dispense_default_in_level(pos, facing, stack), CLICK));
-        }
-        if self.dimension_type().water_evaporates
-            && matches!(
-                content,
-                BucketContent::Fluid(FluidKind::Water) | BucketContent::MobWater
-            )
-        {
-            self.evaporation_smoke([target.0, target.1, target.2]);
-        }
-        if let Some(kind) = mob {
-            // MobBucketItem.checkExtraContent: the mob from the bucket calls
-            // out, then ENTITY_PLACE.
-            if let Some(id) = self.spawn_mob_at(kind, target, true) {
-                self.mob_placed(id, &stack)?;
-            }
-            self.post_block_game_event(
-                "minecraft:entity_place",
-                [target.0, target.1, target.2],
-                None,
-                None,
-            );
-        }
-        let bucket = ItemStack::new("minecraft:bucket", 1);
-        Ok((
-            self.consume_with_remainder(pos, facing, stack, bucket),
-            CLICK,
-        ))
-    }
     /// The empty bucket: `BucketPickup.pickupBlock`.
     fn dispense_empty_bucket(
         &mut self,
@@ -1785,6 +1737,25 @@ impl Game<'_> {
         if !self.with_level(|b, level, ticks| b.directional_can_place(level, ticks, &ctx)) {
             return Ok((Some(stack), FAIL));
         }
+        if mod_api::__private::listened(mod_api::HookId::EntityPlace)
+            && let Some(preview) =
+                self.with_level(|b, level, ticks| b.placement_preview(level, ticks, &ctx))
+        {
+            let against = ctx.placed_against_pos(preview.pos);
+            let against = self.world.block(against.x, against.y, against.z);
+            let mut canceled = false;
+            self.native_entity_place(
+                None,
+                preview.pos,
+                preview.state,
+                against,
+                mod_api::Placement::Single,
+                &mut canceled,
+            );
+            if canceled {
+                return Ok((Some(stack), FAIL));
+            }
+        }
         let outcome = self.with_level(|b, level, ticks| b.place_block(level, ticks, &ctx));
         let PlaceOutcome::Placed { pos: placed, state } = outcome else {
             self.process_level_events()?;
@@ -1800,6 +1771,7 @@ impl Game<'_> {
         if self.world.block_entities.get(&target).is_some() {
             self.apply_placed_item([target.0, target.1, target.2], &stack, false);
         }
+        self.block_item_placed(&stack, None, placed, &ctx);
         self.process_level_events()?;
         Ok((shrink(stack), CLICK))
     }
@@ -2323,21 +2295,8 @@ impl Game<'_> {
     ) -> Result<Dispensed> {
         let target = offset(pos, facing);
         let state = self.block_at(target);
-        let name = self.dispenser_block_name(target);
-        // HoneycombItem.WAXABLES: each copper block has a waxed twin.
-        let waxed = name.strip_prefix("minecraft:").and_then(|n| {
-            if n.starts_with("waxed_") {
-                return None;
-            }
-            let twin = format!("minecraft:waxed_{n}");
-            let mut s = self.pack.assets.registry.state(state)?.clone();
-            self.pack.assets.registry.default_state(&twin)?;
-            s.name = twin;
-            self.pack.assets.registry.resolve(&s).ok()
-        });
-        let Some(waxed) =
-            waxed.filter(|_| name.contains("copper") || name.contains("lightning_rod"))
-        else {
+        // HoneycombItem.getWaxed, as the player's honeycomb waxes.
+        let Some(waxed) = self.honeycomb_waxed(state) else {
             return Ok((
                 self.default_execute(pos, facing, stack),
                 optional_event("honeycomb"),

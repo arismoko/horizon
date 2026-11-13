@@ -31,8 +31,11 @@ pub(super) fn tick(
     six.set_count(6).unwrap();
     fake.items = vec![Some(six)];
     let mut wrong_revision = Writer::new();
+    wrong_revision.put(&mod_api::BlockEntityTickReply::Changed);
     wrong_revision.put(&event.pos);
-    wrong_revision.put(&mod_api::ModBlockEntityView::new(&mut fake));
+    wrong_revision.put(&mod_api::item::containers::ModBlockEntitySnapshot::from(
+        &fake,
+    ));
     let output = match mode {
         "wasm_malformed" => "i64.const 0".to_owned(),
         "wasm_identity_readonly" => format!("i64.const 32768 i64.const 32 i64.shl i64.const {} i64.or", wrong_revision.bytes().len()),

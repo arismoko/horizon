@@ -60,6 +60,7 @@ identities.
 |---|---|
 | `set_nickname(host, nickname)` | Changes the name shown in chat and the Tab list; `None` restores the account name. Commands, selectors, logs and events use the real name. Validate the nickname's length, filtering and conflicts yourself. |
 | `set_sleep_ignored(host, ignored)` | Controls exclusion from the sleep count. |
+| `disconnect(host, reason)` | Disconnects the player with a `Text` reason, as `/kick` does, also inside their own hook or a payload handler (the connection closes after it). Answers `false` for a stale or unavailable handle, a fake player, the single-player owner and a player already being disconnected (the first reason stands). A reason the `Text` form checks refuse returns `TextFormError` before anything changes. |
 | `hide(host, permission)` | Hides the player from players below the supplied permission level, starting next tick; `None` restores visibility. Hidden players disappear from the world and Tab list, and their join and leave messages are suppressed for those viewers. |
 
 Nickname and sleep settings require an online player. These settings survive
@@ -82,3 +83,5 @@ Reads accept `Host`; writes accept `ServerHost`.
 | `sleep_ignored(host)` | Reads the sleep-count exclusion setting. |
 | `counts_for_sleep(host)` | Reports whether the player counts toward the night skip. |
 | `sleep_timer(host)` / `set_sleep_timer(host, ticks)` | Reads or writes `Player.sleepCounter`, from 0 to 109; 100 means slept long enough. The write refuses larger values, fake players, guests in another level and stale players. |
+
+A second disconnect on a guest already leaving is a no-op and keeps the first reason.
