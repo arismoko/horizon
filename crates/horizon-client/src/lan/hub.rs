@@ -2143,6 +2143,7 @@ impl Hub {
                 g.position = p;
                 g.previous_position = p;
             }
+            g.move_baseline = (g.position, [g.yaw, g.pitch]);
             g.teleport_counter = (g.teleport_counter + 1) & 0x7FFF_FFFF;
             let id = g.teleport_counter;
             g.awaiting_teleport = Some((id, g.position));
@@ -5003,6 +5004,7 @@ impl Hub {
             self.guests.update(i, |g| {
                 g.landing = true;
                 g.awaiting_teleport = None;
+                g.move_baseline = (g.position, [g.yaw, g.pitch]);
                 g.teleport_counter = (g.teleport_counter + 1) & 0x7FFF_FFFF;
             });
         } else {

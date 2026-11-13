@@ -186,6 +186,8 @@ pub struct Guest {
     /// Why the connection closed (the console's "lost connection").
     pub left_reason: String,
     /// A validated movement report the mods have not ruled on yet (`player_move`).
+    /// Last validated connection report, separate from accepted movement.
+    pub move_baseline: ([f64; 3], [f32; 2]),
     pub pending_move: Option<super::hub::PendingMove>,
     /// A disconnect was started ([`Guest::begin_disconnect`]); the connection closes when the
     /// server next polls it, and until then no other disconnect is sent.
@@ -685,6 +687,7 @@ impl Guest {
             level_entered: 0,
             center_sent: None,
             left_reason: String::new(),
+            move_baseline: (position, [0.0, 0.0]),
             pending_move: None,
             disconnect_pending: false,
             uuid: j.uuid,

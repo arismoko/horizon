@@ -45,6 +45,7 @@ pub struct Accepted {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PendingMove {
     pub report: Accepted,
+    pub from: ([f64; 3], [f32; 2]),
     /// The hub tick it was held at.
     pub since: u64,
     /// The guest's teleport counter and level then: a teleport or a level change since drops it.
@@ -73,7 +74,12 @@ impl Hub {
         hearing: Hearing,
         events: &mut Vec<HostEvent>,
     ) {
-        if hearing == Hearing::Heard && self.moves_listened && self.move_changes(i, &m) {
+        let changed = self.move_changes(i, &m);
+        let from = self.guests[i].move_baseline;
+        self.guests.update(i, |g| {
+            g.move_baseline = (m.to, [m.yaw, m.pitch.clamp(-90.0, 90.0)]);
+        });
+        if hearing == Hearing::Heard && self.moves_listened && changed {
             let (since, conn) = (self.ticks, self.guests[i].conn);
             let (teleports, dimension) = {
                 let g = &self.guests[i];
@@ -81,6 +87,7 @@ impl Hub {
             };
             let held = PendingMove {
                 report: m,
+                from,
                 since,
                 teleports,
                 dimension,
@@ -97,7 +104,8 @@ impl Hub {
     fn move_changes(&self, i: usize, m: &Accepted) -> bool {
         let g = &self.guests[i];
         self.ticks > g.level_entered + 1
-            && (m.to != g.position || m.yaw != g.yaw || m.pitch.clamp(-90.0, 90.0) != g.pitch)
+            && (m.to != g.move_baseline.0
+                || [m.yaw, m.pitch.clamp(-90.0, 90.0)] != g.move_baseline.1)
     }
 
     /// `handlePlayerPositionChange`'s commit: the report becomes the player's state.
@@ -181,8 +189,8 @@ impl Hub {
         let p = g.pending_move.as_ref()?;
         Some(MoveReport {
             player: g.uuid,
-            from: g.position,
-            from_rotation: [g.yaw, g.pitch],
+            from: p.from.0,
+            from_rotation: p.from.1,
             to: p.report.to,
             to_rotation: [p.report.yaw, p.report.pitch.clamp(-90.0, 90.0)],
         })
