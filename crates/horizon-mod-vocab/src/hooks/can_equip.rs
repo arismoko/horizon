@@ -22,14 +22,20 @@ pub trait Hooks {
     /// item are asked, on both sides, as the client's menu predicts the slot.
     /// `host` is read-only: read `entity` through it (its position, its
     /// equipment) to answer from its state when asked. The stack is converted
-    /// once and lent to each slot and entity a menu click, a dispense or a
-    /// pickup asks about; a wasm mod is given a copy of it on each call. An `entity` that is no live entity of that side any
-    /// more is refused without asking.
+    /// once and lent to each slot and entity a native menu click, dispense or pickup
+    /// asks about. The wasm generator supports a scoped preparation: one owned stack
+    /// per participating guest instance, borrowed by token for subsequent asks, with
+    /// generation checks and release. Missing prepared exports refuse at load or part
+    /// registration. Operation-wide reuse and stack-mutation invalidation in gameplay
+    /// are pending the decision-barrier integration; the ordinary wasm callback still
+    /// creates a preparation for each call. A stale or missing target refuses wherever
+    /// a part is asked; the no-listener data path performs no entity lookup.
     #[hook(
         side = "both",
         contract = "listen",
         scope = "item",
         key = "stack",
+        prepared = "stack",
         host = "read",
         cancellable = false,
         neoforge = "IItemExtension.canEquip"

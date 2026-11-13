@@ -119,6 +119,8 @@ pub struct ExtraLevel {
     /// The dimension type its level stem names.
     pub dimension_type: &'static str,
     pub shape: LevelShape,
+    /// The level's own seed, for a level a mod opened with one; else the world's.
+    pub seed: Option<i64>,
 }
 impl LevelShapes {
     pub const VANILLA: Self = Self {
@@ -147,6 +149,10 @@ impl LevelShapes {
             id,
             "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
         ) || self.extra.iter().any(|level| level.id == id)
+    }
+    /// The seed of the level `id`, if it has one of its own.
+    pub fn seed_of(&self, id: &str) -> Option<i64> {
+        self.extra.iter().find(|level| level.id == id)?.seed
     }
     /// The dimension type of the level `id`: a vanilla level's is its own name.
     pub fn dimension_type<'a>(&self, id: &'a str) -> &'a str {
@@ -256,9 +262,8 @@ impl Default for ColumnLayout {
     }
 }
 
-/// Biomes are 4x4x4 containers over the biome table (67 entries: a 7-bit
-/// global palette).
-pub const BIOME_STRATEGY: Strategy = Strategy::biomes(8);
+/// Biomes are 4x4x4 containers with 16-bit IDs, including saved placeholders.
+pub const BIOME_STRATEGY: Strategy = Strategy::biomes(16);
 
 /// Bits of the block states' global palette: 16 for vanilla's 35,723 states
 /// (what vanilla servers and clients send), more when content mods add states
@@ -986,35 +991,46 @@ pub struct SavedProto {
     pub entities: Vec<Tag>,
 }
 
-/// A container's loot table and what Horizon rolled from it. Vanilla keeps
-/// `LootTable` and `LootTableSeed` until the container is first opened;
-/// Horizon rolls when it generates or loads the chunk, and saves the table
-/// again while the container still holds exactly the rolled items.
+/// Original metadata for a container whose loot has not been accessed.
 #[derive(Clone, Debug, PartialEq)]
-pub struct RolledLoot {
-    pub pos: (i32, i32, i32),
-    pub table: String,
-    /// The saved `LootTableSeed`, written back unless 0 (trySaveLootTable).
-    pub seed: Option<i64>,
-    /// The rolled `Items`.
-    pub items: Tag,
+pub struct PendingContainerLoot {
+    pub table: Tag,
+    pub seed: Option<Tag>,
 }
-impl RolledLoot {
-    /// Puts the loot table back in place of `Items` while they are still the
-    /// roll; false once the container holds anything else.
-    pub fn restore(&self, map: &mut Compound) -> bool {
-        // An empty shulker box saves no `Items`, which matches an empty roll.
-        let saved = map.get(&"Items".into());
-        let empty = matches!(&self.items, Tag::List(l) if l.is_empty());
-        if saved != Some(&self.items) && !(saved.is_none() && empty) {
-            return false;
+impl PendingContainerLoot {
+    /// Keep the original tags, including an absent or explicitly zero seed.
+    pub fn from_tag(tag: &Tag) -> Option<Self> {
+        let table = tag.get("LootTable")?;
+        let Tag::String(id) = table else { return None };
+        horizon_client_core::identifier::normalize_id(&id.to_string_lossy())?;
+        Some(Self {
+            table: table.clone(),
+            seed: tag.get("LootTableSeed").cloned(),
+        })
+    }
+    pub fn table_id(&self) -> String {
+        let Tag::String(id) = &self.table else {
+            unreachable!("validated loot table")
+        };
+        horizon_client_core::identifier::normalize_id(&id.to_string_lossy())
+            .expect("validated loot table")
+    }
+    pub fn seed_value(&self) -> Option<i64> {
+        horizon_client_core::nbt_value::number(self.seed.as_ref())
+    }
+    /// Overlay pending metadata without manufacturing an Items list. The table is written as the
+    /// identifier it reads as (`RandomizableContainer.trySaveLootTable`,
+    /// `ContainerEntity.addChestVehicleSaveData`): an empty string is `minecraft:`.
+    pub fn write_tags(&self, map: &mut Compound) {
+        map.insert(
+            "LootTable".into(),
+            Tag::String(self.table_id().as_str().into()),
+        );
+        map.remove(&"LootTableSeed".into());
+        if let Some(seed) = &self.seed {
+            map.insert("LootTableSeed".into(), seed.clone());
         }
         map.remove(&"Items".into());
-        map.insert("LootTable".into(), Tag::String(self.table.as_str().into()));
-        if let Some(seed) = self.seed.filter(|s| *s != 0) {
-            map.insert("LootTableSeed".into(), Tag::Long(seed));
-        }
-        true
     }
 }
 
@@ -1046,8 +1062,8 @@ pub struct ChunkExtras {
     pub fluid_ticks: Vec<horizon_core::ticks::SavedTick>,
     /// Game time written as `LastUpdate`.
     pub last_update: i64,
-    /// Containers still holding their loot table's roll.
-    pub rolled_loot: Vec<RolledLoot>,
+    /// Unopened tables, owned only here and indexed by absolute block position.
+    pub pending_loot: std::collections::HashMap<(i32, i32, i32), PendingContainerLoot>,
 }
 
 #[cfg(test)]
@@ -1060,12 +1076,15 @@ mod tests {
                 id: "test:pocket",
                 dimension_type: "test:small",
                 shape,
+                seed: Some(7),
             }]
             .leak(),
             ..super::LevelShapes::VANILLA
         };
         assert_eq!(levels.get("test:pocket"), shape);
         assert_eq!(levels.dimension_type("test:pocket"), "test:small");
+        assert_eq!(levels.seed_of("test:pocket"), Some(7));
+        assert_eq!(levels.seed_of("minecraft:overworld"), None);
         assert_eq!(
             levels.dimension_type("minecraft:the_end"),
             "minecraft:the_end"

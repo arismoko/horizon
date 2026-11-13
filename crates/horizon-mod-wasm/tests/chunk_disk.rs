@@ -99,7 +99,7 @@ fn native_and_wasm_execute_identical_job_and_fail_closed_on_trap() {
                 let job =
                     ChunkDiskJob::capture(&context(ChunkDiskPhase::Save, [2, -3]), &live).unwrap();
                 fixture::VALUE.set(&mut live, Holder::Level, 9).unwrap();
-                let resources = OwningWorldgen::new(&|_| None, &|_, _| None);
+                let resources = OwningWorldgen::new(&|_| None, &|_, _| None, &|_, _, _| None);
                 assert_eq!(value(job.run(&resources).clone().unwrap()), 8);
                 assert_eq!(fixture::VALUE.get(&mut live, Holder::Level).unwrap(), 9);
                 let load =

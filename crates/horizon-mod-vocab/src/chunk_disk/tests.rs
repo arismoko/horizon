@@ -36,8 +36,10 @@ fn read(entries: &Compound) -> i32 {
         .unwrap()
 }
 fn run(job: &ChunkDiskJob) -> Result<Compound, ChunkDiskFailure> {
-    job.run(&OwningWorldgen::new(&|_| None, &|_, _| None))
-        .clone()
+    job.run(&OwningWorldgen::new(&|_| None, &|_, _| None, &|_, _, _| {
+        None
+    }))
+    .clone()
 }
 struct Listener {
     calls: Arc<AtomicUsize>,

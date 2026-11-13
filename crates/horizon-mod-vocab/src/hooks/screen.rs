@@ -3,7 +3,7 @@
 
 pub trait Hooks {
     /// A menu opens on this client for block `block`, a mod's: set `screen`
-    /// when the block is yours, to lay its screen out (`native_screen_draw`
+    /// when the block is yours, to lay its screen out (`screen_draw`
     /// draws it). The server asks it too: a slot it hides is not in the menu
     /// there either, so shift-clicks never fill it.
     #[hook(

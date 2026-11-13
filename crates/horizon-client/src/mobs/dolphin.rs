@@ -9,6 +9,7 @@ use super::{
 use crate::blocks::Fluid;
 use horizon_core::geometry::trig::Mth;
 use horizon_core::random::RandomSource;
+use horizon_world::move_gate::MoveGate;
 
 /// `Entity.getMotionDirection`: the horizontal step of the yaw
 /// (`Direction.fromYRot`: south, west, north, east).
@@ -357,7 +358,7 @@ impl Goal for FollowPlayerRidden {
             f64::from(m.ai.zza),
         );
         m.move_relative(speed, input);
-        m.do_move(cx.w, cx.level, cx.events);
+        m.do_move(cx.w, cx.level, cx.events, &mut MoveGate::new());
         self.recalc -= 1;
         if self.recalc > 0 {
             return;

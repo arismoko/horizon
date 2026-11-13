@@ -505,34 +505,13 @@ fn overworld_timelines(root: &Path) -> (Vec<(String, Option<i64>)>, Vec<(String,
     (timelines, markers)
 }
 
-/// Whether `id` is one of `entity-types.json`'s entity types under `root`: vanilla's and the content
-/// mods' (read once per root, as the command registries read it).
-pub(in crate::game) fn is_entity_type(root: &Path, id: &str) -> bool {
-    resource_ids(root)
-        .entity_types
-        .binary_search_by(|t| t.as_str().cmp(id))
-        .is_ok()
-}
-
 fn resource_ids(root: &Path) -> Arc<ResourceIds> {
     let mut cache = RESOURCE_IDS.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((_, ids)) = cache.iter().find(|(cached, _)| cached == root) {
         return ids.clone();
     }
     let data = root.join("data/minecraft");
-    let mut entity_types: Vec<String> = serde_json::from_slice::<serde_json::Value>(
-        &std::fs::read(root.join("entity-types.json")).unwrap_or_default(),
-    )
-    .ok()
-    .and_then(|v| {
-        v.as_object().map(|o| {
-            o.keys()
-                .map(|k| horizon_client::command::args::normalize(k))
-                .collect()
-        })
-    })
-    .unwrap_or_default();
-    entity_types.sort();
+    let entity_types = super::entity_type_rows::entity_type_rows(root).ids.clone();
     let (timelines, markers) = overworld_timelines(root);
     let ids = Arc::new(ResourceIds {
         // `/recipe <id>` must suggest a content mod's recipes too.
@@ -955,7 +934,7 @@ impl Game<'_> {
             .collect();
         self.sync_enchantment_registries();
         // After the export, which keys the registry with vanilla's tags.
-        self.ui.registries.sync_damage_type_ids();
+        self.sync_stat_registries();
     }
     /// The block the player is looking at, for coordinate suggestions, and
     /// the entity, for entity arguments (ClientSuggestionProvider).
@@ -2076,11 +2055,6 @@ impl Game<'_> {
     /// The carrier store's open-time state settles here too, before the
     /// first tick and any player: a refusal fails the open.
     pub(super) fn load_world_state(&mut self) -> crate::Result<()> {
-        self.ui.rules = GameRules::load_with_registry(
-            &self.world_root,
-            &self.level.enabled_features,
-            self.level.rule_registry.clone(),
-        );
         self.ui.dispatcher = SessionDispatcher(Arc::new(
             horizon_client::command::vanilla::session_dispatcher(
                 &self.level.rule_registry,
@@ -3022,7 +2996,8 @@ mod enchantment_snapshot_tests {
                 .unwrap(),
         );
         game.world_tables.as_mut().unwrap().stations.enchantments = synced.clone();
-        game.world_tables.as_mut().unwrap().items.enchantments = synced;
+        std::sync::Arc::make_mut(&mut game.world_tables.as_mut().unwrap().items).enchantments =
+            synced;
         assert!(
             game.active_enchantment_definitions()
                 .get("h024:audit")
@@ -3066,7 +3041,8 @@ mod enchantment_snapshot_tests {
             assert_eq!(reg.effects, effects);
         }
         game.world_tables.as_mut().unwrap().stations.enchantments = base.clone();
-        game.world_tables.as_mut().unwrap().items.enchantments = base;
+        std::sync::Arc::make_mut(&mut game.world_tables.as_mut().unwrap().items).enchantments =
+            base;
         assert!(
             game.active_enchantment_definitions()
                 .get("h024:audit")

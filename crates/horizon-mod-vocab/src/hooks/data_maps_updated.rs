@@ -8,13 +8,13 @@ pub trait Hooks {
     /// A listener cannot cancel or change anything.
     ///
     /// `ServerReload`: the server merged the values of the types mods registered
-    /// (`native_data_map_types`) from the world's data packs and mods' files.
+    /// (`data_map_types`) from the world's data packs and mods' files.
     /// Fires once for each registry that has a type, right after
     /// `tags_updated`'s `ServerDataLoad` (tags are bound), on a world's first open
     /// and after every `/reload`. `ItemKey::data` and `BlockKey::data` read the
     /// new values.
     ///
-    /// `ClientSync`: data maps are server-side and not synced to clients yet, so
+    /// `ClientSync`: data maps are server-side and not synced to clients, so
     /// this cause does not fire; it comes with the sync.
     ///
     /// Runs in Reloading: published asset/data queries can rebind caches,

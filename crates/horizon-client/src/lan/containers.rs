@@ -60,6 +60,18 @@ pub(super) fn captured_sound_range(sound: &crate::audio::CapturedSound) -> f64 {
     })
 }
 
+/// A container click read from the world and not yet run (`Hub::prepare_click`).
+pub struct PreparedClick {
+    i: usize,
+    in_menu: bool,
+    source: Option<Slots>,
+    shulker: bool,
+    drag: Option<(u8, Vec<usize>)>,
+    hidden: Vec<usize>,
+    items: Option<Vec<Option<ItemStack>>>,
+    container_limits: Vec<Option<u32>>,
+}
+
 impl Hub {
     pub fn send_to(&self, conn: u32, packet: &C) {
         if let Some(g) = self.guest(conn) {
@@ -72,7 +84,7 @@ impl Hub {
     }
 
     /// `ChunkMap.sendToTrackingPlayers`: send to every placed guest that
-    /// tracks the entity `id`.
+    /// tracks the entity `id`, and wrapped to the clients viewing the level that do.
     pub fn send_to_tracking(&self, id: i32, packet: &C) {
         let body = packet.encode();
         for g in self
@@ -82,6 +94,7 @@ impl Hub {
         {
             g.sender.send(body.clone());
         }
+        self.send_view_trackers(id, packet);
     }
 
     /// `ServerChunkCache.sendToTrackingPlayersAndSelf`: send to every placed
@@ -95,6 +108,7 @@ impl Hub {
         {
             g.sender.send(body.clone());
         }
+        self.send_view_trackers(id, packet);
     }
 
     /// Send to every placed guest within `range` blocks of `at`
@@ -178,34 +192,38 @@ impl Hub {
         self.broadcast_near(at, f64::from(volume.max(1.0)) * 16.0, &packet, except);
     }
 
-    /// ClientboundLevelEventPacket (block break particles and sounds ...).
+    /// ClientboundLevelEventPacket (block break particles and sounds ...); wrapped, to the
+    /// clients that view the level and hold its chunk.
     pub fn level_event(&self, kind: i32, pos: [i32; 3], data: i32, except: Option<u32>) {
         let at = [f64::from(pos[0]), f64::from(pos[1]), f64::from(pos[2])];
-        self.broadcast_near(
-            at,
-            64.0,
-            &C::LevelEvent(play::LevelEvent {
-                kind,
-                pos,
-                data,
-                global: false,
-            }),
-            except,
-        );
-    }
-
-    /// `ServerLevel.globalLevelEvent`: the packet with its global flag, for
-    /// every player on the server (`PlayerList.broadcastAll`).
-    pub fn global_level_event(&self, kind: i32, pos: [i32; 3], data: i32) {
-        self.broadcast(&C::LevelEvent(play::LevelEvent {
+        let packet = C::LevelEvent(play::LevelEvent {
             kind,
             pos,
             data,
-            global: true,
-        }));
+            global: false,
+        });
+        self.broadcast_near(at, 64.0, &packet, except);
+        self.send_viewers_of((pos[0] >> 4, pos[2] >> 4), &packet);
     }
 
-    /// ClientboundBlockEventPacket (`PlayerList.broadcast` within 64 blocks).
+    /// `ServerLevel.globalLevelEvent` for an event in level `level`: the packet
+    /// with its global flag for every player on the server
+    /// (`PlayerList.getPlayers`), each at a position of their own
+    /// (`global_level_event_position`). The level is the event's, not the one in
+    /// place: an event queued during one level's pass may be sent during another's.
+    pub fn global_level_event(&self, level: &str, kind: i32, pos: [i32; 3], data: i32) {
+        for g in self.online_players() {
+            g.send(&C::LevelEvent(play::LevelEvent {
+                kind,
+                pos: global_level_event_position(pos, g.position, g.placed_in(level)),
+                data,
+                global: true,
+            }));
+        }
+    }
+
+    /// ClientboundBlockEventPacket (`PlayerList.broadcast` within 64 blocks); wrapped, to the
+    /// clients that view the level and hold its chunk.
     pub fn block_event(&self, pos: [i32; 3], b0: i32, b1: i32, state: u32) {
         let block = self
             .encoder
@@ -214,17 +232,14 @@ impl Hub {
             .copied()
             .unwrap_or(0);
         let at = [f64::from(pos[0]), f64::from(pos[1]), f64::from(pos[2])];
-        self.broadcast_near(
-            at,
-            64.0,
-            &C::BlockEvent(play::BlockEvent {
-                pos,
-                b0: b0 as u8,
-                b1: b1 as u8,
-                block,
-            }),
-            None,
-        );
+        let packet = C::BlockEvent(play::BlockEvent {
+            pos,
+            b0: b0 as u8,
+            b1: b1 as u8,
+            block,
+        });
+        self.broadcast_near(at, 64.0, &packet, None);
+        self.send_viewers_of((pos[0] >> 4, pos[2] >> 4), &packet);
     }
 
     /// `ServerLevel.broadcastEntityEvent`: send to the players tracking the
@@ -314,27 +329,49 @@ impl Hub {
         items: Vec<Option<ItemStack>>,
         extra: Option<Vec<u8>>,
     ) {
-        let Some(kind) = self
+        self.open_menu_window(conn, menu_kind, title, Some(pos), slots, items, extra);
+    }
+
+    /// Open menu type `menu_kind` for a guest, of a block at `pos` or of none:
+    /// its window id, None for an unknown type or guest. A [`Slots::Native`]
+    /// menu's items are the guest's `native_menu`, as `open_native_menu` keeps.
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_menu_window(
+        &mut self,
+        conn: u32,
+        menu_kind: &str,
+        title: Tag,
+        pos: Option<(i32, i32, i32)>,
+        slots: Slots,
+        items: Vec<Option<ItemStack>>,
+        extra: Option<Vec<u8>>,
+    ) -> Option<i32> {
+        let kind = self
             .sync
             .builtin
             .get("minecraft:menu")
-            .and_then(|m| m.id(menu_kind))
-        else {
-            return;
-        };
-        let Some(i) = self.guests.iter().position(|g| g.conn == conn) else {
-            return;
-        };
+            .and_then(|m| m.id(menu_kind))?;
+        let i = self.guests.iter().position(|g| g.conn == conn)?;
         self.close_container_at(i);
-        self.guests.update(i, |g| {
+        let window = self.guests.update(i, |g| {
             let window = g.next_menu_window();
+            if slots == Slots::Native {
+                g.native_menu = items.clone();
+            }
             if let Some(data) = extra {
                 let message = horizon_protocol::menu_extra::Message {
                     window,
-                    pos: [pos.0, pos.1, pos.2],
+                    pos: pos.map(|p| [p.0, p.1, p.2]),
                     data,
                 };
-                match horizon_protocol::menu_extra::encode(&message) {
+                // A client that answered no revision query (an older Horizon build)
+                // reads the legacy layout, which has no way to say "no block".
+                let sent = if g.sender.menu_extra_rev >= 1 {
+                    horizon_protocol::menu_extra::encode(&message)
+                } else {
+                    horizon_protocol::menu_extra::encode_legacy(&message)
+                };
+                match sent {
                     Ok(data) => g.send(&C::CustomPayload(CustomPayload {
                         channel: horizon_protocol::menu_extra::CHANNEL.into(),
                         data,
@@ -352,7 +389,7 @@ impl Hub {
                 window,
                 kind,
                 registry_id: menu_kind.into(),
-                pos: Some(pos),
+                pos,
                 slots,
                 size: items.len(),
                 state: 0,
@@ -365,8 +402,10 @@ impl Hub {
                 links: Vec::new(),
                 asks_still_valid: super::menu::asks_still_valid(mod_type, menu_kind),
             });
+            window
         });
         self.send_menu_content(i, items);
+        Some(window)
     }
 
     /// The open menu of `conn` has no `hidden` container slots: a mod's screen
@@ -590,7 +629,8 @@ impl Hub {
     }
 
     /// ServerGamePacketListenerImpl.handleContainerClick. Returns the stacks
-    /// thrown out of the menu.
+    /// thrown out of the menu. One call for the three steps the game runs apart when it owns
+    /// the click (`prepare_click`, `run_click`, `finish_click`).
     pub fn container_click(
         &mut self,
         conn: u32,
@@ -598,9 +638,24 @@ impl Hub {
         world: &mut World,
         rules: &dyn Rules,
     ) -> Vec<ItemStack> {
-        let Some(i) = self.guests.iter().position(|g| g.conn == conn) else {
+        let Some(mut prepared) = self.prepare_click(conn, p, world) else {
             return Vec::new();
         };
+        let outcome = self.run_click(&mut prepared, p, rules);
+        self.finish_click(prepared, p, world, outcome)
+    }
+
+    /// The first step of a container click: what the click may do, checked against the world,
+    /// and the container's slots read from it. `None` is a click that changes nothing (the
+    /// guest is gone, the window is not theirs, or the menu is no longer valid), already answered
+    /// where vanilla answers it. Only this step and `finish_click` touch the world.
+    pub fn prepare_click(
+        &mut self,
+        conn: u32,
+        p: &play::ContainerClick,
+        world: &World,
+    ) -> Option<PreparedClick> {
+        let i = self.guests.iter().position(|g| g.conn == conn)?;
         let in_menu = p.container != 0;
         let window_ok = !in_menu
             || self.guests[i]
@@ -608,13 +663,13 @@ impl Hub {
                 .as_ref()
                 .is_some_and(|m| m.window == p.container);
         if !window_ok {
-            return Vec::new();
+            return None;
         }
         if self.guests[i].spectator() {
             // A spectator's click changes nothing, and sendAllDataToRemote
             // takes back what its client predicted.
             self.resend_menu(conn, p.container, world);
-            return Vec::new();
+            return None;
         }
         // A native mod's menu: the click is the mod's to answer, and the
         // whole menu and the cursor go back as they were.
@@ -627,13 +682,13 @@ impl Hub {
                 mode: p.input,
             });
             self.resend_menu(conn, p.container, world);
-            return Vec::new();
+            return None;
         }
         // A menu that is no longer valid takes no clicks.
         if let Some(m) = self.guests[i].menu.as_ref().filter(|_| in_menu)
             && !m.still_valid(&self.loop_context, world, &self.guests[i])
         {
-            return Vec::new();
+            return None;
         }
         // AbstractContainerMenu.isValidSlotIndex: -999 or below the menu's slot
         // count. A slot past the menu would reach the inventory beyond its 36 slots.
@@ -642,7 +697,7 @@ impl Hub {
             None => 46,
         };
         if i32::from(p.slot) >= slots as i32 && p.slot != -999 {
-            return Vec::new();
+            return None;
         }
         let source = self.guests[i].menu.as_ref().map(|m| m.slots);
         let shulker_box = self
@@ -653,9 +708,8 @@ impl Hub {
         let shulker = in_menu
             && shulker_box.is_some()
             && self.guests[i].menu.as_ref().map(|m| m.kind) == shulker_box;
-        let loop_context = &self.loop_context;
-        let Some((drops, changed)) = self.guests.update(i, |guest| {
-            let mut drag = if in_menu {
+        let (drag, hidden, items, container_limits) = self.guests.update(i, |guest| {
+            let drag = if in_menu {
                 guest.menu.as_mut().and_then(|m| m.drag.take())
             } else {
                 guest.drag.take()
@@ -665,29 +719,75 @@ impl Hub {
                 .as_ref()
                 .filter(|_| in_menu)
                 .map_or_else(Vec::new, |m| m.hidden.clone());
-            let mut items = source.and_then(|s| s.read(world, guest));
+            let items = source.and_then(|s| s.read(world, guest));
             if in_menu && items.is_none() {
                 return None;
             }
             let container_limits = source
                 .map(|source| source.stack_limits(world, items.as_ref().map_or(0, Vec::len)))
                 .unwrap_or_default();
+            Some((drag, hidden, items, container_limits))
+        })?;
+        Some(PreparedClick {
+            i,
+            in_menu,
+            source,
+            shulker,
+            drag,
+            hidden,
+            items,
+            container_limits,
+        })
+    }
+
+    /// The second step: the click itself, on the guest and the container's slots the first step
+    /// read. It takes no world and no game, so the caller may lend the menu code anything that
+    /// does not alias the hub. Returns the stacks thrown out and the slots that changed.
+    pub fn run_click(
+        &mut self,
+        prepared: &mut PreparedClick,
+        p: &play::ContainerClick,
+        rules: &dyn Rules,
+    ) -> (Vec<ItemStack>, Vec<usize>) {
+        let loop_context = &self.loop_context;
+        self.guests.update(prepared.i, |guest| {
             let mut view = View {
                 guest,
-                container: items.as_deref_mut(),
-                shulker,
-                container_limits,
-                hidden: &hidden,
+                container: prepared.items.as_deref_mut(),
+                shulker: prepared.shulker,
+                container_limits: std::mem::take(&mut prepared.container_limits),
+                hidden: &prepared.hidden,
                 loop_context,
             };
-            let (drops, changed) = menu::click(
+            menu::click(
                 &mut view,
-                &mut drag,
+                &mut prepared.drag,
                 i32::from(p.slot),
                 i32::from(p.button),
                 p.input,
                 rules,
-            );
+            )
+        })
+    }
+
+    /// The last step: the container's slots back into the world, the unfinished drag back on the
+    /// menu, and the client told what it got wrong. Returns the stacks the click threw out.
+    pub fn finish_click(
+        &mut self,
+        prepared: PreparedClick,
+        p: &play::ContainerClick,
+        world: &mut World,
+        (drops, changed): (Vec<ItemStack>, Vec<usize>),
+    ) -> Vec<ItemStack> {
+        let PreparedClick {
+            i,
+            in_menu,
+            source,
+            drag,
+            items,
+            ..
+        } = prepared;
+        self.guests.update(i, |guest| {
             if let (Some(source), Some(items)) = (source, items) {
                 source.write(world, guest, items);
             }
@@ -698,10 +798,7 @@ impl Hub {
             } else {
                 guest.drag = drag;
             }
-            Some((drops, changed))
-        }) else {
-            return Vec::new();
-        };
+        });
         self.answer_click(i, p, world, &changed);
         drops
     }
@@ -906,7 +1003,7 @@ impl Hub {
                 Some(BlockEntity::Crafter(c)) => c
                     .disabled
                     .iter()
-                    .chain([&c.triggered])
+                    .chain([&c.is_triggered()])
                     .map(|&d| i32::from(d))
                     .collect(),
                 // A mod's menu: the data slots its tick set. A mod menu type's
@@ -1008,6 +1105,34 @@ fn next_sound_seed(g: &mut impl RandomSource) -> i64 {
 pub fn within_range(at: [f64; 3], pos: [f64; 3], range: f64) -> bool {
     let d: f64 = (0..3).map(|k| (pos[k] - at[k]).powi(2)).sum();
     d < range * range
+}
+
+/// The position `ServerLevel.globalLevelEvent` sends a player whose feet are
+/// at `player` for an event at `pos` (its lambda): `pos` for a player in the
+/// event's level (`same_level`) whose squared distance to the block's centre is
+/// below `Mth.square(32)`, the block 32 blocks from a further one towards that
+/// centre, and the block a player in another level stands in. The client
+/// places the sound from it (`LevelEventHandler.globalLevelEvent`).
+fn global_level_event_position(pos: [i32; 3], player: [f64; 3], same_level: bool) -> [i32; 3] {
+    use horizon_core::{geometry::Vec3, position::BlockPos};
+    let feet = Vec3::new(player[0], player[1], player[2]);
+    let at = if same_level {
+        let center = Vec3::new(
+            f64::from(pos[0]) + 0.5,
+            f64::from(pos[1]) + 0.5,
+            f64::from(pos[2]) + 0.5,
+        );
+        // Entity.distanceToSqr against the int square widened (`i2d`, `dcmpg`, `ifge`).
+        if feet.distance_squared(center) < f64::from(32 * 32) {
+            center
+        } else {
+            feet.add_vector(center.subtract(feet).normalize().scale(32.0))
+        }
+    } else {
+        feet
+    };
+    let block = BlockPos::containing(at);
+    [block.x, block.y, block.z]
 }
 
 #[cfg(test)]

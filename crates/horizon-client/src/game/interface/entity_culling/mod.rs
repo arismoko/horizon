@@ -17,7 +17,7 @@ fn orb_billboard_radius(origin: glam::Vec3) -> f32 {
     0.3 + origin.abs().max_element() * f32::EPSILON * 4.0
 }
 
-pub(super) fn orb_in_view(view: &horizon_client::gfx::Frustum, origin: glam::Vec3) -> bool {
+pub(super) fn orb_in_view(view: &horizon_client::gfx::JoinedFrusta, origin: glam::Vec3) -> bool {
     view.intersects_sphere(origin, orb_billboard_radius(origin))
 }
 
@@ -75,6 +75,8 @@ impl EntityCullDecision {
 
 impl Game<'_> {
     pub(super) fn prepare_entity_culling(&mut self) {
+        // The mods' render hooks: whether any listens this frame, and no entity canceled yet.
+        super::native_mob_draw::begin_entity_frame();
         // Spans tell the pack's passes which entities are hidden; without them, nothing changes.
         self.pack_shadow_casters = match (&self.renderer, &self.pack_ids) {
             (Some(r), Some(_)) => r.pack_shadow_casters(),

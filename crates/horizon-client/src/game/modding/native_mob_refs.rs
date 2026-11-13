@@ -116,7 +116,11 @@ impl Game<'_> {
                 let Some(other) = self.mobs.iter().find(|m| m.id == id && !m.removed) else {
                     return false;
                 };
-                let seen = [super::creatures::seen(other, self.level.player_uuid)];
+                let seen = [super::creatures::seen(
+                    other,
+                    self.level.player_uuid,
+                    self.items(),
+                )];
                 mob.valid_target(
                     &self.mob_world_base(&seen),
                     &mobs::goals::TargetFacts::Mob {

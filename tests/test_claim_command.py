@@ -37,10 +37,13 @@ def thread(state="open", holders=(), pr=False, locked=False):
 
 
 class Fake:
-    def __init__(self, threads=None, assignable=True, held=()):
+    def __init__(self, threads=None, assignable=True, held=(), covering=()):
         self.repo = "arismoko/horizon"
         self.threads = {5: thread()} if threads is None else threads
-        self.assignable, self.calls, self.held = assignable, [], list(held)
+        self.assignable, self.calls, self.held, self.covering = assignable, [], list(held), list(covering)
+
+    def covering_pull_requests(self, n):
+        return self.covering
 
     def held_issues(self, login):
         return self.held
@@ -86,8 +89,17 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(cc.parse("🤖 Agent: /claim"), cc.Command("claim"))
         self.assertEqual(cc.parse("🤖 Agent: /unclaim @Some-One"), cc.Command("unclaim", "Some-One"))
 
+    def test_a_command_on_any_line(self):
+        self.assertEqual(cc.parse("🤖 Agent:\n/claim"), cc.Command("claim"))
+        self.assertEqual(cc.parse("🤖 Agent: picking this up.\n\n/claim\nPlan: …"), cc.Command("claim"))
+        self.assertEqual(cc.parse("thanks\n  /unclaim @Some-One"), cc.Command("unclaim", "Some-One"))
+
+    def test_a_command_on_a_later_line_is_still_refused_at_the_limit(self):
+        with self.assertRaisesRegex(cc.Refused, "hold 5 claimed"):
+            do("🤖 Agent:\n/claim", Fake(held=[held(n) for n in range(1, 6)]))
+
     def test_not_commands(self):
-        for text in ("", "claim", "/claimed", "/claims", "/claimed,", "/claims:", "🤖 Agent: /claimed", "thanks\n/claim", "/close", "/unclaimed"):
+        for text in ("", "claim", "/claimed", "/claims", "/claimed,", "/claims:", "🤖 Agent: /claimed", "thanks\nmaybe /claim later", "> /claim", "/close", "/unclaimed"):
             self.assertIsNone(cc.parse(text), text)
 
     def test_claim_ignores_text_after_the_first_word(self):
@@ -135,6 +147,19 @@ class ClaimTests(unittest.TestCase):
             do("/claim", api)
         self.assertEqual(api.calls, [])
 
+    def test_an_open_pull_request_that_closes_the_issue_covers_it(self):
+        def pr(number, state, author):
+            return {"number": number, "state": state, "author": {"login": author}}
+        api = Fake(covering=[pr(3886, "OPEN", "author"), pr(3700, "MERGED", "other"), pr(3650, "OPEN", "third")])
+        with self.assertRaisesRegex(cc.Refused, r"covered by #3650, #3886,"):
+            do("/claim", api)
+        self.assertEqual(api.calls, [])
+        # Its own author may claim it back, and a closed or merged pull request covers nothing.
+        for covering in ([pr(3886, "OPEN", "Newcomer")], [pr(3886, "CLOSED", "author")]):
+            with self.subTest(covering=covering):
+                _, api = do("/claim", Fake(covering=covering))
+                self.assertIn(("assign", 5, "newcomer"), api.calls)
+
     def test_trackers_and_proposals_are_not_claimed(self):
         for name in ("Tracker", "proposal", "not claimable"):
             t = thread()
@@ -147,6 +172,18 @@ class ClaimTests(unittest.TestCase):
     def test_already_yours(self):
         with self.assertRaisesRegex(cc.Refused, "already hold"):
             do("/claim", Fake({5: thread(holders=("NewComer",))}))
+
+    def test_already_yours_gets_the_claimed_label_it_lacks(self):
+        api = Fake({5: thread(holders=("NewComer",))})
+        with self.assertRaisesRegex(cc.Refused, "already hold"):
+            do("/claim", api)
+        self.assertIn(("label", 5, "claimed", "help wanted"), api.calls)
+        labelled = thread(holders=("NewComer",))
+        labelled["labels"] = [{"name": "claimed"}]
+        api = Fake({5: labelled})
+        with self.assertRaisesRegex(cc.Refused, "already hold"):
+            do("/claim", api)
+        self.assertEqual(api.calls, [])
 
     def test_not_claimable(self):
         for t in (thread(pr=True), thread(state="closed"), thread(locked=True)):

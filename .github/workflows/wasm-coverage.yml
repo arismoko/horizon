@@ -101,6 +101,14 @@ jobs:
           restore-keys: |
             internals-coverage-v1-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}-
             internals-coverage-v1-${{ runner.os }}-
+      # Every job that builds in this runner's persistent target keeps its source snapshot true: a
+      # build of another tree without it left artifacts that a later job judged fresh (stale generated
+      # sources, 2026-11-13). Only byte-identical Git objects regain their previous timestamps.
+      - name: Restore unchanged source timestamps
+        run: python3 tools/ci/source_mtimes.py "${CARGO_TARGET_DIR:-target}/ci-source-mtimes-v2.json"
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       - name: Every crossable real internal has compiling host and guest bindings
         run: |
           export HORIZON_COVERAGE_WASM_CARGO="$(rustup which --toolchain "$(cat tools/ci/rust-version)" cargo)"

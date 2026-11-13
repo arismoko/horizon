@@ -541,7 +541,7 @@ mod golem_touch_tests {
             let mut cube = mob(1, name, Vec3::new(0.5 + x, 64.0, 0.5));
             set_size(&mut cube, size);
             cube.no_ai = no_ai;
-            out = Some((cube, golem.seen(None)));
+            out = Some((cube, golem.seen(None, &crate::items::Items::empty())));
         });
         let (mut cube, golem) = out?;
         let mut events = Vec::new();

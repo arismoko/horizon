@@ -100,7 +100,7 @@ impl Game<'_> {
                 let reply = reply.clone();
                 std::thread::spawn(move || {
                     let answer = match title::world_management::backup(&saves, &folder) {
-                        Ok(bytes) => {
+                        Ok((_, bytes)) => {
                             json!({ "ok": true, "folder": folder, "backups": backups, "bytes": bytes })
                         }
                         Err(e) => json!({ "error": format!("backup of {folder} failed: {e}") }),

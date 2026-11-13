@@ -3,6 +3,7 @@ use super::*;
 #[cfg(all(test, unix))]
 #[test]
 fn fresh_native_install_starts_directly_without_a_launcher_launch() {
+    crate::test_support::assert_holder_capability();
     use std::process::Command;
     let Some(root) = std::env::var_os("DIRECT_INSTALL_ROOT") else {
         let root = tempfile::tempdir().unwrap();

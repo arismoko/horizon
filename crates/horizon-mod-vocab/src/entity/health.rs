@@ -182,6 +182,20 @@ pub struct HurtSource<'a> {
     pub direct: i32,
     pub position: Option<[f64; 3]>,
 }
+/// Which entry of vanilla's `LivingEntity.knockback` a push came through, as
+/// `living_knockback` tells its listener. The short entry (power, direction) only delegates to
+/// the full one (which also takes whether the push comes from an effect), so one push through
+/// the short entry reaches the hook once, as `Short`; a call of the full entry itself is `Full`.
+/// A listener that changes the strength where a mixin on both entries would change it twice
+/// for a short-entry call and once for a full-entry call applies its change twice on `Short`.
+// exhaustive: vanilla has exactly these two entries, `knockback(power, x, z)` and the full one
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, horizon_mod_api_macros::Wire)]
+pub enum KnockbackEntry {
+    /// The push entered through `knockback(power, x, z)`, which then calls the full entry.
+    Short,
+    /// The push entered the full entry directly.
+    Full,
+}
 /// Where the entity a hit lands on stands and looks (`getViewVector`), for
 /// `HURT_SERVER`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -191,7 +205,7 @@ pub struct Victim {
     pub position: [f64; 3],
     pub view: [f64; 3],
 }
-/// What a player's raised blocking item does to a hit, as `native_living_shield_block`
+/// What a player's raised blocking item does to a hit, as `living_shield_block`
 /// may change it (`LivingShieldBlockEvent`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 // exhaustive: the game builds it with a literal; mods only read it

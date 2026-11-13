@@ -1,7 +1,9 @@
 //! Callbacks into the executable for hooks fired while a feature generates: on
 //! the worldgen workers, and on the server thread when a sapling grows. No game
 //! is at hand there, so a hook gets the server's [`WorldgenContext`] instead.
-use crate::{native_load_context::WorldgenContext, registry::BlockStateId};
+use crate::{
+    native_load_context::WorldgenContext, registry::BlockStateId, worldgen::structure::Rotation,
+};
 use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
 /// The random of the feature that asks a mod, as the mod draws from it: its
@@ -70,6 +72,9 @@ pub struct NativeWorldgenHooks {
     /// `below_trunk_provider`.
     #[allow(clippy::option_option)]
     pub on_tree_grow: fn(&mut dyn TreeGrowAccess, [i32; 3]) -> Option<Option<BlockStateId>>,
+    /// `rotate`: the state a template places at `pos` for `state`, already mirrored, turned
+    /// by `rotation`, starting from `table`, the game's own turned state.
+    pub rotate: fn(BlockStateId, [i32; 3], Rotation, BlockStateId) -> BlockStateId,
     /// Runs one feature, whose Part lookups read the tables the server published
     /// when it started: a feature that started before a `/reload` finishes with
     /// the tables it started with.
@@ -116,6 +121,20 @@ pub(crate) fn on_tree_grow(
     pos: [i32; 3],
 ) -> Option<Option<BlockStateId>> {
     (HOOKS.get()?.on_tree_grow)(access, pos)
+}
+
+/// The state the parts of `state`'s block place at `pos` for `state` turned by `rotation`,
+/// starting from the game's own `table`; `table` before the hooks are installed.
+pub(crate) fn rotate(
+    state: BlockStateId,
+    pos: [i32; 3],
+    rotation: Rotation,
+    table: BlockStateId,
+) -> BlockStateId {
+    match HOOKS.get() {
+        Some(hooks) => (hooks.rotate)(state, pos, rotation, table),
+        None => table,
+    }
 }
 
 /// Run one feature with the Part tables published when it started.

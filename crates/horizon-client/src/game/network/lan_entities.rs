@@ -679,6 +679,23 @@ impl Game<'_> {
         }
     }
 
+    /// ServerEntity.sendChanges clears needsSync once it has looked, and
+    /// SteppedInterpolationTracker.updateTracking clears syncPosition: once the states for the
+    /// tracking pass are taken.
+    pub(super) fn lan_syncs_looked(&mut self) {
+        for m in &mut self.mobs {
+            m.needs_sync = false;
+            m.sync_position = false;
+        }
+        self.creatures
+            .projectiles
+            .for_each_mut(|p| p.needs_sync = false);
+        for d in &mut self.dropped {
+            d.needs_sync = false;
+        }
+        self.tridents.iter_mut().for_each(|t| t.needs_sync = false);
+    }
+
     /// Gives the entities Horizon keeps without an id one (`Entity.id`, from
     /// the same counter as the rest) before they are first tracked.
     pub(super) fn lan_assign_ids(&mut self) {

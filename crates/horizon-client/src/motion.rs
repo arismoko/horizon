@@ -20,6 +20,7 @@ use horizon_world::{
     block_landing::BlockLandingRegistry,
     climbing::{self, ClimbingRegistry, ClimbingWorld},
     collision_context::{CollisionContext, CollisionEntity, CollisionItem},
+    collision_exclusions,
     edge_backoff::{self, EdgeBackoffInput, EdgeBackoffWorld},
     entity_move::{self, CollisionFlags, EntityMoveWorld, MovementHistory, MoverType},
     entity_obstruction::EntityIdentity,
@@ -27,6 +28,7 @@ use horizon_world::{
     living_air::{self, LivingAirWorld},
     living_fall::ImpulseContext,
     living_motion::{self, LivingMotionWorld},
+    move_gate::MoveGate,
     movement_emission::{
         self as emission, MovementDistances, MovementEmission, MovementEmissionWorld, MovementEvent,
     },
@@ -38,7 +40,7 @@ use horizon_world::{
     movement_statistics::{self, MovementStat, MovementStatisticsWorld},
     movement_support::{self, MovementLocation},
     registry::{BlockStateId, BlockTableFile},
-    world_movement::{self, MovementRequest},
+    world_movement::MovementRequest,
     worldgen::tags::TagDefinitions,
 };
 use std::{
@@ -47,6 +49,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
+mod exclusions;
 mod restitution;
 
 /// A living entity jumped (`LivingEvent.LivingJumpEvent`).
@@ -111,6 +114,7 @@ pub(crate) fn pushing_flow<W: horizon_world::fluid_flow::FluidFlowWorld>(
     Ok(Vec3::new(edited[0], edited[1], edited[2]))
 }
 
+mod auto_jump;
 pub(crate) mod environment;
 use environment::fly_into_wall_damage;
 mod fluids;
@@ -364,9 +368,9 @@ pub enum MotionEvent {
         sound: bool,
         particles: bool,
     },
-    /// Entity event 67 (`LivingEntity.makeDrownParticles`): eight bubbles
-    /// around a drowning player.
-    Drown,
+    /// Entity event 67 (`LivingEntity.makeDrownParticles`): the bubbles
+    /// around a drowning player (8, or the count a mod set).
+    Drown(i32),
 }
 #[derive(Clone)]
 pub struct PlayerMotion {
@@ -553,6 +557,8 @@ pub struct PlayerMotion {
     /// The level's world border, whose walls stop the player's movement
     /// from inside (the game keeps it current; None: no border).
     pub border: Option<horizon_core::geometry::border::BorderGeometry>,
+    /// A mod's boxes in which the level's blocks don't stop this player (#3717).
+    pub collision_exclusions: horizon_world::collision_exclusions::CollisionExclusions,
 }
 impl PlayerMotion {
     /// `ServerGamePacketListenerImpl.handleMovePlayer`: the movement the client
@@ -1007,19 +1013,6 @@ impl MotionWorld<'_, '_, '_> {
             border: self.player.border.as_ref().map(|b| (b, at)),
         }
     }
-    /// `Level.noCollision(player, bounds)`: blocks and the host's entity boxes.
-    pub fn no_player_collision(&mut self, bounds: Aabb) -> Result<bool> {
-        let context = self.context();
-        Ok(world_movement::no_world_collision(
-            &mut self.movement_collisions(),
-            world_movement::CollisionCheckRequest {
-                entity: EntityIdentity(0),
-                context,
-                bounds,
-                candidate_budget: 1_000_000,
-            },
-        )?)
-    }
     fn block(&self, p: BlockPos) -> BlockStateId {
         self.scene.block(p.x, p.y, p.z)
     }
@@ -1059,8 +1052,8 @@ impl MotionWorld<'_, '_, '_> {
         self.player.on_climbable = climbable;
         Ok(climbable)
     }
-    pub fn travel_in_air(&mut self, input: Vec3) -> Result<()> {
-        living_air::travel_in_air(self, input)
+    pub fn travel_in_air(&mut self, gate: &mut MoveGate, input: Vec3) -> Result<()> {
+        living_air::travel_in_air(self, gate, input)
     }
     /// Dry, standing movement phases of LivingEntity.aiStep, including powder
     /// snow's block-inside effects and server freezing (thawing, the frost
@@ -1381,6 +1374,10 @@ impl MotionWorld<'_, '_, '_> {
     /// Player.travel: swim steering, then LivingEntity.travel (fluids first,
     /// then gliding, then air), keeping 0.6 of the vertical speed while flying.
     fn player_travel(&mut self, input: Vec3) -> Result<()> {
+        // The player's one physical move this tick goes through the move gate
+        // (#2414): whichever travel branch runs, `move_self` arms the gate it
+        // receives here.
+        let mut gate = MoveGate::new();
         if self.player.swimming {
             let look_y =
                 horizon_world::view_direction::view_vector(self.player.pitch, self.player.yaw).y;
@@ -1401,18 +1398,18 @@ impl MotionWorld<'_, '_, '_> {
         if !self.player.flying
             && (self.player.fluids.was_touching_water || self.player.is_in_lava())
         {
-            horizon_world::living_fluid::travel_in_fluid(self, input)?;
+            horizon_world::living_fluid::travel_in_fluid(self, &mut gate, input)?;
         } else if self.player.fall_flying {
             // LivingEntity.travelFallFlying: on a climbable the glide ends and
             // the player moves like in the air.
             if self.climbable()? {
-                self.travel_in_air(input)?;
+                self.travel_in_air(&mut gate, input)?;
                 self.player.fall_flying = false;
             } else {
-                self.travel_fall_flying()?;
+                self.travel_fall_flying(&mut gate)?;
             }
         } else {
-            self.travel_in_air(input)?;
+            self.travel_in_air(&mut gate, input)?;
         }
         if let Some(y) = flying_y {
             self.player.velocity.y = y * 0.6;
@@ -1959,13 +1956,13 @@ impl MotionWorld<'_, '_, '_> {
         Ok(())
     }
     /// LivingEntity.travelFallFlying with updateFallFlyingMovement.
-    fn travel_fall_flying(&mut self) -> Result<()> {
+    fn travel_fall_flying(&mut self, gate: &mut MoveGate) -> Result<()> {
         let v = self.player.velocity;
         let move_h = (v.x * v.x + v.z * v.z).sqrt();
         let gravity = living_motion::effective_gravity(self)?;
         self.player.velocity = fall_flying_movement(v, self.player.pitch, self.player.yaw, gravity);
         let movement = self.player.velocity;
-        self.move_self(movement)?;
+        self.move_self(gate, movement)?;
         // LivingEntity.handleFallFlyingCollisions: the fall-damage sound plays
         // on both sides (a glider's own travel is client-side, and the sound
         // must reach its own ears, #8906), only the server hurts, and it
@@ -2028,51 +2025,38 @@ impl MotionWorld<'_, '_, '_> {
     /// off the ground leaves it airborne, and the next tick's gravity lands it
     /// on the lid again instead of the client holding it on a stale ground.
     pub fn lid_push(&mut self, mover: MoverType, movement: Vec3) -> Result<()> {
-        entity_move::move_entity(self, mover, movement)
+        let gate = crate::move_gate::armed(
+            self.loop_context,
+            self.player.entity_id as u32,
+            "minecraft:player",
+            mover,
+            movement,
+        );
+        if gate.skipped() {
+            return Ok(());
+        }
+        entity_move::move_entity(self, mover, gate.delta())
     }
     /// `LocalPlayer.move`: the move, then `updateAutoJump` with the float
-    /// horizontal displacement.
-    pub fn move_self(&mut self, movement: Vec3) -> Result<()> {
+    /// horizontal displacement. The gate is this invocation's (#2414), armed
+    /// here before the move's own handling, no-physics included.
+    pub fn move_self(&mut self, gate: &mut MoveGate, movement: Vec3) -> Result<()> {
+        crate::move_gate::arm(
+            gate,
+            self.loop_context,
+            self.player.entity_id as u32,
+            "minecraft:player",
+            MoverType::SelfMovement,
+            movement,
+        );
+        if gate.skipped() {
+            return Ok(());
+        }
         let before = self.player.position;
-        entity_move::move_entity(self, MoverType::SelfMovement, movement)?;
+        entity_move::move_entity(self, MoverType::SelfMovement, gate.delta())?;
         let dx = (self.player.position.x - before.x) as f32;
         let dz = (self.player.position.z - before.z) as f32;
         self.update_auto_jump(dx, dz)
-    }
-    /// `LocalPlayer.updateAutoJump` behind `canAutoJump`.
-    pub fn update_auto_jump(&mut self, xa: f32, za: f32) -> Result<()> {
-        let p = &*self.player;
-        // canAutoJump; MotionWorld drives an unmounted player (not a passenger).
-        let ready = crate::auto_jump::can_auto_jump(
-            p.auto_jump_enabled,
-            p.auto_jump_time,
-            p.ground.on_ground,
-            p.shift_key_down,
-            false,
-            p.move_vector,
-            1.0,
-        );
-        if !ready || f64::from(self.block_jump_factor()?) < 1.0 {
-            return Ok(());
-        }
-        // Player.getSpeed: the movement speed attribute as it is now.
-        let speed = self.player.attribute("minecraft:movement_speed")? as f32;
-        let p = &*self.player;
-        let jumper = crate::auto_jump::AutoJumper {
-            position: p.position,
-            max_y: p.bounds().max_position().y,
-            x_rot: p.pitch,
-            y_rot: p.yaw,
-            speed,
-            move_vector: p.move_vector,
-            width: p.dimensions.width,
-            height: p.dimensions.height,
-            jump_boost: p.status.jump_boost,
-        };
-        if crate::auto_jump::update_auto_jump(self, &jumper, xa, za)? {
-            self.player.auto_jump_time = 1;
-        }
-        Ok(())
     }
 }
 impl crate::auto_jump::AutoJumpWorld for MotionWorld<'_, '_, '_> {
@@ -2237,8 +2221,9 @@ impl EntityMoveWorld for MotionWorld<'_, '_, '_> {
     }
     fn collide(&mut self, movement: Vec3) -> Result<Vec3> {
         let max_step = self.player.attribute("minecraft:step_height")? as f32;
-        Ok(world_movement::resolve_world_movement(
+        Ok(collision_exclusions::resolve_world_movement(
             &mut self.movement_collisions(),
+            &self.player.collision_exclusions,
             MovementRequest {
                 entity: EntityIdentity(0),
                 context: self.context(),
@@ -2946,13 +2931,18 @@ impl crate::block_contact::InsideWalk for PlayerInside<'_, '_, '_, '_> {
     }
     /// `getEntityInsideCollisionShape` for the player: the whole block but for
     /// powder snow (its own collision shape), the filled cauldrons (their content
-    /// column) and the end portals and tripwires Horizon doesn't follow it into.
+    /// column), the end portals and tripwires Horizon doesn't follow it into, and
+    /// blocks inside the player's collision exclusions.
     fn inside_shape(
         &mut self,
         state: BlockStateId,
         p: BlockPos,
     ) -> crate::block_contact::InsideShape {
         use crate::block_contact::InsideShape;
+        // A block a mod's collision exclusions reach is none to be inside (#3717).
+        if self.m.player.collision_exclusions.spares(p) {
+            return InsideShape::Empty;
+        }
         let Some(definition) = self.m.assets.registry.state(state) else {
             return InsideShape::Full;
         };
@@ -4301,7 +4291,7 @@ mod tests {
             resources: &resources,
             health: &resources.health,
         };
-        w.travel_fall_flying().unwrap();
+        w.travel_fall_flying(&mut MoveGate::new()).unwrap();
         let is_fall = |e: &_| {
             matches!(
                 e,
@@ -4310,7 +4300,7 @@ mod tests {
         };
         assert_eq!(w.player.events.iter().filter(|e| is_fall(e)).count(), 1);
         // The sound must play only once on impact, not repeat on subsequent ticks (#12304):
-        w.travel_fall_flying().unwrap();
+        w.travel_fall_flying(&mut MoveGate::new()).unwrap();
         assert_eq!(w.player.events.iter().filter(|e| is_fall(e)).count(), 1);
         assert!(
             !w.player
@@ -4807,7 +4797,7 @@ mod tests {
                 resources: &resources,
                 health: &resources.health,
             };
-            w.travel_fall_flying().unwrap();
+            w.travel_fall_flying(&mut MoveGate::new()).unwrap();
             let v = w.player.velocity;
             assert_eq!(
                 [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()],
@@ -4915,7 +4905,8 @@ mod tests {
                 resources: &resources,
                 health: &resources.health,
             };
-            w.move_self(Vec3::new(0.0, -30.0, 0.0)).unwrap();
+            w.move_self(&mut MoveGate::new(), Vec3::new(0.0, -30.0, 0.0))
+                .unwrap();
             assert!(w.player.ground.on_ground);
             assert_eq!(w.player.fluids.was_touching_water, wet);
             if wet {
@@ -5003,7 +4994,8 @@ mod tests {
                 resources: &resources,
                 health: &resources.health,
             };
-            w.move_self(Vec3::new(0.0, -30.0, 0.0)).unwrap();
+            w.move_self(&mut MoveGate::new(), Vec3::new(0.0, -30.0, 0.0))
+                .unwrap();
             assert!(w.player.ground.on_ground);
             assert_eq!(w.player.fall_distance, 0.0);
             // LivingEntity.causeFallDamage's sounds play on both sides.
@@ -5454,7 +5446,8 @@ mod tests {
             resources: &resources,
             health: &resources.health,
         };
-        w.move_self(Vec3::new(0.0, -1.0, 0.0)).unwrap();
+        w.move_self(&mut MoveGate::new(), Vec3::new(0.0, -1.0, 0.0))
+            .unwrap();
         assert!(w.player.ground.on_ground);
         w.player.set_sprinting(true).unwrap();
         w.player.glider = true;
@@ -5511,7 +5504,8 @@ mod tests {
             resources: &resources,
             health: &resources.health,
         };
-        w.move_self(Vec3::new(0.0, -1.0, 0.0)).unwrap();
+        w.move_self(&mut MoveGate::new(), Vec3::new(0.0, -1.0, 0.0))
+            .unwrap();
         assert!(w.player.ground.on_ground);
         w.player.set_sprinting(true).unwrap();
         w.player.glider = true;
@@ -6104,6 +6098,66 @@ mod tests {
             })
             .unwrap();
             assert_eq!(w.player.no_jump_delay == 10, ground_jump);
+        }
+    }
+
+    /// The player's fluid heights, which `entity_fluid_heights` reads: lava sources at x 20 and
+    /// water sources at x 21, y 4..=5 (each surface at 5 + 8/9). Standing at y 4 the player is
+    /// that surface less 4 deep in each fluid it touches, from its own bottom, as a mob is
+    /// (`mobs::living::fluid_heights`): lava, water, both where they meet (a tie), or neither.
+    #[test]
+    fn resident_fluid_heights_are_measured_from_the_feet() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../.local/horizon-client")
+            .join(horizon_core::VANILLA_VERSION);
+        if !root.join("movement-properties.nbt").exists() {
+            eprintln!("Prepared resources unavailable; the player fluid heights did not run");
+            return;
+        }
+        let assets = Assets::load(&root).unwrap();
+        let render = assets
+            .reload(&horizon_assets::resource_source::ResourceRoot::directory(
+                root.to_path_buf(),
+            ))
+            .unwrap();
+        let binding = crate::collisions::load(&root, assets.registry).unwrap();
+        let resources = MotionResources::load(&root, &assets).unwrap();
+        let mut scene = World::test_scene(&assets, &render, 3).unwrap();
+        for (name, x) in [("minecraft:lava", 20), ("minecraft:water", 21)] {
+            let source = assets.registry.default_state(name).unwrap();
+            for y in 4..=5 {
+                scene.set(x, y, 20, source).unwrap();
+            }
+        }
+        let depth = 5.0 + 8.0 / 9.0 - 4.0;
+        // (x, water height, lava height)
+        for (x, water, lava) in [
+            (20.5, 0.0, depth),
+            (21.5, depth, 0.0),
+            (21.0, depth, depth),
+            (25.5, 0.0, 0.0),
+        ] {
+            let mut player = PlayerMotion::new(&resources, Vec3::new(x, 4.0, 20.5)).unwrap();
+            player.ground.on_ground = true;
+            let mut w = MotionWorld {
+                tag_items: None,
+                block_registries: None,
+                loop_context: crate::test_resources::server_loop_context(),
+                damage_hooks: &crate::health::DamageHooks::NONE,
+                entities: &[],
+                player: &mut player,
+                scene: &mut scene,
+                assets: &assets,
+                collision_binding: &binding,
+                resources: &resources,
+                health: &resources.health,
+            };
+            w.fluid_base_tick().unwrap();
+            let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+            assert!(near(w.player.fluid_height(WATER), water), "water at x {x}");
+            assert!(near(w.player.fluid_height(LAVA), lava), "lava at x {x}");
+            assert_eq!(w.player.fluids.was_touching_water, water > 0.0, "x {x}");
+            assert_eq!(w.player.is_in_lava(), lava > 0.0, "x {x}");
         }
     }
 

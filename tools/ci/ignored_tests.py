@@ -2,6 +2,7 @@
 """Run every library test, ignored or not, with the prepared vanilla data, against a list of known failures.
 
 Usage: ignored_tests.py SHARD...  (HORIZON_TEST_RESOURCES points at the prepared 26.3 data)
+       ignored_tests.py --needs VARIABLE (--one-process-each | --list) [--jobs N]
 
 A SHARD is a package, or one leg of it written `PACKAGE#NofM` (tools/ci/ignored_shards.py splits the biggest
 package so one process does not hold every test's memory). A leg runs the tests whose name hashes to its
@@ -12,34 +13,54 @@ retained fixture memory between processes without adding a matrix job.
 Each package's library tests run with `--include-ignored`: the #[ignore]d ones that need the data, and the
 ones that return early without it, which `verify` (no data) passes without checking anything. The packages
 in INTEGRATION_TESTS also run their `tests/` integration tests. The job fails when a test fails that
-tools/ci/ignored-tests-known-failures.txt doesn't list, when a listed test passes (take it off the
-list: the list only shrinks), and when a listed test no longer exists. A test marked `flaky` there
+no file in tools/ci/ignored-tests/ lists, when a listed test passes (take it off its file: the lists only
+shrink), and when a listed test no longer exists. A test marked `flaky` there
 may pass or fail; one marked `harness` is a parity harness's step, run by its harness with the
 environment it sets, and is skipped here; one marked `needs` reads an input only its parity harness provides
 (REFERENCE names the environment variable): without that variable it is refused by name at the start of the
 shard, and with it, it runs and must pass; one marked `gpu` needs a graphics adapter and runs only where
 the runner has a Vulkan driver (an ICD file), and must pass there.
 
+`needs-plain` is like `needs`, but selects a plain test without `--ignored`.
+
+`--needs VARIABLE --one-process-each` runs the tests marked `needs VARIABLE`, each alone in its own process
+(`--list` prints those commands instead), and fails unless every run reports exactly one test passed: a
+renamed test would otherwise match nothing and pass. Every test runs, then the step fails if any did.
+`--report FILE` also writes the run's verdict as JSON for the daily run's summary (tools/ci/daily_summary.py): each
+problem's package, test identity, kind, panic location and policy file, the tests that passed, and the shards that
+did not complete. It holds only what this script prints anyway, never test output.
+
+Every reader refuses a malformed row, a test listed twice, a folder with no rows or with a file other than `*.txt`
+and README.md, and a file at the retired single-list path (tools/ci/check_ignored_test_rows.py checks this alone).
+
 Runtime diagnostics expose identities and allowlisted panic categories, never arbitrary assertion
 payloads: the prepared data is Mojang's. Compile/list failures expose bounded compiler headings.
 """
 
+import argparse
+import json
 import os
 import errno
 import io
 from functools import lru_cache
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 import time
 import zlib
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools import lab
 
-KNOWN = Path(__file__).with_name("ignored-tests-known-failures.txt")
+# One file per topic, read in file-name order (README.md there gives the row format).
+POLICY = Path(__file__).with_name("ignored-tests")
+POLICY_PATH = "tools/ci/ignored-tests"  # as messages name it
+# The single list these files replaced: a file there again fails every reader, naming the folder.
+RETIRED = Path(__file__).with_name("ignored-tests-known-failures.txt")
 RESULT = re.compile(r"^test (\S+)(?: - should panic)? \.\.\. (ok|FAILED)$")
 SUMMARY = re.compile(r"^test result: \S+\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured;")
 TARGET = re.compile(r"^\s+Running (?:unittests|tests/)")
@@ -147,25 +168,94 @@ def in_leg(test, number, count):
     return number is None or zlib.crc32(test.encode()) % count == number - 1
 
 
+class Row(NamedTuple):
+    package: str
+    test: str
+    reference: str
+    mark: str | None
+    file: str  # `ignored-tests/<topic>.txt`, for messages
+
+
 def listed_entries():
-    """(package, test, reference, mark) for each line of the checked-in list."""
-    for number, line in enumerate(KNOWN.read_text().splitlines(), 1):
-        line = line.split(" # ", 1)[0].split()
-        if not line or line[0].startswith("#"):
-            continue
-        if len(line) < 3 or line[3:] not in ([], ["flaky"], ["harness"], ["gpu"], ["needs"]):
-            sys.exit(f"{KNOWN.name}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu|needs]`")
-        yield line[0], line[1], line[2], line[3] if len(line) > 3 else None
+    """Every row of the policy files, in file-name order; exits on a malformed row or a test listed twice."""
+    if RETIRED.exists():
+        sys.exit(f"tools/ci/{RETIRED.name} is retired: write its rows into {POLICY_PATH}/<topic>.txt "
+                 f"(one file per policy or tracked failure; {POLICY_PATH}/README.md gives the format)")
+    if not POLICY.is_dir():
+        sys.exit(f"{POLICY_PATH}/ is missing: it holds the ignored-test policy rows")
+    if stray := sorted(path.name for path in POLICY.iterdir() if path.suffix != ".txt" and path.name != "README.md"):
+        sys.exit(f"{POLICY_PATH}/ holds only <topic>.txt files and README.md; not read: {', '.join(stray)}")
+    seen = {}
+    rows = []
+    for path in sorted(POLICY.glob("*.txt")):
+        file = f"{POLICY_PATH}/{path.name}"
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            line = line.split(" # ", 1)[0].split()
+            if not line or line[0].startswith("#"):
+                continue
+            if len(line) < 3 or line[3:] not in ([], ["flaky"], ["harness"], ["gpu"], ["needs"], ["needs-plain"]):
+                sys.exit(f"{file}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu|needs|needs-plain]`")
+            if (line[0], line[1]) in seen:
+                sys.exit(f"{file}:{number}: {line[0]} {line[1]} is already listed in {seen[line[0], line[1]]}; "
+                         "a test belongs to one file")
+            seen[line[0], line[1]] = f"{file}:{number}"
+            rows.append(Row(line[0], line[1], line[2], line[3] if len(line) > 3 else None, file))
+    if not rows:
+        sys.exit(f"{POLICY_PATH}/ has no rows")
+    return rows
 
 
 def known_failures():
-    """(package, test) -> its mark (None, "flaky", "harness" or "gpu"), from the checked-in list."""
-    return {(package, test): mark for package, test, _, mark in listed_entries() if mark != "needs"}
+    """(package, test) -> its mark (None, "flaky", "harness" or "gpu"), from the policy files."""
+    return {(row.package, row.test): row.mark for row in listed_entries() if row.mark not in {"needs", "needs-plain"}}
 
 
 def harness_inputs():
     """(package, test) -> the environment variable it reads that only its parity harness provides."""
-    return {(package, test): variable for package, test, variable, mark in listed_entries() if mark == "needs"}
+    return {(row.package, row.test): row.reference for row in listed_entries() if row.mark in {"needs", "needs-plain"}}
+
+
+def needs_commands(variable, jobs=None):
+    """One `cargo test` command per test marked `needs variable`, each selecting exactly that test."""
+    commands = [
+        ["cargo", "test", *([f"-j{jobs}"] if jobs else []), "-p", row.package, "--lib", "--", *(["--ignored"] if row.mark == "needs" else []), "--exact", row.test]
+        for row in listed_entries() if row.mark in {"needs", "needs-plain"} and row.reference == variable
+    ]
+    if not commands:
+        sys.exit(f"no `needs` row in {POLICY_PATH}/ names {variable}")
+    return commands
+
+
+def write_report(path, report):
+    """The daily summary's hand-off (--report): identities, locations and policy only."""
+    if path:
+        Path(path).write_text(json.dumps(report, indent=1, sort_keys=True) + "\n")
+
+
+def run_one_process_each(variable, jobs=None, report=None):
+    """Run each test that needs `variable` in its own process; 1 unless every run reports exactly one passed test."""
+    if not os.environ.get(variable):
+        sys.exit(f"{variable} is unset: these tests need it")
+    failed = []
+    verdict = {"needs": variable, "problems": [], "passed": [], "incomplete": []}
+    for command in needs_commands(variable, jobs):
+        # needs_commands ends each command with the test's exact name, after `-p PACKAGE`.
+        entry = {"package": command[command.index("-p") + 1], "test": safe_identity(command[-1])}
+        print(f"$ {shlex.join(command)}", flush=True)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+        passed = False
+        for line in process.stdout:
+            print(line, end="", flush=True)
+            passed |= line.startswith("test result: ok. 1 passed;")
+        if process.wait() or not passed:
+            print(f"::error::expected 1 passing test from: {shlex.join(command)}", flush=True)
+            failed.append(command)
+            verdict["problems"].append({**entry, "kind": "failed", "panic": None, "policy": None})
+        else:
+            verdict["passed"].append(entry)
+    write_report(report, verdict)
+    print(f"{variable}: {len(failed)} of the runs failed" if failed else f"{variable}: every run passed its one test")
+    return 1 if failed else 0
 
 
 # Budgets include UTF-8 newlines; summary metadata is outside the payload budget.
@@ -175,6 +265,17 @@ DIAGNOSTIC_LINES = 100_000
 DIAGNOSTIC_LINE_CHARS = 4096
 DIAGNOSTIC_CONTEXTS = 4096
 _active_budget = None
+# Each failed test's tracked panic location (`path:line:col`) from the last failure_diagnostics, for --report.
+_panic_locations = {}
+
+
+def thread_identity(name):
+    """A thread's name as a test identity, a short plain name (`Server thread`), or withheld."""
+    if "::" in name:
+        return f"test {safe_identity(name)}"
+    if re.fullmatch(r"[A-Za-z0-9 <>_.-]{1,40}", name):
+        return f"thread '{name}'"
+    return "a thread (name withheld)"
 
 
 def safe_identity(name):
@@ -269,8 +370,13 @@ def failure_diagnostics(output):
             continue
         line = line.rstrip("\r\n")
         abort = next((label for pattern, label in ABORTS if pattern.match(line.strip())), None)
-        if abort and abort not in aborts:
-            aborts.append(abort)
+        if abort:
+            thread = re.match(r"thread '([^']*)'", line.strip())
+            # The Rust runtime aborts (SIGABRT, signal 6) after each of these messages.
+            abort = f"(signal 6: {abort})" + (f" on {thread_identity(thread[1])}" if thread else
+                                              "; fatal thread unknown, see the last started tests below")
+            if abort not in aborts:
+                aborts.append(abort)
         if RESULT.match(line) or SUMMARY.match(line) or TARGET.match(line):
             panic_reason_pending = False
         if panic_reason_pending and line.strip():
@@ -338,15 +444,20 @@ def failure_diagnostics(output):
             context.append("  panic reason missing from captured output")
             panic_reason_pending = True
     remaining = _active_budget if _active_budget is not None else [FAILURE_TOTAL_BYTES]
+    # What killed the process comes first: a test that libtest reported FAILED ran to its end, so it is never
+    # the one that took the process down.
+    for abort in aborts:
+        print(f"FATAL: process aborted {abort}")
+    if aborts and failures:
+        print("ordinary failures (the process kept running after them):")
     shown = shortened = missing = withheld = 0
     identities_withheld = locations_withheld = payloads_withheld = reasons_shown = 0
     for name in failures:
         identity = safe_identity(name)
         details = contexts.get(name)
         if details is None:
-            # A crash ends the test without its own panic: say what the runtime aborted on, and
-            # what panicked on threads that are not tests (a server or worker thread).
-            details = [f"  process aborted: {abort}" for abort in aborts]
+            # No panic of its own: what panicked on threads that are not tests (a server or worker thread).
+            details = []
             for thread, other in contexts.items():
                 if "::" not in thread and thread not in failures:
                     details += ["  on a non-test thread:"] + other
@@ -357,9 +468,18 @@ def failure_diagnostics(output):
         locations_withheld += any("panic location withheld" in item for item in details)
         payloads_withheld += any("payload withheld" in item for item in details)
         reasons_shown += any(item.startswith("  panic reason:") for item in details)
+        _panic_locations[name] = next((item.removeprefix("  panicked at ") for item in details
+                                       if item.startswith("  panicked at ")), None)
         record = f"  failed test: {identity}\n" + "\n".join(details) + "\n"
         emitted, cut = bounded_record(record, remaining)
         shown += emitted
+        shortened += cut
+    if not failures and contexts:
+        # No failed test named: every thread's panic, unattributed.
+        details = []
+        for thread, other in contexts.items():
+            details += [f"  panic on {thread_identity(thread)}:"] + other
+        emitted, cut = bounded_record("  no failed test named; panics seen:\n" + "\n".join(details) + "\n", remaining)
         shortened += cut
     print(f"failure diagnostics: {shown} shown; {len(failures) - shown} failing tests not shown "
           f"(total byte budget {FAILURE_TOTAL_BYTES}); {shortened} records shortened "
@@ -368,6 +488,26 @@ def failure_diagnostics(output):
           f"{locations_withheld} locations withheld; {payloads_withheld} payloads withheld (expected privacy filtering); "
           f"{skipped_lines} lines skipped (line/count bounds; failure count unknown there); "
           f"{skipped_contexts} contexts skipped (retention bound)")
+
+
+RUNNING_LONG = re.compile(r"^test (\S+) has been running for over 60 seconds$")
+CRASH_NAMES = 20
+
+
+def crash_report(package, output, expected, results):
+    """After a crash: the tests that ran long and the listed ones that never reported, by name only."""
+    long = []
+    for line in output.splitlines():
+        if (found := RUNNING_LONG.match(line.strip())) and found[1] not in results and found[1] not in long:
+            long.append(found[1])
+    if long:
+        print(f"{package}: last started tests, still running past 60 s when it crashed: "
+              + ", ".join(safe_identity(name) for name in long[:CRASH_NAMES]))
+    unreported = sorted(set(expected) - set(results))
+    if unreported:
+        shown = ", ".join(safe_identity(name) for name in unreported[:CRASH_NAMES])
+        more = f" (and {len(unreported) - CRASH_NAMES} more)" if len(unreported) > CRASH_NAMES else ""
+        print(f"{package}: {len(unreported)} listed tests never reported (started or not yet started): {shown}{more}")
 
 
 def missing_result_framing(output, name):
@@ -447,7 +587,8 @@ def run(package, skip, number=None, count=None):
         client_half = package == "horizon-client" and count == 2 and number in (1, 2)
         command = ["cargo", "test", "-p", package, "--lib", *(["--bins", "--tests"] if package in INTEGRATION_TESTS else []), "--no-fail-fast"]
         if client_half:
-            command.append("--jobs=8")
+            # The runner's own cap (tools/ci/cargo_jobs.py --cap) when set, else the old fixed one.
+            command.append(f"--jobs={os.environ.get('CI_JOBS', '8')}")
         expected = set()
         timing = os.environ.get("HORIZON_DATA_LEG_TIMING") == "1"
         phase = f"{package}#{number}of{count}" if number is not None else package
@@ -476,7 +617,7 @@ def run(package, skip, number=None, count=None):
             # This marks the existing test command, not an instruction inside a binary.
             print(f"data-leg phase={phase} test-command-start utc={time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} listed={int(number is not None)} compile_list_seconds={time.monotonic() - compile_started:.3f}", flush=True)
         execution_started = time.monotonic()
-        threads = 8 if client_half else 4
+        threads = min(8 if client_half else 4, int(os.environ.get("CI_CPUS", "8")))
         process = subprocess.run(
             [*command, "--", "--include-ignored", "--exact", f"--test-threads={threads}", *skips],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", env=env,
@@ -486,6 +627,12 @@ def run(package, skip, number=None, count=None):
     results = {}
     summaries = []
     print(f"{package}: cargo exit {process.returncode}")
+    long_running = dict.fromkeys(
+        found[1] for line in process.stdout.splitlines() if (found := RUNNING_LONG.match(line.strip()))
+    )
+    if long_running:
+        print(f"{package}: {len(long_running)} tests ran past 60 s: "
+              + ", ".join(safe_identity(name) for name in long_running))
     target_count = None
     target_number = 0
     awaiting_count = False
@@ -552,6 +699,7 @@ def run(package, skip, number=None, count=None):
     finish_target()
     if crashed:
         print(f"{package}: a test process crashed (cargo exit {process.returncode})")
+        crash_report(package, process.stdout, expected, results)
         return None
     # A fixture that reruns its own test executable (`run_fresh_cases`, the death-weapon cases) prints the
     # child's result record for the same name beside the parent's. Several records for one name are expected
@@ -595,11 +743,18 @@ def run(package, skip, number=None, count=None):
     return results
 
 
-def main(shards):
+def main(shards, report=None):
     global _active_budget
     _active_budget = [FAILURE_TOTAL_BYTES]
+    _panic_locations.clear()
+    verdict = {"shards": list(shards), "problems": [], "passed": [], "incomplete": []}
+
+    def problem(package, test, kind, policy=None):
+        verdict["problems"].append({"package": package, "test": safe_identity(test), "kind": kind,
+                                    "panic": _panic_locations.get(test), "policy": policy})
     known = known_failures()
     inputs = harness_inputs()
+    files = {(row.package, row.test): row.file for row in listed_entries()}
     skipped = {"harness"} if has_vulkan() else {"harness", "gpu"}
     if "gpu" in skipped:
         print("no Vulkan driver on this runner: the tests marked `gpu` are skipped")
@@ -626,6 +781,7 @@ def main(shards):
         results = run(package, skip, number, count) if number is not None else run(package, skip)
         if results is None:
             problems.append(f"{shard}: the test run did not complete")
+            verdict["incomplete"].append(shard)
             continue
         for test, passed in sorted(results.items()):
             listed = (package, test) in known
@@ -633,18 +789,25 @@ def main(shards):
             test = safe_identity(test)
             if not passed and listed and known[(package, policy_test)] != "gpu":
                 emitted, _ = bounded_record(
-                    f"{package} {test}: accepted failure policy={KNOWN.name} "
+                    f"{package} {test}: accepted failure policy={files.get((package, policy_test), POLICY_PATH)} "
                     f"mark={known[(package, policy_test)] or 'known'}\n", _active_budget)
                 accepted_unshown += not emitted
+            policy = files.get((package, policy_test), POLICY_PATH) if listed else None
             if not passed and not listed:
                 problems.append(f"{package} {test}: failed, and isn't a known failure")
+                problem(package, policy_test, "failed")
             elif not passed and known[(package, policy_test)] == "gpu":
                 problems.append(f"{package} {test}: failed with a Vulkan driver present")
+                problem(package, policy_test, "gpu", policy)
             elif passed and listed and known[(package, policy_test)] is None:
-                problems.append(f"{package} {test}: passes now; take it off {KNOWN.name}")
+                problems.append(f"{package} {test}: passes now; take it off {policy}")
+                problem(package, policy_test, "passes-now", policy)
+            elif passed:
+                verdict["passed"].append({"package": package, "test": test})
         for (listed, test), mark in known.items():
             if listed == package and mark not in skipped and in_leg(test, number, count) and test not in results:
-                problems.append(f"{package} {safe_identity(test)}: listed in {KNOWN.name} but no longer runs")
+                problems.append(f"{package} {safe_identity(test)}: listed in {files.get((package, test), POLICY_PATH)} but no longer runs")
+                problem(package, test, "no-longer-runs", files.get((package, test), POLICY_PATH))
     shown = 0
     for problem in problems:
         emitted, _ = bounded_record(f"::error::{problem}\n", _active_budget)
@@ -654,8 +817,25 @@ def main(shards):
     if accepted_unshown:
         print(f"{accepted_unshown} accepted policy records not shown (shared total byte budget)")
     _active_budget = None
+    write_report(report, verdict)
     return 1 if problems else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("shards", nargs="*", metavar="SHARD")
+    parser.add_argument("--needs", metavar="VARIABLE", help="the tests marked `needs VARIABLE`")
+    each = parser.add_mutually_exclusive_group()
+    each.add_argument("--one-process-each", action="store_true", help="run them, each alone in its own process")
+    each.add_argument("--list", action="store_true", help="print their commands")
+    parser.add_argument("--jobs", type=int, help="cargo's -j for --needs")
+    parser.add_argument("--report", metavar="FILE", help="also write the verdict as JSON for the daily summary")
+    args = parser.parse_args()
+    if args.needs and args.list:
+        print("\n".join(shlex.join(command) for command in needs_commands(args.needs, args.jobs)))
+    elif args.needs and args.one_process_each:
+        sys.exit(run_one_process_each(args.needs, args.jobs, args.report))
+    elif args.needs or args.one_process_each or args.list:
+        parser.error("--needs takes --one-process-each or --list, and they take --needs")
+    else:
+        sys.exit(main(args.shards, args.report))

@@ -1,6 +1,7 @@
 //! The chunks each player watches, for the mods' `chunk_watch`, `chunk_sent`
-//! and `chunk_unwatch` (NeoForge's `ChunkWatchEvent`). The hub records them
-//! only while a mod listens; the game tells the mods after the hub's step.
+//! and `chunk_unwatch` (NeoForge's `ChunkWatchEvent`) and for the passages the
+//! server sends with a chunk (#3775). The hub records them only while a mod
+//! listens or a passage was registered; the game reads them after the hub's step.
 
 use mod_api::HookId;
 
@@ -37,21 +38,41 @@ pub struct LevelWatches {
 /// The hub's chunk events since the game last took them, in order, run by
 /// run of the same level.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ChunkWatchLog(Vec<LevelWatches>);
+pub struct ChunkWatchLog {
+    runs: Vec<LevelWatches>,
+    /// A mod registered a passage since the world opened: the chunks sent from
+    /// then on are recorded whether or not a mod listens.
+    passages: bool,
+}
 
 impl ChunkWatchLog {
     /// A log of `runs`, as the hub would have made it.
     pub fn new(runs: Vec<LevelWatches>) -> Self {
-        Self(runs)
+        Self {
+            runs,
+            passages: false,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.runs.is_empty()
     }
 
     /// Every event so far, run by run; the log is left empty.
     pub fn take(&mut self) -> Vec<LevelWatches> {
-        std::mem::take(&mut self.0)
+        std::mem::take(&mut self.runs)
+    }
+
+    /// Whether the hub records the chunks players watch: while a mod listens
+    /// ([`listened`]), and from the first live passage on while this hub lasts.
+    pub fn recording(&self) -> bool {
+        self.passages || listened()
+    }
+
+    /// The server has a live passage: record from now on, for the passages the
+    /// game sends with each chunk sent.
+    pub fn record_for_passages(&mut self) {
+        self.passages = true;
     }
 
     /// One event for `g`'s chunk `(x, z)` in its level, which a new run
@@ -63,9 +84,9 @@ impl ChunkWatchLog {
             entity_id: g.entity_id,
             chunk: [x, z],
         };
-        match self.0.last_mut() {
+        match self.runs.last_mut() {
             Some(run) if run.dimension == g.dimension => run.watches.push(watch),
-            _ => self.0.push(LevelWatches {
+            _ => self.runs.push(LevelWatches {
                 dimension: g.dimension.clone(),
                 watches: vec![watch],
             }),

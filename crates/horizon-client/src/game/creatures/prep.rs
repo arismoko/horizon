@@ -27,8 +27,9 @@ impl Game<'_> {
         for (m, climbing) in self.mobs.iter_mut().zip(climbing) {
             m.on_climbable = climbing;
         }
+        let items = self.items();
         snapshot.extend(par_map(&self.mobs, MIN_MOBS, |part, out| {
-            out.extend(part.iter().map(|m| super::seen(m, player)));
+            out.extend(part.iter().map(|m| super::seen(m, player, items)));
         }));
     }
 }

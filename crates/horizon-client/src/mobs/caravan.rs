@@ -299,7 +299,7 @@ mod defend_trader_tests {
                 let mut owner = Mob::new(2, Arc::new(owner_kind), Vec3::new(1.5, 64.0, 0.5), 0.0);
                 owner.ai.last_hurt_by = Some(Who::Player);
                 owner.ai.last_hurt_by_time = 5;
-                let seen = [owner.seen(None)];
+                let seen = [owner.seen(None, &crate::items::Items::empty())];
                 let world = crate::mobs::MobWorld {
                     others: &seen,
                     ..world

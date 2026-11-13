@@ -503,7 +503,7 @@ fn child_success_avoids_in_process_compile() {
 }
 
 #[test]
-fn child_failures_fall_back_to_identical_compilation() {
+fn child_failures_refuse_without_unbounded_compilation() {
     for (command, marker) in [
         (wrong as fn(&Path, &str) -> std::process::Command, None),
         (crash, None),
@@ -514,27 +514,40 @@ fn child_failures_fall_back_to_identical_compilation() {
     ] {
         let (_dir, cache, _, bytes) = fixture();
         let engine = crate::runtime::engine().unwrap();
-        let (module, source) = cache
+        let error = cache
             .load_with_child(
                 &engine,
                 &bytes,
                 Some((command, std::time::Duration::from_secs(10))),
             )
-            .unwrap();
-        assert_eq!(source, Source::Compiled);
+            .unwrap_err();
+        if marker.is_some() {
+            assert!(
+                error.downcast_ref::<CompileTimeout>().is_some(),
+                "{error:#}"
+            );
+        } else {
+            assert!(
+                error.downcast_ref::<CompileUnavailable>().is_some(),
+                "{error:#}"
+            );
+            let diagnostic = error.to_string();
+            assert!(diagnostic.contains("cannot enforce compilation budget"));
+            assert!(diagnostic.contains("private writable .horizon-cache/wasm"));
+        }
         if let Some(marker) = marker {
             assert!(cache.root.parent().unwrap().join(marker).exists());
         }
-        assert_eq!(answer(&engine, &module), 42);
-        assert_eq!(cache.compiles.load(Ordering::Relaxed), 1);
-        assert_eq!(
-            module.serialize().unwrap(),
-            Module::new(&engine, &bytes).unwrap().serialize().unwrap()
+        assert_eq!(cache.compiles.load(Ordering::Relaxed), 0);
+        assert!(
+            !cache
+                .entry_path(&ModuleCache::key(&engine, &bytes))
+                .exists()
         );
         assert!(
             entries(&cache)
                 .iter()
-                .all(|p| p.extension().unwrap() == "cwasm")
+                .all(|path| path.extension().unwrap() == "cwasm")
         );
     }
 }

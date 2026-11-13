@@ -530,6 +530,12 @@ mod tests {
                 ),
             ]),
             crate::InstanceDirectory::Unix(vec![47, 255]),
+            crate::RuntimeEnvironment::new(
+                crate::Dist::Client,
+                "26.3".into(),
+                "test".into(),
+                false,
+            ),
         );
 
         let registered = Arc::new(Mutex::new(Vec::new()));
@@ -556,6 +562,11 @@ mod tests {
         ];
         with_test_packages(&["reader", "other"], || {
             with_test_registration_data(data, || {
+                let cx = RegistrationContext::new();
+                assert_eq!(cx.dist(), Dist::Client);
+                assert_eq!(cx.game_version(), "26.3");
+                assert_eq!(cx.horizon_version(), "test");
+                assert!(!cx.game_tests_enabled());
                 crate::__private::install_parts(
                     &mods,
                     &crate::__private::part_tests::rule_schema(),

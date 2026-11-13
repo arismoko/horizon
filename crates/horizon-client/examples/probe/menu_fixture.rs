@@ -133,6 +133,7 @@ pub fn main() -> horizon_client::Result<()> {
         limited_crafting: false,
         can_equip: None,
         known_recipes: None,
+        slot_rules: None,
     };
     // The mob effects' network ids (BeaconMenu.encodeEffect).
     let builtin = horizon_protocol::registry::Builtin::find(root)

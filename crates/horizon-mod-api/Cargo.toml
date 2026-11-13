@@ -31,6 +31,8 @@ horizon-mod-vocab = { path = "../horizon-mod-vocab", features = ["testing"] }
 testing = ["horizon-mod-vocab/testing"]
 # The mod side of the wasm boundary on a native build, for the boundary's tests.
 wasm-guest = []
+# Test-only mixed hook, absent from normal API and wire layouts.
+mixed-output-fixture = ["horizon-mod-api-gen/mixed-output-fixture", "horizon-mod-vocab/mixed-output-fixture"]
 
 [lints]
 workspace = true

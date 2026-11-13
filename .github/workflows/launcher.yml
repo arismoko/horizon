@@ -199,6 +199,11 @@ jobs:
           done
           echo "HORIZON_LAUNCHER_NO_SELF_UPDATE=1" >> "$GITHUB_ENV"
           echo "HORIZON_NO_AUDIO=1" >> "$GITHUB_ENV"
+          # The default macOS TMPDIR traverses the /var symlink. Lease fixtures
+          # require physical paths because their no-follow boundary rejects symlinks.
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            echo "TMPDIR=$(cd "$RUNNER_TEMP" && pwd -P)/" >> "$GITHUB_ENV"
+          fi
       # Every test target (the library, the binary, tests/), on each system the launcher ships for.
       - run: cargo test --release --locked ${{ matrix.target && format('--target {0}', matrix.target) || '' }} ${LAUNCHER_FEATURES:+--features "$LAUNCHER_FEATURES"}
       - run: cargo build --release --locked ${{ matrix.target && format('--target {0}', matrix.target) || '' }} ${LAUNCHER_FEATURES:+--features "$LAUNCHER_FEATURES"}
@@ -210,6 +215,10 @@ jobs:
       - name: Name the fork executable
         if: github.repository == 'arismoko/horizon'
         run: mv "$BIN/horizon-launcher${{ runner.os == 'Windows' && '.exe' || '' }}" "$BIN/${{ matrix.binary }}"
+      - name: Release binary retains the game-holder capability marker
+        run: |
+          python=python3; [[ "$RUNNER_OS" != Windows ]] || python=python
+          "$python" -c 'import pathlib, sys; assert b"horizon-private-holder-v2;" in pathlib.Path(sys.argv[1]).read_bytes(), "capability marker missing from this binary (release optimisation?)"' "$BIN/${{ matrix.binary }}"
       - name: Verify Windows executable architecture
         if: runner.os == 'Windows'
         run: python ../tools/check_pe_arch.py "${{ matrix.pe_arch }}" "$BIN/${{ matrix.binary }}"
@@ -298,7 +307,7 @@ jobs:
           fi
           rm -rf "$HORIZON_LAUNCHER_HOME"
       - name: The signing keychain, unlocked
-        if: runner.os == 'macOS' && vars.MACOS_SIGN_IDENTITY != ''
+        if: runner.os == 'macOS' && github.repository != 'arismoko/horizon' && vars.MACOS_SIGN_IDENTITY != ''
         env:
           MACOS_SIGN_IDENTITY: ${{ vars.MACOS_SIGN_IDENTITY }}
         run: ../packaging/macos/keychain.sh unlock
@@ -343,7 +352,7 @@ jobs:
           path: launcher/out/*
           retention-days: 3
       - name: The signing keychain, locked again
-        if: always() && runner.os == 'macOS' && vars.MACOS_SIGN_IDENTITY != ''
+        if: always() && runner.os == 'macOS' && github.repository != 'arismoko/horizon' && vars.MACOS_SIGN_IDENTITY != ''
         run: ../packaging/macos/keychain.sh lock
 
   sign:

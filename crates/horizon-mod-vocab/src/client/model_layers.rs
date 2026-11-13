@@ -6,7 +6,7 @@
 //! (`LayerDefinition.bakeRoot`). A mod turns its parts each frame, as
 //! `setupAnim` does, and draws it with `native_draw_model_part`
 //! (`ModelPart.render`). Mods register their layers by id
-//! (`native_register_layer_definitions`, NeoForge's
+//! (`register_layer_definitions`, NeoForge's
 //! `EntityRenderersEvent.RegisterLayerDefinitions`), and `bake_layer`
 //! bakes one of them or a vanilla layer (`EntityModelSet.bakeLayer`).
 

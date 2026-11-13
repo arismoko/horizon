@@ -1,5 +1,5 @@
 //! `server.toml`'s `[biome_regions]`: what a dedicated server chooses for an existing world's
-//! saved biome regions (docs/modding/src/concepts/mod-biome-regions.md), where the client asks
+//! saved biome regions (docs/design/mod-api/mod-biome-regions.md), where the client asks
 //! in the world list. `missing = "refuse" | "vanilla"` (default `"refuse"`) answers for the
 //! regions of mods no longer installed; `adopt_installed = true` takes the installed mods'
 //! regions for new chunks.

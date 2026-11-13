@@ -6,7 +6,9 @@
 //! `Entity.forceSetRotation`).
 use super::Game;
 use super::commands::Target;
+use super::entity::{Entity as _, with_entity, with_entity_mut};
 use horizon_core::geometry::Vec3;
+use horizon_core::nbt::Tag;
 use horizon_protocol::packets::play::{self, Clientbound as C};
 
 fn is_horse(species: horizon_client::mobs::Species) -> bool {
@@ -66,6 +68,28 @@ pub(super) fn passenger_rotation(before: [f32; 2], after: [f32; 2], rider: [f32;
 pub(super) struct PlacedRotation {
     pub before: [f32; 2],
     pub after: [f32; 2],
+}
+
+/// What a teleport's `TeleportTransition` does with the entity's motion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::game) enum TeleportMotion {
+    /// `Entity.teleportTo(ServerLevel, ..)`, as `/tp` calls it: no delta and no
+    /// `Relative.DELTA`, so the entity arrives still.
+    Stop,
+    /// A portal's `Relative.DELTA` with no delta of its own: the entity keeps
+    /// the motion it had (`PositionMoveRotation.of(this)`), unturned.
+    Keep,
+}
+
+/// `AbstractMinecart.getKnownMovement` with `OldMinecartBehavior`: the cart's
+/// motion clamped to 0.4 either way along x and z, what a teleport's
+/// `PositionMoveRotation.of(this)` carries over.
+pub(super) fn cart_known_movement(velocity: Vec3) -> Vec3 {
+    Vec3::new(
+        velocity.x.clamp(-0.4, 0.4),
+        velocity.y,
+        velocity.z.clamp(-0.4, 0.4),
+    )
 }
 
 /// The entity id a vehicle's riders point at, for the targets that carry some.
@@ -255,10 +279,42 @@ impl Game<'_> {
         }
     }
 
-    /// The cross-level teleport of a command's target: a general entity tree
-    /// carries itself across (identity kept, join identity new) and always
-    /// answers; a vehicle tree answers only when it moved. `None` leaves the
-    /// target to the caller's player path.
+    /// `PositionMoveRotation.of(entity).deltaMovement()`: the motion a
+    /// transition that keeps it (`TeleportMotion::Keep`) carries over, a
+    /// minecart's clamped (`cart_known_movement`). None for a player, whose
+    /// client holds its motion, and an entity no level holds.
+    pub(super) fn transition_motion(&mut self, t: Target) -> Option<Vec3> {
+        let id = super::native_entities::target_id(t)?;
+        let motion = self
+            .in_target_level(t, |g| {
+                let h = g.native_walk_entity(id)?;
+                Some(with_entity!(g, h, e => e.velocity()))
+            })
+            .flatten()?;
+        Some(if matches!(t, Target::Cart(_)) {
+            cart_known_movement(motion)
+        } else {
+            motion
+        })
+    }
+    /// After a teleport placed `t` in its level: `motion` is its motion again
+    /// (`Entity.teleportSetPosition` with `Relative.DELTA`).
+    pub(super) fn restore_transition_motion(&mut self, t: Target, motion: Vec3) {
+        let Some(id) = super::native_entities::target_id(t) else {
+            return;
+        };
+        let _ = self.in_target_level(t, |g| {
+            if let Some(h) = g.native_walk_entity(id) {
+                with_entity_mut!(g, h, e => *e.velocity_mut() = motion);
+            }
+        });
+    }
+
+    /// The cross-level teleport of a command's or a mod's target: a general
+    /// entity tree carries itself across (identity kept, join identity new)
+    /// and always answers; an entity that changes level alone answers; a
+    /// vehicle tree answers only when it moved. `None` leaves the target to
+    /// the caller's player path.
     pub(in crate::game) fn teleport_target_across(
         &mut self,
         target: Target,
@@ -266,6 +322,7 @@ impl Game<'_> {
         at: [f64; 3],
         rotation: Option<[f32; 2]>,
         turn_riders: bool,
+        motion: TeleportMotion,
     ) -> horizon_client::Result<Option<bool>> {
         if let Target::General(id) = target {
             return Ok(Some(self.teleport_general_tree_across(
@@ -274,13 +331,94 @@ impl Game<'_> {
                 at,
             )?));
         }
+        if let Some(moved) = self.teleport_lone_across(target, destination, at, rotation, motion)? {
+            return Ok(Some(moved));
+        }
         Ok(self
-            .teleport_vehicle_across(target, destination, at, rotation, turn_riders)?
+            .teleport_vehicle_across(target, destination, at, rotation, turn_riders, motion)?
             .then_some(true))
     }
 
+    /// `Entity.teleportCrossDimension` for an entity that changes level alone
+    /// (`lone_traveller_box`: an item, a primed TNT, a trident, a firework, an
+    /// experience orb, an arrow or another saved projectile): saved, removed
+    /// from its level, and recreated at `at` in `destination` under a new id,
+    /// its stack, owner, thrower and portal cooldown kept (`restoreFrom`), its
+    /// motion as `motion` says, turned to `rotation` when there is one. None
+    /// for a target of another kind; Some(false) for one no level holds, one
+    /// already in `destination`, one with no saved form, or one carrying mobs;
+    /// Some(true) when it moved, or a mod canceled the travel
+    /// (`entity_travel_to_dimension`) and it stayed.
+    fn teleport_lone_across(
+        &mut self,
+        target: Target,
+        destination: super::Dim,
+        at: [f64; 3],
+        rotation: Option<[f32; 2]>,
+        motion: TeleportMotion,
+    ) -> horizon_client::Result<Option<bool>> {
+        let (Target::Item(id)
+        | Target::Tnt(id)
+        | Target::Trident(id)
+        | Target::Rocket(id)
+        | Target::Orb(id)
+        | Target::Projectile(id)) = target
+        else {
+            return Ok(None);
+        };
+        self.in_target_level(target, |game| {
+            let source = game.dim;
+            // Entity.teleportCrossDimension carries the riders; nothing rides
+            // these kinds but a mob a server seats on a primed TNT.
+            if source == destination
+                || game.lone_traveller_box(id).is_none()
+                || game.mobs.iter().any(|m| m.extra.mount == Some(id))
+            {
+                return Ok(Some(false));
+            }
+            if !game.entity_may_travel(id, destination, super::server_travel::TravelCause::Teleport)
+            {
+                return Ok(Some(true));
+            }
+            // Open the destination before removing the entity.
+            game.enter_level(destination)?;
+            game.enter_level(source)?;
+            let cooldown = game.portals.entities.get(&id).map_or(0, |s| s.cooldown);
+            let Some((mut tag, state)) = game.take_lone_traveller(id) else {
+                return Ok(Some(false));
+            };
+            game.native_leaves_flush();
+            let [yaw, pitch] = horizon_client::entity_nbt::rotation(&tag);
+            // PositionMoveRotation.calculateAbsolute: an axis the teleport
+            // does not set keeps the entity's own, the pitch is clamped.
+            let [yaw, pitch] = rotation.map_or([yaw, pitch], |[y, p]| {
+                [
+                    if y.is_finite() { y } else { yaw },
+                    absolute_pitch(p).unwrap_or(pitch),
+                ]
+            });
+            let kept = match motion {
+                TeleportMotion::Keep => horizon_client::entity_nbt::motion(&tag),
+                TeleportMotion::Stop => Vec3::ZERO,
+            };
+            let to = Vec3::new(at[0], at[1], at[2]);
+            super::nether_portal::set_arrival_pose(&mut tag, to, kept, [yaw, pitch], 0.0);
+            if let Tag::Compound(c) = &mut tag {
+                c.insert("PortalCooldown".into(), Tag::Int(cooldown));
+            }
+            // ServerLevel.addDuringTeleport: a fresh add, not loaded from disk.
+            super::persist::mark_fresh(&mut tag);
+            game.enter_level(destination)?;
+            game.spawn_teleported_entity(Self::chunk_of(to), tag.into(), Some(state));
+            game.enter_level(source)?;
+            Ok(Some(true))
+        })
+        .unwrap_or(Ok(Some(false)))
+    }
+
     /// `Entity.teleportCrossDimension`: carry a command's entire vehicle tree
-    /// into the destination level, retaining UUIDs and the passengers' mounts.
+    /// into the destination level, retaining UUIDs and the passengers' mounts,
+    /// the root's motion as `motion` says.
     pub(super) fn teleport_vehicle_across(
         &mut self,
         target: Target,
@@ -288,6 +426,7 @@ impl Game<'_> {
         at: [f64; 3],
         rotation: Option<[f32; 2]>,
         turn_riders: bool,
+        motion: TeleportMotion,
     ) -> horizon_client::Result<bool> {
         let Some(root) = vehicle_id(target) else {
             return Ok(false);
@@ -312,8 +451,15 @@ impl Game<'_> {
                 game.dismount_mob(root);
             }
             game.prepare_vehicle_transition(root);
+            let kept = match motion {
+                TeleportMotion::Keep => game.transition_motion(target),
+                TeleportMotion::Stop => None,
+            };
             game.teleport_to_in_level(target, at, rotation, [false; 3], turn_riders);
-            game.teleport_stops(target);
+            match kept {
+                Some(kept) => game.restore_transition_motion(target, kept),
+                None => game.teleport_stops(target),
+            }
             let mounts: Vec<_> = game.mob_objects().map(|m| (m.id, m.extra.mount)).collect();
             let tree = super::persist::vehicle_tree(root, &mounts);
             let tag = game.vehicle_tree_nbt(root).ok_or("missing vehicle tree")?;

@@ -491,7 +491,7 @@ fn plan_unloads(world: &World, unload: impl Fn(i32, i32) -> bool) -> Vec<(i32, i
 
 fn commit_unloads(world: &mut World, keys: &[(i32, i32)]) -> Vec<Arc<Chunk>> {
     keys.iter()
-        .filter_map(|key| world.chunks.remove(key))
+        .filter_map(|&key| world.unload_chunk(key))
         .collect()
 }
 
@@ -1535,7 +1535,7 @@ impl Streaming {
         let entities = std::mem::take(&mut chunk.entities);
         world.entities_pending.insert((chunk.x, chunk.z));
         if !entities.is_empty() {
-            world.loaded_entities.push(((chunk.x, chunk.z), entities));
+            world.queue_entity_nbt((chunk.x, chunk.z), entities);
         }
         self.generated_total += 1;
         // A chunk saved with its light needs no light job; its unlit

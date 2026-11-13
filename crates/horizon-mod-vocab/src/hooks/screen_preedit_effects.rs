@@ -6,7 +6,7 @@ pub trait Hooks {
     /// `full_text` (empty when the composition ended), with the caret at
     /// byte `caret_position`, split into `blocks` of which `focused_block` is
     /// the one being converted. Set `canceled` and no text field sees it, and
-    /// `native_screen_preedit_post` does not fire. Fires on the window while a
+    /// `screen_preedit_post` does not fire. Fires on the window while a
     /// screen is open, even when no text field is focused.
     #[hook(
         side = "client",
@@ -19,7 +19,7 @@ pub trait Hooks {
     /// After a screen's preedit handler (`ScreenEvent.Preedit.Post`) and only
     /// when no text field took the composition (the handler returned false:
     /// vanilla's focused field takes it, so this is a preedit no field
-    /// wanted) and `native_screen_preedit_pre` did not cancel. Same arguments.
+    /// wanted) and `screen_preedit_pre` did not cancel. Same arguments.
     #[hook(
         side = "client",
         contract = "listen",
@@ -35,7 +35,7 @@ pub trait Hooks {
     /// `compact` picks icons over full panels (vanilla's choice is compact
     /// under 120) and `horizontal_offset` shifts the stack right (negative
     /// left). Set `canceled` and the panels are not drawn: draw your own with
-    /// `native_screen_render_post`. Once a frame while the screen draws them,
+    /// `screen_render_post`. Once a frame while the screen draws them,
     /// on the window only; if the effects space changes within a frame (the
     /// recipe book opening between two layout builds), it is asked again for
     /// the new space. The exclusion areas follow this choice in the same frame.

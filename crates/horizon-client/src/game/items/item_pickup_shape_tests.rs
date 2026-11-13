@@ -13,7 +13,13 @@ use std::sync::{Arc, Mutex};
 /// What `item_picked_up_post` heard: the original count and what remained.
 type Posts = Arc<Mutex<Vec<(u32, Option<u32>)>>>;
 #[derive(Clone)]
-struct Pickups(Arc<Mutex<Vec<u32>>>, Arc<Mutex<Vec<&'static str>>>, Posts);
+struct Pickups(
+    Arc<Mutex<Vec<u32>>>,
+    Arc<Mutex<Vec<&'static str>>>,
+    Posts,
+    /// The item entity `item_picked_up` refuses.
+    Arc<Mutex<u32>>,
+);
 #[mod_api::__subscriptions]
 impl Hooks for Pickups {
     fn player_stat_award(
@@ -32,8 +38,9 @@ impl Hooks for Pickups {
         self.1.lock().unwrap().push("criterion");
     }
     fn item_picked_up(&self, _: &mut dyn ServerHost, event: &mut ItemPickedUpEvent<'_>) {
-        self.0.lock().unwrap().push(event.count);
-        if event.count == 2 {
+        let id = event.item.entity().id();
+        self.0.lock().unwrap().push(id);
+        if id == *self.3.lock().unwrap() {
             *event.can_pickup = mod_api::TriState::False;
         }
     }
@@ -57,9 +64,15 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
     let heard = Arc::new(Mutex::new(Vec::new()));
     let notifications = Arc::new(Mutex::new(Vec::new()));
     let posts = Posts::default();
+    let refused = Arc::new(Mutex::new(0));
     let mods: mod_api::Mods = vec![ModEntry::new(
         "pickup_shape",
-        Box::new(Pickups(heard.clone(), notifications.clone(), posts.clone())),
+        Box::new(Pickups(
+            heard.clone(),
+            notifications.clone(),
+            posts.clone(),
+            refused.clone(),
+        )),
     )]
     .into();
     with_mods(mods, || {
@@ -130,6 +143,7 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
                 );
                 table.drain();
                 heard.lock().unwrap().clear();
+                *refused.lock().unwrap() = ids[2];
                 notifications.lock().unwrap().clear();
                 posts.lock().unwrap().clear();
                 game.world.random = horizon_core::random::LevelRandom::for_level(
@@ -139,7 +153,7 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
                 game.tick_dropped_items(&mut round);
                 assert_eq!(
                     *heard.lock().unwrap(),
-                    [1, 3, 2],
+                    ids,
                     "the shifted row must not be skipped"
                 );
                 assert_eq!(
@@ -218,7 +232,7 @@ fn indexed_pickup_keeps_bound_survivors_and_processes_shifted_tail() {
                 game.tick_dropped_items(&mut round);
                 assert_eq!(
                     heard.lock().unwrap()[..1],
-                    [1],
+                    [ids[1]],
                     "the pre hook let it through"
                 );
                 assert!(posts.lock().unwrap().is_empty());

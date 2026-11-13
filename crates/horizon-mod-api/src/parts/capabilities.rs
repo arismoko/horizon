@@ -63,6 +63,9 @@ impl PartRegistrar {
             ));
             return;
         }
+        if shares_names.is_some() && !self.note_block_capability(name, handler.clone()) {
+            return;
+        }
         let providers = table(&mut self.parts)
             .entry(name)
             .or_default()

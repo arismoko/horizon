@@ -572,7 +572,7 @@ impl Game<'_> {
                     keep[slot] = kept;
                     // ServerLevel ticks entities one after another: the ones
                     // after this mob see it as it is now.
-                    snapshot[slot] = seen(m, uuid);
+                    snapshot[slot] = seen(m, uuid, world_items!(self));
                     snapshot[slot].alive &= kept;
                     grid.update(slot, snapshot[slot].bounds);
                     horizon_client::mobs::apply_brain_events(
@@ -653,7 +653,7 @@ impl Game<'_> {
                 mobs.iter().enumerate().map(|(i, m)| (m.id, i)).collect();
             for (slot, s) in snapshot.iter_mut().enumerate() {
                 if let Some(&i) = current.get(&s.id) {
-                    *s = seen(&mobs[i], uuid);
+                    *s = seen(&mobs[i], uuid, world_items!(self));
                     s.alive &= keep.get(slot).copied().unwrap_or(true);
                 } else {
                     s.alive = false;
@@ -663,7 +663,7 @@ impl Game<'_> {
                 if let std::collections::hash_map::Entry::Vacant(entry) = index.entry(m.id) {
                     let slot = snapshot.len();
                     entry.insert(slot as u32);
-                    snapshot.push(seen(m, uuid));
+                    snapshot.push(seen(m, uuid, world_items!(self)));
                 }
             }
             villager_slots.clear();
@@ -750,7 +750,7 @@ impl Game<'_> {
 impl Game<'_> {
     /// The killing blow of a mob as the death hooks name it: its damage
     /// type and the causing entity's id (0 for none).
-    pub(super) fn mob_damage_source(&self, m: &Mob) -> (&'static str, u32) {
+    pub(in crate::game) fn mob_damage_source(&self, m: &Mob) -> (&'static str, u32) {
         let (damage_type, attacker) = match m.last_damage {
             Some((d, _)) => (source_damage_type(d), d.attacker),
             None => ("minecraft:generic", None),
@@ -778,7 +778,7 @@ impl Game<'_> {
                 .off_level
                 .values()
                 .filter_map(crate::game::persist::OffLevel::as_mob)
-                .map(|m| seen(m, uuid))
+                .map(|m| seen(m, uuid, self.items()))
                 .collect()
         }
     }

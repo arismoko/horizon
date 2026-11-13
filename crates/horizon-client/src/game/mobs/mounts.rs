@@ -1131,7 +1131,7 @@ fn dismount_location(
 }
 /// `Entity.getCollisionHorizontalEscapeVector`: out of the vehicle's box
 /// along `yaw`, to the edge of the square it spans.
-pub(super) fn escape_vector(vehicle_width: f64, passenger_width: f64, yaw: f32) -> Vec3 {
+fn escape_vector(vehicle_width: f64, passenger_width: f64, yaw: f32) -> Vec3 {
     // 1.0E-5F: a float literal widened to double.
     let distance = (vehicle_width + passenger_width + f64::from(1.0e-5_f32)) / 2.0;
     let radians = f64::from(yaw * 0.017_453_292);
@@ -1632,7 +1632,7 @@ mod tests {
     /// the prepared resources are missing (CI has no vanilla data).
     fn server_game(
         resources: &mut Option<std::sync::Arc<crate::game::Resources>>,
-    ) -> Option<Game<'_>> {
+    ) -> Option<Box<Game<'_>>> {
         use crate::game::{Audio, Options, Progress, Settings, load_resources};
         let root = std::env::var_os("HORIZON_TEST_RESOURCES")
             .map(std::path::PathBuf::from)
@@ -1681,7 +1681,7 @@ mod tests {
             std::sync::Arc::new(horizon_client::chunk::Chunk::empty(0, 0)),
         );
         game.streaming.forced.insert((0, 0));
-        Some(game)
+        Some(Box::new(game))
     }
 
     /// What one feeding made the level show.

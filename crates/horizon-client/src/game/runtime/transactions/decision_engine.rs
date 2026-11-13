@@ -1,9 +1,10 @@
 //! Adapter to actual game-owned menu values. No synthetic slot translation and
 //! no rules, recipe lookup or callbacks during validation or frozen write-back.
 //!
-//! This adapter is not yet a complete LAN read set: guest/backing-storage and
-//! registry versions, and owners while `as_guest` lifts GuestPlay, still need to
-//! be bound before any subscribed production route may use it.
+//! The owners live in `LanHost::menus` (`lan_menus.rs`), outside the `GuestPlay` that
+//! `as_guest` lifts, so they stay reachable during a guest's turn. This adapter is not
+//! yet a complete LAN read set: guest/backing-storage and registry versions still need
+//! to be bound before any subscribed production route may use it.
 use super::{storage::GameHost, *};
 use crate::game::{Game, lan_stations::GuestStation};
 use horizon_client::menu::{Menu as EngineMenu, MutationStamp, Snapshot};
@@ -66,33 +67,38 @@ impl Target {
         Self::find(game, conn, owner).ok_or(Admission::MissingHolder)
     }
 
+    /// The owner's stable identity, which no take, restore or lift changes.
+    pub(in crate::game) fn owner_id(&self) -> MenuId {
+        self.id
+    }
+
     fn find(game: &Game<'_>, conn: u32, owner: Owner) -> Option<Self> {
-        let play = game.lan.as_ref()?.play.get(&conn)?;
+        let menus = game.lan.as_ref()?.menus.get(&conn)?;
         let id = match owner {
-            Owner::Inventory => play.crafting.inventory.id(),
-            Owner::Table => play.crafting.table.id(),
-            Owner::Machine => play.crafting.machine.id(),
-            Owner::Station => play.station.id(),
+            Owner::Inventory => menus.crafting.inventory.id(),
+            Owner::Table => menus.crafting.table.id(),
+            Owner::Machine => menus.crafting.machine.id(),
+            Owner::Station => menus.station.id(),
         };
         Some(Self { conn, owner, id })
     }
 
     fn read<'a>(&self, game: &'a Game<'_>) -> Option<(OwnerStamp, &'a EngineMenu)> {
-        let play = game.lan.as_ref()?.play.get(&self.conn)?;
+        let menus = game.lan.as_ref()?.menus.get(&self.conn)?;
         Some(match self.owner {
             Owner::Inventory => (
-                play.crafting.inventory.stamp(),
-                play.crafting.inventory.as_deref()?,
+                menus.crafting.inventory.stamp(),
+                menus.crafting.inventory.as_deref()?,
             ),
             Owner::Table => (
-                play.crafting.table.stamp(),
-                &play.crafting.table.as_ref()?.2,
+                menus.crafting.table.stamp(),
+                &menus.crafting.table.as_ref()?.2,
             ),
             Owner::Machine => (
-                play.crafting.machine.stamp(),
-                &play.crafting.machine.as_ref()?.1,
+                menus.crafting.machine.stamp(),
+                &menus.crafting.machine.as_ref()?.1,
             ),
-            Owner::Station => (play.station.stamp(), &play.station.as_ref()?.menu),
+            Owner::Station => (menus.station.stamp(), &menus.station.as_ref()?.menu),
         })
     }
 
@@ -107,12 +113,12 @@ impl Target {
             return None;
         }
         self.keep_in(game);
-        let play = game.lan.as_mut()?.play.get_mut(&self.conn)?;
+        let menus = game.lan.as_mut()?.menus.get_mut(&self.conn)?;
         let menu = match self.owner {
-            Owner::Inventory => play.crafting.inventory.as_deref_mut()?,
-            Owner::Table => &mut play.crafting.table.as_mut()?.2,
-            Owner::Machine => &mut play.crafting.machine.as_mut()?.1,
-            Owner::Station => &mut play.station.as_mut()?.menu,
+            Owner::Inventory => menus.crafting.inventory.as_deref_mut()?,
+            Owner::Table => &mut menus.crafting.table.as_mut()?.2,
+            Owner::Machine => &mut menus.crafting.machine.as_mut()?.1,
+            Owner::Station => &mut menus.station.as_mut()?.menu,
         };
         Some(edit(menu))
     }
@@ -124,14 +130,14 @@ impl Target {
         if level.actions.owners.contains_key(&self.id) {
             return;
         }
-        let Some(play) = game.lan.as_ref().and_then(|h| h.play.get(&self.conn)) else {
+        let Some(menus) = game.lan.as_ref().and_then(|h| h.menus.get(&self.conn)) else {
             return;
         };
         let value = match self.owner {
-            Owner::Inventory => KeptValue::Inventory((*play.crafting.inventory).clone()),
-            Owner::Table => KeptValue::Table((*play.crafting.table).clone()),
-            Owner::Machine => KeptValue::Machine((*play.crafting.machine).clone()),
-            Owner::Station => KeptValue::Station((*play.station).clone()),
+            Owner::Inventory => KeptValue::Inventory((*menus.crafting.inventory).clone()),
+            Owner::Table => KeptValue::Table((*menus.crafting.table).clone()),
+            Owner::Machine => KeptValue::Machine((*menus.crafting.machine).clone()),
+            Owner::Station => KeptValue::Station((*menus.station).clone()),
         };
         game.transactions.last_mut().unwrap().actions.owners.insert(
             self.id,
@@ -149,18 +155,18 @@ mod tests;
 
 impl KeptOwner {
     pub(super) fn rollback(self, game: &mut Game<'_>) {
-        let Some(play) = game
+        let Some(menus) = game
             .lan
             .as_mut()
-            .and_then(|h| h.play.get_mut(&self.target.conn))
+            .and_then(|h| h.menus.get_mut(&self.target.conn))
         else {
             return;
         };
         match self.value {
-            KeptValue::Inventory(value) => play.crafting.inventory.restore(value),
-            KeptValue::Table(value) => play.crafting.table.restore(value),
-            KeptValue::Machine(value) => play.crafting.machine.restore(value),
-            KeptValue::Station(value) => play.station.restore(value),
+            KeptValue::Inventory(value) => menus.crafting.inventory.restore(value),
+            KeptValue::Table(value) => menus.crafting.table.restore(value),
+            KeptValue::Machine(value) => menus.crafting.machine.restore(value),
+            KeptValue::Station(value) => menus.station.restore(value),
         }
     }
 }

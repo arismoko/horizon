@@ -166,6 +166,7 @@ fn referenced_jar_and_uninstrumented_unused_jar_are_kept() {
 #[cfg(unix)]
 #[test]
 fn capable_units_delete_only_after_the_last_game_lease_and_mixed_builds_stay_residual() {
+    crate::test_support::assert_holder_capability();
     use std::process::Command;
     let Some(root) = std::env::var_os("CLASSIFICATION_ROOT") else {
         let root = tempfile::tempdir().unwrap();

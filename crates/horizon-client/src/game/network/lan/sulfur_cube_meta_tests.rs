@@ -16,7 +16,14 @@ fn a_sulfur_cube_sends_its_fuse_at_19_and_from_bucket_at_20() {
         r#"{"minecraft:sulfur_cube":{"width":0.52,"height":0.52,"eye_height":0.325,"category":"monster","fire_immune":false,"attributes":{"minecraft:max_health":4.0}}}"#,
     )
     .unwrap();
-    let types = horizon_client::mobs::MobTypes::load_for_server(&root).unwrap();
+    // No attribute catalog: the rows' values stay as written.
+    let attributes = &horizon_world::attributes::entity::Catalog::from_json(&serde_json::json!({
+        "data_version": horizon_world::DATA_VERSION,
+        "attributes": [],
+        "entities": {},
+    }))
+    .unwrap();
+    let types = horizon_client::mobs::MobTypes::load_for_server(&root, attributes).unwrap();
     let _ = std::fs::remove_dir_all(&root);
     let kind = std::sync::Arc::new(types.types["minecraft:sulfur_cube"].clone());
     let at = horizon_core::geometry::Vec3::new(0.5, 64.0, 0.5);

@@ -88,7 +88,7 @@ impl Game<'_> {
         }
     }
 
-    pub(super) fn spectator(&self) -> bool {
+    pub(in crate::game) fn spectator(&self) -> bool {
         self.mode == GameMode::Spectator
     }
     /// `Abilities.mayBuild`.
@@ -129,9 +129,9 @@ impl Game<'_> {
         }
         if mode == GameMode::Spectator {
             self.mining = None;
+            self.stop_active_item_use();
             self.left = false;
             self.dismount_for_spectator();
-            self.stop_active_item_use();
             if let Some(p) = self.player.as_mut() {
                 p.flying = true;
                 p.spectator = true;

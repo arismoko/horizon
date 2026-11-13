@@ -5,7 +5,7 @@ pub trait Hooks {
     /// NeoForge's `LivingEntityUseItemEvent.Finish`: `entity`'s use of
     /// `stack` in `hand` ran its time (`LivingEntity.completeUsingItem`),
     /// `duration` the ticks left, always 0. `entity` is as in
-    /// `native_living_entity_use_item_start`. `result` arrives with what
+    /// `living_entity_use_item_start`. `result` arrives with what
     /// `finishUsingItem` left in the hand (the bowl of a stew, none for the
     /// last apple; a mod's own item is kept) and may be replaced. Fired for
     /// consumables, potions, spyglasses and mods' items. Both sides, as

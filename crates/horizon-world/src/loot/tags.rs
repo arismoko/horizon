@@ -14,9 +14,35 @@ pub trait LootTags {
 }
 
 impl LootTags for super::LootData {
+    fn contains(&self, registry: &str, tag: &str, id: &str) -> bool {
+        if registry == "item" {
+            return self
+                .resolved_item_tags
+                .get(tag)
+                .is_some_and(|members| members.contains(id));
+        }
+        self.members(registry, tag)
+            .iter()
+            .any(|member| member == id)
+    }
     fn members(&self, registry: &str, tag: &str) -> Vec<String> {
         self.tag(registry, tag)
     }
+}
+
+/// Resolve item tags once with the owning loot-data load, including pack overlays.
+pub(super) fn resolve_items(
+    tags: &std::collections::HashMap<(String, String), Vec<serde_json::Value>>,
+) -> std::collections::HashMap<String, std::collections::HashSet<String>> {
+    tags.keys()
+        .filter(|(registry, _)| registry == "item")
+        .map(|(_, tag)| {
+            (
+                tag.clone(),
+                members(tags, "item", tag).into_iter().collect(),
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]

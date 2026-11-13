@@ -18,7 +18,7 @@ use {
     horizon_world::{
         attribute_map::ValueKind,
         attributes::{
-            AttributeError, Instance, Modifier, Operation, Packed,
+            AttributeError, Definition, Instance, Modifier, Operation, Packed,
             entity::Catalog,
             live::{Dirty, Identities, LiveAttributes},
         },
@@ -160,8 +160,13 @@ pub fn apply_saved(attributes: &mut Live, saved: Option<&Tag>) -> Result<()> {
                 .collect(),
             _ => Vec::new(),
         };
+        let definition = attributes.catalog().attribute(key.attribute()).definition;
         let packed = Packed {
-            base: float(entry.get("base")).unwrap_or(0.0),
+            base: loaded_base(
+                key.name(),
+                definition,
+                float(entry.get("base")).unwrap_or(0.0),
+            ),
             modifiers,
         };
         let Some(handle) = attributes
@@ -175,6 +180,63 @@ pub fn apply_saved(attributes: &mut Live, saved: Option<&Tag>) -> Result<()> {
             .map_err(attribute_error)?;
     }
     Ok(())
+}
+
+/// A saved base as a load takes it (#3728): one outside the attribute's
+/// bounds, saved while a mod had widened them, is clamped into them, and the
+/// first such base of each attribute in a world load is logged
+/// ([`LOAD_CLAMPS`]). Any other base, NaN included, stays as saved, as
+/// vanilla's `AttributeInstance.load` keeps it.
+pub fn loaded_base(name: &str, definition: Definition, base: f64) -> f64 {
+    loaded_base_in(&LOAD_CLAMPS, name, definition, base).0
+}
+
+/// [`loaded_base`] against the clamps `log` holds for its load, with whether
+/// this clamp was the one logged.
+fn loaded_base_in(log: &ClampLog, name: &str, definition: Definition, base: f64) -> (f64, bool) {
+    let Some((min, max)) = definition.bounds() else {
+        return (base, false);
+    };
+    if (min..=max).contains(&base) || base.is_nan() {
+        return (base, false);
+    }
+    let logged = log.first(name);
+    if logged {
+        log::warn!(
+            "Horizon: a saved {name} base of {base} is outside its bounds [{min}, {max}] (a mod that widened them is not loaded): clamped"
+        );
+    }
+    (base.clamp(min, max), logged)
+}
+
+/// The clamps of the world being loaded: [`loaded_base`] warns once per
+/// attribute in each world load, and each world open starts a new load.
+pub static LOAD_CLAMPS: ClampLog = ClampLog::new();
+
+/// The attributes whose saved base one load has clamped and logged (#3728).
+pub struct ClampLog(std::sync::Mutex<std::collections::BTreeSet<String>>);
+impl ClampLog {
+    pub const fn new() -> Self {
+        Self(std::sync::Mutex::new(std::collections::BTreeSet::new()))
+    }
+    /// A new load: each attribute's first clamp is logged again.
+    pub fn begin_load(&self) {
+        self.names().clear();
+    }
+    /// Whether this is the first clamp of `name` in the load.
+    fn first(&self, name: &str) -> bool {
+        self.names().insert(name.to_owned())
+    }
+    fn names(&self) -> std::sync::MutexGuard<'_, std::collections::BTreeSet<String>> {
+        self.0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+impl Default for ClampLog {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// The attribute map of a mob, an armor stand or the dragon.
@@ -512,6 +574,69 @@ fn apply_item(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A catalog with one player attribute, bounded at `max`, and its map.
+    fn player(id: &str, max: f64) -> Live {
+        let bits = |v: f64| format!("{:016x}", v.to_bits());
+        let catalog = Arc::new(
+            Catalog::from_json(&serde_json::json!({
+                "data_version": horizon_world::DATA_VERSION,
+                "attributes": [{"id": id, "default": bits(20.0), "min": bits(1.0), "max": bits(max), "syncable": true}],
+                "entities": {"minecraft:player": {id: bits(20.0)}},
+            }))
+            .unwrap(),
+        );
+        new_live(&catalog, "minecraft:player").unwrap()
+    }
+
+    /// #3728: with a mod's widened bounds, a base past vanilla's survives a
+    /// save and a load; without them, the load clamps the base itself.
+    #[test]
+    fn a_saved_base_past_the_bounds_survives_only_with_them() {
+        let id = "test:widened_health";
+        let mut widened = player(id, 1e6);
+        let key = widened.key(id).unwrap();
+        let handle = widened.get_instance(Some(key)).unwrap().unwrap();
+        widened
+            .edit(&handle, |value, observer| {
+                value.set_base_value(5000.0, observer)
+            })
+            .unwrap();
+        let saved = Tag::List(pack(&widened, true));
+        let mut reloaded = player(id, 1e6);
+        apply_saved(&mut reloaded, Some(&saved)).unwrap();
+        assert_eq!(reloaded.computed_value_of(id).unwrap(), 5000.0);
+        let mut removed = player(id, 1024.0);
+        apply_saved(&mut removed, Some(&saved)).unwrap();
+        let key = removed.key(id).unwrap();
+        assert_eq!(removed.value(Some(key), ValueKind::Base).unwrap(), 1024.0);
+        let definition = removed.catalog().definition(id).unwrap();
+        assert!(loaded_base(id, definition, f64::NAN).is_nan());
+    }
+
+    /// #3728: a clamped saved base warns once per attribute in each load,
+    /// and a second load warns again.
+    #[test]
+    fn a_clamped_base_warns_once_per_attribute_in_each_load() {
+        let health = Definition::ranged(20.0, 1.0, 1024.0).unwrap();
+        let armor = Definition::ranged(0.0, 0.0, 30.0).unwrap();
+        let log = ClampLog::new();
+        for load in 0..2 {
+            log.begin_load();
+            let first = loaded_base_in(&log, "minecraft:max_health", health, 5000.0);
+            assert_eq!(first, (1024.0, true), "load {load}: the first clamp warns");
+            let again = loaded_base_in(&log, "minecraft:max_health", health, 9000.0);
+            assert_eq!(
+                again,
+                (1024.0, false),
+                "load {load}: a duplicate is suppressed"
+            );
+            let other = loaded_base_in(&log, "minecraft:armor", armor, 100.0);
+            assert_eq!(other, (30.0, true), "load {load}: another attribute warns");
+            let kept = loaded_base_in(&log, "minecraft:max_health", health, 500.0);
+            assert_eq!(kept, (500.0, false), "load {load}: a base in bounds stays");
+        }
+    }
 
     /// Held items apply their main-hand and off-hand modifiers (#4118, #4777).
     #[test]

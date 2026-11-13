@@ -557,6 +557,8 @@ pub struct PostEffects {
     /// Chains loading on a thread of their own ([`PostEffects::preload`]), for the
     /// root they load from; `pending` until they arrive.
     preloading: Option<(ResourceSource, mpsc::Receiver<Preloaded>)>,
+    #[cfg(test)]
+    test_workers: Vec<std::thread::JoinHandle<()>>,
     pending: HashSet<String>,
     /// This frame's `Extras::blocks`.
     extra_blocks: BTreeMap<String, Vec<u8>>,
@@ -564,6 +566,24 @@ pub struct PostEffects {
     /// pipeline, and the texture at the frame's size.
     gl_depth: Option<(wgpu::BindGroupLayout, wgpu::RenderPipeline)>,
     gl_depth_target: Option<(wgpu::Texture, wgpu::TextureView)>,
+}
+
+#[cfg(test)]
+impl Drop for PostEffects {
+    fn drop(&mut self) {
+        drop(self.preloading.take());
+        let mut panic = None;
+        for worker in self.test_workers.drain(..) {
+            if let Err(error) = worker.join() {
+                panic.get_or_insert(error);
+            }
+        }
+        if !std::thread::panicking()
+            && let Some(error) = panic
+        {
+            std::panic::resume_unwind(error);
+        }
+    }
 }
 
 /// The frame's depth with its rows flipped as the chains' colour is (row 0 at the bottom). Its
@@ -680,6 +700,8 @@ impl PostEffects {
             chains: HashMap::new(),
             failed: HashSet::new(),
             preloading: None,
+            #[cfg(test)]
+            test_workers: Vec::new(),
             pending: HashSet::new(),
             root: empty_source().clone(),
             extra_blocks: BTreeMap::new(),
@@ -755,7 +777,11 @@ impl PostEffects {
                     }
                 }
             });
-        if spawned.is_ok() {
+        if let Ok(worker) = spawned {
+            #[cfg(test)]
+            self.test_workers.push(worker);
+            #[cfg(not(test))]
+            drop(worker);
             self.pending.extend(ids);
             self.preloading = Some((self.root.clone(), rx));
         }
@@ -2075,6 +2101,7 @@ mod tests {
     /// `swap`, then a blit modulated by (1, 0, 0.5, 1) back onto the frame.
     #[test]
     fn a_chain_draws_onto_the_frame() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };
@@ -2111,6 +2138,7 @@ mod tests {
 
     #[test]
     fn a_chain_naming_an_unknown_shader_fails_once() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };
@@ -2212,6 +2240,7 @@ mod tests {
     /// Frame orientation survives a chain through an intermediate target.
     #[test]
     fn a_chain_keeps_the_frame_upright() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };
@@ -2243,6 +2272,7 @@ mod tests {
     /// `textures/effect` image: nothing here is one of vanilla's shaders.
     #[test]
     fn a_chain_runs_its_own_glsl() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = depth_device() else {
             return;
         };
@@ -2285,6 +2315,7 @@ mod tests {
     /// close to 1), not as GL's window depth.
     #[test]
     fn a_pass_reads_the_frame_depth_as_it_is() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = depth_device() else {
             return;
         };
@@ -2412,6 +2443,7 @@ mod tests {
     /// thread, and runs as one loaded in its frame does.
     #[test]
     fn a_preloaded_archive_chain_arrives_compiled() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = depth_device() else {
             return;
         };
@@ -2487,6 +2519,7 @@ mod tests {
     /// without the prepared resources).
     #[test]
     fn vanilla_chains_run() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };
@@ -2521,6 +2554,7 @@ mod tests {
 
     #[test]
     fn vanilla_chains_load() {
+        let _gpu = crate::gfx::test_gpu::lock();
         let Some((device, queue)) = device() else {
             return;
         };

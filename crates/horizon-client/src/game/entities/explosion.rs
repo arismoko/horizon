@@ -197,26 +197,28 @@ pub(super) fn blast_reaches(center: [f64; 3], diameter: f64, at: [f64; 3]) -> bo
 /// `ItemEntity.ignoreExplosion` through
 /// `ServerExplosion.shouldAffectBlocklikeEntities`: an explosion that does not
 /// affect blocklike entities is ignored entirely by a dropped item. With
-/// `mobGriefing` off that is every blast that keeps blocks; with it on, none
-/// (no wind charge goes through `server_explode`).
+/// `mobGriefing` off (`canEntityGrief` for the exploding entity) that is every
+/// blast that keeps blocks; with it on, none (no wind charge goes through
+/// `server_explode`).
 fn items_ignore_explosion(mob_griefing: bool, interaction: BlockInteraction) -> bool {
     !mob_griefing && interaction == BlockInteraction::Keep
 }
 
 /// Whether a blast leaves item frames, paintings, cushions and armour stands
-/// alone. Without `mobGriefing`, a blast that keeps blocks is ignored
-/// (`ServerExplosion.shouldAffectBlocklikeEntities` through their
-/// `ignoreExplosion`; no wind charge goes through `server_explode`), and one a
-/// mob causes does no harm (`BlockAttachedEntity.hurtServer` and
-/// `ArmorStand.hurtServer`: `source.getEntity() instanceof Mob`).
+/// alone. Without `mobGriefing` (`canEntityGrief` for the exploding entity), a
+/// blast that keeps blocks is ignored (`ServerExplosion.shouldAffectBlocklikeEntities`
+/// through their `ignoreExplosion`; no wind charge goes through `server_explode`).
+/// `mob_refused`: a mob causes the blast and may not grief, so it does no harm
+/// (`BlockAttachedEntity.hurtServer` and `ArmorStand.hurtServer`:
+/// `source.getEntity() instanceof Mob`, with `canEntityGrief` for that mob).
 pub(super) fn blast_spares_decorations(
     mob_griefing: bool,
     interaction: BlockInteraction,
-    by_mob: bool,
+    mob_refused: bool,
     source_in_water: bool,
 ) -> bool {
     // `BlockAttachedEntity.ignoreExplosion`: a source in water first.
-    source_in_water || (!mob_griefing && (interaction == BlockInteraction::Keep || by_mob))
+    source_in_water || mob_refused || (!mob_griefing && interaction == BlockInteraction::Keep)
 }
 
 /// How far the blast's `center` is from `p`.
@@ -481,12 +483,13 @@ impl Game<'_> {
     /// (`ExplosionDamageCalculator.getBlockExplosionResistance`), and whether
     /// the block is spared.
     fn blast_step<S: std::hash::BuildHasher>(
-        &self,
+        &mut self,
         pos: [i32; 3],
         resists: Option<([i32; 3], f32)>,
         cap: Option<f32>,
         portal_proof: bool,
         wither_immune: Option<&std::collections::HashSet<String, S>>,
+        explosion: &ExplosionStart<'_>,
     ) -> (f32, bool) {
         let state = self.world.block(pos[0], pos[1], pos[2]);
         let f = self.res.facts().get(state);
@@ -502,18 +505,28 @@ impl Game<'_> {
         // A primed TNT minecart's rails and the blocks they
         // stand on: no resistance, and never blown up.
         let spared = self.combat.rail_proof_blast
-            && (self.rail(pos[0], pos[1], pos[2]).is_some()
-                || self.rail(pos[0], pos[1] + 1, pos[2]).is_some());
+            && (self.rail(None, pos[0], pos[1], pos[2]).is_some()
+                || self.rail(None, pos[0], pos[1] + 1, pos[2]).is_some());
         let taken = match resists {
             Some((at, resistance)) if at == pos => (resistance + 0.3) * 0.3,
             _ if !self.res.facts().is_air(state) || f.fluid != Fluid::None => {
+                let immune = wither_immune.is_some_and(|t| t.contains(&*f.name));
+                let own = f.explosion_resistance;
+                // WitherBoss.canDestroy for the skull's cap, or what the
+                // block's parts answer for the skull.
+                let kept = match (cap, self.combat.explosion_direct) {
+                    (Some(_), Some(skull)) => !self.entity_may_destroy(skull, pos, !immune),
+                    _ => immune,
+                };
+                // Block.getExplosionResistance, or what the block's parts answer.
                 let base = if spared {
                     0.0
                 } else {
-                    f.explosion_resistance.max(fluid)
+                    self.part_explosion_resistance(pos, state, explosion)
+                        .unwrap_or(own)
+                        .max(fluid)
                 };
-                let immune = wither_immune.is_some_and(|t| t.contains(&*f.name));
-                (blast_resistance(base, cap, immune) + 0.3) * 0.3
+                (blast_resistance(base, cap, kept) + 0.3) * 0.3
             }
             _ => 0.0,
         };
@@ -527,6 +540,7 @@ impl Game<'_> {
         radius: f32,
         resists: Option<([i32; 3], f32)>,
         portal_proof: bool,
+        explosion: &ExplosionStart<'_>,
     ) -> Vec<[i32; 3]> {
         let (min_y, max_y) = self.with_level(|_, level, _| {
             use horizon_world::level::LevelAccess;
@@ -581,6 +595,7 @@ impl Game<'_> {
                                     cap,
                                     portal_proof,
                                     wither_immune.as_ref(),
+                                    explosion,
                                 );
                                 last = Some((pos, taken, spared));
                                 (taken, spared, false)
@@ -924,12 +939,7 @@ impl Game<'_> {
                     .ui
                     .rules
                     .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
-            items_ignore: items_ignore_explosion(
-                self.ui
-                    .rules
-                    .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
-                interaction,
-            ),
+            items_ignore: items_ignore_explosion(self.blast_griefs(), interaction),
             spared: exploding.filter(|_| self.combat.explosion_source_named),
         };
         let (items_len, orbs_len) = (self.dropped.len(), self.orbs.len());
@@ -1156,12 +1166,6 @@ impl Game<'_> {
         self.explosion_breaks_decorations(center, diameter, interaction);
         pushed
     }
-    fn blast_damage_caused_by_mob(&self) -> bool {
-        self.combat.explicit_explosion_cause.as_ref().map_or_else(
-            || self.blast_attacker().is_some(),
-            |cause| cause.as_ref().is_some_and(|c| c.species.is_some()),
-        )
-    }
 
     /// Decoration kills credit `DamageSource.getEntity`: the explicit blast
     /// cause, including a TNT igniter or the player who broke an end crystal.
@@ -1183,15 +1187,39 @@ impl Game<'_> {
     /// Decoration hurt checks use the damage source's cause (`instanceof Mob`),
     /// unlike vehicles, which use the explosion's indirect source.
     pub(super) fn blast_spares_decorations(&self, interaction: BlockInteraction) -> bool {
-        let by_mob = self.blast_damage_caused_by_mob();
         blast_spares_decorations(
-            self.ui
-                .rules
-                .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
+            self.blast_griefs(),
             interaction,
-            by_mob,
+            self.blast_mob_refused(),
             self.combat.explosion_in_water,
         )
+    }
+    /// `ServerExplosion.shouldAffectBlocklikeEntities`'s griefing read:
+    /// `canEntityGrief` for the exploding entity (`this.source`), the rule without one.
+    fn blast_griefs(&self) -> bool {
+        self.can_entity_grief(self.combat.explosion_source)
+    }
+    /// A mob causes the blast (`source.getEntity() instanceof Mob`) and
+    /// `canEntityGrief` refuses it: decorations take no harm.
+    fn blast_mob_refused(&self) -> bool {
+        // No listener and the rule on: no mob is refused, and no cause is looked up.
+        if !Game::grief_hooked(self)
+            && self
+                .ui
+                .rules
+                .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING)
+        {
+            return false;
+        }
+        // The mob the damage names (an explicit cause only when it is a mob), found once.
+        let mob = match &self.combat.explicit_explosion_cause {
+            Some(cause) => cause
+                .as_ref()
+                .filter(|c| c.species.is_some())
+                .map(|c| c.entity.0),
+            None => self.blast_attacker().map(|(id, _)| id),
+        };
+        mob.is_some_and(|id| !self.can_entity_grief(Some(id)))
     }
     /// `Entity.isInWater` for an entity box: `updateFluidInteraction` over the box.
     pub(super) fn bounds_in_water(&self, bounds: horizon_core::geometry::Aabb) -> bool {
@@ -1213,13 +1241,10 @@ impl Game<'_> {
         interaction: BlockInteraction,
     ) {
         // An armour stand is no `BlockAttachedEntity`: a source in water does not spare it.
-        let by_mob = self.blast_damage_caused_by_mob();
         let spares_stands = blast_spares_decorations(
-            self.ui
-                .rules
-                .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING),
+            self.blast_griefs(),
             interaction,
-            by_mob,
+            self.blast_mob_refused(),
             false,
         );
         if !self.blast_spares_decorations(interaction) {
@@ -1452,7 +1477,8 @@ impl Game<'_> {
         // Explosion.explode: the blast is heard.
         let ctx = horizon_client::sculk::Context::default();
         self.post_game_event("minecraft:explode", center, ctx);
-        let mut targets = self.exploded_positions(center, radius, resists, source.portal_proof);
+        let mut targets =
+            self.exploded_positions(center, radius, resists, source.portal_proof, &start);
         let dimension = self.dim.id();
         self.native_explosion_detonate(dimension, center, &mut targets);
         let pushed =
@@ -1587,14 +1613,19 @@ impl Game<'_> {
         } else if let Some(tag) = super::spill::saved_entity(&self.world, pos) {
             self.pending.record_saved(pos, &tag);
         }
+        // Block.dropFromExplosion (only TntBlock refuses), or what the
+        // block's parts answer: it gates spawnAfterBreak and the loot.
+        let drops = self
+            .part_drops_from_explosion(pos, state, explosion)
+            .unwrap_or(!is_tnt);
         // Block.onExplosionHit runs spawnAfterBreak before the drops.
-        if !is_tnt && name.starts_with("minecraft:infested_") {
+        if drops && name.starts_with("minecraft:infested_") {
             self.spawn_infestation(pos);
         }
         // Its dropExperience is whether the blast's indirect source is a
         // player (a primed TNT's owner, not a mob's): ores, sculk and spawners
         // sample their experience then, and pop it while blocks drop.
-        if !is_tnt && self.combat.blast_owner_player {
+        if drops && self.combat.blast_owner_player {
             let xp = horizon_world::level::removal::break_experience(&mut self.world.random, &name)
                 .unwrap_or(0);
             if xp > 0
@@ -1606,7 +1637,7 @@ impl Game<'_> {
                 self.spawn_orbs(pos.map(|v| f64::from(v) + 0.5), xp);
             }
         }
-        if !is_tnt {
+        if drops {
             let dynamic = self.pending.dynamic(pos);
             // LootContextParams.EXPLOSION_RADIUS under DESTROY_WITH_DECAY: the
             // tables' survives_explosion and explosion_decay draw from their
@@ -1908,10 +1939,11 @@ fn add_or_append_stack(
 
 /// `WitherSkull.getBlockExplosionResistance`: `isDangerous() &&
 /// WitherBoss.canDestroy(state) ? min(0.8, resistance) : resistance`. Air has
-/// no resistance to begin with, and `#wither_immune` blocks keep theirs.
-fn blast_resistance(base: f32, cap: Option<f32>, wither_immune: bool) -> f32 {
+/// no resistance to begin with, and a block the skull may not destroy
+/// (`kept`: `#wither_immune`, or as its parts answer) keeps its own.
+fn blast_resistance(base: f32, cap: Option<f32>, kept: bool) -> f32 {
     match cap {
-        Some(cap) if !wither_immune => base.min(cap),
+        Some(cap) if !kept => base.min(cap),
         _ => base,
     }
 }
@@ -2234,7 +2266,17 @@ mod tests {
             game.world.random.set_seed(7);
             let expected = exploded_positions_stepwise(&mut game, center, radius, resists);
             game.world.random.set_seed(7);
-            let got = game.exploded_positions(center, radius, resists, false);
+            let start = ExplosionStart::from(mod_api::__private::built::ExplosionStart {
+                dimension: "minecraft:overworld",
+                center,
+                radius,
+                fire: false,
+                interaction: mod_api::BlockInteraction::Destroy,
+                damage_type: "minecraft:explosion",
+                source: None,
+                owner: None,
+            });
+            let got = game.exploded_positions(center, radius, resists, false, &start);
             assert!(expected.len() > 20, "{radius}: {}", expected.len());
             assert_eq!(got, expected, "radius {radius}, {resists:?}");
         }
@@ -2294,6 +2336,7 @@ mod tests {
     fn zombie_type() -> std::sync::Arc<horizon_client::mobs::MobType> {
         use horizon_client::mobs::{Anim, Brain, MobType, Part, Species};
         std::sync::Arc::new(MobType {
+            shadow: None,
             id: "minecraft:zombie".into(),
             species: Species::Zombie,
             width: 0.6,
@@ -2313,6 +2356,7 @@ mod tests {
             jump_strength: 0.42,
             attributes: Default::default(),
             item_stack_limits: Default::default(),
+            attribute_bounds: Default::default(),
             gravity: 0.08,
             safe_fall_distance: 3.0,
             fall_damage_multiplier: 1.0,
@@ -2397,10 +2441,10 @@ mod tests {
         assert!(!blast_spares_decorations(
             true,
             DestroyWithDecay,
-            true,
+            false,
             false
         ));
-        assert!(!blast_spares_decorations(true, Keep, true, false));
+        assert!(!blast_spares_decorations(true, Keep, false, false));
         // Off: TNT still breaks them (ExplosionInteraction.TNT destroys blocks).
         assert!(!blast_spares_decorations(false, Destroy, false, false));
         assert!(!blast_spares_decorations(
@@ -2409,7 +2453,7 @@ mod tests {
             false,
             false
         ));
-        // Off: a blast that keeps blocks, or one a mob causes, does not.
+        // Off: a blast that keeps blocks, or one a refused mob causes, does not.
         assert!(blast_spares_decorations(false, Keep, false, false));
         assert!(blast_spares_decorations(false, Destroy, true, false));
         // A source in water spares them whatever the rules (`BlockAttachedEntity.ignoreExplosion`).

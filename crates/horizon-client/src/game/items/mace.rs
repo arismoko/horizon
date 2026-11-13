@@ -669,7 +669,11 @@ impl Game<'_> {
                 };
                 let level = crate::game::entity::damage_level_of!(self, &attack);
                 let pushed = horizon_client::health::Hurting::ArmorStand(id as i32, source);
-                if level.knockback_canceled(pushed, &mut knock) || knock.strength <= 0.0 {
+                // The smash pushes the armor stand through the short entry, as it pushes the mobs
+                // below (`knockback(power, x, z)`).
+                let canceled = level
+                    .through_short_knockback(|level| level.knockback_canceled(pushed, &mut knock));
+                if canceled || knock.strength <= 0.0 {
                     continue;
                 }
                 let (mut kx, mut kz) = (knock.x, knock.z);

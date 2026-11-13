@@ -9,6 +9,7 @@ description = "The runtime for wasm mods: groups packages by their dependencies 
 [dependencies]
 horizon-guest-stack = { path = "../horizon-guest-stack" }
 horizon-core = { path = "../horizon-core" }
+horizon-java-properties = { path = "../horizon-java-properties" }
 horizon-mod-runtime = { path = "../horizon-mod-runtime" }
 mod_points = { package = "horizon-mod-points", path = "../horizon-mod-points" }
 mod_api = { package = "horizon-mod-api", path = "../horizon-mod-api" }
@@ -48,6 +49,11 @@ workspace = true
 test-copy-probe = []
 runtime-fixture = []
 listener-fixture = ["mod_points/listener-fixture", "horizon-mod-api-gen/listener-fixture"]
+mixed-output-fixture = ["mod_api/mixed-output-fixture", "horizon-mod-api-gen/mixed-output-fixture"]
+
+[[test]]
+name = "listener_outputs"
+required-features = ["mixed-output-fixture"]
 
 [[test]]
 name = "real_member"

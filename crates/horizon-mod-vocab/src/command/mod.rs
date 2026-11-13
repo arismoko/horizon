@@ -99,6 +99,8 @@ pub enum CommandArgumentValue {
         /// The value `CommandArgumentType::parse` returned.
         value: String,
     },
+    /// A `resource:<registry>` argument: an id present in that registry (static or data pack).
+    Id(Identifier),
 }
 
 /// An argument's registered name and its validated value.

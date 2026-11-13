@@ -96,7 +96,7 @@ const LABELS: &str = r#"{"hooks": [
     {"name": "config_loading", "neoforge": "ModConfigEvent.Loading"},
     {"name": "container_opened", "neoforge": "none (not NeoForge's PlayerContainerEvent.Open: this hook can cancel the opening)"},
     {"name": "open_menu", "neoforge": "IPlayerExtension.openMenu(MenuProvider)"},
-    {"name": "block_entity_container", "neoforge": "Capabilities.Item.BLOCK"},
+    {"name": "block_entity_tick", "neoforge": "Capabilities.Item.BLOCK"},
     {"name": "recipes_received", "neoforge": "RecipesReceivedEvent"},
     {"name": "two_events", "neoforge": "OneEvent, TwoEvent"},
     {"name": "standalone_models", "neoforge": "ModelEvent.RegisterStandalone"},
@@ -142,7 +142,7 @@ fn labels_give_counterparts_phases_notes_and_new_names() {
     assert_eq!(
         c.status("Capabilities.ItemHandler.BLOCK"),
         (
-            Status::Hooked(hooks(&["block_entity_container"])),
+            Status::Hooked(hooks(&["block_entity_tick"])),
             Some("Capabilities.Item.BLOCK".to_owned())
         )
     );
@@ -292,7 +292,7 @@ fn registrar_methods_and_capability_keys_answer_what_no_hook_does() {
     // A hook whose label claims the capability still answers it.
     assert_eq!(
         c.status("Capabilities.Item.BLOCK"),
-        (Status::Hooked(hooks(&["block_entity_container"])), None)
+        (Status::Hooked(hooks(&["block_entity_tick"])), None)
     );
     let unlabelled = Catalog::parse(r#"{"hooks": [{"name": "hud"}]}"#).unwrap();
     assert_eq!(
@@ -513,6 +513,7 @@ fn the_built_in_catalog_parses() {
         ("RenderTooltipEvent.Pre", "render_tooltip_pre"),
         // The system subclass is a name of its own to a tool reading listeners.
         ("ClientChatReceivedEvent.System", "client_chat_received"),
+        ("ClientChatReceivedEvent.Player", "client_chat_received"),
     ] {
         let (Status::Hooked(hooks), None) = c.status(counterpart) else {
             panic!("{counterpart} has no hook");
@@ -570,7 +571,7 @@ fn a_jar_and_a_pack_are_ranked_by_how_many_mods_use_each_name() {
         rows[1..],
         [
             "| 2 | `ServerTickEvent.Post` | `server_tick` | alpha, beta |",
-            "| 1 | `Capabilities.ItemHandler.BLOCK` | `block_entity_container` (as `Capabilities.Item.BLOCK`) | alpha |",
+            "| 1 | `Capabilities.ItemHandler.BLOCK` | `block_entity_tick` (as `Capabilities.Item.BLOCK`) | alpha |",
             "| 1 | `ChunkEvent.Load` | `chunk_load` | alpha |",
         ]
     );

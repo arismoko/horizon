@@ -1,7 +1,6 @@
 //! A mod's biome region in the Overworld or the Nether: its own climate points, chosen for an
 //! area by weight beside vanilla's layout, as data a mod registers with
 //! [`Registrar::declare_biome_region`](crate::BiomeRegionsRegistrar::declare_biome_region).
-//! The design and what is built so far: `docs/modding/src/concepts/mod-biome-regions.md`.
 use crate::world::dimension::BiomePoint;
 
 /// The dimensions a region can join: the two whose biomes come from a multi-noise preset.

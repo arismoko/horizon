@@ -10,7 +10,12 @@ pub trait Hooks {
     /// `DamageSource`, named as `native_living_incoming_damage` names a hit's. `attacker` is the
     /// attacking entity's network id, falling back to the victim's last hurt-by mob, or 0 when
     /// unknown; `attacker_main` and `attacker_off` are what it holds (a player's selected and
-    /// off-hand stacks, a mob's main hand), none when unknown. Change `strength`, `x` or `z`, or
+    /// off-hand stacks, a mob's main hand), none when unknown. `entry` is `Short` when the push
+    /// came in through `knockback(power, x, z)`, which only delegates to the full entry, and `Full`
+    /// when the full entry was called directly. The hook fires once per call of the full entry
+    /// either way, so a listener that wants its change applied twice for a short-entry push, as
+    /// a mixin on both entries would, applies it twice when `entry` is `Short`. Change
+    /// `strength`, `x` or `z`, or
     /// set `canceled`, and the push follows them: canceled, the entity's motion is left alone. A
     /// `strength` of 0 or less after the hook is no push, and a direction too short to tell
     /// draws a random one after it, as in vanilla. A value a mod leaves that is not a finite
@@ -37,6 +42,7 @@ pub trait Hooks {
         attacker: i32,
         attacker_main: Option<&ItemStack>,
         attacker_off: Option<&ItemStack>,
+        entry: KnockbackEntry,
         strength: &mut f64,
         x: &mut f64,
         z: &mut f64,
@@ -49,7 +55,7 @@ pub trait Hooks {
     /// ticks as an orb scans for neighbours (`scanForMerges`). `can_merge` holds vanilla's
     /// answer; change it either way. A merged orb counts as `count` orbs of `into`'s
     /// value, so forcing orbs of different values together drops points unless the mod
-    /// raises `into`'s value with `native_set_experience_orb` in `native_experience_orb_merge`.
+    /// raises `into`'s value with `native_set_experience_orb` in `experience_orb_merge`.
     /// Server-side.
     #[hook(
         side = "server",

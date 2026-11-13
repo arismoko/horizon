@@ -16,7 +16,7 @@ def matrix(repository):
         raise ValueError(f'Unsupported launcher repository: {repository}')
     entries = [dict(entry) for entry in PLATFORMS]
     if repository == 'arismoko/horizon':
-        entries = [entry for entry in entries if entry['name'] in ('linux', 'windows')]
+        entries = [entry for entry in entries if entry['name'] in ('linux', 'macos', 'windows')]
         for entry in entries:
             for key in ('asset', 'binary', 'setup_asset'):
                 if key in entry:

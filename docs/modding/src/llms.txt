@@ -1,38 +1,34 @@
 # Modding Horizon
 
-> Horizon is Minecraft: Java Edition 26.3 in Rust. A mod is one `.hmod`: content (assets/ and data/), plus an optional Rust crate built native or to mod.wasm against the `mod_api` crate (`horizon-mod-api`).
+> Horizon is Minecraft: Java Edition 26.3 in Rust. A mod is one `.hmod`: content (`assets/`, `data/`) and, for a code mod, a Rust crate built natively by the launcher or to `mod.wasm`, against the `mod_api` crate (`horizon-mod-api`).
 
-Prefer a hook or Part method; otherwise use an API `[[inject]]` on native or wasm. Native code needing game internals uses `[[native.mixin]]`; `[[inject]]` has no `access` key; a row that still has one is refused by name.
+Rules for code: implement `mod_api::Hooks` at the crate root with `#[mod_api::horizon_mod]`; prefer a hook or Part method; otherwise an `[[inject]]` listener at a published point (native and wasm); change the game's own code only through the native route (`[[native.mixin]]`, `[[native.loop]]`, `[[native.bridge]]`, `[[native.module]]`, native only). Hook names follow NeoForge 26.3; events are `&mut`; writes take a `ServerHost`. The id and version come only from `horizon-mod.toml`; ids are `[a-z0-9_]`. A mod is `[native]` or `[wasm]`, never both; unknown manifest fields are refused.
 
-## Rules
+## Getting started
 
-- [Rules for agents](agents.md): the rules in order and the manifest fields.
-- [Injections](injections.md): the decision ladder, convertible injections, the hook-request template, ordering.
+- [Installing and using mods](https://arismoko.github.io/horizon/start/installing.html)
+- [Your first content mod](https://arismoko.github.io/horizon/start/first-content-mod.html)
+- [Your first native mod](https://arismoko.github.io/horizon/start/first-mod.html)
+- [Your first WebAssembly mod](https://arismoko.github.io/horizon/start/first-wasm-mod.html)
+- [Writing hooks](https://arismoko.github.io/horizon/start/writing-hooks.html): the crate root, events, hosts and listener order.
 
-## Guide
+## Concepts
 
-- [Your first native mod](start/first-mod.md)
-- [Installing and using mods](start/installing.md)
-- [Making a content mod](how-to/content-mods.md)
-- [Native mods](how-to/native-mods.md)
-- [Query attachment holders](how-to/attachments.md): snapshots, explicit server writes, scope and costs.
-- [Trait mods, Parts and attachments](concepts/trait-mods.md)
-- [Publishing your mod](how-to/publish.md)
+- [Hooks and the Host](https://arismoko.github.io/horizon/concepts/hooks-and-the-host.html)
+- [Load phases and access](https://arismoko.github.io/horizon/concepts/load-phases.html)
+- [Parts](https://arismoko.github.io/horizon/concepts/parts.html), [Capabilities](https://arismoko.github.io/horizon/concepts/capabilities.html), [Attachments](https://arismoko.github.io/horizon/concepts/attachments.html), [Transactions](https://arismoko.github.io/horizon/concepts/transactions.html)
+- [Registry keys](https://arismoko.github.io/horizon/concepts/registry-keys.html), [Wire types](https://arismoko.github.io/horizon/concepts/wire-types.html), [Dependencies between mods](https://arismoko.github.io/horizon/concepts/dependencies.html)
+- [Injections](https://arismoko.github.io/horizon/concepts/injections.html) and [the native route](https://arismoko.github.io/horizon/concepts/native-route.html)
 
-## Per-concept sources
+## How-to
 
-Edit the individual pages in `concepts/trait-mods/` and `how-to/native-mods/`, not their aggregate pages.
-`mdbook build docs/modding` discovers sorted `.md` files there automatically, using the leading
-`<!-- chapter: Title -->` metadata for navigation. Adding a concept needs no SUMMARY edit.
-Existing heading anchors stay unchanged on the aggregate pages; relative links and compiled-example
-includes in a concept page are relative to that page. The build checks their targets and anchors.
-The preprocessor needs only Python 3 and runs automatically in local and CI builds.
+- [Content mods](https://arismoko.github.io/horizon/how-to/content-mods.html), [Native mods: building and shipping](https://arismoko.github.io/horizon/how-to/native-mods.html), [WebAssembly mods](https://arismoko.github.io/horizon/how-to/wasm-mods.html), [Publishing](https://arismoko.github.io/horizon/how-to/publish.html)
+- [Levels, dimensions and blocks](https://arismoko.github.io/horizon/how-to/world.html), [Items, recipes and loot](https://arismoko.github.io/horizon/how-to/items.html), [Entities, players and commands](https://arismoko.github.io/horizon/how-to/entities.html), [Client, rendering and sound](https://arismoko.github.io/horizon/how-to/client.html)
 
 ## Reference
 
-- [NeoForge extension coverage](reference/neoforge-extensions.md): every public method of NeoForge 26.3's block, item, entity, block-entity and fluid extension interfaces, and what Horizon has for it.
-- [The manifest and the package](reference/manifest.md)
-- [The registry index](reference/registry-index.md)
-- [Hook notes](reference/hook-notes.md)
-- [NeoForge counterparts](reference/neoforge-counterparts.md)
-- [The mod API (rustdoc)](reference/api.md)
+- [The manifest and the package](https://arismoko.github.io/horizon/reference/manifest.html)
+- [The registry index and `.hpack`](https://arismoko.github.io/horizon/reference/registry-index.html)
+- [The mod API reference (rustdoc)](https://arismoko.github.io/horizon/reference/api.html): every hook, event, Part and `Host` method.
+- [Hook notes](https://arismoko.github.io/horizon/reference/hook-notes.html)
+- [NeoForge counterparts](https://arismoko.github.io/horizon/reference/neoforge-counterparts.html)

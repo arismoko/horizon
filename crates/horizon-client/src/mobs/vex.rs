@@ -463,7 +463,10 @@ mod owner_save_tests {
                 target_kind.species = Species::Cow;
                 let mut target = Mob::new(3, Arc::new(target_kind), Vec3::new(2.5, 64.0, 0.5), 0.0);
                 target.health = if alive { target.health } else { 0.0 };
-                let seen = [owner.seen(None), target.seen(None)];
+                let seen = [
+                    owner.seen(None, &crate::items::Items::empty()),
+                    target.seen(None, &crate::items::Items::empty()),
+                ];
                 let world = crate::mobs::MobWorld {
                     others: &seen,
                     ..w.clone()

@@ -27,9 +27,35 @@ pub(crate) struct ModuleCache {
     pub(super) root: PathBuf,
     pub(super) disabled: Option<String>,
     warned: AtomicBool,
+    pub(crate) budget: crate::compile_budget::CompileBudget,
     #[cfg(test)]
     compiles: AtomicU64,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CompileTimeout(pub(crate) crate::compile_budget::CompileBudget);
+impl std::fmt::Display for CompileTimeout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "compilation time limit exceeded: {}", self.0)
+    }
+}
+impl std::error::Error for CompileTimeout {}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CompileUnavailable {
+    pub(crate) budget: crate::compile_budget::CompileBudget,
+    pub(crate) why: String,
+}
+impl std::fmt::Display for CompileUnavailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "cannot enforce compilation budget {}: {}; restore a private writable .horizon-cache/wasm directory and a working compiler executable",
+            self.budget, self.why
+        )
+    }
+}
+impl std::error::Error for CompileUnavailable {}
 
 impl ModuleCache {
     /// Hits are mapped by `Module::deserialize_open_file`, as in `deserialize_file`.
@@ -80,6 +106,7 @@ impl ModuleCache {
         }
         Self {
             root,
+            budget: crate::compile_budget::CompileBudget::default(),
             #[cfg(test)]
             compiles: AtomicU64::new(0),
             warned: AtomicBool::new(disabled.is_some()),
@@ -121,7 +148,7 @@ impl ModuleCache {
         } else {
             Some((
                 production_command as fn(&Path, &str) -> std::process::Command,
-                crate::compile_child::TIMEOUT,
+                self.budget.limit,
             ))
         };
         #[cfg(not(unix))]
@@ -147,7 +174,21 @@ impl ModuleCache {
             std::time::Duration,
         )>,
     ) -> wasmtime::Result<(Module, Source)> {
-        if self.disabled.is_some() {
+        if let Some(why) = &self.disabled {
+            #[cfg(unix)]
+            if let Some((_, timeout)) = child.as_ref() {
+                return Err(CompileUnavailable {
+                    budget: crate::compile_budget::CompileBudget {
+                        limit: *timeout,
+                        ..self.budget
+                    },
+                    why: why.clone(),
+                }
+                .into());
+            }
+            // Only a bounded child compile reports why caching is off; Windows has none (#2901).
+            #[cfg(not(unix))]
+            let _ = why;
             return Module::new(engine, bytes).map(|module| (module, Source::Compiled));
         }
         let path = self.entry_path(&Self::key(engine, bytes));
@@ -168,9 +209,27 @@ impl ModuleCache {
                     }
                     "no valid cache entry".to_owned()
                 }
+                Err(why)
+                    if why
+                        .downcast_ref::<io::Error>()
+                        .is_some_and(|e| e.kind() == io::ErrorKind::TimedOut) =>
+                {
+                    return Err(CompileTimeout(crate::compile_budget::CompileBudget {
+                        limit: timeout,
+                        ..self.budget
+                    })
+                    .into());
+                }
                 Err(why) => why.to_string(),
             };
-            log::warn!("wasm compiler child failed: {why}; compiling wasm in process");
+            return Err(CompileUnavailable {
+                budget: crate::compile_budget::CompileBudget {
+                    limit: timeout,
+                    ..self.budget
+                },
+                why,
+            }
+            .into());
         }
         #[cfg(test)]
         self.compiles.fetch_add(1, Ordering::Relaxed);

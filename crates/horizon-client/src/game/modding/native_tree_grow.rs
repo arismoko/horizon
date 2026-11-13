@@ -20,18 +20,17 @@ pub(crate) fn on_tree_grow(
         return None;
     }
     let index = native_worldgen_parts::index()?;
-    let context = horizon_world::native_worldgen_hooks::context()?;
     let state = index.to_api(access.block_state(pos)?).ok()?;
-    let registry = |name: &str| context.registry(name);
-    let setting = |mod_id: &str, key: &str| context.setting(mod_id, key);
     let mut soil = None;
-    mod_api::world::ground::native_on_tree_grow(
-        &mod_api::OwningWorldgen::new(&registry, &setting),
-        state,
-        pos,
-        &mut Random(access),
-        &mut soil,
-    );
+    native_worldgen_parts::with_host(|host| {
+        mod_api::world::ground::native_on_tree_grow(
+            host,
+            state,
+            pos,
+            &mut Random(access),
+            &mut soil,
+        );
+    })?;
     placed(&index, state, soil?)
 }
 
@@ -93,8 +92,7 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
     use std::sync::{Arc, Mutex, PoisonError};
 
-    /// Held by each test that publishes: the published tables are process-wide.
-    static PUBLISHING: Mutex<()> = Mutex::new(());
+    use native_worldgen_parts::PUBLISHING;
 
     const GRASS: EngineState = EngineState(1);
     const COARSE_DIRT: EngineState = EngineState(2);
@@ -158,7 +156,7 @@ mod tests {
 
     /// Publish `parts` resolved against `tags` with `registry`'s index, and an empty worldgen
     /// context.
-    fn publish(registry: &BlockRegistry, tags: &[(&str, &[&str])]) {
+    fn publish(registry: &'static BlockRegistry, tags: &[(&str, &[&str])]) {
         let tags = tags
             .iter()
             .map(|(tag, members)| {
@@ -175,7 +173,7 @@ mod tests {
             },
         )
         .unwrap();
-        native_worldgen_parts::publish(parts.as_ref(), &block_state::current().unwrap());
+        native_worldgen_parts::publish(parts.as_ref(), &block_state::current().unwrap(), registry);
         let root = std::env::temp_dir().join("horizon-tree-grow-no-settings");
         let load = LoadContext::new(
             DataLoadOrigin::ServerDataLoad,
@@ -192,9 +190,11 @@ mod tests {
         let mut trunk = Trunk::default();
         let answer = mod_platform::testing::with_mods(mods.clone(), || {
             crate::game::api_values::install_parts(&mods).unwrap();
-            let registry = BlockRegistry::from_facts_json(FACTS.as_bytes()).unwrap();
-            resolve_block_definitions(&registry).unwrap();
-            publish(&registry, &[]);
+            let registry: &'static BlockRegistry = Box::leak(Box::new(
+                BlockRegistry::from_facts_json(FACTS.as_bytes()).unwrap(),
+            ));
+            resolve_block_definitions(registry).unwrap();
+            publish(registry, &[]);
             mod_api::__private::worldgen_feature(|| on_tree_grow(&mut trunk, [0, 63, 0]))
         });
         assert_eq!(answer, Some(Some(COARSE_DIRT)));
@@ -254,19 +254,21 @@ mod tests {
         let mods: Mods = vec![ModEntry::new("soils", Box::new(KeyAndTag))].into();
         mod_platform::testing::with_mods(mods.clone(), || {
             crate::game::api_values::install_parts(&mods).unwrap();
-            let registry = BlockRegistry::from_facts_json(FACTS.as_bytes()).unwrap();
-            resolve_block_definitions(&registry).unwrap();
+            let registry: &'static BlockRegistry = Box::leak(Box::new(
+                BlockRegistry::from_facts_json(FACTS.as_bytes()).unwrap(),
+            ));
+            resolve_block_definitions(registry).unwrap();
             let grow = || {
                 let mut trunk = Trunk::default();
                 assert_eq!(on_tree_grow(&mut trunk, [0, 63, 0]), None);
                 assert_eq!(trunk.draws, 0);
             };
-            publish(&registry, &[("minecraft:dirt", &["minecraft:grass_block"])]);
+            publish(registry, &[("minecraft:dirt", &["minecraft:grass_block"])]);
             grow();
             assert_eq!(heard(), ["key", "tag"]);
             mod_api::__private::worldgen_feature(|| {
                 // A `/reload` drops grass from the tag while the feature runs.
-                publish(&registry, &[("minecraft:dirt", &[])]);
+                publish(registry, &[("minecraft:dirt", &[])]);
                 grow();
                 assert_eq!(heard(), ["key", "tag"]);
             });

@@ -36,6 +36,7 @@ fn dispatch(
 #[test]
 #[ignore = "offscreen GPU control; run explicitly with an available adapter"]
 fn terrain_source_ownership_gpu() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let instance = crate::gfx::test_gpu::instance();
     let adapter = pollster::block_on(instance.request_adapter(&Default::default()))
         .expect("executed GPU control requires an adapter");

@@ -43,6 +43,21 @@ pub enum SwapWith {
     Offhand,
 }
 
+/// Whether `open_menu` first sends the client a close for the menu it replaces, as a Java
+/// `MenuProvider` chooses (`shouldTriggerClientSideContainerClosingOnOpen`). Either way the old
+/// menu closes on the server, its cursor stack going back to the player's inventory.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// exhaustive: vanilla's choice is a boolean
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum MenuReplace {
+    /// `ServerPlayer.closeContainer`, vanilla's default: the client closes the old screen first,
+    /// which centres the mouse again.
+    CloseFirst,
+    /// `ServerPlayer.doCloseContainer`: the new screen takes the old one's place, title and rows
+    /// included, and the mouse stays where it is.
+    InPlace,
+}
+
 /// How a complete drag distributes the carried stack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 // exhaustive: vanilla has split, one-per-slot and creative-fill drags

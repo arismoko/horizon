@@ -2976,7 +2976,7 @@ impl Goal for BreathAir {
         );
         m.move_relative(0.02, input);
         let mut ev = Vec::new();
-        m.do_move(cx.w, cx.level, &mut ev);
+        m.do_move(cx.w, cx.level, &mut ev, &mut Default::default()); // the fresh gate, armed by `do_move`
         cx.events.extend(ev);
     }
 }
@@ -3218,7 +3218,7 @@ mod breeding_variant_tests {
             let kind = Arc::new(types.types["minecraft:chicken"].clone());
             let mut mate = Mob::new(2, kind.clone(), Vec3::new(1.0, 64.0, 0.0), 0.0);
             mate.extra.in_love = 600;
-            let partner = [mate.seen(None)];
+            let partner = [mate.seen(None, &crate::items::Items::empty())];
             for asks_baby_spawn in [false, true] {
                 let w = MobWorld {
                     goal_host: None,
@@ -3277,8 +3277,8 @@ mod breeding_variant_tests {
                 "minecraft:wolf",
             ] {
                 let kind = Arc::new(types.types[id].clone());
-                let partner =
-                    [Mob::new(2, kind.clone(), Vec3::new(1.0, 64.0, 0.0), 0.0).seen(None)];
+                let partner = [Mob::new(2, kind.clone(), Vec3::new(1.0, 64.0, 0.0), 0.0)
+                    .seen(None, &crate::items::Items::empty())];
                 for (ask_mods, mob_drops) in
                     [(false, true), (false, false), (true, true), (true, false)]
                 {
@@ -3889,7 +3889,10 @@ mod peaceful_targets_tests {
             };
             let ghast = mob(2, "minecraft:ghast", Vec3::new(2.5, 64.0, 0.5));
             let zombie = mob(3, "minecraft:zombie", Vec3::new(3.5, 64.0, 0.5));
-            seen = Some([ghast.seen(None), zombie.seen(None)]);
+            seen = Some([
+                ghast.seen(None, &crate::items::Items::empty()),
+                zombie.seen(None, &crate::items::Items::empty()),
+            ]);
         });
         let Some(seen) = seen else { return };
         with_test_world(&seen, |w, types| {
@@ -4141,7 +4144,7 @@ mod breed_xp_tests {
         // AbstractHorse.canParent: only tame llamas breed.
         partner.extra.tame = true;
         partner.extra.in_love = 600;
-        let seen = [partner.seen(None)];
+        let seen = [partner.seen(None, &crate::items::Items::empty())];
         let mut out = None;
         crate::mobs::world::with_built_test_world_rules(&seen, true, drops, shelf, |w, _| {
             let mut m = Mob::new(1, kind, Vec3::new(0.5, 64.0, 0.5), 0.0);
@@ -4537,7 +4540,7 @@ mod breed_continue_tests {
         m.extra.in_love = 600;
         m.ai.goals.add(1, Breed::new(1.0));
         let mut started = None;
-        let calm = [partner.seen(None)];
+        let calm = [partner.seen(None, &crate::items::Items::empty())];
         if !with_test_world(&calm, |w, _| {
             let mut damage = crate::health::TestLevel::new(0);
             let mut events = Vec::new();
@@ -4554,7 +4557,7 @@ mod breed_continue_tests {
             return;
         }
         partner.ai.panicking = true;
-        let panicking = [partner.seen(None)];
+        let panicking = [partner.seen(None, &crate::items::Items::empty())];
         let mut stopped = None;
         if !with_test_world(&panicking, |w, _| {
             let mut damage = crate::health::TestLevel::new(0);

@@ -20,6 +20,22 @@ pub struct BlockStateId(pub u32);
 // exhaustive: only the load-owned table creates keys
 pub struct BlockEntityTypeKey(pub(crate) u32);
 
+/// The existing block entity tick's write-back choice on native and wasm.
+// exhaustive: the wire protocol has exactly two snapshot write-back choices.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, horizon_mod_api_macros::Wire)]
+pub enum BlockEntityTickReply {
+    /// Validate and apply the full payload, as ticks do by default.
+    #[default]
+    Changed,
+    /// Discard this Part's payload edits without encoding, decoding or applying
+    /// its reply snapshot. Earlier Parts' accepted `Changed` edits survive.
+    /// When every Part answers `Unchanged`, the original entity and revision
+    /// survive only while its original placeholder remains, with no tick-only
+    /// dirty, container or comparator effects. Independent Host writes retain
+    /// their own effects.
+    Unchanged,
+}
+
 // no wire: borrowed host or registrar backend; access stays scoped to the owning call.
 /// A hook's mutable block entity payload, with a read-only type identity.
 /// The private handle cannot be constructed or taken out by a mod.
@@ -47,17 +63,58 @@ pub struct BlockEntityTypeKey(pub(crate) u32);
 // exhaustive: its fields are private, so mods cannot build or destructure it
 pub struct ModBlockEntityView<'a> {
     pub(crate) entity: &'a mut ModBlockEntity,
+    tick_listener: bool,
+    tick_original: Option<(
+        crate::item::containers::ModBlockEntityFields,
+        crate::item::containers::ModRevision,
+        Option<Compound>,
+    )>,
 }
 
 impl<'a> ModBlockEntityView<'a> {
     // hidden: a game-side helper lending the checked view to a hook
     #[doc(hidden)]
     pub fn new(entity: &'a mut ModBlockEntity) -> Self {
-        Self { entity }
+        Self {
+            entity,
+            tick_listener: false,
+            tick_original: None,
+        }
     }
     /// Id.
     pub fn id(&self) -> &str {
         self.entity.id()
+    }
+
+    /// Begin one tick listener's lazy payload checkpoint.
+    // hidden: the generated listener dispatch brackets each tick listener with this; mods never call it
+    #[doc(hidden)]
+    pub fn __begin_tick_listener(&mut self) {
+        self.tick_listener = true;
+    }
+
+    /// Accept this listener's edits, or restore the preceding accepted payload.
+    // hidden: the generated listener dispatch brackets each tick listener with this; mods never call it
+    #[doc(hidden)]
+    pub fn __finish_tick_listener(&mut self, reply: BlockEntityTickReply) {
+        self.tick_listener = false;
+        if let Some((fields, revision, client_update_fields)) = self.tick_original.take()
+            && reply == BlockEntityTickReply::Unchanged
+        {
+            self.entity.fields = fields;
+            self.entity.revision = revision;
+            self.entity.client_update_fields = client_update_fields;
+        }
+    }
+
+    fn checkpoint_tick_listener(&mut self) {
+        if self.tick_listener && self.tick_original.is_none() {
+            self.tick_original = Some((
+                self.entity.fields.clone(),
+                self.entity.revision,
+                self.entity.client_update_fields.clone(),
+            ));
+        }
     }
     /// Replace the one-shot fields the block's next change sends clients; an empty compound
     /// clears them. They go over what `block_entity_update_tag` gives (or alone, without
@@ -71,6 +128,7 @@ impl<'a> ModBlockEntityView<'a> {
     /// dropped with a warning, and the change goes without them. A transaction that rolls the
     /// block entity back also drops a batch queued before it.
     pub fn set_client_update_fields(&mut self, fields: Compound) {
+        self.checkpoint_tick_listener();
         self.entity.client_update_fields = Some(fields);
     }
 }
@@ -84,6 +142,7 @@ impl std::ops::Deref for ModBlockEntityView<'_> {
 
 impl std::ops::DerefMut for ModBlockEntityView<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.checkpoint_tick_listener();
         self.entity
     }
 }

@@ -44,7 +44,7 @@ pub trait Hooks {
     /// a level closing with nobody in it included. Not for the entities still
     /// loaded when the server stops, as in vanilla. `entity` is its ID and
     /// `kind` its type (`minecraft:item`); it is no longer in the level's lists.
-    /// It only hears. It tells every kind `native_entity_join_level` does
+    /// It only hears. It tells every kind `entity_join_level` does
     /// (`kind` is the type), each once, when the game next notices it gone
     /// (the tick or action that removed
     /// it). Check `kind`. Server-side.

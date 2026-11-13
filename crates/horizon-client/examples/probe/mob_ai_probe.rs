@@ -238,7 +238,7 @@ fn goal_name(m: &Mob, name: &str) -> String {
         "RestrictSun" => "RestrictSunGoal",
         "FleeSun" => "FleeSunGoal",
         // `Cat.CatAvoidEntityGoal`, `Fox.FoxAvoidEntityGoal`... name their subclass.
-        "AvoidEntity" if m.species() == Species::Cat => "CatAvoidEntityGoal",
+        "AvoidEntity" | "CatAvoid" if m.species() == Species::Cat => "CatAvoidEntityGoal",
         "AvoidEntity" => "AvoidEntityGoal",
         "BowAttack" => "RangedBowAttackGoal",
         "Swell" => "SwellGoal",
@@ -393,14 +393,7 @@ fn villager_events(
             MobEvent::VillagerMeet { mob, other } => {
                 events.remove(i);
                 if let (Some(a), Some(b)) = (index(mobs, mob), index(mobs, other)) {
-                    let meeting = villager::meet(
-                        mobs,
-                        a,
-                        b,
-                        w.game_time,
-                        |item| items.get(item).map_or(64, |i| i.max_stack),
-                        w.professions,
-                    );
+                    let meeting = villager::meet(mobs, a, b, w.game_time, items, w.professions);
                     assert!(
                         meeting.thrown.is_empty(),
                         "villagers toss items: not modelled here"
@@ -425,7 +418,7 @@ fn villager_events(
                 let (Some(a), Some(b)) = (index(mobs, parent), index(mobs, partner)) else {
                     continue;
                 };
-                villager::ext_mut(&mut mobs[b]).eat_and_digest();
+                villager::ext_mut(&mut mobs[b]).eat_and_digest(items);
                 let Some((bed, variant)) = child else {
                     continue;
                 };
@@ -453,8 +446,8 @@ fn villager_events(
 /// The player's UUID (the oracle's `PLAYER_UUID`).
 const PLAYER_UUID: [i32; 4] = [0, 0x1234, 0, 0x5678];
 
-fn seen(m: &Mob) -> Seen {
-    m.seen(Some(PLAYER_UUID))
+fn seen(m: &Mob, items: &Items) -> Seen {
+    m.seen(Some(PLAYER_UUID), items)
 }
 
 /// The probe's mobs as a creaking heart sees them: creakings it creates take
@@ -1313,7 +1306,11 @@ pub fn main() -> horizon_client::Result<()> {
                 p.look = [f64::from(sin), -0.0, f64::from(cos)];
                 p.yaw = yaw;
             }
-            let mut snapshot: Vec<Seen> = mobs.iter().filter(|m| !m.removed).map(seen).collect();
+            let mut snapshot: Vec<Seen> = mobs
+                .iter()
+                .filter(|m| !m.removed)
+                .map(|m| seen(m, &items))
+                .collect();
             // The snapshot by position, kept as the game keeps it.
             let mut grid = SeenGrid::new(snapshot.iter().map(|e| e.bounds));
             let w = mob_world!(&snapshot);
@@ -1546,7 +1543,7 @@ pub fn main() -> horizon_client::Result<()> {
                 // ServerLevel ticks entities one after another: the ones
                 // after this mob see it as it is now.
                 if let Some(k) = snapshot.iter().position(|e| e.id == mobs[i].id) {
-                    snapshot[k] = seen(&mobs[i]);
+                    snapshot[k] = seen(&mobs[i], &items);
                     snapshot[k].alive &= !mobs[i].removed;
                     grid.update(k, snapshot[k].bounds);
                 }

@@ -64,7 +64,7 @@ pub enum EntityWrite {
     /// `hurt(source, amount)`. `source` is the id of the entity the damage came from,
     /// resolved through the game's one entity table when the write applies: a table that
     /// answers [`EntityLookup::Taken`] (its list is lifted out of the game that moment,
-    /// #1606) refuses the write with [`HurtSourceError::Taken`] instead of retrying or
+    /// ) refuses the write with [`HurtSourceError::Taken`] instead of retrying or
     /// panicking, and the refusal refuses the callback's sibling queued writes too, as an
     /// invalid landing write does.
     Hurt {
@@ -92,7 +92,7 @@ pub enum EntityWrite {
 }
 
 /// The answer of the game's one entity table for an id a [`EntityWrite::Hurt`] names:
-/// the same lookup the rest of the entity design uses (#1606), never a second one.
+/// the same lookup other entity operations use, never a second one.
 // exhaustive: a closed set the game matches without a wildcard
 // no wire: the game's own answer to an entity-table lookup; it is matched in the game and never sent to a mod.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -113,7 +113,7 @@ pub enum EntityLookup {
 // no wire: a refusal the game reports to the part as a typed value inside the game; it is never encoded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HurtSourceError {
-    /// The source's list is lifted out of the game this moment (#1606), so its row
+    /// The source's list is lifted out of the game this moment, so its row
     /// cannot be read: the write and its sibling queued writes from the same callback
     /// are refused.
     Taken(u32),

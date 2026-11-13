@@ -161,6 +161,12 @@ pub trait CapabilitiesCapabilityProviders {
     /// Whether any mod registered capability `name` for the things `by` names. This presence
     /// check includes disabled mods; enumeration skips their providers.
     fn provided(&self, by: ProvidedBy, name: &str) -> bool;
+    /// Known block capability names in declaration/discovery order.
+    fn block_capability_names(&self) -> Vec<String>;
+    /// Whether this capability was explicitly marked safe to forward.
+    fn block_capability_proxyable(&self, name: &str) -> bool;
+    /// Known block capability names explicitly marked safe to forward, in discovery order.
+    fn block_capability_proxyable_names(&self) -> Vec<String>;
     /// How many times a mod was switched on or off, as the game counts it: a kept capability
     /// compares it to tell that a provider may have come or gone (`BlockCapabilityCache`).
     fn mods_switched(&self) -> u64;
@@ -174,6 +180,37 @@ impl CapabilitiesCapabilityProviders for InstalledProviders {
             ProvidedBy::Item => installed.keys.item_capabilities.contains_key(name),
             ProvidedBy::Entity => installed.keys.entity_capabilities.contains_key(name),
         })
+    }
+    fn block_capability_names(&self) -> Vec<String> {
+        match installed() {
+            Some(installed) => installed
+                .keys
+                .block_capability_order
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect(),
+            None => providers_of::builtin_block_capabilities()
+                .into_iter()
+                .map(|(name, _)| name.to_owned())
+                .collect(),
+        }
+    }
+    fn block_capability_proxyable(&self, name: &str) -> bool {
+        installed()
+            .and_then(|installed| installed.keys.block_capability_metadata.get(name))
+            .is_some_and(|(_, proxyable)| *proxyable == Some(true))
+    }
+    fn block_capability_proxyable_names(&self) -> Vec<String> {
+        let Some(installed) = installed() else {
+            return Vec::new();
+        };
+        installed
+            .keys
+            .block_capability_order
+            .iter()
+            .filter(|name| self.block_capability_proxyable(name))
+            .map(|name| (*name).to_owned())
+            .collect()
     }
     fn mods_switched(&self) -> u64 {
         crate::runtime::mods_switched()

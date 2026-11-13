@@ -4,7 +4,7 @@
 pub trait Hooks {
     /// `BlockState.hasAnalogOutputSignal`: set `output` for a block of yours
     /// that comparators read (how full or far along it is, as a composter's
-    /// level), so they ask `native_analog_output`. Asked from inside the
+    /// level), so they ask `analog_output`. Asked from inside the
     /// level's update: answer from `state` alone. Authoritative servers only.
     #[hook(
         side = "server",

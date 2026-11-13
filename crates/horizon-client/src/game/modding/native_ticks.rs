@@ -28,7 +28,7 @@ impl TickKind {
 
 /// The entities of one family in one tick.
 #[derive(Default)]
-pub(super) struct TickRound {
+pub(in crate::game) struct TickRound {
     /// Whether this game is a server the tick hooks hear: otherwise no Pre or Post is told.
     listening: bool,
     /// Whether `entity_entering_section` is listened to on this server: each entity's move is

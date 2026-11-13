@@ -9,7 +9,7 @@ pub trait Hooks {
     /// every level still open closes when the server stops, before
     /// `WorldCloseFinal`, and when its open or its loop fails, before
     /// `WorldOpenFailed` or `WorldCloseFailed`. Once for each
-    /// `native_level_load`. Don't read its blocks. Server-side.
+    /// `level_load`. Don't read its blocks. Server-side.
     #[hook(
         side = "server",
         contract = "listen",

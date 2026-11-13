@@ -204,6 +204,25 @@ fn menu_button_mutates_entity_and_cursor_once() {
 }
 
 #[test]
+fn general_entity_tick_tells_each_part_of_the_row_in_order() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    install_parts(Parts {
+        entities: vec![part(1, &calls), part(2, &calls)],
+        ..Parts::default()
+    });
+    dispatch_general_entity_tick(&mut TestHost, "mymod:robot", generated::mod_api::EntityRef);
+    assert_eq!(*calls.lock().unwrap(), [1, 2]);
+}
+
+#[test]
+fn general_entity_tick_without_parts_names_no_table() {
+    let calls: Arc<Mutex<Vec<u32>>> = Arc::new(Mutex::new(Vec::new()));
+    install_parts(Parts::default());
+    dispatch_general_entity_tick(&mut TestHost, "mymod:robot", generated::mod_api::EntityRef);
+    assert!(calls.lock().unwrap().is_empty());
+}
+
+#[test]
 fn block_entity_submit_dispatches_in_order_with_shared_draw() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     install_parts(Parts {
@@ -240,7 +259,7 @@ fn slot_rules_mutate_and_item_tick_can_cancel() {
     });
     let (mut may_place, mut max_stack) = (true, 64);
     dispatch_menu_slot_rules(
-        &Loop("loop"),
+        &TestHost,
         "test:menu",
         0,
         &ItemStack::default(),
@@ -530,6 +549,7 @@ fn dispatch_contracts() {
             );
             assert_eq!(event.source.damage_type, "minecraft:player_attack");
             assert!(event.attacker_main.is_none() && event.attacker_off.is_none());
+            assert_eq!(event.entry, KnockbackEntry::Full);
             assert_eq!(event.strength, 0.4);
             event.strength *= 2.0;
             event.x = -event.x;
@@ -553,6 +573,7 @@ fn dispatch_contracts() {
             attacker: 7,
             attacker_main: None,
             attacker_off: None,
+            entry: KnockbackEntry::Full,
             strength: &mut strength,
             x: &mut x,
             z: &mut z,

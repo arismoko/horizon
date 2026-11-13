@@ -1987,7 +1987,7 @@ impl B {
                     return false;
                 }
                 let kind = *kind;
-                if kind == Interact::BreedVillager && !super::villager::can_breed(m) {
+                if kind == Interact::BreedVillager && !super::villager::can_breed_in(m, cx.w) {
                     return false;
                 }
                 let w = cx.w;
@@ -2959,7 +2959,7 @@ impl B {
                     if now >= *birth {
                         // The parent's half happens in its own tick: it eats,
                         // takes a bed for the child, picks its type and rests.
-                        super::villager::ext_mut(m).eat_and_digest();
+                        super::villager::eat_and_digest_in(m, cx.w);
                         let child = take_bed_for_child(m, cx.w).map(|bed| {
                             // Villager.getBreedOffspring: half the biome's type,
                             // a quarter each parent's.
@@ -3591,7 +3591,7 @@ fn breeding_possible(m: &mut Mob, w: &MobWorld) -> bool {
         return false;
     };
     villager_target_valid(m, w, Mem::BreedTarget)
-        && super::villager::can_breed(m)
+        && super::villager::can_breed_in(m, w)
         && w.seen(id).is_some_and(|s| s.in_love)
 }
 /// `VillagerMakeLove.takeVacantBed`: `PoiManager.take(HOME, ..., 48)` over a

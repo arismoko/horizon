@@ -3,13 +3,13 @@
 
 pub trait Hooks {
     /// The server is assembling its data tables, as for
-    /// `native_data_pack_files` (a world's first open and every `/reload`):
+    /// `data_pack_files` (a world's first open and every `/reload`):
     /// push the data map types your mod registers (NeoForge's
     /// `RegisterDataMapTypesEvent`). A type is an `id` (`mod_id:name`, not in
     /// `minecraft`) for a `registry`, `minecraft:item` or `minecraft:block`
     /// so far. Its values come from the world's data packs'
     /// `data/<mod_id>/data_maps/<registry path>/<name>.json`, and from files
-    /// you push through `native_data_pack_files` under the key
+    /// you push through `data_pack_files` under the key
     /// `data_maps/<mod_id>:<registry path>/<name>`: `replace`, `values`
     /// (entry ids and `#tags` to JSON values) and `remove`, a newer value
     /// overriding an older. Push a typed map's `DataMap::ty`

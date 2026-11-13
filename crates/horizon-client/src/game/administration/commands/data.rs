@@ -767,9 +767,29 @@ impl Game<'_> {
                 crate::game::minecarts::forget_unreadable_display(&mut cart, |t| {
                     self.state_from_nbt(t).is_some()
                 });
-                self.roll_cart_loot(&mut cart, &tag);
                 if !self.store_cart_back(i, cart) {
                     return Err(stale());
+                }
+                set_key(&mut tag, "UUID", Tag::IntArray(uuid.to_vec()));
+            }
+            Target::Painting(id) => {
+                // Painting.readAdditionalSaveData over HangingEntity's: the
+                // facing, the block it hangs on and a known variant
+                // (`VariantUtils.readVariant(..).ifPresent`: an unknown or
+                // unreadable one keeps the painting's).
+                let uuid = self.uuid_for(id);
+                let (pos, facing) =
+                    entity_nbt::painting_placement_from_nbt(&tag).ok_or_else(stale)?;
+                let known = entity_nbt::painting_from_nbt(&tag)
+                    .and_then(|(_, _, v)| self.painting_variants.get(&v?).cloned());
+                let p = self
+                    .paintings
+                    .iter_mut()
+                    .find(|p| p.id == id)
+                    .ok_or_else(stale)?;
+                (p.pos, p.facing) = (pos, facing);
+                if let Some(v) = known {
+                    (p.variant, p.width, p.height) = (v.id, v.width, v.height);
                 }
                 set_key(&mut tag, "UUID", Tag::IntArray(uuid.to_vec()));
             }
@@ -801,6 +821,7 @@ impl Game<'_> {
         | Target::Item(id)
         | Target::Stand(id)
         | Target::Frame(id)
+        | Target::Painting(id)
         | Target::Boat(id)
         | Target::Cart(id)
         | Target::Tnt(id)
@@ -1124,7 +1145,7 @@ impl Game<'_> {
                     map.entry("CustomName".into())
                         .or_insert_with(|| custom.clone());
                 }
-                Self::restore_loot_table(&self.world, key, &mut tag);
+                Self::write_pending_loot(&self.world, key, &mut tag);
                 Ok(tag)
             }
             DataRef::Storage(id) => Ok(self.score.storage.get(id)),
@@ -1156,7 +1177,7 @@ impl Game<'_> {
             map.entry("CustomName".into())
                 .or_insert_with(|| custom.clone());
         }
-        Self::restore_loot_table(&self.world, key, &mut tag);
+        Self::write_pending_loot(&self.world, key, &mut tag);
         Some(tag)
     }
     pub(in crate::game) fn set_data_of(&mut self, r: &DataRef, tag: Tag) -> R<()> {
@@ -1658,7 +1679,7 @@ impl Game<'_> {
         let before = self.next_entity;
         let mut tag = tag;
         crate::game::persist::mark_fresh(&mut tag);
-        self.world.loaded_entities.push((key, vec![tag]));
+        self.world.queue_entity_nbt(key, vec![tag]);
         self.spawn_loaded_entities();
         waiting.append(&mut self.world.loaded_entities);
         self.world.loaded_entities = waiting;
@@ -2158,7 +2179,7 @@ mod loot_table_tests {
         chunk::Chunk,
         containers::BlockEntity,
         items::ItemStack,
-        save::{self, ChunkExtras, RolledLoot},
+        save::{self, ChunkExtras, PendingContainerLoot},
     };
     use horizon_core::nbt::Tag;
     use std::sync::Arc;
@@ -2229,7 +2250,7 @@ mod loot_table_tests {
         game.build_registries();
         game.set_allow_commands(true);
 
-        // Two chests as a load leaves them: rolled, with the table in their source.
+        // Two unopened chests, with one owner for their pending table tags.
         let removed = (1, 64, 2);
         let merged = (2, 64, 2);
         let chest = game
@@ -2241,26 +2262,16 @@ mod loot_table_tests {
         let mut chunk = Chunk::empty(0, 0);
         let mut extras = ChunkExtras::default();
         for pos in [removed, merged] {
-            let mut slots = vec![None; 27];
-            slots[0] = Some(ItemStack::new("minecraft:gold_ingot", 2));
+            let slots = vec![None; 27];
+
             chunk.set(pos.0, pos.1, pos.2, chest.0);
-            extras.rolled_loot.push(RolledLoot {
+            extras.pending_loot.insert(
                 pos,
-                table: TABLE.into(),
-                seed: Some(42),
-                items: save::encode_items(&slots),
-            });
-            extras.block_entity_sources.push((
-                pos,
-                Tag::compound([
-                    ("id", Tag::String("minecraft:chest".into())),
-                    ("x", Tag::Int(pos.0)),
-                    ("y", Tag::Int(pos.1)),
-                    ("z", Tag::Int(pos.2)),
-                    ("LootTable", Tag::String(TABLE.into())),
-                    ("LootTableSeed", Tag::Long(42)),
-                ]),
-            ));
+                PendingContainerLoot {
+                    table: Tag::String(TABLE.into()),
+                    seed: Some(Tag::Long(42)),
+                },
+            );
             game.world
                 .block_entities
                 .insert(pos, BlockEntity::Chest(slots));
@@ -2268,6 +2279,21 @@ mod loot_table_tests {
         chunk.saved = Some(Arc::new(extras));
         game.world.chunks.insert((0, 0), Arc::new(chunk));
 
+        for field in ["LootTable", "LootTableSeed"] {
+            assert!(game.run_command(&format!("data get block 2 64 2 {field}")));
+        }
+        let raw = game.block_entity_nbt([2, 64, 2]).unwrap();
+        assert_eq!(raw.get("LootTable"), Some(&Tag::String(TABLE.into())));
+        assert_eq!(raw.get("LootTableSeed"), Some(&Tag::Long(42)));
+        assert!(
+            game.world
+                .block_entities
+                .get(&merged)
+                .unwrap()
+                .slots()
+                .iter()
+                .all(Option::is_none)
+        );
         assert!(game.run_command("data remove block 1 64 2 LootTable"));
         let (saved, slots) = saved_and_reloaded(&game, removed);
         assert!(
@@ -2793,6 +2819,15 @@ mod vehicle_container_tests {
                 (
                     "cart_plain",
                     "minecraft:minecart",
+                    "Items:[{Slot:0b,id:\"minecraft:diamond\",count:3,components:{\"minecraft:custom_data\":{h052:9}}}],LootTable:\"minecraft:empty\",LootTableSeed:73L",
+                    None,
+                    false,
+                    "",
+                ),
+                // Only container carts read a loot table: one on any other cart is dropped.
+                (
+                    "tnt_cart_plain",
+                    "minecraft:tnt_minecart",
                     "Items:[{Slot:0b,id:\"minecraft:diamond\",count:3,components:{\"minecraft:custom_data\":{h052:9}}}],LootTable:\"minecraft:empty\",LootTableSeed:73L",
                     None,
                     false,

@@ -1,64 +1,58 @@
 # Summary
 
-[Introduction](introduction.md)
+[Modding Horizon](introduction.md)
 
-# Start
+# Getting started
 
-- [Your first native mod](start/first-mod.md)
 - [Installing and using mods](start/installing.md)
+- [Your first content mod](start/first-content-mod.md)
+- [Your first native mod](start/first-mod.md)
+- [Your first WebAssembly mod](start/first-wasm-mod.md)
+- [Writing hooks](start/writing-hooks.md)
 
 # Concepts
 
-<!-- The concept-pages preprocessor adds every other page of concepts/ (and of how-to/ under How-to)
-     after the ones listed here, in title order, and fails the build on a page the book doesn't render.
-     List a page here only to place it first or to show it in a part outside its folder. Aggregate
-     chapters keep their published anchors; their child chapters are discovered too. -->
+<!-- A page X.md with a folder X/ beside it gets the folder's pages as its sub-chapters, in file name order.
+     A page directly in concepts/ or how-to/ that this file doesn't list joins the end of its part, by title. -->
 
-- [Wire types](how-to/wire-types.md)
-- [Trait mods, Parts and attachments](concepts/trait-mods.md)
-- [Where the mod API is going](concepts/design.md)
-- [Design: server read tier](concepts/server-read-tier.md)
-- [Design: vehicle health layout](concepts/vehicle-health-layout.md)
-- [Design: per-type batched block entity ticks](concepts/block-entity-batching.md)
-- [Design: Source-validated guest point artifact](concepts/guest-point-artifact.md)
-- [Design: typed cauldron interactions](concepts/cauldron-interactions.md)
-- [Design: villager professions and trades](concepts/villager-professions.md)
-- [Villager profession resources and clients](concepts/villager-professions-client.md)
-- [Design: decide, fire, apply](concepts/decide-fire-apply.md)
-- [Design: decide, fire, apply: route inventory](concepts/decide-fire-apply-routes.md)
+- [Hooks and the Host](concepts/hooks-and-the-host.md)
+- [Load phases and access](concepts/load-phases.md)
+- [Registration and diagnostics](concepts/registration-and-diagnostics.md)
+- [Parts](concepts/parts.md)
+- [Capabilities](concepts/capabilities.md)
+- [Attachments](concepts/attachments.md)
+- [Transactions](concepts/transactions.md)
+- [Registry keys](concepts/registry-keys.md)
+- [Wire types](concepts/wire-types.md)
+- [Dependencies between mods](concepts/dependencies.md)
+- [Injections](concepts/injections.md)
+- [The native route](concepts/native-route.md)
+- [Testing a mod](concepts/testing.md)
 
 # How-to
 
-- [Making a content mod](how-to/content-mods.md)
-- [Native mods](how-to/native-mods.md)
-- [Injections](injections.md)
-- [The native route](native-route.md)
-  - [Mixins: `[[native.mixin]]`](mixins.md)
-  - [Published loops: `[[native.loop]]`](loops.md)
-  - [Bridges: `[[native.bridge]]`](bridges.md)
-  - [Support modules: `[[native.module]]`](support-modules.md)
-  - [Native state: refused](native-state.md)
-  - [How the native route works](native-how-it-works.md)
+- [Content mods](how-to/content-mods.md)
+- [Native mods: building and shipping](how-to/native-mods.md)
+- [WebAssembly mods](how-to/wasm-mods.md)
+- [Config files and settings](how-to/mod-settings.md)
+- [Publishing your mod](how-to/publish.md)
+- [Levels, dimensions and blocks](how-to/world.md)
+- [Items, recipes and loot](how-to/items.md)
+- [Entities, players and commands](how-to/entities.md)
+- [Client, rendering and sound](how-to/client.md)
 
 # Reference
 
-- [NeoForge data files](reference/neoforge-data.md)
-- [NeoForge extension coverage](reference/neoforge-extensions.md)
 - [The manifest and the package](reference/manifest.md)
+- [FML loader APIs and their Horizon routes](reference/fml-loader-apis.md)
 - [The registry index and `.hpack`](reference/registry-index.md)
-- [The mod API (rustdoc)](reference/api.md)
-<!-- The wasm-coverage preprocessor renders this chapter from the generator at its published URL. -->
-- [Wasm boundary coverage]()
+- [The mod API reference](reference/api.md)
 <!-- The hook-notes preprocessor supplies this chapter and its published URL from catalog notes. -->
 - [Hook notes]()
 <!-- The counterparts preprocessor renders the current declarations at the published URL. -->
 - [NeoForge counterparts]()
+- [The process, versions and game tests](reference/process-environment.md)
+- [Maths and network NBT](reference/maths-and-network-nbt.md)
+- [Saved-world mod mismatches](reference/saved-world-mod-mismatch.md)
 
-# For agents
-
-- [Rules for agents](agents.md)
-
-# Contributing
-
-- [Where each doc lives](contributing.md)
-- [Design: scoped whole-stack rollback](reference/design-stack-snapshot.md)
+- [Container loot](reference/container-loot.md)

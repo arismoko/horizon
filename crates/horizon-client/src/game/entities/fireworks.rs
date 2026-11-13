@@ -218,10 +218,14 @@ impl Rocket {
     /// One tick of a server's client: the rocket flies on by itself between
     /// the server's updates (a rocket that follows an entity is placed by the
     /// caller).
-    pub(super) fn remote_step(&mut self, scene: &mut SceneCollisions) {
+    pub(super) fn remote_step(
+        &mut self,
+        scene: &mut SceneCollisions,
+        context: &horizon_world::native_load_context::LoopContext,
+    ) {
         self.previous = self.position;
         if self.attached_to.is_none() {
-            let _ = self.free_flight(scene);
+            let _ = self.free_flight(scene, context);
         }
         self.life += 1;
     }
@@ -274,7 +278,11 @@ impl Rocket {
     /// up (an angled one keeps its motion) and rise, then move (`Entity.move`:
     /// a cobweb or powder snow scales this move only). Returns where it moved
     /// from, the move it asked for and the one it made.
-    fn free_flight(&mut self, scene: &mut SceneCollisions) -> Option<(Vec3, Vec3, Vec3)> {
+    fn free_flight(
+        &mut self,
+        scene: &mut SceneCollisions,
+        context: &horizon_world::native_load_context::LoopContext,
+    ) -> Option<(Vec3, Vec3, Vec3)> {
         let bounds = self.bounds();
         let motion = self.next_motion();
         let mut wanted = motion;
@@ -287,7 +295,17 @@ impl Rocket {
             self.stuck = Vec3::ZERO;
         }
         let from = self.position;
-        let Ok(moved) = scene.resolve(bounds, wanted, 0.0, false) else {
+        let mut gate = horizon_client::move_gate::armed(
+            context,
+            self.id,
+            "minecraft:firework_rocket",
+            horizon_world::entity_move::MoverType::SelfMovement,
+            wanted,
+        );
+        let wanted = gate.delta();
+        let Ok(moved) =
+            horizon_client::move_gate::scene_resolve(&mut gate, scene, bounds, wanted, 0.0, false)
+        else {
             return None;
         };
         let horizontal = (moved.x - wanted.x).abs() > 1e-7 || (moved.z - wanted.z).abs() > 1e-7;
@@ -701,7 +719,7 @@ impl Game<'_> {
                     binding: self.collision,
                     subject: None,
                 };
-                if let Some(flight) = r.free_flight(&mut scene) {
+                if let Some(flight) = r.free_flight(&mut scene, &self.loop_context) {
                     self.rocket_moved(&mut r, flight, water > 0.0);
                 }
             }

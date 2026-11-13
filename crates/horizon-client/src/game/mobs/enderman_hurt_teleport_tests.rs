@@ -327,7 +327,7 @@ fn a_teleporting_shulker_posts_teleport_where_it_stood() {
         let others: Vec<_> = game
             .mobs
             .iter()
-            .map(|m| super::creatures::seen(m, uuid))
+            .map(|m| super::creatures::seen(m, uuid, game.items()))
             .collect();
         let mut level_random = game.world.random.clone();
         let mut events = Vec::new();

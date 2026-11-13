@@ -22,6 +22,12 @@ pub trait LevelsHost {
 #[horizon_mod_api_macros::host_area]
 pub trait LevelsBackend {
     /// Side: server.
+    /// Whether any watered-area ticket covers this block. Minimum bounds are inclusive and
+    /// maximum bounds exclusive on all three axes. Reads active and parked levels, loads no
+    /// chunks, and calls no mod predicates. False on clients or for a stale/unavailable level.
+    #[access(WorldOnly)]
+    fn level_has_water_ticket(&self, level: LevelRef, pos: [i32; 3]) -> bool;
+    /// Side: server.
     /// `ServerLevel.findClosestBiome3d`: search this level's generator for an id or `#tag`.
     /// The result follows vanilla's sampled spiral and vertical order; it is not a search
     /// through edited biome cells. Does not load resident chunks or switch parked levels.
@@ -249,7 +255,7 @@ pub trait LevelsBackend {
     /// to the end of that section. Zero runtime IDs fall back to stable storage
     /// join order, not runtime admission order. Unregistered entity kinds have
     /// no authoritative lookup handle and are omitted. These limitations mean
-    /// saved-world and whole-level ordering parity is not yet complete (#2703).
+    /// saved-world and whole-level ordering parity is not guaranteed.
     /// Allocates a result buffer, not one allocation per entity; sorting is
     /// O(n log n), followed by one authoritative handle lookup per candidate.
     #[access(WorldOnly)]
@@ -261,14 +267,13 @@ pub trait LevelsBackend {
     /// cannot resolve until the level is in place, and for a bound that is not
     /// finite (NaN or infinite). A minimum above its maximum is the same box
     /// with the two swapped, as vanilla's `AABB`. On a client (`ClientLevel`),
-    /// the entities the server tracks to it and the window's own player, with
-    /// the same walk; other players are left out, as their handles do not
-    /// resolve there (tracked in arismoko/horizon#3033).
+    /// the entities the server tracks to it, other players among them, and the
+    /// window's own player, with the same walk.
     /// None there before login and for a level it does not show. The walk
     /// is in entity-list order followed by players. Every entity list is walked
     /// once per call: O(entities) regardless of the box. Each overlapping mob
-    /// resolves through a mob-list scan: O(K*N) for K overlapping mobs and N mobs. Tridents cannot
-    /// yet resolve; frames, paintings and other special entities
+    /// resolves through a mob-list scan: O(K*N) for K overlapping mobs and N mobs. Tridents do not
+    /// resolve; frames, paintings and other special entities
     /// are not on the entity-list walk. The dragon follows ordinary entities;
     /// its eight intersecting parts follow players in vanilla hash-table order (`Level.getEntities`).
     /// During `hears_projectile_impacts`, the projectile list is taken out of
@@ -292,7 +297,9 @@ pub trait LevelsBackend {
     /// Side: both.
     /// The block state ID at `pos` (`Level.getBlockState`), without formatting a string.
     /// None for a chunk that isn't loaded or a `y` outside the world. On a client, the
-    /// state is the one the server sent for a chunk the client holds.
+    /// state is the one the server sent for a chunk the client holds, in the level it shows
+    /// or in one the server opened for viewing (`host.level`): a viewed level reads its own
+    /// world, never the player's, and never loads a column.
     #[access(WorldOnly)]
     fn level_block_state(&self, level: LevelRef, pos: [i32; 3]) -> Option<BlockState>;
     /// Side: server.
@@ -360,6 +367,30 @@ pub trait LevelsBackend {
     /// `native_level_height`. Does not load chunks.
     #[access(WorldOnly)]
     fn level_in_spawnable_bounds(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool>;
+    /// Side: server.
+    /// `Some(true)` when this resident, in-bounds position has entity-ticking tickets.
+    /// `Some(false)` for unloaded or out-of-bounds positions or tickets that forbid ticking.
+    /// With no ticket system, resident in-bounds chunks tick; an active but empty ticket
+    /// system permits none. This reads the current ticket decision, not a tick guarantee.
+    /// `None` for stale handles, a client or a level not currently in place. Parked
+    /// levels cannot answer because the live ticket state belongs to the level in place.
+    /// Does not load chunks. Each call shares the ticket map through a reference count;
+    /// it does not allocate a memo table or refresh a resident-chunk cache.
+    #[access(WorldOnly)]
+    fn level_entity_ticking(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool>;
+    /// Side: server.
+    /// `Some(true)` when scheduled blocks, block events and block entities can tick here:
+    /// a resident, in-bounds position with block-ticking tickets and no pending entities.
+    /// `Some(false)` for unloaded or out-of-bounds positions, tickets that forbid ticking,
+    /// or a chunk waiting for its entities. With no ticket system, resident in-bounds
+    /// chunks with no pending entities tick; an active but empty ticket system permits none.
+    /// `None` for stale handles, a client or a level not currently in place. Parked
+    /// levels cannot answer because the live ticket state belongs to the level in place.
+    /// Does not load chunks. Each call shares the ticket map through a reference count
+    /// and borrows the pending-entity set without copying it or allocating a memo table.
+    #[access(WorldOnly)]
+    fn level_should_tick_blocks_at(&self, level: LevelRef, pos: [i32; 3]) -> Option<bool>;
+
     /// Side: both.
     /// The level's game time (`Level.getGameTime`). On clients this is the
     /// synchronized time advanced by the local level tick. API 381.
@@ -401,9 +432,11 @@ pub trait LevelsBackend {
         pos: [i32; 3],
         kind: BlockShapeKind,
     ) -> Option<Vec<[f64; 6]>>;
-    /// Side: server.
+    /// Side: both.
     /// Clip an empty-context ray against collider or outline shapes, without fluids.
-    /// None on failed reads, dynamic shapes, invalid rays or traversal limits.
+    /// None on failed reads, dynamic shapes, invalid rays or traversal limits, and for a ray
+    /// that enters a column the level doesn't hold. On a client, the level it shows or a
+    /// viewed one (`host.level`), each through its own world.
     #[access(WorldOnly)]
     fn level_clip(
         &self,
@@ -585,6 +618,8 @@ pub trait LevelsBackend {
     fn level_loaded_chunks(&self, level: LevelRef) -> Option<Vec<ChunkRef>>;
     /// Side: both.
     /// World-space block collision boxes under an empty collision context, without entities or border. Refuses a stale or nonresident level and invalid or overlarge boxes.
+    /// On a client, the level it shows or a viewed one (`host.level`), each through its own
+    /// world; None where the walk reaches a column the client doesn't hold.
     #[access(WorldOnly)]
     fn level_collision_boxes(&self, level: LevelRef, aabb: [f64; 6]) -> Option<Vec<[f64; 6]>>;
     /// Side: server.
@@ -705,12 +740,43 @@ pub trait LevelsBackend {
     /// nothing. None on a client and for a stale handle.
     #[access(WorldOnly)]
     fn level_can_spawn_entities_in_chunk(&self, level: LevelRef, pos: [i32; 2]) -> Option<bool>;
+    /// Side: server.
+    /// The capability generation at `pos`: a number that changes when a provider says its
+    /// answer there changed ([`LevelRef::invalidate_capabilities`]) and when the chunk of a
+    /// position a provider invalidated unloads, and never comes back to a number it was while
+    /// the level is open. [`BlockCapabilityCache`] compares it with the block entity and the
+    /// block state there. Only the change means anything, not the number. Reads parked
+    /// levels. None for a stale handle, a client, an unloaded position and one outside build
+    /// height. Constant time, no allocation.
+    #[access(WorldOnly)]
+    fn level_capability_generation(&self, level: LevelRef, pos: [i32; 3]) -> Option<u64>;
 }
 /// The handles' writes of the `levels` area, implemented by the game and reached through [`BackendMut`].
 // hidden: a handle's backend, reached through `Backend`; mods call the handle, never this trait
 #[doc(hidden)]
 #[horizon_mod_api_macros::host_area]
 pub trait LevelsBackendMut {
+    /// Side: server.
+    /// Mark the half-open box `min <= pos < max` as watered (`FarmlandWaterManager.addAABBTicket`).
+    /// For 5x1x5 farmland starting at [0, 64, 0], use min [0, 64, 0], max [5, 65, 5].
+    /// Farmland checks tickets before its vanilla water scan; rain and water still hydrate it.
+    /// The calling mod owns this ticket; overlaps are independent. Remove it when the sprinkler
+    /// stops. It is also removed on owner disable and level unload, never saved: re-add in
+    /// `level_load` or the block entity's load listener. Reads/writes reach parked server levels.
+    /// None outside an enabled mod call, on clients, for stale/unavailable levels, empty or
+    /// reversed bounds, or a box spanning more than 65,536 x/z chunks. Does not load chunks.
+    #[access(WorldOnly)]
+    fn level_add_water_ticket(
+        &mut self,
+        level: LevelRef,
+        min: [i32; 3],
+        max: [i32; 3],
+    ) -> Option<WaterTicket>;
+    /// Side: server.
+    /// Remove this watered area, leaving overlapping tickets intact. Only the owning enabled
+    /// mod can remove it. False if already removed, stale, unloaded, or called on a client.
+    #[access(WorldOnly)]
+    fn water_ticket_remove(&mut self, water_ticket: WaterTicket) -> bool;
     /// Side: server.
     /// Spawns a mob of `kind` (`minecraft:zombie`) at `pos` in the level as
     /// `EntityType.spawn` does with `reason`: the entity type creates it (its
@@ -747,6 +813,31 @@ pub trait LevelsBackendMut {
     /// `set_spawn_limits`.
     #[access(WorldOnly)]
     fn level_set_spawn_flags(&mut self, level: LevelRef, flags: SpawnFlags) -> bool;
+    /// Side: server.
+    /// Registers `passage` in the level ([`Passage`], #3775) and numbers it. The engine
+    /// tells it to every Horizon client holding its chunk ([`Passage::chunk`]) at the end of
+    /// the server's tick, and to a client that gets the chunk later as the chunk is sent
+    /// (`chunk_sent`); a client forgets it with the chunk. Passages are not saved and a
+    /// datapack reload does not bring them back: they hold until `remove_passage`, the
+    /// level's close or the world's, so a mod registers its own again in `level_load`. An
+    /// id is never given again while the game runs. A level holds 256 at most and a chunk 8.
+    /// A passage removed before the tick's end is never told. Refused with nothing
+    /// registered for a stale handle, a client, a passage that isn't a finite rectangle
+    /// with unit axes at a right angle and sides above 0 and at most 32 blocks, one with a
+    /// corner past vanilla's position limits, a full level or chunk, and once every id was
+    /// given.
+    #[access(WorldOnly)]
+    fn level_register_passage(
+        &mut self,
+        level: LevelRef,
+        passage: Passage,
+    ) -> Result<PassageId, PassageRegistrationError>;
+    /// Side: server.
+    /// Removes the level's passage `id`: the clients that were told of it are told it is
+    /// gone at the end of the server's tick. True when it was registered in this level.
+    /// False for another level's or an unknown id, a stale handle and a client.
+    #[access(WorldOnly)]
+    fn level_remove_passage(&mut self, level: LevelRef, id: PassageId) -> bool;
     /// Side: server.
     /// `/forceload add` or `remove` of one chunk (`ServerLevel.setChunkForced`):
     /// true when the forced set changed. A forced chunk is kept loaded and
@@ -813,6 +904,17 @@ pub trait LevelsBackendMut {
     /// handle, on a client and for a position that isn't loaded.
     #[access(WorldOnly)]
     fn level_check_light(&mut self, level: LevelRef, pos: [i32; 3]) -> bool;
+    /// Side: server.
+    /// Tells kept capabilities at `pos` that a provider's answer there changed with no change
+    /// of block or block entity (NeoForge's `invalidateCapabilities`), such as a machine whose
+    /// side configuration changed: the capability generation there moves on
+    /// ([`LevelRef::capability_generation`]), so a [`BlockCapabilityCache`] there looks again
+    /// at its next `get`. Inside a transaction it happens at the root commit, and an aborted
+    /// one changes nothing. Block and block entity changes, chunk unloads and mod switches
+    /// need no call: the cache sees them itself. False, with nothing changed, off the level in
+    /// place, for a stale handle, on a client and for a position that isn't loaded.
+    #[access(WorldOnly)]
+    fn level_invalidate_capabilities(&mut self, level: LevelRef, pos: [i32; 3]) -> bool;
     /// Side: server.
     /// Destroy a block in the level in place (`Level.destroyBlock`), optionally dropping
     /// resources with `tool` (None is an empty hand). With `collect`, return the dropped
@@ -1000,6 +1102,9 @@ pub trait LevelsBackendMut {
     /// Side: server.
     /// Send `ServerLevel.destroyBlockProgress` in this level: stages 0..9 show a crack,
     /// any other stage removes it. A machine uses a stable negative breaker id.
+    /// Inside a transaction, notices wait for the root commit in call order; abort publishes
+    /// no notice. Outside a transaction this executes immediately. True means accepted or
+    /// queued, not already delivered.
     #[access(WorldOnly)]
     fn level_set_break_progress(
         &mut self,
@@ -1015,6 +1120,9 @@ pub trait LevelsBackendMut {
     /// nothing queued, for a stale or parked handle, a client, and an unloaded or out-of-height
     /// position. True with no player to notify (no one is in the level) when the position is
     /// valid: the chunk is marked changed and nothing is sent.
+    /// Inside a transaction this waits for the root commit; abort publishes no notice.
+    /// Outside a transaction this executes immediately. True means accepted or queued,
+    /// not already delivered.
     #[access(WorldOnly)]
     fn level_send_block_updated(&mut self, level: LevelRef, pos: [i32; 3]) -> bool;
     /// Side: server.
@@ -1062,6 +1170,29 @@ pub trait LevelsBackendMut {
     /// 3008) when `data` isn't one.
     #[access(WorldOnly)]
     fn level_level_event(&mut self, level: LevelRef, id: i32, pos: [i32; 3], data: i32) -> bool;
+    /// Side: server.
+    /// Plays level event `id` at `pos` with `data` for every player on the
+    /// server, in every level and at any distance (`ServerLevel.globalLevelEvent`).
+    /// Vanilla's ids are the wither's spawn (`1023`), the dragon's death
+    /// (`1028`) and an End portal opening (`1038`): the client has a sound for
+    /// them only through this global form, played two blocks from the camera
+    /// towards the position the player is sent. Each player gets a position
+    /// of their own: `pos` in this level within 32 blocks of its centre, the
+    /// block 32 blocks from them towards that centre further away, and the
+    /// block they stand in for a player in another level.
+    /// With the `global_sound_events` game rule off it is a plain
+    /// [`level_event`](Self::level_level_event), as vanilla falls back: only
+    /// the players of this level near `pos` get it. False for the same events
+    /// and data `level_event` refuses, a parked level, a stale handle or a
+    /// client.
+    #[access(WorldOnly)]
+    fn level_global_level_event(
+        &mut self,
+        level: LevelRef,
+        id: i32,
+        pos: [i32; 3],
+        data: i32,
+    ) -> bool;
     /// Side: server.
     /// Sends game event `event` (`minecraft:block_change`...) from `at`, as
     /// `Level.gameEvent(event, at, context)` does: sculk sensors, shriekers,
@@ -1127,7 +1258,7 @@ pub trait LevelsBackendMut {
     /// default pickup delay of 10 ticks. None, with nothing spawned, for an
     /// empty stack or an unknown item, with the `block_drops` rule off, on a
     /// client, for a stale handle, a level not in place, or an item a mod
-    /// kept out (`native_entity_join_level`).
+    /// kept out (`entity_join_level`).
     #[access(WorldOnly)]
     fn level_pop_resource(
         &mut self,
@@ -1144,7 +1275,7 @@ pub trait LevelsBackendMut {
     /// never). None, with nothing
     /// spawned, for an empty stack or an unknown item, a value that isn't
     /// finite, on a client, for a stale handle, a level not in place, or an
-    /// item a mod kept out (`native_entity_join_level`).
+    /// item a mod kept out (`entity_join_level`).
     #[access(WorldOnly)]
     fn level_spawn_item(
         &mut self,
@@ -1180,7 +1311,7 @@ pub trait LevelsBackendMut {
     /// around `x y z`, or else a new orb with its own random motion. The
     /// `block_drops` rule doesn't apply (vanilla's blocks check it before
     /// they award). True once the orbs are awarded, even if a mod keeps a new
-    /// one out (`native_entity_join_level`). False, with no orbs, for 0, a
+    /// one out (`entity_join_level`). False, with no orbs, for 0, a
     /// value that isn't finite, on a client, for a stale handle or a level
     /// not in place.
     #[access(WorldOnly)]
@@ -1238,6 +1369,9 @@ pub trait LevelsBackendMut {
     /// Set the biome of the 4x4x4 cell holding `pos` to `biome` (`minecraft:plains`), as
     /// `/fillbiome` does for one cell. False for a refused write, a stale or parked handle, a
     /// client, an unknown biome and an unchanged cell.
+    /// Tentative reads see the new cells inside a transaction. Abort restores the cells
+    /// without publishing. Saving, remeshing and resending wait for the outermost commit,
+    /// once per column. Outside a transaction they run immediately.
     #[access(WorldOnly)]
     fn level_set_biome(&mut self, level: LevelRef, pos: [i32; 3], biome: &str) -> bool;
 }

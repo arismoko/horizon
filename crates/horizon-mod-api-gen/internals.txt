@@ -79,7 +79,7 @@ horizon_items::blocks::BlockFacts
 horizon_protocol::packets::play::Explode
 horizon_world::registry::BlockRegistry
 horizon_world::worldgen::anchor::WorldGenerationContext
-horizon_world::worldgen::generator::GeneratorData
+horizon_world::worldgen::generator::data::GeneratorData
 horizon_world::worldgen::generator::ProtoChunk
 horizon_world::worldgen::generator::WorkerState
 horizon_world::worldgen::generator_structures::StructureState

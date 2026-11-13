@@ -7,9 +7,9 @@ pub trait Hooks {
     /// (`LivingEntity.releaseUsingItem`: the use button let go, a screen
     /// opened), `duration` the ticks left. Set `canceled` to skip the item's
     /// release (a bow doesn't shoot, a spyglass makes no sound,
-    /// `native_release_using` isn't called); the use stops anyway. Not when
+    /// `release_using` isn't called); the use stops anyway. Not when
     /// the hand changed item, which stops the use without a release. Both
-    /// sides, as `native_living_entity_use_item_tick`.
+    /// sides, as `living_entity_use_item_tick`.
     #[hook(
         side = "both",
         contract = "cancel",

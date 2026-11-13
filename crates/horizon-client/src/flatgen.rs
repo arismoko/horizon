@@ -121,6 +121,23 @@ impl FlatTerrain {
         } else {
             None
         };
+        let surface = Self::surface(&layers, registry, shape, biome)?;
+        Some(Self {
+            shape,
+            layers,
+            biome,
+            surface,
+            void_platform,
+        })
+    }
+    /// The top of the layers as the far view reads it: the first block that is not air, with the
+    /// fluid over it. The outer `None` when a layer's state is not in `registry`.
+    fn surface(
+        layers: &[u32],
+        registry: &BlockRegistry,
+        shape: LevelShape,
+        biome: u16,
+    ) -> Option<Option<crate::lod::Surface>> {
         let mut water = None;
         let mut surface = None;
         for (i, &id) in layers.iter().take(shape.height as usize).enumerate().rev() {
@@ -145,12 +162,43 @@ impl FlatTerrain {
                 break;
             }
         }
+        Some(surface)
+    }
+    /// The generator of a level a mod opens with the default superflat layers (`Some(layers)`:
+    /// bedrock, two dirt, grass block, over plains) or with air alone (`None`: the void).
+    /// `None` when the registry lacks one of the blocks.
+    pub fn of_layers(
+        registry: &BlockRegistry,
+        biomes: &crate::biome::Biomes,
+        shape: LevelShape,
+        flat: bool,
+    ) -> Option<Self> {
+        let names: &[&str] = if flat {
+            &[
+                "minecraft:bedrock",
+                "minecraft:dirt",
+                "minecraft:dirt",
+                "minecraft:grass_block",
+            ]
+        } else {
+            &[]
+        };
+        let layers = names
+            .iter()
+            .map(|name| Some(registry.default_state(name)?.0))
+            .collect::<Option<Vec<_>>>()?;
+        let biome = biomes.id(if flat {
+            "minecraft:plains"
+        } else {
+            "minecraft:the_void"
+        });
+        let surface = Self::surface(&layers, registry, shape, biome)?;
         Some(Self {
             shape,
             layers,
             biome,
             surface,
-            void_platform,
+            void_platform: None,
         })
     }
     /// The settings of a superflat overworld that runs on the structure and feature
@@ -336,6 +384,12 @@ pub fn settings_from_json(
 impl ChunkGenerator for FlatTerrain {
     type Worker = ();
     fn worker(&self) {}
+    /// FlatLevelSource's proto is already its decorated column. Keep a copy
+    /// for lighting a finished neighbour outside the kept area, just as the
+    /// vanilla pipeline does for FEATURES neighbours.
+    fn light_view(&self, proto: &crate::streaming::Proto) -> Option<Chunk> {
+        proto.downcast_ref::<Chunk>().cloned()
+    }
     fn lod_surface(&self, _: &mut (), _: i32, _: i32) -> Option<crate::lod::Surface> {
         self.surface
     }
@@ -652,5 +706,22 @@ mod tests {
             )])))
             .is_none()
         );
+    }
+
+    #[test]
+    fn light_view_keeps_a_flat_proto_column() {
+        let terrain = FlatTerrain {
+            shape: LevelShape::OVERWORLD,
+            layers: Vec::new(),
+            biome: 0,
+            surface: None,
+            void_platform: None,
+        };
+        let mut chunk = Chunk::empty(3, -4);
+        chunk.set(0, 0, 0, 42);
+        let proto: crate::streaming::Proto = Box::new(chunk);
+        let view = terrain.light_view(&proto).expect("flat proto light view");
+        assert_eq!((view.x, view.z), (3, -4));
+        assert_eq!(view.block(0, 0, 0).0, 42);
     }
 }

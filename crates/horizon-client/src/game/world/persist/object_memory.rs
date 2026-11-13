@@ -319,6 +319,16 @@ impl Game<'_> {
         uuid: Option<[i32; 4]>,
         transferred: Option<crate::game::entity_initialization::TransferredEntityState>,
     ) {
+        self.load_tnt_with_portal(tag, uuid, transferred, false);
+    }
+
+    pub(in crate::game) fn load_tnt_with_portal(
+        &mut self,
+        tag: Tag,
+        uuid: Option<[i32; 4]>,
+        transferred: Option<crate::game::entity_initialization::TransferredEntityState>,
+        used_portal: bool,
+    ) {
         if uuid.is_some_and(|u| self.target_with_uuid(u).is_some()) {
             return;
         }
@@ -331,6 +341,7 @@ impl Game<'_> {
             // to int before short narrowing; integer tags narrow directly.
             let fuse = tnt_fuse(&tag);
             self.tnts.push(crate::game::tnt::PrimedTnt {
+                used_portal,
                 attachment_lifetime: Default::default(),
                 rotation: [0.0, 0.0],
                 join: Default::default(),
@@ -441,7 +452,6 @@ impl Game<'_> {
             crate::game::minecarts::forget_unreadable_display(&mut c, |t| {
                 self.state_from_nbt(t).is_some()
             });
-            self.roll_cart_loot(&mut c, &tag);
             self.next_entity = id;
             if let Some(state) = transferred {
                 self.adopt_transferred_entity_state(id, state);
@@ -558,8 +568,12 @@ impl Game<'_> {
         // are still considered individually in preorder.
         let refused = self.uuid_admission_refused(uuid);
 
-        if let Some(state) = transferred {
+        if let Some(mut state) = transferred {
+            state.restore_mob(&mut m);
             self.adopt_transferred_entity_state(id, state);
+        } else if m.health <= 0.0 {
+            // A saved dying body has already passed die; loading only resumes tickDeath.
+            self.died.insert(id);
         }
         self.remember(id, uuid, tag);
         if refused {

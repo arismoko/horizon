@@ -36,7 +36,7 @@ pub struct BlockEdit {
     pub filters: Vec<StatePredicate>,
     pub runs: Vec<BlockRun>,
 }
-/// The camera shake native mods ask for (`native_camera_shake`): turns in
+/// The camera shake native mods ask for (`camera_shake`): turns in
 /// degrees, and an offset in blocks along the camera's right, up and back.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 // exhaustive: the game builds it with a literal; mods only read it
@@ -93,6 +93,36 @@ pub struct ColumnBlocks {
     pub blocks: Vec<u16>,
     pub tints: Vec<u32>,
 }
+/// Why `upgrade_block_entity_nbt` or `upgrade_entity_nbt` gave no upgraded value. Depth is counted as the data is
+/// encoded (the root compound at 0): the compound the NBT writer puts around an element of a mixed list is a level
+/// of its own. There is no size refusal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub enum NbtUpgradeError {
+    /// The data version is below zero. Refused before any fix runs.
+    NegativeVersion(i32),
+    /// The data version is newer than the game's: the fixes only go forward. Refused before any fix runs.
+    FutureVersion(i32),
+    /// The data given has a list or compound 512 levels deep or more, the depth cap of every NBT read. Refused
+    /// before any fix runs.
+    TooDeep,
+    /// The data given was within the cap, but the fixes made it deeper (1.9's `Riding` to `Passengers` doubles a
+    /// chain's depth) and the upgraded data has a list or compound 512 levels deep or more: no NBT read, vanilla's
+    /// included, could take it back. Nothing is returned.
+    UpgradedTooDeep,
+}
+impl std::fmt::Display for NbtUpgradeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NegativeVersion(v) => write!(f, "data version {v} is negative"),
+            Self::FutureVersion(v) => write!(f, "data version {v} is newer than the game's"),
+            Self::TooDeep => f.write_str("the data nests 512 levels deep or more"),
+            Self::UpgradedTooDeep => f.write_str("the upgraded data nests 512 levels deep or more"),
+        }
+    }
+}
+impl std::error::Error for NbtUpgradeError {}
 /// Which side reads a config and when (NeoForge's `ModConfig.Type`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -104,7 +134,7 @@ pub enum ConfigKind {
     /// server when it starts. A single player's server thread shares the
     /// window's.
     Common,
-    /// The server, before `native_server_about_to_start`, for each world it
+    /// The server, before `server_about_to_start`, for each world it
     /// opens: the world's `serverconfig/<file>` when there is one, else
     /// `config/<file>`.
     Server,
@@ -189,7 +219,7 @@ pub struct ModMismatch {
 // exhaustive: the game builds it with a literal; mods only read it
 #[derive(horizon_mod_api_macros::Wire)]
 pub struct ExperienceOrb {
-    /// The entity's ID, as `native_entity_join_level` names it.
+    /// The entity's ID, as `entity_join_level` names it.
     pub id: u32,
     pub position: [f64; 3],
     /// `ExperienceOrb.value`: the signed points value saved by vanilla.
@@ -259,7 +289,7 @@ pub enum ModEvent {
     UseStop(HeldItemSlot, u32),
 }
 // no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// A map as a native mod sees it when `native_map_decorations` is asked.
+/// A map as a native mod sees it when `map_decorations` is asked.
 // Native mods read it; nothing in Horizon does.
 #[derive(Clone, Copy, Debug)]
 // exhaustive: the game builds it with a literal; mods only read it
@@ -334,8 +364,8 @@ pub struct MobRender<'a> {
     pub on_ground: bool,
 }
 // no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// Which player a [`MobRender`] is, for `native_player_submit` and
-/// `native_mob_layer`.
+/// Which player a [`MobRender`] is, for `render_player_pre` and
+/// `render_player_post`.
 // Native mods read it; nothing in Horizon does.
 #[derive(Clone, Copy, Debug)]
 // exhaustive: the game builds it with a literal; mods only read it

@@ -3,7 +3,7 @@
 
 pub trait Hooks {
     /// Whether a mod listens to the mobs' and players'
-    /// `native_living_equipment_change`: a mod that hooks it hooks this one too
+    /// `living_equipment_change`: a mod that hooks it hooks this one too
     /// and sets `listened` (HEAD, `*listened = true`). Without it the game does
     /// not read every mob's and connected player's equipment each tick, and
     /// neither is told (armor stands still are). A mob that ticks, or a player

@@ -172,9 +172,6 @@ fn extract_one(
 impl Game<'_> {
     /// The slots a mod gave item `item`, clamped; none for any other item.
     fn item_container_size(&self, item: &str) -> Option<u32> {
-        if item.starts_with("minecraft:") {
-            return None;
-        }
         let mut slots = None;
         self.native_item_container(item, &mut slots);
         slots.filter(|s| *s >= 1).map(|s| s.min(MAX_SLOTS))

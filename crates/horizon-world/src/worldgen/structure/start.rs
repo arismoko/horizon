@@ -877,6 +877,8 @@ pub struct StructureStart {
     pub pieces: Vec<Piece>,
     /// Piece union, inflated by 12 for terrain-adapting structures.
     pub bounding_box: BoundingBox,
+    /// Whether any piece supplied cached terrain metadata.
+    pub(crate) has_piece_beardifier: bool,
 }
 impl StructureStart {
     /// `StructureStart.createTag` in its own chunk; None while one of its
@@ -1529,11 +1531,30 @@ impl StructureStart {
     /// least one: their box, grown where the structure adapts the terrain.
     pub fn new(structure: usize, def: &StructureDef, chunk: ChunkPos, pieces: Vec<Piece>) -> Self {
         let mut bounding_box = pieces[0].bounding_box();
-        for piece in &pieces[1..] {
-            bounding_box.encapsulate(&piece.bounding_box());
+        let mut override_bounds: Option<BoundingBox> = None;
+        let mut has_piece_beardifier = false;
+        for (index, piece) in pieces.iter().enumerate() {
+            if index != 0 {
+                bounding_box.encapsulate(&piece.bounding_box());
+            }
+            if let Piece::Legacy(legacy) = piece
+                && let Some(rigid) = legacy.beardifier()
+            {
+                has_piece_beardifier = true;
+                if rigid.adjustment != TerrainAdjustment::None {
+                    let bounds = influence_box(rigid.bounds.minimum(), rigid.bounds.maximum());
+                    match &mut override_bounds {
+                        Some(union) => union.encapsulate(&bounds),
+                        None => override_bounds = Some(bounds),
+                    }
+                }
+            }
         }
         if def.terrain != TerrainAdjustment::None {
             bounding_box = bounding_box.inflated(12, 12);
+        }
+        if let Some(bounds) = override_bounds {
+            bounding_box.encapsulate(&bounds);
         }
         if let Some(enhanced) = def.enhanced_terrain.as_ref().filter(|e| e.inflate) {
             let r = enhanced.radius();
@@ -1546,6 +1567,7 @@ impl StructureStart {
             references: 0,
             pieces,
             bounding_box,
+            has_piece_beardifier,
         }
     }
 }
@@ -1624,10 +1646,29 @@ pub fn beardifier(
             include(b, &mut kernels);
         }
         let adjustment = def.terrain;
-        if adjustment == TerrainAdjustment::None {
+        if adjustment == TerrainAdjustment::None && !start.has_piece_beardifier {
             continue;
         }
         for piece in &start.pieces {
+            if start.has_piece_beardifier
+                && let Piece::Legacy(legacy) = piece
+                && let Some(rigid) = legacy.beardifier()
+            {
+                let b = BoundingBox::new(rigid.bounds.minimum(), rigid.bounds.maximum());
+                if rigid.adjustment != TerrainAdjustment::None
+                    && b.max[0] >= bx - 12
+                    && b.min[0] <= bx + 15 + 12
+                    && b.max[2] >= bz - 12
+                    && b.min[2] <= bz + 15 + 12
+                {
+                    rigids.push(rigid);
+                    include(b, &mut any);
+                }
+                continue;
+            }
+            if adjustment == TerrainAdjustment::None {
+                continue;
+            }
             let b = piece.bounding_box();
             let near = b.max[0] >= bx - 12
                 && b.min[0] <= bx + 15 + 12
@@ -1748,10 +1789,31 @@ pub fn place_in_chunk<W: FeatureWorld + PlacementContext, R: RandomSource + 'sta
     Ok(())
 }
 
+/// A piece's terrain box grown by the beardifier's reach (12 around), without overflowing:
+/// a mod's bounds may sit at the `i32` limits.
+fn influence_box(minimum: [i32; 3], maximum: [i32; 3]) -> BoundingBox {
+    BoundingBox::new(
+        minimum.map(|v| v.saturating_sub(12)),
+        maximum.map(|v| v.saturating_add(12)),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_terrain_box_at_the_i32_limits_grows_without_overflowing() {
+        assert_eq!(
+            influence_box([i32::MIN, i32::MIN + 5, 0], [i32::MAX, i32::MAX - 5, 3]),
+            BoundingBox::new([i32::MIN, i32::MIN, -12], [i32::MAX, i32::MAX, 15])
+        );
+        assert_eq!(
+            influence_box([0, 64, 0], [8, 73, 8]),
+            BoundingBox::new([-12, 52, -12], [20, 85, 20])
+        );
+    }
 
     fn registry(structures: &[(&str, Value)], sets: &[(&str, Value)]) -> StructureRegistry {
         let text = |l: &[(&str, Value)]| {

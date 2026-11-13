@@ -12,10 +12,10 @@ pub trait Hooks {
     /// NeoForge, which refuses a bad value as it is set, the check runs once
     /// after every mod, so a later mod sees the value an earlier one left.
     /// On the server, only when the `advance_time` rule is on;
-    /// `native_time_skip` then hears the jump to the time chosen here and
+    /// `time_skip` then hears the jump to the time chosen here and
     /// may still cancel it. The players wake and the weather resets as
     /// usual either way. Set `canceled` and the clock is left where it is, as NeoForge's cancel leaves it:
-    /// `native_time_skip` is not asked either.
+    /// `time_skip` is not asked either.
     #[hook(
         side = "server",
         contract = "cancel",

@@ -4,6 +4,8 @@
 //! `range_dispatch` or `select` on a registered property, a tint of a registered source and a node
 //! of a registered type read their answer from the host per stack; a property or tint nobody
 //! registered stays foreign (`foreign.rs`), and a node type nobody registered fails to decode.
+//! The skull types native mods register (`EntityRenderersEvent.CreateSkullModels`) are kinds a
+//! `minecraft:head` model may name.
 use super::identifier;
 use std::{collections::BTreeSet, sync::RwLock};
 
@@ -11,6 +13,7 @@ static RANGE: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 static SELECT: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 static TINT: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 static NODE: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
+static SKULL: RwLock<BTreeSet<String>> = RwLock::new(BTreeSet::new());
 
 /// Keeps the numeric `range_dispatch` properties native mods registered, before
 /// resources load. An id that is not `<namespace>:<path>` in a namespace other than
@@ -29,6 +32,12 @@ pub fn register_select_properties(ids: Vec<String>) -> Vec<String> {
 /// [`register_range_properties`] checks its ids.
 pub fn register_tint_sources(ids: Vec<String>) -> Vec<String> {
     keep_mod_ids(&TINT, "item tint source", ids)
+}
+
+/// Keeps the skull types native mods registered, before resources load, checked as
+/// [`register_range_properties`] checks its ids.
+pub fn register_skull_kinds(ids: Vec<String>) -> Vec<String> {
+    keep_mod_ids(&SKULL, "skull type", ids)
 }
 
 /// Adds to `table` the ids a mod registered as `kind`: an id that is not `<namespace>:<path>` in a
@@ -82,4 +91,12 @@ pub fn is_item_model_type(id: &str) -> bool {
 /// Whether a native mod registered `id` as an item tint source.
 pub fn is_tint_source(id: &str) -> bool {
     TINT.read().unwrap_or_else(|e| e.into_inner()).contains(id)
+}
+
+/// Whether a native mod registered `kind` as a skull type a `minecraft:head` model may name.
+pub fn is_skull_kind(kind: &str) -> bool {
+    SKULL
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .contains(kind)
 }

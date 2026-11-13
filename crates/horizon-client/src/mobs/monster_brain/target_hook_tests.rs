@@ -41,7 +41,10 @@ fn start_attacking_brain_honors_cancel_and_redirect() {
     assert!(
         with_test_world(&[], |_, types| {
             let kind = Arc::new(types.types["minecraft:iron_golem"].clone());
-            redirected = Some(Mob::new(8, kind, Vec3::new(2.5, 64.0, 0.5), 0.0).seen(None));
+            redirected = Some(
+                Mob::new(8, kind, Vec3::new(2.5, 64.0, 0.5), 0.0)
+                    .seen(None, &crate::items::Items::empty()),
+            );
         }),
         "prepared entity resources are required"
     );

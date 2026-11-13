@@ -8,6 +8,11 @@
 //! maps are kept as found (structure search is not run); conditions that
 //! need an entity, tool or damage source fail when the context has none, as
 //! they do for containers.
+mod fill;
+pub mod query;
+#[path = "loot_query.rs"]
+mod query_context;
+pub use fill::ContainerLootContext;
 #[path = "loot/tags.rs"]
 mod loot_tags;
 use horizon_core::random::{LegacyRandom, RandomSource};
@@ -115,6 +120,7 @@ pub fn native_invoke_loot_condition(
 }
 
 /// The tool a loot context names: its item id and enchantments.
+#[derive(Clone)]
 pub struct LootTool {
     pub item: String,
     pub enchantments: Vec<(String, i32)>,
@@ -128,6 +134,11 @@ pub struct LootTool {
 /// loot engine; each is None in the other. A table without a mod's kinds
 /// draws nothing and stays bit-for-bit the same.
 pub struct LootContext<'a> {
+    /// First id wins; written after the root and all nested rolls, before #1270's modifier pass.
+    /// Unset reads as `UNKNOWN_LOOT_TABLE`; nested rolls never write it.
+    pub queried_table_id: Option<String>,
+    /// Stack whose data is queried; unchanged through nested rolls, absent in existing callers.
+    pub queried_stack: Option<LootStack>,
     /// The entity the table names (`this`), if any.
     pub entity: Option<&'a LootEntity>,
     /// The damage that killed it, if any.
@@ -330,6 +341,7 @@ pub struct LootData {
     enchantments: Vec<Enchantment>,
     /// Raw tag files by (registry, tag id).
     tags: HashMap<(String, String), Vec<Value>>,
+    resolved_item_tags: HashMap<String, std::collections::HashSet<String>>,
     /// Smelting recipes in recipe id order: (ingredient, result, result count).
     smelting: Vec<(Value, String, i32)>,
 }
@@ -937,6 +949,7 @@ impl LootData {
             predicates,
             items,
             enchantments,
+            resolved_item_tags: loot_tags::resolve_items(&tags),
             tags,
             smelting,
         })
@@ -1015,6 +1028,7 @@ impl LootData {
             luck: 0.0,
         };
         let mut c = Context {
+            query: query::current_query(),
             data: self,
             random: LegacyRandom::new(0),
             biome: None,
@@ -1066,34 +1080,6 @@ impl LootData {
         })
     }
 
-    /// LootTable.getRandomItems with the given random (its state is
-    /// advanced), luck and, for fishing, whether the hook is in open water.
-    pub fn roll<R: RandomSource + Clone>(
-        &self,
-        table: &str,
-        random: &mut R,
-        luck: f32,
-        biome: Option<&str>,
-        open_water: Option<bool>,
-    ) -> Vec<LootStack> {
-        let Some(json) = self.tables.get(table) else {
-            return Vec::new();
-        };
-        let mut c = Context {
-            data: self,
-            random: random.clone(),
-            biome,
-            visited: Vec::new(),
-            luck,
-            open_water,
-            entity: None,
-            enchanted_level: None,
-        };
-        let mut items = Vec::new();
-        c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
-        *random = c.random;
-        items
-    }
     /// LootTable.getRandomItems for an entity context: the generated stacks
     /// after the stack splitter, in order. `random` is the table's random
     /// sequence (or the level random) and is advanced.
@@ -1128,6 +1114,7 @@ impl LootData {
             return Vec::new();
         };
         let mut c = Context {
+            query: query::current_query(),
             data: self,
             random: random.clone(),
             biome: None,
@@ -1139,6 +1126,7 @@ impl LootData {
         };
         let mut items = Vec::new();
         c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
+        c.query.finish(Some(table));
         *random = c.random;
         items
     }
@@ -1150,23 +1138,8 @@ impl LootData {
         table: &str,
         random: &mut R,
     ) -> Vec<LootStack> {
-        let Some(json) = self.tables.get(table) else {
-            return Vec::new();
-        };
-        let mut c = Context {
-            data: self,
-            random: random.clone(),
-            biome: None,
-            visited: Vec::new(),
-            luck: 0.0,
-            open_water: None,
-            entity: None,
-            enchanted_level: None,
-        };
-        let mut items = Vec::new();
-        c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
-        *random = c.random;
-        items
+        self.roll_container_with(table, random, ContainerLootContext::default())
+            .unwrap_or_default()
     }
     /// LootTable.createStackSplitter (every item is enabled).
     fn split(&self, stack: LootStack, items: &mut Vec<LootStack>) {
@@ -1182,53 +1155,6 @@ impl LootData {
                 items.push(copy);
             }
         }
-    }
-    /// LootTable.fill into an empty container of `slots` slots with
-    /// `RandomSource.create(seed)`; `biome` is the container's biome for
-    /// location checks (None: no origin, checks fail).
-    pub fn fill(
-        &self,
-        table: &str,
-        seed: i64,
-        slots: usize,
-        biome: Option<&str>,
-    ) -> Vec<Option<LootStack>> {
-        self.fill_with(table, &mut LegacyRandom::new(seed), slots, biome)
-    }
-    /// LootTable.fill drawing from `random` (a seeded random or the table's
-    /// random sequence), which is advanced.
-    pub fn fill_with<R: RandomSource + Clone>(
-        &self,
-        table: &str,
-        random: &mut R,
-        slots: usize,
-        biome: Option<&str>,
-    ) -> Vec<Option<LootStack>> {
-        let mut out = vec![None; slots];
-        let Some(json) = self.tables.get(table) else {
-            return out;
-        };
-        let mut c = Context {
-            data: self,
-            random: random.clone(),
-            biome,
-            visited: Vec::new(),
-            luck: 0.0,
-            open_water: None,
-            entity: None,
-            enchanted_level: None,
-        };
-        let mut items = Vec::new();
-        c.table_raw(table, json, &mut |c, stack| c.data.split(stack, &mut items));
-        *random = c.random;
-        let mut available: Vec<usize> = (0..slots).collect();
-        shuffle(&mut available, random);
-        shuffle_and_split(&mut items, available.len(), random);
-        for stack in items {
-            let Some(slot) = available.pop() else { break };
-            out[slot] = (!stack.is_empty()).then_some(stack);
-        }
-        out
     }
 }
 
@@ -1332,6 +1258,7 @@ fn shuffle_and_split(result: &mut Vec<LootStack>, slots: usize, random: &mut imp
 }
 
 struct Context<'a, R> {
+    query: std::rc::Rc<query::LootQuery>,
     data: &'a LootData,
     random: R,
     biome: Option<&'a str>,
@@ -1464,6 +1391,13 @@ impl<R: RandomSource> Context<'_, R> {
         }
     }
     fn condition(&mut self, c: &Value) -> bool {
+        if let Some(holds) =
+            query::condition(c, &self.query, self.query.tool.as_ref(), |item, ability| {
+                crate::native_load_hooks::item_ability_default(item, ability, self.data)
+            })
+        {
+            return holds;
+        }
         let data = self.data;
         match c {
             Value::Null => true,
@@ -1588,22 +1522,6 @@ impl<R: RandomSource> Context<'_, R> {
                 self.run(m, stack)
             }
             _ => stack,
-        }
-    }
-    /// The context a mod's own loot kinds see: drawn lazily, only when
-    /// the table has a mod's kind, so the random stays untouched without.
-    fn native_ctx(&mut self) -> LootContext<'_> {
-        let seed = self.random.next_long();
-        LootContext {
-            entity: self.entity.map(|e| &e.this),
-            damage: self.entity.and_then(|e| e.damage.as_ref()),
-            player: self.entity.and_then(|e| e.player.as_ref()),
-            tool: None, // The tool is not in this engine's context.
-            block: None,
-            luck: self.luck,
-            biome: self.biome,
-            seed,
-            place: current_native_loot_place(),
         }
     }
     fn run(&mut self, f: &Value, mut stack: LootStack) -> LootStack {
@@ -3765,3 +3683,7 @@ mod custom_data_predicate_tests {
         assert_eq!(doubled(None), ["light_gray"]);
     }
 }
+
+#[cfg(test)]
+#[path = "loot_fill_tests.rs"]
+mod fill_tests;

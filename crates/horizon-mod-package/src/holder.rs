@@ -16,7 +16,10 @@ use std::{
 };
 pub const ENV: &str = "HORIZON_RUNTIME_HOLDER";
 pub const ENTRY: &str = "HORIZON_RUNTIME_ENTRY";
-pub const CAPABILITY: [u8; 26] = *b"horizon-private-holder-v2;";
+// Keep the scanner's wire bytes contiguous even when release optimization lowers
+// comparisons to several immediate constants (notably on Apple Silicon).
+#[used]
+pub static CAPABILITY: [u8; 26] = *b"horizon-private-holder-v2;";
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Tree {
@@ -56,8 +59,25 @@ fn token(file: &File) -> io::Result<[u64; 2]> {
 }
 impl Snapshot {
     fn capture(path: &Path, complete: bool) -> io::Result<Self> {
-        let directory = open_directory(path).map_err(lease_error)?;
-        let file = complete.then(|| completion(&directory)).transpose()?;
+        let directory = open_directory(path).map_err(|error| {
+            let error = lease_error(error);
+            io::Error::new(
+                error.kind(),
+                format!("open lease directory {}: {error}", path.display()),
+            )
+        })?;
+        let file = complete
+            .then(|| completion(&directory))
+            .transpose()
+            .map_err(|error| {
+                io::Error::new(
+                    error.kind(),
+                    format!(
+                        "open installation completion marker {}: {error}",
+                        path.join(".installed").display()
+                    ),
+                )
+            })?;
         let tree = Tree {
             path: path.to_owned(),
             identity: identity(&directory)?,
@@ -238,8 +258,17 @@ fn run(encoded: OsString, claims: &mut Option<Acquired>) -> io::Result<ExitStatu
     command.env(ENTRY, request.record.encode()?);
     command.status()
 }
+/// Retain the contiguous capability marker without entering private holder mode.
+#[inline(never)]
+pub fn retain_capability() {
+    // An address escaping through an opaque operation retains the actual static,
+    // including under linker dead stripping.
+    std::hint::black_box(&CAPABILITY);
+}
+
 /// Does nothing for ordinary startup. Private startup can never reach the normal game path.
 pub fn enter() {
+    retain_capability();
     let Some(encoded) = std::env::var_os(ENV) else {
         return;
     };

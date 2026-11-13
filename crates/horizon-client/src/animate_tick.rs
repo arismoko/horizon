@@ -20,7 +20,14 @@ use horizon_world::{
     registry::{BlockRegistry, BlockStateId},
     worldgen::tags::TagDefinitions,
 };
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{
+        OnceLock,
+        atomic::{AtomicU8, Ordering},
+    },
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Animate {
@@ -310,8 +317,6 @@ fn candle_offsets(count: u8) -> &'static [[f64; 3]] {
 pub struct AnimateTables {
     kinds: Vec<Animate>,
     impermeable: Vec<bool>,
-    power_provider: Vec<bool>,
-    power_transmitter: Vec<bool>,
     /// `#triggers_ambient_dried_ghast_block_sounds` (soul sand, soul soil).
     dried_ghast_sounds: Vec<bool>,
     /// `#triggers_ambient_desert_sand_block_sounds` (sand, red sand).
@@ -389,8 +394,6 @@ impl AnimateTables {
             kinds,
             dripstone,
             impermeable: by_state("minecraft:impermeable"),
-            power_provider: by_state("minecraft:enchantment_power_provider"),
-            power_transmitter: by_state("minecraft:enchantment_power_transmitter"),
             dried_ghast_sounds: by_state("minecraft:triggers_ambient_dried_ghast_block_sounds"),
             desert_sand_sounds: by_state("minecraft:triggers_ambient_desert_sand_block_sounds"),
             poplar_leaf_logs: by_state("minecraft:required_for_poplar_leaf_ambience"),
@@ -414,8 +417,44 @@ impl AnimateTables {
     }
 }
 
+/// Per-game enchant answers supplied to ambient workers. Shared resource tables never own
+/// these answers: an integrated server and its client may share resources, but not hook hosts.
+#[derive(Default)]
+pub struct EnchantPower {
+    states: OnceLock<Vec<AtomicU8>>,
+}
+
+impl EnchantPower {
+    /// Rebuild once after parts installation, using the same power and transmitter sources
+    /// as server offers. Atomics permit the existing read-only installation lifecycle, with
+    /// no locking, allocation, host borrowing or mod dispatch during animation.
+    pub fn rebuild(
+        &self,
+        len: usize,
+        answer: impl Fn(BlockStateId) -> f32,
+        transmits: impl Fn(BlockStateId) -> bool,
+    ) {
+        let states = self
+            .states
+            .get_or_init(|| (0..len).map(|_| AtomicU8::new(0)).collect());
+        for (id, entry) in states.iter().enumerate() {
+            let state = BlockStateId(id as u32);
+            let bits = u8::from(answer(state) != 0.0) | (u8::from(transmits(state)) << 1);
+            entry.store(bits, Ordering::Relaxed);
+        }
+    }
+
+    fn has(&self, state: BlockStateId, bit: u8) -> bool {
+        self.states
+            .get()
+            .and_then(|states| states.get(state.0 as usize))
+            .is_some_and(|entry| entry.load(Ordering::Relaxed) & bit != 0)
+    }
+}
+
 /// World access for ambient effects.
 pub struct AnimateContext<'a> {
+    pub enchant_power: &'a EnchantPower,
     pub world: &'a World,
     pub facts: &'a BlockFacts,
     pub collision: &'a BlockCollisionRegistry<'a>,
@@ -1036,17 +1075,7 @@ fn block_animate_tick(
                         }
                         let provider = ctx.state([pos[0] + ox, pos[1] + oy, pos[2] + oz]);
                         let between = ctx.state([pos[0] + ox / 2, pos[1] + oy, pos[2] + oz / 2]);
-                        if tables
-                            .power_provider
-                            .get(provider.0 as usize)
-                            .copied()
-                            .unwrap_or(false)
-                            && tables
-                                .power_transmitter
-                                .get(between.0 as usize)
-                                .copied()
-                                .unwrap_or(false)
-                        {
+                        if ctx.enchant_power.has(provider, 1) && ctx.enchant_power.has(between, 2) {
                             let r = engine.random();
                             let v = [
                                 f64::from(ox as f32 + r.next_float() - 0.5),
@@ -2016,6 +2045,61 @@ pub fn make_campfire_smoke(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn enchant_power_cache_queries_once_per_state_and_remains_worker_safe() {
+        fn worker_safe<T: Send + Sync>() {}
+        worker_safe::<AnimateTables>();
+        worker_safe::<EnchantPower>();
+        let ambience = crate::ambience::Ambience::new(17);
+        let tables = &ambience.enchant_power;
+        let random_before = ambience.random.clone().next_long();
+        let calls = std::cell::Cell::new(0);
+        let rebuild = |answers: [f32; 3]| {
+            tables.rebuild(
+                3,
+                |state| {
+                    calls.set(calls.get() + 1);
+                    answers[state.0 as usize]
+                },
+                |_| true,
+            )
+        };
+        rebuild([2.0, 0.0, -0.5]);
+        assert_eq!(calls.get(), 3);
+        for _ in 0..100 {
+            assert_eq!(
+                (0..3)
+                    .map(|id| tables.has(BlockStateId(id), 1))
+                    .collect::<Vec<_>>(),
+                [true, false, true],
+            );
+        }
+        assert_eq!(calls.get(), 3);
+        rebuild([0.0; 3]);
+        assert_eq!(calls.get(), 6);
+        assert!((0..3).all(|id| !tables.has(BlockStateId(id), 1)));
+        let other_ambience = crate::ambience::Ambience::new(17);
+        let other_game = &other_ambience.enchant_power;
+        other_game.rebuild(3, |_| 2.0, |_| false);
+        assert!(other_game.has(BlockStateId(0), 1));
+        assert!(!other_game.has(BlockStateId(0), 2));
+        assert!(
+            !tables.has(BlockStateId(0), 1),
+            "another game's rebuild is isolated"
+        );
+        other_game.rebuild(3, |_| 2.0, |_| true);
+        assert!(
+            other_game.has(BlockStateId(0), 2),
+            "transmitter changes rebuild too"
+        );
+        assert_eq!(
+            ambience.random.clone().next_long(),
+            random_before,
+            "cache rebuilds must not draw ambient random"
+        );
+        assert_eq!(other_ambience.random.clone().next_long(), random_before);
+    }
     /// `CampfireBlock.makeParticles` through `ClientLevel.doAddParticle`: the
     /// cosy smoke overrides the limiter, the plain smoke does not, so it is
     /// dropped beyond 32 blocks and at Particles: Minimal, and at Decreased

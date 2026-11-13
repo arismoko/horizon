@@ -299,8 +299,41 @@ impl Game<'_> {
             return None;
         };
         let m = self.mobs.iter().find(|m| m.id == id)?;
+        Some(self.mob_query_invulnerable(m, damage_type))
+    }
+
+    /// `Entity.isInvulnerableTo` asked of `mob` outside a hit, for a source of `damage_type`:
+    /// the vanilla answer, which `entity_invulnerability_check` listeners may change.
+    pub(in crate::game) fn mob_query_invulnerable(
+        &self,
+        mob: &horizon_client::mobs::Mob,
+        damage_type: &str,
+    ) -> bool {
         let source = Damage::of(Self::damage_kind(&self.motion.health.damage, damage_type));
-        Some(m.refuses_damage(&source))
+        let vanilla = mob.refuses_damage(&source);
+        horizon_client::health::query_invulnerability(
+            &self.world,
+            self.pack.assets.registry,
+            Some(world_items!(self)),
+            Some(&self.pack.block_registries),
+            &self.damage_hooks,
+            horizon_client::health::Hurting::Mob(mob, &source),
+            vanilla,
+        )
+    }
+
+    /// `isInvulnerableToBase` of a non-living entity the acting player strikes in melee
+    /// (`player_attack`), asked of listeners.
+    pub(in crate::game) fn native_player_hit_invulnerable(&mut self, id: u32, kind: &str) -> bool {
+        let attacker = self.own_entity_id();
+        let source = horizon_client::health::HurtSource {
+            damage_type: "minecraft:player_attack",
+            causing: attacker,
+            direct: attacker,
+            position: None,
+        };
+        let vanilla = self.saved_refuses_damage(id, "minecraft:player_attack", self.creative);
+        self.native_nonliving_invulnerable(id, kind, source, vanilla)
     }
 
     /// Whether `source`'s damage may hit `entity` through their teams
@@ -826,12 +859,12 @@ mod tests {
             game.mobs[0].health = 20.0;
             assert!(game.mobs[0].invulnerable_time > 0);
             assert!(game.mobs[0].is_invulnerable());
-            assert!(game.mobs[0].seen(None).invulnerable);
+            assert!(game.mobs[0].seen(None, game.items()).invulnerable);
             // ...and once the window has run out, the enemy sees it again.
             game.mobs[0].invulnerable_time = 1;
             game.tick_mobs().unwrap();
             assert_eq!(game.mobs[0].invulnerable_time, 0);
-            assert!(!game.mobs[0].seen(None).invulnerable);
+            assert!(!game.mobs[0].seen(None, game.items()).invulnerable);
             let _ = enemy;
             keep(game);
         });

@@ -68,6 +68,25 @@ impl Game<'_> {
         self.level_event_at(id, pos, data);
         true
     }
+    /// Plays level event `id` for every player on the server
+    /// (`ServerLevel.globalLevelEvent`), or for the players near `pos` when the
+    /// `global_sound_events` rule is off. Refuses what `level_level_event` refuses.
+    pub(super) fn level_global_level_event(
+        &mut self,
+        level: LevelRef,
+        id: i32,
+        pos: [i32; 3],
+        data: i32,
+    ) -> bool {
+        if !self.level_in_place(level) {
+            return false;
+        }
+        if !level_event_data_ok(id, data, self.res.facts().states.len()) {
+            return false;
+        }
+        self.global_level_event(id, pos, data);
+        true
+    }
     /// Sends game event `event` (`minecraft:block_change`...) from `at`, as
     /// `Level.gameEvent(event, at, context)`, with validated source and state.
     pub(super) fn level_game_event(
@@ -343,6 +362,162 @@ mod tests {
                     [before, at(1500, 1, 1, 0), at(2005, 2, 2, 7)]
                 );
             });
+        });
+    }
+
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_global_level_event_reaches_every_player_or_falls_back_to_a_plain_one() {
+        use horizon_client::gamerules::Value;
+        use mod_api::{LevelRef, WorldEpoch};
+        super::super::native_entity_refs::tests::with_game(|game| {
+            let level = game.level(game.dim.id()).unwrap();
+            let stale = LevelRef::new(WorldEpoch::new(level.epoch().get() + 1), level.dimension());
+            game.audio.capture = Some(Vec::new());
+            game.lan_global_events.clear();
+            game.lan_events.clear();
+
+            // An End portal opening: one packet with the global flag for every player.
+            assert!(level.global_level_event(game, 1038, [10, 64, -3], 0));
+            assert_eq!(
+                game.lan_global_events,
+                [("minecraft:overworld", 1038, [10, 64, -3], 0)]
+            );
+            assert!(
+                game.lan_events.is_empty(),
+                "no plain event while the rule is on"
+            );
+            assert!(
+                !level.global_level_event(game, 2001, [0, 64, 0], -1),
+                "2001 carries a block state"
+            );
+            assert!(!stale.global_level_event(game, 1038, [0, 64, 0], 0));
+            assert_eq!(game.lan_global_events.len(), 1, "refusals send nothing");
+
+            // ServerLevel.globalLevelEvent without global_sound_events: levelEvent(null, ...).
+            assert!(game.ui.rules.set("global_sound_events", Value::Bool(false)));
+            game.lan_global_events.clear();
+            assert!(level.global_level_event(game, 1038, [10, 64, -3], 0));
+            assert!(game.lan_global_events.is_empty());
+            assert_eq!(
+                game.lan_events,
+                [super::super::QueuedLevelEvent {
+                    kind: 1038,
+                    pos: [10, 64, -3],
+                    data: 0,
+                    source: None,
+                }]
+            );
+        });
+    }
+
+    /// `ServerLevel.globalLevelEvent` with `global_sound_events` off is
+    /// `levelEvent(null, ...)`: a player within 64 blocks gets the plain packet
+    /// at the event's position, and one further away gets nothing.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn with_the_rule_off_a_global_level_event_reaches_a_player_in_range_as_a_plain_one() {
+        use super::super::lan::LanSettings;
+        use horizon_client::gamerules::Value;
+        use horizon_client::lan::{
+            Joined, NetConfig, Out, PlayerSender, guest::Guest, hub::HubConfig,
+        };
+        use horizon_protocol::packets::{
+            configuration::ClientInformation,
+            play::{Clientbound, LevelEvent},
+        };
+        use std::sync::{
+            Arc,
+            atomic::{AtomicI32, AtomicUsize},
+        };
+        super::super::native_entity_refs::tests::with_game(|game| {
+            let net = NetConfig {
+                listen: false,
+                announce: false,
+                lod_distance: 0,
+                ..NetConfig::lan(0, String::new(), 2)
+            };
+            let config = HubConfig {
+                default_game_mode: 0,
+                guest_commands: false,
+                force_game_mode: false,
+                hardcore: false,
+                view_distance: 2,
+                simulation_distance: 2,
+                dimension: game.dim.id().to_owned(),
+                allow_flight: true,
+                seed: 0,
+                max_players: 2,
+                integrated: true,
+                levels: game.level_shapes,
+            };
+            let settings = LanSettings {
+                port: 0,
+                guest_commands: false,
+                force_game_mode: false,
+            };
+            game.lan_host(settings, net, config).unwrap();
+            let mut guest_at = |conn: u32, at: [f64; 3]| {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let mut guest = Guest::new(
+                    Joined {
+                        conn,
+                        uuid: u128::from(conn),
+                        name: format!("guest{conn}"),
+                        properties: Vec::new(),
+                        info: ClientInformation::new(8),
+                        brand: String::new(),
+                        sender: PlayerSender::new(tx, Arc::new(AtomicUsize::new(0))),
+                        latency: Arc::new(AtomicI32::new(0)),
+                        address: "127.0.0.1:1".parse().unwrap(),
+                        expected: false,
+                    },
+                    conn as i32,
+                    at,
+                    10,
+                );
+                guest.placed = true;
+                guest.dimension = game.dim.id().to_owned();
+                game.lan.as_mut().unwrap().hub.guests.push(guest);
+                rx
+            };
+            let near = guest_at(12, [30.5, 64.0, -3.5]);
+            let far = guest_at(13, [110.5, 64.0, -3.5]);
+            let events = |rx: &std::sync::mpsc::Receiver<Out>| {
+                rx.try_iter()
+                    .flat_map(|out| match out {
+                        Out::Packet(body) => vec![body],
+                        Out::Packets(bodies) => bodies,
+                        Out::Disconnect(_) => panic!("unexpected disconnect"),
+                    })
+                    .filter_map(|body| {
+                        let mut reader = horizon_protocol::buf::Reader::new(&body);
+                        let id = reader.varint().unwrap();
+                        match Clientbound::decode(id, reader.rest()) {
+                            Ok(Clientbound::LevelEvent(p)) => Some(p),
+                            _ => None,
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            };
+            game.lan_flush_effects();
+            events(&near);
+            events(&far);
+            game.audio.capture = Some(Vec::new());
+            assert!(game.ui.rules.set("global_sound_events", Value::Bool(false)));
+            let level = game.level(game.dim.id()).unwrap();
+            assert!(level.global_level_event(game, 1038, [10, 64, -3], 0));
+            game.lan_flush_effects();
+            assert_eq!(
+                events(&near),
+                [LevelEvent {
+                    kind: 1038,
+                    pos: [10, 64, -3],
+                    data: 0,
+                    global: false,
+                }]
+            );
+            assert!(events(&far).is_empty(), "100 blocks away is out of range");
         });
     }
 }

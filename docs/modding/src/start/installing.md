@@ -1,56 +1,68 @@
 # Installing and using mods
 
-Two kinds of mod run in Horizon:
+Mods are off until you install and turn them on. A fresh Horizon install has no mods folder and plays exactly
+like vanilla 26.3.
 
-| Kind | File | What it is | Where it runs |
-|---|---|---|---|
-| **Content mod** | `.hmod` | Data and assets: blocks, items, recipes, loot, tags, models, textures, structures. No code. | Loaded at startup; assets-and-data-only switches can reload live |
-| **Native mod** | `.hmod` | A flat Rust project using the typed hook API, with optional raw injections. | In a game the launcher builds for the player ([native mods](../how-to/native-mods.md)) |
+## Installing a mod
 
-Fabric and NeoForge jars do **not** run as they are: they target Minecraft's Java runtime, and
-Horizon has none. What carries over is the data and assets inside a jar ([modpacks.md](../../../modpacks.md)).
+Install a mod from the launcher's **Mods** page or from the game's **Options > Mods > Browse Mods**, or copy its
+file by hand into the game folder (the folder that holds `options.txt`):
 
-Mods are **off by default**. A fresh install has no `horizon-mods` folder and plays exactly like vanilla 26.3.
+| Mod | Goes in | What happens next |
+| --- | --- | --- |
+| Content mod (`.hmod`, or a folder holding `horizon-mod.toml`) | `horizon-mods/` | Read when the game starts |
+| WebAssembly mod (`.hmod` with `mod.wasm`) | `horizon-mods/` | Loaded into the game's sandbox when the game starts |
+| Native mod (`.hmod` with Rust source) | `horizon-native-mods/` | The launcher builds it for that instance ([Native mods](../how-to/native-mods.md)) |
 
-## Playing with mods
+**Browse Mods** in the game lists content mods only, checked against the same registry as the launcher. Native and
+WebAssembly mods install from the launcher or by hand.
 
-1. Install a mod from the launcher's Mods page ([mod-browser.md](../../../mod-browser.md)) or the game's Options > Mods >
-   **Browse Mods** (content-only packages, checked against the same registry), or put its files by hand in the
-   game folder (the one holding `options.txt`): a content mod's `.hmod` (or a folder holding `horizon-mod.toml`) in
-   `horizon-mods/`. Native mods go in `horizon-native-mods/`, and the launcher builds them
-   ([native mods](../how-to/native-mods.md)).
-2. The **Mods** button on the title screen (also Options > Mods) opens the mod list, laid out as NeoForge's: Minecraft
-   and Horizon first, then each installed mod with its icon, name and version. Search the list, sort it A-Z or Z-A, and
-   pick a mod to read its id, version, license, authors, credits and description. Homepage and Issues open the mod's
-   links after a confirmation, and Config opens the settings page of a native mod that has one. The screen has no
-   switch. A mod starts off: the launcher (`horizon-launcher mods enable <id>`) or `horizon-mods.txt` (`mod.<id>:true`)
-   turns it on, and a mod that is not on says so in the list.
-3. A turned-on content mod with only assets and reloadable data (textures, models, sounds, languages, recipes, tags,
-   loot, advancements and functions) is picked up live when a mod is installed from Browse Mods: the game reloads its
-   resources, then its world's data as `/reload` does, including for LAN guests. Content that adds registry entries or
-   changes world generation still needs a restart. Packages with jar layers also wait for a restart, because those
-   layers may contain world generation. On another server all content waits: the server owns its data.
-4. A mod that can't load shows why, in red, in its panel.
+Fabric and NeoForge jars do not run in Horizon: they target Minecraft's Java runtime, which Horizon does not have.
+The data and assets inside a jar can be carried over; see
+[Porting Java modpacks](https://github.com/arismoko/horizon/blob/main/docs/modpacks.md).
 
-Two turned-on content mods never own the same namespace: the first by file name loads, and the other stays out with
-the reason in the log.
+## Turning mods on
+
+A newly installed mod is off.
+
+- A mod installed from the launcher's **Mods** page turns on there, or with `horizon-launcher mods enable <project>`.
+- A mod you copied in by hand turns on with a line `mod.<id>:true` in `horizon-mods.txt`, beside `options.txt`.
+
+A content mod that holds only assets and reloadable data (textures, models, sounds, languages, recipes, tags,
+loot, advancements and functions) starts working as soon as it is installed from Browse Mods: the game reloads
+its resources, then the world's data as `/reload` does, LAN guests included. A mod that adds registry entries
+or changes world generation, or that carries Java jar layers, waits for a restart. On someone else's server, all
+content waits: the server owns its data.
+
+Two content mods never own the same namespace. When two claim one, the mod whose file name sorts first loads, and
+the log names the other and why it stayed out.
 
 Benchmarks (`--benchmark`) never load mods.
 
-## Horizon's official mods
+## The Mods screen
 
-Horizon's own mods are native. They live in
-[horizon-rust/horizon-mods](https://github.com/horizon-rust/horizon-mods) under `native/<name>/`:
+The **Mods** button on the title screen (also **Options > Mods**) lists Minecraft and Horizon first, then each
+installed mod with its icon, name and version. Search the list and sort it A–Z or Z–A. Select a mod to read its
+id, version, license, authors, credits and description:
 
-| Mod | Folder | Replaces |
-|---|---|---|
-| FPS Counter | `native/fps-overlay` | Extras > FPS counter |
-| Keystrokes | `native/keystrokes` | Extras > Keystrokes |
-| Zoom | `native/zoom` | Extras > Zoom |
-| Minimap | `native/minimap` | Extras > Minimap |
-| Recipes | `native/recipes` | The Recipes mod (item panel and recipe pages, on hook points version 2) |
-| Coordinates HUD | `native/coords-hud` | A small example mod (position and facing, `/where`, `/coords`) |
+- **Homepage** and **Issues** open the mod's links, after asking you to confirm.
+- **Config** opens the settings page of a mod that registers settings.
+- A mod that is installed but off says so. A mod that could not load shows the reason in red.
 
-The game keeps the parts that must be fast, such as drawing the minimap's map, and a native mod picks the options
-([extras.md](../../../extras.md)). Far View is not a mod any more: its distance and detail are Graphics > LOD Distance and Far
-Detail ([graphics.md](../../../graphics.md)).
+The screen has no on/off switch; the launcher and `horizon-mods.txt` decide which mods run.
+
+## Horizon's own mods
+
+Horizon's optional extras are native mods in
+[horizon-rust/horizon-mods](https://github.com/horizon-rust/horizon-mods), under `native/<name>/`:
+
+| Mod | Folder | Adds |
+| --- | --- | --- |
+| FPS Counter | `native/fps-overlay` | The frame rate on screen |
+| Keystrokes | `native/keystrokes` | The movement and mouse keys you press |
+| Zoom | `native/zoom` | A zoom key |
+| Minimap | `native/minimap` | A minimap |
+| Recipes | `native/recipes` | An item panel and recipe pages |
+| Coordinates HUD | `native/coords-hud` | Position and facing, `/where` and `/coords`: a small example mod |
+
+The game keeps the parts that must be fast, such as drawing the minimap's map, and the mod chooses the options.

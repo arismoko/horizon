@@ -526,6 +526,11 @@ fn existing_fieldless_enum_layouts_match_baseline() {
         "RaidStatus"
     );
     assert_eq!(
+        <crate::block::rail_shape::RailShape as Wire>::layout(&mut vec![]),
+        0xd5b1c18674ac3799,
+        "RailShape"
+    );
+    assert_eq!(
         <crate::content::content_declarations::Rarity as Wire>::layout(&mut vec![]),
         0x52de7b6c1b10c3e0,
         "Rarity"
@@ -577,7 +582,7 @@ fn existing_fieldless_enum_layouts_match_baseline() {
     );
     assert_eq!(
         <crate::item::crafting::Shape as Wire>::layout(&mut vec![]),
-        0xa157d010a4183033,
+        0x004a43af941b0c62,
         "Shape"
     );
     assert_eq!(

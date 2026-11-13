@@ -15,7 +15,8 @@ unless the entire remainder of that first line is a login.
 
 An assigned issue is taken, and so is one claimed on Discord (Kira's `in progress` label). Trackers and proposals
 (labels `tracker`, `proposal`, `not claimable`, set by maintainers) are never claimed whole. Refused with a one-line
-answer: a pull request (claim the issue it fixes), a closed or locked issue, or an issue someone else holds.
+answer: a pull request (claim the issue it fixes), a closed or locked issue, an issue someone else holds, or one an
+open pull request by someone else already closes (`Fixes`, `Closes` or `Resolves #N`, or the sidebar's link).
 A success answers with a 👍 on the comment; the assignment shows in the thread, and the issue's `help wanted` label
 becomes `claimed` (and back when its last holder unclaims).
 A contributor holds at most 5 claimed issues without an open pull request of theirs that links one: a `/claim`
@@ -72,18 +73,18 @@ def safe(text: str) -> str:
 
 
 def parse(body: str) -> Command | None:
-    """Read the first word, allowing trailing punctuation; only an exact unclaim login selects another person."""
-    line = next((line.strip() for line in body.splitlines() if line.strip()), "")
-    # Agents start every comment with "🤖 Agent:" (CLAUDE.md), so their `/claim` follows it.
-    line = re.sub(r"^🤖\s*Agent:\s*", "", line)
-    words = line.split(maxsplit=1)
-    command = words[0].rstrip(string.punctuation).lower() if words else ""
-    if command not in ("/claim", "/unclaim"):
-        return None
-    verb = command[1:]
-    rest = words[1] if len(words) > 1 else ""
-    who = LOGIN.match(rest) if verb == "unclaim" else None
-    return Command(verb, who.group(1) if who else None)
+    """The first line that starts with a command; its first word may carry trailing punctuation, and only an exact
+    unclaim login selects another person."""
+    for line in body.splitlines():
+        # Agents start every comment with "🤖 Agent:" (CLAUDE.md): their `/claim` follows it, on its line or the next.
+        words = re.sub(r"^\s*🤖\s*Agent:", "", line).split(maxsplit=1)
+        command = words[0].rstrip(string.punctuation).lower() if words else ""
+        if command in ("/claim", "/unclaim"):
+            verb = command[1:]
+            rest = words[1] if len(words) > 1 else ""
+            who = LOGIN.match(rest) if verb == "unclaim" else None
+            return Command(verb, who.group(1) if who else None)
+    return None
 
 
 def is_team(actor: ns.Actor, reviewers: ns.Reviewers, repo: str) -> bool:
@@ -153,6 +154,16 @@ query($owner: String!, $name: String!, $number: Int!, $refs: String, $events: St
         pageInfo { hasNextPage endCursor }
         nodes { ... on CrossReferencedEvent { source { ... on PullRequest { state author { login } } } } }
       }
+    }
+  }
+}"""
+
+# The open pull requests that would close one issue: someone's work already covers it.
+COVERING = """
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      closedByPullRequestsReferences(first: 20, includeClosedPrs: false) { nodes { number state author { login } } }
     }
   }
 }"""
@@ -229,6 +240,10 @@ class Api:
                     links["pageInfo"] = more["pageInfo"]
         return out
 
+    def covering_pull_requests(self, n: int) -> list[dict]:
+        """The pull requests whose closing references name issue `n` (open ones, though check `state`)."""
+        return self.graphql(COVERING, number=n)["issue"]["closedByPullRequestsReferences"]["nodes"]
+
     def react(self, comment_id: int) -> None:
         gh("api", f"repos/{self.repo}/issues/comments/{comment_id}/reactions", "-f", "content=+1")
 
@@ -280,6 +295,9 @@ def run(api, cmd: Command, actor: ns.Actor, number: int, reviewers: ns.Reviewers
     held = {h.lower() for h in holders}
     if cmd.verb == "claim":
         if login.lower() in held:
+            # A claim made before the label existed, or by hand, gets it now.
+            if "claimed" not in {str(l.get("name", "")).lower() for l in issue.get("labels") or []}:
+                api.label(number, "claimed", "help wanted")
             raise Refused("You already hold this issue.")
         if holders:
             names = ", ".join(f"@{h}" for h in holders)
@@ -291,6 +309,12 @@ def run(api, cmd: Command, actor: ns.Actor, number: int, reviewers: ns.Reviewers
         if KIRA_LABEL in labels:
             raise Refused(f"someone claimed this issue on Discord (Kira's `{KIRA_LABEL}` label): pick another, or ask "
                           "in the thread.")
+        covering = sorted(pr["number"] for pr in api.covering_pull_requests(number) if pr.get("state") == "OPEN"
+                          and ((pr.get("author") or {}).get("login") or "").lower() != login.lower())
+        if covering:
+            listed = ", ".join(f"#{n}" for n in covering)
+            raise Refused(f"this issue is covered by {listed}, an open pull request that closes it: pick another, or "
+                          "ask its author in that pull request.")
         limited = association not in STAFF and login.lower() not in exempt and not is_team(actor, reviewers, api.repo)
         if limited:
             open_claims = without_pull_request(api.held_issues(login), login)

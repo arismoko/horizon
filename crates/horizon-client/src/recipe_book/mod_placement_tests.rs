@@ -197,3 +197,18 @@ fn native_depth_acceptance_matches_the_actual_category_wire_envelope() {
         );
     }
 }
+
+#[test]
+fn non_simple_placement_accepts_empty_display_order_with_candidates() {
+    let mut value = info();
+    let ingredient = value.cells[0].as_mut().unwrap();
+    ingredient.order.clear();
+    ingredient.rule = Some(Box::new(
+        mod_api::item::crafting::IngredientRule::Components {
+            patch: [("minecraft:damage".into(), horizon_core::nbt::Tag::Int(5))].into(),
+            removed: Vec::new(),
+            strict: false,
+        },
+    ));
+    validate_batch(&mut batch(Some(value)), &Registry).unwrap();
+}

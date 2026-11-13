@@ -10,6 +10,7 @@ use crate::{
     world::World,
 };
 use horizon_core::random::{LegacyRandom, RandomSource};
+use horizon_world::registry::BlockStateId;
 pub use mod_api::client::fog::{FogData, FogType};
 use std::path::Path;
 
@@ -112,13 +113,17 @@ impl FogState {
     }
 }
 
-/// `FluidState.getHeightForCamera`.
-fn camera_fluid_height(world: &World, facts: &BlockFacts, b: [i32; 3]) -> Option<(Fluid, f64)> {
-    let s = facts.get(world.block(b[0], b[1], b[2]));
+/// `FluidState.getHeightForCamera`, reading each block's state through `block`.
+fn camera_fluid_height(
+    block: &impl Fn([i32; 3]) -> BlockStateId,
+    facts: &BlockFacts,
+    b: [i32; 3],
+) -> Option<(Fluid, f64)> {
+    let s = facts.get(block(b));
     if s.fluid == Fluid::None {
         return None;
     }
-    let above = facts.get(world.block(b[0], b[1] + 1, b[2]));
+    let above = facts.get(block([b[0], b[1] + 1, b[2]]));
     let source = s.fluid_level >= 8 && !s.fluid_falling;
     let height = if (source && above.full_collision) || above.fluid == s.fluid {
         1.0
@@ -128,14 +133,23 @@ fn camera_fluid_height(world: &World, facts: &BlockFacts, b: [i32; 3]) -> Option
     Some((s.fluid, height))
 }
 /// `Camera.getFluidInCamera`: water at the camera, then lava or powder snow
-/// at the near plane's centre and corners.
+/// at the near plane's centre and corners. `seen` answers, for the state at each block read,
+/// the state the camera sees there (`IBlockStateExtension.getStateAtViewpoint`); the fluid and
+/// powder snow tests read the answer.
 #[horizon_mod_api_macros::replaceable]
-pub fn fog_type(world: &World, facts: &BlockFacts, camera: [f64; 3], near: &NearPlane) -> FogType {
+pub fn fog_type(
+    world: &World,
+    facts: &BlockFacts,
+    camera: [f64; 3],
+    near: &NearPlane,
+    seen: &dyn Fn(BlockStateId, [i32; 3]) -> BlockStateId,
+) -> FogType {
+    let block = |b: [i32; 3]| seen(world.block(b[0], b[1], b[2]), b);
     camera_fog_type(
         camera,
         near,
-        |b| camera_fluid_height(world, facts, b),
-        |b| &*facts.get(world.block(b[0], b[1], b[2])).name == "minecraft:powder_snow",
+        |b| camera_fluid_height(&block, facts, b),
+        |b| &*facts.get(block(b)).name == "minecraft:powder_snow",
     )
 }
 /// `fog_type` over a block lookup: the fluid and its camera height, and

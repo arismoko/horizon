@@ -5,6 +5,8 @@ static ENTITY_PRE_CALLS: AtomicU32 = AtomicU32::new(0);
 static ENTITY_POST_CALLS: AtomicU32 = AtomicU32::new(0);
 
 pub mod area_macros;
+pub mod capability_registration;
+pub mod cauldron;
 pub mod chunk_disk;
 pub mod datapack;
 pub mod game_payload;
@@ -14,7 +16,9 @@ pub mod matrix;
 pub mod movement;
 pub mod projectile_owner;
 pub mod replace;
+pub mod runtime_environment;
 pub mod selector_command;
+pub mod tick_reply;
 pub mod turn;
 pub use matrix::{mirrors, sum_return};
 pub mod shutdown;
@@ -22,13 +26,64 @@ pub use replace::own_average;
 pub use shutdown::on_shutdown;
 pub use turn::turn_angle;
 
+mod strict_math_checks;
+
 #[derive(Default)]
 pub struct Mod;
 
 #[mod_api::horizon_mod]
 impl Hooks for Mod {
+    fn living_death(
+        &self,
+        host: &mut dyn mod_api::ServerHost,
+        event: &mut mod_api::LivingDeathEvent<'_>,
+    ) -> mod_api::Flow {
+        lending::Lender.living_death(host, event)
+    }
+
     fn movement_input(&self, _: &dyn mod_api::ClientHost, event: &mut mod_api::MovementInputEvent) {
         movement::movement_input(event);
+    }
+
+    fn tick_target_millis(
+        &self,
+        host: &dyn mod_api::ClientHost,
+        event: &mut mod_api::TickTargetMillisEvent,
+    ) {
+        if event.millis == -2.0 {
+            event.millis = strict_math_checks::check_vectors() as f32;
+            return;
+        }
+        let profile = host.math_profile();
+        assert_eq!(profile, host.math_profile());
+        event.millis = match profile {
+            mod_api::MathProfile::LibmRounding => 1.0,
+            mod_api::MathProfile::CorrectlyRounded => 2.0,
+            mod_api::MathProfile::Aarch64Fma => 3.0,
+            mod_api::MathProfile::StrictMath => 4.0,
+            _ => panic!("fixture does not support the new math profile"),
+        };
+    }
+
+    fn player_stat_award(
+        &self,
+        _: &mut dyn mod_api::ServerHost,
+        event: &mut mod_api::PlayerStatAwardEvent<'_>,
+    ) -> mod_api::Flow {
+        // A named acceptance actor keeps this fixture inert for unrelated Game tests.
+        if event.name != "stat_award_fixture" {
+            return mod_api::Flow::Continue;
+        }
+        if event.stat_type.as_str() == "minecraft:mined" && event.stat.as_str() == "minecraft:stone"
+        {
+            event.value *= 2;
+        } else if event.stat_type.as_str() == "minecraft:custom"
+            && event.stat.as_str() == "minecraft:jump"
+        {
+            *event.stat = "wasm_fixture:steps".into();
+            event.value = 3;
+        }
+        mod_api::Flow::Continue
     }
 
     fn server_tick(
@@ -80,14 +135,19 @@ impl Hooks for Mod {
             mod_api::Command::new("wasmentity <target:entity>"),
             mod_api::Command::new("wasmentities <targets:entities>"),
             mod_api::Command::new("wasmplayer <target:player>"),
+            mod_api::Command::new("wasmcauldron"),
         ]);
     }
 
     fn run_mod_command(
         &self,
-        _: &mut dyn mod_api::ServerHost,
+        host: &mut dyn mod_api::ServerHost,
         event: &mut mod_api::RunModCommandEvent<'_>,
     ) -> mod_api::Flow {
+        if event.command.literals.first().map(String::as_str) == Some("wasmcauldron") {
+            cauldron::read(host);
+            return mod_api::Flow::Cancel;
+        }
         selector_command::run(event)
     }
 
@@ -136,6 +196,34 @@ impl Hooks for Mod {
         ));
     }
 
+    fn standalone_models(
+        &self,
+        _: &mod_api::RegistrationContext,
+        event: &mut mod_api::StandaloneModelsEvent<'_>,
+    ) {
+        assert!(
+            event.forms.is_empty(),
+            "dispatch owns the guest's form batch"
+        );
+        assert_eq!(event.models.as_slice(), ["native:kept"]);
+        event.models.push("wasm_fixture:block/plain".into());
+        event.forms.extend([
+            mod_api::StandaloneModelForm::Rotated {
+                id: "another_namespace:east".into(),
+                model: "dependency:block/arrow".into(),
+                turns: [2, 1, 3],
+                uvlock: true,
+            },
+            mod_api::StandaloneModelForm::Combined {
+                id: "wasm_fixture:assembly".into(),
+                parts: vec![
+                    "dependency:block/base".into(),
+                    "dependency:block/overlay".into(),
+                ],
+            },
+        ]);
+    }
+
     fn entity_tick_listened(
         &self,
         _: &mut dyn mod_api::ServerHost,
@@ -170,6 +258,8 @@ impl Hooks for Mod {
         host: &mut dyn mod_api::ServerHost,
         _: &mut mod_api::ServerStartedEvent,
     ) {
+        runtime_environment::started(host);
+        capability_registration::started(host);
         if host.is_loaded("datapack_fixture") {
             datapack::read(host);
         }
@@ -186,8 +276,13 @@ impl Hooks for Mod {
     }
 
     fn register(&self, registrar: &mut dyn mod_api::Registrar, cx: &mod_api::RegistrationContext) {
+        runtime_environment::register(cx);
+        capability_registration::register(registrar, cx);
         game_payload::register(registrar);
         interaction::register(registrar);
+        cauldron::register(registrar);
+        tick_reply::register(registrar);
+        registrar.register_custom_stat("steps").unwrap();
         registrar
             .declare_datapack_registry(
                 "spell",

@@ -8,14 +8,10 @@ mod tests {
     struct Input;
     #[mod_api::horizon_part]
     impl MenuPart for Input {
-        fn menu_slot_rules(
-            &self,
-            context: &dyn mod_api::LoopContext,
-            event: &mut MenuSlotRulesEvent<'_>,
-        ) {
+        fn menu_slot_rules(&self, host: &dyn mod_api::Host, event: &mut MenuSlotRulesEvent<'_>) {
             if event.slot == 0 {
                 event.may_place &=
-                    context.mod_recipe_property_contains("pot:input", event.stack.item());
+                    host.mod_recipe_property_contains("pot:input", event.stack.item());
             }
         }
     }
@@ -59,24 +55,25 @@ mod tests {
                     )
                 );
                 let stack = ItemStack::new("minecraft:emerald", 1);
-                let accepts = |context: &horizon_world::native_load_context::LoopContext,
-                               stack: &ItemStack| {
+                let accepts = |game: &crate::game::Game<'_>, stack: &ItemStack| {
                     horizon_client::menu::apply_menu_slot_rules(
-                        context, "pot:menu", 0, stack, true, 64, 64,
+                        Some(game as &dyn horizon_client::menu::SlotRules),
+                        "pot:menu",
+                        0,
+                        stack,
+                        true,
+                        64,
+                        64,
                     )
                     .0
                 };
-                assert!(accepts(&game.loop_context, &stack));
-                assert!(!accepts(
-                    &game.loop_context,
-                    &ItemStack::new("minecraft:diamond", 1)
-                ));
-                let captured = game.loop_context.clone();
+                assert!(accepts(game, &stack));
+                assert!(!accepts(game, &ItemStack::new("minecraft:diamond", 1)));
                 game.recipe_ui
                     .server_properties
                     .replace(UpdateRecipes::default());
                 game.refresh_recipe_property_context();
-                assert!(!accepts(&game.loop_context, &stack));
+                assert!(!accepts(game, &stack));
                 assert!(
                     !mod_api::prelude::RecipePropertiesHost::mod_recipe_property_contains(
                         game,
@@ -84,7 +81,6 @@ mod tests {
                         item
                     )
                 );
-                assert!(accepts(&captured, &stack));
             })
         });
     }

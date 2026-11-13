@@ -3,7 +3,7 @@
 
 pub trait Hooks {
     /// After one of vanilla's HUD layers (or after the layer a mod hid), with
-    /// the ids of `native_gui_layer_pre`: draw here to put something above
+    /// the ids of `gui_layer_pre`: draw here to put something above
     /// the layer (`RenderGuiLayerEvent.Post`).
     #[hook(
         side = "client",

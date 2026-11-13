@@ -7,6 +7,15 @@ pub fn register(registrar: &mut dyn Registrar) {
         .payload_handlers()
         .registrar("1")
         .executes_on(HandlerThread::Network)
+        .configuration_bidirectional(
+            PayloadId("wasm_fixture:configuration".into()),
+            Arc::new(Configuration),
+            Some(Arc::new(ConfigurationReceipt)),
+        );
+    registrar
+        .payload_handlers()
+        .registrar("1")
+        .executes_on(HandlerThread::Network)
         .play_to_server(
             PayloadId("wasm_fixture:network_trap".into()),
             Arc::new(NetworkTrap),
@@ -37,6 +46,47 @@ pub fn register(registrar: &mut dyn Registrar) {
             .registrar("1")
             .executes_on(thread)
             .play_to_server(PayloadId(channel.into()), Arc::new(Handler(thread)));
+    }
+}
+
+static CONFIGURATION_CALLS: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+struct Configuration;
+impl IPayloadHandler for Configuration {
+    fn handle(&self, mut bytes: PayloadBytes, cx: &mut dyn IPayloadContext) -> Result<(), String> {
+        assert_eq!(cx.protocol(), PayloadProtocol::Configuration);
+        assert_eq!(cx.flow(), PayloadDirection::ToServer);
+        assert!(matches!(cx.player(), Err(PayloadContextError::NoPlayer)));
+        assert!(matches!(
+            cx.server_host(),
+            Err(PayloadContextError::WrongThread)
+        ));
+        assert!(matches!(
+            cx.client_host(),
+            Err(PayloadContextError::WrongSide)
+        ));
+        assert_eq!(bytes.0, [3, 5, 8, 13]);
+        bytes.0.reverse();
+        for byte in &mut bytes.0 {
+            *byte *= 3;
+        }
+        let call = CONFIGURATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        bytes.0.insert(0, call);
+        cx.reply(&PayloadId("wasm_fixture:configuration".into()), bytes)
+            .map_err(|error| format!("configuration reply: {error:?}"))?;
+        Ok(())
+    }
+}
+
+struct ConfigurationReceipt;
+impl IPayloadHandler for ConfigurationReceipt {
+    fn handle(&self, bytes: PayloadBytes, cx: &mut dyn IPayloadContext) -> Result<(), String> {
+        assert_eq!(cx.protocol(), PayloadProtocol::Configuration);
+        assert_eq!(cx.flow(), PayloadDirection::ToClient);
+        assert!(matches!(cx.player(), Err(PayloadContextError::NoPlayer)));
+        assert_eq!(bytes.0.len(), 5);
+        assert_eq!(&bytes.0[1..], &[39, 24, 15, 9]);
+        Ok(())
     }
 }
 struct NetworkTrap;

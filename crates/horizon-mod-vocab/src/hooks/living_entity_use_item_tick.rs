@@ -5,15 +5,15 @@ pub trait Hooks {
     /// NeoForge's `LivingEntityUseItemEvent.Tick`: each tick `entity` uses
     /// `stack` in `hand`, where `LivingEntity.updatingUsingItem` starts,
     /// `duration` the ticks left. `entity` is as in
-    /// `native_living_entity_use_item_start`. Change `duration` to move the
+    /// `living_entity_use_item_start`. Change `duration` to move the
     /// end (consumables, potions, spyglasses and mods' items count to it,
     /// and so do a client's eating crumbs and first person pose, as the
-    /// started duration of `native_living_entity_use_item_start` does). A
+    /// started duration of `living_entity_use_item_start` does). A
     /// cancel sets it to -1. Once a mod set it, the use goes on
     /// only while it is above 0: at 0 or less, by a cancel or set, the
     /// item's tick is skipped and the server finishes the use
     /// (`completeUsingItem`: `finishUsingItem`, the food eaten,
-    /// `native_living_entity_use_item_finish`), while an item used on
+    /// `living_entity_use_item_finish`), while an item used on
     /// release (a crossbow) stays frozen until let go. NeoForge's javadoc
     /// says a cancel stops the use, but its code finishes it; this follows
     /// the code. On a server's client a run-out use stays in use, frozen,

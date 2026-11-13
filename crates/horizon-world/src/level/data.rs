@@ -420,9 +420,6 @@ tags! {
     sand = "sand",
     ice = "ice",
     snow = "snow",
-    infiniburn_overworld = "infiniburn_overworld",
-    infiniburn_nether = "infiniburn_nether",
-    infiniburn_end = "infiniburn_end",
     soul_fire_base_blocks = "soul_fire_base_blocks",
     washed_away_by_fluids = "washed_away_by_fluids",
     blocks_fluid_flow = "blocks_fluid_flow",
@@ -1140,6 +1137,7 @@ fn build_with_gameplay<G: GameplayStateSource>(
         dynamic,
         occlusion_cache: Default::default(),
         growth: Default::default(),
+        block_maps: Default::default(),
     })
 }
 

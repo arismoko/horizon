@@ -3,114 +3,36 @@ name: prebuilt game
 # launcher builds native trait mods against it with rustc alone, in seconds, instead of rebuilding the game.
 # Each OS builds with explicit --target <host>: target metadata lives in deps/, host proc-macros in host/.
 # Built with the pinned Rust (tools/ci/rust-version, which the launcher builds native mods with), because rustc reads only metadata from its own
-# version. Built once a day from main's head (a run whose commit already has a release stops early) and published as
-# a prerelease tagged prebuilt-<sha>, never marked latest. Exact-SHA SDKs are retained: Nightlies and installed
+# version. Built by the daily run (daily.yml) for its commit, and by this dispatch (a run whose commit already has a
+# release stops early), and published as a prerelease tagged prebuilt-<sha>, never marked latest. Exact-SHA SDKs are retained: Nightlies and installed
 # games can continue referencing older builds. Only compiler outputs go in:
-# tools/prebuilt_game.py refuses anything else, and nothing here reads vanilla data. A dispatch on another branch
-# builds and smokes every OS and publishes nothing.
+# tools/prebuilt_game.py refuses anything else, and nothing here reads vanilla data. The build lives in
+# prebuilt-game-build.yml, which the daily run calls read-only and publishes itself (daily.yml, sdk-publish) once
+# every leg is green; this workflow is the hand dispatch, which publishes from main. A run on another branch builds
+# and smokes every OS and publishes nothing.
 on:
-  schedule:
-    - cron: '0 5 * * *'
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: prebuilt-game
   cancel-in-progress: false
-env:
-  TAG: prebuilt-${{ github.sha }}
 jobs:
-  fresh:
-    # Main's head may already have its build: a quiet day, or a second dispatch.
-    runs-on: ubuntu-latest
-    outputs:
-      needed: ${{ steps.release.outputs.needed }}
-    steps:
-      - id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          if gh release view "$TAG" > /dev/null 2>&1; then echo needed=false; else echo needed=true; fi >> "$GITHUB_OUTPUT"
-
   build:
-    needs: fresh
-    if: needs.fresh.outputs.needed == 'true'
-    name: build ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux
-            os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-          - name: linux-server
-            os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            server: true
-          # The launcher builds native mods with the windows-gnu toolchain and its own MinGW linker.
-          - name: windows
-            os: windows-latest
-            target: x86_64-pc-windows-gnu
-          - name: macos
-            os: macos-15
-            target: aarch64-apple-darwin
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    defaults:
-      run:
-        shell: bash
-    env:
-      # v<layout>: the launcher asks only for the archive layout it reads (prebuilt_archive in
-      # crates/horizon-mod-package/src/index/native.rs); bump both when the folder's layout changes.
-      ARCHIVE: horizon-prebuilt-v5-${{ matrix.target }}${{ matrix.server && '-server' || '' }}.tar.gz
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: The launcher's pinned Rust
-        id: rust
-        run: |
-          echo "version=$(cat tools/ci/rust-version)" >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust.outputs.version }}-${{ matrix.target }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: prebuilt-${{ matrix.name }}
-      - name: ALSA and udev headers
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev
-      - name: Build and collect
-        run: python tools/prebuilt_game.py build prebuilt ${{ matrix.server && '--server' || '' }}
-      - name: The starter mod and the game executable build against the archive alone
-        run: python tools/prebuilt_game.py smoke prebuilt
-      - name: Exported names, toward Windows' 65,535
-        run: python tools/prebuilt_game.py exports prebuilt | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Archive
-        run: |
-          tar --sort=name --mtime="@0" --owner=0 --group=0 --numeric-owner -cf - -C prebuilt . | gzip -n > "$ARCHIVE"
-          echo "$(du -h "$ARCHIVE" | cut -f1) $ARCHIVE" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARCHIVE }}
-          path: ${{ env.ARCHIVE }}
-          if-no-files-found: error
-          retention-days: 7
+    uses: ./.github/workflows/prebuilt-game-build.yml
 
   publish:
     needs: build
-    # A dispatch on any other branch builds and smokes every OS but releases nothing.
-    if: github.ref == 'refs/heads/main'
+    # A run on any other branch builds and smokes every OS but releases nothing.
+    if: github.ref == 'refs/heads/main' && needs.build.outputs.needed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      COMMIT: ${{ github.sha }}
+      TAG: ${{ needs.build.outputs.tag }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -121,6 +43,6 @@ jobs:
           set -euo pipefail
           cd archives
           sha256sum horizon-prebuilt-*.tar.gz > SHA256SUMS
-          gh release create "$TAG" horizon-prebuilt-*.tar.gz SHA256SUMS --target "$GITHUB_SHA" --prerelease \
-            --latest=false --title "Prebuilt game ${GITHUB_SHA::10}" \
+          gh release create "$TAG" horizon-prebuilt-*.tar.gz SHA256SUMS --target "$COMMIT" --prerelease \
+            --latest=false --title "Prebuilt game ${COMMIT::10}" \
             --notes "The game as a Rust dylib plus crate metadata, for the launcher's native mod builds (#589). Compiler outputs plus game-owned registry patch sources."

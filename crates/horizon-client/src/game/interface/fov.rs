@@ -4,6 +4,7 @@
 //! (`GameRenderer.renderLevel`) and the spyglass (`SpyglassItem`,
 //! `Hud.extractSpyglassOverlay`). The arithmetic is `horizon_client::camera`.
 use super::Game;
+use horizon_core::position::BlockPos;
 
 pub(super) fn camera_effects_enabled(title: bool, studio_freecam: bool) -> bool {
     !title && !studio_freecam
@@ -121,9 +122,30 @@ impl Game<'_> {
             .dead_or_dying()
             .then(|| self.ui.death_time.min(i32::MAX as u32) as i32)
     }
+    /// `Camera.getFluidInCamera` for the camera at `camera`, where the parts of each block it
+    /// reads may answer the state the camera sees there (`state_at_viewpoint`). Both paths go
+    /// through the replaceable `fog_type`.
+    pub(super) fn camera_fog_type(&self, camera: [f64; 3]) -> FogType {
+        let (world, facts, near) = (&self.world, self.res.facts(), self.near_plane());
+        if !mod_api::__private::has_scoped_hook(mod_api::HookId::StateAtViewpoint) {
+            return fog_type(world, facts, camera, &near, &|state, _| state);
+        }
+        let seen = |state, [x, y, z]: [i32; 3]| {
+            if !super::api_values::block_state::block_listens(
+                mod_api::HookId::StateAtViewpoint,
+                state,
+            ) {
+                return state;
+            }
+            let mut seen = state;
+            self.native_state_at_viewpoint(state, BlockPos::new(x, y, z), camera, &mut seen);
+            seen
+        };
+        fog_type(world, facts, camera, &near, &seen)
+    }
     /// The fluid at the camera, as `Camera.getFluidInCamera` reports it.
     pub(super) fn camera_fluid(&self, camera: [f64; 3]) -> CameraFluid {
-        match fog_type(&self.world, self.res.facts(), camera, &self.near_plane()) {
+        match self.camera_fog_type(camera) {
             FogType::Water => CameraFluid::Water,
             FogType::Lava => CameraFluid::Lava,
             FogType::PowderSnow => CameraFluid::PowderSnow,

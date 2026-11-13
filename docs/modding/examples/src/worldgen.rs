@@ -40,6 +40,43 @@ pub mod terrain {
     // ANCHOR_END: terrain
 }
 
+pub mod biome_source {
+    // ANCHOR: biome_source
+    use mod_api::{BiomeSource, DimensionSettings, Hooks, Registrar, RegistrationContext};
+
+    /// A random biome in each 5x5 square of quart cells (20 blocks wide).
+    struct Chaos;
+    impl BiomeSource for Chaos {
+        fn possible_biomes(&self) -> Vec<String> {
+            vec![
+                "minecraft:desert".into(),
+                "minecraft:jungle".into(),
+                "minecraft:snowy_plains".into(),
+            ]
+        }
+        fn noise_biome(&self, [x, _, z]: [i32; 3], seed: i64) -> u16 {
+            let cell = (i64::from(x.div_euclid(5)) << 32) ^ i64::from(z.div_euclid(5)) ^ seed;
+            (cell.wrapping_mul(6364136223846793005) >> 48) as u16
+        }
+    }
+    #[derive(Default)]
+    pub struct ChaosMod;
+    #[mod_api::horizon_mod]
+    impl Hooks for ChaosMod {
+        fn register(&self, registrar: &mut dyn Registrar, _: &RegistrationContext) {
+            registrar.register_biome_source("chaos", Chaos);
+            registrar.register_dimension(
+                "chaos",
+                DimensionSettings {
+                    mod_biome_source: Some("mymod:chaos".into()),
+                    ..Default::default()
+                },
+            );
+        }
+    }
+    // ANCHOR_END: biome_source
+}
+
 pub mod structures {
     // ANCHOR: structure
     use mod_api::{

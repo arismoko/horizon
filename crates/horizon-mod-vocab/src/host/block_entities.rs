@@ -15,7 +15,7 @@ pub trait BlockEntitiesHost {
 pub trait BlockEntitiesServerHost {
     /// Side: server.
     /// Sends clients the block at `pos` and its block entity's update tag
-    /// (`native_block_entity_update_tag`) again, as `Level.sendBlockUpdated`
+    /// (`block_entity_update_tag`) again, as `Level.sendBlockUpdated`
     /// does: with the level's other block changes, to the players who see its
     /// chunk, once however often it is called before then. Changes made in a
     /// block entity's tick go out at the start of the next tick, as vanilla's

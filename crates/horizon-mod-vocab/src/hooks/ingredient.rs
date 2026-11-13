@@ -17,9 +17,9 @@ pub trait Hooks {
     /// recipe tables, the stations and the copy synchronised to guests, on a
     /// dedicated server too), and a `/reload` asks again once; a client that
     /// only joins a remote server is never told `ServerDataLoad`. The answer
-    /// must be the same every time. An
-    /// unclaimed kind leaves the list empty and the recipe fails, as an unknown
-    /// kind does.
+    /// must be the same every time. An empty list retains the custom
+    /// predicate but makes the recipe unplaceable: the loader warns, omits
+    /// property sets and stonecutter selection, and refuses book placement.
     #[hook(
         side = "both",
         contract = "collect",

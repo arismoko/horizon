@@ -2,6 +2,7 @@
 //! transfer cooldowns), `DispenserBlock` / `DropperBlock.dispenseFrom` with
 //! the vanilla dispense behaviours Horizon has entities for, and container
 //! comparator signals (`AbstractContainerMenu.getRedstoneSignalFromContainer`).
+mod loot_access;
 use super::{Game, spill, storage::is_shulker_box};
 use horizon_core::nbt::Tag;
 use mod_api::__private::game::*;
@@ -13,6 +14,7 @@ mod crafter;
 pub(in crate::game) mod native_energy;
 pub(in crate::game) mod native_fluids;
 pub(in crate::game) mod native_items;
+mod screen;
 #[cfg(test)]
 mod tank_reopen_tests;
 use horizon_client::{
@@ -592,12 +594,6 @@ impl Containers<'_> {
             || matches!(&*stack.item, "minecraft:water_bucket" | "minecraft:bucket")
     }
     /// `HopperBlockEntity.isFullContainer`.
-    fn is_full(&self, view: &View, face: Direction) -> bool {
-        view.slots_for_face_iter(Some(face)).all(|i| {
-            self.insertion_item(view, i)
-                .is_some_and(|s| s.count >= self.max_stack(&s))
-        })
-    }
     /// `AbstractContainerMenu.getRedstoneSignalFromContainer`.
     fn signal(&self, view: &View) -> i32 {
         if view.kind == Kind::Crafter {
@@ -745,19 +741,33 @@ pub(super) fn cat_sitting_above(mobs: &[Mob], key: Pos) -> bool {
 /// Comparator input from a container block entity (0 when there is none):
 /// `ChestBlock.getContainer(.., false)`, whose blocked check sees the level's
 /// cats (`isCatSittingOnChest`).
-pub(super) fn container_signal(level: &super::GameLevel<'_>, pos: BlockPos) -> i32 {
+pub(super) fn container_signal(level: &mut super::GameLevel<'_>, pos: BlockPos) -> i32 {
     let c = Containers {
         world: &*level.world,
         behaviours: level.behaviours,
         items: level.items,
         registry: level.registry,
         brewing: None,
-        mobs: level.entities.mobs,
+        mobs: level.entities().mobs,
     };
-    c.view((pos.x, pos.y, pos.z), true)
+    let view = c
+        .view((pos.x, pos.y, pos.z), true)
         .filter(|v| !matches!(v.kind, Kind::Composter(_)))
-        .or_else(|| c.saved_pot_view((pos.x, pos.y, pos.z)))
-        .map_or(0, |v| c.signal(&v))
+        .or_else(|| c.saved_pot_view((pos.x, pos.y, pos.z)));
+    if let Some(view) = &view {
+        for &(key, _) in &view.parts {
+            level.unpack_loot(super::container_loot::LootTarget::Block(key), None);
+        }
+    }
+    let c = Containers {
+        world: &*level.world,
+        behaviours: level.behaviours,
+        items: level.items,
+        registry: level.registry,
+        brewing: None,
+        mobs: level.entities().mobs,
+    };
+    view.map_or(0, |v| c.signal(&v))
 }
 
 /// `ChiseledBookShelfBlock.getAnalogOutputSignal` and
@@ -916,7 +926,9 @@ impl Game<'_> {
         if !c.can_place(view, slot, &stack) {
             return (Some(stack), false);
         }
-        let was_empty = (0..view.len()).all(|i| c.insertion_item(view, i).is_none());
+        self.unpack_inventory_slot(view, slot);
+        let was_empty = self.inventory_is_empty(view);
+        let c = self.containers();
         let vanilla_max = c.max_stack(&stack);
         let override_limit = view
             .locate(slot)
@@ -1156,6 +1168,7 @@ impl Game<'_> {
             return;
         }
         self.native_prepare_hopper_transfer([pos.0, pos.1, pos.2]);
+        self.unpack_loot(super::container_loot::LootTarget::Block(pos), None);
         let c = self.containers();
         let mut changed = false;
         if !c.is_empty(&view) {
@@ -1240,6 +1253,8 @@ impl Game<'_> {
         let Some(view) = c.view(pos, false) else {
             return false;
         };
+        self.unpack_loot(super::container_loot::LootTarget::Block(pos), None);
+        let c = self.containers();
         let mut changed = false;
         if !c.is_empty(&view) {
             changed = self.hopper_eject(pos, &view);
@@ -1495,7 +1510,8 @@ impl Game<'_> {
     }
     /// The rest of `HopperBlockEntity.ejectItems`: one item into `target`.
     fn eject_into(&mut self, pos: Pos, hopper: &View, target: &View, face: Direction) -> bool {
-        if self.containers().is_full(target, face) {
+        self.unpack_inventory_slot(hopper, 0);
+        if self.inventory_is_full(target, face) {
             return false;
         }
         for slot in 0..hopper.len() {
@@ -1636,7 +1652,9 @@ impl Game<'_> {
         source: &View,
         hopper: &View,
     ) -> bool {
+        let mut prepared = None;
         for slot in source.slots_for_face_iter(Some(Direction::Down)) {
+            self.unpack_next_inventory_part(source, slot, &mut prepared);
             {
                 let c = self.containers();
                 let Some(stack) = c.insertion_item(source, slot).map(Cow::into_owned) else {
@@ -1784,6 +1802,7 @@ impl Game<'_> {
         f: impl FnOnce(&mut Self, &View) -> R,
     ) -> Option<R> {
         let mut items = if let Some(i) = self.carts.iter().position(|c| c.id == id) {
+            self.unpack_loot(super::container_loot::LootTarget::Cart(id), None);
             self.carts.update(i, |c| std::mem::take(&mut c.items))
         } else {
             let i = self.boats.iter().position(|b| b.id == id)?;
@@ -1906,6 +1925,9 @@ impl Game<'_> {
     /// `consumedItemThisFrame` in 26.3 caps a tick at one item: the tick tries
     /// once, and `makeStepAlongTrack` may try again, but only one succeeds.
     pub(super) fn hopper_cart_suck(&mut self, cart: &mut super::minecarts::Minecart) {
+        if !self.unpack_ticked_cart_loot(cart) {
+            return;
+        }
         // The cart's slots are edited as a container under the placeholder key
         // its menu uses; when that menu is open the placeholder is the live copy.
         let key = (i32::MAX - 15, super::minecarts::CART_KEY_Y, cart.id as i32);
@@ -1957,6 +1979,7 @@ impl Game<'_> {
         let Some(view) = self.containers().view(key, false) else {
             return Ok(());
         };
+        self.unpack_loot(super::container_loot::LootTarget::Block(key), None);
         // DispenserBlockEntity.getRandomSlot
         let mut slot = None;
         let mut odds = 1;
@@ -2120,71 +2143,6 @@ impl Game<'_> {
             ),
             _ => return None,
         })
-    }
-    /// HopperScreen / DispenserScreen background and labels; false for other containers.
-    pub(super) fn draw_machine_screen(
-        &self,
-        batch: &mut horizon_client::hud::HudBatch,
-        ox: f32,
-        oy: f32,
-    ) -> bool {
-        let Some(screen) = self.machine_screen() else {
-            return false;
-        };
-        let atlas = &self.gui.atlas;
-        let key_is_cart = self
-            .container
-            .is_some_and(|k| k.1 == super::minecarts::CART_KEY_Y);
-        let (texture, height, key, fallback) = match screen {
-            Screen::Hopper if key_is_cart => (
-                "gui/container/hopper",
-                133.0,
-                "entity.minecraft.hopper_minecart",
-                "Minecart with Hopper",
-            ),
-            Screen::Hopper => (
-                "gui/container/hopper",
-                133.0,
-                "container.hopper",
-                "Item Hopper",
-            ),
-            Screen::Dispenser => (
-                "gui/container/dispenser",
-                166.0,
-                "container.dispenser",
-                "Dispenser",
-            ),
-            Screen::Dropper => (
-                "gui/container/dispenser",
-                166.0,
-                "container.dropper",
-                "Dropper",
-            ),
-        };
-        if let Some(mut r) = atlas.sprites.get(texture).copied() {
-            let dv = (r.v1 - r.v0) / r.h as f32;
-            let du = (r.u1 - r.u0) / r.w as f32;
-            r.u1 = r.u0 + 176.0 * du;
-            r.v1 = r.v0 + height * dv;
-            batch.rect_uv(ox, oy, 176.0, height, r, u32::MAX);
-        }
-        let grey = horizon_client::hud::rgba(64, 64, 64, 255);
-        let title = &self.remote_menu_title().unwrap_or_else(|| {
-            horizon_client::text::Text::literal(
-                self.container_title(self.translate_with_fallback(key, fallback)),
-            )
-            .resolve_legacy()
-        });
-        super::screen_info::name_container(|| title.plain());
-        let title_x = if screen == Screen::Hopper {
-            8.0
-        } else {
-            (176.0 - atlas.font.width_text(title)) / 2.0
-        };
-        batch.text_styled(atlas, title, ox + title_x, oy + 6.0, grey, false);
-        let inventory = self.translate_with_fallback("container.inventory", "Inventory");
-        batch.text(atlas, &inventory, ox + 8.0, oy + height - 94.0, grey, false);
-        true
     }
 }
 
@@ -2956,7 +2914,7 @@ mod hopper_cart_transfer_tests {
         use horizon_world::loot::PackOverlay;
         use std::sync::Arc;
 
-        with_game(|game| {
+        crate::game::native_guest_turn_tests::with_guests(|game| {
             game.options.dedicated = None;
             let files = vec![(
             "advancement/parity:boat_loot".into(),
@@ -2987,18 +2945,21 @@ mod hopper_cart_transfer_tests {
                     ]),
                 );
                 let i = game.boats.len() - 1;
-                game.unpack_boat_loot(i, player);
-                assert_eq!(game.adv.progress.done(&game.adv.tree.list[ai]), player);
-                // Opening a container automation already unpacked awards nothing.
-                game.unpack_boat_loot(i, true);
-                assert_eq!(game.adv.progress.done(&game.adv.tree.list[ai]), player);
+                game.as_guest(12, |game| {
+                    game.unpack_boat_loot(i, player);
+                    assert_eq!(game.adv.progress.done(&game.adv.tree.list[ai]), player);
+                    // Opening a container automation already unpacked awards nothing.
+                    game.unpack_boat_loot(i, true);
+                    assert_eq!(game.adv.progress.done(&game.adv.tree.list[ai]), player);
+                })
+                .unwrap();
             }
         });
     }
 
     #[test]
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
-    fn chest_boat_slot_access_fills_only_empty_slots_once() {
+    fn chest_boat_with_items_drops_pending_table_without_rolling() {
         with_game(|game| {
             let sentinel = Some(ItemStack::new("minecraft:diamond", 17));
             for open in [false, true] {
@@ -3046,22 +3007,14 @@ mod hopper_cart_transfer_tests {
                         })
                         .unwrap();
                     assert_eq!(items[12], sentinel);
-                    if occupied == 27 {
-                        assert!(items.iter().all(|item| item == &sentinel));
-                    } else if occupied == 24 {
-                        // Pinned 26.3 LootTable.fill, seed 73, only these slots empty.
-                        for (slot, item, count) in
-                            [(0, "stick", 1), (13, "salmon", 1), (26, "acacia_log", 2)]
-                        {
-                            assert_eq!(
-                                items[slot],
-                                Some(ItemStack::new(&format!("minecraft:{item}"), count))
-                            );
-                        }
-                        assert_eq!(items.iter().filter(|item| *item == &sentinel).count(), 24);
-                    } else {
-                        assert!(items.iter().flatten().count() > 1, "pending loot was lost");
-                    }
+                    // Horizon-only mixed state: never fill even the free slots.
+                    assert_eq!(items.iter().flatten().count(), occupied);
+                    assert!(
+                        items
+                            .iter()
+                            .flatten()
+                            .all(|item| Some(item) == sentinel.as_ref())
+                    );
                     assert!(game.persist.raw[&id].get("LootTable").is_none());
                     assert!(game.persist.raw[&id].get("LootTableSeed").is_none());
                     assert_eq!(game.boats.last().unwrap().items, items);

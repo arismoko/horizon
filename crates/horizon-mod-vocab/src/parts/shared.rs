@@ -11,7 +11,7 @@ pub struct Attached<P: ?Sized> {
     /// The mod's place in dispatch order.
     pub(crate) mod_index: usize,
     /// Its place in its mod's registrations: a mod's parts on one thing keep this order, key or
-    /// tag (#41 §3).
+    /// tag ( §3).
     pub(crate) order: usize,
     /// The part's kind, its Rust type's name: one part of each kind per thing.
     pub(crate) type_name: &'static str,
@@ -69,9 +69,9 @@ pub struct Parts {
     pub(crate) items: HashMap<Box<str>, Vec<Attached<dyn ItemPart>>>,
     pub(crate) menus: HashMap<Box<str>, Vec<Attached<dyn MenuPart>>>,
     pub(crate) fluids: HashMap<Box<str>, Vec<Attached<dyn FluidPart>>>,
-    /// Entity parts by entity type id (`minecraft:zombie`), for the goal
-    /// registration at every `Mob` construction (#1077). They carry no scoped
-    /// hook, so they never enter `hooks`.
+    /// Entity parts by entity type id (`minecraft:zombie`, `mymod:robot`), for the goal
+    /// registration at every `Mob` construction and the scoped hooks the entity
+    /// scope owns (`general_entity_tick`).
     pub(crate) entities: HashMap<Box<str>, Vec<Attached<dyn EntityPart>>>,
     /// Capability providers by capability name, then by block entity type, in registration
     /// order.
@@ -79,6 +79,16 @@ pub struct Parts {
     /// Block capability providers by capability name, then by block, in registration order:
     /// those asked of a block whatever block entity it has, or none.
     pub(crate) block_capabilities: Capabilities<BlockProviderOf>,
+    /// Canonical block capability metadata, retained independently of provider availability.
+    pub(crate) block_capability_metadata: HashMap<&'static str, (Arc<str>, Option<bool>)>,
+    /// Built-in declaration order followed by the order mods first mention a capability.
+    pub(crate) block_capability_order: Vec<&'static str>,
+    /// Explicit domains and declarations of the game's default providers.
+    pub(crate) default_block_containers: HashMap<Box<str>, Vec<(usize, crate::ModContainer)>>,
+    pub(crate) default_block_fluids: HashMap<Box<str>, Vec<(usize, crate::ModFluidTanks)>>,
+    pub(crate) default_block_energy: HashMap<Box<str>, Vec<(usize, crate::ModEnergyBuffer)>>,
+    pub(crate) default_item_containers:
+        HashMap<Box<str>, Vec<(usize, Arc<dyn crate::ItemContainerProvider>)>>,
     /// Item capability providers by capability name, then by item, in registration order.
     pub(crate) item_capabilities: Capabilities<ItemProviderOf>,
     /// Entity capability providers by capability name, then by entity type, in registration
@@ -110,6 +120,7 @@ pub struct HookParts {
     pub(crate) items: HashMap<Box<str>, Vec<Attached<dyn ItemPart>>>,
     pub(crate) menus: HashMap<Box<str>, Vec<Attached<dyn MenuPart>>>,
     pub(crate) fluids: HashMap<Box<str>, Vec<Attached<dyn FluidPart>>>,
+    pub(crate) entities: HashMap<Box<str>, Vec<Attached<dyn EntityPart>>>,
 }
 
 /// Which things a capability's providers are registered by.
@@ -553,6 +564,7 @@ impl Parts {
         index!(items, item_subscribed);
         index!(menus, menu_subscribed);
         index!(fluids, fluid_subscribed);
+        index!(entities, entity_subscribed);
     }
 }
 

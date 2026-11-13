@@ -3,9 +3,10 @@ use super::*;
 use horizon_core::level_id::valid_level_id;
 
 impl PartRegistrar {
-    /// Refuses a dimension whose generator no one provides. After every mod has
-    /// registered, as a generator may come from a later mod's registration.
-    pub(crate) fn refuse_unknown_dimension_generators(&mut self) {
+    /// Refuses a dimension whose generator or mod biome source no one provides.
+    /// After every mod has registered, as either may come from a later mod's
+    /// registration.
+    pub(crate) fn refuse_unknown_generators_and_biome_sources(&mut self) {
         for dimension in &self.dimensions {
             let generator = &dimension.settings.generator;
             if generator != mod_vocab::__private::NOISE_GENERATOR
@@ -13,6 +14,14 @@ impl PartRegistrar {
             {
                 self.refused.push(format!(
                     "{} registered dimension {} with the unknown generator {generator:?}",
+                    dimension.mod_id, dimension.id
+                ));
+            }
+            if let Some(source) = &dimension.settings.mod_biome_source
+                && !self.biome_sources.iter().any(|s| *s.id == **source)
+            {
+                self.refused.push(format!(
+                    "{} registered dimension {} with the unknown biome source {source:?}",
                     dimension.mod_id, dimension.id
                 ));
             }
@@ -100,7 +109,48 @@ impl DimensionsRegistrar for PartRegistrar {
         }
         self.chunk_generators.push(ChunkGeneratorInfo {
             id: id.into(),
+            // ChunkGenerator.vanilla_stages, asked once.
+            stages: generator.vanilla_stages(),
             generator,
+        });
+    }
+    fn add_biome_source(&mut self, name: &str, source: Arc<dyn crate::BiomeSource>) {
+        let id = match self.owned_declaration_id(name) {
+            Ok(id) => id,
+            Err(reason) => {
+                self.refused.push(reason);
+                return;
+            }
+        };
+        // BiomeSource.possibleBiomes, asked once.
+        let biomes = source.possible_biomes();
+        let refusal = if !valid_level_id(&id) {
+            Some(format!(
+                "{} registered biome source {id:?}, whose name must be lowercase letters, \
+                 digits and _ . - with / between segments, none empty, `.` or `..`",
+                self.mod_id
+            ))
+        } else if self.biome_sources.iter().any(|s| *s.id == *id) {
+            Some(format!(
+                "{} registered biome source {id} twice",
+                self.mod_id
+            ))
+        } else if biomes.is_empty() {
+            Some(format!(
+                "{} registered biome source {id}, whose possible_biomes lists no biome",
+                self.mod_id
+            ))
+        } else {
+            None
+        };
+        if let Some(refusal) = refusal {
+            self.refused.push(refusal);
+            return;
+        }
+        self.biome_sources.push(BiomeSourceInfo {
+            id: id.into(),
+            biomes,
+            source,
         });
     }
 }

@@ -402,6 +402,7 @@ pub fn main() -> horizon_client::Result<()> {
                     limited_crafting: false,
                     can_equip: None,
                     known_recipes: None,
+                    slot_rules: None,
                 };
                 trade(&mut out, name, &kv, &mut world, &env, origin)?;
             }

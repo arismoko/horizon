@@ -10,6 +10,7 @@ pub mod desktop;
 pub mod desktop_seams;
 pub mod developer_install;
 pub mod developer_offline;
+pub(crate) mod download_retry;
 pub mod export;
 #[cfg(unix)]
 pub mod game_app;
@@ -73,3 +74,6 @@ pub mod storage;
 pub mod cache_cleanup;
 
 pub mod bug_report;
+
+#[cfg(test)]
+mod test_support;

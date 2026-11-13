@@ -635,6 +635,39 @@ pub enum SoundState {
     Stopped,
 }
 
+/// A file-backed standalone model baked on every resource load.
+// exhaustive: mods build every form with a struct literal and the game matches them without a wildcard
+#[derive(Clone, Debug, PartialEq, Eq, horizon_mod_api_macros::Wire)]
+pub enum StandaloneModelForm {
+    /// Bake one dependency with the blockstate baker's negative XYZ quarter-turns.
+    Rotated {
+        /// Namespaced identifier used to resolve the resulting `ModelRef`.
+        id: String,
+        /// Source model identifier, not the result identifier.
+        model: String,
+        /// Quarter-turn counts in X, Y, Z order, modulo four.
+        turns: [u8; 3],
+        /// Keep textures aligned to the resulting face's world basis.
+        uvlock: bool,
+    },
+    /// Bake all dependencies unturned and concatenate their quads into one model.
+    Combined {
+        /// Namespaced identifier used to resolve the resulting `ModelRef`.
+        id: String,
+        /// Source model identifiers, in quad concatenation order.
+        parts: Vec<String>,
+    },
+}
+
+impl StandaloneModelForm {
+    /// The resulting model's identifier.
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Rotated { id, .. } | Self::Combined { id, .. } => id,
+        }
+    }
+}
+
 // no wire: dispatch result retains a static owning-mod identity; not an owned transport record.
 /// A replace hook's answer, or a collect hook's entry, with the mod that gave it: the dispatch
 /// fills in `mod_id` (the answering mod's `[mod] id`), so no mod can answer for another.
@@ -672,10 +705,10 @@ pub struct ScreenId {
 }
 
 // no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
-/// The open screen, for the screen hooks (`native_screen_render_post`, the
-/// mouse ones `native_screen_mouse_button_pressed_pre`, `..._released_pre` and
-/// `native_screen_mouse_scrolled_pre`, and the key ones
-/// `native_screen_key_pressed_pre` and `native_screen_char_typed_pre`): what
+/// The open screen, for the screen hooks (`screen_render_post`, the
+/// mouse ones `screen_mouse_button_pressed_pre`, `..._released_pre` and
+/// `screen_mouse_scrolled_pre`, and the key ones
+/// `screen_key_pressed_pre` and `screen_char_typed_pre`): what
 /// it is, its menu and title, where its container panel is, how many slots its
 /// menu has, and where the mouse and the frame's partial tick are.
 #[derive(Clone, Copy, Debug)]
@@ -747,7 +780,7 @@ impl ColoredLight {
     }
 }
 
-/// The minimap a native mod shows (`native_minimap`), drawn by Horizon's
+/// The minimap a native mod shows (`minimap`), drawn by Horizon's
 /// minimap: its corner, its side in GUI pixels, blocks per map pixel,
 /// turning with the player or north up, round or square.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -766,7 +799,7 @@ pub struct Minimap {
     pub round: bool,
 }
 
-/// A mod block's screen over its menu (`native_screen`): its size, where
+/// A mod block's screen over its menu (`screen`): its size, where
 /// each of the container's slots is (`Slot.x`, `Slot.y`; none hides the
 /// slot, and so do slots past the list; the server's menu does not have a
 /// hidden slot either, so clicks and shift-clicks skip it), and the player inventory's first
@@ -787,9 +820,9 @@ pub struct Screen {
     /// The inventory's left column (vanilla's is 8).
     pub inventory_x: f32,
     /// The mod draws the title and the "Inventory" label itself
-    /// (`native_screen_draw`); Horizon leaves them out.
+    /// (`screen_draw`); Horizon leaves them out.
     pub own_labels: bool,
-    /// The mod draws its own background (`native_screen_draw`), so Horizon
+    /// The mod draws its own background (`screen_draw`), so Horizon
     /// leaves out the plain panel and the slot frames.
     pub own_background: bool,
     /// The registered recipe book hosted beside this menu. Its declarations must
@@ -818,7 +851,7 @@ pub struct Stack {
     pub components: String,
 }
 
-/// What the player did on a native mod's panel (`native_panel_event`).
+/// What the player did on a native mod's panel (`panel_event`).
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 #[derive(horizon_mod_api_macros::Wire)]
@@ -866,7 +899,7 @@ pub enum PanelEvent {
     Tab(u32),
 }
 
-/// The zoom a native mod asks for (`native_zoom`): the factor (1 is none), eased through the
+/// The zoom a native mod asks for (`zoom`): the factor (1 is none), eased through the
 /// field of view like the spyglass when `smooth`, and the scale of mouse turning.
 #[derive(Clone, Copy, Debug, PartialEq)]
 // exhaustive: the game builds it with a literal; mods only read it

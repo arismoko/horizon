@@ -130,7 +130,7 @@ mod tests {
             let kind = std::sync::Arc::new(types.types["minecraft:zombie"].clone());
             let mut zombie = Mob::new(2, kind, Vec3::new(0.5 + distance, 64.0, 0.5), 0.0);
             prepare(&mut zombie);
-            seen = Some(zombie.seen(None));
+            seen = Some(zombie.seen(None, &crate::items::Items::empty()));
         });
         // No prepared data: the world did not run, as other mob tests skip.
         let seen = seen?;

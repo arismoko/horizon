@@ -22,18 +22,6 @@ print(json.dumps(notes.preprocess(context, book)))
 '"""
 before = ["concept-pages", "links"]
 
-[preprocessor.wasm-coverage]
-command = """python3 -c '
-import json, pathlib, sys
-if sys.argv[1:2] == ["supports"]:
-    sys.exit(0)
-context, book = json.load(sys.stdin)
-sys.path.insert(0, str(pathlib.Path(context["root"]).resolve().parents[1] / "tools"))
-import modding_hook_notes as notes
-print(json.dumps(notes.coverage(context, book)))
-'"""
-before = ["concept-pages", "links"]
-
 [preprocessor.neoforge-counterparts]
 command = """python3 -c '
 import json, pathlib, sys
@@ -42,18 +30,6 @@ if sys.argv[1:2] == ["supports"]:
 context, book = json.load(sys.stdin)
 sys.path.insert(0, str(pathlib.Path(context["root"]).resolve().parents[1] / "tools"))
 import neoforge_counterparts as counterparts
-print(json.dumps(counterparts.preprocess(context, book)))
-'"""
-before = ["concept-pages", "links"]
-
-[preprocessor.extension-counts]
-command = """python3 -c '
-import json, pathlib, sys
-if sys.argv[1:2] == ["supports"]:
-    sys.exit(0)
-context, book = json.load(sys.stdin)
-sys.path.insert(0, str(pathlib.Path(context["root"]).resolve().parents[1] / "tools"))
-import neoforge_extension_counts as counterparts
 print(json.dumps(counterparts.preprocess(context, book)))
 '"""
 before = ["concept-pages", "links"]
@@ -72,5 +48,13 @@ print(json.dumps(pages.expand(book, root / context["config"]["book"]["src"])))
 before = ["links"]
 
 [output.html]
+default-theme = "light"
+preferred-dark-theme = "coal"
+additional-css = ["theme/horizon.css"]
 git-repository-url = "https://github.com/arismoko/horizon"
 edit-url-template = "https://github.com/arismoko/horizon/edit/main/docs/modding/{path}"
+
+# The how-to groups are long: show each part's top chapters, open one to see its pages.
+[output.html.fold]
+enable = true
+level = 0

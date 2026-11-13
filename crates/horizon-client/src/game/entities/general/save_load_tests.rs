@@ -41,8 +41,11 @@ impl mod_api::Hooks for Declare {
 /// A fixture game whose frozen registry holds the two declared types. The
 /// registration phase is scoped around the whole fixture: the game harness
 /// re-runs the installed mods' `register`, and a general type is only
-/// declared while that phase is current.
+/// declared while that phase is current. The runtime initializes first: a
+/// scope entered before the platform installs its instrumentation writes a
+/// fallback nobody reads, and the declaration then refuses as frozen.
 fn with_types(test: impl FnOnce(&mut Game<'_>)) {
+    mod_platform::__private::initialize().expect("test registration requires the mod API runtime");
     let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::Registration);
     let mods: mod_api::Mods = vec![mod_api::ModEntry::new("mymod", Box::new(Declare))].into();
     mod_platform::testing::with_mods(mods, || with_game(test));
@@ -303,7 +306,12 @@ fn general_row_unloads_with_its_chunk_and_reloads_once() {
 fn quarantine_preserves_a_missing_mods_record_byte_for_byte() {
     with_types(|game| {
         game.others.clear();
-        let tag = record_tag("gone:robot", [7, 7, 7, 7], b"opaque", Vec::new());
+        let mut tag = record_tag("gone:robot", [7, 7, 7, 7], b"opaque", Vec::new());
+        if let Tag::Compound(fields) = &mut tag {
+            // Vanilla fallback loading strips these fields; an opaque mod record must not.
+            fields.insert("Team".into(), Tag::String("missing-mod-team".into()));
+            fields.insert("leash".into(), Tag::Compound(Default::default()));
+        }
         let loaded = tag.clone();
         game.spawn_loaded_entity((0, 0), tag, None);
         assert_eq!(game.others.len(), 1);

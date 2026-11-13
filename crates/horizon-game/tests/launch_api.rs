@@ -53,6 +53,10 @@ fn documented_switches_do_not_consume_the_following_option() {
         })
         .collect();
     assert!(!switches.is_empty(), "help must describe startup switches");
+    assert!(
+        switches.contains(&"--game-tests"),
+        "the actual app must advertise game-test mode"
+    );
     // Separate processes also isolate --pregen's global command toggle.
     for switch in switches {
         let output = run(&dir, &[switch, "--help"]);

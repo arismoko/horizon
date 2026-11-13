@@ -20,6 +20,7 @@ use horizon_client::join_seq::{JoinList, JoinSeq};
 use horizon_core::fast_hash::{FxHashMap, FxHashSet};
 use horizon_core::geometry::{Aabb, Vec3};
 use horizon_core::nbt::Tag;
+use horizon_world::move_gate::MoveGate;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -476,6 +477,11 @@ impl GeneralTypeCatalog {
         self.by_key.get(type_key).copied()
     }
 
+    /// How many types the registry froze; every slot is below this.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
     /// The type key a slot belongs to.
     pub fn key(&self, slot: usize) -> &str {
         &self.entries[slot].id
@@ -579,6 +585,78 @@ pub type GeneralRows = JoinList<GeneralRow, true>;
 pub struct GeneralStore {
     /// The level's general rows, in join order.
     pub rows: GeneralRows,
+    /// The rows' rider adjacency, reused across the level's entity passes
+    /// (`tick.rs` refreshes it).
+    pub riders: RiderIndex,
+    /// How many times a live row's mount was rewritten (`entity_stop_riding`
+    /// is the only path): each change retires the rider adjacency, which the
+    /// rows' own write stamp does not see.
+    pub mount_writes: u64,
+}
+
+/// Root-to-rider adjacency of the general rows, as a first-child and
+/// next-sibling index over the rows' places: rebuilt in place, and only
+/// when the rows' storage changed or a mount was rewritten, so a stable
+/// world's pass allocates nothing and visits each edge once. The sibling
+/// chains keep the storage's own order, which is the join order — a
+/// vehicle's riders ride in the order their tree loaded, as
+/// `addPassenger`'s list does.
+#[derive(Default)]
+pub struct RiderIndex {
+    stamp: Option<horizon_client::join_seq::ListStamp>,
+    length: usize,
+    mounts: u64,
+    /// Each row's first rider's place; `None` carries none.
+    pub(super) first_child: Vec<Option<usize>>,
+    /// Each rider's next sibling's place on the same vehicle.
+    pub(super) next_sibling: Vec<Option<usize>>,
+    /// Each vehicle's latest rider of the ongoing rebuild.
+    last_child: Vec<Option<usize>>,
+    /// Each row's place by id, for the rebuild's edge pass.
+    places: FxHashMap<u32, usize>,
+}
+
+impl RiderIndex {
+    /// Re-derive the adjacency unless nothing changed since the last pass:
+    /// one pass over the rows, each edge written once, no allocation while
+    /// the row count and the mounts hold still.
+    pub fn refresh(&mut self, rows: &GeneralRows, mounts: u64) {
+        let stamp = rows.stamp();
+        if self.stamp == Some(stamp) && self.length == rows.len() && self.mounts == mounts {
+            return;
+        }
+        self.stamp = Some(stamp);
+        self.length = rows.len();
+        self.mounts = mounts;
+        // The buffers are reused — clear first and resize back, keeping the
+        // capacity: a plain resize keeps the surviving slots' old links too,
+        // so a row list that shrank leaves links to places that no longer
+        // exist, and the next pass would walk off the end.
+        self.first_child.clear();
+        self.first_child.resize(rows.len(), None);
+        self.next_sibling.clear();
+        self.next_sibling.resize(rows.len(), None);
+        self.last_child.clear();
+        self.last_child.resize(rows.len(), None);
+        self.places.clear();
+        for (place, row) in rows.iter().enumerate() {
+            self.places.insert(row.id, place);
+        }
+        for (place, row) in rows.iter().enumerate() {
+            let Some(vehicle) = row.mount else {
+                continue;
+            };
+            let Some(&vehicle_place) = self.places.get(&vehicle) else {
+                continue;
+            };
+            match self.last_child[vehicle_place] {
+                // The chain's tail takes the new rider; the head opens it.
+                Some(tail) => self.next_sibling[tail] = Some(place),
+                None => self.first_child[vehicle_place] = Some(place),
+            }
+            self.last_child[vehicle_place] = Some(place);
+        }
+    }
 }
 
 impl Game<'_> {
@@ -915,7 +993,7 @@ fn mod_namespace_loaded(namespace: &str) -> bool {
 
 /// Whether a kind is a namespaced non-`minecraft` one — the shape a
 /// quarantined (missing-mod) record's kind has.
-fn quarantined_kind(kind: &str) -> bool {
+pub(in crate::game) fn quarantined_kind(kind: &str) -> bool {
     kind.split_once(':')
         .is_some_and(|(namespace, _)| namespace != "minecraft")
 }
@@ -951,6 +1029,15 @@ impl Entity for GeneralRow {
     }
     fn reset_fall_distance(&mut self) {
         self.fall_distance = 0.0;
+    }
+    /// A stage 2 row never joins a world, so only a push reaches it, and it
+    /// carries no physics of its own: the move is a plain displacement.
+    fn move_entity(&mut self, gate: &mut MoveGate, movement: Vec3) {
+        if gate.skipped() {
+            return;
+        }
+        let position = self.position_mut();
+        *position = position.add_vector(movement);
     }
     fn rotation(&self) -> [f32; 2] {
         self.rotation
@@ -1020,9 +1107,16 @@ fn chunk_of(at: Vec3) -> ChunkKey {
     ((at.x.floor() as i32) >> 4, (at.z.floor() as i32) >> 4)
 }
 
+#[path = "general/tick.rs"]
+mod tick;
+
 #[cfg(test)]
 #[path = "general/save_load_tests.rs"]
 mod save_load_tests;
+
+#[cfg(test)]
+#[path = "general/tick_tests.rs"]
+mod tick_tests;
 
 #[cfg(test)]
 mod tests {

@@ -1900,7 +1900,7 @@ mod mob_contact_tests {
             if !alive {
                 m.health = 0.0;
             }
-            m.seen(None)
+            m.seen(None, &crate::items::Items::empty())
         };
         let others = [
             victim(2, Vec3::ZERO, true),

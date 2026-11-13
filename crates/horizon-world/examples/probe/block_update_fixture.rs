@@ -65,7 +65,7 @@ impl LevelAccess for Cells {
     /// Fresh block entities hold nothing, but a lectern whose state has a book
     /// reads page progress 1 of an empty book: signal 14.
     fn block_entity_analog_signal(
-        &self,
+        &mut self,
         _pos: BlockPos,
         state: BlockStateId,
         _direction: Direction,

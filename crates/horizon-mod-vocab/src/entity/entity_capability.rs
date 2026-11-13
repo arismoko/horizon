@@ -41,7 +41,7 @@ pub const ENTITY_ITEMS: EntityCapabilityKey<dyn ResourceHandler<ItemResource>> =
     EntityCapabilityKey {
         name: "horizon:entity_items",
         default: Some(|host, entity, ()| {
-            if entity.kind(host)? != "minecraft:player" {
+            if !builtin_player_inventory_type(&entity.kind(host)?) {
                 if let Some(size) = backend_of(host)?.entity_container_size(entity.id()) {
                     return Some(Box::new(ContainerItems { entity, size }));
                 }
@@ -85,6 +85,11 @@ pub const ENTITY_FLUIDS: EntityCapabilityKey<
     dyn ResourceHandler<FluidResource>,
     Option<Direction>,
 > = EntityCapabilityKey::new("horizon:entity_fluids");
+
+/// The player inventory default's type domain, shared with registration-time coverage.
+pub(crate) fn builtin_player_inventory_type(kind: &str) -> bool {
+    kind == "minecraft:player"
+}
 
 impl EntityRef {
     /// `key`'s handler for this entity (`Entity.getCapability`), its providers given `context`
@@ -302,7 +307,7 @@ impl PlayerItems {
     fn place(&self, host: &dyn Host, index: usize) -> Option<ItemPlace> {
         live(host, self.entity).then(|| self.slot(index)).flatten()
     }
-    /// Index `index` as the player's slot, numbered as `native_inventory_tick` numbers them.
+    /// Index `index` as the player's slot, numbered as `inventory_tick` numbers them.
     fn slot(&self, index: usize) -> Option<ItemPlace> {
         let slot = match index {
             OFF_HAND => -106,

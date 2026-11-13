@@ -184,8 +184,8 @@ mod tests {
     #[cfg(any(target_vendor = "apple", target_os = "linux", target_os = "android"))]
     #[inline(never)]
     fn busy_in_a_named_frame(stop: &AtomicBool, inside: &AtomicBool) {
-        inside.store(true, Ordering::Release);
         let mut n = 0u64;
+        inside.store(true, Ordering::Release);
         while !stop.load(Ordering::Relaxed) {
             n = std::hint::black_box(spin)(n);
         }
@@ -205,10 +205,10 @@ mod tests {
             })
         };
         let watched = rx.recv().unwrap();
-        // Sample only once the thread is inside its busy frame: just after `send` it can still
-        // be waking this thread (unpark, futex_wake), with the busy frame not yet on its stack.
+        // The worker may still be waking this thread from inside `send`: ask only once it is in
+        // the frame the test looks for.
         while !inside.load(Ordering::Acquire) {
-            std::hint::spin_loop();
+            std::thread::yield_now();
         }
         let stack = watched.stack(Duration::from_secs(10));
         stop.store(true, Ordering::Relaxed);

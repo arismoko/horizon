@@ -184,3 +184,63 @@ fn empty_loot_preserves_restricted_slots_but_clears_chest() {
         );
     });
 }
+
+/// `loot replace` with a `mine` source takes a drop only into a slot that accepts it
+/// (`Container.canPlaceItem`): a furnace's fuel slot takes the coal an ore drops, refuses the
+/// raw iron another ore drops and keeps what it held, while the input slot takes the raw iron.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn loot_replace_mine_fills_an_accepting_slot_and_leaves_a_refusing_one() {
+    with_game(|game| {
+        let slot = |game: &mut Game<'_>, n| {
+            game.slot_get(&Slot::Block([4, 200, 4], n))
+                .map(|s| (s.item.to_string(), s.count))
+        };
+        assert!(game.run_command("setblock 4 200 4 furnace"));
+        // Accepts: a diamond pickaxe mines one coal out of coal ore, and coal is fuel.
+        assert!(game.run_command("setblock 6 200 4 coal_ore"));
+        assert!(game.run_command(
+            "loot replace block 4 200 4 container.1 1 mine 6 200 4 minecraft:diamond_pickaxe"
+        ));
+        assert_eq!(slot(game, 1), Some(("minecraft:coal".into(), 1)));
+        // Refuses: iron ore drops raw iron, which is not fuel; the coal stays.
+        assert!(game.run_command("setblock 6 200 4 iron_ore"));
+        assert!(game.run_command(
+            "loot replace block 4 200 4 container.1 1 mine 6 200 4 minecraft:diamond_pickaxe"
+        ));
+        assert_eq!(slot(game, 1), Some(("minecraft:coal".into(), 1)));
+        // The same drop goes into the input slot, which takes anything.
+        assert!(game.run_command(
+            "loot replace block 4 200 4 container.0 1 mine 6 200 4 minecraft:diamond_pickaxe"
+        ));
+        assert_eq!(slot(game, 0), Some(("minecraft:raw_iron".into(), 1)));
+    });
+}
+
+/// The same for a `kill` source: a sheared sheep's loot is mutton, which a furnace's input slot
+/// takes and its fuel slot refuses, leaving the coal there.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn loot_replace_kill_fills_an_accepting_slot_and_leaves_a_refusing_one() {
+    with_game(|game| {
+        let slot = |game: &mut Game<'_>, n| {
+            game.slot_get(&Slot::Block([4, 200, 4], n))
+                .map(|s| (s.item.to_string(), s.count))
+        };
+        assert!(game.run_command("setblock 4 200 4 furnace"));
+        assert!(game.run_command("summon minecraft:sheep 8 200 8 {Sheared:1b,NoAI:1b}"));
+        assert!(game.run_command("item replace block 4 200 4 container.1 with minecraft:coal 3"));
+        // Refuses: mutton is not fuel.
+        assert!(game.run_command(
+            "loot replace block 4 200 4 container.1 1 kill @e[type=minecraft:sheep,limit=1]"
+        ));
+        assert_eq!(slot(game, 1), Some(("minecraft:coal".into(), 3)));
+        // Accepts: the input slot takes the mutton (one or two of it).
+        assert!(game.run_command(
+            "loot replace block 4 200 4 container.0 1 kill @e[type=minecraft:sheep,limit=1]"
+        ));
+        let (item, count) = slot(game, 0).expect("the input slot took the drop");
+        assert_eq!(item, "minecraft:mutton");
+        assert!((1..=2).contains(&count), "{count}");
+    });
+}

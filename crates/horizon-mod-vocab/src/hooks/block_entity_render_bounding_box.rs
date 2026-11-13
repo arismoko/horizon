@@ -6,7 +6,7 @@ pub trait Hooks {
     /// (NeoForge's `getRenderBoundingBox`): `bounds` is min x, y, z then max
     /// x, y, z, in blocks from the block's lower north-west corner. It starts
     /// as the block with a block of margin around it; widen it when your
-    /// `native_block_entity_submit` draws further (a tall shaft, a beam), or
+    /// `block_entity_submit` draws further (a tall shaft, a beam), or
     /// set an infinite value for one never culled. Asked once a frame for each
     /// within its view distance (`block_entity_view_distance`) whose chunk is drawn.
     #[hook(

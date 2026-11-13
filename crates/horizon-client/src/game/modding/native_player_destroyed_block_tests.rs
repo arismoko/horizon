@@ -28,7 +28,7 @@ impl Hooks for Probe {
         _: &mut dyn ServerHost,
         event: &mut mod_api::PlayerStatAwardEvent<'_>,
     ) -> Flow {
-        if event.stat_type == "minecraft:mined" {
+        if event.stat_type.as_str() == "minecraft:mined" {
             let award = format!("{} {}", event.stat_type, event.stat);
             self.order.lock().unwrap().push(award);
         }

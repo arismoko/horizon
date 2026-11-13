@@ -7,7 +7,7 @@ use horizon_protocol::{
 #[test]
 fn every_registered_engine_codec_refuses_a_hostile_oversized_body() {
     type Rejects = fn(&[u8]) -> bool;
-    let cases: [(&str, Rejects); 11] = [
+    let cases: [(&str, Rejects); 13] = [
         ("minecraft:brand", |body| {
             let mut packet = Writer::new();
             packet.string("minecraft:brand");
@@ -31,6 +31,12 @@ fn every_registered_engine_codec_refuses_a_hostile_oversized_body() {
         }),
         ("horizon:anvil_cost", |body| {
             protocol::anvil_cost::decode(body).is_err()
+        }),
+        ("horizon:passage_sync", |body| {
+            protocol::passage_sync::decode(body).is_err()
+        }),
+        ("horizon:passage_cross", |body| {
+            protocol::passage_sync::decode_cross(body).is_err()
         }),
         ("horizon:lod", |body| {
             crate::lod_net::Offer::decode(body).is_none()

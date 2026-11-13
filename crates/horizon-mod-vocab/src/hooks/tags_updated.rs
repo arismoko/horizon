@@ -7,7 +7,7 @@ pub trait Hooks {
     ///
     /// `ServerDataLoad`: the server's data tables are built. The recipes,
     /// tags, loot and advancements of the world's data packs, and the files
-    /// mods added through `native_data_pack_files`, are what the helpers read
+    /// mods added through `data_pack_files`, are what the helpers read
     /// from now on. `reload` is false on a world's first open, before its
     /// chunks and players are loaded, and true after `/reload` rebuilt them,
     /// once the players were sent the new data. Fires on the server, the

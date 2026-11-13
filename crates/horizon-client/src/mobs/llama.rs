@@ -305,7 +305,7 @@ mod tests {
             register(&mut m);
             m
         };
-        let partner = [llama(2, 2.5).seen(None)];
+        let partner = [llama(2, 2.5).seen(None, &crate::items::Items::empty())];
         super::super::world::with_test_world(&partner, |w, _| {
             for (ask_mods, mob_drops) in
                 [(false, true), (true, true), (false, false), (true, false)]

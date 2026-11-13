@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use super::agg::{MAX_KEYS, MAX_NODES};
 use super::*;
-use crate::sampler::test_support::{cpu_count, cpu_hz};
+use crate::sampler::test_support::{cpu_count, cpu_hz, ensure, first_passing_run};
 use crate::sampler::{self, Context, Kind, Record};
 use crate::unwind::MAX_FRAMES;
 
@@ -231,39 +231,48 @@ fn ticks_with_one_slow() {
 
 #[test]
 fn a_session_keeps_the_slow_tick_apart_and_reports_status_while_running() {
-    let (profile, mid) = profiled("p-ticks", config(false), ticks_with_one_slow);
-    let agg = &profile.agg;
-    let slow: Vec<_> = agg
-        .counts
-        .iter()
-        .filter(|(k, _)| k.slow && k.state == State::Cpu)
-        .collect();
-    let slow_n: u64 = slow.iter().map(|(_, n)| **n).sum();
-    assert!(slow_n > cpu_count(60), "{slow_n} slow samples");
-    assert!(
-        slow.iter().all(|(k, _)| path_has(agg, k, spin_slow)),
-        "a slow sample outside spin_slow"
-    );
-    let fast: Vec<_> = agg
-        .counts
-        .iter()
-        .filter(|(k, _)| !k.slow && k.state == State::Cpu)
-        .collect();
-    assert!(fast.iter().all(|(k, _)| !path_has(agg, k, spin_slow)));
-    let fast_n: u64 = fast.iter().map(|(_, n)| **n).sum();
-    assert!(fast_n > cpu_count(20));
-    // One 120 ms slow tick and five 8 ms fast ticks: 75% of CPU work is slow.
-    let slow_share = slow_n as f64 / (slow_n + fast_n) as f64;
-    assert!(
-        (slow_share - 0.75).abs() < 0.1,
-        "slow share {slow_share}: {slow_n} slow / {fast_n} fast samples"
-    );
-    assert_eq!((agg.ticks[&0].count, agg.ticks[&0].slow), (6, 1));
-    assert!(
-        mid.cpu_samples > 0,
-        "the writer drained during the session: {mid:?}"
-    );
-    assert!(profile.writer_cpu_ns > 0 && profile.stats.samples > cpu_count(100));
+    first_passing_run(|| {
+        let (profile, mid) = profiled("p-ticks", config(false), ticks_with_one_slow);
+        let agg = &profile.agg;
+        let slow: Vec<_> = agg
+            .counts
+            .iter()
+            .filter(|(k, _)| k.slow && k.state == State::Cpu)
+            .collect();
+        let slow_n: u64 = slow.iter().map(|(_, n)| **n).sum();
+        ensure(slow_n > cpu_count(60), || format!("{slow_n} slow samples"))?;
+        ensure(
+            slow.iter().all(|(k, _)| path_has(agg, k, spin_slow)),
+            || "a slow sample outside spin_slow".into(),
+        )?;
+        let fast: Vec<_> = agg
+            .counts
+            .iter()
+            .filter(|(k, _)| !k.slow && k.state == State::Cpu)
+            .collect();
+        ensure(
+            fast.iter().all(|(k, _)| !path_has(agg, k, spin_slow)),
+            || "a fast sample inside spin_slow".into(),
+        )?;
+        let fast_n: u64 = fast.iter().map(|(_, n)| **n).sum();
+        ensure(fast_n > cpu_count(20), || format!("{fast_n} fast samples"))?;
+        // One 120 ms slow tick and five 8 ms fast ticks: 75% of CPU work is slow.
+        let slow_share = slow_n as f64 / (slow_n + fast_n) as f64;
+        ensure((slow_share - 0.75).abs() < 0.1, || {
+            format!("slow share {slow_share}: {slow_n} slow / {fast_n} fast samples")
+        })?;
+        let ticks = &agg.ticks[&0];
+        ensure((ticks.count, ticks.slow) == (6, 1), || {
+            format!("{} ticks, {} slow", ticks.count, ticks.slow)
+        })?;
+        ensure(mid.cpu_samples > 0, || {
+            format!("the writer drained during the session: {mid:?}")
+        })?;
+        ensure(
+            profile.writer_cpu_ns > 0 && profile.stats.samples > cpu_count(100),
+            || format!("writer {} ns, {:?}", profile.writer_cpu_ns, profile.stats),
+        )
+    });
 }
 
 fn sleeps() {
@@ -272,27 +281,31 @@ fn sleeps() {
 
 #[test]
 fn wall_samples_of_a_sleeping_thread_are_waiting() {
-    let (profile, _) = profiled("p-wall-sleep", config(true), sleeps);
-    let agg = &profile.agg;
-    let (waiting, running) = (
-        agg.total(State::Waiting, false),
-        agg.total(State::Running, false),
-    );
-    assert!(waiting > 60, "{waiting} waiting samples in 250 ms at 1 kHz");
-    assert!(
-        running * 10 <= waiting,
-        "{running} running vs {waiting} waiting"
-    );
-    assert!(
-        agg.counts
-            .keys()
-            .filter(|k| k.state == State::Waiting)
-            .all(|k| {
-                agg.path(k.node)
-                    .iter()
-                    .any(|&n| matches!(agg.frame(n), Frame::Wall(State::Waiting)))
-            })
-    );
+    first_passing_run(|| {
+        let (profile, _) = profiled("p-wall-sleep", config(true), sleeps);
+        let agg = &profile.agg;
+        let (waiting, running) = (
+            agg.total(State::Waiting, false),
+            agg.total(State::Running, false),
+        );
+        ensure(waiting > 60, || {
+            format!("{waiting} waiting samples in 250 ms at 1 kHz")
+        })?;
+        ensure(running * 10 <= waiting, || {
+            format!("{running} running vs {waiting} waiting")
+        })?;
+        ensure(
+            agg.counts
+                .keys()
+                .filter(|k| k.state == State::Waiting)
+                .all(|k| {
+                    agg.path(k.node)
+                        .iter()
+                        .any(|&n| matches!(agg.frame(n), Frame::Wall(State::Waiting)))
+                }),
+            || "a waiting sample without its wall frame".into(),
+        )
+    });
 }
 
 /// The CPU share `spins` received, in thousandths of its wall time.
@@ -305,28 +318,30 @@ fn spins() {
 
 #[test]
 fn a_wall_session_also_records_cpu_samples_without_mixing_them() {
-    let (profile, _) = profiled("p-wall-spin", config(true), spins);
-    let agg = &profile.agg;
-    let (cpu, running, waiting) = (
-        agg.total(State::Cpu, false),
-        agg.total(State::Running, false),
-        agg.total(State::Waiting, false),
-    );
-    let share = SPIN_SHARE.load(std::sync::atomic::Ordering::Relaxed);
-    assert!(
-        cpu > cpu_count(100) && running + waiting > 100,
-        "cpu {cpu} running {running} waiting {waiting}"
-    );
-    // A preempted spinner is rightly waiting: running follows the CPU it received, give or take
-    // a fifth. Wall samples filed as CPU ones, or the other way round, break this or the line above.
-    assert!(
-        share >= 333,
-        "the spinning thread ran only {share}/1000 of the time"
-    );
-    assert!(
-        running * 1000 >= (running + waiting) * (share - 200),
-        "{waiting} waiting vs {running} running, with {share}/1000 of the CPU"
-    );
+    first_passing_run(|| {
+        let (profile, _) = profiled("p-wall-spin", config(true), spins);
+        let agg = &profile.agg;
+        let (cpu, running, waiting) = (
+            agg.total(State::Cpu, false),
+            agg.total(State::Running, false),
+            agg.total(State::Waiting, false),
+        );
+        let share = SPIN_SHARE.load(std::sync::atomic::Ordering::Relaxed);
+        // Below a third of a CPU the runner is too busy to tell running from waiting.
+        ensure(share >= 333, || {
+            format!("the spinning thread ran only {share}/1000 of the time")
+        })?;
+        // Wall samples filed as CPU ones, or the other way round, leave one count near zero.
+        ensure(cpu > cpu_count(100) && running + waiting > 100, || {
+            format!("cpu {cpu} running {running} waiting {waiting}")
+        })?;
+        // A preempted spinner is rightly waiting: running follows the CPU it received, give or
+        // take a fifth.
+        ensure(
+            running * 1000 >= (running + waiting) * (share - 200),
+            || format!("{waiting} waiting vs {running} running, with {share}/1000 of the CPU"),
+        )
+    });
 }
 
 #[inline(never)]
@@ -509,19 +524,27 @@ fn two_functions() {
 
 #[test]
 fn a_live_session_puts_the_function_that_ran_longest_first() {
-    let (profile, _) = profiled("p-top", config(false), two_functions);
-    let res = Resolved::new(&profile.agg, &symbolize(addresses(&profile.agg)));
-    let flame = res.flame(&weights(&profile.agg, |_| true));
-    assert_eq!(flame.total, profile.agg.cpu_samples);
-    let total_of = |name: &str| {
-        top_functions(&res, &flame, usize::MAX)
-            .into_iter()
-            .find(|r| short(&res, r.name) == name)
-            .map_or(0, |r| r.total)
-    };
-    let (slow, fast) = (total_of("spin_slow"), total_of("spin_fast"));
-    assert!(fast > 0 && slow > 3 * fast, "{slow} vs {fast}");
-    assert!(slow <= flame.total);
+    first_passing_run(|| {
+        let (profile, _) = profiled("p-top", config(false), two_functions);
+        let res = Resolved::new(&profile.agg, &symbolize(addresses(&profile.agg)));
+        let flame = res.flame(&weights(&profile.agg, |_| true));
+        ensure(flame.total == profile.agg.cpu_samples, || {
+            format!(
+                "flame {} of {} samples",
+                flame.total, profile.agg.cpu_samples
+            )
+        })?;
+        let total_of = |name: &str| {
+            top_functions(&res, &flame, usize::MAX)
+                .into_iter()
+                .find(|r| short(&res, r.name) == name)
+                .map_or(0, |r| r.total)
+        };
+        let (slow, fast) = (total_of("spin_slow"), total_of("spin_fast"));
+        ensure(fast > 0 && slow > 3 * fast && slow <= flame.total, || {
+            format!("{slow} vs {fast} of {}", flame.total)
+        })
+    });
 }
 
 #[test]

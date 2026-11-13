@@ -17,6 +17,7 @@ use super::{
 use crate::health::DamageLevel;
 use crate::projectiles::{Projectile, ProjectileKind};
 use horizon_core::{geometry::Vec3, random::RandomSource};
+use horizon_world::move_gate::MoveGate;
 
 /// `ZombifiedPiglin.alertOthers` keeps the source's player identity.
 #[derive(Clone, Debug)]
@@ -270,7 +271,7 @@ pub fn drowned_travel(
         return false;
     }
     m.move_relative(0.01, input);
-    m.do_move(w, level, events);
+    m.do_move(w, level, events, &mut MoveGate::new());
     m.velocity = Vec3::new(m.velocity.x * 0.9, m.velocity.y * 0.9, m.velocity.z * 0.9);
     true
 }
@@ -1203,12 +1204,14 @@ impl Default for AttackTurtleEgg {
         }
     }
 }
-/// RemoveBlockGoal.isValidTarget: the block with two air blocks above, in a loaded chunk.
-fn turtle_egg_target(w: &super::MobWorld, p: [i32; 3]) -> bool {
+/// RemoveBlockGoal.isValidTarget: the block with two air blocks above, in a loaded chunk,
+/// that the mob `mob` may destroy (`canEntityDestroy`, no `LivingDestroyBlockEvent` here).
+fn turtle_egg_target(w: &super::MobWorld, mob: u32, p: [i32; 3]) -> bool {
     w.world.loaded(p[0], p[2])
         && w.block_name(p[0], p[1], p[2]) == "minecraft:turtle_egg"
         && w.facts.is_air(w.world.block(p[0], p[1] + 1, p[2]))
         && w.facts.is_air(w.world.block(p[0], p[1] + 2, p[2]))
+        && w.can_entity_destroy(mob, p, true)
 }
 impl Goal for AttackTurtleEgg {
     goal_clone!();
@@ -1230,7 +1233,12 @@ impl Goal for AttackTurtleEgg {
         // Most of the level holds no turtle egg: its sections' palettes say
         // so without the walk of every cell in reach.
         let egg = |s| &*cx.w.facts.get(s).name == "minecraft:turtle_egg";
-        if self.base.may_find(m, cx.w, egg) && self.base.find_nearest(m, cx.w, turtle_egg_target) {
+        let id = m.id;
+        if self.base.may_find(m, cx.w, egg)
+            && self
+                .base
+                .find_nearest(m, cx.w, |w, p| turtle_egg_target(w, id, p))
+        {
             self.base.next_start = super::goals::reduced(20);
             return true;
         }
@@ -1239,8 +1247,10 @@ impl Goal for AttackTurtleEgg {
             super::goals::reduced(200 + m.random.next_int_bound(200).unwrap_or(0));
         false
     }
-    fn can_continue(&mut self, _m: &mut Mob, cx: &mut Cx) -> bool {
-        self.base.can_continue(cx.w, turtle_egg_target)
+    fn can_continue(&mut self, m: &mut Mob, cx: &mut Cx) -> bool {
+        let id = m.id;
+        self.base
+            .can_continue(cx.w, |w, p| turtle_egg_target(w, id, p))
     }
     fn start(&mut self, m: &mut Mob, cx: &mut Cx) {
         self.base.start(m, cx.w);
@@ -1858,5 +1868,60 @@ mod trident_continue_tests {
             );
         });
         let _ = ran;
+    }
+}
+
+#[cfg(test)]
+mod turtle_egg_target_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Refuses mob 1 the block at (2, 64, 0).
+    struct Keep;
+    impl crate::mobs::MobHooks for Keep {
+        fn enderman_anger_suppressed(&self, _: u32, _: &crate::mobs::PlayerView) -> bool {
+            false
+        }
+        fn can_grief(&self, _: u32, rule: bool) -> bool {
+            rule
+        }
+        fn grief_hooked(&self) -> bool {
+            false
+        }
+        fn living_visibility(&self, _: &crate::mobs::PlayerView, _: u32, v: f64) -> f64 {
+            v
+        }
+        fn can_entity_destroy(&self, mob: u32, pos: [i32; 3], vanilla: bool) -> bool {
+            vanilla && !(mob == 1 && pos == [2, 64, 0])
+        }
+    }
+
+    /// `RemoveBlockGoal.isValidTarget` asks the egg's `canEntityDestroy` for
+    /// the zombie: refused, the egg at (2, 64, 0) is no target; the one at
+    /// (4, 64, 0), and the same egg for another zombie, still are.
+    #[test]
+    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    fn a_refused_turtle_egg_is_no_target() {
+        let build = |world: &mut crate::world::World,
+                     registry: &horizon_world::registry::BlockRegistry| {
+            world
+                .chunks
+                .insert((0, 0), Arc::new(crate::chunk::Chunk::empty(0, 0)));
+            let egg = registry.default_state("minecraft:turtle_egg").unwrap();
+            world.set(2, 64, 0, egg).unwrap();
+            world.set(4, 64, 0, egg).unwrap();
+        };
+        assert!(crate::mobs::world::with_built_test_world(
+            &[],
+            build,
+            |world, _| {
+                let mut world = world.clone();
+                assert!(turtle_egg_target(&world, 1, [2, 64, 0]));
+                world.mob_hooks = Some(&Keep);
+                assert!(!turtle_egg_target(&world, 1, [2, 64, 0]));
+                assert!(turtle_egg_target(&world, 2, [2, 64, 0]));
+                assert!(turtle_egg_target(&world, 1, [4, 64, 0]));
+            }
+        ));
     }
 }

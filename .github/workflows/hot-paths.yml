@@ -58,10 +58,9 @@ jobs:
         run: echo "CARGO_BUILD_JOBS=$(python3 tools/ci/cargo_jobs.py --job-mib 4096)" | tee -a "$GITHUB_ENV"
       - name: Self-hosted image headers or rootless fallback
         run: bash tools/ci/dyna_ci_deps.sh
-      - name: The launcher's pinned Rust
+      - name: The pinned Rust (tools/ci/rust-version)
         id: rust
-        run: |
-          echo "version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' launcher/src/rust_toolchain.rs)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(cat tools/ci/rust-version)" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.rust.outputs.version }}
@@ -69,6 +68,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      # Every job that builds in this runner's persistent target keeps its source snapshot true: a
+      # build of another tree without it left artifacts that a later job judged fresh (stale generated
+      # sources, 2026-11-13). Only byte-identical Git objects regain their previous timestamps.
+      - name: Restore unchanged source timestamps
+        run: python3 tools/ci/source_mtimes.py "${CARGO_TARGET_DIR:-target}/ci-source-mtimes-v2.json"
+      # Every build and test in this job runs at the runner's size, not the host's (tools/ci/cargo_jobs.py).
+      - name: Cap build parallelism to the runner
+        run: python3 tools/ci/cargo_jobs.py --job-mib 3072 --cap
       - name: Prepare checkout-keyed vanilla data
         run: |
           for dir in minecraft datagen horizon-client tools; do

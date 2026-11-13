@@ -4,6 +4,7 @@ native trait mods against it with rustc alone, in seconds, without the game's so
 
     python3 tools/prebuilt_game.py build OUT [--server]   # build and collect the folder, write horizon-prebuilt.json
     python3 tools/prebuilt_game.py smoke OUT              # build the starter mod and the game executable against OUT only
+    python3 tools/prebuilt_game.py start OUT              # start smoke's executable, as installed, as far as no game data allows
     python3 tools/prebuilt_game.py exports OUT            # each DLL's exported names, toward Windows' limit
 
 Each OS's folder is built on that OS: the proc-macro libraries in it run inside the player's own rustc.
@@ -23,12 +24,22 @@ import tomllib
 import time
 from pathlib import Path
 
+
 ROOT = Path(__file__).resolve().parent.parent
 PROFILE = "release"
 # What rustc writes for a dylib or proc macro on each OS, plus metadata and the MinGW import libraries.
 SUFFIXES = (".rmeta", ".so", ".dll", ".dll.a", ".dylib")
 IDENTITY = "horizon-prebuilt.json"
+# The crate the game's library is built from; its build resolves what mods compile against.
+GAME = "horizon-mod-host"
 LOCK = "Cargo.lock"
+# Where `smoke` installs the executable it builds, as the launcher does, for `start`: beside OUT, never inside it,
+# since the archive is OUT alone.
+SMOKE = "prebuilt-smoke"
+EXECUTABLE = "horizon-client.exe" if sys.platform == "win32" else "horizon-client"
+# The furthest a game started without its prepared files gets (game.rs `missing_resources`): past loading the
+# game's libraries and the mods' runtime environment (`entry::main_with`), where a split allocator aborts (#3877).
+NO_RESOURCES = "Horizon's prepared game files are missing"
 # The launcher's generated `main.rs` comes from the game it links against.
 TEMPLATE = "native_main.rs.template"
 # Source files the folder carries besides compiler outputs.
@@ -107,12 +118,15 @@ def stage(target_dir: Path, stage_tool: Path | None = None) -> Path:
 
 
 def cargo_features(server: bool, platform: str) -> list[str]:
-    """The game crate's features for this archive. On Windows the game keeps no allocator of its own (#2394):
-    std is a DLL there with its own default-allocator shim, and Windows binds each import to the DLL that exports
-    it, so a mimalloc `#[global_allocator]` in the game would leave the mods' executable and std's own code on
-    the system heap beside it. Elsewhere the first definition wins and every library shares the game's mimalloc."""
+    """The game crate's features for this archive. The archive's std is a shared library with its own
+    default-allocator `__rust_alloc`, and the wasm runtime's library, below the game, binds to it. Only ELF's
+    dynamic linker (Linux) resolves every library's `__rust_alloc` to the first definition, the game's mimalloc.
+    Windows (#2394) and macOS (#3877) bind each import to the library it was linked against, so a game allocator
+    there leaves the wasm runtime, the mods' executable and std's own code on std's heap beside it, and a block
+    freed on the other heap aborts. So everywhere but Linux the game keeps no allocator of its own and every
+    library shares std's (the system heap)."""
     features = ["--no-default-features"] if server else []
-    if platform == "win32":
+    if platform != "linux":
         features += ["--features", "system-allocator"]
     return features
 
@@ -204,7 +218,7 @@ def build(out: Path, server: bool) -> None:
     # Encoded flags take precedence over RUSTFLAGS in Cargo.
     environment = {key: value for key, value in os.environ.items() if key != "CARGO_ENCODED_RUSTFLAGS"}
     messages = run(
-        ["cargo", "rustc", "--locked", "-p", "horizon-mod-host", "--lib", "--crate-type", "dylib",
+        ["cargo", "rustc", "--locked", "-p", GAME, "--lib", "--crate-type", "dylib",
          "--target", host, "--profile", PROFILE, "--message-format", "json-render-diagnostics", *features, *link],
         cwd=staged,
         env={**environment, "RUSTFLAGS": rustflags + " -D warnings", "CARGO_TARGET_DIR": str(target_dir)},
@@ -225,7 +239,7 @@ def build(out: Path, server: bool) -> None:
         "cargo", "metadata", "--locked", "--format-version", "1", "--filter-platform", host,
         *features,
     ], cwd=staged))
-    eligible = facade_crates(deps, runtime_crates(metadata, "horizon-mod-host"))
+    eligible = facade_crates(deps, runtime_crates(metadata, GAME))
     assert_externs(out, eligible)
     native = out / NATIVE
     native.mkdir()
@@ -274,7 +288,7 @@ def build(out: Path, server: bool) -> None:
         "registry_patches": patches,
         "patch_files": {name: digest for name, digest in files.items() if name.startswith("patches/")},
         "registry_lock": (staged / "Cargo.lock").read_text(),
-        "native_links": native_links(metadata, "horizon-mod-host"),
+        "native_links": native_links(metadata, GAME),
         "files": files,
     }
     (out / IDENTITY).write_text(json.dumps(identity, indent=2) + "\n")
@@ -370,6 +384,12 @@ def smoke(out: Path) -> None:
 
     common = ["--edition", "2024", "-C", "prefer-dynamic", "-C", "opt-level=1", "-L", f"dependency={deps}",
               "-L", f"dependency={out / 'host'}", "-L", f"native={out / NATIVE}"]
+    installed = out.parent / SMOKE
+    if installed.exists():
+        shutil.rmtree(installed)
+    installed.mkdir()
+    # The game's libraries load from beside the executable (launcher/src/native_mods/prebuilt.rs `compile`).
+    origin = {"linux": ["-Wl,-rpath,$ORIGIN"], "darwin": ["-Wl,-rpath,@executable_path"]}.get(sys.platform, [])
     with tempfile.TemporaryDirectory(dir=out.parent) as scratch:
         scratch = Path(scratch)
         starter = (ROOT / "crates/cargo-horizon-mod/template/native/lib.rs").read_text()
@@ -384,11 +404,79 @@ def smoke(out: Path) -> None:
         (scratch / "main.rs").write_text(main)
         link_args = json.loads((out / IDENTITY).read_text())["link_args"]
         run(["rustc", *common, "--crate-type", "bin", "--crate-name", "horizon_client_smoke",
-             *(flag for arg in link_args for flag in ("-C", f"link-arg={arg}")),
+             *(flag for arg in origin + link_args for flag in ("-C", f"link-arg={arg}")),
              *extern("horizon_client"), *extern("mod_api"), *extern("horizon_mod_package"), "--extern", f"horizon_mod_host={dylib(deps, 'horizon_mod_host')}",
              "--extern", f"mod_0={scratch / 'libmod_0.rlib'}", "-L", f"dependency={scratch}",
-             "-o", str(scratch / "horizon-client"), str(scratch / "main.rs")])
-    print(f"smoke: the starter mod and the game executable built against {out} alone")
+             "-o", str(installed / EXECUTABLE), str(scratch / "main.rs")])
+    for library in runtime_libraries(deps):
+        shutil.copy2(library, installed / library.name)
+    install_package(installed / "horizon-native-mods" / "smoke", starter.replace("{id}", "smoke"))
+    print(f"smoke: the starter mod and the game executable built against {out} alone, installed in {installed}")
+
+
+def install_package(folder: Path, source: str) -> None:
+    """The mod's package as the launcher leaves it beside the executable, which reads it back at start
+    (horizon-mod-package `runtime::Runtime::load`): the starter manifest with its [native] pins, and its source."""
+    manifest = (ROOT / "crates/cargo-horizon-mod/template/native/horizon-mod.toml").read_text()
+    manifest = manifest.replace("{id}", "smoke").replace("{name}", "Smoke")
+    mixins = re.search(r'pub const REV: &str = "([0-9a-f]{40})";',
+                       (ROOT / "crates/horizon-mod-package/src/mixins_tool.rs").read_text())[1]
+    game = re.search(r'pub const VERSION_ID: &str = "([^"]+)";',
+                     (ROOT / "crates/horizon-core/src/version.rs").read_text())[1]
+    horizon = run(["git", "rev-parse", "HEAD"], cwd=ROOT).strip()
+    manifest += f'\n[native]\ngame = "{game}"\nhorizon = "{horizon}"\nmixins = "{mixins}"\n'
+    (folder / "src").mkdir(parents=True)
+    (folder / "horizon-mod.toml").write_text(manifest)
+    (folder / "Cargo.toml").write_text('[package]\nname = "smoke"\nversion = "0.1.0"\nedition = "2024"\n')
+    (folder / "src/lib.rs").write_text(source)
+
+
+def runtime_libraries(deps: Path) -> list[Path]:
+    """What the launcher installs beside the executable (launcher/src/native_mods/prebuilt.rs `runtime_libraries`):
+    the game's two libraries, std, and on Windows the MinGW runtime the GNU DLLs import."""
+    libraries = [dylib(deps, crate) for crate in ("horizon_mod_host", "horizon_mod_wasm")]
+    libdir = Path(run(["rustc", "--print", "target-libdir"]).strip())
+    libraries += [path for path in libdir.iterdir()
+                  if path.name.startswith(("libstd-", "std-")) and path.suffix in (".so", ".dll", ".dylib")]
+    if sys.platform == "win32":
+        gcc = shutil.which("gcc")
+        if gcc is None:
+            sys.exit("smoke: no gcc on PATH, so no MinGW runtime to install beside the executable")
+        libraries += [Path(gcc).parent / name for name in ("libgcc_s_seh-1.dll", "libwinpthread-1.dll")]
+    return libraries
+
+
+def start(out: Path) -> None:
+    """Start the executable `smoke` installed, as a dedicated server with no game data: it loads the game's libraries
+    and sets up the mods' runtime, then stops at the missing prepared files. Fails on a crash, a hang or any other
+    stop, so an archive whose libraries disagree (two allocators, #3877) cannot ship."""
+    # Run as a script, so lab sits on the path beside it; tests import this module without running `start`.
+    import lab
+
+    installed = out.parent / SMOKE
+    with tempfile.TemporaryDirectory(dir=out.parent) as scratch:
+        scratch = Path(scratch)
+        # Never a real player's folders, even ones this process inherited: every home is a folder of the scratch.
+        homes = {key: scratch / key.lower() for key in
+                 ("HORIZON_HOME", "HORIZON_LAUNCHER_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME")}
+        for home in homes.values():
+            home.mkdir()
+        environment = lab.game_env(RUST_BACKTRACE="1")
+        environment.update({key: str(home) for key, home in homes.items()})
+        game = scratch / "game"
+        game.mkdir()
+        # A dedicated server stops at an unaccepted EULA before it reaches the prepared files (the EULA is accepted).
+        (game / "eula.txt").write_text("eula=true\n")
+        command = [str(installed / EXECUTABLE), "--resources", str(scratch / "no-resources"), "--dedicated", "--nogui"]
+        print("+", " ".join(command), flush=True)
+        result = subprocess.run(command, cwd=game, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                encoding="utf-8", errors="replace", timeout=300)
+    print(result.stdout, end="")
+    print(f"start: exit {result.returncode}")
+    # The prepared-files check exits with status 1; any other status is a different stop.
+    if result.returncode != 1 or NO_RESOURCES not in result.stdout or "panicked" in result.stdout:
+        sys.exit(f"start: the executable stopped before the prepared-files check (exit {result.returncode})")
+    print(f"start: the executable loaded the game's libraries and the mods' runtime and stopped at: {NO_RESOURCES}")
 
 
 # Warns here, ahead of Windows' hard 65,535 (the linker's own failure), so a growing export list is seen first.
@@ -436,6 +524,8 @@ def main() -> None:
     build_parser.add_argument("--server", action="store_true", help="the dedicated server's features")
     smoke_parser = commands.add_parser("smoke")
     smoke_parser.add_argument("out", type=Path)
+    start_parser = commands.add_parser("start")
+    start_parser.add_argument("out", type=Path)
     exports_parser = commands.add_parser("exports")
     exports_parser.add_argument("out", type=Path)
     args = parser.parse_args()
@@ -443,6 +533,8 @@ def main() -> None:
         build(args.out.resolve(), args.server)
     elif args.command == "exports":
         exports(args.out.resolve())
+    elif args.command == "start":
+        start(args.out.resolve())
     else:
         smoke(args.out.resolve())
 

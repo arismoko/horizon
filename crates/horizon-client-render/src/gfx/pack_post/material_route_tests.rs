@@ -9,6 +9,7 @@ use wgpu::TextureFormat as T;
 #[test]
 #[ignore = "requires an offscreen graphics adapter; run explicitly"]
 fn authored_material_programs_render_and_legacy_draws_stay_unsplit() {
+    let _gpu = crate::gfx::test_gpu::lock();
     let gpu = Gpu::new().expect("an executed adapter is required for this control");
     let mut vertices = Vec::new();
     for (i, layer) in [0, OIT_ENTITY, 0, TRANSLUCENT_PARTICLE_OVERLAY]

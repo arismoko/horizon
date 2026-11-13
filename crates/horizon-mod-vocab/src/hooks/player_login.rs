@@ -8,7 +8,7 @@ pub trait Hooks {
     /// saved state is not loaded and they are not placed in a level yet. Set
     /// `cancel` to refuse them: they are disconnected with `reason` (a plain
     /// "Disconnected" if it is left unset) and nothing else of the join (the
-    /// join message, `native_player_logged_in`) happens. Once for each player
+    /// join message, `player_logged_in`) happens. Once for each player
     /// who joins, on a server. The player is not placed yet and their client
     /// has no world to show a message in, so no player's state is swapped in
     /// and `PlayerRef::tell` reaches nobody: the refusal `reason` is the answer.

@@ -749,6 +749,8 @@ impl Creative {
                     &crate::item_tooltip::NoAttributeListener,
                     &self.enchantments,
                     translate,
+                    // The search cache has no attribute catalog: vanilla's look.
+                    &|_| None,
                 )
                 .iter()
                 .map(|l| java_lower(l))

@@ -3,7 +3,7 @@
 //! skulls, breaking blocks around it when hurt, immune to arrows and a
 //! player's wind charges below half health.
 use super::{
-    DamageKind, Mob, MobEvent, MobWorld, Species, Who,
+    Mob, MobEvent, MobWorld, Species, Who,
     anim::{Poses, State},
     control::MoveKind,
     goals::{
@@ -459,7 +459,11 @@ pub fn custom_server_ai_step(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEven
                             .block_tags
                             .get("minecraft:wither_immune")
                             .is_some_and(|t| t.contains(name));
-                        if name != "minecraft:air" && !name.ends_with("_air") && !immune {
+                        // WitherBoss.canDestroy, or what the block's parts answer.
+                        if name != "minecraft:air"
+                            && !name.ends_with("_air")
+                            && w.can_entity_destroy(m.id, [x, y, z], !immune)
+                        {
                             events.push(MobEvent::BreakBlock {
                                 pos: [x, y, z],
                                 drop: true,
@@ -491,16 +495,21 @@ pub fn custom_server_ai_step(m: &mut Mob, w: &MobWorld, events: &mut Vec<MobEven
         m.heal(w.loop_context, 1.0);
     }
 }
-/// `WitherBoss.hurtServer` filter: not while charging, no arrows once
-/// powered, nothing from the undead.
-pub fn accepts(m: &mut Mob, kind: DamageKind, attacker: Option<Who>, others_undead: bool) -> bool {
-    if m.extra.counter > 0 && !kind.bypasses_invulnerability() {
+/// `WitherBoss.hurtServer` filter: not while charging, no direct AbstractArrow
+/// (including ThrownTrident) once powered, nothing from the undead.
+pub fn accepts(
+    m: &mut Mob,
+    source: &super::Damage,
+    attack: &crate::health::Attack,
+    others_undead: bool,
+) -> bool {
+    if m.extra.counter > 0 && !source.kind.bypasses_invulnerability() {
         return false;
     }
-    if powered(m) && kind == DamageKind::Arrow {
+    if powered(m) && attack.direct_is_arrow(source) {
         return false;
     }
-    if others_undead || matches!(attacker, Some(Who::Mob(id)) if id == m.id) {
+    if others_undead || matches!(source.attacker, Some(Who::Mob(id)) if id == m.id) {
         return false;
     }
     if m.extra.counter2 <= 0 {
@@ -613,6 +622,83 @@ mod tests {
             }
         ));
     }
+    /// `canEntityDestroy` in the wither's block break: a part's no keeps stone,
+    /// its yes breaks bedrock (`#wither_immune`), an unanswered block keeps
+    /// vanilla's rule, and with griefing off nothing breaks whatever it says.
+    #[test]
+    #[ignore = "needs prepared resources"]
+    fn the_wither_breaks_what_block_parts_allow() {
+        use std::sync::Arc;
+        struct Parts;
+        impl crate::mobs::MobHooks for Parts {
+            fn enderman_anger_suppressed(&self, _: u32, _: &crate::mobs::PlayerView) -> bool {
+                false
+            }
+            fn can_grief(&self, _: u32, rule: bool) -> bool {
+                rule
+            }
+            fn grief_hooked(&self) -> bool {
+                false
+            }
+            fn living_visibility(
+                &self,
+                _: &crate::mobs::PlayerView,
+                _: u32,
+                visibility: f64,
+            ) -> f64 {
+                visibility
+            }
+            fn can_entity_destroy(&self, _: u32, pos: [i32; 3], vanilla: bool) -> bool {
+                match pos {
+                    [0, 64, 0] => false,
+                    [1, 64, 0] => true,
+                    _ => vanilla,
+                }
+            }
+        }
+        let build = |world: &mut crate::world::World,
+                     registry: &horizon_world::registry::BlockRegistry| {
+            world
+                .chunks
+                .insert((0, 0), Arc::new(crate::chunk::Chunk::empty(0, 0)));
+            for (pos, name) in [
+                ([0, 64, 0], "minecraft:stone"),
+                ([1, 64, 0], "minecraft:bedrock"),
+                ([0, 65, 0], "minecraft:dirt"),
+            ] {
+                let state = registry.default_state(name).unwrap();
+                world.set(pos[0], pos[1], pos[2], state).unwrap();
+            }
+        };
+        assert!(super::super::world::with_built_test_world(
+            &[],
+            build,
+            |world, types| {
+                let kind = Arc::new(types.types.get("minecraft:wither").unwrap().clone());
+                let broken = |world: &MobWorld| {
+                    let mut m = Mob::new(1, kind.clone(), Vec3::new(0.5, 64.0, 0.5), 0.0);
+                    m.extra.counter = 0;
+                    m.extra.counter2 = 1;
+                    let mut events = Vec::new();
+                    custom_server_ai_step(&mut m, world, &mut events);
+                    let mut at: Vec<[i32; 3]> = events
+                        .iter()
+                        .filter_map(|e| match e {
+                            MobEvent::BreakBlock { pos, .. } => Some(*pos),
+                            _ => None,
+                        })
+                        .collect();
+                    at.sort();
+                    at
+                };
+                let mut world = world.clone();
+                world.mob_hooks = Some(&Parts);
+                assert_eq!(broken(&world), [[0, 65, 0], [1, 64, 0]]);
+                world.mob_griefing = false;
+                assert!(broken(&world).is_empty());
+            }
+        ));
+    }
 }
 
 #[cfg(test)]
@@ -687,8 +773,8 @@ mod upstream_sync_tests {
     /// a sibling class, has to keep hurting it.
     #[test]
     fn only_a_powered_withers_armor_refuses_a_wind_charge() {
-        use crate::mobs::Damage;
         use crate::mobs::sensor_scan_tests::kind;
+        use crate::mobs::{Damage, DamageKind};
         use std::sync::Arc;
         let mob = |species, health: f32| {
             let mut kind = kind();
@@ -714,7 +800,16 @@ mod upstream_sync_tests {
         assert!(m.health < 150.0);
         // ...and arrows stay refused by the damage filter.
         let mut m = mob(Species::Wither, 150.0);
-        assert!(!m.damage(&mut test_level.level(), 1.0, Damage::of(DamageKind::Arrow)));
+        let attack = crate::health::Attack {
+            projectile: Some(2),
+            projectile_is_arrow: true,
+            ..Default::default()
+        };
+        assert!(!m.damage(
+            &mut test_level.level().attacked_by(&attack),
+            1.0,
+            Damage::of(DamageKind::Arrow),
+        ));
         assert_eq!(m.health, 150.0);
     }
     /// A spawning wither rolled the three particles of `aiStep`'s
@@ -919,7 +1014,7 @@ mod upstream_sync_tests {
                     let mut cow_kind = (*kind()).clone();
                     cow_kind.species = Species::Cow;
                     let cow = Mob::new(2, Arc::new(cow_kind), Vec3::new(5.5, 65.0, 0.5), 0.0);
-                    let seen = [cow.seen(None)];
+                    let seen = [cow.seen(None, &crate::items::Items::empty())];
                     let world = crate::mobs::MobWorld {
                         others: &seen,
                         ..w.clone()

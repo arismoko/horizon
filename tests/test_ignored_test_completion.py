@@ -1,7 +1,10 @@
 """Ignored-test CI must distinguish completed targets from child fixture output."""
 import contextlib
 import io
+import json
 import os
+from pathlib import Path
+import tempfile
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -44,6 +47,33 @@ class IgnoredTests(unittest.TestCase):
         with patch.object(ignored_tests, "known_failures", return_value={("example", "repaired"): None}), patch.object(ignored_tests, "run", return_value=result), contextlib.redirect_stdout(io.StringIO()) as log:
             self.assertEqual(ignored_tests.main(["example"]), 1)
         self.assertIn("repaired: passes now; take it off", log.getvalue())
+
+    def test_the_report_names_problems_and_passes_without_output(self):
+        def run(package, skip, number=None, count=None):
+            ignored_tests._panic_locations["new::broken"] = "crates/example/src/lib.rs:4:9"
+            return {"new::broken": False, "fine": True, "repaired": True, "accepted": False}
+
+        known = {("example", "repaired"): None, ("example", "accepted"): None, ("example", "gone"): None}
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(ignored_tests, "known_failures", return_value=known), \
+                patch.object(ignored_tests, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+            path = Path(folder) / "report.json"
+            self.assertEqual(ignored_tests.main(["example"], str(path)), 1)
+            report = json.loads(path.read_text())
+        kinds = {(item["test"], item["kind"], item["panic"]) for item in report["problems"]}
+        self.assertEqual(kinds, {("new::broken", "failed", "crates/example/src/lib.rs:4:9"),
+                                 ("repaired", "passes-now", None), ("gone", "no-longer-runs", None)})
+        self.assertIn({"package": "example", "test": "fine"}, report["passed"])
+        self.assertNotIn("accepted", json.dumps(report["problems"]))
+        self.assertEqual(report["shards"], ["example"])
+
+    def test_a_shard_that_did_not_complete_is_reported(self):
+        with tempfile.TemporaryDirectory() as folder, \
+                patch.object(ignored_tests, "known_failures", return_value={}), \
+                patch.object(ignored_tests, "run", return_value=None), contextlib.redirect_stdout(io.StringIO()):
+            path = Path(folder) / "report.json"
+            self.assertEqual(ignored_tests.main(["example"], str(path)), 1)
+            self.assertEqual(json.loads(path.read_text())["incomplete"], ["example"])
 
     def test_client_lib_halves_run_serially_and_preserve_failure_policy(self):
         package = "horizon-client-lib"

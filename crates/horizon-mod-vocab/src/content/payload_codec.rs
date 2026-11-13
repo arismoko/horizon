@@ -1,12 +1,11 @@
-//! Typed mod payloads (arismoko/horizon#813), stage 2: the pure value codec.
+//! Typed mod payloads: the pure value codec.
 //! A payload's value type says how it is written to and read from a payload
 //! body in vanilla's network encoding (big-endian numbers, VarInt lengths),
-//! through a writer and a reader that enforce the design's bounds. A decoder
+//! through a writer and a reader that enforce the codec's bounds. A decoder
 //! reads untrusted bytes: every length, count, depth and allocation is
 //! checked before anything is reserved or copied, and nothing here panics on
 //! any input. The codec touches no `Host` and no world, so it runs the same
-//! in a native mod and in a wasm guest. Registration and delivery are the
-//! later stages. See `docs/modding/src/concepts/typed-payloads.md`.
+//! in a native mod and in a wasm guest. Registration and delivery are separate from encoding.
 
 /// The deepest a payload value nests: each box, each list, each present option and
 /// each [`PayloadReader::nested`] level counts one.

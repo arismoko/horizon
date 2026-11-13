@@ -192,7 +192,9 @@ fn new(args: &[String]) -> Result<(), String> {
         Manifest::parse(&std::fs::read_to_string(dir.join(MANIFEST)).map_err(|e| e.to_string())?)?;
     Content::read(dir, &manifest)?;
     println!(
-        "Created {} (mod id {id}). Next: cd {path} && cargo horizon-mod run",
+        "Created {} (mod id {id}). Next: cd {path} && cargo horizon-mod build, then copy \
+         target/horizon-mod/{id}.hmod into your game folder's horizon-mods/ \
+         (docs/modding/src/start/first-content-mod.md)",
         dir.display()
     );
     Ok(())
@@ -317,7 +319,7 @@ fn new_native(
     let rev = format!(", rev = \"{horizon}\"");
     let manifest = format!(
         "{}\n[native]\ngame = \"26.3\"\nhorizon = \"{horizon}\"\nmixins = \"{}\"\n",
-        include_str!("../template/content/horizon-mod.toml"),
+        include_str!("../template/native/horizon-mod.toml"),
         horizon_mod_package::mixins_tool::REV,
     );
     let files = [

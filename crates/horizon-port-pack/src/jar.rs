@@ -2,6 +2,7 @@
 //! (`neoforge.mods.toml`, `mods.toml`, `fabric.mod.json`, `mcmod.info`) and a
 //! census of its data, assets and classes. Legacy metadata contributes identity
 //! only; license and dependency fields are not interpreted.
+use crate::zip_intake::{self, Archive};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
@@ -92,30 +93,29 @@ pub fn read(path: &Path) -> Result<JarInfo, String> {
 
 fn read_inner(path: &Path, strict: bool) -> Result<(JarInfo, Option<JarLoader>), String> {
     let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", path.display()))?;
-    let text =
-        |zip: &mut zip::ZipArchive<fs::File>, name: &str| -> Result<Option<String>, String> {
-            let entry = match zip.by_name(name) {
-                Ok(entry) => entry,
-                Err(zip::result::ZipError::FileNotFound) => return Ok(None),
-                Err(e) if strict => return Err(format!("{}: {name}: {e}", path.display())),
-                Err(_) => return Ok(None),
-            };
-            const MAX_METADATA_BYTES: u64 = 1024 * 1024;
-            let declared = entry.size();
-            let cap = if strict {
-                MAX_METADATA_BYTES
-            } else {
-                crate::entry::MAX_TEXT
-            };
-            match crate::entry::read_text(entry, declared, cap) {
-                Ok(s) => Ok(Some(s)),
-                Err(e) if strict || crate::entry::is_too_big(&e) => {
-                    Err(format!("{}: {name}: {e}", path.display()))
-                }
-                Err(_) => Ok(None),
-            }
+    let mut zip = zip_intake::open(file).map_err(|e| format!("{}: {e}", path.display()))?;
+    let text = |zip: &mut Archive<fs::File>, name: &str| -> Result<Option<String>, String> {
+        let entry = match zip.by_name(name) {
+            Ok(entry) => entry,
+            Err(zip::result::ZipError::FileNotFound) => return Ok(None),
+            Err(e) if strict => return Err(format!("{}: {name}: {e}", path.display())),
+            Err(_) => return Ok(None),
         };
+        const MAX_METADATA_BYTES: u64 = 1024 * 1024;
+        let declared = entry.size();
+        let cap = if strict {
+            MAX_METADATA_BYTES
+        } else {
+            crate::entry::MAX_TEXT
+        };
+        match crate::entry::read_text(entry, declared, cap) {
+            Ok(s) => Ok(Some(s)),
+            Err(e) if strict || crate::entry::is_too_big(&e) => {
+                Err(format!("{}: {name}: {e}", path.display()))
+            }
+            Err(_) => Ok(None),
+        }
+    };
     let neo = text(&mut zip, "META-INF/neoforge.mods.toml")?;
     let (mut info, loader) = if strict {
         if let Some(t) = neo {
@@ -334,8 +334,14 @@ pub fn fabric(text: &str) -> Result<JarInfo, String> {
 /// Read the first mod's identity from legacy Forge metadata.
 /// License and dependency fields remain unknown.
 fn mcmod_info(text: &str) -> Result<JarInfo, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| format!("mcmod.info: {e}"))?;
+    let value: serde_json::Value = serde_json::from_str(text)
+        .or_else(|error| {
+            let Some(normalized) = escape_legacy_string_newlines(text) else {
+                return Err(error);
+            };
+            serde_json::from_str(&normalized).map_err(|_| error)
+        })
+        .map_err(|e| format!("mcmod.info: {e}"))?;
     let first = match &value {
         serde_json::Value::Array(mods) => mods.first(),
         serde_json::Value::Object(root) => root
@@ -358,6 +364,34 @@ fn mcmod_info(text: &str) -> Result<JarInfo, String> {
         version: get("version"),
         ..JarInfo::default()
     })
+}
+
+// Forge 1.7.10 packs can contain literal line feeds in legacy metadata strings.
+// Escape just those line feeds and let the JSON parser validate the result.
+fn escape_legacy_string_newlines(text: &str) -> Option<String> {
+    let mut normalized = String::new();
+    let mut copied_until = 0;
+    let mut quoted = false;
+    let mut characters = text.char_indices();
+    while let Some((offset, character)) = characters.next() {
+        match character {
+            '"' => quoted = !quoted,
+            '\\' if quoted => {
+                characters.next();
+            }
+            '\n' if quoted => {
+                normalized.push_str(&text[copied_until..offset]);
+                normalized.push_str("\\n");
+                copied_until = offset + 1;
+            }
+            _ => {}
+        }
+    }
+    if copied_until == 0 {
+        return None;
+    }
+    normalized.push_str(&text[copied_until..]);
+    Some(normalized)
 }
 
 pub fn census(names: &[String]) -> Census {
@@ -857,12 +891,58 @@ modId = \"neoforge\"
     }
 
     #[test]
+    fn reads_legacy_metadata_with_literal_line_feeds_and_counts_the_contents() {
+        let jar = synthetic_jar(
+            "legacy-multiline",
+            &[
+                (
+                    "mcmod.info",
+                    r#"[{"modid":"legacy","version":"1.2.3","name":"Legacy \"Demo\"
+résumé","description":"One line
+another line"}]"#,
+                ),
+                ("legacy/Example.class", ""),
+                ("assets/legacy/textures/item/example.png", ""),
+            ],
+        );
+
+        let info = read(&jar.0).unwrap();
+
+        assert_eq!(info.mod_id, "legacy");
+        assert_eq!(info.version, "1.2.3");
+        assert_eq!(info.name, "Legacy \"Demo\"\nrésumé");
+        assert_eq!(info.census.classes, 1);
+        assert_eq!(info.census.textures, 1);
+    }
+
+    #[test]
     fn malformed_legacy_json_is_an_error_instead_of_filename_fallback() {
-        let jar = synthetic_jar("malformed-legacy", &[("mcmod.info", "[{not-json]")]);
+        for metadata in [
+            "[{not-json]",
+            "[{\"name\":\"first\nsecond\tthird\"}]",
+            "[{\"name\":\"first\\\nsecond\"}]",
+        ] {
+            let jar = synthetic_jar("malformed-legacy", &[("mcmod.info", metadata)]);
 
-        let error = read(&jar.0).unwrap_err();
+            let error = read(&jar.0).unwrap_err();
 
-        assert!(error.starts_with("mcmod.info:"), "{error}");
+            assert!(error.starts_with("mcmod.info:"), "{error}");
+        }
+    }
+
+    #[test]
+    fn modern_fabric_metadata_still_rejects_literal_line_feeds() {
+        let jar = synthetic_jar(
+            "fabric-multiline",
+            &[(
+                "fabric.mod.json",
+                "{\"id\":\"example\",\"name\":\"First\nSecond\",\"version\":\"1\"}",
+            )],
+        );
+
+        let error = read_identity(&jar.0).unwrap_err();
+
+        assert!(error.starts_with("fabric.mod.json:"), "{error}");
     }
 
     #[test]

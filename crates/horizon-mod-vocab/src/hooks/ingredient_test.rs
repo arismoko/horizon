@@ -3,8 +3,8 @@
 pub trait Hooks {
     /// A mod's own ingredient kind, matching a concrete stack at craft time:
     /// the ingredient's `test` calls here with the kind, its NBT compound and the
-    /// stack being matched, `accept` already true (the load-time list named
-    /// the item). Set `accept` to false to refuse the stack — its components
+    /// stack being matched, `accept` already true (a nonempty load-time list
+    /// named the item; an empty custom list does not filter it). Set `accept` to false to refuse the stack — its components
     /// are the usual reason. The hook may be called many times a craft; the
     /// answer must be the same for the same stack. It is given the loop `context` of the side that runs the match (its registries, settings and mod list); it fires inside recipe matching, so it takes no `Host`.
     #[hook(

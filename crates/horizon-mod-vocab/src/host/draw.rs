@@ -12,7 +12,7 @@ pub trait DrawClientHost {
     /// Side: client.
     /// Entity model layer `layer` baked into its `ModelPart` tree, each part
     /// at its pose, as `EntityModelSet.bakeLayer` bakes it: one a native mod
-    /// registered (`native_register_layer_definitions`), or vanilla's, by the name
+    /// registered (`register_layer_definitions`), or vanilla's, by the name
     /// `entity-models.json` gives it (`minecraft:zombie#main`,
     /// `minecraft:player#main`). The tree is the caller's own copy: bake it
     /// once, as a renderer does, and set its parts' poses each frame. None
@@ -99,12 +99,12 @@ pub trait DrawContext {
     /// screen's `batch`, seen as `view` says: Create's Ponder scenes. Each
     /// block is drawn with its model, full bright and shaded by face, a face
     /// against a solid neighbour in the scene left out; a block with an
-    /// `entity` (a mod's) is drawn by `native_block_entity_submit` as in the
+    /// `entity` (a mod's) is drawn by `block_entity_submit` as in the
     /// world too, its `spin` parts turning with the game time. What lies
     /// outside the box is cut off, and the scene has a depth of its own, so
     /// it never covers the screen's other drawing or is covered by it but in
     /// the order drawn. Draw it from a screen's drawing hook
-    /// (`native_screen_draw`). A client's call; nothing is drawn on a server.
+    /// (`screen_draw`). A client's call; nothing is drawn on a server.
     /// API @API:scenes_in_screens@.
     fn draw_scene(&mut self, rect: [f32; 4], blocks: &[SceneBlock], view: SceneView) {
         unimplemented!("DrawContext::draw_scene")
@@ -176,8 +176,8 @@ pub trait BlockEntityDrawContext {
     fn scale(&mut self, by: [f32; 3]) {
         unimplemented!("BlockEntityDrawContext::draw_scale")
     }
-    /// Keeps what this call drew, with neither `native_block_entity_submit` nor
-    /// `native_block_entity_render_bounding_box` called until its state, block entity,
+    /// Keeps what this call drew, with neither `block_entity_submit` nor
+    /// `block_entity_render_bounding_box` called until its state, block entity,
     /// light or resource packs change. Parts marked with `spin` keep turning on the
     /// animation clock (`animation_time`); other geometry stays as submitted. Do not bake frame-dependent
     /// values into kept vertices: item glint and time-dependent item models stop
@@ -256,7 +256,7 @@ pub trait BlockEntityDrawContext {
     /// a campfire does. False for an empty stack or one with no model. The
     /// client's copy of a block entity has no item slots (`entity.items` is
     /// empty there): send the stacks you draw in
-    /// `native_block_entity_update_tag` and read them from `entity.nbt`.
+    /// `block_entity_update_tag` and read them from `entity.nbt`.
     fn item(
         &mut self,
         stack: &ItemStack,
@@ -319,7 +319,7 @@ pub trait BlockEntityDrawContext {
     /// (`Font.drawInBatch8xOutline`; nine glyphs' worth of quads each). Returns the width
     /// drawn, in font pixels (`Font.width`): centre a line by starting it at minus half its
     /// width. Obfuscated glyphs change only when the block is drawn again: kept text stands
-    /// still. Clamp text read from NBT, and widen `native_block_entity_render_bounding_box`
+    /// still. Clamp text read from NBT, and widen `block_entity_render_bounding_box`
     /// for a long line. API @API:draw_text@.
     /// Refuses text deeper than 512 component nodes before applying any changes.
     fn text(
@@ -346,7 +346,7 @@ pub trait BlockEntityDrawContext {
     /// `entity/zombie/zombie`) times the 0xRRGGBB `tint`. A part that isn't
     /// `visible` draws nothing, one that skips drawing (`skip_draw`) only its
     /// children. A mob's model is built in the model's own frame (+y down,
-    /// its front towards -z, its feet 24 texels down): in `native_mob_submit`,
+    /// its front towards -z, its feet 24 texels down): in `render_living_pre`,
     /// `draw.scale([1.0, -1.0, -1.0])` then `draw.translate([0.0, -1.501,
     /// 0.0])` first, as `LivingEntityRenderer` does. False for an unknown
     /// sprite. API @API:model_layers@.

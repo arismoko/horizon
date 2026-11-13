@@ -14,7 +14,7 @@ fn fixture(game: &mut Game<'_>) -> (Target, Identity) {
         .lan
         .as_mut()
         .unwrap()
-        .play
+        .menus
         .entry(12)
         .or_default()
         .crafting
@@ -140,7 +140,7 @@ fn actual_owner_replacement_is_stale_and_same_owner_reentry_is_busy() {
                     .lan
                     .as_mut()
                     .unwrap()
-                    .play
+                    .menus
                     .get_mut(&12)
                     .unwrap()
                     .crafting
@@ -155,7 +155,7 @@ fn actual_owner_replacement_is_stale_and_same_owner_reentry_is_busy() {
                     .lan
                     .as_mut()
                     .unwrap()
-                    .play
+                    .menus
                     .get_mut(&12)
                     .unwrap()
                     .crafting

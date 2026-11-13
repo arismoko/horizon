@@ -14,8 +14,19 @@ pub trait EntitiesHost {
     fn entity(&self, id: u32) -> Option<EntityRef>;
     /// Side: both.
     /// The level `dimension` (`minecraft:the_nether`) as a handle: on a client,
-    /// the level it shows, whatever the server calls it. None with no world
-    /// open, or for a dimension the server hasn't loaded. API 373.
+    /// the level it shows, whatever the server calls it, and each level the
+    /// server opened for viewing (`horizon:levels`) while that view is open. A
+    /// viewed level's handle answers its block reads from its own world:
+    /// `block_state`, `block`, `block_property`, `clip`, `collision_boxes`,
+    /// `has_collisions`, and the fluid reads built on `block_state`
+    /// (`fluid_shape`, `fluid_height`, `fluid_height_for_camera`,
+    /// `fluid_can_be_replaced_with`). Its other reads, its entity reads and
+    /// every write refuse it. It answers None while the server has the level
+    /// closed; a close and a later open within the same client level make the
+    /// old handle read again. A login, a reconfiguration or a respawn into
+    /// another level replaces the client level: the old handle stays stale and
+    /// the mod asks `host.level` again. None with no world open, or for a
+    /// dimension the server hasn't loaded. API 373.
     #[access(WorldOnly)]
     fn level(&self, dimension: &str) -> Option<LevelRef>;
 }
@@ -37,7 +48,7 @@ pub trait EntitiesServerHost {
     /// <kind> <pos> <nbt>` takes it; passengers included): its id. None on a
     /// client's copy of the world, for another dimension, a position outside
     /// `/summon`'s bounds, a chunk that isn't loaded, a kind Horizon can't
-    /// load, or one a mod kept out (`native_entity_join_level`).
+    /// load, or one a mod kept out (`entity_join_level`).
     #[access(WorldOnly)]
     fn summon(&mut self, dimension: &str, kind: &str, pos: [f64; 3], nbt: Compound) -> Option<u32>;
     /// Side: server.
@@ -59,7 +70,7 @@ pub trait EntitiesServerHost {
     /// Side: server.
     /// The experience orbs of the server level `dimension` whose box meets
     /// the box `min`..`max`, in the level's order: what a mod reads before it
-    /// cancels an orb in `native_entity_join_level`, to give its points with
+    /// cancels an orb in `entity_join_level`, to give its points with
     /// `PlayerRef::give_experience_points`. Empty for a level not in place, on a
     /// client of a server and for a bound that is not finite (NaN or infinite); a
     /// minimum above its maximum is the same box with the two swapped (`AABB`).
@@ -151,14 +162,14 @@ pub trait EntitiesBackend {
     /// `Entity.isPermanentlyInvulnerable`: the `Invulnerable` flag, which
     /// only damage that bypasses invulnerability (the void, `/kill`) or a
     /// creative player gets past. Mobs keep it on themselves (saved with
-    /// them), players on their body (#916, not saved: Horizon's player save
-    /// keeps no such field yet), the other kinds in the saved `Invulnerable`
-    /// tag of their entity data (#916) — the tag the item damage path
+    /// them), players on their body (not saved: Horizon's player save
+    /// keeps no such field), the other kinds in the saved `Invulnerable`
+    /// tag of their entity data — the tag the item damage path
     /// already refuses by.
     #[access(WorldOnly)]
     fn entity_permanently_invulnerable(&self, entity: EntityRef) -> Option<bool>;
     /// Side: server.
-    /// `Entity.invulnerableTime` (#916): the entity-level invulnerability
+    /// `Entity.invulnerableTime`: the entity-level invulnerability
     /// window, its own field on a mob and a player — never the living damage
     /// cooldown — and the saved `invulnerable_time` tag for the other kinds.
     /// Counted down by the base tick; `isTemporarilyInvulnerable` is it above
@@ -172,12 +183,12 @@ pub trait EntitiesBackend {
     #[access(WorldOnly)]
     fn entity_damage_cooldown_time(&self, entity: EntityRef) -> Option<i32>;
     /// Side: server.
-    /// `Entity.isInvulnerableTo` for a source of `damage_type`: #842's own
+    /// `Entity.isInvulnerableTo` for a source of `damage_type`: the entity's own
     /// decision, the guard every mob damage hook runs after — dead or
     /// removed, fire immunity, or the `Invulnerable` flag nothing but
     /// `#bypasses_invulnerability` gets past. None for a stale handle or a
     /// kind with no such decision (the player's paths answer their refusals
-    /// at hurt time). #924.
+    /// at hurt time).
     #[access(WorldOnly)]
     fn entity_invulnerable_to_damage(&self, entity: EntityRef, damage_type: &str) -> Option<bool>;
     /// Side: server.
@@ -185,7 +196,7 @@ pub trait EntitiesBackend {
     /// (`Player.canHarmPlayer`, `Team.allowFriendlyFire`,
     /// `DamageSource.doTeamsAllowDamage`): allies without friendly fire
     /// cannot. Entities without a team always can. None for a stale handle.
-    /// #924.
+    ///
     #[access(WorldOnly)]
     fn entity_entities_team_damage_allowed(
         &self,
@@ -195,8 +206,8 @@ pub trait EntitiesBackend {
     /// Side: server.
     /// `Entity.isInvulnerableToPiercingWeapon` (`isInvulnerable`): the
     /// `Invulnerable` flag; the temporary window `Entity.invulnerableTime`
-    /// opens does not exist yet (#916), so no hit answers through it. None
-    /// for a stale handle or a kind without the flag. #924.
+    /// opens is not represented, so no hit answers through it. None
+    /// for a stale handle or a kind without the flag.
     #[access(WorldOnly)]
     fn entity_invulnerable_to_piercing_weapon(&self, entity: EntityRef) -> Option<bool>;
 
@@ -369,7 +380,7 @@ pub trait EntitiesBackend {
     /// of it, a cart beside or on top of it, a strider by vanilla's search, a happy ghast on
     /// top, and any other mob beside or on top of it. A mob leaves a boat as a player does, a
     /// cart by vanilla's search, a horse, camel or llama at its side or feet, and any other mob
-    /// on top: vanilla's searches for `Animal` and the strider don't reach mobs yet, and those
+    /// on top: vanilla's searches for `Animal` and the strider do not reach mobs, and those
     /// for horses, `Animal` and the cart don't reach players. Nothing rides anything else, so
     /// there it is the top of the box. Reads only: no `mob_ride` or dismount veto is asked and
     /// the passenger's pose stays. `None` for a stale handle, a passenger other than a player
@@ -415,6 +426,23 @@ pub trait EntitiesBackend {
     /// false for the other kinds.
     #[access(WorldOnly)]
     fn entity_is_sprinting(&self, entity: EntityRef) -> Option<bool>;
+    /// Side: server.
+    /// The fluids the entity touched at its last fluid update, each with how deep its box is in
+    /// it (NeoForge's `IEntityExtension.getFluidTypeHeight`), highest first; empty in no fluid.
+    /// The one read behind `isInFluidType` in all its forms (any fluid, one type, a predicate
+    /// over this list) and `getMaxHeightFluidType` (the first entry). Fluids are named
+    /// `minecraft:water` and `minecraft:lava`, the ones the entity update tracks. Players and
+    /// mobs; None for other kinds and stale handles. Server only: a client keeps no fluid
+    /// state for the entities it shows, so the client half of #3341 is still to come.
+    #[access(WorldOnly)]
+    fn entity_fluid_heights(&self, entity: EntityRef) -> Option<Vec<(String, f64)>>;
+    /// Side: server.
+    /// The fluid at the entity's eyes from its last fluid update (NeoForge's
+    /// `IEntityExtension.getFirstEyeInFluidType`; `isEyeInFluidType` compares it):
+    /// `Some(None)` in air. Players and mobs; None for other kinds and stale handles. Server
+    /// only, as `entity_fluid_heights`.
+    #[access(WorldOnly)]
+    fn entity_eye_fluid(&self, entity: EntityRef) -> Option<Option<String>>;
     /// Side: server.
     /// Whether the entity touched water at its last fluid update
     /// (`Entity.isInWater`): players and mobs.
@@ -499,14 +527,14 @@ pub trait EntitiesBackendMut {
     /// Merges `nbt` into the entity's data and loads the entity from it, as
     /// `/data merge entity` does (`EntityDataAccessor.setData`): true when it
     /// changed. False for a player (vanilla refuses them too), a kind Horizon
-    /// can't reload yet (only mobs, dropped items, armor stands and item
+    /// cannot reload (only mobs, dropped items, armor stands and item
     /// frames), data nested too deep, or data that changes nothing. API
     /// 386.
     #[access(WorldOnly)]
     fn entity_merge_nbt(&mut self, entity: EntityRef, nbt: Compound) -> bool;
     /// Side: server.
     /// Adds tag `tag` (`Entity.addTag`): false when it has it already, holds
-    /// 1024, its kind can't store tags yet, or the handle is stale. API 386.
+    /// 1024, its kind cannot store tags, or the handle is stale. API 386.
     #[access(WorldOnly)]
     fn entity_add_tag(&mut self, entity: EntityRef, tag: &str) -> bool;
     /// Side: server.
@@ -518,7 +546,7 @@ pub trait EntitiesBackendMut {
     /// Names the entity (`Entity.setCustomName`), or takes its name away
     /// with `None`: its name, its saved `CustomName` and, for a mob or an
     /// armor stand, what the players tracking it are sent. False for a
-    /// player, a kind whose name Horizon keeps nowhere yet (projectiles, the
+    /// player, a kind whose name Horizon does not retain (projectiles, the
     /// dragon and crystals, primed TNT, falling blocks, experience orbs,
     /// ominous item spawners), a stale handle or on a client.
     #[access(WorldOnly)]
@@ -559,7 +587,7 @@ pub trait EntitiesBackendMut {
     #[access(WorldOnly)]
     fn entity_set_damage_cooldown_time(&mut self, entity: EntityRef, ticks: i32) -> bool;
     /// Side: server.
-    /// `Entity.setInvulnerableTime` (#916): the write side of
+    /// `Entity.setInvulnerableTime`: the write side of
     /// `entity_invulnerable_time`. False where the entity is gone or keeps
     /// no such field.
     #[access(WorldOnly)]
@@ -574,7 +602,7 @@ pub trait EntitiesBackendMut {
     /// dragon and crystal branches for the damageable rest. True when the
     /// damage was taken. None for a stale handle, false for a kind that
     /// cannot be hurt or an unregistered damage type. Stale direct/causing
-    /// handles are treated as absent sources. #924.
+    /// handles are treated as absent sources.
     #[access(WorldOnly)]
     fn entity_hurt(
         &mut self,
@@ -606,17 +634,30 @@ pub trait EntitiesBackendMut {
     ) -> bool;
     /// Side: server.
     /// Sends the entity to `pos` in the level `dimension` (`minecraft:the_nether`,
-    /// or a level a mod registered), as `/execute in <dimension> run tp` does
-    /// (`Entity.teleportTo(ServerLevel, ..)`): `pos` is in that level's own
-    /// coordinates (nothing scales it by `coordinate_scale`), a level nobody has
-    /// entered opens first, and a vehicle takes its passengers along. A player
-    /// arrives after the current tick, and `player_teleported` and
-    /// `player_changed_dimension` report the move. In the entity's own level
-    /// it is `entity_teleport_to`. False for what `entity_teleport_to` refuses,
-    /// a dimension that isn't registered, and kinds that cannot change level
-    /// (all but a player, a mob, a boat or a minecart). A fake player stays
-    /// where it is, and the call is still true. Nothing builds ground at the
-    /// destination.
+    /// or a level a mod registered), as `Entity.teleport` does with a portal's
+    /// transition: `pos` is in that level's own coordinates (nothing scales it
+    /// by `coordinate_scale`), a level nobody has entered opens first, and the
+    /// entity keeps its motion as it is, unturned (`Relative.DELTA`; a
+    /// minecart's is clamped to 0.4 along x and z, its `getKnownMovement`). A
+    /// mod that wants it stopped or turned sets its velocity first
+    /// (`entity_set_velocity`). It takes a player, a mob, a boat, a minecart (a
+    /// vehicle takes its passengers along), an item, a primed TNT, an experience
+    /// orb, an arrow, a trident, a firework and the thrown items and fireballs a
+    /// chunk saves. Into another level anything but a player is recreated there
+    /// with its stack, owner, thrower and portal cooldown, under a new handle:
+    /// the old one is stale. That move is a change of level, not a section
+    /// crossing: the section-crossing report (`entity_entering_section`) does not
+    /// tell it, the entity's later moves there are told as any entity's, and this
+    /// call adds no report of its own. A player arrives after the current tick,
+    /// still (its client holds its motion), and `player_teleported` and
+    /// `player_changed_dimension` report the move. In the entity's own level it
+    /// moves as `entity_teleport_to` does, keeping its motion. False for a stale
+    /// handle, what `entity_teleport_to` refuses, a dimension that isn't
+    /// registered, a primed TNT a mob rides, and the kinds it cannot move into
+    /// another level (armor stands, falling blocks, ender pearls, wind charges,
+    /// entities Horizon doesn't simulate). A fake player stays where it is, and
+    /// so does an entity whose travel a mod cancels (`entity_travel_to_dimension`);
+    /// the call is still true. Nothing builds ground at the destination.
     #[access(WorldOnly)]
     fn entity_teleport_to_level(
         &mut self,
@@ -625,6 +666,31 @@ pub trait EntitiesBackendMut {
         pos: [f64; 3],
         rotation: Option<[f32; 2]>,
     ) -> bool;
+    /// Side: server.
+    /// Runs the command `line` (a leading slash allowed) with the entity as
+    /// its source, as vanilla runs a portal's or a sign's command:
+    /// `ServerPlayer.createCommandSourceStack` (another entity:
+    /// `Entity.createCommandSourceStackForNameResolution`), `.withPermission(level)`,
+    /// then `Commands.performPrefixedCommand`. `level` is the mod's choice, taken
+    /// as given whether it is above or below the entity's own: the line is parsed
+    /// and checked at it. `@s` is the entity, and the command runs from its
+    /// position and rotation in its level. A player is answered as for their own
+    /// command: its feedback and failures reach their chat, and the other
+    /// operators hear of it (`broadcastToAdmins`). Another entity's source is
+    /// silent: nothing reaches anyone (`CommandSource.NULL`). A command a mod
+    /// registered hears a player as `CommandSource::Player` and another entity as
+    /// `CommandSource::Console`, both at `level`. A teleport to another level
+    /// happens at the next tick's start, as `Commands::run_command`'s. Whether
+    /// the command ran: false for a line that fails to parse or to run, and,
+    /// with nothing run, for a stale or removed entity, an entity outside the
+    /// level in place (a player in another level included: that level is
+    /// parked while the hook runs), and on a client.
+    /// During a guest's turn, live players (the acting one included) can run it
+    /// and are reachable; displaced outer players are neither, as on
+    /// `Commands::run_command`.
+    #[access(WorldOnly)]
+    fn entity_run_command(&mut self, entity: EntityRef, line: &str, level: PermissionLevel)
+    -> bool;
     /// Side: server.
     /// Turns the entity to `yaw` and `pitch` in degrees (`Entity.setYRot`,
     /// `setXRot`): the pitch wraps and is clamped to -90..90. False for kinds
@@ -644,6 +710,24 @@ pub trait EntitiesBackendMut {
     /// Horizon doesn't simulate, or a value that isn't finite.
     #[access(WorldOnly)]
     fn entity_push(&mut self, entity: EntityRef, delta: [f64; 3]) -> bool;
+    /// Side: server.
+    /// Sets the player's collision exclusions, boxes of its own level
+    /// (`[min_x, min_y, min_z, max_x, max_y, max_z]`) in which that level's blocks don't stop it:
+    /// the part of a block's collision shape inside a box doesn't collide, a block sharing volume
+    /// with one is no wall to suffocate in and doesn't act on the player inside it (cobwebs, powder
+    /// snow, damaging blocks), and the server's check of the player's moves reads
+    /// the same boxes. Entity colliders and the world border still stop it. Each call replaces
+    /// the last set; an empty slice clears it, and so do a change of level, a respawn and
+    /// leaving. Nothing is saved, and nothing reaches the player's client: its own half sets the
+    /// same boxes with `ClientHost::set_collision_exclusions`. Refused, keeping the set there
+    /// was: more than 64 boxes, a value that isn't finite, a minimum above its maximum, an
+    /// entity that isn't a player, a stale handle.
+    #[access(WorldOnly)]
+    fn entity_set_collision_exclusions(
+        &mut self,
+        entity: EntityRef,
+        boxes: &[[f64; 6]],
+    ) -> Result<(), CollisionExclusionsError>;
     /// Side: server.
     /// Removes the entity with no death and no loot (`Entity.discard`): a
     /// chest boat or a minecart with a chest still drops what it holds, and
@@ -695,7 +779,7 @@ pub trait EntitiesBackendMut {
     /// mob and up to two passengers in total. Generic seats admit one passenger unless forced.
     /// `force` bypasses normal admission checks, not these storage limits.
     /// Player boarding cooldown and the strider's
-    /// eye-in-lava admission check are not yet represented by the game.
+    /// eye-in-lava admission check are not represented by the game.
     #[access(WorldOnly)]
     fn entity_start_riding(&mut self, entity: EntityRef, vehicle: EntityRef, force: bool) -> bool;
     /// Side: server.

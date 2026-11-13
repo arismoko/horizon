@@ -10,8 +10,17 @@ pub trait Hooks {
     /// call (the block entity at `pos` reads as a `Mod` with an empty id, and
     /// a save leaves it out); if the call removes or replaces it, `entity` is
     /// dropped. Clients, the window's own in single player included, get
-    /// what `native_block_entity_update_tag` gives when its chunk is sent or
+    /// what `block_entity_update_tag` gives when its chunk is sent or
     /// its block changes.
+    /// Each Part starts with `Changed` and sees the preceding accepted payload.
+    /// `*event.reply = BlockEntityTickReply::Unchanged` discards only this Part's
+    /// payload edits: no reply snapshot is encoded, decoded or applied. Earlier
+    /// Parts' `Changed` edits survive later `Unchanged` replies.
+    /// If all Parts answer `Unchanged`, ticking alone does not dirty the chunk,
+    /// advance its revision or notify containers/comparators. The original
+    /// placeholder must still exist; independent Host writes keep their own effects,
+    /// including accepted item writes, while aborted Host transactions stay aborted.
+    /// The default `Changed` retains full checked write-back.
     #[hook(
         side = "server",
         contract = "listen",

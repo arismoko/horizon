@@ -1,4 +1,5 @@
 use super::*;
+use horizon_world::move_gate::MoveGate;
 /// `AgeableMob.isBaby` is `canBeABaby() && getAge() < 0`, and `Age` alone
 /// says nothing: the six ageable classes that override `canBeABaby` to
 /// false — `Frog`, `Parrot`, `ZombieNautilus`, `CamelHusk`, `Slime` and
@@ -422,7 +423,7 @@ fn a_falling_mob_lands_on_a_shulker_or_a_held_happy_ghast() {
     // Where a zombie starting 3 blocks above `below`'s top ends after 20
     // falling moves, with `below` in the mobs it sees.
     let landing = |below: &Mob| -> f64 {
-        let others = [below.seen(None)];
+        let others = [below.seen(None, &crate::items::Items::empty())];
         let w = MobWorld {
             professions: crate::mobs::villager::profession_table(),
             teams: Default::default(),

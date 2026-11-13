@@ -8,10 +8,10 @@ pub trait Hooks {
     /// in the level, so a listener reads its blocks through `ClientHost`. A
     /// column the server sends again while it is resident is told again.
     /// Only on a client of a server, a LAN guest included; an integrated
-    /// world's own chunks have the server's `native_chunk_load`. Client-side.
+    /// world's own chunks have the server's `chunk_load`. Client-side.
     #[notes = r##"## Client chunk load
 
-`native_client_chunk_load(dimension, chunk)` runs on a client of a server, a LAN
+`client_chunk_load(dimension, chunk)` runs on a client of a server, a LAN
 guest included, once for each `LevelChunkWithLight` packet the client adopts
 (vanilla's `ClientChunkCache.replaceWithPacketData`). It runs after the column
 and its block entities are in the client level, so a listener can read the
@@ -20,7 +20,7 @@ column's blocks through `ClientHost` (`host.level(dimension)`, then
 resident is told again, without an unload between. A biome packet
 (`ChunksBiomes`) tells nothing. `dimension` is the client level's dimension, as
 the server named it. An integrated world's own chunks have the server's
-`native_chunk_load` instead, and that hook is not called on the client."##]
+`chunk_load` instead, and that hook is not called on the client."##]
     #[hook(
         side = "client",
         contract = "listen",

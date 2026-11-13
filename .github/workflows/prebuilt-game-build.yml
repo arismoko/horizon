@@ -1,0 +1,131 @@
+name: prebuilt game build
+# The prebuilt game's build (#589), every OS, called by the daily run (daily.yml, its commit) and by prebuilt-game.yml
+# (a hand dispatch, which also publishes). It only builds, smokes and uploads the archives as this run's artifacts
+# (`horizon-prebuilt-v5-<target>[-server].tar.gz`): no job here writes anything, so a read-only caller may call it.
+# A commit whose prebuilt-<sha> release already exists stops early (output `needed` false).
+on:
+  workflow_call:
+    inputs:
+      commit:
+        description: The commit to build (default the caller's)
+        type: string
+        default: ''
+    outputs:
+      needed:
+        description: Whether prebuilt-<sha> was missing, so this run built it
+        value: ${{ jobs.fresh.outputs.needed }}
+      tag:
+        description: The release tag the archives publish under
+        value: ${{ jobs.fresh.outputs.tag }}
+permissions:
+  contents: read
+env:
+  TAG: prebuilt-${{ inputs.commit || github.sha }}
+jobs:
+  fresh:
+    # Main's head may already have its build: a quiet day, or a second dispatch.
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.release.outputs.needed }}
+      tag: ${{ env.TAG }}
+    steps:
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then echo needed=false; else echo needed=true; fi >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: fresh
+    if: needs.fresh.outputs.needed == 'true'
+    name: build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - name: linux-server
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            server: true
+          # The launcher builds native mods with the windows-gnu toolchain and its own MinGW linker.
+          - name: windows
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+          - name: macos
+            os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      # v<layout>: the launcher asks only for the archive layout it reads (prebuilt_archive in
+      # crates/horizon-mod-package/src/index/native.rs); bump both when the folder's layout changes.
+      ARCHIVE: horizon-prebuilt-v5-${{ matrix.target }}${{ matrix.server && '-server' || '' }}.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.commit }}
+      - name: The launcher's pinned Rust
+        id: rust
+        run: |
+          echo "version=$(cat tools/ci/rust-version)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}-${{ matrix.target }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: prebuilt-${{ matrix.name }}
+      - name: ALSA and udev headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev
+      - name: Build and collect
+        run: python tools/prebuilt_game.py build prebuilt ${{ matrix.server && '--server' || '' }}
+      - name: The starter mod and the game executable build against the archive alone
+        run: python tools/prebuilt_game.py smoke prebuilt
+      # Runs what smoke built, installed as the launcher installs it, with no game data: it loads the game's
+      # libraries and sets up the mods' runtime, and must stop cleanly at the missing prepared files. A crash
+      # there (two allocators, #3877) fails this OS's leg, so its archive never publishes.
+      - name: The game executable starts and loads the game's libraries
+        timeout-minutes: 10
+        run: python tools/prebuilt_game.py start prebuilt
+      - name: Exported names, toward Windows' 65,535
+        run: python tools/prebuilt_game.py exports prebuilt | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Archive
+        # Python's tarfile, not tar: macOS's bsdtar has no --sort, and the archive must come out
+        # the same on every OS (sorted ./ entries, zero times and owners, no gzip name or time).
+        run: |
+          python - <<'PY'
+          import gzip, os, tarfile
+          def clean(info):
+              info.mtime, info.uid, info.gid, info.uname, info.gname = 0, 0, 0, "", ""
+              return info
+          paths = ["."]
+          for root, dirs, files in os.walk("prebuilt"):
+              dirs.sort()
+              rel = os.path.relpath(root, "prebuilt")
+              paths += sorted(os.path.normpath(os.path.join(rel, n)) for n in dirs + files)
+          with open(os.environ["ARCHIVE"], "wb") as out, gzip.GzipFile(
+              filename="", mode="wb", fileobj=out, mtime=0
+          ) as gz, tarfile.open(fileobj=gz, mode="w", format=tarfile.GNU_FORMAT) as tar:
+              for path in sorted(set(paths)):
+                  name = "." if path == "." else "./" + path.replace(os.sep, "/")
+                  tar.add(os.path.join("prebuilt", path), arcname=name, recursive=False, filter=clean)
+          PY
+          echo "$(du -h "$ARCHIVE" | cut -f1) $ARCHIVE" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: ${{ env.ARCHIVE }}
+          if-no-files-found: error
+          retention-days: 7
+

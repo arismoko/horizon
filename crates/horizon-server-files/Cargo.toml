@@ -8,6 +8,8 @@ description = "The dedicated server's vanilla files: server.properties, eula.txt
 
 [dependencies]
 horizon-core = { path = "../horizon-core" }
+# server.properties and eula.txt are Java-properties files; the parser is shared with horizon-mod-wasm.
+horizon-java-properties = { path = "../horizon-java-properties" }
 horizon-protocol = { path = "../horizon-protocol" }
 horizon-world = { path = "../horizon-world" }
 serde = { version = "1", features = ["derive"] }

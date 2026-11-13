@@ -96,6 +96,25 @@ pub struct ArmorHurt {
 /// level event to play, `CLICK` (1000), `FAIL` (1001) or 0 for none.
 pub type Dispensed = (Option<ItemStack>, i32);
 
+// no wire: borrowed call-scoped view; transport uses owned snapshots.
+/// The table, location and initiating player of a container fill.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct ContainerLootFilled<'a> {
+    /// The rolled loot table id.
+    pub table: &'a str,
+    /// The dimension containing the target.
+    pub dimension: &'a str,
+    /// The block centre or container entity position.
+    pub origin: [f64; 3],
+    /// The container block position, for a block target.
+    pub block: Option<[i32; 3]>,
+    /// The container entity id, for a vehicle target.
+    pub entity: Option<u32>,
+    /// The UUID of the player whose open starts the fill; None otherwise.
+    pub opener: Option<u128>,
+}
+
 // no wire: borrowed call-scoped view; transport uses owned snapshots rather than serializing references.
 /// What dropped the items heard by the `loot_drops` hook.
 #[derive(Clone, Copy, Debug)]
@@ -279,14 +298,13 @@ impl StatType {
 /// A fishing catch, for `item_fished` (`ItemFishedEvent`).
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
-pub struct ItemFished<'a> {
+#[derive(horizon_mod_api_macros::Wire)]
+#[wire(internal_field_layouts)]
+pub struct ItemFished {
     /// The bobber's entity id and position.
     pub hook: u32,
     /// The position.
     pub position: [f64; 3],
-    /// The items the fishing loot table rolled, which the player receives
-    /// (`getDrops`: they can't be changed here; loot tables change them).
-    pub drops: &'a [ItemStack],
 }
 
 /// The slots an item's attribute modifier applies in (vanilla's

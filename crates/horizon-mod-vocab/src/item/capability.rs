@@ -77,12 +77,17 @@ impl<T: ?Sized + 'static> CapabilityKey<T> {
             handler: PhantomData,
         }
     }
+    /// Whether this key's published metadata marks unilateral forwarding to another block safe.
+    /// Unmarked and unknown capabilities are not proxyable.
+    pub fn is_proxyable(&self, host: &dyn crate::Host) -> bool {
+        crate::block_capability_proxyable(host, self.name)
+    }
 }
 
 /// Item slots, as NeoForge 26.3's `Capabilities.Item.BLOCK`: a block entity's slots as one side
 /// reaches them. The game answers it for every block entity with slots: chests (a double chest's
 /// two halves as one), furnaces, hoppers and the other vanilla containers, by their
-/// `WorldlyContainer` sides, and a mod block entity's `block_entity_container`.
+/// `WorldlyContainer` sides, and a mod block entity's `Registrar::block_container`.
 pub const ITEMS: CapabilityKey<dyn ResourceHandler<ItemResource>> = CapabilityKey {
     name: "horizon:items",
     default: Some(|host, at| {

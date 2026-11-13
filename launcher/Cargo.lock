@@ -2874,6 +2874,10 @@ name = "horizon-hooks"
 version = "0.1.0"
 
 [[package]]
+name = "horizon-java-properties"
+version = "0.1.0"
+
+[[package]]
 name = "horizon-launcher"
 version = "0.2.0"
 dependencies = [
@@ -2954,6 +2958,7 @@ dependencies = [
  "heck 0.5.0",
  "horizon-game-discovery",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -3034,6 +3039,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-mod-surface"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "horizon-mod-vocab"
 version = "0.1.0"
 dependencies = [
@@ -3066,6 +3080,7 @@ dependencies = [
  "horizon-core",
  "horizon-guest-stack",
  "horizon-hooks",
+ "horizon-java-properties",
  "horizon-mod-api-gen",
  "horizon-mod-point-shape",
  "horizon-perf-format",
@@ -3137,6 +3152,7 @@ dependencies = [
  "base64",
  "getrandom 0.3.4",
  "horizon-core",
+ "horizon-java-properties",
  "horizon-protocol",
  "horizon-world",
  "log",

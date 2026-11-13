@@ -115,8 +115,8 @@ impl LivingAirWorld for MotionWorld<'_, '_, '_> {
     fn is_player_class(&self) -> bool {
         true
     }
-    fn move_self(&mut self, v: Vec3) -> Result<()> {
-        MotionWorld::move_self(self, v)
+    fn move_self(&mut self, gate: &mut MoveGate, v: Vec3) -> Result<()> {
+        MotionWorld::move_self(self, gate, v)
     }
     fn horizontal_collision(&self) -> bool {
         self.player.collision.horizontal

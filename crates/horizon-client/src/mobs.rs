@@ -63,6 +63,7 @@ pub mod model_layers;
 pub mod monster_brain;
 pub mod nautilus;
 pub mod neutral_anger;
+mod type_attributes;
 pub use neutral_anger::{
     adopt_anger_end, anger_left, persistent_anger, resume_anger, settle_anger_end,
 };
@@ -201,28 +202,10 @@ pub use flags::Flags;
 #[cfg(test)]
 mod powder_snow_move_tests;
 
-/// The fields of [`MobType`] its type's attribute row gives, built by
-/// [`MobType::attribute_fields`]: the one map from an attribute to the
-/// field a mob spawns with.
-pub(crate) struct MobTypeAttributeFields {
-    pub max_health: f32,
-    pub speed: f64,
-    pub flying_speed: f64,
-    pub attack_damage: f32,
-    pub attack_knockback: f64,
-    pub follow_range: f64,
-    pub step_height: f64,
-    pub armor: f32,
-    pub armor_toughness: f32,
-    pub knockback_resistance: f64,
-    pub jump_strength: f64,
-    pub gravity: f64,
-    pub safe_fall_distance: f64,
-    pub fall_damage_multiplier: f64,
-    pub water_efficiency: f64,
-}
 #[derive(Clone, Debug)]
 pub struct MobType {
+    /// Resolved content renderer shadow; vanilla uses its normal table.
+    pub shadow: Option<(f32, f32)>,
     pub id: String,
     pub species: Species,
     pub width: f64,
@@ -244,6 +227,8 @@ pub struct MobType {
     pub attributes: Arc<HashMap<String, f64>>,
     /// Item defaults used when loading inventory-bearing mobs before a Game exists.
     pub item_stack_limits: Arc<HashMap<String, u32>>,
+    /// The bounds `finalize`'s attribute record clamps to, from the catalog.
+    pub attribute_bounds: finalize::AttrBounds,
     pub gravity: f64,
     pub safe_fall_distance: f64,
     pub fall_damage_multiplier: f64,
@@ -292,77 +277,6 @@ impl MobType {
     pub fn layer(&self, key: &str) -> Option<&Arc<Part>> {
         self.layers.get(key)
     }
-
-    /// The spawn fields an entity type's attribute row carries (its
-    /// `entity-types.json` row): the one map from an attribute to the field
-    /// a mob of the type spawns with, over the loader's own fallback. The
-    /// json's parser and the rest loader of a declared set (#845) both take
-    /// it, so the fields cannot drift from the row they read.
-    pub(crate) fn attribute_fields(value: impl Fn(&str) -> Option<f64>) -> MobTypeAttributeFields {
-        let attr = |k: &str| value(&format!("minecraft:{k}"));
-        MobTypeAttributeFields {
-            max_health: attr("max_health").unwrap_or(10.0) as f32,
-            speed: attr("movement_speed").unwrap_or(0.25),
-            flying_speed: attr("flying_speed").unwrap_or(0.4),
-            attack_damage: attr("attack_damage").unwrap_or(0.0) as f32,
-            attack_knockback: attr("attack_knockback").unwrap_or(0.0),
-            follow_range: attr("follow_range").unwrap_or(16.0),
-            step_height: attr("step_height").unwrap_or(0.6),
-            armor: attr("armor").unwrap_or(0.0) as f32,
-            armor_toughness: attr("armor_toughness").unwrap_or(0.0) as f32,
-            knockback_resistance: attr("knockback_resistance").unwrap_or(0.0),
-            jump_strength: attr("jump_strength").unwrap_or(0.42),
-            gravity: attr("gravity").unwrap_or(0.08),
-            safe_fall_distance: attr("safe_fall_distance").unwrap_or(3.0),
-            fall_damage_multiplier: attr("fall_damage_multiplier").unwrap_or(1.0),
-            water_efficiency: attr("water_movement_efficiency").unwrap_or(0.0),
-        }
-    }
-
-    /// Takes the type's row from the live attribute map's catalog (#845):
-    /// the merged row the map itself answers (the template's with the
-    /// declared set on top), as its attribute map and its spawn fields, so
-    /// the two records cannot diverge. Bases stay raw for base-value reads;
-    /// spawn fields use the catalog's computed-value sanitizer before narrowing.
-    pub fn take_attribute_row(
-        &mut self,
-        attributes: Arc<HashMap<String, f64>>,
-        catalog: &horizon_world::attributes::entity::Catalog,
-    ) {
-        let fields = Self::attribute_fields(|name| {
-            let base = *attributes.get(name)?;
-            let id = catalog.id(name)?;
-            Some(catalog.attribute(id).definition.sanitize(base))
-        });
-        self.attributes = attributes;
-        self.max_health = fields.max_health;
-        self.speed = fields.speed;
-        self.flying_speed = fields.flying_speed;
-        self.attack_damage = fields.attack_damage;
-        self.attack_knockback = fields.attack_knockback;
-        self.follow_range = fields.follow_range;
-        self.step_height = fields.step_height;
-        self.armor = fields.armor;
-        self.armor_toughness = fields.armor_toughness;
-        self.knockback_resistance = fields.knockback_resistance;
-        self.jump_strength = fields.jump_strength;
-        self.gravity = fields.gravity;
-        self.safe_fall_distance = fields.safe_fall_distance;
-        self.fall_damage_multiplier = fields.fall_damage_multiplier;
-        self.water_efficiency = fields.water_efficiency;
-    }
-
-    /// The vanilla entity type whose class this type's mobs are: the type
-    /// itself, or the template a content mod's living type copies. What a
-    /// class saves and syncs of its own (`Zombie.addAdditionalSaveData`, its
-    /// entity data) follows it; the saved and sent id stays [`Self::id`].
-    pub fn class_id(&self) -> &str {
-        if self.id.starts_with("minecraft:") {
-            &self.id
-        } else {
-            species::vanilla_id(self.species)
-        }
-    }
 }
 /// Each type's default attribute values, parsed exactly (serde_json's
 /// default float parsing can miss the nearest double by one ulp).
@@ -395,8 +309,10 @@ pub struct MobTypes {
     pub types: HashMap<String, MobType>,
 }
 impl MobTypes {
+    /// The types with the attribute catalog of the same resources
+    /// (`attributes.json`), for a caller without the game's own.
     pub fn load(root: &Path) -> crate::Result<Self> {
-        Self::load_with_models(root, true, None, None)
+        Self::load_with_models(root, true, None, None, &Self::root_catalog(root)?)
     }
 
     /// Load client mob data using defaults already decoded by the resource
@@ -405,39 +321,55 @@ impl MobTypes {
     pub fn load_with_defaults(
         root: &Path,
         defaults: &horizon_world::item_defaults::Defaults,
+        attributes: &horizon_world::attributes::entity::Catalog,
     ) -> crate::Result<Self> {
-        Self::load_with_models(root, true, None, Some(defaults))
+        Self::load_with_models(root, true, None, Some(defaults), attributes)
     }
 
     /// The dedicated server needs entity facts and AI, but never their render
     /// geometry. Keep one empty part for the fields shared with the client
     /// rather than parsing and retaining every entity-model layer.
-    pub fn load_for_server(root: &Path) -> crate::Result<Self> {
-        Self::load_with_models(root, false, None, None)
+    pub fn load_for_server(
+        root: &Path,
+        attributes: &horizon_world::attributes::entity::Catalog,
+    ) -> crate::Result<Self> {
+        Self::load_with_models(root, false, None, None, attributes)
     }
 
     /// The client startup already parsed `entity-models.json` for the handoff
     /// and the other model loaders; read the model layers from that copy.
     pub fn load_with_document(root: &Path, document: &EntityModelDocument) -> crate::Result<Self> {
-        Self::load_with_models(root, true, Some(document), None)
+        Self::load_with_models(root, true, Some(document), None, &Self::root_catalog(root)?)
     }
 
-    /// The client startup already has both the entity model document and the
-    /// item defaults. Reuse both instead of decoding either file again.
+    /// The client startup already has the entity model document, the item
+    /// defaults and the attribute catalog. Reuse them instead of decoding
+    /// their files again.
     pub fn load_with_document_and_defaults(
         root: &Path,
         document: &EntityModelDocument,
         defaults: &horizon_world::item_defaults::Defaults,
+        attributes: &horizon_world::attributes::entity::Catalog,
     ) -> crate::Result<Self> {
-        Self::load_with_models(root, true, Some(document), Some(defaults))
+        Self::load_with_models(root, true, Some(document), Some(defaults), attributes)
     }
 
+    fn root_catalog(root: &Path) -> crate::Result<horizon_world::attributes::entity::Catalog> {
+        let json = horizon_world::json_file::read(&root.join("attributes.json"))?;
+        Ok(horizon_world::attributes::entity::Catalog::from_json(
+            &json,
+        )?)
+    }
+
+    /// `attributes`: the catalog whose bounds the types' mobs clamp to.
     fn load_with_models(
         root: &Path,
         models_needed: bool,
         document: Option<&EntityModelDocument>,
         item_defaults: Option<&horizon_world::item_defaults::Defaults>,
+        attributes: &horizon_world::attributes::entity::Catalog,
     ) -> crate::Result<Self> {
+        let attribute_bounds = finalize::AttrBounds::of(attributes);
         let bytes = fs::read(root.join("entity-types.json"))?;
         let types: Value = serde_json::from_slice(&bytes)?;
         let exact = exact_attributes(&bytes);
@@ -534,7 +466,7 @@ impl MobTypes {
                 continue;
             }
             let defaults = exact.get(&id).cloned().unwrap_or_default();
-            let fields = MobType::attribute_fields(|name| defaults.get(name).copied());
+            let fields = MobType::catalog_fields(&defaults, attributes);
             let mut layers = crate::fast_hash::FxHashMap::default();
             if let Some(all) = models.as_ref().and_then(|m| m.value().as_object()) {
                 for prefix in def.layer_prefixes() {
@@ -561,8 +493,10 @@ impl MobTypes {
             out.insert(
                 id.clone(),
                 MobType {
+                    shadow: crate::shadows::content_shadow(t),
                     species: def.species,
                     item_stack_limits: item_stack_limits.clone(),
+                    attribute_bounds,
                     width: t["width"].as_f64().unwrap_or(0.6),
                     height: t["height"].as_f64().unwrap_or(1.8),
                     eye_height: t["eye_height"].as_f64().unwrap_or(1.6),
@@ -1041,7 +975,7 @@ pub struct Extra {
     /// (saved as `DeathLootTable`).
     pub death_loot_table: Option<String>,
     /// `Mob.lootTableSeed` (`DeathLootTableSeed`): 0 for none.
-    pub death_loot_seed: i64,
+    pub death_table_seed: i64,
     /// `Rabbit.moreCarrotTicks`: how long it is full of carrots (saved as `MoreCarrotTicks`).
     pub more_carrot_ticks: i32,
     /// `Ocelot.DATA_TRUSTING`: it no longer runs from players.
@@ -1630,8 +1564,8 @@ pub struct Mob {
     /// `Stats.DAMAGE_DEALT_ABSORBED` to the player whose turn it is (see [`Mob::soak_hit`]).
     pub dealt_absorbed: i32,
     pub last_damage: Option<(Damage, i64)>,
-    /// Whether the most recent projectile damage call committed its source.
-    pub projectile_damage_committed: bool,
+    pub accepted_hit: Option<std::sync::Arc<crate::health::AcceptedHit>>,
+    pub death_canceled: bool,
     /// `DamageSource.getDirectEntity` of `last_damage` when [`Damage`] cannot name it (a
     /// thrown potion, an area effect cloud): its entity type.
     pub last_direct: Option<&'static str>,
@@ -1750,11 +1684,11 @@ pub enum MobEvent {
         mob: u32,
         at: [f64; 3],
     },
-    /// `LivingEntity.baseTick`'s drowning damage: entity event 67, the
-    /// clients' `makeDrownParticles`.
+    /// `LivingEntity.baseTick`'s drowning: entity event 67 for 8 `bubbles`, else that many particles.
     Drown {
         mob: u32,
         at: [f64; 3],
+        bubbles: i32,
     },
     /// PowderSnowBlock.entityInside's snowflake with vanilla's sampled velocity.
     PowderSnowParticle {
@@ -1877,7 +1811,7 @@ pub enum MobEvent {
     ArmorHurt {
         mob: u32,
         amount: f32,
-        kind: DamageKind,
+        source: crate::health::HurtSource<'static>,
     },
     /// `LivingEntity.updateFallFlying`: every 20 glide ticks the glider in
     /// `slot` (the one `Util.getRandom` picked) takes one point of wear,
@@ -2911,11 +2845,11 @@ impl Mob {
         self.ticks_frozen >= crate::motion::PlayerMotion::TICKS_REQUIRED_TO_FREEZE
     }
 
-    /// What other mobs see of this one this tick (`_player` is unused: it keyed the villager
-    /// reputation that nothing read). Inline: the game's snapshot of every mob writes each one in
-    /// its slot, not through a copy.
+    /// What other mobs see of this one this tick, its villager food counted by `items` (`_player`
+    /// is unused: it keyed the villager reputation that nothing read). Inline: the game's snapshot
+    /// of every mob writes each one in its slot, not through a copy.
     #[inline]
-    pub fn seen(&self, _player: Option<[i32; 4]>) -> Seen {
+    pub fn seen(&self, _player: Option<[i32; 4]>, items: &crate::items::Items) -> Seen {
         let m = self;
         let villager = m.species() == Species::Villager;
         Seen {
@@ -2933,7 +2867,7 @@ impl Mob {
             baby: m.is_baby(),
             // A villager is "in love" when it is willing to breed (`canBreed`).
             in_love: if villager {
-                villager::can_breed(m)
+                villager::can_breed(m, items)
             } else {
                 m.extra.in_love > 0
             },
@@ -2975,7 +2909,7 @@ impl Mob {
             custom_profession: villager::seen_profession_name(m, villager),
             secondary_variant: m.extra.variant2,
             xp: villager::xp(m),
-            villager: villager.then(|| Arc::new(villager::seen(m))),
+            villager: villager.then(|| Arc::new(villager::seen(m, items))),
             stats: [
                 f64::from(m.attrs.max_health),
                 m.extra.vector[0],
@@ -3242,6 +3176,7 @@ pub fn apply_brain_events(
                     direct: None,
                     held: [held, None],
                     player_uuid: None,
+                    ..Default::default()
                 };
                 let (aim, fish_pos, fish_silent) = fish
                     .map(|m| {
@@ -3516,36 +3451,8 @@ pub trait ModEffectTicks {
     /// effect stays at no ticks and asks again next tick.
     fn effect_expired(&self, mob: u32, effect: usize, amplifier: i32, cancel: &mut bool);
 }
-/// Native mod hooks the mob AI asks while it decides.
-pub trait MobHooks {
-    /// `EnderManAngerEvent`: whether a mod keeps enderman `enderman` calm
-    /// though `player` stares at it.
-    fn enderman_anger_suppressed(&self, enderman: u32, player: &PlayerView) -> bool;
-    /// `EntityMobGriefingEvent`: whether mob `mob` may grief, `rule` (the
-    /// `mob_griefing` game rule) unless a mod says otherwise.
-    fn can_grief(&self, mob: u32, rule: bool) -> bool;
-    /// Whether `can_grief` may differ from the rule (a mod listens), so a
-    /// scan that griefing off would skip still has to run.
-    fn grief_hooked(&self) -> bool;
-    /// `LivingVisibilityEvent`: `visibility`, the player's visibility
-    /// percent as mob `looking` targets it, as mods scale it.
-    fn living_visibility(&self, player: &PlayerView, looking: u32, visibility: f64) -> f64;
-    /// `LivingVisibilityEvent` for a mob target `target`: its visibility
-    /// percent as mob `looking` targets it, as mods scale it.
-    fn living_visibility_mob(&self, _target: u32, _looking: u32, visibility: f64) -> f64 {
-        visibility
-    }
-    /// A proposed target change. A listener may cancel or substitute a target.
-    fn living_change_target(
-        &self,
-        _mob: &mut Mob,
-        _world: &MobWorld<'_>,
-        _is_brain: bool,
-        target: Option<Who>,
-    ) -> TargetChange {
-        TargetChange::Set(target)
-    }
-}
+mod mob_hooks;
+pub use mob_hooks::MobHooks;
 /// Outcome of a target-change event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetChange {
@@ -3848,7 +3755,8 @@ impl Mob {
             absorption: 0.0,
             dealt_absorbed: 0,
             last_damage: None,
-            projectile_damage_committed: false,
+            accepted_hit: None,
+            death_canceled: false,
             last_direct: None,
             combat: combat::Tracker::default(),
             removed: false,
@@ -4135,7 +4043,7 @@ impl Mob {
             return false;
         }
         if !self.attacker_allows_damage(&source)
-            || !ai::accepts_damage(self, &source, amount, level.attack().player_uuid)
+            || !ai::accepts_damage(self, &source, amount, level.attack())
         {
             return false;
         }
@@ -4350,10 +4258,7 @@ impl Mob {
         if !absorbed && dealt != 0.0 {
             self.record_damage(source, dealt);
         }
-        if through != 0.0 {
-            container.record_health_damage(through);
-            level.damage_post(crate::health::Hurting::Mob(self, &source), &container);
-        }
+        container.record_health_damage(through);
         // LivingEntity.hurtArmor: `Horse` is the only mob that overrides it, and
         // it hands `doHurtEquipment` the body slot alone. A wolf's armour has
         // its own rule (`Wolf.actuallyHurt`, `hurt_wolf_armor`) and a player's
@@ -4366,7 +4271,7 @@ impl Mob {
             self.outbox.push(MobEvent::ArmorHurt {
                 mob: self.id,
                 amount: damage,
-                kind: source.kind,
+                source: crate::health::mob_source(&source, level.attack()),
             });
         }
         // Animal.actuallyHurt: damage taken ends love mode (`resetLove`).
@@ -4378,9 +4283,6 @@ impl Mob {
         let success = blocked <= 0.0 || amount > 0.0;
         if success {
             self.last_damage = Some((source, i64::from(self.age)));
-            if self.projectile_motion.is_some() {
-                self.projectile_damage_committed = true;
-            }
         }
         self.last_direct = None;
         if let Some(who) = source.attacker {
@@ -4410,6 +4312,7 @@ impl Mob {
             // `death_protection` item in either hand instead of dying.
             self.use_death_protection(level, &source);
         }
+        self.remember_accepted_hit(level, &source, success);
         if knock {
             // playHurtSound (Mob: also resets the ambient sound clock) or the
             // death sound: makeSound draws the voice pitch whenever there is a sound.
@@ -4464,6 +4367,8 @@ impl Mob {
                 self.outbox.push(MobEvent::Infested { at, velocities });
             }
         }
+        // The last of `LivingEntity.hurtServer`: `LivingDamageEvent.Post`, health taken or not.
+        level.damage_post(crate::health::Hurting::Mob(self, &source), &container);
         // Shulker.hurtServer: the low-health teleport roll after `super.hurtServer`.
         if success && self.species() == Species::Shulker {
             shulker::after_hurt(self);
@@ -5055,9 +4960,10 @@ impl Mob {
             self.position.z,
         ]
     }
+    /// `Entity.playSound(event, 1.0, 1.0)`: at the feet, and nothing while silent.
     pub fn sound(&self, event: &'static str, events: &mut Vec<MobEvent>) {
-        let at = [self.position.x, self.eye_y(), self.position.z];
-        events.push(MobEvent::Sound(event, at, 1.0, 1.0));
+        let at = [self.position.x, self.position.y, self.position.z];
+        events.extend((!self.silent).then_some(MobEvent::Sound(event, at, 1.0, 1.0)));
     }
     /// `Mob.getAmbientSoundInterval`; `HappyGhast` waits six times as long
     /// while it carries a passenger.
@@ -5096,9 +5002,8 @@ impl Mob {
     }
     /// Mob.playSound with LivingEntity.getVoicePitch.
     pub fn voice(&mut self, event: &'static str, events: &mut Vec<MobEvent>) {
-        // Java evaluates the arguments of `playSound(event, getSoundVolume(),
-        // getVoicePitch())` before the call, so the pitch is drawn even for a
-        // silent entity, whose `Entity.playSound` then plays nothing.
+        // Java draws the pitch before `Entity.playSound` looks at isSilent, so a
+        // silent entity draws it and then plays nothing.
         let pitch = self.voice_pitch();
         if self.silent {
             return;
@@ -5494,6 +5399,7 @@ pub(crate) mod sensor_scan_tests {
 
     pub(crate) fn kind() -> Arc<MobType> {
         Arc::new(MobType {
+            shadow: None,
             id: "minecraft:cow".into(),
             species: Species::Cow,
             width: 0.9,
@@ -5513,6 +5419,7 @@ pub(crate) mod sensor_scan_tests {
             jump_strength: 0.42,
             attributes: Arc::default(),
             item_stack_limits: Default::default(),
+            attribute_bounds: Default::default(),
             gravity: 0.08,
             safe_fall_distance: 3.0,
             fall_damage_multiplier: 1.0,
@@ -5599,7 +5506,7 @@ pub(crate) mod sensor_scan_tests {
                     pen = Vec3::new(next(side), 64.0, next(side));
                 }
                 let at = Vec3::new(pen.x + next(8.0), 64.0, pen.z + next(8.0));
-                Mob::new(id, kind.clone(), at, 0.0).seen(None)
+                Mob::new(id, kind.clone(), at, 0.0).seen(None, &crate::items::Items::empty())
             })
             .collect();
         let grid = seen_grid::SeenGrid::new(seen.iter().map(|s| s.bounds));
@@ -6834,7 +6741,8 @@ mod effect_refusal_tests {
         if !root.join("entity-types.json").exists() {
             return;
         }
-        let types = MobTypes::load_for_server(&root).unwrap();
+        let types =
+            MobTypes::load_for_server(&root, &MobTypes::root_catalog(&root).unwrap()).unwrap();
         let refused = |id: &str, effect: &'static str| {
             let mut m = mob(&types, id);
             m.add_effect(effect, 200, 0);
@@ -6918,7 +6826,8 @@ mod effect_refusal_tests {
 
     fn check_squid_damage_result(id: &str) {
         let root = std::path::PathBuf::from(std::env::var_os("HORIZON_TEST_RESOURCES").unwrap());
-        let types = MobTypes::load_for_server(&root).unwrap();
+        let types =
+            MobTypes::load_for_server(&root, &MobTypes::root_catalog(&root).unwrap()).unwrap();
         let mut attacker = mob(&types, "minecraft:cow");
         attacker.id = 2;
         attacker.position = Vec3::new(4.0, 64.0, 4.0);
@@ -6992,7 +6901,8 @@ mod effect_refusal_tests {
         if !root.join("entity-types.json").exists() {
             return;
         }
-        let types = MobTypes::load_for_server(&root).unwrap();
+        let types =
+            MobTypes::load_for_server(&root, &MobTypes::root_catalog(&root).unwrap()).unwrap();
         let mut test_level = crate::health::TestLevel::new(0);
         let level = &mut test_level.level();
         let mut burned = mob(&types, "minecraft:glow_squid");

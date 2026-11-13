@@ -26,6 +26,7 @@ mod movement_properties;
 mod placement_bounds;
 mod placement_queries;
 mod processor_bounds;
+mod registered_biome_source;
 mod retrogen_biomes;
 mod rule_test_bounds;
 mod snbt_unicode_order;

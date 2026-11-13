@@ -727,7 +727,7 @@ mod tests {
         for m in [&mut a, &mut b, &mut c] {
             m.extra.in_love = 600;
         }
-        let partner = [b.seen(None)];
+        let partner = [b.seen(None, &crate::items::Items::empty())];
         crate::mobs::world::with_test_world(&partner, |w, _| {
             let events = run_goals(&mut a, w, 80);
             assert!(
@@ -768,16 +768,19 @@ mod tests {
             return;
         };
         baby.extra.age = -24000;
-        crate::mobs::world::with_test_world(&[adult.seen(None)], |w, _| {
-            run_goals(&mut baby, w, 1);
-            assert!(baby.ai.goals.is_running("BabyFollowAdult"));
-            set_state(&mut baby, SCARED);
-            run_goals(&mut baby, w, 1);
-            assert!(
-                !baby.ai.goals.is_running("BabyFollowAdult"),
-                "not as a ball"
-            );
-        });
+        crate::mobs::world::with_test_world(
+            &[adult.seen(None, &crate::items::Items::empty())],
+            |w, _| {
+                run_goals(&mut baby, w, 1);
+                assert!(baby.ai.goals.is_running("BabyFollowAdult"));
+                set_state(&mut baby, SCARED);
+                run_goals(&mut baby, w, 1);
+                assert!(
+                    !baby.ai.goals.is_running("BabyFollowAdult"),
+                    "not as a ball"
+                );
+            },
+        );
     }
 
     #[test]
@@ -792,14 +795,17 @@ mod tests {
                 return;
             };
             baby.extra.age = -24000;
-            crate::mobs::world::with_test_world(&[adult.seen(None)], |w, _| {
-                run_goals(&mut baby, w, 1);
-                assert_eq!(
-                    baby.ai.goals.is_running("BabyFollowAdult"),
-                    follows,
-                    "x = {x}"
-                );
-            });
+            crate::mobs::world::with_test_world(
+                &[adult.seen(None, &crate::items::Items::empty())],
+                |w, _| {
+                    run_goals(&mut baby, w, 1);
+                    assert_eq!(
+                        baby.ai.goals.is_running("BabyFollowAdult"),
+                        follows,
+                        "x = {x}"
+                    );
+                },
+            );
         }
     }
 
@@ -810,10 +816,13 @@ mod tests {
             return;
         };
         baby.extra.age = -24000;
-        crate::mobs::world::with_test_world(&[adult.seen(None)], |w, _| {
-            run_goals(&mut baby, w, 1);
-            assert!(!baby.ai.goals.is_running("BabyFollowAdult"));
-        });
+        crate::mobs::world::with_test_world(
+            &[adult.seen(None, &crate::items::Items::empty())],
+            |w, _| {
+                run_goals(&mut baby, w, 1);
+                assert!(!baby.ai.goals.is_running("BabyFollowAdult"));
+            },
+        );
     }
 
     #[test]

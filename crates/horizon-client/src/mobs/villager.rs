@@ -5,7 +5,7 @@ use super::{
     Mob, MobEvent, MobWorld, Species,
     anim::{Poses, State},
 };
-use crate::items::ItemStack;
+use crate::items::{ItemStack, Items};
 use horizon_core::geometry::trig::Mth;
 use horizon_core::random::RandomSource;
 use std::f32::consts::PI;
@@ -242,6 +242,16 @@ pub fn bed_facing_code(facing: Option<&str>) -> i32 {
         _ => 4,
     }
 }
+/// `LivingEntity.getBedOrientation`: the way the bed it sleeps in faces, as `sleep_pose` keeps it.
+pub fn bed_orientation(m: &Mob) -> Option<mod_api::Direction> {
+    Some(match m.extra.ints[1] {
+        1 => mod_api::Direction::North,
+        2 => mod_api::Direction::South,
+        3 => mod_api::Direction::West,
+        4 => mod_api::Direction::East,
+        _ => return None,
+    })
+}
 pub fn sleep_pose(m: &Mob) -> Option<(f32, [f32; 2])> {
     Some(match m.extra.ints[1] {
         1 => (270.0, [0.0, -1.0]),
@@ -470,15 +480,11 @@ pub fn gift_table(m: &Mob) -> String {
 
 /// `VillagerFood` nutrition (`DataComponents.VILLAGER_FOOD`).
 ///
-/// The item registry's value: a data pack's or a mod's item with the component
-/// counts, as one with vanilla's four does. Until a registry is loaded (tests)
-/// those four.
-pub fn food_points(item: &str) -> i32 {
-    horizon_items::items::villager_food(item).unwrap_or(match item {
-        "minecraft:bread" => 4,
-        "minecraft:potato" | "minecraft:carrot" | "minecraft:beetroot" => 1,
-        _ => 0,
-    })
+/// The value in `items`, the registry the villager lives with: a data pack's
+/// or a mod's item with the component counts, as one with vanilla's four does;
+/// an item the registry lacks feeds nothing.
+pub fn food_points(items: &Items, item: &str) -> i32 {
+    items.villager_food(item).unwrap_or(0)
 }
 /// The farmer's `requestedItems` (`VillagerProfession.FARMER`). Food is picked
 /// up and traded separately, through its villager food value.
@@ -550,29 +556,29 @@ pub(crate) fn load_container(
 }
 
 impl Ext {
-    /// `countFoodPointsInInventory`.
-    pub fn food_in_inventory(&self) -> i32 {
+    /// `countFoodPointsInInventory`, by the food values of `items`.
+    pub fn food_in_inventory(&self, items: &Items) -> i32 {
         self.inventory
             .iter()
-            .map(|s| food_points(&s.item) * s.count as i32)
+            .map(|s| food_points(items, &s.item) * s.count as i32)
             .sum()
     }
     /// `hasExcessFood` and `wantsMoreFood`.
-    pub fn has_excess_food(&self) -> bool {
-        self.food_in_inventory() >= 24
+    pub fn has_excess_food(&self, items: &Items) -> bool {
+        self.food_in_inventory(items) >= 24
     }
-    pub fn wants_more_food(&self) -> bool {
-        self.food_in_inventory() < 12
+    pub fn wants_more_food(&self, items: &Items) -> bool {
+        self.food_in_inventory(items) < 12
     }
     fn hungry(&self) -> bool {
         self.food_level < 12
     }
     /// `Villager.eatAndDigestFood`: eat until full, then digest 12 points.
-    pub fn eat_and_digest(&mut self) {
+    pub fn eat_and_digest(&mut self, items: &Items) {
         if self.hungry() {
             let mut slot = 0;
             while slot < self.inventory.len() && self.hungry() {
-                let points = food_points(&self.inventory[slot].item);
+                let points = food_points(items, &self.inventory[slot].item);
                 if points > 0 {
                     while self.inventory[slot].count > 0 && self.hungry() {
                         self.food_level += points;
@@ -695,7 +701,7 @@ pub struct Seen {
 }
 impl Seen {
     /// `LivingEntity.getVisibilityPercent`, for a targeting villager.
-    pub fn visibility(&self, items: Option<&crate::items::Items>) -> f64 {
+    pub fn visibility(&self, items: Option<&Items>) -> f64 {
         let mut value = if self.crouching { 0.8 } else { 1.0 };
         if self.invisible {
             let cover = self.armor.iter().filter(|i| i.is_some()).count() as f32 / 4.0;
@@ -725,7 +731,8 @@ impl Seen {
         self.food_points < 12
     }
 }
-pub fn seen(m: &Mob) -> Seen {
+/// What other villagers see of `m`, its food counted by `items`.
+pub fn seen(m: &Mob, items: &Items) -> Seen {
     let e = ext(m);
     let (interaction_target, path_nodes, golem_detected, last_slept) =
         super::villager_brain::seen_memories(m);
@@ -741,7 +748,7 @@ pub fn seen(m: &Mob) -> Seen {
         .map(|slot| m.extra.slot_stack(slot).map(|s| s.item.clone())),
         gossips: e.map(|e| e.gossips.clone()).unwrap_or_default(),
         last_gossip_time: e.map_or(0, |e| e.last_gossip_time),
-        food_points: e.map_or(0, Ext::food_in_inventory),
+        food_points: e.map_or(0, |e| e.food_in_inventory(items)),
         interaction_target,
         path_nodes,
         last_slept: last_slept.or(e.and_then(|e| e.last_slept)),
@@ -760,15 +767,17 @@ pub struct Meeting {
 }
 /// `TradeWithVillager.tick` for villagers `a` and `b` (indices into `mobs`):
 /// `Villager.gossip` (at most once in 1200 ticks for both), then surplus
-/// food and wanted wares taken out of `a`'s inventory.
+/// food and wanted wares taken out of `a`'s inventory, by the food values
+/// and stack sizes of `items`.
 pub fn meet(
     mobs: &mut crate::join_seq::JoinList<Mob>,
     a: usize,
     b: usize,
     now: i64,
-    max_stack: impl Fn(&str) -> u32,
+    items: &Items,
     table: &ResolvedProfessions,
 ) -> Meeting {
+    let max_stack = |item: &str| items.get(item).map_or(64, |i| i.max_stack);
     let ready = ext(&mobs[a]).is_none_or(|e| e.can_gossip(now))
         && ext(&mobs[b]).is_none_or(|e| e.can_gossip(now));
     if ready {
@@ -783,13 +792,13 @@ pub fn meet(
     }
     // Surplus food goes to a hungry neighbour (farmers hand it to anyone).
     let farmer = is_farmer(&mobs[a]);
-    let wants_more = ext(&mobs[b]).is_none_or(Ext::wants_more_food);
-    let excess = ext(&mobs[a]).is_some_and(Ext::has_excess_food);
+    let wants_more = ext(&mobs[b]).is_none_or(|e| e.wants_more_food(items));
+    let excess = ext(&mobs[a]).is_some_and(|e| e.has_excess_food(items));
     let mut thrown = Vec::new();
     if excess
         && (farmer || wants_more)
         && let Some(s) =
-            ext_mut(&mut mobs[a]).take_half_stack(|s| food_points(&s.item) > 0, &max_stack)
+            ext_mut(&mut mobs[a]).take_half_stack(|s| food_points(items, &s.item) > 0, max_stack)
     {
         thrown.push(s);
     }
@@ -797,7 +806,7 @@ pub fn meet(
     if farmer
         && ext(&mobs[a]).is_some_and(|e| e.count_item("minecraft:wheat") > 32)
         && let Some(s) =
-            ext_mut(&mut mobs[a]).take_half_stack(|s| &*s.item == "minecraft:wheat", &max_stack)
+            ext_mut(&mut mobs[a]).take_half_stack(|s| &*s.item == "minecraft:wheat", max_stack)
     {
         thrown.push(s);
     }
@@ -811,7 +820,7 @@ pub fn meet(
         .collect();
     if !wanted.is_empty()
         && let Some(s) =
-            ext_mut(&mut mobs[a]).take_half_stack(|s| wanted.contains(&&*s.item), &max_stack)
+            ext_mut(&mut mobs[a]).take_half_stack(|s| wanted.contains(&&*s.item), max_stack)
     {
         thrown.push(s);
     }
@@ -950,12 +959,25 @@ pub fn summon_golem<L: super::spawn_rules::SpawnLevel, R: RandomSource, T>(
 pub fn finalize_summoned_golem(m: &mut Mob, random: &mut impl RandomSource) {
     super::finalize::mob_spawn(m, random);
 }
-/// `Villager.canBreed`: enough food, awake and an adult.
-pub fn can_breed(m: &Mob) -> bool {
+/// `Villager.canBreed`: enough food (by the values of `items`), awake and an
+/// adult.
+pub fn can_breed(m: &Mob, items: &Items) -> bool {
     m.species() == Species::Villager
         && m.extra.age == 0
         && !sleeping(m)
-        && ext(m).map_or(0, |e| e.food_level + e.food_in_inventory()) >= 12
+        && ext(m).map_or(0, |e| e.food_level + e.food_in_inventory(items)) >= 12
+}
+/// [`can_breed`] by the registry of `w`: a world without item data counts no
+/// food, so its villagers never breed.
+pub fn can_breed_in(m: &Mob, w: &MobWorld) -> bool {
+    w.items.is_some_and(|items| can_breed(m, items))
+}
+/// [`Ext::eat_and_digest`] by the registry of `w`, for a parent of
+/// `VillagerMakeLove`: breeding needs that registry ([`can_breed_in`]).
+pub fn eat_and_digest_in(m: &mut Mob, w: &MobWorld) {
+    if let Some(items) = w.items {
+        ext_mut(m).eat_and_digest(items);
+    }
 }
 
 /// The saved fields (`FoodLevel`, `Gossips`, `LastGossipDecay`, `Inventory`,
@@ -1392,6 +1414,7 @@ mod tests {
         use crate::mobs::{Anim, Brain, Flags, MobType, Part, Species};
         use std::sync::Arc;
         let kind = Arc::new(MobType {
+            shadow: None,
             id: "minecraft:villager".into(),
             species: Species::Villager,
             width: 0.6,
@@ -1411,6 +1434,7 @@ mod tests {
             jump_strength: 0.42,
             attributes: Arc::default(),
             item_stack_limits: Default::default(),
+            attribute_bounds: Default::default(),
             gravity: 0.08,
             safe_fall_distance: 3.0,
             fall_damage_multiplier: 1.0,
@@ -1588,31 +1612,37 @@ mod tests {
     fn stack(item: &str, count: u32) -> ItemStack {
         ItemStack::new(item, count)
     }
+    /// The registry these fixtures' villagers live with: vanilla's four foods.
+    fn vanilla_food() -> Items {
+        crate::test_resources::villager_food_items(&crate::test_resources::VANILLA_VILLAGER_FOOD)
+    }
     #[test]
     fn eating_fills_the_food_level_then_digests() {
+        let items = &vanilla_food();
         let mut e = Ext {
             inventory: vec![stack("minecraft:bread", 3), stack("minecraft:carrot", 5)],
             ..Default::default()
         };
-        assert_eq!(e.food_in_inventory(), 17);
+        assert_eq!(e.food_in_inventory(items), 17);
         // Hungry below 12: three breads fill it exactly, then 12 digest away.
-        e.eat_and_digest();
+        e.eat_and_digest(items);
         assert_eq!(e.food_level, 0);
         assert_eq!(e.inventory.len(), 1);
         assert_eq!(e.inventory[0].count, 5);
         // Five carrots are not enough to be full again, and are all eaten.
-        e.eat_and_digest();
+        e.eat_and_digest(items);
         assert_eq!(e.food_level, 5 - 12);
         assert!(e.inventory.is_empty());
     }
     #[test]
     fn willingness_to_breed_needs_twelve_food_points() {
+        let items = &vanilla_food();
         let mut e = Ext::default();
-        assert!(e.wants_more_food() && !e.has_excess_food());
+        assert!(e.wants_more_food(items) && !e.has_excess_food(items));
         e.inventory.push(stack("minecraft:bread", 6));
-        assert!(e.has_excess_food() && !e.wants_more_food());
+        assert!(e.has_excess_food(items) && !e.wants_more_food(items));
         e.food_level = -5;
-        assert_eq!(e.food_level + e.food_in_inventory(), 19);
+        assert_eq!(e.food_level + e.food_in_inventory(items), 19);
     }
     #[test]
     fn the_inventory_has_eight_stacking_slots() {
@@ -1694,8 +1724,25 @@ mod tests {
     }
     #[test]
     fn villager_food_values() {
-        assert_eq!(food_points("minecraft:bread"), 4);
-        assert_eq!(food_points("minecraft:beetroot"), 1);
-        assert_eq!(food_points("minecraft:apple"), 0);
+        let items = &vanilla_food();
+        assert_eq!(food_points(items, "minecraft:bread"), 4);
+        assert_eq!(food_points(items, "minecraft:beetroot"), 1);
+        assert_eq!(food_points(items, "minecraft:apple"), 0);
+    }
+    /// A villager's snapshot counts its food by the registry it is taken with:
+    /// another registry built since, or alongside, never answers for it.
+    #[test]
+    fn a_snapshot_counts_food_by_its_own_registry() {
+        let vanilla = vanilla_food();
+        let starved = crate::test_resources::villager_food_items(&[("minecraft:bread", 0)]);
+        let mut m = villager();
+        ext_mut(&mut m).inventory.push(stack("minecraft:bread", 3));
+        let fed = m.seen(None, &vanilla);
+        let hungry = m.seen(None, &starved);
+        assert_eq!(fed.villager.as_ref().map(|v| v.food_points), Some(12));
+        assert!(fed.in_love && !fed.villager.unwrap().wants_more_food());
+        assert_eq!(hungry.villager.as_ref().map(|v| v.food_points), Some(0));
+        assert!(!hungry.in_love && hungry.villager.unwrap().wants_more_food());
+        assert!(can_breed(&m, &vanilla) && !can_breed(&m, &starved));
     }
 }

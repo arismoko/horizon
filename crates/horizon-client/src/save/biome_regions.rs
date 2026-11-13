@@ -1,6 +1,6 @@
 //! A world's biome regions: `data/horizon/biome_regions.dat`, the region layout of each
 //! dimension fixed when the world was created and changed only by its owner's recorded choice.
-//! Design: `docs/modding/src/concepts/mod-biome-regions.md`.
+//! Design: `docs/design/mod-api/mod-biome-regions.md`.
 use super::{DatIssue, Result, Tag, write_dat_durable};
 use horizon_core::nbt::JavaString;
 use horizon_core::{

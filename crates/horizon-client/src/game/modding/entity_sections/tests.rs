@@ -609,3 +609,41 @@ fn a_client_is_told_each_teleport_and_where_its_entities_really_are() {
         })
     });
 }
+
+/// A mod's `teleport_to_level` into another level is a change of level, not a crossing: the
+/// recreated entity is filed in the new level untold (its join), this call tells nothing of its
+/// own, and its next move there over a section edge is told once.
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn an_entity_moved_into_another_level_is_told_once_at_its_next_crossing() {
+    observe(|calls| {
+        with_game(|game| {
+            game.native_lifecycle.world_open_ready().unwrap();
+            game.summon_with_nbt(
+                "minecraft:item",
+                [8.5, 80.0, 8.5],
+                r#"{Item:{id:"minecraft:stick",count:1},NoGravity:1b}"#,
+            )
+            .unwrap();
+            game.lan_assign_ids();
+            let item = game.entity(game.dropped[0].id).unwrap();
+            assert!(game.entity_teleport_to_level(
+                item,
+                "minecraft:the_nether",
+                [8.5, 80.0, 8.5],
+                None
+            ));
+            assert!(
+                calls.lock().unwrap().is_empty(),
+                "the change of level is not told"
+            );
+            game.enter_level(Nether).unwrap();
+            let moved = game.dropped[0].id;
+            game.teleport_to(Target::Item(moved), [24.5, 80.0, 8.5], None, true);
+            assert_eq!(
+                calls.lock().unwrap().as_slice(),
+                &[(false, moved, [0, 5, 0], [1, 5, 0], true)]
+            );
+        })
+    });
+}

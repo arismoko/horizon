@@ -353,63 +353,86 @@ class ReleaseTrainTests(unittest.TestCase):
         gates = [job(name) for name in ("lint", "verify", "verify-static", "launcher", "pool-watch")]
         records = [record("pr", 1, "pull_request"), record("topic", 2, branch="topic"),
                    record("new", 3), record("good", 4), record("old", 5)]
-        jobs = {3: gates + [job("client-data", conclusion="failure")],
-                4: gates, 30: [job("fixture")], 40: [job("fixture")]}
-        fixture_sha = {"new": "different", "good": "good"}
+        jobs = {3: gates[:-1], 4: gates + [job("client-data", conclusion="failure")]}
         def api(*arguments):
             self.assertEqual(arguments[:4], ("api", "--paginate", "--slurp", arguments[3]))
             path = arguments[3]
+            self.assertNotIn("wasm-mods.yml", path, "the fixture runs in the daily run, not on main pushes")
             if "dyna-ci.yml/runs?" in path:
                 self.assertIn("branch=main&event=push", path)
                 return [{"workflow_runs": records[:3]}, {"workflow_runs": records[3:]}]
-            if "wasm-mods.yml/runs?" in path:
-                sha = path.split("head_sha=")[1].split("&")[0]
-                return [{"workflow_runs": [record(fixture_sha[sha], 30 if sha == "new" else 40)]}]
             ident = int(path.split("/runs/")[1].split("/")[0])
             self.assertIn("filter=latest", path)
             return [{"jobs": jobs[ident][:2]}, {"jobs": jobs[ident][2:]}]
         with mock.patch.object(train, "REPO", "arismoko/horizon"), \
                 mock.patch.object(train, "gh_json", side_effect=api) as requests:
-            self.assertEqual(train.green_main_head(parity=True), "good")
-            fixture_sha["new"] = "new"
-            self.assertEqual(train.green_main_head(), "new", "non-gate failure must not reject a build")
+            self.assertEqual(train.green_main_head(parity=True), "good", "missing gate is not success")
+            self.assertEqual(train.green_main_head(), "good", "non-gate failure must not reject a build")
+            jobs[3] = gates
+            self.assertEqual(train.green_main_head(), "new")
             requests.reset_mock()
             self.assertEqual(train.green_main_head(eligible=lambda sha: sha == "good"), "good")
             paths = [call.args[3] for call in requests.call_args_list]
-            self.assertFalse(any("/runs/3/jobs" in path or "head_sha=new&" in path for path in paths))
+            self.assertFalse(any("/runs/3/jobs" in path for path in paths))
             self.assertTrue(any("/runs/4/jobs" in path for path in paths))
-            for status, conclusion in [("queued", None), ("in_progress", "success"),
-                                       ("completed", "skipped"), ("completed", "cancelled"),
-                                       ("completed", "failure"), ("completed", None),
-                                       ("completed", "unknown")]:
-                with self.subTest(status=status, conclusion=conclusion):
-                    jobs[3] = gates[:-1] + [job("pool-watch", status, conclusion)]
-                    self.assertEqual(train.green_main_head(), "good")
-                    jobs[3] = gates
-                    jobs[30] = [job("fixture", status, conclusion)]
-                    self.assertEqual(train.green_main_head(), "good")
-                    jobs[30] = [job("fixture")]
-            jobs[3] = gates[:-1]
-            self.assertEqual(train.green_main_head(), "good", "missing gate is not success")
-            for name in ("verify", "verify-static"):
+            for name in ("verify", "verify-static", "pool-watch"):
                 for status, conclusion in [("queued", None), ("in_progress", "success"),
                                            ("completed", "skipped"), ("completed", "cancelled"),
                                            ("completed", "failure"), ("completed", "timed_out")]:
                     with self.subTest(gate=name, status=status, conclusion=conclusion):
                         jobs[3] = [entry for entry in gates if entry["name"] != name] + [job(name, status, conclusion)]
                         self.assertEqual(train.green_main_head(), "good")
-                jobs[3] = [entry for entry in gates if entry["name"] != name]
-                self.assertEqual(train.green_main_head(), "good", f"missing {name} is not success")
             records.insert(3, record("new", 99))
             jobs[99] = gates
             self.assertEqual(train.green_main_head(), "good", "an older run cannot override the latest run")
-            jobs[3] = gates
-            fixture_sha["new"] = "different"
-            fixture_sha["good"] = "different"
-            records[:] = records[:5]
-            self.assertIsNone(train.green_main_head(), "gates on different SHAs cannot be combined")
             records[:] = records[:2]
             self.assertIsNone(train.green_main_head(), "PR checks cannot supply a release base")
+
+    def test_the_daily_nightly_skips_only_the_batch_rules(self):
+        fresh = [{"number": 7, "labels": [], "paths": ["crates/horizon-world/src/lib.rs"],
+                  "merged_at": NOW - dt.timedelta(minutes=1)}]
+        self.assertFalse(train.decision("game", fresh, NOW)[0], "the batch train waits for more")
+        release, reason = train.decision("game", fresh, NOW, daily=True)
+        self.assertTrue(release, "one fresh player-facing pull request publishes from a green daily")
+        self.assertIn("daily run", reason)
+        self.assertEqual(train.decision("game", fresh, NOW, paused=True, daily=True),
+                         (False, "RELEASES_PAUSED is set"))
+        self.assertEqual(train.decision("game", [], NOW, daily=True),
+                         (False, "no merged pull request changed what players run"),
+                         "the commit the published nightly was built on: nothing to publish")
+        self.assertFalse(train.decision("game", fresh, NOW, blockers=[4], daily=True)[0])
+
+    def test_fork_channels_check_daily_green_or_the_gate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=folder, text=True, stderr=subprocess.DEVNULL).strip()
+            git("init", "-q", "-b", "main")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.invalid")
+            commits = []
+            for n in range(3):
+                git("commit", "-q", "--allow-empty", "-m", str(n))
+                commits.append(git("rev-parse", "HEAD"))
+            git("tag", "daily-green", commits[1])
+            with mock.patch.object(train, "ROOT", Path(folder)):
+                self.assertEqual(train.channel_head("nightly", ""), commits[1], "the default is daily-green itself")
+                self.assertEqual(train.channel_head("nightly", "daily-green"), commits[1])
+                for other in (commits[0], commits[2]):
+                    with self.assertRaisesRegex(SystemExit, "is not the commit `daily-green` points to"):
+                        train.channel_head("nightly", other)
+                git("tag", "-d", "daily-green")
+                with self.assertRaisesRegex(SystemExit, "no `daily-green` tag yet"):
+                    train.channel_head("nightly", "")
+        green = {"workflow_runs": [dict(head_sha="s", head_branch="main", event="push", id=7)]}
+        gates = [{"jobs": [dict(name=name, status="completed", conclusion="success")
+                           for name in ("lint", "verify", "verify-static", "launcher")]}]
+        with mock.patch.object(train, "REPO", "arismoko/horizon"), \
+                mock.patch.object(train, "gh_json", side_effect=[[green], gates]):
+            self.assertEqual(train.channel_head("snapshot", "s"), "s", "a snapshot needs the gate only")
+        with mock.patch.object(train, "REPO", "arismoko/horizon"), \
+                mock.patch.object(train, "gh_json", side_effect=[[green], [{"jobs": gates[0]["jobs"][:3]}]]):
+            with self.assertRaisesRegex(SystemExit, "a snapshot needs the gate green"):
+                train.channel_head("snapshot", "s")
 
     def test_a_release_is_published_only_after_its_smoke_test_and_with_no_blocker(self):
         drew = {"error": None, "frames": 12710, "chunks": 81, "meshed_sections": 550, "player": [160.5, 71.0, 156.5]}

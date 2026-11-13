@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""mdBook preprocessor: render generated chapters (catalog notes, wasm boundary coverage)
-without writing a generated source page."""
+"""mdBook preprocessor: render the Hook notes chapter from the catalog's notes without writing a
+generated source page."""
 import json
 from pathlib import Path
 import subprocess
 import sys
 
 PAGE = "reference/hook-notes.md"
-COVERAGE_PAGE = "wasm-coverage.md"
 
 
 def expand(book, content, title, path):
@@ -41,9 +40,6 @@ def generated(context, chapter):
 def preprocess(context, book):
     return expand(book, generated(context, "notes"), "Hook notes", PAGE)
 
-
-def coverage(context, book):
-    return expand(book, generated(context, "coverage"), "Wasm boundary coverage", COVERAGE_PAGE)
 
 
 if __name__ == "__main__" and sys.argv[1:2] != ["supports"]:

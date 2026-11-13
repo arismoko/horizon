@@ -112,6 +112,7 @@ impl PlayerMotion {
             hurt_log: Vec::new(),
             attack_log: Vec::new(),
             border: None,
+            collision_exclusions: Default::default(),
         })
     }
 }

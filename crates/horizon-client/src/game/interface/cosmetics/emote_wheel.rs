@@ -45,6 +45,7 @@ fn at(cx: f32, cy: f32, radius: f32, angle: f32) -> [f32; 2] {
 impl Game<'_> {
     /// Opens the wheel from play.
     pub(in crate::game) fn open_emote_wheel(&mut self) {
+        self.native_input.mappings.release_all();
         self.refresh_owned_emotes();
         self.cosmetics.wheel = Wheel {
             opened: Some(Instant::now()),

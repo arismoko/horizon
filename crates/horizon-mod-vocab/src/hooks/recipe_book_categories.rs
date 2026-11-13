@@ -6,7 +6,7 @@ pub trait Hooks {
     /// `RecipeBookCategory::displays` from the type's own opaque recipe JSON.
     /// Each category names its menu, book identity and per-book search group.
     /// The display/index load boundary returns typed errors; screen integration
-    /// is separate. This declaration does not register a settings book (#2415).
+    /// is separate. This declaration does not register a settings book.
     #[hook(
         side = "both",
         contract = "listen",

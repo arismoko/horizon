@@ -513,6 +513,7 @@ class RunnerPackagesTests(unittest.TestCase):
         image = ("FROM ${DYNA_CI_BASE}\nRUN apt-get update && apt-get install -y --no-install-recommends \\\n"
                  "    xvfb xauth x11-xkb-utils xkb-data pkg-config libasound2-dev libudev-dev libxkbcommon-x11-dev \\\n"
                  "    libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev libxcursor1 libxi6 libxrandr2 \\\n"
+                 "    valgrind libc6-dbg gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \\\n"
                  "    && rm -rf /var/lib/apt/lists/*\n")
         listed = check.LIST.read_text()
         with tempfile.TemporaryDirectory() as directory:
@@ -530,6 +531,6 @@ class RunnerPackagesTests(unittest.TestCase):
             self.assertIsNone(outcome(image, listed))
             for dropped in ("xauth", "x11-xkb-utils", "xkb-data"):
                 self.assertIn(f"lacks: {dropped}", outcome(image, listed.replace(f"\n{dropped}\n", "\n")))
-            self.assertIn("lacks: extra-package", outcome(image.replace("libxrandr2", "libxrandr2 extra-package"), listed))
+            self.assertIn("lacks: extra-package", outcome(image.replace("libxrandr2 ", "libxrandr2 extra-package "), listed))
             self.assertIn("beyond the image: mesa-vulkan-drivers", outcome(image, listed + "mesa-vulkan-drivers\n"))
             self.assertIn("no apt-get install", outcome("FROM base\n", listed))

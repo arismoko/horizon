@@ -2,6 +2,7 @@
 //! interactions, liquid containers (waterlogging) and bucket pickup.
 use super::{
     Behaviours, LevelAccess, Sim, Spread,
+    buckets::{Douse, Drain, PlacedLiquid},
     classes::{Class, Interface},
     update::{HORIZONTAL, above, below, rel},
 };
@@ -316,46 +317,81 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         fluid: FluidState,
         creative: bool,
     ) -> bool {
+        let Some(placed) = self.plan_place_liquid(pos, state, fluid, creative) else {
+            return false;
+        };
+        self.apply_placed_liquid(pos, placed);
+        true
+    }
+    /// What `placeLiquid` does once decided: put a lit block out, set the waterlogged block,
+    /// tick the water and play a dried ghast's sound.
+    pub(crate) fn apply_placed_liquid(&mut self, pos: BlockPos, placed: PlacedLiquid) {
+        self.douse(pos, placed.douse);
+        self.set_block_and_update(pos, placed.to);
+        self.schedule_fluid_tick(pos, placed.fluid, placed.delay);
+        self.placed_in_water(pos, placed);
+    }
+    /// What `LiquidBlockContainer.placeLiquid` of `fluid` into `state` at `pos` does, decided
+    /// against the level as it is: None where it refuses (another fluid than water, a block
+    /// without `waterlogged` or one waterlogged already, or `canPlaceLiquid` saying no).
+    pub(crate) fn plan_place_liquid(
+        &self,
+        pos: BlockPos,
+        state: BlockStateId,
+        fluid: FluidState,
+        creative: bool,
+    ) -> Option<PlacedLiquid> {
         let b = self.b;
         if !self.can_place_liquid(state, fluid.kind(), creative)
             || fluid.kind() != FluidKind::Water
             || !b.table.has(state, b.props.waterlogged)
+            || b.is_waterlogged(state)
         {
-            return false;
+            return None;
         }
-        if b.is_waterlogged(state) {
-            return false;
-        }
-        let mut next = b.table.set_bool(state, b.props.waterlogged, true);
+        let mut to = b.table.set_bool(state, b.props.waterlogged, true);
         let data = b.data(state);
-        if (data.is(Class::Candle) || data.is(Class::Campfire)) && b.table.bool(state, b.props.lit)
+        let douse = if (data.is(Class::Candle) || data.is(Class::Campfire))
+            && b.table.bool(state, b.props.lit)
         {
-            next = b.table.set_bool(next, b.props.lit, false);
-            if data.is(Class::Campfire) {
-                self.emit(super::LevelEvent::Sound {
-                    pos,
-                    sound: "minecraft:entity.generic.extinguish_fire".into(),
-                    volume: 1.0,
-                    pitch: 1.0,
-                });
-            } else {
-                self.emit(super::LevelEvent::Sound {
-                    pos,
-                    sound: "minecraft:block.candle.extinguish".into(),
-                    volume: 1.0,
-                    pitch: 1.0,
-                });
-            }
-            // `CampfireBlock.douse` and `AbstractCandleBlock.extinguish` both
-            // end with `level.gameEvent(null, GameEvent.BLOCK_CHANGE, pos)`,
-            // before `placeLiquid` sets the waterlogged block.
-            self.game_event(pos, "minecraft:block_change");
-        }
-        self.set_block_and_update(pos, next);
-        let delay = self.fluid_tick_delay(fluid.kind(), pos);
-        self.schedule_fluid_tick(pos, fluid.kind(), delay);
-        // DriedGhastBlock.placeLiquid: its own place-in-water sound.
-        if data.is(Class::DriedGhast) {
+            to = b.table.set_bool(to, b.props.lit, false);
+            Some(match data.is(Class::Campfire) {
+                true => Douse::Campfire,
+                false => Douse::Candle,
+            })
+        } else {
+            None
+        };
+        Some(PlacedLiquid {
+            to,
+            fluid: fluid.kind(),
+            delay: self.fluid_tick_delay(fluid.kind(), pos),
+            douse,
+            dried_ghast: data.is(Class::DriedGhast),
+        })
+    }
+    /// `CampfireBlock.douse` and `AbstractCandleBlock.extinguish`: the sound, then
+    /// `level.gameEvent(null, GameEvent.BLOCK_CHANGE, pos)`, both before `placeLiquid` sets the
+    /// waterlogged block.
+    pub(crate) fn douse(&mut self, pos: BlockPos, douse: Option<Douse>) {
+        let Some(douse) = douse else {
+            return;
+        };
+        let sound = match douse {
+            Douse::Campfire => "minecraft:entity.generic.extinguish_fire",
+            Douse::Candle => "minecraft:block.candle.extinguish",
+        };
+        self.emit(super::LevelEvent::Sound {
+            pos,
+            sound: sound.into(),
+            volume: 1.0,
+            pitch: 1.0,
+        });
+        self.game_event(pos, "minecraft:block_change");
+    }
+    /// `DriedGhastBlock.placeLiquid`: its own place-in-water sound, after the block is set.
+    pub(crate) fn placed_in_water(&mut self, pos: BlockPos, placed: PlacedLiquid) {
+        if placed.dried_ghast {
             self.emit(super::LevelEvent::Sound {
                 pos,
                 sound: "minecraft:block.dried_ghast.place_in_water".into(),
@@ -363,7 +399,6 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
                 pitch: 1.0,
             });
         }
-        true
     }
     /// `BucketPickup.pickupBlock`: true when a fluid was taken.
     pub(crate) fn pickup_block(
@@ -372,42 +407,61 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         state: BlockStateId,
         creative: bool,
     ) -> bool {
-        let b = self.b;
-        if b.instance_of(state, Class::Liquid) {
-            if b.table.int(state, b.props.level) == 0 {
-                self.set_block(pos, b.air(), 11);
-                return true;
-            }
+        let Some(drain) = self.plan_pickup_block(pos, state, creative) else {
             return false;
+        };
+        self.set_block(pos, drain.to, drain.flags);
+        if drain.burst {
+            // PowderSnowBlock.pickupBlock: the block breaks with its particles and sound.
+            self.level_event(2001, pos, state.0 as i32);
+        }
+        // Asked after the write, as vanilla asks it.
+        if drain.drained && !self.can_survive(state, pos) {
+            self.destroy_block(pos, true, 512);
+        }
+        true
+    }
+    /// What `BucketPickup.pickupBlock` does to `state` at `pos`, decided against the level as
+    /// it is: None where the block gives nothing.
+    pub(crate) fn plan_pickup_block(
+        &self,
+        pos: BlockPos,
+        state: BlockStateId,
+        creative: bool,
+    ) -> Option<Drain> {
+        let b = self.b;
+        let removed = |burst| Drain {
+            to: b.air(),
+            flags: 11,
+            drained: false,
+            breaks: false,
+            burst,
+        };
+        if b.instance_of(state, Class::Liquid) {
+            return (b.table.int(state, b.props.level) == 0).then(|| removed(false));
         }
         if b.implements(state, Interface::SimpleWaterlogged)
             && b.table.has(state, b.props.waterlogged)
         {
             // `BarrierBlock.pickupBlock`: only a creative player drains one.
-            if b.instance_of(state, Class::Barrier) && !creative {
-                return false;
+            if (b.instance_of(state, Class::Barrier) && !creative) || !b.is_waterlogged(state) {
+                return None;
             }
-            if b.is_waterlogged(state) {
-                self.set_block_and_update(pos, b.table.set_bool(state, b.props.waterlogged, false));
-                if !self.can_survive(state, pos) {
-                    self.destroy_block(pos, true, 512);
-                }
-                return true;
-            }
-            return false;
+            // `SimpleWaterloggedBlock.pickupBlock`: a block that can't survive drained breaks.
+            return Some(Drain {
+                to: b.table.set_bool(state, b.props.waterlogged, false),
+                flags: super::flags::UPDATE_ALL,
+                drained: true,
+                breaks: !self.can_survive(state, pos),
+                burst: false,
+            });
         }
         if b.is_block(state, b.named.bubble_column) {
             // BubbleColumnBlock.pickupBlock: the column is removed, the bucket is water.
-            self.set_block(pos, b.air(), 11);
-            return true;
+            return Some(removed(false));
         }
-        if b.is_block(state, b.named.powder_snow) {
-            // PowderSnowBlock.pickupBlock: the block breaks with its particles and sound.
-            self.set_block(pos, b.air(), 11);
-            self.level_event(2001, pos, state.0 as i32);
-            return true;
-        }
-        false
+        b.is_block(state, b.named.powder_snow)
+            .then(|| removed(true))
     }
     fn can_hold_any_fluid(&self, state: BlockStateId) -> bool {
         self.is_liquid_container(state) || self.b.in_set(state, &self.b.tags.washed_away_by_fluids)

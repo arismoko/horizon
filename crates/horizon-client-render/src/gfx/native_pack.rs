@@ -307,6 +307,7 @@ mod tests {
     /// a validation panic (#10095).
     #[test]
     fn a_pack_the_backend_refuses_is_an_error_not_a_panic() {
+        let _gpu = crate::gfx::test_gpu::lock();
         use horizon_shader_api::{MANIFEST, Pack, check};
         let instance = crate::gfx::test_gpu::instance();
         let Ok(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {

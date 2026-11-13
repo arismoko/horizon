@@ -707,6 +707,14 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
             if !fire && self.level.is_client_side() {
                 self.level_event(2001, *pos, state.0 as i32);
             }
+            // NeoForge's onDestroyedByPushReaction: the level hears it before the removal.
+            self.level.on_destroyed_by_push_reaction(
+                self.ticks,
+                *pos,
+                state,
+                push_direction,
+                b.fluid(state),
+            );
             self.set_block(*pos, b.air(), 18);
             self.game_event(*pos, "minecraft:block_destroy");
             to_update.push(state);

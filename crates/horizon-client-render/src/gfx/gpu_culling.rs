@@ -349,7 +349,7 @@ pub(super) struct FrameInputs<'a> {
     /// The cave-culling graph, while cave culling runs and has one
     /// (`Occlusion::reach`); `None`: every section counts as reached.
     pub reach: Option<Reach<'a>>,
-    /// The eye (gfx.rs `projection_center`), while solid quads facing away
+    /// The eye (`view::projection_center`), while solid quads facing away
     /// from it are left out (`sides_on`); `None`: every solid quad is drawn. A
     /// GPU frame has no water mirror, whose eye below would see more of them.
     pub eye: Option<Vec3>,
@@ -1724,7 +1724,7 @@ mod tests {
     /// The frustum `draw_frame` culls with for the view and projection `m`, and
     /// the eye it leaves out the faces turned away from (`projection_center`).
     fn through(m: Mat4) -> (Frustum, Vec3) {
-        let eye = super::super::projection_center(m).expect("a perspective");
+        let eye = super::super::view::projection_center(m).expect("a perspective");
         let planes = super::super::frustum(m);
         (Frustum { planes }, eye)
     }
@@ -2731,69 +2731,7 @@ mod tests {
         assert!(worst[2].max(worst[3]) > 1.0 / SCALE, "{worst:?}");
     }
 
-    /// A device of `backends` that draws counts with first instances, if this
-    /// machine has one; on DirectX 12, `compiler` compiles its shaders. Not
-    /// Intel's Gen11 and Gen12 Vulkan driver, which gets first instances wrong
-    /// and is never offered GPU culling (`supported`).
-    fn device(
-        backends: wgpu::Backends,
-        compiler: wgpu::Dx12Compiler,
-        name: &str,
-    ) -> Option<(wgpu::Device, wgpu::Queue)> {
-        let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
-        desc.backends = backends;
-        desc.backend_options.dx12.shader_compiler = compiler;
-        let instance = wgpu::Instance::new(desc);
-        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).ok()?;
-        let needed =
-            wgpu::Features::MULTI_DRAW_INDIRECT_COUNT | wgpu::Features::INDIRECT_FIRST_INSTANCE;
-        let timing = adapter.features()
-            & (wgpu::Features::TIMESTAMP_QUERY
-                | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES
-                | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
-                | wgpu::Features::SHADER_EARLY_DEPTH_TEST);
-        if !adapter.features().contains(needed)
-            || super::super::flat::is_broken_intel_vulkan(&adapter.get_info())
-        {
-            return None;
-        }
-        eprintln!("GPU culling on {} ({name})", adapter.get_info().name);
-        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            required_features: needed | timing,
-            ..Default::default()
-        }))
-        .ok()
-    }
-
-    /// `test` on each device here that draws counts with first instances:
-    /// Vulkan, and DirectX 12 with each of its compilers. Players' DirectX 12
-    /// compiles with FXC, part of Windows, and with DXC (`dxcompiler.dll`,
-    /// beside the game in the Windows x64 zip) on integrated GPUs
-    /// (`gfx/dx12_compiler.rs`).
-    fn on_each_device(test: impl Fn(&wgpu::Device, &Queue)) {
-        let mut tested = false;
-        for (backends, compiler, name) in [
-            (wgpu::Backends::VULKAN, Default::default(), "Vulkan"),
-            (
-                wgpu::Backends::DX12,
-                wgpu::Dx12Compiler::Fxc,
-                "DirectX 12, FXC",
-            ),
-            (
-                wgpu::Backends::DX12,
-                wgpu::Dx12Compiler::default_dynamic_dxc(),
-                "DirectX 12, DXC",
-            ),
-        ] {
-            if let Some((device, queue)) = device(backends, compiler, name) {
-                test(&device, &Queue::new(queue, false));
-                tested = true;
-            }
-        }
-        if !tested {
-            eprintln!("no GPU with indirect count draws: skipped");
-        }
-    }
+    use crate::gfx::test_gpu::culling::on_each_device;
 
     fn read(
         device: &wgpu::Device,

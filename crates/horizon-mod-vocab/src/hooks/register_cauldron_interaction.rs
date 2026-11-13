@@ -4,7 +4,7 @@ pub trait Hooks {
     /// in registration order; duplicate entries refuse preparation.
     #[notes = "## Cauldron interactions
 
-`register_cauldron_interaction` registers item and item-tag callbacks on both sides. See [Registering cauldron interactions](../how-to/native-mods.md#registering-cauldron-interactions) for the read-only decision, transactional fire, duplicate refusal and server-corrected prediction contract."]
+`register_cauldron_interaction` registers item and item-tag callbacks on both sides. See [Registering cauldron interactions](../how-to/world/cauldron-interactions.md) for the read-only decision, transactional fire, duplicate refusal and server-corrected prediction contract."]
     #[hook(
         side = "both",
         contract = "listen",

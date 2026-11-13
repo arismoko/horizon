@@ -261,7 +261,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         self.control_input_signal(rel(pos, cw), cw, only_diodes)
             .max(self.control_input_signal(rel(pos, ccw), ccw, only_diodes))
     }
-    fn diode_input_signal(&self, pos: BlockPos, state: BlockStateId) -> i32 {
+    fn diode_input_signal(&mut self, pos: BlockPos, state: BlockStateId) -> i32 {
         let b = self.b;
         let facing = b.facing(state);
         let target = rel(pos, facing);
@@ -292,7 +292,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         }
         result
     }
-    pub(crate) fn diode_should_turn_on(&self, pos: BlockPos, state: BlockStateId) -> bool {
+    pub(crate) fn diode_should_turn_on(&mut self, pos: BlockPos, state: BlockStateId) -> bool {
         if self.b.instance_of(state, Class::Comparator) {
             let input = self.diode_input_signal(pos, state);
             if input == 0 {
@@ -318,7 +318,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
         self.neighbor_changed_at_oriented(opposite_pos, block, orientation);
         self.update_neighbors_at_except_oriented(opposite_pos, block, direction, orientation);
     }
-    fn comparator_calculate_output(&self, pos: BlockPos, state: BlockStateId) -> i32 {
+    fn comparator_calculate_output(&mut self, pos: BlockPos, state: BlockStateId) -> i32 {
         let input = self.diode_input_signal(pos, state);
         if input == 0 {
             return 0;
@@ -435,7 +435,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     }
     /// `BlockState.getAnalogOutputSignal`, as the level answers it (a mod's block), 0 to 15.
     pub(crate) fn analog_output(
-        &self,
+        &mut self,
         state: BlockStateId,
         pos: BlockPos,
         direction: Direction,
@@ -447,7 +447,7 @@ impl<L: LevelAccess + ?Sized> Sim<'_, L> {
     }
     /// `getAnalogOutputSignal` for state-only sources; others ask the caller.
     fn vanilla_analog_output(
-        &self,
+        &mut self,
         state: BlockStateId,
         pos: BlockPos,
         direction: Direction,

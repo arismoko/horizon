@@ -21,12 +21,14 @@ struct ModUse {
     ticks: u32,
 }
 
-/// The items client mods claim, their events waiting for a poll, and the use under way.
+/// The items client mods claim, their events waiting for a poll, the use under way, and the
+/// keys they register (`native_key_mappings.rs`).
 #[derive(Default)]
 pub(super) struct ModInput {
     claims: BTreeMap<String, Vec<String>>,
     events: BTreeMap<String, Vec<ModEvent>>,
     using: Option<ModUse>,
+    pub(super) mappings: horizon_client::keymapping::ModKeys,
 }
 
 impl ModInput {
@@ -188,6 +190,7 @@ impl Game<'_> {
         };
         self.native_input.start(&id, item, slot);
         self.using = Some((slot, 0));
+        self.use_start.item = self.held().cloned();
         true
     }
     /// `tick_used_item` for a claimed item: counts the ticks held and ends

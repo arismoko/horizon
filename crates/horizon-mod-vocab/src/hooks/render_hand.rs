@@ -14,7 +14,7 @@ pub trait Hooks {
     /// with the light at the eyes; add geometry with `native_draw_cube`,
     /// `native_draw_quad`, `native_draw_block` and `native_draw_item`. It
     /// joins the hand's own vertices, ahead of vanilla's: the hand's field of
-    /// view, the view bob, a shader pack's hand pass and `native_hand_drawn`
+    /// view, the view bob, a shader pack's hand pass and `hand_drawn`
     /// see it as they see vanilla's hand. Unlike NeoForge, the pose stack is
     /// `draw`'s own: turning it moves what you draw, `render`'s pose moves
     /// the default geometry, and player render state is not exposed.

@@ -81,8 +81,15 @@ handles, slot and scalar answer per candidate. No engine pointers cross; release
 handles at decision end. This requires a reusable prepared Wire call path, not the
 ordinary owned-stack encode/decode on every slot. Unsupported capabilities refuse at
 registration/load with a named reason on both targets; no silent wasm skip.
-The prepared wasm path is deferred and tracked by #3549: until it lands the predicate is native-only
-for the budget below, and a wasm mod is given a copy of the stack on each call.
+The generator layer of #3549 implements prepared ownership per participating guest instance,
+borrowed token-based asks, generation/release checks and load/registration refusal for missing
+prepared exports. Slot and entity-kind names are prepared outside traversal and asks carry IDs.
+Gameplay integration is still pending: ordinary wasm callbacks create their own preparation;
+the decision-barrier PR must hoist that scope across candidates, invalidate on scoped mutable
+access (revision) and replacement/removal (identity generation), and refuse stale apply decisions.
+Pickup scope is one mob's attempt. Native's synchronous immutable borrow needs no revision
+recheck. No-listener paths retain their data answer without a new entity lookup. Only the
+Host observations listed above belong to the prepared-read budget; other reads may allocate.
 
 The required engine/bridge budget **per candidate** is 0 heap allocations, 0 stack or
 component payload clones/copies, and only bounded scalar/handle copies, including
@@ -91,5 +98,9 @@ stack mutations invalidate preparation. A counting allocator/no-allocation scope
 around warmed traversal must cover both menus, multiple slots, component-rich stacks,
 unrelated subscribed items, entity reads, and native/wasm dispatch. Check refusal
 leaves the source and all other slots unchanged, stale revisions refuse, and data-only
-stack overrides work. Mod-authored allocations are outside the bridge budget. These
-are acceptance tests to implement, not tests run for this docs-only proposal.
+stack overrides work. Mod-authored allocations are outside the bridge budget. Generator
+loopback tests now cover retained stack identity, payload-size-independent scalar asks,
+native/guest answers and token refusals; runtime tests cover memory-copy counts and
+missing-export load refusal. Whole-operation allocation budgets, prepared Host reads,
+source mutation barriers and gameplay apply checks remain acceptance work for the
+follow-up decision-barrier PR.

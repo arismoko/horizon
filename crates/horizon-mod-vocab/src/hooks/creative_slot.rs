@@ -11,7 +11,7 @@ pub trait Hooks {
     /// packet passed vanilla's checks (a creative player, a real slot, a valid
     /// stack) and before the slot changes or the stack drops. Set `cancel`
     /// and the packet is ignored. The player's state is swapped in for the
-    /// call, as for `native_run_mod_command`, so `host.players().acting_player()`,
+    /// call, as for `run_mod_command`, so `host.players().acting_player()`,
     /// `PlayerRef::tell` and the item helpers reach them. Not heard: stacks a
     /// creative player gets other ways (middle-click pick block, `/give`).
     /// Server-side, for every player of the world.

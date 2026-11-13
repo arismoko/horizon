@@ -1,28 +1,70 @@
 # Your first native mod
 
-A native mod is one flat Rust project that implements `mod_api::Hooks`, built by the launcher into the game it runs
-in. You need the launcher and a Horizon commit to build against.
+A native mod is a Rust crate that implements hooks from the mod API. The launcher compiles it on your machine
+against the exact Horizon build an instance plays, then runs that instance with your mod in it. In this page you
+make a mod that greets every player who joins.
 
-1. Make the project:
+You need the Horizon launcher (`horizon-launcher`) with an instance, and the `cargo horizon-mod` tool, which you
+install with Rust's `cargo` ([as in the content mod tutorial](first-content-mod.md#1-install-the-mod-tool)). The
+native build itself uses the launcher's own pinned Rust toolchain, not yours.
 
-   ```sh
-   cargo horizon-mod new my_mod --template native
-   ```
+## 1. Make the project
 
-   It writes `horizon-mod.toml` (the manifest, with the exact build pins under `[native]`), `Cargo.toml` and
-   `src/lib.rs`, which implements one hook.
+```sh
+cargo horizon-mod new greeter --template native
+cd greeter
+```
 
-2. Look at the hook. Each method of `Hooks` is a hook point; implement the ones the mod needs. Every
-   `impl Hooks` carries `#[mod_api::horizon_mod]`, which subscribes the mod to just the methods in that block:
+This writes a flat project, pinned to the newest prebuilt Horizon (or to `--horizon <commit>`):
 
-   ```rust,ignore
-   {{#include ../../examples/src/lib.rs:tick_hook}}
-   ```
+```text
+greeter/
+├── horizon-mod.toml     # the manifest; [native] pins the exact Horizon build
+├── Cargo.toml           # depends on horizon-mod-api, never on the game
+├── src/lib.rs           # the hooks
+├── assets/
+└── data/
+```
 
-3. Build and run it in the launcher: `horizon-launcher native-build . --instance <instance> --trust-native-code`.
-   Add `--profile developer` while developing for an unoptimized game crate. The choice is remembered for that instance.
+`cargo horizon-mod update` moves the pin to a newer Horizon later.
 
-Next: [Native mods](../how-to/native-mods.md) for what the launcher does, [Trait mods](../concepts/trait-mods.md)
-for Parts and attachments, and [Injections](../injections.md) for the moment no hook covers. To change the
-game's own code, with mixins, published loops, bridges and support modules, see
-[the native route](../native-route.md).
+## 2. Read the hook
+
+`src/lib.rs` implements one method of `mod_api::Hooks`:
+
+```rust,ignore
+{{#include ../../examples/src/greeter.rs:mod}}
+```
+
+- Each method of `Hooks` is one moment in the game. You implement only the ones you need; the game calls
+  your mod only for those.
+- `#[mod_api::horizon_mod]` marks the one `impl Hooks` at the crate root and subscribes the mod to exactly the
+  methods it implements.
+- The `host` is your handle on the game. A server hook gets a `ServerHost`, a client hook a `ClientHost`, so a call
+  on the wrong side does not compile.
+- The `event` carries the moment's data. Values you may change are writable fields of the event.
+
+[Writing hooks](writing-hooks.md) explains these rules in full.
+
+## 3. Build and play
+
+```sh
+horizon-launcher native-build . --instance "My Instance" --trust-native-code
+```
+
+The launcher downloads the prebuilt game for the pinned Horizon build, compiles your crate against it, and makes
+that build the one the instance plays. `--trust-native-code` records that you allow native code on this
+install: a native mod runs with your rights, outside any sandbox. Start the instance and join a world; the
+greeting appears in chat.
+
+After an edit, run `native-build` again. The [build log](../how-to/native-mods/05-build-log.md) shows the compiler's
+output when a build fails.
+
+## Next
+
+- [Writing hooks](writing-hooks.md): the crate root, the hook factory, events and hosts.
+- [Hooks and the Host](../concepts/hooks-and-the-host.md) and [Parts](../concepts/parts.md): how a mod reaches
+  the game.
+- [Your first WebAssembly mod](first-wasm-mod.md): the same code, sandboxed.
+- [Native mods: building and shipping](../how-to/native-mods.md): what the launcher does, trust, multiplayer and
+  servers.

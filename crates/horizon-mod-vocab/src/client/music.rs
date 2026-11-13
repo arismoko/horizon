@@ -76,7 +76,7 @@ impl Music {
     }
 }
 /// A track a native mod plays over or instead of the music
-/// (`native_music_layers`): a sound event and its volume, 0 to 1.
+/// (`music_layers`): a sound event and its volume, 0 to 1.
 #[derive(Clone, Debug, PartialEq)]
 // exhaustive: the game builds it with a literal; mods only read it
 #[derive(horizon_mod_api_macros::Wire)]

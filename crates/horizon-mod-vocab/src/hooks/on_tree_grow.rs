@@ -16,7 +16,7 @@ pub trait Hooks {
     #[notes = r#"## Block Parts in worldgen
 
 - **Which Part methods.** A `BlockPart` method declared with the worldgen context runs while a feature generates:
-  today `on_tree_grow`. The game asks it on the worldgen worker threads, and on the server thread when a sapling
+  today `on_tree_grow` and `rotate`. The game asks them on the worldgen worker threads, and on the server thread when a sapling
   grows into a tree, with the same tables in both places.
 - **What it reads.** `context` is a `WorldgenHost`, the server's registries, settings and mod list as they were at
   its last resource load; there is no `Host` and nothing to write. The parts asked are those the server resolved

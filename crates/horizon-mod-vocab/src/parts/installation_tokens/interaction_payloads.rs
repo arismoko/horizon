@@ -21,16 +21,8 @@ pub fn block_click<'a>(
         player_entity_id: player.1,
     }
 }
-/// Build the borrowed loot payload at its vocabulary boundary.
+/// Build the `item_fished` event view (the bobber's id and position) at its vocabulary boundary.
 #[cfg(any(test, feature = "testing"))]
-pub fn item_fished(
-    hook: u32,
-    position: [f64; 3],
-    drops: &[crate::ItemStack],
-) -> crate::ItemFished<'_> {
-    crate::ItemFished {
-        hook,
-        position,
-        drops,
-    }
+pub fn item_fished(hook: u32, position: [f64; 3]) -> crate::ItemFished {
+    crate::ItemFished { hook, position }
 }

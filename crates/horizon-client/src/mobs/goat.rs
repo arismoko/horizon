@@ -613,7 +613,7 @@ pub fn write_nbt(m: &Mob, map: &mut horizon_core::nbt::Compound) {
 /// fields and the ticks left of the long jump cooldown.
 pub fn read_nbt(m: &mut Mob, tag: &horizon_core::nbt::Tag) {
     m.extra.screaming = crate::entity_nbt::flag(tag, "IsScreamingGoat");
-    let horn = |key| crate::save::number(tag.get(key)).is_some_and(|v| v == 0);
+    let horn = |key| !crate::entity_nbt::flag_or(tag, key, true);
     m.extra.lost_horns = [horn("HasLeftHorn"), horn("HasRightHorn")];
     let cooldown = tag
         .get("Brain")
@@ -736,7 +736,7 @@ mod ram_tests {
         let kind = fake_goat();
         let mut partner = Mob::new(9, kind.clone(), Vec3::new(2.5, 64.0, 0.5), 0.0);
         partner.extra.in_love = 600;
-        let others = [partner.seen(None)];
+        let others = [partner.seen(None, &crate::items::Items::empty())];
         let ran = with_test_world(&others, |w, _| {
             let mut damage = crate::health::TestLevel::new(0);
             let mut events = Vec::new();

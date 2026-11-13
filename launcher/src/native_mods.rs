@@ -133,13 +133,15 @@ impl Target {
 struct BuildPlatform {
     target: Option<&'static str>,
     machine: Option<u16>,
-    /// Non-default target builds get their own Cargo cache and record namespace.
-    cache_dir: Option<&'static str>,
 }
 
 impl BuildPlatform {
     fn cache_key(self) -> Option<&'static str> {
-        self.cache_dir
+        match self.target {
+            // Rebuild rather than reuse a build published without its GNU runtime libraries.
+            Some(rust_toolchain::WINDOWS_X64_TARGET) => Some("windows-x64-gnu-runtime-v1"),
+            target => target,
+        }
     }
 }
 
@@ -179,11 +181,9 @@ fn windows_build_platform(machine: u16, host_target: &str) -> Result<BuildPlatfo
             windows_architecture(host_target),
         ));
     }
-    let cache_dir = (target == rust_toolchain::WINDOWS_ARM64_TARGET).then_some(target);
     Ok(BuildPlatform {
         target: Some(target),
         machine: Some(machine),
-        cache_dir,
     })
 }
 
@@ -2375,7 +2375,7 @@ mod tests {
         .unwrap();
         assert_eq!(x64.target, Some(rust_toolchain::WINDOWS_X64_TARGET));
         assert_eq!(x64.machine, Some(rust_toolchain::WINDOWS_X64_MACHINE));
-        assert_eq!(x64.cache_key(), None, "preserve the x64 cache layout");
+        assert_eq!(x64.cache_key(), Some("windows-x64-gnu-runtime-v1"));
 
         let arm64 = windows_build_platform(
             rust_toolchain::WINDOWS_ARM64_MACHINE,

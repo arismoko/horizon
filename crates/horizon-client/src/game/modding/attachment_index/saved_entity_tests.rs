@@ -51,7 +51,7 @@ fn saved_spit_and_bullet_query_before_access_and_round_trip() {
                 ),
                 (ATTACHMENTS_KEY, contents.clone()),
             ]);
-            game.world.loaded_entities.push(((0, 0), vec![tag]));
+            game.world.loaded_entities.push(((0, 0), vec![tag.into()]));
             game.spawn_loaded_entities();
             let index = game.attachment_indexes[&Dim::Overworld].clone();
             let key = ("saved_projectile".into(), "value".into());
@@ -77,7 +77,9 @@ fn saved_spit_and_bullet_query_before_access_and_round_trip() {
             assert!(index.lock().unwrap().snapshot(&key).is_empty());
             // Reload from the serialized data, not a retained in-memory map.
             game.entity_attachments.remove(&entity.id());
-            game.world.loaded_entities.push(((0, 0), vec![saved]));
+            game.world
+                .loaded_entities
+                .push(((0, 0), vec![saved.into()]));
             game.spawn_loaded_entities();
             let restored = index.lock().unwrap().snapshot(&key);
             assert_eq!(restored.len(), 1, "{kind} after reload");

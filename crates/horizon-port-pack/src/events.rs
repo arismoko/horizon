@@ -448,7 +448,7 @@ fn mentioned(label: &str) -> Vec<String> {
 /// as the catalog names them (`ServerTickEvent.Post`,
 /// `Capabilities.ItemHandler.BLOCK`). Jars inside the jar aren't opened.
 pub fn scan<R: Read + Seek>(jar: R) -> Result<BTreeSet<String>, String> {
-    let mut zip = zip::ZipArchive::new(jar).map_err(|e| e.to_string())?;
+    let mut zip = crate::zip_intake::open(jar).map_err(|e| e.to_string())?;
     let mut names = BTreeSet::new();
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;

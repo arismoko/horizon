@@ -6,7 +6,7 @@ pub trait Hooks {
     /// about to tick in the server level `dimension` (NeoForge's `EntityTickEvent.Pre`, posted
     /// around `Entity.commonTick` and `tick` in `ServerLevel.tickNonPassenger`). Set `canceled`
     /// and it does not tick this tick: a mob has no AI, physics or effects, an item no movement,
-    /// ageing or merging, a minecart or boat no motion, and `native_entity_tick_post` is not told.
+    /// ageing or merging, a minecart or boat no motion, and `entity_tick_post` is not told.
     /// Horizon ticks a family of entities together, so mobs and items hear every Pre before the
     /// first of them ticks; minecarts and boats hear theirs one by one. Told for the mobs, item
     /// entities, minecarts and boats that tick: those in an entity-ticking chunk, not a player's

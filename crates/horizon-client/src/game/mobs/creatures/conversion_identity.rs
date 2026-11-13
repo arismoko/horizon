@@ -84,6 +84,7 @@ mod tests {
     #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
     fn a_converted_mob_keeps_its_serializable_attachments() {
         with_game(|game| {
+            game.options.dedicated = Some(Vec::new());
             let kind = game
                 .res
                 .mob_types()

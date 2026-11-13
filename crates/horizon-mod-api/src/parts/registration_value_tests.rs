@@ -643,7 +643,14 @@ fn a_damage_reaches_only_the_parts_of_the_worn_item_and_changes_its_wear() {
     let diamond = crate::parts::tests::stack("minecraft:diamond", 1, 0);
     let mut wear = |stack: &ItemStack, points: i32| {
         let (mut amount, mut canceled) = (points, false);
-        dispatch_damage_item(&mut host, stack, &mut amount, &mut canceled);
+        dispatch_damage_item(
+            &mut host,
+            stack,
+            None,
+            &mut amount,
+            &mut false,
+            &mut canceled,
+        );
         (amount, canceled)
     };
     assert_eq!(wear(&stick(), 4), (12, false));
@@ -1030,10 +1037,10 @@ struct CodKeeper;
 impl Hooks for CodKeeper {
     fn item_fished(&self, _host: &mut dyn ServerHost, event: &mut ItemFishedEvent<'_>) -> Flow {
         event.rod_damage = 4;
-        let cod =
-            event.fished.drops.iter().any(|s| {
-                s.item() == crate::__private::part_tests::fixture_item_key("minecraft:cod")
-            });
+        let cod = event
+            .drops
+            .iter()
+            .any(|s| s.item() == crate::__private::part_tests::fixture_item_key("minecraft:cod"));
         if cod { Flow::Cancel } else { Flow::Continue }
     }
 }
@@ -1060,24 +1067,41 @@ fn a_fishing_catch_keeps_the_mods_rod_damage_and_its_cancel() {
     ];
     install(mods.into());
     let ask = |host: &mut FakeHost, item: &str| {
-        let drops = [crate::__private::part_tests::stack(item, 1, 0)];
-        let fished =
-            mod_vocab::__private::parts_installation::item_fished(9, [0.5, 62.0, 0.5], &drops);
+        let mut drops = vec![crate::__private::part_tests::stack(item, 1, 0)];
+        let fished = mod_vocab::__private::parts_installation::item_fished(9, [0.5, 62.0, 0.5]);
         let (mut rod_damage, mut cancel) = (1, false);
-        dispatch_item_fished(host, 7, 3, &fished, &mut rod_damage, &mut cancel);
+        dispatch_item_fished(
+            host,
+            7,
+            3,
+            &fished,
+            &mut rod_damage,
+            &mut cancel,
+            &mut drops,
+            &mut |_: &Vec<crate::ItemStack>| -> Result<(), crate::StackWriteError> { Ok(()) },
+        );
         (rod_damage, cancel)
     };
     assert_eq!(ask(&mut host, "minecraft:cod"), (4, true));
     let mods: Vec<ModEntry> = vec![ModEntry::new("cod-keeper", Box::new(CodKeeper))];
     install(mods.into());
-    let drops = [crate::__private::part_tests::stack(
+    let mut drops = vec![crate::__private::part_tests::stack(
         "minecraft:salmon",
         1,
         0,
     )];
-    let fished = mod_vocab::__private::parts_installation::item_fished(9, [0.5, 62.0, 0.5], &drops);
+    let fished = mod_vocab::__private::parts_installation::item_fished(9, [0.5, 62.0, 0.5]);
     let (mut rod_damage, mut cancel) = (2, false);
-    dispatch_item_fished(&mut host, 7, 3, &fished, &mut rod_damage, &mut cancel);
+    dispatch_item_fished(
+        &mut host,
+        7,
+        3,
+        &fished,
+        &mut rod_damage,
+        &mut cancel,
+        &mut drops,
+        &mut |_: &Vec<crate::ItemStack>| -> Result<(), crate::StackWriteError> { Ok(()) },
+    );
     assert_eq!((rod_damage, cancel), (4, false));
 }
 
@@ -1113,13 +1137,13 @@ fn an_ability_question_reaches_only_the_parts_of_the_asked_item_and_names_the_ab
     // Another test installs parts with tags: a dispatch must run on a game thread.
     mark_game_thread();
     let sticks = Abilities {
-        granted: "minecraft:shield_block",
-        denied: "minecraft:shears_carve",
+        granted: "shield_block",
+        denied: "shears_carve",
         asked: Default::default(),
     };
     let stones = Abilities {
-        granted: "my_mod:chop",
-        denied: "my_mod:chop_not",
+        granted: "my_mod_chop",
+        denied: "my_mod_chop_not",
         asked: Default::default(),
     };
     let mods: Mods = vec![ModEntry::new(
@@ -1138,27 +1162,27 @@ fn an_ability_question_reaches_only_the_parts_of_the_asked_item_and_names_the_ab
         can_perform
     };
     // The part answers per ability: a grant, a denial and what it leaves alone.
-    assert!(ask(&stick(), "minecraft:shield_block", false));
-    assert!(!ask(&stick(), "minecraft:shears_carve", true));
-    assert!(ask(&stick(), "minecraft:shears_harvest", true));
-    assert!(!ask(&stick(), "minecraft:shears_harvest", false));
+    assert!(ask(&stick(), "shield_block", false));
+    assert!(!ask(&stick(), "shears_carve", true));
+    assert!(ask(&stick(), "shears_harvest", true));
+    assert!(!ask(&stick(), "shears_harvest", false));
     // Another item's part hears only its own item, a part-less item keeps vanilla's answer.
-    assert!(ask(&stone, "my_mod:chop", false));
-    assert!(!ask(&stone, "minecraft:shield_block", false));
-    assert!(ask(&diamond, "minecraft:shears_carve", true));
-    assert!(!ask(&diamond, "minecraft:shield_block", false));
+    assert!(ask(&stone, "my_mod_chop", false));
+    assert!(!ask(&stone, "shield_block", false));
+    assert!(ask(&diamond, "shears_carve", true));
+    assert!(!ask(&diamond, "shield_block", false));
     assert_eq!(
         *sticks.asked.lock().unwrap(),
         [
-            "minecraft:shield_block",
-            "minecraft:shears_carve",
-            "minecraft:shears_harvest",
-            "minecraft:shears_harvest"
+            "shield_block",
+            "shears_carve",
+            "shears_harvest",
+            "shears_harvest"
         ]
     );
     assert_eq!(
         *stones.asked.lock().unwrap(),
-        ["my_mod:chop", "minecraft:shield_block"]
+        ["my_mod_chop", "shield_block"]
     );
 }
 

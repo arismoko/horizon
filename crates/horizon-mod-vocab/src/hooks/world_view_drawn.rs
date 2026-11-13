@@ -2,8 +2,9 @@
 // catalog-order: 0350
 
 pub trait Hooks {
-    /// A world view is drawn (see [`WorldViewDrawn`]): once per view asked for this frame, after
-    /// the frame's world and before [`world_drawn`].
+    /// A world view is drawn (see [`WorldViewDrawn`]): once per view taken this frame, after
+    /// the frame's world and before [`world_drawn`], the views seen in a view (its `parent`,
+    /// one `nesting_depth` deeper) before it.
     #[hook(
         side = "client",
         contract = "listen",

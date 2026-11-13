@@ -134,6 +134,18 @@ pub struct BlockEntities {
     /// The block entities moving pistons carry, by the moving piston's
     /// position (`carry`): out of the map until they land.
     carried: FxHashMap<Pos, carry::Carried>,
+    /// The API snapshots a client's mod block entities are ticked with
+    /// (`take_client_snapshots`), by position.
+    client_snapshots: FxHashMap<Pos, ClientSnapshot>,
+}
+
+/// A client copy of a mod block entity as its client tick shows it to mods: made once for each
+/// revision of the copy (an update merged into it is a new one), not once a tick.
+pub struct ClientSnapshot {
+    /// The copy's revision the snapshot was made from.
+    pub revision: crate::chunk::block_entity::ModRevision,
+    /// The snapshot, or `None` when that revision could not be made into one.
+    pub entity: Option<mod_api::ModBlockEntity>,
 }
 
 /// Storage-owned identity passed to attachment residency observers.
@@ -341,6 +353,16 @@ impl BlockEntities {
         }
     }
 
+    /// The client tick snapshots, lent for one pass over the tickers: give them back with
+    /// `keep_client_snapshots`.
+    pub fn take_client_snapshots(&mut self) -> FxHashMap<Pos, ClientSnapshot> {
+        std::mem::take(&mut self.client_snapshots)
+    }
+    /// Takes back what `take_client_snapshots` lent, without the positions that no longer tick.
+    pub fn keep_client_snapshots(&mut self, mut snapshots: FxHashMap<Pos, ClientSnapshot>) {
+        snapshots.retain(|pos, _| self.live.contains_key(pos));
+        self.client_snapshots = snapshots;
+    }
     /// Whether the ticking table has been built.
     pub fn has_states(&self) -> bool {
         !self.states.is_empty()
@@ -809,6 +831,7 @@ impl BlockEntities {
         self.out.clear();
         self.replaced.clear();
         self.carried.clear();
+        self.client_snapshots.clear();
         self.freed = false;
     }
     /// A loaded or generated chunk's block entities, in the order the chunk
