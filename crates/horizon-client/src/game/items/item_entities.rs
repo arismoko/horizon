@@ -96,6 +96,21 @@ impl Game<'_> {
             for splash in entered {
                 self.apply_item_splash(splash);
             }
+            let from = item.previous;
+            let to = item.position;
+            if !discarded && round.sections() {
+                let live = self.entity_section_step_visible(
+                    items[i].id,
+                    [from.x, from.y, from.z],
+                    [to.x, to.y, to.z],
+                );
+                if !live {
+                    removed[i] = true;
+                    cells.remove(i, to);
+                    continue;
+                }
+            }
+            let item = &mut items[i];
             if discarded {
                 removed[i] = true;
                 cells.remove(i, item.previous);

@@ -2,6 +2,14 @@
 //! contacts, collisions, fluids and the world border.
 use super::*;
 
+pub(crate) struct ProjWorld<'a, 'w> {
+    pub(crate) w: &'a MobWorld<'w>,
+    pub(crate) targets: &'a [(Who, Aabb)],
+    /// The world border's [minX, minZ, maxX, maxZ], which stops the ray as a
+    /// block would (`clipIncludingBorder`); None: no border.
+    pub(crate) border: Option<[f64; 4]>,
+}
+
 impl ProjectileWorld for ProjWorld<'_, '_> {
     fn below_world_y(&self) -> f64 {
         self.w.world.below_world_y()
