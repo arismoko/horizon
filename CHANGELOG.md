@@ -2,16 +2,125 @@
 
 # Changelog
 
-Generated 2026-11-12 17:40 UTC. Last 30 UTC calendar days.
+Generated 2026-11-13 00:40 UTC. Last 30 UTC calendar days.
 
 Public repository activity, not a curated release promise. CI/build and bot PRs without labels, and skip-release PRs are omitted. Rollups expand their membership tables. Issue labels and open status reflect generation time.
+
+## 2026-11-13
+
+### Maintenance
+
+- [Merge updates: the embed title says Opened or Merged (#3779)](https://github.com/arismoko/horizon/pull/3779) — &#64;arismoko
+- [Launcher downloads retry a dropped connection or a server error (#3772)](https://github.com/arismoko/horizon/pull/3772) — &#64;arismoko
+- [Mod API docs: public hook names and no issue narration in the reference (#3768)](https://github.com/arismoko/horizon/pull/3768) — &#64;arismoko
+- [Claim command: find /claim or /unclaim on any line of a comment (#3778)](https://github.com/arismoko/horizon/pull/3778) — &#64;arismoko
+- [Modding book: a manual, with a newcomer path, topic layout, diagrams and a rustdoc front page (#3766)](https://github.com/arismoko/horizon/pull/3766) — &#64;arismoko
+
+### New issues open for contributors
+
+- [Saved-data upgrades: refuse an upgraded value that exceeds the depth or size limits, and count mixed-list wrappers in the byte budget (#3785)](https://github.com/arismoko/horizon/issues/3785)
 
 ## 2026-11-12
 
 ### From contributors
 
-#### &#64;OlaHulleberg (22)
+#### &#64;d3xc0 (5)
 
+- [Villager food: one owner per Items registry (#3751)](https://github.com/arismoko/horizon/pull/3751) — &#64;d3xc0
+- [Mod API: item_picked_up_partial, a notice when a pickup takes part of a stack (#3581)](https://github.com/arismoko/horizon/pull/3581) — &#64;d3xc0
+- [Tests: own block entities on a vanilla block, and a type replaced mid-loop (#3559)](https://github.com/arismoko/horizon/pull/3559) — &#64;d3xc0
+- [Mod API: client fireworks explosion request with an audible flag (#3535)](https://github.com/arismoko/horizon/pull/3535) — &#64;d3xc0
+- [Loop slots: recognise your own mod's block entities in O(1) (#3530)](https://github.com/arismoko/horizon/pull/3530) — &#64;d3xc0
+
+#### &#64;a2z453 (3)
+
+- [Bound ZIP entry count and central directory size before parsing (#3736)](https://github.com/arismoko/horizon/pull/3736) — &#64;a2z453
+- [Support Prism and MultiMC ZIP imports (#3513)](https://github.com/arismoko/horizon/pull/3513) — &#64;a2z453
+- [Add server entity lookup by UUID (#3493)](https://github.com/arismoko/horizon/pull/3493) — &#64;a2z453
+
+#### &#64;Mnntn (8)
+
+- [Mod API: block_entity_client_tick, a client tick for mod block entities (#3611) (#3689)](https://github.com/arismoko/horizon/pull/3689) — &#64;Mnntn
+- [Mod API: capability generations, a provider's invalidation reaches every BlockCapabilityCache at its position (#3713)](https://github.com/arismoko/horizon/pull/3713) — &#64;Mnntn
+- [Register client renderers for entity types (register_entity_renderers, #860 stage 1) (#3640)](https://github.com/arismoko/horizon/pull/3640) — &#64;Mnntn
+- [Capabilities: providers for blocks without a block entity (#3519)](https://github.com/arismoko/horizon/pull/3519) — &#64;Mnntn
+- [Transfer: fluid_util::interact_with_fluid_handler (fill or empty a held container into a tank) (#3518)](https://github.com/arismoko/horizon/pull/3518) — &#64;Mnntn
+- [Give four parity harnesses defaults tools/parity.py can run (#3484)](https://github.com/arismoko/horizon/pull/3484) — &#64;Mnntn
+- [Let gateway_replacement and machine_recipe_placement run under tools/parity.py (#3482)](https://github.com/arismoko/horizon/pull/3482) — &#64;Mnntn
+- [Mod API: contained_fluid, a mod container item reports its fluid (#3342)](https://github.com/arismoko/horizon/pull/3342) — &#64;Mnntn
+
+#### &#64;Xmilon (44)
+
+- [Hooks: client_chat_received carries the signed player message (#3666)](https://github.com/arismoko/horizon/pull/3666) — &#64;Xmilon
+- [BlockPart: rail_direction, rail_can_make_slopes, rail_flexible, rail_valid_shape (#3659)](https://github.com/arismoko/horizon/pull/3659) — &#64;Xmilon
+- [BlockPart: state_at_viewpoint (#3632)](https://github.com/arismoko/horizon/pull/3632) — &#64;Xmilon
+- [ItemPart damage_item: the wearing entity and break_now (#3624)](https://github.com/arismoko/horizon/pull/3624) — &#64;Xmilon
+- [BlockPart: enchant_power_bonus and beacon_color_multiplier (#3623)](https://github.com/arismoko/horizon/pull/3623) — &#64;Xmilon
+- [Hooks: the remaining mob_griefing rule reads ask entity_mob_griefing (#3622)](https://github.com/arismoko/horizon/pull/3622) — &#64;Xmilon
+- [Crash reports: mod sections and headers computed when the report is written (#3701)](https://github.com/arismoko/horizon/pull/3701) — &#64;Xmilon
+- [Attachments: copy a mob's serializable attachments when it converts (#3698)](https://github.com/arismoko/horizon/pull/3698) — &#64;Xmilon
+- [Cauldron interactions: register by item tag, for one cauldron or all of them (#3281) (#3670)](https://github.com/arismoko/horizon/pull/3670) — &#64;Xmilon
+- [Transfer: item energy and fluid handlers stored in a data component (#3378) (#3667)](https://github.com/arismoko/horizon/pull/3667) — &#64;Xmilon
+- [PackageInfo: manifest details, runtime, typed dependencies and &#91;properties&#93; (#3665)](https://github.com/arismoko/horizon/pull/3665) — &#64;Xmilon
+- [Content: a sort_order on mod mob effects for the HUD and inventory effect lists (#3663)](https://github.com/arismoko/horizon/pull/3663) — &#64;Xmilon
+- [Hooks: input_key carries the layout key and a raw code (#3657)](https://github.com/arismoko/horizon/pull/3657) — &#64;Xmilon
+- [EntityPart: is_shearable and on_sheared, asked by shears and the dispenser (#3656)](https://github.com/arismoko/horizon/pull/3656) — &#64;Xmilon
+- [Mod API: host.server_has_time, the tick's spare time (#3272) (#3650)](https://github.com/arismoko/horizon/pull/3650) — &#64;Xmilon
+- [Transfer: transaction introspection (#3381) (#3648)](https://github.com/arismoko/horizon/pull/3648) — &#64;Xmilon
+- [Mod API: client_information_updated also fires for the information a player joins with (#3254) (#3645)](https://github.com/arismoko/horizon/pull/3645) — &#64;Xmilon
+- [Transfer: energy helper kit (#3377) (#3639)](https://github.com/arismoko/horizon/pull/3639) — &#64;Xmilon
+- [BlockPart: falling_tick (#3637)](https://github.com/arismoko/horizon/pull/3637) — &#64;Xmilon
+- [Mod API: player_game_mode_changed can redirect the new game mode (#3251) (#3631)](https://github.com/arismoko/horizon/pull/3631) — &#64;Xmilon
+- [ItemPart creator_mod_id: the mod a stack belongs to (#3629)](https://github.com/arismoko/horizon/pull/3629) — &#64;Xmilon
+- [Hooks: ender_pearl_teleport carries what the pearl hit (#3627)](https://github.com/arismoko/horizon/pull/3627) — &#64;Xmilon
+- [BlockPart: respawn_position (#3626)](https://github.com/arismoko/horizon/pull/3626) — &#64;Xmilon
+- [Mod API: Block Parts in worldgen, with on_tree_grow as the first reader (#3239)](https://github.com/arismoko/horizon/pull/3239) — &#64;Xmilon
+- [Mod API: item_crafted carries the crafting grid's inputs (#3247) (#3625)](https://github.com/arismoko/horizon/pull/3625) — &#64;Xmilon
+- [BlockPart::friction: contextual block friction (part of #3186) (#3208)](https://github.com/arismoko/horizon/pull/3208) — &#64;Xmilon
+- [BlockPart: fire behaviour (fire_odds with position and face, is_fire_source, ignited_by_lava, on_caught_fire) (#3207)](https://github.com/arismoko/horizon/pull/3207) — &#64;Xmilon
+- [Biome regions: opt an existing world into the installed regions from Edit World (#2554) (#3176)](https://github.com/arismoko/horizon/pull/3176) — &#64;Xmilon
+- [Biome regions: how-to, example mod and the acceptance matrix's tests (#3169)](https://github.com/arismoko/horizon/pull/3169) — &#64;Xmilon
+- [Biome regions: save each world's layout and ask before a missing mod's region changes (#3154)](https://github.com/arismoko/horizon/pull/3154) — &#64;Xmilon
+- [Biome regions: choose each column's region and search its own points (#3140)](https://github.com/arismoko/horizon/pull/3140) — &#64;Xmilon
+- [Move code out of generator.rs, title.rs and save.rs, unchanged (#3139)](https://github.com/arismoko/horizon/pull/3139) — &#64;Xmilon
+- [Biome regions: declare a mod's region for the Overworld or the Nether (#3136)](https://github.com/arismoko/horizon/pull/3136) — &#64;Xmilon
+- [Datapack registries: refuse a candidate whose snapshot would be over 64 MiB before it commits (#3167)](https://github.com/arismoko/horizon/pull/3167) — &#64;Xmilon
+- [Datapack registries: refuse an oversized reload before it commits, and name the pack (#3160)](https://github.com/arismoko/horizon/pull/3160) — &#64;Xmilon
+- [Render pipelines: required or optional on a resource load (#3238)](https://github.com/arismoko/horizon/pull/3238) — &#64;Xmilon
+- [Mod API: expose seeded slime chunk queries (#3171)](https://github.com/arismoko/horizon/pull/3171) — &#64;Xmilon
+- [Mod API: item_picked_up_post, a notice after a pickup took items (#3148) (#3201)](https://github.com/arismoko/horizon/pull/3201) — &#64;Xmilon
+- [Mod API: item_picked_up can force a pickup as well as deny it (#3149) (#3173)](https://github.com/arismoko/horizon/pull/3173) — &#64;Xmilon
+- [Pistons carry a mod block entity's data while moving (BlockPart piston_carries_block_entity) (#3337)](https://github.com/arismoko/horizon/pull/3337) — &#64;Xmilon
+- [BlockPart::sound_type: contextual block sound type (part of #3186) (#3306)](https://github.com/arismoko/horizon/pull/3306) — &#64;Xmilon
+- [Mod API: LevelRef::check_light and the client's re-ask of dynamic light (#3187, PR 2) (#3236)](https://github.com/arismoko/horizon/pull/3236) — &#64;Xmilon
+- [Mod API: dynamic_light blocks and the light_emission BlockPart (#3187, PR 1) (#3233)](https://github.com/arismoko/horizon/pull/3233) — &#64;Xmilon
+- [fix(mod-api): expose per-state block light declarations (#3165)](https://github.com/arismoko/horizon/pull/3165) — &#64;Xmilon
+
+#### &#64;Detimes (5)
+
+- [Mod API: upgrade_block_entity_nbt and upgrade_entity_nbt, datafix saved data from an older DataVersion (#3561) (#3606)](https://github.com/arismoko/horizon/pull/3606) — &#64;Detimes
+- [Mod API: raw plugin channels by exact id and the client's announced channels (#3209) (#3582)](https://github.com/arismoko/horizon/pull/3582) — &#64;Detimes
+- [Mod API: set_hanging_direction and set_item_frame_rotation, turn hanging entities in place (#3506) (#3560)](https://github.com/arismoko/horizon/pull/3560) — &#64;Detimes
+- [Mod API: registry_protocol_id, a registry entry's network id by name (#3231) (#3505)](https://github.com/arismoko/horizon/pull/3505) — &#64;Detimes
+- [Mod API: player_start_spectating_entity, hear a spectator's camera move to an entity (#3141) (#3230)](https://github.com/arismoko/horizon/pull/3230) — &#64;Detimes
+
+#### &#64;hinzee (3)
+
+- [Mod API: entity_teleport_to_level moves items, projectiles, TNT, orbs and fireworks, keeping their motion (#3601)](https://github.com/arismoko/horizon/pull/3601) — &#64;hinzee
+- [Mod API: EntityRef::run_command at a permission level (#3600)](https://github.com/arismoko/horizon/pull/3600) — &#64;hinzee
+- [Mod API: LevelRef::global_level_event (ServerLevel.globalLevelEvent) (#3599)](https://github.com/arismoko/horizon/pull/3599) — &#64;hinzee
+
+#### &#64;OlaHulleberg (31)
+
+- [Design: tooltip components in full (#2927) (#3129)](https://github.com/arismoko/horizon/pull/3129) — &#64;OlaHulleberg
+- [Fire reads its dimension's own infiniburn tag (#3714)](https://github.com/arismoko/horizon/pull/3714) — &#64;OlaHulleberg
+- [item_fished: a listener edits the catch; the catch follows vanilla's order (#3703)](https://github.com/arismoko/horizon/pull/3703) — &#64;OlaHulleberg
+- [bounce_restitution: a listener's answer must be pure, since replayed ticks ask again (#3687)](https://github.com/arismoko/horizon/pull/3687) — &#64;OlaHulleberg
+- [Client piston replay follows the server's part-adjusted move (#3675)](https://github.com/arismoko/horizon/pull/3675) — &#64;OlaHulleberg
+- [Lightning hurts struck items through the item hurt path (#3655)](https://github.com/arismoko/horizon/pull/3655) — &#64;OlaHulleberg
+- [Tests for piglins admiring whole stacks, a hit baby's ingot and the client's answer (#3220) (#3628)](https://github.com/arismoko/horizon/pull/3628) — &#64;OlaHulleberg
+- [Players hear the landing block's fall sound after a damaging fall (#3178) (#3616)](https://github.com/arismoko/horizon/pull/3616) — &#64;OlaHulleberg
+- [Five server paths end an item use through stop_using_item (#3212) (#3608)](https://github.com/arismoko/horizon/pull/3608) — &#64;OlaHulleberg
 - [One damage_resistant resolver for the item tick, explosions, /damage and the mod API (#3214) (#3597)](https://github.com/arismoko/horizon/pull/3597) — &#64;OlaHulleberg
 - [Prediction test: an honest booted guest stays on powder snow, a liar fails (#3590 follow-up) (#3596)](https://github.com/arismoko/horizon/pull/3596) — &#64;OlaHulleberg
 - [Mending reads effective enchantments; multiplicity and hook re-check tests (#3589 follow-ups) (#3594)](https://github.com/arismoko/horizon/pull/3594) — &#64;OlaHulleberg
@@ -35,17 +144,35 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 - [Mod API: block_entity_on_load, once per new mod block entity after load and attach, before its first tick (#3146) (#3203)](https://github.com/arismoko/horizon/pull/3203) — &#64;OlaHulleberg
 - [Mod API: block_entity_data_received, a client notice after a block entity's synced data is merged (#3144) (#3200)](https://github.com/arismoko/horizon/pull/3200) — &#64;OlaHulleberg
 
-#### &#64;KBroneZ (3)
+#### &#64;levzzz5154 (4)
 
+- [Expose physical runtime metadata to native and wasm mods (#3711)](https://github.com/arismoko/horizon/pull/3711) — &#64;levzzz5154
+- [Expose directional keys and sprint in movement input (#3709)](https://github.com/arismoko/horizon/pull/3709) — &#64;levzzz5154
+- [Mod API: captured partial ticks in frame hooks (#3630)](https://github.com/arismoko/horizon/pull/3630) — &#64;levzzz5154
+- [Expose the original player during clone hooks (#3061)](https://github.com/arismoko/horizon/pull/3061) — &#64;levzzz5154
+
+#### &#64;KBroneZ (6)
+
+- [docs: mod-extensions states the decided &#91;&#91;inject&#93;&#93; scope for mod hooks (#3457 item 10) (#3704)](https://github.com/arismoko/horizon/pull/3704) — &#64;KBroneZ
+- [Hooks: living_visibility scales a mob's range to another mob (#3418) (#3695)](https://github.com/arismoko/horizon/pull/3695) — &#64;KBroneZ
+- [feat: ItemDrop sets the item entity's thrower, target, no-gravity and age (#3619)](https://github.com/arismoko/horizon/pull/3619) — &#64;KBroneZ
 - [docs: living_equipment_change covers players (#3592)](https://github.com/arismoko/horizon/pull/3592) — &#64;KBroneZ
 - [feat: client_chunk_load and client_chunk_unload hooks (#3585)](https://github.com/arismoko/horizon/pull/3585) — &#64;KBroneZ
 - [A mod's bundled pack can stay out of the pack screens (PackRegistration::hidden) (#3587)](https://github.com/arismoko/horizon/pull/3587) — &#64;KBroneZ
 
-#### &#64;Detimes (3)
+#### &#64;foudretbr (1)
 
-- [Mod API: set_hanging_direction and set_item_frame_rotation, turn hanging entities in place (#3506) (#3560)](https://github.com/arismoko/horizon/pull/3560) — &#64;Detimes
-- [Mod API: registry_protocol_id, a registry entry's network id by name (#3231) (#3505)](https://github.com/arismoko/horizon/pull/3505) — &#64;Detimes
-- [Mod API: player_start_spectating_entity, hear a spectator's camera move to an entity (#3141) (#3230)](https://github.com/arismoko/horizon/pull/3230) — &#64;Detimes
+- [feat(client): title splashes from every namespace in the resource stack (#3614)](https://github.com/arismoko/horizon/pull/3614) — &#64;foudretbr
+
+#### &#64;Dawnforger (3)
+
+- [Mod API: BlockCapabilityCache, a block capability kept and polled in constant time (#3502)](https://github.com/arismoko/horizon/pull/3502) — &#64;Dawnforger
+- [Mod API: STORAGE, items by kind in 64-bit amounts, with transfer and BlockCapabilityCache (#3480)](https://github.com/arismoko/horizon/pull/3480) — &#64;Dawnforger
+- [Transactions: a container move keeps the slot it touches, not the whole block entity (#3479)](https://github.com/arismoko/horizon/pull/3479) — &#64;Dawnforger
+
+#### &#64;UMCEKO (1)
+
+- [Sync 33: upstream f24ee1accf with the performance capture platform (#3575)](https://github.com/arismoko/horizon/pull/3575) — &#64;UMCEKO — upstream commit `a0858ab2204f61e3c7312667f29be4321691005d`
 
 #### &#64;Mayonesu0 (10)
 
@@ -60,50 +187,9 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 - [BlockPart: tool_modified_state and on_destroyed_by_player (#2710)](https://github.com/arismoko/horizon/pull/2710) — &#64;Mayonesu0
 - [Mod API: player_destroyed_block, hear a player's completed block break (#2806) (#3134)](https://github.com/arismoko/horizon/pull/3134) — &#64;Mayonesu0
 
-#### &#64;Mnntn (5)
-
-- [Capabilities: providers for blocks without a block entity (#3519)](https://github.com/arismoko/horizon/pull/3519) — &#64;Mnntn
-- [Transfer: fluid_util::interact_with_fluid_handler (fill or empty a held container into a tank) (#3518)](https://github.com/arismoko/horizon/pull/3518) — &#64;Mnntn
-- [Give four parity harnesses defaults tools/parity.py can run (#3484)](https://github.com/arismoko/horizon/pull/3484) — &#64;Mnntn
-- [Let gateway_replacement and machine_recipe_placement run under tools/parity.py (#3482)](https://github.com/arismoko/horizon/pull/3482) — &#64;Mnntn
-- [Mod API: contained_fluid, a mod container item reports its fluid (#3342)](https://github.com/arismoko/horizon/pull/3342) — &#64;Mnntn
-
-#### &#64;d3xc0 (3)
-
-- [Tests: own block entities on a vanilla block, and a type replaced mid-loop (#3559)](https://github.com/arismoko/horizon/pull/3559) — &#64;d3xc0
-- [Mod API: client fireworks explosion request with an audible flag (#3535)](https://github.com/arismoko/horizon/pull/3535) — &#64;d3xc0
-- [Loop slots: recognise your own mod's block entities in O(1) (#3530)](https://github.com/arismoko/horizon/pull/3530) — &#64;d3xc0
-
-#### &#64;a2z453 (2)
-
-- [Support Prism and MultiMC ZIP imports (#3513)](https://github.com/arismoko/horizon/pull/3513) — &#64;a2z453
-- [Add server entity lookup by UUID (#3493)](https://github.com/arismoko/horizon/pull/3493) — &#64;a2z453
-
 #### &#64;Solenopsisbot (1)
 
 - [screens: resize chat and the command block screen in their build (part of #903) (#3510)](https://github.com/arismoko/horizon/pull/3510) — &#64;Solenopsisbot
-
-#### &#64;Xmilon (11)
-
-- [Datapack registries: refuse a candidate whose snapshot would be over 64 MiB before it commits (#3167)](https://github.com/arismoko/horizon/pull/3167) — &#64;Xmilon
-- [Datapack registries: refuse an oversized reload before it commits, and name the pack (#3160)](https://github.com/arismoko/horizon/pull/3160) — &#64;Xmilon
-- [Render pipelines: required or optional on a resource load (#3238)](https://github.com/arismoko/horizon/pull/3238) — &#64;Xmilon
-- [Mod API: expose seeded slime chunk queries (#3171)](https://github.com/arismoko/horizon/pull/3171) — &#64;Xmilon
-- [Mod API: item_picked_up_post, a notice after a pickup took items (#3148) (#3201)](https://github.com/arismoko/horizon/pull/3201) — &#64;Xmilon
-- [Mod API: item_picked_up can force a pickup as well as deny it (#3149) (#3173)](https://github.com/arismoko/horizon/pull/3173) — &#64;Xmilon
-- [Pistons carry a mod block entity's data while moving (BlockPart piston_carries_block_entity) (#3337)](https://github.com/arismoko/horizon/pull/3337) — &#64;Xmilon
-- [BlockPart::sound_type: contextual block sound type (part of #3186) (#3306)](https://github.com/arismoko/horizon/pull/3306) — &#64;Xmilon
-- [Mod API: LevelRef::check_light and the client's re-ask of dynamic light (#3187, PR 2) (#3236)](https://github.com/arismoko/horizon/pull/3236) — &#64;Xmilon
-- [Mod API: dynamic_light blocks and the light_emission BlockPart (#3187, PR 1) (#3233)](https://github.com/arismoko/horizon/pull/3233) — &#64;Xmilon
-- [fix(mod-api): expose per-state block light declarations (#3165)](https://github.com/arismoko/horizon/pull/3165) — &#64;Xmilon
-
-#### &#64;levzzz5154 (1)
-
-- [Expose the original player during clone hooks (#3061)](https://github.com/arismoko/horizon/pull/3061) — &#64;levzzz5154
-
-#### &#64;Dawnforger (1)
-
-- [Transactions: a container move keeps the slot it touches, not the whole block entity (#3479)](https://github.com/arismoko/horizon/pull/3479) — &#64;Dawnforger
 
 #### &#64;merenotnoonereal (1)
 
@@ -118,21 +204,22 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 
 ### Maintenance
 
+- [sync: integrate upstream performance capture platform (sync 33) (#3579)](https://github.com/arismoko/horizon/pull/3579) — &#64;arismoko — upstream commit `64e910e7041f3671e5fb78d8c295c8af47f1f051`
 - [Sync 32: upstream ba91f75cb21 with typed chest-boat loot owners (#3554)](https://github.com/arismoko/horizon/pull/3554) — &#64;arismoko — upstream commit `50fb66c389609bf24b4bbac053e8a733ea6425f7`
 - [Upstream sync 31: a21f8a3947e with typed entity and attack owners (#3540)](https://github.com/arismoko/horizon/pull/3540) — &#64;arismoko — upstream commit `5435d5ddd90c8521a786bd146290cc35cf39cf65`
 - [Upstream sync 30: 911aa6ddc6 with typed camera and equipment owners (#3536)](https://github.com/arismoko/horizon/pull/3536) — &#64;arismoko — upstream commit `5db2558df033056f8e4c1268c13abca9ca5b9cdc`
 - [Upstream sync 29: c94cdb0c76 with typed behavior integrations (#3529)](https://github.com/arismoko/horizon/pull/3529) — &#64;arismoko — upstream commit `2ab09929a9ec0b2face87bb39e72ec26ee2e138c`
 - [Upstream sync 28: d9b9996a4d with typed fork integration (#3503)](https://github.com/arismoko/horizon/pull/3503) — &#64;arismoko — upstream commit `da5c483d38161ea2e3b813e31aa60c5210e3496a`
 - [Upstream sync 27: main to horizon-rust/horizon 501446443c (#3466)](https://github.com/arismoko/horizon/pull/3466) — &#64;arismoko — upstream commit `fc4d686c004f4833060a23e70736f0585760cf4d`
-- [Generate a 12-hour rolling public changelog without main commits (#3613)](https://github.com/arismoko/horizon/pull/3613) — &#64;arismoko
-- [CI on Dyna: reuse kept prepared data only unchanged, rustfmt for the wasm pin, and slot size against its cap (#3602)](https://github.com/arismoko/horizon/pull/3602) — &#64;arismoko
-- [wasm-mods: run the fixture-loading client tests on a guest-sized worker (#3577)](https://github.com/arismoko/horizon/pull/3577) — &#64;arismoko
-- [stack_dump test: sample the busy thread only once it is inside its busy frame (#3591)](https://github.com/arismoko/horizon/pull/3591) — &#64;arismoko
-- [Repair slow-shard guest-stack and lifecycle fixtures after runtime proof (#3565)](https://github.com/arismoko/horizon/pull/3565) — &#64;arismoko
+- [Ignored-test diagnostics: a crash without a named failure still says why (#3762)](https://github.com/arismoko/horizon/pull/3762) — &#64;arismoko
+- [Modding book: move designs, trackers and notes out of the book (#3760)](https://github.com/arismoko/horizon/pull/3760) — &#64;arismoko
+- [hot-paths: read the Rust pin from tools/ci/rust-version (#3761)](https://github.com/arismoko/horizon/pull/3761) — &#64;arismoko
+- [Payload fixture: a trap case ends on the guest's trap, not any disconnect (#3745)](https://github.com/arismoko/horizon/pull/3745) — &#64;arismoko
+- [Post rollup and sync pull requests to Discord when opened and merged (#3758)](https://github.com/arismoko/horizon/pull/3758) — &#64;arismoko
 <details>
-<summary>and 32 more maintenance PRs</summary>
+<summary>and 52 more maintenance PRs</summary>
 
-[#3547](https://github.com/arismoko/horizon/pull/3547), [#3552](https://github.com/arismoko/horizon/pull/3552), [#3558](https://github.com/arismoko/horizon/pull/3558), [#3557](https://github.com/arismoko/horizon/pull/3557), [#3543](https://github.com/arismoko/horizon/pull/3543), [#3542](https://github.com/arismoko/horizon/pull/3542), [#3544](https://github.com/arismoko/horizon/pull/3544), [#3550](https://github.com/arismoko/horizon/pull/3550), [#3551](https://github.com/arismoko/horizon/pull/3551), [#3545](https://github.com/arismoko/horizon/pull/3545), [#3541](https://github.com/arismoko/horizon/pull/3541), [#3538](https://github.com/arismoko/horizon/pull/3538), [#3526](https://github.com/arismoko/horizon/pull/3526), [#3534](https://github.com/arismoko/horizon/pull/3534), [#3522](https://github.com/arismoko/horizon/pull/3522), [#3500](https://github.com/arismoko/horizon/pull/3500), [#3459](https://github.com/arismoko/horizon/pull/3459), [#3511](https://github.com/arismoko/horizon/pull/3511), [#3504](https://github.com/arismoko/horizon/pull/3504), [#3087](https://github.com/arismoko/horizon/pull/3087), [#3490](https://github.com/arismoko/horizon/pull/3490), [#2700](https://github.com/arismoko/horizon/pull/2700), [#3498](https://github.com/arismoko/horizon/pull/3498), [#2697](https://github.com/arismoko/horizon/pull/2697), [#3496](https://github.com/arismoko/horizon/pull/3496), [#3488](https://github.com/arismoko/horizon/pull/3488), [#3460](https://github.com/arismoko/horizon/pull/3460), [#3467](https://github.com/arismoko/horizon/pull/3467), [#3458](https://github.com/arismoko/horizon/pull/3458), [#3455](https://github.com/arismoko/horizon/pull/3455), [#3237](https://github.com/arismoko/horizon/pull/3237), [#3235](https://github.com/arismoko/horizon/pull/3235)
+[#3747](https://github.com/arismoko/horizon/pull/3747), [#3742](https://github.com/arismoko/horizon/pull/3742), [#3741](https://github.com/arismoko/horizon/pull/3741), [#3721](https://github.com/arismoko/horizon/pull/3721), [#3732](https://github.com/arismoko/horizon/pull/3732), [#3731](https://github.com/arismoko/horizon/pull/3731), [#3730](https://github.com/arismoko/horizon/pull/3730), [#3726](https://github.com/arismoko/horizon/pull/3726), [#3688](https://github.com/arismoko/horizon/pull/3688), [#3694](https://github.com/arismoko/horizon/pull/3694), [#3692](https://github.com/arismoko/horizon/pull/3692), [#3683](https://github.com/arismoko/horizon/pull/3683), [#3598](https://github.com/arismoko/horizon/pull/3598), [#3615](https://github.com/arismoko/horizon/pull/3615), [#3641](https://github.com/arismoko/horizon/pull/3641), [#3613](https://github.com/arismoko/horizon/pull/3613), [#3602](https://github.com/arismoko/horizon/pull/3602), [#3577](https://github.com/arismoko/horizon/pull/3577), [#3591](https://github.com/arismoko/horizon/pull/3591), [#3565](https://github.com/arismoko/horizon/pull/3565), [#3547](https://github.com/arismoko/horizon/pull/3547), [#3552](https://github.com/arismoko/horizon/pull/3552), [#3558](https://github.com/arismoko/horizon/pull/3558), [#3557](https://github.com/arismoko/horizon/pull/3557), [#3543](https://github.com/arismoko/horizon/pull/3543), [#3542](https://github.com/arismoko/horizon/pull/3542), [#3544](https://github.com/arismoko/horizon/pull/3544), [#3550](https://github.com/arismoko/horizon/pull/3550), [#3551](https://github.com/arismoko/horizon/pull/3551), [#3545](https://github.com/arismoko/horizon/pull/3545), [#3541](https://github.com/arismoko/horizon/pull/3541), [#3538](https://github.com/arismoko/horizon/pull/3538), [#3526](https://github.com/arismoko/horizon/pull/3526), [#3534](https://github.com/arismoko/horizon/pull/3534), [#3522](https://github.com/arismoko/horizon/pull/3522), [#3500](https://github.com/arismoko/horizon/pull/3500), [#3459](https://github.com/arismoko/horizon/pull/3459), [#3511](https://github.com/arismoko/horizon/pull/3511), [#3504](https://github.com/arismoko/horizon/pull/3504), [#3087](https://github.com/arismoko/horizon/pull/3087), [#3490](https://github.com/arismoko/horizon/pull/3490), [#2700](https://github.com/arismoko/horizon/pull/2700), [#3498](https://github.com/arismoko/horizon/pull/3498), [#2697](https://github.com/arismoko/horizon/pull/2697), [#3496](https://github.com/arismoko/horizon/pull/3496), [#3488](https://github.com/arismoko/horizon/pull/3488), [#3460](https://github.com/arismoko/horizon/pull/3460), [#3467](https://github.com/arismoko/horizon/pull/3467), [#3458](https://github.com/arismoko/horizon/pull/3458), [#3455](https://github.com/arismoko/horizon/pull/3455), [#3237](https://github.com/arismoko/horizon/pull/3237), [#3235](https://github.com/arismoko/horizon/pull/3235)
 
 </details>
 
@@ -142,19 +229,29 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 
 ### New issues open for contributors
 
+- [Enchanting table particles follow the same enchant power source as the server's bookshelf count (#3749)](https://github.com/arismoko/horizon/issues/3749)
+- [Recipe ingredients: a mod's own kind keeps typed data, a widening stack test and a clear failure (#3738)](https://github.com/arismoko/horizon/issues/3738)
+- [Mod chunk generators: vanilla stages (surface, carvers, structures, features) after a mod's terrain (#3723)](https://github.com/arismoko/horizon/issues/3723)
+- [Hopper against a mod's item storage: try the move in a transaction and abort, as the reference does (#3720)](https://github.com/arismoko/horizon/issues/3720)
+- [Expose a measured CPU reciprocal table through the shared mod API (#3697)](https://github.com/arismoko/horizon/issues/3697)
+- [A loot table with no seed draws from the level's random, not a position-derived seed (#3690)](https://github.com/arismoko/horizon/issues/3690)
+- [Rendering: replace mob_layer by the render_living_pre/post and render_player_pre/post pair (folding mob_submit and player_submit) (#3681)](https://github.com/arismoko/horizon/issues/3681)
+- [Hooks: container_loot_filled, a mod changes the stacks a chest's loot table rolled (#3653)](https://github.com/arismoko/horizon/issues/3653)
+- [Recipes: a mod registers its own crafting recipe kind (matcher, assembler, remainders, serializer) (#3652)](https://github.com/arismoko/horizon/issues/3652)
 - [Mending: test the post-repair-ratio eligibility re-check once a path can change the slot (#3612)](https://github.com/arismoko/horizon/issues/3612)
 - [Build: per-path requirement on mod commands over the typed permission service, and a resend-command-tree host method (#3609)](https://github.com/arismoko/horizon/issues/3609)
-- [A bounce-restitution listener runs again on every replayed client tick (#3574)](https://github.com/arismoko/horizon/issues/3574)
-- [Client piston replay must follow the server-resolved move (stickiness a part refused) (#3573)](https://github.com/arismoko/horizon/issues/3573)
-- [can_equip: prepared stack crossing for wasm, no per-candidate copy (#3549)](https://github.com/arismoko/horizon/issues/3549)
-- [Give villager nutrition one owner per Items registry (#3546)](https://github.com/arismoko/horizon/issues/3546)
+- [Mod API: player_disconnect, disconnect a player with a Text reason (server half of #3451) (#3604)](https://github.com/arismoko/horizon/issues/3604)
 
 ### Fixed bugs
 
+- [Flaky horizon-threads timing tests: a spinning thread is not always mostly Running (#3724)](https://github.com/arismoko/horizon/issues/3724)
 - [Single player: a panic on the integrated server thread writes no crash report (#3494)](https://github.com/arismoko/horizon/issues/3494)
 - [Two parity harnesses cannot run on main: gateway_replacement (stale path) and machine_recipe_placement (registration) (#3469)](https://github.com/arismoko/horizon/issues/3469)
 - [block_entity_render parity harness: decorated_pot mismatches in 16 of 455 cases on main (#3468)](https://github.com/arismoko/horizon/issues/3468)
+- [Piglins: an admired item loses its components, a hit baby loses its gold ingot, and the client takes the wrong clicks (#3220)](https://github.com/arismoko/horizon/issues/3220)
 - [An item's &#96;damage_resistant&#96; is decided four ways, and three of them get some stacks wrong (#3214)](https://github.com/arismoko/horizon/issues/3214)
+- [Five server paths end an item use without &#96;stopUsingItem&#96;, and a portal trip doesn't end it at all (#3212)](https://github.com/arismoko/horizon/issues/3212)
+- [Fire ignores a mod or data-pack dimension's own infiniburn tag and uses the Overworld's (#3182)](https://github.com/arismoko/horizon/issues/3182)
 - [Mod API: &#96;BlockEntityTypeBuilder::blocks&#96; does not qualify bare block names, and load fails with "is not a block" (#3120)](https://github.com/arismoko/horizon/issues/3120)
 - [Mod API: a code-declared block's &#96;item&#96; defaults to true, as in JSON (#3119)](https://github.com/arismoko/horizon/issues/3119)
 - [Mod API: code declarations cannot set per-state light (&#96;state_light&#96;) (#3117)](https://github.com/arismoko/horizon/issues/3117)
@@ -320,19 +417,19 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 
 ### New issues open for contributors
 
-- [Function replacement and published loops: follow-ups from the review of #3161 (#3457)](https://github.com/arismoko/horizon/issues/3457)
+- [screen_opening: open another vanilla screen instead, and replace title screens (#3307)](https://github.com/arismoko/horizon/issues/3307)
 - [ItemPart: repair combining, enchanting offers and application, container items and the pick-block slot (#3225)](https://github.com/arismoko/horizon/issues/3225)
 - [ItemPart: sweep box, damage immunity, gaze disguise, powder-snow walking, animal-armour tick and glide wear (#3224)](https://github.com/arismoko/horizon/issues/3224)
 - [ItemPart: using and holding: reequip animation, block break reset, continuing and stopping a use, highlight tip (#3223)](https://github.com/arismoko/horizon/issues/3223)
-- [Piglins: an admired item loses its components, a hit baby loses its gold ingot, and the client takes the wrong clicks (#3220)](https://github.com/arismoko/horizon/issues/3220)
 - [The server keeps an item use going after the hand's item changes (#3211)](https://github.com/arismoko/horizon/issues/3211)
-- [Lightning deletes struck dropped items by name instead of hurting them (#3210)](https://github.com/arismoko/horizon/issues/3210)
 - [Declaration storage: one declaration per storage kind, discovered, with rollback (#3205)](https://github.com/arismoko/horizon/issues/3205)
 - [Mod guard: keep its thread-locals where every caller can inline them (#3196)](https://github.com/arismoko/horizon/issues/3196)
 - [Split the mod vocabulary's part exports into one file per declaration family (#3193)](https://github.com/arismoko/horizon/issues/3193)
 - [BlockPart: rotate, on_block_state_change, relocability and can_be_connected_to (#3192)](https://github.com/arismoko/horizon/issues/3192)
 - [BlockPart: face hiding, fluid faces, bubble columns, map colour, scaffolding and tall supports (#3191)](https://github.com/arismoko/horizon/issues/3191)
-- [and 24 more](https://github.com/arismoko/horizon/issues?q=is%3Aissue%20label%3A%22help%20wanted%22%20is%3Aopen%20created%3A2026-11-11)
+- [BlockPart: is_fertile, can_be_hydrated, on_tree_grow (#3189)](https://github.com/arismoko/horizon/issues/3189)
+- [Vanilla's block-class tests are done by name or tag, so mod blocks built on those classes act differently (#3180)](https://github.com/arismoko/horizon/issues/3180)
+- [and 20 more](https://github.com/arismoko/horizon/issues?q=is%3Aissue%20label%3A%22help%20wanted%22%20is%3Aopen%20created%3A2026-11-11)
 
 ### Fixed bugs
 
@@ -505,11 +602,11 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 - [Admit knockback receiver and damage contexts to API points (#2767)](https://github.com/arismoko/horizon/issues/2767)
 - [Read hot game state from a read-only shared window (follow-up to #1780) (#2764)](https://github.com/arismoko/horizon/issues/2764)
 - [Tune the wasm engine config (inliner, pooling, copy-on-write init) (#2763)](https://github.com/arismoko/horizon/issues/2763)
-- [Raise the wasm group memory limit and make it configurable (#2762)](https://github.com/arismoko/horizon/issues/2762)
 - [Build wasm group fault recovery (#2761)](https://github.com/arismoko/horizon/issues/2761)
 - [Per-biome client effects and mod biome registry sync (#2734)](https://github.com/arismoko/horizon/issues/2734)
 - [Let client mods register renderers for map decoration types (#2692)](https://github.com/arismoko/horizon/issues/2692)
-- [and 3 more](https://github.com/arismoko/horizon/issues?q=is%3Aissue%20label%3A%22help%20wanted%22%20is%3Aopen%20created%3A2026-11-10)
+- [Mod API: a recipe viewer can't tell what a mod crafting grid's "+" lacks (transfer dry run) (#2640)](https://github.com/arismoko/horizon/issues/2640)
+- [and 2 more](https://github.com/arismoko/horizon/issues?q=is%3Aissue%20label%3A%22help%20wanted%22%20is%3Aopen%20created%3A2026-11-10)
 
 ### Fixed bugs
 
@@ -686,6 +783,7 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 - [Coordinate with upstream: restore the Horizon layer, then move the mod host above the engine (#2534)](https://github.com/arismoko/horizon/issues/2534)
 - [Let a mod block declare that it is a skull of a registered type (#2529)](https://github.com/arismoko/horizon/issues/2529)
 - [Provide the constructed H077 old-world fixture for client tests (#2474)](https://github.com/arismoko/horizon/issues/2474)
+- [The wasm fixture can't be built on Windows, and is too heavy to run locally (#2460)](https://github.com/arismoko/horizon/issues/2460)
 - [Upstream delta syncs 2 and 3 (ba0fdb3814, 894eebeea2): omitted helper fragments to review (#2435)](https://github.com/arismoko/horizon/issues/2435)
 - [Retain hidden registered descendants of an off-level root across chunk cycling (#2427)](https://github.com/arismoko/horizon/issues/2427)
 - [Build custom recipe-book settings for mods (#2415)](https://github.com/arismoko/horizon/issues/2415)
@@ -693,7 +791,7 @@ Public repository activity, not a curated release promise. CI/build and bot PRs 
 - [ATM10 mod-API coverage: NeoForge events and capabilities with no hook (roadmap input) (#2404)](https://github.com/arismoko/horizon/issues/2404)
 - [Upstream jump sync (447e9d277d..ab4b8dfb3a): omitted upstream capabilities and tooling to review (#2403)](https://github.com/arismoko/horizon/issues/2403)
 - [Windows prebuilt route runs two Rust allocators (game mimalloc vs std DLL) (#2394)](https://github.com/arismoko/horizon/issues/2394)
-- [Build mods extending the mod API: mod hooks, Part kinds, services and registries (#2339)](https://github.com/arismoko/horizon/issues/2339)
+- [and 1 more](https://github.com/arismoko/horizon/issues?q=is%3Aissue%20label%3A%22help%20wanted%22%20is%3Aopen%20created%3A2026-11-09)
 
 ### Fixed bugs
 
