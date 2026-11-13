@@ -808,7 +808,11 @@ pub fn generate(
             None => {
                 node.own.insert(name.to_string());
                 node.own.insert(install.to_string());
-                let original: syn::Path = syn::parse_str(&found.module).expect("a module path");
+                // The extern a lower crate is named by is its library's name (`mod_render`), not
+                // its folder's (`horizon_mod_render`).
+                let original: syn::Path =
+                    syn::parse_str(&original_path(&source.libraries, &found.module))
+                        .expect("a module path");
                 (
                     quote! {
                         #(#attrs)*
@@ -1631,6 +1635,30 @@ mod tests {
 
     fn root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    #[test]
+    #[ignore = "daily"]
+    fn a_lower_free_function_installs_through_its_library_name() {
+        // `horizon-mod-render`'s library is `mod_render`: the installer must call the slot there.
+        let crate_ = generate(
+            &root(),
+            "horizon_patch",
+            &["horizon_mod_render::render::world_drawn".into()],
+            &Extras::default(),
+        )
+        .unwrap();
+        let lib: String = crate_.libs[0].1.split_whitespace().collect();
+        assert!(
+            lib.contains("::mod_render::render::__fnr_world_drawn(world_drawn)"),
+            "{}",
+            crate_.libs[0].1
+        );
+        assert!(
+            !lib.contains("horizon_mod_render::render::__fnr_"),
+            "{}",
+            crate_.libs[0].1
+        );
     }
 
     #[test]
