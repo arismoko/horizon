@@ -54,11 +54,20 @@ Native registrations retain their persistent NBT validation contract.
 
 The shared decoder currently covers `damage`, `repair_cost`, `max_damage`,
 `max_stack_size`, `rarity`, `enchantments`, `stored_enchantments`, `custom_name`,
-`item_name`, `item_model`, and `block_entity_data` in the `minecraft` namespace.
-`item_model` accepts valid resource identifiers without requiring an existing model;
-bare names and an empty namespace normalize to `minecraft`. The other 111 registered
-built-ins use stored-value matching while their shared decoders are added
-incrementally in **#3875**. Their absence is not a load refusal.
+`item_name`, `item_model`, `custom_data`, and `block_entity_data` in the `minecraft`
+namespace. `item_model` accepts valid resource identifiers without requiring an
+existing model; bare names and an empty namespace normalize to `minecraft`.
+`custom_data` accepts an arbitrary NBT compound or a fully parsed SNBT compound
+string. Its keys and values are preserved, without identifier normalization or
+field defaults. Equality requires the entire compound, ordered lists and exact
+numeric tag types; floating NaNs compare equal and signed zeros remain distinct.
+An empty compound is a present value, not a removal. SNBT supports the pinned
+26.3 numeric syntax, typed/mixed lists, `bool`/`uuid`, and Unicode-16 named/hex
+escapes; Java UTF-16 units are retained even for unpaired surrogates. Live stack
+loads and `StackData::set_other`/`set_loot_component` normalize flattened payloads
+once; `preserved_components()` exposes only borrowed, read-only storage.
+The other 110 registered built-ins use stored-value matching while their shared
+decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference
 lists retain the base list and remove only items whose default stack passes the
