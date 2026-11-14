@@ -178,10 +178,19 @@ pub struct Guest {
     /// The hub tick the player was placed on: chunks go out from the tick
     /// after next, behind the first doTick's packets, as vanilla's do.
     pub placed_at: u64,
+    /// The hub tick the guest entered its level (a join or a level change): `player_move` does not
+    /// hear the tick after it.
+    pub level_entered: u64,
+    /// The last location a movement report was heard at, or a server-side teleport sent the player
+    /// to (position, `[yaw, pitch]`): what `player_move` compares reports with and reports as `from`.
+    /// It is kept apart from the accepted position and may differ from it.
+    pub last_reported: ([f64; 3], [f32; 2]),
     /// The chunk cache centre placeNewPlayer already sent.
     pub center_sent: Option<(i32, i32)>,
     /// Why the connection closed (the console's "lost connection").
     pub left_reason: String,
+    /// A validated movement report the mods have not ruled on yet (`player_move`).
+    pub pending_move: Option<super::hub::PendingMove>,
     /// A disconnect was started ([`Guest::begin_disconnect`]); the connection closes when the
     /// server next polls it, and until then no other disconnect is sent.
     pub disconnect_pending: bool,
@@ -253,6 +262,8 @@ pub struct Guest {
     /// the moves it sent from the old level are ignored, as they would be
     /// while it had a teleport to accept.
     pub landing: bool,
+    /// `landing` was set by a `tp` hold waiting for chunks (`Game::hold_for_chunks`), not by a portal.
+    pub tp_held: bool,
     pub teleport_counter: i32,
     /// `ServerPlayer.getCamera() != this`.
     pub watching: bool,
@@ -677,8 +688,11 @@ impl Guest {
             last_seen: Default::default(),
             signatures: Default::default(),
             placed_at: 0,
+            level_entered: 0,
+            last_reported: (position, [0.0, 0.0]),
             center_sent: None,
             left_reason: String::new(),
+            pending_move: None,
             disconnect_pending: false,
             uuid: j.uuid,
             name: j.name,
@@ -719,6 +733,7 @@ impl Guest {
             awaiting_teleport: None,
             awaiting_keeps_motion: false,
             landing: false,
+            tp_held: false,
             teleport_counter: 0,
             watching: false,
             teleport_tick: 0,

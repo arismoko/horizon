@@ -1722,6 +1722,7 @@ issues = \"http://example.org/issues\"
     }
 
     #[test]
+    #[ignore = "daily"]
     fn project_folder_loads_without_packaging_git_hooks() {
         let root = std::env::temp_dir().join(format!("horizon-mod-git-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);

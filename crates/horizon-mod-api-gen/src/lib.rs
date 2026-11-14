@@ -902,6 +902,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn only_a_game_hooks_placeholder_body_is_filled() {
         let fill = |body: &str, in_game: bool| {
             let method: syn::ItemFn = syn::parse_str(&format!(

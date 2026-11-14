@@ -6,6 +6,8 @@
 //! clicks). The player still moves with the local physics, as the vanilla
 //! client predicts its own movement; the server stays authoritative for
 //! everything else.
+mod selector_metadata;
+use selector_metadata::hurt_sound_for;
 mod attack_target;
 mod fall_sound;
 mod interaction_actions;
@@ -79,6 +81,7 @@ mod abilities;
 mod chat_received;
 use chat_received::QueuedChat;
 pub(in crate::game) mod client_level_tick;
+mod entity_section_steps;
 mod item_use;
 mod remote_attributes;
 mod tables;
@@ -153,28 +156,6 @@ pub(super) fn remote_text(tag: &Tag) -> horizon_client::text::Text {
 /// level random either.
 pub(super) fn player_voice_pitch() -> f32 {
     1.0
-}
-
-/// The hurt sound of a `ClientboundDamageEventPacket`'s damage type, by its
-/// synchronized registry id: `Player.getHurtSound` picks the type's effects.
-fn hurt_sound_for(
-    registries: &Dynamic,
-    damage: &horizon_world::damage_source::Catalog,
-    source_type: i32,
-) -> &'static str {
-    if let Some(data) = registries.data("minecraft:damage_type", source_type) {
-        let effects = data.get("effects").and_then(|t| match t {
-            Tag::String(effects) => effects.to_string().ok(),
-            _ => None,
-        });
-        return horizon_client::health::hurt_sound(effects.as_deref().unwrap_or("hurt"));
-    }
-    registries
-        .name("minecraft:damage_type", source_type)
-        .and_then(|name| damage.id(name).and_then(|id| damage.definition(id)))
-        .map_or(horizon_client::health::hurt_sound("hurt"), |d| {
-            horizon_client::health::hurt_sound(&d.effects)
-        })
 }
 
 /// The live entity a bound sound names; absence means that object was removed.
@@ -674,6 +655,7 @@ pub(super) struct Remote {
     /// plus the commands native mods own (`chat::chat_tree_for`). Rebuilt where
     /// that base changes, not at each keystroke.
     pub chat_tree: horizon_client::command::Dispatcher,
+    selector_metadata_supported: bool,
     /// Whether a `ClientboundCommandsPacket` has supplied the server's tree.
     /// The local fallback is for UI completion only; vanilla signs command
     /// arguments against an empty tree until the server sends one.
@@ -1121,7 +1103,9 @@ impl Game<'_> {
                     }
                 };
             });
+        self.ui.registries.selector_tokens.clear();
         self.remote = Some(Remote {
+            selector_metadata_supported: true,
             professions: self.client_professions()?,
             session,
             brand: "unknown".into(),
@@ -1364,7 +1348,9 @@ impl Game<'_> {
         let chat_tree = self.chat_tree_for(None);
         let services_keys = Arc::new(std::sync::Mutex::new(ServicesKeys::Ready(Vec::new())));
 
+        self.ui.registries.selector_tokens.clear();
         self.remote = Some(Remote {
+            selector_metadata_supported: true,
             professions: self.client_professions()?,
             session,
             brand: "horizon-studio".into(),
@@ -3568,6 +3554,11 @@ impl Game<'_> {
             C::CustomPayload(p) if p.channel == horizon_client::datapack_net::CHANNEL => {
                 horizon_client::datapack_net::accept_chunk(&p.data)?;
             }
+            C::CustomPayload(p)
+                if p.channel == horizon_client::lan::commands::selector_sync::CHANNEL =>
+            {
+                self.receive_selector_tokens(&p.data)?;
+            }
             // Another level's world: its open, its packets and its close (`viewed_worlds`).
             C::CustomPayload(p) if p.channel == horizon_protocol::viewed_levels::CHANNEL => {
                 self.viewed_levels_payload(&p.data)?;
@@ -4016,7 +4007,7 @@ impl Game<'_> {
                     Some((p.yaw, p.pitch)),
                     p.on_ground,
                     MovePacket::PositionSync,
-                )
+                );
             }
             C::TeleportEntity(p) => {
                 let base = self
@@ -6611,10 +6602,12 @@ impl Game<'_> {
                 .flatten()
             })
             .flatten();
+        let player_from = entity_section_steps::player_before(self);
         if let Some(player) = player {
             self.native_player_tick_pre(mod_api::__private::PlayerTickPreCall { player });
         }
         let result = self.tick_local_player(entity_collisions, pushed, sprint_window);
+        entity_section_steps::player_after(self, player_from);
         // `EntityEvent.Size` for the pose the tick set.
         self.native_local_player_size();
         if let Some(player) = player {
@@ -7342,6 +7335,7 @@ impl Game<'_> {
             let players = &r.level_players;
             let tab_players = &r.tab_players;
             let m = &mut self.mobs[i];
+            let section_from = m.position;
             if player {
                 // AvatarRenderer.extractRenderState: isSpectator, from the player list.
                 m.extra.spectator = players
@@ -7552,8 +7546,13 @@ impl Game<'_> {
                 }
                 _ => {}
             }
+            let section_id = m.id;
+            let section_to = m.position;
             if let Some(player) = player_ref {
                 self.native_player_tick_post(mod_api::__private::PlayerTickPostCall { player });
+            }
+            if section_from != section_to {
+                self.remote_entity_section_step(section_id, section_from, section_to);
             }
         }
         // ExperienceOrb.tick runs on a client too (all but the merges and the
@@ -7632,16 +7631,7 @@ impl Game<'_> {
             .retain(|_, (_, steps)| *steps > 0);
         let mut entered = Vec::new();
         if running {
-            let mut items = self.dropped.lift();
-            items.retain_mut(|item| {
-                // The server decides entity collisions. This copy predicts block movement.
-                let (_, discarded) =
-                    self.tick_item_with_block_contacts(item, None, &[], true, &mut |splash| {
-                        entered.push(splash);
-                    });
-                !discarded
-            });
-            self.put_back_dropped(items);
+            entity_section_steps::tick_items(self, &mut entered);
         }
         // Entity.doWaterSplashEffect on this window: Level.addParticle draws
         // the bubbles and splashes. ClientLevel.playSeededSound drops

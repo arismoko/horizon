@@ -40,6 +40,7 @@ fn last_stderr_line(output: &Output) -> String {
 }
 
 #[test]
+#[ignore = "daily"]
 fn documented_switches_do_not_consume_the_following_option() {
     let dir = scratch("switches");
     let output = run(&dir, &["--help"]);
@@ -76,6 +77,7 @@ fn documented_switches_do_not_consume_the_following_option() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn launch_api_prints_json_and_runs_nothing_else() {
     let dir = scratch("reply");
     let output = run(&dir, &["--launch-api"]);
@@ -97,6 +99,7 @@ fn launch_api_prints_json_and_runs_nothing_else() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn a_refused_command_line_exits_2_without_a_crash_report() {
     let dir = scratch("usage");
     for args in [
@@ -120,6 +123,7 @@ fn a_refused_command_line_exits_2_without_a_crash_report() {
 /// options.txt or the resources are touched, so the next start doesn't read it as a failed one.
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn a_control_socket_path_too_long_is_a_refused_command_line() {
     let dir = scratch("socket");
     let socket = dir.join(format!("{}.sock", "x".repeat(150)));
@@ -144,6 +148,7 @@ fn a_control_socket_path_too_long_is_a_refused_command_line() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn an_error_exits_1_and_names_the_crash_report_under_home() {
     let dir = scratch("error");
     let start = dir.join("start");

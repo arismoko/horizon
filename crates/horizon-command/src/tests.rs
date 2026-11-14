@@ -621,6 +621,27 @@ fn whitespace_is_what_java_character_is_whitespace_says() {
     assert!(!parse("@e[\u{A0}type=minecraft:pig]"));
 }
 #[test]
+fn a_registered_token_reads_as_a_whole_word_before_the_vanilla_letter() {
+    let mut reg = reg();
+    reg.selector_tokens
+        .push(horizon_client_core::registries::SelectorToken {
+            name: "allies".into(),
+            tooltip: "test.selector.allies".into(),
+            players_only: true,
+            limit: usize::MAX,
+            sort: "nearest",
+        });
+    let mut r = Reader::new("@allies[limit=1]");
+    let s = selector::parse(&mut r, &reg, true).unwrap();
+    assert_eq!(s.token.as_deref(), Some("allies"));
+    assert_eq!((s.limit, s.sort), (1, Sort::Nearest));
+    assert!(!s.include_entities);
+    let s = selector::parse(&mut Reader::new("@a"), &reg, true).unwrap();
+    assert_eq!((s.kind, s.token), ('a', None));
+    let error = selector::parse(&mut Reader::new("@zz"), &reg, true).unwrap_err();
+    assert_eq!(error.key, "argument.entity.selector.unknown");
+}
+#[test]
 fn a_uuid_selects_by_entity_uuid() {
     // EntitySelectorParser.parseNameOrUUID: a UUID sets entityUUID and
     // includesEntities, never playerName (which findEntities checks first).

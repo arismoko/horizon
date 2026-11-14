@@ -193,6 +193,11 @@ pub struct EntityMemory {
     pub(super) destroying_vehicles: HashSet<super::commands::Target>,
     /// Synched entity-data entries dirtied by forced writes since the last sync.
     pub(super) forced_meta: HashMap<u32, [u64; 4]>,
+    /// `Entity.noPhysics` a native mod wrote for a kind whose own struct keeps
+    /// no field for it (the dragon, an area-effect cloud, an ominous item
+    /// spawner, a shulker bullet): the value replaces the kind's constructor
+    /// default and is never saved.
+    pub(super) no_physics: HashMap<u32, bool>,
     /// Passengers that ride a vehicle, in load order: live entity IDs or unspawned tags.
     /// Entities of types Horizon does not simulate, kept per chunk and
     /// written back unchanged.
@@ -1403,6 +1408,7 @@ impl Game<'_> {
         self.forget_entity_initialization(mod_api::Holder::Entity(id));
         self.entity_attachments.remove(&id);
         self.persist.raw.remove(&id);
+        self.persist.no_physics.remove(&id);
     }
     /// Detach a travelling entity without discarding its in-memory attachments.
     pub(super) fn detach_entity(&mut self, id: u32) {

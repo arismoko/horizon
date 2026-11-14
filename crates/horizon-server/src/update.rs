@@ -1277,6 +1277,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[ignore = "daily"]
     fn an_archive_unpacks_beside_the_others_with_the_game_files_linked() {
         let install = installed("unpack", &["v1"]);
         let source = scratch("unpack-source");

@@ -469,6 +469,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "daily"]
     fn a_foreign_author_constructs_nested_inputs_without_access_to_lookup_fields() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
             "../../target/parts-owned-inputs-{}",

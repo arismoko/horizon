@@ -2459,9 +2459,7 @@ impl Game<'_> {
                 event @ (HostEvent::Chat { .. } | HostEvent::Warn(_) | HostEvent::Error(_)) => {
                     self.lan_log_event(event);
                 }
-                HostEvent::Ban { uuid, name, reason } => {
-                    self.anticheat_ban(uuid, &name, &reason);
-                }
+                HostEvent::Ban { uuid, name, reason } => self.anticheat_ban(uuid, &name, &reason),
                 HostEvent::ChatFiltered {
                     sender,
                     name,
@@ -2801,6 +2799,7 @@ impl Game<'_> {
                         self.native_player_kicked(player, &name, &reason);
                     }
                 }
+                HostEvent::PlayerMove(conn) => self.lan_player_move(conn),
                 HostEvent::Input { conn, flags } => {
                     if !mod_api::__private::listened(mod_api::HookId::PlayerInput) {
                         continue;
@@ -2867,7 +2866,7 @@ impl Game<'_> {
     /// A sand place in the same tick as another sand's fall schedule still
     /// sees the support (#4510). `tick_lan` then syncs the level; a paused
     /// tick that never calls this still drains inside `tick_lan`.
-    pub(super) fn tick_lan_packets(&mut self) {
+    pub(in crate::game) fn tick_lan_packets(&mut self) {
         if self.level_pass.packets_drained {
             return;
         }
@@ -2906,7 +2905,7 @@ impl Game<'_> {
                     .rules
                     .bool_at(horizon_client::gamerules::vanilla::ELYTRA_MOVEMENT_CHECK),
             );
-            host.hub.mods_loaded = !mod_api::__private::mods().is_empty();
+            Self::sync_hub_mod_flags(&mut host.hub);
             let pass = self.level_pass;
             let mut events = if pass.first {
                 horizon_client::spans::time("lan_poll", || host.hub.poll(&mut ctx))
@@ -3265,7 +3264,7 @@ impl Game<'_> {
                 // (`tick_server`): the network is read once, before the first.
                 // Player packets may already have been drained before
                 // scheduled block ticks (`tick_lan_packets`).
-                host.hub.mods_loaded = !mod_api::__private::mods().is_empty();
+                Self::sync_hub_mod_flags(&mut host.hub);
                 let pass = self.level_pass;
                 // Even paused worlds completed their ordered input segments at
                 // entry, before world sync/physics or any scheduled work.

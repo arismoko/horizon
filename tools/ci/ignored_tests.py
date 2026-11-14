@@ -16,7 +16,8 @@ in INTEGRATION_TESTS also run their `tests/` integration tests. The job fails wh
 no file in tools/ci/ignored-tests/ lists, when a listed test passes (take it off its file: the lists only
 shrink), and when a listed test no longer exists. A test marked `flaky` there
 may pass or fail; one marked `harness` is a parity harness's step, run by its harness with the
-environment it sets, and is skipped here; one marked `needs` reads an input only its parity harness provides
+environment it sets, and is skipped here, as is one marked `manual` (run by hand, by its parent test, or by the
+workflow its row names); one marked `needs` reads an input only its parity harness provides
 (REFERENCE names the environment variable): without that variable it is refused by name at the start of the
 shard, and with it, it runs and must pass; one marked `gpu` needs a graphics adapter and runs only where
 the runner has a Vulkan driver (an ICD file), and must pass there.
@@ -27,15 +28,20 @@ A row marked `daily` (`PACKAGE TEST TARGET daily REASON`, in `daily-<package>.tx
 `verify` into the daily run with `#[ignore = "daily"]` (tools/ci/move_to_daily.py): not a known failure, it must
 pass, and its row must name a test that still runs. A package's shard runs the daily rows of the targets it
 already runs (its library; every target for the packages in INTEGRATION_TESTS); the shard `daily-rows`
-(tools/ci/ignored_shards.py) runs every other daily row, one `cargo test -p PACKAGE TARGET -- --ignored --exact
-TEST...` per package and target.
+(tools/ci/ignored_shards.py; `daily-rows-launcher` for the launcher's) runs every other daily row, one `cargo test -p PACKAGE TARGET -- --ignored --exact
+TEST...` per package and target, from the package's own workspace: a launcher row runs from launcher/ against its
+own lockfile (`--locked`).
 
 `--needs VARIABLE --one-process-each` runs the tests marked `needs VARIABLE`, each alone in its own process
 (`--list` prints those commands instead), and fails unless every run reports exactly one test passed: a
 renamed test would otherwise match nothing and pass. Every test runs, then the step fails if any did.
+`--daily-tests PACKAGE TARGET` prints the tests one target's daily rows list, one per line (the Windows daily job
+runs horizon-mod-package's with `-- --ignored --exact`).
 `--report FILE` also writes the run's verdict as JSON for the daily run's summary (tools/ci/daily_summary.py): each
-problem's package, test identity, kind, panic location and policy file, the tests that passed, and the shards that
-did not complete. It holds only what this script prints anyway, never test output.
+problem's package, test identity, kind, panic location and policy file, the tests that passed, and the runs that
+did not complete with why (stopped()). It is written before each run too, naming that run as in progress, so a job
+stopped at its time limit still leaves one. It holds only names and numbers this script prints anyway, never test
+output.
 
 Every reader refuses a malformed row, a test listed twice, a folder with no rows or with a file other than `*.txt`
 and README.md, and a file at the retired single-list path (tools/ci/check_ignored_test_rows.py checks this alone).
@@ -52,6 +58,7 @@ import io
 from functools import lru_cache
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -63,6 +70,8 @@ from typing import NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools import lab
 from tools.ci import ignored_shards
+
+ROOT = Path(__file__).resolve().parents[2]
 
 # One file per topic, read in file-name order (README.md there gives the row format).
 POLICY = Path(__file__).with_name("ignored-tests")
@@ -91,7 +100,14 @@ LISTED = re.compile(r"^(\S+): test$")
 DAILY_TARGET = re.compile(r"^(?:lib|(?:bin|test):[\w-]+)$")
 # Why a test is a daily test (CONTRIBUTING.md "CI tiers"): slower than 2 s, or what it needs.
 DAILY_REASONS = ("slow", "game-boot", "resources", "child-process", "network", "wasm-fixture")
+# Who runs a `manual` row's test, never the daily shards: a person, its parent test (a child process it starts), or
+# a workflow of .github/workflows/ by file name.
+MANUAL_RUNNERS = re.compile(r"^(?:by-hand|subprocess|[\w.-]+\.ya?ml)$")
+WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 ICD_DIRS = ("/usr/share/vulkan/icd.d", "/etc/vulkan/icd.d")
+# The largest tracked Rust file read to check a panic location's line: above every source in the tree (the largest
+# are near 0.7 MB), so a location in any tracked source of any package is reported, while a blob stays bounded.
+SOURCE_BYTES = 2_000_000
 
 
 def compile_diagnostics(output):
@@ -139,7 +155,7 @@ def source_lines(path):
     fields = entry.stdout.split()
     if entry.returncode or len(fields) != 5 or fields[0] not in ("100644", "100755") or fields[1] != "blob":
         return None
-    if not fields[3].isdigit() or int(fields[3]) > 256_000:
+    if not fields[3].isdigit() or int(fields[3]) > SOURCE_BYTES:
         return None
     blob = subprocess.run(["git", "show", f"HEAD:{path}"], capture_output=True, text=True, errors="replace")
     return blob.stdout.splitlines() if blob.returncode == 0 else None
@@ -202,16 +218,23 @@ def listed_entries():
     rows = []
     for path in sorted(POLICY.glob("*.txt")):
         file = f"{POLICY_PATH}/{path.name}"
-        for number, line in enumerate(path.read_text().splitlines(), 1):
-            line = line.split(" # ", 1)[0].split()
+        for number, text in enumerate(path.read_text().splitlines(), 1):
+            line = text.split(" # ", 1)[0].split()
             if not line or line[0].startswith("#"):
                 continue
-            if line[3:4] == ["daily"]:
+            if line[3:4] == ["manual"]:
+                if (len(line) != 4 or not MANUAL_RUNNERS.match(line[2]) or " # " not in text
+                        or not text.split(" # ", 1)[1].strip()):
+                    sys.exit(f"{file}:{number}: expected `PACKAGE TEST WHO manual # WHY`, WHO `by-hand`, `subprocess` "
+                             "or a workflow file name, and WHY saying why it never runs in the daily shards")
+                if MANUAL_RUNNERS.match(line[2]) and line[2].endswith((".yml", ".yaml")) and not (WORKFLOWS / line[2]).is_file():
+                    sys.exit(f"{file}:{number}: no workflow .github/workflows/{line[2]}")
+            elif line[3:4] == ["daily"]:
                 if len(line) != 5 or not DAILY_TARGET.match(line[2]) or line[4] not in DAILY_REASONS:
                     sys.exit(f"{file}:{number}: expected `PACKAGE TEST TARGET daily REASON`, TARGET `lib`, "
                              f"`bin:NAME` or `test:NAME`, REASON one of {', '.join(DAILY_REASONS)}")
             elif len(line) < 3 or line[3:] not in ([], ["flaky"], ["harness"], ["gpu"], ["needs"], ["needs-plain"]):
-                sys.exit(f"{file}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu|needs|needs-plain|daily]`")
+                sys.exit(f"{file}:{number}: expected `PACKAGE TEST REFERENCE [flaky|harness|gpu|needs|needs-plain|daily|manual]`")
             if (line[0], line[1]) in seen:
                 sys.exit(f"{file}:{number}: {line[0]} {line[1]} is already listed in {seen[line[0], line[1]]}; "
                          "a test belongs to one file")
@@ -224,7 +247,8 @@ def listed_entries():
 
 
 def known_failures():
-    """(package, test) -> its mark (None, "flaky", "harness" or "gpu"), from the policy files."""
+    """(package, test) -> its mark (None, "flaky", "harness", "gpu" or "manual"), from the policy files: the tests a
+    shard judges by their row, as a known failure (None, flaky, gpu) or by skipping them (harness, manual)."""
     return {(row.package, row.test): row.mark for row in listed_entries()
             if row.mark not in {"needs", "needs-plain", "daily"}}
 
@@ -234,19 +258,25 @@ def daily_rows():
     return [row for row in listed_entries() if row.mark == "daily"]
 
 
+def daily_tests(package, target):
+    """The tests of `package`'s `target` (`lib`, `bin:NAME`, `test:NAME`) that its daily rows list, sorted: what a
+    job outside the shards runs with `-- --ignored --exact`, so it runs no other ignored test (a `manual` one)."""
+    return sorted(row.test for row in daily_rows() if row.package == package and row.reference == target)
+
+
 def shard_runs(package, target):
     """Whether `package`'s own shard runs the tests of `target` (`lib`, `bin:NAME`, `test:NAME`)."""
     return package in ignored_shards.SHARDS and (target == "lib" or package in INTEGRATION_TESTS)
 
 
-@lru_cache(maxsize=1)
-def workspace_features():
-    """{package: its features as the whole workspace resolves them}: what `verify`'s `--workspace` build compiles.
+@lru_cache(maxsize=None)
+def workspace_features(workspace="."):
+    """{package: its features as the workspace at `workspace` resolves them}: what its `--workspace` build compiles.
 
     `cargo test -p PACKAGE` alone resolves only that package's own needs, which leaves out a test behind a feature
     another member turns on (or a target's required-features), so a daily-rows run passes these explicitly."""
     metadata = subprocess.run(["cargo", "metadata", "--format-version", "1"], capture_output=True, text=True,
-                              check=True)
+                              check=True, cwd=ROOT / workspace)
     data = json.loads(metadata.stdout)
     names = {package["id"]: package["name"] for package in data["packages"]}
     members = set(data["workspace_members"])
@@ -330,8 +360,15 @@ def thread_identity(name):
     return "a thread (name withheld)"
 
 
+# The longest test identity shown: above every test path in the tree (the longest are near 160 characters), so a
+# real name is never cut, while a line that only looks like one cannot carry an unbounded payload.
+IDENTITY_CHARS = 300
+
+
 def safe_identity(name):
-    # Rust path segments only, not arbitrary libtest payloads or GitHub tokens.
+    # Rust path segments only, not arbitrary libtest payloads or GitHub tokens, and bounded in length.
+    if len(name) > IDENTITY_CHARS:
+        return f"identity withheld (longer than {IDENTITY_CHARS} characters)"
     if re.fullmatch(r"(?:r#)?[^\W\d]\w*(?:::(?:r#)?[^\W\d]\w*)*", name) and not re.search(
             r"(?:gh[pousr]_|github_pat_|token|secret)", name, re.IGNORECASE):
         return name
@@ -347,7 +384,7 @@ def tracked_rust_paths():
         for line in listing.stdout.splitlines():
             fields = line.split()
             if (len(fields) == 5 and fields[0] in ("100644", "100755") and
-                    fields[1] == "blob" and fields[3].isdigit() and int(fields[3]) <= 256_000 and
+                    fields[1] == "blob" and fields[3].isdigit() and int(fields[3]) <= SOURCE_BYTES and
                     re.fullmatch(r"(?:crates|launcher)/[A-Za-z0-9_./-]+\.rs", fields[4]) and
                     not any(part in ("", ".", "..", "target", ".local") for part in fields[4].split("/"))):
                 paths.add(fields[4])
@@ -544,6 +581,48 @@ def failure_diagnostics(output):
 
 RUNNING_LONG = re.compile(r"^test (\S+) has been running for over 60 seconds$")
 CRASH_NAMES = 20
+# The job's cgroup (v2): the whole job's memory, compilation and file cache included, as the data-leg lines print it.
+CGROUP = Path("/sys/fs/cgroup")
+# Why the last run() returned None, for --report: names and numbers only (stopped()).
+_stopped = {}
+
+
+def cgroup_memory():
+    """The job cgroup's memory peak and limit in bytes (None where unreadable or unlimited) and its out-of-memory
+    kills so far (None where unreadable)."""
+    def read(name):
+        try:
+            return (CGROUP / name).read_text()
+        except OSError:
+            return ""
+    peak, limit = read("memory.peak").strip(), read("memory.max").strip()
+    kills = re.search(r"^oom_kill (\d+)$", read("memory.events"), re.M)
+    return {"memory_peak_bytes": int(peak) if peak.isdigit() else None,
+            "memory_max_bytes": int(limit) if limit.isdigit() else None,
+            "oom_kills": int(kills[1]) if kills else None}
+
+
+def stopped(reason, started, kills_before, process=None, results=(), expected=(), ended_by=None):
+    """Record why a run did not complete (`_stopped`), and return None: the run's verdict.
+
+    The reason; what ended the test process (`signal 9 (SIGKILL)`, `exit status 3`); cargo's exit; the wall time
+    since the run started; the job's memory peak and limit and the out-of-memory kills during the run; the tests
+    still running past 60 s (libtest's own notice; a test that started less than 60 s before the end is not known)
+    and how many listed tests never reported. Test names pass safe_identity."""
+    memory = cgroup_memory()
+    output = process.stdout if process is not None else ""
+    long = dict.fromkeys(found[1] for line in output.splitlines() if (found := RUNNING_LONG.match(line.strip())))
+    still = [name for name in long if name not in results]
+    kills = memory.pop("oom_kills")
+    _stopped.clear()
+    _stopped.update({
+        "reason": reason, "ended_by": ended_by, "cargo_exit": process.returncode if process is not None else None,
+        "wall_seconds": round(time.monotonic() - started), **memory,
+        "oom_kills": kills - kills_before if kills is not None and kills_before is not None else None,
+        "still_running": [safe_identity(name) for name in still[:CRASH_NAMES]],
+        "still_running_more": max(0, len(still) - CRASH_NAMES),
+        "never_reported": len(set(expected) - set(results)) if expected else None,
+    })
 
 
 def crash_report(package, output, expected, results):
@@ -622,7 +701,10 @@ def listed_result_records(line, expected, max_name_length):
 def run(package, skip, number=None, count=None, only=None):
     """Each test's result in `package`'s ignored library tests but `skip` (and, with a leg, the other legs'), or None if they didn't build.
 
-    `only=(target, tests)` runs just those ignored tests of one target (`lib`, `bin:NAME`, `test:NAME`) instead."""
+    `only=(target, tests)` runs just those ignored tests of one target (`lib`, `bin:NAME`, `test:NAME`) instead.
+    When it returns None, `_stopped` says why (stopped())."""
+    started = time.monotonic()
+    kills_before = cgroup_memory()["oom_kills"]
     # Resource-backed fixtures need a fresh home, not the runner user's game files.
     with tempfile.TemporaryDirectory(prefix="horizon-ignored-") as scratch:
         homes = {}
@@ -640,14 +722,26 @@ def run(package, skip, number=None, count=None, only=None):
         # Owner-approved stopgap; #2944 removes this when the legs run under 15 minutes.
         client_half = package == "horizon-client" and count == 2 and number in (1, 2)
         command = ["cargo", "test", "-p", package, "--lib", *(["--bins", "--tests"] if package in INTEGRATION_TESTS else []), "--no-fail-fast"]
+        workspace = "."
         if only:
             target = only[0]
-            features = workspace_features().get(package, [])
-            command = ["cargo", "test", "-p", package, *(["--features", ",".join(features)] if features else []),
+            # A package of another workspace (the launcher's) runs from that workspace, against its own lockfile.
+            workspace = ignored_shards.workspace_members()[package][1]
+            features = workspace_features(workspace).get(package, [])
+            command = ["cargo", "test", *(["--locked"] if workspace != "." else []), "-p", package,
+                       *(["--features", ",".join(features)] if features else []),
                        *(["--lib"] if target == "lib" else [f"--{target.split(':')[0]}", target.split(":", 1)[1]])]
         if client_half:
             # The runner's own cap (tools/ci/cargo_jobs.py --cap) when set, else the old fixed one.
             command.append(f"--jobs={os.environ.get('CI_JOBS', '8')}")
+        # What the package's tests need built first (ignored_shards.PREPARE: the command verify runs too).
+        if prepare := ignored_shards.PREPARE.get(package):
+            built = subprocess.run(prepare, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                   errors="replace", env=env, cwd=ROOT / workspace)
+            if built.returncode:
+                print(f"{package}: building what its tests need failed (cargo exit {built.returncode})")
+                compile_diagnostics(built.stdout)
+                return stopped("what the tests need could not be built", started, kills_before)
         expected = set()
         timing = os.environ.get("HORIZON_DATA_LEG_TIMING") == "1"
         phase = f"{package}#{number}of{count}" if number is not None else package
@@ -659,12 +753,13 @@ def run(package, skip, number=None, count=None, only=None):
             listing = subprocess.run(
                 [*command, "--", "--list", "--include-ignored"],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace", env=env,
+                cwd=ROOT / workspace,
             )
             names = {found[1] for line in listing.stdout.splitlines() if (found := LISTED.match(line))}
             if listing.returncode or not names:
                 print(f"{package}: could not list the tests to split into legs (cargo exit {listing.returncode})")
                 compile_diagnostics(listing.stderr)
-                return None
+                return stopped("the tests could not be listed (a build or listing failure)", started, kills_before)
             others = sorted(name for name in names if not in_leg(name, number, count))
             # Every test this leg owns and does not skip must report a result.
             expected = set(names) - set(others) - set(skip)
@@ -682,6 +777,7 @@ def run(package, skip, number=None, count=None, only=None):
         process = subprocess.run(
             [*command, "--", *selection],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", env=env,
+            cwd=ROOT / workspace,
         )
         if timing:
             print(f"data-leg phase={phase} test-command-end utc={time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} execution_seconds={time.monotonic() - execution_started:.3f}", flush=True)
@@ -706,6 +802,10 @@ def run(package, skip, number=None, count=None, only=None):
     # executable print their own summaries first, from inside a parent test; the parent's comes after them.
     last_summary = None
     crashed = cargo_failure = False
+    ended_by = None
+
+    def stop(reason):
+        return stopped(reason, started, kills_before, process, results, expected, ended_by)
 
     def finish_target():
         nonlocal incomplete, target_count, last_summary
@@ -742,7 +842,12 @@ def run(package, skip, number=None, count=None, only=None):
             # Cargo's own line for a test process that ended: 101 is libtest's "tests failed"; a signal or any
             # other status is a crash, whatever summaries came before it.
             if cargo_failure and "process didn't exit successfully" in line:
-                crashed |= status[1] == "signal" or status[2] != "101"
+                crash = status[1] == "signal" or status[2] != "101"
+                if crash and ended_by is None:
+                    number = int(status[2])
+                    name = signal.Signals(number).name if status[1] == "signal" and number in signal.valid_signals() else None
+                    ended_by = f"{status[1]} {number}" + (f" ({name})" if name else "")
+                crashed |= crash
                 cargo_failure = False
         if line.startswith("error: test failed, to rerun pass "):
             # Cargo's report on a test executable; text a test prints can't be told from it otherwise.
@@ -761,7 +866,7 @@ def run(package, skip, number=None, count=None, only=None):
     if crashed:
         print(f"{package}: a test process crashed (cargo exit {process.returncode})")
         crash_report(package, process.stdout, expected, results)
-        return None
+        return stop("a test process crashed")
     # A fixture that reruns its own test executable (`run_fresh_cases`, the death-weapon cases) prints the
     # child's result record for the same name beside the parent's. Several records for one name are expected
     # and combined above, so a FAILED among them fails the test; only an unreadable record is a framing problem.
@@ -774,15 +879,15 @@ def run(package, skip, number=None, count=None, only=None):
         for name, category in sorted(framing_problems.items()):
             bounded_record(f"  {safe_identity(name)}; category={category}\n", remaining)
         print(f"{package}: {len(framing_problems)} listed identities have ambiguous result framing")
-        return None
+        return stop("results whose lines could not be read")
     if incomplete or awaiting_count:
         print(f"{package}: test target did not finish (cargo exit {process.returncode})")
-        return None
+        return stop("a test target did not finish")
     if process.returncode and not target_number:
         compile_diagnostics(process.stdout)
     if process.returncode and all(results.values()):
         print(f"{package}: cargo exited {process.returncode} without a parsed test failure")
-        return None
+        return stop("cargo failed without a test failure (a build failure, or a process that ended early)")
     if missing := sorted(expected - results.keys()):
         print(f"{package}: {len(missing)} listed tests of this leg never reported a result:")
         remaining = _active_budget if _active_budget is not None else [FAILURE_TOTAL_BYTES]
@@ -795,12 +900,12 @@ def run(package, skip, number=None, count=None, only=None):
                 f"  {safe_identity(name)}; category=missing-result; {framing}\n", remaining)
             shown += emitted
         print(f"{len(missing) - shown} missing identities not shown (shared total byte budget)")
-        return None
+        return stop("listed tests never reported a result")
     if not summaries:
         # Unknown output is not necessarily a compiler diagnostic: never forward
         # a malformed test process's captured payload to public CI logs.
         print(f"{package}: no completed test-target summary; raw output withheld")
-        return None
+        return stop("no test target finished")
     return results
 
 
@@ -816,7 +921,7 @@ def main(shards, report=None):
     known = known_failures()
     inputs = harness_inputs()
     files = {(row.package, row.test): row.file for row in listed_entries()}
-    skipped = {"harness"} if has_vulkan() else {"harness", "gpu"}
+    skipped = {"harness", "manual"} if has_vulkan() else {"harness", "manual", "gpu"}
     if "gpu" in skipped:
         print("no Vulkan driver on this runner: the tests marked `gpu` are skipped")
     problems = []
@@ -832,12 +937,19 @@ def main(shards, report=None):
         for selection in (
             ("horizon-client-lib#1of2", "horizon-client-lib#2of2")
             if shard == "horizon-client-lib" else
-            [f"{ignored_shards.DAILY_ROWS}:{package}:{target}" for package, target in groups]
-            if shard == ignored_shards.DAILY_ROWS else (shard,)
+            [f"{shard}:{package}:{target}" for package, target in groups
+             if ignored_shards.daily_rows_leg(package) == shard]
+            if shard in ignored_shards.DAILY_ROWS_LEGS.values() else (shard,)
         )
     ]
     for shard in selections:
-        if shard.startswith(f"{ignored_shards.DAILY_ROWS}:"):
+        # Written before the run, so a job stopped meanwhile (its time limit, a cancel) still uploads a report that
+        # names the run in progress; the run's own outcome replaces it.
+        write_report(report, dict(verdict, incomplete=[*verdict["incomplete"], {
+            "shard": shard, "in_progress": True, "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}]))
+        _stopped.clear()
+        daily_group = shard.split(":", 1)[0] in ignored_shards.DAILY_ROWS_LEGS.values()
+        if daily_group:
             _, package, target = shard.split(":", 2)
             print(f"{package} {target}: {len(groups[package, target])} daily tests", flush=True)
             results = run(package, [], only=(target, groups[package, target]))
@@ -853,8 +965,9 @@ def main(shards, report=None):
                     skip.append(test)
             results = run(package, skip, number, count) if number is not None else run(package, skip)
         if results is None:
+            print(f"{shard}: did not complete: " + json.dumps(_stopped, sort_keys=True), flush=True)
             problems.append(f"{shard}: the test run did not complete")
-            verdict["incomplete"].append(shard)
+            verdict["incomplete"].append({"shard": shard, **_stopped})
             continue
         for test, passed in sorted(results.items()):
             listed = (package, test) in known
@@ -881,7 +994,7 @@ def main(shards, report=None):
             if test not in results:
                 problems.append(f"{package} {safe_identity(test)}: listed in {files[package, test]} but no longer runs")
                 problem(package, test, "no-longer-runs", files[package, test])
-        if shard.startswith(f"{ignored_shards.DAILY_ROWS}:"):
+        if daily_group:
             continue
         for (listed, test), mark in known.items():
             if listed == package and mark not in skipped and in_leg(test, number, count) and test not in results:
@@ -909,8 +1022,13 @@ if __name__ == "__main__":
     each.add_argument("--list", action="store_true", help="print their commands")
     parser.add_argument("--jobs", type=int, help="cargo's -j for --needs")
     parser.add_argument("--report", metavar="FILE", help="also write the verdict as JSON for the daily summary")
+    parser.add_argument("--daily-tests", nargs=2, metavar=("PACKAGE", "TARGET"),
+                        help="print the daily rows' tests of one package's target, one per line")
     args = parser.parse_args()
-    if args.needs and args.list:
+    if args.daily_tests:
+        # Nothing at all for no rows: an empty line would read as one empty name.
+        sys.stdout.write("".join(f"{test}\n" for test in daily_tests(*args.daily_tests)))
+    elif args.needs and args.list:
         print("\n".join(shlex.join(command) for command in needs_commands(args.needs, args.jobs)))
     elif args.needs and args.one_process_each:
         sys.exit(run_one_process_each(args.needs, args.jobs, args.report))

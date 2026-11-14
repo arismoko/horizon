@@ -257,7 +257,7 @@ impl Game<'_> {
             let w = self.mob_world_base(&[]);
             again.tick(&super::creatures::ProjWorld {
                 w: &w,
-                targets,
+                targets: &targets,
                 border,
             })
         };
@@ -711,6 +711,35 @@ impl Game<'_> {
                 b.wind_charge,
                 b.cause,
             )?;
+        }
+        Ok(())
+    }
+    /// `ServerExplosion.interactWithBlocks` for a `TRIGGER_BLOCK` blast that
+    /// is not a wind charge's burst (a mod's `ExplosionInteraction::Trigger`):
+    /// the blocks, shuffled, react and none breaks. `canTriggerBlocks`: with a
+    /// breeze's charge as the source they react only under mob griefing.
+    pub(super) fn explosion_trigger_blocks(&mut self, targets: &mut [[i32; 3]]) -> Result<()> {
+        // Util.shuffle(list, level.random)
+        for i in (2..=targets.len()).rev() {
+            let swap = self.world.random.next_int_bound(i as i32).unwrap_or(0) as usize;
+            targets.swap(i - 1, swap);
+        }
+        let breeze = self.combat.explosion_source.is_some_and(|id| {
+            self.creatures
+                .projectiles
+                .iter()
+                .any(|p| p.id == id && p.kind == ProjectileKind::BreezeWindCharge)
+        });
+        if breeze
+            && !self
+                .ui
+                .rules
+                .bool_at(horizon_client::gamerules::vanilla::MOB_GRIEFING)
+        {
+            return Ok(());
+        }
+        for &pos in targets.iter() {
+            self.wind_trigger_block(pos)?;
         }
         Ok(())
     }

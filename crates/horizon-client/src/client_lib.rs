@@ -18,6 +18,8 @@ pub mod item_damage;
 pub mod parallel;
 pub mod powder_snow;
 #[cfg(test)]
+mod test_log;
+#[cfg(test)]
 mod test_resources;
 pub use horizon_client_render::{
     assets, atlas_sources, audio, auth, autotune, ban_notice, bidi, biome, block_edit,

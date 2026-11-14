@@ -646,6 +646,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn missing_inputs_are_named_before_the_folder_is_touched() {
         let base = std::env::temp_dir().join(format!("xtask-preflight-{}", std::process::id()));
         let _ = fs::remove_dir_all(&base);

@@ -160,6 +160,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "daily"]
     fn a_new_kind_supplies_union_methods_impls_and_fixtures_without_shared_edits() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
             "../../target/parts-union-discovery-{}",

@@ -1375,6 +1375,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn block_entity_data_takes_a_type_a_mod_declared() {
         // The declared types are frozen once per process: install them in a fresh one.
         const CHILD: &str = "HORIZON_TEST_DECLARED_BLOCK_ENTITY_DATA";
@@ -1382,6 +1383,7 @@ mod tests {
             assert!(
                 std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
+                        "--include-ignored",
                         "--exact",
                         "item::tests::block_entity_data_takes_a_type_a_mod_declared",
                         "--nocapture"

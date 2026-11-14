@@ -32,6 +32,7 @@ impl PartRegistrar {
         let menu_recipe_books = self.menu_recipe_books.clone();
         let recipe_book_types = self.recipe_book_types.clone();
         let registered = self.registered;
+        let entity_selector_bytes = self.entity_selector_bytes;
         let block_entity_transforms = self.block_entity_transforms.clone();
         // Append-only tables retain previous mods' entries without requiring
         // Clone on runtime callback objects or their eventual frozen caches.
@@ -47,6 +48,7 @@ impl PartRegistrar {
                     registrar.menu_recipe_books = menu_recipe_books;
                     registrar.recipe_book_types = recipe_book_types;
                     registrar.registered = registered;
+                    registrar.entity_selector_bytes = entity_selector_bytes;
                     registrar.self_refusal = None;
                 }
             }};

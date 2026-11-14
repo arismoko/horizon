@@ -9,6 +9,7 @@ fn setup() -> (tempfile::TempDir, Arc<Registry>) {
 }
 
 #[test]
+#[ignore = "daily"]
 fn permanent_gate_excludes_new_owners_until_cleanup_drops() {
     if isolated() {
         return;
@@ -25,6 +26,7 @@ fn permanent_gate_excludes_new_owners_until_cleanup_drops() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn every_claim_owner_holds_the_gate_until_its_last_reference() {
     if isolated() {
         return;
@@ -51,6 +53,7 @@ fn every_claim_owner_holds_the_gate_until_its_last_reference() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn existing_never_creates_missing_namespace_or_gate() {
     if isolated() {
         return;
@@ -70,6 +73,7 @@ fn existing_never_creates_missing_namespace_or_gate() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "daily"]
 fn redirected_gate_and_namespace_are_refused() {
     if isolated() {
         return;
@@ -110,6 +114,7 @@ fn windows_open_reader_blocks_exclusive_gate_and_collection_shares_no_gate() {
 }
 
 #[test]
+#[ignore = "daily"]
 fn published_unit_keys_survive_registry_reopen_without_creating_entries() {
     if isolated() {
         return;

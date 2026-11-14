@@ -1664,6 +1664,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn trait_installers_compile_with_warnings_denied() {
         let source = "pub struct Example; pub trait GameTrait { fn value(&self) -> u32; } impl GameTrait for Example { fn value(&self) -> u32 { 7 } }";
         let file = syn::parse_file(source).unwrap();

@@ -618,12 +618,14 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "daily"]
     fn a_mod_block_entity_rides_its_item() {
         // The declared types are frozen once per process: install them in a fresh one.
         const CHILD: &str = "HORIZON_TEST_MOD_BLOCK_ENTITY_ITEM";
         if std::env::var_os(CHILD).is_none() {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
+                    "--include-ignored",
                     "--exact",
                     "block_entity_item::tests::a_mod_block_entity_rides_its_item",
                     "--nocapture",

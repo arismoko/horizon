@@ -50,7 +50,11 @@ class RustTests(unittest.TestCase):
         self.assertTrue(found["ignored"].is_test and found["ignored"].is_ignored)
         self.assertIn("inner()", found["ignored"].body)
         self.assertTrue(found["runtime"].is_test and not found["runtime"].is_ignored)
-        self.assertTrue(found["conditionally_ignored"].is_ignored)
+        # Conditionally ignored still runs somewhere: not ignored, conservatively.
+        self.assertFalse(found["conditionally_ignored"].is_ignored)
+        self.assertFalse(found["ignored"].is_daily)
+        kept = {function.name: function for function in rust_tests.functions(source, rust_tests.DAILY_KEEP)}
+        self.assertTrue(kept["ignored"].is_daily and not kept["runtime"].is_daily)
         self.assertFalse(found["helper"].is_test)
         self.assertIn("f();", found["helper"].body)
 

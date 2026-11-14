@@ -256,11 +256,12 @@ impl log::Log for Capture {
 static LOG: Capture = Capture(Mutex::new(Vec::new()));
 
 #[test]
+#[ignore = "daily"]
 fn structure_transform_placement_rotations_mirrors_unset_and_refusal() {
     // The logger is process-global; isolate this assertion from other log-capture tests.
     if std::env::var_os("HORIZON_STRUCTURE_TRANSFORM_LOG_CHILD").is_none() {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "game::native_block_entity_transform_tests::structure_transform_placement_rotations_mirrors_unset_and_refusal", "--nocapture"])
+            .args(["--include-ignored", "--exact", "game::native_block_entity_transform_tests::structure_transform_placement_rotations_mirrors_unset_and_refusal", "--nocapture"])
             .env("HORIZON_STRUCTURE_TRANSFORM_LOG_CHILD", "1")
             .status().unwrap();
         assert!(status.success());

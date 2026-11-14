@@ -160,6 +160,14 @@ pub(super) enum BlockInteraction {
     Keep,
     Destroy,
     DestroyWithDecay,
+    /// `TRIGGER_BLOCK`: nothing breaks; buttons, doors and the like react.
+    Trigger,
+}
+impl BlockInteraction {
+    /// `Explosion.BlockInteraction.shouldAffectBlocklikeEntities`.
+    fn affects_blocklike(self) -> bool {
+        matches!(self, Self::Destroy | Self::DestroyWithDecay)
+    }
 }
 
 /// Properties of the direct entity passed to `ServerLevel.explode`.
@@ -201,7 +209,7 @@ pub(super) fn blast_reaches(center: [f64; 3], diameter: f64, at: [f64; 3]) -> bo
 /// blast that keeps blocks; with it on, none (no wind charge goes through
 /// `server_explode`).
 fn items_ignore_explosion(mob_griefing: bool, interaction: BlockInteraction) -> bool {
-    !mob_griefing && interaction == BlockInteraction::Keep
+    !mob_griefing && !interaction.affects_blocklike()
 }
 
 /// Whether a blast leaves item frames, paintings, cushions and armour stands
@@ -218,7 +226,7 @@ pub(super) fn blast_spares_decorations(
     source_in_water: bool,
 ) -> bool {
     // `BlockAttachedEntity.ignoreExplosion`: a source in water first.
-    source_in_water || mob_refused || (!mob_griefing && interaction == BlockInteraction::Keep)
+    source_in_water || mob_refused || (!mob_griefing && !interaction.affects_blocklike())
 }
 
 /// How far the blast's `center` is from `p`.
@@ -657,6 +665,11 @@ impl Game<'_> {
         if dist > 1.0 {
             return None;
         }
+        // `getEntities(this.source, ...)`: a player that is the blast's source is spared.
+        let acting = self.lan_acting_entity.or(Some(p.entity_id as u32));
+        if self.combat.explosion_source_named && exploding == acting {
+            return None;
+        }
         // ServerPlayer.onExplosionHit: the blast that hit the player is theirs.
         self.adv.marks.blast = Some((feet, cause.cloned()));
         let w = f64::from(p.dimensions.width) / 2.0;
@@ -877,21 +890,30 @@ impl Game<'_> {
                     }
                 }),
         };
-        let own = self.explosion_hurt_player(
-            &context,
-            radius,
-            damage_type,
-            exploding,
-            attacker.as_ref(),
-            blast_source.as_ref(),
-        );
+        let own = if self
+            .lan_acting_entity
+            .is_some_and(|id| !self.combat.visits(id))
+        {
+            None
+        } else {
+            self.explosion_hurt_player(
+                &context,
+                radius,
+                damage_type,
+                exploding,
+                attacker.as_ref(),
+                blast_source.as_ref(),
+            )
+        };
         let mut pushed: Vec<_> = self.lan_acting.zip(own).into_iter().collect();
         if let Some(host) = self.lan.as_ref() {
+            let combat = &self.combat;
             let guests: Vec<u32> = host
                 .hub
                 .guests
                 .iter()
                 .filter(|g| host.hub.here(g))
+                .filter(|g| u32::try_from(g.entity_id).map_or(true, |id| combat.visits(id)))
                 .map(|g| g.conn)
                 .collect();
             for conn in guests {
@@ -942,9 +964,6 @@ impl Game<'_> {
             items_ignore: items_ignore_explosion(self.blast_griefs(), interaction),
             spared: exploding.filter(|_| self.combat.explosion_source_named),
         };
-        let (items_len, orbs_len) = (self.dropped.len(), self.orbs.len());
-        let (mut items_kept, mut orbs_kept) = (0, 0);
-        let (mut boats_gone, mut carts_gone) = (0, 0);
         let mut destroyed_contents = Vec::new();
         macro_rules! blocked_damage {
             ($id:expr, $kind:expr) => {{
@@ -962,13 +981,37 @@ impl Game<'_> {
                 )
             }};
         }
-        for handle in self.entity_handles() {
-            let handle = match handle {
-                EntityHandle::Boat(i) => EntityHandle::Boat(i - boats_gone),
-                EntityHandle::Cart(i) => EntityHandle::Cart(i - carts_gone),
-                other => other,
+        // The walk visits the storages in storage order, unless a listening
+        // `explosion_detonate` left the list, and then it visits exactly what
+        // the list names, in its order (`explosion_detonate.rs`). The kinds
+        // outside the storages (players, frames, paintings, cushions,
+        // crystals, the dragon, hooks) answer no handle here: the player walk
+        // and their own passes read the list for them.
+        let mut cursor = self.entity_id_cursor();
+        let mut listed_at = 0;
+        loop {
+            let next = if let Some(list) = self.combat.blast_hit_list.as_ref() {
+                let Some(&id) = list.get(listed_at) else {
+                    break;
+                };
+                listed_at += 1;
+                self.blast_handle(id).map(|handle| (id, handle))
+            } else {
+                let Some(next) = self.next_entity_id(&mut cursor) else {
+                    break;
+                };
+                Some(next)
             };
-            let hit = with_entity!(self, handle, e => self.blast_hit(e, center, diameter, &blast));
+            let Some((entity, handle)) = next else {
+                continue;
+            };
+            // An entity the blast's list does not name is neither hurt nor
+            // pushed; without a listener the storages are the walk.
+            let hit = if with_entity!(self, handle, e => self.combat.visits(e.id())) {
+                with_entity!(self, handle, e => self.blast_hit(e, center, diameter, &blast))
+            } else {
+                None
+            };
             let mut destroyed = false;
             if let Some(Hit {
                 dist,
@@ -977,7 +1020,6 @@ impl Game<'_> {
             }) = hit
             {
                 let amount = damage(dist, exposure);
-                let entity = with_entity!(self, handle, e => e.id());
                 match handle {
                     EntityHandle::Mob(i) => {
                         let hurtable = teams_allow(self, self.mob_team(self.mobs[i].id));
@@ -996,6 +1038,11 @@ impl Game<'_> {
                                 .and_then(|c| c.as_ref())
                                 .filter(|c| c.player)
                                 .map(|_| Who::Player)
+                                .or_else(|| {
+                                    let player = self.combat.blast_owner_player
+                                        && self.combat.explicit_explosion_cause.is_none();
+                                    player.then_some(Who::Player)
+                                })
                                 .or_else(|| {
                                     attacker
                                         .as_ref()
@@ -1064,6 +1111,11 @@ impl Game<'_> {
                     EntityHandle::Item(i) => {
                         let id = self.dropped[i].id as i32;
                         let blocked = blocked_damage!(id, "minecraft:item");
+                        let Some(EntityHandle::Item(i)) =
+                            self.refresh_entity_handle(entity, handle)
+                        else {
+                            continue;
+                        };
                         let can_hurt = self
                             .stack_can_be_hurt_by(&self.dropped[i].stack, damage_type)
                             .unwrap_or(true);
@@ -1088,30 +1140,52 @@ impl Game<'_> {
                     EntityHandle::Orb(i) => {
                         let id = self.orbs[i].id as i32;
                         if !blocked_damage!(id, "minecraft:experience_orb") {
+                            let Some(EntityHandle::Orb(i)) =
+                                self.refresh_entity_handle(entity, handle)
+                            else {
+                                continue;
+                            };
                             destroyed = self.orbs[i].hurt(amount);
                         }
                     }
                     // `VehicleEntity.hurtServer` (explosions ignite TNT carts);
                     // a destroyed one is gone before the push.
                     EntityHandle::Cart(i) => {
-                        let (id, kind) = (self.carts[i].id as i32, self.carts[i].kind.id());
-                        if !blocked_damage!(id, kind) {
-                            let len = self.carts.len();
+                        let kind = self.carts[i].kind.id();
+                        if !blocked_damage!(entity as i32, kind) {
+                            let Some(EntityHandle::Cart(i)) =
+                                self.refresh_entity_handle(entity, handle)
+                            else {
+                                continue;
+                            };
                             self.hurt_cart(i, amount, false, true);
-                            carts_gone += len - self.carts.len();
                         }
                     }
                     // `VehicleEntity.hurtServer`: damage * 10, broken past 40.
                     EntityHandle::Boat(i) => {
-                        let (id, kind) = (self.boats[i].id as i32, self.boats[i].entity_type());
-                        if !blocked_damage!(id, &kind) {
-                            let len = self.boats.len();
+                        let kind = self.boats[i].entity_type();
+                        if !blocked_damage!(entity as i32, &kind) {
+                            let Some(EntityHandle::Boat(i)) =
+                                self.refresh_entity_handle(entity, handle)
+                            else {
+                                continue;
+                            };
                             self.hurt_boat(i, amount, false);
-                            boats_gone += len - self.boats.len();
                         }
                     }
                     // `hurtServer` does nothing to the rest.
                     _ => {}
+                }
+                if destroyed {
+                    match self.refresh_entity_handle(entity, handle) {
+                        Some(EntityHandle::Item(i)) => {
+                            self.dropped.remove(i);
+                        }
+                        Some(EntityHandle::Orb(i)) => {
+                            self.orbs.remove(i);
+                        }
+                        _ => {}
+                    }
                 }
                 let mut velocity = [push.x, push.y, push.z];
                 self.native_explosion_knockback(
@@ -1122,37 +1196,21 @@ impl Game<'_> {
                     &mut velocity,
                 );
                 let push = Vec3::new(velocity[0], velocity[1], velocity[2]);
+                let Some(handle) = self.refresh_entity_handle(entity, handle) else {
+                    continue;
+                };
                 match handle {
                     EntityHandle::Item(_) | EntityHandle::Orb(_) if destroyed => {}
-                    EntityHandle::Cart(_) => {
-                        if let Some(i) = self.carts.iter().position(|c| c.id == entity) {
-                            self.carts.update(i, |c| c.push_from_explosion(push));
-                        }
+                    EntityHandle::Cart(i) => {
+                        self.carts.update(i, |cart| cart.push_from_explosion(push))
                     }
-                    EntityHandle::Boat(_) => {
-                        if let Some(i) = self.boats.iter().position(|b| b.id == entity) {
-                            self.boats.update(i, |b| {
-                                b.push_from_explosion(push);
-                            });
-                        }
+                    EntityHandle::Boat(i) => {
+                        self.boats.update(i, |boat| boat.push_from_explosion(push))
                     }
                     other => with_entity_mut!(self, other, e => e.push_from_explosion(push)),
                 }
             }
-            match handle {
-                EntityHandle::Item(i) if !destroyed => {
-                    self.dropped.swap(items_kept, i);
-                    items_kept += 1;
-                }
-                EntityHandle::Orb(i) if !destroyed => {
-                    self.orbs.swap(orbs_kept, i);
-                    orbs_kept += 1;
-                }
-                _ => {}
-            }
         }
-        self.dropped.drain(items_kept..items_len);
-        self.orbs.drain(orbs_kept..orbs_len);
         // The original target walk is finished: released contents cannot be
         // hurt or pushed by the explosion that destroyed their container.
         self.spawn_destroyed_contents(destroyed_contents);
@@ -1172,7 +1230,9 @@ impl Game<'_> {
     pub(super) fn explosion_kill_credit(&self) -> Option<super::commands::Target> {
         use super::commands::Target;
         // A primed TNT's owner (a player) names the blast before any mob does.
-        if self.combat.blast_owner.is_some() {
+        let player =
+            self.combat.blast_owner_player || self.combat.explicit_explosion_cause.is_some();
+        if self.combat.blast_owner.is_some() && player {
             return Some(
                 self.combat
                     .blast_guest
@@ -1265,6 +1325,7 @@ impl Game<'_> {
             let a = &self.armor_stands[i];
             let p = a.position;
             if !super::armor_stands::spared_by_blast(a)
+                && self.combat.visits(a.id)
                 && blast_reaches(center, diameter, [p.x, p.y, p.z])
             {
                 let id = a.id;
@@ -1311,7 +1372,8 @@ impl Game<'_> {
             let (lo, hi) = self.paintings[i].bounds();
             let at = [0, 1, 2].map(|k| (lo[k] + hi[k]) / 2.0);
             // A painting a mod keeps stays at `i`.
-            if !(blast_reaches(center, diameter, at)
+            if !(self.combat.visits(self.paintings[i].id)
+                && blast_reaches(center, diameter, at)
                 && self.break_painting_by(i, false, self.explosion_kill_credit()))
             {
                 i += 1;
@@ -1320,7 +1382,9 @@ impl Game<'_> {
         let mut i = 0;
         while i < self.cushions.len() {
             let p = self.cushions[i].position;
-            if blast_reaches(center, diameter, [p.x, p.y, p.z]) {
+            if self.combat.visits(self.cushions[i].id)
+                && blast_reaches(center, diameter, [p.x, p.y, p.z])
+            {
                 self.break_cushion_by(i, false, self.explosion_kill_credit());
             } else {
                 i += 1;
@@ -1399,6 +1463,12 @@ impl Game<'_> {
             g.server_explode_as_source(center, radius, interaction, fire, damage_type, None, source)
         };
         match cause {
+            // A player causes it (a lit TNT's igniter, a mod blast's source):
+            // their hits land as that player's.
+            None if self.combat.blast_owner_player => {
+                let attack = self.blast_owner_attack();
+                self.with_attack(attack, blast)
+            }
             None => blast(self),
             Some(cause) => {
                 let (id, kind) = source.entity.ok_or_else(|| {
@@ -1450,6 +1520,7 @@ impl Game<'_> {
                 BlockInteraction::Keep => mod_api::BlockInteraction::Keep,
                 BlockInteraction::Destroy => mod_api::BlockInteraction::Destroy,
                 BlockInteraction::DestroyWithDecay => mod_api::BlockInteraction::DestroyWithDecay,
+                BlockInteraction::Trigger => mod_api::BlockInteraction::TriggerBlock,
             },
             damage_type,
             source: self.combat.explosion_source,
@@ -1479,11 +1550,19 @@ impl Game<'_> {
         self.post_game_event("minecraft:explode", center, ctx);
         let mut targets =
             self.exploded_positions(center, radius, resists, source.portal_proof, &start);
-        let dimension = self.dim.id();
-        self.native_explosion_detonate(dimension, center, &mut targets);
+        // The walks that hurt entities follow the list a listening
+        // `explosion_detonate` leaves: a blast set off inside one of them
+        // (its own detonate, a nested `level_explode`) keeps its own list.
+        let outer = std::mem::take(&mut self.combat.blast_hit_list);
+        let outer_ids = std::mem::take(&mut self.combat.blast_hit_ids);
+        self.explosion_detonate(center, radius, &mut targets);
         let pushed =
             self.explosion_hurt_entities(center, radius, damage_type, interaction, &targets);
-        if interaction != BlockInteraction::Keep {
+        self.combat.blast_hit_list = outer;
+        self.combat.blast_hit_ids = outer_ids;
+        if interaction == BlockInteraction::Trigger {
+            self.explosion_trigger_blocks(&mut targets)?;
+        } else if interaction != BlockInteraction::Keep {
             // Util.shuffle(list, level.random)
             for i in (2..=targets.len()).rev() {
                 let swap = self.world.random.next_int_bound(i as i32).unwrap_or(0) as usize;
@@ -1721,7 +1800,8 @@ impl Game<'_> {
                         (Some(Who::Player), self.combat.blast_guest)
                     }
                     Some((id, _)) => (Some(Who::Mob(*id)), None),
-                    None => (None, None),
+                    // The mob that causes it (a creeper, a mod blast's source).
+                    None => (self.blast_attacker().map(|(id, _)| Who::Mob(id)), None),
                 },
             };
             self.add_primed_tnt(
@@ -2858,6 +2938,7 @@ mod explicit_source_tests {
                     let level = game.level("minecraft:overworld").unwrap();
                     assert!(game.level_explode(
                         level,
+                        None,
                         center,
                         2.0,
                         false,
