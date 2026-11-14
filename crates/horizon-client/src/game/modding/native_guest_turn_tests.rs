@@ -376,7 +376,8 @@ fn another_guests_services_work_during_a_turn() {
         commands::Target,
         native_inventories::NativeInventoryKind::{Ender, Player},
     };
-    use horizon_client::{advancements as adv, command::args::Selector, items::ItemStack};
+    use horizon_client::{advancements as adv, items::ItemStack};
+    use horizon_client_core::command::Selector;
     use mod_api::{CriterionContext, CriterionTest, CriterionTestError, TriggerCriterionError};
 
     struct Accept;

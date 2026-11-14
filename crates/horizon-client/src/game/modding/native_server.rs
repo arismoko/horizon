@@ -2183,7 +2183,7 @@ impl Game<'_> {
     fn resolve_native_command(
         &mut self,
         context: Context,
-    ) -> Result<mod_api::CommandInvocation, horizon_client::command::CommandError> {
+    ) -> Result<mod_api::CommandInvocation, horizon_client_core::command::CommandError> {
         use super::commands::err;
         use mod_api::{CommandArgument, CommandArgumentValue as Value, CommandInvocation};
         let mut arguments = Vec::with_capacity(context.args.len());

@@ -880,7 +880,7 @@ impl Game<'_> {
                     }
                     _ => String::new(),
                 };
-                let mut reader = horizon_client::command::Reader::new(&text);
+                let mut reader = horizon_client_core::command::Reader::new(&text);
                 let block = horizon_client::command::args::ArgType::BlockState
                     .parse(&mut reader, &self.ui.registries);
                 match block {
@@ -2150,8 +2150,8 @@ impl Game<'_> {
 }
 
 /// A `CommandError` whose message is a translation with component arguments.
-fn text_error(key: &str, args: &[Text]) -> horizon_client::command::CommandError {
-    horizon_client::command::CommandError::new(Text::translate(key, args))
+fn text_error(key: &str, args: &[Text]) -> horizon_client_core::command::CommandError {
+    horizon_client_core::command::CommandError::new(Text::translate(key, args))
 }
 
 /// `PlaySoundCommand.playSound`: the point and the volume one target hears the

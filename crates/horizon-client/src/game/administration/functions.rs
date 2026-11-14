@@ -1363,9 +1363,9 @@ impl Game<'_> {
         Ok(())
     }
 
-    fn reload_failure(error: ReloadStageError) -> horizon_client::command::CommandError {
+    fn reload_failure(error: ReloadStageError) -> horizon_client_core::command::CommandError {
         log::warn!("Horizon: {error}");
-        horizon_client::command::CommandError::new(
+        horizon_client_core::command::CommandError::new(
             Text::translate("commands.reload.failure", &[])
                 .append(Text::literal(format!("\n{error}"))),
         )

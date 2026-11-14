@@ -32,13 +32,16 @@ mod world_cmds;
 use super::{Dim, Game, Screen, chat::PLAYER_NAME, vehicle_teleport::TeleportMotion};
 use horizon_client::{
     command::{
-        Arg, CommandError, Context, Reader,
-        args::{BlockInput, Coordinates, GameMode, ItemInput, Selector, Sort},
+        Arg, Context,
+        args::{BlockInput, GameMode, ItemInput},
         vanilla::DIFFICULTIES,
     },
     gamerules::{self, Value},
     items::ItemStack,
     text::{self, Style, Text},
+};
+use horizon_client_core::command::{
+    CommandError, Coordinates, Reader, Selector, Sort, java_equals,
 };
 use horizon_core::{geometry::Vec3, random::RandomSource};
 use horizon_protocol::packets::play::{self, Clientbound as C};
@@ -606,7 +609,7 @@ impl Game<'_> {
     /// EntitySelector.findEntities.
     pub(super) fn select(&mut self, s: &Selector) -> Vec<Target> {
         if let Some(name) = &s.player_name {
-            return self.player_named(name).into_iter().collect();
+            return self.player_named_java(name).into_iter().collect();
         }
         if let Some(uuid) = s.uuid {
             return self.target_by_uuid(uuid).into_iter().collect();
@@ -730,7 +733,7 @@ impl Game<'_> {
                 }
                 for (name, neg) in &s.names {
                     let n = self.target_name(t).plain();
-                    if (n == *name) == *neg {
+                    if java_equals(name, &n) == *neg {
                         return None;
                     }
                 }

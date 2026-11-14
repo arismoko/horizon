@@ -1,11 +1,13 @@
 //! EntitySelectorParser and EntitySelectorOptions: `@e[...]` selectors,
 //! player names and UUIDs, with the suggestion state vanilla keeps while
 //! parsing (`fillSuggestions`).
-use super::args::{
-    AdvCondition, GameMode, Registries, Selector, Sort, read_double_bounds, read_float_bounds,
-    read_identifier, read_int_bounds, suggest_resources,
+use super::{
+    AdvCondition, CmdResult, CommandError, CommandString, Reader, Selector, Sort,
+    SuggestionsBuilder, display_codepoint, display_java, java_equals, read_double_bounds,
+    read_float_bounds, read_identifier, read_int_bounds, suggest_resources,
 };
-use super::{CmdResult, CommandError, Reader, SuggestionsBuilder};
+use crate::registries::Registries;
+use horizon_core::game_mode::GameMode;
 
 /// The option names in vanilla's registration order.
 const OPTIONS: [&str; 21] = [
@@ -96,8 +98,8 @@ enum Sugg {
 }
 
 /// EntitySelectorParser over a reader.
-pub struct SelectorParser<'r, 'a> {
-    pub reader: &'r mut Reader<'a>,
+pub struct SelectorParser<'r, 'a, S: CommandString + ?Sized = str> {
+    pub reader: &'r mut Reader<'a, S>,
     reg: &'r Registries,
     allow_selectors: bool,
     s: Selector,
@@ -118,8 +120,8 @@ pub struct SelectorParser<'r, 'a> {
     advancements_option: bool,
 }
 
-fn rollback(
-    reader: &mut Reader,
+fn rollback<S: CommandString + ?Sized>(
+    reader: &mut Reader<S>,
     start: usize,
     key: &str,
     args: &[&dyn std::fmt::Display],
@@ -128,8 +130,8 @@ fn rollback(
     CommandError::tr_at(key, args, reader)
 }
 
-impl<'r, 'a> SelectorParser<'r, 'a> {
-    pub fn new(reader: &'r mut Reader<'a>, reg: &'r Registries, allow_selectors: bool) -> Self {
+impl<'r, 'a, S: CommandString + ?Sized> SelectorParser<'r, 'a, S> {
+    pub fn new(reader: &'r mut Reader<'a, S>, reg: &'r Registries, allow_selectors: bool) -> Self {
         Self {
             reader,
             reg,
@@ -157,7 +159,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
     pub fn parse(&mut self) -> CmdResult<Selector> {
         self.start_position = self.reader.cursor;
         self.sugg = Sugg::NameOrSelector;
-        if self.reader.can_read() && self.reader.peek() == '@' {
+        if self.reader.can_read() && self.reader.peek_scalar() == Some('@') {
             if !self.allow_selectors {
                 return Err(CommandError::tr_at(
                     "argument.entity.selector.not_allowed",
@@ -183,7 +185,15 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             ));
         }
         let start = self.reader.cursor;
-        let kind = self.reader.read();
+        let raw_kind = self.reader.read_codepoint().expect("selector kind");
+        let Some(kind) = char::from_u32(raw_kind) else {
+            self.reader.cursor = start;
+            return Err(CommandError::tr_at(
+                "argument.entity.selector.unknown",
+                &[&format!("@{}", display_codepoint(raw_kind))],
+                self.reader,
+            ));
+        };
         let s = &mut self.s;
         s.kind = kind;
         match kind {
@@ -228,7 +238,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             }
         }
         self.sugg = Sugg::OpenOptions;
-        if self.reader.can_read() && self.reader.peek() == '[' {
+        if self.reader.can_read() && self.reader.peek_scalar() == Some('[') {
             self.reader.skip();
             self.sugg = Sugg::OptionsKeyOrClose;
             self.parse_options()?;
@@ -241,14 +251,18 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             self.sugg = Sugg::Name;
         }
         let start = self.reader.cursor;
-        let name = self.reader.read_string()?;
+        let name = self.reader.read_java_string()?;
         // A UUID selects by entityUUID alone: findEntities looks a
         // playerName up first, among the players only.
-        if let Some(uuid) = horizon_core::text::parse_java_uuid(&name) {
+        if let Some(uuid) = name
+            .to_string()
+            .ok()
+            .and_then(|name| horizon_core::text::parse_java_uuid(&name))
+        {
             self.s.uuid = Some(uuid);
             self.s.include_entities = true;
         } else {
-            if name.is_empty() || name.encode_utf16().count() > 16 {
+            if name.0.is_empty() || name.0.len() > 16 {
                 self.reader.cursor = start;
                 return Err(CommandError::tr_at(
                     "argument.entity.invalid",
@@ -291,19 +305,23 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
     fn parse_options(&mut self) -> CmdResult<()> {
         self.sugg = Sugg::OptionsKey;
         self.reader.skip_whitespace();
-        while self.reader.can_read() && self.reader.peek() != ']' {
+        while self.reader.can_read() && self.reader.peek_scalar() != Some(']') {
             self.reader.skip_whitespace();
             let start = self.reader.cursor;
-            let key = self.reader.read_string()?;
-            if !OPTIONS.contains(&key.as_str()) {
+            let raw_key = self.reader.read_java_string()?;
+            let Some(key) = OPTIONS
+                .iter()
+                .copied()
+                .find(|key| java_equals(&raw_key, key))
+            else {
                 return Err(rollback(
                     self.reader,
                     start,
                     "argument.entity.options.unknown",
-                    &[&key],
+                    &[&display_java(&raw_key.0)],
                 ));
-            }
-            if !self.can_use(&key) {
+            };
+            if !self.can_use(key) {
                 return Err(rollback(
                     self.reader,
                     start,
@@ -312,7 +330,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
                 ));
             }
             self.reader.skip_whitespace();
-            if !self.reader.can_read() || self.reader.peek() != '=' {
+            if !self.reader.can_read() || self.reader.peek_scalar() != Some('=') {
                 return Err(rollback(
                     self.reader,
                     start,
@@ -323,12 +341,12 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             self.reader.skip();
             self.reader.skip_whitespace();
             self.sugg = Sugg::Nothing;
-            self.handle(&key)?;
+            self.handle(key)?;
             self.reader.skip_whitespace();
             self.sugg = Sugg::OptionsNextOrClose;
             if self.reader.can_read() {
-                if self.reader.peek() != ',' {
-                    if self.reader.peek() != ']' {
+                if self.reader.peek_scalar() != Some(',') {
+                    if self.reader.peek_scalar() != Some(']') {
                         return Err(CommandError::tr_at(
                             "argument.entity.options.unterminated",
                             &[],
@@ -356,7 +374,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
 
     fn should_invert(&mut self) -> bool {
         self.reader.skip_whitespace();
-        if self.reader.can_read() && self.reader.peek() == '!' {
+        if self.reader.can_read() && self.reader.peek_scalar() == Some('!') {
             self.reader.skip();
             self.reader.skip_whitespace();
             true
@@ -366,7 +384,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
     }
     fn is_tag(&mut self) -> bool {
         self.reader.skip_whitespace();
-        if self.reader.can_read() && self.reader.peek() == '#' {
+        if self.reader.can_read() && self.reader.peek_scalar() == Some('#') {
             self.reader.skip();
             self.reader.skip_whitespace();
             true
@@ -380,7 +398,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             "name" => {
                 let start = self.reader.cursor;
                 let inverted = self.should_invert();
-                let name = self.reader.read_string()?;
+                let name = self.reader.read_java_string()?;
                 if !self.name_option.can_parse_element(inverted) {
                     return Err(rollback(
                         self.reader,
@@ -456,9 +474,9 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             }
             "sort" => {
                 let start = self.reader.cursor;
-                let name = self.reader.read_unquoted_string();
+                let name = self.reader.read_ascii_word();
                 self.sugg = Sugg::Sort;
-                self.s.sort = match name {
+                self.s.sort = match name.as_ref() {
                     "nearest" => Sort::Nearest,
                     "furthest" => Sort::Furthest,
                     "random" => Sort::Random,
@@ -486,8 +504,8 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
                         &[&"gamemode"],
                     ));
                 }
-                let name = self.reader.read_unquoted_string();
-                if GameMode::from_name(name).is_none() {
+                let name = self.reader.read_ascii_word();
+                if GameMode::from_name(&name).is_none() {
                     return Err(rollback(
                         self.reader,
                         start,
@@ -496,13 +514,13 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
                     ));
                 }
                 self.s.include_entities = false;
-                self.s.gamemodes.push((name.to_owned(), inverted));
+                self.s.gamemodes.push((name.into_owned(), inverted));
                 self.gamemode_option.mark_element(inverted);
             }
             "team" => {
                 let start = self.reader.cursor;
                 let inverted = self.should_invert();
-                let name = self.reader.read_unquoted_string().to_owned();
+                let name = self.reader.read_ascii_word().into_owned();
                 if !self.team_option.can_parse_element(inverted) {
                     return Err(rollback(
                         self.reader,
@@ -549,7 +567,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
                     }
                     let id = read_identifier(self.reader)?;
                     let types = self.reg.ids("minecraft:entity_type");
-                    if !types.is_empty() && !types.contains(&id) {
+                    if !types.contains(&id) {
                         return Err(rollback(
                             self.reader,
                             start,
@@ -570,31 +588,29 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             }
             "tag" => {
                 let inverted = self.should_invert();
-                let tag = self.reader.read_unquoted_string().to_owned();
+                let tag = self.reader.read_ascii_word().into_owned();
                 self.s.tags.push((tag, inverted));
             }
             "nbt" => {
                 let inverted = self.should_invert();
-                let start = self.reader.cursor;
-                super::snbt::parse_compound_argument(self.reader)?;
-                let text = self.reader.string[start..self.reader.cursor].to_owned();
-                self.s.nbt.push((text, inverted));
+                let pattern = horizon_core::nbt::Tag::Compound(self.reader.read_compound()?);
+                self.s.nbt.push((pattern, inverted));
             }
             "scores" => {
                 let r = &mut *self.reader;
                 r.expect('{')?;
                 r.skip_whitespace();
                 let mut expected = Vec::new();
-                while r.can_read() && r.peek() != '}' {
+                while r.can_read() && r.peek_scalar() != Some('}') {
                     r.skip_whitespace();
-                    let name = r.read_unquoted_string().to_owned();
+                    let name = r.read_ascii_word().into_owned();
                     r.skip_whitespace();
                     r.expect('=')?;
                     r.skip_whitespace();
                     let value = read_int_bounds(r)?;
                     expected.push((name, value));
                     r.skip_whitespace();
-                    if r.can_read() && r.peek() == ',' {
+                    if r.can_read() && r.peek_scalar() == Some(',') {
                         r.skip();
                     }
                 }
@@ -607,27 +623,27 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
                 r.expect('{')?;
                 r.skip_whitespace();
                 let mut expected = Vec::new();
-                while r.can_read() && r.peek() != '}' {
+                while r.can_read() && r.peek_scalar() != Some('}') {
                     r.skip_whitespace();
                     let name = read_identifier(r)?;
                     r.skip_whitespace();
                     r.expect('=')?;
                     r.skip_whitespace();
-                    if r.can_read() && r.peek() == '{' {
+                    if r.can_read() && r.peek_scalar() == Some('{') {
                         let mut progress = Vec::new();
                         r.skip_whitespace();
                         r.expect('{')?;
                         r.skip_whitespace();
-                        while r.can_read() && r.peek() != '}' {
+                        while r.can_read() && r.peek_scalar() != Some('}') {
                             r.skip_whitespace();
-                            let criterion = r.read_unquoted_string().to_owned();
+                            let criterion = r.read_ascii_word().into_owned();
                             r.skip_whitespace();
                             r.expect('=')?;
                             r.skip_whitespace();
                             let value = r.read_boolean()?;
                             progress.push((criterion, value));
                             r.skip_whitespace();
-                            if r.can_read() && r.peek() == ',' {
+                            if r.can_read() && r.peek_scalar() == Some(',') {
                                 r.skip();
                             }
                         }
@@ -640,7 +656,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
                         expected.push((name, AdvCondition::Done(value)));
                     }
                     r.skip_whitespace();
-                    if r.can_read() && r.peek() == ',' {
+                    if r.can_read() && r.peek_scalar() == Some(',') {
                         r.skip();
                     }
                 }
@@ -660,10 +676,12 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
         }
         Ok(())
     }
+}
 
+impl SelectorParser<'_, '_, str> {
     fn fill_selectors(builder: &mut SuggestionsBuilder) {
         for (s, tip) in SELECTOR_KINDS {
-            builder.suggest_tooltip(s, horizon_client_core::lang::get(tip));
+            builder.suggest_tooltip(s, crate::lang::get(tip));
         }
     }
 
@@ -761,9 +779,7 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
             if self.can_use(o) && o.starts_with(&lower) {
                 b.suggest_tooltip(
                     format!("{o}="),
-                    horizon_client_core::lang::get(&format!(
-                        "argument.entity.options.{o}.description"
-                    )),
+                    crate::lang::get(&format!("argument.entity.options.{o}.description")),
                 );
             }
         }
@@ -771,7 +787,11 @@ impl<'r, 'a> SelectorParser<'r, 'a> {
 }
 
 /// Parse a selector from `reader` (EntitySelectorParser.parse).
-pub fn parse(reader: &mut Reader, reg: &Registries, allow_selectors: bool) -> CmdResult<Selector> {
+pub fn parse<S: CommandString + ?Sized>(
+    reader: &mut Reader<S>,
+    reg: &Registries,
+    allow_selectors: bool,
+) -> CmdResult<Selector> {
     SelectorParser::new(reader, reg, allow_selectors).parse()
 }
 
@@ -788,4 +808,12 @@ pub fn suggest(
     let mut parser = SelectorParser::new(&mut reader, reg, reg.permission >= 2);
     let _ = parser.parse();
     parser.fill_suggestions(builder, names);
+}
+
+/// `CompilableString.parse`: compile the complete Java string, with the supplied registry snapshot.
+pub fn parse_utf16(text: &[u16], reg: &Registries) -> CmdResult<Selector> {
+    let mut reader = Reader::from_utf16(text);
+    let selector = parse(&mut reader, reg, true)?;
+    super::ensure_fully_read(&reader)?;
+    Ok(selector)
 }

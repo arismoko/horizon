@@ -1,8 +1,9 @@
 //! Block state ids and names, and item tags, for native mods:
 //! registry queries with no level, so they answer anywhere a host is given.
 use super::Game;
-use horizon_client::command::{Reader, args::Registries, block};
+use horizon_client::command::{args::Registries, block};
 use horizon_client::items::ItemStack;
+use horizon_client_core::command::Reader;
 use horizon_world::chunk::BlockState;
 use horizon_world::fluid::{FluidKind, FluidState as EngineFluidState};
 use horizon_world::level::{fluid_drip_particle, fluid_explosion_resistance, fluid_randomly_ticks};

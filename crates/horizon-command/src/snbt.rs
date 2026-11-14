@@ -1,37 +1,15 @@
 //! Command errors, completions and packrat integration for the shared SNBT parser.
 use super::packrat::{Reason, State, Sugg};
 use super::{CmdResult, CommandError, Reader, SuggestionsBuilder};
-use horizon_core::nbt::{Compound, Tag, parse_snbt_argument, snbt_suggestions};
+use horizon_core::nbt::{Compound, Tag, snbt_suggestions};
 
 /// `TagParser.parseAsArgument`, adapting the canonical parser's relative cursor.
 pub fn parse_tag_argument(reader: &mut Reader) -> CmdResult<Tag> {
-    let start = reader.cursor;
-    match parse_snbt_argument(reader.remaining()) {
-        Ok((tag, used)) => {
-            reader.cursor += used;
-            Ok(tag)
-        }
-        Err(error) => {
-            reader.cursor = start + error.cursor;
-            let args: Vec<&dyn std::fmt::Display> = error
-                .args
-                .iter()
-                .map(|arg| arg as &dyn std::fmt::Display)
-                .collect();
-            Err(CommandError::tr_at(error.key, &args, reader))
-        }
-    }
+    reader.read_tag()
 }
 /// `TagParser.parseCompoundAsArgument`.
 pub fn parse_compound_argument(reader: &mut Reader) -> CmdResult<Compound> {
-    match parse_tag_argument(reader)? {
-        Tag::Compound(c) => Ok(c),
-        _ => Err(CommandError::tr_at(
-            "argument.nbt.expected.compound",
-            &[],
-            reader,
-        )),
-    }
+    reader.read_compound()
 }
 /// `TagParser.parseFully`.
 pub fn parse_fully(text: &str) -> CmdResult<Tag> {

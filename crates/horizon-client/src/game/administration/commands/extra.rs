@@ -6,12 +6,12 @@
 use super::{Arg, Context, Game, R, Target, err};
 use horizon_client::actions::Action;
 use horizon_client::{
-    command::CommandError,
     lan::waypoints::Icon,
     skins::{NameOrId, Resolve, ResolvedProfile},
     snbt,
     text::{self, ClickEvent, InlineObject, Style, Text},
 };
+use horizon_client_core::command::CommandError;
 use horizon_core::nbt::{JavaString, Tag};
 use horizon_protocol::packets::{
     Empty,
@@ -816,7 +816,7 @@ impl Game<'_> {
         }
         if ctx.literals.iter().any(|l| l == "id") {
             let id = match ctx.get("id") {
-                Some(Arg::Str(s)) => horizon_client::command::selector::java_uuid(s),
+                Some(Arg::Str(s)) => horizon_core::text::parse_java_uuid(s),
                 _ => None,
             }
             .unwrap_or_default();

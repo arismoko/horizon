@@ -2,11 +2,11 @@
 //! `modify` operations over an NBT path, string sources and the numeric
 //! result of `get`.
 use crate::{
-    command::CommandError,
     nbt_path::{CollectionError, NbtPath, PathError, too_deep},
     snbt::to_snbt,
     text::Text,
 };
+use horizon_client_core::command::CommandError;
 use horizon_core::nbt::{Compound, Tag};
 
 /// `CompoundTag.merge`: compounds merge recursively, anything else replaces.
@@ -32,7 +32,7 @@ pub fn merged(old: &Tag, nbt: &Tag) -> Tag {
 pub fn path_error(e: PathError) -> CommandError {
     let args: Vec<&dyn std::fmt::Display> =
         e.args.iter().map(|a| a as &dyn std::fmt::Display).collect();
-    CommandError::tr(e.key, &args)
+    CommandError::tr(&e.key, &args)
 }
 pub fn collection_error(e: CollectionError) -> CommandError {
     match e {
@@ -180,7 +180,7 @@ pub fn get_value(tag: &Tag, path: &NbtPath) -> Result<i32, CommandError> {
         Tag::End => {
             return Err(CommandError::tr(
                 "commands.data.get.unknown",
-                &[&path.as_str()],
+                &[&path.display()],
             ));
         }
         other => numeric(other).map_or(0, |v| v.floor() as i32),
@@ -192,7 +192,7 @@ pub fn scaled_value(tag: &Tag, path: &NbtPath, scale: f64) -> Result<i32, Comman
         Some(v) => Ok((v * scale).floor() as i32),
         None => Err(CommandError::tr(
             "commands.data.get.invalid",
-            &[&path.as_str()],
+            &[&path.display()],
         )),
     }
 }

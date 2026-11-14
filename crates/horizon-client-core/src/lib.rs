@@ -8,6 +8,7 @@
 pub mod block_entity_nbt;
 pub mod block_entity_types;
 pub mod bossbar;
+pub mod command;
 pub mod component;
 pub mod fastutil_order;
 pub mod gamerules;

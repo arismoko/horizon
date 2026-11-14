@@ -2,7 +2,8 @@
 //! (`context_int_provider`, `context_float_provider`) evaluated in a loot
 //! context of the source, optionally with a block or a target entity.
 use super::{Arg, Context, Game, R, Target, err};
-use horizon_client::{command::CommandError, text::Text};
+use horizon_client::text::Text;
+use horizon_client_core::command::CommandError;
 use horizon_core::random::RandomSource;
 use serde_json::Value;
 

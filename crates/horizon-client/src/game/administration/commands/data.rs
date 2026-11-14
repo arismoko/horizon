@@ -1331,7 +1331,7 @@ impl Game<'_> {
         }
     }
     fn get_text(&self, r: &DataRef, path: &NbtPath, scale: f64, value: i32) -> Text {
-        let p = Text::literal(path.as_str());
+        let p = Text::literal(path.display());
         let (s, v) = (
             data_cmd::scale_text(scale),
             Text::literal(value.to_string()),

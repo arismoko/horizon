@@ -35,8 +35,8 @@ fn invalid_selector(
 /// `EntitySelectorParser.parse` on all of `source`; the error's
 /// `getMessage` on failure.
 fn compile_selector(source: &str, reg: &horizon_client::command::Registries) -> Option<String> {
-    let mut reader = horizon_client::command::Reader::new(source);
-    match horizon_client::command::selector::parse(&mut reader, reg, true) {
+    let mut reader = horizon_client_core::command::Reader::new(source);
+    match horizon_client_core::command::selector::parse(&mut reader, reg, true) {
         Err(e) => Some(match e.context() {
             Some(context) => format!("{} at position {}: {context}", e.message.plain(), e.cursor),
             None => e.message.plain(),
@@ -105,7 +105,7 @@ impl Game<'_> {
             resolved.push((o, t));
         }
         let mut resolve = |raw: &str| -> Text {
-            let mut reader = horizon_client::command::Reader::new(raw);
+            let mut reader = horizon_client_core::command::Reader::new(raw);
             let entities = horizon_client::command::args::ArgType::Entity {
                 single: false,
                 players: false,
@@ -148,7 +148,7 @@ impl Game<'_> {
         );
         // findTargetName: a selector that matches one entity is that entity,
         // one that matches none is just the name.
-        let mut reader = horizon_client::command::Reader::new(name);
+        let mut reader = horizon_client_core::command::Reader::new(name);
         let ty = horizon_client::command::args::ArgType::Entity {
             single: false,
             players: false,
@@ -188,7 +188,7 @@ impl Game<'_> {
         let path = o.get("nbt").and_then(|v| v.as_str()).unwrap_or("");
         let mut sources: Vec<Tag> = Vec::new();
         if let Some(sel) = o.get("entity").and_then(|v| v.as_str()) {
-            let mut reader = horizon_client::command::Reader::new(sel);
+            let mut reader = horizon_client_core::command::Reader::new(sel);
             let ty = horizon_client::command::args::ArgType::Entity {
                 single: false,
                 players: false,

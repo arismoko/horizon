@@ -6,7 +6,8 @@
 //! swapped in (`for_player`), as their own turn, what it tells them going to
 //! their chat.
 use super::{Game, Target};
-use horizon_client::{command::args::Selector, lan::guest::Guest, text::Text};
+use horizon_client::{lan::guest::Guest, text::Text};
+use horizon_client_core::command::Selector;
 use horizon_protocol::packets::play::{self, Clientbound as C};
 
 impl Target {
@@ -79,16 +80,38 @@ impl Game<'_> {
     /// by it, without its `~` or with it (quoted), so `/msg` and `/tell`
     /// reach a player by the name chat shows. No nickname, no change.
     pub(super) fn player_named(&self, name: &str) -> Option<Target> {
-        if !self.lan_acting_fake
-            && self.player.is_some()
-            && name.eq_ignore_ascii_case(self.acting_player_name())
-        {
+        self.player_named_matching(|candidate| name.eq_ignore_ascii_case(candidate))
+            .or_else(|| self.player_nicknamed(name))
+    }
+    /// Compare the compiled selector without transcoding each player candidate.
+    pub(super) fn player_named_java(&self, name: &horizon_core::nbt::JavaString) -> Option<Target> {
+        let fold = |unit: u16| {
+            if (65..=90).contains(&unit) {
+                unit + 32
+            } else {
+                unit
+            }
+        };
+        self.player_named_matching(|candidate| {
+            name.0
+                .iter()
+                .copied()
+                .map(fold)
+                .eq(candidate.encode_utf16().map(fold))
+        })
+        .or_else(|| {
+            name.to_string()
+                .ok()
+                .and_then(|name| self.player_nicknamed(&name))
+        })
+    }
+    fn player_named_matching(&self, matches: impl Fn(&str) -> bool) -> Option<Target> {
+        if !self.lan_acting_fake && self.player.is_some() && matches(self.acting_player_name()) {
             return Some(Target::Player);
         }
         self.command_players()
-            .find(|g| g.name.eq_ignore_ascii_case(name))
-            .map(|g| Target::Guest(g.conn))
-            .or_else(|| self.player_nicknamed(name))
+            .find(|guest| matches(&guest.name))
+            .map(|guest| Target::Guest(guest.conn))
     }
 
     /// The player whose nickname is `name` (any case, a leading `~` either

@@ -1,12 +1,14 @@
 //! ItemParser (item stacks with components, `stone[damage=5]`) and
 //! ItemPredicateArgument (ComponentPredicateParser's packrat grammar:
 //! `#logs[count~1..|!damage]`), with vanilla's errors and suggestions.
-use super::args::{
-    ItemInput, Registries, is_id_char, parse_identifier, read_identifier, suggest_resources,
-};
+use super::args::{ItemInput, Registries};
 use super::codec::{either, is_number, not_map, snbt};
 use super::packrat::{Grammar, Reason, State, Sugg, Term, Value, alt, ch, opt, seq};
 use super::{CmdResult, CommandError, Reader, SuggestionsBuilder};
+use horizon_client_core::{
+    command::{is_id_char, read_identifier, suggest_resources},
+    identifier::parse_identifier,
+};
 use horizon_core::nbt::{Compound, Tag};
 use std::rc::Rc;
 
@@ -120,7 +122,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             _ => Err("Not a string".into()),
         },
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
-        "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t),
+        "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t, reg),
         "minecraft:item_model" => item_model(t).map(|_| ()),
         // TypedEntityData.codec: the type is the compound's id.
         "minecraft:block_entity_data" => match t {
@@ -355,11 +357,11 @@ impl ItemState<'_, '_> {
         let contents = b.remaining_lower();
         for id in &self.reg.persistent_components {
             let matched = if contents.contains(':') {
-                super::args::matches_sub_str(&contents, id)
+                horizon_client_core::command::matches_sub_str(&contents, id)
             } else {
                 let (ns, path) = id.split_once(':').unwrap_or(("minecraft", id));
-                super::args::matches_sub_str(&contents, ns)
-                    || super::args::matches_sub_str(&contents, path)
+                horizon_client_core::command::matches_sub_str(&contents, ns)
+                    || horizon_client_core::command::matches_sub_str(&contents, path)
             };
             if matched {
                 b.suggest(format!("{id}{suffix}"));

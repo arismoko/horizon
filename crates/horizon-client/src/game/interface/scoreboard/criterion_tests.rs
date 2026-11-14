@@ -62,8 +62,8 @@ fn selectors_reject_criteria_absent_from_the_selected_definition() {
     );
     let select = |g: &mut Game<'_>, condition: &str| {
         let text = format!("@a[advancements={{{condition}}}]");
-        let selector = horizon_client::command::selector::parse(
-            &mut horizon_client::command::Reader::new(&text),
+        let selector = horizon_client_core::command::selector::parse(
+            &mut horizon_client_core::command::Reader::new(&text),
             &horizon_client::command::args::Registries::default(),
             true,
         )

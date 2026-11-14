@@ -60,8 +60,8 @@ fn empty_tag_selectors_follow_actual_tag_edits() {
     assert_ne!(a, b);
     let select = |g: &mut Game<'_>, tag: &str| {
         let text = format!("@e[type=minecraft:pig,tag={tag}]");
-        let selector = horizon_client::command::selector::parse(
-            &mut horizon_client::command::Reader::new(&text),
+        let selector = horizon_client_core::command::selector::parse(
+            &mut horizon_client_core::command::Reader::new(&text),
             &g.ui.registries,
             true,
         )

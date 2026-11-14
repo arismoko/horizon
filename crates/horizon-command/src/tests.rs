@@ -1,4 +1,5 @@
 use super::{args::*, vanilla, *};
+use horizon_client_core::command::*;
 
 fn reg() -> Registries {
     let mut r = Registries {
@@ -631,7 +632,13 @@ fn a_uuid_selects_by_entity_uuid() {
     assert!(s.include_entities && s.player_name.is_none());
     let mut r = Reader::new("Steve");
     let s = selector::parse(&mut r, &reg, true).unwrap();
-    assert_eq!((s.uuid, s.player_name.as_deref()), (None, Some("Steve")));
+    assert_eq!(
+        (s.uuid, s.player_name),
+        (
+            None,
+            Some(horizon_core::nbt::JavaString(vec![83, 116, 101, 118, 101]))
+        )
+    );
 }
 #[test]
 fn smart_usage_matches_brigadier() {

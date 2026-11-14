@@ -8,9 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for line in input.lines() {
         let text: String = serde_json::from_str(&line?)?;
         match NbtPath::parse_prefix(&text) {
-            Ok((path, cursor)) => {
+            Ok((_, cursor)) => {
                 write!(output, "OK {cursor} ")?;
-                for value in path.as_str().as_bytes() {
+                for value in text[..cursor].as_bytes() {
                     write!(output, "{value:02x}")?;
                 }
                 writeln!(output)?;
