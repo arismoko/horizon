@@ -5,7 +5,12 @@ impl Game<'_> {
     pub(super) fn remote_entity_section_step(&mut self, id: u32, from: Vec3, to: Vec3) {
         self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
     }
+}
 
+pub(super) fn player_teleport(game: &mut Game<'_>, had_player: bool, from: Vec3, to: Vec3) {
+    if had_player && let Ok(id) = u32::try_from(game.own_entity_id()) {
+        game.remote_entity_section_step(id, from, to);
+    }
 }
 
 pub(super) fn player_before(game: &Game<'_>) -> Option<Vec3> {
