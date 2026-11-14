@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:fox/variant",
     "minecraft:weapon",
     "minecraft:food",
     "minecraft:villager_food",
@@ -248,19 +249,8 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
             }
             Ok(())
         }
-        "minecraft:rarity" => match t {
-            Tag::String(s) => {
-                let s = s.to_string_lossy();
-                if ["common", "uncommon", "rare", "epic"].contains(&s.as_str()) {
-                    Ok(())
-                } else {
-                    Err(format!("Unknown element name:{s}"))
-                }
-            }
-            _ => Err("Not a string".into()),
-        },
-        // DyeColor.CODEC -> StringRepresentable.fromEnum: ordinary NbtOps uses
-        // exact names, not the ordinal codec selected by compressMaps().
+        "minecraft:rarity" => string_enum(t, &["common", "uncommon", "rare", "epic"]),
+        "minecraft:fox/variant" => string_enum(t, &["red", "snow"]),
         "minecraft:dye"
         | "minecraft:base_color"
         | "minecraft:sheep/color"
@@ -347,6 +337,21 @@ fn dye_color(t: &Tag) -> Result<&'static str, String> {
 }
 /// `ItemEnchantments.CODEC`: registry keys and boxed-number levels in 1..=255.
 /// `UnboundedMapCodec` reports failed entries; commands do not retain its partial map.
+
+/// `StringRepresentable.StringRepresentableCodec`: exact names, not network ordinals.
+fn string_enum(t: &Tag, names: &[&str]) -> Result<(), String> {
+    let Tag::String(value) = t else {
+        return Err("Not a string".into());
+    };
+    if names
+        .iter()
+        .any(|name| value.0.iter().copied().eq(name.encode_utf16()))
+    {
+        Ok(())
+    } else {
+        Err(format!("Unknown element name:{}", value.to_string_lossy()))
+    }
+}
 fn enchantment_map(t: &Tag, reg: &Registries) -> Result<(), String> {
     let Tag::Compound(map) = t else {
         return Err(not_map(t));
@@ -930,6 +935,52 @@ pub fn suggest_predicate(builder: &mut SuggestionsBuilder, reg: &Registries) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn fox_variant_codec_accepts_only_exact_persistent_names() {
+        use super::{Registries, Tag, decoded_component_value};
+        use horizon_core::nbt::JavaString;
+        let registry = Registries::default();
+        for name in ["red", "snow"] {
+            let value = Tag::String(name.into());
+            assert_eq!(
+                decoded_component_value("minecraft:fox/variant", &value, &registry),
+                Ok(value)
+            );
+        }
+        for value in [
+            Tag::Byte(0),
+            Tag::Int(1),
+            Tag::Double(1.0f64.to_bits()),
+            Tag::List(vec![]),
+            Tag::compound([] as [(&str, Tag); 0]),
+        ] {
+            assert_eq!(
+                decoded_component_value("minecraft:fox/variant", &value, &registry),
+                Err("Not a string".into())
+            );
+        }
+        for name in ["", "RED", "Snow", "minecraft:red", "arctic", "red "] {
+            assert_eq!(
+                decoded_component_value(
+                    "minecraft:fox/variant",
+                    &Tag::String(name.into()),
+                    &registry
+                ),
+                Err(format!("Unknown element name:{name}"))
+            );
+        }
+        for units in [vec![0xd800], vec![114, 101, 100, 0xdc00]] {
+            assert!(
+                decoded_component_value(
+                    "minecraft:fox/variant",
+                    &Tag::String(JavaString(units)),
+                    &registry
+                )
+                .is_err()
+            );
+        }
+    }
+
     #[test]
     fn weapon_codec_defaults_numeric_conversions_and_ranges() {
         use super::{Registries, Tag, decoded_component_value};
