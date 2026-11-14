@@ -2718,7 +2718,7 @@ mod shulker_lock_drop_tests {
                 .get(&key)
                 .expect("actual command-created source");
             assert!(
-                save::encode_block_entity(key, entity, &format!("minecraft:{kind}"))
+                save::block_entity_encode::encode(key, entity, &format!("minecraft:{kind}"))
                     .get("lock")
                     .is_none(),
                 "external lock must not be invented in modeled serializer"

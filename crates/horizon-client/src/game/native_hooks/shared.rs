@@ -3938,7 +3938,7 @@ mod tests {
                 let probe = level.capability(game, &PROBE, [x, 64, 0], None).unwrap();
                 assert_eq!((probe.value(), probe.owner()), (6300, "be_user".into()));
                 game.tick_mod_block_entity(pos);
-                let saved = save::encode_block_entity(
+                let saved = save::block_entity_encode::encode(
                     pos,
                     game.world.block_entities.get(&pos).unwrap(),
                     block,
@@ -3951,7 +3951,7 @@ mod tests {
                 assert!(save::decode_block_entity_for_block(&saved, EMPTY).is_none());
                 game.world.block_entities.insert(pos, restored);
                 game.tick_mod_block_entity(pos);
-                let saved = save::encode_block_entity(
+                let saved = save::block_entity_encode::encode(
                     pos,
                     game.world.block_entities.get(&pos).unwrap(),
                     block,
@@ -4046,7 +4046,7 @@ mod tests {
         use super::super::native_entity_refs::tests::with_game;
         use horizon_client::chunk::Chunk;
         use horizon_client::containers::{BlockEntity, ModBlockEntity, ModBlockEntityFields};
-        use horizon_client::save::{decode_block_entity, encode_block_entity};
+        use horizon_client::save::{block_entity_encode, decode_block_entity};
         use std::sync::Arc;
 
         with_game(|game| {
@@ -4077,7 +4077,7 @@ mod tests {
             assert_eq!(machine.data, [7]);
             assert_ne!(machine.revision(), made);
             assert!(game.world.modified.contains(&(0, 0)));
-            let saved = encode_block_entity(pos, entity, "minecraft:stone");
+            let saved = block_entity_encode::encode(pos, entity, "minecraft:stone");
             let (saved_pos, loaded) = decode_block_entity(&saved).unwrap();
             assert_eq!(saved_pos, pos);
             assert_eq!(loaded.id(), "test:machine");

@@ -1,4 +1,4 @@
-SkullBlockEntity.saveAdditional	port	crates/horizon-client/src/save.rs::encode_block_entity	skull arm writes profile, note_block_sound and custom_name
+SkullBlockEntity.saveAdditional	port	crates/horizon-client/src/save/block_entity_encode.rs::encode	skull arm writes profile, note_block_sound and custom_name
 SkullBlockEntity.loadAdditional	port	crates/horizon-client/src/save.rs::decode_block_entity	skull arm reads the same three keys
 SkullBlockEntity.applyImplicitComponents	port	crates/horizon-client/src/block_entity_item.rs::place	profile, note sound and custom name from the item components are applied to the saved tag
 SkullBlockEntity.collectImplicitComponents	port	crates/horizon-client/src/block_entity_item.rs::collect	per-part component read; the skull's three parts come from the parts table
