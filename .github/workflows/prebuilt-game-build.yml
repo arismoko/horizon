@@ -1,8 +1,9 @@
 name: prebuilt game build
 # The prebuilt game's build (#589), every OS, called by the daily run (daily.yml, its commit) and by prebuilt-game.yml
-# (a hand dispatch, which also publishes). It only builds, smokes and uploads the archives as this run's artifacts
-# (`horizon-prebuilt-v5-<target>[-server].tar.gz`): no job here writes anything, so a read-only caller may call it.
-# A commit whose prebuilt-<sha> release already exists stops early (output `needed` false).
+# (a hand dispatch). Each leg builds, smokes and packs the SDK's assets (tools/prebuilt_game.py pack: its
+# `runtime-`, `api-` and `engine-<target>[-server].tar.xz`, build-data.tar.xz and surface.json) as this run's
+# artifact `sdk-leg-<leg>`, which sdk-publish.yml gathers and publishes: no job here writes anything, so a read-only
+# caller may call it. A commit whose sdk-<sha> release already exists stops early (output `needed` false).
 on:
   workflow_call:
     inputs:
@@ -12,7 +13,7 @@ on:
         default: ''
     outputs:
       needed:
-        description: Whether prebuilt-<sha> was missing, so this run built it
+        description: Whether sdk-<sha> was missing, so this run built it
         value: ${{ jobs.fresh.outputs.needed }}
       tag:
         description: The release tag the archives publish under
@@ -20,7 +21,7 @@ on:
 permissions:
   contents: read
 env:
-  TAG: prebuilt-${{ inputs.commit || github.sha }}
+  TAG: sdk-${{ inputs.commit || github.sha }}
 jobs:
   fresh:
     # Main's head may already have its build: a quiet day, or a second dispatch.
@@ -63,10 +64,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      # v<layout>: the launcher asks only for the archive layout it reads (prebuilt_archive in
-      # crates/horizon-mod-package/src/index/native.rs); bump both when the folder's layout changes.
-      ARCHIVE: horizon-prebuilt-v5-${{ matrix.target }}${{ matrix.server && '-server' || '' }}.tar.gz
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,32 +97,15 @@ jobs:
         run: python tools/prebuilt_game.py start prebuilt
       - name: Exported names, toward Windows' 65,535
         run: python tools/prebuilt_game.py exports prebuilt | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Archive
-        # Python's tarfile, not tar: macOS's bsdtar has no --sort, and the archive must come out
-        # the same on every OS (sorted ./ entries, zero times and owners, no gzip name or time).
-        run: |
-          python - <<'PY'
-          import gzip, os, tarfile
-          def clean(info):
-              info.mtime, info.uid, info.gid, info.uname, info.gname = 0, 0, 0, "", ""
-              return info
-          paths = ["."]
-          for root, dirs, files in os.walk("prebuilt"):
-              dirs.sort()
-              rel = os.path.relpath(root, "prebuilt")
-              paths += sorted(os.path.normpath(os.path.join(rel, n)) for n in dirs + files)
-          with open(os.environ["ARCHIVE"], "wb") as out, gzip.GzipFile(
-              filename="", mode="wb", fileobj=out, mtime=0
-          ) as gz, tarfile.open(fileobj=gz, mode="w", format=tarfile.GNU_FORMAT) as tar:
-              for path in sorted(set(paths)):
-                  name = "." if path == "." else "./" + path.replace(os.sep, "/")
-                  tar.add(os.path.join("prebuilt", path), arcname=name, recursive=False, filter=clean)
-          PY
-          echo "$(du -h "$ARCHIVE" | cut -f1) $ARCHIVE" >> "$GITHUB_STEP_SUMMARY"
+      # The leg's assets, named for its target and side; the layout's number is in each identity (package_format).
+      - name: Pack the SDK's assets
+        run: python tools/prebuilt_game.py pack prebuilt dist
+      - name: Asset sizes
+        run: (cd dist && du -h *) | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARCHIVE }}
-          path: ${{ env.ARCHIVE }}
+          name: sdk-leg-${{ matrix.name }}
+          path: dist
           if-no-files-found: error
           retention-days: 7
-
+          overwrite: true

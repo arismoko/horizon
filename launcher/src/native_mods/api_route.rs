@@ -358,7 +358,7 @@ mod tests {
             super::super::tests::write_bundle(&dir, name, "");
             fs::write(
                 dir.join("Cargo.toml"),
-                format!("[package]\nname='{name}'\nversion='0.1.0'\n[lib]\nname='{name}'\n[dependencies]\nhorizon-mod-api='0.1'\n"),
+                format!("[package]\nname='{name}'\nversion='0.1.0'\n[lib]\nname='{name}'\n[dependencies]\nhorizon-mod-api={{path='.horizon/sdk/api/crates/horizon-mod-api'}}\n"),
             )
             .unwrap();
             super::super::bundle_in(&dir).unwrap().unwrap()

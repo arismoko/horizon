@@ -21,7 +21,7 @@ impl Project {
             .join(format!("internals-{name}-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(MANIFEST), format!("# A modder's description\nid = 'example'\nname = 'Example'\nversion = '0.1.0'\napi = '0.2'\ncapabilities = ['registries']\n{declarations}\n[native] # native settings\ngame = '26.3'\nhorizon = '{OLD}' # pinned game\nmixins = '{}'\n", "a".repeat(40))).unwrap();
-        fs::write(dir.join("Cargo.toml"), format!("# Keep this comment\n[package]\nname = 'example'\nversion = '0.1.0'\n[dependencies]\nhorizon-mod-api = {{ git = 'https://example.invalid/horizon', rev = '{OLD}' }} # API pin\nhorizon-internals = {{ git = 'https://example.invalid/horizon', rev = '{OLD}' }} # facade pin\n")).unwrap();
+        fs::write(dir.join("Cargo.toml"), "# Keep this comment\n[package]\nname = 'example'\nversion = '0.1.0'\n[dependencies]\nhorizon-mod-api = { path = '.horizon/sdk/api/crates/horizon-mod-api' } # API pin\nhorizon-internals = { path = '.horizon/sdk/api/crates/horizon-internals' } # facade pin\n").unwrap();
         let project = Self { dir };
         project.catalog(OLD, OLD_CATALOG);
         project.catalog(NEW, NEW_CATALOG);
@@ -227,11 +227,9 @@ fn update_diffs_signatures_refreshes_present_hashes_and_keeps_missing_declaratio
     ] {
         assert!(project.text().contains(comment), "{comment}");
     }
+    // The SDK is named by path: only the manifest's pin moves.
     let cargo = fs::read_to_string(project.dir.join("Cargo.toml")).unwrap();
-    let doc: toml::Value = toml::from_str(&cargo).unwrap();
-    for package in ["horizon-mod-api", "horizon-internals"] {
-        assert_eq!(doc["dependencies"][package]["rev"].as_str(), Some(NEW));
-    }
+    assert!(!cargo.contains(NEW), "{cargo}");
     assert!(cargo.starts_with("# Keep this comment"));
     assert!(cargo.contains("# API pin"));
     assert!(cargo.contains("# facade pin"));

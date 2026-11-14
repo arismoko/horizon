@@ -186,10 +186,20 @@ fn is_date(text: &str) -> bool {
         })
 }
 
+/// The prefix of a mod SDK's release tag: `sdk-<build id>`, the game's full commit sha
+/// (design: the SDK is published as its own signed release per build).
+pub const SDK_PREFIX: &str = "sdk-";
+
+/// Whether `tag` names a mod SDK's release (`sdk-…`), whatever follows the prefix.
+pub fn is_sdk(tag: &str) -> bool {
+    tag.starts_with(SDK_PREFIX)
+}
+
 /// The signed SHA-256 of `asset` in release `tag`, or why the download must be refused.
 /// `sums` and `signature` are the release's SHA256SUMS and SHA256SUMS.sig, None when it has none.
 /// A nightly is never a release: its tags are refused here, whatever their signature
-/// ([`nightly_digest`] checks those).
+/// ([`nightly_digest`] checks those). Nor is a mod SDK: its files are never game files
+/// ([`sdk_digest`] checks those).
 pub fn signed_digest(
     tag: &str,
     asset: &str,
@@ -202,7 +212,35 @@ pub fn signed_digest(
             "{tag} is a Nightly build: only a launcher with Nightly turned on installs it."
         ));
     }
+    if is_sdk(tag) {
+        return Err(format!(
+            "{tag} is a mod SDK, not a game release: it is never installed as the game."
+        ));
+    }
     digest_in(tag, tag, asset, sums, signature, keys)
+}
+
+/// The signed SHA-256 of `asset` in the mod SDK of game build `build` (a full 40-character commit
+/// sha): `sums` must be signed for exactly `sdk-<build>`, so neither a game release's list nor
+/// another build's SDK passes for it.
+pub fn sdk_digest(
+    build: &str,
+    asset: &str,
+    sums: Option<&[u8]>,
+    signature: Option<&str>,
+    keys: &[PublicKey],
+) -> Result<String, String> {
+    if build.len() != 40
+        || !build
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(format!(
+            "{build:?} is not a game build's full commit, so its SDK can't be checked."
+        ));
+    }
+    let tag = format!("{SDK_PREFIX}{build}");
+    digest_in(&tag, &tag, asset, sums, signature, keys)
 }
 
 /// The version a Nightly's GitHub title names, strictly: `Nightly 2026-10-28 · 0c02067` (as
@@ -486,6 +524,59 @@ mod tests {
         ]);
         let signature = key.sign(tag, sums.as_bytes()) + "\n";
         (key, sums, signature)
+    }
+
+    #[test]
+    fn an_sdk_signature_never_passes_for_a_game_release_nor_the_reverse() {
+        let build = "0123456789abcdef0123456789abcdef01234567";
+        let sdk_tag = format!("{SDK_PREFIX}{build}");
+        let (key, sums, sdk_signature) = signed(&sdk_tag);
+        let keys = [key.public()];
+        let asset = "horizon-linux-x86_64.tar.gz";
+        let sdk = |signature: &str| {
+            sdk_digest(build, asset, Some(sums.as_bytes()), Some(signature), &keys)
+        };
+        assert_eq!(sdk(&sdk_signature), Ok(sha256_hex(b"linux")));
+        // The SDK's list, signed for its tag, is refused as a game release: under its own tag by
+        // name, and under a game release's tag by its signature.
+        for tag in [sdk_tag.as_str(), "v2026.11.13"] {
+            let refused = signed_digest(
+                tag,
+                asset,
+                Some(sums.as_bytes()),
+                Some(&sdk_signature),
+                &keys,
+            );
+            assert!(refused.is_err(), "{tag}");
+        }
+        let nightly = "nightly-2026-11-13-0123456";
+        assert!(
+            nightly_digest(
+                nightly,
+                asset,
+                Some(sums.as_bytes()),
+                Some(&sdk_signature),
+                &keys
+            )
+            .is_err()
+        );
+        // A game release's or a Nightly's signature is refused as the SDK's, and so is another
+        // build's SDK.
+        for tag in ["v2026.11.13", NIGHTLY, nightly] {
+            assert!(sdk(&key.sign(tag, sums.as_bytes())).is_err(), "{tag}");
+        }
+        let other = format!("{SDK_PREFIX}{}", "f".repeat(40));
+        assert!(sdk(&key.sign(&other, sums.as_bytes())).is_err());
+        assert!(
+            sdk_digest(
+                "0123456",
+                asset,
+                Some(sums.as_bytes()),
+                Some(&sdk_signature),
+                &keys
+            )
+            .is_err()
+        );
     }
 
     #[test]

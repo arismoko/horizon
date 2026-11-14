@@ -3,12 +3,13 @@
 //! job that holds the private key runs only the runner's sha256sum and OpenSSL, no code from the
 //! repository.
 //!
-//!     horizon-release-sign verify --tag v2026.10.19 [--key <base64>] [--signature <file>] [--publishing] <folder>
+//!     horizon-release-sign verify --tag v2026.10.19 [--key <base64>] [--signature <file>] [--only <file>]... [--publishing] <folder>
 //!     horizon-release-sign keygen --public-out key.pub | gh secret set RELEASE_SIGNING_KEY --env release
 //!
 //! `verify` checks SHA256SUMS.sig (or `--signature`, e.g. a Nightly's SHA256SUMS.v2.sig with
 //! `--tag nightly-<date>-<commit>`) and every file SHA256SUMS lists with the keys built in from
-//! release-keys.txt (or `--key`), as the launcher does. With `--publishing` (release.yml) a release
+//! release-keys.txt (or `--key`), as the launcher does; with `--only`, just the files named (each must
+//! be listed), for a check that downloaded only those. With `--publishing` (release.yml) a release
 //! may go out unsigned, or signed with a key nobody can check yet, only while release-keys.txt
 //! lists no key; once it lists one, anything launchers would refuse fails the release.
 
@@ -24,7 +25,7 @@ fn main() -> ExitCode {
         Some("keygen") => keygen(&args[1..]),
         _ => Err(
             "usage: horizon-release-sign verify --tag <tag> [--key <base64>]... [--repository <owner/name>] [--signature <file>] \
-             [--publishing] <folder> | keygen --public-out <file>"
+             [--only <file>]... [--publishing] <folder> | keygen --public-out <file>"
                 .into(),
         ),
     };
@@ -82,6 +83,7 @@ fn check_folder(args: &[String]) -> Result<(), String> {
         .first()
         .map(String::as_str)
         .unwrap_or("horizon-rust/horizon");
+    let (only, rest) = options(&rest, "--only");
     let (signature_file, rest) = options(&rest, "--signature");
     let signature_file = signature_file
         .into_iter()
@@ -126,10 +128,20 @@ fn check_folder(args: &[String]) -> Result<(), String> {
             ));
         }
     };
-    for (name, hex) in &listed {
+    if let Some(name) = only
+        .iter()
+        .find(|name| !listed.iter().any(|(n, _)| n == *name))
+    {
+        return Err(format!("{name} is not in {tag}'s {SUMS}"));
+    }
+    let checked: Vec<_> = listed
+        .iter()
+        .filter(|(name, _)| only.is_empty() || only.contains(name))
+        .collect();
+    for (name, hex) in &checked {
         horizon_release_sign::check(name, hex, &file_hash(&folder.join(name))?)?;
     }
-    println!("{tag}: {} files match {SUMS}", listed.len());
+    println!("{tag}: {} files match {SUMS}", checked.len());
     Ok(())
 }
 

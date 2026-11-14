@@ -378,6 +378,27 @@ impl Part {
     }
 }
 
+/// Every id reached from `ids` along `refs` ([`Surface::refs`]), `ids` included. A caller that
+/// walks from many starts builds `refs` once.
+pub(crate) fn walk_refs<'a>(
+    refs: &BTreeMap<&str, Vec<&str>>,
+    ids: impl IntoIterator<Item = &'a str>,
+) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let mut pending: Vec<String> = ids.into_iter().map(str::to_owned).collect();
+    while let Some(id) = pending.pop() {
+        if let Some(next) = refs.get(id.as_str()) {
+            pending.extend(
+                next.iter()
+                    .filter(|r| !out.contains(**r))
+                    .map(|r| (*r).to_owned()),
+            );
+        }
+        out.insert(id);
+    }
+    out
+}
+
 impl Surface {
     /// The document: each list sorted by id, a trait's members by id, a type's fields and
     /// variants in declaration order, and its hash.
@@ -507,20 +528,7 @@ impl Surface {
         ids: impl IntoIterator<Item = &'a str>,
         supertraits: bool,
     ) -> BTreeSet<String> {
-        let refs = self.refs(supertraits);
-        let mut out = BTreeSet::new();
-        let mut pending: Vec<String> = ids.into_iter().map(str::to_owned).collect();
-        while let Some(id) = pending.pop() {
-            if let Some(next) = refs.get(id.as_str()) {
-                pending.extend(
-                    next.iter()
-                        .filter(|r| !out.contains(**r))
-                        .map(|r| (*r).to_owned()),
-                );
-            }
-            out.insert(id);
-        }
-        out
+        walk_refs(&self.refs(supertraits), ids)
     }
 
     /// Each record's direct references, the edges [`Surface::closure`] follows.

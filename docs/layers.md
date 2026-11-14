@@ -102,7 +102,7 @@ public API that mods, desktop-class ports and the Horizon layer build on.
   hooks and so on become public API with stable types (arismoko/horizon#1608's patterns). Then a mod, a port or a
   Horizon feature builds on them instead of editing or copying engine code.
 - **Examples:** `horizon-shader-api`, `horizon-shaders`, `horizon-optifine` (`cem/`), `horizon-polytone`,
-  `horizon-hdr`, `horizon-dualsense`, `horizon-mods`, `cargo-horizon-mod`, `horizon-anticheat`, `horizon-mcp`,
+  `horizon-hdr`, `horizon-dualsense`, `horizon-mods`, `horizon-anticheat`, `horizon-mcp`,
   `horizon-theme`. Still in engine crates today: `game/mod_api_host.rs`, `game/native_*.rs`, `shader_ui.rs`,
   `hdr_calibration.rs`.
 - **Never:** a built-in address (every address comes from the player, a file or a setting), anything that names
@@ -172,7 +172,9 @@ Horizon's own extras and its product, and every built-in address of an outside s
 ## Tools
 
 Developer tools that no player runs: `xtask`, `horizon-bots`, `horizon-mod-api-gen-tests`, `horizon-mod-wasm-wire-loopback`, and the Python in
-`tools/`. They may depend on anything, and no shipped crate depends on them.
+`tools/`. They may depend on anything, and no shipped crate depends on them. `cargo-horizon-mod`, the mod author's
+tool, is one: it fetches and checks Horizon's signed mod SDK, so it reads `horizon-addresses` and
+`horizon-release-sign` beside the engine's mod crates.
 
 ## Where a new feature goes
 

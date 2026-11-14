@@ -108,7 +108,6 @@
     "launcher/src/tailscale.rs login.tailscale.com",
     "launcher/src/tailscale.rs tailscale.com",
     "crates/cargo-horizon-mod/src/internals.rs github.com",
-    "crates/cargo-horizon-mod/src/main.rs api.github.com",
     "crates/horizon-client-render/src/mods_screen.rs bugs.mojang.com",
     "crates/horizon-client-render/src/mods_screen.rs github.com",
     "crates/horizon-client-render/src/mods_screen.rs minecraft.net",
@@ -119,7 +118,6 @@
     "crates/horizon-port-pack/src/fetch.rs maven.neoforged.net",
     "crates/horizon-port-pack/src/fetch.rs objects.githubusercontent.com",
     "crates/horizon-port-pack/src/fetch.rs release-assets.githubusercontent.com",
-    "launcher/src/native_mods/prebuilt.rs github.com",
     "crates/horizon-telemetry-server/src/github.rs api.github.com",
     "crates/horizon-telemetry-server/src/github.rs github.com",
     "crates/horizon-telemetry-server/src/lib.rs playhorizon.dev"
@@ -138,7 +136,6 @@
     "crates/horizon-port-pack/src/fetch.rs objects.githubusercontent.com": "Existing fork source URL; recorded baseline, no endpoint added by this sync.",
     "crates/horizon-port-pack/src/fetch.rs release-assets.githubusercontent.com": "Existing fork source URL; recorded baseline, no endpoint added by this sync.",
     "launcher/src/backend.rs arismoko.github.io": "Existing fork source URL; recorded baseline, no endpoint added by this sync.",
-    "launcher/src/native_mods/prebuilt.rs github.com": "Existing fork source URL; recorded baseline, no endpoint added by this sync.",
     "launcher/src/open_card.rs github.com": "Existing fork source URL; recorded baseline, no endpoint added by this sync."
   }
 }

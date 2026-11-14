@@ -6,6 +6,7 @@ import shutil
 import sys
 import struct
 import subprocess
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -145,36 +146,6 @@ class RegistryPatchTests(unittest.TestCase):
                 prebuilt_game.check(sdk)
 
 
-class DeterministicArchiveTests(unittest.TestCase):
-    def test_workflow_archive_is_independent_of_creation_order_and_mtimes(self):
-        # Execute the workflow command itself, so a regression in its flags breaks this proof.
-        workflow = yaml.safe_load((prebuilt_game.ROOT / ".github/workflows/prebuilt-game-build.yml").read_text())
-        command = next(step["run"] for step in workflow["jobs"]["build"]["steps"] if step.get("name") == "Archive")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            # The step runs `python` as setup-python provides it.
-            bin_dir = root / "bin"
-            bin_dir.mkdir()
-            (bin_dir / "python").symlink_to(sys.executable)
-            archives = []
-            for index, order in enumerate([("a", "b"), ("b", "a")]):
-                work = root / str(index)
-                payload = work / "prebuilt/patches/crate"
-                payload.mkdir(parents=True)
-                for name in order:
-                    file = payload / name
-                    file.write_text(name)
-                    os.utime(file, (1000 + index, 1000 + index))
-                for folder in [payload, payload.parent, payload.parent.parent]:
-                    os.utime(folder, (2000 + index, 2000 + index))
-                subprocess.run(["bash", "-o", "pipefail", "-c", command], cwd=work,
-                               env={**os.environ, "ARCHIVE": "sdk.tar.gz",
-                                    "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-                                    "GITHUB_STEP_SUMMARY": str(root / f"summary-{index}")}, check=True)
-                archives.append((work / "sdk.tar.gz").read_bytes())
-            self.assertEqual(archives[0], archives[1])
-
-
 class SdkAssetTests(unittest.TestCase):
     RUNTIME = ["deps/libhorizon_mod_host.so", "deps/libhorizon_mod_wasm.so", "bin/horizon-client",
                "bin/libhorizon_native_mods.so"]
@@ -298,6 +269,50 @@ class SdkAssetTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "horizon-mod-wasm"):
             prebuilt_game.slices(metadata, copied, ["bin/horizon-client"])
 
+    def test_gather_takes_every_legs_archives_once_and_one_build_data_that_all_copies_match(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(sys, "platform", "linux"):
+            root = Path(directory)
+            legs = root / "legs"
+            for side in ("server", "client"):
+                out = self.out(root / side, 1000)
+                identity = json.loads((out / prebuilt_game.IDENTITY).read_text())
+                identity["side"] = side
+                (out / prebuilt_game.IDENTITY).write_text(json.dumps(identity))
+                self.pack(out, legs / f"sdk-linux-{side}")
+            prebuilt_game.gather(legs, root / "dist")
+            self.assertEqual(sorted(path.name for path in (root / "dist").iterdir()), sorted(
+                [f"{kind}-x86_64-unknown-linux-gnu{suffix}.tar.xz" for kind in ("api", "engine", "runtime")
+                 for suffix in ("", "-server")] + ["build-data.tar.xz", "surface.json"]))
+
+            def refused(why, change):
+                broken = root / "broken"
+                shutil.rmtree(broken, ignore_errors=True)
+                shutil.copytree(legs, broken)
+                change(broken / "sdk-linux-server")
+                with self.assertRaisesRegex(SystemExit, why):
+                    prebuilt_game.gather(broken, root / "broken-dist")
+                shutil.rmtree(root / "broken-dist", ignore_errors=True)
+
+            def repack(leg, archive, name, text):
+                # The archive again, with one of its files' text changed.
+                folder = root / "repack"
+                shutil.rmtree(folder, ignore_errors=True)
+                folder.mkdir()
+                with tarfile.open(leg / archive, "r:xz") as tar:
+                    tar.extractall(folder, filter="data")
+                (folder / name).write_text(text)
+                prebuilt_game.tar_xz(folder, prebuilt_game.tree(folder), leg / archive)
+
+            refused("surface.json differs", lambda leg: (leg / "surface.json").write_text('{"hash": "cd"}'))
+            refused("points.json differ",
+                    lambda leg: repack(leg, "build-data.tar.xz", prebuilt_game.POINTS, "{}"))
+            # The package's own copy, in the api slice, is checked too.
+            refused("api-x86_64-unknown-linux-gnu-server.tar.xz: loops.json differ",
+                    lambda leg: repack(leg, "api-x86_64-unknown-linux-gnu-server.tar.xz", prebuilt_game.LOOPS, "{}"))
+            refused("comes from two legs", lambda leg: shutil.copy2(
+                legs / "sdk-linux-client/engine-x86_64-unknown-linux-gnu.tar.xz", leg))
+            refused("no build-data.tar.xz", lambda leg: (leg / "build-data.tar.xz").unlink())
+
     def test_pack_refuses_another_commits_package(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -335,20 +350,6 @@ class AllocatorSelectionTests(unittest.TestCase):
                     prebuilt_game.package_format(root)
         # The repository's own number is the one the archive gate compares against.
         self.assertEqual(prebuilt_game.package_format(prebuilt_game.ROOT), 6)
-
-    def test_an_archive_named_for_another_layout_is_refused_before_building(self):
-        for archive, refused in (("horizon-prebuilt-v5-x86_64-unknown-linux-gnu.tar.gz", True),
-                                 ("horizon-prebuilt-v6-x86_64-unknown-linux-gnu.tar.gz", False),
-                                 (None, False)):
-            environment = {"ARCHIVE": archive} if archive else {}
-            with self.subTest(archive), patch.dict(os.environ, environment, clear=False):
-                if not archive:
-                    os.environ.pop("ARCHIVE", None)
-                if refused:
-                    with self.assertRaisesRegex(SystemExit, "another package layout"):
-                        prebuilt_game.refuse_old_archive_name(6)
-                else:
-                    prebuilt_game.refuse_old_archive_name(6)
 
     def test_windows_and_macos_archives_use_the_system_allocator(self):
         for platform in ("win32", "darwin"):

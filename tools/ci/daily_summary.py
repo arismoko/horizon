@@ -16,6 +16,9 @@ A job it does not know, or an expected leg with no job, is a red leg ("did not r
 shard of the matrix (tools/ci/ignored_shards.py, which builds it) with no job of its name. Each comment
 names this run's URL, and none is posted twice for one run (a rerun of failed jobs, or a retry after a partial
 write, completes what is missing). `daily_summary.py --seen SHA` prints a completed real daily run of SHA, if any.
+`daily_summary.py --after JOB RESULT` reports a job that runs after the summary (the SDK's publish, `sdk-publish`) the
+same way: not `success` files or comments on `Daily: JOB did not complete`, naming its failed steps; `success` closes
+it.
 Only a run on refs/heads/main with DRY_RUN=false writes; otherwise it prints what it would do to the job summary.
 Lookups come first and fail the job on any API error (a rate limit included), so a failed lookup never files
 duplicates.
@@ -54,7 +57,7 @@ ACTIONS = {
 HELPERS = ("plan", "route", "fresh", "gate")
 # Jobs of a called workflow that the daily run does not use: launcher-windows-check's push and pull-request tests.
 NOT_DAILY = ("windows-runtime-leases / test",)
-# The one green skip: the SDK build skips when prebuilt-<sha> already exists, which `sdk / fresh` found (it
+# The one green skip: the SDK build skips when sdk-<sha> already exists, which `sdk / fresh` found (it
 # succeeded). Any other skip of an expected job is red.
 FRESH = "sdk / fresh"
 # The wasm fixture step whose failures its verdict file names test by test.
@@ -139,7 +142,8 @@ def report_for(job, reports):
 
 def known(name):
     """daily.yml's own jobs and its legs' jobs; any other job is one the summary cannot judge."""
-    return (name in ("resolve", "schedule-dispatch", "sdk-publish") or name.startswith(("summary ", "nightly / "))
+    return (name in ("resolve", "schedule-dispatch", "sdk-publish-report")
+            or name.startswith(("summary ", "nightly / ", "sdk-publish / "))
             or name.split(" / ", 1)[0] in LEGS and " / " in name)
 
 
@@ -430,6 +434,35 @@ def main(call=api, run_git=git):
     return 0
 
 
+def after(name, result, call=api, run_git=git):
+    """Reports the job `name` that ran after the summary, which concluded `result` (`needs.<name>.result`): one
+    issue for it while it fails, closed by its next success. Writes only where the summary would."""
+    env = os.environ
+    writes = env.get("GITHUB_REF") == "refs/heads/main" and env.get("DRY_RUN") == "false"
+    run_url = f"{env.get('GITHUB_SERVER_URL', 'https://github.com')}/{env['GITHUB_REPOSITORY']}/actions/runs/{env['GITHUB_RUN_ID']}"
+    commit = env["COMMIT"]
+    open_issues = {issue["title"]: issue["number"]
+                   for issue in pages(call, f"issues?state=open&labels={LABEL}")
+                   if "pull_request" not in issue and issue["title"] == leg_title(name)}
+    if result == "success":
+        actions = plan(commit, run_url, [], [], set(), {name}, False, open_issues, [])
+    else:
+        jobs = pages(call, f"actions/runs/{env['GITHUB_RUN_ID']}/jobs?filter=latest", "jobs")
+        steps = [f"{job['name']}: {step}" for job in jobs if job["name"].startswith(f"{name} / ")
+                 for step in failed_steps(job)]
+        unfinished = [(name, result, steps, "nothing was published, so no Nightly follows")]
+        actions = plan(commit, run_url, [], unfinished, set(), set(), False, open_issues,
+                       suspects(commit, run_git))
+    text = render(actions, writes)
+    print(text)
+    if env.get("GITHUB_STEP_SUMMARY"):
+        with open(env["GITHUB_STEP_SUMMARY"], "a") as summary:
+            summary.write(text)
+    if writes:
+        apply(actions, call, run_url)
+    return 0
+
+
 def seen(sha, call=api):
     """The URL of a completed real daily run of sha (its summary job, named `summary <sha>`, finished), or ""."""
     current = int(os.environ["GITHUB_RUN_ID"])
@@ -448,4 +481,6 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["--seen"]:
         print(seen(sys.argv[2]))
         sys.exit(0)
+    if sys.argv[1:2] == ["--after"]:
+        sys.exit(after(sys.argv[2], sys.argv[3]))
     sys.exit(main())

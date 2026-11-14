@@ -1618,6 +1618,33 @@ fn every_counted_host_that_leads_to_a_called_methods_trait_must_still_lead_there
     assert_eq!(fits(uses.entries(), &two_sides(false).build()), Fit::Fits);
 }
 
+#[test]
+fn a_table_naming_many_routes_the_target_lacks_is_judged_without_a_walk_each() {
+    // A package's `reached_from` strings are its own: each not in the target is a route misfit,
+    // found without walking the target's references again.
+    let uses = scan_on(
+        two_sides(false),
+        "fn f(host: &mut dyn ServerHost, id: u128) { host.player(id); }",
+    );
+    let mut entries: Vec<Entry> = uses.entries().cloned().collect();
+    let player = entries
+        .iter_mut()
+        .find(|e| e.id == "method:PlayersHost::player")
+        .unwrap();
+    player.reached_from = (0..50_000).map(|i| format!("a{i}")).collect();
+    match fits(&entries, &two_sides(false).build()) {
+        Fit::DoesNotFit(misfits) => {
+            assert_eq!(misfits.len(), 50_000);
+            assert!(
+                misfits
+                    .iter()
+                    .all(|m| matches!(m.change, Change::Route { .. }))
+            );
+        }
+        Fit::Fits => panic!("fits, though no named route exists"),
+    }
+}
+
 pub(crate) fn dims(extra: &[&str]) -> Type {
     let mut names = vec!["min_y", "height", "logical_height"];
     names.extend(extra);

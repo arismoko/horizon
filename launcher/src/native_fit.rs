@@ -1,11 +1,11 @@
 //! Whether a native mod fits the Horizon the player plays, said before it is installed, so a
-//! mod made for another Horizon is no surprise at build time. Diverges from upstream: native
-//! mods pin an exact commit, with no hook-version compatibility or automatic revision change.
+//! mod made for another Horizon is no surprise at build time. A mod made for another build is
+//! built when everything it uses is unchanged in the instance's build (SDK design §10); the
+//! build tests it, since that needs the mod's own files.
 use crate::i18n::{tr, trf};
 use crate::instances::Instance;
 use crate::{backend, native_mods};
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -18,56 +18,38 @@ pub struct Plays {
 /// How a native mod fits [`Plays`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fit {
-    /// It builds on the Horizon the player plays.
+    /// It was made for the Horizon the player plays.
     Fits,
-    /// It pins another commit, and mods turned on pin yet another one. The build refuses
-    /// mismatched pins rather than changing them.
-    Clashes { pin: String, with: Vec<String> },
-    /// It pins another commit: the player must choose matching mods or a matching game.
+    /// It was made for another build: the build tests whether it fits.
     OtherRevision { pin: String },
 }
 
-/// How mod `id`, which pins commit `pin`, fits the Horizon played. `pins` are the mods turned
-/// on that pin a commit (id, commit); the mod's own older version is replaced by this one.
-pub fn fit(id: &str, pin: &str, plays: &Plays, pins: &[(String, String)]) -> Fit {
+/// How a mod made for commit `pin` fits the Horizon played.
+pub fn fit(pin: &str, plays: &Plays) -> Fit {
     if pin == plays.revision {
-        return Fit::Fits;
+        Fit::Fits
+    } else {
+        Fit::OtherRevision { pin: pin.into() }
     }
-    let with: Vec<String> = pins
-        .iter()
-        .filter(|(other, revision)| other != id && revision != pin)
-        .map(|(other, _)| other.clone())
-        .collect();
-    match with.is_empty() {
-        true => Fit::OtherRevision { pin: pin.into() },
-        false => Fit::Clashes {
-            pin: pin.into(),
-            with,
-        },
-    }
-}
-
-fn short(revision: &str) -> &str {
-    &revision[..revision.len().min(7)]
 }
 
 /// What the player reads about `fit`.
 pub fn describe(fit: &Fit, plays: &Plays) -> String {
     match fit {
-        Fit::Fits => tr("Builds on the Horizon you play").to_owned(),
-        Fit::Clashes { pin, with } => trf(
-            "Made for Horizon {pin}, but {mods} pin another commit: the build requires all native mods to match the game revision",
-            &[("pin", short(pin)), ("mods", &with.join(", "))],
-        ),
+        Fit::Fits => tr("Made for the Horizon you play").to_owned(),
         Fit::OtherRevision { pin } => trf(
-            "Made for Horizon {pin}, you play {yours}: choose matching mod versions or a matching Horizon version before building",
-            &[("pin", short(pin)), ("yours", short(&plays.revision))],
+            "Made for {pin}; you play {yours}. Building checks whether it fits your game: it does when nothing it uses changed.",
+            &[
+                ("pin", &native_mods::sdk_cache::known_name(pin)),
+                ("yours", &native_mods::sdk_cache::known_name(&plays.revision)),
+            ],
         ),
     }
 }
 
 /// [`Plays`] by the version an instance plays: a known commit is kept, a failure for [`RETRY`].
-/// Only resolving a release or Nightly commit asks GitHub, once for all the search's results.
+/// Only resolving a release or Nightly's build id reads its release (its signed SDK index), once
+/// for all the search's results; after that the id is kept.
 type CacheKey = (String, Option<String>);
 type Known = HashMap<CacheKey, (Instant, Option<Plays>)>;
 static PLAYS: Mutex<Option<Known>> = Mutex::new(None);
@@ -81,7 +63,7 @@ fn cached(cache: &Known, key: &CacheKey) -> Option<Option<Plays>> {
 }
 
 /// The Horizon `instance` plays; None for a Java instance, when nothing is installed, or when
-/// GitHub can't say its commit.
+/// its release doesn't say its build id.
 pub fn plays(instance: &Instance) -> Option<Plays> {
     if instance.java.is_some() {
         return None;
@@ -109,26 +91,12 @@ pub fn plays(instance: &Instance) -> Option<Plays> {
     plays
 }
 
-/// The native mods turned on in game folder `home` that pin a commit, as (id, commit).
-pub fn pins(home: &Path) -> Vec<(String, String)> {
-    crate::native_status::bundles_on(home)
-        .into_iter()
-        .map(|b| {
-            let native = b.manifest.native.expect("native bundle");
-            (b.manifest.id, native.horizon)
-        })
-        .collect()
-}
-
 /// The line the registry browser shows for a native mod's version pinning `pin`, in `instance`;
 /// None when the game's revision can't be told. This only describes fit: it never builds or
 /// changes the instance or a package pin.
-pub fn line(instance: &Instance, id: &str, pin: &str) -> Option<String> {
+pub fn line(instance: &Instance, pin: &str) -> Option<String> {
     let plays = plays(instance)?;
-    Some(describe(
-        &fit(id, pin, &plays, &pins(&instance.home)),
-        &plays,
-    ))
+    Some(describe(&fit(pin, &plays), &plays))
 }
 
 #[cfg(test)]
@@ -137,16 +105,11 @@ mod tests {
 
     const YOURS: &str = "1111111111111111111111111111111111111111";
     const OTHER: &str = "2222222222222222222222222222222222222222";
-    const THIRD: &str = "3333333333333333333333333333333333333333";
 
     fn plays() -> Plays {
         Plays {
             revision: YOURS.into(),
         }
-    }
-
-    fn pin(id: &str, revision: &str) -> (String, String) {
-        (id.into(), revision.into())
     }
 
     #[test]
@@ -164,34 +127,14 @@ mod tests {
     }
 
     #[test]
-    fn a_pinned_mod_fits_only_its_commit() {
+    fn a_mod_made_for_another_build_is_left_to_the_build_to_test() {
         let p = plays();
-        assert_eq!(fit("jei", YOURS, &p, &[]), Fit::Fits);
-        assert_eq!(
-            fit("jei", OTHER, &p, &[]),
-            Fit::OtherRevision { pin: OTHER.into() }
-        );
-    }
-
-    #[test]
-    fn mods_pinning_another_commit_clash() {
-        let pins = [
-            pin("veinminer", THIRD),
-            pin("chop", OTHER),
-            pin("jei", THIRD),
-        ];
-        // `chop` agrees with the pin and `jei` is the mod being replaced: only veinminer clashes.
-        assert_eq!(
-            fit("jei", OTHER, &plays(), &pins),
-            Fit::Clashes {
-                pin: OTHER.into(),
-                with: vec!["veinminer".into()],
-            }
-        );
-        let agreeing = [pin("chop", OTHER)];
-        assert_eq!(
-            fit("jei", OTHER, &plays(), &agreeing),
-            Fit::OtherRevision { pin: OTHER.into() }
+        assert_eq!(fit(YOURS, &p), Fit::Fits);
+        assert_eq!(fit(OTHER, &p), Fit::OtherRevision { pin: OTHER.into() });
+        let said = describe(&fit(OTHER, &p), &p);
+        assert!(
+            said.starts_with("Made for 2222222; you play 1111111."),
+            "{said}"
         );
     }
 }

@@ -17,7 +17,7 @@ impl Fixture {
         let root = dir(name);
         let folder = root.join("mod");
         write_bundle(&folder, "example", "");
-        fs::write(folder.join("Cargo.toml"), "[package]\nname='example'\nversion='0.1.0'\n[dependencies]\nmod_api={package='horizon-mod-api',version='0.1'}\n").unwrap();
+        fs::write(folder.join("Cargo.toml"), "[package]\nname='example'\nversion='0.1.0'\n[dependencies]\nmod_api={package='horizon-mod-api',path='.horizon/sdk/api/crates/horizon-mod-api'}\n").unwrap();
         if modules {
             let manifest = folder.join(horizon_mod_package::manifest::MANIFEST);
             let text = fs::read_to_string(&manifest).unwrap();

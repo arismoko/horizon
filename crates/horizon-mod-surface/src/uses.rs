@@ -2320,34 +2320,79 @@ impl std::fmt::Display for Misfit {
     }
 }
 
-/// An item as people read it: its kind and the name a mod writes for it.
-fn describe(id: &str) -> String {
-    let Some((kind, rest)) = id.split_once(':') else {
-        return format!("`{id}`");
-    };
-    let (word, name) = match kind {
+/// What an item is, as people read it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemKind {
+    Hook,
+    /// One argument of a hook.
+    Argument,
+    Trait,
+    Method,
+    AssociatedItem,
+    Function,
+    Macro,
+    PartKind,
+    Capability,
+    Type,
+    Variant,
+    Field,
+}
+
+impl ItemKind {
+    /// The English word for it.
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Hook => "hook",
+            Self::Argument => "argument",
+            Self::Trait => "trait",
+            Self::Method => "method",
+            Self::AssociatedItem => "associated item",
+            Self::Function => "function",
+            Self::Macro => "macro",
+            Self::PartKind => "Part kind",
+            Self::Capability => "capability",
+            Self::Type => "type",
+            Self::Variant => "variant",
+            Self::Field => "field",
+        }
+    }
+}
+
+/// An id's kind and the name a mod writes for it (`hook:player_logged_in` is the hook
+/// `player_logged_in`); `None` for an id of no kind this crate writes. Programs that show items
+/// in other languages build their sentence from this; [`Misfit`]'s text is English.
+pub fn item(id: &str) -> Option<(ItemKind, String)> {
+    let (kind, rest) = id.split_once(':')?;
+    Some(match kind {
         "hook" => match rest.split_once('.') {
-            Some((hook, argument)) => ("argument", format!("{hook}.{argument}")),
-            None => ("hook", rest.to_owned()),
+            Some((hook, argument)) => (ItemKind::Argument, format!("{hook}.{argument}")),
+            None => (ItemKind::Hook, rest.to_owned()),
         },
-        "trait" => ("trait", rest.to_owned()),
-        "method" | "handle" => ("method", rest.to_owned()),
-        "assoc" => ("associated item", rest.to_owned()),
-        "fn" => ("function", rest.to_owned()),
-        "macro" => ("macro", rest.to_owned()),
-        "part" => ("Part kind", rest.to_owned()),
-        "capability" => ("capability", rest.to_owned()),
+        "trait" => (ItemKind::Trait, rest.to_owned()),
+        "method" | "handle" => (ItemKind::Method, rest.to_owned()),
+        "assoc" => (ItemKind::AssociatedItem, rest.to_owned()),
+        "fn" => (ItemKind::Function, rest.to_owned()),
+        "macro" => (ItemKind::Macro, rest.to_owned()),
+        "part" => (ItemKind::PartKind, rest.to_owned()),
+        "capability" => (ItemKind::Capability, rest.to_owned()),
         "type" => match rest.rsplit_once('.') {
             // By Rust's naming: a variant is capitalised, a field is not (or is a position).
             Some((owner, member)) if member.starts_with(|c: char| c.is_ascii_uppercase()) => {
-                ("variant", format!("{owner}::{member}"))
+                (ItemKind::Variant, format!("{owner}::{member}"))
             }
-            Some((owner, member)) => ("field", format!("{owner}.{member}")),
-            None => ("type", rest.to_owned()),
+            Some((owner, member)) => (ItemKind::Field, format!("{owner}.{member}")),
+            None => (ItemKind::Type, rest.to_owned()),
         },
-        _ => return format!("`{id}`"),
-    };
-    format!("the {word} `{name}`")
+        _ => return None,
+    })
+}
+
+/// An item as people read it: its kind and the name a mod writes for it.
+fn describe(id: &str) -> String {
+    match item(id) {
+        Some((kind, name)) => format!("the {} `{name}`", kind.word()),
+        None => format!("`{id}`"),
+    }
 }
 
 /// Whether a mod's list fits a target build.
@@ -2383,7 +2428,9 @@ pub fn fits<'a>(entries: impl IntoIterator<Item = &'a Entry>, target: &Surface) 
         public_paths.insert(&m.id, &m.paths);
     }
     let entries: Vec<&Entry> = entries.into_iter().collect();
-    // What each trait a member is reached from leads to in the target.
+    // What each trait a member is reached from leads to in the target, along references built
+    // once: a table's `reached_from` strings are many and its own, the surface's size is not.
+    let refs = target.refs(true);
     let mut leads: BTreeMap<&str, BTreeSet<String>> = BTreeMap::new();
     let mut misfits = Vec::new();
     for entry in &entries {
@@ -2437,10 +2484,16 @@ pub fn fits<'a>(entries: impl IntoIterator<Item = &'a Entry>, target: &Surface) 
         }
         if let Some(owner) = owner(id, &hashes) {
             for from in &entry.reached_from {
-                let leads = leads
-                    .entry(from.as_str())
-                    .or_insert_with(|| target.reach([from.as_str()]));
-                if !leads.contains(&owner) {
+                // A trait the target lacks leads nowhere but to itself.
+                let leads_there = if hashes.contains_key(from.as_str()) {
+                    leads
+                        .entry(from.as_str())
+                        .or_insert_with(|| crate::walk_refs(&refs, [from.as_str()]))
+                        .contains(&owner)
+                } else {
+                    *from == owner
+                };
+                if !leads_there {
                     misfit(Change::Route {
                         from: from.clone(),
                         owner: owner.clone(),
@@ -2465,6 +2518,9 @@ pub fn fits<'a>(entries: impl IntoIterator<Item = &'a Entry>, target: &Surface) 
 
 /// The schema [`UsesTable`] writes and reads.
 pub const USES_SCHEMA: u32 = 1;
+
+/// The file a mod carries its [`UsesTable`] in, beside its `horizon-mod.toml`.
+pub const USES_FILE: &str = "uses.json";
 
 /// The largest table [`UsesTable::read`] reads, in bytes.
 pub const MAX_USES_BYTES: usize = 4 << 20;

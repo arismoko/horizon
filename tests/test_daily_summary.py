@@ -106,6 +106,32 @@ class DailySummaryTests(unittest.TestCase):
                 summary.main(api, git(merged, tag))
             return Path(folder, "summary").read_text(), Path(folder, "out").read_text()
 
+    def run_after(self, api, result, ref="refs/heads/main", run="77"):
+        env = {"GITHUB_REPOSITORY": "arismoko/horizon", "GITHUB_RUN_ID": run, "GITHUB_REF": ref,
+               "GITHUB_SERVER_URL": "https://github.com", "COMMIT": COMMIT, "DRY_RUN": "false"}
+        with mock.patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(io.StringIO()):
+            summary.after("sdk-publish", result, api, git((), True))
+
+    def test_a_failed_sdk_publish_files_one_issue_and_its_next_success_closes_it(self):
+        failed = [job("sdk-publish / index"), job("sdk-publish / publish", "failure", ["Release sdk-<sha>"])]
+        api = Api(failed)
+        self.run_after(api, "failure")
+        created = [body for method, path, body in api.writes if method == "POST" and path == "issues"]
+        self.assertEqual([body["title"] for body in created], ["Daily: sdk-publish did not complete"])
+        self.assertIn("`sdk-publish / publish: Release sdk-<sha>`", created[0]["body"])
+        # A later run's failure comments on that issue instead of filing another.
+        api.writes.clear()
+        api.runs = {78: {"jobs": failed}}
+        self.run_after(api, "failure", run="78")
+        self.assertEqual([(method, path) for method, path, _ in api.writes], [("POST", "issues/1000/comments")])
+        api.writes.clear()
+        self.run_after(api, "success", run="79")
+        self.assertIn(("PATCH", "issues/1000", {"state": "closed", "state_reason": "completed"}), api.writes)
+        # Off main nothing is written.
+        quiet = Api(failed)
+        self.run_after(quiet, "failure", ref="refs/heads/topic")
+        self.assertEqual(quiet.writes, [])
+
     def test_all_green_moves_the_tag_and_closes_issues_that_went_green(self):
         api = Api(GREEN_JOBS, issues=[{"number": 5, "title": "Daily: horizon-world a::b"},
                                       {"number": 6, "title": "Daily: fn-replace-check / fn-replace-check did not complete"},
@@ -123,7 +149,7 @@ class DailySummaryTests(unittest.TestCase):
         jobs = [job for job in GREEN_JOBS if not job["name"].startswith("sdk")] + [
             job("sdk / fresh"), job("sdk / build linux", "skipped"), job("sdk / publish", "skipped")]
         _, out = self.run_summary(Api(jobs), [shard_report()])
-        self.assertIn("green=true", out, "prebuilt-<sha> already exists, and a dry run publishes nothing")
+        self.assertIn("green=true", out, "sdk-<sha> already exists, and a dry run publishes nothing")
         jobs = [job("shards / ignored-tests-shards (horizon-world)", "skipped")] + GREEN_JOBS[2:]
         api = Api(jobs)
         _, out = self.run_summary(api, [])
@@ -428,44 +454,79 @@ class DailyWorkflowTests(unittest.TestCase):
         jobs = self.workflow["jobs"]
         step = jobs["resolve"]["steps"][-1]
         self.assertEqual(step["env"]["DRY_RUN"], "${{ inputs.dry_run || github.ref != 'refs/heads/main' }}")
+        # A writing run takes only a commit of main: an unmerged commit is never tagged, signed or published.
+        self.assertIn('git merge-base --is-ancestor "$sha" refs/remotes/origin/main', step["run"])
         self.assertEqual(jobs["summary"]["steps"][-1]["env"]["DRY_RUN"], "${{ needs.resolve.outputs.dry_run }}")
         self.assertEqual(jobs["nightly"]["if"],
-                         "needs.summary.outputs.green == 'true' && needs.resolve.outputs.dry_run == 'false'")
+                         "always() && needs.summary.outputs.green == 'true' && needs.resolve.outputs.dry_run == 'false'"
+                         " && (needs.sdk-publish.result == 'success' || needs.sdk-publish.result == 'skipped')")
         self.assertEqual(self.workflow["concurrency"]["cancel-in-progress"], "false")
         self.assertEqual(jobs["sdk"]["with"], {"commit": "${{ needs.resolve.outputs.commit }}"})
         self.assertNotIn("permissions", jobs["sdk"], "the build leg publishes nothing")
         publish = jobs["sdk-publish"]
         self.assertEqual(publish["needs"], ["resolve", "summary", "sdk"])
-        self.assertEqual(publish["if"], "needs.summary.outputs.green == 'true' && needs.resolve.outputs.dry_run == 'false'")
-        self.assertEqual(publish["env"]["TAG"], "${{ needs.sdk.outputs.tag }}")
-        self.assertEqual([step.get("name") for step in publish["steps"]][-1], "Release prebuilt-<sha>")
+        self.assertEqual(publish["if"], "needs.summary.outputs.green == 'true' && needs.resolve.outputs.dry_run == 'false'"
+                                        " && needs.sdk.outputs.needed == 'true'")
+        # The one publish step, signed only on main through the called workflow's `release` environment.
+        self.assertEqual(publish["uses"], "./.github/workflows/sdk-publish.yml")
+        self.assertEqual(publish["with"], {"commit": "${{ needs.resolve.outputs.commit }}", "publish": "true"})
         self.assertIn("sdk-publish", jobs["nightly"]["needs"])
-        steps = {step.get("name") or step.get("uses"): step for step in publish["steps"]}
-        self.assertEqual(steps["Is prebuilt-<sha> published"]["id"], "published")
-        download = steps["actions/download-artifact@v4"]
-        self.assertNotIn("continue-on-error", download, "a failed download stops the publish")
-        release = steps["Release prebuilt-<sha>"]
-        for step in (download, release):
-            self.assertEqual(step["if"], "steps.published.outputs.published == 'false'")
-        self.assertLess(release["run"].index("python3 tools/ci/nightly.py sdk-archives"),
-                        release["run"].index("gh release create"), "refuses unless exactly the four archives are there")
+        report = jobs["sdk-publish-report"]
+        self.assertIn("sdk-publish", report["needs"])
+        self.assertIn("daily_summary.py --after sdk-publish", report["steps"][-1]["run"])
+        self.assertEqual(report["steps"][-1]["env"]["DRY_RUN"], "${{ needs.resolve.outputs.dry_run }}")
 
         self.assertEqual(jobs["nightly"]["with"]["daily"], "true")
         self.assertTrue(jobs["summary"]["name"].startswith("summary ${{ needs.resolve.outputs.commit }}"))
 
-    def test_the_sdk_build_uploads_exactly_the_archives_a_release_needs(self):
+    def test_the_sdk_build_packs_exactly_the_archives_a_release_needs(self):
         from tests.test_ci_concurrency import ROOT, yaml
         from tools.ci import nightly
         build = yaml.load((ROOT / ".github/workflows/prebuilt-game-build.yml").read_text(),
                           Loader=yaml.BaseLoader)["jobs"]["build"]
-        # One archive per matrix leg, at the source's package format. The workflow's hand-set ARCHIVE still names
-        # format 5, which `prebuilt_game.py build` refuses until the SDK publish switch (PR 5) replaces it.
-        names = {f"horizon-prebuilt-v{nightly.package_format()}-{entry['target']}"
-                 f"{'-server' if entry.get('server') == 'true' else ''}.tar.gz"
-                 for entry in build["strategy"]["matrix"]["include"]}
-        self.assertEqual(build["env"]["ARCHIVE"],
-                         "horizon-prebuilt-v5-${{ matrix.target }}${{ matrix.server && '-server' || '' }}.tar.gz")
-        self.assertEqual(names, set(nightly.SDK_ARCHIVES))
+        # Each matrix leg packs its three slices; the build data and surface are gathered once from them all.
+        names = {f"{kind}-{entry['target']}{'-server' if entry.get('server') == 'true' else ''}.tar.xz"
+                 for entry in build["strategy"]["matrix"]["include"] for kind in ("runtime", "api", "engine")}
+        self.assertEqual(names | {"api-source.tar.xz", "build-data.tar.xz", "surface.json"}, set(nightly.SDK_ARCHIVES))
+        self.assertEqual(len(nightly.SDK_ARCHIVES), len(set(nightly.SDK_ARCHIVES)))
+        steps = {step.get("name") or step.get("uses"): step for step in build["steps"]}
+        self.assertEqual(steps["Pack the SDK's assets"]["run"], "python tools/prebuilt_game.py pack prebuilt dist")
+        self.assertEqual(steps["actions/upload-artifact@v4"]["with"]["name"], "sdk-leg-${{ matrix.name }}")
+        self.assertNotIn("env", build, "no hand-set archive name")
+
+    def test_the_sdk_is_signed_and_published_only_on_main(self):
+        from tests.test_ci_concurrency import ROOT, yaml
+        workflow = yaml.load((ROOT / ".github/workflows/sdk-publish.yml").read_text(), Loader=yaml.BaseLoader)
+        jobs = workflow["jobs"]
+        on_main = "inputs.publish && github.ref == 'refs/heads/main'"
+        self.assertEqual(jobs["sign"]["environment"], f"${{{{ {on_main} && 'release' || '' }}}}")
+        sign = jobs["sign"]["steps"][-3]
+        self.assertEqual(sign["run"], 'bash tools/ci/sign_release.sh "$TAG" dist/*')
+        self.assertEqual(sign["env"]["EPHEMERAL"], f"${{{{ !({on_main}) && 'yes' || '' }}}}")
+        for key in ("RELEASE_SIGNING_KEY", "RELEASE_SIGNING_KEY_NEXT"):
+            self.assertEqual(sign["env"][key], f"${{{{ {on_main} && secrets.{key} || '' }}}}")
+        self.assertEqual(workflow["env"]["TAG"], "sdk-${{ inputs.commit }}")
+        # Only the sign job sees the key, and it checks out nothing but the signing script; the key signs only a
+        # commit of main, whatever commit the caller names.
+        self.assertEqual(jobs["sign"]["steps"][0]["with"]["sparse-checkout"], "tools/ci/sign_release.sh")
+        on_main_check = jobs["sign"]["steps"][1]
+        self.assertEqual(on_main_check["if"], f"${{{{ {on_main} }}}}")
+        self.assertIn('git merge-base --is-ancestor "$COMMIT" refs/remotes/origin/main', on_main_check["run"])
+        # The jobs that read the legs' output cannot write; the legs' artifacts only, not an earlier attempt's own.
+        for job in ("index", "sign"):
+            self.assertEqual(jobs[job]["permissions"], {"contents": "read"}, job)
+        self.assertEqual(jobs["publish"]["permissions"], {"contents": "write"})
+        self.assertEqual(jobs["index"]["steps"][4]["with"]["pattern"], "sdk-leg-*")
+        self.assertNotIn("environment", jobs["index"])
+        self.assertNotIn("environment", jobs["publish"])
+        publish = {step.get("name"): step for step in jobs["publish"]["steps"]}
+        self.assertEqual(jobs["publish"]["env"]["PUBLISH"], f"${{{{ {on_main} }}}}")
+        self.assertEqual(publish["Release sdk-<sha>"]["if"], "env.PUBLISH == 'true'")
+        order = [step.get("name") for step in jobs["publish"]["steps"]]
+        self.assertLess(order.index("The signature, checked as the launcher checks it"), order.index("Release sdk-<sha>"))
+        self.assertLess(order.index("Exactly the assets a Nightly needs"), order.index("Release sdk-<sha>"))
+        hand = yaml.load((ROOT / ".github/workflows/prebuilt-game.yml").read_text(), Loader=yaml.BaseLoader)
+        self.assertEqual(hand["jobs"]["publish"]["with"]["publish"], "${{ github.ref == 'refs/heads/main' }}")
 
     def test_every_leg_is_a_called_workflow_with_the_commit(self):
         jobs = self.workflow["jobs"]

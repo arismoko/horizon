@@ -41,7 +41,7 @@
     "horizon-threads": "engine",
     "horizon-guest-stack": "engine",
     "horizon-world": "engine",
-    "cargo-horizon-mod": "platform",
+    "cargo-horizon-mod": "tool",
     "horizon-anticheat": "platform",
     "horizon-chat-filter": "platform",
     "horizon-dualsense": "platform",

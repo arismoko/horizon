@@ -16,6 +16,10 @@ pub enum Why {
     Clash(String),
     /// It needs this mod, which was left out.
     Needs(String),
+    /// It doesn't fit the build, or works on another build only: what the player reads about it.
+    Unfit(String),
+    /// It was judged to fit the build, and its compile against it failed.
+    DidNotBuild,
 }
 
 /// A mod left out of a build.
@@ -50,6 +54,11 @@ impl LeftOut {
                 "{name} was left out: it needs {other}, which was left out",
                 &[("name", &self.id), ("other", other)],
             ),
+            Why::Unfit(line) => trf(
+                "{name} is switched off for this build: {why}",
+                &[("name", &self.id), ("why", line)],
+            ),
+            Why::DidNotBuild => super::fit::did_not_build(&self.id),
         }
     }
 
@@ -59,6 +68,8 @@ impl LeftOut {
             Why::OtherVersion => ("other-version", None),
             Why::Clash(other) => ("clash", Some(other)),
             Why::Needs(other) => ("needs", Some(other)),
+            Why::Unfit(line) => ("unfit", Some(line)),
+            Why::DidNotBuild => ("did-not-build", None),
         };
         serde_json::json!({"id": self.id, "version": self.version, "why": why, "with": with})
     }
@@ -71,6 +82,8 @@ impl LeftOut {
             why: match value["why"].as_str()? {
                 "clash" => Why::Clash(with()?),
                 "needs" => Why::Needs(with()?),
+                "unfit" => Why::Unfit(with()?),
+                "did-not-build" => Why::DidNotBuild,
                 _ => Why::OtherVersion,
             },
         })
@@ -143,7 +156,7 @@ mod tests {
             (&maybe, &maybe_lib),
             (&other, &[]),
         ];
-        let left = with_dependents(&[LeftOut::new(&lib, Why::OtherVersion)], &mods);
+        let left = with_dependents(&[LeftOut::new(&lib, Why::Unfit("why".into()))], &mods);
         let ids: Vec<&str> = left.iter().map(|l| l.id.as_str()).collect();
         assert_eq!(ids, ["lib", "addon", "extra"]);
         assert_eq!(
@@ -151,8 +164,10 @@ mod tests {
             "extra was left out: it needs addon, which was left out"
         );
         // What a build's record keeps reads back the same.
-        for l in &left {
+        let did_not_build = LeftOut::new(&other, Why::DidNotBuild);
+        for l in left.iter().chain([&did_not_build]) {
             assert_eq!(LeftOut::from_json(&l.to_json()).as_ref(), Some(l));
         }
+        assert_eq!(left[0].label(), "lib is switched off for this build: why");
     }
 }

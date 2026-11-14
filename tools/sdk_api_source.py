@@ -4,6 +4,7 @@ a mod builds against them with no game source and no generator run.
 
     python3 tools/sdk_api_source.py build OUT    # write the API source for this checkout's commit into OUT
     python3 tools/sdk_api_source.py check OUT    # check the starter mod against OUT alone, host and wasm32
+    python3 tools/sdk_api_source.py archive OUT ARCHIVE  # OUT as the SDK's api-source.tar.xz (its root is OUT's)
 
 `build` takes the generated files from the in-tree build scripts' own output (`cargo check` for the host, for
 wasm32 and with every feature the API source keeps) and refuses when they differ between those builds. Each crate
@@ -593,6 +594,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("build").add_argument("out", type=Path)
+    archive_parser = commands.add_parser("archive")
+    archive_parser.add_argument("out", type=Path)
+    archive_parser.add_argument("archive", type=Path)
     check_parser = commands.add_parser("check")
     check_parser.add_argument("out", type=Path)
     check_parser.add_argument("--scratch", type=Path, help="default: the target folder's sdk-api-source-check")
@@ -600,6 +604,9 @@ def main() -> None:
     try:
         if args.command == "build":
             build(args.out.resolve())
+        elif args.command == "archive":
+            # The package's own archive form: a mod's `.horizon/sdk/api` is this folder unpacked.
+            prebuilt_game.tar_xz(args.out, prebuilt_game.tree(args.out), args.archive)
         else:
             target = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target"))
             check(args.out.resolve(), (args.scratch or target / "sdk-api-source-check").resolve())

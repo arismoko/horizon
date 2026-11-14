@@ -39,5 +39,9 @@ pub mod selection;
 
 pub use content::Content;
 pub use manifest::{Capability, Manifest, Package, find};
+/// A build's surface (`surface.json`) and a mod's uses table: the SDK's records the fit test
+/// compares.
+#[cfg(feature = "prebuilt")]
+pub use mod_surface;
 /// The SDK's build-pinned data files and their common header.
 pub use point_shape::build_data;

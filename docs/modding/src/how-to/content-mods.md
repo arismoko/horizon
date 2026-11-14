@@ -18,9 +18,19 @@ cargo horizon-mod check target/horizon-mod/my_mod.hmod   # the registry's checks
 ```
 
 - `new <path> [--name "Name"]` writes the content template. `--template native` writes
-  a flat native mod instead: `horizon-mod.toml` with `[native]` pinned to the newest prebuilt game's commit (or
-  `--horizon <commit>`'s) so the launcher downloads the game instead of building it, root `Cargo.toml`
-  and `src/lib.rs`, and empty `assets/` and `data/` directories. `update` repins it the same way. Its root `impl Hooks` uses
+  a flat native mod instead, and `--template wasm` a wasm one: `horizon-mod.toml`, root `Cargo.toml`
+  and `src/lib.rs`, and empty `assets/` and `data/` directories. The mod is pinned to the build of the current
+  Nightly (players have it), or to `--horizon`'s: `nightly-<YYYY-MM-DD>`, or a commit sha (7 hex digits are enough when
+  they name one build). A native mod pins it in `[native] horizon`, a wasm mod in `Cargo.toml`'s
+  `[package.metadata.horizon] sdk`. `Cargo.toml` names the API by path,
+  `horizon-mod-api = { path = ".horizon/sdk/api/crates/horizon-mod-api" }`, the only form the tool and the launcher
+  take. Every other form is refused under `E_SDK_SOURCE`, naming why: the old git form, a version alone (Cargo
+  would take the crate from crates.io, where anyone can publish its name), another source, or another path. `new` fetches that build's SDK into `.horizon/sdk/`,
+  and every command that compiles the mod fetches it again when it is missing or another build's, so a fresh clone
+  works after one command; your editor needs that first command too. `.horizon/` is in the template's `.gitignore`
+  and is never packed. The fetch checks Horizon's signature on the release and every file against its `sdk.json`;
+  `HORIZON_SDK_BASE` (a URL or a folder) reads the releases from a mirror instead. When that Nightly has no SDK,
+  `new` says so and asks for `--horizon`. `update` repins a native mod the same way. Its root `impl Hooks` uses
   `#[mod_api::horizon_mod]`. Compile it with `horizon-launcher native-build <path> --trust-native-code`
   ([writing hooks](../start/writing-hooks.md)). Any other `--template` is refused.
 - `build` packs the checked project into `target/horizon-mod/<id>.hmod`: `horizon-mod.toml`, `assets/`,

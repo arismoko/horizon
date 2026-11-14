@@ -11,6 +11,8 @@ horizon-mod-vocab = { path = "../horizon-mod-vocab" }
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
 horizon-mod-point-shape = { path = "../horizon-mod-point-shape" }
 horizon-core = { path = "../horizon-core" }
+# The uses table's file name and limit (`USES`, `MAX_USES`).
+horizon-mod-surface = { path = "../horizon-mod-surface" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = { version = "1", features = ["serde"] }
@@ -24,6 +26,8 @@ sha2 = "0.10"
 minisign-verify = { version = "0.3", optional = true }
 # A shader pack's check (kind `shader`): the one the game runs before it loads a pack.
 horizon-shader-api = { path = "../horizon-shader-api", optional = true }
+# A build's surface (`surface.json`) and a mod's uses table, read with the SDK (feature
+# `prebuilt`): the launcher's fit test.
 
 # Bounded, checksummed prebuilt metadata; used only by the launcher and mod tools.
 cap-std = { version = "3.4.6", optional = true }

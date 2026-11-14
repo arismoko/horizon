@@ -2993,6 +2993,7 @@ dependencies = [
  "horizon-core",
  "horizon-mod-api-macros",
  "horizon-mod-point-shape",
+ "horizon-mod-surface",
  "horizon-mod-vocab",
  "horizon-shader-api",
  "libc",

@@ -9,13 +9,13 @@ and [rustup](https://rustup.rs): the first build installs the pinned Rust toolch
 
 ## 1. Start from the native project
 
-Make the project as for a native mod, then remove the `[native]` table from `horizon-mod.toml`. A mod carries
-native code or WebAssembly, never both, and the build writes its own `[wasm]` table.
+Make the project from the wasm template. It is the native project without the `[native]` table: a mod carries
+native code or WebAssembly, never both, and the build writes its own `[wasm]` table. The SDK build the mod is
+made for is pinned in `Cargo.toml` instead, under `[package.metadata.horizon] sdk`.
 
 ```sh
-cargo horizon-mod new greeter --template native
+cargo horizon-mod new greeter --template wasm
 cd greeter
-# edit horizon-mod.toml: delete the [native] table and its keys
 ```
 
 Keep the code in `src/lib.rs` as it is:

@@ -1,5 +1,24 @@
 # Checking a mod against a build's surface
 
+In a mod folder, `cargo horizon-mod` does this for you from the SDK it fetched into `.horizon/sdk/`:
+
+- `cargo horizon-mod check` runs `cargo check` for this computer and for wasm32, checks the package rules,
+  and prints what the mod uses: `Greeter uses 14 items of the API (6 hooks, 5 methods, 3 types). Made for
+  nightly-2026-11-13 (afe471c).` With `--uses` it lists each item with the line that brought it in.
+- `cargo horizon-mod build` packs the list into the package as `uses.json`, with each item's fingerprint at the
+  pinned build. A mod with a `[native.*]` table or internals is made for exactly one build and gets no list.
+- `cargo horizon-mod fits` says, one line per build, whether the mod fits the current Nightly, or each build
+  `--build` names. `cargo horizon-mod fits greeter.hmod --build nightly-2026-11-20` asks the same of a package.
+  It exits 0 when every build fits, 1 when one does not, and 2 when it cannot tell or the question does not
+  apply (a mod made for one build, a content mod, or a package made by an older tool).
+- `cargo horizon-mod update` prints what moving the pin breaks in this mod, item by item with the line that uses
+  it and the closest item in the new build, then moves the pin.
+- `cargo horizon-mod hooks <text>` searches the pinned build's hooks by id, doc and their NeoForge, Fabric and
+  Paper names, offline; `--all` searches every item. `cargo horizon-mod sdk diff <build> <build>` prints what
+  changed between two builds, from their small files alone, so it works for builds whose game files are pruned.
+
+The rest of this page is how the same check runs by hand.
+
 Every build's SDK carries its surface export (`surface.json`). Given the surface
 of the build a mod was made for and the mod's folder, write the mod's uses table, then check it against
 another build's surface:

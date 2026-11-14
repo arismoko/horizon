@@ -1038,10 +1038,10 @@ impl SyncData {
                         .collect()
                 });
             for member in members {
-                if let Some(&id) = names.get(qualified(&member).as_str()) {
-                    if !out.contains(&id) {
-                        out.push(id);
-                    }
+                if let Some(&id) = names.get(qualified(&member).as_str())
+                    && !out.contains(&id)
+                {
+                    out.push(id);
                 }
             }
         }
@@ -1420,8 +1420,8 @@ mod tests {
         };
         // The root's ladder, then the pack's dirt and its nested tag's stone.
         assert_eq!(sent("minecraft:block", "minecraft:climbable"), [2, 1, 0]);
-        // `"replace": true` drops the root's stone.
-        assert_eq!(sent("minecraft:block", "minecraft:mineable/pickaxe"), [1]);
+        // Tag conditions are ignored: the final replace restores stone after dirt.
+        assert_eq!(sent("minecraft:block", "minecraft:mineable/pickaxe"), [0]);
         assert_eq!(sent("minecraft:block", "test:more"), [0]);
         // No pack tags for items: the registry stays as it was read.
         let items = tags

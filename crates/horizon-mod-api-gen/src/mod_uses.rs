@@ -257,6 +257,28 @@ fn read_bounded(path: &Path, shown: &str, most: u64) -> Result<String, ReadError
     })
 }
 
+/// Why a mod whose manifest is `manifest` is made for exactly one build: a `[native.*]` table, or
+/// game internals it names; `None` for a mod a fit check applies to.
+pub fn exact(manifest: &toml::Table) -> Option<String> {
+    let native_table = manifest
+        .get("native")
+        .and_then(toml::Value::as_table)
+        .and_then(|native| {
+            native
+                .iter()
+                .find(|(_, v)| v.is_table() || v.is_array())
+                .map(|(k, _)| k)
+        });
+    if let Some(table) = native_table {
+        return Some(format!("it has a [native.{table}] table"));
+    }
+    manifest
+        .get("internals")
+        .and_then(toml::Value::as_array)
+        .is_some_and(|rows| !rows.is_empty())
+        .then(|| "it names game internals".to_owned())
+}
+
 /// Reads `dir`: every `.rs` file outside the mod's `target/` and hidden folders, and
 /// `horizon-mod.toml` when there is one. A mod made for exactly one build is refused
 /// ([`ReadError::Exact`]), and so is a `#[path]` or `include!` of a file the scan does not read.
@@ -332,25 +354,8 @@ pub fn read(dir: &Path) -> Result<ModInput, ReadError> {
                 .map(str::to_owned)
                 .collect();
         }
-        let native_tables: Vec<&String> = value
-            .get("native")
-            .and_then(toml::Value::as_table)
-            .map(|native| {
-                native
-                    .iter()
-                    .filter(|(_, v)| v.is_table() || v.is_array())
-                    .map(|(k, _)| k)
-                    .collect()
-            })
-            .unwrap_or_default();
-        let internals = value
-            .get("internals")
-            .and_then(toml::Value::as_array)
-            .is_some_and(|rows| !rows.is_empty());
-        if let Some(table) = native_tables.first() {
-            return Err(ReadError::Exact(format!("it has a [native.{table}] table")));
-        } else if internals {
-            return Err(ReadError::Exact("it names game internals".to_owned()));
+        if let Some(why) = exact(&value) {
+            return Err(ReadError::Exact(why));
         }
     }
     Ok(input)

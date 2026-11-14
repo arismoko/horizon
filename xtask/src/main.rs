@@ -23,9 +23,11 @@
 //! `name=value` lines; `patch` applies the carried patch to an unpacked source, with the applier
 //! the launcher uses for its own source build; `identity` prints the lines the launcher checks in
 //! the archive's `identity.txt`.
-//! `sdk-index DIST COMMIT DATE [NIGHTLY]`: writes `DIST/sdk.json`, the mod SDK's index, over the
-//! release assets in DIST (`tools/prebuilt_game.py index` calls it), then reads it back and checks
-//! every asset against it.
+//! `sdk-index DIST COMMIT DATE [--nightly NAME] [--previous BUILD DIFF]`: writes `DIST/sdk.json`,
+//! the mod SDK's index, over the release assets in DIST (`tools/prebuilt_game.py index` calls it),
+//! then reads it back and checks every asset against it. `--previous` names the SDK published
+//! before this one and DIFF the `horizon-stage surface-diff --json` of its surface against this
+//! one's, which fill the index's surface comparison.
 //! `perf-wasm`: builds `crates/horizon-perf` for `wasm32-unknown-unknown` with the `wasm` feature
 //! and writes `target/perf-wasm/{horizon_perf.wasm,horizon_perf.js}`, which horizon-rust/horizon-site imports into
 //! its static assets (docs/perf-platform.md §7.1).
@@ -36,7 +38,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-const USAGE: &str = "usage: cargo run -p xtask -- package BINARY OUTDIR | package-server ENGINE OUTDIR | mod-api [notes|coverage] | tokens | icons | perf-wasm | mixins-tool release | mixins-tool patch SOURCE | mixins-tool identity TARGET | sdk-index DIST COMMIT DATE [NIGHTLY]";
+const USAGE: &str = "usage: cargo run -p xtask -- package BINARY OUTDIR | package-server ENGINE OUTDIR | mod-api [notes|coverage] | tokens | icons | perf-wasm | mixins-tool release | mixins-tool patch SOURCE | mixins-tool identity TARGET | sdk-index DIST COMMIT DATE [--nightly NAME] [--previous BUILD DIFF]";
 
 /// What the release folder takes from the repository at HEAD, as `git archive` writes it.
 const ARCHIVED: [&str; 5] = [
@@ -63,8 +65,8 @@ fn main() -> ExitCode {
         [task] if task == "mod-api" => mod_api::run(),
         [task, notes] if task == "mod-api" && notes == "notes" => mod_api::notes(),
         [task, coverage] if task == "mod-api" && coverage == "coverage" => mod_api::coverage(),
-        [task, dist, commit, date, nightly @ ..] if task == "sdk-index" && nightly.len() < 2 => {
-            sdk_index(Path::new(dist), commit, date, nightly.first().cloned())
+        [task, dist, commit, date, options @ ..] if task == "sdk-index" => {
+            sdk_index(Path::new(dist), commit, date, options)
         }
         [task] if task == "tokens" => tokens(),
         [task] if task == "icons" => icons(),
@@ -316,8 +318,24 @@ fn icons() -> Result<(), String> {
     Ok(())
 }
 
-fn sdk_index(dist: &Path, commit: &str, date: &str, nightly: Option<String>) -> Result<(), String> {
+fn sdk_index(dist: &Path, commit: &str, date: &str, options: &[String]) -> Result<(), String> {
     use horizon_mod_package::sdk::{Build, GAME, INDEX, Index};
+    let (mut nightly, mut previous) = (None, None);
+    let mut rest = options;
+    loop {
+        rest = match rest {
+            [] => break,
+            [flag, name, more @ ..] if flag == "--nightly" => {
+                nightly = Some(name.clone());
+                more
+            }
+            [flag, build, diff, more @ ..] if flag == "--previous" => {
+                previous = Some((build, Path::new(diff)));
+                more
+            }
+            _ => return Err(USAGE.to_string()),
+        };
+    }
     let rust = fs::read_to_string(repo_root()?.join("tools/ci/rust-version"))
         .map_err(|e| format!("tools/ci/rust-version: {e}"))?;
     let build = Build {
@@ -326,7 +344,12 @@ fn sdk_index(dist: &Path, commit: &str, date: &str, nightly: Option<String>) -> 
         date: date.to_owned(),
         nightly,
     };
-    let index = Index::of_folder(dist, build, rust.trim().to_owned()).map_err(|e| e.to_string())?;
+    let mut index =
+        Index::of_folder(dist, build, rust.trim().to_owned()).map_err(|e| e.to_string())?;
+    if let Some((build, diff)) = previous {
+        let text = fs::read(diff).map_err(|e| format!("{}: {e}", diff.display()))?;
+        index.compare(build, &text).map_err(|e| e.to_string())?;
+    }
     let path = dist.join(INDEX);
     fs::write(&path, index.to_json()).map_err(|e| format!("{}: {e}", path.display()))?;
     let read = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;

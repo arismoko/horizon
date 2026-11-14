@@ -9,7 +9,9 @@ native trait mods against it with rustc alone, in seconds, without the game's so
     python3 tools/prebuilt_game.py pack OUT DIST          # the SDK's assets from OUT: runtime-, api- and
                                                           # engine-<target>[-server].tar.xz, build-data.tar.xz
                                                           # and surface.json, in DIST
-    python3 tools/prebuilt_game.py index DIST [--nightly NAME]  # DIST/sdk.json over every asset in DIST
+    python3 tools/prebuilt_game.py gather LEGS DIST       # the release folder from every packing leg's DIST, once
+                                                          # their build data and surface are checked equal
+    python3 tools/prebuilt_game.py index DIST [--nightly NAME] [--previous BUILD DIFF]  # DIST/sdk.json
 
 Each OS's folder is built on that OS: the proc-macro libraries in it run inside the player's own rustc.
 The folder holds compiler outputs and game-owned registry patch crates, never vanilla data; `build` refuses any other file.
@@ -371,18 +373,8 @@ def assert_externs(out: Path, eligible: list[str]) -> None:
         extern_args(out / "deps", crate)
 
 
-def refuse_old_archive_name(layout: int) -> None:
-    """The daily workflow names its archive `horizon-prebuilt-v<N>-…` by hand (its ARCHIVE). A source whose layout
-    is another number must not publish under that name: the publishing workflow switches with it (PR 5)."""
-    archive = os.environ.get("ARCHIVE")
-    if archive and not archive.startswith(f"horizon-prebuilt-v{layout}-"):
-        sys.exit(f"{archive} names another package layout than this source's {layout}: "
-                 "the workflow publishing it must switch to the SDK release first")
-
-
 def build(out: Path, server: bool) -> None:
     layout = package_format(ROOT)
-    refuse_old_archive_name(layout)
     # Resolved here: the staging and build steps run from the staged copy.
     target_dir = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")).resolve() / "prebuilt"
     staged = stage(target_dir)
@@ -762,13 +754,68 @@ def pack(out: Path, dist: Path, stage_tool: Path | None = None) -> None:
         print(f"{asset.name}: {asset.stat().st_size} bytes")
 
 
-def index(dist: Path, nightly: str | None) -> None:
-    """DIST/sdk.json over every asset in DIST, written and checked by the one implementation (`horizon_mod_package::sdk`)."""
+def members(archive: Path, names: tuple[str, ...]) -> dict[str, str]:
+    """The SHA-256 of each of `names` that the `tar.xz` `archive` holds at its root, by name."""
+    found = {}
+    with tarfile.open(archive, "r:xz") as tar:
+        for member in tar.getmembers():
+            name = member.name.removeprefix("./")
+            if name in names and member.isfile():
+                found[name] = hashlib.sha256(tar.extractfile(member).read()).hexdigest()
+    return found
+
+
+def gather(legs: Path, dist: Path) -> None:
+    """The release folder DIST from the packing legs' folders under LEGS (one per OS and side, each `pack`'s DIST):
+    every slice archive once, and one `build-data.tar.xz` and `surface.json`, after checking that every copy of the
+    build data is the same: each leg's `build-data.tar.xz`, and the copy inside each leg's `api` slice. A leg whose
+    surface or build data differs, or two legs with the same archive, stop it before anything is signed."""
+    folders = sorted(path for path in legs.iterdir() if path.is_dir())
+    if not folders:
+        sys.exit(f"{legs} holds no packing leg")
+    dist.mkdir(parents=True, exist_ok=True)
+    reference = None
+    for folder in folders:
+        data = folder / BUILD_DATA_ARCHIVE
+        surface = folder / SURFACE
+        if not data.is_file() or not surface.is_file():
+            sys.exit(f"{folder.name} has no {BUILD_DATA_ARCHIVE} or {SURFACE}")
+        copies = {BUILD_DATA_ARCHIVE: members(data, BUILD_DATA)}
+        if set(copies[BUILD_DATA_ARCHIVE]) != set(BUILD_DATA):
+            sys.exit(f"{folder.name}'s {BUILD_DATA_ARCHIVE} does not hold {', '.join(BUILD_DATA)}")
+        for archive in sorted(folder.glob("api-*.tar.xz")):
+            copies[archive.name] = members(archive, API_BUILD_DATA)
+        seen = (hashlib.sha256(surface.read_bytes()).hexdigest(), copies[BUILD_DATA_ARCHIVE])
+        if reference is None:
+            reference = (folder.name, *seen)
+            shutil.copy2(data, dist / BUILD_DATA_ARCHIVE)
+            shutil.copy2(surface, dist / SURFACE)
+        if seen[0] != reference[1]:
+            sys.exit(f"{folder.name}'s {SURFACE} differs from {reference[0]}'s")
+        for name, hashes in copies.items():
+            differ = sorted(file for file in (BUILD_DATA if name == BUILD_DATA_ARCHIVE else API_BUILD_DATA)
+                            if hashes.get(file) != reference[2][file])
+            if differ:
+                sys.exit(f"{folder.name}/{name}: {', '.join(differ)} differ from {reference[0]}'s build data")
+        for archive in sorted(folder.glob("*.tar.xz")):
+            if archive.name == BUILD_DATA_ARCHIVE:
+                continue
+            if (dist / archive.name).exists():
+                sys.exit(f"{archive.name} comes from two legs")
+            shutil.copy2(archive, dist / archive.name)
+    print(f"gather: {len(folders)} legs, one build data ({', '.join(f'{name} {digest[:12]}' for name, digest in sorted(reference[2].items()))})")
+
+
+def index(dist: Path, nightly: str | None, previous: tuple[str, Path] | None = None) -> None:
+    """DIST/sdk.json over every asset in DIST, written and checked by the one implementation (`horizon_mod_package::sdk`).
+    `previous` is the SDK published before this one and the `horizon-stage surface-diff --json` of its surface
+    against DIST's, which fill the index's surface comparison."""
     commit = head()
     date = run(["git", "log", "-1", "--format=%cd", "--date=format-local:%Y-%m-%d"], cwd=ROOT,
                env={**os.environ, "TZ": "UTC"}).strip()
     run(["cargo", "run", "--locked", "-q", "-p", "xtask", "--", "sdk-index", str(dist), commit, date,
-         *([nightly] if nightly else [])], cwd=ROOT)
+         *(["--nightly", nightly] if nightly else []),
+         *(["--previous", previous[0], str(previous[1])] if previous else [])], cwd=ROOT)
 
 
 # Warns here, ahead of Windows' hard 65,535 (the linker's own failure), so a growing export list is seen first.
@@ -823,9 +870,14 @@ def main() -> None:
     pack_parser = commands.add_parser("pack")
     pack_parser.add_argument("out", type=Path)
     pack_parser.add_argument("dist", type=Path)
+    gather_parser = commands.add_parser("gather")
+    gather_parser.add_argument("legs", type=Path)
+    gather_parser.add_argument("dist", type=Path)
     index_parser = commands.add_parser("index")
     index_parser.add_argument("dist", type=Path)
     index_parser.add_argument("--nightly", help="the Nightly name that ships this build")
+    index_parser.add_argument("--previous", nargs=2, metavar=("BUILD", "DIFF"),
+                              help="the SDK published before this one, and the surface diff against it")
     args = parser.parse_args()
     if args.command == "build":
         build(args.out.resolve(), args.server)
@@ -835,8 +887,11 @@ def main() -> None:
         start(args.out.resolve())
     elif args.command == "pack":
         pack(args.out.resolve(), args.dist.resolve())
+    elif args.command == "gather":
+        gather(args.legs.resolve(), args.dist.resolve())
     elif args.command == "index":
-        index(args.dist.resolve(), args.nightly)
+        index(args.dist.resolve(), args.nightly,
+              (args.previous[0], Path(args.previous[1]).resolve()) if args.previous else None)
     else:
         smoke(args.out.resolve())
 

@@ -5,4 +5,4 @@ edition = "2024"
 publish = false
 
 [dependencies]
-horizon-mod-api = { git = "https://github.com/arismoko/horizon", rev = "HEAD" }
+horizon-mod-api = { path = ".horizon/sdk/api/crates/horizon-mod-api" }

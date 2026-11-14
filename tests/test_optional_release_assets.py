@@ -42,6 +42,9 @@ class OptionalReleaseAssetsTests(unittest.TestCase):
                 dist = root / "dist"
                 dist.mkdir()
                 present = REQUIRED | {name for i, name in enumerate(OPTIONAL) if mask & (1 << i)}
+                # The fork's Nightly carries its SDK's index in its signed sums; upstream's has no SDK.
+                if repository == "arismoko/horizon":
+                    present |= {"sdk.json"}
                 for name in present:
                     (dist / name).write_text(name)
                 script_dir = root / "tools/ci"
