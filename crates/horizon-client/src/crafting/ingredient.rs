@@ -348,7 +348,7 @@ impl Ingredient {
 mod custom_data_tests;
 
 #[cfg(test)]
-#[path = "ingredient/builtin_kinds_tests.rs"]
+#[path = "ingredient/builtin_kinds_tests/mod.rs"]
 mod builtin_kinds_tests;
 
 #[cfg(test)]

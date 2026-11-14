@@ -9,6 +9,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Reusable client systems, control tool and parity probes"
 
+[build-dependencies]
+horizon-game-discovery = { path = "../horizon-game-discovery" }
+
 [lib]
 path = "../horizon-client/src/client_lib.rs"
 
