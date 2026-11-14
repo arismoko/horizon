@@ -286,3 +286,14 @@ fn prepared_item_part_missing_exports_refuses_registration() {
         assert!(format!("{error:?}").contains("prepare_can_equip"));
     }
 }
+
+pub(super) struct PreparedEquipHooks;
+impl PreparedEquipHooks {
+    pub(super) fn register(
+        &self,
+        registrar: &mut dyn mod_api::Registrar,
+        cx: &mod_api::RegistrationContext,
+    ) {
+        self::register(registrar);
+    }
+}

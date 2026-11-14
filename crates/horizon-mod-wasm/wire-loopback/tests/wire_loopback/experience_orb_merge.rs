@@ -6,19 +6,26 @@ use super::*;
 use mod_api::prelude::*;
 use std::cell::RefCell;
 
-/// The shared guest fixture forwards this hook here, alongside its test: it reads the edge
-/// values of a resident merge and cancels it; any other dimension is left alone.
-pub(super) fn listen(event: &mut mod_api::ExperienceOrbMergeEvent<'_>) -> mod_api::Flow {
-    if event.dimension != "test:orb_merge" {
-        return mod_api::Flow::Continue;
+/// The guest's `experience_orb_merge` listener: it reads the edge values of a resident merge and cancels it; any
+/// other dimension is left alone.
+pub(super) struct ExperienceOrbMergeHooks;
+impl ExperienceOrbMergeHooks {
+    pub(super) fn experience_orb_merge(
+        &self,
+        _: &mut dyn mod_api::ServerHost,
+        event: &mut mod_api::ExperienceOrbMergeEvent<'_>,
+    ) -> mod_api::Flow {
+        if event.dimension != "test:orb_merge" {
+            return mod_api::Flow::Continue;
+        }
+        assert_eq!((event.into, event.from), (1, 41));
+        assert_eq!(
+            (event.into_value, event.into_count),
+            (-32768, i32::MAX as u32)
+        );
+        assert_eq!((event.from_value, event.from_count), (5, 1));
+        mod_api::Flow::Cancel
     }
-    assert_eq!((event.into, event.from), (1, 41));
-    assert_eq!(
-        (event.into_value, event.into_count),
-        (-32768, i32::MAX as u32)
-    );
-    assert_eq!((event.from_value, event.from_count), (5, 1));
-    mod_api::Flow::Cancel
 }
 
 #[test]
