@@ -9,7 +9,6 @@ fn data(tables: Vec<(&str, Value)>) -> LootData {
         items: HashMap::new(),
         enchantments: vec![],
         tags: HashMap::new(),
-        resolved_item_tags: HashMap::new(),
         smelting: vec![],
     }
 }

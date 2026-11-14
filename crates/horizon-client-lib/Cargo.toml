@@ -147,6 +147,7 @@ horizon-threads = { path = "../horizon-threads", features = ["test-allocation-pr
 horizon-mod-wasm = { path = "../horizon-mod-wasm", features = ["listener-fixture", "test-copy-probe"] }
 tempfile = "3"
 mod_platform = { package = "horizon-mod-api", path = "../horizon-mod-api", features = ["testing"] }
+mod_api = { package = "horizon-mod-vocab", path = "../horizon-mod-vocab", features = ["testing"] }
 # ui_theme's unit tests draw text in the design system's fonts.
 horizon-theme = { path = "../horizon-theme" }
 horizon-client-render = { path = "../horizon-client-render", features = ["test-support"] }

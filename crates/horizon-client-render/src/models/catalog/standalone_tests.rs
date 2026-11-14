@@ -224,27 +224,15 @@ fn standalone_combined_keeps_both_cubes_and_rebakes_changed_dependencies() {
 
 #[test]
 fn standalone_missing_dependency_drops_entire_form_and_logs_registering_mod() {
-    struct Logger;
-    thread_local! { static WARNINGS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) }; }
-    impl log::Log for Logger {
-        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-            true
-        }
-        fn log(&self, record: &log::Record<'_>) {
-            WARNINGS.with(|logs| logs.borrow_mut().push(record.args().to_string()));
-        }
-        fn flush(&self) {}
-    }
-    static LOGGER: Logger = Logger;
-    log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Warn);
     let fixture = Fixture::new();
     fixture.write("base", &cube([0, 0, 0], [8, 8, 8], "source:base"));
     fixture.write("orphan", r#"{"parent":"source:missing_parent"}"#);
-    let models = fixture.bake(&[
-        combined(&["source:base", "source:orphan"]),
-        rotated("third_namespace:missing_rotated", [0, 1, 0], true),
-    ]);
+    let (models, logs) = crate::test_log::capture(|| {
+        fixture.bake(&[
+            combined(&["source:base", "source:orphan"]),
+            rotated("third_namespace:missing_rotated", [0, 1, 0], true),
+        ])
+    });
     assert!(models.standalone("different_namespace:assembly").is_none());
     assert!(
         models
@@ -255,8 +243,7 @@ fn standalone_missing_dependency_drops_entire_form_and_logs_registering_mod() {
         models.baked.is_empty(),
         "no partially baked dependency is published"
     );
-    WARNINGS.with(|logs| {
-        let logs = logs.borrow();
+    {
         for id in [
             "different_namespace:assembly",
             "third_namespace:missing_rotated",
@@ -268,5 +255,5 @@ fn standalone_missing_dependency_drops_entire_form_and_logs_registering_mod() {
                 "{logs:?}"
             );
         }
-    });
+    }
 }

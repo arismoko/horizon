@@ -130,6 +130,7 @@ pub mod stored_effect_attributes;
 pub mod suffocation;
 pub mod swimming;
 pub mod synced_floats;
+pub mod tag_layers;
 pub mod teleport_consume;
 pub mod tick_data;
 pub mod use_remainder;
