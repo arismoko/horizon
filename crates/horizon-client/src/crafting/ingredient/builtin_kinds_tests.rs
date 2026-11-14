@@ -114,8 +114,16 @@ fn weapon_component_recipes_decode_defaults_and_match_live_borrowed_values() {
         .data_mut()
         .set_loot_component("minecraft:custom_data", &Some(Tag::Int(7)));
     assert!(!matches("fixture:weapon_default", &sword));
-    let patch = Tag::compound([("!minecraft:weapon", Tag::Compound(Default::default()))]);
-    (_, sword.extra) = crate::item_data::decode_components(Some(&patch));
+    sword
+        .data_mut()
+        .set_loot_component("minecraft:weapon", &None);
+    sword
+        .data_mut()
+        .set_loot_component("minecraft:custom_data", &None);
+    sword.data_mut().set_loot_component(
+        "!minecraft:weapon",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(!matches("fixture:weapon_default", &sword));
     assert!(matches("fixture:weapon_removed", &sword));
     assert!(!matches("fixture:weapon_invalid", &sword));
@@ -4129,4 +4137,93 @@ fn food_codec_compiles_recipes_and_matches_borrowed_values() {
             ("can_always_eat", Tag::Byte(1)),
         ]),
     );
+}
+
+#[test]
+fn weapon_recipe_rejections_preserve_siblings_and_presence_strictness() {
+    use serde_json::json;
+    let items = Items::empty();
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let source = |payload| {
+        json!({"type":"neoforge:components","items":"minecraft:paper",
+        "components":{"minecraft:weapon":payload},"strict":true})
+    };
+    let recipe = |ingredient| json!({"type":"minecraft:crafting_shapeless","ingredients":[ingredient],"result":{"id":"minecraft:diamond"}});
+    for payload in [
+        json!(true),
+        json!(false),
+        json!(null),
+        json!("weapon"),
+        json!([]),
+        json!({"item_damage_per_attack":"1"}),
+        json!({"disable_blocking_for_seconds":false}),
+        json!({"disable_blocking_for_seconds":-0.0}),
+    ] {
+        let invalid = source(payload);
+        let error = components::validate_recipe_components(&invalid, &items).unwrap_err();
+        assert!(error.contains("minecraft:weapon"), "{error}");
+        let recipes = crate::crafting::Recipes::from_sources(
+            &std::env::temp_dir(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![
+                ("fixture:invalid".into(), recipe(invalid)),
+                ("fixture:valid".into(), recipe(json!("minecraft:stick"))),
+            ],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            recipes
+                .craft(&context, &[Some(ItemStack::new("minecraft:paper", 1))], 1)
+                .is_none()
+        );
+    }
+    for value in [Tag::End, Tag::Byte(0), Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:weapon".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:weapon"), "{error}");
+    }
+    let mut value = source(json!({"ignored":true}));
+    let strict = Ingredient::parse(&value, &items).unwrap();
+    value["strict"] = json!(false);
+    let relaxed = Ingredient::parse(&value, &items).unwrap();
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:paper","components":{"!minecraft:weapon":{}}}"#,
+        &items,
+    );
+    let mut paper = ItemStack::new("minecraft:paper", 1);
+    assert!(!strict.test_in(&context, &paper));
+    assert!(absent.test_in(&context, &paper));
+    paper.data_mut().set_loot_component(
+        "minecraft:weapon",
+        &Some(Tag::compound([("unknown", Tag::Int(7))])),
+    );
+    assert!(strict.test_in(&context, &paper));
+    assert!(!absent.test_in(&context, &paper));
+    paper
+        .data_mut()
+        .set_other("minecraft:custom_data", Some(Tag::Int(1)));
+    assert!(!strict.test_in(&context, &paper));
+    assert!(relaxed.test_in(&context, &paper));
+    paper
+        .data_mut()
+        .set_loot_component("minecraft:weapon", &None);
+    paper.data_mut().set_loot_component(
+        "!minecraft:weapon",
+        &Some(Tag::Compound(Default::default())),
+    );
+    assert!(absent.test_in(&context, &paper));
+    assert!(!relaxed.test_in(&context, &paper));
 }
