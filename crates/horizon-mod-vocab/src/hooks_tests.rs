@@ -745,6 +745,7 @@ fn level_queries_take_their_hosts(
         level.ray_trace_entities(read, [0.0; 3], [8.0, 0.0, 0.0], 0.3, Some(shooter));
     let _: Result<Option<Vec<ItemStack>>, StackWriteError> =
         level.block_drops(server, [0, 64, 0], Some(tool), Some(shooter));
+    let _: Option<Vec<LootOdds>> = level.loot_odds(read, "mymod:sifting/gravel", None);
     let _: Result<Option<Vec<ItemStack>>, StackWriteError> = level.roll_loot(
         server,
         "mymod:sifting/gravel",

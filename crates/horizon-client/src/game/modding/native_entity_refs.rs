@@ -436,6 +436,38 @@ impl Game<'_> {
             }
         })
     }
+    /// The odds of one roll of the world's loot table `table` (`LootData::odds`), its data
+    /// packs merged, with `tool` the plain item `match_tool` is judged with. Items the item
+    /// registry lacks are left out. Draws nothing. None for a missing table, a stale handle and
+    /// a client.
+    pub(super) fn level_loot_odds(
+        &self,
+        level: LevelRef,
+        table: &str,
+        tool: Option<mod_api::ItemKey>,
+    ) -> Option<Vec<mod_api::LootOdds>> {
+        if !self.is_logical_server() || !self.level_handle_current(level) {
+            return None;
+        }
+        let tool = match tool {
+            Some(key) => Some(mod_api::__private::item_key_id(key)?),
+            None => None,
+        };
+        let odds = self.server_loot.get()?.odds(table, tool)?;
+        Some(
+            odds.into_iter()
+                .filter_map(|o| {
+                    Some(mod_api::LootOdds::new(
+                        mod_api::__private::item_key(&o.item)?,
+                        o.chance,
+                        o.min,
+                        o.max,
+                        o.conditions,
+                    ))
+                })
+                .collect(),
+        )
+    }
     /// Set a block through Level.setBlock. Typed errors distinguish stale/unavailable
     /// levels; Ok(false) preserves vanilla's position/no-change refusal.
     pub(super) fn level_set_block(

@@ -333,6 +333,9 @@ impl Enchantment {
 
 #[path = "loot/holder_sets.rs"]
 mod holder_sets;
+#[path = "loot/odds.rs"]
+mod odds;
+pub use odds::LootOdds;
 
 /// Loot tables, items, enchantments and the tags they reference.
 pub struct LootData {

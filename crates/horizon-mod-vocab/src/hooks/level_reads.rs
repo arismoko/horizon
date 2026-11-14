@@ -69,6 +69,12 @@ machine that turns an input into a table's roll. The context is the one `/loot â
 `this`. The stacks come split to their stack sizes. It draws as `block_drops` does and fires no
 `loot_drops` event. None for a table that isn't there.
 
+`LevelRef::loot_odds(host, table, tool)` works out what `roll_loot` would give instead of rolling
+it, for a recipe viewer that shows a table's outputs with their chances: each item's chance to
+come at least once from one roll, the fewest and most that come, and the conditions it could not
+judge, taken as met and named ("needs a brush"). `match_tool` is judged with `tool`, a plain item,
+when one is given. It draws no random, so any host on the server reads it.
+
 `fluid_shape(host, pos)` is `FluidState.getShape`: no box for no fluid, else one block-local box
 up to the fluid's height, a full block under the same fluid. `has_collisions(host, aabb)` asks
 whether any block collision shape is in a box, with `collision_boxes`'s walk and limits and

@@ -1,7 +1,7 @@
 //! `LevelRef::roll_loot`: one roll of a world pack's loot table, handed back. On the
 //! same random state it gives what the engine's own roll in the same context gives,
 //! `/loot … fish <table> <pos> <tool>` (whose `loot` path the loot harnesses hold to
-//! vanilla 26.3).
+//! vanilla 26.3). `LevelRef::loot_odds`: the same table's odds, worked out.
 use crate::game::{
     Audio, Game, Options, Progress, Settings, execution_role, functions, load_resources,
 };
@@ -338,4 +338,57 @@ fn component_stack_capacity_is_preserved_on_every_split() {
         .level_roll_loot(level, "test:small", ORIGIN, None, None)
         .unwrap();
     assert_eq!(count_of(&stacks, "minecraft:ender_pearl"), [8, 8, 8, 8, 8]);
+}
+
+#[test]
+#[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+fn odds_are_the_world_packs_table_judged_with_the_tool() {
+    let mut resources = None;
+    let (mut game, level) = game(&mut resources, "odds");
+    game.load_server_loot();
+    let key = |id: &str| mod_api::__private::item_key(id).unwrap();
+    let chance = |odds: &[mod_api::LootOdds], id: &str| {
+        odds.iter()
+            .find(|o| o.item == key(id))
+            .map(|o| (o.chance, o.min, o.max))
+    };
+    let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
+
+    let shovel = game
+        .level_loot_odds(level, "test:sift", Some(key("minecraft:iron_shovel")))
+        .unwrap();
+    // The iron shovel's pool: 40 pearls, every roll.
+    let (p, min, max) = chance(&shovel, "minecraft:ender_pearl").unwrap();
+    assert!(close(p, 1.0) && min == 40 && max == 40, "{shovel:?}");
+    // Behind 30%, the shovel's alternative is the diamond, never the coal.
+    assert!(close(chance(&shovel, "minecraft:diamond").unwrap().0, 0.3));
+    assert_eq!(chance(&shovel, "minecraft:coal"), None);
+    // A gold nugget is 1 in 10 of a roll, the pool rolled 1 to 3 times alike:
+    // 1 - (0.9 + 0.81 + 0.729) / 3.
+    assert!(close(
+        chance(&shovel, "minecraft:gold_nugget").unwrap().0,
+        1.0 - (0.9 + 0.81 + 0.729) / 3.0
+    ));
+    assert!(shovel.iter().all(|o| o.conditions.is_empty()), "{shovel:?}");
+
+    let stick = game
+        .level_loot_odds(level, "test:sift", Some(key("minecraft:stick")))
+        .unwrap();
+    assert_eq!(chance(&stick, "minecraft:ender_pearl"), None);
+    assert_eq!(chance(&stick, "minecraft:diamond"), None);
+    assert!(close(chance(&stick, "minecraft:coal").unwrap().0, 0.3));
+
+    // With no tool, what needs one is taken as met and says so.
+    let any = game.level_loot_odds(level, "test:sift", None).unwrap();
+    let pearl = any
+        .iter()
+        .find(|o| o.item == key("minecraft:ender_pearl"))
+        .unwrap();
+    assert!(!pearl.conditions.is_empty(), "{pearl:?}");
+
+    assert_eq!(game.level_loot_odds(level, "test:nothing_here", None), None);
+    // A handle of an earlier open.
+    game.native_lifecycle
+        .begin_open(Authority::IntegratedServer);
+    assert_eq!(game.level_loot_odds(level, "test:sift", None), None);
 }

@@ -79,6 +79,37 @@ pub struct LootStack {
     pub components: Vec<(String, Option<horizon_core::nbt::Tag>)>,
 }
 
+/// One item a loot table can give and its odds from one roll of the table, as
+/// `LevelRef::loot_odds` works them out: for a recipe viewer that lists a table's outputs.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+#[derive(horizon_mod_api_macros::Wire)]
+pub struct LootOdds {
+    /// The item.
+    pub item: ItemKey,
+    /// The chance at least one comes from one roll of the whole table, 0 to 1.
+    pub chance: f64,
+    /// How many come when it does: the fewest one drop gives, at least 1.
+    pub min: u32,
+    /// The most the table can give at once.
+    pub max: u32,
+    /// The conditions on its way that could not be judged (a tool when none was named, the
+    /// weather, a killer), as short English lines; they were taken as met.
+    pub conditions: Vec<String>,
+}
+impl LootOdds {
+    /// The odds of `item`, as the game works them out.
+    pub fn new(item: ItemKey, chance: f64, min: u32, max: u32, conditions: Vec<String>) -> Self {
+        Self {
+            item,
+            chance,
+            min,
+            max,
+            conditions,
+        }
+    }
+}
+
 /// A deferred exploration-map search requested by a loot function.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
