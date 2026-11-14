@@ -818,7 +818,8 @@ pub(crate) fn locked_with(lock: &str, name: &str, added: &[&str]) -> Option<Stri
     ))
 }
 
-/// `mod_points`: records, typed function constructors, dispatchers and place ids.
+/// Platform `mod_points`: canonical engine-record re-exports, listener constructors
+/// and registration place ids. Typed dispatch is owned by `horizon_engine_slots`.
 #[cfg(test)]
 pub(crate) fn records(points: &[GamePoint]) -> String {
     records_selected(points, None)

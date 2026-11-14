@@ -137,6 +137,10 @@ static POINT_DISPATCH: std::sync::OnceLock<PointDispatch> = std::sync::OnceLock:
 
 /// Install the platform provider before publishing any listened point.
 ///
+/// This is set-once: a second installation returns [`Refusal::AlreadyInstalled`].
+/// Direct typed dispatch before installation panics; quiet macro sites skip dispatch
+/// while their activity flag is unset.
+///
 /// # Safety
 /// For each catalog index, every typed listener supplied to `call` must be a valid
 /// function pointer with that point's generated host and record signature.
@@ -155,6 +159,9 @@ pub mod __private {
     pub static POINTS: [std::sync::atomic::AtomicBool; POINT_COUNT] =
         [const { std::sync::atomic::AtomicBool::new(false) }; POINT_COUNT];
     /// Dispatch through the installed platform without owning listener policy.
+    ///
+    /// Panics if [`install_points`] has not installed a provider. Quiet macro sites
+    /// check their activity flag and do not call this function before publication.
     pub fn fire_api(place: PointId, call: &mut dyn FnMut(ApiKind)) {
         POINT_DISPATCH
             .get()
