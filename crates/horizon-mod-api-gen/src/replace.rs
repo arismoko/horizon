@@ -1161,7 +1161,7 @@ fn lexical(path: &Path) -> PathBuf {
 }
 
 /// A package's manifest, parsed.
-fn manifest(package: &Path) -> Result<toml::Table, String> {
+pub(crate) fn manifest(package: &Path) -> Result<toml::Table, String> {
     let path = package.join("Cargo.toml");
     let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     toml::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))

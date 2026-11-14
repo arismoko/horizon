@@ -424,6 +424,46 @@ fn scan(root: &Path) -> Result<(Vec<Scanned>, Vec<(String, String)>), String> {
     }
     for krate in &crates {
         let (package, _) = crate_root(root, krate)?;
+        let manifest = crate::replace::manifest(&package)?;
+        let dependency_tables = manifest.get("dependencies").into_iter().chain(
+            manifest
+                .get("target")
+                .and_then(toml::Value::as_table)
+                .into_iter()
+                .flat_map(|targets| targets.values())
+                .filter_map(|target| target.get("dependencies")),
+        );
+        let mut has_slots = false;
+        for (key, dependency) in dependency_tables
+            .filter_map(toml::Value::as_table)
+            .flatten()
+        {
+            let workspace;
+            let dependency =
+                if dependency.get("workspace").and_then(toml::Value::as_bool) == Some(true) {
+                    workspace = crate::replace::manifest(root)?;
+                    workspace
+                        .get("workspace")
+                        .and_then(|workspace| workspace.get("dependencies"))
+                        .and_then(|dependencies| dependencies.get(key.as_str()))
+                        .unwrap_or(dependency)
+                } else {
+                    dependency
+                };
+            let name = dependency
+                .get("package")
+                .and_then(toml::Value::as_str)
+                .unwrap_or(key);
+            if name == "horizon-engine-slots" {
+                has_slots = true;
+                break;
+            }
+        }
+        if !has_slots {
+            return Err(format!(
+                "crate {krate} has points but does not depend on horizon-engine-slots"
+            ));
+        }
         for file in crate_files(root, krate)? {
             files.push((file, Some(package.clone())));
         }
@@ -1503,6 +1543,66 @@ name = 'horizon-mod-api-gen'
     }
 
     #[test]
+    fn marked_crates_need_slots_except_below_slots() {
+        let root =
+            std::env::temp_dir().join(format!("horizon-point-dependency-{}", std::process::id()));
+        let put = |path: &str, text: &str| {
+            let path = root.join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, text).unwrap();
+        };
+        put("crates/horizon-client/src/game.rs", "");
+        put(
+            "crates/horizon-mod-api-gen/Cargo.toml",
+            "[package]\nname = 'horizon-mod-api-gen'\n",
+        );
+        put("crates/horizon-mod-api-gen/internals.txt", "");
+        put(
+            "crates/horizon-engine-slots/Cargo.toml",
+            "[package]\nname = 'horizon-engine-slots'\n[dependencies]\nhorizon-world = { path = '../horizon-world' }\n",
+        );
+        put(
+            "crates/horizon-world/Cargo.toml",
+            "[package]\nname = 'horizon-world'\n",
+        );
+        put(
+            "crates/horizon-world/src/lib.rs",
+            "#[horizon_mod_api_macros::replaceable] pub fn lower() {}\n",
+        );
+        let manifest = "crates/horizon-client-render/Cargo.toml";
+        let package = "[package]\nname = 'horizon-client-render'\n";
+        put(manifest, package);
+        put(
+            "crates/horizon-client-render/src/lib.rs",
+            "#[horizon_mod_api_macros::replaceable] pub fn mesh() {}\n",
+        );
+        assert_eq!(
+            scan(&root).err().unwrap(),
+            "crate horizon_client_render has points but does not depend on horizon-engine-slots"
+        );
+        put(
+            "Cargo.toml",
+            "[workspace.dependencies]\nslots = { package = 'horizon-engine-slots', path = 'crates/horizon-engine-slots' }\n",
+        );
+        for dependency in [
+            "[dependencies]\nhorizon-engine-slots = { path = '../horizon-engine-slots' }\n",
+            "[dependencies]\nslots = { package = 'horizon-engine-slots', path = '../horizon-engine-slots' }\n",
+            "[dependencies]\nslots = { workspace = true }\n",
+            "[target.'cfg(unix)'.dependencies]\nslots = { package = 'horizon-engine-slots', path = '../horizon-engine-slots' }\n",
+        ] {
+            put(manifest, &format!("{package}{dependency}"));
+            let (files, _) = scan(&root).unwrap();
+            assert!(
+                files
+                    .iter()
+                    .any(|file| file.module == "horizon_client_render")
+            );
+            assert!(!files.iter().any(|file| file.module == "horizon_world"));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn the_pass_marks_the_functions_the_generator_lists() {
         let root = std::env::temp_dir().join(format!("horizon-points-{}", std::process::id()));
         let put = |path: &str, text: &str| {
@@ -1555,7 +1655,7 @@ name = 'horizon-mod-api-gen'
         );
         put(
             "crates/horizon-client-render/Cargo.toml",
-            "[package]\nname = 'horizon-client-render'\n[dependencies]\nlog = '0.4'\n",
+            "[package]\nname = 'horizon-client-render'\n[dependencies]\nlog = '0.4'\nhorizon-engine-slots = { path = '../horizon-engine-slots' }\n",
         );
         put(
             "Cargo.lock",
