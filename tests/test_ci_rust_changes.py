@@ -90,20 +90,17 @@ class RustChangesTests(unittest.TestCase):
                 self.assertTrue(selections([("M", path)])["rust_required"])
         self.assertFalse(selections([("M", "docs/setup.md")])["rust_required"])
 
-    def test_shared_selections_preserve_launcher_and_sample_requirements(self):
+    def test_shared_selections_preserve_launcher_requirements(self):
         self.assertEqual(selections([("M", "docs/setup.md")]), {
-            "rust_required": False, "launcher_required": False,
-            "tooling_required": False, "sample_required": False,
+            "rust_required": False, "launcher_required": False, "tooling_required": False,
         })
         for path in ["Cargo.lock", "tools/ci/rust_changes.py", ".github/workflows/dyna-ci.yml"]:
             selected = selections([("M", path)])
             self.assertTrue(selected["rust_required"])
             self.assertTrue(selected["launcher_required"])
             self.assertTrue(selected["tooling_required"])
-        # A sample-selected API change must not run its compiler without installing Rust.
-        selected = selections([("M", "crates/horizon-mod-api/README.md")])
-        self.assertTrue(selected["sample_required"])
-        self.assertTrue(selected["rust_required"])
+        # The machine sample is a daily leg: a mod API change selects nothing extra in dyna-checks.
+        self.assertFalse(selections([("M", "crates/horizon-mod-api/README.md")])["rust_required"])
 
     def test_git_status_and_cli_selections_for_actual_documentation_changes(self):
         selector = Path(__file__).resolve().parents[1] / "tools/ci/rust_changes.py"
@@ -145,7 +142,7 @@ class RustChangesTests(unittest.TestCase):
             )
             self.assertEqual(dict(line.split("=") for line in output.splitlines()), {
                 "rust_required": "false", "launcher_required": "false",
-                "tooling_required": "true", "sample_required": "false",
+                "tooling_required": "true",
             })
 
     def test_a_base_missing_from_the_checkout_means_everything_changed(self):

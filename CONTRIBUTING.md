@@ -129,7 +129,7 @@ network and are still in `verify` are being moved by the next change of #4022.
 | --- | --- | --- |
 | Push | every pull request push | `format`, `verify-static` |
 | Gate | rollup and sync pull requests, pushes to main | `lint`, `verify` (unit tests only), `verify-static`, `launcher` |
-| Daily | once a day on main's head | every test that boots the game or needs prepared resources, the wasm fixture, `fn-replace-check`, the SDK build and its linkage probe |
+| Daily | once a day on main's head | every test that boots the game or needs prepared resources, the wasm fixture, `fn-replace-check`, the SDK build and its linkage probe, the machine sample built against the mod API |
 
 **A unit test** uses no prepared resources, boots no game, starts no child process, uses no network and no compiled
 wasm fixture, and finishes in under 2 seconds. Any other test is a daily test: it carries `#[ignore]` and a row in

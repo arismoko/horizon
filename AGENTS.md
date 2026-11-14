@@ -35,7 +35,7 @@ Feature → files → harness for the most-changed areas: [docs/architecture.md]
   nightly, published by the daily run when every leg is green ([docs/release-flow.md](docs/release-flow.md#daily-run)).
 - **CI tiers** ([CONTRIBUTING.md](CONTRIBUTING.md#ci-tiers)): every PR push runs `format` and `verify-static`; rollups,
   syncs and main pushes add `lint`, `verify` (unit tests only) and `launcher`; the ignored-test shards, the wasm
-  fixture, `fn-replace-check`, the SDK build and its linkage probe run once a day (`daily.yml`). A new test that needs prepared
+  fixture, `fn-replace-check`, the SDK build and its linkage probe and the machine-sample build run once a day (`daily.yml`). A new test that needs prepared
   resources, boots the game, starts a child process, uses the network or a compiled wasm fixture, or takes 2 s or
   more is `#[ignore]`d with a row in `tools/ci/ignored-tests/`; say in the PR when you could not run it. A daily red
   becomes an issue listing the suspect PRs, fixed by an ordinary PR. Existing tests still in `verify` that need
