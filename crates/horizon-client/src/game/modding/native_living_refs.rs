@@ -1126,6 +1126,9 @@ impl Game<'_> {
         throw_randomly: bool,
         include_thrower_name: bool,
     ) -> Option<EntityRef> {
+        if self.entity_ids_exhausted() {
+            return None;
+        }
         let target = self.native_living_target(living)?;
         let stack = equipment_stack(Some(stack))?;
         let mut item = None;

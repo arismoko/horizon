@@ -24,6 +24,8 @@
 //! `LivingRef::set_health` keeps the player's synced float storage and unpublished update
 //! events, or the mob's health and sync dirtiness. This does not journal other health,
 //! damage, death or attribute operations.
+//! An entity added inside one goes at an abort, one removed is only marked until the root
+//! commit, and mods hear of joins and leaves at the root commit (`transactions/entities.rs`).
 use super::{BlockEntity, BlockStateId, Game, machines::HopperState};
 use horizon_client::{items::ItemStack, world::BlockEntityExtras};
 use horizon_mod_runtime::attachments::{Attachments, Holder};
@@ -32,6 +34,9 @@ use std::collections::HashMap;
 
 #[path = "transactions/decision.rs"]
 pub(in crate::game) mod decision;
+#[path = "transactions/entities.rs"]
+mod entities;
+pub(in crate::game) use entities::Announcement;
 #[path = "transactions/scratch.rs"]
 mod scratch;
 
@@ -138,6 +143,8 @@ pub(super) struct Level {
     scratch: HashMap<u64, scratch::Scratch>,
     /// Each scratch stack before this transaction first wrote it; none where it didn't exist.
     scratch_kept: HashMap<u64, Option<scratch::Scratch>>,
+    /// The entities it added and removed, and the announcements it holds.
+    lifetimes: entities::EntityJournal,
 }
 
 /// A slot's stack before a transaction first wrote it, and the generation of the block entity
@@ -322,10 +329,12 @@ impl Game<'_> {
         if self.transactions.is_empty() {
             self.world.block_entities.defer_retirement();
         }
+        let lifetimes = self.entity_journal_open();
         self.transactions.push(Level {
             token,
             close_token,
             dimension: Some(self.dim),
+            lifetimes,
             ..Level::default()
         });
         if let Some(key) = &mut self.block_entity_tick_key {
@@ -409,7 +418,7 @@ impl Game<'_> {
         }
     }
     /// What closing `level` does, with the closing phase already set.
-    fn close_level(&mut self, level: Level, commit: bool) {
+    fn close_level(&mut self, mut level: Level, commit: bool) {
         if let Some(scope) = &mut self.block_entity_tick_items {
             scope.close_transaction(commit);
         }
@@ -421,6 +430,7 @@ impl Game<'_> {
             Some(self.dim),
             "transaction closed in a different level"
         );
+        let lifetimes = std::mem::take(&mut level.lifetimes);
         match (commit, self.transactions.last_mut()) {
             (true, Some(outer)) => {
                 outer.actions.merge(level.actions);
@@ -485,9 +495,25 @@ impl Game<'_> {
                     outer.chunk_marks.entry(chunk).or_insert(mark);
                 }
                 outer.after.extend(level.after);
+                // A parent in another level can't take an entity of this one back.
+                if outer.dimension == level.dimension {
+                    outer.lifetimes.merge(lifetimes);
+                } else {
+                    self.commit_entity_journal(lifetimes);
+                }
             }
-            (true, None) => self.root_commit(level),
-            (false, _) => self.roll_back(level),
+            (true, None) => {
+                self.root_commit(level);
+                self.commit_entity_journal(lifetimes);
+            }
+            (false, _) => {
+                // The entities it added go first, so nothing is put back into one.
+                let arrivals = self.roll_back_entity_journal(lifetimes);
+                self.roll_back(level);
+                if let Some(outer) = self.transactions.last_mut() {
+                    outer.lifetimes.keep_arrivals(arrivals);
+                }
+            }
         }
     }
     /// Closes every transaction left open, as aborted. Run before each tick, as a backstop:

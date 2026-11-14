@@ -226,7 +226,11 @@ impl Game<'_> {
             return self.locate_specialized_resident_owner(at);
         }
         if at.owner.dimension == self.dim.key() {
-            return self.locate_resident_owner(at);
+            // An open transaction's removal reads as gone already.
+            return self.locate_resident_owner(at).map(|mut source| {
+                source.value.1 &= !self.removal_pending(&source.value.0);
+                source
+            });
         }
         let dim = match at.owner.dimension {
             DimensionKey::OVERWORLD => Dim::Overworld,
@@ -1074,6 +1078,7 @@ impl Game<'_> {
                 cart.id
             }
         };
+        self.journal_arrival(id);
         if self.uuid_admission_refused(self.persist.uuids.get(&id).copied()) {
             self.persist.off_level.insert(id, object);
             return;

@@ -427,6 +427,9 @@ impl Game<'_> {
     /// Drops `stack` at the middle of the block at `pos`, as a block entity's handler gives up
     /// what it can't put back.
     pub(super) fn drop_at(&mut self, pos: [i32; 3], stack: ItemStack) {
+        if self.entity_ids_exhausted() {
+            return;
+        }
         if self.places_simulated() && stack.count > 0 {
             // `Block.popResource`'s default pickup delay, at the root commit.
             self.after_commit(After::Drop(pos, stack));

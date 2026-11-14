@@ -147,6 +147,9 @@ impl Game<'_> {
         fire: bool,
         interaction: ExplosionInteraction,
     ) -> bool {
+        if self.entity_ids_exhausted() {
+            return false;
+        }
         if !self.level_in_place(level) {
             return false;
         }
