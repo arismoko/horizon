@@ -735,6 +735,14 @@ impl Mob {
             return;
         }
         let mut wanted = gate.delta();
+        // Entity.move: with noPhysics the delta is applied through every block,
+        // and no collision flag is set.
+        if self.no_physics {
+            self.position = self.position.add_vector(wanted);
+            self.horizontal_collision = false;
+            self.vertical_collision_below = false;
+            return;
+        }
         // Entity.move: a block the mob is stuck in (sweet berry bush) scales
         // this move once and stops it.
         if self.stuck_multiplier.length_squared() > 1.0e-7 {
@@ -1974,6 +1982,11 @@ impl Mob {
         } else {
             self.limb_speed = 0.0;
         }
+    }
+}
+impl crate::entity_rules::EntityRules for Mob {
+    fn is_no_gravity(&self) -> bool {
+        self.no_gravity
     }
 }
 /// LivingEntity.getFluidFallingAdjustedMovement.

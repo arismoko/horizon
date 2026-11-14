@@ -54,6 +54,20 @@ fence as `Leashable.setLeashedTo` does: the entity lets go of any other holder a
 `canBeLeashed` nor the distance is asked, so a holder too far away snaps the lead on the next tick. `detach_leash`
 drops the lead as an item or removes it; a mob's removal fires `entity_unleash`.
 
+## Physics
+
+`EntityRef::no_physics` takes `&dyn Host` and reads `Entity.noPhysics`: whether the entity's moves pass
+through blocks. A player's is its spectator state; a mob's and an unsimulated kind's is the value a mod
+wrote, `Some(false)` until then; an armor stand's is `Marker || NoGravity` until a mod writes it; an item
+entity reads `None`, because its own tick recomputes the flag from the blocks it is in. The ender dragon, an
+area-effect cloud, an ominous item spawner and a shulker bullet start at `Some(true)`, the value their
+constructors set, and answer it until a mod writes another.
+`set_no_physics` takes `&mut dyn ServerHost` and writes it on the server only.
+It is refused for a player, an item entity and a vex, whose own tick rewrites the flag. An arrow's or a
+trident's write also updates the synced flag clients read. An armor stand recomputes the flag as
+`Marker || NoGravity` when it is loaded, so its write is not persisted; an unsimulated kind keeps the value
+in its saved compound.
+
 ## Mob flags
 
 Through `MobRef`: `no_ai`/`set_no_ai` (`Mob.isNoAi` and `setNoAi`: the mob stands, saved as `NoAI`) and

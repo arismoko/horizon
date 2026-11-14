@@ -3215,7 +3215,7 @@ impl Game<'_> {
             .as_mut()
             .is_some_and(|d| std::mem::take(&mut d.flame_ended))
         {
-            self.breath_clouds.retain(|c| !c.from_dragon);
+            self.retain_breath_clouds(|c| !c.from_dragon);
         }
     }
     pub(super) fn tick_breath(&mut self) {
@@ -3256,7 +3256,7 @@ impl Game<'_> {
             }
             c.age += 1;
             if breath_expired(c.age, c.duration) {
-                return false;
+                return self.forget_expired_cloud(c.id);
             }
             if !c.from_dragon && c.age >= BREATH_WAIT {
                 // DragonFireball's cloud: radius per tick (7 - 3) / duration.
