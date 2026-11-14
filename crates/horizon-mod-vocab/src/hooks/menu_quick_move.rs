@@ -22,9 +22,10 @@ pub trait Hooks {
     /// undone and the client given the menu again. It is refused when a
     /// listener fails (panics or traps), when the answer is invalid (a stack
     /// past its item's maximum in `entity.items` or `stack`), or when a
-    /// listener wrote through the `Host` to the player's own inventory, cursor
-    /// or menu storage, which the move read. Writes to another block, as a
-    /// move into its `ITEMS` capability makes, do not make it stale.
+    /// listener wrote through the `Host` to a player's inventory, cursor or
+    /// menu storage (the move read its own player's; a write to any player's
+    /// counts). Writes to another block, as a move into its `ITEMS`
+    /// capability makes, do not make it stale.
     ///
     /// For a mod container on a vanilla menu type and on a mod menu type,
     /// the left or right button, a slot that holds something and that the

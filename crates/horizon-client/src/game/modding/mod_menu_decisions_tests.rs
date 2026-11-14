@@ -36,6 +36,7 @@ thread_local! {
 
 fn script(script: Script) {
     DISPATCHES.set(0);
+    super::decided_action::DECIDED.set(0);
     IN_ACTION.with(|a| a.borrow_mut().clear());
     SCRIPT.with(|s| *s.borrow_mut() = script);
 }
@@ -100,7 +101,8 @@ impl Hooks for Mod {
     fn menu_clicked(&self, host: &mut dyn ServerHost, event: &mut MenuClickedEvent) {
         DISPATCHES.set(DISPATCHES.get() + 1);
         IN_ACTION.with(|a| a.borrow_mut().push(host.transaction_current().is_some()));
-        assert_eq!((event.uuid, event.window), (12, event.window));
+        // Guest 12's menu from `open_native_menu`.
+        assert_eq!((event.uuid, event.window), (12, 5));
         let s = SCRIPT.with(|s| s.borrow().clone());
         if s.write_dirt {
             write_dirt(host);
@@ -115,6 +117,11 @@ fn with_mod(test: impl FnOnce()) {
     let mods: Mods = vec![ModEntry::new("movemod", Box::new(Mod))].into();
     crate::game::api_values::install_parts(&mods).unwrap();
     mod_platform::testing::with_mods(mods, test);
+}
+
+/// How many decisions were entered since the last `script`.
+fn decided() -> usize {
+    super::decided_action::DECIDED.get()
 }
 
 fn count(stack: &Option<ItemStack>) -> u32 {
@@ -143,6 +150,7 @@ fn a_click_on_a_mod_menu_tells_the_mods_inside_an_action_and_a_failure_undoes_it
             });
             click(game);
             assert_eq!(DISPATCHES.get(), 1);
+            assert_eq!(decided(), 1);
             assert_eq!(IN_ACTION.with(|a| a.borrow().clone()), [true]);
             assert_eq!(inventory(game, 20), 2);
             assert!(game.transactions.is_empty());
@@ -188,6 +196,8 @@ fn without_a_listener_a_click_on_a_mod_menu_is_heard_plainly() {
         game.lan_guest_packet(12, container_click(window, 3, 0));
         game.run_native_menu_events();
         assert_eq!(DISPATCHES.get(), 0);
+        // The ordinary path: the decision is never entered.
+        assert_eq!(decided(), 0);
         assert_eq!(game.transactions.writes(), writes);
         assert!(game.transactions.is_empty());
     });
@@ -336,6 +346,18 @@ fn a_mod_quick_move_is_one_action_and_a_refusal_leaves_no_prefix() {
             click(game);
             assert_eq!(depot(game), (10, 0, 0, 0));
             assert!(game.transactions.is_empty());
+            // The panic alone, with no `Host` write (which would make the move stale by itself):
+            // the move the listener answered is still refused and the block entity is put back.
+            open_depot(game);
+            script(Script {
+                take: true,
+                panic: true,
+                ..Script::default()
+            });
+            click(game);
+            assert_eq!(DISPATCHES.get(), 1);
+            assert_eq!(depot(game), (10, 0, 0, 0));
+            assert!(game.transactions.is_empty());
             open_depot(game);
             script(Script {
                 take: true,
@@ -372,11 +394,14 @@ fn a_mod_quick_move_no_mod_took_is_left_to_the_games_routing() {
     // game's own routing.
     let plain = run();
     assert_eq!(DISPATCHES.get(), 0);
+    // The ordinary path: the decision is never entered.
+    assert_eq!(decided(), 0);
     // A listener that only looks is asked once, in the action, and leaves the click to the same
     // routing: the same result.
     with_mod(|| {
         assert_eq!(run(), plain);
         assert_eq!(DISPATCHES.get(), 1);
+        assert_eq!(decided(), 1);
         assert_eq!(IN_ACTION.with(|a| a.borrow().clone()), [true]);
     });
 }

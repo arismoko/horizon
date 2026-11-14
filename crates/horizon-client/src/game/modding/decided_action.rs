@@ -20,9 +20,17 @@ use std::{cell::RefCell, rc::Rc};
 pub(in crate::game) enum Epoch {
     /// Nothing: the action reads no state a listener could write.
     Off,
-    /// A player's own state (inventory, cursor, menu storage). A write to another block, which a
-    /// mod's move legitimately makes, does not make the decision stale.
+    /// Players' state (inventory, cursor, menu storage). The epoch is one count for all players,
+    /// so a write to any player's state makes the decision stale, not only the acting player's: a
+    /// cautious refusal, never a partial move. A write to another block, which a mod's move
+    /// legitimately makes, does not make the decision stale.
     Player,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many times `decided_action` was entered: the no-listener tests prove it stays zero.
+    pub(in crate::game) static DECIDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 type Fresh<'p> = Box<dyn Fn(&Game<'_>) -> bool + 'p>;
@@ -103,6 +111,8 @@ impl Game<'_> {
         fire: impl FnOnce(&mut Game<'_>) -> Reply,
         perform: impl FnOnce(&mut Game<'_>) + 'p,
     ) -> bool {
+        #[cfg(test)]
+        DECIDED.set(DECIDED.get() + 1);
         let identity = Identity {
             side: Side::Server,
             world: actor.epoch(),
@@ -156,7 +166,8 @@ impl Game<'_> {
 impl Game<'_> {
     /// `native_menu_clicked`, the mods told of a click on a menu one of them opened. With a
     /// listener the notice runs in an action: a listener that fails, or whose menu is busy, has its
-    /// writes undone. The click moved nothing, so there is nothing to apply and nothing read.
+    /// writes undone. The click moved nothing, so there is nothing to apply and nothing read. A
+    /// click drained after its guest left (no actor) is still told, with the plain call.
     pub(in crate::game) fn menu_clicked_decided(
         &mut self,
         uuid: u128,
