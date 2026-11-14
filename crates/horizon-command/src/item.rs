@@ -33,6 +33,7 @@ pub const DECODED_COMPONENTS: &[&str] = &[
     "minecraft:custom_name",
     "minecraft:item_name",
     "minecraft:item_model",
+    "minecraft:custom_data",
     "minecraft:block_entity_data",
 ];
 
@@ -45,6 +46,9 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     }
     if id == "minecraft:item_model" {
         return item_model(value);
+    }
+    if id == "minecraft:custom_data" {
+        return horizon_items::item_data::custom_data::decode(value.clone());
     }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
@@ -122,6 +126,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
         "minecraft:custom_name" | "minecraft:item_name" => super::component::decode(t),
         "minecraft:item_model" => item_model(t).map(|_| ()),
+        "minecraft:custom_data" => horizon_items::item_data::custom_data::validate(t),
         // TypedEntityData.codec: the type is the compound's id.
         "minecraft:block_entity_data" => match t {
             Tag::Compound(c) => match c.get(&"id".into()) {
