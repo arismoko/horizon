@@ -291,9 +291,10 @@ def api_route(out: Path, link_args: list[str]) -> list[str]:
 
 
 def api_route_files() -> set[str]:
-    """What OUT/bin may hold: the executable and the stub, with its import library on Windows."""
+    """What OUT/bin may hold: the executable and the stub, with its import library on Windows (windows-gnu's
+    rustc names it `lib<name>.dll.a`, whatever the dll's own name)."""
     library = f"{dylib_prefix()}{NATIVE_MODS}{dylib_suffix()}"
-    return {EXECUTABLE, library, *([f"{library}.a"] if sys.platform == "win32" else [])}
+    return {EXECUTABLE, library, *([f"lib{NATIVE_MODS}{dylib_suffix()}.a"] if sys.platform == "win32" else [])}
 
 
 def holder_mark() -> bytes:

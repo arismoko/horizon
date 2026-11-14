@@ -335,6 +335,16 @@ class SdkAssetTests(unittest.TestCase):
             self.assertEqual((root / "fixture.tar.xz").read_bytes(), fixture.read_bytes())
 
 
+class ApiRouteFilesTests(unittest.TestCase):
+    def test_windows_gnu_import_library_is_named_as_rustc_writes_it(self):
+        # rustc on windows-gnu writes `horizon_native_mods.dll` and `libhorizon_native_mods.dll.a`.
+        with patch.object(prebuilt_game.sys, "platform", "win32"):
+            self.assertEqual(
+                prebuilt_game.api_route_files(),
+                {prebuilt_game.EXECUTABLE, "horizon_native_mods.dll", "libhorizon_native_mods.dll.a"},
+            )
+
+
 class AllocatorSelectionTests(unittest.TestCase):
     def test_package_format_comes_from_its_one_place(self):
         with tempfile.TemporaryDirectory() as directory:
