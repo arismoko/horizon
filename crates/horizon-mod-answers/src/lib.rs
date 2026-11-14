@@ -56,7 +56,12 @@ macro_rules! define_upward {
             w: &$crate::__private::MobWorld<'_>,
             distance: f64,
         ) -> Option<$crate::__private::ClipHit> {
-            $crate::goal::GoalCx { m: mob, w, level: game }.pick_own(distance)
+            $crate::goal::GoalCx {
+                m: mob,
+                w,
+                level: game,
+            }
+            .pick_own(distance)
         }
     };
 }

@@ -1,8 +1,6 @@
 //! Host bodies over the subsystem traits. Each is what the game's inherent method of the same
 //! name did, with the game's private state behind `engine_access` instead.
-use engine_access::{
-    EntityIdentity, EntityRead, EntityView, LevelRead, LevelWrite, UuidState,
-};
+use engine_access::{EntityIdentity, EntityRead, EntityView, LevelRead, LevelWrite, UuidState};
 use horizon_world::registry::BlockStateId;
 use mod_api::{BlockUpdateFlags, EntityRef, LevelRef, LevelWriteError};
 
@@ -53,7 +51,10 @@ where
 {
     let Some((pos, level)) = g.resolve(entity).and_then(|view| {
         let [x, y, z] = view.position()?;
-        Some(([x.floor() as i32, y.floor() as i32, z.floor() as i32], view.level()?))
+        Some((
+            [x.floor() as i32, y.floor() as i32, z.floor() as i32],
+            view.level()?,
+        ))
     }) else {
         return Err(LevelWriteError::Unavailable);
     };

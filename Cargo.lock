@@ -2227,6 +2227,7 @@ dependencies = [
 name = "horizon-mod-answers"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "horizon-client-lib",
  "horizon-core",
  "horizon-engine-access",

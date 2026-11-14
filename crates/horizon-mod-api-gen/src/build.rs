@@ -62,7 +62,12 @@ pub fn generate(root: &Path, out_dir: &Path, target: Target) -> Result<(), Strin
             ("mod_api_fire_generated.rs", slice_upward(generated.fire)),
             // The mob tick's goal read view (#1077), included beside the
             // engine's `GoalCx` in `mobs/part_goals.rs`.
-            ("mod_api_goal_view_generated.rs", generated.goal_view.replace("GoalCx<'_, '_>", "GoalCx<'_, '_, '_>")),
+            (
+                "mod_api_goal_view_generated.rs",
+                generated
+                    .goal_view
+                    .replace("GoalCx<'_, '_>", "GoalCx<'_, '_, '_>"),
+            ),
         ],
         Target::Api | Target::Vocab => {
             if matches!(target, Target::Api) {

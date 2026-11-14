@@ -43,6 +43,7 @@ fn scoped_host_reads_live_other_mob_before_stale_snapshot() {
             m: &mut actor,
             w: &world,
             host: game,
+            game,
         };
         assert_eq!(entity.rotation(&context), Some([37.0, -12.0]));
         assert_eq!(LivingRef::new(entity).max_health(&context), Some(73.0));
@@ -102,6 +103,7 @@ fn scoped_host_resolves_other_real_players_from_the_game() {
             m: &mut actor,
             w: &world,
             host: game,
+            game,
         };
         let player = context.lookup_player(13).expect("other guest is online");
         assert_eq!(player.entity().id(), 13);

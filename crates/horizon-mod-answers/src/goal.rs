@@ -39,6 +39,12 @@ impl<L: LevelRead> GoalCx<'_, '_, L> {
         let mob = self.m;
         let from = [mob.position.x, mob.eye_y(), mob.position.z];
         let v = view_vector(mob.head_pitch, mob.yaw);
-        pick(self.level, self.w.level.id(), from, [v.x, v.y, v.z], distance)
+        pick(
+            self.level,
+            self.w.level.id(),
+            from,
+            [v.x, v.y, v.z],
+            distance,
+        )
     }
 }

@@ -17,14 +17,24 @@ fn entity(id: u32) -> EntityRef {
 }
 
 fn level() -> LevelRef {
-    LevelRef::new(WorldEpoch::new(EPOCH), mod_api::__private::dimension_key("minecraft:overworld"))
+    LevelRef::new(
+        WorldEpoch::new(EPOCH),
+        mod_api::__private::dimension_key("minecraft:overworld"),
+    )
 }
 
 enum Kind {
     /// Simulated by the fake's level: has everything.
-    Simulated { position: [f64; 3], rotation: [f32; 2], kind: &'static str },
+    Simulated {
+        position: [f64; 3],
+        rotation: [f32; 2],
+        kind: &'static str,
+    },
     /// A client's copy of a server entity: a position and a kind, no rotation.
-    Tracked { position: [f64; 3], kind: &'static str },
+    Tracked {
+        position: [f64; 3],
+        kind: &'static str,
+    },
 }
 
 #[derive(Default)]
@@ -68,7 +78,7 @@ impl EntityRead for Fake {
         (entity.epoch() == WorldEpoch::new(EPOCH))
             .then(|| self.entities.get(&entity.id()))
             .flatten()
-            .map(|kind| View(kind))
+            .map(View)
     }
 }
 
@@ -103,14 +113,34 @@ impl LevelRead for Fake {
     fn block_has_tag(&self, pos: [i32; 3], tag: &str) -> bool {
         tag == "minecraft:fences" && self.fences.contains(&pos)
     }
-    fn clip(&self, _: LevelRef, from: [f64; 3], to: [f64; 3], _: ClipBlock, _: ClipFluid) -> Option<ClipHit> {
+    fn clip(
+        &self,
+        _: LevelRef,
+        from: [f64; 3],
+        to: [f64; 3],
+        _: ClipBlock,
+        _: ClipFluid,
+    ) -> Option<ClipHit> {
         // The ray's end is the hit: enough to see which ray was cast.
-        Some(ClipHit { miss: false, block: to.map(|v| v.floor() as i32), face: mod_api::BlockFace::Up, location: from, inside: false, world_border: false })
+        Some(ClipHit {
+            miss: false,
+            block: to.map(|v| v.floor() as i32),
+            face: mod_api::BlockFace::Up,
+            location: from,
+            inside: false,
+            world_border: false,
+        })
     }
 }
 
 impl LevelWrite for Fake {
-    fn set_block(&mut self, _: LevelRef, pos: [i32; 3], state: BlockStateId, _: BlockUpdateFlags) -> Result<bool, LevelWriteError> {
+    fn set_block(
+        &mut self,
+        _: LevelRef,
+        pos: [i32; 3],
+        state: BlockStateId,
+        _: BlockUpdateFlags,
+    ) -> Result<bool, LevelWriteError> {
         self.blocks_written.push((pos, state.0));
         Ok(true)
     }
@@ -118,21 +148,43 @@ impl LevelWrite for Fake {
 
 fn fake() -> Fake {
     let mut f = Fake::default();
-    f.entities.insert(1, Kind::Simulated { position: [-0.5, 64.0, 10.9], rotation: [90.0, -15.0], kind: "minecraft:zombie" });
-    f.entities.insert(2, Kind::Tracked { position: [3.0, 70.25, -1.0], kind: "minecraft:cow" });
+    f.entities.insert(
+        1,
+        Kind::Simulated {
+            position: [-0.5, 64.0, 10.9],
+            rotation: [90.0, -15.0],
+            kind: "minecraft:zombie",
+        },
+    );
+    f.entities.insert(
+        2,
+        Kind::Tracked {
+            position: [3.0, 70.25, -1.0],
+            kind: "minecraft:cow",
+        },
+    );
     f
 }
 
 #[test]
 fn block_position_floors_toward_negative_infinity() {
-    assert_eq!(bodies::entity_block_position(&fake(), entity(1)), Some([-1, 64, 10]));
+    assert_eq!(
+        bodies::entity_block_position(&fake(), entity(1)),
+        Some([-1, 64, 10])
+    );
 }
 
 #[test]
 fn tracked_only_entity_has_position_and_kind_but_no_rotation() {
     let f = fake();
-    assert_eq!(bodies::entity_position(&f, entity(2)), Some([3.0, 70.25, -1.0]));
-    assert_eq!(bodies::entity_kind(&f, entity(2)).as_deref(), Some("minecraft:cow"));
+    assert_eq!(
+        bodies::entity_position(&f, entity(2)),
+        Some([3.0, 70.25, -1.0])
+    );
+    assert_eq!(
+        bodies::entity_kind(&f, entity(2)).as_deref(),
+        Some("minecraft:cow")
+    );
     assert_eq!(bodies::entity_rotation(&f, entity(2)), None);
     assert_eq!(bodies::entity_rotation(&f, entity(1)), Some([90.0, -15.0]));
 }
@@ -159,7 +211,8 @@ fn uuid_is_assigned_on_first_ask_and_kept() {
 #[test]
 fn a_block_is_written_where_the_entity_stands() {
     let mut f = fake();
-    let written = bodies::entity_set_block_at(&mut f, entity(1), BlockStateId(5), BlockUpdateFlags::NONE);
+    let written =
+        bodies::entity_set_block_at(&mut f, entity(1), BlockStateId(5), BlockUpdateFlags::NONE);
     assert_eq!(written, Ok(true));
     assert_eq!(f.blocks_written, vec![([-1, 64, 10], 5)]);
     assert_eq!(
@@ -174,17 +227,43 @@ fn leashing_needs_a_fence_and_an_entity() {
     let mut f = fake();
     f.fences.push([4, 64, 4]);
     assert!(bodies::entity_leash_to_knot(&mut f, entity(1), [4, 64, 4]));
-    assert!(!bodies::entity_leash_to_knot(&mut f, entity(1), [5, 64, 4]), "no fence there");
-    assert!(!bodies::entity_leash_to_knot(&mut f, entity(99), [4, 64, 4]), "no such entity");
+    assert!(
+        !bodies::entity_leash_to_knot(&mut f, entity(1), [5, 64, 4]),
+        "no fence there"
+    );
+    assert!(
+        !bodies::entity_leash_to_knot(&mut f, entity(99), [4, 64, 4]),
+        "no such entity"
+    );
     assert_eq!(f.leashed, vec![(1, [4, 64, 4])]);
 }
 
 #[test]
 fn the_pick_ray_runs_along_the_view_for_the_distance_asked() {
     let f = fake();
-    let hit = crate::goal::pick(&f, "minecraft:overworld", [0.0, 65.0, 0.0], [0.0, 0.0, 1.0], 4.5).unwrap();
+    let hit = crate::goal::pick(
+        &f,
+        "minecraft:overworld",
+        [0.0, 65.0, 0.0],
+        [0.0, 0.0, 1.0],
+        4.5,
+    )
+    .unwrap();
     assert_eq!(hit.block, [0, 65, 4]);
-    assert!(crate::goal::pick(&f, "minecraft:overworld", [0.0; 3], [0.0, 0.0, 1.0], -1.0).is_none());
-    assert!(crate::goal::pick(&f, "minecraft:overworld", [0.0; 3], [0.0, 0.0, 1.0], f64::NAN).is_none());
-    assert!(crate::goal::pick(&f, "minecraft:the_nether", [0.0; 3], [0.0, 0.0, 1.0], 1.0).is_none());
+    assert!(
+        crate::goal::pick(&f, "minecraft:overworld", [0.0; 3], [0.0, 0.0, 1.0], -1.0).is_none()
+    );
+    assert!(
+        crate::goal::pick(
+            &f,
+            "minecraft:overworld",
+            [0.0; 3],
+            [0.0, 0.0, 1.0],
+            f64::NAN
+        )
+        .is_none()
+    );
+    assert!(
+        crate::goal::pick(&f, "minecraft:the_nether", [0.0; 3], [0.0, 0.0, 1.0], 1.0).is_none()
+    );
 }
