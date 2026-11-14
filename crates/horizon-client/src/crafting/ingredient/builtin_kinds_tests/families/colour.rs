@@ -1470,11 +1470,13 @@ fn cushion_color_components_compile_recipes_and_match_live_defaults() {
             assert!(!ingredient.test_in(&context, &stack));
             assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
         }
-        let removal = Tag::compound([(
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:cushion/color", &None);
+        stack.data_mut().set_loot_component(
             "!minecraft:cushion/color",
-            Tag::Compound(Default::default()),
-        )]);
-        (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+            &Some(Tag::Compound(Default::default())),
+        );
         assert!(!ingredient.test_in(&context, &stack));
         assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
         let absent_source = serde_json::json!({
@@ -1560,8 +1562,6 @@ fn malformed_cushion_color_payloads_reject_whole_recipes_with_component_errors()
         assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
     }
 }
-
-
 
 #[test]
 fn tropical_fish_base_color_recipes_match_independent_colors_and_defaults() {
@@ -1697,11 +1697,13 @@ fn tropical_fish_base_color_recipes_match_independent_colors_and_defaults() {
         !partial.test_in(&context, &stack),
         "explicit value overrides default"
     );
-    let removal = Tag::compound([(
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:tropical_fish/base_color", &None);
+    stack.data_mut().set_loot_component(
         "!minecraft:tropical_fish/base_color",
-        Tag::Compound(Default::default()),
-    )]);
-    (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(!partial.test_in(&context, &stack));
     assert!(absent.test_in(&context, &stack));
     let absent_without_defaults = parse(

@@ -96,8 +96,12 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
             .map(|weapon| weapon.to_tag())
             .map_err(str::to_owned);
     }
-    if id == "minecraft:compostable" { return horizon_items::item_data::ingredient_components::decoded_compostable(value); }
-    if id == "minecraft:brewing_fuel" { return horizon_items::item_data::brewing_fuel::decode(value); }
+    if id == "minecraft:compostable" {
+        return horizon_items::item_data::ingredient_components::decoded_compostable(value);
+    }
+    if id == "minecraft:brewing_fuel" {
+        return horizon_items::item_data::brewing_fuel::decode(value);
+    }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
         let Tag::Compound(_) = value else {
@@ -172,7 +176,9 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
         "minecraft:brewing_fuel" => horizon_items::item_data::brewing_fuel::decode(t).map(|_| ()),
-        "minecraft:compostable" => horizon_items::item_data::ingredient_components::validate_compostable(t),
+        "minecraft:compostable" => {
+            horizon_items::item_data::ingredient_components::validate_compostable(t)
+        }
         "minecraft:weapon" => horizon_items::properties::Weapon::from_tag(t)
             .map(|_| ())
             .map_err(str::to_owned),
@@ -264,7 +270,9 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         | "minecraft:sheep/color"
         | "minecraft:shulker/color"
         | "minecraft:cat/collar"
-        | "minecraft:wolf/collar" | "minecraft:cushion/color" | "minecraft:tropical_fish/base_color" => dye_color(t).map(|_| ()),
+        | "minecraft:wolf/collar"
+        | "minecraft:cushion/color"
+        | "minecraft:tropical_fish/base_color" => dye_color(t).map(|_| ()),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
         // DataComponents.ENCHANTMENT_GLINT_OVERRIDE: Codec.BOOL through NbtOps.
         "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)

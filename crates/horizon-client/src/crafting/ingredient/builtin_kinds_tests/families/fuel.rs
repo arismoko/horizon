@@ -746,6 +746,10 @@ fn brewing_fuel_codec_compiles_recipes_and_borrows_live_values() {
         recipes.find(&context, &[Some(stack.clone())], 1).unwrap().0,
         "fixture:reference"
     );
+    assert!(
+        !ingredient.test_in(&context, &stack),
+        "a reference is not a numeric constant"
+    );
     let reference = Ingredient::parse(&reference, &items).unwrap();
     let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
         assert!(reference.test_in(&context, &stack));
