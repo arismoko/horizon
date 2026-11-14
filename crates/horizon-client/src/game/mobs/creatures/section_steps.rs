@@ -41,10 +41,20 @@ pub(super) fn finish(game: &mut Game<'_>, mut steps: Steps) {
         {
             let live = &mut game.native_lifecycle.entity_sections.projectile_live;
             live.clear();
-            live.extend(game.creatures.projectiles.iter().map(|projectile| projectile.id));
+            live.extend(
+                game.creatures
+                    .projectiles
+                    .iter()
+                    .map(|projectile| projectile.id),
+            );
         }
         for id in steps.seen.drain(..) {
-            if !game.native_lifecycle.entity_sections.projectile_live.contains(&id) {
+            if !game
+                .native_lifecycle
+                .entity_sections
+                .projectile_live
+                .contains(&id)
+            {
                 game.entity_section_forget(id);
             }
         }

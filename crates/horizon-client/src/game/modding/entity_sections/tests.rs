@@ -35,10 +35,7 @@ impl Hooks for PositionListener {
             HostSide::Server(host) => event.entity.position(host),
             HostSide::Client(host) => event.entity.position(host),
         };
-        self.0
-            .lock()
-            .unwrap()
-            .push(position);
+        self.0.lock().unwrap().push(position);
     }
 }
 
@@ -363,7 +360,10 @@ fn a_real_mob_tick_exposes_each_intermediate_position_to_the_listener() {
             let id = floating_cow(game, [8.5, 100.0, 8.5]);
             teleport_then_walk(game, id, &[[8.5, 127.75, 8.5]], [0.0, 0.6, 0.0]);
             let positions = positions.lock().unwrap();
-            assert_eq!(positions.first().copied().flatten(), Some([8.5, 127.75, 8.5]));
+            assert_eq!(
+                positions.first().copied().flatten(),
+                Some([8.5, 127.75, 8.5])
+            );
             assert_eq!(positions.len(), 2);
             assert!(positions[1].is_some_and(|at| at[1] >= 128.0));
         })
