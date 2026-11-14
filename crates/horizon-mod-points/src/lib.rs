@@ -84,13 +84,6 @@ pub mod guest;
 // hidden: the game's side of the points, not part of the API a mod is written against
 #[doc(hidden)]
 pub mod __private {
-    use crate::PointId;
     pub use crate::registry::{POINTS, TABLE, seal};
     pub use mod_api::__private::points::{ApiKind, Forward, PointHost, SlotListener};
-
-    /// Runs the checked API functions and forwarding endpoints under their owner guards.
-    #[inline]
-    pub fn fire_api(place: PointId, call: &mut dyn FnMut(ApiKind)) {
-        TABLE.fire_api(place as usize, call);
-    }
 }

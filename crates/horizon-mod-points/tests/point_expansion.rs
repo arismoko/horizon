@@ -2,6 +2,9 @@
 use horizon_mod_api_macros::point;
 use std::sync::atomic::Ordering;
 
+extern crate self as horizon_engine_slots;
+pub use mod_points::*;
+
 mod mod_points {
     pub struct DoubleArgs {
         pub value: i64,
@@ -20,6 +23,7 @@ mod mod_points {
         DoubleReturn,
     }
     pub mod __private {
+        pub use mod_api::__private::points::cold;
         use std::sync::atomic::AtomicBool;
         pub static POINTS: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
     }

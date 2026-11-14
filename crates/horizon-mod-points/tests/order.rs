@@ -2,7 +2,7 @@
 #![allow(clippy::all, unused_comparisons, unreachable_patterns, dead_code)]
 use mod_api::__private::points::register;
 use mod_points::{
-    __private::{ApiKind, Forward, PointHost, SlotListener, fire_api, seal},
+    __private::{ApiKind, Forward, PointHost, SlotListener, TABLE, seal},
     PointId,
 };
 
@@ -72,7 +72,7 @@ fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
     }
     seal();
     let mut owners = Vec::new();
-    fire_api(PointId::TickWorldReturn, &mut |_| {
+    TABLE.fire_api(PointId::TickWorldReturn as usize, &mut |_| {
         owners.push(
             mod_api::content::crash::current_native_mod()
                 .unwrap()
@@ -93,7 +93,7 @@ fn point_priority_preserves_dependency_order_and_orders_injects_within_a_mod() {
     );
     for row in rows {
         let mut heard = Vec::new();
-        fire_api(row.place, &mut |kind| {
+        TABLE.fire_api(row.place as usize, &mut |kind| {
             heard.push(if row.one_owner {
                 match kind {
                     ApiKind::Typed(_) => "native",

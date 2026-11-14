@@ -8,6 +8,7 @@ description = "The client's input layer: key bindings and their names, mouse, co
 
 [dependencies]
 horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
+horizon-engine-slots = { path = "../horizon-engine-slots" }
 horizon-client-core = { path = "../horizon-client-core" }
 winit = "0.30.13"
 png = "0.18"

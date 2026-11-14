@@ -111,7 +111,7 @@ fn real_library_dependency() {
         mod_points::__private::seal();
         let _phase = mod_api::__private::PhaseOwner::scope(mod_api::__private::ModPhase::World);
         let mut args = mod_points::TickArgs::__new();
-        mod_points::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
+        horizon_engine_slots::dispatch::tick(mod_api::HostSide::Server(&mut Quiet), &mut args);
         assert!(
             args.cancel,
             "only the dependent package owns the tick registration"

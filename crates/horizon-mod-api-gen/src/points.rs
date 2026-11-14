@@ -2,8 +2,9 @@
 //! admits and the API can carry is a point, and so is each such function marked `#[horizon_mod_api_macros::replaceable]` in
 //! the crates below it. The staging pass ([`stage`]) puts `#[point]` on each in a staged copy of the
 //! game's source, the copy the prebuilt game builds compile;
-//! the generator lists the same points from any copy, staged or not, as `mod_points` (each point's
-//! record, typed function slots, `PointId`) and as `points.json`, the compiled slot catalog. All of them are build outputs, never committed.
+//! the generator declares records, copy-in constructors and typed dispatch in
+//! `horizon_engine_slots`, and mod-facing registration and guest exports in `mod_points`.
+//! `points.json` is the compiled slot catalog. These are build outputs, never committed.
 
 use crate::replace::marked;
 use crate::source::{crate_files, crate_root, game_files, gated, offset, owner, plain_path, unraw};
@@ -39,9 +40,6 @@ pub struct GamePoint {
     pub return_ty: String,
     /// Whether its API listeners run at the return: not when the value returned borrows.
     pub at_return: bool,
-    /// [`mod_surface::contract_hash`] of everything above but the name: equal hashes on
-    /// two builds, the same point for a mod's `[[inject]]` row.
-    pub signature_hash: String,
     #[serde(skip)]
     record_item: String,
     /// Its typed function constructors, place ids and dispatch functions
@@ -68,7 +66,6 @@ impl GamePoint {
     pub(crate) fn new(shape: point_shape::Shape, found: &Found<'_>, target: String) -> Self {
         let api = shape.api_items(&target);
         GamePoint {
-            signature_hash: String::new(),
             record_item: if shape.api() {
                 shape.record_item(&target).to_string()
             } else {
@@ -111,23 +108,6 @@ impl GamePoint {
             },
             name: shape.name,
         }
-        .hashed()
-    }
-
-    /// The point with its [`GamePoint::signature_hash`] filled in.
-    fn hashed(mut self) -> Self {
-        self.signature_hash = mod_surface::contract_hash(&(
-            &self.target,
-            self.side,
-            self.host,
-            &self.record,
-            &self.args,
-            self.returns,
-            &self.return_ty,
-            self.at_return,
-            &self.api_refusal,
-        ));
-        self
     }
 }
 
@@ -715,9 +695,7 @@ pub(crate) fn stage_with_manifest(
         .collect::<Result<Vec<_>, _>>()?;
     records.sort_by(|a, b| a.name.cmp(&b.name));
     let mut staged = Staged::default();
-    let mut packages = std::collections::BTreeSet::new();
     for (index, file) in scanned.iter().enumerate() {
-        let points_before = staged.points;
         let here: Vec<_> = points
             .iter()
             .filter(|(i, _)| *i == index)
@@ -789,79 +767,8 @@ pub(crate) fn stage_with_manifest(
         out.push_str(&source[from..]);
         fs::write(&file.path, out).map_err(|e| format!("{}: {e}", file.path.display()))?;
         staged.files += 1;
-        // The game crate names the points' table only in a staged copy, so its normal manifest
-        // carries no dependency on it: the pass adds one, as it does for a marked lower crate.
-        if staged.points != points_before {
-            packages.insert(
-                file.package
-                    .clone()
-                    .unwrap_or_else(|| root.join("crates/horizon-client")),
-            );
-        }
     }
-    dependencies(root, packages)?;
     Ok((staged, records))
-}
-
-/// Give marked lower-crate points and sites their staged dependencies, including the lock file.
-pub(crate) fn dependencies(
-    root: &Path,
-    packages: std::collections::BTreeSet<PathBuf>,
-) -> Result<(), String> {
-    const ADDED: [&str; 3] = [
-        "horizon-mod-points",
-        "horizon-mod-api-macros",
-        "horizon-mod-api",
-    ];
-    if packages.is_empty() {
-        return Ok(());
-    }
-    let lock_path = root.join("Cargo.lock");
-    // A Windows checkout has CRLF line endings; Cargo reads either, and the entries match on LF.
-    let mut lock = fs::read_to_string(&lock_path)
-        .map_err(|e| format!("{}: {e}", lock_path.display()))?
-        .replace("\r\n", "\n");
-    for package in packages {
-        let manifest = package.join("Cargo.toml");
-        let text =
-            fs::read_to_string(&manifest).map_err(|e| format!("{}: {e}", manifest.display()))?;
-        let mut cargo: toml::Table = toml::from_str(&text).map_err(|e| e.to_string())?;
-        let dependencies = cargo
-            .entry("dependencies")
-            .or_insert_with(|| toml::Value::Table(toml::Table::new()))
-            .as_table_mut()
-            .ok_or("[dependencies] is not a table")?;
-        // Every package with points sits in `crates/`, beside these two.
-        // The engine already imports vocabulary as mod_api. Do not add the
-        // platform under its default lib name as a second, conflicting mod_api.
-        let added: Vec<_> = ADDED
-            .into_iter()
-            .filter(|name| *name != "horizon-mod-api" || !dependencies.contains_key("mod_api"))
-            .collect();
-        for &name in &added {
-            dependencies.entry(name).or_insert_with(|| {
-                toml::Value::Table(toml::Table::from_iter([(
-                    "path".to_owned(),
-                    format!("../{name}").into(),
-                )]))
-            });
-        }
-        let name = cargo
-            .get("package")
-            .and_then(|package| package.get("name"))
-            .and_then(toml::Value::as_str)
-            .ok_or_else(|| format!("{}: no package name", manifest.display()))?
-            .to_owned();
-        lock = locked_with(&lock, &name, &added)
-            .ok_or_else(|| format!("Cargo.lock has no entry for {name}"))?;
-        fs::write(
-            &manifest,
-            toml::to_string(&cargo).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| format!("{}: {e}", manifest.display()))?;
-    }
-    fs::write(&lock_path, lock).map_err(|e| format!("{}: {e}", lock_path.display()))?;
-    Ok(())
 }
 
 /// `lock` with `added` in the dependency list of the package `name`, kept in the lock file's
@@ -930,28 +837,15 @@ pub(crate) fn records_selected(
         code.parse::<proc_macro2::TokenStream>()
             .expect("generated points")
     };
-    let records = points.iter().map(|point| {
-        if enabled(point) {
-            return parse(&point.record_item);
-        }
-        let mut file: syn::File = syn::parse_str(&point.record_item).expect("point record");
-        // Keep every record's public shape, but only selected records need a guest codec.
-        for item in &mut file.items {
-            if let syn::Item::Struct(record) = item {
-                record.attrs.retain(|attr| {
-                    !(attr.path().is_ident("cfg_attr")
-                        && attr
-                            .to_token_stream()
-                            .to_string()
-                            .contains("derive (:: mod_api :: Wire)"))
-                });
-            }
-        }
-        quote!(#file)
-    });
+    let records = points
+        .iter()
+        .filter(|point| point.api_refusal.is_none())
+        .map(|point| {
+            let record = quote::format_ident!("{}", point.record);
+            quote!(pub use horizon_engine_slots::#record;)
+        });
     let listeners = points.iter().map(|point| parse(&point.api[0]));
     let variants: Vec<_> = points.iter().map(|point| parse(&point.api[1])).collect();
-    let dispatch = points.iter().map(|point| parse(&point.api[2]));
     let mut guest_functions = proc_macro2::TokenStream::new();
     let mut guest_entries = proc_macro2::TokenStream::new();
     let targets: Vec<_> = points
@@ -1093,8 +987,64 @@ pub(crate) fn records_selected(
         pub const POINT_COUNT: usize = PointId::__Count as usize;
         /// Typed API listener aliases and constructors, generated from the point catalog.
         pub mod listeners { use super::*; #(#listeners)* }
-        /// The game's typed dispatch, not part of the API a mod is written against.
-        #[doc(hidden)]
+    }
+    .to_string()
+}
+
+/// Engine-owned records and typed dispatch; registration stays in the platform.
+pub(crate) fn engine_records(
+    points: &[GamePoint],
+    selected: Option<&std::collections::BTreeSet<String>>,
+) -> String {
+    let parse = |code: &str| {
+        code.parse::<proc_macro2::TokenStream>()
+            .expect("generated points")
+    };
+    let records = points.iter().map(|point| {
+        let mut file: syn::File = syn::parse_str(&point.record_item).expect("point record");
+        if selected.is_some_and(|names| {
+            !names.contains(&point.name) && !names.contains(&format!("{}_return", point.name))
+        }) {
+            for item in &mut file.items {
+                if let syn::Item::Struct(record) = item {
+                    record.attrs.retain(|attr| {
+                        !(attr.path().is_ident("cfg_attr")
+                            && attr
+                                .to_token_stream()
+                                .to_string()
+                                .contains("derive (:: mod_api :: Wire)"))
+                    });
+                }
+            }
+        }
+        quote!(#file)
+    });
+    let variants: Vec<_> = points.iter().map(|point| parse(&point.api[1])).collect();
+    let dispatch = points.iter().map(|point| parse(&point.api[2]));
+    let listeners = points.iter().map(|point| {
+        let items = parse(&point.api[0]);
+        let mut module: syn::ItemMod =
+            syn::parse2(quote!(mod listeners { #items })).expect("point listeners");
+        module
+            .content
+            .as_mut()
+            .unwrap()
+            .1
+            .retain(|item| matches!(item, syn::Item::Type(_)));
+        let items = &module.content.as_ref().unwrap().1;
+        quote!(#(#items)*)
+    });
+    quote! {
+        #(#records)*
+        /// Catalog-ordered engine point places.
+        #[repr(usize)]
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        pub enum PointId { #(#variants)* __Count }
+        /// Number of engine point places.
+        pub const POINT_COUNT: usize = PointId::__Count as usize;
+        /// Checked function types used by typed dispatch.
+        pub mod listeners { use super::*; #(#listeners)* }
+        /// Typed dispatch through the installed provider.
         pub mod dispatch { use super::*; #(#dispatch)* }
     }
     .to_string()
@@ -1103,55 +1053,6 @@ pub(crate) fn records_selected(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn staging_keeps_engine_vocabulary_without_platform() {
-        let root = std::env::temp_dir().join(format!("point-vocabulary-{}", std::process::id()));
-        let package = root.join("crates/engine");
-        std::fs::create_dir_all(&package).unwrap();
-        std::fs::write(package.join("Cargo.toml"), "[package]\nname = 'engine'\n[dependencies]\nmod_api = { package = 'horizon-mod-vocab', path = '../horizon-mod-vocab' }\n").unwrap();
-        std::fs::write(root.join("Cargo.lock"), "[[package]]\nname = \"engine\"\nversion = \"0.1.0\"\ndependencies = [\n \"horizon-mod-vocab\",\n]\n").unwrap();
-        dependencies(&root, std::collections::BTreeSet::from([package.clone()])).unwrap();
-        let manifest = std::fs::read_to_string(package.join("Cargo.toml")).unwrap();
-        let parsed: toml::Table = toml::from_str(&manifest).unwrap();
-        let deps = parsed["dependencies"].as_table().unwrap();
-        assert!(deps.contains_key("mod_api"));
-        assert!(deps.contains_key("horizon-mod-points"));
-        assert!(!deps.contains_key("horizon-mod-api"));
-        assert!(
-            !std::fs::read_to_string(root.join("Cargo.lock"))
-                .unwrap()
-                .contains("\"horizon-mod-api\"")
-        );
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn a_points_signature_hash_follows_its_signature_not_its_name() {
-        let point = |name: &str, ty: &str| {
-            GamePoint {
-                api_refusal: None,
-                name: name.into(),
-                target: "game::tick".into(),
-                side: "server",
-                host: "server",
-                record: "TickRecord".into(),
-                args: vec![("count".into(), ty.into())],
-                returns: "cancel",
-                return_ty: "()".into(),
-                at_return: false,
-                signature_hash: String::new(),
-                record_item: String::new(),
-                api: Default::default(),
-            }
-            .hashed()
-            .signature_hash
-        };
-        let base = point("tick", "u32");
-        assert_eq!(base.len(), 32);
-        assert_eq!(point("renamed", "u32"), base);
-        assert_ne!(point("tick", "u64"), base);
-    }
 
     #[test]
     fn selected_guest_exports_keep_the_full_layout() {
@@ -1170,7 +1071,6 @@ mod tests {
                 returns: "cancel",
                 return_ty: "()".into(),
                 at_return: true,
-                signature_hash: String::new(),
                 record_item: shape.record_item(name).to_string(),
                 api: [
                     api.listeners.to_string(),
@@ -1181,6 +1081,7 @@ mod tests {
         };
         let points = [make("first"), make("second")];
         let selected = std::collections::BTreeSet::from(["first_return".to_string()]);
+        let engine = engine_records(&points, Some(&selected));
         let all = records(&points);
         let selected = records_selected(&points, Some(&selected));
         let layout = |source: &str| {
@@ -1197,7 +1098,7 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(layout(&all), layout(&selected));
-        let file = syn::parse_file(&selected).unwrap();
+        let file = syn::parse_file(&engine).unwrap();
         let wires = file.items.iter().filter(|item| matches!(item, syn::Item::Struct(record) if record.attrs.iter().any(|attr| attr.path().is_ident("cfg_attr") && attr.to_token_stream().to_string().contains("derive (:: mod_api :: Wire)")))).count();
         assert_eq!(wires, 1);
         assert!(selected.contains("fn point_first"));
@@ -1209,7 +1110,6 @@ mod tests {
     /// The census: how many points have an API record, and why the others refuse.
     /// `POINT_INVENTORY=path` writes every point's name, target and refusal.
     #[test]
-    #[ignore = "daily"]
     fn point_inventory() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let points = game_points(&root).unwrap();
@@ -1246,7 +1146,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "daily"]
     fn no_wire_public_values_refuse_before_point_record_emission() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let wire = crate::build::wire_types(&root).unwrap();
@@ -1755,15 +1654,12 @@ name = 'horizon-mod-api-gen'
         assert!(!mesher.contains("point("), "{mesher}");
         let manifest = std::fs::read_to_string(render.join("Cargo.toml")).unwrap();
         assert!(!manifest.contains("horizon-mod-points"), "{manifest}");
-        // The game crate's points name the table: the staged copy gives it the dependency.
+        // Staging leaves the engine manifest and lock dependency graph unchanged.
         let client =
             std::fs::read_to_string(root.join("crates/horizon-client/Cargo.toml")).unwrap();
-        assert!(client.contains("horizon-mod-points"), "{client}");
+        assert!(!client.contains("horizon-mod-points"), "{client}");
         let lock = std::fs::read_to_string(root.join("Cargo.lock")).unwrap();
-        assert!(
-            lock.contains("name = \"horizon-client\"\nversion = \"0.1.0\"\ndependencies = [\n \"horizon-mod-api\",\n \"horizon-mod-api-macros\",\n \"horizon-mod-points\",\n]"),
-            "{lock}"
-        );
+        assert!(!lock.contains(" \"horizon-mod-points\","), "{lock}");
         // A second pass finds the attribute and refuses: the source tree never carries one.
         assert!(
             stage_with(&root, &WireTypes::new())
