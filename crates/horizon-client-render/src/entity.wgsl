@@ -41,7 +41,8 @@ struct Globals {
     view_origin: vec4<f32>,
     // A mod's world view's own, zero outside one (gfx/world_views.rs's `ViewCamera`): x -1 when
     // mirrored (its screen runs right to left), else 1; y the clip-space depth its clip plane's
-    // entities come forward (`fs_entity_clipped`), 0 without one; z 1 with a clip plane.
+    // entities come forward (`fs_entity_clipped`), 0 without one; z 1 with a clip plane; w 1 when
+    // its entities take full light (`WorldView::with_full_light`).
     world_view: vec4<f32>,
 }
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -142,7 +143,9 @@ fn entity_vertex(position: vec3<f32>, uv: vec2<f32>,
     out.clip = globals.view_proj * vec4(position, 1.0);
     out.proj = vec4(out.clip.xy * 0.5 + out.clip.w * 0.5, out.clip.zw);
     out.uv = uv;
-    let l = vec2(max(f32(light.y), dynamic_block_light(position)), f32(light.x));
+    // A world view with full light: block and sky light 15, LightCoordsUtil.FULL_BRIGHT.
+    let l = select(vec2(max(f32(light.y), dynamic_block_light(position)), f32(light.x)),
+        vec2(240.0), globals.world_view.w != 0.0);
     let lm = textureSampleLevel(lightmap, lightmap_sampler,
         clamp(l / 256.0 + 0.5 / 16.0, vec2(0.5 / 16.0), vec2(15.5 / 16.0)), 0.0);
     // Celestial bodies, clouds, beacon beams, End portals and breaking cracks are unlit.

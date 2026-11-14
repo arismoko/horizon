@@ -22,7 +22,8 @@ pub(super) struct ViewCamera {
     pub offset: Vec3,
     /// Its globals' `world_view`: x -1 mirrored, else 1; y the clip-space depth entities come
     /// forward (`ENTITY_MARGIN`); z 1 with a clip plane, which the shaders take from there
-    /// rather than from y (that can round to 0 for a camera very near the plane).
+    /// rather than from y (that can round to 0 for a camera very near the plane); w 1 when its
+    /// entities take full light.
     pub world_view: [f32; 4],
     view: Mat4,
     aspect: f32,
@@ -50,7 +51,12 @@ impl ViewCamera {
         let projection = super::world_projection(view.fov_degrees, aspect, far);
         let offset = (view.camera - camera).as_vec3();
         let mut own_view_proj = projection * rotation;
-        let mut world_view = [if view.mirror { -1.0 } else { 1.0 }, 0.0, 0.0, 0.0];
+        let mut world_view = [
+            if view.mirror { -1.0 } else { 1.0 },
+            0.0,
+            0.0,
+            if view.full_light { 1.0 } else { 0.0 },
+        ];
         if let Some(plane) = view.camera_clip_plane() {
             let k = corner_cosine((view.fov_degrees.to_radians() / 2.0).tan(), aspect);
             own_view_proj = near_plane_on(own_view_proj, plane, k);

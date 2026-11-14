@@ -566,8 +566,8 @@ struct Globals {
     hdr_gains: [f32; 4],
     /// The camera-relative eye fog is measured from: zero but in a mod's world view.
     view_origin: [f32; 4],
-    /// A mod's world view's own (`world_views::ViewCamera`), zero outside one: x -1 when it is
-    /// mirrored, else 1; y the clip-space depth its entities come forward; z 1 with a clip plane.
+    /// A mod's world view's (`world_views::ViewCamera`), zero outside one: x -1 mirrored, else 1;
+    /// y the depth its entities come forward; z 1 with a clip plane; w 1 with full light.
     world_view: [f32; 4],
 }
 #[repr(C)]

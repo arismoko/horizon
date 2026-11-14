@@ -39,6 +39,8 @@ pub struct WorldView {
     pub mirror: bool,
     /// The view this one is seen in ([`WorldView::with_parent`]).
     pub parent: Option<u64>,
+    /// Its entities and block entities take full light ([`WorldView::with_full_light`]).
+    pub full_light: bool,
 }
 
 impl WorldView {
@@ -60,6 +62,7 @@ impl WorldView {
             size,
             clip_plane: None,
             mirror: false,
+            full_light: false,
             parent: None,
         }
     }
@@ -89,6 +92,16 @@ impl WorldView {
     pub fn with_mirror(self) -> Self {
         Self {
             mirror: true,
+            ..self
+        }
+    }
+
+    /// Entities and block entities at full light (block and sky light 15), whatever the world's
+    /// light where they stand, as a camera preview that stays readable at night or in a cave
+    /// shows them. Terrain, the sky and fog keep the world's light.
+    pub fn with_full_light(self) -> Self {
+        Self {
+            full_light: true,
             ..self
         }
     }

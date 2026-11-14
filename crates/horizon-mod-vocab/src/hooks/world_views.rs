@@ -30,6 +30,10 @@ mirror:
   parent's target, as a view with no parent is drawn into the frame in `world_drawn`. Nothing more is bound: the
   frame encoder's order is the guarantee. Otherwise a child is drawn from its own camera like any view.
 
+For a camera preview, `with_full_light()` draws the view's entities and block entities at full light (block and
+sky light 15), whatever the world's light where they stand, so a night or cave scene stays readable; terrain, the
+sky and fog keep the world's light.
+
 Up to `MAX_WORLD_VIEWS` (8) are taken, each at most `MAX_WORLD_VIEW_SIDE` (4096) pixels a side and the device's
 largest texture side, and all together at most `WORLD_VIEW_PIXEL_BUDGET` pixels (4 x 4096 x 4096, as much as four
 views took before views had parents). Nothing is left out without a word: `push` refuses, by its

@@ -339,6 +339,12 @@ fn fixture(window: Arc<Window>) -> Result<(), Box<dyn std::error::Error>> {
             magenta,
         ))
         .chain(quad(upright([5.0, 99.0, 7.0, 101.0], 29.995), magenta))
+        // blue-ish in the dark (block and sky light 0), 52 blocks east where only views 11 and
+        // 12 look
+        .chain(
+            quad(upright([59.5, 103.5, 60.5, 104.5], 6.0), 0xffff_8040)
+                .map(|v| Vertex { light: 0, ..v }),
+        )
         .collect();
     let hud = HudBatch::new([320, 180], GUI);
     // The game's frame: the entities culled with `camera_frustum`, which asks for the views,
@@ -455,6 +461,41 @@ fn fixture(window: Arc<Window>) -> Result<(), Box<dyn std::error::Error>> {
     assert!(
         !seen(&mut renderer, 0.0),
         "and the first too, without views"
+    );
+
+    // A view with full light draws its entities at block and sky light 15, with the world's
+    // lightmap (not the fixture's full bright one): the quad in the dark (light 0) shows its
+    // own colour there and is dimmed in the same view without it. The frame's own picture stays
+    // as it was.
+    renderer.fullbright = false;
+    let (dark_plain, ..) = shot(&mut renderer, "dark_plain", Vec::new());
+    let dark = |id| WorldView::new(id, DVec3::new(60.0, 104.0, 9.0), 180.0, 0.0, 70.0, [64, 64]);
+    let (with_light, drawn, _) = shot(
+        &mut renderer,
+        "full_light",
+        vec![dark(11), dark(12).with_full_light()],
+    );
+    renderer.fullbright = true;
+    assert!(
+        with_light == dark_plain,
+        "the frame's picture is the same with a full light view"
+    );
+    let ids: Vec<u64> = drawn.iter().map(|(id, ..)| *id).collect();
+    assert_eq!(ids, [11, 12]);
+    write_png(&out.join("view_11.png"), drawn[0].1, &drawn[0].2)?;
+    write_png(&out.join("view_12.png"), drawn[1].1, &drawn[1].2)?;
+    let middle = |pixels: &[[u8; 4]]| pixels[32 * 64 + 32];
+    let (unlit, lit) = (middle(&drawn[0].2), middle(&drawn[1].2));
+    let blue = |pixels: &[[u8; 4]]| count(pixels, [64, 128, 255]);
+    assert_eq!(
+        blue(&drawn[0].2),
+        0,
+        "without full light the quad is dimmed: {unlit:?}"
+    );
+    let lit_px = blue(&drawn[1].2);
+    assert!(
+        lit_px > 200,
+        "with it, its own colour: {lit_px} pixels, {lit:?}"
     );
 
     // Views seen in views, fresh ids no earlier frame drew, one frame: pushed parent first,
