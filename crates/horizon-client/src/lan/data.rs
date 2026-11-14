@@ -520,6 +520,9 @@ impl SyncData {
                 overlay.conditions,
                 path,
             );
+            if *key == "minecraft:enchantment" {
+                holder_sets::expand_enchantments(&mut entries, resources, overlay, defaults)?;
+            }
             // A biome the mods' modifiers changed is not the client's own file any more:
             // its data is sent, as a pack's biome is.
             let modified = match *key == BIOME_REGISTRY {
@@ -1601,3 +1604,5 @@ mod component_tests {
 
 #[path = "data_condition_filter.rs"]
 mod condition_filter;
+#[path = "data_holder_sets.rs"]
+mod holder_sets;

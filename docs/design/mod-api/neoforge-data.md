@@ -43,3 +43,41 @@ loaded mod. Changed enabled IDs participate in cache identity and are published
 with successful reloads; failed preparation preserves the old generation, and
 retained readers keep their old snapshot. Recipe condition behavior is unchanged.
 This shared contract does not add readers for the two modifier kinds above.
+
+## Holder sets
+
+The supported fields vanilla types as a `HolderSet` use one decoder,
+`horizon_world::holder_set::resolve`. It takes an id, a `#tag`, a list of ids,
+or NeoForge's `neoforge:any`, `neoforge:and` / `neoforge:or` (`values`) and
+`neoforge:not` (`value`) objects (`AnyHolderSet`, `AndHolderSet`,
+`OrHolderSet`, `NotHolderSet`), nested freely. `or` keeps its values' order,
+`and` its first value's, and `any` / `not` the registry's. The readers that use it:
+
+- feature block, fluid and biome predicates;
+- structure processors (`protected_blocks`, the rule block sets);
+- structures' `biomes` and the monument, mineshaft and jigsaw biome fields;
+- checkerboard biome sources;
+- loot holder sets (items, enchantments, instruments, biomes);
+- enchantments' `supported_items`, `primary_items` and `exclusive_set`;
+- biome and structure modifier selectors.
+
+A synced enchantment that writes one of these objects reaches clients as the
+resolved id list, so vanilla clients decode it. Mod-defined holder-set types
+(`HolderSetType`, `ICustomHolderSet`) are not read yet; they wait on the typed
+codec foundation ([#811](https://github.com/arismoko/horizon/issues/811)). The
+recipe book's network holder sets carry only the vanilla forms.
+
+Objects bind once during the owning load, before publication. Enchantment
+item sets use the complete default-component item snapshot (including mod items)
+and ordered tags; exclusive sets use the complete enchantment registry. The
+same binding supplies synchronized enchantment JSON, so client and server agree
+on membership and order. Loot objects bind in known engine-owned fields, including
+biome predicates and instrument options; arbitrary component and mod payload JSON
+is not rewritten. Invalid objects refuse the load with the definition and field
+in the error, rather than becoming an empty set at roll time. Native table-load
+replacements are validated before replacing the usable table snapshot.
+
+`any` and `not` require the owning registry universe. An unavailable universe is
+a named error, not an empty registry. Plain strings, lists and tags retain their
+previous reader semantics, including the structure-biome and processor-list
+readers' lenient handling of non-string list members.

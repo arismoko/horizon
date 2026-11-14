@@ -522,42 +522,9 @@ impl Registry<'_> {
         Selector::read(set.clone(), false)?.resolve(self, None)
     }
 
+    /// A set with no climate in it, through the shared holder-set decoder.
     fn resolve_leaf(&self, set: &Value) -> std::result::Result<Vec<String>, String> {
-        let mut out = Vec::new();
-        match set {
-            Value::String(s) => match s.strip_prefix('#') {
-                Some(tag) => self.expand(&full(tag), &mut out, &mut BTreeSet::new())?,
-                None => {
-                    let id = full(s);
-                    if !self.ids.contains(&id) {
-                        return Err(format!("unknown {} {id}", self.what));
-                    }
-                    out.push(id);
-                }
-            },
-            Value::Array(list) => {
-                for v in list {
-                    match v {
-                        Value::String(s) if !s.starts_with('#') => {
-                            extend(&mut out, self.resolve_leaf(v)?)
-                        }
-                        _ => return Err(format!("a {} list holds ids only", self.what)),
-                    }
-                }
-            }
-            Value::Object(o) => {
-                let kind = o.get("type").and_then(Value::as_str).unwrap_or_default();
-                let kind = kind.strip_prefix("neoforge:").unwrap_or(kind);
-                match kind {
-                    "any" => out.extend(self.ids.iter().cloned()),
-                    "or" | "and" => return Err(format!("{kind}: no values")),
-                    "not" => return Err("not: no value".into()),
-                    _ => return Err(format!("{} set type {kind:?} is not read", self.what)),
-                }
-            }
-            _ => return Err(format!("not a {} id, tag or list", self.what)),
-        }
-        Ok(out)
+        horizon_world::holder_set::resolve(set, self)
     }
 
     // Determine the edge to drop from the graph, not from traversal order.
@@ -654,6 +621,28 @@ impl Registry<'_> {
         seen.remove(tag);
         extend(out, own);
         Ok(())
+    }
+}
+
+impl horizon_world::holder_set::HolderLookup for Registry<'_> {
+    type Id = String;
+    fn what(&self) -> &str {
+        self.what
+    }
+    fn entry(&self, id: &str) -> std::result::Result<Vec<String>, String> {
+        let id = full(id);
+        match self.ids.contains(&id) {
+            true => Ok(vec![id]),
+            false => Err(format!("unknown {} {id}", self.what)),
+        }
+    }
+    fn tag(&self, tag: &str) -> std::result::Result<Vec<String>, String> {
+        let mut out = Vec::new();
+        self.expand(&full(tag), &mut out, &mut BTreeSet::new())?;
+        Ok(out)
+    }
+    fn all(&self) -> std::result::Result<Vec<String>, String> {
+        Ok(self.ids.iter().cloned().collect())
     }
 }
 

@@ -3,8 +3,10 @@
 //! rules used by the enchanting table, display names, and evaluation of the
 //! value/attribute effect components (`LevelBasedValue`, `EnchantmentValueEffect`
 //! and the loot-condition subset that enchantment requirements use).
+mod holder_sets;
 use crate::item_data::Levels;
 use crate::items::{ItemStack, Items};
+pub use holder_sets::HolderSetBinding;
 use horizon_core::nbt::Tag;
 use horizon_core::random::{LegacyRandom, RandomSource};
 use serde_json::Value;
@@ -260,6 +262,15 @@ fn parse_entry(
     tags: &HashMap<String, Vec<Arc<str>>>,
     lang: &HashMap<String, String>,
 ) -> crate::Result<Enchantment> {
+    if let Some(field) = ["supported_items", "primary_items", "exclusive_set"]
+        .into_iter()
+        .find(|field| v[*field].is_object())
+    {
+        return Err(format!(
+            "enchantment {id} {field}: holder-set object has no owning registry binding"
+        )
+        .into());
+    }
     let native_post_attack = v["effects"]["minecraft:post_attack"]
         .as_array()
         .into_iter()
@@ -383,9 +394,17 @@ impl Enchantments {
             Err(_) => unordered(read_tag_dir(&data.join("tags/damage_type"))),
         };
         // The registry lists entries sorted by id, like the data-pack loader.
-        let files: BTreeMap<String, Value> = crate::items::data_files(root, "enchantment", overlay)
-            .into_iter()
-            .collect();
+        let mut files: BTreeMap<String, Value> =
+            crate::items::data_files(root, "enchantment", overlay)
+                .into_iter()
+                .collect();
+        if files.values().any(HolderSetBinding::needed) {
+            let binding =
+                HolderSetBinding::load(root, overlay, defaults, files.keys().cloned().collect())?;
+            for (id, value) in &mut files {
+                binding.bind(id, value)?;
+            }
+        }
         let lang: HashMap<String, String> =
             horizon_core::prepared_files::read(&root.join("assets/minecraft/lang/en_us.json"))
                 .ok()
