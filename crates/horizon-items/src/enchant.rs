@@ -268,7 +268,8 @@ fn parse_entry(
     {
         return Err(format!(
             "enchantment {id} {field}: holder-set object has no owning registry binding"
-        ));
+        )
+        .into());
     }
     let native_post_attack = v["effects"]["minecraft:post_attack"]
         .as_array()
