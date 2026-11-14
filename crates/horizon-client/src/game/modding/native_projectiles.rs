@@ -398,7 +398,7 @@ impl Game<'_> {
             let w = self.mob_world_base(&[]);
             p.tick_through(&ProjWorld {
                 w: &w,
-                targets,
+                targets: &targets,
                 border: Some(self.border.bounds()),
             })
         };

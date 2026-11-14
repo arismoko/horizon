@@ -3774,6 +3774,7 @@ mod tests {
 
 #[path = "living/fluid_heights.rs"]
 mod fluid_heights;
+pub mod section_writes;
 #[cfg(test)]
 #[path = "living/size_answer_tests.rs"]
 mod size_answer_tests;
