@@ -42,10 +42,8 @@ impl DataStore {
                                 for (target, _, removes) in
                                     store.slot_source_tags.get(next).into_iter().flatten()
                                 {
-                                    if *removes {
-                                        if let Some(target) = target.strip_prefix('#') {
-                                            pending.push(target);
-                                        }
+                                    if *removes && let Some(target) = target.strip_prefix('#') {
+                                        pending.push(target);
                                     }
                                 }
                             }
