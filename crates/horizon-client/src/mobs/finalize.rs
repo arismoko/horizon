@@ -1049,6 +1049,11 @@ pub fn spawn_egg_offspring(child: &mut Mob, species: Species, variant: u8, color
     }
 }
 /// `setBaby`: AgeableMob through its age, zombies, piglins and zoglins.
+pub fn supports_baby(species: Species) -> bool {
+    ageable(species) || zombie(species) || matches!(species, Species::Piglin | Species::Zoglin)
+}
+
+/// `setBaby`: AgeableMob through its age, zombies, piglins and zoglins.
 pub fn set_baby(m: &mut Mob, baby: bool) {
     let s = m.species();
     if ageable(s) {

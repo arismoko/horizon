@@ -1679,19 +1679,7 @@ impl Game<'_> {
             Species::Slime | Species::MagmaCube | Species::SulfurCube
         ) && dying.extra.size > 1
         {
-            // AbstractCubeMob.remove: convert without spawn finalization.
-            let drawn = horizon_client::mobs::cube::split_count(&mut dying);
-            if drawn > 0 {
-                let count = self.mob_split_count(&dying, drawn);
-                for i in 0..count {
-                    self.next_entity += 1;
-                    let mut child =
-                        Mob::new(self.next_entity, dying.kind.clone(), dying.position, 0.0);
-                    horizon_client::mobs::cube::split_child(&mut dying, &mut child, i);
-                    self.mobs.push(child);
-                    self.native_mobs_joined(self.mobs.len() - 1, false);
-                }
-            }
+            self.split_cube_children(&mut dying);
         }
     }
     /// The killer's side of a mob's death: `ServerPlayer.awardKillScore`'s
@@ -3738,52 +3726,6 @@ impl Game<'_> {
         experience: horizon_client::mobs::BreedExperience,
     ) -> Option<u32> {
         let p = self.mobs.iter().find(|m| m.id == parent).cloned()?;
-        // BabyEntitySpawnEvent: not for an egg (turtle, frog, sniffer).
-        if !matches!(
-            p.species(),
-            Species::Turtle | Species::Frog | Species::Sniffer
-        ) && mod_api::__private::listened(mod_api::HookId::BabyEntitySpawn)
-        {
-            let mule = matches!(
-                (
-                    p.species(),
-                    self.mobs
-                        .iter()
-                        .find(|m| m.id == partner)
-                        .map(|m| m.species())
-                ),
-                (Species::Horse, Some(Species::Donkey)) | (Species::Donkey, Some(Species::Horse))
-            );
-            let kind = if mule {
-                "minecraft:mule".to_owned()
-            } else {
-                super::native_hooks::mob_kind(&p)
-            };
-            let conn = self
-                .love_cause
-                .get(&parent)
-                .or(self.love_cause.get(&partner))
-                .copied();
-            let player = conn.and_then(|c| self.killer_uuid(c));
-            let player_entity_id = conn.and_then(|c| self.player_entity_id_by_connection(c));
-            let mut cancel = false;
-            self.native_baby_entity_spawn(
-                parent,
-                partner,
-                player,
-                player_entity_id,
-                &kind,
-                &mut cancel,
-            );
-            if cancel {
-                breeding_credit(&mut self.love_cause, parent, partner);
-                if let Some(q) = self.mobs.iter_mut().find(|m| m.id == partner) {
-                    q.extra.age = 6000;
-                    q.extra.in_love = 0;
-                }
-                return None;
-            }
-        }
         let q = self.mobs.iter().find(|m| m.id == partner).cloned();
         // Sniffer.spawnChildFromBreeding: an egg instead of a baby.
         if p.species() == Species::Sniffer {
@@ -4002,6 +3944,30 @@ impl Game<'_> {
                     other.extra.color,
                 );
                 child.extra.color = mixed;
+            }
+        }
+        // BabyEntitySpawnEvent: the baby is constructed and has inherited (its draws are
+        // spent); breeding is finalized and the baby inserted after the listeners.
+        if mod_api::__private::listened(mod_api::HookId::BabyEntitySpawn) {
+            let conn = self
+                .love_cause
+                .get(&parent)
+                .or(self.love_cause.get(&partner))
+                .copied();
+            let player = (
+                conn.and_then(|c| self.killer_uuid(c)),
+                conn.and_then(|c| self.player_entity_id_by_connection(c)),
+            );
+            match self.breed_with_listeners(parent, partner, player, child) {
+                Some(baby) => child = baby,
+                None => {
+                    breeding_credit(&mut self.love_cause, parent, partner);
+                    if let Some(q) = self.mobs.iter_mut().find(|m| m.id == partner) {
+                        q.extra.age = 6000;
+                        q.extra.in_love = 0;
+                    }
+                    return None;
+                }
             }
         }
         let order = if horizon_client::mobs::orb_after_child(p.species()) {
@@ -10157,7 +10123,9 @@ mod breeding_tests {
                     horizon_client::mobs::BreedExperience::Deferred,
                 );
                 assert_eq!(child, None);
-                assert_eq!(game.next_entity, next);
+                // The baby is built before the hook now (its draws and entity number are spent), so a
+                // veto keeps the number vanilla's constructor took but spawns nothing.
+                assert_eq!(game.next_entity, next + 1);
                 assert_eq!(
                     game.mobs
                         .iter()
@@ -10243,9 +10211,24 @@ mod breeding_tests {
         mod_platform::testing::with_mods(mods, || {
             super::super::native_entity_refs::tests::with_game(|game| {
                 assert!(!game.mob_world_base(&[]).asks_baby_spawn);
-                let mut cancel = false;
-                game.native_baby_entity_spawn(1, 2, None, None, "minecraft:chicken", &mut cancel);
-                assert!(!cancel);
+                let kept = game.dispatch_pending_children(
+                    mod_api::HookId::BabyEntitySpawn,
+                    true,
+                    Vec::new(),
+                    &[],
+                    |game, edits, cancel| {
+                        game.native_baby_entity_spawn(mod_api::__private::BabyEntitySpawnCall {
+                            dimension: "minecraft:overworld",
+                            parent: 1,
+                            partner: 2,
+                            player: None,
+                            player_entity_id: None,
+                            edits,
+                            cancel,
+                        });
+                    },
+                );
+                assert!(kept.is_empty());
                 assert!(!game.mob_world_base(&[]).asks_baby_spawn);
             });
         });
@@ -13361,6 +13344,10 @@ pub(in crate::game) fn local_difficulty_in(
 #[cfg(test)]
 #[path = "../../entities/tests/leash_without_item_criterion_tests.rs"]
 mod leash_without_item_criterion_tests;
+#[cfg(test)]
+mod pending_birth_tests;
+#[cfg(test)]
+mod pending_birth_wasm_tests;
 
 #[cfg(test)]
 #[path = "../../entities/tests/leash_without_item_postbaseline_controls.rs"]

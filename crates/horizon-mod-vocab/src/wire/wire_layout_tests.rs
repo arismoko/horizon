@@ -213,7 +213,21 @@ fn handle_records_have_declared_field_bytes() {
         },
         (level, [7i32, -8, 9], 83u64),
     );
-    fields(UnspawnedMobRef::new(epoch, 61), (epoch, 61u64));
+    // epoch, lend, action, slot: a standalone lend has no action and slot 0.
+    fields(UnspawnedMobRef::new(epoch, 61), (epoch, 61u64, 0u64, 0u32));
+    fields(
+        UnspawnedMobRef::pending(epoch, 62, 63, 7),
+        (epoch, 63u64, 62u64, 7u32),
+    );
+    // epoch, action, lease.
+    fields(
+        PendingChildrenRef::new(epoch, 62, 63),
+        (epoch, 62u64, 63u64),
+    );
+    fields(
+        UnattachedMob::new(UnspawnedMobRef::pending(epoch, 62, 63, 7)),
+        (UnspawnedMobRef::pending(epoch, 62, 63, 7),),
+    );
     fields(ModelRef::from_parts(31, 7).unwrap(), (31u64, 7u32));
     fields(InstanceGroupRef::from_parts(37, 9).unwrap(), (37u64, 9u32));
     fields(RenderPipelineRef::from_parts(41, 5).unwrap(), (41u64, 5u32));

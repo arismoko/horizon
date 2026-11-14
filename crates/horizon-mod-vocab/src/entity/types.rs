@@ -326,7 +326,10 @@ impl MobRef {
 
 /// A mob the game has made but not yet added to a level (`finalize_spawn`'s and
 /// `mob_spawn_position_check`'s mob), lent to one hook call. It is not an [`EntityRef`]: the
-/// mob is in no level yet, so no entity lookup finds it. Reads take `&dyn Host`
+/// mob is in no level yet, so no entity lookup finds it. Pending-child editors borrow the
+/// action's actual owned mob; they do not clone it or authorize residency. Each listener and
+/// nested action expires those borrows; reacquire a child from its collection afterward.
+/// Reads take `&dyn Host`
 /// (`mob.kind(host)`); where a hook hands out an [`UnspawnedMobEdits`] with it, that makes the
 /// edits. Every read and edit after the hook returns, or with another lend's handle,
 /// is refused with [`UnspawnedMobError::Expired`], so a copy kept past the call changes nothing.
@@ -337,6 +340,8 @@ impl MobRef {
 pub struct UnspawnedMobRef {
     pub(crate) epoch: WorldEpoch,
     pub(crate) lend: u64,
+    pub(crate) action: u64,
+    pub(crate) slot: u32,
 }
 
 impl UnspawnedMobRef {
@@ -344,7 +349,29 @@ impl UnspawnedMobRef {
     // hidden: a game-side helper, not part of the mod surface
     #[doc(hidden)]
     pub fn new(epoch: WorldEpoch, lend: u64) -> Self {
-        Self { epoch, lend }
+        Self {
+            epoch,
+            lend,
+            action: 0,
+            slot: 0,
+        }
+    }
+    /// Names a callback borrow of an action-owned child. All numbers are checked by the engine.
+    // hidden: engine transport only; arena validation grants authority
+    #[doc(hidden)]
+    pub fn pending(epoch: WorldEpoch, action: u64, lease: u64, slot: u32) -> Self {
+        Self {
+            epoch,
+            lend: lease,
+            action,
+            slot,
+        }
+    }
+    /// Pending arena identity; `None` for a standalone spawning lend.
+    // hidden: engine transport only; arena validation grants authority
+    #[doc(hidden)]
+    pub fn pending_parts(self) -> Option<(u64, u64, u32)> {
+        (self.action != 0).then_some((self.action, self.lend, self.slot))
     }
     /// The open of the world the handle belongs to.
     // hidden: a game-side helper, not part of the mod surface

@@ -2609,17 +2609,6 @@ impl Game<'_> {
             self.native_game_rule_changed(name, value, actor);
         }
     }
-    /// `MobSplitEvent` for the dying cube mob `m`, which made `count`
-    /// children: how many to spawn.
-    pub(super) fn mob_split_count(&mut self, m: &horizon_client::mobs::Mob, count: u32) -> u32 {
-        if !mod_api::__private::listened(mod_api::HookId::MobSplit) {
-            return count;
-        }
-        let (size, kind) = (m.extra.size, mob_kind(m));
-        let (mut count, mut cancel) = (count, false);
-        self.native_mob_split(m.id, &kind, size, size / 2, &mut count, &mut cancel);
-        if cancel { 0 } else { count.min(64) }
-    }
     /// `AnimalTameEvent` for the mob at `index`, whose taming roll by the
     /// player `tamer` (`tamer_entity_id`) succeeded: true when a mod cancels
     /// it, and the taming fails.

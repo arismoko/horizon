@@ -362,6 +362,9 @@ pub(crate) fn listening(
                 !installed.disabled[subscriber.index].load(std::sync::atomic::Ordering::Relaxed)
             })
             .map(move |subscriber| {
+                // Every listener of a hook the loop reaches is one more entered: scoped
+                // resources end the previous listener's lease on it.
+                bump_listener_serial(hook_id);
                 (
                     subscriber.receives_cancelled,
                     &installed.mods[subscriber.index],
@@ -399,4 +402,25 @@ impl ListenerScope {
         );
         &*entry.hooks
     }
+}
+
+thread_local! {
+    /// How many listeners of each hook this thread has entered, so a scoped resource can tell
+    /// that the next listener (or a nested dispatch of the same hook) has begun.
+    static LISTENER_SERIAL: [std::cell::Cell<u64>; generated::HOOK_COUNT] =
+        const { [const { std::cell::Cell::new(0) }; generated::HOOK_COUNT] };
+}
+
+/// Marks a listener of `hook` entered on this thread.
+#[inline]
+fn bump_listener_serial(hook: generated::HookId) {
+    LISTENER_SERIAL.with(|serial| {
+        let cell = &serial[hook as usize];
+        cell.set(cell.get().wrapping_add(1));
+    });
+}
+
+/// The number of `hook` listeners this thread has entered so far.
+pub(crate) fn listener_serial(hook: generated::HookId) -> u64 {
+    LISTENER_SERIAL.with(|serial| serial[hook as usize].get())
 }

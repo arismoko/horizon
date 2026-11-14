@@ -73,6 +73,50 @@ Expected implementation outcomes below are fixtures to write, not tests already 
 | Outer abort | Zero children/joins/sends; original parent state, RNG and attachment values restored. |
 | No listeners | Exact vanilla child fields, ordering, RNG, XP and parent effects; zero added payload allocations. |
 
+## Implementation status
+
+**This is staged work.** `mob_split` and `baby_entity_spawn` now hand their listeners the engine-owned
+list described here, natively and through wasm. The pieces that need a transaction coordinator wait for
+[#784](https://github.com/arismoko/horizon/issues/784), which is not in main: outer rollback of a vetoed
+listener's Host writes and per-child join recovery. Until it lands, a veto or a stale refusal spawns no
+child but cannot undo what a listener wrote through the host. #825 stays open for that stage.
+
+What is built:
+
+- **Hooks.** `edits` (`&dyn PendingChildrenEdits`) and the action's `dimension` replace the old count and
+  kind string; each callback gets its list with `edits.children()`. The wasm bindings are generated from
+  the same declarations.
+- **Construction first.** A split constructs every child, with its yaw draw, before the hook; breeding
+  calls the hook after the baby is built and has inherited, before finalization and insertion.
+- **Operations.** `len`, `child`, `construct`, `append`, `replace` and `remove`, plus `set_position`,
+  `set_yaw`, `set_baby` and `set_size` on a child, with `Expired`, `Ownership`, `Capacity` and `Invalid`
+  refusals. A split holds at most 64 children, breeding one baby that must stay a baby.
+- **One listener per lease.** Entering the next listener of the hook (or a nested dispatch of it) ends the
+  previous listener's leases, so a list, child or ownership token kept from an earlier listener answers
+  `Expired`. This holds for native and wasm listeners alike.
+- **Consumed once.** After dispatch the list is frozen and validated (kind, dimension, finite position and
+  yaw, baby state, species size), and the survivors join in order. A cancel, an emptied list, a trapped wasm
+  listener, a parent or world that changed under the listener (a parent's position, kind, age, love,
+  variant, colour or tameness differs from what the baby was built from), or an invalid final child spawns
+  nothing and replays nothing. Cancelling keeps the construction draws and the parent's death; breeding's
+  veto leaves both parents at age 6000 and love 0 with no experience, statistic or hearts.
+- **Unpublished while waiting.** A baby breeding hands over keeps its UUID, and its constructor
+  attachments when nothing is bound to them, outside the game's tables until it joins; a split child
+  has none before it joins. A removed or replaced baby, and a panicking listener, leave no state behind.
+- **No listener.** The vanilla loop and the vanilla breeding path run as before, with no list.
+- **Eggs.** Turtle and frog breeding, sniffer egg laying and turtle hatching still make no baby and never
+  fire the hook; armadillos use the ordinary animal path and do. Villagers keep their own path
+  (`villager_birth`, `VillagerMakeLove.breed`), a separate vanilla moment, and fire nothing.
+
+Not done, and why:
+
+- Outer abort (a surrounding transaction restoring parent state, RNG and attachment values) and per-child
+  join-veto recovery: #784. This change supplies what that coordinator consumes, a frozen, validated list
+  consumed exactly once with no retry of an entered consumer, but no outer-abort fixture exists.
+- A native listener's constructor attachments that are bound to an index stay published while the baby
+  waits (they cannot be withheld without the coordinator's rollback).
+- Equipment and attribute edits of a pending child: only position, yaw, baby state and size are editable.
+
 ## Proposed stages
 
 File none. First verify the public counterpart and remaining vanilla routes and decide the questions below. Then extend the shared pending ownership boundary and native/wasm operations together. Next migrate both hooks and all authoritative routes, coordinate recovery foundations, and delete obsolete transport. Finally add oracle-backed species, reentrancy, transaction and fault fixtures plus no-listener measurements. These are proposed stages, not filed issues or authorized Rust changes.

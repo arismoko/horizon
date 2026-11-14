@@ -1,6 +1,8 @@
 use super::*;
 
 use crate::test_log::{CAPTURE, capture_logs};
+#[path = "runtime_tests/pending_children.rs"]
+mod pending_children;
 
 #[test]
 fn released_queue_empty_fast_path_does_not_wait_for_its_mutex() {

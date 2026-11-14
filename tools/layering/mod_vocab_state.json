@@ -193,5 +193,10 @@
     "type": "::std::sync::LazyLock<u64>",
     "category": "immutable ABI layout fingerprint",
     "reason": "Hash of the build-fixed Wire layouts; the generator validates its sole declaration and type before writing output."
+  },
+  "runtime.rs::LISTENER_SERIAL": {
+    "type": "[std::cell::Cell<u64>;generated::HOOK_COUNT]",
+    "category": "dispatch table",
+    "reason": "Per-thread count of listeners entered per hook, bumped by the dispatch loop; scoped engine leases (pending children) compare it so a lease never outlives one listener."
   }
 }

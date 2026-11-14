@@ -862,7 +862,7 @@ pub fn register(m: &mut Mob) {
 /// size 1 makes an adult a baby.
 pub fn set_size(m: &mut Mob, size: i32, update_health: bool) {
     use super::finalize::{Attr, set_base};
-    let size = size.clamp(1, 127);
+    let size = size.clamp(*super::cube::SIZES.start(), *super::cube::SIZES.end());
     m.extra.size = size;
     set_base(m, Attr::MaxHealth, f64::from(4 * size));
     set_base(

@@ -572,3 +572,9 @@ pub mod ingredient_parser;
 pub mod points;
 
 include!(concat!(env!("OUT_DIR"), "/mod_api_exports_private.rs"));
+
+/// How many listeners of `hook` this thread has entered, wasm and native alike. A scoped
+/// resource that must not outlive one listener compares it between operations.
+pub fn listener_serial(hook: HookId) -> u64 {
+    crate::runtime::listener_serial(hook)
+}
