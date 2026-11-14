@@ -35,14 +35,14 @@ pub fn stack_can_be_hurt_by(
     };
     if let Some(data) = stack.data() {
         if data
-            .other
+            .preserved_components()
             .iter()
             .any(|(key, _)| key == "!minecraft:damage_resistant")
         {
             return Some(true);
         }
         if let Some((_, component)) = data
-            .other
+            .preserved_components()
             .iter()
             .find(|(key, _)| key == "minecraft:damage_resistant")
         {

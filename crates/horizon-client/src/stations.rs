@@ -919,7 +919,7 @@ impl StationRecipes {
                             .copied()
                             .unwrap_or((64, 0));
                         if let Some(data) = output.data() {
-                            for (key, value) in &data.other {
+                            for (key, value) in data.preserved_components() {
                                 match (key.as_str(), value) {
                                     (
                                         "minecraft:max_stack_size",

@@ -1708,7 +1708,7 @@ fn network_stack(
                 stack.added.push((kind, component));
             }
         }
-        for (name, value) in &d.other {
+        for (name, value) in d.preserved_components() {
             let (removed, kind) = match name.strip_prefix('!') {
                 Some(kind) => (true, kind),
                 None => (false, name.as_str()),
@@ -2379,8 +2379,7 @@ mod tests {
         ];
         let mut item = ItemStack::new("minecraft:diamond", 1);
         item.data_mut()
-            .other
-            .push(("minecraft:lore".into(), Tag::List(lines.clone())));
+            .set_other("minecraft:lore", Some(Tag::List(lines.clone())));
         let sent = stack_to_network(|_| 7, |_, _| None, &Some(item));
         let mut writer = Writer::new();
         horizon_protocol::item::Slot::write(&sent, &mut writer);
@@ -2479,10 +2478,12 @@ mod tests {
     #[test]
     fn goat_horns_send_their_instrument_by_registry_id() {
         let mut horn = ItemStack::new("minecraft:goat_horn", 1);
-        horn.data_mut().other.push((
-            "minecraft:instrument".into(),
-            horizon_core::nbt::Tag::String("minecraft:sing_goat_horn".into()),
-        ));
+        horn.data_mut().set_other(
+            "minecraft:instrument",
+            Some(horizon_core::nbt::Tag::String(
+                "minecraft:sing_goat_horn".into(),
+            )),
+        );
         let synced_id = |registry: &str, name: &str| match (registry, name) {
             ("minecraft:instrument", "minecraft:sing_goat_horn") => Some(1),
             _ => None,

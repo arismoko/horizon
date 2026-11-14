@@ -645,7 +645,11 @@ impl Game<'_> {
             let profile = stack
                 .extra
                 .as_deref()
-                .and_then(|d| d.other.iter().find(|(k, _)| k == "minecraft:profile"))
+                .and_then(|d| {
+                    d.preserved_components()
+                        .iter()
+                        .find(|(k, _)| k == "minecraft:profile")
+                })
                 .map(|(_, t)| horizon_client::scoreboard::tag_to_json(t))
                 .unwrap_or(serde_json::Value::Null);
             let has_foil = stack.data().is_some_and(|d| !d.enchantments.is_empty());

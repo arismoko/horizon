@@ -173,13 +173,13 @@ impl Game<'_> {
                     return default;
                 };
                 if data
-                    .other
+                    .preserved_components()
                     .iter()
                     .any(|(key, _)| key == "!minecraft:use_effects")
                 {
                     return true;
                 }
-                data.other
+                data.preserved_components()
                     .iter()
                     .find(|(key, _)| key == "minecraft:use_effects")
                     .map_or(default, |(_, tag)| {

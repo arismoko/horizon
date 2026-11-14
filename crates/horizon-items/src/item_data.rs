@@ -1,6 +1,8 @@
 //! Item stack components beyond count and damage: enchantments, stored
 //! (book) enchantments, `repair_cost`, `custom_name`, `potion_contents` and
 //! `trim`, with their NBT form in vanilla's `components` compound.
+#[path = "item_data/custom_data.rs"]
+pub mod custom_data;
 #[path = "item_data/ingredient_components.rs"]
 pub mod ingredient_components;
 use crate::items::{ItemInfo, ItemStack};
@@ -128,9 +130,9 @@ pub struct StackData {
     pub stew_effects: Vec<(Arc<str>, i32)>,
     /// `minecraft:map_post_processing`: 0 lock, 1 scale.
     pub map_post_processing: Option<u8>,
-    /// Components Horizon does not model (lore, custom data, item name,
-    /// max stack size...), kept as their saved values in key order.
-    pub other: Vec<(String, Tag)>,
+    /// Components Horizon does not model, in key order. Custom data is decoded
+    /// on insertion; malformed loaded values remain opaque for lossless fallback.
+    other: Vec<(String, Tag)>,
     /// What the server sent for this stack, for sending it back unchanged.
     pub wire: Wire,
 }
@@ -225,6 +227,10 @@ impl StackData {
     /// The saved kinetic component and its decoded rendering timing.
     pub fn kinetic_weapon(&self) -> Option<&crate::kinetic_weapon::KineticComponent> {
         self.kinetic_weapon.as_ref()
+    }
+    /// Borrow preserved components without bypassing their insertion codecs.
+    pub fn preserved_components(&self) -> &[(String, Tag)] {
+        &self.other
     }
     /// A preserved component's saved value.
     pub fn other(&self, id: &str) -> Option<&Tag> {
@@ -331,9 +337,20 @@ impl StackData {
         }
     }
     /// Set (or with None remove) a preserved component.
-    /// This setter deliberately remains infallible. Invalid opaque effect payloads
-    /// refuse replacement without changing either the previous raw value or cache.
+    /// This setter deliberately remains infallible. Invalid custom data and opaque
+    /// effect payloads refuse replacement without changing the previous value or cache.
     pub fn set_other(&mut self, id: &str, value: Option<Tag>) {
+        let value = if id == "minecraft:custom_data" {
+            match value {
+                Some(raw) => match custom_data::decode(raw) {
+                    Ok(decoded) => Some(decoded),
+                    Err(_) => return,
+                },
+                None => None,
+            }
+        } else {
+            value
+        };
         if id == "minecraft:death_protection" {
             let replacement = match value.as_ref() {
                 Some(raw) => match crate::items::parse_death_effects(
@@ -1755,7 +1772,13 @@ pub fn decode_components(components: Option<&Tag>) -> (u32, Option<Box<StackData
                 data.other
                     .push((key, Tag::compound(Vec::<(&str, Tag)>::new())));
             } else if !MODELLED.contains(&key.as_str()) && !ominous_part {
-                let value = canonical_other_component(&key, v);
+                // Loading has no error channel: keep malformed source values opaque,
+                // but never leave a valid flattened custom-data compound undecoded.
+                let value = if key == "minecraft:custom_data" {
+                    custom_data::decode(v.clone()).unwrap_or_else(|_| v.clone())
+                } else {
+                    canonical_other_component(&key, v)
+                };
                 data.other.push((key, value));
             }
         }
@@ -3108,7 +3131,11 @@ mod tests {
                     data.other
                         .push((key, Tag::compound(Vec::<(&str, Tag)>::new())));
                 } else if !MODELLED.contains(&key.as_str()) && !ominous_part {
-                    let value = canonical_other_component(&key, v);
+                    let value = if key == "minecraft:custom_data" {
+                        custom_data::decode(v.clone()).unwrap_or_else(|_| v.clone())
+                    } else {
+                        canonical_other_component(&key, v)
+                    };
                     data.other.push((key, value));
                 }
             }
@@ -3411,9 +3438,10 @@ mod carried_component_tests {
             .data_mut()
             .set_other("!minecraft:lore", Some(Tag::String("removed".into())));
         assert!(!stack.carries_component(None, "minecraft:lore"));
-        stack
-            .data_mut()
-            .set_other("minecraft:custom_data", Some(Tag::String("kept".into())));
+        stack.data_mut().set_other(
+            "minecraft:custom_data",
+            Some(Tag::compound([("kept", Tag::Byte(1))])),
+        );
         assert!(stack.carries_component(None, "minecraft:custom_data"));
     }
 }
@@ -3429,14 +3457,13 @@ mod charged_projectile_template_tests {
             let marker = Tag::compound([("audit", Tag::Int(7))]);
             projectile
                 .data_mut()
-                .other
-                .push(("minecraft:custom_data".into(), marker.clone()));
+                .set_other("minecraft:custom_data", Some(marker.clone()));
             let mut outer = ItemStack::new("minecraft:crossbow", 1);
             outer.data_mut().charged.push(projectile.clone());
-            outer.data_mut().other.push((
-                "minecraft:custom_data".into(),
-                Tag::compound([("audit", Tag::Int(9))]),
-            ));
+            outer.data_mut().set_other(
+                "minecraft:custom_data",
+                Some(Tag::compound([("audit", Tag::Int(9))])),
+            );
             let encoded = encode_components(&outer).unwrap();
             let Tag::List(list) = encoded.get("minecraft:charged_projectiles").unwrap() else {
                 panic!("projectile list")
@@ -3576,5 +3603,62 @@ mod written_book_tests {
         assert_eq!(template(Some(0)), None);
         assert_eq!(template(Some(100)), None);
         assert_eq!(template(Some(-1)), None);
+    }
+}
+
+#[cfg(test)]
+mod custom_data_boundary_tests {
+    use super::*;
+
+    const CUSTOM: &str = "minecraft:custom_data";
+
+    #[test]
+    fn load_setter_and_loot_normalize_flattened_custom_data() {
+        let flattened = Tag::String("{audit:7,nested:{enabled:1b}}".into());
+        let expected = Tag::compound([
+            ("audit", Tag::Int(7)),
+            ("nested", Tag::compound([("enabled", Tag::Byte(1))])),
+        ]);
+        let input = Tag::compound([(CUSTOM, flattened.clone())]);
+        let (_, loaded) = decode_components(Some(&input));
+        assert_eq!(loaded.unwrap().other(CUSTOM), Some(&expected));
+
+        let mut data = StackData::default();
+        data.set_other(CUSTOM, Some(flattened.clone()));
+        assert_eq!(data.other(CUSTOM), Some(&expected));
+        data.set_other(CUSTOM, None);
+        assert!(data.other(CUSTOM).is_none());
+        data.set_loot_component(CUSTOM, &Some(flattened));
+        assert_eq!(data.other(CUSTOM), Some(&expected));
+        assert_eq!(
+            components_tag(0, Some(&data)),
+            Some(Tag::compound([(CUSTOM, expected)]))
+        );
+    }
+
+    #[test]
+    fn invalid_custom_data_replacement_is_atomic_and_load_stays_invalid() {
+        let good = Tag::compound([("audit", Tag::Int(7))]);
+        let mut data = StackData::default();
+        data.set_other(CUSTOM, Some(good));
+        data.set_other("test:opaque", Some(Tag::String("unchanged".into())));
+        let before = data.clone();
+        for bad in [
+            Tag::String("{audit:7} trailing".into()),
+            Tag::String("{audit:".into()),
+            Tag::String("[]".into()),
+            Tag::Int(7),
+        ] {
+            data.set_other(CUSTOM, Some(bad.clone()));
+            assert_eq!(data, before);
+            data.set_loot_component(CUSTOM, &Some(bad.clone()));
+            assert_eq!(data, before);
+
+            let input = Tag::compound([(CUSTOM, bad.clone())]);
+            let (_, loaded) = decode_components(Some(&input));
+            let loaded = loaded.unwrap();
+            assert_eq!(loaded.other(CUSTOM), Some(&bad));
+            assert_eq!(components_tag(0, Some(&loaded)), Some(input));
+        }
     }
 }
