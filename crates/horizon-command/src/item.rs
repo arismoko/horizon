@@ -24,6 +24,14 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:custom_model_data",
+    "minecraft:use_cooldown",
+    "minecraft:tropical_fish/pattern_color",
+    "minecraft:cooking_fuel",
+    "minecraft:tropical_fish/base_color",
+    "minecraft:brewing_fuel",
+    "minecraft:cushion/color",
+    "minecraft:compostable",
     "minecraft:fox/variant",
     "minecraft:weapon",
     "minecraft:food",
@@ -92,6 +100,18 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
             .map(|weapon| weapon.to_tag())
             .map_err(str::to_owned);
     }
+    if id == "minecraft:compostable" {
+        return horizon_items::item_data::ingredient_components::decoded_compostable(value);
+    }
+    if id == "minecraft:brewing_fuel" {
+        return horizon_items::item_data::brewing_fuel::decode(value);
+    }
+    if id == "minecraft:cooking_fuel" {
+        return horizon_items::item_data::cooking_fuel::decode(value);
+    }
+    if id == "minecraft:use_cooldown" {
+        return use_cooldown(value);
+    }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
         let Tag::Compound(_) = value else {
@@ -140,6 +160,8 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
                     .expect("validated numeric nutrition") as i32,
             ),
         )]),
+        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::decode(value)
+            .expect("validated custom model data"),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => {
             let Tag::Compound(entries) = value else {
                 unreachable!("validated enchantment map")
@@ -165,6 +187,18 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
 /// The codecs of the item components commands commonly set.
 pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), String> {
     match id {
+        "minecraft:custom_model_data" => horizon_items::item_data::custom_model_data::valid(t)
+            .then_some(())
+            .ok_or_else(|| {
+                "Expected custom model data record with floats, flags, strings and colors lists"
+                    .into()
+            }),
+        "minecraft:use_cooldown" => use_cooldown(t).map(|_| ()),
+        "minecraft:cooking_fuel" => horizon_items::item_data::cooking_fuel::decode(t).map(|_| ()),
+        "minecraft:brewing_fuel" => horizon_items::item_data::brewing_fuel::decode(t).map(|_| ()),
+        "minecraft:compostable" => {
+            horizon_items::item_data::ingredient_components::validate_compostable(t)
+        }
         "minecraft:weapon" => horizon_items::properties::Weapon::from_tag(t)
             .map(|_| ())
             .map_err(str::to_owned),
@@ -256,7 +290,10 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         | "minecraft:sheep/color"
         | "minecraft:shulker/color"
         | "minecraft:cat/collar"
-        | "minecraft:wolf/collar" => dye_color(t).map(|_| ()),
+        | "minecraft:wolf/collar"
+        | "minecraft:cushion/color"
+        | "minecraft:tropical_fish/base_color"
+        | "minecraft:tropical_fish/pattern_color" => dye_color(t).map(|_| ()),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
         // DataComponents.ENCHANTMENT_GLINT_OVERRIDE: Codec.BOOL through NbtOps.
         "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)
@@ -351,6 +388,23 @@ fn string_enum(t: &Tag, names: &[&str]) -> Result<(), String> {
     } else {
         Err(format!("Unknown element name:{}", value.to_string_lossy()))
     }
+}
+/// `UseCooldown.CODEC`: required positive finite seconds and an optional identifier.
+fn use_cooldown(value: &Tag) -> Result<Tag, String> {
+    let Tag::Compound(_) = value else {
+        return Err(not_map(value));
+    };
+    let (seconds, group) = horizon_items::cooldowns::UseCooldown::fields_from_tag(value)
+        .ok_or("Expected numeric 'seconds' field")?;
+    if !seconds.is_finite() || seconds <= 0.0 {
+        return Err(format!("Value must be positive: {seconds}"));
+    }
+    let mut record = Compound::new();
+    record.insert("seconds".into(), Tag::Float(seconds.to_bits()));
+    if let Some(group) = group {
+        record.insert("cooldown_group".into(), identifier_payload(group)?);
+    }
+    Ok(Tag::Compound(record))
 }
 fn enchantment_map(t: &Tag, reg: &Registries) -> Result<(), String> {
     let Tag::Compound(map) = t else {
