@@ -1036,10 +1036,10 @@ impl DataStore {
                     let mut member_ids = Default::default();
                     self.expand(inner, &mut members, &mut member_ids, seen_tags, invalid);
                     for member in members {
-                        if let Some(&id) = member_ids.get(member.as_str()) {
-                            if seen_fns.insert(id) {
-                                out.push(member);
-                            }
+                        if let Some(&id) = member_ids.get(member.as_str())
+                            && seen_fns.insert(id)
+                        {
+                            out.push(member);
                         }
                     }
                 }
