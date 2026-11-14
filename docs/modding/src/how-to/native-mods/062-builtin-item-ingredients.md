@@ -87,7 +87,7 @@ normalize to `minecraft`. Matching borrows candidate strings without allocation.
 `base_color` uses the same strict dye palette as `dye`, retains its dedicated
 shield value, and remains absent on banners without that component.
 `villager_food` requires a compound with positive integer `nutrition`; unknown fields are ignored.
-The other 87 registered built-ins use stored-value matching while their shared
+The other 86 registered built-ins use stored-value matching while their shared
 decoders are added incrementally in **#3875**. Their absence is not a load refusal.
 
 Component ingredient displays contain the patch, including removals. Difference
@@ -121,3 +121,5 @@ and between +0.0 and the largest finite float, excluding negative zero.
 `fox/variant` accepts the exact persistent names `red` and `snow`.
 
 `compostable` requires `layers`: any integer or a syntactically valid reference; unknown fields are ignored.
+
+`cushion/color` uses the shared dye palette.

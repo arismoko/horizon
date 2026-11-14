@@ -1368,3 +1368,196 @@ fn malformed_wolf_collar_payloads_reject_whole_recipes_with_component_errors() {
     }
 }
 
+#[test]
+fn cushion_color_components_compile_recipes_and_match_live_defaults() {
+    // Items.CUSHION installs each color and max_stack_size=16. Unlike ItemInfo's
+    // catalog hint, live StackData retains cushion/color as a string in `other`.
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    for color in [
+        "white",
+        "orange",
+        "magenta",
+        "light_blue",
+        "yellow",
+        "lime",
+        "pink",
+        "gray",
+        "light_gray",
+        "cyan",
+        "purple",
+        "blue",
+        "brown",
+        "green",
+        "red",
+        "black",
+    ] {
+        let item = format!("minecraft:{color}_cushion");
+        let mut items = Items::empty();
+        items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+            item.clone(),
+            crate::json_nbt::json_to_compound(
+                serde_json::json!({
+                    "minecraft:cushion/color":color, "minecraft:max_stack_size":16
+                })
+                .as_object()
+                .unwrap(),
+            )
+            .unwrap(),
+        )]));
+        let source = serde_json::json!({
+            "type":"neoforge:components", "items":item,
+            "components":{"minecraft:cushion/color":color,"minecraft:max_stack_size":16},
+            "strict":true
+        });
+        let ingredient = Ingredient::parse(&source, &items).unwrap();
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:cushion_color".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[source],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(recipes.crafting.len(), 1);
+        let mut stack = ItemStack::new(item.as_str(), 1);
+        assert!(ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+        let patch = Tag::compound([("minecraft:cushion/color", Tag::String(color.into()))]);
+        (_, stack.extra) = crate::item_data::decode_components(Some(&patch));
+        assert_eq!(
+            stack.data().unwrap().other("minecraft:cushion/color"),
+            Some(&Tag::String(color.into()))
+        );
+        assert!(ingredient.test_in(&context, &stack));
+        let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+            for _ in 0..100 {
+                assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+            }
+        });
+        assert_eq!(allocations.calls, 0, "{allocations:?}");
+        assert_eq!(allocations.bytes, 0);
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:repair_cost", &Some(Tag::Int(1)));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        let mut loose_source = source.clone();
+        loose_source["strict"] = serde_json::json!(false);
+        assert!(
+            Ingredient::parse(&loose_source, &items)
+                .unwrap()
+                .test_in(&context, &stack)
+        );
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:repair_cost", &None);
+        for value in [
+            Tag::String(if color == "red" { "blue" } else { "red" }.into()),
+            Tag::String(color.to_uppercase().as_str().into()),
+            Tag::Int(14),
+        ] {
+            stack
+                .data_mut()
+                .set_loot_component("minecraft:cushion/color", &Some(value));
+            assert!(!ingredient.test_in(&context, &stack));
+            assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        }
+        let removal = Tag::compound([(
+            "!minecraft:cushion/color",
+            Tag::Compound(Default::default()),
+        )]);
+        (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+        let absent_source = serde_json::json!({
+            "type":"neoforge:components", "items":item,
+            "components":{"!minecraft:cushion/color":{}}
+        });
+        let absent = Ingredient::parse(&absent_source, &items).unwrap();
+        assert!(absent.test_in(&context, &stack));
+        let plain = ItemStack::new(item.as_str(), 1);
+        assert!(!absent.test_in(&context, &plain));
+        let no_defaults = Items::empty();
+        assert!(
+            !Ingredient::parse(&source, &no_defaults)
+                .unwrap()
+                .test_in(&context, &plain)
+        );
+        assert!(
+            Ingredient::parse(&absent_source, &no_defaults)
+                .unwrap()
+                .test_in(&context, &plain)
+        );
+        let mut incomplete_source = source.clone();
+        incomplete_source["components"]
+            .as_object_mut()
+            .unwrap()
+            .remove("minecraft:max_stack_size");
+        assert!(
+            !Ingredient::parse(&incomplete_source, &items)
+                .unwrap()
+                .test_in(&context, &plain)
+        );
+        assert!(!ingredient.test_in(&context, &ItemStack::new(item.as_str(), 0)));
+        assert!(!ingredient.test_in(&context, &ItemStack::new("minecraft:stone", 1)));
+    }
+}
+
+#[test]
+fn malformed_cushion_color_payloads_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    for value in [
+        serde_json::json!("RED"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:red"),
+        serde_json::json!(" red"),
+        serde_json::json!(""),
+        serde_json::json!(14),
+        serde_json::json!(true),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:cushion/color":value});
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:cushion/color:"),
+            "{error}"
+        );
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:red_cushion", "components":patch
+        });
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:invalid_cushion_color".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert!(recipes.crafting.is_empty());
+        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+}
+
