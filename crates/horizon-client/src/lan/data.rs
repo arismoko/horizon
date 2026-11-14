@@ -1038,10 +1038,10 @@ impl SyncData {
                         .collect()
                 });
             for member in members {
-                if let Some(&id) = names.get(qualified(&member).as_str()) {
-                    if !out.contains(&id) {
-                        out.push(id);
-                    }
+                if let Some(&id) = names.get(qualified(&member).as_str())
+                    && !out.contains(&id)
+                {
+                    out.push(id);
                 }
             }
         }
