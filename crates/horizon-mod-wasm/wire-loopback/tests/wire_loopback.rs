@@ -90,6 +90,53 @@ impl Drop for TransportScope {
         LOOPBACK_TRANSPORT.with(|transport| *transport.borrow_mut() = self.0.take());
     }
 }
+// Reserved control calls are handled before generated method dispatch, just as in
+// the runtime. Release the Cx borrow before dropping a potentially reentrant value.
+unsafe fn release_host_lease(
+    pointer: *mut boundary::Cx,
+    bytes: &[u8],
+) -> Result<(), boundary::ServeError> {
+    let id = Reader::decode(bytes)?;
+    let released =
+        unsafe { (&mut *pointer).held.remove(id) }.map_err(|_| boundary::ServeError::Stale)?;
+    drop(released);
+    Ok(())
+}
+
+#[test]
+fn wire_loopback_release_refuses_foreign_stale_and_malformed_ids() {
+    let mut cx = Box::new(boundary::Cx::default());
+    let mut foreign = mod_api::wire::Slots::default();
+    let foreign_id = foreign.insert_long(1u32);
+    let encode = |id: Id| {
+        let mut out = Writer::new();
+        out.put(&id);
+        out.into_bytes()
+    };
+    assert!(matches!(
+        unsafe { release_host_lease(&mut *cx, &encode(foreign_id)) },
+        Err(boundary::ServeError::Stale)
+    ));
+    assert_eq!(foreign.get(foreign_id), Ok(&1));
+    let id = cx.held.insert_long(Box::new(2u32));
+    unsafe { release_host_lease(&mut *cx, &encode(id)) }.unwrap();
+    assert!(cx.held.get(id).is_err());
+    assert!(matches!(
+        unsafe { release_host_lease(&mut *cx, &encode(id)) },
+        Err(boundary::ServeError::Stale)
+    ));
+    let live = cx.held.insert_long(Box::new(3u32));
+    let mut trailing = encode(live);
+    trailing.push(0);
+    for invalid in [&[0u8][..], &trailing] {
+        assert!(matches!(
+            unsafe { release_host_lease(&mut *cx, invalid) },
+            Err(boundary::ServeError::Decode(_))
+        ));
+        assert!(cx.held.get(live).is_ok());
+    }
+}
+
 impl WasmMod {
     fn same_group(&self, other: &Self) -> bool {
         self.group == other.group
@@ -117,6 +164,10 @@ impl WasmMod {
         let transport: guest::Transport = Rc::new(move |id, bytes| {
             if id == mod_api::wire::HOST_LOG {
                 eprintln!("{}", Reader::new(bytes).take::<String>().unwrap());
+                return Vec::new();
+            }
+            if id == mod_api::wire::HOST_RELEASE {
+                unsafe { release_host_lease(pointer, bytes) }.unwrap();
                 return Vec::new();
             }
             let mut out = Writer::new();
@@ -1855,9 +1906,7 @@ fn wire_loopback_provider_queries_return_owned_options_and_atomic_cursor_writeba
             return Vec::new();
         }
         if id == mod_api::wire::HOST_RELEASE {
-            let id = Reader::decode(bytes).unwrap();
-            let released = unsafe { (&mut *pointer).held.remove(id) }.unwrap();
-            drop(released);
+            unsafe { release_host_lease(pointer, bytes) }.unwrap();
             return Vec::new();
         }
         let _scope = unsafe { boundary::resource_scope(pointer, false) };
