@@ -1873,10 +1873,6 @@ fn tropical_fish_pattern_color_recipes_match_defaults_removals_and_distinct_fiel
     }
     let removal = Tag::compound([
         (
-            "!minecraft:tropical_fish/pattern_color",
-            Tag::Compound(Default::default()),
-        ),
-        (
             "minecraft:tropical_fish/base_color",
             Tag::String("light_blue".into()),
         ),
@@ -1886,6 +1882,13 @@ fn tropical_fish_pattern_color_recipes_match_defaults_removals_and_distinct_fiel
         ),
     ]);
     (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+    stack
+        .data_mut()
+        .set_loot_component("minecraft:tropical_fish/pattern_color", &None);
+    stack.data_mut().set_loot_component(
+        "!minecraft:tropical_fish/pattern_color",
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(!ingredient.test_in(&context, &stack));
     assert!(absent.test_in(&context, &stack));
     assert!(recipes.craft(&context, &[Some(stack)], 1).is_none());

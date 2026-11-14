@@ -959,6 +959,17 @@ fn cooking_fuel_recipe_compiles_and_matches_decoded_live_and_prototype_values() 
     });
     assert_eq!(allocations.calls, 0, "{allocations:?}");
     assert_eq!(allocations.bytes, 0);
+    for malformed in [
+        Tag::End,
+        Tag::Byte(0),
+        Tag::List(vec![]),
+        Tag::compound([("burn_time", Tag::Int(10))]),
+    ] {
+        coal.data_mut()
+            .set_other("minecraft:cooking_fuel", Some(malformed));
+        assert!(!matches(&coal, "fixture:fuel_constant"));
+        assert!(!matches(&coal, "fixture:fuel_reference"));
+    }
     coal.data_mut().set_other("minecraft:cooking_fuel", None);
     coal.data_mut().set_other(
         "!minecraft:cooking_fuel",
@@ -984,3 +995,24 @@ fn cooking_fuel_recipe_compiles_and_matches_decoded_live_and_prototype_values() 
     assert!(error.contains("speed_multiplier"), "{error}");
 }
 
+#[test]
+fn cooking_fuel_zero_speed_is_valid_without_defaults_or_bounds() {
+    let items = Items::empty();
+    let value = Tag::compound([
+        ("burn_time", Tag::Int(-5)),
+        ("speed_multiplier", Tag::Int(0)),
+        ("ignored", Tag::String("anything".into())),
+    ]);
+    assert_eq!(
+        horizon_command::item::decoded_component_value(
+            "minecraft:cooking_fuel",
+            &value,
+            &items.component_registry
+        )
+        .unwrap(),
+        Tag::compound([
+            ("burn_time", Tag::Int(-5)),
+            ("speed_multiplier", Tag::Float(0))
+        ])
+    );
+}

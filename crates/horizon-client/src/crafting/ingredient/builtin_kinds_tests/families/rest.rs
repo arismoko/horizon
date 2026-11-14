@@ -1720,6 +1720,25 @@ fn next_component_codecs_reject_bad_records_preserve_siblings_and_presence() {
     let context = load.loop_context(LoopSide::Server, []);
     for (id, valid, malformed) in [
         (
+            "minecraft:cooking_fuel",
+            json!({"burn_time":-5,"speed_multiplier":-2,"ignored":true}),
+            vec![
+                json!({}),
+                json!({"burn_time":1}),
+                json!({"speed_multiplier":0}),
+                json!({"burn_time":null,"speed_multiplier":1}),
+                json!({"burn_time":1,"speed_multiplier":null}),
+                json!({"burn_time":false,"speed_multiplier":1}),
+                json!({"burn_time":1,"speed_multiplier":[]}),
+                json!("fuel"),
+            ],
+        ),
+        (
+            "minecraft:tropical_fish/pattern_color",
+            json!("red"),
+            vec![json!("RED"), json!({})],
+        ),
+        (
             "minecraft:compostable",
             json!({"layers":-3,"chance":"ignored"}),
             vec![
@@ -1787,7 +1806,12 @@ fn next_component_codecs_reject_bad_records_preserve_siblings_and_presence() {
                     .is_none()
             );
         }
-        for value in [Tag::End, Tag::Byte(0), Tag::List(vec![])] {
+        for value in [
+            Tag::End,
+            Tag::Byte(0),
+            Tag::List(vec![]),
+            Tag::String(horizon_core::nbt::JavaString(vec![0xd800])),
+        ] {
             let rule = IngredientRule::Components {
                 patch: horizon_core::nbt::Compound::from([(id.into(), value)]),
                 removed: vec![],
@@ -1837,5 +1861,4 @@ fn next_component_codecs_reject_bad_records_preserve_siblings_and_presence() {
         assert!(inherited_absent.test_in(&context, &paper));
     }
 }
-
 

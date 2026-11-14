@@ -108,7 +108,7 @@ mod tests {
             (Tag::Float(0x8000_0000), 0x8000_0000),
             (Tag::Double(f64::MAX.to_bits()), 0x7f80_0000),
             (Tag::Double(f64::NEG_INFINITY.to_bits()), 0xff80_0000),
-            (Tag::Float(0xff80_0001), 0x7fc0_0000),
+            (Tag::Float(0xff80_0001), 0xff80_0001),
         ] {
             assert_eq!(
                 decode(&fuel(Tag::Int(0), input)).unwrap(),

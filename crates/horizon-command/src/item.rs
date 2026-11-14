@@ -104,7 +104,9 @@ pub fn decoded_component_value(id: &str, value: &Tag, reg: &Registries) -> Resul
     if id == "minecraft:brewing_fuel" {
         return horizon_items::item_data::brewing_fuel::decode(value);
     }
-    if id == "minecraft:cooking_fuel" { return horizon_items::item_data::cooking_fuel::decode(value); }
+    if id == "minecraft:cooking_fuel" {
+        return horizon_items::item_data::cooking_fuel::decode(value);
+    }
     decode_component(id, value, reg)?;
     if id == "minecraft:block_entity_data" {
         let Tag::Compound(_) = value else {
@@ -276,7 +278,8 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         | "minecraft:cat/collar"
         | "minecraft:wolf/collar"
         | "minecraft:cushion/color"
-        | "minecraft:tropical_fish/base_color" | "minecraft:tropical_fish/pattern_color" => dye_color(t).map(|_| ()),
+        | "minecraft:tropical_fish/base_color"
+        | "minecraft:tropical_fish/pattern_color" => dye_color(t).map(|_| ()),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
         // DataComponents.ENCHANTMENT_GLINT_OVERRIDE: Codec.BOOL through NbtOps.
         "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)
