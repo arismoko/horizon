@@ -138,10 +138,13 @@ vanilla:
 | Source | Calculator |
 | --- | --- |
 | A primed TNT that went through a portal | Nether portal blocks resist nothing and never break; every other cell as usual |
-| A wind charge (a player's or a breeze's) | The blocks of `#blocks_wind_charge_explosions` (barrier, bedrock) resist 3,600,000; every other cell, fluids included, nothing |
+| A player's wind charge | The blocks of `#blocks_wind_charge_explosions` (barrier, bedrock) resist 3,600,000; every other cell, fluids included, nothing. No entity is damaged; knockback multiplier 1.22, a flying player 0 |
+| A breeze's wind charge | The same blocks; no entity is damaged; knockback multiplier 1, a flying player 0 |
 | Anything else, or `None` | The default calculator |
 
-With a calculator given, the source's is not used, as in vanilla.
+With a calculator given, none of the source's rules are used, its damage and
+knockback included, as in vanilla. A wind charge's entities are still checked
+for exposure: only a calculator that neither damages nor pushes skips it.
 
 A particle is a vanilla particle type that takes no options (`minecraft:flame`,
 `minecraft:end_rod`; not `minecraft:block` or `minecraft:item`). The packet

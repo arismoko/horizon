@@ -18,9 +18,11 @@ pub struct ExplosionSettings {
     /// the source's own, as vanilla has it: a primed TNT that went through a
     /// portal passes through nether portals and spares them, a wind charge's
     /// blast resists 3,600,000 in `#blocks_wind_charge_explosions` and nothing
-    /// in every other cell. Any other source, or none, takes the default one,
-    /// which asks each block's parts and its own resistance. A calculator
-    /// given replaces the source's.
+    /// in every other cell, damages no entity and pushes by 1.22 (a player's
+    /// wind charge) or 1 (a breeze's), a flying player by 0. Any other
+    /// source, or none, takes the default one, which asks each block's parts
+    /// and its own resistance. A calculator given replaces all of the
+    /// source's rules, its damage and knockback included.
     pub calculator: Option<ExplosionCalculator>,
     /// The centre particle of a small blast (a radius under 2, or one that
     /// keeps its blocks); `None` is `minecraft:explosion`.

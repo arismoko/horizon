@@ -5,7 +5,13 @@
 #![cfg(test)]
 use crate::game::Game;
 use crate::game::native_entity_refs::tests::{bind_local_player, run_on_guest_stack, with_game};
-use horizon_client::{chunk::Chunk, mobs::Mob, mobs::Who, motion::PlayerMotion};
+use horizon_client::{
+    chunk::Chunk,
+    mobs::Mob,
+    mobs::Who,
+    motion::PlayerMotion,
+    projectiles::{Projectile, ProjectileKind},
+};
 use horizon_core::{
     geometry::Vec3,
     position::{BlockPos, ChunkPos},
@@ -916,7 +922,6 @@ fn primed_tnt_that_went_through_a_portal_spares_a_portal_unless_a_calculator_is_
 #[test]
 #[ignore = "daily"]
 fn a_wind_charge_source_brings_its_tag_calculator_unless_a_calculator_is_passed() {
-    use horizon_client::projectiles::{Projectile, ProjectileKind};
     // (source, calculator, obsidian survives)
     let cases = [
         (true, false, false),
@@ -974,5 +979,147 @@ fn a_non_finite_radius_is_refused_and_one_of_zero_finds_no_blocks() {
         assert_eq!(stone(game), 256, "{via:?}");
         let heard = heard.lock().unwrap();
         assert_eq!((heard.starts.len(), heard.detonates), (1, 0), "{via:?}");
+    });
+}
+
+/// A still zombie at (11.5, 80, 8.5) and the survival player, flying or not,
+/// at (5.5, 80, 8.5): on either side of a [`wind_blast`]. The player is not
+/// bound to an entity id, so no detonate list leaves them out.
+fn targets(game: &mut Game<'_>, flying: bool) {
+    game.player = Some(PlayerMotion::new(game.motion, Vec3::new(5.5, 80.0, 8.5)).unwrap());
+    game.set_mode_id(0);
+    game.player.as_mut().unwrap().flying = flying;
+    game.next_entity = 100;
+    mob(
+        game,
+        48,
+        "minecraft:zombie",
+        Vec3::new(11.5, 80.0, 8.5),
+        20.0,
+    );
+}
+
+/// A wind charge of `kind` above the blast, as its source.
+fn wind_charge(game: &mut Game<'_>, kind: ProjectileKind) -> Option<EntityRef> {
+    let charge = Projectile::new(kind, Vec3::new(8.5, 86.5, 8.5), None);
+    let id = game.add_projectile(charge);
+    game.entity(id)
+}
+
+/// A blast at (8.5, 80.5, 8.5), radius 4, that keeps its blocks.
+fn wind_blast(source: Option<EntityRef>, calculator: Option<ExplosionCalculator>) -> Blast {
+    Blast {
+        source,
+        interaction: ExplosionInteraction::None,
+        settings: ExplosionSettings {
+            calculator,
+            ..Default::default()
+        },
+        ..Blast::at([8.5, 80.5, 8.5], 4.0)
+    }
+}
+
+/// A calculator that pushes by 1 and damages no one.
+fn unhurt() -> Option<ExplosionCalculator> {
+    Some(ExplosionCalculator {
+        damages_entities: false,
+        ..Default::default()
+    })
+}
+
+/// The zombie's and the player's velocity, both stilled again.
+fn pushes(game: &mut Game<'_>) -> (Vec3, Vec3) {
+    let still = Vec3::new(0.0, 0.0, 0.0);
+    let zombie = std::mem::replace(&mut game.mobs[0].velocity, still);
+    let player = &mut game.player.as_mut().unwrap().velocity;
+    (zombie, std::mem::replace(player, still))
+}
+
+#[test]
+#[ignore = "daily"]
+fn a_wind_charge_source_damages_neither_a_mob_nor_a_player() {
+    for kind in [ProjectileKind::WindCharge, ProjectileKind::BreezeWindCharge] {
+        heard(move |game, via, heard| {
+            targets(game, false);
+            let source = wind_charge(game, kind.clone());
+            explode(game, via, wind_blast(source, None), Ok(()));
+            let player = game.player.as_ref().unwrap().health.health();
+            assert_eq!(
+                (game.mobs[0].health, player),
+                (20.0, 20.0),
+                "{via:?} {kind:?}"
+            );
+            assert!(heard.lock().unwrap().damage.is_empty(), "{via:?} {kind:?}");
+            // Knockback still applies.
+            let (zombie, player) = pushes(game);
+            assert!(zombie.x > 0.0 && player.x < 0.0, "{via:?} {kind:?}");
+        });
+    }
+}
+
+#[test]
+#[ignore = "daily"]
+fn a_wind_charge_source_pushes_by_1_22_for_a_players_and_1_for_a_breezes() {
+    let cases = [
+        (ProjectileKind::WindCharge, 1.22_f32),
+        (ProjectileKind::BreezeWindCharge, 1.0),
+    ];
+    for (kind, multiplier) in cases {
+        heard(move |game, via, _| {
+            targets(game, false);
+            explode(game, via, wind_blast(None, unhurt()), Ok(()));
+            let plain = pushes(game);
+            let source = wind_charge(game, kind.clone());
+            explode(game, via, wind_blast(source, None), Ok(()));
+            let wind = pushes(game);
+            let m = f64::from(multiplier);
+            for (wind, plain) in [(wind.0, plain.0), (wind.1, plain.1)] {
+                assert!(plain.x.abs() > 0.1, "{via:?} {kind:?}: {plain:?}");
+                let scaled = Vec3::new(plain.x * m, plain.y * m, plain.z * m);
+                let off = (wind.x - scaled.x).abs()
+                    + (wind.y - scaled.y).abs()
+                    + (wind.z - scaled.z).abs();
+                assert!(off < 1.0e-9, "{via:?} {kind:?}: {wind:?} vs {scaled:?}");
+            }
+        });
+    }
+}
+
+#[test]
+#[ignore = "daily"]
+fn a_flying_player_is_not_moved_by_a_wind_charge_source() {
+    for kind in [ProjectileKind::WindCharge, ProjectileKind::BreezeWindCharge] {
+        heard(move |game, via, _| {
+            targets(game, true);
+            let source = wind_charge(game, kind.clone());
+            explode(game, via, wind_blast(source, None), Ok(()));
+            let (zombie, player) = pushes(game);
+            assert!(zombie.x > 0.0, "{via:?} {kind:?}: {zombie:?}");
+            assert_eq!(player, Vec3::new(0.0, 0.0, 0.0), "{via:?} {kind:?}");
+            // The default calculator pushes a flying player like any other.
+            explode(game, via, wind_blast(None, None), Ok(()));
+            let (_, player) = pushes(game);
+            assert!(player.x < 0.0, "{via:?} {kind:?}: {player:?}");
+        });
+    }
+}
+
+#[test]
+#[ignore = "daily"]
+fn a_passed_calculator_replaces_a_wind_charges_entity_rules() {
+    heard(move |game, via, _| {
+        targets(game, false);
+        explode(game, via, wind_blast(None, unhurt()), Ok(()));
+        let (plain, _) = pushes(game);
+        let source = wind_charge(game, ProjectileKind::WindCharge);
+        let calculator = Some(ExplosionCalculator::default());
+        explode(game, via, wind_blast(source, calculator), Ok(()));
+        // The calculator's rules: both are damaged, and pushed by its 1, not
+        // the charge's 1.22.
+        let player = game.player.as_ref().unwrap().health.health();
+        assert!(game.mobs[0].health < 20.0, "{via:?}");
+        assert!(player < 20.0, "{via:?}: {player}");
+        let (zombie, _) = pushes(game);
+        assert_eq!(zombie, plain, "{via:?}");
     });
 }
