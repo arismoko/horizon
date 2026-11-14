@@ -266,4 +266,3 @@ fn fox_variant_invalid_codec_payloads_omit_whole_recipes() {
         assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
     }
 }
-

@@ -2009,4 +2009,3 @@ fn malformed_tropical_fish_pattern_colors_reject_whole_recipes_with_component_er
         assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
     }
 }
-
