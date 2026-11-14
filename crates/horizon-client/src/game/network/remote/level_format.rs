@@ -22,6 +22,26 @@ pub(in crate::game) struct LevelFormat {
     pub(in crate::game) environment: Option<Environment>,
 }
 
+impl crate::game::Game<'_> {
+    /// The client's table of the server's levels on entering `entered`: a level past vanilla's
+    /// three is added, so that [`Dim::from_id`] finds it, and the level left is dropped when the
+    /// server opened it after Login (a runtime level), so that a long session through many of
+    /// them keeps none. A viewed world of such a level needs no entry: it keeps its own name.
+    pub(in crate::game) fn track_remote_levels(&mut self, entered: &str) {
+        if let Some(r) = self.remote.as_mut()
+            && r.level != entered
+            && !Dim::is_vanilla(&r.level)
+            && !r.levels.contains(&r.level)
+        {
+            Dim::remove_extra(&r.level);
+            r.facts_cache.remove(&r.level);
+        }
+        if !Dim::is_vanilla(entered) {
+            Dim::add_extra(entered);
+        }
+    }
+}
+
 impl Remote {
     /// The format and facts of the level `spawn` names, from the server's dimension type; `base`
     /// is the game's own environment. The facts are cached by level and named type.

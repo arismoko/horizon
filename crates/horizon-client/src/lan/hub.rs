@@ -1464,21 +1464,6 @@ impl Hub {
         }
     }
 
-    /// The levels of a server, in MinecraftServer.levelKeys order.
-    pub(in crate::lan) fn level_keys(&self) -> Vec<String> {
-        ["overworld", "the_end", "the_nether"]
-            .map(|l| format!("minecraft:{l}"))
-            .into_iter()
-            .chain(
-                self.config
-                    .levels
-                    .extra
-                    .iter()
-                    .map(|level| level.id.to_owned()),
-            )
-            .collect()
-    }
-
     /// PlayerList.placeNewPlayer for a guest whose saved state is loaded.
     pub fn place_new_player(&mut self, conn: u32, ctx: &mut TickCtx) {
         let Some(i) = self.guests.iter().position(|g| g.conn == conn) else {
@@ -1500,12 +1485,15 @@ impl Hub {
                 g.held_since = self.ticks;
             });
         }
+        let levels = self.level_keys();
+        self.guests
+            .update(i, |g| g.viewed.logged_in_with(levels.clone()));
         let held = self.guests[i].held;
         let g = &self.guests[i];
         g.send(&C::Login(play::Login {
             player_id: entity_id,
             hardcore: self.config.hardcore,
-            levels: self.level_keys(),
+            levels,
             max_players: self.config.max_players as i32,
             chunk_radius: self.chunk_radius(),
             simulation_distance: self.config.simulation_distance,
@@ -4941,6 +4929,7 @@ impl Hub {
     ) {
         let info = self.spawn_info(i, portal_cooldown, ctx.sea_level);
         self.close_container_for(i);
+        self.before_travel(i);
         let left = self.guests[i].dimension.clone();
         self.guests.update(i, |g| {
             // Out of the old level with its chunks (ChunkMap.removeEntity).
