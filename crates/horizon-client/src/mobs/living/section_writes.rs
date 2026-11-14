@@ -106,7 +106,7 @@ mod tests {
             Vec3::new(16.5, 64.0, 0.5),
             Vec3::new(32.5, 64.0, 0.5),
         );
-        record(8, JoinSeq::next(), Vec3::ZERO, Vec3::ONE);
+        record(8, JoinSeq::next(), Vec3::ZERO, Vec3::new(1.0, 1.0, 1.0));
         let mut out = Vec::new();
         drain_for(7, &mut out);
         assert_eq!(out.len(), 2);
@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn disabled_capture_does_not_record() {
         begin(false);
-        record(7, JoinSeq::next(), Vec3::ZERO, Vec3::ONE);
+        record(7, JoinSeq::next(), Vec3::ZERO, Vec3::new(1.0, 1.0, 1.0));
         let mut out = Vec::new();
         drain_for(7, &mut out);
         assert!(out.is_empty());

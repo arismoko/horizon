@@ -18,9 +18,9 @@ mod projectile_world;
 pub(super) use projectile_world::ProjWorld;
 mod pufferfish_player;
 mod residency;
-mod section_steps;
 #[cfg(test)]
 mod retained_limits_tests;
+mod section_steps;
 mod world_view;
 use super::api_values::{TryIntoApi, TryIntoEngine};
 use super::level_sounds::LevelSound;
@@ -4456,41 +4456,41 @@ impl Game<'_> {
         // player's or a dispenser's, which join before the pass, tick now.
         let through = self.ticked_entities_through;
         for i in 0..projectiles.len() {
-                if projectiles[i].id > through {
-                    continue;
-                }
-                // ServerLevel.tick: losing an entity-ticking ticket must not
-                // advance projectile flags or motion while its chunk unloads.
-                let at = projectiles[i].position;
-                if !ticking(at.x.floor() as i32, at.z.floor() as i32) {
-                    projectiles.update(i, |p| p.previous = at);
-                    continue;
-                }
-                // A ghast's fireball or a wind charge is pickable, so a pearl, an
-                // arrow or a trident can strike it (`Projectile.isPickable`,
-                // `Projectile.onHit`).
-                winds.clear();
-                if matches!(projectiles[i].kind, ProjectileKind::EnderPearl)
-                    || projectiles[i].arrow.is_some()
-                {
-                    pickable_projectile_hitboxes_into(&projectiles, &keep_flags, i, &mut winds);
-                }
-                let mut redirect = None;
-                {
-                    let w = self.mob_world_base(&[]);
-                    let rain = self.arrow_rain();
-                    let scene = self.arrow_scene(&rain);
-                    let pw = ProjWorld {
-                        w: &w,
-                        targets: &targets,
-                        border,
-                    };
-                    let pw_guests = ProjWorld {
-                        w: &w,
-                        targets: &targets_guests,
-                        border,
-                    };
-                    projectiles.update(i, |p| {
+            if projectiles[i].id > through {
+                continue;
+            }
+            // ServerLevel.tick: losing an entity-ticking ticket must not
+            // advance projectile flags or motion while its chunk unloads.
+            let at = projectiles[i].position;
+            if !ticking(at.x.floor() as i32, at.z.floor() as i32) {
+                projectiles.update(i, |p| p.previous = at);
+                continue;
+            }
+            // A ghast's fireball or a wind charge is pickable, so a pearl, an
+            // arrow or a trident can strike it (`Projectile.isPickable`,
+            // `Projectile.onHit`).
+            winds.clear();
+            if matches!(projectiles[i].kind, ProjectileKind::EnderPearl)
+                || projectiles[i].arrow.is_some()
+            {
+                pickable_projectile_hitboxes_into(&projectiles, &keep_flags, i, &mut winds);
+            }
+            let mut redirect = None;
+            {
+                let w = self.mob_world_base(&[]);
+                let rain = self.arrow_rain();
+                let scene = self.arrow_scene(&rain);
+                let pw = ProjWorld {
+                    w: &w,
+                    targets: &targets,
+                    border,
+                };
+                let pw_guests = ProjWorld {
+                    w: &w,
+                    targets: &targets_guests,
+                    border,
+                };
+                projectiles.update(i, |p| {
                     if vanish
                         && matches!(p.kind, ProjectileKind::EnderPearl)
                         && p.owner == Some(Who::Player)
@@ -4660,23 +4660,23 @@ impl Game<'_> {
                     {
                         redirect = Some((j, (p.owner, p.owner_uuid, p.guest)));
                     }
-                    });
-                }
-                if let Some((j, (owner, owner_uuid, guest))) = redirect {
-                    let look = self.owner_look(owner, guest);
-                    projectiles.update(j, |wind| {
-                        super::deflect::aim_deflect(wind, look, owner, owner_uuid, guest);
-                    });
-                }
-                keep_flags[i] = keep_flags[i]
-                    && section_steps::record(
+                });
+            }
+            if let Some((j, (owner, owner_uuid, guest))) = redirect {
+                let look = self.owner_look(owner, guest);
+                projectiles.update(j, |wind| {
+                    super::deflect::aim_deflect(wind, look, owner, owner_uuid, guest);
+                });
+            }
+            keep_flags[i] = keep_flags[i]
+                && section_steps::record(
                     self,
                     &mut section_steps,
                     projectiles.get(i),
                     at,
                     keep_flags[i],
                 );
-            }
+        }
         self.creatures.pickable_projectile_targets = winds;
         for (block, position, movement) in snow_contacts {
             self.powder_snow_particle(block, position, movement);

@@ -104,14 +104,15 @@ impl Game<'_> {
                     .projectiles
                     .update(index, |p| p.set_no_physics(no_physics))
             }
-            Some(Target::Trident(id)) => self
-                .tridents
-                .iter_mut()
-                .find(|t| t.id == id)
-                .is_some_and(|t| {
-                    t.set_no_physics(no_physics);
-                    true
-                }),
+            Some(Target::Trident(id)) => {
+                self.tridents
+                    .iter_mut()
+                    .find(|t| t.id == id)
+                    .is_some_and(|t| {
+                        t.set_no_physics(no_physics);
+                        true
+                    })
+            }
             Some(Target::Stand(id)) => self
                 .armor_stands
                 .iter_mut()
@@ -209,7 +210,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_reads_supported_entities_and_refuses_others() {
         use super::super::native_entity_refs::tests::with_game;
         use super::super::trident::ThrownTrident;
@@ -306,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_write_holds_and_covers_the_four_constant_kinds() {
         use super::super::native_entity_refs::tests::with_game;
         use super::super::trident::ThrownTrident;
@@ -380,7 +381,8 @@ mod tests {
 
             // A vex sets it inside its own tick.
             let vex = game.res.mob_types().get("minecraft:vex").unwrap().clone();
-            game.mobs.push(Mob::new(42, vex, Vec3::new(0.5, 100.0, 0.5), 0.0));
+            game.mobs
+                .push(Mob::new(42, vex, Vec3::new(0.5, 100.0, 0.5), 0.0));
             let vex = game.entity(42).unwrap();
             assert!(!vex.set_no_physics(game, true));
             assert_eq!(vex.no_physics(game), Some(false));
@@ -392,7 +394,8 @@ mod tests {
                 .get("minecraft:zombie")
                 .unwrap()
                 .clone();
-            game.mobs.push(Mob::new(43, zombie, Vec3::new(1.5, 100.0, 0.5), 0.0));
+            game.mobs
+                .push(Mob::new(43, zombie, Vec3::new(1.5, 100.0, 0.5), 0.0));
             let zombie = game.entity(43).unwrap();
             assert!(zombie.set_no_physics(game, true));
             game.tick_mobs().unwrap();
@@ -426,8 +429,7 @@ mod tests {
             assert!(game.tridents[0].needs_sync);
 
             // An armor stand takes it, and recomputes it on a load.
-            game.armor_stands
-                .push(ArmorStand::new(44, Vec3::ZERO, 0.0));
+            game.armor_stands.push(ArmorStand::new(44, Vec3::ZERO, 0.0));
             let stand = game.entity(44).unwrap();
             assert!(stand.set_no_physics(game, true));
             assert_eq!(stand.no_physics(game), Some(true));
@@ -481,7 +483,7 @@ mod tests {
     /// `Entity::no_physics`) pushes a bullet whose flag a mod cleared and
     /// spares one left at the kind's default `true`.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn a_mod_cleared_no_physics_shulker_bullet_is_pushed_by_a_shulker_lid() {
         use super::super::native_entity_refs::tests::with_game;
         use crate::game::piston_push::Lid;
@@ -550,7 +552,7 @@ mod tests {
     /// with its chunk is removed without `forget_entity` on the removal path,
     /// so the sweep has to drop the entry itself.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_entry_is_cleared_when_the_bullet_leaves_with_its_chunk() {
         use super::super::native_entity_refs::tests::with_game;
         use horizon_client::projectiles::Projectile;
@@ -588,7 +590,7 @@ mod tests {
     /// takes a shulker bullet out of its list: the `noPhysics` write stored
     /// for it has to leave with it.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_entry_is_cleared_when_a_command_kills_a_shulker_bullet() {
         use super::super::native_entity_refs::tests::with_game;
         use horizon_client::projectiles::Projectile;
@@ -629,7 +631,7 @@ mod tests {
     /// A player's blow removes a shulker bullet (`hit_shulker_bullet`): the
     /// `noPhysics` write stored for it has to leave with it.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_entry_is_cleared_when_a_players_blow_removes_a_shulker_bullet() {
         use super::super::native_entity_refs::tests::with_game;
         use horizon_client::projectiles::Projectile;
@@ -666,17 +668,13 @@ mod tests {
     /// An ominous item spawner that finishes its countdown is taken away by
     /// `tick_ominous_item_spawners`: its entry goes with it.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_entry_is_cleared_when_an_ominous_item_spawner_finishes() {
         use super::super::native_entity_refs::tests::with_game;
         use horizon_client::items::ItemStack;
 
         with_game(|game| {
-            game.add_ominous_item_spawner(
-                ItemStack::new("minecraft:air", 1),
-                [4.5, 200.0, 4.5],
-                1,
-            );
+            game.add_ominous_item_spawner(ItemStack::new("minecraft:air", 1), [4.5, 200.0, 4.5], 1);
             let id = game.ominous_spawners[0].id;
             game.persist.no_physics.insert(id, false);
             assert!(game.persist.no_physics.contains_key(&id));
@@ -696,7 +694,7 @@ mod tests {
     /// A breath cloud that runs out of time is taken away by `tick_breath`,
     /// not by a command: its entry goes with it.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_entry_is_cleared_when_a_breath_cloud_expires() {
         use super::super::dragon::Breath;
         use super::super::native_entity_refs::tests::with_game;
@@ -734,7 +732,7 @@ mod tests {
     /// Leaving the flaming phase removes the dragon's flame cloud
     /// (`end_dragon_flame`): its entry leaves with it too.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_entry_is_cleared_when_the_dragons_flame_is_removed() {
         use super::super::dragon::{Breath, Dragon};
         use super::super::native_entity_refs::tests::with_game;
@@ -775,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn no_physics_write_is_refused_on_a_client() {
         use super::super::native_entity_refs::tests::with_client_game;
         use mod_api::WorldEpoch;

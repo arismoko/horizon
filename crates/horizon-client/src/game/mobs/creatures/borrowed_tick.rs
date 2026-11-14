@@ -522,19 +522,14 @@ impl Game<'_> {
                                 // still has the old filed section as its first write.
                                 section_moves.push(
                                     crate::mobs::living::section_writes::PositionWrite::baseline(
-                                        m.id,
-                                        m.join,
-                                        m.previous,
+                                        m.id, m.join, m.previous,
                                     ),
                                 );
                             }
                             if changed {
                                 section_moves.push(
                                     crate::mobs::living::section_writes::PositionWrite::captured(
-                                        m.id,
-                                        m.join,
-                                        m.previous,
-                                        m.position,
+                                        m.id, m.join, m.previous, m.position,
                                     ),
                                 );
                                 section_yield = true;

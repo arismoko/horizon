@@ -32,12 +32,7 @@ pub(super) fn tick_riding(
     id: u32,
     i: usize,
     intent: [f64; 2],
-) -> Option<(
-    usize,
-    bool,
-    Option<(Vec3, Vec3)>,
-    Option<(Vec3, Vec3)>,
-)> {
+) -> Option<(usize, bool, Option<(Vec3, Vec3)>, Option<(Vec3, Vec3)>)> {
     let mut cart = game.carts[i].clone();
     let from = cart.position;
     let alive = game.tick_cart(&mut cart, intent, i, &mut CartIndex::default());

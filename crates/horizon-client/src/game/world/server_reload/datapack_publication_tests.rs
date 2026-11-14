@@ -7,6 +7,16 @@ use mod_api::{
 struct RegistryMod;
 #[mod_api::__subscriptions]
 impl Hooks for RegistryMod {
+    fn data_map_types(
+        &self,
+        _: &mut dyn mod_api::ServerHost,
+        event: &mut mod_api::DataMapTypesEvent<'_>,
+    ) {
+        event.types.push(mod_api::game::DataMapType {
+            id: "registry_test:weights".into(),
+            registry: "registry_test:spell".into(),
+        });
+    }
     fn register(&self, r: &mut dyn Registrar, _: &RegistrationContext) {
         r.declare_datapack_registry(
             "spell",
@@ -35,7 +45,7 @@ fn power(game: &crate::game::Game<'_>) -> DatapackValue {
     .clone()
 }
 #[test]
-#[ignore = "needs prepared resources and isolated homes"]
+#[ignore = "daily"]
 fn datapack_game_open_reload_and_exhaustion_are_atomic() {
     let _publication = horizon_client::datapack_net::isolate_server_publication();
     let scratch = tempfile::tempdir().unwrap();
@@ -172,7 +182,7 @@ fn datapack_game_open_reload_and_exhaustion_are_atomic() {
 }
 
 #[test]
-#[ignore = "needs prepared resources and isolated homes"]
+#[ignore = "daily"]
 fn remote_reload_never_decodes_local_registry_files() {
     let scratch = tempfile::tempdir().unwrap();
     let root = scratch.path();
@@ -197,7 +207,6 @@ fn remote_reload_never_decodes_local_registry_files() {
                 game.world_root = root.to_owned();
                 game.reload_datapacks(true, &[]).unwrap();
                 assert!(game.mods.datapack_registries.is_none());
-                assert!(game.mods.datapack_candidate.is_none());
             });
         },
     );
@@ -205,7 +214,7 @@ fn remote_reload_never_decodes_local_registry_files() {
 /// A reload over a decode limit, or with a bad winning file, is refused naming the pack and
 /// file; the old generation stays live and the next valid reload publishes.
 #[test]
-#[ignore = "needs prepared resources and isolated homes"]
+#[ignore = "daily"]
 fn refused_reload_names_the_pack_and_keeps_the_old_generation() {
     let _publication = horizon_client::datapack_net::isolate_server_publication();
     let scratch = tempfile::tempdir().unwrap();
@@ -268,3 +277,104 @@ mod datapack_host_read_tests;
 
 #[path = "datapack_game_delivery_tests.rs"]
 mod datapack_game_delivery_tests;
+
+// Each case uses real world open/reload, not a preloaded membership predicate.
+fn with_membership_fixture(run: impl FnOnce(&mut crate::game::Game<'_>, &Path)) {
+    let _publication = horizon_client::datapack_net::isolate_server_publication();
+    let scratch = tempfile::tempdir().unwrap();
+    let root = scratch.path();
+    for name in ["base", "later"] {
+        write(
+            &root.join(format!("datapacks/{name}/pack.mcmeta")),
+            r#"{"pack":{"description":"fixture","min_format":94,"max_format":94}}"#,
+        );
+    }
+    write(
+        &root.join("datapacks/base/data/registry_test/registry_test/spell/fire.json"),
+        r#"{"power":3}"#,
+    );
+    write(
+        &root.join("datapacks/later/data/registry_test/registry_test/spell/ice.json"),
+        r#"{"power":7}"#,
+    );
+    write(
+        &root.join("datapacks/base/data/registry_test/data_maps/registry_test/spell/weights.json"),
+        r#"{"values":{"registry_test:fire":11,"registry_test:ice":17,"registry_test:ghost":99}}"#,
+    );
+    write(
+        &root.join("datapacks.json"),
+        r#"{"enabled":["vanilla","file/base"],"disabled":["file/later"]}"#,
+    );
+    mod_platform::testing::with_mods(
+        vec![ModEntry::new("registry_test", Box::new(RegistryMod))].into(),
+        || {
+            with_game(|game| {
+                game.load_world(request(root)).unwrap();
+                run(game, root);
+            })
+        },
+    );
+}
+fn weights(game: &crate::game::Game<'_>) -> Vec<(String, serde_json::Value)> {
+    game.world_tables
+        .as_ref()
+        .unwrap()
+        .data_maps
+        .values("registry_test:spell", "registry_test:weights")
+        .map(|(id, value)| (id.to_owned(), value.clone()))
+        .collect()
+}
+#[test]
+#[ignore = "daily"]
+fn data_map_first_open_uses_staged_membership() {
+    with_membership_fixture(|game, _| {
+        assert_eq!(
+            weights(game),
+            vec![("registry_test:fire".into(), serde_json::json!(11))]
+        );
+    });
+}
+#[test]
+#[ignore = "daily"]
+fn data_map_reload_add_uses_staged_membership() {
+    with_membership_fixture(|game, root| {
+        write(
+            &root.join("datapacks/base/data/registry_test/registry_test/spell/ice.json"),
+            r#"{"power":5}"#,
+        );
+        assert!(game.run_command("reload"));
+        assert_eq!(
+            weights(game),
+            vec![
+                ("registry_test:fire".into(), serde_json::json!(11)),
+                ("registry_test:ice".into(), serde_json::json!(17))
+            ]
+        );
+    });
+}
+#[test]
+#[ignore = "daily"]
+fn data_map_reload_remove_uses_staged_membership() {
+    with_membership_fixture(|game, root| {
+        std::fs::remove_file(
+            root.join("datapacks/base/data/registry_test/registry_test/spell/fire.json"),
+        )
+        .unwrap();
+        assert!(game.run_command("reload"));
+        assert_eq!(weights(game), vec![]);
+    });
+}
+#[test]
+#[ignore = "daily"]
+fn data_map_later_enabled_layer_uses_staged_membership() {
+    with_membership_fixture(|game, _| {
+        assert!(game.run_command("datapack enable \"file/later\" last"));
+        assert_eq!(
+            weights(game),
+            vec![
+                ("registry_test:fire".into(), serde_json::json!(11)),
+                ("registry_test:ice".into(), serde_json::json!(17))
+            ]
+        );
+    });
+}

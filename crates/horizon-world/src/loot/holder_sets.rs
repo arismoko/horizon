@@ -57,7 +57,7 @@ impl Binding {
         owner: &str,
         registry: &str,
         value: &mut Value,
-        tags: &HashMap<(String, String), Vec<Value>>,
+        tags: &HashMap<(String, String), crate::tag_layers::TagLayers>,
     ) -> io::Result<bool> {
         if !value.is_object() {
             return Ok(false);
@@ -84,7 +84,7 @@ impl Binding {
         &self,
         owner: &str,
         value: &mut Value,
-        tags: &HashMap<(String, String), Vec<Value>>,
+        tags: &HashMap<(String, String), crate::tag_layers::TagLayers>,
     ) -> io::Result<bool> {
         let mut changed = false;
         if let Some(items) = value.get_mut("items") {
@@ -111,7 +111,7 @@ impl Binding {
         &self,
         owner: &str,
         value: &mut Value,
-        tags: &HashMap<(String, String), Vec<Value>>,
+        tags: &HashMap<(String, String), crate::tag_layers::TagLayers>,
     ) -> io::Result<bool> {
         let mut changed = false;
         if let Some(equipment) = value
@@ -132,7 +132,7 @@ impl Binding {
         &self,
         owner: &str,
         value: &mut Value,
-        tags: &HashMap<(String, String), Vec<Value>>,
+        tags: &HashMap<(String, String), crate::tag_layers::TagLayers>,
     ) -> io::Result<bool> {
         if let Value::Array(values) = value {
             let mut changed = false;

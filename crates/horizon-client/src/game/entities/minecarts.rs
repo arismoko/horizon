@@ -2022,9 +2022,8 @@ impl Game<'_> {
             // opening the cart, a command or a save reads it, never a tick, and
             // a mineshaft's chest cart carries its whole roll as NBT. The
             // stored cart keeps its slots for whatever reads them meanwhile.
-            let (due, section_step) = self.with_entity_held_out(id, |game| {
-                section_steps::tick(game, id, i, &mut index)
-            });
+            let (due, section_step) =
+                self.with_entity_held_out(id, |game| section_steps::tick(game, id, i, &mut index));
             section_steps::tell(self, id, section_step);
             if due {
                 self.perform_cart_command(id);
@@ -2146,9 +2145,8 @@ impl Game<'_> {
         let (s, co) = (f64::from(r.sin()), f64::from(r.cos()));
         let intent = [left * co - forward * s, forward * co + left * s];
         let id = self.carts[i].id;
-        let result = self.with_entity_held_out(id, |game| {
-            section_steps::tick_riding(game, id, i, intent)
-        });
+        let result =
+            self.with_entity_held_out(id, |game| section_steps::tick_riding(game, id, i, intent));
         let Some((i, alive, cart_step, player_step)) = result else {
             return true;
         };

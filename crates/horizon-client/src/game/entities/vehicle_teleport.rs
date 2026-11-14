@@ -455,13 +455,7 @@ impl Game<'_> {
                 TeleportMotion::Keep => game.transition_motion(target),
                 TeleportMotion::Stop => None,
             };
-            let from = game.place_teleport_in_level(
-                target,
-                at,
-                rotation,
-                [false; 3],
-                turn_riders,
-            );
+            let from = game.place_teleport_in_level(target, at, rotation, [false; 3], turn_riders);
             if let Some(from) = from
                 && game.options.dedicated.is_some()
             {

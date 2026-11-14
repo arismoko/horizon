@@ -3,9 +3,8 @@
 //! data packs and mods' files as a mod's own data maps are, and installed on
 //! the world's behaviours for fire spread, weathering, scraping and waxing.
 use super::Game;
-use super::native_data_maps::{DataMapType, DataMaps};
+use super::native_data_maps::{DataMapType, DataMaps, MapRegistries, WorldRegistries};
 use horizon_world::level::BlockMaps;
-use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// The three maps' ids, all on `minecraft:block`.
@@ -19,15 +18,14 @@ const MAPS: [&str; 3] = [
 /// registry id, which picks the block an inverse map gives back.
 fn load(
     overlay: &horizon_world::loot::PackOverlay<'_>,
-    item_tags: &HashMap<String, HashSet<String>>,
-    block_tags: &HashMap<String, HashSet<String>>,
+    registries: &dyn MapRegistries,
     rank: impl Fn(&str) -> u32,
 ) -> Option<Arc<BlockMaps>> {
     let types = MAPS.map(|id| DataMapType {
         id: id.to_owned(),
         registry: "minecraft:block".to_owned(),
     });
-    let maps = DataMaps::load(&types, overlay, item_tags, block_tags);
+    let maps = DataMaps::load(&types, overlay, registries);
     let values = |id| maps.values("minecraft:block", id);
     let block_maps =
         BlockMaps::from_values(values(MAPS[0]), values(MAPS[1]), values(MAPS[2]), rank);
@@ -49,12 +47,20 @@ impl Game<'_> {
                     .block_by_name(block)
                     .map_or(u32::MAX, |b| u32::from(b.0))
             };
-            load(
+            // Tables and the registry generation are installed together before this call.
+            // Use the same membership boundary as their staged data-map load.
+            let registries = WorldRegistries::new(
+                self.ui
+                    .registries
+                    .by_registry
+                    .iter()
+                    .map(|(registry, entries)| (registry.as_str(), entries.ids.as_slice())),
+                self.mods.datapack_registries.as_deref(),
+                &tables.items,
+                &self.options.resources,
                 &overlay,
-                &tables.items.item_tags,
-                &tables.items.block_tags,
-                rank,
-            )
+            );
+            load(&overlay, &registries, rank)
         });
         self.res.behaviours().set_block_maps(maps);
     }
@@ -82,16 +88,20 @@ mod tests {
             files: &files,
             ..horizon_world::loot::PackOverlay::NONE
         };
-        let block_maps = load(&overlay, &HashMap::new(), &HashMap::new(), |_| 0).unwrap();
+        let ids = ["minecraft:stone", "test:tin", "test:waxed_tin"].map(String::from);
+        let items = horizon_client::items::Items::empty();
+        let registries = WorldRegistries::new(
+            [("minecraft:block", ids.as_slice())],
+            None,
+            &items,
+            std::path::Path::new(""),
+            &overlay,
+        );
+        let block_maps = load(&overlay, &registries, |_| 0).unwrap();
         assert_eq!(block_maps.flammable("minecraft:stone"), Some((5, 20)));
         assert_eq!(block_maps.waxed("test:tin"), Some("test:waxed_tin"));
         assert_eq!(block_maps.next_oxidation("test:tin"), None);
-        let none = load(
-            &horizon_world::loot::PackOverlay::NONE,
-            &HashMap::new(),
-            &HashMap::new(),
-            |_| 0,
-        );
+        let none = load(&horizon_world::loot::PackOverlay::NONE, &registries, |_| 0);
         assert!(none.is_none());
     }
 }

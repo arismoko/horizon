@@ -226,7 +226,10 @@ impl Game<'_> {
     /// Entity `id` is gone, or replaced under the same id: it starts over untold.
     pub(super) fn entity_section_forget(&mut self, id: u32) {
         self.native_lifecycle.entity_sections.forget(id);
-        self.native_lifecycle.entity_sections.projectile_live.remove(&id);
+        self.native_lifecycle
+            .entity_sections
+            .projectile_live
+            .remove(&id);
     }
 
     /// Tell the writes from one lifted mob while its owning list is resident.
@@ -309,7 +312,12 @@ impl Game<'_> {
         if let Err(payload) = result {
             std::panic::resume_unwind(payload);
         }
-        scope.is_none_or(|_| self.native_lifecycle.entity_sections.filed.contains_key(&id))
+        scope.is_none_or(|_| {
+            self.native_lifecycle
+                .entity_sections
+                .filed
+                .contains_key(&id)
+        })
     }
 
     /// `Entity.teleport` placed as `/tp` places it ([`Game::place_teleport_in_level`]), then filed

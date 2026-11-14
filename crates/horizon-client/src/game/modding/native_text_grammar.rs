@@ -27,29 +27,39 @@ const STYLE_FLAGS: [&str; 5] = [
 /// one content (the one its `type` names, else the first kind its keys satisfy) plus
 /// well-formed style fields and `extra`, holding only the keys that decode. None when it
 /// does not decode.
-pub(super) fn build(value: &Value, reg: &Registries) -> Option<Value> {
+pub(super) fn build(value: &Value, reg: &Registries, snbt: bool) -> Option<Value> {
     match value {
         Value::String(_) => Some(value.clone()),
         Value::Array(items) if !items.is_empty() => items
             .iter()
-            .map(|item| build(item, reg))
+            .map(|item| build(item, reg, snbt))
             .collect::<Option<_>>()
             .map(Value::Array),
-        Value::Object(fields) => build_object(fields, reg).map(Value::Object),
+        Value::Object(fields) => build_object(fields, reg, snbt).map(Value::Object),
         _ => None,
     }
 }
 
-fn build_object(fields: &Map<String, Value>, reg: &Registries) -> Option<Map<String, Value>> {
+fn build_object(
+    fields: &Map<String, Value>,
+    reg: &Registries,
+    snbt: bool,
+) -> Option<Map<String, Value>> {
     // A null `type` is no `type`; any other non-string refuses.
     let mut out = match fields.get("type") {
-        None | Some(Value::Null) => KINDS.iter().find_map(|kind| content(kind, fields, reg))?,
-        Some(Value::String(kind)) => content(kind, fields, reg)?,
+        None | Some(Value::Null) => KINDS
+            .iter()
+            .find_map(|kind| content(kind, fields, reg, snbt))?,
+        Some(Value::String(kind)) => content(kind, fields, reg, snbt)?,
         Some(_) => return None,
     };
     for flag in STYLE_FLAGS {
         if let Some(v) = present(fields, flag) {
-            component::style_flag(Some(v))?;
+            if snbt {
+                component::style_flag(Some(v))?;
+            } else {
+                v.as_bool()?;
+            }
             out.insert(flag.into(), v.clone());
         }
     }
@@ -74,11 +84,14 @@ fn build_object(fields: &Map<String, Value>, reg: &Registries) -> Option<Map<Str
         out.insert("click_event".into(), v.clone());
     }
     if let Some(v) = present(fields, "hover_event") {
-        out.insert("hover_event".into(), hover(v.as_object()?, reg)?);
+        out.insert("hover_event".into(), hover(v.as_object()?, reg, snbt)?);
     }
     if let Some(v) = present(fields, "extra") {
         let items = v.as_array().filter(|items| !items.is_empty())?;
-        let built = items.iter().map(|i| build(i, reg)).collect::<Option<_>>()?;
+        let built = items
+            .iter()
+            .map(|i| build(i, reg, snbt))
+            .collect::<Option<_>>()?;
         out.insert("extra".into(), Value::Array(built));
     }
     Some(out)
@@ -90,18 +103,38 @@ fn present<'a>(fields: &'a Map<String, Value>, key: &str) -> Option<&'a Value> {
 }
 
 /// `HoverEvent.CODEC`'s three actions; a `show_text` value is itself a component.
-fn hover(event: &Map<String, Value>, reg: &Registries) -> Option<Value> {
-    let mut out = event.clone();
+fn hover(event: &Map<String, Value>, reg: &Registries, snbt: bool) -> Option<Value> {
+    // Recursive component slots are rebuilt below, never cloned before checking.
+    let mut out: Map<String, Value> = event
+        .iter()
+        .filter(|(key, _)| !matches!(key.as_str(), "value" | "name"))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
     match event.get("action")?.as_str()? {
         "show_text" => {
-            out.insert("value".into(), build(event.get("value")?, reg)?);
+            out.insert("value".into(), build(event.get("value")?, reg, snbt)?);
         }
         "show_item" => {
             event.get("id")?.as_str()?;
         }
         "show_entity" => {
-            event.get("id")?.as_str()?;
-            event.get("uuid")?;
+            mod_api::Identifier::parse(event.get("id")?.as_str()?).ok()?;
+            match event.get("uuid")? {
+                Value::String(id) => {
+                    horizon_client_core::uuid::uuid_from_text(id)?;
+                }
+                Value::Array(words) if words.len() == 4 => {
+                    for word in words {
+                        i32::try_from(word.as_i64()?).ok()?;
+                    }
+                }
+                _ => return None,
+            }
+            if let Some(name) = present(event, "name") {
+                out.insert("name".into(), build(name, reg, snbt)?);
+            } else {
+                out.remove("name");
+            }
         }
         _ => return None,
     }
@@ -113,6 +146,7 @@ fn content(
     kind: &str,
     fields: &Map<String, Value>,
     reg: &Registries,
+    snbt: bool,
 ) -> Option<Map<String, Value>> {
     let string = |key: &str| fields.get(key).and_then(Value::as_str);
     let mut out = Map::new();
@@ -137,7 +171,7 @@ fn content(
                 let built = args
                     .iter()
                     .map(|arg| {
-                        build(arg, reg)
+                        build(arg, reg, snbt)
                             .or_else(|| (arg.is_number() || arg.is_boolean()).then(|| arg.clone()))
                     })
                     .collect::<Option<_>>()?;
@@ -159,7 +193,7 @@ fn content(
             keep(&mut out, "selector");
             // A selector's `separator` stays strict.
             if let Some(separator) = present(fields, "separator") {
-                out.insert("separator".into(), build(separator, reg)?);
+                out.insert("separator".into(), build(separator, reg, snbt)?);
             }
         }
         "nbt" => {
@@ -186,7 +220,8 @@ fn content(
                     keep(&mut out, key);
                 }
             }
-            if let Some(separator) = present(fields, "separator").and_then(|s| build(s, reg)) {
+            if let Some(separator) = present(fields, "separator").and_then(|s| build(s, reg, snbt))
+            {
                 out.insert("separator".into(), separator);
             }
         }
@@ -198,7 +233,7 @@ fn content(
                 }
             }
             if let Some(fallback) = present(fields, "fallback") {
-                out.insert("fallback".into(), build(fallback, reg)?);
+                out.insert("fallback".into(), build(fallback, reg, snbt)?);
             }
         }
         _ => return None,

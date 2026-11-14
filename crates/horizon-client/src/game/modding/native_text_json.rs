@@ -30,8 +30,8 @@ impl crate::game::api_values::TryIntoApi for Read {
 fn component_from_json(json: &str, registries: &Registries) -> Result<Option<Text>, TextFormError> {
     // JSON first: it decodes escapes and has a real `null`. SNBT is the fallback (and takes
     // the nesting beyond serde_json's own limit to the parser's 512).
-    let value = match serde_json::from_str::<serde_json::Value>(json) {
-        Ok(value) => value,
+    let (value, snbt) = match serde_json::from_str::<serde_json::Value>(json) {
+        Ok(value) => (value, false),
         Err(_) => {
             let (value, used) = match horizon_client::component::parse_snbt(json) {
                 Ok(parsed) => parsed,
@@ -44,11 +44,11 @@ fn component_from_json(json: &str, registries: &Registries) -> Result<Option<Tex
             if !json.as_bytes()[used..].iter().all(u8::is_ascii_whitespace) {
                 return Ok(None);
             }
-            value
+            (value, true)
         }
     };
     // Only the rebuilt value reaches the capture, so a failure anywhere leaves no partial text.
-    Ok(build(&value, registries).map(Text::from))
+    Ok(build(&value, registries, snbt).map(Text::from))
 }
 
 #[cfg(test)]
@@ -158,6 +158,58 @@ mod tests {
         r#"{"nbt":"a","entity":"@x"}"#,
         r#"{"nbt":"a","entity":"@s","interpret":true,"plain":true}"#,
     ];
+
+    const NUMERIC_FLAGS: [&str; 10] = [
+        r#"{"text":"a","bold":0}"#,
+        r#"{"text":"a","bold":1}"#,
+        r#"{"text":"a","italic":0}"#,
+        r#"{"text":"a","italic":1}"#,
+        r#"{"text":"a","underlined":0}"#,
+        r#"{"text":"a","underlined":1}"#,
+        r#"{"text":"a","strikethrough":0}"#,
+        r#"{"text":"a","strikethrough":1}"#,
+        r#"{"text":"a","obfuscated":0}"#,
+        r#"{"text":"a","obfuscated":1}"#,
+    ];
+
+    #[test]
+    fn text_from_json_distinguishes_json_flags_from_snbt_bytes() {
+        for input in NUMERIC_FLAGS {
+            assert!(component_from_json(input).is_none(), "{input}");
+        }
+        for flag in [
+            "bold",
+            "italic",
+            "underlined",
+            "strikethrough",
+            "obfuscated",
+        ] {
+            for value in [false, true] {
+                let json = format!(r#"{{"text":"a","{flag}":{value}}}"#);
+                assert!(component_from_json(&json).is_some(), "{json}");
+                let snbt = format!("{{text:a,{flag}:{}b}}", u8::from(value));
+                let built = api(&component_from_json(&snbt).unwrap());
+                let actual = match flag {
+                    "bold" => built.style.bold,
+                    "italic" => built.style.italic,
+                    "underlined" => built.style.underlined,
+                    "strikethrough" => built.style.strikethrough,
+                    _ => built.style.obfuscated,
+                };
+                assert_eq!(actual, Some(value), "{snbt}");
+            }
+        }
+    }
+
+    #[test]
+    fn text_from_json_rebuilds_hover_entity_name() {
+        let input = r#"{"text":"a","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[0,0,0,1],"name":{"type":"keybind","keybind":"key.jump","text":"wrong"}}}"#;
+        let text = api(&component_from_json(input).unwrap());
+        assert!(
+            matches!(text.style.hover, Some(mod_api::text::TextHover::Entity { name: Some(name), .. }) if name.content == TextContent::Keybind("key.jump".into()))
+        );
+        assert!(component_from_json(r#"{"text":"a","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[0,0,0,1],"name":{"type":"keybind","text":"wrong"}}}"#).is_none());
+    }
 
     #[test]
     fn text_from_json_refuses_objects_that_are_not_components() {
@@ -310,7 +362,7 @@ mod tests {
     /// Through the public host: literal valid components read, literal invalid ones are
     /// `Ok(None)`, and a text over the nesting limit is the named refusal.
     #[test]
-    #[ignore = "needs prepared resources in HORIZON_TEST_RESOURCES"]
+    #[ignore = "daily"]
     fn the_host_reads_components_and_returns_none_for_the_rest() {
         use super::super::native_entity_refs::tests::with_game;
         with_game(|game| {
@@ -342,7 +394,26 @@ mod tests {
                 Some(TextContent::Nbt { path, source: TextNbtSource::Entity(selector), .. })
                     if path == "Health" && selector == "@s"
             ));
-            for invalid in NOT_COMPONENTS {
+            let hover = host.text_from_json(r#"{"text":"a","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[0,0,0,1],"name":{"type":"keybind","keybind":"key.jump","text":"wrong"}}}"#).unwrap().unwrap();
+            assert!(
+                matches!(hover.style.hover, Some(mod_api::text::TextHover::Entity { name: Some(name), .. }) if name.content == TextContent::Keybind("key.jump".into()))
+            );
+            assert_eq!(
+                read(
+                    r#"{"text":"a","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[0,0,0,1],"name":{"type":"keybind","text":"wrong"}}}"#
+                ),
+                None
+            );
+            for valid in [
+                r#"{"text":"a","bold":true}"#,
+                r#"{"text":"a","italic":false}"#,
+                r#"{"text":"a","underlined":true}"#,
+                r#"{"text":"a","strikethrough":false}"#,
+                r#"{"text":"a","obfuscated":true}"#,
+            ] {
+                assert!(read(valid).is_some(), "{valid}");
+            }
+            for invalid in NOT_COMPONENTS.into_iter().chain(NUMERIC_FLAGS) {
                 assert_eq!(read(invalid), None, "{invalid}");
             }
             assert_eq!(

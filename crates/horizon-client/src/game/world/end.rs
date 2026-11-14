@@ -630,11 +630,7 @@ impl Game<'_> {
             // `/summon ender_dragon` outside the End: no fight, but the dragon flies.
             self.tick_fight();
         }
-        if let Some((id, from, to)) = self
-            .dragon
-            .as_ref()
-            .map(|d| (d.id, d.previous, d.position))
-        {
+        if let Some((id, from, to)) = self.dragon.as_ref().map(|d| (d.id, d.previous, d.position)) {
             self.entity_section_step(id, [from.x, from.y, from.z], [to.x, to.y, to.z]);
         }
         // The spikes' crystals (placed above) join before they light a fire:
