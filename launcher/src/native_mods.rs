@@ -2661,6 +2661,8 @@ mod tests {
     fn a_mod_saved_into_a_world_is_never_switched_off_without_the_players_choice() {
         use horizon_platform::world::nbt::{self, Limits, Tag};
         let _guard = TEST_STATE.lock().unwrap();
+        // A build clears its log first, which makes the log's folder; the backup step appends to it.
+        clear_log().unwrap();
         let home = dir("guard-worlds");
         let world = home.join("saves").join("Home");
         fs::create_dir_all(&world).unwrap();
