@@ -4228,7 +4228,6 @@ fn weapon_recipe_rejections_preserve_siblings_and_presence_strictness() {
     assert!(!relaxed.test_in(&context, &paper));
 }
 
-
 fn fox_variant_recipes(
     items: &Items,
     patch: serde_json::Value,
@@ -4388,11 +4387,15 @@ fn fox_variant_recipe_defaults_removal_and_strictness_preserve_presence() {
     assert!(loose.craft(&context, &[Some(egg.clone())], 1).is_some());
     assert!(exact.craft(&context, &[Some(egg.clone())], 1).is_none());
     egg.data_mut().set_other("minecraft:custom_data", None);
-    let removed = Tag::compound([(
+    egg.data_mut()
+        .set_loot_component("minecraft:fox/variant", &Some(Tag::String("red".into())));
+    assert!(exact.craft(&context, &[Some(egg.clone())], 1).is_some());
+    egg.data_mut()
+        .set_loot_component("minecraft:fox/variant", &None);
+    egg.data_mut().set_loot_component(
         "!minecraft:fox/variant",
-        Tag::compound([] as [(&str, Tag); 0]),
-    )]);
-    (_, egg.extra) = crate::item_data::decode_components(Some(&removed));
+        &Some(Tag::Compound(Default::default())),
+    );
     assert!(exact.craft(&context, &[Some(egg.clone())], 1).is_none());
     assert!(removal.craft(&context, &[Some(egg.clone())], 1).is_some());
     egg.data_mut()
@@ -4418,7 +4421,19 @@ fn fox_variant_recipe_defaults_removal_and_strictness_preserve_presence() {
 #[test]
 fn fox_variant_invalid_codec_payloads_omit_whole_recipes() {
     let items = Items::empty();
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    for value in [Tag::End, Tag::Byte(0), Tag::List(vec![])] {
+        let rule = IngredientRule::Components {
+            patch: horizon_core::nbt::Compound::from([("minecraft:fox/variant".into(), value)]),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(error.contains("minecraft:fox/variant"), "{error}");
+    }
     for (payload, diagnostic) in [
+        (serde_json::json!(null), ""),
         (serde_json::json!(0), "Not a string"),
         (serde_json::json!(1), "Not a string"),
         (serde_json::json!(1.0), "Not a string"),
@@ -4434,20 +4449,44 @@ fn fox_variant_invalid_codec_payloads_omit_whole_recipes() {
         (serde_json::json!(""), "Unknown element name:"),
     ] {
         let patch = serde_json::json!({"minecraft:fox/variant": payload});
-        let rule = IngredientRule::Components {
-            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
-            removed: vec![],
-            strict: false,
-        };
-        assert_eq!(
-            components::validate(&rule, &items),
-            Err(format!("component minecraft:fox/variant: {diagnostic}"))
-        );
         let ingredient = serde_json::json!({
-            "type": "neoforge:components",
-            "items": "minecraft:fox_spawn_egg",
-            "components": patch.clone()
+            "type":"neoforge:components", "items":"minecraft:fox_spawn_egg", "components":patch.clone()
         });
+        let error = components::validate_recipe_components(&ingredient, &items).unwrap_err();
+        assert!(error.contains("minecraft:fox/variant"), "{error}");
+        if !diagnostic.is_empty() {
+            assert!(error.contains(diagnostic), "{error}");
+        }
+        let recipe = |ingredient| serde_json::json!({"type":"minecraft:crafting_shapeless","ingredients":[ingredient],"result":{"id":"minecraft:diamond"}});
+        let reload = crate::crafting::Recipes::from_sources(
+            &std::env::temp_dir(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![
+                ("fixture:invalid".into(), recipe(ingredient.clone())),
+                (
+                    "fixture:valid".into(),
+                    recipe(serde_json::json!("minecraft:stick")),
+                ),
+            ],
+            &load,
+        )
+        .unwrap();
+        assert_eq!(reload.crafting.len(), 1);
+        assert!(
+            reload
+                .craft(&context, &[Some(ItemStack::new("minecraft:stick", 1))], 1)
+                .is_some()
+        );
+        assert!(
+            reload
+                .craft(
+                    &context,
+                    &[Some(ItemStack::new("minecraft:fox_spawn_egg", 1))],
+                    1
+                )
+                .is_none()
+        );
         assert!(Ingredient::parse(&ingredient, &items).is_none());
         let recipes = fox_variant_recipes(&items, patch, false);
         assert!(recipes.crafting.is_empty());
