@@ -6394,6 +6394,7 @@ impl Game<'_> {
             self.mining = None;
             return Ok(());
         }
+        let had_player = self.player.is_some();
         match self.player.as_mut() {
             Some(player) => {
                 player.position = position;
@@ -6419,6 +6420,11 @@ impl Game<'_> {
                 self.clock.reset();
                 self.apply_remote_health();
                 self.apply_remote_abilities();
+            }
+        }
+        if had_player {
+            if let Ok(id) = u32::try_from(self.own_entity_id()) {
+                self.remote_entity_section_step(id, current, position);
             }
         }
         if !self.replay.playing() {
