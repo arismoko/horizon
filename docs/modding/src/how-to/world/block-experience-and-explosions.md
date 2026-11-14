@@ -54,6 +54,49 @@ unwinds before the engine applies its answer. A native
 in `explosion_resistance` or `can_drop_from_explosion` is contained the same
 way, and vanilla's answer is used.
 
+## Setting off an explosion
+
+`level.explode(host, source, center, radius, fire, interaction)` is
+`Level.explode(source, x, y, z, radius, fire, interaction)`, on the server, in
+the level in place. `source` is the exploding entity (`Option<EntityRef>`). The
+entity that caused the blast is never passed: it comes from the source, as
+vanilla's `Explosion.getIndirectSourceEntity` has it.
+
+| `source` | Causing entity |
+| --- | --- |
+| A primed TNT | Its owner (the player or mob that lit it), or none |
+| A living entity (a player, a mob, the ender dragon, an armour stand) | The source itself |
+| A projectile (an arrow, a fireball, a thrown trident, a firework rocket, a fishing bobber...) | Its owner when that is living, else none |
+| Anything else, or `None` | None |
+
+With a source and a causing entity the damage is `minecraft:player_explosion`,
+otherwise `minecraft:explosion`, and the causing entity gets the kill: a mob
+killed by a blast whose source is player-lit TNT dies to that player, and one
+killed by unowned TNT to no one. The source itself is not hurt or pushed by its
+own blast, and the blocks it breaks roll their loot with it as "this entity". A
+TNT block the blast reaches primes, owned by the causing entity.
+
+`interaction` says what happens to blocks:
+
+| `ExplosionInteraction` | Blocks |
+| --- | --- |
+| `None` | Stay |
+| `Block` | Break, drops decay by `block_explosion_drop_decay` |
+| `Mob` | Break when the source may grief (`entity_mob_griefing` for it; without a source, the `mob_griefing` rule), drops decay by `mob_explosion_drop_decay`; otherwise stay |
+| `Tnt` | Break, drops decay by `tnt_explosion_drop_decay` |
+| `Trigger` | Stay; buttons, levers, doors, trapdoors, fence gates, bells and candles react as to a wind charge |
+
+`fire` lights about a third of the air above solid blocks in reach, whatever the
+interaction, `None` included. The steps run in vanilla's order:
+`explosion_start` (which may cancel it), the blocks the rays reach,
+`explosion_detonate`, entity damage and knockback, the blocks, the fire, then
+what players hear and see. A blast set off inside another blast's hook keeps
+its own source and cause and leaves the other blast's as they were.
+
+`explode` answers `false` and explodes nothing for a parked level or a stale
+handle, a `source` that is stale, names no entity or is a player in another
+level, a chunk that isn't loaded, or a radius outside `0 < radius <= 32`.
+
 ## Entities that destroy blocks
 
 `can_entity_destroy(host, event)` answers whether `event.entity` may destroy the
