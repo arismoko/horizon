@@ -983,3 +983,4 @@ fn cooking_fuel_recipe_compiles_and_matches_decoded_live_and_prototype_values() 
     );
     assert!(error.contains("speed_multiplier"), "{error}");
 }
+

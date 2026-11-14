@@ -1766,3 +1766,244 @@ fn malformed_tropical_fish_base_colors_omit_recipes_with_component_errors() {
     }
 }
 
+#[test]
+fn tropical_fish_pattern_color_recipes_match_defaults_removals_and_distinct_fields() {
+    let mut items = Items::empty();
+    items.component_defaults = std::sync::Arc::new(std::collections::HashMap::from([(
+        "minecraft:tropical_fish_bucket".into(),
+        crate::json_nbt::json_to_compound(
+            serde_json::json!({"minecraft:tropical_fish/pattern_color":"light_blue"})
+                .as_object()
+                .unwrap(),
+        )
+        .unwrap(),
+    )]));
+    let ingredient = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:tropical_fish_bucket","components":{"minecraft:tropical_fish/pattern_color":"light_blue"}}"#,
+        &items,
+    );
+    let strict = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:tropical_fish_bucket","components":{"minecraft:tropical_fish/pattern_color":"light_blue"},"strict":true}"#,
+        &items,
+    );
+    let absent = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:tropical_fish_bucket","components":{"!minecraft:tropical_fish/pattern_color":{}}}"#,
+        &items,
+    );
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    let root = tempfile::tempdir().unwrap();
+    let recipes = crate::crafting::Recipes::from_sources(
+        root.path(),
+        &items,
+        &horizon_world::loot::PackOverlay::NONE,
+        vec![(
+            "fixture:tropical_fish_pattern_color".into(),
+            serde_json::json!({
+                "type":"minecraft:crafting_shapeless",
+                "ingredients":[{
+                    "type":"neoforge:components", "items":"minecraft:tropical_fish_bucket",
+                    "components":{"minecraft:tropical_fish/pattern_color":"light_blue"}
+                }],
+                "result":{"id":"minecraft:diamond"}
+            }),
+        )],
+        &load,
+    )
+    .unwrap();
+    assert_eq!(recipes.crafting.len(), 1);
+    let mut stack = ItemStack::new("minecraft:tropical_fish_bucket", 1);
+    assert!(ingredient.test_in(&context, &stack));
+    assert!(strict.test_in(&context, &stack));
+    assert!(!absent.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+    let patch = Tag::compound([
+        (
+            "minecraft:tropical_fish/pattern_color",
+            Tag::String("light_blue".into()),
+        ),
+        (
+            "minecraft:tropical_fish/base_color",
+            Tag::String("red".into()),
+        ),
+        ("minecraft:base_color", Tag::String("yellow".into())),
+        (
+            "minecraft:bucket_entity_data",
+            Tag::compound([("BucketVariantTag", Tag::Int(0))]),
+        ),
+    ]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&patch));
+    assert_eq!(
+        stack
+            .data()
+            .unwrap()
+            .other("minecraft:tropical_fish/pattern_color"),
+        Some(&Tag::String("light_blue".into()))
+    );
+    assert_eq!(
+        stack
+            .data()
+            .unwrap()
+            .other("minecraft:tropical_fish/base_color"),
+        Some(&Tag::String("red".into()))
+    );
+    assert!(ingredient.test_in(&context, &stack));
+    assert!(
+        !strict.test_in(&context, &stack),
+        "unrequested extra components"
+    );
+    assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_some());
+    let (_, allocations) = horizon_threads::allocation_probe::measure(|| {
+        for _ in 0..100 {
+            assert!(ingredient.test_in(&context, std::hint::black_box(&stack)));
+        }
+    });
+    assert_eq!(allocations.calls, 0, "{allocations:?}");
+    assert_eq!(allocations.bytes, 0);
+    for value in [
+        Tag::String("red".into()),
+        Tag::String("LIGHT_BLUE".into()),
+        Tag::Int(3),
+    ] {
+        stack
+            .data_mut()
+            .set_loot_component("minecraft:tropical_fish/pattern_color", &Some(value));
+        assert!(!ingredient.test_in(&context, &stack));
+        assert!(recipes.craft(&context, &[Some(stack.clone())], 1).is_none());
+    }
+    let removal = Tag::compound([
+        (
+            "!minecraft:tropical_fish/pattern_color",
+            Tag::Compound(Default::default()),
+        ),
+        (
+            "minecraft:tropical_fish/base_color",
+            Tag::String("light_blue".into()),
+        ),
+        (
+            "minecraft:bucket_entity_data",
+            Tag::compound([("BucketVariantTag", Tag::Int(3 << 24))]),
+        ),
+    ]);
+    (_, stack.extra) = crate::item_data::decode_components(Some(&removal));
+    assert!(!ingredient.test_in(&context, &stack));
+    assert!(absent.test_in(&context, &stack));
+    assert!(recipes.craft(&context, &[Some(stack)], 1).is_none());
+
+    let no_defaults = Items::empty();
+    let plain_rule = parse(
+        r#"{"type":"neoforge:components","items":"minecraft:tropical_fish_bucket","components":{"minecraft:tropical_fish/pattern_color":"light_blue"}}"#,
+        &no_defaults,
+    );
+    let mut plain = ItemStack::new("minecraft:tropical_fish_bucket", 1);
+    assert!(
+        !plain_rule.test_in(&context, &plain),
+        "absence is not a color default"
+    );
+    let unrelated = Tag::compound([
+        (
+            "minecraft:tropical_fish/base_color",
+            Tag::String("light_blue".into()),
+        ),
+        ("minecraft:base_color", Tag::String("light_blue".into())),
+        (
+            "minecraft:bucket_entity_data",
+            Tag::compound([("BucketVariantTag", Tag::Int(3 << 24))]),
+        ),
+    ]);
+    (_, plain.extra) = crate::item_data::decode_components(Some(&unrelated));
+    assert!(
+        !plain_rule.test_in(&context, &plain),
+        "other color encodings cannot substitute"
+    );
+}
+
+#[test]
+fn tropical_fish_pattern_color_accepts_all_canonical_names_without_normalizing_case() {
+    let items = Items::empty();
+    let load = load();
+    let context = load.loop_context(LoopSide::Server, []);
+    for color in [
+        "white",
+        "orange",
+        "magenta",
+        "light_blue",
+        "yellow",
+        "lime",
+        "pink",
+        "gray",
+        "light_gray",
+        "cyan",
+        "purple",
+        "blue",
+        "brown",
+        "green",
+        "red",
+        "black",
+    ] {
+        // Unqualified component keys normalize; DyeColor's exact names do not.
+        let source = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:tropical_fish_bucket",
+            "components":{"tropical_fish/pattern_color":color}, "strict":true
+        });
+        let ingredient = Ingredient::parse(&source, &items).unwrap();
+        let mut stack = ItemStack::new("minecraft:tropical_fish_bucket", 1);
+        stack.data_mut().set_loot_component(
+            "minecraft:tropical_fish/pattern_color",
+            &Some(Tag::String(color.into())),
+        );
+        assert!(ingredient.test_in(&context, &stack), "{color}");
+    }
+}
+
+#[test]
+fn malformed_tropical_fish_pattern_colors_reject_whole_recipes_with_component_errors() {
+    let items = Items::empty();
+    let load = load();
+    let root = tempfile::tempdir().unwrap();
+    for value in [
+        serde_json::json!("LIGHT_BLUE"),
+        serde_json::json!("silver"),
+        serde_json::json!("minecraft:light_blue"),
+        serde_json::json!(""),
+        serde_json::json!(3),
+        serde_json::json!(3.0),
+        serde_json::json!(true),
+        serde_json::json!({}),
+        serde_json::json!([]),
+    ] {
+        let patch = serde_json::json!({"minecraft:tropical_fish/pattern_color":value});
+        let rule = IngredientRule::Components {
+            patch: crate::json_nbt::json_to_compound(patch.as_object().unwrap()).unwrap(),
+            removed: vec![],
+            strict: false,
+        };
+        let error = components::validate(&rule, &items).unwrap_err();
+        assert!(
+            error.contains("component minecraft:tropical_fish/pattern_color:"),
+            "{error}"
+        );
+        let ingredient = serde_json::json!({
+            "type":"neoforge:components", "items":"minecraft:tropical_fish_bucket",
+            "components":patch
+        });
+        assert!(Ingredient::parse(&ingredient, &items).is_none());
+        let recipes = crate::crafting::Recipes::from_sources(
+            root.path(),
+            &items,
+            &horizon_world::loot::PackOverlay::NONE,
+            vec![(
+                "fixture:invalid_tropical_fish_pattern_color".into(),
+                serde_json::json!({
+                    "type":"minecraft:crafting_shapeless", "ingredients":[ingredient],
+                    "result":{"id":"minecraft:diamond"}
+                }),
+            )],
+            &load,
+        )
+        .unwrap();
+        assert!(recipes.crafting.is_empty());
+        assert!(recipes.by_type.values().all(|recipes| recipes.is_empty()));
+    }
+}
+

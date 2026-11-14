@@ -24,6 +24,7 @@ fn int_of(t: &Tag) -> Option<i64> {
 }
 /// Built-ins with an implemented shared component payload decoder.
 pub const DECODED_COMPONENTS: &[&str] = &[
+    "minecraft:tropical_fish/pattern_color",
     "minecraft:cooking_fuel",
     "minecraft:tropical_fish/base_color",
     "minecraft:brewing_fuel",
@@ -275,7 +276,7 @@ pub fn decode_component(id: &str, t: &Tag, reg: &Registries) -> Result<(), Strin
         | "minecraft:cat/collar"
         | "minecraft:wolf/collar"
         | "minecraft:cushion/color"
-        | "minecraft:tropical_fish/base_color" => dye_color(t).map(|_| ()),
+        | "minecraft:tropical_fish/base_color" | "minecraft:tropical_fish/pattern_color" => dye_color(t).map(|_| ()),
         "minecraft:enchantments" | "minecraft:stored_enchantments" => enchantment_map(t, reg),
         // DataComponents.ENCHANTMENT_GLINT_OVERRIDE: Codec.BOOL through NbtOps.
         "minecraft:enchantment_glint_override" => horizon_items::item_data::component_bool(t)

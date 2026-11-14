@@ -196,7 +196,7 @@ pub fn component_equal(id: &str, a: &ItemStack, b: &ItemStack) -> bool {
         | "minecraft:cat/collar"
         | "minecraft:wolf/collar"
         | "minecraft:cushion/color"
-        | "minecraft:tropical_fish/base_color" => match (
+        | "minecraft:tropical_fish/base_color" | "minecraft:tropical_fish/pattern_color" => match (
             a.data().and_then(|d| d.other(id)),
             b.data().and_then(|d| d.other(id)),
         ) {
