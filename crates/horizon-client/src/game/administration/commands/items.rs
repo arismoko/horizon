@@ -1571,7 +1571,7 @@ fn edit_components(stack: &mut ItemStack, f: impl FnOnce(&mut horizon_core::nbt:
 fn set_custom_data(stack: &mut ItemStack, value: &Tag) {
     edit_components(stack, |c| {
         let mut data = match c.get(&"minecraft:custom_data".into()) {
-            Some(t @ Tag::Compound(_)) => t.clone(),
+            Some(t @ Tag::Compound(_)) => horizon_core::nbt::copy_tag(t),
             _ => Tag::Compound(Default::default()),
         };
         merge_compound(&mut data, value);
@@ -1592,7 +1592,7 @@ fn merge_compound(into: &mut Tag, from: &Tag) {
         match (a.get_mut(k), v) {
             (Some(existing @ Tag::Compound(_)), Tag::Compound(_)) => merge_compound(existing, v),
             _ => {
-                a.insert(k.clone(), v.clone());
+                a.insert(k.clone(), horizon_core::nbt::copy_tag(v));
             }
         }
     }

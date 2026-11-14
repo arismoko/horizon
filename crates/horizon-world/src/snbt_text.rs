@@ -1,145 +1,240 @@
-//! `StringTagVisitor` (compact SNBT, `Tag.toString`) and Java's number
-//! formatting, below the text-component layer so that the protocol can hash
-//! a tag's string form.
-use horizon_core::nbt::Tag;
+//! `StringTagVisitor` below the text-component layer. The shared visitor emits
+//! exact Java UTF-16; UTF-8 callers explicitly escape unpaired surrogate units.
+use horizon_core::{
+    java_number::{double_to_string, float_to_string},
+    nbt::{JavaString, Tag},
+};
 
-use horizon_core::java_number::{java_double, java_float};
+const HEX: &[u8; 16] = b"0123456789ABCDEF";
 
-/// `SnbtGrammar.escapeControlCharacters`.
-fn escape_control(c: char) -> Option<&'static str> {
-    Some(match c {
-        '\u{8}' => "b",
-        '\u{c}' => "f",
-        '\n' => "n",
-        '\r' => "r",
-        '\t' => "t",
-        _ => return None,
-    })
-}
-/// `StringTag.quoteAndEscape`.
-pub fn quote_and_escape(input: &str) -> String {
-    let mut out = String::from(" ");
-    let mut quote = '\0';
-    for c in input.chars() {
-        if c == '\\' {
-            out.push_str("\\\\");
-        } else if c != '"' && c != '\'' {
-            match escape_control(c) {
-                Some(e) => {
-                    out.push('\\');
-                    out.push_str(e);
+/// `StringTag.quoteAndEscape`, including SnbtGrammar's uppercase hex controls.
+fn quoted_units(units: impl Iterator<Item = u16> + Clone, sink: &mut impl FnMut(u16)) {
+    // A streaming sink cannot patch the opening delimiter afterward.
+    let quote = match units.clone().find(|unit| matches!(*unit, 34 | 39)) {
+        Some(34) => 39,
+        _ => 34,
+    };
+    sink(quote);
+    for unit in units {
+        if unit == 92 || unit == quote {
+            sink(92);
+            sink(unit);
+        } else if unit < 32 {
+            sink(92);
+            match unit {
+                8 => sink(98),
+                9 => sink(116),
+                10 => sink(110),
+                12 => sink(102),
+                13 => sink(114),
+                _ => {
+                    sink(120);
+                    sink(u16::from(HEX[usize::from(unit >> 4)]));
+                    sink(u16::from(HEX[usize::from(unit & 15)]));
                 }
-                None => out.push(c),
             }
         } else {
-            if quote == '\0' {
-                quote = if c == '"' { '\'' } else { '"' };
-            }
-            if quote == c {
-                out.push('\\');
-            }
-            out.push(c);
+            sink(unit);
         }
     }
-    if quote == '\0' {
-        quote = '"';
-    }
-    out.replace_range(0..1, &quote.to_string());
-    out.push(quote);
-    out
-}
-fn unquoted_key(key: &str) -> bool {
-    if key.eq_ignore_ascii_case("true") || key.eq_ignore_ascii_case("false") {
-        return false;
-    }
-    let mut chars = key.chars();
-    let first_ok = chars
-        .next()
-        .is_some_and(|c| c.is_ascii_alphabetic() || c == '.' || c == '_');
-    // `[A-Za-z._]+[A-Za-z0-9._+-]*`
-    first_ok && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '-'))
-}
-pub fn string_of(t: &horizon_core::nbt::JavaString) -> String {
-    t.to_string_lossy()
+    sink(quote);
 }
 
-/// `Tag.toString` (StringTagVisitor).
+#[derive(Default)]
+struct Utf8Output {
+    value: String,
+    high: Option<u16>,
+}
+impl Utf8Output {
+    fn escaped_surrogate(&mut self, unit: u16) {
+        self.value.push_str("\\u");
+        for shift in [12, 8, 4, 0] {
+            self.value.push(char::from(HEX[usize::from((unit >> shift) & 15)]));
+        }
+    }
+    fn unit(&mut self, unit: u16) {
+        if let Some(high) = self.high.take() {
+            if (0xdc00..=0xdfff).contains(&unit) {
+                let scalar = 0x10000 + (u32::from(high - 0xd800) << 10) + u32::from(unit - 0xdc00);
+                self.value.push(char::from_u32(scalar).expect("surrogate pair"));
+                return;
+            }
+            self.escaped_surrogate(high);
+        }
+        if (0xd800..=0xdbff).contains(&unit) {
+            self.high = Some(unit);
+        } else if (0xdc00..=0xdfff).contains(&unit) {
+            self.escaped_surrogate(unit);
+        } else {
+            self.value.push(char::from_u32(u32::from(unit)).expect("non-surrogate UTF-16"));
+        }
+    }
+    fn finish(mut self) -> String {
+        if let Some(high) = self.high.take() {
+            self.escaped_surrogate(high);
+        }
+        self.value
+    }
+}
+
+/// `StringTag.quoteAndEscape` for a representable UTF-8 input string.
+pub fn quote_and_escape(input: &str) -> String {
+    let mut out = Utf8Output::default();
+    quoted_units(input.encode_utf16(), &mut |unit| out.unit(unit));
+    out.finish()
+}
+
+fn unquoted_key(key: &[u16]) -> bool {
+    let ascii_lower = |unit: u16| if (65..=90).contains(&unit) { unit + 32 } else { unit };
+    for reserved in [b"true".as_slice(), b"false".as_slice()] {
+        if key.len() == reserved.len()
+            && key.iter().zip(reserved).all(|(&unit, &byte)| ascii_lower(unit) == u16::from(byte))
+        {
+            return false;
+        }
+    }
+    let letter = |unit| (65..=90).contains(&unit) || (97..=122).contains(&unit);
+    key.first().is_some_and(|&unit| letter(unit) || matches!(unit, 46 | 95))
+        && key.iter().all(|&unit| letter(unit) || (48..=57).contains(&unit) || matches!(unit, 46 | 95 | 43 | 45))
+}
+
+/// UI-only UTF-8 projection; lossless serialization uses the UTF-16 visitor.
+pub fn string_of(value: &JavaString) -> String {
+    value.to_string_lossy()
+}
+
+/// UTF-8 compact SNBT. Unpaired units become explicit `\uXXXX` SNBT escapes:
+/// the NBT meaning is lossless, but exact Java String identity requires UTF-16.
+/// The adapter streams directly into String without an intermediate UTF-16 buffer.
 pub fn to_snbt(tag: &Tag) -> String {
-    let mut out = String::new();
-    visit(tag, &mut out);
+    let mut out = Utf8Output::default();
+    write_snbt_utf16(tag, |unit| out.unit(unit));
+    out.finish()
+}
+
+/// Owning exact `Tag.toString` result, including raw unpaired UTF-16 units.
+pub fn to_snbt_utf16(tag: &Tag) -> JavaString {
+    let mut out = JavaString::default();
+    write_snbt_utf16(tag, |unit| out.0.push(unit));
     out
 }
-fn visit(tag: &Tag, out: &mut String) {
+
+/// `StringTagVisitor`: exact Java UTF-16 units, without an owning output buffer.
+/// Compounds sort borrowed UTF-16 keys explicitly; storage traversal is not sorted.
+pub fn write_snbt_utf16(tag: &Tag, mut sink: impl FnMut(u16)) {
+    visit(tag, &mut sink);
+}
+
+fn ascii(value: &str, sink: &mut impl FnMut(u16)) {
+    for byte in value.bytes() {
+        sink(u16::from(byte));
+    }
+}
+
+fn integer(value: i64, sink: &mut impl FnMut(u16)) {
+    let mut digits = [0u16; 20];
+    let mut start = digits.len();
+    let mut magnitude = value.unsigned_abs();
+    loop {
+        start -= 1;
+        digits[start] = 48 + (magnitude % 10) as u16;
+        magnitude /= 10;
+        if magnitude == 0 {
+            break;
+        }
+    }
+    if value < 0 {
+        start -= 1;
+        digits[start] = 45;
+    }
+    for &unit in &digits[start..] {
+        sink(unit);
+    }
+}
+
+fn compound_entry(key: &JavaString, value: &Tag, sink: &mut impl FnMut(u16)) {
+    if unquoted_key(&key.0) {
+        for &unit in &key.0 { sink(unit); }
+    } else {
+        quoted_units(key.0.iter().copied(), sink);
+    }
+    sink(58);
+    visit(value, sink);
+}
+
+fn visit(tag: &Tag, sink: &mut impl FnMut(u16)) {
     match tag {
-        Tag::End => out.push_str("END"),
-        Tag::Byte(v) => out.push_str(&format!("{v}b")),
-        Tag::Short(v) => out.push_str(&format!("{v}s")),
-        Tag::Int(v) => out.push_str(&v.to_string()),
-        Tag::Long(v) => out.push_str(&format!("{v}L")),
-        Tag::Float(v) => {
-            out.push_str(&java_float(f32::from_bits(*v)));
-            out.push('f');
+        Tag::End => ascii("END", sink),
+        Tag::Byte(value) => {
+            integer(i64::from(*value), sink);
+            sink(98);
         }
-        Tag::Double(v) => {
-            out.push_str(&java_double(f64::from_bits(*v)));
-            out.push('d');
+        Tag::Short(value) => {
+            integer(i64::from(*value), sink);
+            sink(115);
         }
-        Tag::String(s) => out.push_str(&quote_and_escape(&string_of(s))),
-        Tag::ByteArray(a) => {
-            out.push_str("[B;");
-            out.push_str(
-                &a.iter()
-                    .map(|v| format!("{}B", *v as i8))
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-            out.push(']');
+        Tag::Int(value) => integer(i64::from(*value), sink),
+        Tag::Long(value) => {
+            integer(*value, sink);
+            sink(76);
         }
-        Tag::IntArray(a) => {
-            out.push_str("[I;");
-            out.push_str(&a.iter().map(i32::to_string).collect::<Vec<_>>().join(","));
-            out.push(']');
+        Tag::Float(bits) => {
+            ascii(&float_to_string(f32::from_bits(*bits)), sink);
+            sink(102);
         }
-        Tag::LongArray(a) => {
-            out.push_str("[L;");
-            out.push_str(
-                &a.iter()
-                    .map(|v| format!("{v}L"))
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-            out.push(']');
+        Tag::Double(bits) => {
+            ascii(&double_to_string(f64::from_bits(*bits)), sink);
+            sink(100);
         }
-        Tag::List(l) => {
-            out.push('[');
-            for (i, t) in l.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
-                }
-                visit(t, out);
+        Tag::String(value) => quoted_units(value.0.iter().copied(), sink),
+        Tag::ByteArray(values) => {
+            ascii("[B;", sink);
+            for (i, value) in values.iter().enumerate() {
+                if i != 0 { sink(44); }
+                integer(i64::from(*value as i8), sink);
+                sink(66);
             }
-            out.push(']');
+            sink(93);
         }
-        Tag::Compound(c) => {
-            out.push('{');
-            // StringTagVisitor sorts explicitly, independently of HashMap history.
-            // Compare UTF-16 units, not converted Rust strings.
-            let mut entries: Vec<_> = c.iter().collect();
-            entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
-            for (i, (k, v)) in entries.into_iter().enumerate() {
-                let k = string_of(k);
-                if i > 0 {
-                    out.push(',');
-                }
-                if unquoted_key(&k) {
-                    out.push_str(&k);
-                } else {
-                    out.push_str(&quote_and_escape(&k));
-                }
-                out.push(':');
-                visit(v, out);
+        Tag::IntArray(values) => {
+            ascii("[I;", sink);
+            for (i, value) in values.iter().enumerate() {
+                if i != 0 { sink(44); }
+                integer(i64::from(*value), sink);
             }
-            out.push('}');
+            sink(93);
+        }
+        Tag::LongArray(values) => {
+            ascii("[L;", sink);
+            for (i, value) in values.iter().enumerate() {
+                if i != 0 { sink(44); }
+                integer(*value, sink);
+                sink(76);
+            }
+            sink(93);
+        }
+        Tag::List(values) => {
+            sink(91);
+            for (i, value) in values.iter().enumerate() {
+                if i != 0 { sink(44); }
+                visit(value, sink);
+            }
+            sink(93);
+        }
+        Tag::Compound(values) => {
+            sink(123);
+            if values.len() == 1 {
+                let (key, value) = values.iter().next().expect("one entry");
+                compound_entry(key, value, sink);
+            } else {
+                let mut entries: Vec<_> = values.iter().collect();
+                entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+                for (i, (key, value)) in entries.into_iter().enumerate() {
+                    if i != 0 { sink(44); }
+                    compound_entry(key, value, sink);
+                }
+            }
+            sink(125);
         }
     }
 }
@@ -160,7 +255,7 @@ mod tests {
             for (sign, prefix) in [(0, ""), (1 << 31, "-")] {
                 let bits = bits | sign;
                 assert_eq!(
-                    java_float(f32::from_bits(bits)),
+                    float_to_string(f32::from_bits(bits)),
                     format!("{prefix}{expected}")
                 );
                 assert_eq!(to_snbt(&Tag::Float(bits)), format!("{prefix}{expected}f"));
@@ -175,11 +270,43 @@ mod tests {
             for (sign, prefix) in [(0, ""), (1 << 63, "-")] {
                 let bits = bits | sign;
                 assert_eq!(
-                    java_double(f64::from_bits(bits)),
+                    double_to_string(f64::from_bits(bits)),
                     format!("{prefix}{expected}")
                 );
                 assert_eq!(to_snbt(&Tag::Double(bits)), format!("{prefix}{expected}d"));
             }
         }
+    }
+
+    #[test]
+    fn utf16_strings_and_utf8_projection_keep_unpaired_units_lossless() {
+        let tag = Tag::String(JavaString(vec![
+            0, 8, 9, 10, 11, 12, 13, 31, 34, 39, 92, 0xd800, 0xd83d, 0xde00, 0xdc00,
+        ]));
+        let mut expected: Vec<u16> = "'\\x00\\b\\t\\n\\x0B\\f\\r\\x1F\"\\'\\\\".encode_utf16().collect();
+        expected.extend([0xd800, 0xd83d, 0xde00, 0xdc00, 39]);
+        assert_eq!(to_snbt_utf16(&tag).0, expected);
+        let mut streamed = Vec::new();
+        write_snbt_utf16(&tag, |unit| streamed.push(unit));
+        assert_eq!(streamed, expected);
+        assert_eq!(to_snbt(&tag), "'\\x00\\b\\t\\n\\x0B\\f\\r\\x1F\"\\'\\\\\\uD800\u{1f600}\\uDC00'");
+    }
+
+    #[test]
+    fn utf16_key_sorting_and_integer_extremes_match_the_compact_visitor() {
+        let tag = Tag::compound([
+            (JavaString(vec![0xe000]), Tag::Long(i64::MIN)),
+            (JavaString(vec![0xd800, 0xdc00]), Tag::Int(i32::MIN)),
+            (JavaString(vec![0xd800]), Tag::Byte(-128)),
+        ]);
+        let mut expected = vec![123, 34, 0xd800, 34];
+        expected.extend(":-128b,".encode_utf16());
+        expected.extend([34, 0xd800, 0xdc00, 34]);
+        expected.extend(":-2147483648,".encode_utf16());
+        expected.extend([34, 0xe000, 34]);
+        expected.extend(":-9223372036854775808L}".encode_utf16());
+        assert_eq!(to_snbt_utf16(&tag).0, expected);
+        assert_eq!(to_snbt(&Tag::Float(0x80000000)), "-0.0f");
+        assert_eq!(to_snbt(&Tag::Double(0x8000000000000000)), "-0.0d");
     }
 }

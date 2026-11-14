@@ -179,7 +179,7 @@ impl Compound {
 }
 impl Clone for Compound {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        self.clone_with(Clone::clone)
     }
 }
 impl std::fmt::Debug for Compound {
@@ -2037,7 +2037,13 @@ mod tests {
         let expected = "AaBBAaAa,AaAaAaAa,AaAaAaBB,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB";
         assert_eq!(order(&map), expected);
         let root = Tag::Compound(map);
-        let Tag::Compound(mut copy) = clone_tag(&root) else { panic!("compound") };
+        for retained in [root.clone(), clone_tag(&root)] {
+            let Tag::Compound(mut retained) = retained else { panic!("compound") };
+            assert_eq!(retained.remove(&"AaAaAaAa".into()), Some(Tag::Int(0)));
+            retained.insert("AaAaAaAa".into(), Tag::Int(0));
+            assert_eq!(order(&retained), "BBAaBBBB,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+        }
+        let Tag::Compound(mut copy) = copy_tag(&root) else { panic!("compound") };
         assert_eq!(order(&copy), expected);
         assert_eq!(copy.remove(&"AaAaAaAa".into()), Some(Tag::Int(0)));
         copy.insert("AaAaAaAa".into(), Tag::Int(0));

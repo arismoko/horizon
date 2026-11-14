@@ -661,26 +661,6 @@ fn merge_block_entity(original: &Tag, loaded: &Tag, current: &Tag) -> Tag {
     }
     merged
 }
-/// `BlockDataAccessor.getData` (`BlockEntity.saveWithFullMetadata`): the tag
-/// `data get block` shows and `data merge block` changes, without the
-/// chunk-only `keepPacked`, and with the fields Horizon keeps outside its
-/// model: a container's `lock` (`LockCode`), from the tag it was loaded or set
-/// with.
-pub fn block_entity_data(
-    p: (i32, i32, i32),
-    e: &crate::containers::BlockEntity,
-    block: &str,
-    lock: Option<&Tag>,
-) -> Tag {
-    let mut tag = block_entity_encode::encode(p, e, block);
-    if let Tag::Compound(map) = &mut tag {
-        map.remove(&"keepPacked".into());
-        if let Some(lock) = lock {
-            map.insert("lock".into(), lock.clone());
-        }
-    }
-    tag
-}
 /// `BannerBlockEntity.loadAdditional` (and the `components` a block entity keeps).
 pub fn decode_banner(tag: &Tag) -> crate::containers::Banner {
     crate::containers::Banner {

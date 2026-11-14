@@ -2,7 +2,7 @@
 //! `{root:match}`, with get, set, insert and remove on a tag tree, and the
 //! partial NBT comparison (`NbtUtils.compareNbt`) selectors and conditions use.
 pub use horizon_core::nbt::compare_nbt;
-use horizon_core::nbt::{Compound, JavaString, Tag, parse_snbt};
+use horizon_core::nbt::{Compound, JavaString, Tag, clone_tag, copy_tag, parse_snbt};
 
 /// An error carrying the translation key and its arguments.
 #[derive(Clone, Debug, PartialEq)]
@@ -350,9 +350,18 @@ impl NbtPath {
         let Some(last) = self.nodes.last() else {
             return Ok(0);
         };
+        // Keep a pristine first semantic copy: owned Rust outputs cannot share
+        // Java's supplier object. Later supplier values copy that first state.
+        let first_copy = copy_tag(value);
+        let mut used_first = false;
+        let mut make = || {
+            let next = if used_first { copy_tag(&first_copy) } else { clone_tag(&first_copy) };
+            used_first = true;
+            next
+        };
         let mut changed = 0;
         self.visit_parents(root, true, &mut |parent| {
-            changed += set_tag(last, parent, value);
+            changed += set_tag(last, parent, &mut make);
         })?;
         Ok(changed)
     }
@@ -383,6 +392,8 @@ impl NbtPath {
                 )));
             }
         }
+        let copies: Vec<_> = values.iter().map(copy_tag).collect();
+        let mut used_first = false;
         let mut modified = 0;
         let mut error: Option<CollectionError> = None;
         self.get_or_create(root, &|| Tag::List(Vec::new()), &mut |target| {
@@ -398,19 +409,21 @@ impl NbtPath {
                 };
                 let mut any = false;
                 let mut at = start;
-                for v in values {
+                for v in &copies {
                     if !kind.accepts(v) {
                         continue;
                     }
                     if at < 0 || at as usize > list.len() {
                         return Err(CollectionError::InvalidIndex(at as i32));
                     }
-                    list.insert(at as usize, v.clone());
+                    let value = if used_first { copy_tag(v) } else { clone_tag(v) };
+                    list.insert(at as usize, value);
                     at += 1;
                     any = true;
                 }
                 Ok(any)
             });
+            used_first = true;
             match result {
                 None => error = Some(CollectionError::ExpectedList(shown)),
                 Some(Err(e)) => error = Some(e),
@@ -478,7 +491,7 @@ fn step_mut(
                     if create.is_none() {
                         return;
                     }
-                    c.insert(k.clone(), pattern.clone());
+                    c.insert(k.clone(), copy_tag(pattern));
                     if let Some(t) = c.get_mut(&k) {
                         out(t);
                     }
@@ -530,7 +543,7 @@ fn step_mut(
                     }
                 }
                 if !any && create.is_some() {
-                    list.push(pattern.clone());
+                    list.push(copy_tag(pattern));
                     if let Some(t) = list.last_mut() {
                         out(t);
                     }
@@ -545,74 +558,84 @@ fn step_mut(
     }
 }
 /// Element setters follow `NbtPathArgument.AllElementsNode.setTag` and
-/// `NbtPathArgument.IndexedElementNode.setTag`; object nodes replace their children.
-fn set_tag(node: &Node, parent: &mut Tag, value: &Tag) -> usize {
+/// `NbtPathArgument.Node.setTag`: consume the shared semantic-copy supplier
+/// at the same node visits as vanilla, including unchanged comparison values.
+fn set_tag(node: &Node, parent: &mut Tag, make: &mut dyn FnMut() -> Tag) -> usize {
     match node {
         Node::Child(name) => {
             if let Tag::Compound(c) = parent {
-                let prev = c.insert(key(name), value.clone());
-                return usize::from(prev.as_ref() != Some(value));
+                let value = make();
+                let k = key(name);
+                let changed = c.get(&k) != Some(&value);
+                c.insert(k, value);
+                return usize::from(changed);
             }
             0
         }
         Node::MatchChild(name, pattern) => {
             if let Tag::Compound(c) = parent {
                 let k = key(name);
-                if compare_nbt(pattern, c.get(&k)) && c.get(&k) != Some(value) {
-                    c.insert(k, value.clone());
-                    return 1;
+                if compare_nbt(pattern, c.get(&k)) {
+                    let value = make();
+                    if c.get(&k) != Some(&value) {
+                        c.insert(k, value);
+                        return 1;
+                    }
                 }
             }
             0
         }
         Node::AllElements => with_elements(parent, |list, kind| {
             let len = list.len();
+            let value = make();
             if len == 0 {
-                if kind.accepts(value) {
-                    list.push(value.clone());
+                if kind.accepts(&value) {
+                    list.push(value);
                 }
-                // AllElementsNode returns 1 here even when addTag rejects.
                 return 1;
             }
-            // Compare the original tags, before numeric conversion.
-            let changed = list.iter().filter(|t| *t != value).count();
+            let changed = list.iter().filter(|tag| **tag != value).count();
             if changed == 0 {
                 return 0;
             }
             list.clear();
-            if !kind.accepts(value) {
+            if !kind.accepts(&value) {
                 return 0;
             }
-            list.resize(len, value.clone());
+            list.push(value);
+            for _ in 1..len {
+                list.push(make());
+            }
             changed
         })
         .unwrap_or(0),
         Node::Index(i) => with_elements(parent, |list, kind| {
             let n = list.len() as i64;
-            let idx = if *i < 0 {
-                n + i64::from(*i)
-            } else {
-                i64::from(*i)
-            };
-            if (0..n).contains(&idx) && list[idx as usize] != *value && kind.accepts(value) {
-                list[idx as usize] = value.clone();
-                1
-            } else {
-                0
+            let idx = if *i < 0 { n + i64::from(*i) } else { i64::from(*i) };
+            if (0..n).contains(&idx) {
+                let value = make();
+                if list[idx as usize] != value && kind.accepts(&value) {
+                    list[idx as usize] = value;
+                    return 1;
+                }
             }
+            0
         })
         .unwrap_or(0),
         Node::MatchElement(pattern) => {
             let Tag::List(list) = parent else { return 0 };
             if list.is_empty() {
-                list.push(value.clone());
+                list.push(make());
                 return 1;
             }
             let mut changed = 0;
-            for t in list.iter_mut() {
-                if compare_nbt(pattern, Some(t)) && t != value {
-                    *t = value.clone();
-                    changed += 1;
+            for tag in list.iter_mut() {
+                if compare_nbt(pattern, Some(tag)) {
+                    let value = make();
+                    if *tag != value {
+                        *tag = value;
+                        changed += 1;
+                    }
                 }
             }
             changed
@@ -1072,5 +1095,26 @@ mod tests {
         assert!(!compare_nbt(&tag("{z:1}"), Some(&actual)));
         assert!(compare_nbt(&tag("{b:{c:[]}}"), Some(&tag("{b:{c:[]}}"))));
         assert!(!compare_nbt(&tag("{b:{c:[]}}"), Some(&actual)));
+    }
+
+    #[test]
+    fn observing_preserves_history_but_setting_uses_java_semantic_copy() {
+        // Independent Temurin25 String-key HashMap witnesses distinguish the
+        // original tree from CompoundTag.copy, after a later remove/reinsert.
+        let mut source = tag("{payload:{AaAaAaAa:0,AaAaAaBB:1,AaAaBBAa:2,AaAaBBBB:3,AaBBAaAa:4,AaBBAaBB:5,AaBBBBAa:6,AaBBBBBB:7,BBAaAaAa:8,BBAaAaBB:9,BBAaBBAa:10,BBAaBBBB:11,BBBBAaAa:12,BBBBAaBB:13,BBBBBBAa:14,BBBBBBBB:15}}");
+        let Some(Tag::Compound(map)) = source.get_mut("payload") else { panic!("payload") };
+        map.remove(&"AaAaBBBB".into());
+        let path = NbtPath::parse("payload").unwrap();
+        let mut observed = path.get(&source).unwrap().pop().unwrap();
+        fn reinsert(tag: &mut Tag) -> String {
+            let Tag::Compound(map) = tag else { panic!("compound") };
+            assert_eq!(map.remove(&"AaAaAaAa".into()), Some(Tag::Int(0)));
+            map.insert("AaAaAaAa".into(), Tag::Int(0));
+            map.keys().map(|key| key.to_string().unwrap()).collect::<Vec<_>>().join(",")
+        }
+        assert_eq!(reinsert(&mut observed), "BBAaBBBB,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaAa,BBAaAaBB,BBAaBBAa,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
+        let mut target = Tag::Compound(Compound::new());
+        assert_eq!(path.set(&mut target, source.get("payload").unwrap()).unwrap(), 1);
+        assert_eq!(reinsert(target.get_mut("payload").unwrap()), "BBAaAaAa,AaBBAaAa,AaAaAaBB,AaAaAaAa,AaAaBBAa,AaBBAaBB,AaBBBBAa,AaBBBBBB,BBAaAaBB,BBAaBBAa,BBAaBBBB,BBBBAaAa,BBBBAaBB,BBBBBBAa,BBBBBBBB");
     }
 }

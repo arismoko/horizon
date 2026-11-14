@@ -222,12 +222,6 @@ impl<K: JavaKey, V> Default for JavaHashMap<K, V> {
     }
 }
 
-/// Rust ownership cloning preserves table/tree state; it is not Java's map-copy constructor.
-impl<K: JavaKey + Clone, V: Clone> Clone for JavaHashMap<K, V> {
-    fn clone(&self) -> Self {
-        self.clone_with(Clone::clone)
-    }
-}
 
 /// `h ^ (h >>> 16)`: the hash the map places a key by.
 fn spread(hash: i32) -> i32 {

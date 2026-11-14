@@ -7,7 +7,7 @@ use crate::{
     snbt::to_snbt,
     text::Text,
 };
-use horizon_core::nbt::{Compound, Tag};
+use horizon_core::nbt::{Compound, Tag, copy_tag};
 
 /// `CompoundTag.merge`: compounds merge recursively, anything else replaces.
 pub fn merge_compound(target: &mut Compound, source: &Compound) {
@@ -15,14 +15,14 @@ pub fn merge_compound(target: &mut Compound, source: &Compound) {
         match (target.get_mut(k), v) {
             (Some(Tag::Compound(t)), Tag::Compound(s)) => merge_compound(t, s),
             _ => {
-                target.insert(k.clone(), v.clone());
+                target.insert(k.clone(), copy_tag(v));
             }
         }
     }
 }
 /// `old.copy().merge(nbt)`.
 pub fn merged(old: &Tag, nbt: &Tag) -> Tag {
-    let mut result = old.clone();
+    let mut result = copy_tag(old);
     if let (Tag::Compound(t), Tag::Compound(s)) = (&mut result, nbt) {
         merge_compound(t, s);
     }
